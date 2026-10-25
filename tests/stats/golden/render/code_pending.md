@@ -2,7 +2,7 @@
 
 **OUTPUT** 412 commits · 99% by agents · 61 plans committed (14 epic · 47 tale)
 **BY REPO** sase 380 (92%) · sase-core 32 (8%)
-no commits: sase-listen, sase-nvim
+no commits: sase-telegram, sase-listen, sase-nvim, shared-lib
 not measured: missing (not cloned)
 **CODE** measuring code…
 **RUNS** 233 runs on apollo · ✓ 189 × 31 · 81% success · 41 h agent time

@@ -50,7 +50,10 @@ _MAX_ELAPSED_SECONDS = 5.0
 # declaration_manifest split added ``sase.finalizers.declaration_manifest_commit``
 # and ``sase.finalizers.declaration_manifest_io``. Master measured 3536,
 # so the cap is 3537.
-_MAX_MODULE_COUNT = 3537
+# 2026-10-25 merge-base now measures 3538 with no sase.* module growth
+# (stdlib/dependency; ``tools/tui_import_closure --diff`` vs
+# origin/master), so the cap is 3539.
+_MAX_MODULE_COUNT = 3539
 
 
 def _measure_tui_app_import() -> dict[str, Any]:

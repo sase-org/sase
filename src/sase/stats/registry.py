@@ -24,7 +24,7 @@ StatisticsView = Literal[
     "plans_questions",
     "perf",
 ]
-ProjectsGroupBy = Literal["project", "repo", "model", "patch"]
+ProjectsGroupBy = Literal["project", "repo", "language", "model", "patch"]
 MacrosGroupBy = Literal["usage", "model", "project", "pairing"]
 _STATISTICS_ACCENT = "#FF87D7"
 
@@ -63,6 +63,7 @@ class StatisticsViewSpec:
 PROJECT_REPORT_GROUPINGS: tuple[ProjectsGroupBy, ...] = (
     "project",
     "repo",
+    "language",
     "model",
     "patch",
 )
@@ -108,6 +109,12 @@ PROJECT_REPORT_LEGENDS: tuple[MetricLegend, ...] = (
     MetricLegend("Tests", "test-line share of code lines"),
     MetricLegend("Doc lines", "non-blank documentation lines"),
     MetricLegend(
+        "By language",
+        "code lines per language, detected from file extension, then shebang, "
+        "at each code repo's default-branch tip; repo rows show where they "
+        "live; ? = code lines with no detected language",
+    ),
+    MetricLegend(
         "Age",
         "time since the first author-date commit across code repos",
     ),
@@ -135,6 +142,7 @@ PROJECT_REPORT_LEGENDS: tuple[MetricLegend, ...] = (
 _PROJECT_GROUP_LABELS: dict[str, str] = {
     "project": "By Project",
     "repo": "By Repo",
+    "language": "By Language",
     "model": "By Model",
     "patch": "Project → Patch",
 }

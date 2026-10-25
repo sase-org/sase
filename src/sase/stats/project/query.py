@@ -6,7 +6,7 @@ from typing import Literal
 from sase.stats.ranges import StatsRange
 
 ProjectStatsFacet = Literal["output", "code", "runs"]
-ProjectStatsGrouping = Literal["project", "repo", "model", "patch"]
+ProjectStatsGrouping = Literal["project", "repo", "language", "model", "patch"]
 ALL_FACETS: frozenset[ProjectStatsFacet] = frozenset({"output", "code", "runs"})
 
 

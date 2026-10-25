@@ -107,12 +107,16 @@ refresh, and `?` for the pane's key help. First open seeds the project filter fr
 `P` can always cycle away from that seed, including back to **All projects**. On Overview, Agents Run, Success Rate, and **Run commits (this machine)** open
 Projects; Plans Proposed and Questions open Plans & Questions. The Projects sub-tab
 reports default-branch output, committed plans, lifetime code, and this machine's runs.
-Press `g` to group by project, repo, model, or Project → Patch. Output and Runs paint
-first while Code measures. Overview's run-commit tile stays run-recorded and is
-distinct from Projects default-branch commits and Patch Run commits.
+Press `g` to group by project, repo, language, model, or Project → Patch. Output and
+Runs paint first while Code measures. Overview's run-commit tile stays run-recorded and
+is distinct from Projects default-branch commits and Patch Run commits.
 A one-project report breaks commits down by code repo directly under OUTPUT; sidecar
 repos are excluded, `—` marks unmeasured repos, and `≥` marks lower bounds from partial
 history. With several projects in scope, `g` → repo shows a Project → Repo tree.
+The summary card's `by lang` rows show each language's share of source plus test
+lines and the repos or projects that hold them. `g` → language shows the Language →
+Repo tree with exact lines, files, and shares. Repo `CODE LINES` count source plus
+test lines.
 
 The Projects report is also available through [`sase stats project`](../cli/stats.md),
 with the same definitions in the terminal, Markdown, and JSON outputs:

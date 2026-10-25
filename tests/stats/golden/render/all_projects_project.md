@@ -1,16 +1,17 @@
 # SASE projects · 2 enabled · Last 7 days · Oct 09 – Oct 16, 2026
 
 **OUTPUT** 501 commits · 99% by agents · 77 plans committed (17 epic · 60 tale)
-**CODE** 3.5M lines · 45% tests · 8 of 9 code repos
+**CODE** 3.5M lines · 45% tests · 9 of 10 code repos
+**BY LANGUAGE** Python 2,624,231 (75%) · Rust 610,000 (18%) · JavaScript 220,000 (6%) · CSS 10,167 (<1%) · JSON 5,000 (<1%) · Lua 4,389 (<1%) · Bash 1,000 (<1%) · Shell 500 (<1%) · Jinja 300 (<1%) · ? 1,234 (<1%)
 **RUNS** 403 runs on apollo · ✓ 339 × 64 · 84% success · 63 h agent time
 
 ## By project
 
 | Project | Commits | Agent | Plans | Code lines | Tests | Age | Runs | Success | Last commit |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| sase | 412 | 99% | 61 | 3,126,927 | 46% | 8 mo | 233 | 81% | 4 min ago |
-| bob-cli | 89 | 98% | 16 | 369,231 | 36% | 5 mo | 170 | 88% | 1 h ago |
-| total | 501 | 99% | 77 | 3,496,158 | 45% | 8 mo | 403 | 84% | 4 min ago |
+| sase | 412 | 99% | 61 | 3,137,590 | 46% | 8 mo | 233 | 81% | 4 min ago |
+| bob-cli | 89 | 98% | 16 | 349,231 | 38% | 5 mo | 170 | 88% | 1 h ago |
+| total | 501 | 99% | 77 | 3,476,821 | 45% | 8 mo | 403 | 84% | 4 min ago |
 
 Model recorded for 381 of 408 agent commits (93%) · 27 unresolved: 27 agent page not published
 Commits: code repos' default branches, by commit time · refs fetched 2 h ago (-F to refresh)

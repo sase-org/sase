@@ -14,6 +14,7 @@
 │ CODE     100k lines · 35% tests · 11 of 12 code repos                        │
 │                     Feb 14, 2026 · 8 months · commits on 239 of 245 days ·   │
 │          17,755 commits all time                                             │
+│ by lang  Python               100k ██████████████ 100% widgets, widgets-cli… │
 │ RUNS     233 runs on apollo · ✓ 189 × 31 · 81% success · 41 h agent time ·   │
 │          18 Patches                                                          │
 │          Commits by provider  ██████▓▓▓▓▒▒▒░░▓   🦋 muse 156  🤖 codex 98    │
@@ -34,7 +35,7 @@ widgets-infra                     linked          7     86%        1,000     40%
 widgets-extra                     linked          5     80%        1,000     40%
 widgets-tiny                      linked          1      0%        1,000     40%
 widgets-future  future_status     linked          —     75%        1,000     40%
-widgets-missing  not cloned       linked          —       —        1,000     40%
+widgets-missing  not cloned       linked          —       —            —       —
 widgets-nvim                      linked          0       —        1,000     40%
 Not counted: chezmoi (user-linked)
 Model recorded for 381 of 408 agent commits (93%) · 27 unresolved: 27 agent page
@@ -49,5 +50,5 @@ Plans = plan documents first committed to the plan store, by first-add committer
 time  ·  ? = model not recorded (unpublished page, empty metadata, ambiguous 
 session, or malformed tag)  ·  ∅ = no agent footer on the commit, or no proposer
 on the plan  ·  Runs = agent runs launched on this machine, by launch time
-More: -g repo · -g patch · -g project · -r all · -j        Definitions: sase 
-stats project -h
+More: -g repo · -g language · -g patch · -g project · -r all · -j        
+Definitions: sase stats project -h

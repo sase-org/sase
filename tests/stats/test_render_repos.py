@@ -148,4 +148,11 @@ def test_empty_range_has_only_quiet_rows() -> None:
 
     assert breakdown is not None
     assert breakdown.active == ()
-    assert breakdown.quiet == ("sase", "sase-core", "sase-listen", "sase-nvim")
+    assert breakdown.quiet == (
+        "sase",
+        "sase-core",
+        "sase-telegram",
+        "sase-listen",
+        "sase-nvim",
+        "shared-lib",
+    )

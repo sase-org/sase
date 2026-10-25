@@ -1,0 +1,51 @@
+╭─ ■ sase ─────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
+│ OUTPUT   412 commits · 99% by agents · 61 plans committed (14 epic · 47 tale)                                        │
+│ by repo  sase                                 380 ████████████████████████ 92%                                       │
+│          sase-core                             32 ██                       8%                                        │
+│          missing                                —                              not measured: not cloned              │
+│          no commits in range: sase-telegram, sase-listen, sase-nvim, shared-lib                                      │
+│ CODE     3.1M lines · 46% tests · 82k doc lines · 6 of 7 code repos                                                  │
+│                     Feb 14, 2026 · 8 months · commits on 239 of 245 days · 17,755 commits all time                   │
+│ by lang  Python                               2.6M ████████████████████████ 82% sase, sase-core, sase-telegram +3 m… │
+│          Rust                                 550k █████▏                   18% sase-core                            │
+│          CSS                                   10k ▏                        <1% sase, sase-telegram                  │
+│          +5 more                               11k ▏                        <1% JSON, Lua, Bash, Shell, Jinja        │
+│          ?  no language detected              1.2k ▏                        <1% sase, sase-listen                    │
+│ RUNS     233 runs on apollo · ✓ 189 × 31 · 81% success · 41 h agent time · 18 Patches                                │
+│          Commits by provider  █████████▓▓▓▓▓▓▒▒▒▒░░░▓▓   🦋 muse 156  🤖 codex 98  🎭 claude 71  🚀 grok 52  🤖      │
+│          openai 4  ? 27  ∅ 4                                                                                         │
+│          Plans by provider  ██▓▓▓▓▓▓▓▒▒▒▒▒▒▒▒▒▒▒▒░░█   🦋 muse 4  🤖 codex 18  🎭 claude 31  🚀 grok 6  ? 2          │
+╰──────────────────────────────────────────────────────────────────────────────── Last 7 days · Oct 09 – Oct 16, 2026 ─╯
+BY LANGUAGE · source + test lines at each code repo's default-branch tip                                                
+LANGUAGE                                                               LINES    FILES   SHARE                           
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+● Python                                                           2,565,000   12,570     82%   ████████████████████████
+    sase                                                           2,450,000   12,000     78%   ██████████████████████▉ 
+    sase-core                                                         50,000      300      2%   ▌                       
+    sase-telegram                                                     30,000       90      1%   ▎                       
+    +3 more repos                                                     35,000      180      1%   ▍                       
+● Rust  sase-core                                                    550,000    1,100     18%   █████▏                  
+● CSS                                                                 10,167        7     <1%   ▏                       
+    sase                                                              10,131        6     <1%   ▏                       
+    sase-telegram                                                         36        1     <1%   ▏                       
+● JSON  sase                                                           5,000       20     <1%   ▏                       
+● Lua  sase-nvim                                                       4,389       29     <1%   ▏                       
+● Bash  sase                                                           1,000       10     <1%   ▏                       
+● Shell  sase-listen                                                     500       10     <1%   ▏                       
+● Jinja  sase-nvim                                                       300        5     <1%   ▏                       
+?  no language detected                                                1,234       11     <1%   ▏                       
+    sase                                                               1,000        9     <1%   ▏                       
+    sase-listen                                                          234        2     <1%   ▏                       
+                                                                                                                        
+total                                                              3,137,590   13,765    100%                           
+No countable lines: Diff (3 files)
+not measured: missing (not cloned)
+Model recorded for 381 of 408 agent commits (93%) · 27 unresolved: 27 agent page not published
+Commits: code repos' default branches, by commit time · refs fetched 2 h ago (-F to refresh)
+Plans: first committed to the plan store, credited to the proposing model · Runs: this machine (apollo) only
+Issues: gh_sase-org__sase.missing: not cloned
+Commits = default-branch commits in code repos, by committer time in range  ·  Plans = plan documents first committed to
+the plan store, by first-add committer time  ·  ? = model not recorded (unpublished page, empty metadata, ambiguous 
+session, or malformed tag)  ·  ∅ = no agent footer on the commit, or no proposer on the plan  ·  Runs = agent runs 
+launched on this machine, by launch time
+More: -g repo · -g language · -g patch · -g project · -r all · -j        Definitions: sase stats project -h

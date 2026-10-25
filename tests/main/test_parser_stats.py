@@ -146,7 +146,7 @@ def test_project_help_includes_definitions_and_examples(
         help_text, "-f", "--format", "{json,markdown,rich}"
     )
     assert_metavar_option_documented(
-        help_text, "-g", "--group-by", "{model,patch,project,repo}"
+        help_text, "-g", "--group-by", "{language,model,patch,project,repo}"
     )
     assert "-j, --json" in help_text
     assert_metavar_option_documented(help_text, "-p", "--project", "PROJECT")

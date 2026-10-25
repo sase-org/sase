@@ -2,20 +2,23 @@
 
 **OUTPUT** 412 commits · 99% by agents · 61 plans committed (14 epic · 47 tale)
 **BY REPO** sase 380 (92%) · sase-core 32 (8%)
-no commits: sase-listen, sase-nvim
+no commits: sase-telegram, sase-listen, sase-nvim, shared-lib
 not measured: missing (not cloned)
 **CODE** 3.1M lines · 46% tests · 6 of 7 code repos
+**BY LANGUAGE** Python 2,565,000 (82%) · Rust 550,000 (18%) · CSS 10,167 (<1%) · JSON 5,000 (<1%) · Lua 4,389 (<1%) · Bash 1,000 (<1%) · Shell 500 (<1%) · Jinja 300 (<1%) · ? 1,234 (<1%)
 **RUNS** 233 runs on apollo · ✓ 189 × 31 · 81% success · 41 h agent time
 
 ## By repo
 
-| Repo | Kind | Commits | Agent | Code lines | Tests | Doc lines | First commit | Last commit |
-| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| sase | primary | 380 | 100% | 3,000,000 | 40% | 150,000 | Feb 14, 2026 | Oct 16, 2026 |
-| sase-core | linked | 32 | 97% | 126,927 | 40% | 6,346 | Feb 14, 2026 | Oct 16, 2026 |
-| missing (not cloned) | linked | — | — | — | — | — | — | — |
-| sase-listen | linked | 0 | — | 0 | 0% | 0 | Feb 14, 2026 | Oct 16, 2026 |
-| sase-nvim | linked | 0 | — | 0 | 0% | 0 | Feb 14, 2026 | Oct 16, 2026 |
+| Repo | Kind | Commits | Agent | Code lines | Tests | Language | Doc lines | First commit | Last commit |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| sase | primary | 380 | 100% | 2,467,131 | 40% | Python 99% | 123,356 | Feb 14, 2026 | Oct 16, 2026 |
+| sase-core | linked | 32 | 97% | 600,000 | 40% | Rust 92% | 30,000 | Feb 14, 2026 | Oct 16, 2026 |
+| missing (not cloned) | linked | — | — | — | — | — | — | — | — |
+| sase-listen | linked | 0 | — | 20,734 | 40% | Python 96% | 1,036 | Feb 14, 2026 | Oct 16, 2026 |
+| sase-nvim | linked | 0 | — | 9,689 | 40% | Python 52% | 484 | Feb 14, 2026 | Oct 16, 2026 |
+| sase-telegram | linked | 0 | — | 30,036 | 40% | Python >99% | 1,501 | Feb 14, 2026 | Oct 16, 2026 |
+| shared-lib | linked | 0 | — | 10,000 | 40% | Python 100% | 500 | Feb 14, 2026 | Oct 16, 2026 |
 
 ### Records
 

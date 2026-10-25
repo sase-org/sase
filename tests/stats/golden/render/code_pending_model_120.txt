@@ -3,7 +3,7 @@
 │ by repo  sase                                 380 ████████████████████████ 92%                                       │
 │          sase-core                             32 ██                       8%                                        │
 │          missing                                —                              not measured: not cloned              │
-│          no commits in range: sase-listen, sase-nvim                                                                 │
+│          no commits in range: sase-telegram, sase-listen, sase-nvim, shared-lib                                      │
 │ CODE     measuring code…                                                                                             │
 │                     Feb 14, 2026 · 8 months · commits on 239 of 245 days · 17,755 commits all time                   │
 │ RUNS     233 runs on apollo · ✓ 189 × 31 · 81% success · 41 h agent time · 18 Patches                                │
@@ -35,4 +35,4 @@ Commits = default-branch commits in code repos, by committer time in range  ·  
 the plan store, by first-add committer time  ·  ? = model not recorded (unpublished page, empty metadata, ambiguous 
 session, or malformed tag)  ·  ∅ = no agent footer on the commit, or no proposer on the plan  ·  Runs = agent runs 
 launched on this machine, by launch time
-More: -g repo · -g patch · -g project · -r all · -j        Definitions: sase stats project -h
+More: -g repo · -g language · -g patch · -g project · -r all · -j        Definitions: sase stats project -h

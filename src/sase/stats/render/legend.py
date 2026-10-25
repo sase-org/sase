@@ -36,7 +36,9 @@ def render_legend(view: ProjectStatsView, ctx: RenderContext) -> RenderableType:
         note.append(f" = {entry.meaning}")
     grouping = view.effective_group_by
     others = [
-        name for name in ("repo", "patch", "model", "project") if name != grouping
+        name
+        for name in ("repo", "language", "patch", "model", "project")
+        if name != grouping
     ]
     more = Text(
         "More: "

@@ -6,24 +6,25 @@ no commits: widgets-nvim
 not measured: widgets-future (future_status), widgets-missing (not cloned)
 66 commits are in more than one repo; the total counts each once
 **CODE** 100k lines · 35% tests · 11 of 12 code repos
+**BY LANGUAGE** Python 100,000 (100%)
 **RUNS** 233 runs on apollo · ✓ 189 × 31 · 81% success · 41 h agent time
 
 ## By repo
 
-| Repo | Kind | Commits | Agent | Code lines | Tests | Doc lines | First commit | Last commit |
-| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| widgets | primary | 380 | 100% | 1,000 | 40% | 50 | Feb 14, 2026 | Oct 16, 2026 |
-| widgets-core (partial) | linked | ≥32 | 97% | 1,000 | 40% | 50 | Feb 14, 2026 | Oct 16, 2026 |
-| widgets-cli | linked | 20 | 95% | 1,000 | 40% | 50 | Feb 14, 2026 | Oct 16, 2026 |
-| widgets-ui | linked | 15 | 93% | 1,000 | 40% | 50 | Feb 14, 2026 | Oct 16, 2026 |
-| widgets-docs | linked | 10 | 90% | 1,000 | 40% | 50 | Feb 14, 2026 | Oct 16, 2026 |
-| widgets-tools | linked | 8 | 88% | 1,000 | 40% | 50 | Feb 14, 2026 | Oct 16, 2026 |
-| widgets-infra | linked | 7 | 86% | 1,000 | 40% | 50 | Feb 14, 2026 | Oct 16, 2026 |
-| widgets-extra | linked | 5 | 80% | 1,000 | 40% | 50 | Feb 14, 2026 | Oct 16, 2026 |
-| widgets-tiny | linked | 1 | 0% | 1,000 | 40% | 50 | Feb 14, 2026 | Oct 16, 2026 |
-| widgets-future (future_status) | linked | — | 75% | 1,000 | 40% | 50 | Feb 14, 2026 | Oct 16, 2026 |
-| widgets-missing (not cloned) | linked | — | — | 1,000 | 40% | 50 | — | — |
-| widgets-nvim | linked | 0 | — | 1,000 | 40% | 50 | Feb 14, 2026 | Oct 16, 2026 |
+| Repo | Kind | Commits | Agent | Code lines | Tests | Language | Doc lines | First commit | Last commit |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| widgets | primary | 380 | 100% | 1,000 | 40% | Python 100% | 50 | Feb 14, 2026 | Oct 16, 2026 |
+| widgets-core (partial) | linked | ≥32 | 97% | 1,000 | 40% | — | 50 | Feb 14, 2026 | Oct 16, 2026 |
+| widgets-cli | linked | 20 | 95% | 1,000 | 40% | Python 100% | 50 | Feb 14, 2026 | Oct 16, 2026 |
+| widgets-ui | linked | 15 | 93% | 1,000 | 40% | Python 100% | 50 | Feb 14, 2026 | Oct 16, 2026 |
+| widgets-docs | linked | 10 | 90% | 1,000 | 40% | Python 100% | 50 | Feb 14, 2026 | Oct 16, 2026 |
+| widgets-tools | linked | 8 | 88% | 1,000 | 40% | Python 100% | 50 | Feb 14, 2026 | Oct 16, 2026 |
+| widgets-infra | linked | 7 | 86% | 1,000 | 40% | Python 100% | 50 | Feb 14, 2026 | Oct 16, 2026 |
+| widgets-extra | linked | 5 | 80% | 1,000 | 40% | Python 100% | 50 | Feb 14, 2026 | Oct 16, 2026 |
+| widgets-tiny | linked | 1 | 0% | 1,000 | 40% | Python 100% | 50 | Feb 14, 2026 | Oct 16, 2026 |
+| widgets-future (future_status) | linked | — | 75% | 1,000 | 40% | — | 50 | Feb 14, 2026 | Oct 16, 2026 |
+| widgets-missing (not cloned) | linked | — | — | — | — | — | — | — | — |
+| widgets-nvim | linked | 0 | — | 1,000 | 40% | Python 100% | 50 | Feb 14, 2026 | Oct 16, 2026 |
 
 Not counted: chezmoi (user-linked)
 

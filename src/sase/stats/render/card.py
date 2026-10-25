@@ -69,6 +69,7 @@ def render_project_card(view: ProjectStatsView, ctx: RenderContext) -> Renderabl
         lifetime = _lifetime_line(subject, ctx)
         if lifetime is not None:
             body.add_row("", lifetime)
+    _maybe_add_language_block(view, body, ctx)
     body.add_row("RUNS", _runs_line(subject, ctx))
     commit_bar = _provider_bar_line(
         view, ctx, metric="commits", label="Commits by provider"
@@ -156,6 +157,25 @@ def _code_line(view: ProjectStatsView, subject: _Subject, ctx: RenderContext) ->
             f"{format_count(code.repos_configured)} code repos"
         )
     return parts
+
+
+def _maybe_add_language_block(
+    view: ProjectStatsView, body: Table, ctx: RenderContext
+) -> None:
+    from sase.stats.project.languages import language_breakdown
+    from sase.stats.render.languages import render_language_card_block
+
+    breakdown = language_breakdown(view)
+    if breakdown is None:
+        return
+    block = render_language_card_block(breakdown, ctx)
+    if block is None:
+        return
+    accent = project_border_style(view)
+    body.add_row(
+        Text("by lang", style=f"dim {accent}"),
+        block,
+    )
 
 
 def _lifetime_line(subject: _Subject, ctx: RenderContext) -> Text | None:

@@ -2,9 +2,10 @@
 
 **OUTPUT** 0 commits · 0 plans committed (0 epic · 0 tale)
 **BY REPO** —
-no commits: sase, sase-core, sase-listen, sase-nvim
+no commits: sase, sase-core, sase-telegram, sase-listen, sase-nvim, shared-lib
 not measured: missing (not cloned)
 **CODE** 3.1M lines · 46% tests · 6 of 7 code repos
+**BY LANGUAGE** Python 2,565,000 (82%) · Rust 550,000 (18%) · CSS 10,167 (<1%) · JSON 5,000 (<1%) · Lua 4,389 (<1%) · Bash 1,000 (<1%) · Shell 500 (<1%) · Jinja 300 (<1%) · ? 1,234 (<1%)
 **RUNS** 0 runs on apollo · ✓ 0 × 0 · — success · 0ms agent time
 
 ## By model

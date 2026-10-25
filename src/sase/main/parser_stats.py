@@ -132,11 +132,14 @@ def _project_epilog() -> str:
             "  sase stats project",
             "  sase stats project -p sase -r all",
             "  sase stats project -p sase -g model -r 30d",
+            "  sase stats project -p sase -g language",
             "  sase stats project -p +sase -F -f markdown > sase-stats.md",
             "  sase stats project -p sase -j | jq "
             "'.data.projects[0].models[] | {provider, model, commits, plans}'",
             "  sase stats project -p sase -j | jq "
             "'.data.projects[0].repos[] | select(.tier == \"code\") | {name, commits: .output.commits}'",
+            "  sase stats project -p sase -j | jq "
+            "'.data.projects[0].code.languages | sort_by(-.lines)'",
         ]
     )
     return "\n".join(lines)

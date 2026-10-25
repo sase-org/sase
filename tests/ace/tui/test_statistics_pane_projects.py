@@ -46,12 +46,14 @@ def test_one_project_scope_defaults_to_model_and_skips_project_when_cycling() ->
     pane._projects_group_by = "project"
 
     assert pane._effective_projects_group_by() == "model"
-    assert pane._projects_group_cycle_order() == ("repo", "model", "patch")
+    assert pane._projects_group_cycle_order() == ("repo", "language", "model", "patch")
 
     pane.action_cycle_group()
     assert pane._projects_group_by == "patch"
     pane.action_cycle_group()
     assert pane._projects_group_by == "repo"
+    pane.action_cycle_group()
+    assert pane._projects_group_by == "language"
     pane.action_cycle_group()
     assert pane._projects_group_by == "model"
 
@@ -71,7 +73,7 @@ def test_several_projects_cycle_every_grouping_without_loading(
         pane.action_cycle_group()
         seen.append(pane._projects_group_by)
 
-    assert seen == ["repo", "model", "patch", "project"]
+    assert seen == ["repo", "language", "model", "patch", "project"]
     assert scheduled == []
 
 
@@ -288,6 +290,72 @@ def test_compact_and_stacked_projects_renders_match_shared_compose() -> None:
 
 def test_load_project_code_stats_is_the_visual_seam() -> None:
     assert callable(_load_project_code_stats)
+
+
+def test_projects_pane_renders_by_language_with_repo_names() -> None:
+    pane = StatisticsPane(auto_load=False)
+    report = one_project_view()
+    result = StatisticsViewData(
+        view="projects",
+        selected_range=pane._range,
+        generated_at=NOW.timestamp(),
+        project_filter="sase",
+        project_stats=report,
+    )
+    pane._last_result = result
+    pane._project_filter = "sase"
+    pane._projects_group_by = "language"
+    pane._projects_body_width = lambda: 120  # type: ignore[method-assign]
+    rendered = _render_plain(pane._projects_renderable(result))
+    assert "BY LANGUAGE" in rendered
+    for name in ("sase", "sase-core", "sase-telegram", "sase-nvim"):
+        assert name in rendered
+
+
+def test_language_grouping_while_pending_shows_measuring_without_reload(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    pane = StatisticsPane(auto_load=False)
+    pane._view = "projects"
+    pane._project_filter = "sase"
+    pane._last_result = _result(
+        "projects", pane._range, project_filter="sase", facets={"output", "runs"}
+    )
+    pane._projects_group_by = "model"
+    scheduled: list[bool] = []
+    monkeypatch.setattr(pane, "_schedule_load", lambda: scheduled.append(True))
+    monkeypatch.setattr(pane, "_paint_current_view", lambda: None)
+    pane._projects_group_by = "language"
+    pane.action_cycle_group()
+    # Cycling groupings never reloads; the worker seam stays on facets.
+    assert scheduled == []
+    assert pane._projects_group_by != "language"
+    pane._projects_group_by = "language"
+    rendered = _render_plain(pane._projects_renderable(pane._last_result))
+    assert "measuring code…" in rendered
+
+
+def test_merged_code_report_produces_language_rows() -> None:
+    primary = one_project_view(facets={"output", "runs"})
+    code = one_project_view(facets={"code"})
+    merged = merge_project_code_stats(primary, code)
+    assert merged is not None
+    pane = StatisticsPane(auto_load=False)
+    result = StatisticsViewData(
+        view="projects",
+        selected_range=pane._range,
+        generated_at=NOW.timestamp(),
+        project_filter="sase",
+        project_stats=merged,
+    )
+    pane._last_result = result
+    pane._project_filter = "sase"
+    pane._projects_group_by = "language"
+    pane._projects_body_width = lambda: 120  # type: ignore[method-assign]
+    rendered = _render_plain(pane._projects_renderable(result))
+    assert "BY LANGUAGE" in rendered
+    assert "Python" in rendered
+    assert "sase-core" in rendered
 
 
 def test_selection_identity_excludes_resolved_bounds() -> None:

@@ -43,7 +43,7 @@ def test_project_report_constants_drive_the_live_spec() -> None:
     spec = {item.id: item for item in STATISTICS_VIEW_SPECS}["projects"]
     assert tuple(group.id for group in spec.groupings) == PROJECT_REPORT_GROUPINGS
     assert spec.legends == PROJECT_REPORT_LEGENDS
-    assert PROJECT_REPORT_GROUPINGS == ("project", "repo", "model", "patch")
+    assert PROJECT_REPORT_GROUPINGS == ("project", "repo", "language", "model", "patch")
     terms = {entry.term for entry in PROJECT_REPORT_LEGENDS}
     assert {"Commits", "Plans", "Runs", "?", "∅", "Coverage"} <= terms
 
@@ -91,6 +91,7 @@ def test_groupings_stay_on_the_pre_tui_ids() -> None:
     assert tuple(group.id for group in by_id["projects"].groupings) == (
         "project",
         "repo",
+        "language",
         "model",
         "patch",
     )
@@ -105,7 +106,7 @@ def test_groupings_stay_on_the_pre_tui_ids() -> None:
         "provider",
         "workflow",
     )
-    assert PROJECTS_GROUP_ORDER == ("project", "repo", "model", "patch")
+    assert PROJECTS_GROUP_ORDER == ("project", "repo", "language", "model", "patch")
     assert MACROS_GROUP_ORDER == ("usage", "model", "project", "pairing")
     assert PERF_GROUP_ORDER == ("subsystem", "provider", "workflow")
     for spec in STATISTICS_VIEW_SPECS:
@@ -122,6 +123,7 @@ def test_legends_live_on_the_spec_and_the_view_lookup() -> None:
         assert spec.legends
     assert statistics_group_label("projects", "patch") == "Project → Patch"
     assert statistics_group_label("projects", "repo") == "By Repo"
+    assert statistics_group_label("projects", "language") == "By Language"
     assert statistics_group_label("projects", "model") == "By Model"
     assert statistics_group_label("macros", "pairing") == "Used With"
     assert statistics_group_label("perf", "unknown") == "unknown"

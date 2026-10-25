@@ -111,6 +111,35 @@ def test_json_envelope_round_trip(
     assert envelope["query"]["group_by"] == "model"
 
 
+def test_language_grouping_parses_renders_and_reports_envelope(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    from tests.stats._project_render_fixtures import build_view
+
+    view = one_project_view()
+    monkeypatch.setattr(
+        "sase.main.stats_handler_project.load_project_stats", lambda query: view
+    )
+    argv = ["stats", "project", "-p", "sase", "-g", "language"]
+    assert handle_stats_project(parse_sase_args(argv), argv=argv) == 0
+    out = capsys.readouterr().out
+    assert "BY LANGUAGE" in out
+
+    language_view = build_view(
+        projects=[view.data["projects"][0]],
+        group_by="language",
+        project_refs=("sase",),
+    )
+    monkeypatch.setattr(
+        "sase.main.stats_handler_project.load_project_stats",
+        lambda query: language_view,
+    )
+    argv_json = ["stats", "project", "-p", "sase", "-g", "language", "-j"]
+    assert handle_stats_project(parse_sase_args(argv_json), argv=argv_json) == 0
+    envelope = json.loads(capsys.readouterr().out)
+    assert envelope["query"]["group_by"] == "language"
+
+
 def test_cli_json_data_matches_projects_tui_worker_payload(
     monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:

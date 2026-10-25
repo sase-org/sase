@@ -183,9 +183,9 @@ Projects**, **04 Providers**, **05 Activity**, **06 Macros**, **07 Plans & Quest
 and **08 Perf**. The Runners view uses today's effective global limit—including a
 temporary override—as present-day context, never as historical configuration. The
 Projects view reports default-branch output, committed plans, lifetime code, and this
-machine's runs. Press `g` to group by project, repo, model, or Project → Patch; several
-projects default to project grouping, while a one-project scope defaults to model and
-skips project while cycling. Macros can group by usage, model, project, or co-usage.
+machine's runs. Press `g` to group by project, repo, language, model, or Project →
+Patch; several projects default to project grouping, while a one-project scope defaults
+to model and skips project while cycling. Macros can group by usage, model, project, or co-usage.
 Perf combines TUI startup and responsiveness logs with telemetry latency and
 reliability; its grouping cycles through subsystem, provider, and workflow. A pane-wide
 project filter lets you apply the same scope to the run-backed views, but Perf is global

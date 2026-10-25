@@ -218,6 +218,15 @@ def test_query_render_options_do_not_change_data_request(inventory):
     assert a == b
 
 
+def test_language_grouping_is_accepted(inventory):
+    request = module.build_project_stats_request(
+        _query("alpha", group_by="language"), now_ts=200
+    )
+    assert request.data["projects"][0]["key"] == "alpha"
+    with __import__("pytest").raises(ProjectStatsUsageError):
+        module.build_project_stats_request(_query("alpha", group_by="nope"), now_ts=200)
+
+
 def test_remote_identity_uses_core_canonicalization(inventory):
     _, repos = inventory
     repos[1] = replace(repos[1], remote_url="git@github.com:org/library.git")

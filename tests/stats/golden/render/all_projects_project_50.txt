@@ -1,8 +1,12 @@
 ╭─ SASE projects · 2 enabled ────────────────────╮
 │ OUTPUT   501 commits · 99% by agents · 77      │
 │          plans committed (17 epic · 60 tale)   │
-│ CODE     3.5M lines · 45% tests · 8 of 9 code  │
+│ CODE     3.5M lines · 45% tests · 9 of 10 code │
 │          repos                                 │
+│ by lang  Python        2.6M 75% sase, bob-cli  │
+│          Rust          610k 18% sase, bob-cli  │
+│          +7 more       241k 7%  JavaScript, C… │
+│          ?  no langua… 1.2k <1% sase           │
 │ RUNS     403 runs on apollo · ✓ 339 × 64 · 84% │
 │          success · 63 h agent time · 27        │
 │          Patches                               │

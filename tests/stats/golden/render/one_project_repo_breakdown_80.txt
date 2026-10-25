@@ -4,10 +4,15 @@
 │ by repo  sase                  380 ██████████████ 92%                        │
 │          sase-core              32 █▏             8%                         │
 │          missing                 —                    not measured: not clo… │
-│          no commits in range: sase-listen, sase-nvim                         │
+│          no commits in range: sase-telegram, sase-listen, sase-nvim, shared… │
 │ CODE     3.1M lines · 46% tests · 6 of 7 code repos                          │
 │                     Feb 14, 2026 · 8 months · commits on 239 of 245 days ·   │
 │          17,755 commits all time                                             │
+│ by lang  Python                2.6M ██████████████ 82% sase, sase-core, sas… │
+│          Rust                  550k ███            18% sase-core             │
+│          CSS                    10k ▏              <1% sase, sase-telegram   │
+│          +5 more                11k ▏              <1% JSON, Lua, Bash, She… │
+│          ?  no language detec… 1.2k ▏              <1% sase, sase-listen     │
 │ RUNS     233 runs on apollo · ✓ 189 × 31 · 81% success · 41 h agent time ·   │
 │          18 Patches                                                          │
 │          Commits by provider  ██████▓▓▓▓▒▒▒░░▓   🦋 muse 156  🤖 codex 98    │
@@ -18,11 +23,13 @@
 REPO · Last 7 days · Oct 09 – Oct 16, 2026                                      
 REPO                              KIND      COMMITS   AGENT   CODE LINES   TESTS
 ────────────────────────────────────────────────────────────────────────────────
-sase                              primary       380    100%    3,000,000     40%
-sase-core                         linked         32     97%      126,927     40%
+sase                              primary       380    100%    2,467,131     40%
+sase-core                         linked         32     97%      600,000     40%
 missing  not cloned               linked          —       —            —       —
-sase-listen                       linked          0       —            0      0%
-sase-nvim                         linked          0       —            0      0%
+sase-listen                       linked          0       —       20,734     40%
+sase-nvim                         linked          0       —        9,689     40%
+sase-telegram                     linked          0       —       30,036     40%
+shared-lib                        linked          0       —       10,000     40%
 RECORDS · sidecars, never totaled                                               
 REPO                                                             COMMITS   FILES
 ────────────────────────────────────────────────────────────────────────────────
@@ -40,5 +47,5 @@ Plans = plan documents first committed to the plan store, by first-add committer
 time  ·  ? = model not recorded (unpublished page, empty metadata, ambiguous 
 session, or malformed tag)  ·  ∅ = no agent footer on the commit, or no proposer
 on the plan  ·  Runs = agent runs launched on this machine, by launch time
-More: -g repo · -g patch · -g project · -r all · -j        Definitions: sase 
-stats project -h
+More: -g repo · -g language · -g patch · -g project · -r all · -j        
+Definitions: sase stats project -h

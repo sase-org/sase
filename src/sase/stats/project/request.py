@@ -51,7 +51,7 @@ def build_project_stats_request(
     """Resolve selectors without cwd inference and leave all counting to core."""
     if not facets or set(facets) - ALL_FACETS:
         raise ProjectStatsUsageError("Request at least one of output, code, runs")
-    if query.group_by not in {None, "project", "repo", "model", "patch"}:
+    if query.group_by not in {None, "project", "repo", "language", "model", "patch"}:
         raise ProjectStatsUsageError(f"Unknown project grouping: {query.group_by}")
     records = list_project_records(
         sase_projects_dir(), ("enabled", "disabled"), projects_only=True

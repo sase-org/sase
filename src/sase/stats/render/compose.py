@@ -11,6 +11,7 @@ from sase.stats.project.view import ProjectStatsView
 from sase.stats.registry import PROJECT_REPORT_GROUPINGS
 from sase.stats.render.card import render_project_card
 from sase.stats.render.context import RenderContext
+from sase.stats.render.languages import render_language_table
 from sase.stats.render.legend import render_coverage_footer, render_legend
 from sase.stats.render.repos import render_repo_table
 from sase.stats.render.tables import (
@@ -24,6 +25,7 @@ _GROUP_RENDERERS: dict[
 ] = {
     "project": render_project_table,
     "repo": render_repo_table,
+    "language": render_language_table,
     "model": render_model_table,
     "patch": render_patch_tree,
 }

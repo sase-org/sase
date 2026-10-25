@@ -1,7 +1,12 @@
 ╭─ SASE projects · 2 enabled ──────────────────────────────────────────────────╮
 │ OUTPUT   501 commits · 99% by agents · 77 plans committed (17 epic · 60      │
 │          tale)                                                               │
-│ CODE     3.5M lines · 45% tests · 8 of 9 code repos                          │
+│ CODE     3.5M lines · 45% tests · 9 of 10 code repos                         │
+│ by lang  Python                2.6M ██████████████ 75% sase, bob-cli         │
+│          Rust                  610k ███▎           18% sase, bob-cli         │
+│          JavaScript            220k █▏             6%  bob-cli               │
+│          +6 more                21k ▏              1%  CSS, JSON, Lua, Bash… │
+│          ?  no language detec… 1.2k ▏              <1% sase                  │
 │ RUNS     403 runs on apollo · ✓ 339 × 64 · 84% success · 63 h agent time ·   │
 │          27 Patches                                                          │
 │          Commits by provider  ██████▓▓▓▓▓▒▒░░▓   🦋 muse 197  🤖 codex 140   │
@@ -10,16 +15,19 @@
 REPO · Last 7 days · Oct 09 – Oct 16, 2026                                      
 PROJECT → REPO                    KIND      COMMITS   AGENT   CODE LINES   TESTS
 ────────────────────────────────────────────────────────────────────────────────
-■ sase                                          412     99%    3,126,927     46%
-    sase                          primary       380    100%    3,000,000     40%
-    sase-core                     linked         32     97%      126,927     40%
+■ sase                                          412     99%    3,137,590     46%
+    sase                          primary       380    100%    2,467,131     40%
+    sase-core                     linked         32     97%      600,000     40%
     missing  not cloned           linked          —       —            —       —
-    sase-listen                   linked          0       —            0      0%
-    sase-nvim                     linked          0       —            0      0%
-■ bob-cli                                        89     98%      369,231     36%
-    bob-cli                       primary        89     99%      280,000     40%
+    sase-listen                   linked          0       —       20,734     40%
+    sase-nvim                     linked          0       —        9,689     40%
+    sase-telegram                 linked          0       —       30,036     40%
+    shared-lib                    linked          0       —       10,000     40%
+■ bob-cli                                        89     98%      349,231     38%
+    bob-cli                       primary        89     99%      250,000     40%
     bob-plugins                   linked         63     98%       80,000     40%
     bob-mac-capture               linked          0       —        9,231     40%
+    shared-lib                    linked          0       —       10,000     40%
 RECORDS · sidecars, never totaled                                               
 PROJECT   REPO                                                   COMMITS   FILES
 ────────────────────────────────────────────────────────────────────────────────
@@ -37,5 +45,5 @@ Plans = plan documents first committed to the plan store, by first-add committer
 time  ·  ? = model not recorded (unpublished page, empty metadata, ambiguous 
 session, or malformed tag)  ·  ∅ = no agent footer on the commit, or no proposer
 on the plan  ·  Runs = agent runs launched on this machine, by launch time
-More: -g repo · -g patch · -g model · -r all · -j        Definitions: sase stats
-project -h
+More: -g repo · -g language · -g patch · -g model · -r all · -j        
+Definitions: sase stats project -h

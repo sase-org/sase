@@ -145,22 +145,11 @@ def render_repo_breakdown(
     accent: str,
 ) -> RenderableType:
     """Render the compact one-project card block."""
-    if ctx.width >= 100:
-        name_cap, bar_width = 28, 24
-    elif ctx.width >= 80:
-        name_cap, bar_width = 22, 14
-    elif ctx.width >= 60:
-        name_cap, bar_width = 16, 10
-    else:
-        name_cap, bar_width = 12, 0
+    from sase.stats.render.languages import breakdown_widths, make_breakdown_grid
 
-    table = Table.grid(padding=(0, 1), expand=True)
-    table.add_column(max_width=name_cap, no_wrap=True, overflow="ellipsis", ratio=1)
-    table.add_column(justify="right", no_wrap=True)
-    if bar_width:
-        table.add_column(width=bar_width, no_wrap=True)
-    table.add_column(no_wrap=True)
-    table.add_column(no_wrap=True, overflow="ellipsis", ratio=1)
+    _name_cap, bar_width = breakdown_widths(ctx)
+
+    table = make_breakdown_grid(ctx)
 
     active_commits = [row.commits for row in breakdown.active]
     max_commits = max(active_commits, default=0)
@@ -280,16 +269,36 @@ def _project_sort_key(project: ProjectStatsProject) -> tuple[float, str, str]:
     )
 
 
-def _repo_snapshot_cells(repo: ProjectStatsRepo) -> tuple[str, str, str, str, str]:
+def _repo_snapshot_cells(
+    repo: ProjectStatsRepo, ctx: RenderContext
+) -> tuple[RenderableType, RenderableType, str, str, RenderableType, str]:
+    from sase.stats.project.languages import repo_code_lines, repo_test_lines
+    from sase.stats.render.languages import language_cell_text, top_language
+
     snapshot = repo.snapshot
     output = repo.output
+    code_lines = repo_code_lines(snapshot)
+    if snapshot is None or code_lines is None:
+        lines_text: str = maybe_int(None)
+        tests_text: str = DASH
+        language_text: RenderableType = Text(DASH, style=DIM)
+    else:
+        lines_text = maybe_int(code_lines)
+        test_lines = repo_test_lines(snapshot)
+        if test_lines is None:
+            test_lines = snapshot.test_lines
+        tests_text = DASH if test_lines is None else share_of(test_lines, code_lines)
+        top = top_language(snapshot.languages)
+        if top is None:
+            language_text = Text(DASH, style=DIM)
+        else:
+            language_text = language_cell_text(top[0], top[1], code_lines, ctx)
     return (
         repo_commits_cell(repo),
         agent_share_cell(output),
-        maybe_int(None if snapshot is None else snapshot.tracked_lines),
-        DASH
-        if snapshot is None
-        else share_of(snapshot.test_lines, snapshot.tracked_lines),
+        lines_text,
+        tests_text,
+        language_text,
         maybe_int(None if snapshot is None else snapshot.doc_lines),
     )
 
@@ -304,6 +313,20 @@ def _repo_date_cells(repo: ProjectStatsRepo, ctx: RenderContext) -> tuple[str, s
             None if lifetime is None else lifetime.last_commit_ts, ctx, "%b %d, %Y"
         ),
     )
+
+
+def _project_language_cell(
+    project: ProjectStatsProject, ctx: RenderContext
+) -> RenderableType:
+    from sase.stats.render.languages import language_cell_text, top_language
+
+    code = project.code
+    if code is None or code.code_lines is None or not code.code_lines:
+        return Text(DASH, style=DIM)
+    top = top_language(code.languages)
+    if top is None:
+        return Text(DASH, style=DIM)
+    return language_cell_text(top[0], top[1], code.code_lines, ctx)
 
 
 def _project_tree_cells(
@@ -328,6 +351,7 @@ def _project_tree_cells(
         agent_share_cell(output),
         maybe_int(None if code is None else code.code_lines),
         tests,
+        _project_language_cell(project, ctx),
         maybe_int(None if code is None else code.doc_lines),
         format_ts(
             None if lifetime is None else lifetime.first_commit_ts, ctx, "%b %d, %Y"
@@ -344,7 +368,7 @@ def _collapsed_tree_row(
     project_name = _project_cell(project, ctx)
     if repo.name != project.label:
         project_name.append(f" · {repo.name}", style=DIM)
-    commits, agent, lines, tests, docs = _repo_snapshot_cells(repo)
+    commits, agent, lines, tests, language, docs = _repo_snapshot_cells(repo, ctx)
     first, last = _repo_date_cells(repo, ctx)
     return (
         project_name,
@@ -353,6 +377,7 @@ def _collapsed_tree_row(
         agent,
         lines,
         tests,
+        language,
         docs,
         first,
         last,
@@ -366,8 +391,10 @@ def _tree_table(
     *,
     first_header: str,
 ) -> Table:
-    all_details = ["DOC LINES", "FIRST COMMIT", "LAST COMMIT"]
-    details = all_details.copy()
+    # LANGUAGE sits right after TESTS and outlives the other detail columns.
+    header_order = ["LANGUAGE", "DOC LINES", "FIRST COMMIT", "LAST COMMIT"]
+    drop_order = ["DOC LINES", "FIRST COMMIT", "LAST COMMIT", "LANGUAGE"]
+    details = header_order.copy()
     if not ctx.show_detail_columns:
         details = []
     headers = [
@@ -404,12 +431,15 @@ def _tree_table(
             fixed += max(values) + 2
         return name_floor + 2 + fixed + max(0, len(headers) - 1)
 
-    for header in tuple(details):
+    for header in tuple(drop_order):
+        if header not in headers:
+            continue
         if required() <= ctx.width:
             break
         index = headers.index(header)
         headers.pop(index)
-        details.remove(header)
+        if header in details:
+            details.remove(header)
         rows[:] = [row[:index] + row[index + 1 :] for row in rows]
 
     table = _table(ctx=ctx, title=f"REPO · {range_heading(view)}")
@@ -461,7 +491,9 @@ def render_repo_table(view: ProjectStatsView, ctx: RenderContext) -> RenderableT
             row_data.append(_project_tree_cells(project, ctx))
             row_styles.append(None)
             for repo in repos:
-                commits, agent, lines, tests, docs = _repo_snapshot_cells(repo)
+                commits, agent, lines, tests, language, docs = _repo_snapshot_cells(
+                    repo, ctx
+                )
                 first, last = _repo_date_cells(repo, ctx)
                 row_data.append(
                     (
@@ -471,6 +503,7 @@ def render_repo_table(view: ProjectStatsView, ctx: RenderContext) -> RenderableT
                         agent,
                         lines,
                         tests,
+                        language,
                         docs,
                         first,
                         last,
@@ -489,7 +522,9 @@ def render_repo_table(view: ProjectStatsView, ctx: RenderContext) -> RenderableT
         if code_projects:
             _project, repos = code_projects[0]
             for repo in repos:
-                commits, agent, lines, tests, docs = _repo_snapshot_cells(repo)
+                commits, agent, lines, tests, language, docs = _repo_snapshot_cells(
+                    repo, ctx
+                )
                 first, last = _repo_date_cells(repo, ctx)
                 repo_row: RepoTableRow = (
                     _status_name(repo),
@@ -498,6 +533,7 @@ def render_repo_table(view: ProjectStatsView, ctx: RenderContext) -> RenderableT
                     agent,
                     lines,
                     tests,
+                    language,
                     docs,
                     first,
                     last,

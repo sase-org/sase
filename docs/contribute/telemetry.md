@@ -209,16 +209,16 @@ retention rules.
 
 The eight numbered views answer different questions:
 
-| #   | View                  | Contents                                                                                                                                                                                                                                                                |
-| --- | --------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 01  | **Overview**          | Run volume over time plus top providers, skills, and projects.                                                                                                                                                                                                          |
-| 02  | **Runners**           | Historical runner occupancy and concurrency trends, with today's effective global limit (including a temporary override) as present-day context.                                                                                                                        |
-| 03  | **Projects**          | Default-branch output, committed plans, lifetime code, and this machine's runs. `g` cycles project, repo, model, and Project → Patch. Output/Runs paint first while Code shows `measuring code…`. A bounded Patch list closes with `N additional Patch rows not shown.` |
-| 04  | **Providers**         | Provider, model, and effort usage with success rates and average runtime.                                                                                                                                                                                               |
-| 05  | **Activity**          | Skill, memory, and workspace use; the three panels are titled **Top …** because each is truncated to the highest-volume rows.                                                                                                                                           |
-| 06  | **Macros**            | Macro use by frequency, model, project, and co-usage, with an optional focused Macro drill-down.                                                                                                                                                                        |
-| 07  | **Plans & Questions** | Plan lifecycle and tier/phase distributions plus question-session counts and sizes.                                                                                                                                                                                     |
-| 08  | **Perf**              | TUI startup and responsiveness, launch and agent/LLM latency, reliability, and the health of each data source.                                                                                                                                                          |
+| #   | View                  | Contents                                                                                                                                                                                                                                                                          |
+| --- | --------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 01  | **Overview**          | Run volume over time plus top providers, skills, and projects.                                                                                                                                                                                                                    |
+| 02  | **Runners**           | Historical runner occupancy and concurrency trends, with today's effective global limit (including a temporary override) as present-day context.                                                                                                                                  |
+| 03  | **Projects**          | Default-branch output, committed plans, lifetime code, and this machine's runs. `g` cycles project, repo, language, model, and Project → Patch. Output/Runs paint first while Code shows `measuring code…`. A bounded Patch list closes with `N additional Patch rows not shown.` |
+| 04  | **Providers**         | Provider, model, and effort usage with success rates and average runtime.                                                                                                                                                                                                         |
+| 05  | **Activity**          | Skill, memory, and workspace use; the three panels are titled **Top …** because each is truncated to the highest-volume rows.                                                                                                                                                     |
+| 06  | **Macros**            | Macro use by frequency, model, project, and co-usage, with an optional focused Macro drill-down.                                                                                                                                                                                  |
+| 07  | **Plans & Questions** | Plan lifecycle and tier/phase distributions plus question-session counts and sizes.                                                                                                                                                                                               |
+| 08  | **Perf**              | TUI startup and responsiveness, launch and agent/LLM latency, reliability, and the health of each data source.                                                                                                                                                                    |
 
 Each populated view ends with a compact legend defining its calculated metrics. Press
 `?` for the complete per-view glossary, control list, active range/group/project scope,
@@ -299,8 +299,8 @@ by committer time in the selected range, plan documents by first-add committer t
 the plan store, and this machine's runs by launch time. Code is a lifetime measurement
 of the committed tree, not a range total. Fetch is a CLI preflight; the Statistics pane
 never fetches remotes. Several projects default to project grouping; one project
-defaults to model, skips project while cycling, and still offers repo, model, and
-Project → Patch. The `(no Patch)` row is for runs that have a project but no Patch
+defaults to model, skips project while cycling, and still offers repo, language, model,
+and Project → Patch. The `(no Patch)` row is for runs that have a project but no Patch
 attribution. Unchanged fingerprints skip a report-body rebuild, but the first Code
 completion still paints. A failed refresh keeps the last good report for that selection
 and shows `stale · <time>` with the failure; a first-load failure shows an error rather

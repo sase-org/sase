@@ -1,23 +1,27 @@
 # SASE projects · 2 enabled · Last 7 days · Oct 09 – Oct 16, 2026
 
 **OUTPUT** 501 commits · 99% by agents · 77 plans committed (17 epic · 60 tale)
-**CODE** 3.5M lines · 45% tests · 8 of 9 code repos
+**CODE** 3.5M lines · 45% tests · 9 of 10 code repos
+**BY LANGUAGE** Python 2,624,231 (75%) · Rust 610,000 (18%) · JavaScript 220,000 (6%) · CSS 10,167 (<1%) · JSON 5,000 (<1%) · Lua 4,389 (<1%) · Bash 1,000 (<1%) · Shell 500 (<1%) · Jinja 300 (<1%) · ? 1,234 (<1%)
 **RUNS** 403 runs on apollo · ✓ 339 × 64 · 84% success · 63 h agent time
 
 ## By repo
 
-| Project → Repo | Kind | Commits | Agent | Code lines | Tests | Doc lines | First commit | Last commit |
-| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| sase |  | 412 | 99% | 3,126,927 | 46% | 82,000 | Feb 14, 2026 | Oct 16, 2026 |
-|   sase | primary | 380 | 100% | 3,000,000 | 40% | 150,000 | Feb 14, 2026 | Oct 16, 2026 |
-|   sase-core | linked | 32 | 97% | 126,927 | 40% | 6,346 | Feb 14, 2026 | Oct 16, 2026 |
-|   missing (not cloned) | linked | — | — | — | — | — | — | — |
-|   sase-listen | linked | 0 | — | 0 | 0% | 0 | Feb 14, 2026 | Oct 16, 2026 |
-|   sase-nvim | linked | 0 | — | 0 | 0% | 0 | Feb 14, 2026 | Oct 16, 2026 |
-| bob-cli |  | 89 | 98% | 369,231 | 36% | 8,000 | May 01, 2026 | Oct 16, 2026 |
-|   bob-cli | primary | 89 | 99% | 280,000 | 40% | 14,000 | Feb 14, 2026 | Oct 16, 2026 |
-|   bob-plugins | linked | 63 | 98% | 80,000 | 40% | 4,000 | Feb 14, 2026 | Oct 16, 2026 |
-|   bob-mac-capture | linked | 0 | — | 9,231 | 40% | 461 | Feb 14, 2026 | Oct 16, 2026 |
+| Project → Repo | Kind | Commits | Agent | Code lines | Tests | Language | Doc lines | First commit | Last commit |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| sase |  | 412 | 99% | 3,137,590 | 46% | Python 82% | 82,000 | Feb 14, 2026 | Oct 16, 2026 |
+|   sase | primary | 380 | 100% | 2,467,131 | 40% | Python 99% | 123,356 | Feb 14, 2026 | Oct 16, 2026 |
+|   sase-core | linked | 32 | 97% | 600,000 | 40% | Rust 92% | 30,000 | Feb 14, 2026 | Oct 16, 2026 |
+|   missing (not cloned) | linked | — | — | — | — | — | — | — | — |
+|   sase-listen | linked | 0 | — | 20,734 | 40% | Python 96% | 1,036 | Feb 14, 2026 | Oct 16, 2026 |
+|   sase-nvim | linked | 0 | — | 9,689 | 40% | Python 52% | 484 | Feb 14, 2026 | Oct 16, 2026 |
+|   sase-telegram | linked | 0 | — | 30,036 | 40% | Python >99% | 1,501 | Feb 14, 2026 | Oct 16, 2026 |
+|   shared-lib | linked | 0 | — | 10,000 | 40% | Python 100% | 500 | Feb 14, 2026 | Oct 16, 2026 |
+| bob-cli |  | 89 | 98% | 349,231 | 38% | JavaScript 63% | 8,000 | May 01, 2026 | Oct 16, 2026 |
+|   bob-cli | primary | 89 | 99% | 250,000 | 40% | JavaScript 80% | 12,500 | Feb 14, 2026 | Oct 16, 2026 |
+|   bob-plugins | linked | 63 | 98% | 80,000 | 40% | Rust 75% | 4,000 | Feb 14, 2026 | Oct 16, 2026 |
+|   bob-mac-capture | linked | 0 | — | 9,231 | 40% | Python 100% | 461 | Feb 14, 2026 | Oct 16, 2026 |
+|   shared-lib | linked | 0 | — | 10,000 | 40% | Python 100% | 500 | Feb 14, 2026 | Oct 16, 2026 |
 
 ### Records
 

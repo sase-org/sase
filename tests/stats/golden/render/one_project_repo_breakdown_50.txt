@@ -4,12 +4,16 @@
 │ by repo  sase           380 92%                │
 │          sase-core       32 8%                 │
 │          missing          —     not measured:… │
-│          no commits in range: sase-listen, sa… │
+│          no commits in range: sase-telegram, … │
 │ CODE     3.1M lines · 46% tests · 6 of 7 code  │
 │          repos                                 │
 │                     Feb 14, 2026 · 8 months ·  │
 │          commits on 239 of 245 days · 17,755   │
 │          commits all time                      │
+│ by lang  Python        2.6M 82% sase, sase-co… │
+│          Rust          550k 18% sase-core      │
+│          +6 more        21k 1%  CSS, JSON, Lu… │
+│          ?  no langua… 1.2k <1% sase, sase-li… │
 │ RUNS     233 runs on apollo · ✓ 189 × 31 · 81% │
 │          success · 41 h agent time · 18        │
 │          Patches                               │
@@ -23,11 +27,13 @@
 REPO · Last 7 days · Oct 09 – Oct 16, 2026        
 …   KIND      COMMITS   AGENT   CODE LINES   TESTS
 ──────────────────────────────────────────────────
-…   primary       380    100%    3,000,000     40%
-…   linked         32     97%      126,927     40%
+…   primary       380    100%    2,467,131     40%
+…   linked         32     97%      600,000     40%
 …   linked          —       —            —       —
-…   linked          0       —            0      0%
-…   linked          0       —            0      0%
+…   linked          0       —       20,734     40%
+…   linked          0       —        9,689     40%
+…   linked          0       —       30,036     40%
+…   linked          0       —       10,000     40%
 RECORDS · sidecars, never totaled                 
 REPO                               COMMITS   FILES
 ──────────────────────────────────────────────────

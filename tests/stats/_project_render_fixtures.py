@@ -147,16 +147,30 @@ def _output(commits: int, plans: int, models: list[dict]) -> dict:
     }
 
 
-def _code(*, lines: int, tests: int, docs: int, configured: int, measured: int) -> dict:
+def _code(
+    *,
+    lines: int,
+    tests: int,
+    docs: int,
+    configured: int,
+    measured: int,
+    languages: list[dict] | None = None,
+    files: int | None = None,
+) -> dict:
+    if languages is None:
+        languages = [{"name": "python", "files": 12, "lines": lines}]
+    if files is None:
+        files = sum(row["files"] for row in languages)
     return {
         "counter": "sloc",
         "code_lines": lines,
+        "code_files": files,
         "test_lines": tests,
         "test_share": tests / lines if lines else None,
         "doc_lines": docs,
         "repos_configured": configured,
         "repos_measured": measured,
-        "languages": [{"name": "Python", "files": 12, "lines": lines}],
+        "languages": languages,
     }
 
 
@@ -185,7 +199,44 @@ def _repo(
     issue: dict | None = None,
     files: int | None = 10,
     lines: int | None = 1000,
+    languages: list[dict] | None = None,
+    unknown_lines: int = 0,
+    unknown_files: int = 0,
 ) -> dict:
+    if languages is None and lines is not None and tier == "code" and status == "ok":
+        languages = (
+            [{"name": "python", "files": files or 0, "lines": lines}]
+            if (lines or 0) > 0
+            else []
+        )
+    lang_lines = sum(row["lines"] for row in (languages or []))
+    lang_files = sum(row["files"] for row in (languages or []))
+    if tier == "code" and status == "ok" and lines is not None:
+        code_lines = lang_lines + unknown_lines
+        code_files = lang_files + unknown_files
+        # Keep legacy tracked_* for the pre-fix inconsistency: tracked counts
+        # every role while code counts source + tests only.
+        doc_lines = int(code_lines * 0.05)
+        tracked_lines = code_lines + doc_lines + 500
+        tracked_files = code_files + 5
+        test_lines = int(code_lines * 0.4)
+        source_lines = code_lines - test_lines
+        source_files = code_files - int(code_files * 0.4)
+        test_files = code_files - source_files
+        role_counts = [
+            {"role": "source", "files": source_files, "lines": source_lines},
+            {"role": "tests", "files": test_files, "lines": test_lines},
+            {"role": "docs", "files": 5, "lines": doc_lines},
+            {"role": "other", "files": 2, "lines": 500},
+        ]
+    else:
+        code_lines = lines
+        code_files = files
+        tracked_lines = lines
+        tracked_files = files
+        test_lines = None if lines is None else int(lines * 0.4)
+        doc_lines = None if lines is None else int(lines * 0.05)
+        role_counts = None
     result = {
         "id": f"{kind}:{name}",
         "name": name,
@@ -212,23 +263,33 @@ def _repo(
             "commits": commits * 40 if commits else 12,
         },
         "snapshot": {
-            "tracked_files": files,
-            "tracked_lines": lines,
-            "test_lines": None if lines is None else int(lines * 0.4),
-            "doc_lines": None if lines is None else int(lines * 0.05),
+            "tracked_files": tracked_files,
+            "tracked_lines": tracked_lines,
+            "test_lines": test_lines,
+            "doc_lines": doc_lines,
             "lifetime_commits": commits * 40 if commits else 12,
             "first_commit_ts": int(datetime(2026, 2, 14, tzinfo=TZ).timestamp()),
             "last_commit_ts": NOW_TS - 240,
+            "languages": languages,
+            "role_counts": role_counts,
         },
     }
     if status == "unavailable":
         result["output"] = None
         result["lifetime"] = None
+        result["snapshot"] = None
     return result
 
 
 def _sase_project(**overrides: object) -> dict:
     models = _models()
+    sase_languages = [
+        {"name": "python", "files": 12000, "lines": 2_450_000},
+        {"name": "css", "files": 6, "lines": 10_131},
+        {"name": "json", "files": 20, "lines": 5_000},
+        {"name": "bash", "files": 10, "lines": 1_000},
+        {"name": "diff", "files": 3, "lines": 0},
+    ]
     project = {
         "key": "gh_sase-org__sase",
         "label": "sase",
@@ -243,20 +304,87 @@ def _sase_project(**overrides: object) -> dict:
             "agent_commits": 17000,
         },
         "code": _code(
-            lines=3_126_927, tests=1_438_386, docs=82_000, configured=7, measured=6
+            lines=3_137_590,
+            tests=1_438_386,
+            docs=82_000,
+            configured=7,
+            measured=6,
+            languages=[
+                {"name": "python", "files": 12570, "lines": 2_565_000},
+                {"name": "rust", "files": 1100, "lines": 550_000},
+                {"name": "css", "files": 7, "lines": 10_167},
+                {"name": "lua", "files": 29, "lines": 4_389},
+                {"name": "json", "files": 20, "lines": 5_000},
+                {"name": "bash", "files": 10, "lines": 1_000},
+                {"name": "sh", "files": 10, "lines": 500},
+                {"name": "jinja", "files": 5, "lines": 300},
+                {"name": "diff", "files": 3, "lines": 0},
+            ],
+            files=13_765,
         ),
         "runs": _runs(
             runs=233, completed=189, failed=31, seconds=41 * 3600, patches=18
         ),
         "repos": [
             _repo(
-                name="sase", kind="primary", tier="code", commits=380, lines=3_000_000
+                name="sase",
+                kind="primary",
+                tier="code",
+                commits=380,
+                languages=sase_languages,
+                unknown_lines=1_000,
+                unknown_files=9,
             ),
             _repo(
-                name="sase-core", kind="linked", tier="code", commits=32, lines=126_927
+                name="sase-core",
+                kind="linked",
+                tier="code",
+                commits=32,
+                languages=[
+                    {"name": "rust", "files": 1100, "lines": 550_000},
+                    {"name": "python", "files": 300, "lines": 50_000},
+                ],
             ),
-            _repo(name="sase-listen", kind="linked", tier="code", commits=0, lines=0),
-            _repo(name="sase-nvim", kind="linked", tier="code", commits=0, lines=0),
+            _repo(
+                name="sase-telegram",
+                kind="linked",
+                tier="code",
+                commits=0,
+                languages=[
+                    {"name": "python", "files": 90, "lines": 30_000},
+                    {"name": "css", "files": 1, "lines": 36},
+                ],
+            ),
+            _repo(
+                name="sase-listen",
+                kind="linked",
+                tier="code",
+                commits=0,
+                languages=[
+                    {"name": "python", "files": 90, "lines": 20_000},
+                    {"name": "sh", "files": 10, "lines": 500},
+                ],
+                unknown_lines=234,
+                unknown_files=2,
+            ),
+            _repo(
+                name="sase-nvim",
+                kind="linked",
+                tier="code",
+                commits=0,
+                languages=[
+                    {"name": "lua", "files": 29, "lines": 4_389},
+                    {"name": "python", "files": 40, "lines": 5_000},
+                    {"name": "jinja", "files": 5, "lines": 300},
+                ],
+            ),
+            _repo(
+                name="shared-lib",
+                kind="linked",
+                tier="code",
+                commits=0,
+                languages=[{"name": "python", "files": 50, "lines": 10_000}],
+            ),
             _repo(
                 name="missing",
                 kind="linked",
@@ -350,22 +478,53 @@ def _bob_project() -> dict:
             "commits": 900,
         },
         "code": _code(
-            lines=369_231, tests=132_923, docs=8_000, configured=3, measured=3
+            lines=349_231,
+            tests=132_923,
+            docs=8_000,
+            configured=4,
+            measured=4,
+            languages=[
+                {"name": "javascript", "files": 580, "lines": 220_000},
+                {"name": "python", "files": 280, "lines": 69_231},
+                {"name": "rust", "files": 150, "lines": 60_000},
+            ],
+            files=1_010,
         ),
         "runs": _runs(runs=170, completed=150, failed=20, seconds=22 * 3600, patches=9),
         "repos": [
             _repo(
-                name="bob-cli", kind="primary", tier="code", commits=89, lines=280_000
+                name="bob-cli",
+                kind="primary",
+                tier="code",
+                commits=89,
+                languages=[
+                    {"name": "javascript", "files": 500, "lines": 200_000},
+                    {"name": "python", "files": 200, "lines": 50_000},
+                ],
             ),
             _repo(
-                name="bob-plugins", kind="linked", tier="code", commits=63, lines=80_000
+                name="bob-plugins",
+                kind="linked",
+                tier="code",
+                commits=63,
+                languages=[
+                    {"name": "rust", "files": 150, "lines": 60_000},
+                    {"name": "javascript", "files": 80, "lines": 20_000},
+                ],
             ),
             _repo(
                 name="bob-mac-capture",
                 kind="linked",
                 tier="code",
                 commits=0,
-                lines=9_231,
+                languages=[{"name": "python", "files": 30, "lines": 9_231}],
+            ),
+            _repo(
+                name="shared-lib",
+                kind="linked",
+                tier="code",
+                commits=0,
+                languages=[{"name": "python", "files": 50, "lines": 10_000}],
             ),
         ],
         "models": models,
@@ -421,6 +580,76 @@ def _portfolio(projects: list[dict]) -> dict:
     test_lines = sum(
         (project.get("code") or {}).get("test_lines") or 0 for project in projects
     )
+    code_files = sum(
+        (project.get("code") or {}).get("code_files") or 0 for project in projects
+    )
+    merged_languages: dict[str, dict] = {}
+    for project in projects:
+        for row in (project.get("code") or {}).get("languages") or []:
+            current = merged_languages.setdefault(
+                row["name"], {"name": row["name"], "files": 0, "lines": 0}
+            )
+            current["lines"] += row["lines"]
+            current["files"] += row["files"]
+    # Deduplicate repos shared by several projects: totals count each once.
+    seen: dict[str, int] = {}
+    for project in projects:
+        for repo in project.get("repos") or []:
+            if repo.get("tier") != "code":
+                continue
+            snapshot = repo.get("snapshot")
+            if snapshot is None:
+                continue
+            repo_id = repo.get("id")
+            seen[repo_id] = seen.get(repo_id, 0) + 1
+    shared_ids = {repo_id for repo_id, count in seen.items() if count > 1}
+    shared_lines = 0
+    shared_files = 0
+    shared_languages: dict[str, dict] = {}
+    if len(projects) > 1 and shared_ids:
+        for project in projects:
+            for repo in project.get("repos") or []:
+                if repo.get("id") not in shared_ids:
+                    continue
+                snapshot = repo.get("snapshot")
+                if snapshot is None:
+                    continue
+                # Count each shared repo once: subtract every duplicate occurrence
+                # after the first.
+                key = repo.get("id")
+                # Track occurrences across projects; first occurrence stays.
+                shared_ids_seen = shared_languages.setdefault(
+                    "_seen",
+                    {},  # type: ignore[dict-item]
+                )
+                if key in shared_ids_seen:
+                    for lang in snapshot.get("languages") or []:
+                        if lang["name"] in merged_languages:
+                            merged_languages[lang["name"]]["lines"] -= lang["lines"]
+                            merged_languages[lang["name"]]["files"] -= lang["files"]
+                    role_counts = snapshot.get("role_counts") or []
+                    repo_total = sum(
+                        row["lines"]
+                        for row in role_counts
+                        if row["role"] in ("source", "tests")
+                    )
+                    repo_files = sum(
+                        row["files"]
+                        for row in role_counts
+                        if row["role"] in ("source", "tests")
+                    )
+                    code_lines -= repo_total
+                    code_files -= repo_files
+                    shared_lines += repo_total
+                    shared_files += repo_files
+                shared_ids_seen[key] = True
+        # Drop the bookkeeping entry.
+        shared_languages.pop("_seen", None)
+        merged_languages = {
+            name: row
+            for name, row in merged_languages.items()
+            if not name.startswith("_")
+        }
     runs = sum((project.get("runs") or {}).get("runs") or 0 for project in projects)
     completed = sum(
         (project.get("runs") or {}).get("completed") or 0 for project in projects
@@ -429,6 +658,16 @@ def _portfolio(projects: list[dict]) -> dict:
         (project.get("runs") or {}).get("total_runtime_seconds") or 0
         for project in projects
     )
+    portfolio_languages = sorted(
+        merged_languages.values(),
+        key=lambda row: (-row["lines"], -row["files"], row["name"]),
+    )
+    if len(projects) > 1:
+        configured = 10
+        measured = 9
+    else:
+        configured = (projects[0].get("code") or {}).get("repos_configured", 0)
+        measured = (projects[0].get("code") or {}).get("repos_measured", 0)
     return {
         "output": _output(commits, plans, list(collapsed.values())),
         "lifetime": {"commits": 18655, "age_days": 245, "last_commit_ts": NOW_TS - 240},
@@ -436,8 +675,10 @@ def _portfolio(projects: list[dict]) -> dict:
             lines=code_lines,
             tests=test_lines,
             docs=90_000,
-            configured=9,
-            measured=8,
+            configured=configured,
+            measured=measured,
+            languages=portfolio_languages,
+            files=code_files,
         ),
         "runs": _runs(
             runs=runs,

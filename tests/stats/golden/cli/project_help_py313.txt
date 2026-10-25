@@ -1,6 +1,6 @@
 usage: sase stats project [-h] [-D] [-F] [-f {json,markdown,rich}]
-                          [-g {model,patch,project,repo}] [-j] [-p PROJECT]
-                          [-r RANGE]
+                          [-g {language,model,patch,project,repo}] [-j]
+                          [-p PROJECT] [-r RANGE]
 
 Show the Admin Center Statistics → Projects view: what each project produced (commits and committed plans, and which provider/model produced them), how big and how old its code is, and this machine's agent runs. Output and code facts come from each code repo's default branch and match on every machine; run facts come from this machine's run log and say so. Same loader and definitions as the TUI tab.
 
@@ -12,7 +12,7 @@ options:
                         (default: local refs)
   -f, --format {json,markdown,rich}
                         Output format (default: rich)
-  -g, --group-by {model,patch,project,repo}
+  -g, --group-by {language,model,patch,project,repo}
                         Breakdown table, like the TUI's g key (default:
                         project for several projects, model for one)
   -j, --json            Shorthand for --format json
@@ -34,6 +34,7 @@ definitions:
   Code lines: role-classified source and test lines over the committed tree
   Tests: test-line share of code lines
   Doc lines: non-blank documentation lines
+  By language: code lines per language, detected from file extension, then shebang, at each code repo's default-branch tip; repo rows show where they live; ? = code lines with no detected language
   Age: time since the first author-date commit across code repos
   Active days: distinct author dates in the SASE timezone
   Runs: agent runs launched on this machine, by launch time
@@ -47,6 +48,8 @@ examples:
   sase stats project
   sase stats project -p sase -r all
   sase stats project -p sase -g model -r 30d
+  sase stats project -p sase -g language
   sase stats project -p +sase -F -f markdown > sase-stats.md
   sase stats project -p sase -j | jq '.data.projects[0].models[] | {provider, model, commits, plans}'
   sase stats project -p sase -j | jq '.data.projects[0].repos[] | select(.tier == "code") | {name, commits: .output.commits}'
+  sase stats project -p sase -j | jq '.data.projects[0].code.languages | sort_by(-.lines)'

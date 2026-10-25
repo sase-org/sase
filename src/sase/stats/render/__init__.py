@@ -20,6 +20,7 @@ from sase.stats.render.tables import (
     render_patch_tree,
     render_project_table,
 )
+from sase.stats.render.languages import render_language_table
 from sase.stats.render.repos import render_repo_table
 
 __all__ = [
@@ -31,6 +32,7 @@ __all__ = [
     "fine_bar",
     "percent",
     "render_coverage_footer",
+    "render_language_table",
     "render_legend",
     "render_model_table",
     "render_patch_tree",

@@ -163,8 +163,44 @@ def _card_lines(view: ProjectStatsView, ctx: RenderContext) -> list[str]:
                     f"{format_count(breakdown.shared_commits)} commits are in more than one repo; "
                     "the total counts each once"
                 )
-    lines.extend([code_line, runs_line])
+    lines.extend([code_line])
+    language_line = _card_language_line(view)
+    if language_line is not None:
+        lines.append(language_line)
+    lines.append(runs_line)
     return lines
+
+
+def _card_language_line(view: ProjectStatsView) -> str | None:
+    from sase.stats.project.languages import language_breakdown
+    from sase.stats.render.languages import language_label, language_share_label
+
+    if view.code_pending:
+        return None
+    subject = view.projects[0] if len(view.projects) == 1 else view.portfolio
+    if subject.code is None or subject.code.languages is None:
+        return None
+    if subject.code.code_lines == 0 or subject.code.code_lines is None:
+        return None
+    breakdown = language_breakdown(view)
+    if breakdown is None or not breakdown.rows:
+        return None
+    parts: list[str] = []
+    for row in breakdown.rows:
+        if row.language is None:
+            parts.append(
+                f"? {format_count(row.lines)} "
+                f"({language_share_label(row.lines, breakdown.total_lines)})"
+            )
+            continue
+        label = language_label(row.language)
+        parts.append(
+            f"{label} {format_count(row.lines)} "
+            f"({language_share_label(row.lines, breakdown.total_lines)})"
+        )
+    if not parts:
+        return None
+    return "**BY LANGUAGE** " + " · ".join(parts)
 
 
 def _repo_share(share: float) -> str:
@@ -181,6 +217,8 @@ def _group_lines(
         return _project_markdown(view, ctx)
     if grouping == "repo":
         return _repo_markdown(view, ctx)
+    if grouping == "language":
+        return _language_markdown(view, ctx)
     if grouping == "patch":
         return _patch_markdown(view, ctx)
     return _model_markdown(view, ctx)
@@ -277,6 +315,7 @@ def _repo_markdown(view: ProjectStatsView, ctx: RenderContext) -> list[str]:
         "Agent",
         "Code lines",
         "Tests",
+        "Language",
         "Doc lines",
         "First commit",
         "Last commit",
@@ -319,6 +358,7 @@ def _repo_markdown(view: ProjectStatsView, ctx: RenderContext) -> list[str]:
                     agent_share_cell(output),
                     maybe_int(None if code is None else code.code_lines),
                     tests,
+                    _project_md_language_cell(project),
                     maybe_int(None if code is None else code.doc_lines),
                     format_ts(
                         None if lifetime is None else lifetime.first_commit_ts,
@@ -372,6 +412,13 @@ def _repo_markdown(view: ProjectStatsView, ctx: RenderContext) -> list[str]:
 
 
 def _repo_md_row(repo: ProjectStatsRepo, ctx: RenderContext) -> list[str]:
+    from sase.stats.project.languages import repo_code_lines, repo_test_lines
+    from sase.stats.render.languages import (
+        language_label,
+        language_share_label,
+        top_language,
+    )
+
     name = repo.name
     if repo.status != "ok":
         reason = repo.issue.message if repo.issue is not None else repo.status
@@ -379,17 +426,32 @@ def _repo_md_row(repo: ProjectStatsRepo, ctx: RenderContext) -> list[str]:
     output = repo.output
     snapshot = repo.snapshot
     lifetime = repo.lifetime
+    code_lines = repo_code_lines(snapshot)
+    if snapshot is None or code_lines is None:
+        lines_text = maybe_int(None)
+        tests_text = DASH
+        language_text: str = DASH
+    else:
+        lines_text = maybe_int(code_lines)
+        test_lines = repo_test_lines(snapshot)
+        if test_lines is None:
+            test_lines = snapshot.test_lines
+        tests_text = DASH if test_lines is None else share_of(test_lines, code_lines)
+        top = top_language(snapshot.languages)
+        if top is None:
+            language_text = DASH
+        else:
+            language_text = (
+                f"{language_label(top[0])} {language_share_label(top[1], code_lines)}"
+            )
     return [
         name,
         repo.kind,
         repo_commits_cell(repo),
         agent_share_cell(output),
-        maybe_int(None if snapshot is None else snapshot.tracked_lines),
-        (
-            DASH
-            if snapshot is None
-            else share_of(snapshot.test_lines, snapshot.tracked_lines)
-        ),
+        lines_text,
+        tests_text,
+        language_text,
         maybe_int(None if snapshot is None else snapshot.doc_lines),
         format_ts(
             None if lifetime is None else lifetime.first_commit_ts, ctx, "%b %d, %Y"
@@ -398,6 +460,100 @@ def _repo_md_row(repo: ProjectStatsRepo, ctx: RenderContext) -> list[str]:
             None if lifetime is None else lifetime.last_commit_ts, ctx, "%b %d, %Y"
         ),
     ]
+
+
+def _project_md_language_cell(project: ProjectStatsProject) -> str:
+    from sase.stats.render.languages import (
+        language_label,
+        language_share_label,
+        top_language,
+    )
+
+    code = project.code
+    if code is None or code.code_lines is None or not code.code_lines:
+        return DASH
+    top = top_language(code.languages)
+    if top is None:
+        return DASH
+    return f"{language_label(top[0])} {language_share_label(top[1], code.code_lines)}"
+
+
+def _language_markdown(view: ProjectStatsView, ctx: RenderContext) -> list[str]:
+    from sase.stats.project.languages import language_breakdown
+    from sase.stats.render.languages import language_label, language_markdown_rows
+
+    if view.code_pending:
+        return ["## By language", "", "measuring code…"]
+    subject_code = (
+        view.portfolio.code
+        if len(view.projects) > 1
+        else view.projects[0].code
+        if view.projects
+        else None
+    )
+    if subject_code is None:
+        return ["## By language", "", "Code could not be measured; see Issues below."]
+    if subject_code.languages is None:
+        return ["## By language", "", "No language data in this report."]
+    breakdown = language_breakdown(view)
+    if breakdown is None:
+        return ["## By language", "", "Code could not be measured; see Issues below."]
+    if breakdown.total_lines == 0 or (
+        breakdown.measured_repos == 0 and not breakdown.rows
+    ):
+        return ["## By language", "", "No code lines measured."]
+    headers = ["Language", "Lines", "Files", "Share"]
+    md_rows = [
+        [name, format_count(lang_lines), format_count(lang_files), share]
+        for name, lang_lines, lang_files, share, _indented, _dimmed in language_markdown_rows(
+            breakdown
+        )
+    ]
+    # Indent child rows like the Rich tree; _md_table escapes pipes already.
+    indented_rows: list[list[str]] = []
+    for (name, _lang_lines, _lang_files, _share, indented, _dimmed), row in zip(
+        language_markdown_rows(breakdown), md_rows, strict=True
+    ):
+        if indented:
+            row[0] = "  " + name
+        indented_rows.append(row)
+    indented_rows.append(
+        [
+            "total",
+            format_count(breakdown.total_lines),
+            format_count(breakdown.total_files),
+            "100%",
+        ]
+    )
+    out_lines = ["## By language", ""] + _md_table(headers, indented_rows)
+    if breakdown.zero_languages:
+        parts = ", ".join(
+            f"{language_label(item.language)} ({format_count(item.files)} files)"
+            if item.files != 1
+            else f"{language_label(item.language)} (1 file)"
+            for item in breakdown.zero_languages
+        )
+        out_lines.extend(["", f"No countable lines: {parts}"])
+    if breakdown.unmeasured:
+        if breakdown.many_projects:
+            details = ", ".join(
+                f"{item.project_label} · {item.repo_name} ({item.reason})"
+                for item in breakdown.unmeasured
+            )
+        else:
+            details = ", ".join(
+                f"{item.repo_name} ({item.reason})" for item in breakdown.unmeasured
+            )
+        out_lines.extend(["", f"not measured: {details}"])
+    if breakdown.overlap_lines > 0:
+        out_lines.extend(
+            [
+                "",
+                f"{format_count(breakdown.overlap_lines)} lines are in repos counted "
+                "under more than one project; totals count each once",
+            ]
+        )
+    return out_lines
 
 
 def _project_md_sort_key(project: ProjectStatsProject) -> tuple[float, str, str]:
