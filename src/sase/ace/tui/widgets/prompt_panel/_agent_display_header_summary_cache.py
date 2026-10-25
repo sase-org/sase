@@ -24,6 +24,7 @@ class DetailHeaderSummaryCacheEntry:
     summary: DetailHeaderSummary
     cached_monotonic: float
     associated_plan_key: tuple[object, ...]
+    questions_key: tuple[tuple[str, str | None], ...] | None = None
 
 
 DETAIL_HEADER_SUMMARY_CACHE_MAX_ENTRIES = 256
@@ -46,6 +47,7 @@ _LANE_REFRESH_INTERVAL_SECONDS: dict[DetailContextLane, float] = {
     "workspaces": _LANE_DEFAULT_REFRESH_INTERVAL_SECONDS,
     "macros": _LANE_DEFAULT_REFRESH_INTERVAL_SECONDS,
     "page-url": _LANE_DEFAULT_REFRESH_INTERVAL_SECONDS,
+    "questions": _LANE_DEFAULT_REFRESH_INTERVAL_SECONDS,
 }
 
 # Fields on `DetailHeaderSummary` that belong to each resolution lane, used to
@@ -77,6 +79,7 @@ _LANE_FIELDS: dict[DetailContextLane, tuple[str, ...]] = {
     "macros": ("macros_used",),
     "page-url": ("agent_page_url",),
     "wait-beads": ("wait_bead_statuses",),
+    "questions": ("question_rounds",),
 }
 
 # Cheapest-first resolution batches for the streaming worker (bead
@@ -93,12 +96,21 @@ _LANE_FIELDS: dict[DetailContextLane, tuple[str, ...]] = {
 # (`_LANE_SLOW_TOOLS_REFRESH_INTERVAL_SECONDS`) and must never block the
 # lanes ahead of it. `tool-runs` joins batch 1: an LRU hit costs ~0 ms and
 # a miss is one lean indexed SQLite read on the worker thread, so it never
-# blocks the lanes around it. Every `DetailContextLane` appears in exactly
+# blocks the lanes around it. `questions` joins batch 1: a handful of
+# mtime-cached bundle reads. Every `DetailContextLane` appears in exactly
 # one batch; see
 # `test_lane_resolution_batches_cover_every_lane_exactly_once`.
 LANE_RESOLUTION_BATCHES: tuple[frozenset[DetailContextLane], ...] = (
     frozenset(
-        {"wait-beads", "plan-bead", "workspaces", "macros", "page-url", "tool-runs"}
+        {
+            "wait-beads",
+            "plan-bead",
+            "workspaces",
+            "macros",
+            "page-url",
+            "tool-runs",
+            "questions",
+        }
     ),
     frozenset({"artifacts", "memory", "glossary", "skills"}),
     frozenset({"slow-tools"}),
@@ -200,6 +212,17 @@ def should_refresh_detail_header_summary(
         if lane not in entry.summary.ready_lanes
         or elapsed >= _effective_lane_refresh_interval(lane, hint_active=hint_active)
     }
+    # A settling answer rewrites the gate row with a new `gate_state` while
+    # the selection stays put. The key mismatch re-resolves only `questions`
+    # through the existing refresh path: the entry (and every other lane's
+    # freshness) is kept. Response rewrites that add `policy` after creation
+    # are caught by the mtime/size cache on the next 10 s revalidation.
+    # Use-site import: `agent_question_rounds` stays out of the TUI startup
+    # closure (see `test_tui_app_import_stays_under_startup_budget`).
+    from ...models.agent_question_rounds import questions_cache_key
+
+    if entry.questions_key != questions_cache_key(agent):
+        stale_lanes.add("questions")
     return frozenset(stale_lanes)
 
 
@@ -284,10 +307,15 @@ def cache_detail_header_summary(
         current_plan_key
     ):
         merged = merge_detail_header_summary_lanes(previous_entry.summary, summary)
+    # Use-site import: keep `agent_question_rounds` out of the TUI startup
+    # closure (see `test_tui_app_import_stays_under_startup_budget`).
+    from ...models.agent_question_rounds import questions_cache_key
+
     cache[agent.identity] = DetailHeaderSummaryCacheEntry(
         summary=merged,
         cached_monotonic=time.monotonic(),
         associated_plan_key=current_plan_key,
+        questions_key=questions_cache_key(agent),
     )
     cache.move_to_end(agent.identity)
     while len(cache) > DETAIL_HEADER_SUMMARY_CACHE_MAX_ENTRIES:

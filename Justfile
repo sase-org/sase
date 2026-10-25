@@ -479,6 +479,8 @@ _lint-symvision *args: _setup
         --epic-symbol 'sase-1o5(QuestionProvenanceView)' \
         --epic-symbol 'sase-1o5(parse_question_round_wire)' \
         --epic-symbol 'sase-1o5.5(QuestionRoundHeadingSource)' \
+        --epic-symbol 'sase-1o5.5(QuestionRoundStub)' \
+        --epic-symbol 'sase-1o5.5(question_round_stubs)' \
         --epic-symbol 'sase-1o5.5(question_rounds_heading_suffix)' \
         --epic-symbol 'sase-1o5.5(render_question_rounds)' \
         {{ args }}

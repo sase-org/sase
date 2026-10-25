@@ -78,6 +78,7 @@ if TYPE_CHECKING:
     from sase.ace.tui.glossary_reads import GlossaryReadDisplayEvent
     from sase.ace.tui.memory_reads import MemoryReadDisplayEvent
     from sase.ace.tui.skill_uses import SkillUseDisplayEvent
+    from sase.question_gate_turn.projection import NumberedQuestionRound
 
     from ..file_panel._linked_deltas import LinkedDeltaGroup
 
@@ -332,6 +333,11 @@ def _build_detail_header_summary_impl(
         with tui_trace(f"{DETAIL_HEADER_TRACE_SPAN_PREFIX}.wait_bead_statuses"):
             wait_bead_statuses = resolve_wait_bead_statuses(agent)
 
+    question_rounds: tuple[NumberedQuestionRound, ...] = ()
+    if "questions" in lanes:
+        with tui_trace(f"{DETAIL_HEADER_TRACE_SPAN_PREFIX}.question_rounds"):
+            question_rounds = _resolve_question_rounds(agent)
+
     return DetailHeaderSummary(
         macros_used=macros_used,
         bead_display=bead_display,
@@ -350,8 +356,61 @@ def _build_detail_header_summary_impl(
         slow_tool_sources=slow_tool_sources,
         tool_run_summary=tool_run_summary,
         agent_page_url=agent_page_url,
+        question_rounds=question_rounds,
         ready_lanes=lanes,
     )
+
+
+def _resolve_question_rounds(agent: Agent) -> tuple[NumberedQuestionRound, ...]:
+    """Load every session question round, returning only the in-scope ones.
+
+    Session-wide numbering needs every session row (a question keeps the same
+    Q number from the container, the asking turn, and the gate row), so each
+    session row is loaded and counted even when it is out of scope. Bundle
+    reads go through the mtime/size JSON cache and the Rust projection, both
+    worker-thread safe; failures degrade to ``data_state="unavailable"``
+    views instead of raising.
+    """
+    from sase.ace.tui.models.agent_question_rounds import (
+        question_member_label,
+        question_rows_in_scope,
+        session_question_gate_rows,
+    )
+    from sase.question_gate_turn.projection import (
+        NumberedQuestionRound,
+        load_question_round,
+    )
+
+    session_rows = session_question_gate_rows(agent)
+    in_scope_identities = {row.identity for row in question_rows_in_scope(agent)}
+    numbered: list[NumberedQuestionRound] = []
+    next_number = 1
+    for round_index, row in enumerate(session_rows):
+        start = row.run_start_time or row.start_time
+        asked_at_unix = start.timestamp() if start is not None else None
+        deadline_unix: float | None = None
+        if row.gate_timeout_seconds is not None and asked_at_unix is not None:
+            deadline_unix = asked_at_unix + row.gate_timeout_seconds
+        view = load_question_round(
+            gate_id=row.gate_id or "",
+            gate_state=row.gate_state,
+            bundle_path=row.gate_bundle_path or "",
+            asked_by=row.gate_creator_agent,
+            asked_at_unix=asked_at_unix,
+            round_index=round_index,
+        )
+        first_number = next_number
+        next_number += len(view.entries)
+        if row.identity in in_scope_identities:
+            numbered.append(
+                NumberedQuestionRound(
+                    view=view,
+                    first_number=first_number,
+                    member_label=question_member_label(row),
+                    deadline_unix=deadline_unix,
+                )
+            )
+    return tuple(numbered)
 
 
 def publish_opened_workspaces_cache(

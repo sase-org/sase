@@ -5,6 +5,8 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any, Literal
 
+from typing import TYPE_CHECKING
+
 from sase.ace.patch.models import DeltaEntry
 from sase.ace.tui.artifact_reads import ArtifactReadDisplayEvent, ArtifactReadRefSpec
 from sase.ace.tui.bead_touches import BeadTouchEntry
@@ -14,6 +16,9 @@ from sase.ace.tui.opened_workspaces import OpenedWorkspaceDisplayEvent
 from sase.ace.tui.skill_uses import SkillUseDisplayEvent
 from sase.ace.tui.llm_calls import SlowToolSource
 from sase.ace.tui.llm_calls.report import SlowToolCallReportSpec
+
+if TYPE_CHECKING:
+    from sase.question_gate_turn.projection import NumberedQuestionRound
 from sase.core.tool_run import ToolRunNodeSummary
 from sase.memory.legacy_glossary_read_report import GlossaryReadReportSpec
 from sase.memory.memory_read_report import MemoryReadReportSpec
@@ -94,13 +99,15 @@ type DetailContextLane = Literal[
     "macros",
     "page-url",
     "wait-beads",
+    "questions",
 ]
 # The independently resolved/cached lanes inside `DetailHeaderSummary` (bead
 # sase-l6.3). `plan-bead`, `artifacts`, `memory`, `glossary`, `skills`, and
 # `workspaces` back the SASE CONTEXT lanes in `CONTEXT_LANE_ORDER`
 # (`_agent_context.py:30`; `plan-bead` covers both PLAN and BEAD, which share
-# one resolver). The remaining five back non-context summary fields resolved
-# by the same worker. `bead_display` is deliberately not a lane: it is a
+# one resolver). The remaining lanes back non-context summary fields resolved
+# by the same worker (`questions` backs the QUESTIONS section, mounted
+# separately from SASE CONTEXT). `bead_display` is deliberately not a lane: it is a
 # cheap cache read (`cached_bead_display`), not a store parse, and its own
 # dedicated worker (`start_agent_bead_display_resolve`) keeps it fresh
 # independently of lane selection.
@@ -117,6 +124,7 @@ ALL_DETAIL_CONTEXT_LANES: frozenset[DetailContextLane] = frozenset(
         "macros",
         "page-url",
         "wait-beads",
+        "questions",
     }
 )
 
@@ -146,6 +154,9 @@ class DetailHeaderSummary:
     slow_tool_sources: tuple[SlowToolSource, ...] | None = None
     tool_run_summary: ToolRunNodeSummary | None = None
     agent_page_url: str | None = None
+    # Session question rounds for the QUESTIONS section. Not a SASE CONTEXT
+    # lane: the context-section mount (a later phase) renders it separately.
+    question_rounds: tuple[NumberedQuestionRound, ...] = ()
     # Lanes this instance actually resolved (attempted), as opposed to lanes
     # that were never requested. A lane in `ready_lanes` whose field is still
     # falsy resolved to "nothing" rather than "not yet resolved". Defaults to
