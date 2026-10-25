@@ -48,18 +48,15 @@ def _pane_project_stats(
     project_display_case: ProjectDisplayCase | None = None,
 ) -> ProjectStatsView:
     """Build a Projects report whose keys match the pane's composite fixtures."""
-    from tests.stats._project_render_fixtures import (
-        _bob_project,
-        _sase_project,
-        build_view,
-    )
+    from tests.stats._project_render_fixtures import build_view
+    from tests.stats._project_render_projects import bob_project, sase_project
 
     resolved_facets = (
         set(facets) if facets is not None else set(_PROJECTS_PRIMARY_FACETS)
     )
     if empty:
         return build_view(projects=[], facets=resolved_facets)
-    sase = _sase_project()
+    sase = sase_project()
     if project_display_case is not None:
         sase["key"] = project_display_case.project_key
         sase["label"] = project_display_case.project_label
@@ -69,7 +66,7 @@ def _pane_project_stats(
     else:
         sase["key"] = "sase"
         sase["label"] = "sase"
-    core = _bob_project()
+    core = bob_project()
     core["key"] = "core"
     core["label"] = "core"
     rows = [sase, core]

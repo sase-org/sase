@@ -21,12 +21,9 @@ from tests.ace.tui.visual._ace_config_center_statistics_fixtures import (
     _WIDGETS_KEY,
     _macros_payload,
 )
-from tests.stats._project_render_fixtures import (
-    MACHINE,
-    _bob_project,
-    _portfolio,
-    _sase_project,
-)
+from tests.stats._project_render_fixtures import MACHINE
+from tests.stats._project_render_projects import bob_project, sase_project
+from tests.stats._project_render_views import portfolio
 from tests.stats._views_payloads import (
     perf_logs_payload,
     perf_telemetry_payload,
@@ -40,13 +37,13 @@ def _populated_project_stats(
 ) -> ProjectStatsView:
     """Pinned Projects report matching the visual Statistics range and labels."""
     resolved_facets = set(facets) if facets is not None else {"output", "runs", "code"}
-    widgets = _sase_project()
+    widgets = sase_project()
     widgets["key"] = _WIDGETS_KEY
     widgets["label"] = "widgets"
-    engine = _bob_project()
+    engine = bob_project()
     engine["key"] = _ENGINE_KEY
     engine["label"] = "engine"
-    integration = _bob_project()
+    integration = bob_project()
     integration["key"] = _INTEGRATION_KEY
     integration["label"] = "integration"
     rows = [widgets, engine, integration]
@@ -66,7 +63,7 @@ def _populated_project_stats(
         },
         "fingerprint": "visual-projects-" + "-".join(sorted(resolved_facets)),
         "projects": rows,
-        "portfolio": _portfolio(rows),
+        "portfolio": portfolio(rows),
         "issues": [],
     }
     query = ProjectStatsQuery(
