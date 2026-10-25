@@ -119,6 +119,13 @@ def materialize_resource(bundle_root: Path, resource: GateResource) -> Path:
     else:
         assert resource.source is not None
         content = _read_source(resource.source)
+    if resource.executable and not _has_exec_header(content):
+        raise GateError(
+            "invalid_command",
+            resource.path,
+            "command resources run without a shell and must start with a '#!' "
+            "interpreter line (for example '#!/bin/sh') or be a native executable",
+        )
     mode = 0o700 if resource.executable else 0o600
     fd = os.open(target, os.O_WRONLY | os.O_CREAT | os.O_EXCL, mode)
     try:
@@ -131,6 +138,11 @@ def materialize_resource(bundle_root: Path, resource: GateResource) -> Path:
         os.close(fd)
     fsync_dir(target.parent)
     return target
+
+
+def _has_exec_header(content: bytes) -> bool:
+    """Report whether *content* can start without a shell (shebang or ELF)."""
+    return content.startswith(b"#!") or content.startswith(b"\x7fELF")
 
 
 def _read_source(path: Path) -> bytes:

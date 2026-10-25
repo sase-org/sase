@@ -18,9 +18,11 @@ reviewed previews or attachments, and adapter-owned commands. The request record
 continuation mode, optional gate timeout, typed payload, presentation metadata and icon,
 option-query branches, the declared primary branch, options with configurable icons and
 feedback modes, AND-group submit metadata, input/result schemas, and hashes for the
-request and owned resources. Commands are argv arrays executed without a shell. A gate
-may also declare repeatable, non-terminal **actions** the reviewer can run any number of
-times without answering the gate; see [Gate actions](#gate-actions) below.
+request and owned resources. Commands are argv arrays executed without a shell. Every
+command resource must start with a `#!` interpreter line (for example `#!/bin/sh`), or
+be a native executable; `sase gate create` rejects other content with `invalid_command`.
+A gate may also declare repeatable, non-terminal **actions** the reviewer can run any
+number of times without answering the gate; see [Gate actions](#gate-actions) below.
 
 Manual creation succeeds only after the bundle, notification row, and pending-action
 registration are durable. A partial failure is compensated, and retries are idempotent

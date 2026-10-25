@@ -49,7 +49,7 @@ def publish_gate_execution_failed(
     request_id = str(envelope.get("request_id") or "")
     request_kind = str(envelope.get("kind") or "")
     action_data = gate_failure_action_data(bundle_path, envelope, failure)
-    recovery_actions = _recovery_actions(failure.stage)
+    recovery_actions = _recovery_actions(failure.stage, failure.code)
     notes = [
         f"Gate execution failed: {request_kind}/{request_id}",
         f"{failure.stage}: {failure.message or failure.code}",
@@ -124,7 +124,9 @@ def dismiss_gate_execution_failed(
         )
 
 
-def _recovery_actions(stage: str) -> tuple[str, ...]:
+def _recovery_actions(stage: str, code: str = "") -> tuple[str, ...]:
+    if code == "command_not_executable":
+        return ("cancel",)
     if stage in _PRE_RESPONSE_STAGES:
         return ("resume", "restart", "cancel")
     return ("resume",)
@@ -171,16 +173,17 @@ def gate_failure_action_data(
         "message": message,
         "error_record": error_record,
         "error_report_path": error_path,
-        "recovery_actions": ",".join(_recovery_actions(stage)),
+        "recovery_actions": ",".join(_recovery_actions(stage, code)),
     }
     resume = _gate_answer_command(request_kind, request_id, selected_ids, "resume")
     restart = _gate_answer_command(request_kind, request_id, selected_ids, "restart")
     cancel = _gate_cancel_command(request_kind, request_id)
-    if resume:
+    recovery = _recovery_actions(stage, code)
+    if resume and "resume" in recovery:
         action_data["resume_command"] = resume
-    if restart and "restart" in _recovery_actions(stage):
+    if restart and "restart" in recovery:
         action_data["restart_command"] = restart
-    if cancel and "cancel" in _recovery_actions(stage):
+    if cancel and "cancel" in recovery:
         action_data["cancel_command"] = cancel
     return action_data
 

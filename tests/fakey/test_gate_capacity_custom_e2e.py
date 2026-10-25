@@ -440,7 +440,7 @@ def test_gate_cancellation_and_failed_startup_do_not_disturb_an_unrelated_owners
             {
                 "path": "commands/run",
                 "role": "command",
-                "content": "not a script\n",
+                "content": "#!/bin/sh\nexit 0\n",
                 "executable": True,
             }
         ],

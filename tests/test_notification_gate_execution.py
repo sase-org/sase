@@ -469,3 +469,36 @@ def test_cancel_still_enforces_integrity_on_drifted_bundle(gate_home: Path) -> N
     with pytest.raises(GateError) as excinfo:
         cancel_gate(created.bundle_path, source="test")
     assert excinfo.value.code == "hash_mismatch"
+
+
+def test_unstartable_command_records_cancel_only_recovery(gate_home: Path) -> None:
+    from sase.notification_gates.durability import sha256_file
+    from sase.notification_gates.paths import owned_resource_path
+
+    del gate_home
+    created = create_gate(gate_spec(request_id="unstartable"))
+    command_path = owned_resource_path(created.bundle_path, "commands/accept")
+    command_path.write_bytes(b"set -eu\n")
+    envelope = json.loads(created.request_path.read_text(encoding="utf-8"))
+    resources = envelope["hashes"]["resources"]
+    assert isinstance(resources, dict)
+    resources["commands/accept"] = sha256_file(command_path)
+    envelope["hashes"]["request"] = request_sha256(envelope)
+    created.request_path.write_text(json.dumps(envelope), encoding="utf-8")
+
+    with pytest.raises(GateError) as exc_info:
+        execute_gate_selection(created.bundle_path, ["accept"], {})
+    assert exc_info.value.code == "command_not_executable"
+
+    failures = [
+        notification
+        for notification in load_notifications()
+        if notification.action == GATE_EXECUTION_FAILED_ACTION
+    ]
+    assert len(failures) == 1
+    assert failures[0].action_data["recovery_actions"] == "cancel"
+    assert "resume_command" not in failures[0].action_data
+    assert "restart_command" not in failures[0].action_data
+    assert failures[0].action_data["cancel_command"] == (
+        "sase gate cancel --kind hitl --id unstartable"
+    )

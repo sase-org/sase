@@ -579,3 +579,47 @@ def test_launch_adapter_rejects_unregistered_command_shape(gate_home: Path) -> N
     with pytest.raises(GateError) as exc_info:
         create_gate(gate_spec(kind="launch"))
     assert exc_info.value.code == "invalid_launch_query"
+
+
+def test_command_resource_without_exec_header_is_rejected(gate_home: Path) -> None:
+    from sase.notification_gates.paths import bundle_paths
+
+    spec = gate_spec(request_id="no-header")
+    resources = spec["resources"]
+    assert isinstance(resources, list)
+    resources[0]["content"] = "not a script\n"  # type: ignore[index]
+    with pytest.raises(GateError) as exc_info:
+        create_gate(spec)
+    assert exc_info.value.code == "invalid_command"
+    assert not bundle_paths("hitl", "no-header").root.exists()
+
+
+def test_source_command_without_exec_header_is_rejected(gate_home: Path) -> None:
+    from sase.notification_gates.paths import bundle_paths
+
+    source = gate_home / "headerless"
+    source.write_text("set -eu\n", encoding="utf-8")
+    spec = gate_spec(request_id="no-header-source")
+    resources = spec["resources"]
+    assert isinstance(resources, list)
+    resources[0].pop("content")  # type: ignore[union-attr]
+    resources[0]["source"] = str(source)  # type: ignore[index]
+    with pytest.raises(GateError) as exc_info:
+        create_gate(spec)
+    assert exc_info.value.code == "invalid_command"
+    assert not bundle_paths("hitl", "no-header-source").root.exists()
+
+
+def test_command_resource_with_exec_header_is_created(gate_home: Path) -> None:
+    created = create_gate(gate_spec(request_id="with-header"))
+    assert (created.bundle_path / "commands" / "accept").is_file()
+
+    elf_source = gate_home / "elf-bin"
+    elf_source.write_bytes(b"\x7fELF..." + b"\x00" * 64)
+    elf_spec = gate_spec(request_id="elf-header")
+    elf_resources = elf_spec["resources"]
+    assert isinstance(elf_resources, list)
+    elf_resources[0].pop("content")  # type: ignore[union-attr]
+    elf_resources[0]["source"] = str(elf_source)  # type: ignore[index]
+    elf_created = create_gate(elf_spec)
+    assert (elf_created.bundle_path / "commands" / "accept").is_file()

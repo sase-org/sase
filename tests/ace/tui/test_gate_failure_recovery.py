@@ -92,6 +92,18 @@ def test_post_response_failure_only_offers_resume(_patched: None) -> None:
     assert app.submitted[0]["request"]["retry"] == "resume"
 
 
+def test_unstartable_failure_only_offers_cancel(_patched: None) -> None:
+    app = _App()
+
+    recovery.handle_gate_execution_failed(app, _failure("cancel"))
+
+    [(modal, callback)] = app.pushed
+    assert isinstance(modal, GateRetryModal)
+    assert modal._allow_restart is False
+    assert modal._allow_cancel is True
+    assert app.submitted == []
+
+
 def test_cancel_choice_cancels_the_gate_off_the_ui_path(
     _patched: None, monkeypatch: pytest.MonkeyPatch
 ) -> None:

@@ -84,6 +84,14 @@ def run_owned_command(
                 check=False,
             )
         except OSError as exc:
+            if exc.errno == errno.ENOEXEC:
+                raise GateError(
+                    "command_not_executable",
+                    command_argv[0],
+                    f"cannot start command: {exc}; command resources run "
+                    "without a shell and must start with a '#!' interpreter "
+                    "line (for example '#!/bin/sh') or be a native executable",
+                ) from exc
             raise GateError(
                 "command_start_failed",
                 command_argv[0],
