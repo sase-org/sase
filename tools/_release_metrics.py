@@ -2,13 +2,15 @@
 
 from __future__ import annotations
 
-import json
+import importlib.util
 import math
 import re
+import sys
 import time
 from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import UTC, datetime, timedelta
+from importlib.machinery import SourceFileLoader
 from pathlib import Path
 from typing import Any
 
@@ -39,6 +41,25 @@ _DEFAULT_INVENTORY = (
     Path(__file__).resolve().parents[1] / ".github" / "release-qualification.json"
 )
 
+_inventory_path = Path(__file__).with_name("_release_qualification_inventory.py")
+_inventory_loader = SourceFileLoader(
+    "release_metrics_inventory_tool", str(_inventory_path)
+)
+_inventory_spec = importlib.util.spec_from_file_location(
+    "release_metrics_inventory_tool",
+    _inventory_path,
+    loader=_inventory_loader,
+)
+if _inventory_spec is None or _inventory_spec.loader is None:
+    raise RuntimeError(
+        f"cannot load qualification inventory helpers at {_inventory_path}"
+    )
+_inventory = importlib.util.module_from_spec(_inventory_spec)
+sys.modules[_inventory_spec.name] = _inventory
+_inventory_spec.loader.exec_module(_inventory)
+
+QualificationInputError = _inventory.QualificationInputError
+
 
 class MetricsError(ValueError):
     """A required history input is malformed or unreadable."""
@@ -64,47 +85,33 @@ def _iso(value: datetime) -> str:
 
 
 def load_inventory(path: Path) -> dict[str, Any]:
-    """Read the versioned N1 inventory and return its blocking job mappings."""
+    """Read the versioned N1 inventory and return its blocking job mappings.
+
+    The shared qualification inventory validator owns every schema, ID, and
+    mapping rule; this projection keeps only what metrics needs.
+    """
     try:
-        payload = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError) as exc:
+        raw = path.read_bytes()
+    except OSError as exc:
         raise MetricsError(f"cannot read N1 inventory {path}: {exc}") from exc
-    if not isinstance(payload, dict) or payload.get("schema_version") != 1:
-        raise MetricsError("N1 inventory must be an object with schema_version 1")
-    checks = payload.get("checks")
-    if not isinstance(checks, list):
-        raise MetricsError("N1 inventory checks must be a list")
+    try:
+        inventory = _inventory.load_inventory(raw)
+    except QualificationInputError as exc:
+        raise MetricsError(f"cannot read N1 inventory {path}: {exc}") from exc
     blocking: list[dict[str, Any]] = []
-    seen: set[str] = set()
-    for index, raw in enumerate(checks):
-        if not isinstance(raw, dict):
-            raise MetricsError(f"N1 inventory checks[{index}] must be an object")
-        if raw.get("disposition") != "blocking":
+    for entry in inventory["checks"]:
+        if entry.get("disposition") != "blocking":
             continue
-        check_id = raw.get("id")
-        workflow = raw.get("workflow")
-        job = raw.get("job")
-        job_name = job.get("name") if isinstance(job, dict) else None
-        if (
-            not isinstance(check_id, str)
-            or not check_id.strip()
-            or not isinstance(workflow, str)
-            or not workflow.endswith(".yml")
-            or not isinstance(job_name, str)
-            or not job_name.strip()
-        ):
-            raise MetricsError(f"N1 inventory blocking check {check_id} is malformed")
-        workflow = Path(workflow).name
-        if check_id in seen:
-            continue
-        seen.add(check_id)
+        check_id = entry["id"]
+        workflow = Path(str(entry["workflow"])).name
+        job_name = entry["job"]["name"]
         item: dict[str, Any] = {
             "id": check_id.strip(),
             "workflow": workflow,
             "job_name": job_name.strip(),
         }
         if workflow == "release.yml":
-            required_legs = raw.get("required_legs")
+            required_legs = entry.get("required_legs")
             if not isinstance(required_legs, list):
                 raise MetricsError(f"N1 check {check_id}.required_legs must be a list")
             item["required_legs"] = required_legs

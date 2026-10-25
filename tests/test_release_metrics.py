@@ -541,3 +541,98 @@ def test_tag_history_includes_commit_timestamp_for_burned_version_metric() -> No
 def test_metrics_tool_paths_are_present() -> None:
     assert (ROOT / "tools" / "release_metrics").is_file()
     assert (ROOT / "tools" / "_release_metrics.py").is_file()
+
+
+def _write_bytes(tmp_path, raw: bytes, name: str = "inventory.json") -> Path:
+    from pathlib import Path as _Path
+
+    target = _Path(str(tmp_path)) / name
+    target.write_bytes(raw)
+    return target
+
+
+def test_metrics_inventory_projection_matches_valid_bytes(metrics, tmp_path) -> None:
+    raw = (ROOT / ".github" / "release-qualification.json").read_bytes()
+    path = _write_bytes(tmp_path, raw)
+    projected = metrics.load_inventory(path)
+    assert projected["path"] == str(path)
+    assert [item["id"] for item in projected["checks"]] == [
+        "lint",
+        "test-3.12",
+        "test-3.13",
+        "test-3.14",
+        "release-exercise",
+    ]
+    assert all(
+        item["workflow"] in {"ci.yml", "release.yml"} for item in projected["checks"]
+    )
+    by_id = {item["id"]: item for item in projected["checks"]}
+    assert by_id["lint"] == {
+        "id": "lint",
+        "workflow": "ci.yml",
+        "job_name": "lint",
+    }
+    assert by_id["test-3.12"]["job_name"] == "test (3.12)"
+    exercise = by_id["release-exercise"]
+    assert exercise["workflow"] == "release.yml"
+    assert exercise["job_name"] == "exercise"
+    assert exercise["required_legs"] == [
+        {"os": "ubuntu-latest", "artifact": "wheel"},
+        {"os": "ubuntu-latest", "artifact": "sdist"},
+        {"os": "macos-latest", "artifact": "wheel"},
+        {"os": "macos-latest", "artifact": "sdist"},
+    ]
+    assert "visual-test" not in by_id
+
+
+def test_metrics_inventory_rejects_duplicate_check_id(metrics, tmp_path) -> None:
+    import copy
+
+    raw = (ROOT / ".github" / "release-qualification.json").read_bytes()
+    payload = json.loads(raw.decode("utf-8"))
+    duplicate = copy.deepcopy(payload["checks"][0])
+    duplicate["job"] = {"id": "other", "name": "other required lint", "matrix": {}}
+    payload["checks"] = [*payload["checks"], duplicate]
+    path = _write_bytes(tmp_path, json.dumps(payload).encode("utf-8"))
+    with pytest.raises(metrics.MetricsError, match="duplicate inventory check id"):
+        metrics.load_inventory(path)
+
+
+def test_metrics_inventory_rejects_duplicate_json_keys(metrics, tmp_path) -> None:
+    path = _write_bytes(
+        tmp_path,
+        b'{"schema_version":1,"schema_version":1,"admission_policy":{},"checks":[]}',
+    )
+    with pytest.raises(metrics.MetricsError, match="duplicate JSON key"):
+        metrics.load_inventory(path)
+
+
+def test_metrics_inventory_rejects_conflicting_workflow_job_mapping(
+    metrics, tmp_path
+) -> None:
+    import copy
+
+    raw = (ROOT / ".github" / "release-qualification.json").read_bytes()
+    payload = json.loads(raw.decode("utf-8"))
+    conflict = copy.deepcopy(payload["checks"][1])
+    conflict["id"] = "test-copy"
+    payload["checks"] = [*payload["checks"], conflict]
+    path = _write_bytes(tmp_path, json.dumps(payload).encode("utf-8"))
+    with pytest.raises(
+        metrics.MetricsError, match="duplicate or conflicting workflow/job mapping"
+    ):
+        metrics.load_inventory(path)
+
+
+def test_metrics_inventory_rejects_unmapped_blocking_evidence(
+    metrics, tmp_path
+) -> None:
+    raw = (ROOT / ".github" / "release-qualification.json").read_bytes()
+    payload = json.loads(raw.decode("utf-8"))
+    payload["checks"][0] = {
+        **payload["checks"][0],
+        "evidence_kind": "job",
+    }
+    path = _write_bytes(tmp_path, json.dumps(payload).encode("utf-8"))
+    with pytest.raises(metrics.MetricsError, match="unmapped required evidence"):
+        metrics.load_inventory(path)
