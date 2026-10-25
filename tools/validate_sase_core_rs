@@ -105,6 +105,7 @@ REQUIRED_BINDINGS = (
     "claim_gate_decision_execution",
     "decide_gate_decision_acceptance",
     "decide_gate_lifecycle",
+    "project_question_round",
     "plan_agent_publication_batches",
     "prompt_archive_inventory",
     "prompt_archive_inventory_wire_schema_version",
@@ -914,6 +915,44 @@ def _validate_goal_ledger_wire_schema(module: ModuleType) -> bool:
             )
             valid = False
     return valid
+
+
+def _validate_question_round_contract(module: ModuleType) -> bool:
+    try:
+        actual_version = int(module.question_round_wire_schema_version())
+    except Exception as exc:
+        _error(f"question_round_wire_schema_version() probe failed: {exc}")
+        return False
+    if actual_version != 1:
+        _error(
+            "question_round_wire_schema_version() returned stale schema: "
+            f"got {actual_version}, expected 1"
+        )
+        return False
+    request = {
+        "schema_version": 1,
+        "gate": {"gate_id": "__sase_contract_probe__", "gate_state": "pending"},
+        "request": {
+            "payload": {
+                "questions": [{"question": "Probe?", "options": [{"label": "Yes"}]}]
+            }
+        },
+    }
+    try:
+        outcome = module.project_question_round(request)
+    except Exception as exc:
+        _error(f"project_question_round(pending) probe failed: {exc}")
+        return False
+    if not isinstance(outcome, dict):
+        _error("project_question_round(pending) returned non-object")
+        return False
+    if outcome.get("status") != "pending":
+        _error(
+            "project_question_round(pending) returned stale "
+            f"status: {outcome.get('status')!r}"
+        )
+        return False
+    return True
 
 
 def _validate_gate_decision_lifecycle_contract(module: ModuleType) -> bool:
@@ -3578,6 +3617,8 @@ def main(argv: list[str] | None = None) -> int:
     if not _validate_goal_ledger_wire_schema(module):
         return 1
     if not _validate_gate_decision_lifecycle_contract(module):
+        return 1
+    if not _validate_question_round_contract(module):
         return 1
     if not _validate_finalizer_contract(module):
         return 1

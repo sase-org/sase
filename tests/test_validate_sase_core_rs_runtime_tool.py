@@ -95,6 +95,40 @@ def test_validate_sase_core_rs_requires_gate_decision_lifecycle_contract() -> No
     )
 
 
+def test_validate_sase_core_rs_requires_question_round_contract() -> None:
+    validator = load_validate_sase_core_rs()
+    bindings = {"project_question_round"}
+
+    assert bindings <= set(validator.REQUIRED_BINDINGS)
+    for binding in bindings:
+        assert not validator._validate_bindings(
+            module_with_required_bindings(validator, missing={binding})
+        )
+
+    def project_question_round(request: object) -> dict[str, object]:
+        assert isinstance(request, dict)
+        assert request["gate"]["gate_id"] == "__sase_contract_probe__"
+        return {"status": "pending"}
+
+    module = SimpleNamespace(
+        question_round_wire_schema_version=lambda: 1,
+        project_question_round=project_question_round,
+    )
+    assert validator._validate_question_round_contract(module)
+    assert not validator._validate_question_round_contract(
+        SimpleNamespace(
+            question_round_wire_schema_version=lambda: 2,
+            project_question_round=project_question_round,
+        )
+    )
+    assert not validator._validate_question_round_contract(
+        SimpleNamespace(
+            question_round_wire_schema_version=lambda: 1,
+            project_question_round=lambda _request: {"status": "answered"},
+        )
+    )
+
+
 def test_validate_sase_core_rs_requires_proc_store_bindings() -> None:
     validator = load_validate_sase_core_rs()
     proc_bindings = {

@@ -465,6 +465,17 @@ _lint-symvision *args: _setup
     SASE_SYMVISION_BEAD_STATUS_ONLY=1 BD_COMMAND=tools/sase_bead {{ venv_bin }}/symvision src/sase \
         --exclude-decorator gate_command_entrypoint \
         --exclude-decorator builtin_chop \
+        --epic-symbol 'sase-1o5.3(NumberedQuestionRound)' \
+        --epic-symbol 'sase-1o5.3(QuestionAnswerView)' \
+        --epic-symbol 'sase-1o5.3(QuestionCancellationView)' \
+        --epic-symbol 'sase-1o5.3(QuestionEntryView)' \
+        --epic-symbol 'sase-1o5.3(QuestionOptionView)' \
+        --epic-symbol 'sase-1o5.3(QuestionPolicyView)' \
+        --epic-symbol 'sase-1o5.3(QuestionProvenanceView)' \
+        --epic-symbol 'sase-1o5.3(QuestionRoundView)' \
+        --epic-symbol 'sase-1o5.3(load_question_round)' \
+        --epic-symbol 'sase-1o5.3(parse_question_round_wire)' \
+        --epic-symbol 'sase-1o5.3(project_question_round)' \
         {{ args }}
 
 # Check Python file line counts (private, extracted for per-stage wrapping)
