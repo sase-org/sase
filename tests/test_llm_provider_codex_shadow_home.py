@@ -106,7 +106,8 @@ def test_create_shadow_codex_home_links_home_agents_fallback(
         assert shadow_agents.is_symlink()
         assert shadow_agents.resolve() == home_agents
         assert shadow_agents.read_text(encoding="utf-8") == "# Home Instructions\n"
-        assert not real_home.exists()
+        assert not (real_home / "AGENTS.md").exists()
+        assert (real_home / "sessions").is_dir()
 
 
 def test_create_shadow_codex_home_preserves_real_codex_agents(
@@ -155,7 +156,7 @@ def test_create_shadow_codex_home_allowlists_state_and_excludes_shared_state(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Only approved Codex inputs and the live sessions directory are linked."""
+    """Only approved Codex inputs are linked; sessions is a private tree."""
     real_home = tmp_path / ".codex"
     real_home.mkdir()
     (real_home / "config.toml").write_text("model = 'test'\n", encoding="utf-8")
@@ -192,10 +193,12 @@ def test_create_shadow_codex_home_allowlists_state_and_excludes_shared_state(
             "skills",
             "plugins",
             "cache",
-            "sessions",
         ):
             assert (shadow_home / name).is_symlink(), name
             assert (shadow_home / name).resolve() == (real_home / name).resolve()
+        sessions = shadow_home / "sessions"
+        assert sessions.is_dir()
+        assert not sessions.is_symlink()
         assert not (shadow_home / "memories").exists()
         for name in (
             "state.sqlite",

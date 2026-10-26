@@ -86,14 +86,20 @@ an nvm directory remains resolvable.
 
 By default, SASE launches Codex with a per-invocation shadow `CODEX_HOME` under
 `~/.cache/sase/codex_home/`. The shadow home copies `config.toml` and symlinks an
-allow-list of entries for authentication, hooks, skills, plugins, sessions, and caches
-back to the real Codex home. SQLite state is not shared. With an active explicit
-delivery, native `memories` and SASE-owned global instruction files are omitted; foreign
-global `AGENTS.md` / `AGENTS.override.md` files remain available. With the flag
-disabled, `memories` is shared and `~/AGENTS.md` is linked when no Codex-global file
-wins. Config rewrites remain disposable. The shadow directory is removed after each
-Codex subprocess exits. Set `SASE_CODEX_DISABLE_SHADOW_HOME=1` to pass through the
-inherited environment directly for debugging or emergency compatibility.
+allow-list of entries for authentication, hooks, skills, plugins, and caches back to the
+real Codex home. SQLite state is not shared. `sessions/` is a private directory whose
+today and tomorrow day folders (local time) symlink into the real Codex sessions store,
+so rollouts land in the shared tree while Codex's thread index sees at most two days of
+history. Stray files under the private tree are moved into the real store on teardown; a
+destination collision keeps the shadow home. Creating a shadow home also sweeps orphaned
+SASE-managed homes whose recorded pid is gone and whose mtime is older than an hour,
+without following symlinks. With an active explicit delivery, native `memories` and
+SASE-owned global instruction files are omitted; foreign global `AGENTS.md` /
+`AGENTS.override.md` files remain available. With the flag disabled, `memories` is
+shared and `~/AGENTS.md` is linked when no Codex-global file wins. Config rewrites
+remain disposable. The shadow directory is removed after each Codex subprocess exits.
+Set `SASE_CODEX_DISABLE_SHADOW_HOME=1` to pass through the inherited environment
+directly for debugging or emergency compatibility.
 
 ### Codex Tool-Call Capture
 
