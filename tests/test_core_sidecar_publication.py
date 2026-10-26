@@ -8,6 +8,7 @@ from sase.core.sidecar_publication_facade import (
     SIDECAR_PUBLICATION_ACTION_INTEGRATE_AND_RETRY,
     SIDECAR_PUBLICATION_ACTION_STOP,
     _SidecarPublicationDecision,
+    classify_sidecar_publication_push_result,
     decide_sidecar_publication_after_push,
 )
 
@@ -86,4 +87,55 @@ def test_sidecar_publication_facade_rejects_zero_attempt() -> None:
             stdout="",
             stderr="fatal",
             attempt=0,
+        )
+
+
+def test_sidecar_rejection_facade_returns_sanitized_core_classification(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    secret = "SYNTHETIC_SECRET_NEVER_SERIALIZED"
+    calls: list[tuple[int, str, str]] = []
+
+    def fake_binding(returncode: int, stdout: str, stderr: str) -> dict:
+        calls.append((returncode, stdout, stderr))
+        return {
+            "schema_version": 1,
+            "classification": "rejected_secret_scan",
+            "commit_ids": ["a" * 40],
+            "relative_paths": ["agents/a/chat.md"],
+        }
+
+    install_fake_rust_extension(
+        monkeypatch,
+        classify_sidecar_publication_push_result=fake_binding,
+    )
+    result = classify_sidecar_publication_push_result(
+        returncode=1,
+        stdout="",
+        stderr=f"GH013: {secret}",
+    )
+
+    assert result.classification == "rejected_secret_scan"
+    assert result.commit_ids == ("a" * 40,)
+    assert result.relative_paths == ("agents/a/chat.md",)
+    assert calls == [(1, "", f"GH013: {secret}")]
+
+
+def test_sidecar_rejection_facade_rejects_unknown_classification(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    install_fake_rust_extension(
+        monkeypatch,
+        classify_sidecar_publication_push_result=lambda *_args: {
+            "schema_version": 1,
+            "classification": "not_a_classification",
+            "commit_ids": ["not-a-commit"],
+            "relative_paths": [],
+        },
+    )
+    with pytest.raises(RuntimeError, match="unknown"):
+        classify_sidecar_publication_push_result(
+            returncode=1,
+            stdout="",
+            stderr="GH013",
         )

@@ -5,6 +5,9 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from sase.diagnostics import CheckSpec
+from sase.doctor.checks_agent_publication_protection import (
+    agent_publication_protection_check_specs,
+)
 from sase.doctor.checks_agent_publication_outbox import (
     check_agent_publication_outbox,
 )
@@ -22,6 +25,7 @@ def agent_publication_check_specs(context: DoctorContext) -> tuple[CheckSpec, ..
             title="Agent publication outbox",
             runner=lambda: check_agent_publication_outbox(context),
         ),
+        *agent_publication_protection_check_specs(context),
     )
 
 

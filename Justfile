@@ -435,6 +435,9 @@ _lint-patch-stitch-terminology: _setup
 # as the W3 file-proof gate in witness collection, so the sase-1j6 epic-symbol
 # row for facts_look_like_update_skew is dropped. If a later phase needs the
 # symbol allow-listed again, re-add a row re-keyed onto a still-open bead.
+# sase-1oh.5.1 owns the publication-protection seams consumed by its later
+# transcript, prompt, and rejection-recovery phases; remove each row when its
+# phase wires the real publisher caller.
 # sase-1jw.2 wires the machine-local plan project readers into approval; the
 # original symbol allowlist rows are now consumed and have been removed.
 # sase-1jx.10.1.4 (Apply, progress, Ready, and Failed) consumes
@@ -474,6 +477,12 @@ _lint-symvision *args: _setup
     SASE_SYMVISION_BEAD_STATUS_ONLY=1 BD_COMMAND=tools/sase_bead {{ venv_bin }}/symvision src/sase \
         --exclude-decorator gate_command_entrypoint \
         --exclude-decorator builtin_chop \
+        --epic-symbol "sase-1oh.5.1(ScannedPublicationCandidate)" \
+        --epic-symbol "sase-1oh.5.1(scan_publication_candidate)" \
+        --epic-symbol "sase-1oh.5.1(record_publication_scan)" \
+        --epic-symbol "sase-1oh.5.1(publication_content_retry_allowed)" \
+        --epic-symbol "sase-1oh.5.1(record_publication_push_rejection)" \
+        --epic-symbol "sase-1oh.5.1(classify_sidecar_publication_push_result)" \
         {{ args }}
 
 # Check Python file line counts (private, extracted for per-stage wrapping)

@@ -25,6 +25,14 @@ class _SidecarPublicationDecision:
     retryable: bool
 
 
+@dataclass(frozen=True)
+class _SidecarPublicationRejection:
+    schema_version: int
+    classification: str
+    commit_ids: tuple[str, ...]
+    relative_paths: tuple[str, ...]
+
+
 def decide_sidecar_publication_after_push(
     *,
     returncode: int,
@@ -38,6 +46,47 @@ def decide_sidecar_publication_after_push(
     binding = require_rust_binding("decide_sidecar_publication_after_push")
     raw = binding(returncode, stdout, stderr, attempt)
     return _decision_from_dict(raw)
+
+
+def classify_sidecar_publication_push_result(
+    *,
+    returncode: int,
+    stdout: str,
+    stderr: str,
+) -> _SidecarPublicationRejection:
+    """Return the sanitized structured classification of one remote push result."""
+    binding = require_rust_binding("classify_sidecar_publication_push_result")
+    raw = binding(returncode, stdout, stderr)
+    if not isinstance(raw, dict):
+        raise RuntimeError("sase_core_rs returned a non-dict sidecar rejection")
+    try:
+        result = _SidecarPublicationRejection(
+            schema_version=_require_int(raw, "schema_version"),
+            classification=_require_str(raw, "classification"),
+            commit_ids=_require_str_tuple(raw, "commit_ids"),
+            relative_paths=_require_str_tuple(raw, "relative_paths"),
+        )
+    except KeyError as exc:
+        raise RuntimeError(
+            f"sase_core_rs returned an incomplete sidecar rejection: missing {exc}"
+        ) from exc
+    if result.schema_version != SIDECAR_PUBLICATION_WIRE_SCHEMA_VERSION:
+        raise RuntimeError(
+            "sase_core_rs sidecar publication rejection wire is stale: "
+            f"{result.schema_version}"
+        )
+    if result.classification not in {
+        "success",
+        "rejected_secret_scan",
+        "rejected_repository_rule",
+        "rejected_non_fast_forward",
+        "rejected_fetch_first",
+        "unknown_failure",
+    }:
+        raise RuntimeError(
+            "sase_core_rs returned an unknown sidecar rejection classification"
+        )
+    return result
 
 
 def _decision_from_dict(raw: Any) -> _SidecarPublicationDecision:
@@ -93,10 +142,20 @@ def _require_bool(raw: dict[str, Any], key: str) -> bool:
     return value
 
 
+def _require_str_tuple(raw: dict[str, Any], key: str) -> tuple[str, ...]:
+    value = raw[key]
+    if not isinstance(value, (list, tuple)) or any(
+        not isinstance(item, str) for item in value
+    ):
+        raise RuntimeError(f"sase_core_rs sidecar rejection field {key!r} is not str[]")
+    return tuple(value)
+
+
 __all__ = [
     "SIDECAR_PUBLICATION_ACTION_INTEGRATE_AND_RETRY",
     "SIDECAR_PUBLICATION_ACTION_STOP",
     "SIDECAR_PUBLICATION_ACTION_SUCCESS",
     "SIDECAR_PUBLICATION_WIRE_SCHEMA_VERSION",
+    "classify_sidecar_publication_push_result",
     "decide_sidecar_publication_after_push",
 ]
