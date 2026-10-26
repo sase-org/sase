@@ -165,9 +165,13 @@ jobs:
           rm -rf dist/
           uv build
           uvx twine check dist/*
-          wheels="$(ls dist/*.whl 2>/dev/null | wc -l)"
-          sdists="$(ls dist/*.tar.gz 2>/dev/null | wc -l)"
-          if [ "${wheels}" != "1" ] || [ "${sdists}" != "1" ]; then
+          # SC2012: count the dist set with nullglob arrays, not ls | wc -l.
+          # Array length under `set -u` breaks old bash: relax it for the glob.
+          set +u
+          shopt -s nullglob
+          wheels=(dist/*.whl)
+          sdists=(dist/*.tar.gz)
+          if [ "${#wheels[@]}" != "1" ] || [ "${#sdists[@]}" != "1" ]; then
             echo "::error::dist set must be exactly one wheel plus one sdist"
             ls dist/
             exit 1
@@ -399,6 +403,13 @@ jobs:
           set -euo pipefail
           EX_HOME="$RUNNER_TEMP/ex-home"
           mkdir -p "$EX_HOME" "$RUNNER_TEMP/ex-tool-dir" "$RUNNER_TEMP/ex-tool-bin"
+          # The resolver below runs under this relocated HOME, so pin uv's
+          # managed-Python directory at the pre-relocation install: `uv venv
+          # --python 3.12` then reuses the 3.12 fetched by "Set up Python"
+          # instead of downloading another copy into the throwaway home.
+          # `uv python dir` resolves the platform default (XDG data dir on
+          # Linux, Application Support on macOS), so this works on both legs.
+          echo "UV_PYTHON_INSTALL_DIR=$(uv python dir)" >> "$GITHUB_ENV"
           {
             echo "HOME=$EX_HOME"
             echo "SASE_HOME=$EX_HOME"
@@ -416,61 +427,20 @@ jobs:
           set -euo pipefail
           # N-1 is the newest still-installable PyPI release at or below the
           # candidate: strictly older at real tags, the released same-version
-          # bytes in version-equals-last-release rehearsals. Retention deletes
-          # old cores, so a newest-older release whose own dependency closure
-          # is gone (UPGRADE_NMINUS1_UNAVAILABLE) is skipped, not forced.
-          python3 - <<'EOF'
-          import json
-          import os
-          import subprocess
-          import urllib.request
-
-          version = "${{ steps.leg.outputs.version }}"
-          with urllib.request.urlopen(
-              "https://pypi.org/pypi/sase/json", timeout=30
-          ) as response:
-              releases = json.loads(response.read().decode("utf-8"))["releases"]
-
-          def key(value: str) -> tuple[int, ...]:
-              return tuple(int(p) for p in value.split(".") if p.isdigit())
-
-          mine = key(version)
-          candidates = sorted(
-              (v for v in releases if v.replace(".", "").isdigit() and key(v) <= mine),
-              key=key,
-              reverse=True,
-          )
-          picked = ""
-          for candidate in candidates:
-              proc = subprocess.run(
-                  [
-                      "uv",
-                      "pip",
-                      "install",
-                      "--dry-run",
-                      "--system",
-                      "--python",
-                      "3.12",
-                      f"sase=={candidate}",
-                  ],
-                  capture_output=True,
-                  text=True,
-                  check=False,
-              )
-              if proc.returncode == 0:
-                  picked = candidate
-                  break
-              print(f"sase=={candidate} no longer resolves; skipping")
-          if not picked:
-              print(
-                  "::error::UPGRADE_NO_INSTALLABLE_PREVIOUS no installable "
-                  f"PyPI release at or below {version}"
-              )
-              raise SystemExit(1)
-          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as fp:
-              fp.write(f"previous_version={picked}\n")
-          print(f"previous installable release: {picked}")
-          EOF
+          # bytes in version-equals-last-release rehearsals. Each candidate
+          # dry-runs in a throwaway uv venv, never the externally managed
+          # system interpreter: the relocated HOME above has no system
+          # interpreter worth borrowing, and the externally managed refusal
+          # must stop the step, not pass. A real
+          # resolution failure skips the candidate with uv's stderr tail;
+          # anything else stops the step with a ::error:: line. Retention
+          # deletes old cores, so a newest-older release whose own dependency
+          # closure is gone (UPGRADE_NMINUS1_UNAVAILABLE) is skipped, not
+          # forced. The subcommand prints exactly one previous_version line,
+          # which lands in GITHUB_OUTPUT.
+          python3 tools/exercise_release previous-version \
+            --candidate-version '${{ steps.leg.outputs.version }}' \
+            >> "$GITHUB_OUTPUT"
       - name: Run the exercise leg
         run: |
           set -euo pipefail

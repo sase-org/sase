@@ -54,6 +54,9 @@ class FakeRunner:
         self.calls: list[list[str]] = []
         self.version_stdout = ""
         self.list_entries: list[dict[str, Any]] = []
+        self.venv_returncode = 0
+        self.venv_stderr = ""
+        self.dry_run_results: dict[str, Any] = {}
 
     def run(
         self,
@@ -67,6 +70,19 @@ class FakeRunner:
         self.calls.append(words)
         ok = self._tool.Completed(args=words, returncode=0, stdout="", stderr="")
         tail = words[1:]
+        if tail[:1] == ["venv"]:
+            return self._tool.Completed(
+                args=words,
+                returncode=self.venv_returncode,
+                stdout="",
+                stderr=self.venv_stderr,
+            )
+        if tail[:3] == ["pip", "install", "--dry-run"]:
+            version = words[-1].split("==")[-1]
+            scripted = self.dry_run_results.get(version)
+            if scripted is not None:
+                return scripted
+            return ok
         if tail[:2] == ["tool", "install"]:
             return ok
         if tail[:1] == ["-c"] and "import sase.main.entry" in tail[1]:
@@ -463,3 +479,159 @@ def test_merge_unreadable_leg_is_red(tool: ModuleType, tmp_path: Path) -> None:
     )
     assert merged["verdict"] == "fail"
     assert merged["reason"].startswith("EXERCISE_RED(linux)")
+
+
+def _resolve_which(tool: ModuleType, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(
+        tool.shutil,
+        "which",
+        lambda command, *args, **kwargs: "/usr/bin/uv" if command == "uv" else None,
+    )
+
+
+def _unresolvable(tool: ModuleType, message: str) -> Any:
+    return tool.Completed(args=[], returncode=1, stdout="", stderr=message)
+
+
+def test_previous_candidates_newest_first_at_or_below(tool: ModuleType) -> None:
+    releases = {
+        "0.19.0": [],
+        "0.18.2": [],
+        "0.18.1": [],
+        "0.18.0": [],
+        "0.17.0rc1": [],
+        "not-a-version": [],
+    }
+    assert tool.previous_candidates(releases, "0.18.2") == [
+        "0.18.2",
+        "0.18.1",
+        "0.18.0",
+    ]
+
+
+def test_previous_version_picks_first_resolving_candidate(
+    tool: ModuleType, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _resolve_which(tool, monkeypatch)
+    runner = FakeRunner(tool)
+    picked = tool.resolve_previous_version(
+        "0.18.2",
+        runner=runner,
+        env={"PATH": os.defpath},
+        fetch=lambda: {"0.18.2": [], "0.18.1": [], "0.18.0": []},
+    )
+    assert picked == "0.18.2"
+    assert [call for call in runner.calls if call[1:2] == ["venv"]] != []
+    assert "--system" not in [word for call in runner.calls for word in call]
+    dry_runs = [
+        call for call in runner.calls if call[1:4] == ["pip", "install", "--dry-run"]
+    ]
+    assert len(dry_runs) == 1
+    assert dry_runs[0][-1] == "sase==0.18.2"
+    assert dry_runs[0][-2].endswith("bin/python")
+
+
+def test_previous_version_skips_unresolvable_candidate(
+    tool: ModuleType, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture
+) -> None:
+    _resolve_which(tool, monkeypatch)
+    runner = FakeRunner(tool)
+    runner.dry_run_results = {
+        "0.18.2": _unresolvable(
+            tool, "error: No solution found when resolving dependencies"
+        ),
+    }
+    picked = tool.resolve_previous_version(
+        "0.18.2",
+        runner=runner,
+        env={"PATH": os.defpath},
+        fetch=lambda: {"0.18.2": [], "0.18.1": []},
+    )
+    assert picked == "0.18.1"
+    attempted = [call[-1] for call in runner.calls if "--dry-run" in call]
+    assert attempted == ["sase==0.18.2", "sase==0.18.1"]
+    captured = capsys.readouterr()
+    assert "sase==0.18.2 no longer resolves; skipping" in captured.err
+
+
+@pytest.mark.parametrize(
+    "stderr",
+    [
+        "error: The interpreter is externally-managed-environment",
+        "error: No interpreter found for Python 3.12",
+        "error: Failed to fetch sase: Network is unreachable",
+    ],
+)
+def test_previous_version_stops_on_non_resolution_errors(
+    tool: ModuleType, monkeypatch: pytest.MonkeyPatch, stderr: str
+) -> None:
+    _resolve_which(tool, monkeypatch)
+    runner = FakeRunner(tool)
+    runner.dry_run_results = {"0.18.2": _unresolvable(tool, stderr)}
+    with pytest.raises(tool.PreviousVersionError, match="UV_RESOLVE_FAILED"):
+        tool.resolve_previous_version(
+            "0.18.2",
+            runner=runner,
+            env={"PATH": os.defpath},
+            fetch=lambda: {"0.18.2": [], "0.18.1": []},
+        )
+    attempted = [call[-1] for call in runner.calls if "--dry-run" in call]
+    assert attempted == ["sase==0.18.2"]
+
+
+def test_previous_version_stops_when_venv_fails(
+    tool: ModuleType, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _resolve_which(tool, monkeypatch)
+    runner = FakeRunner(tool)
+    runner.venv_returncode = 1
+    runner.venv_stderr = "error: failed to create virtual environment"
+    with pytest.raises(tool.PreviousVersionError, match="UV_VENV_FAILED"):
+        tool.resolve_previous_version(
+            "0.18.2",
+            runner=runner,
+            env={"PATH": os.defpath},
+            fetch=lambda: {"0.18.2": []},
+        )
+
+
+def test_previous_version_reports_when_nothing_resolves(
+    tool: ModuleType, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _resolve_which(tool, monkeypatch)
+    runner = FakeRunner(tool)
+    runner.dry_run_results = {
+        "0.18.2": _unresolvable(tool, "error: No solution found"),
+        "0.18.1": _unresolvable(tool, "error: No solution found for sase==0.18.1"),
+    }
+    with pytest.raises(
+        tool.PreviousVersionError, match="UPGRADE_NO_INSTALLABLE_PREVIOUS"
+    ):
+        tool.resolve_previous_version(
+            "0.18.2",
+            runner=runner,
+            env={"PATH": os.defpath},
+            fetch=lambda: {"0.18.2": [], "0.18.1": []},
+        )
+
+
+def test_previous_version_main_writes_github_output_line(
+    tool: ModuleType, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture
+) -> None:
+    _resolve_which(tool, monkeypatch)
+    runner = FakeRunner(tool)
+    monkeypatch.setattr(tool, "Runner", lambda: runner)
+    monkeypatch.setattr(tool, "fetch_pypi_releases", lambda: {"0.18.1": []})
+    assert tool.main(["previous-version", "--candidate-version", "0.18.2"]) == 0
+    assert capsys.readouterr().out == "previous_version=0.18.1\n"
+
+
+def test_previous_version_main_fails_loudly(
+    tool: ModuleType, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture
+) -> None:
+    _resolve_which(tool, monkeypatch)
+    runner = FakeRunner(tool)
+    monkeypatch.setattr(tool, "Runner", lambda: runner)
+    monkeypatch.setattr(tool, "fetch_pypi_releases", lambda: {})
+    assert tool.main(["previous-version", "--candidate-version", "0.18.2"]) == 3
+    assert "::error::UPGRADE_NO_INSTALLABLE_PREVIOUS" in capsys.readouterr().out

@@ -232,14 +232,29 @@ def test_release_exercise_isolates_the_leg_environment() -> None:
         assert variable in run_text
 
 
+def test_release_exercise_resolver_uses_the_subcommand() -> None:
+    workflow = _load_release_workflow()
+    legs = workflow["jobs"]["exercise-legs"]
+    run_text = _job_run_text(legs)
+
+    assert "tools/exercise_release previous-version" in run_text
+    assert "--candidate-version" in run_text
+    assert "previous_version" in run_text
+    assert "GITHUB_OUTPUT" in run_text
+    assert "UPGRADE_NMINUS1_UNAVAILABLE" in run_text
+    all_runs = "\n".join(
+        _job_run_text(job)
+        for job in workflow["jobs"].values()
+        if isinstance(job.get("steps"), list)
+    )
+    assert "--system" not in all_runs
+
+
 def test_release_exercise_upgrades_from_previous_on_wheel_legs() -> None:
     workflow = _load_release_workflow()
     legs = workflow["jobs"]["exercise-legs"]
     run_text = _job_run_text(legs)
 
-    assert "UPGRADE_NO_INSTALLABLE_PREVIOUS" in run_text
-    assert "UPGRADE_NMINUS1_UNAVAILABLE" in run_text
-    assert "--dry-run" in run_text
     assert "--previous-version" in run_text
     prev_steps = [step for step in legs["steps"] if step.get("id") == "prev"]
     assert len(prev_steps) == 1

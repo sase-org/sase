@@ -25,6 +25,11 @@ verdict plus a typed reason. A missing or unreadable leg is red, and any red
 leg yields ``EXERCISE_RED(<os>)``, which the ``publish`` job and the steward
 treat as withholding publication.
 
+``previous-version`` resolves the newest still-installable PyPI release at or
+below a candidate: each numeric candidate dry-runs in a throwaway ``uv venv``
+(never ``--system``), unresolvable candidates are skipped, and any other
+failure stops with a ``::error::`` line.
+
 Only the stdlib is used.
 """
 
@@ -36,7 +41,11 @@ import os
 import shutil
 import subprocess
 import sys
+import tempfile
 import time
+import urllib.error
+import urllib.request
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Sequence
@@ -158,6 +167,155 @@ def seed_owner_identity(sase_home: Path, config_home: Path) -> None:
         f"  username: {SEED_USERNAME}\n"
         f"  machine_name: {SEED_MACHINE_NAME}\n",
         encoding="utf-8",
+    )
+
+
+PREVIOUS_VERSION_INDEX_URL = "https://pypi.org/pypi/sase/json"
+PREVIOUS_VERSION_TIMEOUT = 30
+
+#: Case-insensitive markers in uv's output that mean the candidate itself
+#: cannot resolve, so it is skipped. Any other failure (venv creation, no
+#: interpreter, an externally managed refusal, a network or index error)
+#: stops the resolver loudly instead.
+RESOLUTION_FAILURE_MARKERS = (
+    "no solution found",
+    "unsatisfiable",
+    "no matching distribution",
+    "no distributions",
+    "could not find a version",
+    "no versions available",
+)
+
+
+class PreviousVersionError(Exception):
+    """Resolving the previous release failed: the step must stop, not skip."""
+
+
+def _numeric_key(value: str) -> tuple[int, ...]:
+    return tuple(int(part) for part in value.split(".") if part.isdigit())
+
+
+def previous_candidates(
+    releases: Mapping[str, Any], candidate_version: str
+) -> list[str]:
+    """Newest-first numeric releases at or below the candidate version."""
+    mine = _numeric_key(candidate_version)
+    matching = [
+        version
+        for version in releases
+        if version.replace(".", "").isdigit() and _numeric_key(version) <= mine
+    ]
+    return sorted(matching, key=_numeric_key, reverse=True)
+
+
+def _is_resolution_failure(output: str) -> bool:
+    lowered = (output or "").lower()
+    return any(marker in lowered for marker in RESOLUTION_FAILURE_MARKERS)
+
+
+def _stderr_tail(output: str, lines: int = 5) -> str:
+    return "\n".join((output or "").strip().splitlines()[-lines:])
+
+
+def fetch_pypi_releases(
+    index_url: str = PREVIOUS_VERSION_INDEX_URL,
+    timeout: int = PREVIOUS_VERSION_TIMEOUT,
+) -> dict[str, Any]:
+    """Read the ``{"releases": {...}}`` mapping from the PyPI JSON index."""
+    try:
+        with urllib.request.urlopen(index_url, timeout=timeout) as response:
+            payload = json.loads(response.read().decode("utf-8"))
+    except (urllib.error.URLError, OSError, ValueError) as exc:
+        raise PreviousVersionError(
+            f"PYPI_INDEX_ERROR cannot read {index_url}: {exc}"
+        ) from exc
+    releases = payload.get("releases")
+    if not isinstance(releases, dict):
+        raise PreviousVersionError(
+            f"PYPI_INDEX_ERROR {index_url} has no releases mapping"
+        )
+    return releases
+
+
+def _resolve_uv(env: Mapping[str, str]) -> str:
+    uv = shutil.which("uv", path=env.get("PATH", os.defpath))
+    if uv is None:
+        raise PreviousVersionError("UV_NOT_FOUND uv is not on PATH")
+    return uv
+
+
+def resolve_previous_version(
+    candidate_version: str,
+    *,
+    runner: Runner,
+    env: dict[str, str],
+    python: str = "3.12",
+    fetch: Callable[[], dict[str, Any]] | None = None,
+) -> str:
+    """Pick the newest installable PyPI release at or below the candidate.
+
+    Each candidate dry-runs inside a throwaway ``uv venv`` so the relocated
+    leg ``HOME`` never touches the externally managed ``--system``
+    interpreter. A candidate whose own dependency closure no longer resolves
+    is skipped; anything else raises :class:`PreviousVersionError`.
+    """
+    uv = _resolve_uv(env)
+    get_releases = fetch or fetch_pypi_releases
+    try:
+        releases = get_releases()
+    except PreviousVersionError:
+        raise
+    except (OSError, ValueError) as exc:
+        raise PreviousVersionError(
+            f"PYPI_INDEX_ERROR cannot read PyPI index: {exc}"
+        ) from exc
+    candidates = previous_candidates(releases, candidate_version)
+    with tempfile.TemporaryDirectory(prefix="prev-version-") as tmp:
+        venv_dir = Path(tmp) / "venv"
+        created = runner.run(
+            [uv, "venv", "--python", python, str(venv_dir)],
+            env=env,
+            timeout=300,
+        )
+        if created.returncode != 0:
+            raise PreviousVersionError(
+                "UV_VENV_FAILED cannot create throwaway venv: "
+                f"{_stderr_tail(created.stderr or created.stdout)}"
+            )
+        venv_python = venv_dir / ("Scripts" if os.name == "nt" else "bin") / (
+            "python.exe" if os.name == "nt" else "python"
+        )
+        for candidate in candidates:
+            completed = runner.run(
+                [
+                    uv,
+                    "pip",
+                    "install",
+                    "--dry-run",
+                    "--python",
+                    str(venv_python),
+                    f"sase=={candidate}",
+                ],
+                env=env,
+                timeout=300,
+            )
+            if completed.returncode == 0:
+                print(
+                    f"previous installable release: {candidate}", file=sys.stderr
+                )
+                return candidate
+            tail = _stderr_tail(completed.stderr or completed.stdout)
+            if _is_resolution_failure(completed.stderr) or _is_resolution_failure(
+                completed.stdout
+            ):
+                if tail:
+                    print(tail, file=sys.stderr)
+                print(f"sase=={candidate} no longer resolves; skipping", file=sys.stderr)
+                continue
+            raise PreviousVersionError(f"UV_RESOLVE_FAILED sase=={candidate}: {tail}")
+    raise PreviousVersionError(
+        "UPGRADE_NO_INSTALLABLE_PREVIOUS no installable PyPI release "
+        f"at or below {candidate_version}"
     )
 
 
@@ -796,6 +954,13 @@ def build_parser() -> argparse.ArgumentParser:
     leg.add_argument("--work-dir", required=True)
     leg.add_argument("--out", required=True)
 
+    prev = subs.add_parser(
+        "previous-version",
+        help="resolve the newest installable PyPI release at or below a candidate",
+    )
+    prev.add_argument("--candidate-version", required=True)
+    prev.add_argument("--python", default="3.12")
+
     merge = subs.add_parser("merge", help="merge leg files into one verdict")
     merge.add_argument("legs", nargs="+", help="exercise leg JSON files")
     merge.add_argument("--candidate-id", required=True)
@@ -832,6 +997,19 @@ def main(argv: Sequence[str] | None = None) -> int:
             leg = run_leg(config)
             print(json.dumps({"verdict": leg["verdict"], "reason": leg["reason"]}))
             return EXIT_OK if leg["verdict"] == "pass" else EXIT_RED
+        if args.command == "previous-version":
+            try:
+                picked = resolve_previous_version(
+                    args.candidate_version,
+                    runner=Runner(),
+                    env=dict(os.environ),
+                    python=args.python,
+                )
+            except PreviousVersionError as exc:
+                print(f"::error::{exc}")
+                return EXIT_ERROR
+            print(f"previous_version={picked}")
+            return EXIT_OK
         if args.command == "merge":
             merged = merge_legs(
                 [Path(item) for item in args.legs],
