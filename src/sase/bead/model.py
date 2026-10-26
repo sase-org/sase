@@ -43,6 +43,7 @@ class ReopenCause(Enum):
     OPEN = "open"
     UPDATE = "update"
     EPIC_PRECLAIM = "epic_preclaim"
+    COMPLETION_FAILURE = "completion_failure"
 
 
 class PhaseSize(Enum):
@@ -194,6 +195,65 @@ class BeadNote:
 
 
 @dataclass(frozen=True)
+class BeadCloseProvenance:
+    """Stable host identity attached to a close made during an agent run.
+
+    Mirrors ``BeadCloseProvenanceWire`` in sase-core. Human and historical
+    closes carry no provenance and are never attributed to a run from an
+    assignee or timestamp alone.
+    """
+
+    run_id: str
+    agent_name: str
+    artifact_dir: str
+
+    def validate(self) -> None:
+        if not self.run_id.strip():
+            raise ValueError("close provenance run_id cannot be empty or blank")
+        if not self.agent_name.strip():
+            raise ValueError("close provenance agent_name cannot be empty or blank")
+        if not self.artifact_dir.strip():
+            raise ValueError("close provenance artifact_dir cannot be empty or blank")
+
+
+@dataclass(frozen=True)
+class BeadCompletionFailure:
+    """Durable evidence that host completion failed after a close.
+
+    Mirrors ``BeadCompletionFailureWire`` in sase-core. The readable
+    ``STITCH FAILED:`` note is for humans; consumers must read these
+    structured facts, never the note text.
+    """
+
+    close_event_id: str
+    run_id: str
+    agent_name: str
+    artifact_dir: str
+    failed_at: str
+    failure_code: str
+    evidence_locations: tuple[str, ...] = ()
+
+    def validate(self) -> None:
+        if not self.close_event_id.strip():
+            raise ValueError("completion failure close_event_id cannot be empty")
+        if not self.run_id.strip():
+            raise ValueError("completion failure run_id cannot be empty or blank")
+        if not self.agent_name.strip():
+            raise ValueError("completion failure agent_name cannot be empty or blank")
+        if not self.artifact_dir.strip():
+            raise ValueError("completion failure artifact_dir cannot be empty or blank")
+        if not self.failed_at.strip():
+            raise ValueError("completion failure failed_at cannot be empty or blank")
+        if not self.failure_code.strip():
+            raise ValueError("completion failure failure_code cannot be empty or blank")
+        for location in self.evidence_locations:
+            if not location.strip():
+                raise ValueError(
+                    "completion failure evidence locations cannot be empty or blank"
+                )
+
+
+@dataclass(frozen=True)
 class CloseRecord:
     """One close episode that has since been undone.
 
@@ -209,6 +269,8 @@ class CloseRecord:
     close_reason: str | None = None
     resolution: Resolution | None = None
     reopened_by: str | None = None
+    close_event_id: str | None = None
+    close_provenance: BeadCloseProvenance | None = None
 
     def validate(self) -> None:
         if not self.closed_at.strip():
@@ -217,6 +279,10 @@ class CloseRecord:
             raise ValueError("close history reopened_at cannot be empty or blank")
         if self.reopened_by is not None and not self.reopened_by.strip():
             raise ValueError("close history reopened_by cannot be empty or blank")
+        if self.close_event_id is not None and not self.close_event_id.strip():
+            raise ValueError("close history close_event_id cannot be empty or blank")
+        if self.close_provenance is not None:
+            self.close_provenance.validate()
 
 
 @dataclass(frozen=True)
@@ -296,7 +362,10 @@ class Issue:
     updated_at: str = ""
     closed_at: str | None = None
     close_reason: str | None = None
+    close_event_id: str | None = None
+    close_provenance: BeadCloseProvenance | None = None
     resolution: Resolution | None = None
+    completion_failure: BeadCompletionFailure | None = None
     description: str = ""
     notes: list[BeadNote] = field(default_factory=list)
     design: str = ""
@@ -404,6 +473,12 @@ class Issue:
             raise ValueError("changespec_bug_id requires changespec_name")
         if self.status != Status.CLOSED and self.resolution is not None:
             raise ValueError("Only closed issues can carry resolution metadata")
+        if self.close_event_id is not None and not self.close_event_id.strip():
+            raise ValueError("close_event_id cannot be empty or blank")
+        if self.close_provenance is not None:
+            self.close_provenance.validate()
+        if self.completion_failure is not None:
+            self.completion_failure.validate()
         if self.issue_type != IssueType.TASK and (
             self.task_type or self.task_type_fields
         ):

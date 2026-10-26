@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -28,6 +29,7 @@ class BeadProjectMutationLifecycleMixin:
         note: str | None = None,
         author: str | None = None,
         note_attachments: list[dict[str, Any]] | None = None,
+        close_provenance: Mapping[str, Any] | None = None,
     ) -> list[Issue]:
         """Close one or more issues.
 
@@ -36,9 +38,18 @@ class BeadProjectMutationLifecycleMixin:
         append it to every explicitly listed issue in the same mutation.
         ``author`` is the actor recorded on that note and on every close
         event in the batch.
+
+        When ``close_provenance`` is omitted, the current host-run origin is
+        stamped automatically when one is available; human closes without a
+        run identity stay unattributed and are never recovered. Explicitly
+        delegated closes (stitch ``-B close``) inherit the same origin from
+        the environment, so no caller passes provenance by hand.
         """
+        from sase.bead.close_provenance import host_run_close_provenance
         from sase.core import bead_mutation_facade as rust_beads
 
+        if close_provenance is None:
+            close_provenance = host_run_close_provenance()
         # Raw IDs pass straight into the close binding, which resolves
         # them inside its locked load.
         closed, outcome = rust_beads.close(
@@ -51,6 +62,7 @@ class BeadProjectMutationLifecycleMixin:
             author=author,
             now=self._current_time(),
             note_attachments=note_attachments,
+            close_provenance=close_provenance,
         )
         self._record_mutation_outcome(outcome)
         self._refresh_db_from_jsonl()

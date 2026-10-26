@@ -402,6 +402,26 @@ def _commit_bead_state(
     return True
 
 
+def commit_failed_close_recovery(
+    beads_dir: Path,
+    run_id: str,
+    *,
+    already_locked: bool = False,
+    mutation_origin: str = "user",
+    operation_context: OperationContext | None = None,
+) -> bool:
+    """Commit a failed-close recovery for local post-lock lifecycle publication."""
+    return _commit_bead_state(
+        beads_dir,
+        message=f"chore(beads): recover failed-run closes for {run_id}",
+        auto_commit_type="beads",
+        op_prefix="bead.failed_close_recovery",
+        already_locked=already_locked,
+        mutation_origin=mutation_origin,
+        operation_context=operation_context,
+    )
+
+
 def bead_state_is_clean(beads_dir: Path) -> bool:
     """Return whether the bead store has no tracked or untracked git changes."""
     if not beads_dir.exists():

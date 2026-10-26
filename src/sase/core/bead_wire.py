@@ -4,7 +4,11 @@ from __future__ import annotations
 
 from typing import Any
 
-from sase.bead.close_history_codec import close_history_from_dicts
+from sase.bead.close_history_codec import (
+    close_history_from_dicts,
+    provenance_from_dict,
+)
+from sase.bead.completion_failure_codec import completion_failure_from_dict
 from sase.bead.note_codec import attachments_from_list, notes_from_data
 from sase.bead.snooze_codec import snooze_from_dict
 from sase.bead.model import (
@@ -94,9 +98,14 @@ def issue_from_dict(data: dict[str, Any]) -> Issue:
         close_reason=(
             None if data.get("close_reason") is None else str(data["close_reason"])
         ),
+        close_event_id=(
+            None if data.get("close_event_id") is None else str(data["close_event_id"])
+        ),
+        close_provenance=provenance_from_dict(data.get("close_provenance")),
         resolution=(
             Resolution(str(data["resolution"])) if data.get("resolution") else None
         ),
+        completion_failure=completion_failure_from_dict(data.get("completion_failure")),
         description=(
             "" if data.get("description") is None else str(data.get("description", ""))
         ),

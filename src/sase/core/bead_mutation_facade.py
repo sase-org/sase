@@ -345,8 +345,15 @@ def close(
     author: str | None = None,
     now: str | None = None,
     note_attachments: list[dict[str, Any]] | None = None,
+    close_provenance: Mapping[str, Any] | None = None,
 ) -> tuple[list[Issue], dict[str, Any]]:
-    """Close issues, recording ``author`` on the note and every close event."""
+    """Close issues, recording ``author`` on the note and every close event.
+
+    ``close_provenance`` stamps the stable host-run identity on the close
+    event so a later terminal host-finalization failure can recover exactly
+    this run's closes. ``None`` (the default) leaves the close unattributed:
+    human and historical closes are never recovered.
+    """
     _guard_bead_store_write(beads_dir, "close")
     binding = require_rust_binding("bead_close")
     resolution_value = (
@@ -363,8 +370,26 @@ def close(
         note,
         author,
         note_attachments,
+        dict(close_provenance) if close_provenance is not None else None,
     )
     return issues_from_list(payload.get("issues", [])), payload
+
+
+def recover_failed_closes(
+    beads_dir: Path | str,
+    request: Mapping[str, Any],
+) -> dict[str, Any]:
+    """Reopen this run's standing ``done`` closes after a terminal failure.
+
+    ``request`` carries the ``BeadFailedCloseRecoveryRequestWire`` fields:
+    ``run_id``, ``failed_at``, ``failure_code``, ``evidence_locations``,
+    a ``STITCH FAILED:``-prefixed ``note``, and ``actor``. Returns the
+    recovery report with ``changed``, ``recovered``, ``already_applied``,
+    ``skipped``, and ``reopened_ancestor_ids``.
+    """
+    _guard_bead_store_write(beads_dir, "recover_failed_closes")
+    binding = require_rust_binding("bead_recover_failed_closes")
+    return _call_issue_operation(binding, str(beads_dir), dict(request))
 
 
 def open_issue(
@@ -628,6 +653,7 @@ __all__ = [
     "mark_ready_to_work",
     "open_issue",
     "preclaim_epic_work",
+    "recover_failed_closes",
     "release_agent_claim",
     "remove",
     "remove_dependencies",

@@ -165,6 +165,52 @@ def run_finalizers(
     dispatches repository mutations through ``sase stitch create``. Later
     mutating executors can reactivate commit; declaration recovery and
     conflict repair keep separate one-shot budgets.
+
+    Any terminal failure — including plan-integrity exits before the loop and
+    declaration-recovery failures before an executor starts — runs the
+    failed-close recovery coordinator on the way out. The coordinator never
+    raises and never turns the failure into a success; the original exception
+    always propagates.
+    """
+    try:
+        return _run_finalizers(
+            provider=provider,
+            original_prompt=original_prompt,
+            invoke_result=invoke_result,
+            model_tier=model_tier,
+            suppress_output=suppress_output,
+            model_override=model_override,
+            artifacts_dir=artifacts_dir,
+            options=options,
+            mode=mode,
+        )
+    except BaseException as exc:
+        from sase.finalizers.failed_close_recovery import (
+            coordinate_failed_close_recovery,
+        )
+
+        coordinate_failed_close_recovery(artifacts_dir, failure=exc)
+        raise
+
+
+def _run_finalizers(
+    *,
+    provider: Any,
+    original_prompt: str,
+    invoke_result: Any,
+    model_tier: ModelTier,
+    suppress_output: bool,
+    model_override: str | None,
+    artifacts_dir: str | None,
+    options: Any = None,
+    mode: str = "normal",
+) -> Any:
+    """Drive selected finalizers to a bounded fixed point.
+
+    The built-in commit instance consumes the accepted final declaration and
+    dispatches repository mutations through ``sase stitch create``. Later
+    mutating executors can reactivate commit; declaration recovery and
+    conflict repair keep separate one-shot budgets.
     """
 
     no_model = mode == "no_model"

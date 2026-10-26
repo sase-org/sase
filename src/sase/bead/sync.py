@@ -17,6 +17,7 @@ from sase.bead._sync_git import (
     bead_store_write_lock as bead_store_write_lock,
     commit_bead_claim as commit_bead_claim,
     commit_bead_claim_reconciliation as commit_bead_claim_reconciliation,
+    commit_failed_close_recovery as commit_failed_close_recovery,
     commit_bead_claim_release as commit_bead_claim_release,
     commit_epic_creation_rollback as commit_epic_creation_rollback,
     commit_epic_graph_checkpoint as commit_epic_graph_checkpoint,

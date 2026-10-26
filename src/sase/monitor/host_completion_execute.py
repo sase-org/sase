@@ -190,16 +190,22 @@ def execute_host_completion(
                 )
             evidence = gate
         _install_prepared_declaration(intent, artifacts_dir, pre_exec.publication)
-        run_finalizers(
-            provider=_NoModelProvider(),
-            original_prompt=str(intent.get("success_message") or ""),
-            invoke_result=InvokeResult(content=""),
-            model_tier="large",
-            suppress_output=True,
-            model_override=None,
-            artifacts_dir=artifacts_dir,
-            mode="no_model",
-        )
+        # Attribute terminal-failure bead recovery to the prepared run, not
+        # the monitor: the coordinator inside run_finalizers follows this
+        # source identity when it fires.
+        from sase.finalizers.failed_close_recovery import source_identity_scope
+
+        with source_identity_scope(intent, intent_root):
+            run_finalizers(
+                provider=_NoModelProvider(),
+                original_prompt=str(intent.get("success_message") or ""),
+                invoke_result=InvokeResult(content=""),
+                model_tier="large",
+                suppress_output=True,
+                model_override=None,
+                artifacts_dir=artifacts_dir,
+                mode="no_model",
+            )
     except Exception as exc:
         if ambiguous_commit(load_host_completion_receipt(artifacts_dir), artifacts_dir):
             reason = f"ambiguous_external_action:{exc}"

@@ -14,7 +14,34 @@ from __future__ import annotations
 
 from typing import Any
 
-from sase.bead.model import CloseRecord, ReopenCause, Resolution
+from sase.bead.model import (
+    BeadCloseProvenance,
+    CloseRecord,
+    ReopenCause,
+    Resolution,
+)
+
+
+def _provenance_to_dict(provenance: BeadCloseProvenance) -> dict[str, Any]:
+    """Encode close provenance in sase-core wire field order."""
+    return {
+        "run_id": provenance.run_id,
+        "agent_name": provenance.agent_name,
+        "artifact_dir": provenance.artifact_dir,
+    }
+
+
+def provenance_from_dict(value: object) -> BeadCloseProvenance | None:
+    """Decode close provenance, tolerating absence but not junk."""
+    if value is None:
+        return None
+    if not isinstance(value, dict):
+        raise ValueError("close provenance must be a mapping")
+    return BeadCloseProvenance(
+        run_id=str(value.get("run_id", "")),
+        agent_name=str(value.get("agent_name", "")),
+        artifact_dir=str(value.get("artifact_dir", "")),
+    )
 
 
 def _close_record_to_dict(record: CloseRecord) -> dict[str, Any]:
@@ -26,6 +53,12 @@ def _close_record_to_dict(record: CloseRecord) -> dict[str, Any]:
         "reopened_at": record.reopened_at,
         "reopened_via": record.reopened_via.value,
         **({"reopened_by": record.reopened_by} if record.reopened_by else {}),
+        **({"close_event_id": record.close_event_id} if record.close_event_id else {}),
+        **(
+            {"close_provenance": _provenance_to_dict(record.close_provenance)}
+            if record.close_provenance is not None
+            else {}
+        ),
     }
 
 
@@ -58,6 +91,7 @@ def close_history_from_dicts(value: object) -> list[CloseRecord]:
             resolution = None
         close_reason = entry.get("close_reason")
         reopened_by = entry.get("reopened_by")
+        close_event_id = entry.get("close_event_id")
         records.append(
             CloseRecord(
                 closed_at=str(entry.get("closed_at", "")),
@@ -66,6 +100,8 @@ def close_history_from_dicts(value: object) -> list[CloseRecord]:
                 close_reason=None if close_reason is None else str(close_reason),
                 resolution=resolution,
                 reopened_by=None if reopened_by is None else str(reopened_by),
+                close_event_id=None if close_event_id is None else str(close_event_id),
+                close_provenance=provenance_from_dict(entry.get("close_provenance")),
             )
         )
     return records
@@ -74,4 +110,5 @@ def close_history_from_dicts(value: object) -> list[CloseRecord]:
 __all__ = [
     "close_history_from_dicts",
     "close_history_to_dicts",
+    "provenance_from_dict",
 ]
