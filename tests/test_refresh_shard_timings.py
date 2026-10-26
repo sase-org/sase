@@ -173,6 +173,31 @@ def test_check_max_age_uses_generated_at(
     assert tool.check_max_age(14, committed=missing, now=now) == 1
 
 
+def test_check_file_count_drift_triggers_at_ten_percent_and_ignores_less(
+    tool: ModuleType, tmp_path: Path
+) -> None:
+    files = [f"tests/test_{index:03d}.py" for index in range(109)]
+    _write_test_files(tmp_path, files)
+    committed = _payload(
+        durations={},
+        measured_file_count=100,
+    )
+
+    assert tool.check_file_count_drift(10, committed=committed, repo_root=tmp_path) == 0
+
+    _write_test_files(tmp_path, ["tests/test_109.py"])
+    assert tool.check_file_count_drift(10, committed=committed, repo_root=tmp_path) == 1
+
+
+def test_check_file_count_drift_fails_closed_without_measured_count(
+    tool: ModuleType, tmp_path: Path
+) -> None:
+    committed = _payload(durations={"tests/test_a.py": 1.0})
+    committed.pop("measured_file_count")
+
+    assert tool.check_file_count_drift(10, committed=committed, repo_root=tmp_path) == 1
+
+
 def test_main_writes_from_payload_to_output(
     tool: ModuleType, tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
@@ -228,6 +253,38 @@ def test_main_check_assignment_from_payload(
     )
 
 
+def test_main_check_includes_file_count_drift(
+    tool: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    files = [f"tests/test_{index:03d}.py" for index in range(110)]
+    _write_test_files(tmp_path, files)
+    committed_payload = _payload(durations={files[0]: 1.0}, measured_file_count=100)
+    committed_path = tmp_path / "tests" / "shard_timings.json"
+    committed_path.write_text(json.dumps(committed_payload), encoding="utf-8")
+    proposed = tmp_path / "proposed.json"
+    proposed.write_text(json.dumps(committed_payload), encoding="utf-8")
+    monkeypatch.setattr(tool, "TIMINGS_PATH", committed_path)
+    monkeypatch.setattr(tool, "REPO_ROOT", tmp_path)
+
+    assert (
+        tool.main(
+            [
+                "--from-payload",
+                str(proposed),
+                "--check",
+                "--max-file-count-drift",
+                "10",
+            ]
+        )
+        == 1
+    )
+
+
 def test_main_rejects_assignment_without_check(tool: ModuleType) -> None:
     with pytest.raises(SystemExit):
         tool.main(["--assignment"])
+
+
+def test_main_rejects_file_count_drift_without_check(tool: ModuleType) -> None:
+    with pytest.raises(SystemExit):
+        tool.main(["--max-file-count-drift", "10"])

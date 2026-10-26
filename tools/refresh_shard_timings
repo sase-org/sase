@@ -16,8 +16,9 @@ Two freshness paths keep the table from silently decaying:
 * Local recordings, via ``just refresh-shard-timings`` (and ``--check``).
 * Full CI's 3.14 fast leg publishes the same payload as the ``shard-timings``
   artifact; ``shard-timings-ratchet.yml`` copies it into the tree when the
-  assignment would actually change, or when the committed table is older
-  than ``--max-age``.
+  assignment would actually change, the committed table is older than
+  ``--max-age``, or the discovered test-file count has drifted beyond the
+  configured threshold.
 """
 
 from __future__ import annotations
@@ -303,6 +304,44 @@ def check_max_age(
     return 1
 
 
+def check_file_count_drift(
+    max_drift_percent: float,
+    *,
+    committed: dict[str, Any] | None = None,
+    repo_root: Path | None = None,
+) -> int:
+    """Fail when discovered test-file count drifts too far from the table."""
+    current = committed if committed is not None else _load_committed()
+    if current is None:
+        print(
+            f"[refresh_shard_timings] {DEFAULT_TIMINGS_PATH} is missing or "
+            "unreadable; run `just refresh-shard-timings`",
+            file=sys.stderr,
+        )
+        return 1
+    measured = current.get("measured_file_count")
+    if not isinstance(measured, int) or isinstance(measured, bool) or measured <= 0:
+        print(
+            f"[refresh_shard_timings] {DEFAULT_TIMINGS_PATH} has no usable "
+            "measured_file_count; run `just refresh-shard-timings`",
+            file=sys.stderr,
+        )
+        return 1
+
+    discovered = len(discover_test_files(repo_root or REPO_ROOT))
+    drift_percent = abs(discovered - measured) * 100 / measured
+    if drift_percent < max_drift_percent:
+        return 0
+    print(
+        f"[refresh_shard_timings] discovered test-file count {discovered} "
+        f"differs {drift_percent:.1f}% from the table's measured {measured} "
+        f"(refresh threshold {max_drift_percent:g}%); run "
+        "`just refresh-shard-timings`",
+        file=sys.stderr,
+    )
+    return 1
+
+
 def _print_plan(
     count: int, payload: dict[str, Any], *, repo_root: Path | None = None
 ) -> None:
@@ -365,6 +404,16 @@ def main(argv: list[str] | None = None) -> int:
         ),
     )
     parser.add_argument(
+        "--max-file-count-drift",
+        type=float,
+        default=None,
+        metavar="PERCENT",
+        help=(
+            "with --check, also fail when discovered test-file count drifts "
+            "by at least PERCENT from the committed table"
+        ),
+    )
+    parser.add_argument(
         "--assignment",
         action="store_true",
         help=(
@@ -404,6 +453,10 @@ def main(argv: list[str] | None = None) -> int:
         parser.error("--max-age requires --check")
     if args.max_age is not None and args.max_age <= 0:
         parser.error("--max-age must be positive")
+    if args.max_file_count_drift is not None and not args.check:
+        parser.error("--max-file-count-drift requires --check")
+    if args.max_file_count_drift is not None and args.max_file_count_drift <= 0:
+        parser.error("--max-file-count-drift must be positive")
     print_plan_count = args.print_plan
     if print_plan_count == -1:
         print_plan_count = args.shards
@@ -433,6 +486,8 @@ def main(argv: list[str] | None = None) -> int:
             status |= check_content(payload)
         if args.max_age is not None:
             status |= check_max_age(args.max_age)
+        if args.max_file_count_drift is not None:
+            status |= check_file_count_drift(args.max_file_count_drift)
         return 1 if status else 0
 
     output_path = args.output or TIMINGS_PATH

@@ -268,5 +268,7 @@ def test_shard_timings_ratchet_consumes_the_full_ci_artifact() -> None:
     assert "--check" in run_text
     assert "--assignment" in run_text
     assert "--max-age 14" in run_text
+    assert "--max-file-count-drift 10" in run_text
+    assert "--limit 1000" in run_text
     assert "tests/shard_timings.json" in run_text
     assert "gh pr create" in run_text

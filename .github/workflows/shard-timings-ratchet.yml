@@ -1,10 +1,11 @@
 name: Shard Timings Ratchet
 
 # Copies Full CI's published per-file duration table into tests/shard_timings.json
-# when the proposed table would change the master gate's shard assignment, or
-# when the committed table is older than 14 days. Runs on a schedule rather
-# than on push, so this workflow itself can never redden a commit's gate; the
-# opened PR runs the normal per-ref CI before merge.
+# when the proposed table would change the master gate's shard assignment, the
+# committed table is older than 14 days, or the discovered test-file count has
+# drifted by at least 10%. Runs on a schedule rather than on push, so this
+# workflow itself can never redden a commit's gate; the opened PR runs the
+# normal per-ref CI before merge.
 on:
   schedule:
     - cron: '43 4 * * 1'
@@ -34,7 +35,7 @@ jobs:
             gh run list \
               --workflow=full.yml \
               --branch=master \
-              --limit 20 \
+              --limit 1000 \
               --json databaseId,conclusion \
               --jq '[.[] | select(.conclusion=="success")][0].databaseId // empty'
           )"
@@ -59,7 +60,8 @@ jobs:
             --from-payload "$payload" \
             --check \
             --assignment \
-            --max-age 14 || status=$?
+            --max-age 14 \
+            --max-file-count-drift 10 || status=$?
           if [[ "$status" -eq 0 ]]; then
             echo "tests/shard_timings.json already matches Full CI run ${run_id}."
             exit 0
