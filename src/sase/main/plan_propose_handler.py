@@ -332,7 +332,22 @@ def handle_plan_propose_command(plan_file: str) -> NoReturn:
     if target_tier == "tale" and active_bead:
         stamps["bead"] = active_bead
     elif target_tier == "epic" and active_bead:
-        stamps["parent_bead"] = active_bead
+        # Preserve an explicit parent selected by the author. Automatic
+        # parenting is only a convenience for an otherwise unparented epic.
+        if not getattr(validation.plan, "parent_bead", None):
+            try:
+                from sase.workflows.commit.bead_hooks import bead_status_fact
+
+                active_bead_status = bead_status_fact(active_bead, os.getcwd())
+            except Exception:  # noqa: BLE001 - an unreadable status keeps legacy stamping.
+                active_bead_status = "unreadable"
+            if active_bead_status == "closed":
+                print(
+                    f"Active bead `{active_bead}` is already closed; proposing a "
+                    "top-level epic (the PARENT plan section still links the earlier plan)."
+                )
+            else:
+                stamps["parent_bead"] = active_bead
 
     # Format plan file in-place with prettier before archiving.  Stamp the
     # managed association first so the archived copy is fully formatted.

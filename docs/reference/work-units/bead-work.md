@@ -128,13 +128,16 @@ partial runners are terminated. Every plan-file failure after archiving prints t
 
 When an epic-tier plan is proposed from bead work, `sase plan propose` automatically
 stamps `parent_bead` from the phase agent's `SASE_PHASE_BEAD_ID`, from the land agent's
-`SASE_EPIC_BEAD_ID`, or from the task worker's `SASE_BEAD_ID`. Plan-file mode resolves
-that bead and creates the new epic beneath it, yielding recursive IDs such as
-`beads-001.2.1` or `<parent-bead-id>.1`; an unresolved parent fails with a remedy
-instead of silently creating a top-level epic. A task bead that spawned a child epic
-cannot be closed until that child epic closes. `--parent <bead-id>` overrides the
-authored association, while `--parent top-level` explicitly creates an unparented epic.
-The override applies only to plan-file targets.
+`SASE_EPIC_BEAD_ID`, or from the task worker's `SASE_BEAD_ID`. If that active bead is
+already closed, the automatic stamp is skipped because there is no interrupted landing
+for a child epic to resume; the PARENT plan section still links the earlier plan. An
+author-written `parent_bead` is preserved. Plan-file mode resolves that bead and creates
+the new epic beneath it, yielding recursive IDs such as `beads-001.2.1` or
+`<parent-bead-id>.1`; an unresolved parent fails with a remedy instead of silently
+creating a top-level epic. A task bead that spawned a child epic cannot be closed until
+that child epic closes. `--parent <bead-id>` overrides the authored association, while
+`--parent top-level` explicitly creates an unparented epic. The override applies only to
+plan-file targets.
 
 `--dry-run` plan-file mode validates and resolves the stores, previews the archive
 destination, parented epic ID, authored beads, routed models, and dependency waves, and

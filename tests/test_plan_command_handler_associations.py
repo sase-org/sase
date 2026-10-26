@@ -336,3 +336,89 @@ def test_plan_command_stamps_associations_from_bead_work_env(
         assert _invoke_plan(plan_file) == 0
 
     _assert_archived_associations(artifacts_dir, content, expected_fields)
+
+
+@pytest.mark.parametrize(
+    ("status", "expected_parent", "warns"),
+    [
+        pytest.param("closed", None, True, id="closed-parent-is-skipped"),
+        pytest.param("in_progress", "sase-bv", False, id="active-parent-is-stamped"),
+        pytest.param("unreadable", "sase-bv", False, id="unreadable-keeps-stamp"),
+    ],
+)
+def test_epic_proposal_auto_parent_depends_on_active_bead_status(
+    status: str,
+    expected_parent: str | None,
+    warns: bool,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Closed beads do not become automatic parents; status failures fail open."""
+    sase_home = tmp_path / ".sase"
+    redirect_sase_home(monkeypatch, sase_home)
+    artifacts_dir = _make_artifacts_dir(sase_home)
+    plan_file = tmp_path / "epic.md"
+    plan_file.write_text(VALID_EPIC, encoding="utf-8")
+    monkeypatch.setenv("SASE_AGENT", "agent-x")
+    monkeypatch.setenv("SASE_ARTIFACTS_DIR", str(artifacts_dir))
+    monkeypatch.setenv("SASE_EPIC_BEAD_ID", "sase-bv")
+
+    with (
+        patch(
+            "sase.main.plan_propose_handler.kill_agent_runner_group",
+            side_effect=SystemExit(0),
+        ),
+        patch("sase.file_references.format_with_prettier", side_effect=lambda raw: raw),
+        patch(
+            "sase.workflows.commit.bead_hooks.bead_status_fact",
+            return_value=status,
+        ) as status_reader,
+    ):
+        assert _invoke_plan(plan_file) == 0
+
+    status_reader.assert_called_once_with("sase-bv", str(Path.cwd()))
+    marker = json.loads(
+        (artifacts_dir / ".sase_plan_pending").read_text(encoding="utf-8")
+    )
+    archived = Path(marker["plan_file"]).read_text(encoding="utf-8")
+    frontmatter, _body, _had = parse_frontmatter(archived)
+    assert frontmatter.get("parent_bead") == expected_parent
+    assert (
+        "already closed; proposing a top-level epic" in capsys.readouterr().out
+    ) is warns
+
+
+def test_closed_active_bead_does_not_replace_authored_epic_parent(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """An author-selected parent is retained even when the active bead is closed."""
+    sase_home = tmp_path / ".sase"
+    redirect_sase_home(monkeypatch, sase_home)
+    artifacts_dir = _make_artifacts_dir(sase_home)
+    plan_file = tmp_path / "epic.md"
+    content = VALID_EPIC.replace("goal:", "parent_bead: sase-authored\ngoal:", 1)
+    plan_file.write_text(content, encoding="utf-8")
+    monkeypatch.setenv("SASE_AGENT", "agent-x")
+    monkeypatch.setenv("SASE_ARTIFACTS_DIR", str(artifacts_dir))
+    monkeypatch.setenv("SASE_EPIC_BEAD_ID", "sase-bv")
+
+    with (
+        patch(
+            "sase.main.plan_propose_handler.kill_agent_runner_group",
+            side_effect=SystemExit(0),
+        ),
+        patch("sase.file_references.format_with_prettier", side_effect=lambda raw: raw),
+        patch(
+            "sase.workflows.commit.bead_hooks.bead_status_fact", return_value="closed"
+        ),
+    ):
+        assert _invoke_plan(plan_file) == 0
+
+    marker = json.loads(
+        (artifacts_dir / ".sase_plan_pending").read_text(encoding="utf-8")
+    )
+    frontmatter, _body, _had = parse_frontmatter(
+        Path(marker["plan_file"]).read_text(encoding="utf-8")
+    )
+    assert frontmatter["parent_bead"] == "sase-authored"
