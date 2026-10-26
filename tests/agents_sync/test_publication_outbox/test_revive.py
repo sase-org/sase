@@ -384,3 +384,82 @@ def test_bounded_selection_no_match_and_active_rows_exhausting_limit(
         if item.logical_key == stopped.logical_key
     ]
     assert still_retired.terminal
+
+
+def test_bounded_selection_exact_key_selects_stopped_timeout_behind_active(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    monkeypatch.setenv("SASE_HOME", str(tmp_path))
+    active = enqueue_agent_publication(make_outbox_item())
+    timeout = enqueue_agent_publication(
+        make_outbox_item(
+            local_agent="timeout",
+            global_agent="alice.athena.timeout",
+            revision="c" * 40,
+            local_hood="timeout",
+        )
+    )
+    retired = enqueue_agent_publication(
+        make_outbox_item(
+            local_agent="retired",
+            global_agent="alice.athena.retired",
+            revision="d" * 40,
+            local_hood="retired",
+        )
+    )
+    update_agent_publications(
+        "proj",
+        (timeout.logical_key,),
+        error="agent-hood publication did not complete within 120s",
+        increment_attempts=True,
+        quarantine_threshold=1,
+    )
+    _retire(retired)
+    batch = select_and_revive_agent_publications(
+        "proj",
+        limit=1,
+        retry_retired=True,
+        retry_quarantined=True,
+        error_classes=("timeout",),
+        exact_key=timeout.logical_key,
+    )
+
+    assert batch.logical_keys == (timeout.logical_key,)
+    assert batch.active == ()
+    assert batch.revived[0].logical_key == timeout.logical_key
+    rows = {item.logical_key: item for item in list_agent_publications("proj")}
+    assert rows[active.logical_key].attempts == 0
+    assert rows[active.logical_key].last_error is None
+    assert not rows[timeout.logical_key].quarantined
+    assert rows[retired.logical_key].terminal
+
+
+def test_bounded_selection_missing_exact_key_revives_nothing(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    monkeypatch.setenv("SASE_HOME", str(tmp_path))
+    active = enqueue_agent_publication(make_outbox_item())
+    stopped = enqueue_agent_publication(
+        make_outbox_item(
+            local_agent="stopped",
+            global_agent="alice.athena.stopped",
+            revision="c" * 40,
+            local_hood="stopped",
+        )
+    )
+    _retire(stopped, error="legacy mismatch")
+    missing = ("alice.athena.gone", "b" * 40)
+    batch = select_and_revive_agent_publications(
+        "proj",
+        limit=1,
+        retry_retired=True,
+        retry_quarantined=True,
+        exact_key=missing,
+    )
+
+    assert batch.logical_keys == ()
+    rows = {item.logical_key: item for item in list_agent_publications("proj")}
+    assert rows[active.logical_key].logical_key == active.logical_key
+    assert rows[stopped.logical_key].terminal

@@ -387,6 +387,7 @@ _VALUE_HINT_TABLE: Final[dict[str, str]] = dict.fromkeys(
         "remove_when",
         "repo_id",
         "request",
+        "retry_key",
         "routine",
         "run_id",
         "runtime",

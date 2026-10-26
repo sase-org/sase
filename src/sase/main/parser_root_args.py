@@ -117,6 +117,7 @@ class SaseArgumentParser(argparse.ArgumentParser):
                 ("--repair-digests", "repair_digests"),
                 ("--repair-manifest", "repair_manifest"),
                 ("--repair-revisions", "repair_revisions"),
+                ("--retry-key", "retry_key"),
                 ("--retry-quarantined", "retry_quarantined"),
                 ("--retry-retired", "retry_retired"),
             ):
@@ -152,6 +153,19 @@ class SaseArgumentParser(argparse.ArgumentParser):
             )
             if retry_error_classes and retry_limit is None:
                 self.error("sase agent sync --retry-error-class requires --retry-limit")
+            retry_key = getattr(parsed, "retry_key", None)
+            if retry_key is not None:
+                if retry_limit != 1:
+                    self.error("sase agent sync --retry-key requires --retry-limit 1")
+                if not retry_requested:
+                    self.error(
+                        "sase agent sync --retry-key requires "
+                        "--retry-quarantined or --retry-retired"
+                    )
+                if len(getattr(parsed, "project", ())) != 1:
+                    self.error(
+                        "sase agent sync --retry-key requires exactly one --project"
+                    )
             if retry_limit is not None:
                 if not retry_requested:
                     self.error(
@@ -193,6 +207,7 @@ class SaseArgumentParser(argparse.ArgumentParser):
                     ("--repair-digests", "repair_digests"),
                     ("--repair-manifest", "repair_manifest"),
                     ("--retry-error-class", "retry_error_class"),
+                    ("--retry-key", "retry_key"),
                     ("--retry-limit", "retry_limit"),
                     ("--retry-quarantined", "retry_quarantined"),
                     ("--retry-retired", "retry_retired"),

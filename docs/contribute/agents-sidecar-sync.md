@@ -62,6 +62,14 @@ stopped requests. The atomic outbox update revives only selected stopped rows an
 records their prior errors in diagnostics before clearing them. Active rows retain their
 attempt history.
 
+`--retry-key GLOBAL_AGENT@REVISION` constrains that same selector to one outbox
+identity. The revision must be the full SHA stored on the row. Inspect the current
+lifecycle, error class, and protection status before invoking: a prior preview is not
+authorization to ignore current state at mutation time. A missing, concurrently
+acknowledged or rekeyed, or ineligible key is a bounded no-op and never substitutes
+another request. Commands without `--retry-key` keep the active-first then
+retired-before-quarantined selection above.
+
 The selected logical keys flow unchanged into the targeted publication transaction. That
 transaction builds complete selected hoods, but acknowledges only selected requests and
 does not run full reconciliation or the Referenced By drain. The request limit is

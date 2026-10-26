@@ -232,6 +232,57 @@ def test_select_publication_drain_prefers_new_then_active_then_stopped() -> None
     assert selected.active[0].prior_class == PUBLICATION_LIFECYCLE_ACTIVE
 
 
+def test_select_publication_drain_exact_key_ignores_unrelated_active_rows() -> None:
+    target_revision = "c" * 40
+    selected = select_publication_drain(
+        (
+            {
+                "global_agent": "alice.athena.active",
+                "primary_revision": "a" * 40,
+                "terminal": False,
+                "quarantined": False,
+                "last_error": "agents sync lock is busy",
+                "created_at": 2.0,
+            },
+            {
+                "global_agent": "alice.athena.target",
+                "primary_revision": target_revision,
+                "terminal": False,
+                "quarantined": True,
+                "last_error": "agent-hood publication did not complete within 120s",
+                "created_at": 1.0,
+            },
+        ),
+        limit=2,
+        exact_key=("alice.athena.target", target_revision),
+        retry_quarantined=True,
+        error_classes=(PUBLICATION_ERROR_TIMEOUT,),
+    )
+    assert [item.global_agent for item in selected.revive] == ["alice.athena.target"]
+    assert selected.active == ()
+
+
+def test_select_publication_drain_missing_exact_key_is_empty() -> None:
+    selected = select_publication_drain(
+        (
+            {
+                "global_agent": "alice.athena.active",
+                "primary_revision": "a" * 40,
+                "terminal": False,
+                "quarantined": False,
+                "last_error": None,
+                "created_at": 1.0,
+            },
+        ),
+        limit=1,
+        exact_key=("alice.athena.gone", "b" * 40),
+        retry_quarantined=True,
+        retry_retired=True,
+    )
+    assert selected.active == ()
+    assert selected.revive == ()
+
+
 def test_select_publication_drain_no_match_is_empty() -> None:
     selected = select_publication_drain(
         (

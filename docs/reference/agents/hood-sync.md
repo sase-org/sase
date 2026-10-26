@@ -401,21 +401,28 @@ Use a bounded retry when you want to recover only a limited number of hood reque
 ```bash
 sase agent sync --retry-quarantined --retry-limit 10 -p project-alias
 sase agent sync --retry-retired --retry-limit 5 --retry-error-class timeout -p project-alias
+sase agent sync --retry-quarantined --retry-limit 1 --retry-error-class timeout \
+  --retry-key 'alice.athena.worker@<full-sha>' -p project-alias
 ```
 
 `--retry-limit N` requires either retry flag and exactly one `--project`. Add the
 repeatable `--retry-error-class CLASS` filter to limit stopped requests to `timeout`,
 `lock_busy`, `index_lock`, `unstaged_changes`, `rebase_conflict`, `manifest_mismatch`,
-`unknown`, or `other`. A class filter requires `--retry-limit`. Active requests resume
-first and keep their attempt counts; remaining slots go to eligible retired requests
-before quarantined requests, oldest first within each group. Only selected stopped
-requests receive a fresh attempt budget. The limit counts requests, while each selected
-request publishes its complete hood. Bounded retries do not reconcile other hoods, touch
-other projects, or drain the Referenced By queue. After an interruption, selected
-requests stay active and are prioritized on the next bounded invocation. The result
-reports selected, resumed, revived, completed, and remaining request counts. Bounded
-retry cannot be combined with `--check`, `--refresh`, `--drop-retired`, or either repair
-mode.
+`unknown`, or `other`. A class filter requires `--retry-limit`. `--retry-key KEY` (`-k`)
+retries exactly one request identified as `GLOBAL_AGENT@REVISION` with the full outbox
+SHA; it requires `--retry-limit 1`, exactly one `--project`, and a retry lifecycle flag.
+Inspect the current row before invoking. Missing, concurrently acknowledged or rekeyed,
+or ineligible keys are bounded no-ops and never substitute another request. Commands
+without `--retry-key` resume active requests first and keep their attempt counts;
+remaining slots go to eligible retired requests before quarantined requests, oldest
+first within each group. Only selected stopped requests receive a fresh attempt budget.
+The limit counts requests, while each selected request publishes its complete hood.
+Bounded retries do not reconcile other hoods, touch other projects, or drain the
+Referenced By queue. After an interruption, selected requests stay active and are
+prioritized on the next bounded invocation. The result reports selected, resumed,
+revived, completed, and remaining request counts, and names the exact key when
+`--retry-key` is set. Bounded retry cannot be combined with `--check`, `--refresh`,
+`--drop-retired`, or either repair mode.
 
 A retired request whose source still cannot be reconstructed should be dropped after
 review, not revived. Drop only retired entries with:

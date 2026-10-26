@@ -50,6 +50,7 @@ def select_and_revive_agent_publications(
     retry_retired: bool,
     retry_quarantined: bool,
     error_classes: Iterable[str] = (),
+    exact_key: tuple[str, str] | None = None,
 ) -> PublicationDrainBatchSelection:
     """Select a bounded batch and revive only its stopped rows under one lock."""
 
@@ -77,6 +78,7 @@ def select_and_revive_agent_publications(
             retry_retired=retry_retired,
             retry_quarantined=retry_quarantined,
             error_classes=tuple(error_classes),
+            exact_key=exact_key,
         )
         revived_keys = {row.logical_key for row in selection.revive}
         return tuple(

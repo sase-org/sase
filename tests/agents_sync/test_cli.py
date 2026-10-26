@@ -73,6 +73,28 @@ def test_parser_accepts_bounded_retry_aliases_and_repeated_error_classes() -> No
 
     assert args.retry_limit == 2
     assert args.retry_error_class == ["timeout", "lock_busy"]
+    assert args.retry_key is None
+
+
+def test_parser_accepts_retry_key_alias_and_full_outbox_identity() -> None:
+    identity = ("alice.athena.worker", "a" * 40)
+    args = create_parser().parse_args(
+        [
+            "agent",
+            "sync",
+            "-q",
+            "-l",
+            "1",
+            "-k",
+            f"{identity[0]}@{identity[1]}",
+            "-p",
+            "one",
+        ]
+    )
+
+    assert args.retry_key == identity
+    assert args.retry_limit == 1
+    assert args.retry_quarantined
 
 
 @pytest.mark.parametrize(
@@ -133,6 +155,103 @@ def test_parser_accepts_bounded_retry_aliases_and_repeated_error_classes() -> No
             "bogus",
             "--project",
             "one",
+        ],
+        [
+            "--retry-quarantined",
+            "--retry-limit",
+            "1",
+            "--retry-key",
+            "not-an-identity",
+            "--project",
+            "one",
+        ],
+        [
+            "--retry-quarantined",
+            "--retry-limit",
+            "1",
+            "--retry-key",
+            "alice.athena.worker@short",
+            "--project",
+            "one",
+        ],
+        [
+            "--retry-quarantined",
+            "--retry-limit",
+            "1",
+            "--retry-key",
+            f"alice.athena.worker@{'A' * 40}",
+            "--project",
+            "one",
+        ],
+        [
+            "--retry-quarantined",
+            "--retry-limit",
+            "1",
+            "--retry-key",
+            f"@{('a' * 40)}",
+            "--project",
+            "one",
+        ],
+        [
+            "--retry-quarantined",
+            "--retry-limit",
+            "1",
+            "--retry-key",
+            f"alice.athena.worker@{('a' * 40)}@extra",
+            "--project",
+            "one",
+        ],
+        [
+            "--retry-quarantined",
+            "--retry-key",
+            f"alice.athena.worker@{('a' * 40)}",
+            "--project",
+            "one",
+        ],
+        [
+            "--retry-quarantined",
+            "--retry-limit",
+            "2",
+            "--retry-key",
+            f"alice.athena.worker@{('a' * 40)}",
+            "--project",
+            "one",
+        ],
+        [
+            "--retry-limit",
+            "1",
+            "--retry-key",
+            f"alice.athena.worker@{('a' * 40)}",
+            "--project",
+            "one",
+        ],
+        [
+            "--retry-quarantined",
+            "--retry-limit",
+            "1",
+            "--retry-key",
+            f"alice.athena.worker@{('a' * 40)}",
+        ],
+        [
+            "--retry-quarantined",
+            "--retry-limit",
+            "1",
+            "--retry-key",
+            f"alice.athena.worker@{('a' * 40)}",
+            "--project",
+            "one",
+            "--project",
+            "two",
+        ],
+        [
+            "--retry-quarantined",
+            "--retry-limit",
+            "1",
+            "--retry-key",
+            f"alice.athena.worker@{('a' * 40)}",
+            "--project",
+            "one",
+            "--check",
         ],
     ),
 )
@@ -211,6 +330,8 @@ def test_sync_help_distinguishes_full_cached_and_refresh_modes() -> None:
     assert "--check is local and network-free" in help_text
     assert "computing ahead/behind" in help_text
     assert "-t, --retry-retired" in help_text
+    assert "-k, --retry-key" in help_text
+    assert "GLOBAL_AGENT@REVISION" in help_text
     assert "requires --project" in help_text
 
 
@@ -276,6 +397,7 @@ def test_mutating_sync_json_allows_benign_skips(
         drop_retired=False,
         retry_limit=None,
         retry_error_classes=(),
+        retry_key=None,
     )
 
 
@@ -315,6 +437,7 @@ def test_mutating_sync_forwards_drop_retired_and_renders_its_report(
         drop_retired=True,
         retry_limit=None,
         retry_error_classes=(),
+        retry_key=None,
     )
 
 
@@ -351,6 +474,7 @@ def test_mutating_sync_forwards_retry_retired(
         drop_retired=False,
         retry_limit=None,
         retry_error_classes=(),
+        retry_key=None,
     )
 
 
@@ -379,6 +503,38 @@ def test_mutating_sync_forwards_bounded_retry_options(
         drop_retired=False,
         retry_limit=3,
         retry_error_classes=("timeout", "lock_busy"),
+        retry_key=None,
+    )
+
+
+def test_mutating_sync_forwards_retry_key(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    identity = ("alice.athena.worker", "c" * 40)
+    args = argparse.Namespace(
+        project=["proj"],
+        check=False,
+        refresh=False,
+        json=True,
+        retry_retired=False,
+        retry_quarantined=True,
+        drop_retired=False,
+        retry_limit=1,
+        retry_error_class=["timeout"],
+        retry_key=identity,
+    )
+    with patch("sase.agents.cli_sync.sync_agents", return_value=()) as sync:
+        assert handle_agents_sync(args) == 0
+
+    assert json.loads(capsys.readouterr().out)["mode"] == "sync"
+    sync.assert_called_once_with(
+        ("proj",),
+        retry_quarantined=True,
+        retry_retired=False,
+        drop_retired=False,
+        retry_limit=1,
+        retry_error_classes=("timeout",),
+        retry_key=identity,
     )
 
 

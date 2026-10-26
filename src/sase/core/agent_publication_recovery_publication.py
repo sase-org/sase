@@ -272,6 +272,7 @@ def select_publication_drain(
     *,
     limit: int,
     preferred_key: tuple[str, str] | Mapping[str, Any] | None = None,
+    exact_key: tuple[str, str] | Mapping[str, Any] | None = None,
     retry_retired: bool = False,
     retry_quarantined: bool = False,
     error_classes: Sequence[str] | None = None,
@@ -288,6 +289,8 @@ def select_publication_drain(
     }
     if preferred_key is not None:
         payload["preferred_key"] = _logical_key_payload(preferred_key)
+    if exact_key is not None:
+        payload["exact_key"] = _logical_key_payload(exact_key)
     if error_classes:
         payload["error_classes"] = list(error_classes)
     raw = binding(payload)

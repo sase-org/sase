@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import re
 
 from sase.core.agent_publication_recovery import (
     PUBLICATION_ERROR_INDEX_LOCK,
@@ -26,6 +27,11 @@ _PUBLICATION_ERROR_CLASSES = (
     PUBLICATION_ERROR_UNKNOWN,
     PUBLICATION_ERROR_UNSTAGED_CHANGES,
 )
+_PUBLICATION_RETRY_KEY_HELP = (
+    "must be GLOBAL_AGENT@REVISION with the full 40-character hex SHA stored "
+    "in the outbox"
+)
+_FULL_OUTBOX_REVISION = re.compile(r"^[0-9a-f]{40}$")
 
 
 def _positive_int(raw: str) -> int:
@@ -36,6 +42,15 @@ def _positive_int(raw: str) -> int:
     if value < 1:
         raise argparse.ArgumentTypeError("must be a positive integer")
     return value
+
+
+def _publication_retry_key(raw: str) -> tuple[str, str]:
+    if raw.count("@") != 1:
+        raise argparse.ArgumentTypeError(_PUBLICATION_RETRY_KEY_HELP)
+    global_agent, revision = raw.split("@", 1)
+    if not global_agent or _FULL_OUTBOX_REVISION.fullmatch(revision) is None:
+        raise argparse.ArgumentTypeError(_PUBLICATION_RETRY_KEY_HELP)
+    return global_agent, revision
 
 
 def register_agent_sync_parser(agents_sub: argparse._SubParsersAction) -> None:
@@ -137,6 +152,17 @@ def register_agent_sync_parser(agents_sub: argparse._SubParsersAction) -> None:
         help=(
             "With --retry-limit, select stopped requests with this error class; "
             "repeat to accept several classes"
+        ),
+    )
+    sync_parser.add_argument(
+        "-k",
+        "--retry-key",
+        type=_publication_retry_key,
+        metavar="KEY",
+        help=(
+            "Retry exactly one hood request identified as GLOBAL_AGENT@REVISION "
+            "using the full outbox SHA; requires --retry-limit 1, exactly one "
+            "--project, and --retry-quarantined or --retry-retired"
         ),
     )
     sync_parser.add_argument(

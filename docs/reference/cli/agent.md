@@ -891,7 +891,7 @@ Arguments:
 
 ```text
 usage: sase agent sync [-h] [-a] [-c] [-d] [-j] [-p PROJECT] [-r] [-g] [-m]
-                       [-R] [-e CLASS] [-l N] [-q] [-t]
+                       [-R] [-e CLASS] [-k KEY] [-l N] [-q] [-t]
 ```
 
 Without flags, pull enabled agents sidecars, publish locally commit-eligible hoods, restore deferred prompt archives, push, and drain publication retries. --check is local and network-free; --check --refresh fetches remote refs before computing ahead/behind.
@@ -911,6 +911,7 @@ Options:
 | `-m`, `--repair-manifest`               | Restore missing owner-manifest hoods and normalize verified stale explicit file lists, instead of running a normal sync                                                                                                             | `false` |
 | `-R`, `--repair-revisions`              | Map stale pre-commit outbox revisions to the agent's committed revision or linked scope, reporting by default and writing only with --apply; runs one project per call                                                              | `false` |
 | `-e CLASS`, `--retry-error-class CLASS` | With --retry-limit, select stopped requests with this error class; repeat to accept several classes (choices: `index_lock`, `lock_busy`, `manifest_mismatch`, `other`, `rebase_conflict`, `timeout`, `unknown`, `unstaged_changes`) | —       |
+| `-k KEY`, `--retry-key KEY`             | Retry exactly one hood request identified as GLOBAL_AGENT@REVISION using the full outbox SHA; requires --retry-limit 1, exactly one --project, and --retry-quarantined or --retry-retired                                           | —       |
 | `-l N`, `--retry-limit N`               | Retry at most N distinct hood requests for exactly one project without full reconciliation; requires --retry-quarantined or --retry-retired                                                                                         | —       |
 | `-q`, `--retry-quarantined`             | Clear quarantined requests for full sync; with --retry-limit, select a bounded hood-request batch                                                                                                                                   | `false` |
 | `-t`, `--retry-retired`                 | Revive this project's retired hood requests for full reconciliation, or select a bounded batch with --retry-limit; requires --project                                                                                               | `false` |

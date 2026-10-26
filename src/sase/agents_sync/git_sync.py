@@ -56,6 +56,7 @@ def sync_agents(
     drop_retired: bool = False,
     retry_limit: int | None = None,
     retry_error_classes: Sequence[str] = (),
+    retry_key: tuple[str, str] | None = None,
 ) -> tuple[SyncOutcome, ...]:
     """Synchronize every selected project without cross-project fail-fast."""
 
@@ -66,9 +67,12 @@ def sync_agents(
             retry_error_classes=retry_error_classes,
             retry_quarantined=retry_quarantined,
             retry_retired=retry_retired,
+            retry_key=retry_key,
         )
     if retry_error_classes:
         raise ValueError("retry_error_classes requires retry_limit")
+    if retry_key is not None:
+        raise ValueError("retry_key requires retry_limit")
 
     selection = resolve_sync_targets(projects)
     outcomes = list(selection.outcomes)
@@ -226,6 +230,7 @@ def _sync_bounded_publication_retries(
     retry_error_classes: Sequence[str],
     retry_quarantined: bool,
     retry_retired: bool,
+    retry_key: tuple[str, str] | None = None,
 ) -> tuple[SyncOutcome, ...]:
     """Select, revive, and publish one exact bounded request set."""
 
@@ -233,6 +238,8 @@ def _sync_bounded_publication_retries(
         raise ValueError("retry_limit must be positive")
     if not (retry_quarantined or retry_retired):
         raise ValueError("bounded retries require a retry lifecycle flag")
+    if retry_key is not None and retry_limit != 1:
+        raise ValueError("retry_key requires retry_limit=1")
 
     target_selection = resolve_sync_targets(projects)
     if len(target_selection.targets) != 1:
@@ -266,6 +273,7 @@ def _sync_bounded_publication_retries(
             retry_retired=retry_retired,
             retry_quarantined=retry_quarantined,
             error_classes=retry_error_classes,
+            exact_key=retry_key,
         )
     except Exception as exc:  # noqa: BLE001 - fail before touching the sidecar.
         return (
@@ -300,15 +308,28 @@ def _sync_bounded_publication_retries(
     resumed_count = len(batch.active)
     revived_count = len(batch.revived)
     completed_count = drain.drained if drain is not None else 0
-    diagnostics = (
-        *batch.diagnostics,
-        (
-            "bounded retry no-op: no eligible publication requests"
-            if not selected_count
-            else "bounded retry selection: "
+    formatted_key = None if retry_key is None else f"{retry_key[0]}@{retry_key[1]}"
+    if not selected_count:
+        selection_line = (
+            f"bounded retry no-op: no matching publication request {formatted_key}"
+            if formatted_key is not None
+            else "bounded retry no-op: no eligible publication requests"
+        )
+    elif formatted_key is not None:
+        selection_line = (
+            "bounded retry selection: "
+            f"selected={selected_count} resumed={resumed_count} "
+            f"revived={revived_count} key={formatted_key}"
+        )
+    else:
+        selection_line = (
+            "bounded retry selection: "
             f"selected={selected_count} resumed={resumed_count} "
             f"revived={revived_count}"
-        ),
+        )
+    diagnostics = (
+        *batch.diagnostics,
+        selection_line,
         "bounded retry result: "
         f"selected={selected_count} resumed={resumed_count} "
         f"revived={revived_count} completed={completed_count} "
