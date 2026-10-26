@@ -251,7 +251,7 @@ behind it, the proposed or executed action, and the escalation:
 | `qualify_red`            | qualification failed against the published core                       |
 | `exercise_red`           | the Linux or macOS exercise leg failed                                |
 | `core_lag`               | no complete published core contains the source pin yet                |
-| `core_cut_red`           | the daily sase-core cut failed                                        |
+| `core_cut_red`           | the newest completed sase-core cut failed                             |
 | `core_ci_red`            | the core side is red                                                  |
 | `core_incompatible`      | the published core does not satisfy the dependency contract           |
 | `install_broken`         | the family install canary is red (never blocks a qualified candidate) |

@@ -478,6 +478,7 @@ class ReleaseHealthReader:
         return wire
 
     def _read_cuts(self, since: datetime, until: datetime) -> list[dict[str, Any]]:
+        """Return cuts newest first: in-flight plus newest completed."""
         runs = self._core.read_runs(CORE_CUT_WORKFLOW, since=since, until=until)
         kept: list[dict[str, Any]] = []
         completed = 0
