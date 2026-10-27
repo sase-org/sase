@@ -166,6 +166,7 @@ class LeaderModeKeymaps(ModeKeymaps):
             "search_forward": "slash",
             "run_cmd": "exclamation_mark",
             "runners": "R",
+            "capacity_inspector": "l",
             "revert_agent": "r",
             "kill_mentors": "M",
             "review_mentors": "C",

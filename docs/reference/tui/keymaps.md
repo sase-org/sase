@@ -536,6 +536,7 @@ These are the bundled defaults for configurable TUI actions. The key and action 
 | `,/` | Search forward | `ace.keymaps.modes.leader_mode.keys.search_forward` |
 | `,!` | Run cmd | `ace.keymaps.modes.leader_mode.keys.run_cmd` |
 | `,R` | Runners | `ace.keymaps.modes.leader_mode.keys.runners` |
+| `,l` | Capacity inspector | `ace.keymaps.modes.leader_mode.keys.capacity_inspector` |
 | `,r` | Revert agent | `ace.keymaps.modes.leader_mode.keys.revert_agent` |
 | `,M` | Kill mentors | `ace.keymaps.modes.leader_mode.keys.kill_mentors` |
 | `,C` | Review mentors | `ace.keymaps.modes.leader_mode.keys.review_mentors` |

@@ -12,7 +12,6 @@ import argparse
 import json
 import sys
 from collections.abc import Callable
-from datetime import UTC, datetime
 from typing import Any
 
 from rich.console import Console
@@ -55,55 +54,10 @@ def _load_report(*, force_rescan: bool, report_fn: ReportFn | None) -> Any:
 
 
 def _report_to_json_dict(report: Any) -> dict[str, Any]:
-    """Serialize one machine capacity report to its stable JSON shape."""
-    limit = report.limit
-    override = getattr(limit, "temporary_override", None)
-    return {
-        "machine": report.machine,
-        "computed_at": report.computed_at,
-        "computed_at_iso": _iso(report.computed_at),
-        "scanned_at": report.scanned_at,
-        "scanned_at_iso": _iso(report.scanned_at),
-        "token": report.token,
-        "scan_current": report.scan_current,
-        "effective_limit": report.effective_limit,
-        "limit": {
-            "configured_limit": getattr(limit, "configured_limit", None),
-            "temporary_override": (
-                None
-                if override is None
-                else {
-                    "version": getattr(override, "version", None),
-                    "limit": override.limit,
-                    "created_at": override.created_at,
-                    "expires_at": override.expires_at,
-                    "source": override.source,
-                }
-            ),
-            "captured_at": getattr(limit, "captured_at", None),
-        },
-        "occupied_capacity": report.occupied_capacity,
-        "occupied_lanes": report.occupied_lanes,
-        "over_limit": report.over_limit,
-        "claims": [dict(claim) for claim in report.claims],
-        "waiters": [dict(waiter) for waiter in report.waiters],
-        "accounting": [dict(entry) for entry in report.accounting],
-        "diagnostics": list(report.diagnostics),
-        "accounting_valid": report.accounting_valid,
-        "accounting_available": report.accounting_available,
-        "record_inputs": [
-            {
-                "artifact_dir": record_inputs.artifact_dir,
-                "turn_kind": record_inputs.turn_kind,
-                "turn_role": record_inputs.turn_role,
-                "monitor_id": record_inputs.monitor_id,
-                "slot_requested_at": record_inputs.slot_requested_at,
-                "authored_queue_capacity": record_inputs.authored_queue_capacity,
-                "run_started_at": record_inputs.run_started_at,
-            }
-            for record_inputs in report.record_inputs
-        ],
-    }
+    """Keep the CLI's stable JSON payload aligned with every report consumer."""
+    from sase.core.runner_slots import machine_capacity_report_to_json_dict
+
+    return machine_capacity_report_to_json_dict(report)
 
 
 def _render_load_view(
@@ -245,13 +199,6 @@ def _diagnostics_panel(view: Any) -> Panel:
     if view.admission_blocked:
         text.append("admission blocked\n", style="bold red")
     return Panel(Text(str(text).rstrip("\n")), title="Diagnostics")
-
-
-def _iso(epoch: float) -> str:
-    try:
-        return datetime.fromtimestamp(epoch, tz=UTC).isoformat()
-    except (OverflowError, OSError, ValueError):
-        return "?"
 
 
 def _date(value: str | None) -> str:

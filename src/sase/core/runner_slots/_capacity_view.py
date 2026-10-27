@@ -11,7 +11,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any
-from collections.abc import Mapping
+from collections.abc import Collection, Mapping
 
 _IDLE_GROUP_LIMIT = 10
 
@@ -74,6 +74,7 @@ class CapacityIdleGroup:
     members: tuple[str, ...]
     truncated: bool
     hidden: int
+    member_artifact_dirs: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -87,6 +88,7 @@ class CapacityQueuedRow:
     blocker: str
     eligible: bool
     slot_requested_at: str | None
+    artifact_dir: str = ""
 
 
 @dataclass(frozen=True)
@@ -112,14 +114,17 @@ def capacity_view(
     report: Any,
     *,
     running_nodes: int | None = None,
+    expanded_idle_groups: Collection[str] = (),
     now: float | None = None,
 ) -> MachineCapacityView:
     """Project *report* into typed display sections.
 
     *report* is a :class:`MachineCapacityReport` (duck-typed so tests can
     pass doubles). *running_nodes* is the TUI's live Running-bucket count;
-    the CLI passes ``None`` and the running line is omitted. *now* defaults
-    to the report's ``computed_at`` so snapshot ages stay deterministic.
+    the CLI passes ``None`` and the running line is omitted. Names in
+    *expanded_idle_groups* show their complete member list instead of the
+    default bounded preview. *now* defaults to the report's ``computed_at``
+    so snapshot ages stay deterministic.
     """
     moment = report.computed_at if now is None else now
     accounting = tuple(report.accounting)
@@ -169,7 +174,11 @@ def capacity_view(
         )
     riders.sort(key=lambda row: row.name)
 
-    idle_groups = _idle_groups(accounting, names)
+    idle_groups = _idle_groups(
+        accounting,
+        names,
+        expanded_groups=frozenset(expanded_idle_groups),
+    )
     queued = _queued_rows(report.waiters, names, inputs)
 
     occupied = float(report.occupied_capacity)
@@ -236,30 +245,33 @@ def _holding_kind(
 def _idle_groups(
     accounting: tuple[Mapping[str, Any], ...],
     names: dict[str, str],
+    *,
+    expanded_groups: frozenset[str] = frozenset(),
 ) -> tuple[CapacityIdleGroup, ...]:
-    by_reason: dict[str, list[str]] = {}
+    by_reason: dict[str, list[tuple[str, str]]] = {}
     for entry in accounting:
         if str(entry.get("state")) in ("holding", "riding_claim", "waiting"):
             continue
         reason = entry.get("reason_code")
         code = str(reason) if isinstance(reason, str) and reason else "not_started"
         path = str(entry.get("artifact_dir"))
-        by_reason.setdefault(code, []).append(names.get(path, path))
+        by_reason.setdefault(code, []).append((names.get(path, path), path))
     groups: list[CapacityIdleGroup] = []
     ordered = [code for code in _REASON_ORDER if code in by_reason]
     ordered.extend(sorted(code for code in by_reason if code not in _REASON_ORDER))
     for code in ordered:
-        members = sorted(by_reason[code])
-        shown = tuple(members[:_IDLE_GROUP_LIMIT])
+        members = sorted(by_reason[code], key=lambda member: (member[0], member[1]))
+        shown = members if code in expanded_groups else members[:_IDLE_GROUP_LIMIT]
         hidden = len(members) - len(shown)
         groups.append(
             CapacityIdleGroup(
                 reason_code=code,
                 reason_label=_REASON_LABELS.get(code, code.replace("_", " ")),
                 count=len(members),
-                members=shown,
+                members=tuple(name for name, _ in shown),
                 truncated=hidden > 0,
                 hidden=hidden,
+                member_artifact_dirs=tuple(path for _, path in shown),
             )
         )
     return tuple(groups)
@@ -284,6 +296,7 @@ def _queued_rows(
                 eligible=bool(waiter.get("eligible")),
                 slot_requested_at=waiter.get("slot_requested_at")
                 or getattr(record, "slot_requested_at", None),
+                artifact_dir=path,
             )
         )
     return tuple(rows)

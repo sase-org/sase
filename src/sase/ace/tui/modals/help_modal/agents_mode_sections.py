@@ -153,6 +153,13 @@ def mode_sections(km: KeymapRegistry) -> Sections:
                 (f"{d(lm.prefix)}{d(sk(lm.keys, 'runners'))}", "Show runners info"),
                 (
                     key_sequence_display(
+                        lm.prefix,
+                        sk(lm.keys, "capacity_inspector"),
+                    ),
+                    "Capacity inspector",
+                ),
+                (
+                    key_sequence_display(
                         lm.prefix, sk(lm.keys, "collapse_fold_by_hint")
                     ),
                     "Collapse fold by hint",

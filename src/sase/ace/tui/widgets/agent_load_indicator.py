@@ -16,6 +16,7 @@ from typing import Any, Literal
 
 from rich.cells import cell_len
 from rich.text import Text
+from textual import events
 from textual.widgets import Static
 
 from ._usage_indicator_palette import (
@@ -430,6 +431,20 @@ class AgentLoadIndicator(Static):
         if self._density == "compact":
             return self.compact_cells
         return self.full_cells
+
+    @property
+    def running_nodes(self) -> int | None:
+        """Return the Running-bucket count supplied by the Agents display."""
+        return self._running_nodes
+
+    def on_click(self, event: events.Click) -> None:
+        """Open the detailed capacity view from the machine's cap chip."""
+        if event.button != 1:
+            return
+        event.stop()
+        action = getattr(self.app, "action_show_capacity_inspector", None)
+        if callable(action):
+            action()
 
     def update_load(
         self,

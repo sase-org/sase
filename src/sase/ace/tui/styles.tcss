@@ -10933,3 +10933,49 @@ CopyFallbackModal #copy-fallback-footer {
     color: $text-muted;
     margin-top: 1;
 }
+
+CapacityInspectorModal {
+    align: center middle;
+}
+
+CapacityInspectorModal #capacity-inspector-container {
+    width: 96%;
+    max-width: 150;
+    height: 90%;
+    max-height: 52;
+    border: double $primary;
+    background: $surface;
+    padding: 1 2;
+}
+
+CapacityInspectorModal #capacity-inspector-title {
+    height: 1;
+    color: $primary;
+    text-style: bold;
+    text-align: center;
+}
+
+CapacityInspectorModal #capacity-inspector-summary {
+    height: auto;
+    max-height: 9;
+    padding: 0 1;
+}
+
+CapacityInspectorModal #capacity-inspector-scroll {
+    height: 1fr;
+    margin-top: 1;
+    border-top: solid $primary;
+    border-bottom: solid $primary;
+    scrollbar-gutter: stable;
+}
+
+CapacityInspectorModal #capacity-inspector-options {
+    height: auto;
+}
+
+CapacityInspectorModal #capacity-inspector-footer {
+    height: 1;
+    margin-top: 1;
+    color: $text-muted;
+    text-align: center;
+}

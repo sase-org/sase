@@ -73,6 +73,60 @@ class MachineCapacityReport:
     record_inputs: tuple[MachineCapacityRecordInputs, ...]
 
 
+def machine_capacity_report_to_json_dict(
+    report: MachineCapacityReport,
+) -> dict[str, Any]:
+    """Serialize the exact report payload used by ``sase agent load -j``."""
+    limit = report.limit
+    override = getattr(limit, "temporary_override", None)
+    return {
+        "machine": report.machine,
+        "computed_at": report.computed_at,
+        "computed_at_iso": _iso(report.computed_at),
+        "scanned_at": report.scanned_at,
+        "scanned_at_iso": _iso(report.scanned_at),
+        "token": report.token,
+        "scan_current": report.scan_current,
+        "effective_limit": report.effective_limit,
+        "limit": {
+            "configured_limit": getattr(limit, "configured_limit", None),
+            "temporary_override": (
+                None
+                if override is None
+                else {
+                    "version": getattr(override, "version", None),
+                    "limit": override.limit,
+                    "created_at": override.created_at,
+                    "expires_at": override.expires_at,
+                    "source": override.source,
+                }
+            ),
+            "captured_at": getattr(limit, "captured_at", None),
+        },
+        "occupied_capacity": report.occupied_capacity,
+        "occupied_lanes": report.occupied_lanes,
+        "over_limit": report.over_limit,
+        "claims": [dict(claim) for claim in report.claims],
+        "waiters": [dict(waiter) for waiter in report.waiters],
+        "accounting": [dict(entry) for entry in report.accounting],
+        "diagnostics": list(report.diagnostics),
+        "accounting_valid": report.accounting_valid,
+        "accounting_available": report.accounting_available,
+        "record_inputs": [
+            {
+                "artifact_dir": record_inputs.artifact_dir,
+                "turn_kind": record_inputs.turn_kind,
+                "turn_role": record_inputs.turn_role,
+                "monitor_id": record_inputs.monitor_id,
+                "slot_requested_at": record_inputs.slot_requested_at,
+                "authored_queue_capacity": record_inputs.authored_queue_capacity,
+                "run_started_at": record_inputs.run_started_at,
+            }
+            for record_inputs in report.record_inputs
+        ],
+    }
+
+
 def machine_capacity_report(
     *,
     now: float | None = None,
@@ -312,6 +366,13 @@ def _finite_float(value: object) -> float | None:
     return number
 
 
+def _iso(epoch: float) -> str:
+    try:
+        return datetime.fromtimestamp(epoch, tz=UTC).isoformat()
+    except (OverflowError, OSError, ValueError):
+        return "?"
+
+
 def _maps(value: object) -> tuple[dict[str, Any], ...]:
     if not isinstance(value, list):
         return ()
@@ -330,4 +391,5 @@ __all__ = [
     "MachineCapacityReport",
     "machine_capacity_report",
     "machine_capacity_report_from_records",
+    "machine_capacity_report_to_json_dict",
 ]

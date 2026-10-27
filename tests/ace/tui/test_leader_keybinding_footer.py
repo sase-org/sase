@@ -101,6 +101,18 @@ def test_footer_surfaces_leader_metadata_search_only_on_agents_and_retired_help_
         assert ("?", "help") not in captured[-1][0]
 
 
+def test_footer_surfaces_capacity_inspector_only_on_agents_tab() -> None:
+    footer = KeybindingFooter()
+    captured = _capture_bindings(footer)
+
+    footer.update_leader_bindings(current_tab="agents")
+    assert ("l", "capacity inspector") in captured[-1][0]
+
+    for tab in ("patches", "axe"):
+        footer.update_leader_bindings(current_tab=tab)
+        assert "capacity inspector" not in _last_labels(captured)
+
+
 def test_pr_footer_surfaces_configured_app_query_key() -> None:
     footer = KeybindingFooter()
     footer.set_keymap_registry(

@@ -53,6 +53,7 @@ _LEADER_LABELS: dict[str, str] = {
     "search_forward": "Search metadata forward",
     "run_cmd": "Run background command",
     "runners": "Show runners",
+    "capacity_inspector": "Show capacity inspector",
     "revert_agent": "Revert agent + opened repos",
     "kill_mentors": "Kill mentor workflows",
     "review_mentors": "Review mentor results",
@@ -106,6 +107,7 @@ _LEADER_ALIASES: dict[str, tuple[str, ...]] = {
 # Per-mode fallback tab scoping (refined per-command for copy_mode).
 _LEADER_TABS: dict[str, tuple[CommandTab, ...]] = {
     "search_forward": AGENTS_ONLY,
+    "capacity_inspector": AGENTS_ONLY,
     "run_cmd": CL_ONLY,
     "kill_mentors": CL_ONLY,
     "review_mentors": CL_ONLY,

@@ -78,6 +78,26 @@ def test_idle_groups_group_by_reason_and_truncate() -> None:
     assert len(group.members) == 10
 
 
+def test_idle_groups_can_expand_and_keep_jump_identities() -> None:
+    records = [
+        _record(f"/idle-{index:02d}", requested_at=None, run_started=False)
+        for index in range(12)
+    ]
+    report = _report_from_records(records)
+
+    view = capacity_view(report)
+    (preview,) = view.idle_groups
+    assert preview.truncated is True
+    assert len(preview.member_artifact_dirs) == len(preview.members) == 10
+
+    expanded = capacity_view(report, expanded_idle_groups={"not_started"})
+    (group,) = expanded.idle_groups
+    assert group.truncated is False
+    assert group.hidden == 0
+    assert len(group.member_artifact_dirs) == len(group.members) == 12
+    assert group.member_artifact_dirs[0].endswith("idle-00")
+
+
 def test_queued_rows_carry_real_blockers() -> None:
     waiter = _record(
         "/waiter",
@@ -94,6 +114,7 @@ def test_queued_rows_carry_real_blockers() -> None:
     (row,) = view.queued
     assert "blocked by capacity" in row.blocker
     assert "budget 2" in row.blocker
+    assert row.artifact_dir.endswith("waiter")
 
 
 def test_invalid_weight_is_blocked_never_free() -> None:

@@ -281,6 +281,18 @@ session row is under Done (see [Runner slots](../automation/monitors.md#runner-s
 The running count keeps its stable green count style. A nonzero queue count is
 cornflower blue.
 
+### Capacity inspector
+
+Click the cap chip or press `,l` on the Agents tab to open the keyboard-first
+capacity inspector. The command palette also lists it as **Show capacity inspector**.
+It shows the latest authoritative machine report, including the limit source, snapshot
+age, Running-bucket count, charged claims, shared-claim riders, live records holding
+nothing, queued requests with admission's actual blockers, and diagnostics. Select an
+agent row and press Enter to jump to it. Idle groups show a bounded preview when they
+are long; **Show N more** expands a group and **Show first 10** collapses it. Press `y`
+to copy the exact JSON printed by `sase agent load -j`. A new capacity report refreshes
+the open inspector automatically.
+
 An optional status strip follows in the form
 `[S stopped · T starting · R running · W waiting · F failed · U unread · D done]`, with
 numeric counts in place of the letters and zero-count metrics omitted. These buckets

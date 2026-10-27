@@ -185,6 +185,14 @@ class LeaderModeMixin:
             self._refresh_current_tab()  # type: ignore[attr-defined]
             return True
 
+        capacity_inspector_key = leader_keys.get("capacity_inspector")
+        if isinstance(capacity_inspector_key, str) and key == capacity_inspector_key:
+            LeaderModeMixin._remember_leader_key(self, key, remember=remember)
+            if self.current_tab == "agents":
+                self.action_show_capacity_inspector()  # type: ignore[attr-defined]
+            self._refresh_current_tab()  # type: ignore[attr-defined]
+            return True
+
         if key == leader_keys["revert_agent"]:
             LeaderModeMixin._remember_leader_key(self, key, remember=remember)
             if self.current_tab == "agents":

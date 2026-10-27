@@ -154,6 +154,7 @@ class _CapacityReportFeedMixin:
         update_info = getattr(self, "_update_agents_info_panel", None)
         if getattr(self, "current_tab", None) == "agents" and callable(update_info):
             update_info()
+        self._refresh_open_capacity_inspector(report)
 
         bump = getattr(self, "_bump_agents_capacity_generation", None)
         if callable(bump):
@@ -167,6 +168,24 @@ class _CapacityReportFeedMixin:
 
         self._record_capacity_gauge_telemetry(report, report_capacity)
         self._observe_machine_capacity_drift(source="report")
+
+    def _refresh_open_capacity_inspector(self, report: Any) -> None:
+        """Refresh the inspector from a report already installed by this feed."""
+        screen = getattr(self, "screen", None)
+        update = getattr(screen, "update_capacity_report", None)
+        if not callable(update):
+            return
+        try:
+            from ...widgets import AgentLoadIndicator
+
+            indicator = self.query_one(  # type: ignore[attr-defined]
+                "#agent-load-indicator",
+                AgentLoadIndicator,
+            )
+            running_nodes = indicator.running_nodes
+        except Exception:
+            running_nodes = None
+        update(report, running_nodes=running_nodes)
 
     def _record_capacity_gauge_telemetry(
         self,

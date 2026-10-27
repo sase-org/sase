@@ -73,6 +73,7 @@ if TYPE_CHECKING:
         MachineCapacityReport as MachineCapacityReport,
         machine_capacity_report as machine_capacity_report,
         machine_capacity_report_from_records as machine_capacity_report_from_records,
+        machine_capacity_report_to_json_dict as machine_capacity_report_to_json_dict,
     )
     from ._scan import (
         RUNNER_SLOT_SCAN_OPTIONS as RUNNER_SLOT_SCAN_OPTIONS,
@@ -97,6 +98,7 @@ _LAZY_EXPORTS = {
     "collect_runner_slot_records": "sase.core.runner_slots._scan",
     "machine_capacity_report": "sase.core.runner_slots._machine_capacity",
     "machine_capacity_report_from_records": "sase.core.runner_slots._machine_capacity",
+    "machine_capacity_report_to_json_dict": "sase.core.runner_slots._machine_capacity",
     "record_liveness_probe": "sase.core.runner_slots._scan",
 }
 
@@ -150,6 +152,7 @@ __all__ = [
     "load_or_refresh_runner_slot_scan",
     "machine_capacity_report",
     "machine_capacity_report_from_records",
+    "machine_capacity_report_to_json_dict",
     "normalize_wait_priority",
     "notify_runner_slot_state_changed",
     "read_runner_slot_scan_cache",

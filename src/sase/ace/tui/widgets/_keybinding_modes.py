@@ -468,6 +468,7 @@ class KeybindingModesMixin:
         bindings.append((k("repeat_last"), "repeat"))
         if current_tab == "agents":
             bindings.append((k("search_forward"), "metadata search"))
+            bindings.append((k("capacity_inspector"), "capacity inspector"))
         if current_tab == "artifacts":
             if has_comments:
                 bindings.append((k("clear_comments"), "clear comments"))

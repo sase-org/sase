@@ -272,3 +272,32 @@ class AxeServiceMixin:
         ]
 
         self.push_screen(RunnersModal(background_procs=bg_procs), on_dismiss)  # type: ignore[attr-defined]
+
+    def action_show_capacity_inspector(self) -> None:
+        """Show the latest authoritative machine-capacity report."""
+        from ..modals.capacity_inspector_modal import (
+            CapacityInspectorModal,
+            CapacityInspectorSelection,
+        )
+
+        report = getattr(self, "_machine_capacity_report", None)
+        running_nodes: int | None = None
+        try:
+            from ..widgets import AgentLoadIndicator
+
+            indicator = self.query_one("#agent-load-indicator", AgentLoadIndicator)  # type: ignore[attr-defined]
+            running_nodes = indicator.running_nodes
+        except Exception:
+            pass
+
+        def on_dismiss(result: CapacityInspectorSelection | None) -> None:
+            if result is None:
+                return
+            from .agents._notification_actions import navigate_to_agent_tab
+
+            navigate_to_agent_tab(self, result.name)
+
+        self.push_screen(  # type: ignore[attr-defined]
+            CapacityInspectorModal(report, running_nodes=running_nodes),
+            on_dismiss,
+        )
