@@ -277,7 +277,7 @@ def _holder_tooltip_block(holders: tuple[Any, ...]) -> list[str]:
 
 def _view_holder_lines(view: Any) -> list[str]:
     """Format charged claims from the shared capacity view model."""
-    holdings = tuple(getattr(view, "holdings", ()) or ())
+    holdings = tuple(getattr(view, "charged", ()) or ())
     if not holdings:
         return []
     lines = ["Held by:"]
@@ -323,6 +323,9 @@ def _agent_load_tooltip(
     lines: list[str] = []
     if view is not None:
         lines.append(view.headline)
+        verdict = getattr(view, "verdict", None)
+        if verdict is not None and getattr(verdict, "title", None):
+            lines.append(str(verdict.title))
     else:
         lines.append(_headline(limit, occupied, over_limit=over_limit))
     running_line = None
@@ -360,6 +363,9 @@ def _agent_load_tooltip(
         )
     if view is not None:
         lines.extend(_view_holder_lines(view))
+        zero_weight = tuple(getattr(view, "zero_weight", ()) or ())
+        if zero_weight:
+            lines.append(f"+{len(zero_weight)} at zero weight")
     else:
         lines.extend(_holder_tooltip_block(holders))
     lines.append(_INSPECTOR_HINT)

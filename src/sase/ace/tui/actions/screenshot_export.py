@@ -331,12 +331,28 @@ class ScreenshotExportMixin:
                 pass
 
         timers: list[str] = []
+        prompt_bar_spare_timer = getattr(self, "_prompt_bar_spare_timer", None)
+        modal_screen_open = False
+        if prompt_bar_spare_timer is not None:
+            try:
+                from textual.screen import ModalScreen
+
+                modal_screen_open = isinstance(
+                    getattr(self, "screen", None), ModalScreen
+                )
+            except Exception:
+                pass
         seen_nodes: set[int] = set()
         for node in nodes:
             if id(node) in seen_nodes:
                 continue
             seen_nodes.add(id(node))
             for timer in getattr(node, "_timers", ()):
+                # This idle pre-mount timer deliberately re-arms while a modal
+                # is open. It cannot change the visible modal frame, so waiting
+                # for it would make live modal screenshots time out forever.
+                if modal_screen_open and timer is prompt_bar_spare_timer:
+                    continue
                 task = getattr(timer, "_task", None)
                 try:
                     interval = float(getattr(timer, "_interval", float("inf")))

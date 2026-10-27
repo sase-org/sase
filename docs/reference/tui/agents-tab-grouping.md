@@ -285,13 +285,22 @@ cornflower blue.
 
 Click the cap chip or press `,l` on the Agents tab to open the keyboard-first
 capacity inspector. The command palette also lists it as **Show capacity inspector**.
-It shows the latest authoritative machine report, including the limit source, snapshot
-age, Running-bucket count, charged claims, shared-claim riders, live records holding
-nothing, queued requests with admission's actual blockers, and diagnostics. Select an
-agent row and press Enter to jump to it. Idle groups show a bounded preview when they
-are long; **Show N more** expands a group and **Show first 10** collapses it. Press `y`
-to copy the exact JSON printed by `sase agent load -j`. A new capacity report refreshes
-the open inspector automatically.
+Its headline shows units in use, free capacity, and how recently the report arrived. A
+slot gauge uses the same headroom colors as the cap chip; selecting a charged holder
+highlights its share. The verdict says whether work can start, is tight, is full, is over
+budget, is blocked by invalid accounting, or is unknown. Its detail line gives the
+reported queue head or accounting reason when available.
+
+Rows follow this order: **Needs attention**, **Using capacity**, **Queued**, **Running at
+zero weight**, and **Not running**. Empty optional sections stay hidden. Queued rows
+show admission's blocker tone and a short reason; the detail strip gives every blocker.
+Not-running groups start folded with a name preview. Press Enter or `l` to expand a
+group and `h` to fold it; from a member row, `h` folds its group and returns the highlight
+to that group. Selection stays on the same row across report refreshes when it still
+exists, and expanded groups stay open. The three-line detail strip describes the
+highlighted holder, rider, waiter, group, or member. Press Enter on an agent row to jump
+to it. Press `y` to copy the exact JSON printed by `sase agent load -j`. A new capacity
+report refreshes the open inspector automatically.
 
 An optional status strip follows in the form
 `[S stopped · T starting · R running · W waiting · F failed · U unread · D done]`, with

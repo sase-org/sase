@@ -8,6 +8,7 @@ from types import SimpleNamespace
 
 import pytest
 from textual.app import App, ComposeResult
+from textual.screen import ModalScreen
 from textual.widgets import Static
 
 from sase.ace.testing import AcePage
@@ -456,6 +457,42 @@ def test_current_tab_controls_startup_readiness_after_navigation() -> None:
     _debouncers, workers, _timers, _animations = app._pending_screenshot_visual_work()
 
     assert "startup-visible:services" in workers
+
+
+def test_modal_prompt_bar_spare_timer_does_not_block_screenshot_settling() -> None:
+    app = _SettlingExportApp()
+    timer = SimpleNamespace(
+        _repeat=0,
+        _interval=0.1,
+        _task=SimpleNamespace(done=lambda: False),
+        name="prompt-bar-spare",
+    )
+    app.screen = ModalScreen()
+    app._prompt_bar_spare_timer = timer
+    app._timers = [timer]
+
+    _debouncers, _workers, timers, _animations = app._pending_screenshot_visual_work()
+
+    assert timers == []
+
+
+def test_prompt_bar_spare_timer_still_blocks_screenshot_settling_without_modal() -> (
+    None
+):
+    app = _SettlingExportApp()
+    timer = SimpleNamespace(
+        _repeat=0,
+        _interval=0.1,
+        _task=SimpleNamespace(done=lambda: False),
+        name="prompt-bar-spare",
+    )
+    app.screen = object()
+    app._prompt_bar_spare_timer = timer
+    app._timers = [timer]
+
+    _debouncers, _workers, timers, _animations = app._pending_screenshot_visual_work()
+
+    assert timers == ["prompt-bar-spare"]
 
 
 async def test_projected_detail_hydration_counts_as_visual_work() -> None:

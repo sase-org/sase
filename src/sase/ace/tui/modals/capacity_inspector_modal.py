@@ -3,23 +3,36 @@
 from __future__ import annotations
 
 import json
+import time
+from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any, Literal
 
 from rich.text import Text
 from textual.app import ComposeResult
-from textual.containers import Container, VerticalScroll
+from textual.containers import Container
 from textual.screen import ModalScreen
+from textual.widget import Widget
 from textual.widgets import OptionList, Static
 from textual.widgets.option_list import Option
 
 from sase.ace.tui.actions.clipboard import schedule_copy_delivery
-from sase.core.runner_slots import capacity_view
+from sase.core.runner_slots import capacity_view, format_capacity_duration
 
+from ._capacity_inspector_render import (
+    format_capacity_number,
+    render_capacity_row,
+    render_detail,
+    render_facts,
+    render_footer,
+    render_gauge,
+    render_headline,
+    render_section_header,
+    render_verdict,
+)
 from .base import CopyModeForwardingMixin, OptionListNavigationMixin
 
 _OPTION_LIST_ID = "capacity-inspector-options"
-_DEFAULT_IDLE_GROUP_LIMIT = 10
 
 
 @dataclass(frozen=True, slots=True)
@@ -31,11 +44,74 @@ class CapacityInspectorSelection:
 
 
 @dataclass(frozen=True, slots=True)
+class _GroupMember:
+    name: str
+    artifact_dir: str
+
+
+@dataclass(frozen=True, slots=True)
 class _OptionAction:
     kind: Literal["jump", "toggle_group"]
-    name: str | None = None
-    artifact_dir: str | None = None
+    detail_kind: str
+    row: Any | None = None
+    group: Any | None = None
     group_code: str | None = None
+
+
+class _CapacityOptionList(OptionList):
+    """OptionList with a quiet programmatic selection path for report refreshes."""
+
+    def __init__(self, *children: Option, **kwargs: Any) -> None:
+        self._setting_highlight_silently = False
+        super().__init__(*children, **kwargs)
+
+    def set_highlight_silently(self, index: int | None) -> None:
+        self._setting_highlight_silently = True
+        try:
+            self.highlighted = index
+            self.scroll_to_highlight()
+        finally:
+            self._setting_highlight_silently = False
+
+    def watch_highlighted(self, highlighted: int | None) -> None:
+        if self._setting_highlight_silently:
+            return
+        super().watch_highlighted(highlighted)
+
+
+class _CapacityGauge(Widget):
+    """Responsive one-line gauge, rendered from authoritative core geometry."""
+
+    def __init__(self, *, id: str) -> None:
+        super().__init__(id=id)
+        self._view: Any | None = None
+        self._highlighted_owner: int | None = None
+        self._dark = True
+        self._accent = "#87D7FF"
+
+    def update_view(
+        self,
+        view: Any | None,
+        *,
+        highlighted_owner: int | None,
+        dark: bool,
+        accent: str,
+    ) -> None:
+        self._view = view
+        self._highlighted_owner = highlighted_owner
+        self._dark = dark
+        self._accent = accent
+        self.refresh()
+
+    def render(self) -> Text:
+        """Draw as many cells as the current widget width allows."""
+        return render_gauge(
+            self._view,
+            width=self.size.width,
+            highlighted_owner=self._highlighted_owner,
+            dark=self._dark,
+            accent=self._accent,
+        )
 
 
 class CapacityInspectorModal(
@@ -43,12 +119,16 @@ class CapacityInspectorModal(
     OptionListNavigationMixin,
     ModalScreen[CapacityInspectorSelection | None],
 ):
-    """Render the shared capacity view with selectable agent rows."""
+    """Render the shared tiered capacity view with selectable agent rows."""
 
     _option_list_id = _OPTION_LIST_ID
     BINDINGS = [
         *OptionListNavigationMixin.NAVIGATION_BINDINGS,
         ("enter", "select_highlighted", "Jump or expand"),
+        ("l", "expand_group", "Expand group"),
+        ("right", "expand_group", "Expand group"),
+        ("h", "fold_group", "Fold group"),
+        ("left", "fold_group", "Fold group"),
         ("y", "copy_snapshot", "Copy snapshot"),
     ]
 
@@ -57,14 +137,19 @@ class CapacityInspectorModal(
         report: Any | None,
         *,
         running_nodes: int | None,
+        clock: Callable[[], float] | None = None,
     ) -> None:
         super().__init__()
         self._report = report
         self._running_nodes = running_nodes
-        self._expanded_idle_groups: set[str] = set()
+        self._clock = time.time if clock is None else clock
+        self._expanded_groups: set[str] = set()
         self._view: Any | None = None
         self._option_actions: dict[str, _OptionAction] = {}
-        self._next_option_id = 0
+        self._option_positions: dict[str, tuple[str, int]] = {}
+        self._section_option_ids: dict[str, list[str]] = {}
+        self._selected_option_id: str | None = None
+        self._freshness_timer: Any | None = None
         self._project_view()
 
     @property
@@ -80,16 +165,39 @@ class CapacityInspectorModal(
     def compose(self) -> ComposeResult:
         with Container(id="capacity-inspector-container"):
             yield Static(self._title_text(), id="capacity-inspector-title")
-            yield Static(self._summary_text(), id="capacity-inspector-summary")
-            with VerticalScroll(id="capacity-inspector-scroll"):
-                yield OptionList(*self._build_options(), id=_OPTION_LIST_ID)
-            yield Static(
-                "j/k move · Enter jump or expand · y copy `sase agent load -j` · Esc close",
-                id="capacity-inspector-footer",
+            yield Static(self._headline_text(), id="capacity-inspector-headline")
+            yield _CapacityGauge(id="capacity-inspector-gauge")
+            yield Static(self._verdict_text(), id="capacity-inspector-verdict")
+            yield Static(self._facts_text(), id="capacity-inspector-facts")
+            yield _CapacityOptionList(
+                *self._build_options(),
+                id=_OPTION_LIST_ID,
             )
+            yield Static(
+                render_detail(
+                    view=None, target_kind=None, row=None, group=None, now=self._clock()
+                ),
+                id="capacity-inspector-detail",
+            )
+            yield Static(render_footer(), id="capacity-inspector-footer")
 
     def on_mount(self) -> None:
-        self.query_one(f"#{_OPTION_LIST_ID}", OptionList).focus()
+        self.query_one(f"#{_OPTION_LIST_ID}", _CapacityOptionList).focus()
+        self._freshness_timer = self.set_interval(1.0, self._tick_freshness)
+        try:
+            self.watch(self.app, "theme", self._theme_changed, init=False)
+        except Exception:
+            pass
+        self._refresh_widgets()
+
+    def on_unmount(self) -> None:
+        if self._freshness_timer is not None:
+            self._freshness_timer.stop()
+            self._freshness_timer = None
+
+    def on_resize(self) -> None:
+        if self.is_mounted:
+            self._refresh_widgets()
 
     def update_capacity_report(
         self,
@@ -111,6 +219,28 @@ class CapacityInspectorModal(
         option_id = options.options[index].id
         if option_id is not None:
             self._activate_option(option_id)
+
+    def action_expand_group(self) -> None:
+        action = self._highlighted_action()
+        if action is None or action.group_code is None:
+            return
+        if (
+            action.kind == "toggle_group"
+            and action.group_code not in self._expanded_groups
+        ):
+            self._expanded_groups.add(action.group_code)
+            self._project_view()
+            self._refresh_widgets(preferred_id=f"group:{action.group_code}")
+
+    def action_fold_group(self) -> None:
+        action = self._highlighted_action()
+        if action is None or action.group_code is None:
+            return
+        group_id = f"group:{action.group_code}"
+        if action.group_code in self._expanded_groups:
+            self._expanded_groups.remove(action.group_code)
+            self._project_view()
+            self._refresh_widgets(preferred_id=group_id)
 
     def action_copy_snapshot(self) -> None:
         if self._report is None:
@@ -143,6 +273,13 @@ class CapacityInspectorModal(
         if event.option.id is not None:
             self._activate_option(event.option.id)
 
+    def on_option_list_option_highlighted(
+        self,
+        event: OptionList.OptionHighlighted,
+    ) -> None:
+        self._selected_option_id = event.option.id
+        self._update_detail_and_gauge()
+
     def _project_view(self) -> None:
         self._view = (
             None
@@ -150,237 +287,451 @@ class CapacityInspectorModal(
             else capacity_view(
                 self._report,
                 running_nodes=self._running_nodes,
-                expanded_idle_groups=self._expanded_idle_groups,
+                expanded_idle_groups=self._expanded_groups,
+                now=self._clock(),
             )
         )
 
+    def _current_dark_theme(self) -> bool:
+        try:
+            return bool(self.app.current_theme.dark)
+        except Exception:
+            return True
+
+    def _theme_accent(self) -> str:
+        try:
+            color = self.app.current_theme.primary
+            return str(color)
+        except Exception:
+            return "#87D7FF"
+
+    def _theme_changed(self) -> None:
+        if self.is_mounted:
+            self._refresh_widgets()
+
     def _title_text(self) -> Text:
-        text = Text("CAPACITY INSPECTOR", style="bold #87D7FF")
+        text = Text("CAPACITY", style="bold #87D7FF")
         if self._report is not None:
             machine = getattr(self._report, "machine", None)
             if isinstance(machine, str) and machine:
-                text.append(f"  ·  {machine}", style="dim")
+                text.append(f" · {machine}", style="bold")
         return text
 
-    def _summary_text(self) -> Text:
-        view = self._view
-        if view is None:
-            return Text(
-                "Authoritative capacity report is loading.\n"
-                "This inspector waits for the shared report; it does not estimate "
-                "capacity from visible rows.",
-                style="yellow",
-            )
-
-        headline_style = (
-            "bold red"
-            if view.over_limit_note is not None
-            else "bold yellow"
-            if view.admission_blocked
-            else "bold green"
+    def _headline_text(self) -> Text:
+        return render_headline(
+            self._view,
+            now=self._clock(),
+            dark=self._current_dark_theme(),
         )
-        text = Text(view.headline, style=headline_style)
-        text.append(f"\n{view.limit_line}", style="dim")
-        text.append(f"\n{view.snapshot_line}", style="dim")
-        if view.running_line is not None:
-            text.append(f"\n{view.running_line}", style="dim")
-        if view.over_limit_note is not None:
-            text.append(f"\n▲ {view.over_limit_note}", style="bold red")
-        if view.admission_blocked:
-            text.append(
-                "\nAdmission blocked: accounting is invalid; the occupied value is "
-                "a known subtotal, not free capacity.",
-                style="bold red",
-            )
-        if view.accounting_unavailable:
-            text.append(
-                "\nCapacity accounting unavailable: this core cannot explain "
-                "individual holders yet.",
-                style="bold yellow",
-            )
-        return text
+
+    def _verdict_text(self) -> Text:
+        return render_verdict(self._view)
+
+    def _facts_text(self) -> Text:
+        return render_facts(self._view, now=self._clock())
+
+    def _option_width(self) -> int:
+        if self.is_mounted:
+            try:
+                width = self.query_one(f"#{_OPTION_LIST_ID}", OptionList).size.width
+                if width > 0:
+                    return max(20, width - 2)
+            except Exception:
+                pass
+        try:
+            screen_width = self.size.width
+        except Exception:
+            screen_width = 0
+        return max(48, int(screen_width * 0.96) - 8 if screen_width else 100)
 
     def _build_options(self) -> list[Option]:
         self._option_actions = {}
-        self._next_option_id = 0
-        if self._view is None:
+        self._option_positions = {}
+        self._section_option_ids = {}
+        view = self._view
+        if view is None:
             return [
-                Option(
-                    "  Waiting for the first authoritative report…",
-                    id="capacity-waiting",
-                    disabled=True,
-                )
+                Option("Waiting for the first authoritative report…", disabled=True)
             ]
 
-        view = self._view
         options: list[Option] = []
-        self._add_section(options, "Holding capacity")
-        for row in view.holdings:
-            details = [row.kind, f"+{_number(row.charged_weight)}", row.weight_source]
-            if row.since:
-                details.append(f"since {row.since[:19]}")
-            if row.authored_budget is not None:
-                details.append(f"budget c{row.authored_budget}")
-            self._add_agent_option(
-                options, row.name, row.artifact_dir, " · ".join(details)
-            )
-        if view.holdings:
-            self._add_disabled_option(
+        width = self._option_width()
+        if view.accounting_unavailable:
+            self._add_header(options, "Accounting", "unavailable", width)
+            self._add_disabled(options, "This sase-core build reports totals only.")
+            return options
+
+        attention_count = sum(group.count for group in view.attention_groups)
+        if attention_count or view.diagnostics:
+            self._add_header(
                 options,
-                f"  Total charged: {_number(view.total_charged)}",
+                "Needs attention",
+                f"{attention_count + len(view.diagnostics)} issues",
+                width,
             )
-        else:
-            self._add_disabled_option(options, "  No capacity claims")
-
-        if view.riders:
-            self._add_section(options, "Shared claims")
-            for row in view.riders:
-                self._add_agent_option(
-                    options,
-                    row.name,
-                    row.artifact_dir,
-                    f"shared with {row.holder_name}",
-                )
-
-        self._add_section(options, "Live, holding nothing")
-        if not view.idle_groups:
-            self._add_disabled_option(options, "  No live records in this category")
-        for group in view.idle_groups:
-            shown = len(group.members)
-            group_note = (
-                f"{group.reason_label} · {shown} of {group.count} shown"
-                if group.truncated
-                else f"{group.reason_label} · {group.count}"
-            )
-            self._add_disabled_option(options, f"  {group_note}")
-            for name, artifact_dir in zip(
-                group.members,
-                group.member_artifact_dirs,
-                strict=False,
-            ):
-                self._add_agent_option(options, name, artifact_dir, group.reason_label)
-            if group.truncated:
-                self._add_toggle_option(
-                    options,
-                    group.reason_code,
-                    f"Show {group.hidden} more · Enter to expand",
-                )
-            elif group.count > _DEFAULT_IDLE_GROUP_LIMIT:
-                self._add_toggle_option(
-                    options,
-                    group.reason_code,
-                    "Show first 10 · Enter to collapse",
-                )
-
-        self._add_section(options, "Queued for capacity")
-        if not view.queued:
-            self._add_disabled_option(options, "  No queued capacity waiters")
-        for row in view.queued:
-            queued_details = (
-                f"queue #{row.queue_position} · requests "
-                f"{_number(row.requested_weight)} · {row.blocker}"
-            )
-            self._add_agent_option(options, row.name, row.artifact_dir, queued_details)
-
-        if view.diagnostics:
-            self._add_section(options, "Diagnostics")
+            for group in view.attention_groups:
+                for name, artifact_dir in zip(
+                    group.members,
+                    group.member_artifact_dirs,
+                    strict=False,
+                ):
+                    member = _GroupMember(name, artifact_dir)
+                    self._add_agent(
+                        options,
+                        section="attention",
+                        option_id=f"agent:{artifact_dir}",
+                        row=member,
+                        detail_kind="member",
+                        group=group,
+                        mark="▱?",
+                        name=name,
+                        kind="attention",
+                        note=group.reason_label,
+                        width=width,
+                        mark_style="yellow",
+                        name_style="yellow",
+                    )
             for diagnostic in view.diagnostics:
-                self._add_disabled_option(options, f"  {diagnostic}")
+                self._add_disabled(options, f"! {diagnostic}", style="yellow")
+
+        charged = tuple(view.charged)
+        self._add_header(
+            options,
+            "Using capacity",
+            f"{format_capacity_number(view.total_charged)} units · {len(charged)} agents",
+            width,
+        )
+        if not charged:
+            self._add_disabled(
+                options,
+                f"Nothing holds capacity — all {format_capacity_number(view.limit)} units are free",
+            )
+        for row in charged:
+            note_parts = []
+            if row.weight_source == "explicit":
+                note_parts.append("explicit weight")
+            if row.authored_budget is not None:
+                note_parts.append(f"budget {row.authored_budget}")
+            if row.rider_names:
+                note_parts.append(f"+{len(row.rider_names)} rider")
+            self._add_agent(
+                options,
+                section="using",
+                option_id=f"agent:{row.artifact_dir}",
+                row=row,
+                detail_kind="holder",
+                mark=f"▰{format_capacity_number(row.charged_weight)}",
+                name=row.name,
+                kind=row.kind,
+                note=" · ".join(note_parts),
+                age=format_capacity_duration(row.running_seconds),
+                width=width,
+            )
+
+        self._add_header(options, "Queued", f"{len(view.queued)} waiting", width)
+        if not view.queued:
+            self._add_disabled(options, "Nobody is queued")
+        tone_styles = {
+            "ready": "green",
+            "capacity": "yellow",
+            "held": "magenta",
+            "never_fits": "red",
+            "deferred": "dim",
+            "other": "yellow",
+        }
+        for row in view.queued:
+            self._add_agent(
+                options,
+                section="queued",
+                option_id=f"agent:{row.artifact_dir}",
+                row=row,
+                detail_kind="queued",
+                mark=f"#{row.queue_position}",
+                name=row.name,
+                kind="waiter",
+                note=row.blocker,
+                age=format_capacity_duration(row.waiting_seconds),
+                width=width,
+                mark_style=tone_styles.get(row.tone, "yellow"),
+            )
+
+        zero_rows = tuple(view.zero_weight)
+        riders = tuple(view.riders)
+        if zero_rows or riders:
+            self._add_header(
+                options,
+                "Running at zero weight",
+                f"{len(zero_rows) + len(riders)} agents",
+                width,
+            )
+            for row in zero_rows:
+                self._add_agent(
+                    options,
+                    section="zero",
+                    option_id=f"agent:{row.artifact_dir}",
+                    row=row,
+                    detail_kind="zero",
+                    mark="▰0",
+                    name=row.name,
+                    kind=row.kind,
+                    note="explicit zero weight",
+                    age=format_capacity_duration(row.running_seconds),
+                    width=width,
+                    mark_style="dim",
+                )
+            for row in riders:
+                self._add_agent(
+                    options,
+                    section="zero",
+                    option_id=f"agent:{row.artifact_dir}",
+                    row=row,
+                    detail_kind="rider",
+                    mark="⇢",
+                    name=row.name,
+                    kind="rider",
+                    note=f"shares {row.holder_name}'s claim",
+                    age=format_capacity_duration(row.running_seconds),
+                    width=width,
+                )
+
+        waiting_groups = tuple(view.waiting_groups)
+        inactive_groups = tuple(view.inactive_groups)
+        if waiting_groups or inactive_groups:
+            live_count = sum(group.count for group in waiting_groups)
+            inactive_count = sum(group.count for group in inactive_groups)
+            self._add_header(
+                options,
+                "Not running",
+                f"holds nothing · {live_count} live · {inactive_count} inactive",
+                width,
+            )
+            for group in (*waiting_groups, *inactive_groups):
+                self._add_group(options, group, width=width)
         return options
 
-    def _add_section(self, options: list[Option], label: str) -> None:
-        self._add_disabled_option(options, label.upper(), style="bold #87D7FF")
+    def _add_header(
+        self,
+        options: list[Option],
+        label: str,
+        summary: str,
+        width: int,
+    ) -> None:
+        options.append(
+            Option(
+                render_section_header(label, summary, width=width),
+                disabled=True,
+            )
+        )
 
-    def _add_disabled_option(
+    def _add_disabled(
         self,
         options: list[Option],
         label: str,
         *,
         style: str = "dim",
     ) -> None:
-        options.append(
-            Option(
-                Text(label, style=style),
-                id=self._option_id("label"),
-                disabled=True,
-            )
-        )
+        options.append(Option(Text(f"  {label}", style=style), disabled=True))
 
-    def _add_agent_option(
+    def _add_agent(
         self,
         options: list[Option],
+        *,
+        section: str,
+        option_id: str,
+        row: Any,
+        detail_kind: str,
+        mark: str,
         name: str,
-        artifact_dir: str,
-        details: str,
+        kind: str,
+        note: str,
+        width: int,
+        age: str = "",
+        mark_style: str = "bold",
+        name_style: str = "bold",
+        group: Any | None = None,
+        group_code: str | None = None,
     ) -> None:
-        label = Text("  ")
-        label.append(name, style="bold")
-        label.append(f"  {details}", style="dim")
-        option_id = self._option_id("agent")
+        prompt = render_capacity_row(
+            mark=mark,
+            name=name,
+            kind=kind,
+            note=note,
+            age=age,
+            width=width,
+            mark_style=mark_style,
+            name_style=name_style,
+        )
+        options.append(Option(prompt, id=option_id))
+        section_ids = self._section_option_ids.setdefault(section, [])
+        self._option_positions[option_id] = (section, len(section_ids))
+        section_ids.append(option_id)
         self._option_actions[option_id] = _OptionAction(
             kind="jump",
-            name=name,
-            artifact_dir=artifact_dir,
-        )
-        options.append(Option(label, id=option_id))
-
-    def _add_toggle_option(
-        self,
-        options: list[Option],
-        group_code: str,
-        label: str,
-    ) -> None:
-        option_id = self._option_id("toggle")
-        self._option_actions[option_id] = _OptionAction(
-            kind="toggle_group",
+            detail_kind=detail_kind,
+            row=row,
+            group=group,
             group_code=group_code,
         )
-        options.append(Option(f"  {label}", id=option_id))
 
-    def _option_id(self, kind: str) -> str:
-        option_id = f"{kind}-{self._next_option_id}"
-        self._next_option_id += 1
-        return option_id
+    def _add_group(self, options: list[Option], group: Any, *, width: int) -> None:
+        expanded = group.reason_code in self._expanded_groups
+        preview = ", ".join(group.members)
+        option_id = f"group:{group.reason_code}"
+        prompt = render_capacity_row(
+            mark="▾" if expanded else "▸",
+            name=f"{group.count} {group.reason_label}",
+            kind="",
+            note=preview,
+            width=width,
+            mark_style="dim" if group.tier == "inactive" else "bold",
+            name_style="dim" if group.tier == "inactive" else "bold",
+        )
+        options.append(Option(prompt, id=option_id))
+        section_ids = self._section_option_ids.setdefault("not_running", [])
+        self._option_positions[option_id] = ("not_running", len(section_ids))
+        section_ids.append(option_id)
+        self._option_actions[option_id] = _OptionAction(
+            kind="toggle_group",
+            detail_kind="group",
+            group=group,
+            group_code=group.reason_code,
+        )
+        if not expanded:
+            return
+        for name, artifact_dir in zip(
+            group.members,
+            group.member_artifact_dirs,
+            strict=False,
+        ):
+            member = _GroupMember(name, artifact_dir)
+            self._add_agent(
+                options,
+                section="not_running",
+                option_id=f"member:{group.reason_code}:{artifact_dir}",
+                row=member,
+                detail_kind="member",
+                mark="↳",
+                name=name,
+                kind="",
+                note="",
+                width=width,
+                mark_style="dim" if group.tier == "inactive" else "",
+                name_style="dim" if group.tier == "inactive" else "bold",
+                group=group,
+                group_code=group.reason_code,
+            )
+
+    def _highlighted_action(self) -> _OptionAction | None:
+        options = self.query_one(f"#{_OPTION_LIST_ID}", OptionList)
+        index = options.highlighted
+        if index is None or index < 0 or index >= len(options.options):
+            return None
+        option_id = options.options[index].id
+        return None if option_id is None else self._option_actions.get(option_id)
 
     def _activate_option(self, option_id: str) -> None:
         action = self._option_actions.get(option_id)
         if action is None:
             return
         if action.kind == "toggle_group" and action.group_code is not None:
-            if action.group_code in self._expanded_idle_groups:
-                self._expanded_idle_groups.remove(action.group_code)
+            if action.group_code in self._expanded_groups:
+                self._expanded_groups.remove(action.group_code)
             else:
-                self._expanded_idle_groups.add(action.group_code)
+                self._expanded_groups.add(action.group_code)
             self._project_view()
-            self._refresh_widgets()
+            self._refresh_widgets(preferred_id=f"group:{action.group_code}")
             self.query_one(f"#{_OPTION_LIST_ID}", OptionList).focus()
             return
-        if action.name is not None and action.artifact_dir is not None:
+        row = action.row
+        if (
+            row is not None
+            and getattr(row, "name", None)
+            and getattr(row, "artifact_dir", None)
+        ):
             self.dismiss(
                 CapacityInspectorSelection(
-                    name=action.name,
-                    artifact_dir=action.artifact_dir,
+                    name=row.name,
+                    artifact_dir=row.artifact_dir,
                 )
             )
 
-    def _refresh_widgets(self) -> None:
+    def _refresh_widgets(self, *, preferred_id: str | None = None) -> None:
+        if not self.is_mounted:
+            return
+        old_id = self._selected_option_id
+        options_widget = self.query_one(f"#{_OPTION_LIST_ID}", _CapacityOptionList)
+        old_section_position = self._option_positions.get(old_id or "")
+        rendered = self._build_options()
+
+        self.query_one("#capacity-inspector-title", Static).update(self._title_text())
+        self.query_one("#capacity-inspector-headline", Static).update(
+            self._headline_text()
+        )
+        self.query_one("#capacity-inspector-verdict", Static).update(
+            self._verdict_text()
+        )
+        self.query_one("#capacity-inspector-facts", Static).update(self._facts_text())
+        options_widget.clear_options()
+        for option in rendered:
+            options_widget.add_option(option)
+
+        option_ids = [option.id for option in rendered]
+        selectable_ids = [
+            option_id for option_id in option_ids if option_id is not None
+        ]
+        target_id = preferred_id or (old_id if old_id in selectable_ids else None)
+        if target_id is None and old_section_position is not None:
+            section, position = old_section_position
+            same_section = self._section_option_ids.get(section, [])
+            if same_section:
+                target_id = same_section[min(position, len(same_section) - 1)]
+        if target_id is None and selectable_ids:
+            target_id = selectable_ids[0]
+        target_index = next(
+            (i for i, option in enumerate(rendered) if option.id == target_id),
+            None,
+        )
+        options_widget.set_highlight_silently(target_index)
+        self._selected_option_id = target_id
+        self._update_detail_and_gauge()
+
+    def _update_detail_and_gauge(self) -> None:
+        action = self._option_actions.get(self._selected_option_id or "")
+        detail = render_detail(
+            view=self._view,
+            target_kind=None if action is None else action.detail_kind,
+            row=None if action is None else action.row,
+            group=None if action is None else action.group,
+            now=self._clock(),
+        )
         try:
-            self.query_one("#capacity-inspector-title", Static).update(
-                self._title_text()
+            self.query_one("#capacity-inspector-detail", Static).update(detail)
+            self.query_one("#capacity-inspector-gauge", _CapacityGauge).update_view(
+                self._view,
+                highlighted_owner=self._highlighted_owner(action),
+                dark=self._current_dark_theme(),
+                accent=self._theme_accent(),
             )
-            self.query_one("#capacity-inspector-summary", Static).update(
-                self._summary_text()
-            )
-            options = self.query_one(f"#{_OPTION_LIST_ID}", OptionList)
         except Exception:
             return
-        options.clear_options()
-        for option in self._build_options():
-            options.add_option(option)
 
+    def _highlighted_owner(self, action: _OptionAction | None) -> int | None:
+        if action is None or action.detail_kind not in {"holder", "zero"}:
+            return None
+        artifact_dir = getattr(action.row, "artifact_dir", None)
+        if not artifact_dir or self._view is None:
+            return None
+        for index, row in enumerate(self._view.charged):
+            if row.artifact_dir == artifact_dir:
+                return index
+        return None
 
-def _number(value: float) -> str:
-    return f"{value:g}"
+    def _tick_freshness(self) -> None:
+        if self._view is None:
+            return
+        self.query_one("#capacity-inspector-headline", Static).update(
+            self._headline_text()
+        )
 
 
 __all__ = ["CapacityInspectorModal", "CapacityInspectorSelection"]

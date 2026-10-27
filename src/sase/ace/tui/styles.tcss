@@ -10955,22 +10955,39 @@ CapacityInspectorModal #capacity-inspector-title {
     text-align: center;
 }
 
-CapacityInspectorModal #capacity-inspector-summary {
-    height: auto;
-    max-height: 9;
+CapacityInspectorModal #capacity-inspector-headline {
+    height: 1;
     padding: 0 1;
 }
 
-CapacityInspectorModal #capacity-inspector-scroll {
-    height: 1fr;
-    margin-top: 1;
-    border-top: solid $primary;
-    border-bottom: solid $primary;
-    scrollbar-gutter: stable;
+CapacityInspectorModal #capacity-inspector-gauge {
+    height: 1;
+    margin: 0 1;
+}
+
+CapacityInspectorModal #capacity-inspector-verdict {
+    height: auto;
+    max-height: 3;
+    padding: 0 1;
+}
+
+CapacityInspectorModal #capacity-inspector-facts {
+    height: 1;
+    padding: 0 1;
 }
 
 CapacityInspectorModal #capacity-inspector-options {
-    height: auto;
+    height: 1fr;
+    margin-top: 1;
+    border: none;
+    padding: 0 1;
+    scrollbar-gutter: stable;
+}
+
+CapacityInspectorModal #capacity-inspector-detail {
+    height: 3;
+    border-top: solid $secondary;
+    padding: 0 1;
 }
 
 CapacityInspectorModal #capacity-inspector-footer {

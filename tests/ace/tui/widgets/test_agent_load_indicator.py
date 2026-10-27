@@ -25,6 +25,11 @@ from sase.config.runner_limit_override import (
     EffectiveRunnerLimitSnapshot,
     TemporaryRunnerLimitOverride,
 )
+from sase.core.runner_slots import capacity_view
+from tests.test_machine_capacity_report import (
+    _report_from_records,
+    _screenshot_records,
+)
 
 
 _ATHENA = "athena"
@@ -261,6 +266,24 @@ def test_tooltip_lists_holders_with_weights_and_kinds() -> None:
     assert "• 0xe--mon-1 (monitor): 1" in tooltip
     assert "• research.3r.cdx: 0.25" in tooltip
     assert ",l opens the capacity inspector" in tooltip
+
+
+def test_report_tooltip_puts_verdict_first_and_splits_zero_weight_claims() -> None:
+    report = _report_from_records(_screenshot_records())
+    tooltip = _agent_load_tooltip(
+        8.0,
+        5.0,
+        source="authoritative",
+        running_nodes=6,
+        report=report,
+    )
+    lines = tooltip.splitlines()
+
+    assert lines[0] == "5 of 8 units in use · 3 headroom"
+    assert lines[1] == capacity_view(report, running_nodes=6).verdict.title
+    assert "Held by:" in tooltip
+    assert "+1 at zero weight" in tooltip
+    assert "cutover" not in "\n".join(lines[lines.index("Held by:") + 1 :])
 
 
 def test_tooltip_caps_holders_with_more_count() -> None:
