@@ -3,7 +3,9 @@
 Python owns process liveness, marker files, and the small JSON reads the
 host already performs. The scan is cheap (one index query per candidate
 session, one JSON read per candidate) and ignores ACE dismissal so flags
-survive hiding a row.
+survive hiding a row. Open beads that carry an active completion failure
+are recovery candidates; their failure provenance names the run to load
+without changing the bead assignee.
 """
 
 from __future__ import annotations
@@ -25,6 +27,7 @@ from sase.agent.auto_restart.forward import recovery_in_flight
 from sase.agent.handoff_inflight import HANDOFF_INFLIGHT_MARKER
 from sase.agent.pending_handoff import pending_handoff_kind
 from sase.agent.status_buckets import QUEUED_STATUS
+from sase.bead.completion_failure_codec import completion_failure_to_dict
 from sase.bead.model import BeadTier, Issue, IssueType, Status
 from sase.bead.store_locator import canonical_beads_dir_for_project
 from sase.core.agent_scan_facade import (
@@ -76,7 +79,8 @@ def collect_stranded_work_input(
         }
     candidates, context = _candidate_and_context_issues(beads_dir, bead_ids=bead_ids)
     sessions = _session_record_cache(
-        project, {issue.assignee for issue in candidates if issue.assignee}
+        project,
+        {key for issue in candidates for key in _session_keys_for_issue(issue)},
     )
     beads = [_bead_facts(issue, sessions, candidate=True) for issue in candidates]
     seen = {issue.id for issue in candidates}
@@ -117,12 +121,12 @@ def _now_epoch() -> float:
 def _candidate_and_context_issues(
     beads_dir: Path, *, bead_ids: Iterable[str] | None = None
 ) -> tuple[list[Issue], list[Issue]]:
-    in_progress = list_issues(beads_dir, statuses=[Status.IN_PROGRESS])
+    loaded = list_issues(beads_dir, statuses=[Status.IN_PROGRESS, Status.OPEN])
     wanted = None if bead_ids is None else {item for item in bead_ids if item}
     candidates = [
         issue
-        for issue in in_progress
-        if _is_candidate(issue) and (wanted is None or issue.id in wanted)
+        for issue in loaded
+        if _is_stranded_candidate(issue) and (wanted is None or issue.id in wanted)
     ]
     phase_ids = {
         issue.id for issue in candidates if issue.issue_type is IssueType.PHASE
@@ -144,6 +148,27 @@ def _is_candidate(issue: Issue) -> bool:
     if issue.issue_type is IssueType.TASK:
         return True
     return issue.issue_type is IssueType.PLAN and issue.tier is BeadTier.EPIC
+
+
+def _is_stranded_candidate(issue: Issue) -> bool:
+    if not _is_candidate(issue):
+        return False
+    if issue.status is Status.IN_PROGRESS:
+        return True
+    return issue.status is Status.OPEN and issue.completion_failure is not None
+
+
+def _session_keys_for_issue(issue: Issue) -> tuple[str, ...]:
+    keys: list[str] = []
+    assignee = issue.assignee.strip()
+    if assignee:
+        keys.append(assignee)
+    failure = issue.completion_failure
+    if failure is not None:
+        agent_name = failure.agent_name.strip()
+        if agent_name and agent_name not in keys:
+            keys.append(agent_name)
+    return tuple(keys)
 
 
 def _session_record_cache(
@@ -228,11 +253,12 @@ def _bead_facts(
     assignee = issue.assignee.strip() or None
     records_available = True
     records: list[AgentArtifactRecordWire] = []
-    if candidate and assignee:
-        records, records_available = sessions.get(assignee, ([], False))
+    if candidate:
+        records, records_available = _records_for_issue(issue, sessions)
     members = [_member_facts(record) for record in records] if candidate else []
     if candidate:
         _attach_declared_action(members)
+    failure = issue.completion_failure
     return {
         "id": issue.id,
         "kind": _bead_kind(issue),
@@ -243,7 +269,32 @@ def _bead_facts(
         "closed_at": _closed_at_epoch(issue),
         "records_available": records_available,
         "members": members,
+        "completion_failure": (
+            completion_failure_to_dict(failure) if failure is not None else None
+        ),
     }
+
+
+def _records_for_issue(
+    issue: Issue,
+    sessions: dict[str, tuple[list[AgentArtifactRecordWire], bool]],
+) -> tuple[list[AgentArtifactRecordWire], bool]:
+    keys = _session_keys_for_issue(issue)
+    if not keys:
+        return [], True
+    merged: list[AgentArtifactRecordWire] = []
+    seen_dirs: set[str] = set()
+    available = False
+    for key in keys:
+        key_records, key_available = sessions.get(key, ([], False))
+        available = available or key_available
+        for record in key_records:
+            artifact_dir = record.artifact_dir
+            if artifact_dir in seen_dirs:
+                continue
+            seen_dirs.add(artifact_dir)
+            merged.append(record)
+    return merged, available
 
 
 def _bead_kind(issue: Issue) -> str:

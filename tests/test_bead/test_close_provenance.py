@@ -19,7 +19,10 @@ from sase.bead.close_provenance import (
     RECOVERY_RUN_ID_ENV_VAR,
     host_run_close_provenance,
 )
-from sase.bead.completion_failure_codec import completion_failure_from_dict
+from sase.bead.completion_failure_codec import (
+    completion_failure_from_dict,
+    completion_failure_to_dict,
+)
 from sase.bead.jsonl import export_to_jsonl, import_from_jsonl
 from sase.bead.model import (
     BeadCloseProvenance,
@@ -208,6 +211,12 @@ class TestCompletionFailureCodec:
 
     def test_absence_decodes_to_none(self) -> None:
         assert completion_failure_from_dict(None) is None
+
+    def test_to_dict_round_trips(self) -> None:
+        failure = _failure()
+        assert completion_failure_from_dict(completion_failure_to_dict(failure)) == (
+            failure
+        )
 
 
 class TestIssueWireDecode:

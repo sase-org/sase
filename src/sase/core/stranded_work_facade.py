@@ -9,9 +9,12 @@ from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from sase.core.rust import require_rust_binding
+
+if TYPE_CHECKING:
+    from sase.bead.model import BeadCompletionFailure
 
 STRANDED_WORK_WIRE_SCHEMA_VERSION = 1
 
@@ -31,6 +34,7 @@ class StrandedWorkVerdict:
     session: str | None = None
     last_turn: str | None = None
     last_turn_artifact_dir: str | None = None
+    completion_failure: BeadCompletionFailure | None = None
     declared_bead_action: str | None = None
     since: float | None = None
     parent_id: str | None = None
@@ -78,6 +82,8 @@ def _optional_float(value: object) -> float | None:
 
 
 def _verdict_from_wire(raw: object) -> StrandedWorkVerdict:
+    from sase.bead.completion_failure_codec import completion_failure_from_dict
+
     if not isinstance(raw, Mapping):
         raise RuntimeError(
             "sase_core_rs stranded_work_reduce returned a non-mapping verdict"
@@ -95,6 +101,7 @@ def _verdict_from_wire(raw: object) -> StrandedWorkVerdict:
         session=_optional_str(raw.get("session")),
         last_turn=_optional_str(raw.get("last_turn")),
         last_turn_artifact_dir=_optional_str(raw.get("last_turn_artifact_dir")),
+        completion_failure=completion_failure_from_dict(raw.get("completion_failure")),
         declared_bead_action=_optional_str(raw.get("declared_bead_action")),
         since=_optional_float(raw.get("since")),
         parent_id=_optional_str(raw.get("parent_id")),

@@ -381,8 +381,9 @@ def _store_advisories(
 
     Nothing here ever mutates. Claim promotion is documented as permanent, and
     a dependency edge whose target was removed can only be repaired by hand.
-    Stranded ``in_progress`` beads are classified through the shared
-    stranded-work report rather than the claim-owner scan.
+    Stranded beads (``in_progress`` work and open recovery candidates)
+    are classified through the shared stranded-work report rather than
+    the claim-owner scan.
     """
     messages: list[str] = []
     try:

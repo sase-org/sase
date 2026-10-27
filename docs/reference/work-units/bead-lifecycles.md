@@ -190,17 +190,29 @@ does not pass through the advisory `claimed` state.
 
 ## Stranded beads
 
-A bead is stranded when it is `in_progress` and nothing will resume it: no live session
-member, no pending monitor, gate, handoff, or recovery, and no launched child epic still
-working. Standalone `in_progress` task beads are included. ACE names this state ⚐
-STRANDED.
+A bead is stranded when nothing will resume it. The usual case is `in_progress` work
+with no live session member, pending monitor, gate, handoff, or recovery, and no
+launched child epic still working. Standalone `in_progress` task beads are included.
+
+Host completion can also strand work it already closed. When a run's product commit or
+declaration recovery fails with unlanded work, the host reopens that run's standing
+`done` closes and any closed ancestors, appends one `STITCH FAILED:` note, and stores
+structured failure facts on the bead. The reopened bead is `open`, not `in_progress`;
+ordinary unassigned drafts stay excluded. Surfaces read the structured facts, never the
+note text. The recovery action does not retry the product commit. Re-running the same
+failed finalizer does not duplicate the note. A later claim or live successor owns the
+work again, and a new verified close clears the active stranded verdict.
+
+ACE names this state ⚐ STRANDED. Epic and phase waiters that also wait on the bead stay
+parked until that close is verified; an agent finishing is not enough to release them.
 
 Classifier states are `owned`, `delegated`, `settling` (a 120s grace after a turn ends),
 `stranded`, `blocked` (an ancestor waiting on a stranded leaf), and `unknown` (the
 collector could not read the session).
 
 Stranded causes, first match wins: `followup_failed`, `failed`, `stopped`, `lost`,
-`child_landed`, `close_failed`, `kept`, `unclosed`.
+`child_landed`, `close_failed`, `kept`, `unclosed`. Completion-failure recovery uses
+`failed`.
 
 Remedies: fork the last turn with `%id(bead=<id>) #fork:<turn>`, or close the bead with
 `sase bead close <id> --note "…"`. `sase doctor` reports stranded beads on the

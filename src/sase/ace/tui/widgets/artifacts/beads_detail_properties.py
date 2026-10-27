@@ -48,7 +48,7 @@ from .beads_stranded import cached_bead_verdict
 def stranded_property(issue: Issue, *, project: str) -> Text:
     """Describe cached stranded evidence without looking up session records."""
     verdict = cached_bead_verdict(project, issue.id)
-    if verdict is None or issue.status is not Status.IN_PROGRESS:
+    if verdict is None:
         return Text()
     if verdict.state == "stranded":
         parts = (

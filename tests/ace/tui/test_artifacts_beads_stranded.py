@@ -18,6 +18,7 @@ from sase.ace.tui.widgets.artifacts.beads_pane import ArtifactsBeadsPane
 from sase.ace.tui.widgets.artifacts.beads_rendering import build_beads_status
 from sase.ace.tui.widgets.artifacts import beads_stranded_refresh as refresh
 from sase.ace.tui.widgets.artifacts.beads_stranded import epic_stranded_style
+from sase.bead.model import Status
 from sase.bead.stranded_presentation import (
     STRANDED_BREADCRUMB_STYLE,
     STRANDED_LEAF_STYLE,
@@ -54,6 +55,24 @@ def test_stranded_rows_count_tasks_and_style_ancestors(tmp_path: Path, monkeypat
         "stranded"
         not in build_beads_status(value, loading=False, load_error=None).plain
     )
+
+
+def test_open_unassigned_recovered_task_keeps_stranded_flag(
+    tmp_path: Path, monkeypatch
+) -> None:
+    value, _ = stranded_snapshot(tmp_path, monkeypatch)
+    task = next(item for item in value.tasks if item.issue.id == "alpha-open")
+    task.issue.status = Status.OPEN
+    task.issue.assignee = ""
+    options, _ = build_bead_options(
+        value,
+        project_scope="alpha",
+        loading=False,
+        expanded_epics={("alpha", "alpha-1")},
+    )
+    rows = {option.id: option.prompt for option in options}
+    assert "⚐" in rows["task:alpha-open"].plain
+    assert "open" in rows["task:alpha-open"].plain.lower()
 
 
 @pytest.mark.parametrize("direct", [False, True])

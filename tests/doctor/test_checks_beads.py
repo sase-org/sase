@@ -22,6 +22,7 @@ from tests.doctor._checks_beads_agents import (
     test_project_beads_warns_about_claim_whose_owner_died,
     test_project_beads_does_not_use_the_old_in_progress_gone_warning,
     test_project_beads_warns_about_stranded_beads,
+    test_project_beads_warns_about_recovered_unassigned_task,
     test_project_beads_stays_silent_for_a_live_in_progress_owner,
     test_project_beads_ignores_promoted_and_dead_bead_owners,
 )
@@ -49,6 +50,7 @@ __all__ = [
     "test_project_beads_warns_about_claim_whose_owner_died",
     "test_project_beads_does_not_use_the_old_in_progress_gone_warning",
     "test_project_beads_warns_about_stranded_beads",
+    "test_project_beads_warns_about_recovered_unassigned_task",
     "test_project_beads_stays_silent_for_a_live_in_progress_owner",
     "test_project_beads_ignores_promoted_and_dead_bead_owners",
     "test_project_beads_warns_about_dangling_dependency_edges",

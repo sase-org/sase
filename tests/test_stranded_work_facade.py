@@ -32,6 +32,15 @@ def test_reduce_stranded_work_hydrates_verdicts(
                     "reason": "kept",
                     "session": "sase-1.2",
                     "last_turn": "sase-1.2",
+                    "completion_failure": {
+                        "close_event_id": "evt-1",
+                        "run_id": "origin-run",
+                        "agent_name": "origin-agent",
+                        "artifact_dir": "/tmp/origin-run",
+                        "failed_at": "2026-10-26T18:00:00Z",
+                        "evidence_locations": [],
+                        "failure_code": "hook_failed",
+                    },
                     "since": 10.0,
                     "blocked_by": [],
                     "blocks": ["sase-1"],
@@ -56,6 +65,8 @@ def test_reduce_stranded_work_hydrates_verdicts(
     assert verdict.reason == "kept"
     assert verdict.since == 10.0
     assert verdict.blocks == ("sase-1",)
+    assert verdict.completion_failure is not None
+    assert verdict.completion_failure.run_id == "origin-run"
 
 
 def test_reduce_stranded_work_rejects_non_mapping(
@@ -114,3 +125,58 @@ def test_reduce_stranded_work_round_trips_through_real_binding() -> None:
     assert report.schema_version == 1
     assert report.stranded_ids == ("sase-1.2",)
     assert report.verdicts[0].reason == "kept"
+
+
+def test_reduce_stranded_work_round_trips_open_recovery_facts() -> None:
+    facade._REDUCE_BINDING = None
+    try:
+        report = facade.reduce_stranded_work(
+            {
+                "schema_version": 1,
+                "now": 1_800_000_000.0,
+                "settle_grace_seconds": 120.0,
+                "beads": [
+                    {
+                        "id": "recovered-phase",
+                        "kind": "phase",
+                        "status": "open",
+                        "candidate": True,
+                        "assignee": None,
+                        "parent_id": "sase-1",
+                        "closed_at": None,
+                        "records_available": False,
+                        "members": [],
+                        "completion_failure": {
+                            "close_event_id": "evt-1",
+                            "run_id": "origin-run",
+                            "agent_name": "origin-agent",
+                            "artifact_dir": "/artifacts/origin-run",
+                            "failed_at": "2026-10-26T18:00:00Z",
+                            "evidence_locations": [
+                                "/artifacts/origin-run/failure.json"
+                            ],
+                            "failure_code": "hook_failed",
+                        },
+                    },
+                    {
+                        "id": "ordinary-draft",
+                        "kind": "phase",
+                        "status": "open",
+                        "candidate": False,
+                        "assignee": None,
+                        "parent_id": None,
+                        "closed_at": None,
+                        "records_available": True,
+                        "members": [],
+                        "completion_failure": None,
+                    },
+                ],
+            }
+        )
+    except (RuntimeError, AttributeError) as exc:
+        pytest.skip(f"stranded_work_reduce binding unavailable: {exc}")
+    assert report.stranded_ids == ("recovered-phase",)
+    assert report.verdicts[0].reason == "failed"
+    assert report.verdicts[0].completion_failure is not None
+    assert report.verdicts[0].completion_failure.run_id == "origin-run"
+    assert all(verdict.bead_id != "ordinary-draft" for verdict in report.verdicts)

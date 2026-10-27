@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Any
 
 from sase.bead import stranded_facts as facts
-from sase.bead.model import BeadTier, Issue, IssueType, Status
+from sase.bead.model import BeadCompletionFailure, BeadTier, Issue, IssueType, Status
 from sase.core.agent_scan_wire import (
     AgentArtifactRecordWire,
     AgentArtifactScanOptionsWire,
@@ -26,10 +26,11 @@ PROJECT = "demo"
 def phase(
     bead_id: str,
     *,
-    assignee: str,
+    assignee: str = "",
     title: str = "Phase",
     status: Status = Status.IN_PROGRESS,
     parent_id: str | None = "sase-1",
+    completion_failure: BeadCompletionFailure | None = None,
 ) -> Issue:
     return Issue(
         id=bead_id,
@@ -38,6 +39,7 @@ def phase(
         issue_type=IssueType.PHASE,
         parent_id=parent_id,
         assignee=assignee,
+        completion_failure=completion_failure,
     )
 
 
@@ -63,9 +65,10 @@ def epic(
 def task(
     bead_id: str,
     *,
-    assignee: str,
+    assignee: str = "",
     title: str = "Task",
     status: Status = Status.IN_PROGRESS,
+    completion_failure: BeadCompletionFailure | None = None,
 ) -> Issue:
     return Issue(
         id=bead_id,
@@ -73,6 +76,7 @@ def task(
         status=status,
         issue_type=IssueType.TASK,
         assignee=assignee,
+        completion_failure=completion_failure,
     )
 
 

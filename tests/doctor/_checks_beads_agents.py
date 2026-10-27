@@ -5,7 +5,7 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
-from sase.bead.model import Issue, Status
+from sase.bead.model import Issue, IssueType, Status
 from sase.bead.stranded import StrandedReport
 from sase.bead.stranded_presentation import STRANDED_GLYPH, STRANDED_WORD
 from sase.core.agent_scan_wire import (
@@ -261,6 +261,65 @@ def test_project_beads_warns_about_stranded_beads(
     assert "23h" in detail
     assert "%id(bead=sase-1.2) #fork:sase-1.2" in detail
     assert 'sase bead close sase-1.2 --note "…"' in detail
+
+
+def test_project_beads_warns_about_recovered_unassigned_task(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    (tmp_path / "sdd" / "beads").mkdir(parents=True)
+    stub_issues(
+        monkeypatch,
+        [
+            Issue(
+                id="sase-yo",
+                title="Unassigned source task",
+                status=Status.OPEN,
+                issue_type=IssueType.TASK,
+            )
+        ],
+    )
+    stub_agent_scan(
+        monkeypatch,
+        tmp_path,
+        agent_name="origin-agent",
+        bead_id="sase-yo",
+        agent_meta={},
+        pid=None,
+    )
+    now = 1_700_000_000.0
+    loaded = StrandedReport(
+        report=StrandedWorkReport(
+            schema_version=1,
+            verdicts=(
+                StrandedWorkVerdict(
+                    bead_id="sase-yo",
+                    kind="task",
+                    state="stranded",
+                    reason="failed",
+                    last_turn="origin-agent",
+                    since=now - 3600,
+                ),
+            ),
+            stranded_ids=("sase-yo",),
+        ),
+        titles={"sase-yo": "Unassigned source task"},
+        generated_at=now,
+    )
+    monkeypatch.setattr(
+        "sase.doctor.checks_beads.load_stranded_report",
+        lambda _project, now=None: loaded,
+    )
+
+    check = checks_beads._check_project_beads(context(tmp_path, project="demo"))
+
+    assert check.status == "WARN"
+    detail = check.details[0]
+    assert f"{STRANDED_GLYPH} {STRANDED_WORD}" in detail
+    assert "sase-yo" in detail
+    assert "latest turn failed; nothing resumes it" in detail
+    assert "origin-agent" in detail
+    assert "%id(bead=sase-yo) #fork:origin-agent" in detail
 
 
 def test_project_beads_stays_silent_for_a_live_in_progress_owner(

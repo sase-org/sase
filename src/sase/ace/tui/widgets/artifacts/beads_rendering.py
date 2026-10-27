@@ -333,8 +333,7 @@ def phase_text(
     _append_external_issue_chip(text, external_links)
     text.append("  ")
     _append_status(text, phase.status)
-    if phase.status is Status.IN_PROGRESS:
-        text.append_text(stranded_badge(stranded))
+    text.append_text(stranded_badge(stranded))
     text.append("  ")
     text.append_text(phase_size_chip(phase.size or PhaseSize.SMALL))
     _append_metadata(text, phase, project_badge)
@@ -430,8 +429,7 @@ def _bead_text(
         text.append(f"  [{post_close}]", style=POST_CLOSE_RICH_STYLE)
     text.append("  ")
     _append_status(text, issue.status)
-    if issue.status is Status.IN_PROGRESS:
-        text.append_text(stranded_badge(stranded))
+    text.append_text(stranded_badge(stranded))
     if issue.size is not None:
         text.append("  ")
         text.append_text(phase_size_chip(issue.size))
