@@ -107,6 +107,7 @@ class AgentStateQueueFields:
     queue_weight_explicit: bool = False
     queue_weight_invalid: bool = False
     queue_weight_error: str | None = None
+    runner_claim_owner_key: str | None = None
     slot_requested_at: str | None = None
     held_by: str | None = None
     hold_expires_at: float | None = None

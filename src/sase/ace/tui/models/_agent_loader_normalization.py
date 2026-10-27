@@ -5,6 +5,7 @@ from collections.abc import Callable
 from sase.agent.status_buckets import agent_status_bucket
 from sase.core.agent_clan_context import clan_context_by_key, clan_context_for
 from sase.core.agent_scan_wire import AgentArtifactScanWire
+from sase.core.process_identity import process_identity_matches
 
 from ._agent_imported_agent_session import materialize_imported_agent_session_containers
 from ._agent_ordering import sort_and_reorder
@@ -72,7 +73,9 @@ def _filter_dead_pids(
                 agent.pid_liveness_unverified = True
             verified_agents.append(agent)
         elif agent.pid is not None:
-            if is_process_running(agent.pid):
+            if is_process_running(agent.pid) and process_identity_matches(
+                agent.pid, agent.process_identity
+            ):
                 agent.pid_liveness_unverified = False
                 verified_agents.append(agent)
         else:
@@ -128,7 +131,7 @@ def mark_live_artifact_delta_runners(
         if live is None:
             live = is_process_running(agent.pid)
             liveness_by_pid[agent.pid] = live
-        if live:
+        if live and process_identity_matches(agent.pid, agent.process_identity):
             agent.runner_is_live = True
 
 

@@ -36,6 +36,7 @@ class AgentStateCoreFields:
 
     # PID for process management
     pid: int | None = None
+    process_identity: str | None = None
 
     # Runtime-only proof that this row is backed by a runner whose PID was
     # verified live. The visible status is intentionally not authoritative:

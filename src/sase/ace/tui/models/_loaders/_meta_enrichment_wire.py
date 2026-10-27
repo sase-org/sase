@@ -84,6 +84,8 @@ def enrich_agent_from_meta_wire(
         return
 
     agent.runner_slot_yielded = pending_question is not None
+    agent.process_identity = meta.process_identity
+    agent.runner_claim_owner_key = meta.runner_claim_owner_key
 
     if meta.status_bucket:
         agent.status_bucket = meta.status_bucket
@@ -413,6 +415,9 @@ def enrich_agent_from_meta_wire(
             monitor_turn.stop_status if monitor_turn is not None else None
         ),
         monitor_exit_code=monitor.exit_code if monitor is not None else None,
+        monitor_supervisor_identity=(
+            monitor.supervisor_identity if monitor is not None else None
+        ),
         monitor_cwd=monitor.cwd if monitor is not None else None,
         monitor_reason=monitor_turn.reason if monitor_turn is not None else None,
         monitor_next_action=(

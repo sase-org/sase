@@ -220,11 +220,14 @@ def _apply_runner_capacity_snapshot(
     occupied_capacity = _finite_float(raw_snapshot.get("occupied_capacity"))
     effective_limit = _finite_float(raw_snapshot.get("effective_limit")) or 0.0
     display_agent_by_artifact_dir = {
-        _capacity_artifact_dir(agent): agent for agent in agents
+        _capacity_artifact_dir(agent): agent
+        for agent in agents
+        if not agent.is_workflow_step_child
     }
     source_agent_by_artifact_dir = {
         _capacity_artifact_dir(agent): agent
         for agent in (agents if capacity_agents is None else capacity_agents)
+        if not agent.is_workflow_step_child
     }
     queue_entries: list[RunnerQueueEntry] = []
     queue_positions: dict[int, int] = {}

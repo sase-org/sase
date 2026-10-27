@@ -21,6 +21,7 @@ def apply_monitor_meta(
     monitor_start_status: object,
     monitor_stop_status: object,
     monitor_exit_code: object,
+    monitor_supervisor_identity: object = None,
     monitor_cwd: object = None,
     monitor_reason: object = None,
     monitor_next_action: object = None,
@@ -135,6 +136,7 @@ def apply_monitor_meta(
     )
     if not monitor_member:
         return
+    _set_optional_string(agent, "process_identity", monitor_supervisor_identity)
     agent.status_bucket = monitor_state_bucket(state)
     if state == "running" and agent.status != "STARTING":
         agent.status = clamp_monitor_status_or_default(

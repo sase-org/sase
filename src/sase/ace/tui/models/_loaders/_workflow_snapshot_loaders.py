@@ -291,6 +291,17 @@ def load_workflow_agents_from_snapshot(
                 plan_path_marker=plan_path,
                 has_done_marker=record.has_done_marker,
             )
+            if agent.is_monitor and agent.pid is None:
+                # Monitor workflow scaffolding has no PID; the supervisor
+                # stamps metadata (or the running marker). Probes own liveness.
+                agent.pid = record.agent_meta.pid if record.agent_meta else None
+                if record.running is not None:
+                    if agent.pid is None:
+                        agent.pid = record.running.pid
+                    if agent.process_identity is None:
+                        agent.process_identity = record.running.process_identity
+                if agent.pid is not None:
+                    agent.pid_liveness_unverified = True
         else:
             enrich_agent_from_meta(agent, entry.artifacts_dir)
         agents.append(agent)

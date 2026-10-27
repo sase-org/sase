@@ -73,6 +73,8 @@ def _merge_agent_fields(target: Agent, source: Agent) -> None:
         target.parent_timestamp = source.parent_timestamp
     if target.agent_session is None and source.agent_session is not None:
         target.agent_session = source.agent_session
+    if target.runner_claim_owner_key is None:
+        target.runner_claim_owner_key = source.runner_claim_owner_key
     if target.agent_session_role is None and source.agent_session_role is not None:
         target.agent_session_role = source.agent_session_role
     if target.role_suffix is None and source.role_suffix is not None:
@@ -393,6 +395,8 @@ def dedup_running_vs_workflow(agents: list[Agent]) -> list[Agent]:
             # A monitor's workflow_state.json may still carry the creator's
             # dead pid (or none); the RUNNING claim holds the live supervisor.
             if agent.pid is not None and (matched.pid is None or agent.runner_is_live):
+                if agent.pid != matched.pid or agent.process_identity is not None:
+                    matched.process_identity = agent.process_identity
                 matched.pid = agent.pid
             if matched.cl_name == "unknown" and agent.cl_name != "unknown":
                 matched.cl_name = agent.cl_name

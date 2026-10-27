@@ -12,6 +12,7 @@ from collections.abc import Callable
 from sase.agent.status_buckets import PRE_RUN_WAIT_STATUSES, agent_status_bucket
 from sase.core.agent_artifact_paths import parse_agent_artifact_path
 from sase.core.agent_hold_facade import candidate_created_at_from_timestamp
+from sase.core.process_identity import process_identity_matches
 from sase.core.runner_slots import (
     DEFAULT_QUEUE_WEIGHT,
     capacity_session_keys_for_core,
@@ -80,6 +81,7 @@ def capacity_record_from_agent(
         "pid": agent.pid,
         "run_started_at": _capacity_run_started_at(agent),
         "parent_timestamp": agent.parent_timestamp,
+        "runner_claim_owner_key": agent.runner_claim_owner_key,
         **capacity_session_keys_for_core(
             agent_session=_capacity_agent_session(agent),
             agent_session_role=agent.agent_session_role,
@@ -206,6 +208,10 @@ def _capacity_record_is_live(
     session-turn rows) must re-probe unless they are already done-marked,
     in which case no Rust consumer counts them as occupying anyway.
     """
+    if agent.pid is not None and not process_identity_matches(
+        agent.pid, agent.process_identity
+    ):
+        return False
     if agent.runner_is_live:
         return True
     if agent.pid is None:

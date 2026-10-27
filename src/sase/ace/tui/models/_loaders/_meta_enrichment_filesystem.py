@@ -142,6 +142,10 @@ def enrich_agent_from_meta(
         agent.refresh_raw_presented_agent_name()
         return
     data = canonicalize_agent_tribe_metadata(dict(data))
+    for field_name in ("process_identity", "runner_claim_owner_key"):
+        value = data.get(field_name)
+        if isinstance(value, str):
+            setattr(agent, field_name, value)
 
     raw_status_bucket = data.get("status_bucket")
     if isinstance(raw_status_bucket, str) and raw_status_bucket:
@@ -588,6 +592,7 @@ def enrich_agent_from_meta(
         monitor_start_status=data.get("monitor_start_status"),
         monitor_stop_status=data.get("monitor_stop_status"),
         monitor_exit_code=data.get("monitor_exit_code"),
+        monitor_supervisor_identity=data.get("monitor_supervisor_identity"),
         monitor_cwd=data.get("monitor_cwd"),
         monitor_reason=data.get("monitor_reason"),
         monitor_next_action=data.get("monitor_next_action"),
@@ -666,5 +671,23 @@ def enrich_agent_from_meta(
     from sase.agent.auto_restart.ux import apply_provenance_to_agent
 
     apply_provenance_to_agent(agent, data.get("auto_restart"))
+
+    if agent.is_monitor and agent.pid is None:
+        pid = data.get("pid")
+        if type(pid) is not int:
+            try:
+                running = load_json_cached(Path(artifacts_dir) / "running.json")
+            except (OSError, ValueError):
+                running = {}
+            if not isinstance(running, dict):
+                running = {}
+            pid = running.get("pid")
+            if agent.process_identity is None:
+                identity = running.get("process_identity")
+                if isinstance(identity, str):
+                    agent.process_identity = identity
+        if type(pid) is int:
+            agent.pid = pid
+            agent.pid_liveness_unverified = True
 
     agent.refresh_raw_presented_agent_name()

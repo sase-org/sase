@@ -294,3 +294,49 @@ def test_holders_order_monitor_claim_first() -> None:
     ]
     assert capacity.holders[0].kind == "monitor"
     assert capacity.holders[1].kind is None
+
+
+def test_workflow_steps_do_not_replace_holder_or_queue_agent_rows() -> None:
+    from sase.ace.tui.models.agent import AgentType
+
+    holder = _agent(
+        "session--mon",
+        status="TESTING",
+        agent_name="session--mon",
+        parent_timestamp="session-root",
+        agent_session_role="monitor",
+        monitor_id="m1",
+        monitor_state="running",
+    )
+    waiter = _agent(
+        "waiting-member",
+        agent_name="waiting-member",
+        parent_timestamp="root",
+        slot_requested_at="2026-07-12T12:00:01Z",
+    )
+    steps = [
+        _agent(
+            step,
+            agent_type=AgentType.WORKFLOW,
+            status="WAITING",
+            agent_name=step,
+            parent_workflow="ace(run)",
+            artifacts_dir=owner.artifacts_dir,
+            parent_timestamp=owner.raw_suffix,
+        )
+        for step, owner in [("checkout", holder), ("diff", waiter)]
+    ]
+    capacity = refresh_runner_slot_context(
+        [holder, waiter, *steps],
+        capacity_agents=[holder, waiter, *steps],
+        effective_limit=1,
+        is_pid_live=lambda _pid: True,
+    )
+    assert [(entry.label, entry.kind) for entry in capacity.holders] == [
+        ("session--mon", "monitor")
+    ]
+    assert capacity.queue[0].presented_name == "waiting-member"
+    assert capacity.queue[0].identity == waiter.identity
+    assert waiter.status == "QUEUED"
+    assert waiter.runner_slot_queue_position == 1
+    assert all(step.runner_slot_queue_position is None for step in steps)
