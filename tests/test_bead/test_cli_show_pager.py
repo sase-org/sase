@@ -38,12 +38,16 @@ def _view() -> Iterator[object]:
 
 
 def _install(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr("sase.bead.cli_query.get_read_view", _view)
-    monkeypatch.setattr("sase.bead.cli_query._show_read_view", _view)
-    monkeypatch.setattr("sase.bead.cli_query.design_paths_are_relative", lambda: False)
-    monkeypatch.setattr("sase.bead.cli_query.resolve_bead_page_url", lambda _id: None)
+    monkeypatch.setattr("sase.bead._cli_query_show.get_read_view", _view)
+    monkeypatch.setattr("sase.bead._cli_query_show._show_read_view", _view)
     monkeypatch.setattr(
-        "sase.bead.cli_query.resolve_bead_creator_url",
+        "sase.bead._cli_query_show.design_paths_are_relative", lambda: False
+    )
+    monkeypatch.setattr(
+        "sase.bead._cli_query_show.resolve_bead_page_url", lambda _id: None
+    )
+    monkeypatch.setattr(
+        "sase.bead._cli_query_show.resolve_bead_creator_url",
         lambda _name: None,
     )
 
@@ -80,7 +84,7 @@ def test_pager_always_receives_assembled_body_once(
         calls.append((text, mode))
         documents.append(document)
 
-    monkeypatch.setattr("sase.bead.cli_query.page_or_print", fake_page_or_print)
+    monkeypatch.setattr("sase.bead._cli_query_show.page_or_print", fake_page_or_print)
     args = create_parser().parse_args(
         ["bead", "show", "sase-1", "sase-2", "--pager", "always"]
     )
@@ -116,8 +120,8 @@ def test_missing_id_errors_are_printed_after_pager_returns(
         assert mode is PagerMode.ALWAYS
         events.append(("pager", text))
 
-    monkeypatch.setattr("sase.bead.cli_query.page_or_print", fake_page_or_print)
-    monkeypatch.setattr("sase.bead.cli_query.sys.stderr", _EventStderr())
+    monkeypatch.setattr("sase.bead._cli_query_show.page_or_print", fake_page_or_print)
+    monkeypatch.setattr("sase.bead._cli_query_show.sys.stderr", _EventStderr())
     args = create_parser().parse_args(
         ["bead", "show", "sase-1", "sase-2", "missing", "--pager", "always"]
     )

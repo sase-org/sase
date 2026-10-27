@@ -10,6 +10,7 @@ from pathlib import Path
 import pytest
 
 from sase.bead import cli_query
+from sase.bead import _cli_query_list, _cli_query_search, _cli_query_show
 from sase.bead.cli_common import status_icon
 from sase.bead.model import Issue, IssueType, Status
 from sase.main.parser import create_parser
@@ -82,8 +83,13 @@ def claimed_view(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> _ReadView:
             assignee="sase-claimed",
         )
     )
-    monkeypatch.setattr(cli_query, "get_read_view", lambda: _read_view(view))
-    monkeypatch.setattr(cli_query, "_show_read_view", lambda: _read_view(view))
+
+    def read_view():
+        return _read_view(view)
+
+    monkeypatch.setattr(_cli_query_list, "get_read_view", read_view)
+    monkeypatch.setattr(_cli_query_search, "get_read_view", read_view)
+    monkeypatch.setattr(_cli_query_show, "_show_read_view", read_view)
     return view
 
 

@@ -72,23 +72,29 @@ def _install(
     foreign: _View | None = None,
     origin: BeadStoreOrigin | None = None,
 ) -> None:
-    monkeypatch.setattr("sase.bead.cli_query.get_read_view", lambda: _read_view(local))
     monkeypatch.setattr(
-        "sase.bead.cli_query._show_read_view",
+        "sase.bead._cli_query_show.get_read_view", lambda: _read_view(local)
+    )
+    monkeypatch.setattr(
+        "sase.bead._cli_query_show._show_read_view",
         lambda: _read_view(local),
     )
     monkeypatch.setattr(
-        "sase.bead.cli_query.design_paths_are_relative", lambda *_a: False
-    )
-    monkeypatch.setattr("sase.bead.cli_query.plan_reference_roots", lambda *_a: ())
-    monkeypatch.setattr(
-        "sase.bead.cli_query.artifact_reference_context", lambda *_a: None
+        "sase.bead._cli_query_show.design_paths_are_relative", lambda *_a: False
     )
     monkeypatch.setattr(
-        "sase.bead.cli_query.resolve_bead_creator_url",
+        "sase.bead._cli_query_show.plan_reference_roots", lambda *_a: ()
+    )
+    monkeypatch.setattr(
+        "sase.bead._cli_query_show.artifact_reference_context", lambda *_a: None
+    )
+    monkeypatch.setattr(
+        "sase.bead._cli_query_show.resolve_bead_creator_url",
         lambda *_a: None,
     )
-    monkeypatch.setattr("sase.bead.cli_query.resolve_bead_page_url", lambda *_a: None)
+    monkeypatch.setattr(
+        "sase.bead._cli_query_show.resolve_bead_page_url", lambda *_a: None
+    )
     if origin is None:
         monkeypatch.setattr(
             cross_project,
@@ -235,7 +241,7 @@ def test_mixed_batch_uses_each_project_render_context(
         origin=origin,
     )
     monkeypatch.setattr(
-        "sase.bead.cli_query.design_paths_are_relative", lambda *_a: True
+        "sase.bead._cli_query_show.design_paths_are_relative", lambda *_a: True
     )
 
     def plan_roots(workspace: Path | None = None) -> tuple[Path, ...]:
@@ -246,8 +252,8 @@ def test_mixed_batch_uses_each_project_render_context(
         label = "local" if workspace is None else workspace.name
         return f"https://example.test/{label}/{bead_id}"
 
-    monkeypatch.setattr("sase.bead.cli_query.plan_reference_roots", plan_roots)
-    monkeypatch.setattr("sase.bead.cli_query.resolve_bead_page_url", page_url)
+    monkeypatch.setattr("sase.bead._cli_query_show.plan_reference_roots", plan_roots)
+    monkeypatch.setattr("sase.bead._cli_query_show.resolve_bead_page_url", page_url)
 
     out, err = _show(
         capsys,

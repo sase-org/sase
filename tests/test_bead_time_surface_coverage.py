@@ -42,7 +42,7 @@ from sase.bead.cli_dep_list import print_bead_dep_list
 from sase.bead.cli_dep_tree import print_bead_dep_tree
 from sase.bead.cli_detail import render_issue_detail
 from sase.bead.cli_detail_resolution import IssueDetail, IssueRef
-from sase.bead.cli_query import _render_list_compact, _render_search_compact
+from sase.bead.cli_query_render import render_list_compact, render_search_compact
 from sase.bead.dep_graph import DepGraph
 from sase.bead.model import (
     BeadSearchMatch,
@@ -116,14 +116,14 @@ def test_cli_show_full_detail_renders_created_section() -> None:
 
 
 def test_cli_list_compact_row_carries_created_cell() -> None:
-    rendered = _render_list_compact([TASK], use_color=False)
+    rendered = render_list_compact([TASK], use_color=False)
 
     assert BEAD_CREATED_GLYPH in rendered
 
 
 def test_cli_search_compact_row_carries_created_cell() -> None:
     match = BeadSearchMatch(issue=TASK, matched_fields=["title"])
-    rendered = _render_search_compact([match], "linter", use_color=False)
+    rendered = render_search_compact([match], "linter", use_color=False)
 
     assert BEAD_CREATED_GLYPH in rendered
 

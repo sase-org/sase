@@ -171,7 +171,7 @@ def test_show_full_prints_page_url_when_resolved(
 ) -> None:
     root = nested_store["root"]
     monkeypatch.setattr(
-        "sase.bead.cli_query.resolve_bead_page_url",
+        "sase.bead._cli_query_show.resolve_bead_page_url",
         lambda bead_id: f"https://example.test/pages/{bead_id}",
     )
 
@@ -198,7 +198,7 @@ def test_show_full_renders_localized_creator_with_resolved_agent_url(
         lambda name: "q8--plan" if name == issue.created_by else name,
     )
     monkeypatch.setattr(
-        "sase.bead.cli_query.resolve_bead_creator_url",
+        "sase.bead._cli_query_show.resolve_bead_creator_url",
         lambda name: creator_url if name == issue.created_by else None,
     )
 
@@ -228,7 +228,7 @@ def test_show_full_falls_back_to_raw_creator_without_agent_url(
         fail_to_present,
     )
     monkeypatch.setattr(
-        "sase.bead.cli_query.resolve_bead_creator_url",
+        "sase.bead._cli_query_show.resolve_bead_creator_url",
         lambda _name: None,
     )
 

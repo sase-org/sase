@@ -100,12 +100,20 @@ def _install_view(
     monkeypatch: pytest.MonkeyPatch,
     issues: dict[str, Issue],
 ) -> None:
-    monkeypatch.setattr("sase.bead.cli_query.get_read_view", lambda: _view(issues))
-    monkeypatch.setattr("sase.bead.cli_query._show_read_view", lambda: _view(issues))
-    monkeypatch.setattr("sase.bead.cli_query.design_paths_are_relative", lambda: False)
-    monkeypatch.setattr("sase.bead.cli_query.resolve_bead_page_url", lambda _id: None)
     monkeypatch.setattr(
-        "sase.bead.cli_query.resolve_bead_creator_url",
+        "sase.bead._cli_query_show.get_read_view", lambda: _view(issues)
+    )
+    monkeypatch.setattr(
+        "sase.bead._cli_query_show._show_read_view", lambda: _view(issues)
+    )
+    monkeypatch.setattr(
+        "sase.bead._cli_query_show.design_paths_are_relative", lambda: False
+    )
+    monkeypatch.setattr(
+        "sase.bead._cli_query_show.resolve_bead_page_url", lambda _id: None
+    )
+    monkeypatch.setattr(
+        "sase.bead._cli_query_show.resolve_bead_creator_url",
         lambda _name: None,
     )
 
@@ -331,7 +339,7 @@ def test_show_holds_registry_load_session_open_while_resolving_creator_urls(
         return None
 
     monkeypatch.setattr(
-        "sase.bead.cli_query.resolve_bead_creator_url",
+        "sase.bead._cli_query_show.resolve_bead_creator_url",
         _fake_creator_url,
     )
     args = create_parser().parse_args(["bead", "show", "sase-e1", "--pager", "never"])

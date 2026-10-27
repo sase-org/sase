@@ -9,7 +9,7 @@ from pathlib import Path
 import pytest
 
 from sase.bead import cli as bead_cli
-from sase.bead import cli_query
+from sase.bead import _cli_query_list as cli_query
 from sase.bead.model import IssueType, Status
 from sase.bead.project import BeadProject
 

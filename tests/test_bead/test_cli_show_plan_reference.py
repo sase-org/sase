@@ -33,11 +33,11 @@ def store(
     monkeypatch.chdir(workspace)
     monkeypatch.setattr("sase.bead.workspace.resolve_primary_workspace", lambda: None)
     monkeypatch.setattr(
-        "sase.bead.cli_query.plan_reference_roots",
+        "sase.bead._cli_query_show.plan_reference_roots",
         lambda: (plans_root,),
     )
     monkeypatch.setattr(
-        "sase.bead.cli_query.design_paths_are_relative",
+        "sase.bead._cli_query_show.design_paths_are_relative",
         lambda: False,
     )
     yield
@@ -133,7 +133,7 @@ def test_show_keeps_one_line_for_a_legacy_path_that_resolves_to_itself(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr(
-        "sase.bead.cli_query.design_paths_are_relative",
+        "sase.bead._cli_query_show.design_paths_are_relative",
         lambda: True,
     )
     plan = Path.cwd() / "plans/legacy.md"

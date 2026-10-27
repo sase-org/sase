@@ -63,15 +63,17 @@ def _install_show(
         assert store is not None
         return store
 
-    monkeypatch.setattr("sase.bead.cli_query.get_read_view", read_view)
-    monkeypatch.setattr("sase.bead.cli_query._show_read_view", read_view)
+    monkeypatch.setattr("sase.bead._cli_query_show.get_read_view", read_view)
+    monkeypatch.setattr("sase.bead._cli_query_show._show_read_view", read_view)
     monkeypatch.setattr(
-        "sase.bead.cli_query.design_paths_are_relative",
+        "sase.bead._cli_query_show.design_paths_are_relative",
         lambda: False,
     )
-    monkeypatch.setattr("sase.bead.cli_query.resolve_bead_page_url", lambda _id: None)
     monkeypatch.setattr(
-        "sase.bead.cli_query.resolve_bead_creator_url", lambda _name: None
+        "sase.bead._cli_query_show.resolve_bead_page_url", lambda _id: None
+    )
+    monkeypatch.setattr(
+        "sase.bead._cli_query_show.resolve_bead_creator_url", lambda _name: None
     )
     monkeypatch.setattr(
         "sase.bead.cli_detail_links.resolve_artifact_link_store",

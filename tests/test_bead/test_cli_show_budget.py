@@ -133,10 +133,14 @@ def test_show_bounds_repo_inventory_subprocess_calls_for_ref_bearing_bead(
     def read_view() -> Iterator[_View]:
         yield _View()
 
-    monkeypatch.setattr("sase.bead.cli_query.get_read_view", read_view)
-    monkeypatch.setattr("sase.bead.cli_query._show_read_view", read_view)
-    monkeypatch.setattr("sase.bead.cli_query.design_paths_are_relative", lambda: False)
-    monkeypatch.setattr("sase.bead.cli_query.resolve_bead_page_url", lambda _id: None)
+    monkeypatch.setattr("sase.bead._cli_query_show.get_read_view", read_view)
+    monkeypatch.setattr("sase.bead._cli_query_show._show_read_view", read_view)
+    monkeypatch.setattr(
+        "sase.bead._cli_query_show.design_paths_are_relative", lambda: False
+    )
+    monkeypatch.setattr(
+        "sase.bead._cli_query_show.resolve_bead_page_url", lambda _id: None
+    )
     monkeypatch.setattr(
         "sase.sdd.plan_refs.workspace_context_for_plan_resolution",
         lambda _cwd: (primary, 0),
@@ -156,7 +160,7 @@ def test_show_bounds_repo_inventory_subprocess_calls_for_ref_bearing_bead(
         lambda _store, *, primary_root: _Resolver(),
     )
     monkeypatch.setattr(
-        "sase.bead.cli_query.artifact_reference_context",
+        "sase.bead._cli_query_show.artifact_reference_context",
         lambda: collect_repo_inventory(project="widget") and None,
     )
 

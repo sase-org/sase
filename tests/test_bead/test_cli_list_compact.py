@@ -11,7 +11,7 @@ from rich.cells import cell_len
 
 from sase.ansi_style import xterm256_foreground_style
 from sase.bead import cli as bead_cli
-from sase.bead import cli_query
+from sase.bead import _cli_query_list as cli_query
 from sase.bead.model import IssueType
 from sase.bead.project import BeadProject
 from sase.bead_time_presentation import BEAD_CREATED_GLYPH, BEAD_TIME_CLI_STYLE

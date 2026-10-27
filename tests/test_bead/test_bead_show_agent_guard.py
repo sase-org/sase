@@ -8,7 +8,7 @@ import pytest
 
 from sase.artifact_read_log import read_artifact_read_events
 from sase.bead import cli as bead_cli
-from sase.bead import cli_query
+from sase.bead import _cli_query_show as cli_query
 from sase.bead.bead_views import SASE_BEAD_SKIP_VIEW_LOG, bead_views_log_path
 from sase.main.parser import create_parser
 from tests._conftest_environment import redirect_sase_home

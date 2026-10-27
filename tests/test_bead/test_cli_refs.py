@@ -34,7 +34,7 @@ def referenced_issue(
     monkeypatch.chdir(workspace)
     monkeypatch.setattr("sase.bead.workspace.resolve_primary_workspace", lambda: None)
     monkeypatch.setattr(
-        "sase.bead.cli_query.artifact_reference_context",
+        "sase.bead._cli_query_show.artifact_reference_context",
         lambda: context,
     )
     monkeypatch.setattr(
@@ -184,7 +184,7 @@ def test_show_without_references_omits_refs_section(
     monkeypatch.setattr("sase.bead.workspace.resolve_primary_workspace", lambda: None)
     context_calls: list[int] = []
     monkeypatch.setattr(
-        "sase.bead.cli_query.artifact_reference_context",
+        "sase.bead._cli_query_show.artifact_reference_context",
         lambda: context_calls.append(1) or None,
     )
 

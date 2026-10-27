@@ -27,7 +27,7 @@ def test_show_json_includes_page_url_when_resolved(
 ) -> None:
     root = nested_store["root"]
     monkeypatch.setattr(
-        "sase.bead.cli_query.resolve_bead_page_url",
+        "sase.bead._cli_query_show.resolve_bead_page_url",
         lambda bead_id: f"https://example.test/pages/{bead_id}",
     )
 
@@ -50,7 +50,7 @@ def test_show_json_includes_creator_url_only_when_resolved(
     creator_url = "https://example.test/agents/q8--plan"
     use_single_issue_view(monkeypatch, issue)
     monkeypatch.setattr(
-        "sase.bead.cli_query.resolve_bead_creator_url",
+        "sase.bead._cli_query_show.resolve_bead_creator_url",
         lambda _name: creator_url,
     )
 
@@ -59,7 +59,7 @@ def test_show_json_includes_creator_url_only_when_resolved(
     assert resolved["created_by_url"] == creator_url
 
     monkeypatch.setattr(
-        "sase.bead.cli_query.resolve_bead_creator_url",
+        "sase.bead._cli_query_show.resolve_bead_creator_url",
         lambda _name: None,
     )
     unresolved = json.loads(show_with_format(issue, "json", capsys))
@@ -229,10 +229,10 @@ def test_show_json_and_full_mirror_dangling_relationships(
     def read_view() -> Iterator[_DanglingView]:
         yield _DanglingView()
 
-    monkeypatch.setattr("sase.bead.cli_query.get_read_view", read_view)
-    monkeypatch.setattr("sase.bead.cli_query._show_read_view", read_view)
+    monkeypatch.setattr("sase.bead._cli_query_show.get_read_view", read_view)
+    monkeypatch.setattr("sase.bead._cli_query_show._show_read_view", read_view)
     monkeypatch.setattr(
-        "sase.bead.cli_query.design_paths_are_relative",
+        "sase.bead._cli_query_show.design_paths_are_relative",
         lambda: False,
     )
 

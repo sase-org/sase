@@ -10,12 +10,11 @@ import pytest
 from sase.bead.cli_detail import render_issue_detail
 from sase.bead.cli_detail_json import issue_to_wire_dict
 from sase.bead.cli_detail_resolution import IssueDetail
-from sase.bead.cli_query import (
-    _render_list_compact,
-    _render_search_compact,
-    _search_field_value,
-    handle_bead_blocked,
-    handle_bead_ready,
+from sase.bead.cli_query import handle_bead_blocked, handle_bead_ready
+from sase.bead.cli_query_render import (
+    render_list_compact,
+    render_search_compact,
+    search_field_value,
 )
 from sase.bead.filter_query import BEAD_HAS_VALUES
 from sase.bead.model import (
@@ -248,14 +247,14 @@ class TestDetailJson:
 
 class TestRowBadges:
     def test_the_list_row_carries_both_badges(self) -> None:
-        out = _render_list_compact([_reopened_issue()], use_color=False)
+        out = render_list_compact([_reopened_issue()], use_color=False)
 
         assert " [+2] [↺2]" in out
 
     def test_the_search_row_carries_both_badges(self) -> None:
         match = BeadSearchMatch(issue=_reopened_issue(), matched_fields=["title"])
 
-        out = _render_search_compact([match], "flaky", use_color=False)
+        out = render_search_compact([match], "flaky", use_color=False)
 
         assert " [+2] [↺2]" in out
 
@@ -296,12 +295,12 @@ class TestRowBadges:
     def test_a_bead_that_was_never_reopened_keeps_its_row_unchanged(self) -> None:
         issue = Issue(id="bd-plain", title="Plain Task", issue_type=IssueType.TASK)
 
-        assert "↺" not in _render_list_compact([issue], use_color=False)
+        assert "↺" not in render_list_compact([issue], use_color=False)
 
 
 class TestSearchText:
     def test_archived_reasons_and_resolutions_are_searchable(self) -> None:
-        value = _search_field_value(_reopened_issue(), "close_history")
+        value = search_field_value(_reopened_issue(), "close_history")
 
         assert "retry shim already covers this" in value
         assert "canceled" in value
@@ -336,8 +335,7 @@ def _install_query_view(
     blocked: list[Issue] | None = None,
 ) -> None:
     view = _StubView(ready=ready or [], blocked=blocked or [])
-    monkeypatch.setattr("sase.bead.cli_query.get_read_view", lambda: view)
-    monkeypatch.setattr("sase.bead.cli_query._show_read_view", lambda: view)
+    monkeypatch.setattr("sase.bead._cli_query_search.get_read_view", lambda: view)
 
 
 def _no_args() -> argparse.Namespace:
