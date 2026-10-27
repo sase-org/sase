@@ -74,6 +74,7 @@ def run_sdd_git_write(
     capture_output: bool,
     text: bool = False,
     env: Mapping[str, str] | None = None,
+    output_previews: bool = True,
 ) -> subprocess.CompletedProcess[Any]:
     """Run a git write, retrying boundedly on transient lock contention."""
     delays = _git_lock_retry_delays()
@@ -91,6 +92,7 @@ def run_sdd_git_write(
             text=text,
             env=env,
             always_log=attempts > 0,
+            output_previews=output_previews,
         )
         attempts += 1
         return result
@@ -110,6 +112,7 @@ def run_sdd_git_write_network(
     capture_output: bool,
     text: bool = False,
     env: Mapping[str, str] | None = None,
+    output_previews: bool = True,
 ) -> subprocess.CompletedProcess[Any]:
     """Run a network git write with lock-contention and transport retries."""
 
@@ -124,6 +127,7 @@ def run_sdd_git_write_network(
         capture_output=capture_output,
         text=text,
         env=env,
+        output_previews=output_previews,
     )
 
 

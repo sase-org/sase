@@ -187,6 +187,8 @@ def _replay_export_pass(
         hoods_unchanged=published.hoods_unchanged,
         agent_sessions_published=published.agent_sessions_published,
         runs_published=published.runs_published,
+        withheld_runs=published.withheld_runs,
+        withheld_hoods=published.withheld_hoods,
     )
 
 

@@ -17,8 +17,11 @@ from sase.agents_sync.prompt_archive.git_ops import publish_pending_archive_obje
 from sase.agents_sync.prompt_archive.protection import (
     PRIVATE_RECOVERY_DIRECTORY,
     PROMPT_PROTECTION_BLOCKED,
+    PROMPT_PROTECTION_UNVERIFIED,
     preserve_private_publication_object,
     protection_scope_for_target,
+    restore_private_publication_object,
+    should_charge_prompt_protection_failure,
 )
 from sase.agents_sync.prompt_archive.publish import publish_prompt_archive
 from sase.core.agent_identity_facade import AgentOwnerIdentity
@@ -397,3 +400,74 @@ def test_preserve_is_idempotent_for_the_same_digest(
     )
     assert first == second
     assert first.read_bytes() == data
+
+
+def test_should_charge_prompt_protection_failure_retries_without_quarantine() -> None:
+    assert should_charge_prompt_protection_failure(PROMPT_PROTECTION_BLOCKED) is False
+    assert (
+        should_charge_prompt_protection_failure(PROMPT_PROTECTION_UNVERIFIED) is False
+    )
+    assert should_charge_prompt_protection_failure("git push failed") is True
+
+
+def test_restore_private_publication_object_copies_and_leaves_private(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("SASE_HOME", str(tmp_path / "state"))
+    source = tmp_path / "object"
+    data = b"restorable clean bytes\n"
+    digest = hashlib.sha256(data).hexdigest()
+    source.write_bytes(data)
+    private = preserve_private_publication_object(
+        project_key="proj", sha256=digest, source=source
+    )
+    destination = (
+        tmp_path / "clone" / "files" / "objects" / "sha256" / digest[:2] / digest
+    )
+    restored = restore_private_publication_object(
+        project_key="proj", sha256=digest, destination=destination
+    )
+    assert restored.read_bytes() == data
+    assert private.read_bytes() == data
+    assert hashlib.sha256(restored.read_bytes()).hexdigest() == digest
+
+
+def test_restore_refuses_to_overwrite_a_different_destination(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("SASE_HOME", str(tmp_path / "state"))
+    source = tmp_path / "object"
+    data = b"private original\n"
+    digest = hashlib.sha256(data).hexdigest()
+    source.write_bytes(data)
+    preserve_private_publication_object(
+        project_key="proj", sha256=digest, source=source
+    )
+    destination = tmp_path / "clone" / "object"
+    destination.parent.mkdir(parents=True)
+    destination.write_bytes(b"different existing bytes\n")
+    with pytest.raises(OSError, match="already exists"):
+        restore_private_publication_object(
+            project_key="proj", sha256=digest, destination=destination
+        )
+    assert destination.read_bytes() == b"different existing bytes\n"
+
+
+def test_restore_skips_when_private_digest_does_not_match(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("SASE_HOME", str(tmp_path / "state"))
+    source = tmp_path / "object"
+    data = b"matching private bytes\n"
+    digest = hashlib.sha256(data).hexdigest()
+    source.write_bytes(data)
+    private = preserve_private_publication_object(
+        project_key="proj", sha256=digest, source=source
+    )
+    private.write_bytes(b"corrupted private bytes\n")
+    destination = tmp_path / "clone" / "object"
+    with pytest.raises(OSError, match="digest does not match"):
+        restore_private_publication_object(
+            project_key="proj", sha256=digest, destination=destination
+        )
+    assert not destination.exists()

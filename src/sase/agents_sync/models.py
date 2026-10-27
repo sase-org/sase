@@ -62,6 +62,8 @@ class ExportCounts:
     hoods_unchanged: int = 0
     agent_sessions_published: int = 0
     runs_published: int = 0
+    withheld_runs: tuple[tuple[str, str], ...] = ()
+    withheld_hoods: tuple[tuple[str, str], ...] = ()
     schema_version: int = 2
 
     @property
@@ -93,6 +95,8 @@ class SyncOutcome:
     hoods_unchanged: int = 0
     agent_sessions_published: int = 0
     runs_published: int = 0
+    withheld_runs: tuple[tuple[str, str], ...] = ()
+    withheld_hoods: tuple[tuple[str, str], ...] = ()
     schema_version: int = SYNC_RESULT_SCHEMA_VERSION
 
     @property

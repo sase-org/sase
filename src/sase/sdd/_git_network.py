@@ -44,6 +44,7 @@ def run_sdd_network_git(
     env: Mapping[str, str] | None = None,
     max_attempts: int = DEFAULT_NETWORK_GIT_MAX_ATTEMPTS,
     backoff_delays: Sequence[float] = DEFAULT_NETWORK_GIT_RETRY_DELAYS_SECONDS,
+    output_previews: bool = True,
 ) -> subprocess.CompletedProcess[Any]:
     """Run a network git command with bounded classifier-driven retries."""
 
@@ -60,6 +61,7 @@ def run_sdd_network_git(
         env=env,
         max_attempts=max_attempts,
         backoff_delays=backoff_delays,
+        output_previews=output_previews,
     )
 
 
@@ -77,6 +79,7 @@ def run_sdd_network_git_with_retries(
     env: Mapping[str, str] | None = None,
     max_attempts: int = DEFAULT_NETWORK_GIT_MAX_ATTEMPTS,
     backoff_delays: Sequence[float] = DEFAULT_NETWORK_GIT_RETRY_DELAYS_SECONDS,
+    output_previews: bool = True,
 ) -> subprocess.CompletedProcess[Any]:
     """Run one network git command through an injectable execution boundary."""
 
@@ -103,6 +106,7 @@ def run_sdd_network_git_with_retries(
                 capture_output=capture_output,
                 text=text,
                 env=env,
+                output_previews=output_previews,
             )
         except SddGitCommandTimeout:
             if attempt >= max_attempts or not _sleep_for_network_retry(

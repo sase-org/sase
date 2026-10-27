@@ -13,6 +13,7 @@ from sase.agents_sync.publication_protection import (
     PublicationProtectionScope,
     lookup_publication_content_record,
     publication_content_retry_allowed,
+    record_publication_push_rejection,
 )
 from tests.agents_sync.test_publication_recovery._helpers import (
     BLOCKED_REL,
@@ -322,3 +323,178 @@ def test_concurrent_upstream_movement_survives_recovery(
     assert tip(sidecar) == upstream_tip(sidecar)
     assert (sidecar / "remote.txt").read_text() == "remote\n"
     assert not (sidecar / BLOCKED_REL).exists()
+
+
+def _canonical_object_rel(content: bytes) -> tuple[str, str]:
+    import sase_core_rs
+
+    digest = hashlib.sha256(content).hexdigest()
+    relpath = str(sase_core_rs.artifact_object_relpath(digest))
+    assert relpath.startswith("files/objects/sha256/")
+    return digest, relpath
+
+
+def test_recovery_restores_clean_canonical_object_and_skips_blocked(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from sase.agents_sync.git import run_git
+    from sase.agents_sync.models import ProjectTarget
+    from sase.agents_sync.prompt_archive.git_ops import publish_pending_archive_objects
+    from sase.agents_sync.prompt_archive.protection import protection_scope_for_target
+
+    remote, sidecar = setup_repo(tmp_path)
+    isolate_protection(monkeypatch, tmp_path)
+    scope = scope_for(remote)
+    clean_bytes = b"ordinary clean object\n"
+    clean_digest, clean_rel = _canonical_object_rel(clean_bytes)
+    blocked_bytes = f"blocked {TOKEN}\n".encode()
+    commit(sidecar, BLOCKED_REL, blocked_bytes, "blocked unit")
+    commit(sidecar, clean_rel, clean_bytes, "clean object")
+
+    result = recover(sidecar, run_git, scope, gh013_stderr(BLOCKED_REL))
+
+    assert result.action == recovery.RECOVERY_REBUILD_CLEAN
+    assert clean_rel in result.preserved_paths
+    assert clean_rel in result.restored_paths
+    assert BLOCKED_REL not in result.restored_paths
+    restored = sidecar / clean_rel
+    assert restored.is_file()
+    assert restored.read_bytes() == clean_bytes
+    assert hashlib.sha256(restored.read_bytes()).hexdigest() == clean_digest
+    untracked = git(
+        sidecar, "ls-files", "--others", "--exclude-standard", "--", clean_rel
+    )
+    assert untracked.stdout.strip() == clean_rel
+    assert not (sidecar / BLOCKED_REL).exists()
+    worktree = b"".join(
+        path.read_bytes()
+        for path in sidecar.rglob("*")
+        if path.is_file() and ".git" not in path.parts
+    )
+    assert TOKEN.encode() not in worktree
+
+    target = ProjectTarget(
+        "proj",
+        "Project",
+        tmp_path / "primary",
+        (tmp_path / "primary",),
+        sidecar,
+        str(remote),
+    )
+    published = publish_pending_archive_objects(
+        sidecar, run_git, protection_scope=protection_scope_for_target(target)
+    )
+    assert published is True
+    pushed = run_git(sidecar, ["push"], network=True)
+    assert pushed.returncode == 0
+    verify = tmp_path / "verify-restore"
+    git(tmp_path, "clone", str(remote), str(verify))
+    assert (verify / clean_rel).read_bytes() == clean_bytes
+    assert not any(
+        TOKEN.encode() in blob.read_bytes()
+        for blob in verify.rglob("*")
+        if blob.is_file() and ".git" not in blob.parts
+    )
+
+
+def test_recovery_does_not_restore_blocked_canonical_object(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from sase.agents_sync.git import run_git
+
+    remote, sidecar = setup_repo(tmp_path)
+    isolate_protection(monkeypatch, tmp_path)
+    scope = scope_for(remote)
+    blocked_bytes = f"object {TOKEN}\n".encode()
+    _digest, blocked_rel = _canonical_object_rel(blocked_bytes)
+    commit(sidecar, blocked_rel, blocked_bytes, "blocked object")
+
+    result = recover(sidecar, run_git, scope, gh013_stderr(blocked_rel))
+
+    assert result.action == recovery.RECOVERY_REBUILD_CLEAN
+    assert blocked_rel in result.preserved_paths
+    assert blocked_rel not in result.restored_paths
+    assert not (sidecar / blocked_rel).exists()
+    assert TOKEN.encode() not in b"".join(
+        path.read_bytes()
+        for path in sidecar.rglob("*")
+        if path.is_file() and ".git" not in path.parts
+    )
+
+
+def test_restore_skips_private_copy_with_mismatched_digest_value_free(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from sase.agents_sync.prompt_archive.protection import (
+        preserve_private_publication_object,
+    )
+
+    remote, sidecar = setup_repo(tmp_path)
+    state = isolate_protection(monkeypatch, tmp_path)
+    clean_bytes = b"canonical restore candidate\n"
+    digest, relpath = _canonical_object_rel(clean_bytes)
+    source = sidecar / relpath
+    source.parent.mkdir(parents=True, exist_ok=True)
+    source.write_bytes(clean_bytes)
+    private = preserve_private_publication_object(
+        project_key="proj", sha256=digest, source=source
+    )
+    private.write_bytes(b"corrupted private copy\n")
+    source.unlink()
+    restored = recovery._restore_preserved_archive_objects(
+        sidecar,
+        project_key="proj",
+        repository_identity=str(remote),
+        preserved=(relpath,),
+        blocked_paths=(),
+    )
+    assert restored == ()
+    assert not source.exists()
+    assert TOKEN not in relpath
+    ledger = state / "projects" / "proj"
+    if ledger.exists():
+        for path in ledger.rglob("*"):
+            if path.is_file():
+                assert TOKEN not in path.read_text(encoding="utf-8")
+
+
+def test_restore_skips_ledger_blocked_object(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from sase.agents_sync.prompt_archive.protection import (
+        preserve_private_publication_object,
+    )
+
+    remote, sidecar = setup_repo(tmp_path)
+    isolate_protection(monkeypatch, tmp_path)
+    clean_bytes = b"ledger blocked object\n"
+    digest, relpath = _canonical_object_rel(clean_bytes)
+    source = sidecar / relpath
+    source.parent.mkdir(parents=True, exist_ok=True)
+    source.write_bytes(clean_bytes)
+    preserve_private_publication_object(
+        project_key="proj", sha256=digest, source=source
+    )
+    record_publication_push_rejection(
+        "proj",
+        repository_identity=str(remote),
+        relative_destination=relpath,
+        sha256=digest,
+        classification=recovery.REJECTED_SECRET_SCAN,
+    )
+    assert not publication_content_retry_allowed(
+        "proj",
+        repository_identity=str(remote),
+        relative_destination=relpath,
+        sha256=digest,
+    )
+    source.unlink()
+    restored = recovery._restore_preserved_archive_objects(
+        sidecar,
+        project_key="proj",
+        repository_identity=str(remote),
+        preserved=(relpath,),
+        blocked_paths=(),
+    )
+    assert restored == ()
+    assert not source.exists()

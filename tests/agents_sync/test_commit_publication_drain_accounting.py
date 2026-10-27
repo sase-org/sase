@@ -253,3 +253,255 @@ def test_cleanup_after_success_does_not_resurrect(
     assert result.error is not None and "archive cleanup failed" in result.error
     assert result.error_keys == ()
     assert list_agent_publications("proj") == ()
+
+
+def _enqueue_named(
+    *,
+    local_agent: str,
+    global_agent: str,
+    local_hood: str,
+    revision: str,
+) -> AgentPublicationOutboxItem:
+    return enqueue_agent_publication(
+        AgentPublicationOutboxItem(
+            project_key="proj",
+            project="Project",
+            local_agent=local_agent,
+            global_agent=global_agent,
+            primary_revision=revision,
+            local_hood=local_hood,
+        )
+    )
+
+
+def _remaining(project_key: str = "proj") -> dict[tuple[str, str], object]:
+    return {item.logical_key: item for item in list_agent_publications(project_key)}
+
+
+def test_mixed_hood_parks_blocked_sibling_without_charging(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from sase.agents_sync.publication_snapshot import RUN_WITHHELD_BLOCKED
+
+    owner = AgentOwnerIdentity("alice", "athena")
+    target = _configure(monkeypatch, tmp_path, owner)
+    clean = _enqueue_named(
+        local_agent="foo.clean",
+        global_agent="alice.athena.foo.clean",
+        local_hood="foo",
+        revision="a" * 40,
+    )
+    blocked = _enqueue_named(
+        local_agent="foo.blocked",
+        global_agent="alice.athena.foo.blocked",
+        local_hood="foo",
+        revision="b" * 40,
+    )
+
+    def publish(_target, repo, _agent, **_kwargs):
+        plant_fulfilled_publication(
+            repo,
+            owner=owner,
+            local_agent="foo.clean",
+            global_agent="alice.athena.foo.clean",
+            revision="a" * 40,
+            local_hood="foo",
+        )
+        manifest = V2OwnerManifest(
+            owner,
+            V2ProjectIdentity("proj", "Project"),
+            (("foo", V2OwnerHoodEntry("d" * 64, ("README.md",), 1, 1)),),
+        )
+        path = repo / owner_manifest_path(owner)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(v2_json_bytes(manifest.to_json_dict()))
+        return V2PublicationCounts(
+            hoods_published=1,
+            withheld_runs=(("alice.athena.foo.blocked", "blocked"),),
+        )
+
+    monkeypatch.setattr(publication_locked, "publish_agent_hood", publish)
+    result = publication_locked.publish_queued_locked(target, owner, run_git)
+
+    remaining = _remaining()
+    assert clean.logical_key not in remaining
+    parked = remaining[blocked.logical_key]
+    assert parked.attempts == 0
+    assert parked.terminal is False
+    assert parked.quarantined is False
+    assert parked.last_error == RUN_WITHHELD_BLOCKED
+    assert "did not materialize" not in (parked.last_error or "")
+    assert RUN_WITHHELD_BLOCKED in result.item_errors
+
+
+def test_fully_blocked_hood_is_parked_not_retired(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from sase.agents_sync.publication_snapshot import HOOD_WITHHELD_BLOCKED
+
+    owner = AgentOwnerIdentity("alice", "athena")
+    target = _configure(monkeypatch, tmp_path, owner)
+    request = _enqueue_named(
+        local_agent="foo",
+        global_agent="alice.athena.foo",
+        local_hood="foo",
+        revision="a" * 40,
+    )
+
+    def publish(_target, repo, _agent, **_kwargs):
+        manifest = V2OwnerManifest(
+            owner,
+            V2ProjectIdentity("proj", "Project"),
+            (("other", V2OwnerHoodEntry("d" * 64, ("README.md",), 1, 1)),),
+        )
+        path = repo / owner_manifest_path(owner)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(v2_json_bytes(manifest.to_json_dict()))
+        return V2PublicationCounts(withheld_hoods=(("foo", "blocked"),))
+
+    monkeypatch.setattr(publication_locked, "publish_agent_hood", publish)
+    publication_locked.publish_queued_locked(target, owner, run_git)
+
+    parked = _remaining()[request.logical_key]
+    assert parked.attempts == 0
+    assert parked.terminal is False
+    assert parked.quarantined is False
+    assert parked.terminal_reason is None
+    assert parked.last_error == HOOD_WITHHELD_BLOCKED
+    assert "did not materialize" not in (parked.last_error or "")
+
+
+def test_unverified_sibling_retries_without_charging(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from sase.agents_sync.publication_snapshot import RUN_WITHHELD_UNVERIFIED
+
+    owner = AgentOwnerIdentity("alice", "athena")
+    target = _configure(monkeypatch, tmp_path, owner)
+    clean = _enqueue_named(
+        local_agent="foo.clean",
+        global_agent="alice.athena.foo.clean",
+        local_hood="foo",
+        revision="a" * 40,
+    )
+    unverified = _enqueue_named(
+        local_agent="foo.probe",
+        global_agent="alice.athena.foo.probe",
+        local_hood="foo",
+        revision="c" * 40,
+    )
+
+    def publish(_target, repo, _agent, **_kwargs):
+        plant_fulfilled_publication(
+            repo,
+            owner=owner,
+            local_agent="foo.clean",
+            global_agent="alice.athena.foo.clean",
+            revision="a" * 40,
+            local_hood="foo",
+        )
+        manifest = V2OwnerManifest(
+            owner,
+            V2ProjectIdentity("proj", "Project"),
+            (("foo", V2OwnerHoodEntry("d" * 64, ("README.md",), 1, 1)),),
+        )
+        path = repo / owner_manifest_path(owner)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(v2_json_bytes(manifest.to_json_dict()))
+        return V2PublicationCounts(
+            hoods_published=1,
+            withheld_runs=(("alice.athena.foo.probe", "unverified"),),
+        )
+
+    monkeypatch.setattr(publication_locked, "publish_agent_hood", publish)
+    publication_locked.publish_queued_locked(target, owner, run_git)
+
+    remaining = _remaining()
+    assert clean.logical_key not in remaining
+    parked = remaining[unverified.logical_key]
+    assert parked.attempts == 0
+    assert parked.terminal is False
+    assert parked.quarantined is False
+    assert parked.last_error == RUN_WITHHELD_UNVERIFIED
+
+
+def test_fully_unverified_hood_retries_without_charging(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from sase.agents_sync.publication_snapshot import HOOD_WITHHELD_UNVERIFIED
+
+    owner = AgentOwnerIdentity("alice", "athena")
+    target = _configure(monkeypatch, tmp_path, owner)
+    request = _enqueue_named(
+        local_agent="probe",
+        global_agent="alice.athena.probe",
+        local_hood="probe",
+        revision="d" * 40,
+    )
+
+    def publish(_target, _repo, _agent, **_kwargs):
+        return V2PublicationCounts(withheld_hoods=(("probe", "unverified"),))
+
+    monkeypatch.setattr(publication_locked, "publish_agent_hood", publish)
+    publication_locked.publish_queued_locked(target, owner, run_git)
+
+    parked = _remaining()[request.logical_key]
+    assert parked.attempts == 0
+    assert parked.terminal is False
+    assert parked.quarantined is False
+    assert parked.last_error == HOOD_WITHHELD_UNVERIFIED
+
+
+def test_second_drain_does_not_publish_blocked_bytes(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from sase.agents_sync import publication_protection as protection
+    from sase.agents_sync.inventory import ProjectHoodInventory
+    from sase.agents_sync.publication_snapshot import RUN_WITHHELD_BLOCKED
+    from tests.agents_sync.publication_fixtures import _run
+    from tests.agents_sync.test_transcript_publication_protection import (
+        MARKER,
+        _install_marker_scanner,
+    )
+
+    _install_marker_scanner(monkeypatch)
+    owner = AgentOwnerIdentity("alice", "athena")
+    target = _configure(monkeypatch, tmp_path, owner)
+    monkeypatch.setattr(protection, "sase_home", lambda: tmp_path / "state")
+    monkeypatch.setattr(
+        protection, "sase_projects_dir", lambda: tmp_path / "state" / "projects"
+    )
+    blocked_run = _run(
+        "foo.blocked",
+        "22",
+        commit=True,
+        output_variables={"note": MARKER.decode()},
+    )
+    inventory = ProjectHoodInventory(owner, "proj", (blocked_run,))
+    monkeypatch.setattr(
+        publication_locked,
+        "build_project_hood_inventory",
+        lambda *_args, **_kwargs: inventory,
+    )
+    request = _enqueue_named(
+        local_agent="foo.blocked",
+        global_agent="alice.athena.foo.blocked",
+        local_hood="foo",
+        revision="b" * 40,
+    )
+    first = publication_locked.publish_queued_locked(target, owner, run_git)
+    second = publication_locked.publish_queued_locked(target, owner, run_git)
+
+    remaining = _remaining()[request.logical_key]
+    assert remaining.attempts == 0
+    assert remaining.terminal is False
+    assert remaining.last_error == RUN_WITHHELD_BLOCKED
+    assert "did not materialize" not in first.item_errors
+    assert "did not materialize" not in second.item_errors
+    blobs = {
+        path.read_bytes()
+        for path in target.sidecar_path.rglob("*")
+        if path.is_file() and ".git" not in path.parts
+    }
+    assert not any(MARKER in content for content in blobs)
+    assert not (target.sidecar_path / "agents" / "alice.athena.foo.blocked").exists()

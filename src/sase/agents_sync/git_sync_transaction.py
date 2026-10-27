@@ -137,6 +137,8 @@ def _sync_project_transaction(
             hoods_unchanged=exported.hoods_unchanged,
             agent_sessions_published=exported.agent_sessions_published,
             runs_published=exported.runs_published,
+            withheld_runs=exported.withheld_runs,
+            withheld_hoods=exported.withheld_hoods,
             committed=False,
             diagnostics=exported.diagnostics,
         )
@@ -159,6 +161,8 @@ def _sync_project_transaction(
             hoods_unchanged=exported.hoods_unchanged,
             agent_sessions_published=exported.agent_sessions_published,
             runs_published=exported.runs_published,
+            withheld_runs=exported.withheld_runs,
+            withheld_hoods=exported.withheld_hoods,
             committed=committed,
             pushed=True,
             push_attempts=1,
@@ -220,6 +224,8 @@ def _sync_project_transaction(
             hoods_unchanged=exported.hoods_unchanged,
             agent_sessions_published=exported.agent_sessions_published,
             runs_published=exported.runs_published,
+            withheld_runs=exported.withheld_runs,
+            withheld_hoods=exported.withheld_hoods,
             committed=committed,
             push_attempts=1,
             diagnostics=exported.diagnostics,
@@ -361,6 +367,12 @@ def _reintegrate_and_push(
             exported.agent_sessions_published, retry_exported.agent_sessions_published
         ),
         runs_published=max(exported.runs_published, retry_exported.runs_published),
+        withheld_runs=tuple(
+            dict.fromkeys((*exported.withheld_runs, *retry_exported.withheld_runs))
+        ),
+        withheld_hoods=tuple(
+            dict.fromkeys((*exported.withheld_hoods, *retry_exported.withheld_hoods))
+        ),
         committed=retry_committed,
         pushed=True,
         push_attempts=2,
@@ -427,6 +439,12 @@ def _retry_push_error(
             retry_exported.agent_sessions_published,
         ),
         runs_published=max(exported.runs_published, retry_exported.runs_published),
+        withheld_runs=tuple(
+            dict.fromkeys((*exported.withheld_runs, *retry_exported.withheld_runs))
+        ),
+        withheld_hoods=tuple(
+            dict.fromkeys((*exported.withheld_hoods, *retry_exported.withheld_hoods))
+        ),
         committed=retry_committed,
         push_attempts=2,
         diagnostics=all_diagnostics,

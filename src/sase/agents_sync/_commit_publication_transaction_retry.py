@@ -144,7 +144,21 @@ def retry_rejected_publication(
     invalidate_shared_targeted_planning(target.sidecar_path)
     if timer is not None:
         with timer.record_stage("retry_prepare"):
-            retry_prepared, retry_errors = prepare_publications(
+            retry_prepared, retry_errors, withheld_runs, withheld_hoods = (
+                prepare_publications(
+                    target,
+                    owner,
+                    prepared,
+                    identity,
+                    inventory,
+                    git_runner,
+                    hooks=hooks,
+                    timer=timer,
+                )
+            )
+    else:
+        retry_prepared, retry_errors, withheld_runs, withheld_hoods = (
+            prepare_publications(
                 target,
                 owner,
                 prepared,
@@ -152,17 +166,7 @@ def retry_rejected_publication(
                 inventory,
                 git_runner,
                 hooks=hooks,
-                timer=timer,
             )
-    else:
-        retry_prepared, retry_errors = prepare_publications(
-            target,
-            owner,
-            prepared,
-            identity,
-            inventory,
-            git_runner,
-            hooks=hooks,
         )
     all_item_errors = (*item_errors, *retry_errors)
     retry_keys = tuple(item.logical_key for item in retry_prepared)
@@ -264,6 +268,8 @@ def retry_rejected_publication(
         retry_prepared,
         hooks=hooks,
         timer=timer,
+        withheld_runs=withheld_runs,
+        withheld_hoods=withheld_hoods,
     )
     return DrainResult(
         drained=len(acked_retry_keys),

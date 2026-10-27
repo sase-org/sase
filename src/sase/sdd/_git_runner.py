@@ -43,6 +43,7 @@ def run_sdd_git(
     always_log: bool = False,
     telemetry: Mapping[str, Any] | None = None,
     retryability_operation_kind: str | None = None,
+    output_previews: bool = True,
 ) -> subprocess.CompletedProcess[Any]:
     """Run a bounded git command with SDD telemetry."""
     timeout_seconds = timeout if timeout is not None else _local_git_timeout()
@@ -59,6 +60,7 @@ def run_sdd_git(
             always_log=always_log,
             telemetry=telemetry,
             retryability_operation_kind=retryability_operation_kind,
+            output_previews=output_previews,
         )
 
     cmd = sdd_git_command(args)
@@ -88,6 +90,7 @@ def run_sdd_git(
             timeout_reason="wall_clock",
             telemetry=telemetry,
             retryability_operation_kind=retryability_operation_kind,
+            output_previews=output_previews,
         )
         raise SddGitCommandTimeout(
             f"git operation {op!r} timed out after {timeout_seconds:.1f}s in {cwd}"
@@ -106,6 +109,7 @@ def run_sdd_git(
             stderr=exc.stderr,
             telemetry=telemetry,
             retryability_operation_kind=retryability_operation_kind,
+            output_previews=output_previews,
         )
         raise
 
@@ -123,6 +127,7 @@ def run_sdd_git(
             stderr=result.stderr,
             telemetry=telemetry,
             retryability_operation_kind=retryability_operation_kind,
+            output_previews=output_previews,
         )
     return result
 
@@ -139,6 +144,7 @@ def _run_streaming_sdd_git(
     always_log: bool,
     telemetry: Mapping[str, Any] | None,
     retryability_operation_kind: str | None,
+    output_previews: bool,
 ) -> subprocess.CompletedProcess[Any]:
     """Run a long git transfer, aborting on idle progress rather than wall time."""
 
@@ -207,6 +213,7 @@ def _run_streaming_sdd_git(
                         timeout_reason=reason,
                         telemetry=telemetry,
                         retryability_operation_kind=retryability_operation_kind,
+                        output_previews=output_previews,
                     )
                     raise SddGitCommandTimeout(message)
 
@@ -257,6 +264,7 @@ def _run_streaming_sdd_git(
             stderr=completed_stderr,
             telemetry=telemetry,
             retryability_operation_kind=retryability_operation_kind,
+            output_previews=output_previews,
         )
         raise subprocess.CalledProcessError(
             returncode,
@@ -277,6 +285,7 @@ def _run_streaming_sdd_git(
             stderr=completed_stderr,
             telemetry=telemetry,
             retryability_operation_kind=retryability_operation_kind,
+            output_previews=output_previews,
         )
     return result
 
@@ -361,6 +370,7 @@ def _log_git_operation(
     timeout_reason: str | None = None,
     telemetry: Mapping[str, Any] | None = None,
     retryability_operation_kind: str | None = None,
+    output_previews: bool = True,
 ) -> None:
     try:
         from sase.logs import log_tui_git_operation
@@ -375,9 +385,10 @@ def _log_git_operation(
             "returncode": returncode,
             "cwd": str(cwd),
             "cmd": cmd,
-            "stdout_preview": _preview_stream(stdout),
-            "stderr_preview": _preview_stream(stderr),
         }
+        if output_previews:
+            record["stdout_preview"] = _preview_stream(stdout)
+            record["stderr_preview"] = _preview_stream(stderr)
         record.update(_git_operation_margin_fields(duration_ms, timeout_seconds))
         if timeout_reason is not None:
             record["timeout_reason"] = timeout_reason

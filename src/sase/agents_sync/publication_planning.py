@@ -12,7 +12,10 @@ from sase.agents_sync.inventory import ProjectHoodInventory
 from sase.agents_sync.io import AgentsSyncFormatError
 from sase.agents_sync.links import hosted_provider
 from sase.agents_sync.models import ProjectTarget
-from sase.agents_sync.publication_snapshot import build_hood_snapshot
+from sase.agents_sync.publication_snapshot import (
+    HoodWithheldError,
+    build_hood_snapshot,
+)
 from sase.agents_sync.publication_validation import (
     load_validated_publication,
     previous_snapshot,
@@ -123,6 +126,8 @@ def plan_hoods(
     }
     current_snapshots: dict[tuple[str, str, str], V2HoodSnapshot] = {}
     published = refreshed = unchanged = sessions = runs = 0
+    withheld_runs: list[tuple[str, str]] = []
+    withheld_hoods: list[tuple[str, str]] = []
 
     # Deferred so the protection modules stay out of the TUI startup closure.
     from sase.agents_sync.publication_protection import PublicationProtectionScope
@@ -134,16 +139,27 @@ def plan_hoods(
     protection_notes: list[str] = []
     for hood in sorted(set(hoods)):
         previous = previous_snapshot(repo_root, owner, hood, entries.get(hood))
-        hood_snapshot, hood_payload, hood_notes = build_hood_snapshot(
-            repo_root,
-            project,
-            owner,
-            hood,
-            inventory,
-            previous,
-            protection_scope=protection_scope,
-        )
+        try:
+            hood_snapshot, hood_payload, hood_notes, hood_withheld = (
+                build_hood_snapshot(
+                    repo_root,
+                    project,
+                    owner,
+                    hood,
+                    inventory,
+                    previous,
+                    protection_scope=protection_scope,
+                )
+            )
+        except HoodWithheldError as exc:
+            protection_notes.append(
+                f"withheld hood {exc.withheld.hood!r}: {exc.withheld.reason}"
+            )
+            withheld_runs.extend(exc.withheld.withheld_runs)
+            withheld_hoods.append((exc.withheld.hood, exc.withheld.reason))
+            continue
         protection_notes.extend(hood_notes)
+        withheld_runs.extend(hood_withheld)
         hood_snapshot_path = snapshot_path(owner, hood)
         snapshot_bytes = v2_json_bytes(hood_snapshot.to_json_dict())
         hood_payload[hood_snapshot_path] = snapshot_bytes
@@ -210,6 +226,8 @@ def plan_hoods(
                 )
             )
         ),
+        withheld_runs=tuple(dict.fromkeys(withheld_runs)),
+        withheld_hoods=tuple(dict.fromkeys(withheld_hoods)),
     )
     return payload, counts
 
@@ -269,6 +287,8 @@ def plan_targeted_hoods(
     cache = _targeted_cache_for(repo_root)
     current_snapshots: dict[tuple[str, str, str], V2HoodSnapshot] = {}
     published = refreshed = unchanged = sessions = runs = 0
+    withheld_runs: list[tuple[str, str]] = []
+    withheld_hoods: list[tuple[str, str]] = []
     # Deferred so the protection modules stay out of the TUI startup closure.
     from sase.agents_sync.publication_protection import PublicationProtectionScope
 
@@ -282,16 +302,27 @@ def plan_targeted_hoods(
         previous = _cached_previous_snapshot(repo_root, owner, hood, entry, cache)
         if previous is None:
             previous = previous_snapshot(repo_root, owner, hood, entry)
-        hood_snapshot, hood_payload, hood_notes = build_hood_snapshot(
-            repo_root,
-            project,
-            owner,
-            hood,
-            inventory,
-            previous,
-            protection_scope=protection_scope,
-        )
+        try:
+            hood_snapshot, hood_payload, hood_notes, hood_withheld = (
+                build_hood_snapshot(
+                    repo_root,
+                    project,
+                    owner,
+                    hood,
+                    inventory,
+                    previous,
+                    protection_scope=protection_scope,
+                )
+            )
+        except HoodWithheldError as exc:
+            protection_notes.append(
+                f"withheld hood {exc.withheld.hood!r}: {exc.withheld.reason}"
+            )
+            withheld_runs.extend(exc.withheld.withheld_runs)
+            withheld_hoods.append((exc.withheld.hood, exc.withheld.reason))
+            continue
         protection_notes.extend(hood_notes)
+        withheld_runs.extend(hood_withheld)
         hood_snapshot_path = snapshot_path(owner, hood)
         snapshot_bytes = v2_json_bytes(hood_snapshot.to_json_dict())
         hood_payload[hood_snapshot_path] = snapshot_bytes
@@ -378,6 +409,8 @@ def plan_targeted_hoods(
                 )
             )
         ),
+        withheld_runs=tuple(dict.fromkeys(withheld_runs)),
+        withheld_hoods=tuple(dict.fromkeys(withheld_hoods)),
     )
     return payload, counts
 

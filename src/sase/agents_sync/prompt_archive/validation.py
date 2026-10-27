@@ -437,15 +437,13 @@ def _local_artifact_path(root: Path, prompt: Path, target: str) -> Path | None:
 def _tracked_object_paths(root: Path) -> set[str] | None:
     """Return the one Git index listing needed for archive-object validation."""
 
-    import subprocess
+    from sase.agents_sync.git import run_git
 
     try:
-        result = subprocess.run(
-            ["git", "-C", str(root), "ls-files", "--", ARCHIVE_OBJECT_ROOT],
-            capture_output=True,
-            text=True,
-            check=False,
-            timeout=10,
+        result = run_git(
+            root,
+            ["ls-files", "--", ARCHIVE_OBJECT_ROOT],
+            op="agents_sync.prompt_archive_tracked_objects",
         )
     except OSError:
         return None

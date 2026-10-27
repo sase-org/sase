@@ -79,6 +79,53 @@ def publication_text_bytes(data: bytes) -> bool:
     return True
 
 
+def _validated_recovery_digest(sha256: str) -> str:
+    digest = sha256.lower()
+    if len(digest) != 64 or any(char not in "0123456789abcdef" for char in digest):
+        raise ValueError("private recovery object digest is invalid")
+    return digest
+
+
+def _private_recovery_object_path(project_key: str, digest: str) -> Path:
+    validate_sase_project_name(project_key)
+    private = sase_home() / "private"
+    private.mkdir(parents=True, exist_ok=True, mode=0o700)
+    if private.is_symlink():
+        raise OSError("private recovery parent must not be a symlink")
+    os.chmod(private, 0o700)
+    root = private / PRIVATE_RECOVERY_DIRECTORY / project_key / digest[:2]
+    root.mkdir(parents=True, exist_ok=True, mode=0o700)
+    if root.is_symlink():
+        raise OSError("private recovery directory must not be a symlink")
+    os.chmod(root, 0o700)
+    return root / digest
+
+
+def _copy_regular_file_atomically(origin: Path, destination: Path, digest: str) -> Path:
+    if origin.is_symlink() or not origin.is_file():
+        raise OSError("private recovery source must be a regular file")
+    if destination.is_symlink():
+        raise OSError("private recovery destination must not be a symlink")
+    tmp = destination.with_name(f".{digest}.tmp")
+    tmp.unlink(missing_ok=True)
+    try:
+        with origin.open("rb") as src, tmp.open("xb") as out:
+            os.chmod(tmp, 0o600)
+            while chunk := src.read(1024 * 1024):
+                out.write(chunk)
+            out.flush()
+            os.fsync(out.fileno())
+        if hash_file(tmp) != digest:
+            raise OSError("private recovery copy changed while writing")
+        os.replace(tmp, destination)
+        os.chmod(destination, 0o600)
+        if hash_file(destination) != digest:
+            raise OSError("private recovery copy changed after replace")
+        return destination
+    finally:
+        tmp.unlink(missing_ok=True)
+
+
 def preserve_private_publication_object(
     *,
     project_key: str,
@@ -91,46 +138,50 @@ def preserve_private_publication_object(
     authorizes publication; it only keeps the bytes recoverable.
     """
 
-    validate_sase_project_name(project_key)
-    digest = sha256.lower()
-    if len(digest) != 64 or any(char not in "0123456789abcdef" for char in digest):
-        raise ValueError("private recovery object digest is invalid")
+    digest = _validated_recovery_digest(sha256)
     origin = Path(source)
     if origin.is_symlink() or not origin.is_file():
         raise OSError("private recovery source must be a regular file")
     actual = hash_file(origin)
     if actual != digest:
         raise OSError("private recovery source digest does not match")
-    private = sase_home() / "private"
-    private.mkdir(parents=True, exist_ok=True, mode=0o700)
-    if private.is_symlink():
-        raise OSError("private recovery parent must not be a symlink")
-    os.chmod(private, 0o700)
-    root = private / PRIVATE_RECOVERY_DIRECTORY / project_key / digest[:2]
-    root.mkdir(parents=True, exist_ok=True, mode=0o700)
-    if root.is_symlink():
-        raise OSError("private recovery directory must not be a symlink")
-    os.chmod(root, 0o700)
-    destination = root / digest
+    destination = _private_recovery_object_path(project_key, digest)
     if destination.is_file() and not destination.is_symlink():
         if hash_file(destination) == digest:
             return destination
         raise OSError("private recovery object collision")
-    tmp = destination.with_name(f".{digest}.tmp")
-    try:
-        with origin.open("rb") as src, tmp.open("xb") as out:
-            os.chmod(tmp, 0o600)
-            while chunk := src.read(1024 * 1024):
-                out.write(chunk)
-            out.flush()
-            os.fsync(out.fileno())
-        if hash_file(tmp) != digest:
-            raise OSError("private recovery copy changed while writing")
-        os.replace(tmp, destination)
-        os.chmod(destination, 0o600)
-        return destination
-    finally:
-        tmp.unlink(missing_ok=True)
+    return _copy_regular_file_atomically(origin, destination, digest)
+
+
+def restore_private_publication_object(
+    *,
+    project_key: str,
+    sha256: str,
+    destination: Path | str,
+) -> Path:
+    """Copy a preserved private object into a managed clone as an untracked file.
+
+    The private copy stays in place. An existing destination with a different
+    digest is never overwritten. Success never authorizes a commit.
+    """
+
+    digest = _validated_recovery_digest(sha256)
+    target = Path(destination)
+    if target.is_symlink():
+        raise OSError("private recovery destination must not be a symlink")
+    private = _private_recovery_object_path(project_key, digest)
+    if private.is_symlink() or not private.is_file():
+        raise OSError("private recovery object is missing")
+    if hash_file(private) != digest:
+        raise OSError("private recovery object digest does not match")
+    if target.is_file():
+        if hash_file(target) == digest:
+            return target
+        raise OSError("private recovery destination already exists")
+    target.parent.mkdir(parents=True, exist_ok=True)
+    if target.parent.is_symlink():
+        raise OSError("private recovery destination parent must not be a symlink")
+    return _copy_regular_file_atomically(private, target, digest)
 
 
 def scan_archive_text_bytes(
@@ -530,9 +581,9 @@ def protection_skip_reason(status: str) -> str:
 
 
 def should_charge_prompt_protection_failure(error: str) -> bool:
-    """Blocked content is parked; unverified and other failures stay retryable."""
+    """Blocked and unverified content retry without charging quarantine."""
 
-    return error != PROMPT_PROTECTION_BLOCKED
+    return error not in {PROMPT_PROTECTION_BLOCKED, PROMPT_PROTECTION_UNVERIFIED}
 
 
 __all__ = [
@@ -541,6 +592,7 @@ __all__ = [
     "PROMPT_PROTECTION_UNVERIFIED",
     "filter_publishable_pool_records",
     "preserve_private_publication_object",
+    "restore_private_publication_object",
     "protection_scope_for_target",
     "protection_skip_reason",
     "publication_text_bytes",

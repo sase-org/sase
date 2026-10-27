@@ -66,6 +66,7 @@ class PublicationPushRecovery:
     action: str
     blocked_paths: tuple[str, ...] = ()
     preserved_paths: tuple[str, ...] = ()
+    restored_paths: tuple[str, ...] = ()
     upstream_tip: str | None = None
     error: str | None = None
 
@@ -264,11 +265,19 @@ def _recover_secret_scanning_rejection(
             upstream_tip=tip,
             error=reset_error,
         )
+    restored = _restore_preserved_archive_objects(
+        repo,
+        project_key=project_key,
+        repository_identity=repository_identity,
+        preserved=preserved,
+        blocked_paths=blocked,
+    )
     return PublicationPushRecovery(
         rejection,
         RECOVERY_REBUILD_CLEAN,
         blocked_paths=blocked,
         preserved_paths=preserved,
+        restored_paths=restored,
         upstream_tip=tip,
     )
 
@@ -478,6 +487,61 @@ def _preserve_archive_objects(
             )
         preserved.append(path)
     return tuple(preserved)
+
+
+def _restore_preserved_archive_objects(
+    repo: Path,
+    *,
+    project_key: str,
+    repository_identity: str,
+    preserved: tuple[str, ...],
+    blocked_paths: tuple[str, ...],
+) -> tuple[str, ...]:
+    """Restore clean canonical objects as untracked pending files.
+
+    A failed restore for one object is value-free and non-fatal: the object
+    stays private, is not published, and the rebuild continues.
+    """
+
+    from sase.agents_sync.prompt_archive.archive_objects import (
+        canonical_archive_object_digest,
+    )
+    from sase.agents_sync.prompt_archive.protection import (
+        restore_private_publication_object,
+    )
+    from sase.agents_sync.publication_protection import (
+        publication_content_retry_allowed,
+    )
+
+    blocked = set(blocked_paths)
+    restored: list[str] = []
+    for path in preserved:
+        digest = canonical_archive_object_digest(path)
+        if digest is None:
+            continue
+        if path in blocked:
+            continue
+        destination = repo / path
+        try:
+            if destination.exists():
+                continue
+        except OSError:
+            continue
+        try:
+            if not publication_content_retry_allowed(
+                project_key,
+                repository_identity=repository_identity,
+                relative_destination=path,
+                sha256=digest,
+            ):
+                continue
+            restore_private_publication_object(
+                project_key=project_key, sha256=digest, destination=destination
+            )
+        except (OSError, ValueError):
+            continue
+        restored.append(path)
+    return tuple(restored)
 
 
 def _reset_managed_clone_to_tip(

@@ -150,11 +150,22 @@ def sync_agents(
                 deferred_prompts=deferred_prompts,
             )
             if outcome.ok and outcome.skip_reason is None and pending_publications:
+                from sase.agents_sync.publication_snapshot import (
+                    settlement_error_for_withheld_request,
+                )
+
                 prompt_failures = deferred_prompts.failures
                 materialized = tuple(
                     item
                     for item in pending_publications
                     if item.logical_key not in prompt_failures
+                    and settlement_error_for_withheld_request(
+                        global_agent=item.global_agent,
+                        local_hood=item.local_hood,
+                        withheld_runs=outcome.withheld_runs,
+                        withheld_hoods=outcome.withheld_hoods,
+                    )
+                    is None
                     and publication_request_fulfilled(target, item, owner)
                 )
                 if materialized:
@@ -168,20 +179,29 @@ def sync_agents(
                     # A prompt archive that could not be rebuilt is a transient
                     # failure of a recoverable request, so it stays retryable
                     # instead of being retired as unpublishable.
+                    withheld_error = settlement_error_for_withheld_request(
+                        global_agent=item.global_agent,
+                        local_hood=item.local_hood,
+                        withheld_runs=outcome.withheld_runs,
+                        withheld_hoods=outcome.withheld_hoods,
+                    )
                     prompt_error = prompt_failures.get(item.logical_key)
-                    error = prompt_error or (
-                        f"published agent page for {item.global_agent!r} "
-                        "did not materialize during full sync"
-                    )
-                    from sase.agents_sync.prompt_archive.protection import (
-                        should_charge_prompt_protection_failure,
-                    )
+                    if withheld_error is not None:
+                        error = withheld_error
+                        charge = False
+                    elif prompt_error is not None:
+                        from sase.agents_sync.prompt_archive.protection import (
+                            should_charge_prompt_protection_failure,
+                        )
 
-                    charge = (
-                        should_charge_prompt_protection_failure(prompt_error)
-                        if prompt_error is not None
-                        else True
-                    )
+                        error = prompt_error
+                        charge = should_charge_prompt_protection_failure(prompt_error)
+                    else:
+                        error = (
+                            f"published agent page for {item.global_agent!r} "
+                            "did not materialize during full sync"
+                        )
+                        charge = True
                     update_agent_publications(
                         target.project_key,
                         (item.logical_key,),
@@ -190,7 +210,9 @@ def sync_agents(
                         quarantine_threshold=(
                             configured_publication_max_attempts() if charge else None
                         ),
-                        terminal_reason=None if prompt_error else error,
+                        terminal_reason=None
+                        if withheld_error is not None or prompt_error is not None
+                        else error,
                     )
             referenced_by_diagnostics: tuple[str, ...] = ()
             if outcome.ok and outcome.skip_reason is None:
@@ -533,6 +555,8 @@ def _integrate_export_pass(
         hoods_unchanged=published.hoods_unchanged,
         agent_sessions_published=published.agent_sessions_published,
         runs_published=published.runs_published,
+        withheld_runs=published.withheld_runs,
+        withheld_hoods=published.withheld_hoods,
     )
 
 

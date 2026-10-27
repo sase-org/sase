@@ -14,8 +14,13 @@ from sase.agents_sync._git_sync_ops_payload import _verify_agents_payload_protec
 from sase.agents_sync.git import run_git
 from sase.agents_sync.git_sync_ops import commit_agents_payload_if_dirty
 from sase.agents_sync.inventory import ProjectHoodInventory
+from sase.agents_sync.io import AgentsSyncFormatError
 from sase.agents_sync.publication import publish_agent_hood, reconcile_agent_hoods
-from sase.agents_sync.v2_io import read_hood_snapshot
+from sase.agents_sync.publication_planning import plan_hoods, plan_targeted_hoods
+from sase.agents_sync.publication_snapshot import HoodWithheldError, build_hood_snapshot
+from sase.agents_sync.publication_validation import snapshot_path
+from sase.agents_sync.v2_io import owner_manifest_path, read_hood_snapshot
+from sase.agents_sync.v2_models import V2ProjectIdentity
 from sase.core.agent_identity_facade import AgentOwnerIdentity
 from tests.agents_sync.publication_fixtures import (
     _assert_summary_anchors_resolve,
@@ -25,6 +30,8 @@ from tests.agents_sync.publication_fixtures import (
 )
 
 MARKER = b"SYNTHETIC-TRANSCRIPT-SECRET-1oh"
+UNVERIFIED_MARKER = b"SYNTHETIC-TRANSCRIPT-UNVERIFIED-1oh"
+SCANNER_UNAVAILABLE = "SYNTHETIC-SCANNER-UNAVAILABLE-1oh"
 
 
 def _install_marker_scanner(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -57,6 +64,8 @@ def _install_marker_scanner(monkeypatch: pytest.MonkeyPatch) -> None:
                         "bytes_scanned": len(data),
                         "rules_version": 1,
                     }
+                if UNVERIFIED_MARKER in data:
+                    raise RuntimeError(SCANNER_UNAVAILABLE)
                 return {
                     "outcome": "clean",
                     "hit": None,
@@ -182,7 +191,7 @@ def test_blocked_output_variable_withholds_whole_run(
     )
     inventory = ProjectHoodInventory(owner, "proj", (clean, tainted))
 
-    publish_agent_hood(
+    counts = publish_agent_hood(
         target,
         repo,
         "foo.clean",
@@ -204,6 +213,8 @@ def test_blocked_output_variable_withholds_whole_run(
     blobs = _payload_blobs(repo)
     assert not any(MARKER in content for content in blobs.values())
     assert not (repo / "agents" / "alice.athena.foo.tainted").exists()
+    assert ("alice.athena.foo.tainted", "blocked") in counts.withheld_runs
+    assert counts.withheld_hoods == ()
 
 
 def test_blocked_prior_bytes_never_merge_back(
@@ -382,3 +393,155 @@ def test_pre_stage_verification_passes_clean_tree(
     assert _verify_agents_payload_protection(repo, run_git) is None
     owner = AgentOwnerIdentity("alice", "athena")
     assert commit_agents_payload_if_dirty(repo, owner, run_git) is False
+
+
+def _three_hood_runs(*, tainted: bool) -> tuple:
+    keep = _run("keep.one", "21", commit=True)
+    blocked = _run(
+        "block.one",
+        "22",
+        commit=True,
+        output_variables={"note": MARKER.decode()} if tainted else None,
+    )
+    unverified = _run(
+        "probe.one",
+        "23",
+        commit=True,
+        output_variables={"note": UNVERIFIED_MARKER.decode()} if tainted else None,
+    )
+    return keep, blocked, unverified
+
+
+def _assert_value_free(items: tuple[str, ...]) -> None:
+    blob = "\n".join(items)
+    assert MARKER.decode() not in blob
+    assert UNVERIFIED_MARKER.decode() not in blob
+    assert SCANNER_UNAVAILABLE not in blob
+
+
+def test_hood_withheld_error_is_not_a_format_error() -> None:
+    assert not issubclass(HoodWithheldError, AgentsSyncFormatError)
+
+
+def test_empty_inventory_still_raises_no_publishable_runs(tmp_path: Path) -> None:
+    owner = AgentOwnerIdentity("alice", "athena")
+    target = _target(tmp_path)
+    repo = target.sidecar_path
+    repo.mkdir()
+    inventory = ProjectHoodInventory(owner, "proj", ())
+    with pytest.raises(AgentsSyncFormatError, match="has no publishable runs"):
+        build_hood_snapshot(
+            repo,
+            V2ProjectIdentity("proj", "Project"),
+            owner,
+            "empty",
+            inventory,
+            None,
+        )
+    with pytest.raises(AgentsSyncFormatError, match="has no publishable runs"):
+        publish_agent_hood(
+            target,
+            repo,
+            "empty.none",
+            identity=_identity(),
+            inventory=inventory,
+        )
+
+
+def test_full_sync_skips_fully_withheld_hoods_and_keeps_clean(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _install_marker_scanner(monkeypatch)
+    _isolate_protection_state(tmp_path, monkeypatch)
+    owner = AgentOwnerIdentity("alice", "athena")
+    target = _target(tmp_path)
+    repo = target.sidecar_path
+    repo.mkdir()
+    clean_inventory = ProjectHoodInventory(
+        owner, "proj", _three_hood_runs(tainted=False)
+    )
+    first = reconcile_agent_hoods(
+        target, repo, identity=_identity(), inventory=clean_inventory
+    )
+    assert first.hoods_published == 3
+    snapshot_before = {
+        hood: (repo / snapshot_path(owner, hood)).read_bytes()
+        for hood in ("keep", "block", "probe")
+    }
+    manifest_before = (repo / owner_manifest_path(owner)).read_bytes()
+
+    tainted = ProjectHoodInventory(owner, "proj", _three_hood_runs(tainted=True))
+    counts = reconcile_agent_hoods(
+        target, repo, identity=_identity(), inventory=tainted
+    )
+
+    assert counts.hoods_published == 0
+    assert counts.hoods_refreshed == 0
+    assert counts.hoods_unchanged == 1
+    assert ("alice.athena.block.one", "blocked") in counts.withheld_runs
+    assert ("alice.athena.probe.one", "unverified") in counts.withheld_runs
+    assert ("block", "blocked") in counts.withheld_hoods
+    assert ("probe", "unverified") in counts.withheld_hoods
+    assert "keep" not in {hood for hood, _reason in counts.withheld_hoods}
+    assert "withheld hood 'block': blocked" in counts.diagnostics
+    assert "withheld hood 'probe': unverified" in counts.diagnostics
+    _assert_value_free(counts.diagnostics)
+    assert (repo / snapshot_path(owner, "block")).read_bytes() == snapshot_before[
+        "block"
+    ]
+    assert (repo / snapshot_path(owner, "probe")).read_bytes() == snapshot_before[
+        "probe"
+    ]
+    assert (repo / owner_manifest_path(owner)).read_bytes() == manifest_before
+    blobs = _payload_blobs(repo)
+    assert not any(MARKER in content for content in blobs.values())
+    assert not any(UNVERIFIED_MARKER in content for content in blobs.values())
+    assert SCANNER_UNAVAILABLE.encode() not in b"".join(blobs.values())
+    assert (repo / "agents" / "alice.athena.keep.one" / "prompt.md").exists()
+    assert (repo / "agents" / "alice.athena.block.one" / "prompt.md").exists()
+    assert (repo / "agents" / "alice.athena.probe.one" / "prompt.md").exists()
+
+
+def test_targeted_planning_skips_fully_withheld_hoods(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _install_marker_scanner(monkeypatch)
+    _isolate_protection_state(tmp_path, monkeypatch)
+    owner = AgentOwnerIdentity("alice", "athena")
+    target = _target(tmp_path)
+    repo = target.sidecar_path
+    repo.mkdir()
+    clean_inventory = ProjectHoodInventory(
+        owner, "proj", _three_hood_runs(tainted=False)
+    )
+    reconcile_agent_hoods(target, repo, identity=_identity(), inventory=clean_inventory)
+    snapshot_before = {
+        hood: (repo / snapshot_path(owner, hood)).read_bytes()
+        for hood in ("keep", "block", "probe")
+    }
+    manifest_before = (repo / owner_manifest_path(owner)).read_bytes()
+    tainted = ProjectHoodInventory(owner, "proj", _three_hood_runs(tainted=True))
+    payload, counts = plan_targeted_hoods(
+        target, repo, tainted, ("keep", "block", "probe"), owner
+    )
+    assert snapshot_path(owner, "block") not in payload
+    assert snapshot_path(owner, "probe") not in payload
+    assert snapshot_path(owner, "keep") in payload
+    assert counts.hoods_unchanged == 1
+    assert ("block", "blocked") in counts.withheld_hoods
+    assert ("probe", "unverified") in counts.withheld_hoods
+    _assert_value_free(counts.diagnostics)
+    full_payload, full_counts = plan_hoods(
+        target, repo, tainted, ("keep", "block", "probe"), owner
+    )
+    assert snapshot_path(owner, "block") not in full_payload
+    assert ("block", "blocked") in full_counts.withheld_hoods
+    assert (repo / snapshot_path(owner, "block")).read_bytes() == snapshot_before[
+        "block"
+    ]
+    assert (repo / snapshot_path(owner, "probe")).read_bytes() == snapshot_before[
+        "probe"
+    ]
+    assert (repo / owner_manifest_path(owner)).read_bytes() == manifest_before
+    assert not any(MARKER in content for content in payload.values())
+    assert not any(UNVERIFIED_MARKER in content for content in payload.values())

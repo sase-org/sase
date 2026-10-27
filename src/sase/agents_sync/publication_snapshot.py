@@ -72,6 +72,54 @@ class _GatedRun:
     notes: tuple[str, ...]
 
 
+@dataclass(frozen=True, slots=True)
+class _HoodWithheld:
+    """Structured outcome when every current run in a hood is withheld."""
+
+    hood: str
+    reason: str
+    withheld_runs: tuple[tuple[str, str], ...]
+
+
+class HoodWithheldError(Exception):
+    """A hood has current runs, but none of them may be published.
+
+    Does not subclass ``AgentsSyncFormatError``: the commit drain treats
+    that error as a terminal hood failure. Callers skip the hood and keep
+    planning the rest of the project.
+    """
+
+    def __init__(self, withheld: _HoodWithheld) -> None:
+        self.withheld = withheld
+        super().__init__(f"hood {withheld.hood!r} withheld: {withheld.reason}")
+
+
+RUN_WITHHELD_BLOCKED = "run withheld by publication protection"
+RUN_WITHHELD_UNVERIFIED = "run could not be verified for publication"
+HOOD_WITHHELD_BLOCKED = "hood withheld by publication protection"
+HOOD_WITHHELD_UNVERIFIED = "hood could not be verified for publication"
+
+
+def settlement_error_for_withheld_request(
+    *,
+    global_agent: str,
+    local_hood: str,
+    withheld_runs: tuple[tuple[str, str], ...],
+    withheld_hoods: tuple[tuple[str, str], ...],
+) -> str | None:
+    """Return the value-free park/retry error for a withheld request, if any."""
+
+    reason = dict(withheld_runs).get(global_agent)
+    if reason is not None:
+        return RUN_WITHHELD_BLOCKED if reason == "blocked" else RUN_WITHHELD_UNVERIFIED
+    reason = dict(withheld_hoods).get(local_hood)
+    if reason is not None:
+        return (
+            HOOD_WITHHELD_BLOCKED if reason == "blocked" else HOOD_WITHHELD_UNVERIFIED
+        )
+    return None
+
+
 def build_hood_snapshot(
     repo_root: Path,
     project: V2ProjectIdentity,
@@ -81,7 +129,9 @@ def build_hood_snapshot(
     previous: V2HoodSnapshot | None,
     *,
     protection_scope: PublicationProtectionScope | None = None,
-) -> tuple[V2HoodSnapshot, dict[str, bytes], tuple[str, ...]]:
+) -> tuple[
+    V2HoodSnapshot, dict[str, bytes], tuple[str, ...], tuple[tuple[str, str], ...]
+]:
     current = inventory.hood_runs(hood)
     agent_session_history = inventory.agent_session_lane_commits(hood)
     if not current and previous is None:
@@ -107,24 +157,32 @@ def build_hood_snapshot(
     )
     notes: list[str] = []
     withheld_globals: set[str] = set()
+    withheld_pairs: list[tuple[str, str]] = []
     gated_records: list[_GatedRun] = []
     for gated_run in gated:
         notes.extend(gated_run.notes)
         if gated_run.record is None:
             withheld_globals.add(gated_run.run.global_name)
+            withheld_pairs.append(
+                (
+                    gated_run.run.global_name,
+                    gated_run.withheld_reason or "unverified",
+                )
+            )
         else:
             gated_records.append(gated_run)
     if current and not gated_records:
-        from sase.agents_sync.io import AgentsSyncFormatError
-
-        if all(gated_run.withheld_reason == "blocked" for gated_run in gated):
-            raise AgentsSyncFormatError(
-                f"hood {hood!r} has no publishable runs: "
-                "withheld by publication protection"
+        hood_reason = (
+            "blocked"
+            if all(gated_run.withheld_reason == "blocked" for gated_run in gated)
+            else "unverified"
+        )
+        raise HoodWithheldError(
+            _HoodWithheld(
+                hood=hood,
+                reason=hood_reason,
+                withheld_runs=tuple(withheld_pairs),
             )
-        raise RuntimeError(
-            f"could not verify hood {hood!r} runs for publication; "
-            "protection scanning is unavailable or inconclusive"
         )
     current_records: list[V2RunRecord] = []
     for gated_run in gated_records:
@@ -194,7 +252,7 @@ def build_hood_snapshot(
         relationships=relationships,
     )
     validate_snapshot(snapshot)
-    return snapshot, payload, tuple(notes)
+    return snapshot, payload, tuple(notes), tuple(withheld_pairs)
 
 
 def _prior_content_blocked(

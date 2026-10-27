@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import os
 from pathlib import Path
 import signal
@@ -11,6 +12,48 @@ import pytest
 from sase._interruptions import PublicationDrainTimedOut
 from sase.agents_sync import _commit_publication_drain as publication_drain
 from sase.sdd._git import SddGitCommandTimeout, run_sdd_git
+
+GH013_SECRET = "SYNTHETIC-REMOTE-SECRET-7f3a9c2e"
+
+
+def _git_ops_records(path: Path) -> list[dict[str, object]]:
+    if not path.is_file():
+        return []
+    return [
+        json.loads(line)
+        for line in path.read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    ]
+
+
+def _redirect_git_ops(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+    log_path = tmp_path / "tui_git_ops.jsonl"
+    monkeypatch.setenv("SASE_TUI_GIT_OPS_PATH", str(log_path))
+    monkeypatch.setattr("sase.logs.tui_telemetry.TUI_GIT_OPS_JSONL", str(log_path))
+    return log_path
+
+
+def _fake_git_with_secret(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, *, exit_code: int
+) -> None:
+    script = tmp_path / "fake_git.py"
+    script.write_text(
+        "import sys\n"
+        f"sys.stdout.write('shown {GH013_SECRET}\\n')\n"
+        "sys.stderr.write("
+        f"'remote: error: GH013: Repository rule violations found\\n{GH013_SECRET}\\n'"
+        ")\n"
+        f"raise SystemExit({exit_code})\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(
+        "sase.sdd._git_runner.sdd_git_command",
+        lambda _args: [sys.executable, str(script)],
+    )
+    monkeypatch.setattr(
+        "sase.sdd._git_network._sleep_for_network_retry",
+        lambda **_kwargs: False,
+    )
 
 
 def test_streaming_transfer_succeeds_while_progress_continues(
@@ -196,3 +239,69 @@ def test_interruption_kills_process_group_with_pipe_holding_descendant(
                 os.kill(int(pid_file.read_text()), signal.SIGKILL)
             except ProcessLookupError:
                 pass
+
+
+def test_agents_push_omits_output_previews_from_git_ops_log(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from sase.agents_sync.git import run_git
+
+    log_path = _redirect_git_ops(tmp_path, monkeypatch)
+    _fake_git_with_secret(tmp_path, monkeypatch, exit_code=1)
+    result = run_git(tmp_path, ["push", "origin", "HEAD"], network=True)
+
+    assert result.returncode == 1
+    records = _git_ops_records(log_path)
+    assert records
+    blob = json.dumps(records)
+    assert GH013_SECRET not in blob
+    for record in records:
+        assert "stdout_preview" not in record
+        assert "stderr_preview" not in record
+        assert "cmd" in record
+        assert "cwd" in record
+        assert "status" in record
+
+
+def test_slow_agents_git_bytes_omits_output_previews(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from sase.agents_sync.git import run_git_bytes
+
+    log_path = _redirect_git_ops(tmp_path, monkeypatch)
+    monkeypatch.setenv("SASE_SDD_GIT_SLOW_MS", "0.001")
+    _fake_git_with_secret(tmp_path, monkeypatch, exit_code=0)
+    result = run_git_bytes(tmp_path, ["show", "HEAD:secret.txt"])
+
+    assert result.returncode == 0
+    records = _git_ops_records(log_path)
+    assert records
+    blob = json.dumps(records)
+    assert GH013_SECRET not in blob
+    for record in records:
+        assert "stdout_preview" not in record
+        assert "stderr_preview" not in record
+
+
+def test_non_agents_sdd_git_still_records_output_previews(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    log_path = _redirect_git_ops(tmp_path, monkeypatch)
+    monkeypatch.setenv("SASE_SDD_GIT_SLOW_MS", "0.001")
+    _fake_git_with_secret(tmp_path, monkeypatch, exit_code=1)
+    result = run_sdd_git(
+        ["status"],
+        cwd=tmp_path,
+        op="test.git",
+        timeout=5,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+
+    assert result.returncode == 1
+    records = _git_ops_records(log_path)
+    assert records
+    blob = json.dumps(records)
+    assert GH013_SECRET in blob
+    assert any("stderr_preview" in record for record in records)

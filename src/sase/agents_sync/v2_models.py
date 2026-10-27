@@ -321,6 +321,8 @@ class V2PublicationCounts:
     agent_sessions_published: int = 0
     runs_published: int = 0
     diagnostics: tuple[str, ...] = ()
+    withheld_runs: tuple[tuple[str, str], ...] = ()
+    withheld_hoods: tuple[tuple[str, str], ...] = ()
     schema_version: int = V2_SCHEMA_VERSION
 
     @property

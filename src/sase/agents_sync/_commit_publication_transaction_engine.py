@@ -102,7 +102,7 @@ def publish_queued_transaction(
 
     if timer is not None:
         with timer.record_stage("prepare"):
-            prepared, item_errors = prepare_publications(
+            prepared, item_errors, withheld_runs, withheld_hoods = prepare_publications(
                 target,
                 owner,
                 requests,
@@ -113,7 +113,7 @@ def publish_queued_transaction(
                 timer=timer,
             )
     else:
-        prepared, item_errors = prepare_publications(
+        prepared, item_errors, withheld_runs, withheld_hoods = prepare_publications(
             target,
             owner,
             requests,
@@ -164,6 +164,8 @@ def publish_queued_transaction(
             prepared,
             hooks=hooks,
             timer=timer,
+            withheld_runs=withheld_runs,
+            withheld_hoods=withheld_hoods,
         )
         return DrainResult(
             drained=len(acked_keys),
@@ -195,6 +197,8 @@ def publish_queued_transaction(
             prepared,
             hooks=hooks,
             timer=timer,
+            withheld_runs=withheld_runs,
+            withheld_hoods=withheld_hoods,
         )
         return DrainResult(
             drained=len(acked_keys),

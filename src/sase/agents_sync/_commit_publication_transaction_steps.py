@@ -14,9 +14,10 @@ from sase.agents_sync.prompt_archive.deferred import (
 from sase.agents_sync.publication_outbox import AgentPublicationOutboxItem
 from sase.agents_sync.publication_planning import shared_targeted_planning
 from sase.agents_sync.publication_protection import PublicationProtectionScope
+from sase.agents_sync.publication_snapshot import settlement_error_for_withheld_request
 from sase.agents_sync.publication_timing import DrainTiming
 from sase.agents_sync.v2_io import read_owner_manifest
-from sase.agents_sync.v2_models import V2ProjectIdentity
+from sase.agents_sync.v2_models import V2ProjectIdentity, V2PublicationCounts
 from sase.agents_sync._commit_publication_transaction_types import (
     PublicationTransactionHooks,
 )
@@ -42,11 +43,18 @@ def prepare_publications(
     *,
     hooks: PublicationTransactionHooks,
     timer: DrainTiming | None = None,
-) -> tuple[tuple[AgentPublicationOutboxItem, ...], tuple[str, ...]]:
+) -> tuple[
+    tuple[AgentPublicationOutboxItem, ...],
+    tuple[str, ...],
+    tuple[tuple[str, str], ...],
+    tuple[tuple[str, str], ...],
+]:
     repo = target.sidecar_path
     requests_by_hood: dict[str, list[AgentPublicationOutboxItem]] = {}
     prepared: list[AgentPublicationOutboxItem] = []
     errors: list[str] = []
+    withheld_runs: list[tuple[str, str]] = []
+    withheld_hoods: list[tuple[str, str]] = []
     prompt_runs = prompt_runs_by_request(inventory, identity)
     for request in requests:
         requests_by_hood.setdefault(request.local_hood, []).append(request)
@@ -63,7 +71,7 @@ def prepare_publications(
             try:
                 if timer is not None:
                     with timer.record_stage(f"hood_publish:{request.local_hood}"):
-                        hooks.publish_hood(
+                        counts = hooks.publish_hood(
                             target,
                             repo,
                             request.local_agent,
@@ -72,7 +80,7 @@ def prepare_publications(
                             git_runner=git_runner,
                         )
                 else:
-                    hooks.publish_hood(
+                    counts = hooks.publish_hood(
                         target,
                         repo,
                         request.local_agent,
@@ -80,6 +88,12 @@ def prepare_publications(
                         inventory=inventory,
                         git_runner=git_runner,
                     )
+                hood_runs, hood_withheld = _withheld_from_counts(counts)
+                withheld_runs.extend(hood_runs)
+                withheld_hoods.extend(hood_withheld)
+                if request.local_hood in {name for name, _reason in hood_withheld}:
+                    prepared.extend(hood_requests)
+                    continue
                 if timer is not None:
                     with timer.record_stage(
                         f"prompt_archive_prepare:{request.local_hood}"
@@ -146,7 +160,12 @@ def prepare_publications(
         # Shared manifest validation is repository-wide: report without charging.
         error = f"could not verify agent publication manifest: {exc}"
         errors.append(error)
-        return (), tuple(errors)
+        return (
+            (),
+            tuple(errors),
+            tuple(dict.fromkeys(withheld_runs)),
+            tuple(dict.fromkeys(withheld_hoods)),
+        )
     for hood, hood_requests in published_by_hood.items():
         request = hood_requests[0]
         try:
@@ -176,7 +195,17 @@ def prepare_publications(
     return (
         tuple(item for item in requests if item.logical_key in prepared_keys),
         tuple(errors),
+        tuple(dict.fromkeys(withheld_runs)),
+        tuple(dict.fromkeys(withheld_hoods)),
     )
+
+
+def _withheld_from_counts(
+    counts: object,
+) -> tuple[tuple[tuple[str, str], ...], tuple[tuple[str, str], ...]]:
+    if isinstance(counts, V2PublicationCounts):
+        return counts.withheld_runs, counts.withheld_hoods
+    return (), ()
 
 
 def acknowledge_completed(
@@ -189,12 +218,16 @@ def acknowledge_completed(
     *,
     hooks: PublicationTransactionHooks,
     timer: DrainTiming | None = None,
+    withheld_runs: tuple[tuple[str, str], ...] = (),
+    withheld_hoods: tuple[tuple[str, str], ...] = (),
 ) -> tuple[tuple[tuple[str, str], ...], tuple[str, ...]]:
     """Acknowledge only requests whose page, revision, and prompt are complete.
 
     A rejected push or interruption leaves requests durable; only verified
     requests are removed. Unfulfilled requests are charged once as hood
-    failures so a later drain can retry them.
+    failures so a later drain can retry them. Withheld runs are parked or
+    retried without acknowledging and without treating the missing page as
+    a terminal materialization failure.
     """
 
     from sase.agents_sync.prompt_archive.deferred import (
@@ -220,6 +253,22 @@ def acknowledge_completed(
     ackable: list[tuple[str, str]] = []
     gate_errors: list[str] = []
     for item in prepared_tuple:
+        withheld_error = settlement_error_for_withheld_request(
+            global_agent=item.global_agent,
+            local_hood=item.local_hood,
+            withheld_runs=withheld_runs,
+            withheld_hoods=withheld_hoods,
+        )
+        if withheld_error is not None:
+            hooks.update_publications(
+                target.project_key,
+                (item.logical_key,),
+                error=withheld_error,
+                increment_attempts=False,
+                quarantine_threshold=None,
+            )
+            gate_errors.append(withheld_error)
+            continue
         prompt_error = prompt_failures.get(item.logical_key)
         if prompt_error is not None:
             from sase.agents_sync.prompt_archive.protection import (

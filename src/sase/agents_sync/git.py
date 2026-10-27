@@ -78,6 +78,7 @@ def run_git(
             capture_output=True,
             text=True,
             env=_noninteractive_git_env(),
+            output_previews=False,
         )
     else:
         result, _outcome = run_with_git_lock_retry(
@@ -90,6 +91,7 @@ def run_git(
                 capture_output=True,
                 text=True,
                 env=_noninteractive_git_env(),
+                output_previews=False,
             ),
             cwd=cwd,
         )
@@ -120,6 +122,7 @@ def run_git_bytes(
             capture_output=True,
             text=False,
             env=_noninteractive_git_env(),
+            output_previews=False,
         )
     else:
         result, _outcome = run_with_git_lock_retry(
@@ -132,6 +135,7 @@ def run_git_bytes(
                 capture_output=True,
                 text=False,
                 env=_noninteractive_git_env(),
+                output_previews=False,
             ),
             cwd=cwd,
         )
