@@ -131,6 +131,39 @@ class DeckPanelInteractionMixin:
                 pass
             return
         try:
+            pending = getattr(self, "_files_pending_scroll_index", None)
+        except Exception:
+            pending = None
+        if pending is not None:
+            # Explicit Ctrl-J navigation is in flight; the scroll offset has
+            # not caught up yet, so keep the requested page instead of
+            # re-deriving from a transient scroll position.
+            try:
+                pending_index = int(pending)
+            except Exception:
+                pending_index = None
+            if pending_index is not None:
+                try:
+                    file_view = self.file_view
+                    current = int(getattr(file_view, "_current_file_index", 0))
+                    if current != pending_index:
+                        try:
+                            file_view.set_current_index_silent(pending_index)
+                        except Exception:
+                            pass
+                        self._file_index = pending_index
+                    try:
+                        self._file_source_label = file_view.current_source_label()
+                    except Exception:
+                        pass
+                    try:
+                        self.refresh_chrome()
+                    except Exception:
+                        pass
+                except Exception:
+                    pass
+                return
+        try:
             index = self._files_spread_active_index()
             file_view = self.file_view
             current = int(getattr(file_view, "_current_file_index", 0))

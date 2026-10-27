@@ -134,6 +134,19 @@ class FilePanelContentMixin:
             return None
         return parent if isinstance(parent, VerticalScroll) else None
 
+    def _is_hidden_for_scroll(self) -> bool:
+        """Return whether this paged view is hidden behind the spread view.
+
+        The Files deck hides the paged ``AgentFilePanel`` inside the same
+        ``VerticalScroll`` the spread view uses. A hidden paged view shares
+        that viewport but must never move it: only the currently displayed
+        Files mode owns the scroll.
+        """
+        try:
+            return bool(self.has_class("hidden"))  # type: ignore[attr-defined]
+        except Exception:
+            return False
+
     def _update_body(self, renderable: RenderableType, *, anchor: bool = True) -> None:
         """Route a body render through scroll-anchor capture and restore.
 
@@ -160,6 +173,8 @@ class FilePanelContentMixin:
         anchor is left untouched: a Textual clamp from a transient short
         body must not overwrite the anchor that survives it.
         """
+        if self._is_hidden_for_scroll():
+            return
         if self._anchor_slot_key is None or self._last_applied_scroll_row is None:
             return
         container = self._get_scroll_container()
@@ -195,6 +210,8 @@ class FilePanelContentMixin:
     def _apply_scroll_anchor(self) -> None:
         """Resolve and apply the current page's anchor after layout settles."""
         self._anchor_restore_pending = False
+        if self._is_hidden_for_scroll():
+            return
         container = self._get_scroll_container()
         if container is None:
             return
@@ -260,7 +277,7 @@ class FilePanelContentMixin:
         """
         if self._anchor_slot_key == new_key:
             return
-        if self._anchor_slot_key is not None:
+        if self._anchor_slot_key is not None and not self._is_hidden_for_scroll():
             container = self._get_scroll_container()
             if container is not None:
                 self._store_current_anchor(int(container.scroll_y))

@@ -431,6 +431,13 @@ class DeckPanel(  # type: ignore[misc]
                 file_view.remove_class("hidden")
         except Exception:
             pass
+        if not spread:
+            try:
+                clearer = getattr(self, "_clear_files_pending_scroll", None)
+                if callable(clearer):
+                    clearer()
+            except Exception:
+                pass
 
     @on(FileListChanged)
     def _on_deck_file_list_changed(self, message: FileListChanged) -> None:

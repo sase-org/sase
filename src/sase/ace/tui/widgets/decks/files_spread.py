@@ -107,6 +107,14 @@ class FilesSpreadView(SectionViewMixin, Static):
                 notify(DeckId.FILES)
         except Exception:
             pass
+        try:
+            parent = getattr(self, "parent", None)
+            panel = getattr(parent, "parent", None) if parent is not None else None
+            resume = getattr(panel, "_reschedule_files_scroll_after_layout", None)
+            if callable(resume):
+                resume()
+        except Exception:
+            pass
 
 
 __all__ = ["FilesSpreadView", "SPREAD_TRUNCATION_HINT"]

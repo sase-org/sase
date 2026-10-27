@@ -154,6 +154,14 @@ class DeckPanelFilesMixin:
             self._files_spread_pending = False  # type: ignore[attr-defined]
             self._files_spread_blocked = False  # type: ignore[attr-defined]
             self._files_media_toast_armed = False
+            try:
+                self._files_transition_generation += 1  # type: ignore[attr-defined]
+            except Exception:
+                pass
+            try:
+                self._clear_files_pending_scroll()  # type: ignore[attr-defined]
+            except Exception:
+                pass
             self._render_mode[DeckId.FILES] = RenderMode.PAGED
             self._sync_files_views()
             self.refresh_chrome()
@@ -446,6 +454,10 @@ class DeckPanelFilesMixin:
     def _apply_files_transition(self, new_mode: RenderMode) -> None:
         self._files_transition_generation += 1  # type: ignore[attr-defined]
         generation = self._files_transition_generation  # type: ignore[attr-defined]
+        try:
+            self._clear_files_pending_scroll()  # type: ignore[attr-defined]
+        except Exception:
+            pass
         self._render_mode[DeckId.FILES] = new_mode
         self._sync_files_views()
         if new_mode is RenderMode.SPREAD:
