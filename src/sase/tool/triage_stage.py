@@ -36,10 +36,9 @@ _OUTPUT_BYTES = 256 * 1024
 # FLAKY evidence, never manufacture it, so skipping a slow gatherer stays
 # fail-open; the helper's hard timeout is the outer bound.
 _GATHER_SOFT_SECONDS = 8.0
-# The running executor writes stage events to the same ToolRun store while this
-# helper persists its classification. Let those short SQLite writer locks drain
-# before failing closed as a generic helper error; _run_silent_record.py still
-# supplies the hard subprocess bound.
+# Mid-run classification must tolerate an executor writer lasting longer than
+# the core default (250ms). Keep this explicit 2s operation allowance; Rust owns
+# the elapsed-time budget and retries, and _run_silent_record.py bounds the verb.
 _STORE_BUSY_TIMEOUT_MS = 2_000
 
 

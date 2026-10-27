@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import subprocess
 from pathlib import Path
+from unittest.mock import Mock
 
 import pytest
 import yaml
@@ -356,3 +357,22 @@ def test_receipt_settle_request_rejects_empty_run_id(
     _receipt_project(monkeypatch, tmp_path)
     with pytest.raises(Exception, match="run_id must not be empty"):
         tool_run_receipt_settle({"run_id": "   ", "bypassed": False})
+
+
+@pytest.mark.parametrize(
+    "budget", [None, 0, 41], ids=["omitted", "core-default", "explicit"]
+)
+def test_receipt_settlement_preserves_store_budget(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, budget: int | None
+) -> None:
+    _receipt_project(monkeypatch, tmp_path)
+    resolved = resolve_run_argv(("tiny",))
+    binding = Mock(return_value={"minted": False})
+    monkeypatch.setattr(
+        "sase.core.tool_run.require_rust_binding", lambda _name: binding
+    )
+    kwargs = {} if budget is None else {"busy_timeout_ms": budget}
+
+    assert settle_receipt_for_run("run-1", resolved, **kwargs) == {"minted": False}
+    binding.assert_called_once()
+    assert binding.call_args.args[-1] == (0 if budget is None else budget)

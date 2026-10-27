@@ -5,6 +5,10 @@ selection, and queries. This module is a wire-only facade: it resolves
 ``sase_home()/tools``, releases the GIL inside the bindings, and never keeps
 a Python store. Typed view rows live in ``sase.core.tool_run_views`` and are
 re-exported here so existing ``sase.core.tool_run`` imports keep working.
+
+Store calls pass zero by default to select Rust's bounded contention policy.
+An explicit positive ``busy_timeout_ms`` remains the caller's latency budget;
+Python neither retries busy errors nor substitutes its own default.
 """
 
 from __future__ import annotations
@@ -117,7 +121,7 @@ def tool_run_triage_record(
     request: Mapping[str, Any],
     *,
     store_path: str | None = None,
-    busy_timeout_ms: int = 250,
+    busy_timeout_ms: int = 0,
 ) -> dict[str, Any]:
     return dict(
         require_rust_binding("tool_run_triage_record")(
@@ -132,7 +136,7 @@ def tool_run_triage_show(
     request: Mapping[str, Any],
     *,
     store_path: str | None = None,
-    busy_timeout_ms: int = 250,
+    busy_timeout_ms: int = 0,
 ) -> dict[str, Any]:
     return dict(
         require_rust_binding("tool_run_triage_show")(
@@ -147,7 +151,7 @@ def tool_run_triage_stage(
     request: Mapping[str, Any],
     *,
     store_path: str | None = None,
-    busy_timeout_ms: int = 250,
+    busy_timeout_ms: int = 0,
 ) -> dict[str, Any]:
     return dict(
         require_rust_binding("tool_run_triage_stage")(
@@ -162,7 +166,7 @@ def tool_run_triage_settle(
     request: Mapping[str, Any],
     *,
     store_path: str | None = None,
-    busy_timeout_ms: int = 250,
+    busy_timeout_ms: int = 0,
 ) -> dict[str, Any]:
     return dict(
         require_rust_binding("tool_run_triage_settle")(
@@ -177,7 +181,7 @@ def tool_run_failures(
     request: Mapping[str, Any],
     *,
     store_path: str | None = None,
-    busy_timeout_ms: int = 250,
+    busy_timeout_ms: int = 0,
 ) -> dict[str, Any]:
     return dict(
         require_rust_binding("tool_run_failures")(
@@ -192,7 +196,7 @@ def tool_run_begin(
     request: Mapping[str, Any],
     *,
     store_path: str | None = None,
-    busy_timeout_ms: int = 250,
+    busy_timeout_ms: int = 0,
 ) -> dict[str, Any]:
     return dict(
         require_rust_binding("tool_run_begin")(
@@ -207,7 +211,7 @@ def tool_run_append_event(
     request: Mapping[str, Any],
     *,
     store_path: str | None = None,
-    busy_timeout_ms: int = 250,
+    busy_timeout_ms: int = 0,
 ) -> dict[str, Any]:
     return dict(
         require_rust_binding("tool_run_append_event")(
@@ -222,7 +226,7 @@ def tool_run_finish(
     request: Mapping[str, Any],
     *,
     store_path: str | None = None,
-    busy_timeout_ms: int = 250,
+    busy_timeout_ms: int = 0,
 ) -> dict[str, Any]:
     return dict(
         require_rust_binding("tool_run_finish")(
@@ -237,7 +241,7 @@ def tool_run_observe(
     request: Mapping[str, Any],
     *,
     store_path: str | None = None,
-    busy_timeout_ms: int = 250,
+    busy_timeout_ms: int = 0,
 ) -> dict[str, Any]:
     """Persist a running run's child pid, pgid, and process-start identity.
 
@@ -258,7 +262,7 @@ def tool_run_reconcile(
     request: Mapping[str, Any],
     *,
     store_path: str | None = None,
-    busy_timeout_ms: int = 250,
+    busy_timeout_ms: int = 0,
 ) -> dict[str, Any]:
     return dict(
         require_rust_binding("tool_run_reconcile")(
@@ -273,7 +277,7 @@ def tool_run_claim(
     request: Mapping[str, Any],
     *,
     store_path: str | None = None,
-    busy_timeout_ms: int = 250,
+    busy_timeout_ms: int = 0,
 ) -> dict[str, Any]:
     """Atomically claim a reserved hand-off run for its owner."""
 
@@ -290,7 +294,7 @@ def tool_run_request_stop(
     request: Mapping[str, Any],
     *,
     store_path: str | None = None,
-    busy_timeout_ms: int = 250,
+    busy_timeout_ms: int = 0,
 ) -> dict[str, Any]:
     """Record a durable stop request for a ToolRun."""
 
@@ -307,7 +311,7 @@ def tool_run_join(
     request: Mapping[str, Any],
     *,
     store_path: str | None = None,
-    busy_timeout_ms: int = 250,
+    busy_timeout_ms: int = 0,
 ) -> dict[str, Any]:
     """Record a monitor join on a starter-scoped detached run."""
 
@@ -324,7 +328,7 @@ def tool_run_release_join(
     request: Mapping[str, Any],
     *,
     store_path: str | None = None,
-    busy_timeout_ms: int = 250,
+    busy_timeout_ms: int = 0,
 ) -> dict[str, Any]:
     """Release a monitor join when kind and id match; allowed in any state."""
 
@@ -351,7 +355,7 @@ def tool_run_list(
     request: Mapping[str, Any] | None = None,
     *,
     store_path: str | None = None,
-    busy_timeout_ms: int = 250,
+    busy_timeout_ms: int = 0,
 ) -> dict[str, Any]:
     payload = {"schema_version": 1, "limit": 50}
     if request:
@@ -369,7 +373,7 @@ def tool_run_show(
     run_id: str,
     *,
     store_path: str | None = None,
-    busy_timeout_ms: int = 250,
+    busy_timeout_ms: int = 0,
 ) -> dict[str, Any]:
     return dict(
         require_rust_binding("tool_run_show")(
@@ -384,7 +388,7 @@ def tool_run_summary(
     request: Mapping[str, Any],
     *,
     store_path: str | None = None,
-    busy_timeout_ms: int = 250,
+    busy_timeout_ms: int = 0,
 ) -> dict[str, Any]:
     return dict(
         require_rust_binding("tool_run_summary")(
@@ -399,7 +403,7 @@ def tool_run_retention_preview(
     request: Mapping[str, Any] | None = None,
     *,
     store_path: str | None = None,
-    busy_timeout_ms: int = 250,
+    busy_timeout_ms: int = 0,
 ) -> dict[str, Any]:
     payload = {"schema_version": 1, "dry_run": True}
     if request:
@@ -418,7 +422,7 @@ def tool_run_retention_apply(
     request: Mapping[str, Any] | None = None,
     *,
     store_path: str | None = None,
-    busy_timeout_ms: int = 250,
+    busy_timeout_ms: int = 0,
 ) -> dict[str, Any]:
     payload = {"schema_version": 1, "dry_run": False}
     if request:
@@ -436,7 +440,7 @@ def tool_run_retention_apply(
 def tool_run_store_stats(
     *,
     store_path: str | None = None,
-    busy_timeout_ms: int = 250,
+    busy_timeout_ms: int = 0,
 ) -> dict[str, Any]:
     return dict(
         require_rust_binding("tool_run_store_stats")(
@@ -450,7 +454,7 @@ def tool_run_receipt_settle(
     request: Mapping[str, Any],
     *,
     store_path: str | None = None,
-    busy_timeout_ms: int = 250,
+    busy_timeout_ms: int = 0,
 ) -> dict[str, Any]:
     return dict(
         require_rust_binding("tool_run_receipt_settle")(
@@ -465,7 +469,7 @@ def tool_run_receipt_lookup(
     request: Mapping[str, Any],
     *,
     store_path: str | None = None,
-    busy_timeout_ms: int = 250,
+    busy_timeout_ms: int = 0,
 ) -> dict[str, Any]:
     return dict(
         require_rust_binding("tool_run_receipt_lookup")(
@@ -480,7 +484,7 @@ def tool_run_receipts_report(
     request: Mapping[str, Any],
     *,
     store_path: str | None = None,
-    busy_timeout_ms: int = 250,
+    busy_timeout_ms: int = 0,
 ) -> dict[str, Any]:
     return dict(
         require_rust_binding("tool_run_receipts_report")(
@@ -495,7 +499,7 @@ def tool_run_stats_report(
     request: Mapping[str, Any],
     *,
     store_path: str | None = None,
-    busy_timeout_ms: int = 250,
+    busy_timeout_ms: int = 0,
 ) -> dict[str, Any]:
     """Return the read-only ToolRun stats report over the runs table."""
 
@@ -512,7 +516,7 @@ def tool_run_record_demand(
     request: Mapping[str, Any],
     *,
     store_path: str | None = None,
-    busy_timeout_ms: int = 250,
+    busy_timeout_ms: int = 0,
 ) -> dict[str, Any]:
     """Merge per-run demand context, usage, and worker grants into a run."""
 
@@ -529,7 +533,7 @@ def tool_run_live_glance(
     request: Mapping[str, Any] | None = None,
     *,
     store_path: str | None = None,
-    busy_timeout_ms: int = 250,
+    busy_timeout_ms: int = 0,
 ) -> ToolRunLiveGlance:
     """Return every unsettled run on the machine as typed glance rows."""
 
@@ -551,7 +555,7 @@ def tool_run_briefs(
     request: Mapping[str, Any] | None = None,
     *,
     store_path: str | None = None,
-    busy_timeout_ms: int = 250,
+    busy_timeout_ms: int = 0,
 ) -> ToolRunBriefs:
     """Return the lean filtered run list as typed brief rows."""
 
@@ -573,7 +577,7 @@ def tool_run_node_summaries(
     request: Mapping[str, Any] | None = None,
     *,
     store_path: str | None = None,
-    busy_timeout_ms: int = 250,
+    busy_timeout_ms: int = 0,
 ) -> ToolRunNodeSummaries:
     """Return per-node history for the requested selectors as typed rows."""
 
@@ -596,7 +600,7 @@ def tool_run_detail(
     request: Mapping[str, Any] | None = None,
     *,
     store_path: str | None = None,
-    busy_timeout_ms: int = 250,
+    busy_timeout_ms: int = 0,
 ) -> ToolRunDetail:
     """Return one run's card-block detail as typed rows.
 

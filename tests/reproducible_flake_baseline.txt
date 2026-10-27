@@ -439,15 +439,18 @@ tests/test_agent_load_tiering_production_oracle.py::test_production_machine_quer
 # fixed-at: 2026-10-16T12:35:22Z tests/test_docs_pdf_tools.py::test_pdf_check_recipe_keeps_strict_mkdocs_export
 # fixed-at: 2026-10-16T12:35:22Z tests/test_docs_social_card.py::test_rss_plugin_images_use_the_default_social_image
 #
-# sase-18t: ToolRun store "database is locked" SQLite contention under parallel
-# load; phase toolrun-busy (sase-1ou.2) retires these with the source fix.
+# sase-18t / sase-1ou.2: core 6d11122eed284f2589ecfd99d3c60c02fc949dbc
+# removes the WAL last-close exclusive lock. Controlled 400ms last-close
+# overlap failed each node 3/3 on the old core and passed 3/3 on the fix.
+# fixed-at: 2026-10-27T19:37:05Z tests/tool/test_detach.py::test_watchdog_reports_ended_join_monitor
+# fixed-at: 2026-10-27T19:37:05Z tests/tool/test_detach.py::test_watchdog_stops_unjoined_run_when_starter_dies
+# fixed-at: 2026-10-27T19:37:05Z tests/tool/test_settlement_retention.py::test_handoff_end_to_end_publishes_one_notification
+# sase-18t: remaining nodes lack per-node proof of the fixed SQLite mechanism;
+# retain until attributed. The owner group-kill node also has an exit-order flake.
 tests/tool/test_demand_runs.py::test_foreground_run_records_context_usage_and_grant
-tests/tool/test_detach.py::test_watchdog_reports_ended_join_monitor
-tests/tool/test_detach.py::test_watchdog_stops_unjoined_run_when_starter_dies
 tests/tool/test_executor.py::test_nested_run_has_parent_and_no_duplicate_logs
 tests/tool/test_inline_escalation.py::test_fast_success_matches_inline
 tests/tool/test_known_continuation.py::test_agent_run_stops_on_a_new_item
-tests/tool/test_settlement_retention.py::test_handoff_end_to_end_publishes_one_notification
 tests/tool/test_wrapper_fidelity.py::test_inline_caller_group_sigkill_leaves_no_survivors
 tests/tool/test_wrapper_fidelity.py::test_owner_child_shares_wrapper_group_and_group_kill_leaves_no_survivors
 # sase-13a: zsh sbd alias static bead-tree completion PTY flake under load.

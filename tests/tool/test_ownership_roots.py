@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 from types import SimpleNamespace
+from unittest.mock import Mock
 
 import pytest
 
@@ -285,3 +286,21 @@ def test_phase_agent_run_is_compact_with_replayable_logs(
     assert run.get("owner_kind") is None
     assert run.get("agent") == "phase-agent"
     assert Path(run["logs"]["stdout_path"]).read_bytes() == b"out"
+
+
+def test_parent_lookup_delegates_to_core_busy_policy(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """A nested run uses the store policy while retaining its parent identity."""
+    _home(monkeypatch, tmp_path)
+    monkeypatch.setenv("SASE_TOOL_RUN_ID", "parent-run")
+    binding = Mock(return_value={"run": {"run_id": "parent-run"}})
+    monkeypatch.setattr(
+        "sase.core.tool_run.require_rust_binding", lambda _name: binding
+    )
+
+    ownership = resolve_ownership(quiet=False)
+    assert ownership.parent_run_id == "parent-run"
+    assert ownership.owns_output is False
+    binding.assert_called_once()
+    assert binding.call_args.args[-1] == 0

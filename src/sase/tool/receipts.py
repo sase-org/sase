@@ -40,7 +40,7 @@ def settle_receipt_for_run(
     resolved: ResolvedToolArgv,
     *,
     store_path: str | None = None,
-    busy_timeout_ms: int = 250,
+    busy_timeout_ms: int = 0,
 ) -> dict[str, Any] | None:
     """Mint or supersede a verdict receipt for a settled run.
 
@@ -48,7 +48,8 @@ def settle_receipt_for_run(
     foreground and the claimed hand-off worker paths (both share
     ``run_recorded_body``). Always spawns nothing and never raises: a
     missing binding, an unreadable store, or any other failure records a
-    diagnostic and returns ``None`` while the child's exit code stands.
+    diagnostic and returns ``None`` while the child's exit code stands. Zero
+    delegates the contention budget to Rust; positive budgets pass through.
     """
 
     request: dict[str, Any] = {

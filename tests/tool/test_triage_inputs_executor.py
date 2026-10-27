@@ -4,12 +4,13 @@ from __future__ import annotations
 
 import importlib
 import json
-import sqlite3
 import subprocess
-import threading
+import sys
 import time
 from datetime import UTC, datetime
 from pathlib import Path
+from types import SimpleNamespace
+from unittest.mock import Mock
 from typing import Any
 
 import pytest
@@ -241,28 +242,114 @@ def test_execute_triage_stage_waits_for_tool_store_writer(
     output = tmp_path / "stage.log"
     output.write_text("plain boom with no shape\n", encoding="utf-8")
 
-    store_lock = sqlite3.connect(tool_run_store_path(), check_same_thread=False)
-    store_lock.execute("BEGIN IMMEDIATE")
-
-    def _release_store_lock() -> None:
-        time.sleep(0.6)  # sase-test-wait: let the SQLite retry block.
-        store_lock.rollback()
-        store_lock.close()
-
-    releaser = threading.Thread(target=_release_store_lock)
-    releaser.start()
-    try:
-        code = execute_triage_stage(
-            run_id,
-            stage_id="stage-1",
-            description="opaque",
-            output=str(output),
-        )
-    finally:
-        releaser.join(timeout=5)
+    # The bundled Rust SQLite and stdlib SQLite must never open this ledger
+    # in the same process: POSIX locks cannot arbitrate between those copies.
+    holder_script = """
+import sqlite3, sys, time
+with sqlite3.connect(sys.argv[1]) as connection:
+    connection.execute("BEGIN IMMEDIATE")
+    print("locked", flush=True)
+    sys.stdin.readline()
+    time.sleep(0.6)  # sase-test-wait: exceed the core default, within the stage budget.
+    connection.rollback()
+"""
+    with subprocess.Popen(
+        [sys.executable, "-c", holder_script, str(tool_run_store_path())],
+        stdin=subprocess.PIPE,
+        stdout=subprocess.PIPE,
+        text=True,
+    ) as holder:
+        try:
+            assert holder.stdout is not None and holder.stdin is not None
+            assert holder.stdout.readline().strip() == "locked"
+            holder.stdin.write("release after delay\n")
+            holder.stdin.flush()
+            code = execute_triage_stage(
+                run_id,
+                stage_id="stage-1",
+                description="opaque",
+                output=str(output),
+            )
+            assert holder.wait(timeout=5) == 0
+        finally:
+            if holder.poll() is None:
+                holder.kill()
+            holder.wait()
 
     captured = capsys.readouterr()
     payload = json.loads(captured.out)
     assert payload["decision"] == "stop"
     assert payload["reason"] == "unknown_item", captured.err
     assert code == 1
+
+
+def test_stage_triage_retains_explicit_store_allowance(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from sase.tool import triage_stage
+
+    home(monkeypatch, tmp_path)
+    show = Mock(return_value={"run": {"run_id": "run-1"}})
+    settle = Mock(return_value={"items": [{"label": {"class": "known"}}]})
+    monkeypatch.setattr(triage_stage, "tool_run_show", show)
+    monkeypatch.setattr(triage_stage, "tool_run_triage_stage", settle)
+    monkeypatch.setattr(
+        triage_stage, "_gather_stage_inputs", lambda *_args: ([], [], [])
+    )
+
+    assert (
+        execute_triage_stage(
+            "run-1", stage_id="stage-1", description="lint", output=None
+        )
+        == 0
+    )
+    assert show.call_args.kwargs["busy_timeout_ms"] == 2_000
+    assert settle.call_args.kwargs["busy_timeout_ms"] == 2_000
+
+
+def test_executor_triage_passes_remaining_deadline_to_store(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from sase.tool import executor_triage
+
+    now = [100.0]
+    monkeypatch.setattr(
+        executor_triage,
+        "time",
+        SimpleNamespace(monotonic=lambda: now[0], time=lambda: 10),
+    )
+    monkeypatch.setattr(executor_triage, "_failed_stage_inputs", lambda *_args: [])
+
+    def gather(*_args: object) -> tuple[list[Any], list[str]]:
+        now[0] += 0.5
+        return [], []
+
+    def settle(_request: object, *, busy_timeout_ms: int) -> dict[str, Any]:
+        assert busy_timeout_ms == 3_000
+        now[0] += 0.125
+        return {"triaged": True}
+
+    monkeypatch.setattr(executor_triage, "_gather_triage", gather)
+    settle_call = Mock(side_effect=settle)
+    show = Mock(return_value={})
+    monkeypatch.setattr(executor_triage, "tool_run_triage_settle", settle_call)
+    monkeypatch.setattr(executor_triage, "tool_run_triage_show", show)
+    ctx = SimpleNamespace(
+        run_id="run-1",
+        events_path=tmp_path / "events.jsonl",
+        continuation_mode="never",
+        resolved=SimpleNamespace(
+            adhoc=False,
+            tool_name="check",
+            cwd=str(tmp_path),
+            resolved_project_identity=lambda: "fixture",
+        ),
+    )
+    executor_triage.settle_failure_triage(
+        ctx=ctx,
+        fingerprint_before={"repos": [{"head": "base"}]},
+        ingestor=None,
+        state="succeeded",
+    )
+    settle_call.assert_called_once()
+    show.assert_called_once_with({"run_id": "run-1"}, busy_timeout_ms=2_875)

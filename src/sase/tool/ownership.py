@@ -132,11 +132,7 @@ def _proc_has_settled(proc_id: str) -> bool:
 
 def _parent_exists(run_id: str) -> bool:
     try:
-        # Nested children look the parent up immediately after spawn. Under a
-        # loaded suite the parent's post-spawn observe/sample write can hold
-        # the store past the default 250ms busy timeout; treat that as
-        # missing and the child is recorded as a second root.
-        shown = tool_run_show(run_id, busy_timeout_ms=1000)
+        shown = tool_run_show(run_id)
     except Exception:  # noqa: BLE001 - missing parent must not block execution.
         return False
     run = shown.get("run")
