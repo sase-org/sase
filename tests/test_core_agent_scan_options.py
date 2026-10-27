@@ -276,6 +276,22 @@ def test_options_round_trip_through_snapshot(
 def test_capacity_only_skips_done_dirs_and_keeps_active_ones(
     fixture_root: Path,
 ) -> None:
+    for timestamp, project in (
+        (TS_HOME_RUNNING, "home"),
+        (TS_ACE_RUN_RUNNING, "myproj"),
+    ):
+        meta_path = (
+            fixture_root
+            / project
+            / "artifacts"
+            / "ace-run"
+            / timestamp
+            / "agent_meta.json"
+        )
+        meta = json.loads(meta_path.read_text(encoding="utf-8"))
+        meta["pid"] = os.getpid()
+        meta_path.write_text(json.dumps(meta), encoding="utf-8")
+
     options = AgentArtifactScanOptionsWire(capacity_only=True)
     snapshot = scan_agent_artifacts(fixture_root, options=options)
     timestamps = {record.timestamp for record in snapshot.records}

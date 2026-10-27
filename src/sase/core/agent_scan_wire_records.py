@@ -103,13 +103,13 @@ class AgentArtifactScanOptionsWire:
             (``active``, ``inactive``, or ``sibling``; legacy ``archived`` /
             ``closed`` aliases normalize to ``inactive``). ``"all"`` or an
             empty tuple disables lifecycle filtering.
-        capacity_only: When True, skip artifact dirs carrying a ``done``
-            marker before parsing any of their other marker files, and skip
-            marker files the runner-slot capacity snapshot never consumes
-            (``plan_path.json``, ``macros.json``) even for dirs that are
-            still scanned. Every field the capacity snapshot consumes
-            (``agent_meta``, ``running``, ``waiting``, ``workflow_state``,
-            ``pending_question``) is still parsed for non-done dirs.
+        capacity_only: When True, skip artifact dirs that cannot affect runner
+            capacity (done, stopped without live markers, or provably dead
+            pids), while preserving lineage, owner-key, and explicit clan-tribe
+            neighbours that the capacity calculation may consult. Also skip
+            marker files the snapshot never consumes (``plan_path.json``,
+            ``macros.json``). Capacity-relevant markers remain parsed for dirs
+            that survive pruning.
         clan_records_dir: Directory holding per-clan JSON records. When set,
             recorded clan attributes are applied over member-derived
             ``clan_context`` in every scan and index query path. The scan

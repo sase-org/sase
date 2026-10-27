@@ -24,6 +24,7 @@ from sase.core.paths import sase_home
 from sase.core.runner_slots._signal import runner_slot_state_token
 
 _CACHE_NAME = "runner_slots.scan.json"
+_STALE_TEMP_SECONDS = 60 * 60
 
 
 def _runner_slot_scan_cache_path() -> Path:
@@ -90,6 +91,7 @@ def _write_scan_cache(
     records: list[AgentArtifactRecordWire],
 ) -> None:
     path = _runner_slot_scan_cache_path()
+    _prune_stale_scan_cache_temps(path, time.time())
     payload = {
         "token": token,
         "scanned_at": scanned_at,
@@ -119,6 +121,19 @@ def _write_scan_cache(
                 tmp_path.unlink()
             except OSError:
                 pass
+
+
+def _prune_stale_scan_cache_temps(path: Path, now: float) -> None:
+    """Best-effort remove abandoned sibling temp files older than one hour."""
+    try:
+        for candidate in path.parent.glob(f".{path.name}.*.tmp"):
+            try:
+                if now - candidate.stat().st_mtime > _STALE_TEMP_SECONDS:
+                    candidate.unlink()
+            except OSError:
+                continue
+    except OSError:
+        pass
 
 
 __all__ = [

@@ -8,6 +8,7 @@ authored capacity.
 from __future__ import annotations
 
 import json
+import os
 from datetime import datetime
 from pathlib import Path
 from unittest.mock import patch
@@ -212,11 +213,11 @@ def test_capacity_blocked_head_then_high_budget_launch_uses_real_scan(
     artifact(
         tmp_path,
         "20260913093000",
-        300,
+        os.getpid(),
         run_started_at="2026-09-13T09:30:00+00:00",
     )
-    drain = artifact(tmp_path, "20260913093001", 301)
-    later = artifact(tmp_path, "20260913093002", 302)
+    drain = artifact(tmp_path, "20260913093001", os.getpid())
+    later = artifact(tmp_path, "20260913093002", os.getpid())
 
     with (
         patch.object(

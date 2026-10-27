@@ -3,9 +3,12 @@
 from __future__ import annotations
 
 import json
+import os
 import random
 from pathlib import Path
 from unittest.mock import patch
+
+import pytest
 
 from sase.axe import run_agent_wait_markers, run_agent_wait_slots
 from sase.axe.run_agent_wait_slot_poll import (
@@ -170,6 +173,26 @@ def test_capacity_scan_refreshes_when_slot_state_changes() -> None:
     load_or_refresh_runner_slot_scan(collect, max_age=60.0, now=1000.5)
 
     assert calls == 2
+
+
+def test_capacity_scan_write_prunes_only_stale_temp_files(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    home = tmp_path / ".sase"
+    home.mkdir()
+    monkeypatch.setenv("SASE_HOME", str(home))
+    stale = home / ".runner_slots.scan.json.abandoned.tmp"
+    fresh = home / ".runner_slots.scan.json.current.tmp"
+    stale.write_text("stale", encoding="utf-8")
+    fresh.write_text("fresh", encoding="utf-8")
+    os.utime(stale, (1000.0, 1000.0))
+    os.utime(fresh, None)
+
+    load_or_refresh_runner_slot_scan(lambda: [], max_age=0.0, now=10000.0, token="a")
+
+    assert not stale.exists()
+    assert fresh.exists()
 
 
 def test_wait_slot_scan_uses_capacity_only_and_shares_host_cache() -> None:

@@ -110,6 +110,13 @@ Immediate slot-participating launches become admitted before primary and
 linked-workspace preparation; dependency, time, and fork waiters do not consume a slot
 until those prerequisites resolve.
 
+Runner-slot waiters share a host-wide capacity scan cache under `~/.sase`. The scan
+skips completed records and records that cannot be live (stopped runs without live
+markers or runs with a provably dead process), while retaining related lineage, claim
+owner, and clan records used by admission. It still keeps uncertain records, including
+those with missing or malformed process ids, so pruning does not change capacity
+decisions.
+
 After upgrading from a build that did not enforce weighted capacity, restart sase's TUI
 and the service host, then let old runner processes drain or relaunch them. The new
 runtime treats legacy records with absent `queue_weight` as `1.0`, but that storage
