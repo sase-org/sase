@@ -18,6 +18,10 @@ from sase.ace.tui.models.agent import Agent, AgentType
 from sase.ace.tui.widgets.prompt_panel import AgentPromptPanel
 from sase.llm_provider._subprocess import stream_and_parse_muse_json_output
 from tests.ace.tui._live_reply_follow_mounted_helpers import (
+    MOUNTED_ANSWER,
+    MOUNTED_COMMENTARY_1,
+    MOUNTED_COMMENTARY_2,
+    MOUNTED_MUSE_SESSION_ID,
     gated_muse_script,
     reply_card_text,
     wait_for_page,
@@ -105,6 +109,12 @@ async def test_gated_muse_stream_reaches_mounted_reply_before_terminal(
 
         monkeypatch.setattr(page.app, "_schedule_agents_async_refresh", track_refresh)
 
+        # The session-log tail resolves its log through XDG_DATA_HOME in this
+        # same process, so point it at a per-test fake home the fixture populates.
+        xdg_home = tmp_path / "xdg-home"
+        xdg_home.mkdir(exist_ok=True)
+        monkeypatch.setenv("XDG_DATA_HOME", str(xdg_home))
+
         first_sent = tmp_path / "first-sent"
         release_second = tmp_path / "release-second"
         second_sent = tmp_path / "second-sent"
@@ -132,16 +142,17 @@ async def test_gated_muse_stream_reaches_mounted_reply_before_terminal(
                 stream_and_parse_muse_json_output,
                 process,
                 suppress_output=True,
+                session_id=MOUNTED_MUSE_SESSION_ID,
             )
         )
         try:
-            await wait_for_page(page, first_sent.exists, "first Muse delta batch")
+            await wait_for_page(page, first_sent.exists, "first commentary record")
             await wait_for_page(
                 page,
                 lambda: reply_path.read_text(encoding="utf-8").startswith(
-                    "A reply can stream in pieces: the words stay together"
+                    MOUNTED_COMMENTARY_1
                 ),
-                "parser to append the first delta batch",
+                "tail to append the first commentary chunk",
             )
             assert process.poll() is None
             assert not terminal_sent.exists()
@@ -158,21 +169,21 @@ async def test_gated_muse_stream_reaches_mounted_reply_before_terminal(
             assert len(route_calls) == 1
             await wait_for_page(
                 page,
-                lambda: "A reply can stream in pieces:" in reply_card_text(page),
-                "first partial reply in the mounted Reply card",
+                lambda: MOUNTED_COMMENTARY_1 in reply_card_text(page),
+                "first commentary in the mounted Reply card",
             )
             assert process.poll() is None
             assert timestamps_path.read_text(encoding="utf-8").count("\n") == 1
             assert len(re.findall(r"─── \d{2}:\d{2}:\d{2}", reply_card_text(page))) == 1
 
             release_second.touch()
-            await wait_for_page(page, second_sent.exists, "second Muse delta")
+            await wait_for_page(page, second_sent.exists, "second commentary record")
             await wait_for_page(
                 page,
                 lambda: reply_path.read_text(encoding="utf-8").endswith(
-                    " and keep growing."
+                    MOUNTED_COMMENTARY_2
                 ),
-                "parser to append the final delta",
+                "tail to append the second commentary chunk",
             )
             assert process.poll() is None
             assert not terminal_sent.exists()
@@ -183,31 +194,44 @@ async def test_gated_muse_stream_reaches_mounted_reply_before_terminal(
             panel.maybe_probe_live_reply_drift()
             await wait_for_page(
                 page,
-                lambda: "and keep growing." in reply_card_text(page),
+                lambda: MOUNTED_COMMENTARY_2 in reply_card_text(page),
                 "polling backstop to paint the latest bytes",
             )
-            assert reply_card_text(page).count("A reply can stream in pieces:") == 1
+            assert reply_card_text(page).count(MOUNTED_COMMENTARY_1) == 1
+            assert reply_card_text(page).count(MOUNTED_COMMENTARY_2) == 1
+            assert timestamps_path.read_text(encoding="utf-8").count("\n") == 2
+            assert len(re.findall(r"─── \d{2}:\d{2}:\d{2}", reply_card_text(page))) == 2
             assert refresh_calls == []
 
             release_terminal.touch()
             result = await asyncio.wait_for(parser_task, timeout=5)
             assert process.wait(timeout=1) == 0
-            assert result[0] == (
-                "A reply can stream in pieces: the words stay together and keep growing."
-            )
+            assert result[0] == MOUNTED_ANSWER
             assert terminal_sent.exists()
+            # The unphased final message committed to the session log must not
+            # duplicate the terminal answer: it appears exactly once, below
+            # the commentary.
+            panel._live_reply_last_probe = time.monotonic() - 2
+            panel.maybe_probe_live_reply_drift()
+            await wait_for_page(
+                page,
+                lambda: MOUNTED_ANSWER in reply_card_text(page),
+                "final answer below the commentary",
+            )
+            assert reply_card_text(page).count(MOUNTED_ANSWER) == 1
 
             # A normal terminal-state display render consumes the final artifact.
             # The provider's terminal text is authoritative and must not be appended
-            # a second time on top of the streamed deltas.
+            # a second time on top of the streamed answer.
             selected = page.app._get_selected_agent()
             assert selected is not None
             selected.status = "DONE"
             selected.stop_time = datetime(2026, 10, 3, 12, 1, 0)
             panel.update_display(selected)
             await wait_for_visual_idle(page)
-            assert reply_card_text(page).count("A reply can stream in pieces:") == 1
-            assert "the words stay together and keep growing." in reply_card_text(page)
+            assert reply_card_text(page).count(MOUNTED_ANSWER) == 1
+            assert MOUNTED_COMMENTARY_1 in reply_card_text(page)
+            assert MOUNTED_COMMENTARY_2 in reply_card_text(page)
             assert panel._live_reply_source is None
         finally:
             for gate in (release_second, release_terminal):

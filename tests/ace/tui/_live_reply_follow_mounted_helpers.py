@@ -22,6 +22,18 @@ from sase.ace.tui.widgets.prompt_panel._live_reply_follow import (
 )
 from sase.llm_provider._subprocess import stream_and_parse_muse_json_output
 from tests.ace.tui.visual._ace_png_snapshot_helpers import wait_for_visual_idle
+from tests.llm_provider._muse_commentary_helpers import commentary_record
+
+MOUNTED_MUSE_SESSION_ID = "mounted-stream-session"
+_MOUNTED_SESSION_DATE_PARTS = ("2026", "10", "03")
+
+MOUNTED_COMMENTARY_1 = "First tool phase running: gathering context for the reply."
+MOUNTED_COMMENTARY_2 = "Second tool phase running: assembling the final answer."
+MOUNTED_DELTA_1 = "A reply can stream in pieces: the words stay together"
+MOUNTED_DELTA_2 = " and keep growing."
+MOUNTED_ANSWER = (
+    "A reply can stream in pieces: the words stay together and keep growing."
+)
 
 
 def _envelope(payload_type: str, payload: dict[str, object]) -> str:
@@ -51,8 +63,37 @@ def _delta(text: str) -> str:
     )
 
 
-def gated_muse_script() -> str:
-    """Emit two deltas, then wait at gates before the second delta and terminal."""
+def gated_muse_script(*, session_id: str = MOUNTED_MUSE_SESSION_ID) -> str:
+    """Emit lifecycle events on stdout while commentary flows via session log.
+
+    Matches real Muse 1.4.13: during tool phases stdout carries only
+    ``task.lifecycle.*`` (plus ``run.model.configured``) and never mid-run
+    ``run.output.delta``. The script creates the session log itself after it
+    starts and appends one commentary record per stage, flushing each. The
+    last stage commits the unphased final message to the log, then emits the
+    final-answer deltas plus ``run.terminal.completed`` on stdout.
+    """
+    records = {
+        "commentary_1": commentary_record(
+            session_id=session_id,
+            text=MOUNTED_COMMENTARY_1,
+            message_id="msg-1",
+            sequence=1,
+        ),
+        "commentary_2": commentary_record(
+            session_id=session_id,
+            text=MOUNTED_COMMENTARY_2,
+            message_id="msg-2",
+            sequence=2,
+        ),
+        "final_message": commentary_record(
+            session_id=session_id,
+            text=MOUNTED_ANSWER,
+            message_id="msg-final",
+            sequence=3,
+            phase=None,
+        ),
+    }
     return (
         """
 import json
@@ -60,6 +101,12 @@ import os
 import sys
 import time
 from pathlib import Path
+
+session_id = _session_id
+date_parts = _date_parts
+commentary_1 = _commentary_1
+commentary_2 = _commentary_2
+final_message = _final_message
 
 def envelope(kind, payload):
     return (json.dumps({
@@ -71,6 +118,12 @@ def envelope(kind, payload):
         "payload": payload,
     }) + "\\n").encode()
 
+def append_log(record):
+    with log_path.open("a", encoding="utf-8") as handle:
+        handle.write(record)
+        handle.flush()
+        os.fsync(handle.fileno())
+
 def wait_for(path):
     deadline = time.monotonic() + 8
     while not Path(path).exists() and time.monotonic() < deadline:
@@ -78,14 +131,27 @@ def wait_for(path):
     if not Path(path).exists():
         raise SystemExit(42)
 
+xdg = os.environ["XDG_DATA_HOME"]
+log_dir = Path(xdg).joinpath("muse", "sessions", *date_parts, session_id)
+log_dir.mkdir(parents=True, exist_ok=True)
+log_path = log_dir / "session.jsonl"
+log_path.write_text("", encoding="utf-8")
+
 command = {"command_id": "mounted-stream",
            "run_stream": {"id": "mounted-stream", "kind": "run"}}
-os.write(1, (_delta1 + _delta2).encode())
+append_log(commentary_1)
+os.write(1, envelope("task.lifecycle.started",
+                     {"event": {"kind": "started"}}))
+os.write(1, envelope("run.model.configured",
+                     {"model_id": "muse-spark-1.2",
+                      "provider_id": "muse"}))
 Path(sys.argv[1]).write_text("first batch sent", encoding="utf-8")
 wait_for(sys.argv[2])
-os.write(1, _delta3.encode())
+append_log(commentary_2)
 Path(sys.argv[3]).write_text("second batch sent", encoding="utf-8")
 wait_for(sys.argv[4])
+append_log(final_message)
+os.write(1, (_delta1 + _delta2).encode())
 os.write(1, envelope("run.terminal.completed", {
     **command,
     "terminal": "completed",
@@ -94,22 +160,36 @@ os.write(1, envelope("run.terminal.completed", {
 }))
 Path(sys.argv[5]).write_text("terminal sent", encoding="utf-8")
 """.replace(
+            "_session_id",
+            repr(session_id),
+        )
+        .replace(
+            "_date_parts",
+            repr(_MOUNTED_SESSION_DATE_PARTS),
+        )
+        .replace(
+            "_commentary_1",
+            repr(records["commentary_1"]),
+        )
+        .replace(
+            "_commentary_2",
+            repr(records["commentary_2"]),
+        )
+        .replace(
+            "_final_message",
+            repr(records["final_message"]),
+        )
+        .replace(
             "_delta1",
-            repr(_delta("A reply can stream in pieces: ")),
+            repr(_delta(MOUNTED_DELTA_1)),
         )
         .replace(
             "_delta2",
-            repr(_delta("the words stay together")),
-        )
-        .replace(
-            "_delta3",
-            repr(_delta(" and keep growing.")),
+            repr(_delta(MOUNTED_DELTA_2)),
         )
         .replace(
             "_answer",
-            repr(
-                "A reply can stream in pieces: the words stay together and keep growing."
-            ),
+            repr(MOUNTED_ANSWER),
         )
     )
 
@@ -174,6 +254,12 @@ async def exercise_gated_stream(
 
     monkeypatch.setattr(page.app, "_schedule_agents_async_refresh", track_refresh)
 
+    # The session-log tail resolves its log through XDG_DATA_HOME in this
+    # same process, so point it at a per-test fake home the fixture populates.
+    xdg_home = tmp_path / "xdg-home"
+    xdg_home.mkdir(exist_ok=True)
+    monkeypatch.setenv("XDG_DATA_HOME", str(xdg_home))
+
     first_sent = tmp_path / "first-sent"
     release_second = tmp_path / "release-second"
     second_sent = tmp_path / "second-sent"
@@ -201,16 +287,17 @@ async def exercise_gated_stream(
             stream_and_parse_muse_json_output,
             process,
             suppress_output=True,
+            session_id=MOUNTED_MUSE_SESSION_ID,
         )
     )
     try:
-        await wait_for_page(page, first_sent.exists, "first Muse delta batch")
+        await wait_for_page(page, first_sent.exists, "first commentary record")
         await wait_for_page(
             page,
             lambda: reply_path.read_text(encoding="utf-8").startswith(
-                "A reply can stream in pieces: the words stay together"
+                MOUNTED_COMMENTARY_1
             ),
-            "parser to append the first delta batch",
+            "tail to append the first commentary chunk",
         )
         assert process.poll() is None
         assert not terminal_sent.exists()
@@ -225,8 +312,8 @@ async def exercise_gated_stream(
         assert len(route_calls) == 1
         await wait_for_page(
             page,
-            lambda: "A reply can stream in pieces:" in reply_card_text(page),
-            "first partial reply in the mounted Reply card",
+            lambda: MOUNTED_COMMENTARY_1 in reply_card_text(page),
+            "first commentary in the mounted Reply card",
         )
         assert process.poll() is None
         assert timestamps_path.read_text(encoding="utf-8").count("\n") == 1
@@ -239,13 +326,13 @@ async def exercise_gated_stream(
             assert reply_card_text(page).count(old_text) == 1
 
         release_second.touch()
-        await wait_for_page(page, second_sent.exists, "second Muse delta")
+        await wait_for_page(page, second_sent.exists, "second commentary record")
         await wait_for_page(
             page,
             lambda: reply_path.read_text(encoding="utf-8").endswith(
-                " and keep growing."
+                MOUNTED_COMMENTARY_2
             ),
-            "parser to append the final delta",
+            "tail to append the second commentary chunk",
         )
         assert process.poll() is None
         assert not terminal_sent.exists()
@@ -254,10 +341,17 @@ async def exercise_gated_stream(
         panel.maybe_probe_live_reply_drift()
         await wait_for_page(
             page,
-            lambda: "and keep growing." in reply_card_text(page),
+            lambda: MOUNTED_COMMENTARY_2 in reply_card_text(page),
             "polling backstop to paint the latest bytes",
         )
-        assert reply_card_text(page).count("A reply can stream in pieces:") == 1
+        assert reply_card_text(page).count(MOUNTED_COMMENTARY_1) == 1
+        assert reply_card_text(page).count(MOUNTED_COMMENTARY_2) == 1
+        assert timestamps_path.read_text(encoding="utf-8").count("\n") == 2
+        if expected_dividers is not None:
+            assert (
+                len(re.findall(r"─── \d{2}:\d{2}:\d{2}", reply_card_text(page)))
+                == expected_dividers + 1
+            )
         assert refresh_calls == []
         if old_text is not None:
             assert reply_card_text(page).count(old_text) == 1
@@ -265,10 +359,22 @@ async def exercise_gated_stream(
         release_terminal.touch()
         result = await asyncio.wait_for(parser_task, timeout=5)
         assert process.wait(timeout=1) == 0
-        assert result[0] == (
-            "A reply can stream in pieces: the words stay together and keep growing."
-        )
+        assert result[0] == MOUNTED_ANSWER
         assert terminal_sent.exists()
+        # The unphased final message committed to the session log must not
+        # duplicate the terminal answer in the Reply card.
+        panel._live_reply_last_probe = time.monotonic() - 2
+        panel.maybe_probe_live_reply_drift()
+        await wait_for_page(
+            page,
+            lambda: MOUNTED_ANSWER in reply_card_text(page),
+            "final answer below the commentary",
+        )
+        assert reply_card_text(page).count(MOUNTED_ANSWER) == 1
+        assert reply_path.read_text(encoding="utf-8").count(MOUNTED_ANSWER) == 1
+        assert reply_path.read_text(encoding="utf-8").index(
+            MOUNTED_COMMENTARY_2
+        ) < reply_path.read_text(encoding="utf-8").index(MOUNTED_ANSWER)
     finally:
         for gate in (release_second, release_terminal):
             gate.touch(exist_ok=True)
