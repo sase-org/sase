@@ -59,6 +59,14 @@ from ._signal import (
 )
 
 if TYPE_CHECKING:
+    from ._capacity_view import (
+        CapacityHoldingRow as CapacityHoldingRow,
+        CapacityIdleGroup as CapacityIdleGroup,
+        CapacityQueuedRow as CapacityQueuedRow,
+        CapacityRiderRow as CapacityRiderRow,
+        MachineCapacityView as MachineCapacityView,
+        capacity_view as capacity_view,
+    )
     from ._machine_capacity import (
         DISPLAY_RESCAN_INTERVAL_SECONDS as DISPLAY_RESCAN_INTERVAL_SECONDS,
         MachineCapacityRecordInputs as MachineCapacityRecordInputs,
@@ -76,7 +84,13 @@ if TYPE_CHECKING:
 # consumers and admission wrappers, not by importing this package at TUI
 # startup. Keep them off the app import closure.
 _LAZY_EXPORTS = {
+    "CapacityHoldingRow": "sase.core.runner_slots._capacity_view",
+    "CapacityIdleGroup": "sase.core.runner_slots._capacity_view",
+    "CapacityQueuedRow": "sase.core.runner_slots._capacity_view",
+    "CapacityRiderRow": "sase.core.runner_slots._capacity_view",
     "DISPLAY_RESCAN_INTERVAL_SECONDS": "sase.core.runner_slots._machine_capacity",
+    "MachineCapacityView": "sase.core.runner_slots._capacity_view",
+    "capacity_view": "sase.core.runner_slots._capacity_view",
     "MachineCapacityRecordInputs": "sase.core.runner_slots._machine_capacity",
     "MachineCapacityReport": "sase.core.runner_slots._machine_capacity",
     "RUNNER_SLOT_SCAN_OPTIONS": "sase.core.runner_slots._scan",
@@ -103,6 +117,10 @@ def __dir__() -> list[str]:
 _PEP562_HOOKS = (__getattr__, __dir__)
 
 __all__ = [
+    "CapacityHoldingRow",
+    "CapacityIdleGroup",
+    "CapacityQueuedRow",
+    "CapacityRiderRow",
     "DEFAULT_QUEUE_WEIGHT",
     "DEFAULT_WAIT_PRIORITY",
     "DISPLAY_RESCAN_INTERVAL_SECONDS",
@@ -114,6 +132,7 @@ __all__ = [
     "RUNNER_SLOT_SCAN_OPTIONS",
     "MachineCapacityRecordInputs",
     "MachineCapacityReport",
+    "MachineCapacityView",
     "RunnerSlotScanCache",
     "RunnerSlotWaiter",
     "collect_runner_slot_records",
@@ -139,6 +158,7 @@ __all__ = [
     "runner_capacity_snapshot_from_capacity_records",
     "runner_slot_admission_lock",
     "capacity_session_keys_for_core",
+    "capacity_view",
     "runner_slot_candidate_record",
     "runner_slot_agent_session_key",
     "runner_slot_lock_path",

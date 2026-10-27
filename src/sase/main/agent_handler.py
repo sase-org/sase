@@ -16,6 +16,12 @@ def handle_agent_command(args: argparse.Namespace) -> None:
         handle_agents_list(args)
         sys.exit(0)
 
+    if sub == "load":
+        from sase.agents.cli_load import handle_agents_load
+
+        handle_agents_load(args)
+        sys.exit(0)
+
     if sub == "kill":
         from sase.agents.cli_kill import handle_agents_kill
 
@@ -126,7 +132,7 @@ def handle_agent_command(args: argparse.Namespace) -> None:
 
     print(
         "Usage: sase agent "
-        "{archive,artifacts,auto-restart,drain,hold,index,kill,list,names,"
+        "{archive,artifacts,auto-restart,drain,hold,index,kill,list,load,names,"
         "persist-cleanup,persist-directive,prompts,restart,revert,search,show,"
         "sync,tab,tribe,wait}"
     )

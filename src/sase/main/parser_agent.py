@@ -10,6 +10,7 @@ from sase.main.parser_agent_lifecycle import (
     register_agent_drain_parser,
     register_agent_kill_parser,
     register_agent_list_parser,
+    register_agent_load_parser,
     register_agent_restart_parser,
     register_agent_show_parser,
     register_agent_wait_parser,
@@ -37,6 +38,7 @@ _AGENT_SUBCOMMAND_ORDER = (
     "index",
     "kill",
     "list",
+    "load",
     "names",
     "persist-cleanup",
     "persist-directive",
@@ -67,6 +69,7 @@ def register_agent_parser(subparsers: argparse._SubParsersAction) -> None:
     )
 
     register_agent_list_parser(agents_sub)
+    register_agent_load_parser(agents_sub)
 
     from sase.ops.commands.agent import add_agent_operation_parsers
 

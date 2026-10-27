@@ -102,6 +102,39 @@ def register_agent_list_parser(agents_sub: argparse._SubParsersAction) -> None:
     )
 
 
+def register_agent_load_parser(agents_sub: argparse._SubParsersAction) -> None:
+    """Register the 'sase agent load' subcommand."""
+    load_parser = agents_sub.add_parser(
+        "load",
+        help="Show this machine's runner capacity from the authoritative report",
+        description=(
+            "Show this machine's runner capacity the way admission sees it: "
+            "occupied units against the effective limit, which agents hold "
+            "capacity and why, live agents holding nothing, and queued agents "
+            "with their real blockers. Reads the same scan cache and Rust "
+            "snapshot admission uses; display reads never take the admission "
+            "lock. Exit 0 always: an invalid snapshot reads as blocked, never "
+            "as free capacity."
+        ),
+        epilog=(
+            "examples:\n  sase agent load\n  sase agent load -j\n  sase agent load -r"
+        ),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    load_parser.add_argument(
+        "-j",
+        "--json",
+        action="store_true",
+        help="Emit the exact capacity report as JSON (stable schema)",
+    )
+    load_parser.add_argument(
+        "-r",
+        "--rescan",
+        action="store_true",
+        help="Force a fresh capacity scan instead of reusing the scan cache",
+    )
+
+
 def register_agent_kill_parser(agents_sub: argparse._SubParsersAction) -> None:
     """Register the 'sase agent kill' subcommand."""
     kill_parser = agents_sub.add_parser(

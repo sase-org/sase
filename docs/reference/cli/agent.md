@@ -13,7 +13,7 @@ Reference for `sase agent`. Run `sase agent --help` for the exact output on this
 
 ```text
 usage: sase agent [-h]
-                  {archive,artifacts,auto-restart,drain,hold,index,kill,list,names,persist-cleanup,persist-directive,prompts,restart,revert,search,show,sync,tab,tribe,wait} ...
+                  {archive,artifacts,auto-restart,drain,hold,index,kill,list,load,names,persist-cleanup,persist-directive,prompts,restart,revert,search,show,sync,tab,tribe,wait} ...
 ```
 
 Inspect and manage agents across projects. Running bare `sase agent` delegates to `sase agent list`.
@@ -38,6 +38,7 @@ Subcommands:
 | `sase agent index`             | Manage the persistent agent artifact index                                                               |
 | `sase agent kill`              | SIGTERM a running agent by name                                                                          |
 | `sase agent list`              | List running agents (pretty table by default, JSON with -j)                                              |
+| `sase agent load`              | Show this machine's runner capacity from the authoritative report                                        |
 | `sase agent names`             | Maintain the permanent agent-name registry and migrations                                                |
 | `sase agent persist-cleanup`   | Persist kill, dismiss, or save cleanup from a private request sidecar                                    |
 | `sase agent persist-directive` | Persist an agent directive update from a private request sidecar                                         |
@@ -616,6 +617,22 @@ Options:
 | `-h`, `--help`                    | show this help message and exit                                                      | —       |
 | `-j`, `--json`                    | Emit a machine-readable JSON array (stable schema)                                   | `false` |
 | `-p PROJECT`, `--project PROJECT` | Only show agents for the given project name                                          | —       |
+
+## `sase agent load`
+
+```text
+usage: sase agent load [-h] [-j] [-r]
+```
+
+Show this machine's runner capacity the way admission sees it: occupied units against the effective limit, which agents hold capacity and why, live agents holding nothing, and queued agents with their real blockers. Reads the same scan cache and Rust snapshot admission uses; display reads never take the admission lock. Exit 0 always: an invalid snapshot reads as blocked, never as free capacity.
+
+Options:
+
+| Option           | Description                                                   | Default |
+| ---------------- | ------------------------------------------------------------- | ------- |
+| `-h`, `--help`   | show this help message and exit                               | —       |
+| `-j`, `--json`   | Emit the exact capacity report as JSON (stable schema)        | `false` |
+| `-r`, `--rescan` | Force a fresh capacity scan instead of reusing the scan cache | `false` |
 
 ## `sase agent names`
 

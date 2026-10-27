@@ -166,6 +166,39 @@ whenever its own admission budgets permit. Authored `capacity=0` is rejected wit
 migration message, and persisted legacy zero-capacity records translate to the launch's
 own weight so already-parked upgrades keep the same run-alone behavior.
 
+## What holds capacity
+
+Run `sase agent load` to see this machine's capacity the way admission sees it: occupied
+units against the effective limit, one row per charged claim, live agents holding
+nothing grouped by reason, and queued agents with their real blockers.
+`sase agent load -j` prints the exact report (raw snapshot plus provenance and
+metadata). Every row below adds the stated amount to `occupied_capacity`, or nothing for
+the stated reason:
+
+- **A default worker** adds `1.0`. It charges its own standalone claim at the default
+  weight.
+- **A verify monitor** adds its starter's weight (usually `1.0`). Monitors inherit
+  `queue_weight` unless started with an override.
+- **A `-w 0` wait or epic-launch monitor** adds `0`. The explicit zero weight is a real
+  claim that occupies no capacity; its follow-up re-enters admission at the starter's
+  weight.
+- **A serial rider** adds `0`. It occupies under a session claim charged through another
+  member and renders as `shared with <holder>`.
+- **`WAITING`, not started** adds `0` (`not started`). The record is live but its run
+  has not begun.
+- **`QUEUED`** adds `0` (`queued`). The waiter is parked at the admission gate;
+  `sase agent load` shows its real blocker instead of a start time.
+- **A question or gate** adds `0` while a human decides (`waiting on a question` /
+  `waiting on a gate`). The follow-up transfers or reacquires the session claim on
+  resume.
+- **Clan, proc, and step rows** add `0` on their own. Only agent rows charge: clan
+  containers sum their members' distinct claims, `%proc` units are checked against the
+  budget at dispatch but hold no claim once running, and workflow Python/bash steps
+  never hold capacity.
+
+When the snapshot is invalid, `sase agent load` says `admission blocked` and the shown
+occupied units are a known subtotal, never free capacity.
+
 ## Held agents
 
 An active [agent hold](macros/directive-launch.md#hold-directive) keeps every agent it
