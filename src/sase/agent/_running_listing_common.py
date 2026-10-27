@@ -1,6 +1,6 @@
 """Shared helpers for snapshot-backed running-agent listings."""
 
-from collections.abc import Callable, Iterable
+from collections.abc import Callable
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -9,10 +9,6 @@ from sase.agent.listing_snapshot import snapshot_trace_bytes
 from sase.agent.names import is_process_alive
 from sase.agent.status_buckets import valid_status_bucket
 from sase.core.agent_scan_wire import AgentArtifactRecordWire, AgentArtifactScanWire
-from sase.core.runner_slots import (
-    group_records_by_runner_slot_agent_session,
-    is_runner_slot_occupying_record,
-)
 from sase.core.time import get_timezone
 from sase.monitor_state import is_monitor_member_role, monitor_state_bucket
 from sase.plan_chain import (
@@ -106,37 +102,6 @@ def record_is_live(
     ):
         liveness["process_identity"] = record.running.process_identity
     return process_alive(liveness, Path(record.artifact_dir))
-
-
-def runner_slot_holder_dirs(
-    records: Iterable[AgentArtifactRecordWire],
-    *,
-    record_is_live: RecordLiveProbe = record_is_live,
-) -> frozenset[str]:
-    """Return the artifact_dir of each shell credited with holding a slot.
-
-    Mirrors `running_agent_slot_count`'s per-agent-session dedup so this listing's
-    summed `holds_runner_slot` flags match the admission gate's occupancy
-    count for the same snapshot: a serial agent session holds one slot no matter
-    how many of its shells are simultaneously live (an overlapping root and
-    a successor mid-handoff, for instance), so only one representative
-    shell is credited per agent session. Each live parallel member still holds its
-    own slot and is credited individually.
-    """
-    holders: set[str] = set()
-    for group in group_records_by_runner_slot_agent_session(records).values():
-        serial_holder: str | None = None
-        for candidate in group:
-            if not is_runner_slot_occupying_record(candidate, record_is_live):
-                continue
-            meta = candidate.agent_meta
-            if meta is not None and meta.agent_session_parallel:
-                holders.add(candidate.artifact_dir)
-            elif serial_holder is None:
-                serial_holder = candidate.artifact_dir
-        if serial_holder is not None:
-            holders.add(serial_holder)
-    return frozenset(holders)
 
 
 def recorded_monitor_status(value: str | None) -> str | None:
@@ -237,6 +202,5 @@ __all__ = [
     "record_is_running_monitor",
     "record_status_bucket",
     "recorded_monitor_status",
-    "runner_slot_holder_dirs",
     "active_status_for_record",
 ]

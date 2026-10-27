@@ -62,20 +62,31 @@ def agent_list_entries(
 ) -> list[AgentListEntry]:
     """Return rich agent list entries for active and optionally recent agents."""
     agents = list_all_agents() if include_recent else list_running_agents()
-    # The listing layer has already filtered to live roots plus slot-relevant
-    # agent-session children and carries exact source-record occupancy. The status
-    # fallback preserves compatibility for integrations that construct
-    # RunningAgentInfo directly.
-    runner_slot_holders = tuple(
-        agent.name
-        for agent in agents
-        if _holds_runner_slot(agent) and agent.name is not None
-    )
-    runner_slots_in_use = sum(_holds_runner_slot(agent) for agent in agents)
+    # Occupancy comes from Rust accounting on the listing's own records. Hand-built
+    # RunningAgentInfo rows without a snapshot must pass holds_runner_slot
+    # explicitly; there is no status fallback.
     runner_capacity = _runner_capacity_snapshot_from_listing(
         agents,
         snapshot=getattr(agents, "artifact_snapshot", None),
     )
+    holders_from_capacity = _runner_slot_holders_from_capacity(runner_capacity, agents)
+    if holders_from_capacity is None:
+        runner_slot_holders = tuple(
+            agent.name
+            for agent in agents
+            if _holds_runner_slot(agent) and agent.name is not None
+        )
+        runner_slots_in_use = sum(_holds_runner_slot(agent) for agent in agents)
+    else:
+        runner_slot_holders = holders_from_capacity
+        occupied_lanes = (
+            None if runner_capacity is None else runner_capacity.get("occupied_lanes")
+        )
+        runner_slots_in_use = (
+            occupied_lanes
+            if type(occupied_lanes) is int
+            else sum(_holds_runner_slot(agent) for agent in agents)
+        )
     now = datetime.now(get_timezone())
     snapshot = getattr(agents, "artifact_snapshot", None)
     records_by_dir = (
@@ -152,14 +163,23 @@ def _attach_runner_slot_context(
             wait = replace(
                 wait,
                 runner_slots_in_use=runner_slots_in_use,
-                runner_slot_queue_position=positions.get(id(entry)),
-                runner_slot_queue_size=queue_size,
                 runner_occupied_capacity=occupied_capacity,
                 runner_effective_limit=effective_limit,
+                runner_slot_holders=runner_slot_holders,
+                runner_slot_queue_position=positions.get(id(entry)),
+                runner_slot_queue_size=queue_size,
                 runner_admission_limit=admission_limits.get(id(entry)),
                 runner_capacity_blockers=blockers.get(id(entry), ()),
+            )
+        else:
+            wait = replace(
+                wait,
+                runner_slots_in_use=runner_slots_in_use,
+                runner_occupied_capacity=occupied_capacity,
+                runner_effective_limit=effective_limit,
                 runner_slot_holders=runner_slot_holders,
             )
+        accounting = _accounting_entry(runner_capacity, entry.artifacts_dir)
         contextualized.append(
             replace(
                 entry,
@@ -167,6 +187,15 @@ def _attach_runner_slot_context(
                 status_bucket=bucket,
                 status_glyph=AGENT_STATUS_BUCKET_GLYPHS.get(bucket, ""),
                 wait=wait,
+                capacity_state=_optional_str(
+                    None if accounting is None else accounting.get("state")
+                ),
+                capacity_charged=_finite_float(
+                    None if accounting is None else accounting.get("charged_weight")
+                ),
+                capacity_reason=_optional_str(
+                    None if accounting is None else accounting.get("reason_code")
+                ),
             )
         )
     return contextualized
@@ -284,9 +313,52 @@ def _runner_slot_waiter_sort_key(
 
 
 def _holds_runner_slot(agent: RunningAgentInfo) -> bool:
-    if agent.holds_runner_slot is not None:
-        return agent.holds_runner_slot
-    return agent.status == "RUNNING"
+    return agent.holds_runner_slot is True
+
+
+def _runner_slot_holders_from_capacity(
+    runner_capacity: dict[str, object] | None,
+    agents: list[RunningAgentInfo],
+) -> tuple[str, ...] | None:
+    """Map snapshot claims to listed agent names, or None when claims are absent."""
+    if runner_capacity is None or "claims" not in runner_capacity:
+        return None
+    claims = runner_capacity.get("claims")
+    if not isinstance(claims, list):
+        return None
+    by_dir = {
+        agent.artifacts_dir: agent.name
+        for agent in agents
+        if agent.artifacts_dir is not None and agent.name is not None
+    }
+    names: list[str] = []
+    for claim in claims:
+        if not isinstance(claim, Mapping):
+            continue
+        owner = claim.get("owner_artifact_dir")
+        name = by_dir.get(owner) if isinstance(owner, str) else None
+        if name is not None:
+            names.append(name)
+    return tuple(names)
+
+
+def _accounting_entry(
+    runner_capacity: dict[str, object] | None,
+    artifact_dir: str | None,
+) -> dict[str, object] | None:
+    if runner_capacity is None or not artifact_dir:
+        return None
+    accounting = runner_capacity.get("accounting")
+    if not isinstance(accounting, list):
+        return None
+    for entry in accounting:
+        if isinstance(entry, Mapping) and entry.get("artifact_dir") == artifact_dir:
+            return dict(entry)
+    return None
+
+
+def _optional_str(value: object) -> str | None:
+    return value if isinstance(value, str) and value else None
 
 
 def _finite_float(value: object) -> float | None:

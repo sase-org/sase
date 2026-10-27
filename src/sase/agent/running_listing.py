@@ -23,7 +23,6 @@ from ._running_listing_common import (
     record_is_running_monitor,
     record_status_bucket,
     recorded_monitor_status,
-    runner_slot_holder_dirs,
 )
 from ._running_listing_done import done_from_snapshot, done_info_from_record
 from ._running_listing_running import (
@@ -58,7 +57,6 @@ _record_is_running_monitor = record_is_running_monitor
 _record_status_bucket = record_status_bucket
 _recorded_monitor_status = recorded_monitor_status
 _resolve_workspace_num = resolve_workspace_num
-_runner_slot_holder_dirs = runner_slot_holder_dirs
 _running_info_from_running_record = running_info_from_running_record
 
 

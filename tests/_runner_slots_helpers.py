@@ -29,6 +29,8 @@ def _record(
     agent_session_role: str | None = None,
     agent_session_parallel: bool = False,
     monitor_id: str | None = None,
+    name: str | None = None,
+    start_status: str | None = None,
     appears_as_agent: bool = True,
     done: bool = False,
     pending_question: bool = False,
@@ -42,13 +44,18 @@ def _record(
         artifact_dir=artifact_dir,
         timestamp=artifact_dir.rsplit("/", 1)[-1],
         agent_meta=AgentMetaWire(
+            name=name,
             pid=pid,
             parent_timestamp=parent_timestamp,
             agent_session=agent_session,
             agent_session_role=agent_session_role,
             agent_session_parallel=agent_session_parallel,
             agent_session_turn=(
-                AgentSessionTurnWire(kind="monitor", id=monitor_id)
+                AgentSessionTurnWire(
+                    kind="monitor",
+                    id=monitor_id,
+                    start_status=start_status,
+                )
                 if monitor_id is not None
                 else None
             ),

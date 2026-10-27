@@ -165,6 +165,9 @@ class AgentListEntry:
     monitor_start_status: str | None = None
     monitor_stop_status: str | None = None
     autonomy: dict[str, Any] | None = None
+    capacity_state: str | None = None
+    capacity_charged: float | None = None
+    capacity_reason: str | None = None
 
     @property
     def is_monitor(self) -> bool:

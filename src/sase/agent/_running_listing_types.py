@@ -31,8 +31,9 @@ class RunningAgentInfo:
     started_at: datetime | None = None
     duration_seconds: int | None = None
     artifacts_dir: str | None = None
-    # Exact scheduler occupancy from the source scan record. ``None`` preserves
-    # compatibility for integrations that construct this lightweight type.
+    # Exact scheduler occupancy from Rust accounting (``state == holding``).
+    # ``None`` means accounting was unavailable or the caller constructed this
+    # type without a snapshot; integrations must pass the flag explicitly then.
     holds_runner_slot: bool | None = None
     # Canonical clan metadata from agent_meta.json. This is intentionally not
     # inferred from the agent's dotted name because ordinary hoods are not clans.

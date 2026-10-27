@@ -19,6 +19,7 @@ from sase.core.runner_slots import (
     is_root_user_agent_record,
     is_runner_slot_occupying_record,
     is_runner_slot_user_agent_record,
+    runner_capacity_snapshot,
 )
 from sase.core.time import get_timezone
 
@@ -34,7 +35,6 @@ from ._running_listing_common import (
     record_is_running_monitor,
     record_status_bucket,
     recorded_monitor_status,
-    runner_slot_holder_dirs,
     active_status_for_record,
 )
 from ._running_listing_types import ListingDecodeCounters, RunningAgentInfo
@@ -76,7 +76,7 @@ def running_info_from_running_record(
     now: datetime,
     workspace_cache: dict[str, list],
     clan_contexts: Mapping[ClanContextKey, AgentClanContextWire],
-    holder_dirs: frozenset[str],
+    holder_dirs: frozenset[str] | None,
     record_is_live: RecordLiveProbe = default_record_is_live,
 ) -> RunningAgentInfo | None:
     """Adapt a snapshot record into RunningAgentInfo, or skip via current filters."""
@@ -143,7 +143,9 @@ def running_info_from_running_record(
         started_at=started_at,
         duration_seconds=duration_seconds,
         artifacts_dir=record.artifact_dir,
-        holds_runner_slot=record.artifact_dir in holder_dirs,
+        holds_runner_slot=(
+            None if holder_dirs is None else record.artifact_dir in holder_dirs
+        ),
         agent_clan=meta.agent_clan,
         agent_clan_generation=meta.agent_clan_generation,
         clan_tribe=clan_tribe,
@@ -195,8 +197,8 @@ def running_from_snapshot(
     now = datetime.now(get_timezone())
     workspace_cache: dict[str, list] = {}
     clan_contexts = clan_context_by_key(snapshot.clan_context)
-    holder_dirs = runner_slot_holder_dirs(
-        snapshot.records,
+    holder_dirs = _holding_artifact_dirs(
+        snapshot,
         record_is_live=effective_record_is_live,
     )
     pairs: list[tuple[str, RunningAgentInfo]] = []
@@ -226,6 +228,32 @@ def running_from_snapshot(
 
     pairs.sort(key=lambda x: x[0], reverse=True)
     return [info for _, info in pairs]
+
+
+_LISTING_CAPACITY_LIMIT = 1.0e300
+
+
+def _holding_artifact_dirs(
+    snapshot: AgentArtifactScanWire,
+    *,
+    record_is_live: RecordLiveProbe,
+) -> frozenset[str] | None:
+    """Return dirs whose Rust accounting state is ``holding``, or None if unavailable."""
+    capacity = runner_capacity_snapshot(
+        snapshot.records,
+        record_is_live,
+        effective_limit=_LISTING_CAPACITY_LIMIT,
+    )
+    accounting = capacity.get("accounting")
+    if not isinstance(accounting, list):
+        return None
+    return frozenset(
+        artifact_dir
+        for entry in accounting
+        if isinstance(entry, Mapping)
+        and entry.get("state") == "holding"
+        and isinstance((artifact_dir := entry.get("artifact_dir")), str)
+    )
 
 
 def is_visible_runner_slot_child(
