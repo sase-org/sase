@@ -139,6 +139,12 @@ class AgentLoadIndicator(Static):
         self._limit = 0.0
         self._occupied: float | None = None
         self._holders: tuple[Any, ...] = ()
+        self._source = "estimate"
+        self._report_age_seconds: float | None = None
+        self._accounting_valid: bool | None = None
+        self._over_limit: bool | None = None
+        self._scan_current: bool | None = None
+        self._limit_provenance: Any | None = None
         self._density: AgentLoadDensity = density
         super().__init__(
             _build_agent_load_text(0.0, None, dark=True, density=density),
@@ -186,6 +192,13 @@ class AgentLoadIndicator(Static):
         limit: float,
         occupied: float | None,
         holders: tuple[Any, ...] = (),
+        *,
+        source: str = "estimate",
+        report_age_seconds: float | None = None,
+        accounting_valid: bool | None = None,
+        over_limit: bool | None = None,
+        scan_current: bool | None = None,
+        limit_provenance: Any | None = None,
     ) -> None:
         """Render *limit*/*occupied*, refitting the host row on width change.
 
@@ -197,12 +210,24 @@ class AgentLoadIndicator(Static):
             limit == self._limit
             and occupied == self._occupied
             and holders == self._holders
+            and source == self._source
+            and report_age_seconds == self._report_age_seconds
+            and accounting_valid == self._accounting_valid
+            and over_limit == self._over_limit
+            and scan_current == self._scan_current
+            and limit_provenance == self._limit_provenance
         ):
             return
         old_width = self.content_cells
         self._limit = limit
         self._occupied = occupied
         self._holders = holders
+        self._source = source
+        self._report_age_seconds = report_age_seconds
+        self._accounting_valid = accounting_valid
+        self._over_limit = over_limit
+        self._scan_current = scan_current
+        self._limit_provenance = limit_provenance
         self._apply_content()
         if self.content_cells != old_width:
             self._request_host_fit()

@@ -23,6 +23,7 @@ from ..._proc_observer_models import ProcProjection
 from ...models.agent_runner_slots import RunnerCapacitySnapshot
 
 if TYPE_CHECKING:
+    from sase.core.runner_slots import MachineCapacityReport
     from sase.ace.query.types import QueryExpr
     from ...agent_tabs_settings import AgentTabsViewConfig
     from ...models import Agent
@@ -123,6 +124,7 @@ class PreparedApplySnapshot:
     # apply path compares ``removal_generation`` before publishing this work.
     explicit_removals: ExplicitRemovalSnapshot | None = None
     removal_generation: int = 0
+    capacity_report: MachineCapacityReport | None = None
     # Active-tab scope stage. The worker builds the tab index and the
     # scoped roster from these inputs; the stale token carries the scope
     # token so a tab switch in flight invalidates the plan.
@@ -165,6 +167,9 @@ class PreparedApplyBoundary:
     fold: PreparedFoldFiltering
     selection: PreparedApplySelectionInputs
     runner_capacity: RunnerCapacitySnapshot = field(
+        default_factory=RunnerCapacitySnapshot
+    )
+    runner_capacity_estimate: RunnerCapacitySnapshot = field(
         default_factory=RunnerCapacitySnapshot
     )
     capacity_generation: int = 0

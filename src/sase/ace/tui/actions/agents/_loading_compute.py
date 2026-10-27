@@ -339,12 +339,32 @@ def prepare_loaded_agents_apply_boundary(
     active_holds = (
         tuple(active_agent_hold_records()) if effective_runner_limit is not None else ()
     )
-    runner_capacity = refresh_runner_slot_context(
-        prep.filtered_agents,
-        effective_limit=effective_runner_limit,
-        capacity_agents=prep.capacity_agents or None,
-        active_holds=active_holds,
-    )
+    capacity_source = prep.capacity_agents or None
+    report = snapshot.capacity_report
+    if report is None:
+        runner_capacity = refresh_runner_slot_context(
+            prep.filtered_agents,
+            effective_limit=effective_runner_limit,
+            capacity_agents=capacity_source,
+            active_holds=active_holds,
+        )
+        runner_capacity_estimate = runner_capacity
+    else:
+        from copy import copy
+
+        estimate_agents = [copy(agent) for agent in prep.filtered_agents]
+        runner_capacity_estimate = refresh_runner_slot_context(
+            estimate_agents,
+            effective_limit=effective_runner_limit,
+            capacity_agents=capacity_source,
+            active_holds=active_holds,
+        )
+        runner_capacity = refresh_runner_slot_context(
+            prep.filtered_agents,
+            capacity_agents=capacity_source,
+            raw_snapshot=report.raw_snapshot,
+            report=report,
+        )
 
     # Slot annotation above stays local-only. The fleet rows are projected in
     # before folding so the finalize plan is computed over the roster the UI
@@ -367,6 +387,7 @@ def prepare_loaded_agents_apply_boundary(
         ),
         selection=snapshot.selection,
         runner_capacity=runner_capacity,
+        runner_capacity_estimate=runner_capacity_estimate,
         capacity_generation=snapshot.capacity_generation,
         proc_generation=snapshot.proc_generation,
         fleet_source_rows=fleet_source_rows,

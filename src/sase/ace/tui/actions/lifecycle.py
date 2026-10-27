@@ -51,6 +51,9 @@ class LifecycleMixin:
 
         set_startup_window(False)
         stop_tui_heap_sampler(self)
+        stop_capacity_feed = getattr(self, "_stop_machine_capacity_report_feed", None)
+        if callable(stop_capacity_feed):
+            stop_capacity_feed()
         self._stop_gc_policy()
         self._stop_gc_telemetry()
         fallback_timer = getattr(self, "_startup_deferred_fallback_timer", None)

@@ -6,6 +6,7 @@ import math
 from dataclasses import dataclass, field
 from typing import Any
 
+from sase.config.runner_limit_override import EffectiveRunnerLimitSnapshot
 from sase.core.runner_slots import DEFAULT_QUEUE_WEIGHT
 
 from .agent import AgentType
@@ -35,6 +36,7 @@ class RunnerCapacityHolder:
     label: str
     weight: float
     kind: str | None = None
+    claim_owner_key: str | None = None
 
 
 @dataclass(frozen=True)
@@ -45,6 +47,18 @@ class RunnerCapacitySnapshot:
     queue: tuple[RunnerQueueEntry, ...] = ()
     occupied_capacity: float | None = None
     holders: tuple[RunnerCapacityHolder, ...] = field(default=(), compare=False)
+    source: str = "estimate"
+    report_age_seconds: float | None = field(default=None, compare=False)
+    accounting_valid: bool | None = field(default=None, compare=False)
+    accounting_available: bool | None = field(default=None, compare=False)
+    known_occupied_capacity: float | None = field(default=None, compare=False)
+    over_limit: bool | None = field(default=None, compare=False)
+    scan_current: bool | None = field(default=None, compare=False)
+    claim_owner_keys: tuple[str, ...] = field(default=(), compare=False)
+    claim_artifact_dirs: tuple[str, ...] = field(default=(), compare=False)
+    limit_provenance: EffectiveRunnerLimitSnapshot | None = field(
+        default=None, compare=False
+    )
 
 
 def format_capacity_value(value: object, *, minimum_decimal: bool = True) -> str:

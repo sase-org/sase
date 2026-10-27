@@ -443,6 +443,9 @@ class AgentLoadingApplyMixin(
         previous_agents_with_children = list(getattr(self, "_agents_with_children", []))
         previous_agents = list(self._agents)
         previous_capacity = getattr(self, "_agent_runner_capacity", None)
+        previous_capacity_estimate = getattr(
+            self, "_agent_runner_capacity_estimate", None
+        )
         previous_capacity_generation = int(
             getattr(self, "_agents_capacity_applied_generation", 0)
         )
@@ -456,6 +459,8 @@ class AgentLoadingApplyMixin(
             self._agents_capacity_generation = roster_capacity_generation
         if capacity_inputs_stale and previous_capacity is not None:
             self._agent_runner_capacity = previous_capacity
+            if previous_capacity_estimate is not None:
+                self._agent_runner_capacity_estimate = previous_capacity_estimate
             self._agents_capacity_applied_generation = previous_capacity_generation
         else:
             boundary = replace(
@@ -463,10 +468,17 @@ class AgentLoadingApplyMixin(
                 capacity_generation=roster_capacity_generation,
             )
             self._agent_runner_capacity = boundary.runner_capacity
+            self._agent_runner_capacity_estimate = boundary.runner_capacity_estimate
+            self._agents_capacity_estimate_generation = (
+                int(getattr(self, "_agents_capacity_estimate_generation", 0)) + 1
+            )
             self._agents_capacity_applied_generation = roster_capacity_generation
         self._agents_capacity_with_children = list(
             boundary.prep.capacity_agents or boundary.fold.local_unfiltered_agents
         )
+        observe_capacity_drift = getattr(self, "_observe_machine_capacity_drift", None)
+        if callable(observe_capacity_drift):
+            observe_capacity_drift(source="roster_apply")
         unfiltered_agents = boundary.fold.unfiltered_agents
         visible_agents = boundary.fold.visible_agents
         fold_counts = boundary.fold.fold_counts

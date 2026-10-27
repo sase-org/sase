@@ -69,6 +69,8 @@ def refresh_runner_slot_context(
     capacity_agents: list[Agent] | None = None,
     active_holds: tuple[dict[str, Any], ...] = (),
     is_pid_live: Callable[[int], bool] | None = None,
+    raw_snapshot: dict[str, Any] | None = None,
+    report: Any | None = None,
 ) -> RunnerCapacitySnapshot:
     """Attach global runner-capacity context from the loaded snapshot.
 
@@ -88,31 +90,34 @@ def refresh_runner_slot_context(
     counts remain available separately from weighted capacity units so existing
     readers do not need to reinterpret a count as a fractional quantity.
     """
-    if effective_limit is None:
+    if raw_snapshot is None and effective_limit is None:
         return _refresh_runner_slot_context_fallback(agents)
 
-    probe = is_pid_live if is_pid_live is not None else _memoized_pid_probe()
     capacity_source = agents if capacity_agents is None else capacity_agents
-    parsed_artifact_paths: dict[str, Any] = {}
-    clan_containers = _clan_container_lookup(capacity_source)
-    capacity_records = tuple(
-        _capacity_record_from_agent(
-            agent,
-            parsed_artifact_paths,
-            clan_containers=clan_containers,
-            is_pid_live=probe,
+    if raw_snapshot is None:
+        assert effective_limit is not None
+        probe = is_pid_live if is_pid_live is not None else _memoized_pid_probe()
+        parsed_artifact_paths: dict[str, Any] = {}
+        clan_containers = _clan_container_lookup(capacity_source)
+        capacity_records = tuple(
+            _capacity_record_from_agent(
+                agent,
+                parsed_artifact_paths,
+                clan_containers=clan_containers,
+                is_pid_live=probe,
+            )
+            for agent in capacity_source
         )
-        for agent in capacity_source
-    )
-    raw_snapshot = runner_capacity_snapshot_from_capacity_records(
-        capacity_records,
-        effective_limit=float(effective_limit),
-        active_holds=active_holds,
-    )
+        raw_snapshot = runner_capacity_snapshot_from_capacity_records(
+            capacity_records,
+            effective_limit=float(effective_limit),
+            active_holds=active_holds,
+        )
     return _apply_runner_capacity_snapshot(
         agents,
         raw_snapshot,
         capacity_agents=capacity_source,
+        report=report,
     )
 
 
@@ -212,9 +217,11 @@ def _apply_runner_capacity_snapshot(
     raw_snapshot: dict[str, Any],
     *,
     capacity_agents: list[Agent] | None = None,
+    report: Any | None = None,
 ) -> RunnerCapacitySnapshot:
     """Apply a Rust runner-capacity snapshot to mutable TUI agent rows."""
     from ._agent_clan import apply_clan_container_status, clan_members
+    from ._agent_runner_slot_report import report_capacity_snapshot_fields
 
     running_count = _int_value(raw_snapshot.get("occupied_lanes")) or 0
     occupied_capacity = _finite_float(raw_snapshot.get("occupied_capacity"))
@@ -338,9 +345,14 @@ def _apply_runner_capacity_snapshot(
         slots_in_use=running_count,
         queued_count=queue_size,
         queue=tuple(queue_entries),
-        occupied_capacity=occupied_capacity,
-        holders=_capacity_holders(
-            raw_snapshot.get("claims", ()), source_agent_by_artifact_dir
+        **report_capacity_snapshot_fields(
+            raw_snapshot,
+            report,
+            source_agent_by_artifact_dir,
+            occupied_capacity,
+            _capacity_holders(
+                raw_snapshot.get("claims", ()), source_agent_by_artifact_dir
+            ),
         ),
     )
 
@@ -374,6 +386,7 @@ def _capacity_holders(
                 label=label,
                 weight=weight if weight is not None else 0.0,
                 kind=kind,
+                claim_owner_key=_text_value(claim.get("owner_key")),
             )
         )
     holders.sort(key=lambda holder: (-holder.weight, holder.label))

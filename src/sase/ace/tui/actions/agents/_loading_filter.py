@@ -75,25 +75,43 @@ class AgentLoadingFilterMixin(AgentLoadingStateMixin):
             else:
                 roster = list(getattr(self, "_agents_with_children", ()) or ())
 
-            def _compute() -> RunnerCapacitySnapshot:
+            report = getattr(self, "_machine_capacity_report", None)
+
+            def _compute() -> tuple[
+                RunnerCapacitySnapshot,
+                RunnerCapacitySnapshot,
+                list[Agent],
+            ]:
                 from sase.config.core import get_max_running_agents
                 from sase.core.agent_hold_facade import active_agent_hold_records
 
                 from ...models.agent_runner_slots import refresh_runner_slot_context
 
-                agent_copies = [copy(agent) for agent in roster]
-                return refresh_runner_slot_context(
-                    agent_copies,
+                estimate_agents = [copy(agent) for agent in roster]
+                estimate = refresh_runner_slot_context(
+                    estimate_agents,
                     effective_limit=get_max_running_agents(),
-                    capacity_agents=list(agent_copies),
+                    capacity_agents=estimate_agents,
                     active_holds=tuple(active_agent_hold_records()),
                 )
+                if report is None:
+                    return estimate, estimate, estimate_agents
+                report_agents = [copy(agent) for agent in roster]
+                authoritative = refresh_runner_slot_context(
+                    report_agents,
+                    capacity_agents=report_agents,
+                    raw_snapshot=report.raw_snapshot,
+                    report=report,
+                )
+                return authoritative, estimate, report_agents
 
-            snapshot = await asyncio.to_thread(_compute)
+            snapshot, estimate, row_updates = await asyncio.to_thread(_compute)
             if generation != int(getattr(self, "_agents_capacity_generation", 0)):
                 return
             self._apply_agents_capacity_snapshot(
                 snapshot,
+                estimate=estimate,
+                row_updates=row_updates,
                 generation=generation,
             )
         finally:
@@ -114,6 +132,8 @@ class AgentLoadingFilterMixin(AgentLoadingStateMixin):
         self,
         snapshot: RunnerCapacitySnapshot,
         *,
+        estimate: RunnerCapacitySnapshot | None = None,
+        row_updates: list[Agent] | None = None,
         generation: int,
     ) -> bool:
         """Install a cached-roster capacity snapshot if it is still current."""
@@ -123,14 +143,75 @@ class AgentLoadingFilterMixin(AgentLoadingStateMixin):
         if generation <= int(getattr(self, "_agents_capacity_applied_generation", 0)):
             return False
         self._agent_runner_capacity = snapshot  # type: ignore[attr-defined]
+        if estimate is not None:
+            self._agent_runner_capacity_estimate = estimate  # type: ignore[attr-defined]
         self._agents_capacity_applied_generation = generation  # type: ignore[attr-defined]
+        if row_updates:
+            self._apply_agents_capacity_row_updates(row_updates)
         if hasattr(self, "_agent_info_metrics_cache"):
             self._agent_info_metrics_cache = None
         if getattr(self, "current_tab", None) == "agents":
             update_info = getattr(self, "_update_agents_info_panel", None)
             if callable(update_info):
                 update_info()
+        observe_capacity_drift = getattr(self, "_observe_machine_capacity_drift", None)
+        if callable(observe_capacity_drift):
+            observe_capacity_drift(source="roster_refresh")
         return True
+
+    def _apply_agents_capacity_row_updates(self, row_updates: list[Agent]) -> None:
+        """Copy report-derived queue context into live rows and patch them."""
+        from ._roster_generation import notify_roster_status_mutation
+
+        fields = (
+            "status",
+            "runner_slots_in_use",
+            "runner_occupied_capacity",
+            "runner_effective_limit",
+            "runner_admission_limit",
+            "runner_slot_queue_position",
+            "runner_slot_queue_size",
+            "runner_capacity_blockers",
+        )
+        live_lists = (
+            getattr(self, "_agents_with_children", ()),
+            getattr(self, "_agents_capacity_with_children", ()),
+            getattr(self, "_agents_query_result", ()),
+            getattr(self, "_agents", ()),
+        )
+        live_by_identity: dict[tuple[Any, ...], list[Agent]] = {}
+        for rows in live_lists:
+            for row in rows or ():
+                targets = live_by_identity.setdefault(row.identity, [])
+                if all(target is not row for target in targets):
+                    targets.append(row)
+
+        changed_rows: dict[int, Agent] = {}
+        status_changed = False
+        for source in row_updates:
+            for target in live_by_identity.get(source.identity, ()):
+                changed = False
+                for field_name in fields:
+                    value = getattr(source, field_name)
+                    if getattr(target, field_name) == value:
+                        continue
+                    setattr(target, field_name, value)
+                    changed = True
+                    if field_name == "status":
+                        status_changed = True
+                if changed:
+                    changed_rows[id(target)] = target
+
+        if status_changed:
+            notify_roster_status_mutation(self)
+        try_patch = getattr(self, "_try_patch_agent_row", None)
+        if getattr(self, "current_tab", None) == "agents" and callable(try_patch):
+            for row in changed_rows.values():
+                try:
+                    try_patch(row, refresh_info=False)
+                except Exception:
+                    log.debug("capacity row patch failed", exc_info=True)
+        self._agent_info_metrics_cache = None  # type: ignore[attr-defined]
 
     def _snapshot_agents_for_local_display(self) -> list[Agent]:
         """Return shallow row snapshots for local display diffs."""

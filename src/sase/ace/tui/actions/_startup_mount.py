@@ -140,6 +140,13 @@ class StartupMountMixin:
         """Start services that are not required to draw the initial frame."""
         import asyncio
 
+        start_capacity_feed = getattr(self, "_start_machine_capacity_report_feed", None)
+        if callable(start_capacity_feed):
+            try:
+                start_capacity_feed()
+            except Exception:
+                log.exception("Failed to start machine capacity report feed")
+
         if self.current_tab != "artifacts":
             try:
                 self._wire_artifacts_startup_widgets()

@@ -144,6 +144,7 @@ class AgentLoadingApplySnapshotMixin(AgentLoadingStateMixin):
             fleet_rows=self._fleet_rows_for_prepared_snapshot(),
             explicit_removals=explicit_removals,
             removal_generation=int(getattr(self, "_agents_removal_generation", 0)),
+            capacity_report=getattr(self, "_machine_capacity_report", None),
             agent_tab_scope_token=current_agent_tab_scope_token(self),
             agent_tab_scope_key=tab_scope_key,
             agent_tabs_view_config=tabs_view_config,

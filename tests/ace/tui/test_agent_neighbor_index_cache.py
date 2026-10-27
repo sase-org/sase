@@ -235,6 +235,7 @@ def test_agents_info_panel_update_skips_neighbor_count() -> None:
             limit: float,
             occupied: float | None,
             holders: tuple = (),
+            **_kwargs: Any,
         ) -> None:
             self.calls.append((limit, occupied, tuple(holders)))
 

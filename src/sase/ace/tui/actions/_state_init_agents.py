@@ -110,12 +110,31 @@ def init_agent_state(self: Any) -> None:
         FLEET_ATTENTION_INVENTORY_NETWORK_REFRESH_SECONDS
     )
     self._agent_runner_capacity = RunnerCapacitySnapshot()
+    self._agent_runner_capacity_estimate = RunnerCapacitySnapshot()
     self._agents_capacity_generation = 0
     self._agents_capacity_applied_generation = 0
     self._agents_capacity_refresh_running = False
     self._agents_capacity_refresh_pending = False
     self._agents_capacity_refresh_pending_source = "unknown"
     self._agents_capacity_refresh_async_tasks = set()
+    self._machine_capacity_report = None
+    self._machine_capacity_report_generation = 0
+    self._machine_capacity_report_mono = 0.0
+    self._machine_capacity_observed_token = None
+    self._machine_capacity_refresh_generation = 0
+    self._machine_capacity_refresh_scheduled = False
+    self._machine_capacity_refresh_running = False
+    self._machine_capacity_refresh_pending = False
+    self._machine_capacity_feed_timer = None
+    self._machine_capacity_feed_tasks = set()
+    self._capacity_telemetry_tasks = set()
+    self._capacity_gauge_telemetry_signature = None
+    self._capacity_gauge_telemetry_mono = 0.0
+    self._capacity_drift_last_comparison = None
+    self._capacity_drift_consecutive = 0
+    self._capacity_drift_signature = None
+    self._capacity_drift_telemetry_mono = 0.0
+    self._agents_capacity_estimate_generation = 0
     self._agents_loading = False
     self._proc_generation = 0
     self._agents_refresh_pending = False

@@ -8,6 +8,9 @@ from textual.pilot import Pilot
 
 from sase.ace.testing import settle as settle_helpers
 from sase.ace.tui.actions import link_follow
+from sase.ace.tui.actions.event_refresh._auto_refresh import (
+    _CapacityReportFeedMixin,
+)
 from sase.ace.tui.util import shutdown
 from sase.project_display_names import ProjectRefDisplaySnapshot
 from tests._files_pane_flag import files_pane_enabled_context
@@ -87,4 +90,14 @@ def _isolate_memory_history_warmup(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
         "sase.ace.tui.memory_history.schedule_history_warmup",
         lambda _app, **_kwargs: False,
+    )
+
+
+@pytest.fixture(autouse=True)
+def _isolate_capacity_report_feed(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Keep TUI tests from scanning the real machine's capacity state."""
+    monkeypatch.setattr(
+        _CapacityReportFeedMixin,
+        "_start_machine_capacity_report_feed",
+        lambda _self: None,
     )

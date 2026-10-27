@@ -244,6 +244,34 @@ def test_update_load_noop_and_fit_requests() -> None:
         mock_fit.assert_called_once()
 
 
+def test_update_load_retains_authoritative_report_context_for_later_chip_rendering() -> (
+    None
+):
+    gauge = AgentLoadIndicator()
+    provenance = object()
+    with patch.object(gauge, "update"):
+        gauge.update_load(
+            8.0,
+            5.0,
+            source="authoritative",
+            report_age_seconds=2.5,
+            accounting_valid=True,
+            over_limit=False,
+            scan_current=True,
+            limit_provenance=provenance,
+        )
+
+    assert _build_agent_load_text(8.0, 5.0, dark=True, density="full").plain == (
+        "load: 5/8 · "
+    )
+    assert gauge._source == "authoritative"
+    assert gauge._report_age_seconds == 2.5
+    assert gauge._accounting_valid is True
+    assert gauge._over_limit is False
+    assert gauge._scan_current is True
+    assert gauge._limit_provenance is provenance
+
+
 def test_set_density_only_repaints_on_change_and_never_refits() -> None:
     gauge = AgentLoadIndicator(density="full")
     with patch.object(gauge, "update"):

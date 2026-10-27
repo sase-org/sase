@@ -66,6 +66,7 @@ class SurfaceTokenSnapshot:
     patches: SurfaceToken
     procs: SurfaceToken
     tool_runs: SurfaceToken | None = None
+    runner_capacity: SurfaceToken | None = None
 
     def token_for(self, surface: str) -> SurfaceToken:
         """Return the token for *surface*."""
@@ -90,6 +91,7 @@ class SurfaceTokenRoots:
     agent_index_path: Path | None = None
     runner_limit_override_path: Path | None = None
     agent_hold_store_path: Path | None = None
+    runner_slot_token_path: Path | None = None
     service_dir: Path | None = None
     service_state_path: Path | None = None
     service_status_path: Path | None = None
@@ -103,7 +105,7 @@ def live_surface_token_roots(*, beads_dir: Path | None = None) -> SurfaceTokenRo
     from sase.core.agent_hold_facade import agent_hold_store_path
     from sase.axe.state import axe_state_dir
     from sase.core.agent_scan_facade import default_agent_artifact_index_path
-    from sase.core.paths import sase_projects_dir
+    from sase.core.paths import sase_home, sase_projects_dir
     from sase.notifications.store import notifications_file_path
     from sase.procs.paths import proc_store_path
     from sase.service.paths import (
@@ -126,6 +128,7 @@ def live_surface_token_roots(*, beads_dir: Path | None = None) -> SurfaceTokenRo
         agent_index_path=default_agent_artifact_index_path(),
         runner_limit_override_path=runner_limit_override_path(),
         agent_hold_store_path=agent_hold_store_path(),
+        runner_slot_token_path=sase_home() / "runner_slots.token",
         axe_root=axe_state_dir(),
         notifications_path=notifications_file_path(),
         procs_path=proc_store_path(),
@@ -174,8 +177,6 @@ def probe_surface_tokens(
         agents=_probe_agents_token(
             resolved.projects_root,
             agent_index_path=resolved.agent_index_path,
-            runner_limit_override_path=resolved.runner_limit_override_path,
-            agent_hold_store_path=resolved.agent_hold_store_path,
         ),
         axe=_probe_axe_token(
             resolved.axe_root,
@@ -197,24 +198,40 @@ def probe_surface_tokens(
             resolved.tool_run_store_path,
             resolved.tool_run_wal_path,
         ),
+        runner_capacity=probe_runner_capacity_token(
+            resolved.runner_slot_token_path,
+            resolved.runner_limit_override_path,
+            resolved.agent_hold_store_path,
+        ),
     )
+
+
+def probe_runner_capacity_token(
+    runner_slot_token_path: Path | None = None,
+    runner_limit_override_path: Path | None = None,
+    agent_hold_store_path: Path | None = None,
+) -> SurfaceToken:
+    """Stat-only token for capacity reports, separate from the Agents roster."""
+    parts: list[_PathMeta] = []
+    ok = True
+    if runner_slot_token_path is not None:
+        ok = _extend_stat(parts, runner_slot_token_path, ok=ok)
+    if runner_limit_override_path is not None:
+        ok = _extend_stat(parts, runner_limit_override_path, ok=ok)
+    if agent_hold_store_path is not None:
+        ok = _extend_stat(parts, agent_hold_store_path, ok=ok)
+    return _token("runner_capacity", parts, ok=ok)
 
 
 def _probe_agents_token(
     projects_root: Path,
     *,
     agent_index_path: Path | None = None,
-    runner_limit_override_path: Path | None = None,
-    agent_hold_store_path: Path | None = None,
 ) -> SurfaceToken:
     """Token project membership, artifacts roots, and refresh pulses."""
     collected, children, ok = _open_membership(projects_root)
     if agent_index_path is not None:
         ok = _extend_stat(collected, agent_index_path, ok=ok)
-    if runner_limit_override_path is not None:
-        ok = _extend_stat(collected, runner_limit_override_path, ok=ok)
-    if agent_hold_store_path is not None:
-        ok = _extend_stat(collected, agent_hold_store_path, ok=ok)
     if children is None:
         return _token("agents", collected, ok=False)
     for entry in children:
@@ -474,6 +491,7 @@ __all__ = [
     "SurfaceTokenSnapshot",
     "live_surface_token_roots",
     "probe_procs_token",
+    "probe_runner_capacity_token",
     "probe_surface_tokens",
     "probe_tool_runs_token",
     "surface_token_drifted",

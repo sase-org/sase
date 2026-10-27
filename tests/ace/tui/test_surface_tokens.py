@@ -118,9 +118,11 @@ def test_agent_artifact_index_updates_agents_token(tmp_path: Path) -> None:
     assert first != second
 
 
-def test_runner_limit_and_hold_state_update_agents_token(tmp_path: Path) -> None:
+def test_runner_limit_updates_capacity_token_without_dirtying_agents(
+    tmp_path: Path,
+) -> None:
     roots = _roots(tmp_path)
-    first = probe_surface_tokens(roots).agents
+    first_snapshot = probe_surface_tokens(roots)
     limit_path = roots.runner_limit_override_path
     hold_path = roots.agent_hold_store_path
     assert limit_path is not None
@@ -128,13 +130,29 @@ def test_runner_limit_and_hold_state_update_agents_token(tmp_path: Path) -> None
 
     _write(limit_path, '{"limit":2}')
     os.utime(limit_path, ns=(1, 2))
-    after_limit = probe_surface_tokens(roots).agents
-    assert after_limit != first
+    after_limit = probe_surface_tokens(roots)
+    assert after_limit.runner_capacity != first_snapshot.runner_capacity
+    assert after_limit.agents == first_snapshot.agents
 
     _write(hold_path, '{"holds":[]}')
     os.utime(hold_path, ns=(3, 4))
-    after_holds = probe_surface_tokens(roots).agents
-    assert after_holds != after_limit
+    after_holds = probe_surface_tokens(roots)
+    assert after_holds.runner_capacity != after_limit.runner_capacity
+    assert after_holds.agents == after_limit.agents
+
+
+def test_runner_slot_token_updates_capacity_token_without_dirtying_agents(
+    tmp_path: Path,
+) -> None:
+    roots = _roots(tmp_path)
+    token_path = roots.runner_slot_token_path
+    assert token_path is not None
+    first = probe_surface_tokens(roots)
+    _write(token_path, "1")
+    os.utime(token_path, ns=(1, 2))
+    second = probe_surface_tokens(roots)
+    assert second.runner_capacity != first.runner_capacity
+    assert second.agents == first.agents
 
 
 def test_nested_agent_archive_is_ignored(tmp_path: Path) -> None:
@@ -328,5 +346,6 @@ def _roots(tmp_path: Path) -> SurfaceTokenRoots:
         procs_path=tmp_path / "procs.jsonl",
         beads_dir=tmp_path / "beads",
         runner_limit_override_path=tmp_path / "max_running_agents_override.json",
+        runner_slot_token_path=tmp_path / "runner_slots.token",
         agent_hold_store_path=tmp_path / "agent_holds.json",
     )
