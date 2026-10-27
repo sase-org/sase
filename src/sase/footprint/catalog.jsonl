@@ -1,4 +1,4 @@
-{"count": 3596, "rev": "69ed4d27e69a", "schema": "sase.footprint.catalog/1"}
+{"count": 3596, "rev": "84063e1f7c17", "schema": "sase.footprint.catalog/1"}
 {"area": "automation", "id": "auto:axe.agent_waits", "kind": "auto", "label": "Resolve agent wait dependencies within seconds of completion", "ns": "auto", "parent": null, "src": "sase/default_config.yml"}
 {"area": "automation", "id": "auto:axe.agent_waits.wait_checks", "kind": "auto", "label": "Resolve agent wait dependencies and write ready.json when satisfied", "ns": "auto", "parent": "auto:axe.agent_waits", "src": "sase/default_config.yml"}
 {"area": "automation", "id": "auto:axe.checks", "kind": "auto", "label": "Poll slower PR-submission and workspace-claim checks on a five-minute cadence", "ns": "auto", "parent": null, "src": "sase/default_config.yml"}
@@ -3452,7 +3452,7 @@
 {"area": "modals", "id": "view:modal.bead_note", "kind": "modal", "label": "Bead note dialog", "ns": "view", "parent": null, "src": "ace/tui/modals/bead_note_modal.py:BeadNoteModal"}
 {"area": "modals", "id": "view:modal.big_epic_phase_threshold_edit_preview", "kind": "modal", "label": "Big epic phase threshold edit preview dialog", "ns": "view", "parent": null, "src": "ace/tui/modals/models_panel_threshold_edit.py:BigEpicPhaseThresholdEditPreviewModal"}
 {"area": "modals", "id": "view:modal.big_epic_phase_threshold_value", "kind": "modal", "label": "Big epic phase threshold value dialog", "ns": "view", "parent": null, "src": "ace/tui/modals/models_panel_threshold_cards.py:BigEpicPhaseThresholdValueModal"}
-{"area": "modals", "id": "view:modal.capacity_inspector", "kind": "modal", "label": "Capacity inspector dialog", "ns": "view", "parent": null, "src": "ace/tui/modals/capacity_inspector_modal.py:CapacityInspectorModal"}
+{"area": "modals", "id": "view:modal.capacity_inspector", "kind": "modal", "label": "Capacity inspector dialog", "ns": "view", "parent": null, "src": "ace/tui/modals/capacity_inspector_screen.py:CapacityInspectorModal"}
 {"area": "modals", "id": "view:modal.command_history", "kind": "modal", "label": "Command history dialog", "ns": "view", "parent": null, "src": "ace/tui/modals/command_history_modal.py:CommandHistoryModal"}
 {"area": "modals", "id": "view:modal.command_input", "kind": "modal", "label": "Command input dialog", "ns": "view", "parent": null, "src": "ace/tui/modals/command_input_modal.py:CommandInputModal"}
 {"area": "modals", "id": "view:modal.command_line", "kind": "modal", "label": "Command line dialog", "ns": "view", "parent": null, "src": "ace/tui/command_line/screen.py:CommandLineScreen"}
