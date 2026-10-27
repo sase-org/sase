@@ -97,6 +97,13 @@ def patch_startup_loaders(
 ) -> None:
     """Replace background startup data sources with deterministic fixtures."""
     import sase.notifications as notifications
+
+    # Cap chip chrome includes the local machine label. Pin it so Agents-tab
+    # goldens never depend on the host's hostname or configured name.
+    monkeypatch.setattr(
+        "sase.core.local_machine.local_machine_label",
+        lambda: "athena",
+    )
     from sase.ace import grouping_strategy
     from sase.ace.tui import artifact_tabs
     from sase.ace.tui import artifact_reads as artifact_reads_module

@@ -251,28 +251,33 @@ a direct member that is a sequential session still contributes only one. A hidde
 top-level `STARTING` agent contributes one sase agent even though it is not selectable
 yet. Grouping mode, tribe ownership, and fold state do not change this projection.
 
-Runner load lives at the right of the row as a labeled `load: <load>/<capacity>` gauge,
-just before the model/project cluster, followed by a `·` separator. `<load>` is occupied
-runner capacity units and `<capacity>` is the current effective `max_running_agents`
-budget (temporary override first, configured value second). Normal agents claim `1.0`;
-non-default `%queue(weight=...)` / `%q(w=...)` launches claim their authored capacity
-units, and a `%q(w=0)` launch claims none. Both numbers render as integers when possible
-(`7/10`, not `7.0/10.0`), trimming to 2 decimals otherwise. If the capacity snapshot is
-unavailable, sase's TUI renders `—/—` instead of deriving a fake value from visible
-rows; when only the occupied value is unknown it renders `—/<cap>`. Capacity belongs to
-the machine running this sase's TUI session and does not change when the Agents list is
-searched, folded, filtered by tribe/project, or focused on remote rows. Rows from other
-enrolled machines never add to this machine's load, although they still show their own
-machine's capacity and weight badges (described under **Queued** below). The visible
-running count and the global queued count remain in the status strip, for example
-`8 [8 running · 1 queued]` with `load: 8/10` at the right. The gauge shares the
-usage-window ten-step color gradient, keyed on free-capacity percent, so a given color
-means the same headroom in both places; at or over capacity it becomes the inverted red
-chip, exactly as an exhausted `0%` usage window. In compact density the `load:` label
-drops, leaving `8/10`. Hovering the gauge spells out the units in use and free, or that
-new agents queue until capacity frees up when it is full. The tooltip also lists each
-claim holder and its weight, and a session's running monitor holds its session's claim
-even when the session row is under Done (see [Runner slots](../automation/monitors.md#runner-slots)).
+Runner capacity lives at the right of the row as a machine-labelled
+`⌂<machine> cap <load>/<limit>` chip, just before the model/project cluster, followed by
+a `·` separator. `<load>` is occupied runner capacity units and `<limit>` is the current
+effective `max_running_agents` budget (temporary override first, configured value
+second). An override appends `*`; a report older than about 25 s appends `⟳<age>`;
+invalid accounting renders `?/limit !` (never as free capacity); over-limit load appends
+`▲`. The first report is a roster estimate (`~5/8`); later values are authoritative.
+Normal agents claim `1.0`; non-default `%queue(weight=...)` / `%q(w=...)` launches claim
+their authored capacity units, and a `%q(w=0)` launch claims none. Both numbers render
+as integers when possible (`5/8`, not `5.0/8.0`), trimming to 2 decimals otherwise. If
+the capacity snapshot is unavailable, sase's TUI renders `—/—` instead of deriving a
+fake value from visible rows; when only the occupied value is unknown it renders
+`—/<cap>`. Capacity belongs to the machine running this sase's TUI session and does not
+change when the Agents list is searched, folded, filtered by tribe/project, or focused
+on a remote machine tab. Rows from other enrolled machines never add to this machine's
+cap, although they still show their own machine's capacity and weight badges (described
+under **Queued** below). The visible running count and the global queued count remain in
+the status strip, for example `6 [6 running · 1 queued]` with `⌂athena cap 5/8` at the
+right: running counts Running-bucket nodes, while cap is reserved runner capacity.
+Serial sessions share one claim; `-w 0` waits hold 0. The chip shares the usage-window
+ten-step color gradient, keyed on free-capacity percent, so a given color means the same
+headroom in both places; at or over capacity it becomes the inverted red chip, exactly
+as an exhausted `0%` usage window. Compact density drops the machine prefix and keeps
+the `cap` label (`cap 5/8`), never a bare `5/8`. Hovering the chip spells out headroom,
+running-versus-cap, limit provenance, snapshot age, holders, and that `,l` opens the
+capacity inspector. A session's running monitor holds its session's claim even when the
+session row is under Done (see [Runner slots](../automation/monitors.md#runner-slots)).
 The running count keeps its stable green count style. A nonzero queue count is
 cornflower blue.
 

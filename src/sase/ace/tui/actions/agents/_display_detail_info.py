@@ -245,6 +245,20 @@ class AgentInfoDisplayMixin:
         except NoMatches:
             log.debug("agents load indicator update skipped: widget tree unavailable")
         else:
+            from sase.core.agent_tab import AgentTabKey
+            from sase.core.local_machine import local_machine_label
+
+            from ._tab_scope import current_agent_tab_scope
+
+            tab_scope = current_agent_tab_scope(self)
+            remote_tab = isinstance(tab_scope, AgentTabKey) and tab_scope.kind in (
+                "machine",
+                "unresolved_machine",
+            )
+            try:
+                machine_label = local_machine_label()
+            except Exception:
+                machine_label = None
             agent_load_indicator.update_load(
                 runner_capacity.effective_limit,
                 runner_capacity.occupied_capacity,
@@ -255,6 +269,13 @@ class AgentInfoDisplayMixin:
                 over_limit=getattr(runner_capacity, "over_limit", None),
                 scan_current=getattr(runner_capacity, "scan_current", None),
                 limit_provenance=getattr(runner_capacity, "limit_provenance", None),
+                machine_label=machine_label,
+                running_nodes=running_count,
+                remote_tab=remote_tab,
+                known_occupied=getattr(
+                    runner_capacity, "known_occupied_capacity", None
+                ),
+                report=getattr(self, "_machine_capacity_report", None),
             )
         display_query, query_rich, match_count = self._agents_info_panel_query_display()
         from ._loading_disk_viewport import current_agents_history_query_key

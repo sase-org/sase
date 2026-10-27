@@ -15,8 +15,8 @@ Visual grammar, left to right (``·`` separates the two groups)::
     Compact:  opus@high · +sase
     No proj:  model: opus@high
 
-On the Agents row only, a leading ``load: <load>/<capacity>`` gauge (an
-Agents-row-only :class:`AgentLoadIndicator`) precedes this cluster.
+On the Agents row only, a leading ``⌂<machine> cap <load>/<limit>`` chip
+(an Agents-row-only :class:`AgentLoadIndicator`) precedes this cluster.
 
 ``model:`` / ``project:`` are dim micro-labels naming the launch default and
 the current project (never a sentence like "new agents ... in +sase": the
@@ -301,7 +301,7 @@ class LaunchContextBar(Horizontal):
 
 
 class AgentInfoRow(Horizontal):
-    """Agents status row: the info panel plus the load gauge and cluster."""
+    """Agents status row: the info panel plus the cap chip and cluster."""
 
     def on_resize(self, _event: Resize) -> None:
         """Refit the cluster density when the row gains or loses cells."""

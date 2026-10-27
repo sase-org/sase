@@ -78,6 +78,23 @@ def reference_sections(km: KeymapRegistry) -> Sections:
             ],
         ),
         (
+            "Capacity",
+            [
+                (
+                    "cap N/M",
+                    "This machine's runner capacity",
+                ),
+                (
+                    "running",
+                    "Running-bucket node count",
+                ),
+                (
+                    "serial / -w 0",
+                    "Share one claim; waits hold 0",
+                ),
+            ],
+        ),
+        (
             "Waiting Badges",
             [
                 ("▶2 ✓1 ?1", "Agent wait counts"),

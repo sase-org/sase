@@ -318,6 +318,7 @@ async def test_launch_context_bar_agents_full_png_snapshot(
         page.app._agent_runner_capacity = RunnerCapacitySnapshot(
             effective_limit=10.0,
             occupied_capacity=7.0,
+            source="authoritative",
         )
         page.app._update_agents_info_panel()
         load = page.app.query_one("#agent-load-indicator", AgentLoadIndicator)

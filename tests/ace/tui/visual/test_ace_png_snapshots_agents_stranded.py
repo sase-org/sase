@@ -380,6 +380,7 @@ async def test_agents_stranded_resolve_modal_png_snapshot(
 ) -> None:
     ended = datetime(2026, 10, 22, 6, 28, tzinfo=UTC)
     generated = ended.timestamp() + 31 * 3600
+    pin_agents_visual_now(monkeypatch, _NOW)
     patch_startup_loaders(monkeypatch, agents=_agents())
 
     async with AcePage(query='"visual"', patches=patches(), size=(120, 40)) as page:
@@ -423,11 +424,17 @@ async def test_agents_stranded_resolve_modal_png_snapshot(
             generated_at=generated,
         )
         agent_stranded._STRANDED_REPORT_CACHE.set("visual", report, "visual-store")
+        page.app._refresh_agents_display(list_changed=True)
+        await wait_for_visual_idle(page)
+        monkeypatch.setattr(
+            page.app, "_refresh_agents_display_debounced", lambda **_: None
+        )
         view = build_stranded_resolve_view("visual", leaf_id)
         assert view is not None
         page.app.push_screen(StrandedResolveModal(view))
         await page.expect_modal("StrandedResolveModal")
         await wait_for_svg_contains(page, "Stranded phase")
+        await wait_for_svg_contains(page, "Close bead")
         await wait_for_visual_idle(page)
 
         assert_page_svg_contains(page, "Stranded phase")

@@ -251,7 +251,7 @@ matches).
   `last seen … ago` label.
 - Remote rows show the owning machine's authored capacity and weight as `cN` / `wN`
   badges and `Capacity:` / `Weight:` detail lines, including `c0` for a persisted
-  compatibility zero-capacity record. Their load is never added to the `load:` gauge in
+  compatibility zero-capacity record. Their load is never added to the `cap` chip in
   sase's TUI Agents status row, which counts only the controller's own runners.
 - Remote stop, retry, fork, bounded content, machine status, launch-outcome checks, and
   pending question/gate actions appear only when the selected row advertises the

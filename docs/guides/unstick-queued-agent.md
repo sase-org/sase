@@ -16,8 +16,8 @@ with `held by …` waits on a hold; any other `QUEUED` row waits on runner capac
 
 ## 1. Clear a capacity wait
 
-Check the fleet load in the Agents header (`load: 8/10` means 8 of 10 capacity units are
-taken) and pick one:
+Check the fleet cap in the Agents header (`⌂athena cap 5/8` means 5 of 8 capacity units
+are taken; `6 running` on the left is Running-bucket nodes) and pick one:
 
 - Wait for a slot: waiters start in priority order as running agents finish, with no
   action needed.

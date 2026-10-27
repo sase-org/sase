@@ -16,10 +16,11 @@ turn, waiting only while the fleet is exactly full or over-committed). An author
 decision: occupied weighted load plus the candidate's own weight must fit within the
 authored positive-integer budget.
 
-sase's TUI Agents header summarizes the same global capacity state as `load: 8/10` at
-the right of the row, with `8 [8 running · 1 queued]` on the left: occupied capacity
-units, effective limit, and live waiters at the runner-capacity admission gate. The
-effective value is an active machine-wide override from
+sase's TUI Agents header splits two different counts: `6 running` on the left is
+Running-bucket nodes, while `⌂athena cap 5/8` on the right is this machine's reserved
+runner capacity against `max_running_agents`. Serial sessions share one claim; `-w 0`
+wait monitors hold 0. Compact density keeps the `cap` label (`cap 5/8`) and never shows
+a bare `5/8`. The effective limit is an active machine-wide override from
 `~/.sase/max_running_agents_override.json` first and merged configuration second. The
 queued count includes implicit-cap waits and authored `capacity=` waits.
 

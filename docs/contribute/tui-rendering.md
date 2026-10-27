@@ -19,7 +19,7 @@ Agents tab — rather than as suffixes on the tab title itself.
 ### Top-Bar Indicators
 
 The right-aligned indicator cluster speaks the same visual language as the status-row
-cluster beneath it (`load: 5/8 · model: opus@high · project: +sase`): every group
+cluster beneath it (`⌂athena cap 5/8 · model: opus@high · project: +sase`): every group
 renders as a `<type>: <body>` group where only the `<type>:` label is dim, so a group's
 value looks the same in full and compact modes, and visible groups are joined by a dim
 `·`. The left-to-right order runs from activity to system state to launch routing to

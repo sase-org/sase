@@ -198,7 +198,7 @@ tab's status row, which reads `model: <launch default> · project: +<name>`. The
 row is too narrow both labels drop, leaving `<launch default> · +<name>`. The
 `· project:` group disappears when no current project resolves or the indicator is
 disabled. On the Agents tab, the
-[runner load gauge](agents-tab-grouping.md#grouping-modes) sits just
+[cap chip](agents-tab-grouping.md#grouping-modes) sits just
 before the cluster. The chip's color is unique among currently enabled projects.
 Hovering names the project, the MRU ref it came from, and (when the head was a Patch)
 the Patch; the tooltip also names the two ways to make a project current: launch an
