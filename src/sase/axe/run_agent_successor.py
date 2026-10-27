@@ -274,6 +274,7 @@ def continue_as_successor(
         "agent_name_override": successor_name if ctx.agent_name else None,
         "workflow_name": ctx.agent_name,
         "relationships": relationships,
+        "prev_artifacts_dir": state.current_artifacts_dir,
     }
     if request.agent_session_role is not None:
         create_kwargs["agent_session_role"] = request.agent_session_role

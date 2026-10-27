@@ -128,6 +128,29 @@ def _prepare_workspace_and_repos(
         )
 
 
+def _bind_commit_finalizer_baseline_to_workspace(
+    state: RunnerRunState,
+    bootstrap: RunnerBootstrap,
+) -> None:
+    """Rebind the run-start baseline to the checkout the agent will use.
+
+    Deferred imports avoid a module-load cycle between ``sase.axe`` and
+    ``sase.llm_provider``. Best-effort: the helper never raises.
+    """
+    from sase.llm_provider.commit_finalizer_baseline import (
+        bind_run_start_baseline_to_workspace,
+    )
+    from sase.llm_provider.commit_finalizer_config import (
+        resolve_finalizer_project_dir,
+    )
+
+    bind_run_start_baseline_to_workspace(
+        resolve_finalizer_project_dir(),
+        state.artifacts_dir,
+        inherited=bootstrap.inherited_commit_finalizer_baseline,
+    )
+
+
 def _is_transient_materialization_failure(exc: BaseException) -> bool:
     current: BaseException | None = exc
     while current is not None:
@@ -313,6 +336,8 @@ def launch_agent_run(state: RunnerRunState, bootstrap: RunnerBootstrap) -> None:
         elif _is_workspace_preparation_failure(exc):
             state.exec_outcome = SETUP_WORKSPACE_FAILED_OUTCOME
         raise
+    if not state.is_home_mode:
+        _bind_commit_finalizer_baseline_to_workspace(state, bootstrap)
     _refresh_clan_summary(state, bootstrap)
 
     if state.is_home_mode:

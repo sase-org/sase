@@ -9,6 +9,9 @@ import pytest
 from sase.finalizers.commit_types import BuiltinCommitFinalizerError
 from sase.finalizers.commit_validation import raise_if_unpublished_local_commits
 from sase.llm_provider import commit_finalizer_raw_commits as raw_commits
+from sase.llm_provider.commit_finalizer_baseline import (
+    capture_opened_repo_dirty_baseline,
+)
 from sase.llm_provider.commit_finalizer_raw_commits import (
     absorb_raw_local_commits,
     unrecorded_local_commits,
@@ -105,6 +108,41 @@ def test_absorb_skips_merge_chain(
     assert repo_head(repo) == tip
 
 
+def test_absorb_soft_resets_opened_linked_repo(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("SASE_AGENT_TIMESTAMP", "run-1")
+    repo = init_repo(tmp_path / "bob-mac-capture")
+    artifacts_dir = tmp_path / "artifacts"
+    assert (
+        capture_opened_repo_dirty_baseline(
+            "linked:bob-mac-capture",
+            str(repo),
+            kind="linked",
+            name="bob-mac-capture",
+            artifacts_dir=str(artifacts_dir),
+        )
+        is None
+    )
+    base = repo_head(repo)
+    tip = commit_file(repo, "work.txt", "work\n", "agent raw linked commit")
+
+    absorbed = absorb_raw_local_commits(str(tmp_path), artifacts_dir)
+
+    assert len(absorbed) == 1
+    entry = absorbed[0]
+    assert entry.kind == "linked"
+    assert entry.name == "bob-mac-capture"
+    assert [commit.sha for commit in entry.commits] == [tip]
+    assert entry.reset_target == base
+    assert entry.recovery_ref == "refs/sase/recovery/raw-commits/run-1"
+    assert run_git(repo, "rev-parse", "--verify", entry.recovery_ref) == tip
+    assert repo_head(repo) == base
+    status = run_git(repo, "status", "--porcelain=v1")
+    assert "A  work.txt" in status.splitlines()
+
+
 def test_absorb_skips_detached_head(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -131,6 +169,36 @@ def test_absorb_skips_detached_head(
     assert len(unrecorded_local_commits(artifacts_dir)[0].commits) == 1
     assert absorb_raw_local_commits(str(tmp_path), artifacts_dir) == ()
     assert repo_head(repo) == tip
+
+
+def test_backstop_raises_for_ineligible_opened_linked_repo(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("SASE_AGENT_TIMESTAMP", "run-1")
+    repo = init_repo(tmp_path / "bob-mac-capture")
+    artifacts_dir = tmp_path / "artifacts"
+    assert (
+        capture_opened_repo_dirty_baseline(
+            "linked:bob-mac-capture",
+            str(repo),
+            kind="linked",
+            name="bob-mac-capture",
+            artifacts_dir=str(artifacts_dir),
+        )
+        is None
+    )
+    run_git(repo, "checkout", "-q", "--detach", "HEAD")
+    sha = commit_file(repo, "work.txt", "work\n", "detached linked raw commit")
+
+    assert absorb_raw_local_commits(str(tmp_path), artifacts_dir) == ()
+    with pytest.raises(BuiltinCommitFinalizerError) as exc_info:
+        raise_if_unpublished_local_commits(
+            artifacts_dir,
+            instance_id="commit",
+            invoke_result=InvokeResult(content="done"),
+        )
+    assert sha in exc_info.value.result.diagnostics[0].message
 
 
 def test_absorb_skips_operation_in_progress(

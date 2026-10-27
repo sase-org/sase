@@ -15,7 +15,12 @@ from sase.finalizers.declaration import (
 from sase.finalizers.ledger import RETRYABLE_DIAGNOSTIC_CODES
 from sase.finalizers.plan import resolve_and_persist_finalizer_plan
 from sase.llm_provider import commit_finalizer_git as finalizer_git
-from sase.llm_provider.commit_finalizer_baseline import capture_dirty_baseline
+from sase.linked_repos import record_opened_linked_repo
+from sase.llm_provider.commit_finalizer_baseline import (
+    capture_dirty_baseline,
+    capture_opened_repo_dirty_baseline,
+)
+from sase.llm_provider.commit_finalizer_state import collect_dirty_state
 from sase.llm_provider.types import InvokeResult
 from sase.macro.directives import PromptDirectives
 
@@ -147,3 +152,79 @@ def test_context_absorbs_eligible_raw_commit_into_obligation(
     second = publish_final_context(artifacts_dir=str(artifacts_dir))
     assert second.payload["commit_declaration"]["absorbed_raw_commits"] == []
     assert second.context.context_digest == first.context.context_digest
+
+
+def test_context_absorbs_opened_linked_repo_as_linked_name(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Absorbed linked clones render as ``linked:<name>`` and become dirty obligations."""
+
+    main = init_repo(tmp_path / "workspace")
+    linked = init_repo(tmp_path / "workspace" / "bob-mac-capture")
+    artifacts_dir = tmp_path / "artifacts"
+    artifacts_dir.mkdir(parents=True)
+    set_agent_env(monkeypatch, main)
+    monkeypatch.setenv("SASE_ARTIFACTS_DIR", str(artifacts_dir))
+    monkeypatch.setenv("SASE_AGENT_NAME", "agent-1")
+    monkeypatch.setenv(SASE_FINAL_TURN_NONCE_ENV, "nonce-linked")
+
+    def build(project_dir: str) -> tuple[bool, list[str], str, str]:
+        changed = finalizer_git.git_changed_files(project_dir)
+        if not changed:
+            return (False, [], "", "")
+        return (
+            True,
+            changed,
+            "commit",
+            "Uncommitted changes detected:\n" + "\n".join(changed),
+        )
+
+    monkeypatch.setattr(
+        "sase.llm_provider.commit_finalizer_state.build_commit_details",
+        build,
+    )
+    resolve_and_persist_finalizer_plan(
+        PromptDirectives(), artifacts_dir=str(artifacts_dir)
+    )
+    capture_dirty_baseline(str(main), str(artifacts_dir))
+    record_opened_linked_repo(
+        "bob-mac-capture",
+        str(linked),
+        reason="open linked clone",
+    )
+    assert (
+        capture_opened_repo_dirty_baseline(
+            "linked:bob-mac-capture",
+            str(linked),
+            kind="linked",
+            name="bob-mac-capture",
+            artifacts_dir=str(artifacts_dir),
+        )
+        is None
+    )
+    base = repo_head(linked)
+    sha = commit_file(linked, "work.txt", "work\n", "agent raw linked commit")
+
+    first = publish_final_context(artifacts_dir=str(artifacts_dir))
+    absorbed = first.payload["commit_declaration"]["absorbed_raw_commits"]
+    assert absorbed == [
+        {
+            "repo": "linked:bob-mac-capture",
+            "path": finalizer_git.normalize_path(str(linked)),
+            "commits": [{"sha": sha, "subject": "agent raw linked commit"}],
+            "recovery_ref": "refs/sase/recovery/raw-commits/260521_120000",
+            "reset_target": base,
+        }
+    ]
+    dirty = collect_dirty_state(str(main), artifact_root=artifacts_dir)
+    assert any(
+        repo.kind == "sibling"
+        and repo.path == finalizer_git.normalize_path(str(linked))
+        and "work.txt" in repo.changed_files
+        for repo in dirty.repos
+    )
+    assert any(
+        obligation.kind == "repository" and "work.txt" in obligation.paths
+        for obligation in first.context.obligations
+    )

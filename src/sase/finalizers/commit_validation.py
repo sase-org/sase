@@ -98,10 +98,11 @@ def raise_if_unpublished_local_commits(
 
     An agent's raw ``git commit`` leaves a clean tree, so dirty-state
     discovery never sees it. Any unrecorded local-only commit remaining in a
-    main, sibling, or opened external repo at execution time fails the commit
-    instance with the non-retryable ``unpublished_local_commits`` diagnostic
-    instead of reporting success. The workspace is held and the user is
-    notified through the normal failure path.
+    main, sibling, opened linked, or opened external repo at execution time
+    fails the commit instance with the non-retryable
+    ``unpublished_local_commits`` diagnostic instead of reporting success.
+    The workspace is held and the user is notified through the normal
+    failure path.
     """
 
     findings = unrecorded_local_commits(artifacts)

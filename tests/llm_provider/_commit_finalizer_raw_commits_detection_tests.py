@@ -2,15 +2,18 @@
 
 from __future__ import annotations
 
+from typing import get_args
 import subprocess
 from pathlib import Path
 
 import pytest
 
+from sase._linked_repo_markers import OpenedRepoKind
 from sase.llm_provider.commit_finalizer_baseline import (
     capture_opened_repo_dirty_baseline,
     load_finalizer_baseline_records,
 )
+from sase.llm_provider import commit_finalizer_raw_commits as raw_commits
 from sase.llm_provider.commit_finalizer_raw_commits import unrecorded_local_commits
 
 from ._commit_finalizer_raw_commits_helpers import (
@@ -488,3 +491,30 @@ def test_opened_repo_baseline_capture_records_head(tmp_path: Path) -> None:
     assert records is not None
     assert len(records) == 1
     assert records[0].head == repo_head(repo)
+
+
+def test_raw_commit_kinds_cover_opened_repo_kinds() -> None:
+    assert set(get_args(OpenedRepoKind)) <= raw_commits._RAW_COMMIT_REPO_KINDS
+
+
+def test_detects_raw_commit_in_opened_linked_repo(tmp_path: Path) -> None:
+    repo = init_repo(tmp_path / "bob-mac-capture")
+    artifacts_dir = tmp_path / "artifacts"
+
+    assert (
+        capture_opened_repo_dirty_baseline(
+            "linked:bob-mac-capture",
+            str(repo),
+            kind="linked",
+            name="bob-mac-capture",
+            artifacts_dir=str(artifacts_dir),
+        )
+        is None
+    )
+    sha = commit_file(repo, "work.txt", "work\n", "agent raw linked commit")
+
+    findings = unrecorded_local_commits(artifacts_dir)
+    assert len(findings) == 1
+    assert findings[0].kind == "linked"
+    assert findings[0].name == "bob-mac-capture"
+    assert [commit.sha for commit in findings[0].commits] == [sha]

@@ -3,9 +3,12 @@
 from __future__ import annotations
 
 import json
+import logging
 import os
+import shutil
 from collections.abc import Sequence
 from datetime import UTC, datetime
+from pathlib import Path
 from typing import Any
 
 from sase.artifacts import create_artifacts_directory
@@ -25,6 +28,8 @@ from sase.plan_chain import (
     is_plan_chain_artifact_meta,
     set_agent_session_fields,
 )
+
+_logger = logging.getLogger(__name__)
 
 
 def _explicit_autonomy_selection_from_relationships(
@@ -226,6 +231,7 @@ def create_followup_artifacts(
     agent_session_role: str | None = None,
     relationships: dict[str, Any] | None = None,
     stamp_creating_process: bool = True,
+    prev_artifacts_dir: str | None = None,
 ) -> str:
     """Create a new timestamped artifacts directory for a follow-up agent.
 
@@ -363,4 +369,53 @@ def create_followup_artifacts(
         json.dump(initial_state, f, indent=2)
 
     update_agent_artifact_index_for_marker_mutation(new_artifacts_dir)
+    workspace_dir = followup_meta.get("workspace_dir")
+    _seed_followup_commit_finalizer_baseline(
+        new_artifacts_dir,
+        prev_artifacts_dir=prev_artifacts_dir,
+        workspace_dir=workspace_dir if isinstance(workspace_dir, str) else None,
+    )
     return new_artifacts_dir
+
+
+def _seed_followup_commit_finalizer_baseline(
+    new_artifacts_dir: str,
+    *,
+    prev_artifacts_dir: str | None,
+    workspace_dir: str | None,
+) -> None:
+    """Copy the previous run's baseline, then bind it to this follow-up workspace.
+
+    In-process follow-ups get a new artifacts directory that would otherwise
+    have no ``main`` run-start record. Best-effort: never raises.
+    """
+    try:
+        from sase.llm_provider.commit_finalizer_baseline import (
+            BASELINE_FILENAME,
+            FINALIZER_BASELINE_FILENAME,
+            bind_run_start_baseline_to_workspace,
+        )
+
+        dest = Path(new_artifacts_dir)
+        dest_generic = dest / FINALIZER_BASELINE_FILENAME
+        if not dest_generic.is_file() and prev_artifacts_dir:
+            parent = Path(prev_artifacts_dir)
+            if (parent / FINALIZER_BASELINE_FILENAME).is_file():
+                source = parent / FINALIZER_BASELINE_FILENAME
+            elif (parent / BASELINE_FILENAME).is_file():
+                source = parent / BASELINE_FILENAME
+            else:
+                source = None
+            if source is not None:
+                shutil.copyfile(source, dest / source.name)
+        if workspace_dir and workspace_dir.strip():
+            bind_run_start_baseline_to_workspace(
+                workspace_dir.strip(),
+                new_artifacts_dir,
+                inherited=True,
+            )
+    except Exception:
+        _logger.warning(
+            "Failed to seed follow-up commit finalizer baseline",
+            exc_info=True,
+        )

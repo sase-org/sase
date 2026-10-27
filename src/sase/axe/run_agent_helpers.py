@@ -146,6 +146,7 @@ def create_followup_artifacts(
     agent_session_role: str | None = None,
     relationships: dict[str, Any] | None = None,
     stamp_creating_process: bool = True,
+    prev_artifacts_dir: str | None = None,
 ) -> str:
     _sync_patchable_dependencies()
     return _artifacts.create_followup_artifacts(
@@ -159,6 +160,7 @@ def create_followup_artifacts(
         agent_session_role=agent_session_role,
         relationships=relationships,
         stamp_creating_process=stamp_creating_process,
+        prev_artifacts_dir=prev_artifacts_dir,
     )
 
 

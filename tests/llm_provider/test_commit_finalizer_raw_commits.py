@@ -36,6 +36,7 @@ from sase.llm_provider.commit_finalizer_raw_commits import (
 from sase.llm_provider.types import InvokeResult
 
 from ._commit_finalizer_raw_commits_detection_tests import (
+    test_detects_raw_commit_in_opened_linked_repo,
     test_detects_raw_commits_in_main_and_sibling_oldest_first,
     test_foreign_agent_commit_is_not_raw,
     test_foreign_linked_form_trailer_is_not_raw,
@@ -46,6 +47,7 @@ from ._commit_finalizer_raw_commits_detection_tests import (
     test_own_global_form_trailer_counts_as_raw,
     test_own_linked_form_trailer_counts_as_raw,
     test_plain_raw_commit_still_counts,
+    test_raw_commit_kinds_cover_opened_repo_kinds,
     test_remote_reachable_fast_forwards_since_baseline_are_ignored,
     test_sase_type_without_agent_is_not_raw,
     test_sdd_and_headless_baseline_records_are_skipped,
@@ -56,7 +58,9 @@ from ._commit_finalizer_raw_commits_absorb_tests import (
     test_absorb_skips_merge_chain,
     test_absorb_skips_operation_in_progress,
     test_absorb_soft_resets_eligible_chain_and_is_idempotent,
+    test_absorb_soft_resets_opened_linked_repo,
     test_absorb_without_run_id_leaves_repos_untouched,
+    test_backstop_raises_for_ineligible_opened_linked_repo,
 )
 from ._commit_finalizer_raw_commits_protected_tests import (
     test_absorb_preserves_commit_before_complete_raw_suffix,
@@ -70,6 +74,7 @@ from ._commit_finalizer_raw_commits_backstop_tests import (
     test_backstop_fails_with_unpublished_local_commits,
     test_backstop_passes_when_no_unrecorded_commits,
     test_context_absorbs_eligible_raw_commit_into_obligation,
+    test_context_absorbs_opened_linked_repo_as_linked_name,
 )
 
 __all__ = [
@@ -98,10 +103,14 @@ __all__ = [
     "test_absorb_skips_operation_in_progress",
     "test_absorb_skips_raw_commit_of_baseline_dirty_path",
     "test_absorb_soft_resets_eligible_chain_and_is_idempotent",
+    "test_absorb_soft_resets_opened_linked_repo",
     "test_absorb_without_run_id_leaves_repos_untouched",
     "test_backstop_fails_with_unpublished_local_commits",
     "test_backstop_passes_when_no_unrecorded_commits",
+    "test_backstop_raises_for_ineligible_opened_linked_repo",
     "test_context_absorbs_eligible_raw_commit_into_obligation",
+    "test_context_absorbs_opened_linked_repo_as_linked_name",
+    "test_detects_raw_commit_in_opened_linked_repo",
     "test_detects_raw_commits_in_main_and_sibling_oldest_first",
     "test_foreign_agent_commit_is_not_raw",
     "test_foreign_linked_form_trailer_is_not_raw",
@@ -112,6 +121,7 @@ __all__ = [
     "test_own_global_form_trailer_counts_as_raw",
     "test_own_linked_form_trailer_counts_as_raw",
     "test_plain_raw_commit_still_counts",
+    "test_raw_commit_kinds_cover_opened_repo_kinds",
     "test_remote_reachable_fast_forwards_since_baseline_are_ignored",
     "test_sase_type_without_agent_is_not_raw",
     "test_sdd_and_headless_baseline_records_are_skipped",

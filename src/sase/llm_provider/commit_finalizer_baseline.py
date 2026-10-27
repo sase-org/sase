@@ -89,6 +89,39 @@ def capture_dirty_baseline(project_dir: str, artifacts_dir: str) -> None:
         )
 
 
+def bind_run_start_baseline_to_workspace(
+    project_dir: str,
+    artifacts_dir: str,
+    *,
+    inherited: bool,
+) -> None:
+    """Rebind run-start baseline records to the checkout this run actually uses.
+
+    Bootstrap may capture ``finalizer_baseline.json`` against a placeholder
+    workspace (deferred claim) or inherit a parent's stale ``main`` path.
+    After launch preparation claims the real workspace, this helper rebuilds
+    ``run_start`` records from :func:`collect_baseline_repositories` for
+    that checkout.
+
+    When *inherited* is true, fingerprints are emptied so a parent's
+    still-uncommitted work is this run's to commit. When false, fingerprints
+    and ``head`` are captured fresh, matching :func:`capture_dirty_baseline`.
+
+    Best-effort only: never raises. No-ops when *project_dir* is not a git
+    checkout, or when a ``run_start`` ``main`` record already names that
+    checkout.
+    """
+    try:
+        _bind_run_start_baseline_to_workspace(
+            project_dir, artifacts_dir, inherited=inherited
+        )
+    except Exception:
+        _logger.warning(
+            "Failed to bind commit finalizer run-start baseline to workspace",
+            exc_info=True,
+        )
+
+
 def capture_opened_repo_dirty_baseline(
     repo_id: str,
     repo_path: str,
@@ -326,6 +359,74 @@ def _repo_id(kind: str, name: str, repo_path: str) -> str:
     return f"{kind}:{normalize_path(repo_path)}"
 
 
+def _bind_run_start_baseline_to_workspace(
+    project_dir: str,
+    artifacts_dir: str,
+    *,
+    inherited: bool,
+) -> None:
+    project_path = Path(project_dir).expanduser()
+    if not (project_path / ".git").exists():
+        return
+    normalized_project = normalize_path(str(project_path))
+    root = Path(artifacts_dir).expanduser().resolve(strict=False)
+    root.mkdir(parents=True, exist_ok=True)
+    lock_path = root / f"{FINALIZER_BASELINE_FILENAME}.lock"
+    with locked_file(lock_path, fcntl.LOCK_EX):
+        payload = _read_finalizer_baseline_payload(root)
+        raw_records = [
+            item for item in payload.get("repositories", []) if isinstance(item, dict)
+        ]
+        if _run_start_main_matches(raw_records, normalized_project):
+            return
+        from .commit_finalizer_state import collect_baseline_repositories
+
+        baseline_repos = collect_baseline_repositories(str(project_path))
+        fingerprints: dict[str, tuple[str, str | None]] | None
+        fingerprints = {} if inherited else None
+        run_start_records = [
+            _baseline_record(
+                repo_id=_repo_id(repo.kind, repo.name, repo.path),
+                repo_path=repo.path,
+                kind=repo.kind,
+                name=repo.name,
+                scope=_BASELINE_SCOPE_RUN_START,
+                fingerprints=fingerprints,
+            )
+            for repo in baseline_repos
+        ]
+        kept_opened = [
+            item
+            for item in raw_records
+            if item.get("scope") == _BASELINE_SCOPE_OPENED_REPO
+            and _path_is_inside(str(item.get("path", "")), normalized_project)
+        ]
+        _write_finalizer_baseline_payload(root, [*run_start_records, *kept_opened])
+
+
+def _run_start_main_matches(records: list[dict[str, Any]], project_path: str) -> bool:
+    return any(
+        item.get("scope") == _BASELINE_SCOPE_RUN_START
+        and item.get("kind") == "main"
+        and normalize_path(str(item.get("path", ""))) == project_path
+        for item in records
+    )
+
+
+def _path_is_inside(child: str, parent: str) -> bool:
+    if not child:
+        return False
+    child_path = Path(normalize_path(child))
+    parent_path = Path(normalize_path(parent))
+    if child_path == parent_path:
+        return True
+    try:
+        child_path.relative_to(parent_path)
+    except ValueError:
+        return False
+    return True
+
+
 def _baseline_record(
     *,
     repo_id: str,
@@ -333,8 +434,12 @@ def _baseline_record(
     kind: str,
     name: str,
     scope: str,
+    fingerprints: Mapping[str, tuple[str, str | None]] | None = None,
 ) -> dict[str, Any]:
     path = normalize_path(repo_path)
+    fingerprint_items = (
+        dirty_path_fingerprints(path) if fingerprints is None else fingerprints
+    )
     return {
         "repo_id": repo_id,
         "path": path,
@@ -345,7 +450,7 @@ def _baseline_record(
         "head": _baseline_head(path),
         "fingerprints": {
             item_path: list(fingerprint)
-            for item_path, fingerprint in dirty_path_fingerprints(path).items()
+            for item_path, fingerprint in fingerprint_items.items()
         },
     }
 

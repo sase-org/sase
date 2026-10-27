@@ -65,6 +65,7 @@ class RunnerBootstrap:
     # ``has_dependency_wait`` plus the runner-slot queue admissions.
     has_wait: bool
     force_reuse_bead_association: ForceReuseBeadAssociation | None = None
+    inherited_commit_finalizer_baseline: bool = False
 
 
 def _write_bootstrap_agent_meta(
@@ -145,7 +146,7 @@ def _write_bootstrap_agent_meta(
     write_agent_meta(artifacts_dir, agent_meta)
 
 
-def _capture_commit_finalizer_baseline(artifacts_dir: str) -> None:
+def _capture_commit_finalizer_baseline(artifacts_dir: str) -> bool:
     """Snapshot pre-existing repository checkouts before this agent's first turn.
 
     An agent-session-attach continuation inherits its parent's baseline instead of
@@ -153,6 +154,8 @@ def _capture_commit_finalizer_baseline(artifacts_dir: str) -> None:
     so the parent's still-uncommitted work is this run's own responsibility
     to commit, not foreign dirt to exclude (plan
     ``202608/lane_baseline_inheritance.md``).
+
+    Returns ``True`` when the parent's baseline was inherited.
 
     Deferred imports avoid a module-load cycle between ``sase.axe`` and
     ``sase.llm_provider``, the same constraint ``_invoke.py`` works around
@@ -164,8 +167,9 @@ def _capture_commit_finalizer_baseline(artifacts_dir: str) -> None:
     )
 
     if _inherit_parent_commit_finalizer_baseline(artifacts_dir):
-        return
+        return True
     capture_dirty_baseline(resolve_finalizer_project_dir(), artifacts_dir)
+    return False
 
 
 def _inherit_parent_commit_finalizer_baseline(artifacts_dir: str) -> bool:
@@ -392,7 +396,9 @@ def bootstrap_agent_run(state: RunnerRunState) -> RunnerBootstrap:
     deferred_workspace = bool(os.environ.get("SASE_AGENT_DEFERRED_WORKSPACE"))
 
     enter_agent_workspace(state.workspace_dir, state.workspace_num)
-    _capture_commit_finalizer_baseline(state.artifacts_dir)
+    inherited_commit_finalizer_baseline = _capture_commit_finalizer_baseline(
+        state.artifacts_dir
+    )
 
     info = extract_directives_and_write_meta(
         state.prompt,
@@ -446,4 +452,7 @@ def bootstrap_agent_run(state: RunnerRunState) -> RunnerBootstrap:
         has_dependency_wait=has_dependency_wait,
         has_wait=has_wait,
         force_reuse_bead_association=force_reuse_bead_association,
+        inherited_commit_finalizer_baseline=(
+            inherited_commit_finalizer_baseline is True
+        ),
     )

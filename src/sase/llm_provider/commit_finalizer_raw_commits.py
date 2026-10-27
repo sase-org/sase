@@ -23,10 +23,11 @@ counts as own. A footer with a SASE ``TYPE`` tag and no ``AGENT`` tag is
 SASE tooling run outside any agent, so it is skipped. Commits with neither
 tag still count, since that is what raw ``git commit`` produces.
 
-Only ``main``, ``sibling``, and opened ``external`` repos are in scope. SDD
-stores and the agents prompt archive (both ``kind == "sdd"``) have their own
-commit flows and are never treated as raw. Repos whose baseline record has no
-``head`` (legacy artifacts, unborn HEAD, unreadable repo) are skipped.
+Only ``main``, ``sibling``, opened ``linked``, and opened ``external`` repos
+are in scope. SDD stores and the agents prompt archive (both
+``kind == "sdd"``) have their own commit flows and are never treated as raw.
+Repos whose baseline record has no ``head`` (legacy artifacts, unborn HEAD,
+unreadable repo) are skipped.
 """
 
 from __future__ import annotations
@@ -48,8 +49,10 @@ _logger = logging.getLogger(__name__)
 _GIT_TIMEOUT_SECONDS = 5
 
 #: Repo kinds whose raw local commits are in scope. SDD stores and the agents
-#: prompt archive (``sdd``) have their own commit flows.
-_RAW_COMMIT_REPO_KINDS = frozenset({"main", "sibling", "external"})
+#: prompt archive (``sdd``) have their own commit flows. ``OpenedRepoKind``
+#: values (``linked``, ``external``) must stay in this set; a unit test
+#: guards that drift.
+_RAW_COMMIT_REPO_KINDS = frozenset({"main", "sibling", "linked", "external"})
 
 #: Recovery ref pinning one absorbed HEAD per run, under ``refs/sase/``.
 _RAW_COMMIT_RECOVERY_REF_PREFIX = "refs/sase/recovery/raw-commits/"
@@ -196,7 +199,7 @@ def _run_git_mutating(
 
     Plain subprocess (like the sidecar recovery-ref pinning) rather than the
     lock-retry runner: absorption touches only agent-owned main/sibling/
-    external checkouts, never the contended shared stores.
+    linked/external checkouts, never the contended shared stores.
     """
 
     try:

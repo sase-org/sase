@@ -59,9 +59,10 @@ def test_capture_commit_finalizer_baseline_delegates_to_resolved_project_dir(
         "sase.llm_provider.commit_finalizer_baseline.capture_dirty_baseline", capture
     )
 
-    _capture_commit_finalizer_baseline(str(tmp_path / "artifacts"))
+    inherited = _capture_commit_finalizer_baseline(str(tmp_path / "artifacts"))
 
     capture.assert_called_once_with(str(tmp_path), str(tmp_path / "artifacts"))
+    assert inherited is False
 
 
 def _agent_session_attach_plan(
@@ -103,9 +104,10 @@ def test_capture_commit_finalizer_baseline_inherits_parent_baseline(
     )
     artifacts_dir = tmp_path / "artifacts"
 
-    _capture_commit_finalizer_baseline(str(artifacts_dir))
+    inherited = _capture_commit_finalizer_baseline(str(artifacts_dir))
 
     capture.assert_not_called()
+    assert inherited is True
     assert (artifacts_dir / BASELINE_FILENAME).read_text(
         encoding="utf-8"
     ) == baseline_payload
@@ -147,9 +149,10 @@ def test_capture_commit_finalizer_baseline_inherits_parent_finalizer_baseline(
     )
     artifacts_dir = tmp_path / "artifacts"
 
-    _capture_commit_finalizer_baseline(str(artifacts_dir))
+    inherited = _capture_commit_finalizer_baseline(str(artifacts_dir))
 
     capture.assert_not_called()
+    assert inherited is True
     assert (artifacts_dir / FINALIZER_BASELINE_FILENAME).read_text(
         encoding="utf-8"
     ) == baseline_payload

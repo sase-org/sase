@@ -17,6 +17,7 @@ from sase.llm_provider import commit_finalizer_git as finalizer_git
 from sase.llm_provider.commit_finalizer_baseline import (
     BASELINE_FILENAME,
     FINALIZER_BASELINE_FILENAME,
+    bind_run_start_baseline_to_workspace,
     capture_dirty_baseline,
     capture_opened_repo_dirty_baseline,
     load_dirty_baseline,
@@ -36,6 +37,13 @@ from ._commit_finalizer_sibling_helpers import (
     set_clean_main,
 )
 
+from ._commit_finalizer_baseline_bind_tests import (
+    test_bind_inherited_clears_fingerprints_and_drops_outside_opened_repos,
+    test_bind_is_noop_when_main_already_matches,
+    test_bind_noops_when_project_dir_is_not_a_git_checkout,
+    test_bind_replaces_placeholder_main_with_claimed_workspace,
+    test_bind_then_absorb_stale_baseline_incident_regression,
+)
 from ._commit_finalizer_baseline_capture_tests import (
     test_capture_records_clean_sdd_sidecar_before_late_open,
     test_capture_records_head_for_run_start_repo,
@@ -69,6 +77,7 @@ __all__ = [
     "SDD_STORAGE_SIDECAR_REPOS",
     "SIBLING_REPOS_JSON_ENV",
     "SddStore",
+    "bind_run_start_baseline_to_workspace",
     "capture_dirty_baseline",
     "capture_opened_repo_dirty_baseline",
     "collect_dirty_state",
@@ -86,6 +95,11 @@ __all__ = [
     "split_pre_existing_changed_files",
     "subprocess",
     "test_baseline_dirty_file_edited_again_stays_in_must_commit_set",
+    "test_bind_inherited_clears_fingerprints_and_drops_outside_opened_repos",
+    "test_bind_is_noop_when_main_already_matches",
+    "test_bind_noops_when_project_dir_is_not_a_git_checkout",
+    "test_bind_replaces_placeholder_main_with_claimed_workspace",
+    "test_bind_then_absorb_stale_baseline_incident_regression",
     "test_capture_records_clean_sdd_sidecar_before_late_open",
     "test_capture_records_head_for_run_start_repo",
     "test_capture_writes_fingerprints_for_dirty_paths",

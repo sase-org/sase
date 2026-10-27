@@ -1,6 +1,7 @@
 """Tests for persisted plan follow-up artifacts."""
 
 import json
+import subprocess
 from pathlib import Path
 from unittest.mock import patch
 
@@ -9,6 +10,12 @@ from sase.axe.run_agent_exec_plan_artifacts import store_followup_prompt_artifac
 from sase.axe.run_agent_helpers import create_followup_artifacts
 from sase.core.artifact_file_facade import list_explicit_artifact_files
 from sase.llm_provider._plan_utils import PlanApprovalResult
+from sase.llm_provider.commit_finalizer_baseline import (
+    FINALIZER_BASELINE_FILENAME,
+    capture_dirty_baseline,
+    load_finalizer_baseline_records,
+)
+from sase.llm_provider.commit_finalizer_git import normalize_path
 from tests._axe_run_agent_exec_plan_helpers import (
     make_ctx,
     make_state,
@@ -50,6 +57,64 @@ def test_handle_plan_marker_leaves_epic_kickoff_metadata_to_host(
     meta = json.loads((tmp_path / "artifacts" / "agent_meta.json").read_text())
     assert "epic_started_at" not in meta
     assert "epic_bead_id" not in meta
+
+
+def test_create_followup_artifacts_seeds_main_baseline_for_coder_workspace(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    """A plan-approved coder follow-up gets a main record for its workspace."""
+
+    def _init_repo(path: Path, contents: str) -> None:
+        path.mkdir()
+        subprocess.run(["git", "init", "-q", "-b", "main"], cwd=path, check=True)
+        subprocess.run(
+            ["git", "config", "user.name", "SASE Test"], cwd=path, check=True
+        )
+        subprocess.run(
+            ["git", "config", "user.email", "sase-test@example.invalid"],
+            cwd=path,
+            check=True,
+        )
+        (path / "README.md").write_text(contents, encoding="utf-8")
+        subprocess.run(["git", "add", "README.md"], cwd=path, check=True)
+        subprocess.run(["git", "commit", "-q", "-m", "initial"], cwd=path, check=True)
+
+    workspace = tmp_path / "workspace"
+    stale_primary = tmp_path / "primary"
+    _init_repo(workspace, "workspace\n")
+    _init_repo(stale_primary, "primary\n")
+    parent = tmp_path / "parent-artifacts"
+    followup = tmp_path / "followup-artifacts"
+    followup.mkdir()
+    monkeypatch.setenv("SASE_AGENT_TIMESTAMP", "260521_120000")
+    monkeypatch.setenv("CODEX_PROJECT_DIR", str(workspace))
+    monkeypatch.delenv("SASE_DISABLE_COMMIT_STOP_HOOK", raising=False)
+    capture_dirty_baseline(str(stale_primary), str(parent))
+
+    with patch(
+        "sase.axe.run_agent_helpers.create_artifacts_directory",
+        return_value=str(followup),
+    ):
+        create_followup_artifacts(
+            "test_proj",
+            {"model": "opus", "workspace_dir": str(workspace)},
+            "--code",
+            "20261027120000",
+            workspace_num=14,
+            prev_artifacts_dir=str(parent),
+        )
+
+    records = load_finalizer_baseline_records(followup)
+    assert records is not None
+    mains = [
+        record
+        for record in records
+        if record.kind == "main" and record.scope == "run_start"
+    ]
+    assert len(mains) == 1
+    assert mains[0].path == normalize_path(str(workspace))
+    assert (followup / FINALIZER_BASELINE_FILENAME).is_file()
 
 
 def test_create_followup_artifacts_persists_plan_committed_flag(tmp_path) -> None:

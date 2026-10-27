@@ -7,7 +7,7 @@ import os
 from contextlib import nullcontext
 from pathlib import Path
 from types import SimpleNamespace
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -320,6 +320,148 @@ def test_launch_agent_run_copies_rebound_exec_workspace_identity(
 
     assert state.workspace_num == 10
     assert state.workspace_dir == str(rebound)
+
+
+def test_launch_agent_run_binds_baseline_after_prepare(
+    tmp_path: Path,
+) -> None:
+    artifacts = tmp_path / "artifacts"
+    workspace = tmp_path / "project"
+    artifacts.mkdir()
+    workspace.mkdir()
+    prompt = tmp_path / "prompt.txt"
+    prompt.write_text("work", encoding="utf-8")
+    output = tmp_path / "output.txt"
+    output.write_text("", encoding="utf-8")
+    state = RunnerRunState(
+        cl_name="feature",
+        project_file=str(tmp_path / "project.sase"),
+        prompt_file=str(prompt),
+        output_path=str(output),
+        workflow_name="ace-runner",
+        timestamp="20260828_120000",
+        update_target="",
+        is_home_mode=False,
+        workspace_dir=str(workspace),
+        workspace_num=0,
+        project_name="project",
+        artifacts_timestamp="20260828120000",
+        artifacts_dir=str(artifacts),
+        prompt="work",
+        agent_name="identity-agent",
+    )
+    bootstrap = RunnerBootstrap(
+        info=AGENT_INFO,
+        agent_meta={"pid": os.getpid()},
+        retry_handoff=None,
+        deferred_workspace=False,
+        has_dependency_wait=False,
+        has_wait=False,
+        inherited_commit_finalizer_baseline=True,
+    )
+    bind = MagicMock()
+    resolve_project = MagicMock(return_value=str(workspace))
+
+    with (
+        patch("sase.axe.run_agent_runner_launch.prepare_workspace_if_needed"),
+        patch("sase.axe.run_agent_runner_launch.resolve_agent_refs_in_prompt") as refs,
+        patch(
+            "sase.axe.run_agent_runner_launch.build_output_variable_namespaces",
+            return_value={},
+        ),
+        patch(
+            "sase.axe.run_agent_runner_launch.capture_sdd_base_sha", return_value=None
+        ),
+        patch("sase.axe.run_agent_runner_launch.preload_post_gate_modules"),
+        patch(
+            "sase.axe.run_agent_runner_launch.code_swap_advisory_reader_lock",
+            return_value=nullcontext(),
+        ),
+        patch(
+            "sase.axe.run_agent_runner_launch.run_execution_loop",
+            return_value=AgentExecResult(
+                success=True,
+                current_artifacts_dir=str(artifacts),
+            ),
+        ),
+        patch(
+            "sase.llm_provider.commit_finalizer_baseline.bind_run_start_baseline_to_workspace",
+            bind,
+        ),
+        patch(
+            "sase.llm_provider.commit_finalizer_config.resolve_finalizer_project_dir",
+            resolve_project,
+        ),
+    ):
+        refs.return_value = ("work", None)
+        launch_agent_run(state, bootstrap)
+
+    bind.assert_called_once_with(str(workspace), str(artifacts), inherited=True)
+
+
+def test_launch_agent_run_skips_baseline_bind_in_home_mode(
+    tmp_path: Path,
+) -> None:
+    artifacts = tmp_path / "artifacts"
+    workspace = tmp_path / "project"
+    artifacts.mkdir()
+    workspace.mkdir()
+    prompt = tmp_path / "prompt.txt"
+    prompt.write_text("work", encoding="utf-8")
+    output = tmp_path / "output.txt"
+    output.write_text("", encoding="utf-8")
+    state = RunnerRunState(
+        cl_name="feature",
+        project_file=str(tmp_path / "project.sase"),
+        prompt_file=str(prompt),
+        output_path=str(output),
+        workflow_name="ace-runner",
+        timestamp="20260828_120000",
+        update_target="",
+        is_home_mode=True,
+        workspace_dir=str(workspace),
+        workspace_num=0,
+        project_name="project",
+        artifacts_timestamp="20260828120000",
+        artifacts_dir=str(artifacts),
+        prompt="work",
+        agent_name="identity-agent",
+    )
+    bootstrap = _launch_bootstrap()
+    bind = MagicMock()
+
+    with (
+        patch("sase.axe.run_agent_runner_launch.prepare_workspace_if_needed"),
+        patch("sase.axe.run_agent_runner_launch.write_home_running_marker"),
+        patch("sase.axe.run_agent_runner_launch.resolve_agent_refs_in_prompt") as refs,
+        patch(
+            "sase.axe.run_agent_runner_launch.build_output_variable_namespaces",
+            return_value={},
+        ),
+        patch(
+            "sase.axe.run_agent_runner_launch.capture_sdd_base_sha", return_value=None
+        ),
+        patch("sase.axe.run_agent_runner_launch.preload_post_gate_modules"),
+        patch(
+            "sase.axe.run_agent_runner_launch.code_swap_advisory_reader_lock",
+            return_value=nullcontext(),
+        ),
+        patch(
+            "sase.axe.run_agent_runner_launch.run_execution_loop",
+            return_value=AgentExecResult(
+                success=True,
+                current_artifacts_dir=str(artifacts),
+            ),
+        ),
+        patch(
+            "sase.llm_provider.commit_finalizer_baseline.bind_run_start_baseline_to_workspace",
+            bind,
+        ),
+    ):
+        refs.return_value = ("work", None)
+        launch_agent_run(state, bootstrap)
+
+    bind.assert_not_called()
 
 
 def test_launch_agent_run_marks_transient_setup_materialization_failure(
