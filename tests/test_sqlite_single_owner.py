@@ -44,6 +44,7 @@ RUST_OWNED_FILENAME_MARKERS = (
     "index.sqlite",
     "runs.sqlite",
     "metrics.sqlite",
+    "footprint.sqlite",
     "bead-read-model",
 )
 

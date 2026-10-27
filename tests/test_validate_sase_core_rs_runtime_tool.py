@@ -13,6 +13,38 @@ from tests._validate_sase_core_rs_tool_helpers import (
 pytestmark = pytest.mark.contract
 
 
+def test_validate_sase_core_rs_requires_footprint_bindings() -> None:
+    validator = load_validate_sase_core_rs()
+    footprint_bindings = {
+        "footprint_wire_schema_version",
+        "footprint_catalog_status",
+        "footprint_ingest_catalog",
+        "footprint_fold",
+        "footprint_upsert_derived",
+        "footprint_status",
+        "footprint_prune",
+        "footprint_clear",
+        "footprint_validate_overlay",
+    }
+
+    assert footprint_bindings <= set(validator.REQUIRED_BINDINGS)
+    for binding in footprint_bindings:
+        assert not validator._validate_bindings(
+            module_with_required_bindings(validator, missing={binding})
+        )
+
+
+def test_validate_sase_core_rs_requires_footprint_wire_schema() -> None:
+    validator = load_validate_sase_core_rs()
+
+    assert validator._validate_footprint_wire_schema(
+        SimpleNamespace(footprint_wire_schema_version=lambda: 1)
+    )
+    assert not validator._validate_footprint_wire_schema(
+        SimpleNamespace(footprint_wire_schema_version=lambda: 2)
+    )
+
+
 def test_validate_sase_core_rs_requires_telemetry_bindings() -> None:
     validator = load_validate_sase_core_rs()
     telemetry_bindings = {

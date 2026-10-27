@@ -40,6 +40,11 @@ EXPECTED_FINALIZER_WIRE_SCHEMA_VERSION = 2
 # sase.integrations._mobile_helper_common.EDITOR_SNIPPET_CATALOG_WIRE_SCHEMA_VERSION.
 EXPECTED_EDITOR_SNIPPET_CATALOG_WIRE_SCHEMA_VERSION = 2
 
+# Footprint ledger wire version. Keep in lockstep with
+# sase_core::footprint::FOOTPRINT_WIRE_SCHEMA_VERSION and
+# sase.core.footprint_facade.FOOTPRINT_WIRE_SCHEMA_VERSION.
+EXPECTED_FOOTPRINT_WIRE_SCHEMA_VERSION = 1
+
 REQUIRED_BINDINGS = (
     "parse_patch_project_bytes",
     "parse_project_bytes",
@@ -457,6 +462,15 @@ REQUIRED_BINDINGS = (
     "classify_project_candidates",
     "evaluate_repo_creation_form",
     "plan_project_onboarding",
+    "footprint_wire_schema_version",
+    "footprint_catalog_status",
+    "footprint_ingest_catalog",
+    "footprint_fold",
+    "footprint_upsert_derived",
+    "footprint_status",
+    "footprint_prune",
+    "footprint_clear",
+    "footprint_validate_overlay",
 )
 
 # Public Python compatibility symbols intentionally retained alongside the
@@ -901,6 +915,21 @@ def _validate_disk_inventory_wire_schema(module: ModuleType) -> bool:
         _error(
             "disk_inventory_wire_schema_version() returned stale schema: "
             f"got {actual_version}, expected 1"
+        )
+        return False
+    return True
+
+
+def _validate_footprint_wire_schema(module: ModuleType) -> bool:
+    try:
+        actual_version = int(module.footprint_wire_schema_version())
+    except Exception as exc:
+        _error(f"footprint_wire_schema_version() probe failed: {exc}")
+        return False
+    if actual_version != EXPECTED_FOOTPRINT_WIRE_SCHEMA_VERSION:
+        _error(
+            "footprint_wire_schema_version() returned stale schema: "
+            f"got {actual_version}, expected {EXPECTED_FOOTPRINT_WIRE_SCHEMA_VERSION}"
         )
         return False
     return True
@@ -3626,6 +3655,8 @@ def main(argv: list[str] | None = None) -> int:
     if not _validate_disk_inventory_wire_schema(module):
         return 1
     if not _validate_goal_ledger_wire_schema(module):
+        return 1
+    if not _validate_footprint_wire_schema(module):
         return 1
     if not _validate_gate_decision_lifecycle_contract(module):
         return 1
