@@ -105,6 +105,15 @@ def test_capacity_only_scan_preserves_admission_and_candidate_decisions(
         {"name": "done", "pid": 2**30},
         done=True,
     )
+    _artifact(
+        root,
+        "20261026020000",
+        {
+            "name": "stopped-only",
+            "pid": 2**30,
+            "stopped_at": "2026-10-26T02:01:00Z",
+        },
+    )
 
     full = scan_agent_artifacts(root)
     capacity = scan_agent_artifacts(
@@ -114,8 +123,9 @@ def test_capacity_only_scan_preserves_admission_and_candidate_decisions(
     capacity_timestamps = {record.timestamp for record in capacity.records}
     assert "20261026080000" in capacity_timestamps  # lineage re-admission
     assert "20261026070000" in capacity_timestamps  # clan-tribe re-admission
-    assert "20261026060000" not in capacity_timestamps
-    assert "20261026030000" not in capacity_timestamps
+    assert "20261026060000" not in capacity_timestamps  # dead-pid waiter
+    assert "20261026030000" not in capacity_timestamps  # done
+    assert "20261026020000" not in capacity_timestamps  # stopped, no live markers
 
     def is_live(record) -> bool:
         meta = record.agent_meta
@@ -137,6 +147,17 @@ def test_capacity_only_scan_preserves_admission_and_candidate_decisions(
             candidate=candidate,
         )
 
+    def admission_view(result: dict[str, Any]) -> dict[str, Any]:
+        # capacity_only may omit never-live dirs from accounting rows; claims,
+        # waiters, lineage owners, and occupied weights must still match.
+        return {
+            "occupied_lanes": result["occupied_lanes"],
+            "occupied_capacity": result["occupied_capacity"],
+            "claims": result["claims"],
+            "waiters": result["waiters"],
+            "candidate_decision": result.get("candidate_decision"),
+        }
+
     for index, weight in enumerate((0.5, 1.0, 2.0)):
         candidate = runner_slot_candidate_record(
             artifacts_dir=f"{root}/candidate-{index}",
@@ -147,9 +168,10 @@ def test_capacity_only_scan_preserves_admission_and_candidate_decisions(
             queue_weight_explicit=True,
             eligible_since=None,
         )
-        assert (
-            snapshot(capacity.records, candidate)["candidate_decision"]
-            == snapshot(non_done, candidate)["candidate_decision"]
+        assert admission_view(snapshot(capacity.records, candidate)) == admission_view(
+            snapshot(non_done, candidate)
         )
 
-    assert snapshot(capacity.records, None) == snapshot(non_done, None)
+    assert admission_view(snapshot(capacity.records, None)) == admission_view(
+        snapshot(non_done, None)
+    )

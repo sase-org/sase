@@ -57,14 +57,15 @@ def test_capacity_blocked_waiter_does_not_park_the_queue_behind_it(
     tmp_path: Path,
 ) -> None:
     drain_capacity = 1
+    live_pid = os.getpid()
     artifact(
         tmp_path,
         "20260913090000",
-        100,
+        live_pid,
         run_started_at="2026-09-13T09:00:00+00:00",
     )
-    drain = artifact(tmp_path, "20260913090001", 101)
-    later = artifact(tmp_path, "20260913090002", 102)
+    drain = artifact(tmp_path, "20260913090001", live_pid)
+    later = artifact(tmp_path, "20260913090002", live_pid)
 
     with (
         patch.object(
@@ -120,7 +121,7 @@ def test_canonical_only_metadata_survives_real_scan_without_waiting_marker(
     running = artifact(
         tmp_path,
         "20260913091000",
-        200,
+        os.getpid(),
         queue_capacity=100,
         queue_capacity_explicit=True,
         queue_weight=2,
