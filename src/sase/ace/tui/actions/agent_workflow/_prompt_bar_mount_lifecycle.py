@@ -214,6 +214,9 @@ class PromptBarLifecycleMixin:
         try:
             if getattr(self, "_active_prompt_bar", None) is bar:
                 self._active_prompt_bar = None
+                note = getattr(self, "_note_prompt_closed", None)
+                if callable(note):
+                    note()
         except Exception:  # noqa: BLE001 - explicit state is best-effort.
             pass
         # Phase ``post-open-quiet``: catalog warms that landed while the prompt

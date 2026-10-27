@@ -23,10 +23,12 @@ from datetime import datetime, timezone, UTC
 from pathlib import Path
 from typing import Any
 
+from _tui_freeze_report_activity import analyze_prompt_states
+
 
 PERF_ENV_VAR = "SASE_TUI_PERF_PATH"
 BUSY_WINDOW_S = 3600.0
-BUSY_DURATION_TOLERANCE_S = 120.0
+BUSY_DURATION_TOLERANCE_S = 0.000001
 BIN_S = 600.0
 JK_P95_LIMIT_MS = 16.0
 AGENTS_TAB = "agents"
@@ -37,7 +39,9 @@ CANDIDATE_STEP_S = 600.0
 CANDIDATE_LIMIT = 5
 
 JK_BASE_ACTIONS = frozenset({"next", "prev"})
-_PANE_NAV_RE = re.compile(r"^[\w-]+\.(next|prev)$")
+_PANE_NAV_RE = re.compile(
+    r"^(agents|stitches|patches|beads|files|ref:[\w-]+)\.(next|prev)$"
+)
 PANEL_ACTIONS = frozenset(
     {
         "next_agent_panel",
@@ -53,7 +57,11 @@ def default_perf_path() -> Path:
     override = os.environ.get(PERF_ENV_VAR)
     if override:
         return Path(override)
-    return Path.home() / ".sase" / "perf" / "tui_jk.jsonl"
+    return (
+        Path(os.environ.get("SASE_HOME") or Path.home() / ".sase").expanduser()
+        / "perf"
+        / "tui_jk.jsonl"
+    )
 
 
 def rotated_perf_path(path: Path) -> Path:
@@ -92,7 +100,7 @@ def _is_number(value: object) -> bool:
     )
 
 
-def classify_action(action: object) -> str:
+def classify_action(action: object, tab: object = None) -> str:
     """Bucket a perf action name for separate reporting.
 
     Only ``next``/``prev`` and verified corresponding artifact-pane action
@@ -102,7 +110,9 @@ def classify_action(action: object) -> str:
     """
     if not isinstance(action, str) or not action:
         return "other"
-    if action in JK_BASE_ACTIONS or _PANE_NAV_RE.match(action):
+    if action in JK_BASE_ACTIONS or (
+        tab == "artifacts" and _PANE_NAV_RE.fullmatch(action)
+    ):
         return "jk"
     if action.startswith(","):
         return "leader"
@@ -157,6 +167,8 @@ def analyze_instance_perf(
     coverage_start: float | None = None,
     coverage_end: float | None = None,
     activity_rows: list[dict] | None = None,
+    observation_rows: list[dict] | None = None,
+    coverage_complete: bool = True,
 ) -> dict[str, Any]:
     """Analyze attributable perf evidence for one app instance.
 
@@ -167,7 +179,7 @@ def analyze_instance_perf(
     attributable; legacy rows without one are counted with an explicit
     diagnosis and never silently assigned.
     """
-    tabs = [AGENTS_TAB, *[tab for tab in required_tabs if tab != AGENTS_TAB]]
+    tabs = list(dict.fromkeys([AGENTS_TAB, *(tab.lower() for tab in required_tabs)]))
     samples: list[dict] = []
     legacy_unattributed = 0
     foreign_instance = 0
@@ -184,7 +196,7 @@ def analyze_instance_perf(
         action = row.get("action")
         paint = row.get("paint_ms")
         wall = row.get("t_wall")
-        if not isinstance(action, str) or not _is_number(paint):
+        if not isinstance(action, str) or not _is_number(paint) or paint < 0:
             legacy_unattributed += 1
             continue
         if not _is_number(wall):
@@ -207,11 +219,32 @@ def analyze_instance_perf(
         else:
             foreign_instance += 1
 
+    observations = [
+        row for row in observation_rows or () if row.get("app_instance_id") == instance
+    ]
+    for row in observations:
+        total = row.get("perf_dropped_total")
+        if isinstance(total, int) and not isinstance(total, bool):
+            dropped_total = max(dropped_total, total)
+        checkpoint = row.get("prompt_activity")
+        if (
+            row.get("event") == "tui_memory_heartbeat"
+            and isinstance(checkpoint, dict)
+            and checkpoint.get("app_instance_id") == instance
+        ):
+            matched_activity.append(checkpoint)
+
+    samples = [
+        row
+        for row in samples
+        if (coverage_start is None or row["t_wall"] >= coverage_start)
+        and (coverage_end is None or row["t_wall"] <= coverage_end)
+    ]
     by_tab_action: dict[str, dict[str, list[float]]] = {}
     for row in samples:
         tab_value = row.get("tab")
         tab: str = tab_value if isinstance(tab_value, str) else "unknown"
-        bucket = classify_action(row.get("action"))
+        bucket = classify_action(row.get("action"), row.get("tab"))
         buckets = by_tab_action.setdefault(tab, {})
         buckets.setdefault(bucket, []).append(float(row["paint_ms"]))
     tab_summary = {
@@ -227,9 +260,11 @@ def analyze_instance_perf(
         busy_until=busy_until,
         coverage_start=coverage_start,
         coverage_end=coverage_end,
-        candidates=candidates,
+        coverage_complete=coverage_complete,
     )
-    prompt = _analyze_prompt_states(matched_activity, coverage_start, coverage_end)
+    prompt = analyze_prompt_states(
+        matched_activity, coverage_start, coverage_end, observations
+    )
 
     issues: list[str] = []
     if legacy_unattributed:
@@ -240,7 +275,7 @@ def analyze_instance_perf(
     issues.extend(busy["issues"])
     issues.extend(prompt["issues"])
 
-    targets = _perf_targets(busy, prompt, samples, matched_activity)
+    targets = _perf_targets(busy, prompt)
     statuses = [spec["status"] for spec in targets.values()]
     if "FAIL" in statuses:
         overall = "FAIL"
@@ -254,6 +289,18 @@ def analyze_instance_perf(
             "legacy_unattributed_rows": legacy_unattributed,
             "foreign_instance_rows": foreign_instance,
             "dropped_samples": dropped_total or 0,
+            "dropped_scope": "cumulative instance total through last retained sample or heartbeat",
+            "dropped_by_tab": {
+                tab: max(
+                    (
+                        row.get("dropped_by_tab", {}).get(tab, 0)
+                        for row in samples
+                        if isinstance(row.get("dropped_by_tab"), dict)
+                    ),
+                    default=0,
+                )
+                for tab in tab_summary
+            },
         },
         "by_tab": tab_summary,
         "activity_bins": busy["window_bins"],
@@ -270,16 +317,24 @@ def _window_bins(samples: list[dict], start: float, end: float) -> list[dict[str
     """Ten-minute activity bins over ``[start, end]`` for j/k samples."""
     bin_count = max(1, int(math.ceil((end - start) / BIN_S)))
     bins: list[dict[str, Any]] = [
-        {"bin_start": _iso_utc(start + index * BIN_S), "jk_n": 0, "agents_n": 0}
+        {
+            "bin_start": _iso_utc(start + index * BIN_S),
+            "jk_n": 0,
+            "agents_n": 0,
+            "by_tab": {},
+        }
         for index in range(bin_count)
     ]
     for row in samples:
         wall = float(row["t_wall"])
         if not start <= wall <= end:
             continue
-        if classify_action(row.get("action")) != "jk":
-            continue
         index = min(int((wall - start) // BIN_S), bin_count - 1)
+        kind = classify_action(row.get("action"), row.get("tab"))
+        counts = bins[index]["by_tab"].setdefault(row.get("tab", "unknown"), {})
+        counts[kind] = counts.get(kind, 0) + 1
+        if kind != "jk":
+            continue
         bins[index]["jk_n"] += 1
         if row.get("tab") == AGENTS_TAB:
             bins[index]["agents_n"] += 1
@@ -299,12 +354,13 @@ def _candidate_windows(
     jk_walls = sorted(
         float(row["t_wall"])
         for row in samples
-        if classify_action(row.get("action")) == "jk" and _is_number(row.get("t_wall"))
+        if classify_action(row.get("action"), row.get("tab")) == "jk"
+        and _is_number(row.get("t_wall"))
     )
     agents_walls = sorted(
         float(row["t_wall"])
         for row in samples
-        if classify_action(row.get("action")) == "jk"
+        if classify_action(row.get("action"), row.get("tab")) == "jk"
         and row.get("tab") == AGENTS_TAB
         and _is_number(row.get("t_wall"))
     )
@@ -315,7 +371,9 @@ def _candidate_windows(
         end = start + BUSY_WINDOW_S
         windowed = [wall for wall in jk_walls if start <= wall <= end]
         windowed_agents = [wall for wall in agents_walls if start <= wall <= end]
-        bins_hit = len({int((wall - start) // BIN_S) for wall in windowed_agents})
+        bins_hit = len(
+            {min(int((wall - start) // BIN_S), 5) for wall in windowed_agents}
+        )
         candidates.append(
             {
                 "start": _iso_utc(start),
@@ -338,7 +396,7 @@ def _validate_busy_window(
     busy_until: float | None,
     coverage_start: float | None,
     coverage_end: float | None,
-    candidates: list[dict[str, Any]],
+    coverage_complete: bool,
 ) -> dict[str, Any]:
     """Validate the selected busy hour and check per-tab sampling floors."""
     issues: list[str] = []
@@ -372,12 +430,12 @@ def _validate_busy_window(
         issues.append(reason)
         detail["reason"] = reason
         return {"detail": detail, "issues": issues, "window_bins": window_bins}
-    if coverage_start is None or coverage_end is None:
-        reason = "busy window cannot be contained without observed coverage"
+    if coverage_start is None or coverage_end is None or not coverage_complete:
+        reason = "busy window requires contiguous observed coverage"
         issues.append(reason)
         detail["reason"] = reason
         return {"detail": detail, "issues": issues, "window_bins": window_bins}
-    if busy_since < coverage_start or busy_until > coverage_end:
+    if busy_since < coverage_start - 0.000001 or busy_until > coverage_end + 0.000001:
         reason = "busy window is not contained in the observed coverage"
         issues.append(reason)
         detail["reason"] = reason
@@ -387,12 +445,13 @@ def _validate_busy_window(
         row
         for row in samples
         if busy_since <= float(row["t_wall"]) <= busy_until
-        and classify_action(row.get("action")) == "jk"
+        and classify_action(row.get("action"), row.get("tab")) == "jk"
     ]
     window_bins = _window_bins(samples, busy_since, busy_until)
     detail["window"] = {
         "start": _iso_utc(busy_since),
         "end": _iso_utc(busy_until),
+        "span_s": duration,
         "jk_n": len(windowed),
     }
     tab_results: dict[str, Any] = {}
@@ -438,73 +497,6 @@ def _validate_busy_window(
     return {"detail": detail, "issues": issues, "window_bins": window_bins}
 
 
-def _analyze_prompt_states(
-    activity_rows: list[dict],
-    coverage_start: float | None,
-    coverage_end: float | None,
-) -> dict[str, Any]:
-    """Reconstruct prompt-active versus idle durations from transitions."""
-    issues: list[str] = []
-    ordered = sorted(
-        (row for row in activity_rows if _is_number(row.get("t_wall"))),
-        key=lambda row: float(row["t_wall"]),
-    )
-    if coverage_start is None or coverage_end is None:
-        detail = {
-            "active_s": None,
-            "idle_s": None,
-            "modal_s": None,
-            "unknown_s": None,
-            "transitions": len(ordered),
-            "reason": "no observed coverage to split",
-        }
-        issues.append("prompt coverage cannot be split without observed coverage")
-        return {"detail": detail, "issues": issues}
-    current = "unknown"
-    cursor = coverage_start
-    totals = {"prompt_active": 0.0, "prompt_idle": 0.0, "modal": 0.0, "unknown": 0.0}
-    for row in ordered:
-        wall = float(row["t_wall"])
-        if wall < coverage_start:
-            current = _activity_state(row)
-            continue
-        if wall > coverage_end:
-            break
-        totals[_bucket_state(current)] += max(0.0, wall - cursor)
-        cursor = wall
-        current = _activity_state(row)
-    totals[_bucket_state(current)] += max(0.0, coverage_end - cursor)
-    split: dict[str, Any] = {
-        "active_s": round(totals["prompt_active"], 3),
-        "idle_s": round(totals["prompt_idle"], 3),
-        "modal_s": round(totals["modal"], 3),
-        "unknown_s": round(totals["unknown"], 3),
-        "transitions": len(ordered),
-        "reason": None,
-    }
-    if not ordered:
-        issues.append("no prompt activity evidence for this instance (unknown state)")
-        split["reason"] = "missing starting state and transition coverage"
-    elif totals["unknown"] > 0 and ordered[0].get("transition") != "initial":
-        issues.append("leading prompt state is unknown (no initial activity row)")
-    return {"detail": split, "issues": issues}
-
-
-def _activity_state(row: dict) -> str:
-    state = row.get("state")
-    return state if isinstance(state, str) and state else "unknown"
-
-
-def _bucket_state(state: str) -> str:
-    if state == "prompt_active":
-        return "prompt_active"
-    if state == "prompt_idle":
-        return "prompt_idle"
-    if state in ("modal_open", "modal_active"):
-        return "modal"
-    return "unknown"
-
-
 def _target(
     status: str,
     *,
@@ -526,8 +518,6 @@ def _target(
 def _perf_targets(
     busy: dict[str, Any],
     prompt: dict[str, Any],
-    samples: list[dict],
-    activity_rows: list[dict],
 ) -> dict[str, dict[str, Any]]:
     detail = busy["detail"]
     tabs = detail.get("tabs") or {}
@@ -535,7 +525,7 @@ def _perf_targets(
     distribution = agents.get("distribution") or {}
     agents_n = distribution.get("n", 0)
     agents_p95 = distribution.get("p95")
-    if not detail.get("valid") or not agents.get("sufficient"):
+    if not agents.get("sufficient"):
         jk_status = "INCOMPLETE"
         jk_reason = detail.get("reason") or (
             "no attributable representative Agents distribution"
@@ -564,7 +554,9 @@ def _perf_targets(
     if any(status == "FAIL" for status in other_tabs.values()):
         jk_status = "FAIL"
         jk_reason = None
-    elif any(status == "INCOMPLETE" for status in other_tabs.values()):
+    elif jk_status != "FAIL" and any(
+        status == "INCOMPLETE" for status in other_tabs.values()
+    ):
         jk_status = "INCOMPLETE"
         if jk_reason is None:
             jk_reason = "a declared tab lacks an attributable distribution"
@@ -572,9 +564,14 @@ def _perf_targets(
     if prompt_detail.get("unknown_s") is None:
         prompt_status = "INCOMPLETE"
         prompt_reason = prompt_detail.get("reason")
-    elif not activity_rows:
+    elif prompt_detail.get("unknown_s", 0) > 0:
         prompt_status = "INCOMPLETE"
-        prompt_reason = "missing starting state and transition coverage"
+        prompt_reason = prompt_detail.get("reason")
+    elif not prompt_detail.get("idle_s") or not (
+        prompt_detail.get("active_s") or prompt_detail.get("modal_text_entry_s")
+    ):
+        prompt_status = "INCOMPLETE"
+        prompt_reason = "need observed text-entry activity and idle time for comparison"
     else:
         prompt_status = "PASS"
         prompt_reason = None
@@ -616,3 +613,37 @@ def _perf_targets(
             reason=prompt_reason,
         ),
     }
+
+
+def format_perf_evidence(perf: dict[str, Any]) -> list[str]:
+    """Render the navigation and workload evidence alongside target verdicts."""
+    lines = [
+        f"    perf: {perf['attribution']['attributed_samples']} attributed samples, "
+        f"{perf['attribution']['dropped_samples']} dropped (cumulative)"
+    ]
+    for tab, groups in perf["by_tab"].items():
+        for kind, stats in groups.items():
+            lines.append(
+                f"      {tab}/{kind}: n={stats['n']} p50={stats['p50']:.3f} "
+                f"p95={stats['p95']:.3f} max={stats['max']:.3f} ms"
+            )
+    for candidate in perf["candidate_windows"]:
+        lines.append(
+            f"    candidate {candidate['start']}–{candidate['end']}: "
+            f"Agents n={candidate['agents_n']}, bins={candidate['agents_bins']}"
+        )
+    prompt = perf["prompt"]
+    lines.append(
+        f"    prompt seconds: active={prompt.get('active_s')} idle={prompt.get('idle_s')} "
+        f"modal={prompt.get('modal_s')} unknown={prompt.get('unknown_s')}"
+    )
+    for state, observations in (
+        prompt.get("observations", {}).get("by_state", {}).items()
+    ):
+        if observations["heartbeat_intervals"]:
+            lines.append(
+                f"      {state}: {observations['heartbeat_intervals']} heartbeat intervals, "
+                f"GC={observations['gc_total_s']:.3f}s hitches={observations['loop_hitch_seconds']:.3f}s "
+                f"suppressed={observations['loop_suppressed_seconds']:.3f}s"
+            )
+    return lines

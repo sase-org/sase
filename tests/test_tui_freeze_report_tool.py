@@ -549,3 +549,106 @@ def test_acceptance_does_not_pass_short_window_without_instance_provenance(
     assert result["overall_status"] == "INCOMPLETE"
     assert result["targets"]["coverage"]["status"] == "INCOMPLETE"
     assert result["targets"]["jk_p95"]["status"] == "INCOMPLETE"
+
+
+def test_cli_joins_rotated_perf_and_heartbeat_activity(tmp_path, tool, capsys) -> None:
+    from tests.test_tui_freeze_report_acceptance import (
+        FIRST_HEARTBEAT_TS,
+        INSTANCE,
+        _heartbeat,
+        _startup,
+    )
+
+    start = FIRST_HEARTBEAT_TS
+    end = start + 14_400
+    rows = []
+    for index in range(49):
+        wall = start + index * 300
+        row = _heartbeat(
+            wall, wall - 300, gc_count=int(index > 0), gc_seconds=0.1 if index else 0
+        )
+        row["prompt_activity"] = {
+            "event": "prompt_activity",
+            "app_instance_id": INSTANCE,
+            "pid": 41,
+            "transition": "checkpoint",
+            "sequence": 0 if index == 0 else 2,
+            "state": "prompt_idle",
+            "t_wall": wall,
+            "t_mono": wall,
+        }
+        rows.append(row)
+        if index:
+            rows.append(
+                {
+                    "event": "tui_gc_pause",
+                    "app_instance_id": INSTANCE,
+                    "start_ts": wall - 10,
+                    "ts": wall - 9.9,
+                    "duration_s": 0.1,
+                    "generation": 2,
+                    "trigger": "idle",
+                    "input_age_s": 5,
+                }
+            )
+    for offset, state, sequence in ((100, "prompt_active", 1), (200, "prompt_idle", 2)):
+        rows.append(
+            {
+                "event": "prompt_activity",
+                "app_instance_id": INSTANCE,
+                "t_wall": start + offset,
+                "t_mono": start + offset,
+                "state": state,
+                "sequence": sequence,
+                "transition": "changed",
+            }
+        )
+    stalls = _write_jsonl(tmp_path / "stalls.jsonl", rows)
+    startups = _write_jsonl(tmp_path / "startups.jsonl", [_startup()])
+    samples = [
+        {
+            "action": "next",
+            "tab": "agents",
+            "pid": 41,
+            "app_instance_id": INSTANCE,
+            "t_wall": start + (index % 4) * 600 + index // 4,
+            "t_keypress": start + (index % 4) * 600 + index // 4,
+            "model_ms": 1,
+            "paint_ms": 5,
+        }
+        for index in range(100)
+    ]
+    perf_path = tmp_path / "perf.jsonl"
+    _write_jsonl(Path(f"{perf_path}.1"), samples)
+    args = [
+        "--json",
+        "--path",
+        str(stalls),
+        "--startup-path",
+        str(startups),
+        "-p",
+        str(perf_path),
+        "--instance",
+        INSTANCE,
+        "--since",
+        str(start),
+        "--until",
+        str(end),
+        "-b",
+        str(start),
+        "-e",
+        str(start + 3600),
+    ]
+    assert tool.main(args) == 0
+    payload = json.loads(capsys.readouterr().out)
+    result = payload["instances"][INSTANCE]["acceptance"]
+    assert result["overall_status"] == "PASS"
+    assert result["perf"]["attribution"]["attributed_samples"] == 100
+    assert result["perf"]["prompt"]["active_s"] == 100
+    assert payload["inputs"]["perf_path"] == str(perf_path)
+    assert tool.main([*args, "--no-rotated"]) == 1
+    payload = json.loads(capsys.readouterr().out)
+    assert (
+        payload["instances"][INSTANCE]["acceptance"]["targets"]["jk_p95"]["status"]
+        == "INCOMPLETE"
+    )

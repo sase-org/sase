@@ -9,6 +9,7 @@ import pytest
 
 from sase.ace.tui.app import AceApp
 from tests.ace.tui._bench_tui_jk_helpers import (
+    _assert_no_stall_rows,
     _AXE_P95_BUDGET_MS,
     _KEYS_PER_SCENARIO,
     _PATCHES_P95_BUDGET_MS,
@@ -93,4 +94,4 @@ async def test_bench_axe_jk(_perf_jsonl: Path) -> None:
         f"AXE cached j/k exceeded {_AXE_P95_BUDGET_MS:g} ms p95: {summary}"
     )
     stall_path = _perf_jsonl.with_name("tui_stalls.jsonl")
-    assert not stall_path.exists() or not stall_path.read_text().strip()
+    _assert_no_stall_rows(stall_path)

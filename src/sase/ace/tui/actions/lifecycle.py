@@ -521,6 +521,9 @@ class LifecycleMixin:
 
     def _stop_gc_telemetry(self) -> None:
         """Stop GC telemetry, restoring ``gc.callbacks`` as it was found."""
+        from ..util.gc_telemetry import unregister_heartbeat_provider
+
+        unregister_heartbeat_provider("perf_activity")
         handle = getattr(self, "_gc_telemetry", None)
         if handle is None:
             return

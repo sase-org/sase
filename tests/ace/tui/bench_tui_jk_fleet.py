@@ -14,6 +14,7 @@ from sase.ace.tui.app import AceApp
 from sase.ace.tui.models.fleet_agents import project_fleet_agents
 from sase.dispatch.federation import FederationConfig
 from tests.ace.tui._bench_tui_jk_helpers import (
+    _assert_no_stall_rows,
     _print_table,
     _read_samples,
     _summarize,
@@ -136,7 +137,7 @@ async def test_bench_agents_fleet_jk_fault_scenarios(
         stats["p95"] < _FLEET_FAULT_P95_BUDGET_MS for stats in summary.values()
     ), f"Fleet fault scenario {scenario} exceeded 16 ms p95: {summary}"
     stall_path = _perf_jsonl.with_name("tui_stalls.jsonl")
-    assert not stall_path.exists() or not stall_path.read_text().strip()
+    _assert_no_stall_rows(stall_path)
 
     _assert_fault_sequence_overlapped_samples(
         scenario,

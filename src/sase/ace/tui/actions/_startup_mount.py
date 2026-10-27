@@ -30,6 +30,11 @@ class StartupMountMixin:
             TabBar,
         )
 
+        if getattr(self, "_prompt_activity", None) is not None:
+            self.screen_change_signal.subscribe(
+                self, self._perf_screen_changed, immediate=True
+            )
+            self._perf_screen_changed(self.screen)
         self._mounting = True
         try:
             self._mark_startup_on_mount()

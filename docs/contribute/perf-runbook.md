@@ -1045,10 +1045,11 @@ documented heuristic that needs a `last_keypress_age_s` context row within 2 s o
 pause), and the RSS / swap trajectory from heartbeats. `--acceptance` marks each
 sase-1f3 target pass or fail per instance (idle-collection p95 ≤ 500 ms, total GC < 3%
 of wall, hitches < 0.5% of wall, no automatic or backstop gen-2 within 2 s of input, RSS
-growth < 0.5 GiB, VmSwap about 0). Attributable j/k and prompt evidence comes from the
-perf log (next section); without `-p/--perf-path` input the `jk_p95`, `busy_hour`, and
-`prompt_activity` targets report INCOMPLETE. The process exits 1 when `--acceptance` is
-set and any evaluated target fails (exit 2 for invalid arguments).
+growth < 500,000,000 bytes over four contiguous hours, zero sampled VmSwap). Navigation
+samples come from the perf log (next section), loaded from its default/environment path
+or `-p/--perf-path`; prompt states come from the stalls log. Missing evidence yields
+INCOMPLETE. `--acceptance` and `--json` exit 1 for any FAIL or INCOMPLETE target, and
+exit 2 for invalid arguments.
 
 ### Attributable perf and prompt-state evidence
 
@@ -1063,18 +1064,22 @@ generation past 2 MiB. Prompt and modal activity travels separately: `prompt_act
 rows — an initial activity state plus prompt open/close and modal open/close transitions
 with the same instance/time attribution — go through the telemetry writer into
 `~/.sase/logs/tui_stalls.jsonl`, which the report already joins per instance. Prompt
-contents are never logged. Pre-compose modal screens report `text_entry: false`; the
-close row re-checks post-mount and is authoritative.
+contents are never logged. Capture writes run on a bounded background queue. Each
+transition has a sequence number; memory heartbeats repeat the latest sequence/state as
+checkpoints and include cumulative perf drops, even if no later key paints. Unmounted
+modals are modal-open with `text_entry: null` until their first refresh; nested modal
+changes track the visible screen, distinguishing text-entry modals from other modals.
 
 The report joins the perf log per instance with `-p/--perf-path` (rotation included) and
 takes activity rows from the stalls log it already loads. The perf-input and workload
-analysis lives in `tools/_tui_freeze_report_perf.py`; the stall/heartbeat/GC acceptance
-stays in `tools/_tui_freeze_report_acceptance.py`:
+analysis lives in `tools/_tui_freeze_report_perf.py`, with sequence reconstruction in
+`tools/_tui_freeze_report_activity.py`; the stall/heartbeat/GC acceptance stays in
+`tools/_tui_freeze_report_acceptance.py`:
 
 ```bash
 tools/tui_freeze_report --acceptance --instance abc123 \
   -p ~/.sase/perf/tui_jk.jsonl \
-  -b 2026-10-24T14:00 -e 2026-10-24T15:00 -t agents -t patches
+  -b 2026-10-24T14:00 -e 2026-10-24T15:00 -t agents -t artifacts -t services
 ```
 
 Only `next` / `prev` and verified artifact-pane `<pane>.next` / `<pane>.prev` actions
@@ -1087,9 +1092,19 @@ covered interval (both required; a quiet window is not a busy hour). Agents need
 least 100 measured next/prev actions across at least four ten-minute bins; each extra
 `-t/--tab` tab needs 30 samples and its own p95 < 16 ms distribution. Without a valid
 window the j/k target stays INCOMPLETE and the report lists candidate hourly windows.
-Prompt-active versus idle durations come from state transitions; mixed heartbeat
-intervals are never assigned wholesale to either state. Keep the sampling above in mind
-when planning capture.
+Prompt-active versus idle durations require adjacent sequence and time witnesses. A
+comparison also needs observed text-entry activity and idle time. Missing prefix/tail
+witnesses, lost transitions, and clock discontinuities leave unknown durations and an
+INCOMPLETE prompt target. Checkpoints can seed a rotated log without its original
+initial row. GC/hitch heartbeat counters are grouped by state only for intervals
+entirely in that state; mixed intervals have their own unassigned bucket. Emitted
+pause/recovery observations are separate from heartbeat totals and must never be added
+to them. The JSON report retains per-tab distributions, ten-minute bins, candidate
+hours, prompt comparisons, and input paths. The selected hour must span 3,600 seconds
+(with only microsecond rounding tolerance) inside contiguous observed coverage;
+four-hour RSS coverage is a separate requirement. These sampling floors do not prove
+that a workload represents normal use: record that explanation in the operational
+report.
 
 ### Capture preflight
 
@@ -1102,9 +1117,15 @@ live in the actual replacement processes:
    garbage) and confirm both flags plus the fixed source revision in the replacement
    processes. Every restart defines a new instance even if exec reuses the PID.
 3. Exercise real j/k on each host, use the usual tabs, and open/close the prompt, then
-   immediately verify new attributable samples and `prompt_activity` rows exist. If rows
-   are missing, diagnose capture first — do not spend another four-hour timeout on
-   missing instrumentation.
+   verify new samples carry the replacement instance ID, paired `t_wall`/`t_keypress`,
+   PID and source revision. Check `prompt_activity` initial/open/close sequences and a
+   heartbeat checkpoint; also open a text-entry modal and confirm `modal_active`.
+   Capture both active files and their `.1` rotations before older evidence expires.
+   Missing rows or sequence gaps need diagnosis before a long capture.
+4. Allow the instance's 20-minute warmup, select exact observed heartbeat endpoints for
+   coverage, and select a busy hour inside them with `-b`/`-e`. Declare every normally
+   used tab with `-t` (Agents is always required), check the sample/bin floors early,
+   and retain the JSON report with the raw logs. Do not pool restarts or host instances.
 
 ## Startup telemetry capture
 

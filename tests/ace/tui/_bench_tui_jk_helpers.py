@@ -264,6 +264,12 @@ def _perf_jsonl(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Iterator[Pat
     yield log_path
 
 
+def _assert_no_stall_rows(stall_path: Path) -> None:
+    """Activity capture shares this log; activity rows are not freezes."""
+    rows = _read_samples(stall_path)
+    assert not [row for row in rows if row.get("event") != "prompt_activity"]
+
+
 def _read_samples(log_path: Path) -> list[dict[str, object]]:
     if not log_path.exists():
         return []

@@ -38,7 +38,6 @@ active only when perf capture is enabled, with bounded in-memory storage
 
 from __future__ import annotations
 
-import json
 import logging
 import os
 import platform
@@ -49,7 +48,10 @@ from pathlib import Path
 from statistics import median
 from typing import Any
 
+from .perf_writer import PerfWriter
+
 from sase.core.paths import sase_subdir
+from sase.logs._bounded import append_jsonl_record
 
 log = logging.getLogger(__name__)
 
@@ -57,7 +59,6 @@ ENV_FLAG = "SASE_TUI_PERF"
 ENV_PATH = "SASE_TUI_PERF_PATH"
 DEFAULT_WINDOW = 200
 DEFAULT_MAX_BYTES = 2 * 1024 * 1024
-ROTATED_SUFFIX = ".1"
 ACTIVITY_WINDOW = 512
 
 
@@ -72,11 +73,6 @@ def perf_log_path() -> Path:
     if override:
         return Path(override)
     return sase_subdir("perf") / "tui_jk.jsonl"
-
-
-def _rotated_perf_path(path: Path) -> Path:
-    """Return the single rotated generation kept beside *path*."""
-    return Path(f"{path}{ROTATED_SUFFIX}")
 
 
 def _provenance_snapshot() -> dict[str, Any]:
@@ -130,7 +126,9 @@ class JKPerfTimer:
         pid: int | None = None,
         provenance: dict[str, Any] | None = None,
         max_bytes: int = DEFAULT_MAX_BYTES,
+        writer: PerfWriter | None = None,
     ) -> None:
+        self._writer = writer
         self.window = window
         self.log_path = log_path if log_path is not None else perf_log_path()
         self.app_instance_id = app_instance_id
@@ -142,7 +140,7 @@ class JKPerfTimer:
         self._samples: deque[dict[str, Any]] = deque(maxlen=window)
         self._inflight: dict[str, Any] | None = None
         self._dropped = 0
-        self._writes_since_rotate_check = 0
+        self._dropped_by_tab: dict[str, int] = {}
 
     def bind(
         self,
@@ -170,6 +168,10 @@ class JKPerfTimer:
         """Record the start of a navigation action (``t_keypress``)."""
         if self._inflight is not None:
             self._dropped += 1
+            dropped_tab = self._inflight["tab"]
+            self._dropped_by_tab[dropped_tab] = (
+                self._dropped_by_tab.get(dropped_tab, 0) + 1
+            )
         self._inflight = {
             "action": action,
             "tab": tab,
@@ -243,38 +245,26 @@ class JKPerfTimer:
         row["pid"] = self.pid
         row["t_wall"] = sample.get("t_wall")
         row["dropped_total"] = self._dropped
+        row["dropped_by_tab"] = dict(self._dropped_by_tab)
         row.update(self.provenance)
         return row
 
     def _write(self, sample: dict[str, Any]) -> None:
-        self._append_row(self._sample_row(sample))
+        row = self._sample_row(sample)
+        if self._writer is None:
+            self._append_row(row)
+        elif not self._writer.submit(self._append_row, row):
+            self._dropped += 1
+            tab = sample["tab"]
+            self._dropped_by_tab[tab] = self._dropped_by_tab.get(tab, 0) + 1
 
     def _append_row(self, row: dict[str, Any]) -> None:
         try:
-            self.log_path.parent.mkdir(parents=True, exist_ok=True)
-            self._maybe_rotate()
-            with open(self.log_path, "a", encoding="utf-8") as f:
-                f.write(json.dumps(row) + "\n")
+            # Shared bounded-log locking coordinates multiple captured TUIs.
+            # AceApp calls this only on the perf writer, never on the UI loop.
+            append_jsonl_record(self.log_path, row, max_bytes=self.max_bytes)
         except OSError as e:
             log.debug("perf log write failed: %s", e)
-
-    def _maybe_rotate(self) -> None:
-        self._writes_since_rotate_check += 1
-        if self._writes_since_rotate_check < 16:
-            return
-        self._writes_since_rotate_check = 0
-        try:
-            if self.log_path.stat().st_size <= self.max_bytes:
-                return
-        except OSError:
-            return
-        try:
-            rotated = _rotated_perf_path(self.log_path)
-            if rotated.exists():
-                rotated.unlink()
-            self.log_path.rename(rotated)
-        except OSError as e:
-            log.debug("perf log rotate failed: %s", e)
 
 
 def _emit_prompt_activity(row: dict[str, Any]) -> None:
@@ -318,13 +308,17 @@ class PromptActivityTracker:
         app_instance_id: str | None = None,
         pid: int | None = None,
         emit: Callable[[dict[str, Any]], None] | None = None,
+        writer: PerfWriter | None = None,
     ) -> None:
         self.app_instance_id = app_instance_id
         self.pid = pid if pid is not None else os.getpid()
         self._emit = emit
+        self._writer = writer
+        self._sequence = -1
+        self._snapshot: dict[str, Any] = {}
         self._transitions: deque[dict[str, Any]] = deque(maxlen=ACTIVITY_WINDOW)
         self._prompt_open = False
-        self._modal_depth = 0
+        self._modal: tuple[str, bool | None] | None = None
         self._started = False
 
     def bind(self, app_instance_id: str | None) -> None:
@@ -353,45 +347,49 @@ class PromptActivityTracker:
         if self._prompt_open:
             return
         self._prompt_open = True
-        self._record("prompt_opened", "prompt_active", screen=None, text_entry=True)
+        self._record(
+            "prompt_opened", self._current_state(), screen=None, text_entry=True
+        )
 
     def note_prompt_closed(self) -> None:
         """Record the prompt text entry losing focus."""
         if not self._prompt_open:
             return
         self._prompt_open = False
-        self._record("prompt_closed", "prompt_idle", screen=None, text_entry=True)
-
-    def note_modal_opened(self, screen: str | None, *, text_entry: bool) -> None:
-        """Record a modal screen opening; *text_entry* marks text modals."""
-        self._modal_depth += 1
         self._record(
-            "modal_opened",
-            "modal_active" if text_entry else "modal_open",
-            screen=screen,
-            text_entry=text_entry,
+            "prompt_closed", self._current_state(), screen=None, text_entry=True
         )
 
-    def note_modal_closed(
-        self, screen: str | None = None, *, text_entry: bool | None = None
-    ) -> None:
-        """Record a modal screen closing (depth never goes negative).
+    def _current_state(self) -> str:
+        if self._modal is not None:
+            entry = self._modal[1]
+            # Until composition there is no mounted text entry on this screen.
+            return "modal_active" if entry else "modal_open"
+        return "prompt_active" if self._prompt_open else "prompt_idle"
 
-        *text_entry* re-checks the screen post-mount, so a ``True`` here is
-        authoritative even when the open row predated composition.
-        """
-        self._modal_depth = max(0, self._modal_depth - 1)
+    def set_modal(self, screen: str | None, *, text_entry: bool | None) -> None:
+        """Snapshot the visible modal after a screen change or composition."""
+        modal = (screen, text_entry) if screen is not None else None
+        if modal == self._modal:
+            return
+        self._modal = modal
         self._record(
-            "modal_closed",
+            "screen_changed",
             self._current_state(),
             screen=screen,
             text_entry=text_entry,
         )
 
-    def _current_state(self) -> str:
-        if self._modal_depth > 0:
-            return "modal_open"
-        return "prompt_active" if self._prompt_open else "prompt_idle"
+    def checkpoint(self) -> dict[str, Any]:
+        """Heartbeat witness for the latest transition, including a lost tail."""
+        return {
+            "prompt_activity": {
+                **self._snapshot,
+                "transition": "checkpoint",
+                "t_mono": time.perf_counter(),
+                "t_wall": time.time(),
+            }
+        }
 
     @property
     def transitions(self) -> list[dict[str, Any]]:
@@ -406,7 +404,9 @@ class PromptActivityTracker:
         screen: str | None,
         text_entry: bool | None,
     ) -> None:
+        self._sequence += 1
         row = {
+            "sequence": self._sequence,
             "event": "prompt_activity",
             "transition": transition,
             "state": state,
@@ -417,9 +417,13 @@ class PromptActivityTracker:
             "t_mono": time.perf_counter(),
             "t_wall": time.time(),
         }
+        self._snapshot = row
         self._transitions.append(dict(row))
         sink = self._emit or _emit_prompt_activity
         try:
-            sink(dict(row))
+            if self._writer is None:
+                sink(dict(row))
+            else:
+                self._writer.submit(sink, dict(row))
         except Exception as e:  # noqa: BLE001 - telemetry must never break input.
             log.debug("prompt activity emit failed: %s", e)

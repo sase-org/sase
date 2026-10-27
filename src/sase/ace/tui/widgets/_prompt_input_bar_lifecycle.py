@@ -194,13 +194,8 @@ class PromptInputBarLifecycleMixin(_MixinBase):
             focused = None
         try:
             if focused is not None and focused is not self:
-                has_ancestor = getattr(focused, "has_ancestor", None)
-                if callable(has_ancestor):
-                    try:
-                        if bool(has_ancestor(self)):
-                            return
-                    except Exception:  # noqa: BLE001 - best-effort ancestry.
-                        pass
+                if self in focused.ancestors:
+                    return
             note = getattr(self.app, "_note_prompt_closed", None)
             if callable(note):
                 note()
@@ -285,6 +280,9 @@ class PromptInputBarLifecycleMixin(_MixinBase):
         try:
             if getattr(app, "_active_prompt_bar", None) is self:
                 app._active_prompt_bar = None  # type: ignore[attr-defined]
+                note = getattr(app, "_note_prompt_closed", None)
+                if callable(note):
+                    note()
         except Exception:  # noqa: BLE001 - explicit state is best-effort.
             pass
 

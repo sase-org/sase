@@ -12,6 +12,7 @@ import pytest
 from sase.ace.tui import artifact_tabs
 from sase.ace.tui.app import AceApp
 from tests.ace.tui._bench_tui_jk_helpers import (
+    _assert_no_stall_rows,
     _KEYS_PER_SCENARIO,
     _install_agents_fixture,
     _wait_for_startup,
@@ -114,4 +115,4 @@ async def test_bench_keystroke_reaches_no_provider_discovery_or_subprocess(
         f"a keystroke forked a subprocess on the event loop: {subprocess_calls}"
     )
     stall_path = _perf_jsonl.with_name("tui_stalls.jsonl")
-    assert not stall_path.exists() or not stall_path.read_text().strip()
+    _assert_no_stall_rows(stall_path)

@@ -62,6 +62,7 @@ from _tui_freeze_report_acceptance import (  # noqa: E402
 from _tui_freeze_report_perf import (  # noqa: E402
     analyze_instance_perf,
     default_perf_path,
+    format_perf_evidence,
     load_perf_rows,
 )
 
@@ -674,6 +675,8 @@ def format_report(
                 f"endpoint {_format_bytes(swap_last)}, {len(swap_trajectory)} samples "
                 "(full series in JSON)"
             )
+            if result.get("perf"):
+                lines.extend(format_perf_evidence(result["perf"]))
             for spec in result["targets"].values():
                 lines.append(_format_acceptance_line(spec))
             for issue in coverage.get("issues", [])[:4]:
@@ -847,6 +850,8 @@ def main(argv: Sequence[str] | None = None) -> int:
                 activity_rows=[
                     row for row in bucket_rows if row.get("event") == "prompt_activity"
                 ],
+                observation_rows=bucket_rows,
+                coverage_complete=bool(coverage.get("complete")),
             )
             result["perf"] = perf
             # The jk_p95 acceptance placeholder (no perf-path input) is
@@ -866,6 +871,10 @@ def main(argv: Sequence[str] | None = None) -> int:
             "inputs": {
                 "stalls_path": str(stalls_path),
                 "startup_path": str(startup_path),
+                "perf_path": str(perf_path),
+                "busy_since": args.busy_since,
+                "busy_until": args.busy_until,
+                "required_tabs": list(dict.fromkeys(["agents", *required_tabs])),
                 "instance_filter": args.instance,
                 "requested_since": args.since,
                 "requested_until": args.until,

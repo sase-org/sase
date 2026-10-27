@@ -11,6 +11,7 @@ from sase.ace.tui.app import AceApp
 from sase.ace.tui.models.fold_scale import CLAN_FOLD_SCALE, TRIBE_FOLD_SCALE
 from sase.ace.tui.models.fold_state import FoldLevel
 from tests.ace.tui._bench_tui_jk_helpers import (
+    _assert_no_stall_rows,
     _AGENTS_LARGE_LIST_P95_BUDGET_MS,
     _KEYS_PER_SCENARIO,
     _SELECTED_TRIBE_KEYS_PER_SCENARIO,
@@ -191,4 +192,4 @@ async def test_bench_selected_tribe_jk_at_each_fold_level(
 
     assert set(level_summaries) == set(TRIBE_FOLD_SCALE)
     stall_path = _perf_jsonl.with_name("tui_stalls.jsonl")
-    assert not stall_path.exists() or not stall_path.read_text().strip()
+    _assert_no_stall_rows(stall_path)

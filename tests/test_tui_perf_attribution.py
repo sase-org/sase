@@ -16,7 +16,6 @@ from sase.ace.tui.util.perf import (
     JKPerfTimer,
     PromptActivityTracker,
     _provenance_snapshot,
-    _rotated_perf_path,
 )
 
 
@@ -84,9 +83,11 @@ def test_rotation_keeps_one_generation(tmp_path: Path) -> None:
     for _ in range(40):
         timer.begin("next", "agents")
         timer.mark_painted()
-    assert _rotated_perf_path(path).exists()
+    assert Path(f"{path}.1").exists()
     assert not list(tmp_path.glob("*.2"))
-    assert path.stat().st_size <= 200 + 4096
+    # A single row larger than the cap is retained whole, without 16-write overshoot.
+    assert len(_read_rows(path)) == 1
+    assert len(_read_rows(Path(f"{path}.1"))) == 1
 
 
 def test_two_instances_share_one_log_without_mixing(tmp_path: Path) -> None:
@@ -138,16 +139,16 @@ def test_activity_initial_state_and_transitions() -> None:
     tracker.note_prompt_opened()
     tracker.note_prompt_opened()  # Duplicate opens do not double-record.
     tracker.note_prompt_closed()
-    tracker.note_modal_opened("FilterModal", text_entry=True)
-    tracker.note_modal_closed("FilterModal", text_entry=True)
+    tracker.set_modal("FilterModal", text_entry=True)
+    tracker.set_modal(None, text_entry=None)
 
     rows = emitted
     assert [row["transition"] for row in rows] == [
         "initial",
         "prompt_opened",
         "prompt_closed",
-        "modal_opened",
-        "modal_closed",
+        "screen_changed",
+        "screen_changed",
     ]
     assert rows[0]["state"] == "unknown"
     assert rows[1]["state"] == "prompt_active"
@@ -161,6 +162,7 @@ def test_activity_initial_state_and_transitions() -> None:
         # Prompt contents are never logged: only state/screen/timing keys.
         assert set(row) <= {
             "event",
+            "sequence",
             "transition",
             "state",
             "screen",
@@ -221,3 +223,48 @@ def test_activity_tracker_is_bounded() -> None:
         tracker.note_prompt_opened()
         tracker.note_prompt_closed()
     assert len(tracker.transitions) == perf_module.ACTIVITY_WINDOW
+
+
+def test_prompt_events_preserve_visible_modal_state() -> None:
+    tracker = PromptActivityTracker(emit=lambda row: None)
+    tracker.start(prompt_open=False)
+    tracker.set_modal("Text", text_entry=True)
+    tracker.note_prompt_opened()
+    tracker.note_prompt_closed()
+    assert tracker.transitions[-1]["state"] == "modal_active"
+    tracker.set_modal("Help", text_entry=False)
+    tracker.set_modal("Text", text_entry=True)
+    assert tracker.transitions[-1]["state"] == "modal_active"
+    tracker.set_modal(None, text_entry=None)
+    assert tracker.transitions[-1]["state"] == "prompt_idle"
+    assert [row["sequence"] for row in tracker.transitions] == list(range(7))
+    checkpoint = tracker.checkpoint()["prompt_activity"]
+    assert checkpoint["transition"] == "checkpoint"
+    assert checkpoint["sequence"] == 6
+
+
+def test_interaction_paths_enqueue_without_invoking_disk_sink(
+    tmp_path, monkeypatch
+) -> None:
+    pending = []
+
+    class Writer:
+        def submit(self, sink, row):
+            pending.append((sink, row))
+            return True
+
+    path = tmp_path / "perf.jsonl"
+    timer = JKPerfTimer(log_path=path, writer=Writer())
+    timer.begin("next", "agents")
+    timer.begin("prev", "agents")
+    timer.mark_painted()
+    assert not path.exists()
+    emitted = []
+    tracker = PromptActivityTracker(writer=Writer(), emit=emitted.append)
+    tracker.start(prompt_open=False)
+    tracker.note_prompt_opened()
+    assert emitted == []
+    for sink, row in pending:
+        sink(row)
+    assert _read_rows(path)[0]["dropped_by_tab"] == {"agents": 1}
+    assert len(emitted) == 2

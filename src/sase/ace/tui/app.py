@@ -329,8 +329,14 @@ class AceApp(
             from .util.perf import JKPerfTimer, PromptActivityTracker
             from .util.perf import is_enabled as _perf_enabled
 
-            self._jk_perf = JKPerfTimer() if _perf_enabled() else None
-            self._prompt_activity = PromptActivityTracker() if _perf_enabled() else None
+            from .util.perf_writer import shared_perf_writer
+
+            perf_enabled = _perf_enabled()
+            writer = shared_perf_writer() if perf_enabled else None
+            self._jk_perf = JKPerfTimer(writer=writer) if perf_enabled else None
+            self._prompt_activity = (
+                PromptActivityTracker(writer=writer) if perf_enabled else None
+            )
             self._heap_sampler = TUIHeapSampler.from_env()
             if self._heap_sampler is not None:
                 self._heap_sampler.start_tracing()
@@ -425,9 +431,23 @@ class AceApp(
                 self._jk_perf.bind(instance_id)
             if self._prompt_activity is not None:
                 self._prompt_activity.bind(instance_id)
-                self._prompt_activity.start()
+                self._prompt_activity.start(prompt_open=False)
+                from .util.gc_telemetry import register_heartbeat_provider
+
+                register_heartbeat_provider("perf_activity", self._perf_heartbeat)
         except Exception:  # noqa: BLE001 - telemetry must never break startup.
             pass
+
+    def _perf_heartbeat(self) -> dict[str, Any]:
+        """Expose transition and drop counters even after the last measured key."""
+        result = (
+            self._prompt_activity.checkpoint()
+            if self._prompt_activity is not None
+            else {}
+        )
+        if self._jk_perf is not None:
+            result["perf_dropped_total"] = self._jk_perf.dropped_samples
+        return result
 
     def _note_prompt_opened(self) -> None:
         """Record prompt text-entry focus, when SASE_TUI_PERF=1."""
@@ -449,9 +469,8 @@ class AceApp(
     def _modal_text_entry(screen: object) -> bool | None:
         """Best-effort text-entry check for a modal screen.
 
-        Pre-compose the widget tree may not exist yet, so a ``False`` here
-        means "not yet visible"; the close row re-checks post-mount and is
-        authoritative.
+        Call after composition; before that the screen is recorded as modal-open
+        without a mounted text entry.
         """
         try:
             from textual.widgets import Input, TextArea
@@ -469,52 +488,24 @@ class AceApp(
         except Exception:  # noqa: BLE001 - telemetry must never break modals.
             return None
 
-    def _note_modal_opened(self, screen: object) -> None:
-        """Record a modal screen opening, when SASE_TUI_PERF=1."""
-        try:
-            if self._prompt_activity is not None:
-                name = type(screen).__name__ if screen is not None else None
-                self._prompt_activity.note_modal_opened(
-                    name, text_entry=bool(self._modal_text_entry(screen))
-                )
-        except Exception:  # noqa: BLE001 - telemetry must never break modals.
-            pass
+    def _perf_screen_changed(self, screen: Screen[Any]) -> None:
+        """Record the visible screen, then refine text-entry after composition."""
+        tracker = self._prompt_activity
+        if tracker is None:
+            return
+        from textual.screen import ModalScreen
 
-    def _note_modal_closed(self, screen: object = None) -> None:
-        """Record a modal screen closing, when SASE_TUI_PERF=1."""
-        try:
-            if self._prompt_activity is not None:
-                name = type(screen).__name__ if screen is not None else None
-                # The close row re-checks post-mount, so its text_entry
-                # flag is authoritative and the report prefers it.
-                authoritative = (
-                    self._modal_text_entry(screen) if screen is not None else None
-                )
-                self._prompt_activity.note_modal_closed(
-                    name, text_entry=bool(authoritative) if authoritative else None
-                )
-        except Exception:  # noqa: BLE001 - telemetry must never break modals.
-            pass
+        modal = isinstance(screen, ModalScreen)
+        tracker.set_modal(
+            type(screen).__name__ if modal else None,
+            text_entry=self._modal_text_entry(screen) if screen.is_mounted else None,
+        )
+        if modal and not screen.is_mounted:
 
-    def push_screen(
-        self,
-        screen: Screen[Any] | str,
-        callback: Callable[..., Any] | None = None,
-        wait_for_dismiss: bool = False,
-        *,
-        mode: str | None = None,
-    ) -> Any:
-        """Push a screen and note modal openings for perf attribution."""
-        self._note_modal_opened(screen)
-        if wait_for_dismiss:
-            return super().push_screen(screen, callback, True, mode=mode)
-        return super().push_screen(screen, callback, False, mode=mode)
+            def mounted() -> None:
+                if self.screen is screen:
+                    tracker.set_modal(
+                        type(screen).__name__, text_entry=self._modal_text_entry(screen)
+                    )
 
-    def pop_screen(self) -> Any:
-        """Pop a screen and note modal closings for perf attribution."""
-        try:
-            screen = self.screen if hasattr(self, "screen") else None
-        except Exception:  # noqa: BLE001 - best-effort screen snapshot.
-            screen = None
-        self._note_modal_closed(screen)
-        return super().pop_screen()
+            screen.call_after_refresh(mounted)

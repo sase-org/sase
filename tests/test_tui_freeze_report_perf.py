@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import importlib.util
+import sys
 from pathlib import Path
 from types import ModuleType
 
@@ -11,6 +12,7 @@ import pytest
 
 def _load_perf_module() -> ModuleType:
     path = Path(__file__).resolve().parents[1] / "tools" / "_tui_freeze_report_perf.py"
+    sys.path.insert(0, str(path.parent))
     loader = importlib.util.spec_from_file_location("_tui_freeze_report_perf", path)
     assert loader is not None and loader.loader is not None
     module = importlib.util.module_from_spec(loader)
@@ -83,6 +85,16 @@ def _busy_agents_floor() -> list[dict]:
 
 
 def _analyze(rows: list[dict], activity: list[dict] | None = None, **kwargs) -> dict:
+    if activity:
+        activity = [{**row, "sequence": index} for index, row in enumerate(activity)]
+        activity.append(
+            {
+                **activity[-1],
+                "transition": "checkpoint",
+                "t_wall": COVERAGE_END,
+                "t_mono": COVERAGE_END,
+            }
+        )
     params = {
         "busy_since": BUSY_SINCE,
         "busy_until": BUSY_UNTIL,
@@ -146,7 +158,11 @@ def test_legacy_rows_are_unattributed_and_block_pass() -> None:
 
 def test_valid_busy_hour_passes_with_sampling_floor() -> None:
     rows = _busy_agents_floor()
-    activity = [_activity("initial", "prompt_idle", COVERAGE_START)]
+    activity = [
+        _activity("initial", "prompt_idle", COVERAGE_START),
+        _activity("prompt_opened", "prompt_active", 100),
+        _activity("prompt_closed", "prompt_idle", 200),
+    ]
     result = _analyze(rows, activity)
     assert result["targets"]["jk_p95"]["status"] == "PASS"
     assert result["targets"]["busy_hour"]["status"] == "PASS"
@@ -242,3 +258,87 @@ def test_per_tab_quantiles_use_sorted_interpolation() -> None:
     assert dist["n"] == 100
     assert dist["p50"] == pytest.approx(50.5)
     assert dist["max"] == pytest.approx(100.0)
+
+
+def test_only_verified_artifact_actions_count() -> None:
+    rows = [
+        _sample("ref:plan.next", "artifacts", BUSY_SINCE),
+        _sample("mystery.prev", "artifacts", BUSY_SINCE),
+        _sample("files.next", "agents", BUSY_SINCE),
+    ]
+    result = _analyze(rows)
+    assert result["by_tab"]["artifacts"]["jk"]["n"] == 1
+    assert result["by_tab"]["artifacts"]["other"]["n"] == 1
+    assert "jk" not in result["by_tab"]["agents"]
+
+
+def test_slow_agents_stays_failed_when_other_tab_missing() -> None:
+    rows = [{**row, "paint_ms": 20} for row in _busy_agents_floor()]
+    result = _analyze(rows, required_tabs=("services",))
+    assert result["targets"]["jk_p95"]["status"] == "FAIL"
+    assert result["targets"]["busy_hour"]["status"] == "INCOMPLETE"
+
+
+@pytest.mark.parametrize(
+    "kwargs",
+    [
+        {"busy_until": BUSY_UNTIL - 60},
+        {"coverage_complete": False},
+    ],
+)
+def test_short_hour_or_gapped_coverage_cannot_pass(kwargs: dict) -> None:
+    result = _analyze(_busy_agents_floor(), **kwargs)
+    assert result["targets"]["busy_hour"]["status"] == "INCOMPLETE"
+    assert result["targets"]["jk_p95"]["status"] == "INCOMPLETE"
+
+
+def test_unknown_prompt_start_blocks_acceptance() -> None:
+    result = _analyze(_busy_agents_floor(), [_activity("initial", "unknown", 0)])
+    assert result["targets"]["prompt_activity"]["status"] == "INCOMPLETE"
+
+
+def test_heartbeat_checkpoints_cover_prompt_and_preserve_instance_join() -> None:
+    initial = {**_activity("initial", "prompt_idle", 0), "sequence": 0}
+    opened = {**_activity("prompt_opened", "prompt_active", 100), "sequence": 1}
+    checkpoint = {
+        **opened,
+        "transition": "checkpoint",
+        "t_wall": COVERAGE_END,
+        "t_mono": COVERAGE_END,
+    }
+    beats = [
+        {
+            "event": "tui_memory_heartbeat",
+            "app_instance_id": INSTANCE,
+            "prompt_activity": checkpoint,
+        }
+    ]
+    result = _analyze(
+        _busy_agents_floor(), observation_rows=beats, activity_rows=[initial, opened]
+    )
+    assert result["targets"]["prompt_activity"]["status"] == "PASS"
+    beats[0]["app_instance_id"] = OTHER
+    result = _analyze(
+        _busy_agents_floor(), observation_rows=beats, activity_rows=[initial, opened]
+    )
+    assert result["targets"]["prompt_activity"]["status"] == "INCOMPLETE"
+
+
+def test_tab_distributions_respect_coverage_and_bins_include_other_actions() -> None:
+    rows = _busy_agents_floor() + [
+        _sample("next", "agents", COVERAGE_END + 1, paint_ms=5000),
+        _sample("prompt_space", "agents", BUSY_SINCE + 1),
+    ]
+    result = _analyze(rows)
+    assert result["by_tab"]["agents"]["jk"]["max"] == 5
+    assert result["activity_bins"][0]["by_tab"]["agents"]["prompt"] == 1
+
+
+def test_default_perf_path_honors_sase_home_and_explicit_override(
+    monkeypatch, tmp_path
+) -> None:
+    monkeypatch.delenv("SASE_TUI_PERF_PATH", raising=False)
+    monkeypatch.setenv("SASE_HOME", str(tmp_path))
+    assert perf.default_perf_path() == tmp_path / "perf" / "tui_jk.jsonl"
+    monkeypatch.setenv("SASE_TUI_PERF_PATH", str(tmp_path / "custom.jsonl"))
+    assert perf.default_perf_path() == tmp_path / "custom.jsonl"

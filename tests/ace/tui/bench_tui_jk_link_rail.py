@@ -9,6 +9,7 @@ import pytest
 from sase.ace.tui.app import AceApp
 from sase.ace.tui.widgets import LinkRail
 from tests.ace.tui._bench_tui_jk_helpers import (
+    _assert_no_stall_rows,
     _LINK_RAIL_AB_ROUNDS,
     _LINK_RAIL_KEYS_PER_ROUND,
     _LINK_RAIL_P95_DELTA_BUDGET_MS,
@@ -118,4 +119,4 @@ async def test_bench_agents_jk_with_and_without_the_link_rail(
             f"budget is {_LINK_RAIL_P95_DELTA_BUDGET_MS:g} ms"
         )
     stall_path = _perf_jsonl.with_name("tui_stalls.jsonl")
-    assert not stall_path.exists() or not stall_path.read_text().strip()
+    _assert_no_stall_rows(stall_path)
