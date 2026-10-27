@@ -6,15 +6,19 @@ from sase.plan_chain import (
     agent_session_value,
 )
 
-from dataclasses import replace
+from dataclasses import dataclass, replace
+import hashlib
 from pathlib import Path
-from typing import cast
+from typing import TYPE_CHECKING, cast
 
 from sase.agents_sync.inventory import InventoryRun, ProjectHoodInventory
 from sase.agents_sync.inventory_models import InventoryLaneCommitHistory
 from sase.agents_sync.models import CommitRecord
 from sase.agents_sync.publication_validation import verify_run_files
 from sase.agents_sync.v2_io import file_reference, validate_snapshot, v2_json_bytes
+
+if TYPE_CHECKING:
+    from sase.agents_sync.publication_protection import PublicationProtectionScope
 from sase.agents_sync.v2_models import (
     ContainerKind,
     RelationshipKind,
@@ -46,6 +50,28 @@ from sase.core.agent_identity_facade import (
 )
 
 
+# File kinds whose bytes are required for a run to stay in the snapshot. A
+# scanner hit or unverifiable required file withholds the whole run so no
+# dangling references or metadata leaks remain.
+_STRUCTURAL_RUN_KINDS = ("meta", "state", "commits")
+
+# File kinds withheld individually. A blocked kind never merges prior bytes
+# back; an unverified kind may still merge previously published bytes because
+# the withheld bytes themselves are never published.
+_CONTENT_RUN_KINDS = ("prompt", "chat", "embedded_workflows", "prompt_steps")
+
+
+@dataclass(frozen=True, slots=True)
+class _GatedRun:
+    """One inventory run after protection gating."""
+
+    run: InventoryRun
+    record: V2RunRecord | None
+    blocked_kinds: frozenset[str]
+    withheld_reason: str | None
+    notes: tuple[str, ...]
+
+
 def build_hood_snapshot(
     repo_root: Path,
     project: V2ProjectIdentity,
@@ -53,26 +79,66 @@ def build_hood_snapshot(
     hood: str,
     inventory: ProjectHoodInventory,
     previous: V2HoodSnapshot | None,
-) -> tuple[V2HoodSnapshot, dict[str, bytes]]:
+    *,
+    protection_scope: PublicationProtectionScope | None = None,
+) -> tuple[V2HoodSnapshot, dict[str, bytes], tuple[str, ...]]:
     current = inventory.hood_runs(hood)
     agent_session_history = inventory.agent_session_lane_commits(hood)
     if not current and previous is None:
         from sase.agents_sync.io import AgentsSyncFormatError
 
         raise AgentsSyncFormatError(f"hood {hood!r} has no publishable runs")
+    if protection_scope is None:
+        # Deferred so the protection modules stay out of the TUI startup closure.
+        from sase.agents_sync.publication_protection import PublicationProtectionScope
+
+        scope = PublicationProtectionScope(
+            project_key=project.key,
+            repository_identity=project.key,
+        )
+    else:
+        scope = protection_scope
     payload: dict[str, bytes] = {}
     previous_by_global = (
         {run.global_name: run for run in previous.runs} if previous is not None else {}
     )
-    current_records = tuple(
-        _merge_richer_run_files(
-            _published_run(run, owner, project, payload),
-            previous_by_global.get(run.global_name),
+    gated = tuple(
+        _gate_run_files(run, owner, project, payload, scope=scope) for run in current
+    )
+    notes: list[str] = []
+    withheld_globals: set[str] = set()
+    gated_records: list[_GatedRun] = []
+    for gated_run in gated:
+        notes.extend(gated_run.notes)
+        if gated_run.record is None:
+            withheld_globals.add(gated_run.run.global_name)
+        else:
+            gated_records.append(gated_run)
+    if current and not gated_records:
+        from sase.agents_sync.io import AgentsSyncFormatError
+
+        if all(gated_run.withheld_reason == "blocked" for gated_run in gated):
+            raise AgentsSyncFormatError(
+                f"hood {hood!r} has no publishable runs: "
+                "withheld by publication protection"
+            )
+        raise RuntimeError(
+            f"could not verify hood {hood!r} runs for publication; "
+            "protection scanning is unavailable or inconclusive"
+        )
+    current_records: list[V2RunRecord] = []
+    for gated_run in gated_records:
+        assert gated_run.record is not None
+        merged, merge_notes = _merge_richer_run_files(
+            gated_run.record,
+            previous_by_global.get(gated_run.run.global_name),
             repo_root,
             payload,
+            scope=scope,
+            blocked_kinds=gated_run.blocked_kinds,
         )
-        for run in current
-    )
+        notes.extend(merge_notes)
+        current_records.append(merged)
     current_ids = {run.source_run_id for run in current_records}
     current_globals = {run.global_name for run in current_records}
     prior_records = (
@@ -81,6 +147,7 @@ def build_hood_snapshot(
             for run in previous.runs
             if run.source_run_id not in current_ids
             and run.global_name not in current_globals
+            and run.global_name not in withheld_globals
         )
         if previous is not None
         else ()
@@ -96,8 +163,11 @@ def build_hood_snapshot(
         agent_session_history,
         previous.containers if previous is not None else (),
     )
+    publishable_current = tuple(
+        run for run in current if run.global_name not in withheld_globals
+    )
     relationships = _build_relationships(
-        current,
+        publishable_current,
         combined,
         inventory,
         owner,
@@ -124,15 +194,25 @@ def build_hood_snapshot(
         relationships=relationships,
     )
     validate_snapshot(snapshot)
-    return snapshot, payload
+    return snapshot, payload, tuple(notes)
 
 
-def _published_run(
+def _gate_run_files(
     run: InventoryRun,
     owner: AgentOwnerIdentity,
     project: V2ProjectIdentity,
     payload: dict[str, bytes],
-) -> V2RunRecord:
+    *,
+    scope: PublicationProtectionScope,
+) -> _GatedRun:
+    """Scan one run's bytes and withhold unsafe content without its evidence."""
+
+    # Deferred so the protection modules stay out of the TUI startup closure.
+    from sase.agents_sync.publication_protection import (
+        record_publication_bytes_scan,
+        scan_publication_bytes,
+    )
+
     root = f"agents/{run.global_name}"
     meta = V2RunMetadataPayload(
         owner,
@@ -153,8 +233,7 @@ def _published_run(
     run_metadata_from_json(meta.to_json_dict())
     run_state_from_json(state.to_json_dict())
     run_commits_from_json(commits.to_json_dict())
-    files: list[tuple[str, V2FileReference]] = []
-    for kind, name, content in (
+    candidates: tuple[tuple[str, str, bytes | None], ...] = (
         ("meta", "meta.json", v2_json_bytes(meta.to_json_dict())),
         ("state", "state.json", v2_json_bytes(state.to_json_dict())),
         ("commits", "commits.json", v2_json_bytes(commits.to_json_dict())),
@@ -166,27 +245,74 @@ def _published_run(
             run.embedded_workflows_bytes,
         ),
         ("prompt_steps", "prompt_steps.json", run.prompt_steps_bytes),
-    ):
+    )
+    accepted: dict[str, tuple[str, bytes]] = {}
+    blocked_kinds: set[str] = set()
+    notes: list[str] = []
+    withheld_reason: str | None = None
+    for kind, name, content in candidates:
         if content is None:
             continue
-        path = f"{root}/{name}"
-        payload[path] = content
-        files.append((kind, file_reference(path, content)))
+        destination = f"{root}/{name}"
+        verdict = scan_publication_bytes(content, max_bytes=scope.max_bytes)
+        status = verdict.disposition.get("status") if verdict.disposition else None
+        try:
+            record_publication_bytes_scan(
+                scope.project_key,
+                repository_identity=scope.repository_identity,
+                relative_destination=destination,
+                verdict=verdict,
+                affected_requests=(run.source_run_id,),
+            )
+        except Exception:  # noqa: BLE001 - the scan verdict still withholds.
+            notes.append(
+                f"protection ledger unavailable for {run.global_name}; "
+                "withholding on the scan verdict alone"
+            )
+        if verdict.is_publishable:
+            accepted[kind] = (destination, content)
+            continue
+        reason = "blocked" if status == "blocked" else "unverified"
+        notes.append(f"withheld {destination}: {reason}")
+        if kind in _STRUCTURAL_RUN_KINDS:
+            withheld_reason = reason
+            blocked_kinds.update(_CONTENT_RUN_KINDS)
+            blocked_kinds.update(_STRUCTURAL_RUN_KINDS)
+            return _GatedRun(
+                run=run,
+                record=None,
+                blocked_kinds=frozenset(blocked_kinds),
+                withheld_reason=withheld_reason,
+                notes=tuple(notes),
+            )
+        if reason == "blocked":
+            blocked_kinds.add(kind)
+        withheld_reason = withheld_reason or reason
+    files: list[tuple[str, V2FileReference]] = []
+    for kind, (destination, content) in accepted.items():
+        payload[destination] = content
+        files.append((kind, file_reference(destination, content)))
     capabilities = capabilities_from_v2_run(
         dict(run.metadata), {kind for kind, _ in files}
     )
-    return V2RunRecord(
-        source_run_id=run.source_run_id,
-        local_name=run.local_name,
-        global_name=run.global_name,
-        state=cast(RunState, run.state),
-        started_at=run.started_at,
-        finished_at=run.finished_at,
-        dismissed_at=run.dismissed_at,
-        metadata=run.metadata,
-        commits=run.commits,
-        files=tuple(files),
-        capabilities=capabilities,
+    return _GatedRun(
+        run=run,
+        record=V2RunRecord(
+            source_run_id=run.source_run_id,
+            local_name=run.local_name,
+            global_name=run.global_name,
+            state=cast(RunState, run.state),
+            started_at=run.started_at,
+            finished_at=run.finished_at,
+            dismissed_at=run.dismissed_at,
+            metadata=run.metadata,
+            commits=run.commits,
+            files=tuple(files),
+            capabilities=capabilities,
+        ),
+        blocked_kinds=frozenset(blocked_kinds),
+        withheld_reason=None,
+        notes=tuple(notes),
     )
 
 
@@ -195,28 +321,46 @@ def _merge_richer_run_files(
     previous: V2RunRecord | None,
     repo_root: Path,
     payload: dict[str, bytes],
-) -> V2RunRecord:
-    """Keep recoverable prompt/chat bytes instead of commit-only placeholders."""
+    *,
+    scope: PublicationProtectionScope,
+    blocked_kinds: frozenset[str] = frozenset(),
+) -> tuple[V2RunRecord, tuple[str, ...]]:
+    """Keep recoverable prompt/chat bytes instead of commit-only placeholders.
+
+    Blocked kinds never merge prior bytes back. Merged prior bytes are
+    scanned exactly like fresh candidates because this drain writes them.
+    """
 
     if previous is None:
-        return current
+        return current, ()
+    notes: list[str] = []
     previous_files = dict(previous.files)
     current_files = dict(current.files)
     files = list(current.files)
     changed = False
-    for kind in ("prompt", "chat", "embedded_workflows", "prompt_steps"):
+    for kind in _CONTENT_RUN_KINDS:
+        if kind in blocked_kinds:
+            notes.append(f"withheld richer {kind} for {current.global_name}: blocked")
+            continue
         prior = previous_files.get(kind)
         if prior is None:
             continue
         prior_path = repo_root / prior.path
         if not prior_path.is_file():
             continue
-        prior_bytes = prior_path.read_bytes()
+        try:
+            prior_bytes = prior_path.read_bytes()
+        except OSError:
+            continue
         current_ref = current_files.get(kind)
         current_bytes = (
             payload.get(current_ref.path) if current_ref is not None else None
         )
         if current_bytes is not None and len(current_bytes) >= len(prior_bytes):
+            continue
+        if not _prior_bytes_releasable(
+            prior_bytes, prior.path, current.global_name, scope, notes
+        ):
             continue
         payload[prior.path] = prior_bytes
         if current_ref is not None and current_ref.path != prior.path:
@@ -228,11 +372,60 @@ def _merge_richer_run_files(
             files.append((kind, prior))
         changed = True
     if not changed:
-        return current
+        return current, tuple(notes)
     capabilities = capabilities_from_v2_run(
         dict(current.metadata), {kind for kind, _ref in files}
     )
-    return replace(current, files=tuple(files), capabilities=capabilities)
+    return replace(current, files=tuple(files), capabilities=capabilities), tuple(notes)
+
+
+def _prior_bytes_releasable(
+    prior_bytes: bytes,
+    prior_path: str,
+    global_name: str,
+    scope: PublicationProtectionScope,
+    notes: list[str],
+) -> bool:
+    """Return whether previously published bytes may re-enter this payload."""
+
+    # Deferred so the protection modules stay out of the TUI startup closure.
+    from sase.agents_sync.publication_protection import (
+        lookup_publication_content_record,
+        record_publication_bytes_scan,
+        scan_publication_bytes,
+    )
+
+    try:
+        record = lookup_publication_content_record(
+            scope.project_key,
+            repository_identity=scope.repository_identity,
+            relative_destination=prior_path,
+            sha256=hashlib.sha256(prior_bytes).hexdigest(),
+        )
+    except Exception:  # noqa: BLE001 - a failed lookup never authorizes publish.
+        record = None
+    if isinstance(record, dict) and record.get("status") == "blocked":
+        notes.append(f"withheld richer {prior_path}: blocked")
+        return False
+    verdict = scan_publication_bytes(prior_bytes, max_bytes=scope.max_bytes)
+    try:
+        record_publication_bytes_scan(
+            scope.project_key,
+            repository_identity=scope.repository_identity,
+            relative_destination=prior_path,
+            verdict=verdict,
+        )
+    except Exception:  # noqa: BLE001 - the scan verdict still withholds.
+        notes.append(
+            f"protection ledger unavailable for {global_name}; "
+            "withholding on the scan verdict alone"
+        )
+    if not verdict.is_publishable:
+        status = verdict.disposition.get("status") if verdict.disposition else None
+        reason = "blocked" if status == "blocked" else "unverified"
+        notes.append(f"withheld richer {prior_path}: {reason}")
+        return False
+    return True
 
 
 def _build_containers(
@@ -288,7 +481,13 @@ def _build_containers(
         (canonical_container_kind(item.kind), item.global_name): item
         for item in containers
     }
+    member_ids = {run.source_run_id for run in runs}
     for item in previous:
+        if any(member not in member_ids for member in item.member_source_run_ids):
+            # A withheld run left this retained container pointing at absent
+            # members; session pages render every member, so the stale
+            # container is dropped instead of rendering broken member links.
+            continue
         key = (canonical_container_kind(item.kind), item.global_name)
         current = by_key.get(key)
         if current is None:

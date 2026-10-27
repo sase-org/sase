@@ -20,6 +20,7 @@ from sase.agents_sync.publication_planning import (
     invalidate_shared_targeted_planning,
     shared_targeted_planning,
 )
+from sase.agents_sync.publication_protection import PublicationProtectionScope
 from sase.agents_sync.publication_timing import DrainTiming
 from sase.agents_sync.v2_io import read_owner_manifest
 from sase.agents_sync.v2_models import V2ProjectIdentity
@@ -48,6 +49,15 @@ class PublicationTransactionHooks:
     update_publications: Callable[..., object]
     acknowledge_publications: Callable[..., object]
     configured_max_attempts: Callable[[], int]
+
+
+def _protection_scope(target: ProjectTarget) -> PublicationProtectionScope:
+    """Build the transcript pre-stage verification scope for one project."""
+
+    return PublicationProtectionScope(
+        project_key=target.project_key,
+        repository_identity=target.remote_url,
+    )
 
 
 _REPOSITORY_SCOPE = "repository"
@@ -166,6 +176,7 @@ def publish_queued_transaction(
                 owner,
                 git_runner,
                 extra_paths=("prompts", "artifacts"),
+                protection_scope=_protection_scope(target),
             )
     else:
         commit_result = git_sync.commit_agents_payload_if_dirty(
@@ -173,6 +184,7 @@ def publish_queued_transaction(
             owner,
             git_runner,
             extra_paths=("prompts", "artifacts"),
+            protection_scope=_protection_scope(target),
         )
     if isinstance(commit_result, str):
         return DrainResult(
@@ -319,6 +331,7 @@ def publish_queued_transaction(
                 owner,
                 git_runner,
                 extra_paths=("prompts", "artifacts"),
+                protection_scope=_protection_scope(target),
             )
     else:
         retry_commit = git_sync.commit_agents_payload_if_dirty(
@@ -326,6 +339,7 @@ def publish_queued_transaction(
             owner,
             git_runner,
             extra_paths=("prompts", "artifacts"),
+            protection_scope=_protection_scope(target),
         )
     if isinstance(retry_commit, str):
         return DrainResult(

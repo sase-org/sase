@@ -124,16 +124,26 @@ def plan_hoods(
     current_snapshots: dict[tuple[str, str, str], V2HoodSnapshot] = {}
     published = refreshed = unchanged = sessions = runs = 0
 
+    # Deferred so the protection modules stay out of the TUI startup closure.
+    from sase.agents_sync.publication_protection import PublicationProtectionScope
+
+    protection_scope = PublicationProtectionScope(
+        project_key=target.project_key,
+        repository_identity=target.remote_url,
+    )
+    protection_notes: list[str] = []
     for hood in sorted(set(hoods)):
         previous = previous_snapshot(repo_root, owner, hood, entries.get(hood))
-        hood_snapshot, hood_payload = build_hood_snapshot(
+        hood_snapshot, hood_payload, hood_notes = build_hood_snapshot(
             repo_root,
             project,
             owner,
             hood,
             inventory,
             previous,
+            protection_scope=protection_scope,
         )
+        protection_notes.extend(hood_notes)
         hood_snapshot_path = snapshot_path(owner, hood)
         snapshot_bytes = v2_json_bytes(hood_snapshot.to_json_dict())
         hood_payload[hood_snapshot_path] = snapshot_bytes
@@ -196,6 +206,7 @@ def plan_hoods(
                     *inventory.diagnostics,
                     *diagnostics,
                     *bead_diagnostics,
+                    *protection_notes,
                 )
             )
         ),
@@ -258,19 +269,29 @@ def plan_targeted_hoods(
     cache = _targeted_cache_for(repo_root)
     current_snapshots: dict[tuple[str, str, str], V2HoodSnapshot] = {}
     published = refreshed = unchanged = sessions = runs = 0
+    # Deferred so the protection modules stay out of the TUI startup closure.
+    from sase.agents_sync.publication_protection import PublicationProtectionScope
+
+    protection_scope = PublicationProtectionScope(
+        project_key=target.project_key,
+        repository_identity=target.remote_url,
+    )
+    protection_notes: list[str] = []
     for hood in selected:
         entry = entries.get(hood)
         previous = _cached_previous_snapshot(repo_root, owner, hood, entry, cache)
         if previous is None:
             previous = previous_snapshot(repo_root, owner, hood, entry)
-        hood_snapshot, hood_payload = build_hood_snapshot(
+        hood_snapshot, hood_payload, hood_notes = build_hood_snapshot(
             repo_root,
             project,
             owner,
             hood,
             inventory,
             previous,
+            protection_scope=protection_scope,
         )
+        protection_notes.extend(hood_notes)
         hood_snapshot_path = snapshot_path(owner, hood)
         snapshot_bytes = v2_json_bytes(hood_snapshot.to_json_dict())
         hood_payload[hood_snapshot_path] = snapshot_bytes
@@ -353,6 +374,7 @@ def plan_targeted_hoods(
                     *inventory.diagnostics,
                     *diagnostics,
                     *bead_diagnostics,
+                    *protection_notes,
                 )
             )
         ),

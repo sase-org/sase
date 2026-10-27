@@ -17,6 +17,7 @@ import time
 from typing import Any
 
 from sase.agents_sync.io import atomic_write_json
+from sase.agents_sync.v2_validation import MAX_TEXT_BYTES
 from sase.core.agent_publication_protection import (
     AGENT_PUBLICATION_PROTECTION_WIRE_SCHEMA_VERSION,
     publication_protection_ledger_empty,
@@ -37,6 +38,40 @@ from sase.core.paths import (
 
 AGENT_PUBLICATION_PROTECTION_FILENAME = "agents-publication-protection.json"
 PRIVATE_SCAN_STAGING_DIRECTORY = "agents-publication-scans"
+
+# Bound for one in-memory publication candidate. Matches the v2 text limit so
+# oversized text is withheld as unverified instead of raising scanner limits.
+MAX_PUBLICATION_SCAN_BYTES = MAX_TEXT_BYTES
+
+
+@dataclass(frozen=True, slots=True)
+class PublicationBytesVerdict:
+    """One in-memory candidate's digest and scan decision.
+
+    Callers must only publish the exact bytes this verdict was computed from
+    after checking :attr:`is_publishable`.
+    """
+
+    sha256: str | None
+    byte_count: int | None
+    disposition: dict[str, object] | None
+
+    @property
+    def is_publishable(self) -> bool:
+        return (
+            self.sha256 is not None
+            and self.disposition is not None
+            and self.disposition.get("status") == "clean"
+        )
+
+
+@dataclass(frozen=True, slots=True)
+class PublicationProtectionScope:
+    """Project-scoped identity for protection ledger reads and writes."""
+
+    project_key: str
+    repository_identity: str
+    max_bytes: int = MAX_PUBLICATION_SCAN_BYTES
 
 
 @dataclass(frozen=True, slots=True)
@@ -208,6 +243,65 @@ def scan_publication_candidate(
         )
 
 
+def scan_publication_bytes(
+    data: bytes,
+    *,
+    max_bytes: int,
+    env: dict[str, str] | None = None,
+) -> PublicationBytesVerdict:
+    """Scan in-memory publication bytes through a private staged copy.
+
+    Oversized input is hashed with bounded memory and withheld as unverified;
+    the scanner limit is never raised to publish oversized text. A missing
+    binding, scan error, or skipped result is unverified, never clean.
+    """
+
+    digest_hex = hashlib.sha256(data).hexdigest()
+    if len(data) > max_bytes:
+        return PublicationBytesVerdict(
+            digest_hex, len(data), _disposition(failure="scan_error")
+        )
+    try:
+        staging_root = _private_scan_root()
+    except OSError:
+        return PublicationBytesVerdict(
+            digest_hex, len(data), _disposition(failure="scan_error")
+        )
+    with tempfile.TemporaryDirectory(prefix="bytes-", dir=staging_root) as temp_dir:
+        staged_path = Path(temp_dir) / "candidate"
+        try:
+            with staged_path.open("xb") as target:
+                target.write(data)
+                target.flush()
+                os.fsync(target.fileno())
+            os.chmod(staged_path, 0o600)
+        except OSError:
+            return PublicationBytesVerdict(
+                digest_hex, len(data), _disposition(failure="scan_error")
+            )
+        scan_result, scan_failure = _scan_file(
+            staged_path,
+            max_bytes=max_bytes,
+            env=env,
+        )
+        try:
+            unchanged = _sha256_file(staged_path) == digest_hex
+        except OSError:
+            unchanged = False
+        if not unchanged:
+            disposition = _disposition(failure="scan_error")
+        elif scan_result is None:
+            disposition = _disposition(failure=scan_failure or "scan_error")
+        elif scan_result.get("outcome") == "clean":
+            if scan_result.get("bytes_scanned") == len(data):
+                disposition = _disposition(scan=scan_result)
+            else:
+                disposition = _disposition(failure="scan_error")
+        else:
+            disposition = _disposition(scan=scan_result)
+        return PublicationBytesVerdict(digest_hex, len(data), disposition)
+
+
 def _read_publication_protection_ledger(
     project_key: str,
     *,
@@ -245,16 +339,93 @@ def record_publication_scan(
     """Persist blocked or unverified scan evidence without storing file bytes."""
     if candidate.sha256 is None or candidate.disposition is None:
         return None
+    return _record_scan_disposition(
+        project_key,
+        repository_identity=repository_identity,
+        relative_destination=relative_destination,
+        sha256=candidate.sha256,
+        disposition=candidate.disposition,
+        affected_requests=affected_requests,
+        timestamp=timestamp,
+    )
+
+
+def record_publication_bytes_scan(
+    project_key: str,
+    *,
+    repository_identity: str,
+    relative_destination: str,
+    verdict: PublicationBytesVerdict,
+    affected_requests: Iterable[str] = (),
+    timestamp: float | None = None,
+) -> dict[str, object] | None:
+    """Persist blocked or unverified bytes evidence without storing file bytes."""
+    if verdict.sha256 is None or verdict.disposition is None:
+        return None
+    return _record_scan_disposition(
+        project_key,
+        repository_identity=repository_identity,
+        relative_destination=relative_destination,
+        sha256=verdict.sha256,
+        disposition=verdict.disposition,
+        affected_requests=affected_requests,
+        timestamp=timestamp,
+    )
+
+
+def lookup_publication_content_record(
+    project_key: str,
+    *,
+    repository_identity: str,
+    relative_destination: str,
+    sha256: str,
+) -> dict[str, object] | None:
+    """Return the durable protection row for one published identity, if any.
+
+    Missing or unreadable ledgers mean no decision, never a clean verdict;
+    callers keep the existing history-preserving behavior in that case. A
+    missing ledger file is checked without creating directories so clean
+    drains never touch the filesystem for protection state.
+    """
+    try:
+        path = _ledger_path(project_key)
+    except Exception:  # noqa: BLE001 - an invalid key means no decision.
+        return None
+    if path.is_symlink() or not path.exists():
+        return None
+    try:
+        ledger = _read_publication_protection_ledger(project_key)
+    except RuntimeError:
+        return None
+    try:
+        return publication_protection_lookup(
+            ledger,
+            _identity(repository_identity, relative_destination, sha256),
+        )
+    except Exception:  # noqa: BLE001 - a failed lookup never authorizes publish.
+        return None
+
+
+def _record_scan_disposition(
+    project_key: str,
+    *,
+    repository_identity: str,
+    relative_destination: str,
+    sha256: str,
+    disposition: dict[str, object],
+    affected_requests: Iterable[str] = (),
+    timestamp: float | None = None,
+) -> dict[str, object] | None:
     record = publication_protection_record_from_scan(
         {
             "schema_version": AGENT_PUBLICATION_PROTECTION_WIRE_SCHEMA_VERSION,
             "identity": {
                 "repository_identity": repository_identity,
                 "relative_destination": relative_destination,
-                "sha256": candidate.sha256,
+                "sha256": sha256,
             },
             "affected_requests": list(affected_requests),
-            "disposition": candidate.disposition,
+            "disposition": disposition,
             "timestamp": time.time() if timestamp is None else timestamp,
         }
     )
@@ -264,7 +435,7 @@ def record_publication_scan(
             _identity(
                 repository_identity,
                 relative_destination,
-                candidate.sha256,
+                sha256,
             ),
         )
     return _upsert_record(project_key, record)
@@ -332,6 +503,10 @@ def _resolve_verified_clean(
     identity: dict[str, object],
 ) -> dict[str, object]:
     path = _ledger_path(project_key)
+    if not path.exists() and not path.is_symlink():
+        # No persisted state: resolving a clean scan never creates ledger
+        # directories, so clean drains leave protection state alone.
+        return publication_protection_ledger_empty()
     with _ledger_lock(path):
         ledger = _read_ledger(path)
         updated = publication_protection_resolve_verified_clean(ledger, identity)
@@ -480,11 +655,17 @@ def _identity(
 
 __all__ = [
     "AGENT_PUBLICATION_PROTECTION_FILENAME",
+    "MAX_PUBLICATION_SCAN_BYTES",
     "PRIVATE_SCAN_STAGING_DIRECTORY",
+    "PublicationBytesVerdict",
+    "PublicationProtectionScope",
     "ScannedPublicationCandidate",
+    "lookup_publication_content_record",
     "publication_content_retry_allowed",
     "read_publication_protection_ledger_from_path",
+    "record_publication_bytes_scan",
     "record_publication_push_rejection",
     "record_publication_scan",
+    "scan_publication_bytes",
     "scan_publication_candidate",
 ]

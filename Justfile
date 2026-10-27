@@ -483,6 +483,8 @@ _lint-symvision *args: _setup
         --epic-symbol "sase-1oh.5.1(publication_content_retry_allowed)" \
         --epic-symbol "sase-1oh.5.1(record_publication_push_rejection)" \
         --epic-symbol "sase-1oh.5.1(classify_sidecar_publication_push_result)" \
+        --epic-symbol "sase-1oh.5.1(PublicationBytesVerdict)" \
+        --epic-symbol "sase-1oh.5.1(verify_agents_payload_protection)" \
         {{ args }}
 
 # Check Python file line counts (private, extracted for per-stage wrapping)

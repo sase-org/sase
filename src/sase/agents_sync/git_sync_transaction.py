@@ -111,7 +111,7 @@ def _sync_project_transaction(
     except Exception as exc:  # noqa: BLE001 - project-scoped publication error
         return _error(target, str(exc), pulled=True)
 
-    committed_result = _commit_transaction_payload(repo, owner, git_runner)
+    committed_result = _commit_transaction_payload(target, owner, git_runner)
     if isinstance(committed_result, str):
         return _error(target, committed_result, pulled=True)
     committed = committed_result
@@ -214,7 +214,7 @@ def _sync_project_transaction(
             pulled=True,
             push_attempts=1,
         )
-    retry_commit_result = _commit_transaction_payload(repo, owner, git_runner)
+    retry_commit_result = _commit_transaction_payload(target, owner, git_runner)
     if isinstance(retry_commit_result, str):
         return _error(
             target,
@@ -278,7 +278,7 @@ def _sync_project_transaction(
 
 
 def _commit_transaction_payload(
-    repo: Path,
+    target: ProjectTarget,
     owner: AgentOwnerIdentity,
     git_runner: GitRunner,
 ) -> bool | str:
@@ -289,6 +289,9 @@ def _commit_transaction_payload(
     export just wrote.
     """
 
+    from sase.agents_sync.publication_protection import PublicationProtectionScope
+
+    repo = target.sidecar_path
     published = publish_pending_archive_objects(repo, git_runner)
     if isinstance(published, str):
         return published
@@ -297,6 +300,10 @@ def _commit_transaction_payload(
         owner,
         git_runner,
         extra_paths=PUBLISHED_ARCHIVE_PATHS,
+        protection_scope=PublicationProtectionScope(
+            project_key=target.project_key,
+            repository_identity=target.remote_url,
+        ),
     )
 
 
