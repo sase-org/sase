@@ -63,6 +63,12 @@ def _terminal_blocker_members(
     newer member. A launched follow-up with no recorded agent, or whose
     follow-up never materialized, still blocks: the handoff lane is
     unproven.
+
+    Failed agent turns superseded by their own launched monitor or gate
+    handoff are already dropped from the effective generation by
+    ``_agent_session_members_after_shell_handoffs``, so they never reach
+    this function. If the newest follow-up then fails, that follow-up is
+    the terminal blocker.
     """
     failed = [
         member

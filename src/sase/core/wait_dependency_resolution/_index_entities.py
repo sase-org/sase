@@ -8,7 +8,12 @@ from pathlib import Path
 from sase.core.agent_identity_facade import agent_name_in_hood
 
 from ._artifact_state import artifact_dir_key
-from ._types import ArtifactCandidate, WAIT_SUCCESS_OUTCOMES, WaitCandidate
+from ._types import (
+    ArtifactCandidate,
+    SUCCESSFUL_TURN_FOLLOWUP_OUTCOMES,
+    WAIT_SUCCESS_OUTCOMES,
+    WaitCandidate,
+)
 
 
 @dataclass(frozen=True)
@@ -57,6 +62,42 @@ def _is_superseded_terminal_turn_member(
         return False
     newest_timestamp = newest_timestamp_by_turn_kind.get(kind)
     return newest_timestamp is not None and newest_timestamp > candidate.timestamp
+
+
+def _is_superseded_failed_handoff_turn_member(
+    candidate: ArtifactCandidate,
+    *,
+    candidates: tuple[ArtifactCandidate, ...],
+    names_in_generation: set[str],
+) -> bool:
+    """Return whether a failed agent turn is superseded by its own handoff.
+
+    A failed agent turn that handed off to a monitor or gate, and whose
+    recorded follow-up is present in the generation, did not end the
+    session. The follow-up lane carries the session's verdict, so the
+    failed turn is dropped from the effective generation. Requiring the
+    monitor or gate to be parented to this turn keeps the rule from
+    matching an unrelated later handoff.
+    """
+    if candidate.turn_member_kind is not None:
+        return False
+    if not candidate.has_done_marker:
+        return False
+    if candidate.outcome is None or candidate.outcome in WAIT_SUCCESS_OUTCOMES:
+        return False
+    for other in candidates:
+        if other.turn_member_kind not in {"monitor", "gate"}:
+            continue
+        if other.parent_timestamp != candidate.timestamp:
+            continue
+        if other.turn_followup_outcome not in SUCCESSFUL_TURN_FOLLOWUP_OUTCOMES:
+            continue
+        if (
+            other.turn_followup_agent is not None
+            and other.turn_followup_agent in names_in_generation
+        ):
+            return True
+    return False
 
 
 class WaitDependencyEntityQueries:
@@ -327,6 +368,16 @@ class WaitDependencyEntityQueries:
         *,
         extra_present_names: frozenset[str] = frozenset(),
     ) -> tuple[ArtifactCandidate, ...]:
+        """Return the generation after dropping superseded turn members.
+
+        A monitor or gate whose recorded follow-up agent is already in the
+        generation (or in *extra_present_names*) is not live evidence. A
+        terminal same-kind turn-member retry supersedes an older failed
+        monitor or gate. A failed agent turn is superseded when a monitor
+        or gate parented to it launched a follow-up that is present: the
+        follow-up lane carries the session's verdict, and the failed turn
+        stays ``failed`` on disk.
+        """
         names_in_generation = {
             candidate.name for candidate in candidates
         } | extra_present_names
@@ -338,6 +389,11 @@ class WaitDependencyEntityQueries:
             and not _is_superseded_terminal_turn_member(
                 candidate,
                 newest_timestamp_by_turn_kind=newest_timestamp_by_turn_kind,
+            )
+            and not _is_superseded_failed_handoff_turn_member(
+                candidate,
+                candidates=candidates,
+                names_in_generation=names_in_generation,
             )
         )
 

@@ -72,6 +72,58 @@ def test_snapshot_handles_missing_source_files(tmp_path: Path) -> None:
     assert meta["status"] == "raised"
 
 
+def test_snapshot_archives_finalizer_aggregate_and_leaves_instance_dir(
+    tmp_path: Path,
+) -> None:
+    _touch(tmp_path / "finalizer_result.json", '{"status": "failed"}')
+    _touch(tmp_path / "finalizers" / "progress.jsonl", '{"event": "failed"}\n')
+    instance_dir = tmp_path / "finalizers" / "instance-1"
+    _touch(instance_dir / "outcome.json", '{"status": "failed"}')
+    lock_path = tmp_path / "finalizer_result.lock"
+    _touch(lock_path, "")
+
+    snapshot_attempt(
+        str(tmp_path),
+        1,
+        status="failed",
+        start_epoch=100.0,
+        end_epoch=200.0,
+        error_full="finalizer failed",
+        error_snippet="finalizer failed",
+        model=None,
+        used_fallback=False,
+    )
+
+    snap_dir = tmp_path / "attempts" / "01"
+    assert (snap_dir / "finalizer_result.json").read_text() == '{"status": "failed"}'
+    assert (snap_dir / "finalizers" / "progress.jsonl").read_text() == (
+        '{"event": "failed"}\n'
+    )
+    assert not (tmp_path / "finalizer_result.json").exists()
+    assert not (tmp_path / "finalizers" / "progress.jsonl").exists()
+    assert (instance_dir / "outcome.json").read_text() == '{"status": "failed"}'
+    assert lock_path.exists()
+
+
+def test_snapshot_tolerates_missing_finalizer_files(tmp_path: Path) -> None:
+    snapshot_attempt(
+        str(tmp_path),
+        1,
+        status="raised",
+        start_epoch=100.0,
+        end_epoch=200.0,
+        error_full="boom",
+        error_snippet="boom",
+        model=None,
+        used_fallback=False,
+    )
+
+    snap_dir = tmp_path / "attempts" / "01"
+    assert (snap_dir / "attempt_meta.json").exists()
+    assert not (snap_dir / "finalizer_result.json").exists()
+    assert not (snap_dir / "finalizers" / "progress.jsonl").exists()
+
+
 def test_snapshot_is_idempotent(tmp_path: Path) -> None:
     _touch(tmp_path / "live_reply.md", "first")
 

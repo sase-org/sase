@@ -1,10 +1,12 @@
 """Per-attempt artifact snapshotting for retried agent executions.
 
 When the retry loop switches from attempt N to attempt N+1, this module
-moves the current `live_reply.md` / `live_reply_timestamps.jsonl` and the
-attempt's continuation capture directory into `attempts/<N>/` alongside a
-per-attempt metadata record. The root artifacts dir is then truncated so
-attempt N+1 streams into clean files.
+moves the current `live_reply.md` / `live_reply_timestamps.jsonl`, the
+attempt's continuation capture directory, `finalizer_result.json`, and
+`finalizers/progress.jsonl` into `attempts/<N>/` alongside a per-attempt
+metadata record. The root artifacts dir is then truncated so attempt N+1
+streams into clean files. Per-instance `finalizers/<instance_id>/`
+artifacts and `finalizer_result.lock` stay in the root.
 """
 
 from __future__ import annotations
@@ -48,6 +50,17 @@ def _tmp_attempt_dir(artifacts_dir: str, attempt_number: int) -> Path:
     return Path(artifacts_dir) / ATTEMPTS_DIRNAME / f"{attempt_number:02d}.tmp"
 
 
+def _move_into_tmp(src: Path, dest: Path) -> None:
+    """Move *src* to *dest* if it exists; tolerate missing files and OS errors."""
+    if not src.exists():
+        return
+    try:
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        shutil.move(str(src), str(dest))
+    except OSError:
+        pass
+
+
 def snapshot_attempt(
     artifacts_dir: str,
     attempt_number: int,
@@ -61,15 +74,22 @@ def snapshot_attempt(
     used_fallback: bool,
     reason: str | None = None,
 ) -> None:
-    """Move current reply artifacts into ``attempts/<N>/`` and record metadata.
+    """Move current reply and finalizer artifacts into ``attempts/<N>/``.
 
     Creates ``attempts/<N>.tmp/`` first, populates it, then atomically renames
     to ``attempts/<N>/``. After a successful snapshot the root
     ``live_reply.md`` / ``live_reply_timestamps.jsonl`` files are truncated so
-    the next attempt streams into clean files from byte 0.
+    the next attempt streams into clean files from byte 0. Archived files:
 
-    Idempotent: if ``attempts/<N>/`` already exists, this is a no-op. Missing
-    source files are tolerated (meta is still written).
+    - ``live_reply.md`` / ``live_reply_timestamps.jsonl``
+    - ``continuation/``
+    - ``finalizer_result.json``
+    - ``finalizers/progress.jsonl`` (the controller journal)
+
+    ``finalizer_result.lock`` and per-instance ``finalizers/<instance_id>/``
+    artifacts stay in the root. Missing source files are tolerated (meta is
+    still written). Idempotent: if ``attempts/<N>/`` already exists, this is
+    a no-op.
     """
     final_dir = _attempt_dir(artifacts_dir, attempt_number)
     if final_dir.exists():
@@ -81,19 +101,22 @@ def snapshot_attempt(
     tmp_dir.mkdir(parents=True, exist_ok=True)
 
     root = Path(artifacts_dir)
-    for name in ("live_reply.md", "live_reply_timestamps.jsonl"):
-        src = root / name
-        if src.exists():
-            try:
-                shutil.move(str(src), str(tmp_dir / name))
-            except OSError:
-                pass
+    for name in (
+        "live_reply.md",
+        "live_reply_timestamps.jsonl",
+        "finalizer_result.json",
+    ):
+        _move_into_tmp(root / name, tmp_dir / name)
     continuation_dir = root / "continuation"
     if continuation_dir.exists():
         try:
             shutil.move(str(continuation_dir), str(tmp_dir / "continuation"))
         except OSError:
             pass
+    _move_into_tmp(
+        root / "finalizers" / "progress.jsonl",
+        tmp_dir / "finalizers" / "progress.jsonl",
+    )
 
     meta = _AttemptMeta(
         attempt_number=attempt_number,

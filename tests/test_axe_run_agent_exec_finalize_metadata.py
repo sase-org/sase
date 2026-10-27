@@ -9,6 +9,7 @@ from unittest.mock import patch
 import pytest
 
 from sase.axe.run_agent_exec import LoopState, _finalize_loop
+from sase.axe.run_agent_exec_attempts import snapshot_attempt
 from sase.axe.run_agent_exec_retry import RetryTracker
 from sase.llm_provider.retry_config import ProviderRetryConfig
 
@@ -225,6 +226,101 @@ def test_finalize_loop_maps_monitored_to_completed_without_resaving_chat(
     assert done["outcome"] == "completed"
     assert done["name"] == "agent--0"
     assert done["response_path"] == str(tmp_path / "starter-chat.md")
+
+
+def test_finalize_loop_monitor_handoff_completed_after_snapshotted_failed_finalizer(
+    tmp_path: Path,
+) -> None:
+    ctx = make_exec_ctx(tmp_path, is_home_mode=False)
+    artifacts = Path(ctx.artifacts_dir)
+    (artifacts / "agent_meta.json").write_text(
+        json.dumps({"name": "agent--0"}),
+        encoding="utf-8",
+    )
+    (artifacts / "finalizer_result.json").write_text(
+        json.dumps({"status": "failed"}),
+        encoding="utf-8",
+    )
+    (artifacts / "finalizers").mkdir()
+    (artifacts / "finalizers" / "progress.jsonl").write_text(
+        '{"status": "failed"}\n',
+        encoding="utf-8",
+    )
+    snapshot_attempt(
+        str(artifacts),
+        1,
+        status="failed",
+        start_epoch=1.0,
+        end_epoch=2.0,
+        error_full="stale finalizer",
+        error_snippet="stale finalizer",
+        model=None,
+        used_fallback=False,
+    )
+    assert not (artifacts / "finalizer_result.json").exists()
+    state = LoopState(
+        current_prompt="prompt",
+        current_role_suffix="--0",
+        current_artifacts_dir=ctx.artifacts_dir,
+        loop_outcome="monitored",
+        sdd_spec_path=None,
+        original_prompt="prompt",
+        saved_chat_paths=[("--0", str(tmp_path / "starter-chat.md"))],
+    )
+
+    with (
+        patch("sase.axe.run_agent_exec_finalize.save_chat_history") as save_chat,
+        patch(
+            "sase.axe.image_attachments.collect_agent_markdown_paths",
+            return_value=[],
+        ),
+        patch("sase.axe.image_attachments.collect_agent_image_paths", return_value=[]),
+    ):
+        result = _finalize_loop(ctx, state, RetryTracker(retry_cfg=None), None)
+
+    save_chat.assert_not_called()
+    assert result.success is True
+    done = json.loads((artifacts / "done.json").read_text())
+    assert done["outcome"] == "completed"
+
+
+def test_finalize_loop_monitor_handoff_failed_when_current_finalizer_failed(
+    tmp_path: Path,
+) -> None:
+    ctx = make_exec_ctx(tmp_path, is_home_mode=False)
+    artifacts = Path(ctx.artifacts_dir)
+    (artifacts / "agent_meta.json").write_text(
+        json.dumps({"name": "agent--0"}),
+        encoding="utf-8",
+    )
+    (artifacts / "finalizer_result.json").write_text(
+        json.dumps({"status": "failed"}),
+        encoding="utf-8",
+    )
+    state = LoopState(
+        current_prompt="prompt",
+        current_role_suffix="--0",
+        current_artifacts_dir=ctx.artifacts_dir,
+        loop_outcome="monitored",
+        sdd_spec_path=None,
+        original_prompt="prompt",
+        saved_chat_paths=[("--0", str(tmp_path / "starter-chat.md"))],
+    )
+
+    with (
+        patch("sase.axe.run_agent_exec_finalize.save_chat_history") as save_chat,
+        patch(
+            "sase.axe.image_attachments.collect_agent_markdown_paths",
+            return_value=[],
+        ),
+        patch("sase.axe.image_attachments.collect_agent_image_paths", return_value=[]),
+    ):
+        result = _finalize_loop(ctx, state, RetryTracker(retry_cfg=None), None)
+
+    save_chat.assert_not_called()
+    assert result.outcome == "monitored"
+    done = json.loads((artifacts / "done.json").read_text())
+    assert done["outcome"] == "failed"
 
 
 def test_finalize_loop_maps_gated_to_completed_without_resaving_chat(

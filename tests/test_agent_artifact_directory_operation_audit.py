@@ -70,12 +70,20 @@ _REVIEWED_DIR_OPERATION_CONTEXTS: dict[str, DirOpReview] = {
             ),
         ),
     ),
+    "src/sase/axe/run_agent_exec_attempts.py:_move_into_tmp": DirOpReview(
+        exemption=(
+            "Helper for snapshot_attempt: shutil.move relocates live_reply "
+            "and attempt-scoped finalizer aggregate files into "
+            "attempts/<N>.tmp/. It never touches the tracked marker layer."
+        ),
+    ),
     "src/sase/axe/run_agent_exec_attempts.py:snapshot_attempt": DirOpReview(
         exemption=(
             "Operates on the attempts/<N>.tmp staging directory: shutil.rmtree "
             "removes a stale tmp dir, shutil.move relocates the live_reply "
-            "byproducts into it, and os.rename promotes it to attempts/<N>/. "
-            "None of these touch the tracked marker layer."
+            "and finalizer aggregate byproducts into it, and os.rename "
+            "promotes it to attempts/<N>/. None of these touch the tracked "
+            "marker layer."
         ),
     ),
     "src/sase/bead/attachments/store.py:remove": DirOpReview(
