@@ -31,7 +31,14 @@ SUPPORTED_AGENT_SCAN_WIRE_SCHEMA_VERSIONS = frozenset({10, 11, 12})
 SUPPORTED_AGENT_ARTIFACT_INDEX_SCHEMA_VERSIONS = frozenset({33, 34, 35, 36})
 AgentArtifactRecordShape = Literal["full", "list"]
 AgentArtifactCandidateField = Literal[
-    "project", "cl", "model", "provider", "machine", "type"
+    "project",
+    "cl",
+    "model",
+    "provider",
+    "machine",
+    "type",
+    "agent_session",
+    "agent_name",
 ]
 
 # Workflow directory categories the Phase 3A scanner walks.

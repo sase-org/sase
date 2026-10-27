@@ -157,10 +157,23 @@ def _query_session_records(
         active_limit=None,
         recent_completed_limit=None,
         include_hidden=True,
+        # A session's root member keeps agent_session null until it gets a
+        # successor, so also match its agent_name; the recheck below keeps
+        # the match exact.
         candidate_filter={
-            "kind": "equals",
-            "field": "agent_session",
-            "value": agent_session,
+            "kind": "any",
+            "filters": [
+                {
+                    "kind": "equals",
+                    "field": "agent_session",
+                    "value": agent_session,
+                },
+                {
+                    "kind": "equals",
+                    "field": "agent_name",
+                    "value": agent_session,
+                },
+            ],
         },
     )
     options = AgentArtifactScanOptionsWire(
@@ -175,11 +188,14 @@ def _query_session_records(
         )
     except (OSError, RuntimeError, ValueError, ImportError, AttributeError):
         return [], False
-    records = [
-        record
-        for record in scan.records
-        if _record_matches_assignee(record, agent_session)
-    ]
+    records: list[AgentArtifactRecordWire] = []
+    seen_dirs: set[str] = set()
+    for record in scan.records:
+        if record.artifact_dir in seen_dirs:
+            continue
+        if _record_matches_assignee(record, agent_session):
+            seen_dirs.add(record.artifact_dir)
+            records.append(record)
     return records, True
 
 

@@ -125,7 +125,7 @@ def record(
     artifact_dir: Path,
     *,
     name: str,
-    session: str,
+    session: str | None,
     timestamp: str = "20261022120000",
     pid: int | None = None,
     run_started_at: str | None = None,
