@@ -40,12 +40,9 @@ from sase.macro.directives import PromptDirectives
 from ._failed_close_recovery_helpers import (
     close_phase_with_plan,
     fail_stitch,
-    git_push_origin,
     machine_lane,
     prepare_commit_run,
-    recovery_events_in_repo,
     seed_git_store,
-    seed_git_store_with_remote,
 )
 from .finalizers_protocol_harness_test_helpers import (
     run_controller,
@@ -56,6 +53,61 @@ __all__ = [
     "TestPublicationRetry",
     "TestRedactionAndDeclarationEvidence",
 ]
+
+
+def _git_run(cwd: Path, *args: str) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(
+        ["git", *args], cwd=cwd, check=True, capture_output=True, text=True
+    )
+
+
+def _seed_git_store_with_remote(root: Path, remote: Path) -> BeadProject:
+    remote.mkdir()
+    subprocess.run(["git", "init", "--bare", "-q", str(remote)], check=True)
+    project = seed_git_store(root)
+    _git_run(root, "config", "user.name", "probe")
+    _git_run(root, "config", "user.email", "probe@example.invalid")
+    _git_run(root, "add", "-A")
+    _git_run(root, "commit", "-m", "init beads", "--allow-empty")
+    _git_run(root, "remote", "add", "origin", str(remote))
+    _git_run(root, "push", "-u", "origin", "HEAD")
+    return project
+
+
+def _git_push_origin(beads_dir: Path) -> SimpleNamespace:
+    from sase.bead._sync_git import find_git_root
+
+    repo = find_git_root(beads_dir)
+    assert repo is not None
+    result = subprocess.run(
+        ["git", "push", "origin", "HEAD"],
+        cwd=repo,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if result.returncode != 0:
+        return SimpleNamespace(
+            pushed=False,
+            skipped_no_remote=False,
+            error=result.stderr.strip() or "push failed",
+        )
+    return SimpleNamespace(pushed=True, skipped_no_remote=False, error=None)
+
+
+def _recovery_events_in_repo(root: Path) -> int:
+    events_root = root / "sdd" / "beads" / "events"
+    if not events_root.is_dir():
+        events_root = root / "beads" / "events"
+    count = 0
+    for path in events_root.rglob("*.jsonl"):
+        for line in path.read_text(encoding="utf-8").splitlines():
+            if (
+                "completion_failure_recovered" in line
+                or "CompletionFailureRecovered" in line
+            ):
+                count += 1
+    return count
 
 
 class TestPublicationRetry:
@@ -71,7 +123,7 @@ class TestPublicationRetry:
         monkeypatch.setattr(
             "sase.finalizers.commit_execution.run_stitch_create", fail_stitch
         )
-        with seed_git_store_with_remote(store_root, remote) as project:
+        with _seed_git_store_with_remote(store_root, remote) as project:
             _, phase_id = close_phase_with_plan(project)
             beads_dir = project.beads_dir
         commit_calls = {"n": 0}
@@ -96,7 +148,7 @@ class TestPublicationRetry:
             )
             monkeypatch.setattr(
                 "sase.finalizers._failed_close_recovery_apply._push_recovery_mutation",
-                git_push_origin,
+                _git_push_origin,
             )
             submit_commit(artifacts)
             with pytest.raises(BuiltinCommitFinalizerError, match="hook failed"):
@@ -117,7 +169,7 @@ class TestPublicationRetry:
             assert commit_calls["n"] == 2
         clone = tmp_path / "remote-clone"
         subprocess.run(["git", "clone", "-q", str(remote), str(clone)], check=True)
-        assert recovery_events_in_repo(clone) == 2
+        assert _recovery_events_in_repo(clone) == 2
         with BeadProject(store_root) as project:
             phase = project.show(phase_id)
             failed_notes = [
@@ -140,7 +192,7 @@ class TestPublicationRetry:
         monkeypatch.setattr(
             "sase.finalizers.commit_execution.run_stitch_create", fail_stitch
         )
-        with seed_git_store_with_remote(store_root, remote) as project:
+        with _seed_git_store_with_remote(store_root, remote) as project:
             _, phase_id = close_phase_with_plan(project)
             beads_dir = project.beads_dir
         pushes = {"n": 0}
@@ -151,7 +203,7 @@ class TestPublicationRetry:
                 return SimpleNamespace(
                     pushed=False, skipped_no_remote=False, error="push refused"
                 )
-            return git_push_origin(target)
+            return _git_push_origin(target)
 
         with machine_lane(monkeypatch, beads_dir):
             monkeypatch.setattr(
@@ -171,7 +223,7 @@ class TestPublicationRetry:
             assert pushes["n"] == 2
         clone = tmp_path / "remote-clone"
         subprocess.run(["git", "clone", "-q", str(remote), str(clone)], check=True)
-        assert recovery_events_in_repo(clone) == 2
+        assert _recovery_events_in_repo(clone) == 2
         with BeadProject(store_root) as project:
             failed_notes = [
                 note
