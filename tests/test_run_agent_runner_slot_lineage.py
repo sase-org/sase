@@ -11,6 +11,7 @@ record's own metadata instead of re-walking a live scan.
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 from unittest.mock import patch
 
@@ -374,10 +375,12 @@ def test_capacity_only_dropped_predecessor_does_not_break_persisted_lineage(
         queue_weight_explicit=True,
     )
     (elder / "done.json").write_text("{}", encoding="utf-8")
+    # The real capacity_only scan prunes dirs whose pid is provably dead, so
+    # the live holder and its waiting grandchild must carry a live pid.
     holder = artifact(
         tmp_path,
         "20260910150001",
-        101,
+        os.getpid(),
         parent_timestamp=elder.name,
         agent_session="fam",
         queue_weight=2.0,
@@ -387,7 +390,7 @@ def test_capacity_only_dropped_predecessor_does_not_break_persisted_lineage(
     grandchild = artifact(
         tmp_path,
         "20260910150002",
-        102,
+        os.getpid(),
         parent_timestamp=holder.name,
         agent_session="fam",
         queue_weight=2.0,
