@@ -10,20 +10,47 @@ objects the UI is rendering unless this copy runs first.
 Each reachable ``Agent`` is copied once through a shared memo so overlapping
 collections (visible roster, capacity roster, session back-pointers) keep
 intentional aliases inside the new graph and do not alias back to live rows.
+
+Use :func:`copy_agent_graph` when the worker rebuilds relationships or walks
+the full reachable graph (load-time detach). Use
+:func:`copy_agent_rows_relinked` when the consumer only reassigns row
+attributes on the copied roster itself — as the runner-slot pass does — and
+never mutates nested leaf containers in place. The relinked copy is about as
+cheap as a plain shallow copy (~7 ms per 600 rows versus ~160 ms for the full
+graph copy); the roster refresh runs twice per capacity-report install (at
+least every 10 s even when idle), so that cost matters under the TUI perf
+rules ("periodic ticks revalidate; recomputes get a longer cadence").
 """
 
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
+from copy import copy
 from dataclasses import fields
 from typing import Any
 
 from .agent import Agent
 
 __all__ = [
+    "AGENT_RELINK_FIELDS",
     "adopt_agents",
     "copy_agent_graph",
+    "copy_agent_rows_relinked",
 ]
+
+#: ``Agent``-reference fields relinked by :func:`copy_agent_rows_relinked`.
+#: Single-``Agent`` values map through the in-batch memo; lists map
+#: element-wise into a new list so the copy never shares a list object with
+#: the live row. A reference to a row outside the batch is kept as-is
+#: (consumers only read those rows).
+AGENT_RELINK_FIELDS: tuple[str, ...] = (
+    "followup_agents",
+    "runtime_children",
+    "wait_display_source",
+    "status_display_source",
+    "agent_session_container",
+    "retry_chain_siblings",
+)
 
 
 def copy_agent_graph(
@@ -65,6 +92,52 @@ def _copy_agent(agent: Agent, memo: dict[int, Agent] | None = None) -> Agent:
         else:
             setattr(clone, name, value)
     return clone
+
+
+def copy_agent_rows_relinked(agents: Sequence[Agent]) -> list[Agent]:
+    """Return shallow row copies with in-batch ``Agent`` references relinked.
+
+    Each distinct input row is copied once with :func:`copy.copy` (memoized
+    by :func:`id`, so a row appearing twice stays a single copy) and the
+    result preserves input order, including duplicate positions.
+
+    Each copy's :data:`AGENT_RELINK_FIELDS` are then rewritten to point at
+    the in-batch copies: single-``Agent`` values map through the memo and
+    lists map element-wise into a new list, so no copy shares a list object
+    with a live row. A reference to a row outside the batch is kept as-is;
+    consumers only read those rows.
+
+    The caller must only reassign row attributes on the returned copies (as
+    the runner-slot pass does) and never mutate nested leaf containers in
+    place.
+    """
+    memo: dict[int, Agent] = {}
+    originals: dict[int, Agent] = {}
+    for agent in agents:
+        key = id(agent)
+        if key not in memo:
+            memo[key] = copy(agent)
+            originals[key] = agent
+    for key, original in originals.items():
+        clone = memo[key]
+        for field_name in AGENT_RELINK_FIELDS:
+            value = getattr(original, field_name)
+            if isinstance(value, Agent):
+                setattr(clone, field_name, memo.get(id(value), value))
+            elif isinstance(value, list):
+                setattr(
+                    clone,
+                    field_name,
+                    [
+                        memo.get(id(item), item) if isinstance(item, Agent) else item
+                        for item in value
+                    ],
+                )
+            elif value is None:
+                setattr(clone, field_name, None)
+            else:
+                setattr(clone, field_name, value)
+    return [memo[id(agent)] for agent in agents]
 
 
 def adopt_agents(

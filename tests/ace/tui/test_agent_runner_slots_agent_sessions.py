@@ -327,6 +327,70 @@ def test_refresh_runner_slot_context_keeps_lone_failed_testing_clan_status(
     assert summary.failed == 1
 
 
+@pytest.mark.parametrize("mode", ["fallback", "estimate", "authoritative"])
+def test_queued_session_clan_promotes_container_after_members(
+    mode: str,
+) -> None:
+    """A clan container listed before its session root still reads QUEUED."""
+    root = _agent(
+        "clan.root",
+        status="DONE",
+        pid=None,
+        agent_clan="research",
+        agent_clan_generation="20260712120000",
+    )
+    turn = _agent(
+        "clan.code",
+        status="WAITING",
+        start_time=datetime(2026, 7, 12, 12, 1),
+        parent_timestamp="clan.root",
+        slot_requested_at="2026-07-12T12:00:00Z",
+        agent_clan="research",
+        agent_clan_generation="20260712120000",
+    )
+    sibling = _agent(
+        "clan.sib",
+        start_time=datetime(2026, 7, 12, 12, 2),
+        agent_clan="research",
+        agent_clan_generation="20260712120000",
+    )
+    rows = [root, turn, sibling]
+    _apply_status_overrides(rows)
+    projected = project_clan_tree(rows)
+
+    assert projected[0].is_clan_container
+    assert projected[0].wait_display_source is None
+
+    if mode == "fallback":
+        refresh_runner_slot_context(projected)
+    elif mode == "estimate":
+        refresh_runner_slot_context(projected, effective_limit=10)
+    else:
+        refresh_runner_slot_context(
+            projected,
+            raw_snapshot={
+                "occupied_lanes": 0,
+                "effective_limit": 10.0,
+                "waiters": [
+                    {
+                        "artifact_dir": turn.artifacts_dir,
+                        "queue_position": 1,
+                        "slot_requested_at": turn.slot_requested_at,
+                    }
+                ],
+                "claims": [],
+                "accounting": [],
+                "accounting_valid": True,
+            },
+        )
+
+    container = projected[0]
+    assert turn.status == "QUEUED"
+    assert root.status == "QUEUED"
+    assert container.status == "QUEUED"
+    assert container.wait_display_source is turn
+
+
 @pytest.mark.parametrize("effective_limit", [None, 10])
 def test_refresh_runner_slot_context_keeps_lone_starting_clan_status(
     effective_limit: int | None,

@@ -46,3 +46,52 @@ def _assert_capacity_metrics(
         capacity.slots_in_use,
         capacity.queued_count,
     ) == expected
+
+
+def _machine_capacity_report_for_waiter(turn: Agent, queue_position: int = 1):
+    """Build a minimal authoritative report listing *turn* as queued."""
+    import time
+
+    from sase.config.runner_limit_override import EffectiveRunnerLimitSnapshot
+    from sase.core.runner_slots import MachineCapacityReport
+
+    now = time.time()
+    raw = {
+        "occupied_lanes": 0,
+        "occupied_capacity": 0.0,
+        "effective_limit": 8.0,
+        "claims": [],
+        "waiters": [
+            {
+                "artifact_dir": turn.artifacts_dir,
+                "queue_position": queue_position,
+                "slot_requested_at": turn.slot_requested_at,
+            }
+        ],
+        "accounting": [],
+        "accounting_valid": True,
+    }
+    return MachineCapacityReport(
+        machine="athena",
+        computed_at=now,
+        scanned_at=now,
+        token="test-token",
+        scan_current=True,
+        effective_limit=8.0,
+        limit=EffectiveRunnerLimitSnapshot(
+            configured_limit=8,
+            temporary_override=None,
+            captured_at=now,
+        ),
+        occupied_capacity=0.0,
+        occupied_lanes=0,
+        over_limit=False,
+        claims=(),
+        waiters=tuple(raw["waiters"]),
+        accounting=(),
+        diagnostics=(),
+        accounting_valid=True,
+        accounting_available=False,
+        raw_snapshot=raw,
+        record_inputs=(),
+    )

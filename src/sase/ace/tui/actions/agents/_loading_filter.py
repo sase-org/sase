@@ -85,9 +85,10 @@ class AgentLoadingFilterMixin(AgentLoadingStateMixin):
                 from sase.config.core import get_max_running_agents
                 from sase.core.agent_hold_facade import active_agent_hold_records
 
+                from ...models._agent_graph import copy_agent_rows_relinked
                 from ...models.agent_runner_slots import refresh_runner_slot_context
 
-                estimate_agents = [copy(agent) for agent in roster]
+                estimate_agents = copy_agent_rows_relinked(roster)
                 estimate = refresh_runner_slot_context(
                     estimate_agents,
                     effective_limit=get_max_running_agents(),
@@ -96,7 +97,7 @@ class AgentLoadingFilterMixin(AgentLoadingStateMixin):
                 )
                 if report is None:
                     return estimate, estimate, estimate_agents
-                report_agents = [copy(agent) for agent in roster]
+                report_agents = copy_agent_rows_relinked(roster)
                 authoritative = refresh_runner_slot_context(
                     report_agents,
                     capacity_agents=report_agents,

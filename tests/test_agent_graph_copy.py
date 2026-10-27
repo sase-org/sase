@@ -5,7 +5,11 @@ from __future__ import annotations
 import time
 from datetime import datetime
 
-from sase.ace.tui.models._agent_graph import copy_agent_graph
+from sase.ace.tui.models._agent_graph import (
+    AGENT_RELINK_FIELDS,
+    copy_agent_graph,
+    copy_agent_rows_relinked,
+)
 from sase.ace.tui.models.agent import Agent, AgentType
 
 from tests._agents_tab_query_helpers import _make_agent
@@ -136,3 +140,70 @@ def test_copy_and_small_delta_cost_scale_with_unique_rows() -> None:
         f"agent-graph copy: n=80 unique={len(memo)} large={large_ms:.3f}ms "
         f"repeat_small={small_ms:.3f}ms"
     )
+
+
+def test_relinked_rows_resolve_in_batch_references() -> None:
+    root, child = _agent_session_cycle()
+    root.wait_display_source = child
+    root.status_display_source = child
+    copied_root, copied_child = copy_agent_rows_relinked([root, child])
+
+    assert copied_root is not root
+    assert copied_child is not child
+    assert copied_root.followup_agents == [copied_child]
+    assert copied_root.followup_agents[0] is copied_child
+    assert copied_root.runtime_children[0] is copied_child
+    assert copied_root.wait_display_source is copied_child
+    assert copied_root.status_display_source is copied_child
+    assert copied_child.agent_session_container is copied_root
+    assert copied_child.wait_display_source is copied_root
+    assert copied_child.retry_chain_siblings[0] is copied_root
+
+
+def test_relinked_rows_preserve_out_of_batch_reference() -> None:
+    inside = _make_agent(cl_name="inside", raw_suffix="20260918130000")
+    outside = _make_agent(cl_name="outside", raw_suffix="20260918130100")
+    inside.wait_display_source = outside
+    inside.runtime_children = [outside]
+    (copied,) = copy_agent_rows_relinked([inside])
+
+    assert copied.wait_display_source is outside
+    assert copied.runtime_children == [outside]
+    assert copied.runtime_children[0] is outside
+    assert copied.runtime_children is not inside.runtime_children
+
+
+def test_relinked_duplicate_rows_stay_aliased() -> None:
+    agent = _make_agent(cl_name="dup", raw_suffix="20260918130200")
+    first, second = copy_agent_rows_relinked([agent, agent])
+
+    assert first is second
+    assert first is not agent
+
+
+def test_relinked_copies_do_not_alias_live_rows() -> None:
+    root, child = _agent_session_cycle()
+    original_status = root.status
+    original_children = list(root.runtime_children)
+    copied_root = copy_agent_rows_relinked([root, child])[0]
+
+    assert copied_root.runtime_children is not root.runtime_children
+    copied_root.status = "QUEUED"
+    assert root.status == original_status
+    copied_root.runtime_children.append(
+        _make_agent(cl_name="extra", raw_suffix="20260918130300")
+    )
+    assert root.runtime_children == original_children
+    assert len(root.runtime_children) == 1
+
+
+def test_relinked_field_tuple_matches_agent_reference_fields() -> None:
+    import dataclasses
+    import re
+
+    expected = {
+        field.name
+        for field in dataclasses.fields(Agent)
+        if re.search(r"\bAgent\b", str(field.type))
+    }
+    assert set(AGENT_RELINK_FIELDS) == expected

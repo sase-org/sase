@@ -137,11 +137,16 @@ def _refresh_runner_slot_context_fallback(
     queue_entries: list[RunnerQueueEntry] = []
     queue_size = len(waiters)
 
-    # Promote real waiters before refreshing synthetic clan aggregates below.
-    # Clan projection runs before this display-only slot pass, so doing this
-    # first keeps an all-queued clan from retaining its earlier WAITING status
-    # until the next refresh. Reuse the queue-position traversal rather than
-    # adding another pass over the loaded rows.
+    # Promote real waiters first, then derive non-container QUEUED overlays,
+    # then aggregate clan containers in a second pass over settled members.
+    # Clan projection runs before this display-only slot pass, so promoting
+    # waiters first keeps an all-queued clan from retaining its earlier WAITING
+    # status until the next refresh. Containers aggregate after their members
+    # so a container listed before its session-root member still sees the
+    # root's promotion in the same pass. Containers are never members of other
+    # containers (see clan_members()), so two phases suffice. Reuse the
+    # queue-position traversal rather than adding another pass over the
+    # loaded rows.
     for index, agent in enumerate(waiters, 1):
         queue_positions[id(agent)] = index
         agent.status = runner_slot_display_status(
@@ -189,23 +194,27 @@ def _refresh_runner_slot_context_fallback(
             agent.runner_capacity_blockers = ()
         _clear_capacity_accounting(agent)
         if agent.is_clan_container:
-            apply_clan_container_status(
-                agent,
-                clan_members(agent),
-                fallback=runner_slot_display_status(
-                    agent.status,
-                    slot_queued=False,
-                ),
-            )
-        else:
-            slot_queued = id(agent) in queue_positions
-            if not slot_queued:
-                source = agent.wait_display_source
-                slot_queued = source is not None and id(source) in queue_positions
-            agent.status = runner_slot_display_status(
+            continue
+        slot_queued = id(agent) in queue_positions
+        if not slot_queued:
+            source = agent.wait_display_source
+            slot_queued = source is not None and id(source) in queue_positions
+        agent.status = runner_slot_display_status(
+            agent.status,
+            slot_queued=slot_queued,
+        )
+
+    for agent in agents:
+        if not agent.is_clan_container:
+            continue
+        apply_clan_container_status(
+            agent,
+            clan_members(agent),
+            fallback=runner_slot_display_status(
                 agent.status,
-                slot_queued=slot_queued,
-            )
+                slot_queued=False,
+            ),
+        )
 
     return RunnerCapacitySnapshot(
         slots_in_use=running_count,
@@ -330,23 +339,27 @@ def _apply_runner_capacity_snapshot(
             source_agents=source_agent_by_artifact_dir,
         )
         if agent.is_clan_container:
-            apply_clan_container_status(
-                agent,
-                clan_members(agent),
-                fallback=runner_slot_display_status(
-                    agent.status,
-                    slot_queued=False,
-                ),
-            )
-        else:
-            slot_queued = id(agent) in queue_positions
-            if not slot_queued:
-                source = agent.wait_display_source
-                slot_queued = source is not None and id(source) in queue_positions
-            agent.status = runner_slot_display_status(
+            continue
+        slot_queued = id(agent) in queue_positions
+        if not slot_queued:
+            source = agent.wait_display_source
+            slot_queued = source is not None and id(source) in queue_positions
+        agent.status = runner_slot_display_status(
+            agent.status,
+            slot_queued=slot_queued,
+        )
+
+    for agent in agents:
+        if not agent.is_clan_container:
+            continue
+        apply_clan_container_status(
+            agent,
+            clan_members(agent),
+            fallback=runner_slot_display_status(
                 agent.status,
-                slot_queued=slot_queued,
-            )
+                slot_queued=False,
+            ),
+        )
 
     _apply_clan_capacity_aggregates(agents, available=accounting_available)
 

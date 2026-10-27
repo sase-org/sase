@@ -350,9 +350,9 @@ def prepare_loaded_agents_apply_boundary(
         )
         runner_capacity_estimate = runner_capacity
     else:
-        from copy import copy
+        from ...models._agent_graph import copy_agent_rows_relinked
 
-        estimate_agents = [copy(agent) for agent in prep.filtered_agents]
+        estimate_agents = copy_agent_rows_relinked(prep.filtered_agents)
         runner_capacity_estimate = refresh_runner_slot_context(
             estimate_agents,
             effective_limit=effective_runner_limit,
