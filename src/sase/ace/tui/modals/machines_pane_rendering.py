@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import platform
-
 from rich.text import Text
 from textual.widgets.option_list import Option
 
@@ -20,18 +18,6 @@ _STATE_WIDTH = 13
 _HEALTH_WIDTH = 15
 _CAPACITY_WIDTH = 18
 _OBSERVED_WIDTH = 19
-
-
-def local_machine_label() -> str:
-    try:
-        from sase.config import get_local_machine_name
-
-        name = get_local_machine_name()
-        if isinstance(name, str) and name.strip():
-            return name
-    except Exception:
-        pass
-    return platform.node() or "local"
 
 
 def column_header_text() -> Text:
@@ -338,6 +324,18 @@ def row_haystack(row: MachineRow) -> str:
     )
 
 
+def __getattr__(name: str) -> object:
+    if name == "local_machine_label":
+        from sase.core.local_machine import local_machine_label
+
+        globals()[name] = local_machine_label
+        return local_machine_label
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
+
+_PEP562_HOOKS = (__getattr__,)
+
+
 __all__ = [
     "column_header_text",
     "connect_flow",
@@ -345,7 +343,6 @@ __all__ = [
     "detail_text",
     "flow_text",
     "hints_text",
-    "local_machine_label",
     "repair_flow",
     "row_haystack",
     "summary_text",

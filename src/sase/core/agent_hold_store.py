@@ -30,6 +30,50 @@ def read_json_mapping(path: Path) -> dict[str, Any]:
     return data if isinstance(data, dict) else {}
 
 
+def peek_active_agent_holds(
+    *,
+    now: datetime | float | None = None,
+) -> list[dict[str, Any]]:
+    """Return stored holds without pruning, notifying, or taking locks.
+
+    Display readers use this so a capacity report cannot mutate the hold
+    store or block admission. Expired rows are omitted in memory only.
+    Fail-open: a broken store yields an empty list.
+    """
+    try:
+        captured = epoch_seconds(now)
+        if captured is None:
+            captured = datetime.now(UTC).timestamp()
+        payload = read_json_mapping(agent_hold_store_path())
+        raw_holds = payload.get("holds")
+        if isinstance(raw_holds, Mapping):
+            candidates = list(raw_holds.values())
+        elif isinstance(raw_holds, list):
+            candidates = raw_holds
+        else:
+            return []
+        holds: list[dict[str, Any]] = []
+        for item in candidates:
+            if not isinstance(item, Mapping):
+                continue
+            try:
+                _validate_hold_record(item)
+            except RuntimeError:
+                continue
+            expires_at = item.get("expires_at")
+            if (
+                isinstance(expires_at, bool)
+                or not isinstance(expires_at, (int, float))
+                or captured >= float(expires_at)
+            ):
+                continue
+            holds.append(dict(item))
+        return holds
+    except Exception as exc:  # noqa: BLE001 - holds fail open by design.
+        LOGGER.warning("agent hold peek failed open: %s", exc)
+        return []
+
+
 def list_holds(
     liveness: Mapping[str, Any],
     *,

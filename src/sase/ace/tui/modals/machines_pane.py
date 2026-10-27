@@ -37,7 +37,6 @@ from .machines_pane_rendering import (
     detail_text,
     flow_text,
     hints_text,
-    local_machine_label,
     repair_flow,
     row_haystack,
     summary_text,
@@ -461,6 +460,8 @@ class MachinesPane(OptionListNavigationMixin, Vertical):
         )
 
     def _load_rows(self) -> tuple[MachineRow, ...]:
+        from sase.core.local_machine import local_machine_label
+
         rows = [MachineRow(alias=local_machine_label(), kind="here")]
         rows.extend(
             MachineRow(alias=record.alias, kind="remote", record=record)

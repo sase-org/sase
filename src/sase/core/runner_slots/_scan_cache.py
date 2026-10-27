@@ -12,6 +12,7 @@ import os
 import tempfile
 import time
 from collections.abc import Callable
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
@@ -27,9 +28,34 @@ _CACHE_NAME = "runner_slots.scan.json"
 _STALE_TEMP_SECONDS = 60 * 60
 
 
+@dataclass(frozen=True)
+class RunnerSlotScanCache:
+    """One host-wide capacity-scan cache entry, including a stale token."""
+
+    token: str
+    scanned_at: float
+    records: tuple[AgentArtifactRecordWire, ...]
+
+
 def _runner_slot_scan_cache_path() -> Path:
     """Return the host-wide capacity-scan cache path under ``SASE_HOME``."""
     return sase_home() / _CACHE_NAME
+
+
+def read_runner_slot_scan_cache() -> RunnerSlotScanCache | None:
+    """Return the cached scan even when its token no longer matches live state.
+
+    Display readers need the stale entry so a token change inside the
+    rate-limit window can still serve records with ``scan_current=False``.
+    """
+    cached = _read_scan_cache()
+    if cached is None:
+        return None
+    return RunnerSlotScanCache(
+        token=cached["token"],
+        scanned_at=cached["scanned_at"],
+        records=tuple(cached["records"]),
+    )
 
 
 def load_or_refresh_runner_slot_scan(
@@ -137,5 +163,7 @@ def _prune_stale_scan_cache_temps(path: Path, now: float) -> None:
 
 
 __all__ = [
+    "RunnerSlotScanCache",
     "load_or_refresh_runner_slot_scan",
+    "read_runner_slot_scan_cache",
 ]

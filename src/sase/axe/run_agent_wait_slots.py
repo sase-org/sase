@@ -63,12 +63,8 @@ from sase.core.agent_hold_facade import (
     candidate_created_at_from_timestamp,
     snapshot_active_agent_holds,
 )
-from sase.core.agent_scan_wire import (
-    AgentArtifactRecordWire,
-    AgentArtifactScanOptionsWire,
-)
+from sase.core.agent_scan_wire import AgentArtifactRecordWire
 from sase.core.agent_hold_notifications import notify_hold_prune_outcomes
-from sase.core.paths import sase_projects_dir
 from sase.core.runner_slots import (
     DEFAULT_WAIT_PRIORITY,
     deference_window_seconds,
@@ -85,19 +81,24 @@ _META_KEY_FALLBACKS = {AGENT_SESSION_KEY: LEGACY_AGENT_FAMILY_KEY}
 
 _RUNNER_SLOT_POLL_INTERVAL = 2
 _DEFAULT_QUEUE_WEIGHT = 1.0
-_RUNNER_SLOT_SCAN_OPTIONS = AgentArtifactScanOptionsWire(
-    include_prompt_step_markers=False,
-    include_raw_prompt_snippets=False,
-    only_workflow_dirs=("ace-run",),
-    include_done_markers=False,
-    capacity_only=True,
-)
+
+
+def __getattr__(name: str) -> object:
+    if name == "_RUNNER_SLOT_SCAN_OPTIONS":
+        from sase.core.runner_slots._scan import RUNNER_SLOT_SCAN_OPTIONS
+
+        globals()[name] = RUNNER_SLOT_SCAN_OPTIONS
+        return RUNNER_SLOT_SCAN_OPTIONS
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
+
+_PEP562_HOOKS = (__getattr__,)
 
 
 def _collect_runner_slot_records() -> list[AgentArtifactRecordWire]:
-    from sase.core.agent_scan_facade import scan_agent_artifacts
+    from sase.core.runner_slots._scan import collect_runner_slot_records
 
-    return scan_agent_artifacts(sase_projects_dir(), _RUNNER_SLOT_SCAN_OPTIONS).records
+    return collect_runner_slot_records()
 
 
 def _scan_runner_slot_records() -> list[AgentArtifactRecordWire]:
@@ -112,38 +113,9 @@ def scan_runner_slot_records() -> list[AgentArtifactRecordWire]:
 
 
 def _record_liveness_probe() -> Callable[[AgentArtifactRecordWire], bool]:
-    cache: dict[str, bool] = {}
+    from sase.core.runner_slots._scan import record_liveness_probe as core_probe
 
-    def is_live(record: AgentArtifactRecordWire) -> bool:
-        if record.artifact_dir in cache:
-            return cache[record.artifact_dir]
-        meta = record.agent_meta
-        pid = None if meta is None else meta.pid
-        if pid is None and record.running is not None:
-            pid = record.running.pid
-        liveness: dict[str, object] = {}
-        if pid is not None:
-            liveness["pid"] = pid
-        if meta is not None:
-            if meta.stopped_at is not None:
-                liveness["stopped_at"] = meta.stopped_at
-            process_identity = getattr(meta, "process_identity", None)
-            if process_identity is not None:
-                liveness["process_identity"] = process_identity
-        if (
-            "process_identity" not in liveness
-            and record.running is not None
-            and getattr(record.running, "process_identity", None) is not None
-        ):
-            liveness["process_identity"] = record.running.process_identity
-        alive = is_process_alive(
-            liveness,
-            Path(record.artifact_dir),
-        )
-        cache[record.artifact_dir] = alive
-        return alive
-
-    return is_live
+    return core_probe(is_alive=is_process_alive)
 
 
 def record_liveness_probe() -> Callable[[AgentArtifactRecordWire], bool]:

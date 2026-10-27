@@ -38,7 +38,11 @@ from sase.core.agent_scan_wire import (
     AgentMetaWire,
     WaitingMarkerWire,
 )
-from sase.core.runner_slots import runner_capacity_snapshot
+from sase.config.runner_limit_override import EffectiveRunnerLimitSnapshot
+from sase.core.runner_slots import (
+    machine_capacity_report_from_records,
+    runner_capacity_snapshot,
+)
 from sase.integrations.agent_list_entries import AgentListEntry, agent_list_entries
 
 _LIMIT = 1.0
@@ -216,6 +220,33 @@ def _ground_truth(specs: tuple[_EntitySpec, ...]) -> dict[str, Any]:
 
 def _waiters_by_dir(snapshot: dict[str, Any]) -> dict[str, dict[str, Any]]:
     return {waiter["artifact_dir"]: waiter for waiter in snapshot["waiters"]}
+
+
+def test_machine_capacity_report_matches_admission_snapshot() -> None:
+    records = [_wire_record(spec) for spec in _LOCAL_SPECS]
+    ground_truth = _ground_truth(_LOCAL_SPECS)
+    report = machine_capacity_report_from_records(
+        records,
+        lambda _record: True,
+        now=0.0,
+        token="parity",
+        scanned_at=0.0,
+        scan_current=True,
+        limit=EffectiveRunnerLimitSnapshot(
+            configured_limit=1,
+            temporary_override=None,
+            captured_at=0.0,
+        ),
+    )
+
+    assert report.occupied_capacity == ground_truth["occupied_capacity"]
+    assert report.occupied_lanes == ground_truth["occupied_lanes"]
+    assert report.effective_limit == ground_truth["effective_limit"]
+    assert [waiter["artifact_dir"] for waiter in report.waiters] == [
+        waiter["artifact_dir"] for waiter in ground_truth["waiters"]
+    ]
+    assert report.accounting_available is True
+    assert report.raw_snapshot["occupied_capacity"] == ground_truth["occupied_capacity"]
 
 
 def test_weighted_capacity_snapshot_matches_across_runtime_cli_and_tui() -> None:
