@@ -657,6 +657,19 @@ def test_fail_on_new_flake_exits_2_on_a_duplicate_fixed_at_entry(
     assert tool.main(_gate_argv(store, baseline)) == 2
 
 
+def test_committed_flake_baseline_parses_through_the_tool_parser() -> None:
+    # sase-1og: the committed baseline once held two `# fixed-at:` directives
+    # for the same node, which made the `check-full` flake-baseline gate exit
+    # 2 on every run. Loading it here through the tool's own parser keeps that
+    # class of debt failing `just check` instead of only `check-full`.
+    tool = _load_tool()
+    baseline = tool.load_flake_baseline(
+        ROOT / "tests" / "reproducible_flake_baseline.txt"
+    )
+    assert baseline.nodeids, "committed flake baseline must not be empty"
+    assert baseline.effective_after is not None
+
+
 def test_fail_on_new_flake_does_not_retire_a_record_with_no_recorded_at(
     tmp_path: Path,
     capsys: pytest.CaptureFixture[str],

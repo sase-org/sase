@@ -22,8 +22,6 @@
 # 2026-09-18 selection-health baseline hygiene from the hold-launch closure
 # branch: these ready flake tasks preserve the current gate evidence while the
 # owning workers root-cause each node.
-# sase-12a
-tests/ace/tui/test_agents_fleet_refresh_laziness.py::test_fleet_refresh_apply_defers_behind_active_navigation
 # sase-12b
 tests/ace/tui/test_commits_pane_rendering.py::test_commits_renderer_builds_compact_single_line_rows
 # sase-12c
@@ -38,8 +36,6 @@ tests/fakey/test_monitor_capacity_e2e.py::test_weight_two_land_agent_session_ret
 tests/sdd/test_git_identity_fixture.py::test_sdd_git_identity_survives_empty_home_subprocess
 # sase-12g
 tests/test_artifact_capture_policy.py::test_capture_config_default_and_schema
-# sase-12h
-tests/test_bead/test_claimed_status.py::test_show_explains_claim_owner
 # sase-121
 tests/test_command_availability_scope.py::test_grouping_cycle_palette_commands_follow_grouping_capability
 # sase-12i
@@ -53,23 +49,17 @@ tests/test_suite_gate_scoped_integration.py::test_scoped_run_takes_no_token_whil
 # pre-fix full-run records instead of keeping them as live flakes.
 # sase-10s: fixed by d2687b6799, which moved the reviewed dismissed-save audit
 # context to _agent_cleanup.py; focused audit rerun passed in this branch.
-# fixed-at: 2026-09-14T12:28:52Z tests/test_agent_artifact_dismissed_save_audit.py::test_dismissed_agent_save_sites_are_reviewed
-# fixed-at: 2026-09-14T12:28:52Z tests/test_agent_artifact_dismissed_save_audit.py::test_reviewed_dismissed_agent_save_sites_sync_projection
 # sase-11l.5.1.2.1: branch-local hold-launch fix changed the created_at
 # round-trip assertion to microsecond tolerance; focused rerun and just check
 # passed after the edit.
-# fixed-at: 2026-09-18T05:26:24Z tests/test_agent_hold_service_lifecycle.py::test_rebind_agent_hold_round_trips_and_keeps_created_at
 # sase-11z: fixed by e17d4e0c0 (noted on the task), but stale pre-fix
 # workspaces recorded five later failures through 2026-09-16T19:02:08Z;
 # focused skill-source suite passed in this branch.
-# fixed-at: 2026-09-16T19:02:09Z tests/main/test_init_skills_sources.py::test_shipped_skill_source_is_discoverable_for_all_skill_providers[sase_questions-expected_phrases11]
 # sase-10p: fixed by cb1076e855 moving the known shell done writer to
 # start_runtime.py; focused shell substrate rerun passed in this branch.
-# fixed-at: 2026-09-14T12:36:46Z tests/turns/test_turns_substrate.py::test_turn_done_marker_writers_stamp_finished_at_through_shared_helper
 # sase-10v: fixed by 5024571a32 updating the rust-dev-install assertions for
 # both incremental cache paths; focused Justfile lint rerun passed in this
 # branch.
-# fixed-at: 2026-09-14T13:28:11Z tests/test_justfile_lint.py::test_rust_dev_install_disables_cargo_incremental_cache
 #
 # sase-jb
 tests/ace/tui/test_logs_pane.py::test_logs_tab_g_and_shift_g_scroll_detail_extremes
@@ -79,9 +69,6 @@ tests/test_bead/test_plus_one_presentation.py::test_post_close_plus_one_badge_ma
 # wait for the settled verdict or matches instead of pause(0.25) after
 # the 150ms-debounced off-thread collision analysis. Retires baseline
 # nodes and siblings that shared the same mechanism.
-# fixed-at: 2026-08-20T19:05:00Z tests/ace/tui/modals/test_snippet_name_modal.py::test_matches_filter_order_and_tab_completion
-# fixed-at: 2026-08-20T19:05:00Z tests/ace/tui/modals/test_snippet_name_modal.py::test_new_trigger_returns_empty_starting_body
-# fixed-at: 2026-08-20T19:05:00Z tests/ace/tui/modals/test_snippet_name_modal.py::test_elsewhere_collision_loads_other_template_but_keeps_destination
 # sase-le
 tests/ace/tui/widgets/test_prompt_panel_header.py::test_agent_session_header_renders_followup_role_attribution
 tests/ace/tui/widgets/test_prompt_panel_header.py::test_header_renders_skill_uses_without_memory_reads
@@ -108,7 +95,6 @@ tests/ace/tui/test_macro_browser_load_keymap.py::test_enter_returns_while_macro_
 tests/test_models_panel_edit_outcomes.py::test_on_alias_edited_offers_commit_when_in_repo
 # sase-rm.10 (sase-oz): AcePage now cancels and awaits Textual workers as well
 # as pump-free tasks during teardown; focused regression passed after the fix.
-# fixed-at: 2026-08-21T10:03:43Z tests/test_ace_testing.py::test_ace_page_fast_startup_is_structurally_quiet
 # sase-pg
 tests/main/test_completion_candidates_contract.py::test_candidates_fast_path_wall_clock_budget[agent]
 tests/main/test_completion_candidates_contract.py::test_candidates_fast_path_wall_clock_budget[monitor]
@@ -120,11 +106,8 @@ tests/main/test_completion_candidates_contract.py::test_candidates_fast_path_wal
 # `just sync-completion-spec` on this tree; later live records through
 # 2026-09-18T15:41:20Z were committed or dirty-tree snapshot drift, not a
 # race in the assertions.
-# fixed-at: 2026-09-18T18:53:24Z tests/completion/test_snapshot.py::test_checked_in_snapshot_has_no_drift
-# fixed-at: 2026-09-18T18:53:24Z tests/completion/test_snapshot.py::test_current_structural_view_matches_checked_in_snapshot
 # sase-rm.10 (sase-qm): the commits interaction test now waits for collection
 # and diff worker completion/callback delivery instead of a generic pause.
-# fixed-at: 2026-08-21T10:03:43Z tests/ace/tui/test_commits_pane_interactions.py::test_commits_pilot_drives_live_filter_bar_detail_copy_and_toggles
 # sase-n4.5: the epic that added both try_disable_provider and this contention
 # test (665a22ac5) owns the Rust lock-acquire timeout that starves. Two
 # independent failures on unrelated dirty trees -- workspace sase_18 at
@@ -136,18 +119,15 @@ tests/test_provider_disable.py::test_facade_try_disable_one_winner_under_process
 # sase-oe: retired by f1914962c "feat(ace): retire Admin Center auto-update
 # plumbing" (committed 2026-08-19T21:03:49Z); the node no longer exists on this
 # tree.
-# fixed-at: 2026-08-19T21:03:49Z tests/ace/tui/test_plugins_browser_pane_comprehensive_update_confirmation.py::test_comprehensive_confirmation_stays_open_when_submit_collides
 # sase-p9: probe_zsh_comps' 5s interactive-zsh timeout returns None so
 # registered is None instead of True; isolated re-run passes. Ready task, +4.
 tests/completion/test_install_zsh.py::test_real_zsh_zcompile_and_registration
 # sase-lk: retired by sase-rm.11 after the subprocess-driven supervisor rows
 # moved the liveness verdict into the child boundary and added a wedged-driver
 # proof that still fails through that child-owned deadline.
-# fixed-at: 2026-08-20T19:42:44Z tests/monitor/test_monitor_supervise.py::test_run_supervisor_times_out_after_partial_line
 # sase-qp: retired by sase-rm.11. The suite-gate lease now uses an injected
 # deterministic clock for reclaim decisions, and the test records a fresh
 # heartbeat without depending on a starved subprocess heartbeat loop.
-# fixed-at: 2026-08-20T19:59:23Z tests/test_suite_gate_reclaim.py::test_fresh_heartbeat_is_not_reclaimed
 # sase-j7: the leak-detector unit test this epic added (sase-j7.2) itself
 # flakes under the full parallel lane — a dummy sase-config-token-refresh
 # thread is not observed within 1s. Eight eligible full-run records across
@@ -158,9 +138,6 @@ tests/test_global_state_leak_detector.py::test_snapshot_includes_live_config_tok
 # sase-r4: retired by sase-rm.11. Retained linked-repo preparation now rejects
 # an empty primary workspace identity, and tests pass explicit scratch primary
 # workspaces instead of reading the launching agent's ambient occupancy marker.
-# fixed-at: 2026-08-20T19:42:44Z tests/test_run_agent_runner_setup_linked_repos.py::test_prepare_linked_repo_workspaces_failure_names_workspace
-# fixed-at: 2026-08-20T19:42:44Z tests/test_run_agent_runner_setup_linked_repos.py::test_prepare_linked_repo_workspaces_prepares_retained_sidecar
-# fixed-at: 2026-08-20T19:42:44Z tests/test_run_agent_runner_setup_linked_repos.py::test_prepare_linked_repo_workspaces_uses_default_revision_sentinel
 #
 # sase-s6.8: LspSession now pins SASE_TYPED_LAUNCH_UNITS to the process-local
 # flag (same as `sase lsp`), and ACE/LSP directive tests default the beta off
@@ -169,19 +146,14 @@ tests/test_global_state_leak_detector.py::test_snapshot_includes_live_config_tok
 # test_macro_directive_completion_parity.py nodes that shared this block
 # were re-retired below after later evidence from the digest-check master
 # break; a node may have only one fixed-at entry.
-# fixed-at: 2026-08-23T10:15:00Z tests/ace/tui/widgets/test_directive_completion_candidates.py::test_id_parenthesized_completion_advertises_identity_keywords
-# fixed-at: 2026-08-23T10:15:00Z tests/ace/tui/widgets/test_directive_completion_interactions.py::test_ctrl_t_at_percent_opens_directive_panel
 # sase-rv: retired-deletion inventory assertion no longer requires the full
 # xdist tmp prefix. Phase sase-s6.8 applied the suffix check; sase-rv remains
 # the flake task for any recurrence.
-# fixed-at: 2026-08-23T10:15:00Z tests/main/test_skills_handler.py::test_skills_inventory_reports_retired_deletion_drift
 # sase-iu: historical hits are stale-core / dirty-tree budget mismatches, not
 # a live master break. Phase sase-s6.8 cannot file a duplicate flake task.
-# fixed-at: 2026-08-23T10:15:00Z tests/test_contract_manifest.py::test_contract_set_manifest_entry_budget_has_no_hidden_headroom
 # sase-s6.8: two eligible dirty-tree hits while telemetry/metrics.py was
 # mid-edit; the node passes on this tree. Phase worker cannot file a flake
 # task.
-# fixed-at: 2026-08-23T10:15:00Z tests/telemetry/test_metrics.py::test_metric_def_count
 #
 # sase-s6: restored plan_digest mismatch rejection on the live
 # typed_plan_from_request path (it survived only on the unused
@@ -193,16 +165,11 @@ tests/test_global_state_leak_detector.py::test_snapshot_includes_live_config_tok
 # sase-xe / sase-y9 block below after later core-skew evidence; a node may
 # have only one fixed-at entry, and that block's 2026-09-08T00:40:36Z instant
 # is a strict superset of the 00:21:54Z cutoff sase-y5.2 briefly added here.
-# fixed-at: 2026-08-23T14:09:41Z tests/test_launch_admission_mixed_matrix.py::test_plan_digest_mismatch_is_rejected
-# fixed-at: 2026-08-23T14:09:41Z tests/test_macro_directive_completion_parity.py::test_ace_and_lsp_directive_argument_rows_match[%wait(]
-# fixed-at: 2026-08-23T14:09:41Z tests/test_macro_directive_completion_parity.py::test_ace_and_lsp_include_typed_launch_directives_when_enabled
-# fixed-at: 2026-08-23T14:09:41Z tests/test_macro_directive_completion_parity.py::test_failure_degradation_retains_static_directive_rows
 #
 # sase-s8 / sase-sg: restore wait_watch's public is_terminal_state export in
 # 2882047e2 "fix(query): retire the sase-s9 symvision exemptions and restore
 # is_terminal_state" (committed 2026-08-23T16:39:34Z). Retires stale records
 # from the temporary broken export; the dispatch node passes on this tree.
-# fixed-at: 2026-08-23T16:39:34Z tests/main/test_agents_dispatch_handler.py::test_dispatch_wait
 #
 # sase-qr: plugins-pane SASE update confirmation wait_for times out under the
 # full parallel lane and passes serially/focused. Ready flake task has +4
@@ -214,10 +181,6 @@ tests/ace/tui/test_plugins_browser_pane_sase_update.py::test_updates_pane_sase_u
 # Models-panel flake tasks sase-n5 and sase-oh, but a distinct node/assertion.
 tests/test_models_panel_runner_limit.py::test_title_footer_and_chooser_show_effective_and_configured_limits
 #
-# sase-sf: plan-approval archive-publication ordering param flakes under the
-# full parallel lane and passes serial/isolated reruns; ready flake task has
-# independent corroboration from this check-full monitor.
-tests/test_plan_approval_launch_reliability_integration.py::test_archive_publication_order_survives_inverted_scheduling[host_first-2]
 #
 # sase-tt / sase-tt.2: the 2s stale-proof registry memo landed in fe663948f
 # "perf(agent-names): memoize registry staleness checks" made reservation-facing
@@ -227,8 +190,6 @@ tests/test_plan_approval_launch_reliability_integration.py::test_archive_publica
 # _load_registry_for_reservations() (full staleness proof, memo bypassed) and
 # repairs the mutation test's premise; both nodes pass on this tree. This
 # retires the pre-fix evidence that epic recorded.
-# fixed-at: 2026-08-25T23:47:42Z tests/test_agent_name_registry_rebuild.py::test_stale_proof_memo_invalidated_by_mutation
-# fixed-at: 2026-08-25T23:47:42Z tests/test_agent_names_auto_name.py::TestGetNextAutoName::test_dotted_suffix_reserves_prefix
 #
 # sase-ty: Agents-pane mount/load test flakes under the full parallel lane but
 # passes serially; ready flake task names the current durable-store evidence.
@@ -237,12 +198,10 @@ tests/ace/tui/test_agents_pane_mount.py::test_agents_pane_mounts_activates_and_l
 # sase-o0: fixed by 179508566 "fix: repair the three deterministic master CI
 # failure clusters" (committed 2026-08-26T13:45:55Z). Retires stale pre-fix
 # records for the Artifacts subtab-order assertion.
-# fixed-at: 2026-08-26T13:45:55Z tests/ace/tui/test_artifacts_scaffold.py::test_subtab_strip_labels_and_accents_cover_all_panes
 #
 # sase-o0 / sase-x7.2.1.3: fixed by bea92ce92 "feat(migration-kit): add
 # driver operation catalog" (committed 2026-09-06T03:06:11Z), which registered
 # the migration_kit/atomic.py removal contexts in the operation audit catalog.
-# fixed-at: 2026-09-06T03:06:11Z tests/test_agent_artifact_directory_operation_audit.py::test_artifact_directory_operation_sites_are_reviewed
 #
 # sase-r2: Pipe agent-session member creation flakes under the full parallel lane and
 # passes isolated; ready flake task has independent corroboration.
@@ -251,7 +210,6 @@ tests/fakey/test_pipe_e2e.py::test_default_pipe_creates_agent_session_member_wit
 # sase-pr: fixed by 58e5a8310 "feat(artifact-links): add durable truth drift
 # reporting" (committed 2026-08-27T00:32:42Z), which updated the artifact-link
 # CLI contract assertion after the relation/suggest subcommands landed.
-# fixed-at: 2026-08-27T00:32:42Z tests/main/test_artifact_handler.py::test_public_long_options_are_alphabetical_and_have_short_aliases
 #
 # sase-tz: Memory-note generator drift is promoted by dirty-tree records that
 # the attribution filter does not currently catch; ready flake task owns the
@@ -283,16 +241,11 @@ tests/test_agent_name_registry_rebuild.py::test_reservation_reads_skip_the_stale
 # public config schema and privatize unused finalizer symbols" (committed
 # 2026-08-24T20:14:47Z). Retires schema-mismatch evidence recorded before the
 # fix landed.
-# fixed-at: 2026-08-24T20:14:47Z tests/test_config_schema.py::test_default_config_matches_public_schema
 #
 # sase-uf: keymap help-guide assertion flakes under the full parallel lane;
 # ready flake task owns the process-global-state investigation.
 tests/test_keymaps_display_help.py::test_all_tab_help_guides_show_forward_jump_and_agents_metadata_sections
 #
-# sase-sf: same archive-publication ordering flake class as the existing
-# host_first-2 entry; the host_first-0 parametrization is now also promoted by
-# selection-health.
-tests/test_plan_approval_launch_reliability_integration.py::test_archive_publication_order_survives_inverted_scheduling[host_first-0]
 #
 # sase-vl: wait-prose ACE/LSP replacement-range node promoted by the flake
 # gate from two unrelated dirty-tree full-lane records (sase_12 memory-proposal
@@ -303,12 +256,6 @@ tests/test_macro_directive_completion_parity.py::test_ace_and_lsp_wait_prose_rep
 #
 # sase-vt: mounted-clan fold isolation remains filed full-lane debt.
 tests/ace/tui/test_agents_panel_fold_mounted.py::test_mounted_clan_fold_chords_zoom_and_patch_isolation
-# sase-x6: three section-identity nodes with existing failure reports.
-tests/ace/tui/widgets/test_prompt_panel_section_navigation_targets.py::test_active_section_reconciles_across_same_document_rerender
-tests/ace/tui/widgets/test_prompt_panel_section_navigation_targets.py::test_cheap_paint_preserves_section_until_enriched_layout_returns
-tests/ace/tui/widgets/test_prompt_panel_section_navigation_targets.py::test_resolve_section_at_row_still_resolves_fold_only_anchor
-# sase-xb: summary SIGTERM deadline has no scheduling headroom.
-tests/test_clan_summary_script_execution.py::test_timed_out_summary_script_exits_on_sigterm_without_sigkill
 # sase-j7: retained cache/fixture/schema/property failures already owned by
 # the global-state and historical-evidence investigation. All four passed
 # the sase-xq landing's 38,961-test run; this records debt, not a new failure.
@@ -325,8 +272,6 @@ tests/test_vcs_log_filter_query.py::test_canonical_query_round_trip_property
 # cancels background tasks; cleanup-lock coverage patches _wipe_execute,
 # where deletion moved in fd2cebac4. Both nodes pass locally; the cutoff
 # records that verification, with the commit assigned by host finalization.
-# fixed-at: 2026-09-07T14:59:36Z tests/ace/tui/test_config_center_resume.py::test_new_process_loads_remembered_admin_center_section
-# fixed-at: 2026-09-07T14:59:36Z tests/test_agent_name_registry_lock.py::test_wipe_does_not_delete_under_the_allocation_lock
 #
 # Rebase reconciliation (sase-xz landing onto the sase-x7.4 repairs): this commit
 # was authored on a tree without e0c575503, so its sase-y7 and sase-y8 stanzas
@@ -364,11 +309,6 @@ tests/test_vcs_log_filter_query.py::test_canonical_query_round_trip_property
 # that is the header's transient self-healing red, not new evidence.
 # directive_name_rows_match's earlier sase-s6 fixed-at line was removed
 # rather than duplicated; this instant is a strict superset.
-# fixed-at: 2026-09-08T00:40:36Z tests/test_macro_directive_completion_parity.py::test_ace_and_lsp_directive_argument_rows_match[%dispatch:]
-# fixed-at: 2026-09-08T00:40:36Z tests/test_macro_directive_completion_parity.py::test_ace_and_lsp_directive_name_rows_match
-# fixed-at: 2026-09-08T00:40:36Z tests/test_macro_directive_completion_parity.py::test_ace_and_lsp_include_dispatch_directive
-# fixed-at: 2026-09-08T00:40:36Z tests/test_macro_directive_completion_parity.py::test_ace_and_lsp_include_dispatch_machine_rows
-# fixed-at: 2026-09-08T00:40:36Z tests/test_macro_directive_contract.py::test_runtime_directive_vocabulary_matches_core_contract
 #
 # sase-xe.16.8.f0: landing retries retired two full-lane flake-gate
 # promotions that pass on this tree. The Grok probe now has scheduler
@@ -376,13 +316,10 @@ tests/test_vcs_log_filter_query.py::test_canonical_query_round_trip_property
 # the dirty linked core into the workspace venv. Both passed together in a
 # focused run before this cutoff, and this records fixed historical evidence
 # rather than adding live baseline suppressions.
-# fixed-at: 2026-09-08T22:11:29Z tests/llm_provider/test_grok_usage_probe.py::test_grok_usage_probe_reaps_descendant_processes
-# fixed-at: 2026-09-08T22:11:29Z tests/test_check_sase_core_rs_bindings_tool.py::test_dev_extension_exposes_every_collected_name
 # sase-11l.10: JsonLine descendant cleanup treated zombies as live
 # (`os.kill(pid, 0)` succeeds until init reaps). Align `_pid_alive` with the
 # grok probe helper and wait briefly for the killed grandchild. Focused test
 # passed; retires two dirty-tree full-run records through 2026-09-18T11:55:09Z.
-# fixed-at: 2026-09-18T18:53:24Z tests/llm_provider/test_usage_transport.py::test_jsonline_descendant_cleanup
 #
 # sase-yq
 tests/pager/test_rendered_link_contract.py::test_kitchen_follow_copy_edit_and_media_for_each_supported_action
@@ -405,6 +342,9 @@ tests/test_macro_directive_contract.py::test_runtime_directive_vocabulary_matche
 # check` now rebuilds the dev extension when the linked sase-core source has
 # changed since the build (built-from stamp plus the core-source freshness
 # bit). Retires this node's failure evidence recorded at or before the fix.
+# This later directive supersedes the 2026-09-08T22:11:29Z directive added by
+# a5e642c929 (sase-xe.16.8.f0) for the same node; kept is the e8d238688f
+# instant, which retires the evidence of both fixes.
 # fixed-at: 2026-09-22T13:25:12Z tests/test_check_sase_core_rs_bindings_tool.py::test_dev_extension_exposes_every_collected_name
 #
 # sase-zt.6.5.4.3 landing reconciliation: current collectable nodes promoted by
@@ -427,7 +367,6 @@ tests/fakey/test_provider_drain_e2e.py::test_provider_drain_e2e_relaunches_stran
 # deterministic plugin-dependent failures (retired %wait(priority=...) syntax,
 # then the stale runners=0 assertion), not flakes; the node passes repeatedly
 # against the repaired research plugin.
-# fixed-at: 2026-09-14T01:41:24Z tests/fakey/test_runner_slots_e2e.py::test_installed_research_swarm_quarter_weights_fill_one_fakey_capacity_unit
 # sase-yz: usage-probe collector historical gate debt.
 tests/llm_provider/test_codex_usage_probe.py::test_registered_hook_runs_through_isolated_probe
 # sase-yy.8.6: artifact-link health historical gate debt.
@@ -452,7 +391,6 @@ tests/test_scratch_tmpdir_leak_regression.py::test_prepare_pytest_tmpdir_leak_do
 tests/test_agent_loader_incomplete_history_dedup.py::test_incomplete_load_after_complete_history_keeps_non_workflow_suffix_guard
 # sase-zu.8.5: fixed by ef254fd6dc "test(perf): complete agent load tiering
 # measured acceptance" (committed 2026-09-13T21:21:40Z).
-# fixed-at: 2026-09-13T21:21:40Z tests/test_agent_loader_incomplete_history_dedup.py::test_incomplete_load_after_complete_history_keeps_non_workflow_suffix_guard
 #
 # sase-ni: September full-run evidence for these Vim containment nodes is
 # tracked on the existing narrow full-lane flake task; focused reruns pass, but
@@ -466,6 +404,54 @@ tests/test_agent_load_tiering_production_oracle.py::test_production_machine_quer
 # sase-zr.7.1.1.5: gate-contract records promoted by retained selection-health
 # evidence were already routed to the active gate epic and fixed by df0090f040
 # when failure fixtures gained nonempty attempt IDs.
-# fixed-at: 2026-09-18T02:21:29Z tests/test_gate_cli_show.py::test_show_reports_an_accepted_failed_gate
-# fixed-at: 2026-09-18T02:21:29Z tests/test_gate_decision_acceptance.py::test_cancel_is_permitted_after_current_failure
-# fixed-at: 2026-09-18T02:21:29Z tests/test_gate_decision_acceptance.py::test_conflicting_selection_supersedes_after_current_failure
+#
+# sase-1ou.1 (flake-baseline, for sase-1og): reconcile the 2026-10-27 unmasked
+# gate verdict. Fixed-at entries below name verified fixes whose trees predate
+# every retired failure record; node entries sit only under still-open beads.
+# sase-1nt / sase-1nn.8.4.1: fixed by dc2cc11324 "test(stats): repair Python
+# 3.12 project help and Archive help goldens" (committed 2026-10-24T07:32:15Z),
+# which dropped the duplicate By-repo definition from the py3.12 golden.
+# fixed-at: 2026-10-24T07:32:15Z tests/main/test_parser_stats.py::test_project_help_golden
+# fixed-at: 2026-10-24T07:32:15Z tests/main/test_parser_stats.py::test_project_help_includes_definitions_and_examples
+# sase-1nq / sase-1nn.8.1: fixed by 43314db7ad "fix(tui): prove screen reflow in
+# resize waits and scrub ambient TUI profiling env" (committed
+# 2026-10-23T23:39:34Z); default-behavior tests now pin the diagnostic flags.
+# fixed-at: 2026-10-23T23:39:34Z tests/ace/tui/util/test_gc_policy.py::test_census_off_by_default
+# fixed-at: 2026-10-23T23:39:34Z tests/ace/tui/util/test_gc_policy.py::test_freeze_happens_once
+# fixed-at: 2026-10-23T23:39:34Z tests/ace/tui/test_statistics_perf.py::test_populated_perf_renderable_covers_every_panel
+# sase-1ma: fixed by f2a7b802f9 "fix(tests): derive healer fixture timestamps
+# from test clock" (committed 2026-10-17T18:59:35Z). One later record
+# (2026-10-17T19:11:04Z) ran on the stale pre-fix tree 80f3dc757267 and ages
+# out with retention.
+# fixed-at: 2026-10-17T18:59:35Z tests/test_agent_auto_restart_sweep_safety.py::test_disabled_path_resurfaces_silenced_once_and_ignores_others
+# sase-1gp: fixed by 69b492c278 "fix(pager,ace): handle Textual 8.2 theme
+# removal and childless frontmatter mount" (committed 2026-10-05T16:48:50Z).
+# fixed-at: 2026-10-05T16:48:50Z tests/ace/tui/test_config_center_session.py::test_distinct_ace_apps_do_not_share_session_state
+# sase-1le.20.1.1: fixed by 8531a39a0a "fix(docs): repair gates-phase failures
+# for sase-1le.20.1.1" (committed 2026-10-16T12:35:22Z), which moved the PDF/RSS
+# tests to the curated design with the INHERIT RSS image chain.
+# fixed-at: 2026-10-16T12:35:22Z tests/test_docs_pdf_tools.py::test_pdf_check_recipe_keeps_strict_mkdocs_export
+# fixed-at: 2026-10-16T12:35:22Z tests/test_docs_social_card.py::test_rss_plugin_images_use_the_default_social_image
+#
+# sase-18t: ToolRun store "database is locked" SQLite contention under parallel
+# load; phase toolrun-busy (sase-1ou.2) retires these with the source fix.
+tests/tool/test_demand_runs.py::test_foreground_run_records_context_usage_and_grant
+tests/tool/test_detach.py::test_watchdog_reports_ended_join_monitor
+tests/tool/test_detach.py::test_watchdog_stops_unjoined_run_when_starter_dies
+tests/tool/test_executor.py::test_nested_run_has_parent_and_no_duplicate_logs
+tests/tool/test_inline_escalation.py::test_fast_success_matches_inline
+tests/tool/test_known_continuation.py::test_agent_run_stops_on_a_new_item
+tests/tool/test_settlement_retention.py::test_handoff_end_to_end_publishes_one_notification
+tests/tool/test_wrapper_fidelity.py::test_inline_caller_group_sigkill_leaves_no_survivors
+tests/tool/test_wrapper_fidelity.py::test_owner_child_shares_wrapper_group_and_group_kill_leaves_no_survivors
+# sase-13a: zsh sbd alias static bead-tree completion PTY flake under load.
+tests/completion/test_zsh_smoke.py::test_alias_sbd_completes_static_bead_tree[sbd show --for-sbd show --format ]
+# sase-1em: registry-rebuild live-identity flake under the full parallel lane.
+tests/test_agent_name_registry_rebuild_pending.py::test_registry_rebuild_keeps_live_identity_pending_claim
+# sase-137: percent-opens-palette flake; the bead tracks the [axe]
+# parametrization of this same test, [agents] co-fails with it.
+tests/ace/tui/test_copy_as_palette_entrypoints.py::test_percent_opens_palette_for_agent_and_axe_selection[agents]
+# sase-1nr: subtab scaffold descriptor-order flake in the broad suite.
+tests/ace/tui/test_artifacts_scaffold.py::test_subtab_strip_labels_and_accents_cover_all_panes
+# sase-1ny: pipe-descendant pid race under the 50 ms timeout.
+tests/sdd_store/test_sdd_git_streaming.py::test_interruption_kills_process_group_with_pipe_holding_descendant[False]
