@@ -109,7 +109,8 @@ and records the wait output where the follow-up can inspect it.
   past-tense label shown when it finishes (e.g. `TESTED`). Each is capped at 20
   characters; over-length values are truncated with a trailing `…` and a warning.
   `TESTING` / `TESTED` is the pair for `just check` and `just check-full`; a different
-  kind of wait picks its own pair (for example `SLEEPING FOR 300s` → `SLEPT FOR 300s`).
+  wait names what it waits on, using a bead or agent ID or the shared pairs in
+  `/sase_monitor` (for example `SLEEPING FOR 300s` → `SLEPT FOR 300s`).
 - `-r/--reason` defaults to `run command`. `-t/--timeout` defaults to `1h` (bare
   seconds, or `90s` / `45m` / `2h`). Pass both when the default reason or budget would
   be misleading.
