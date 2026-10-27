@@ -50,6 +50,7 @@ from ._agent_list_render_cache import (
 )
 from ._agent_list_render_layout import build_runtime_suffix
 from ._owner_badge import append_owner_badge
+from ._queue_weight_badge import append_capacity_mark
 
 if TYPE_CHECKING:
     from ._clan_wave_gutter import ClanWaveGutter
@@ -251,6 +252,10 @@ def format_agent_option(
         if clan_chip:
             text.append(" ")
             text.append_text(clan_chip)
+        # Occupancy mark: what the clan's distinct claims are charged now.
+        # Clan containers carry the summed member aggregate, so a collapsed
+        # clan still shows the occupancy its hidden members hold.
+        append_capacity_mark(text, agent)
         if clan_unknown_wait_count > 0 and not visible_clan_counts.waiting:
             text.append(" ")
             text.append(

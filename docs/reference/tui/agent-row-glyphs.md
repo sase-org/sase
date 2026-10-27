@@ -37,6 +37,9 @@ badges instead of verbose text:
 | `⋔N`  | N gates in a session/clan subtree or tribe panel title, colored by lifecycle bucket                                                                                                                                                                                                                               |
 | `▣`   | Stand-alone `%proc` named proc (row label)                                                                                                                                                                                                                                                                        |
 | `▣N`  | N stand-alone named procs in a panel title's separate proc chip                                                                                                                                                                                                                                                   |
+| `▰N`  | Occupancy mark: this Running-bucket row is charged N capacity units right now (`▰1` for the default claim, `▰0` for an explicit zero-weight claim)                                                                                                                                                                    |
+| `▱`   | Running-bucket row holding nothing (a serial rider, an unstarted row, or a pending human)                                                                                                                                                                                                                            |
+| `▱?`  | Occupancy unknown (no accounting entry, invalid weight, missing process evidence, or accounting unavailable — never spare capacity)                                                                                                                                                                                   |
 
 ## Stranded work
 
@@ -202,6 +205,28 @@ proc service — and `x` dismisses a finished one with no confirmation. Dismissa
 clears the Agents-tab row — the proc stays visible in the [Procs pane](procs-tab.md#durable-procs)
 and in `sase proc show`, and a dismissed Agents-tab row does not come back. See
 [Typed launch units](../macros/directive-syntax.md#typed-launch-units) for the directives that create it.
+
+## Capacity marks {#capacity-marks}
+
+Every Running-bucket agent row and clan container carries a dim occupancy mark
+showing what its claim is charged right now — the same accounting the header
+gauge, `sase agent load`, and `sase agent list -j` read. Agent nodes show the
+mark beside the `wN`/`cN` queue badges; clan containers show it after the
+`[R/W/D]` count chip, summing `charged_weight` over the members' distinct
+claims so the visible container marks add up to the gauge total. Collapsed
+clans keep the mark: the container aggregate covers hidden members.
+
+The `▰`/`▱` family renders as single-cell text in the Fira Code / DejaVu /
+Noto Emoji snapshot stack with no emoji presentation, and neither glyph is an
+Agents-tab row token today (rows use `● ○ ◐ ▪ ◆ ★ ▲ ▼ ▸ ❯ ⚙ ⚠ ⚑ ⚡ ⚒ ⊛ ◌ ↻ ↺
+⧖ ✗ ✓ ⏳ … ▶ ⋔ ▣`).
+
+Selecting a row shows a `Capacity:` line in its detail card — the one capacity
+field that also appears for monitors and clans: `Capacity: 1 (verify monitor,
+session …)`, `Capacity: 0 (wait monitor, explicit w0)`, `Capacity: none (not
+started — waiting on deps)`, or `Capacity: shared with <holder>`. Rider rows
+name the member whose claim they share; unknown rows read `Capacity: ? (…)` with
+the reason, so an unknown charge never looks like free capacity.
 
 ## Related
 

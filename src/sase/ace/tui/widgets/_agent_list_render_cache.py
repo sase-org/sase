@@ -403,6 +403,16 @@ def agent_render_key(
         wait_agent.runner_slot_queue_position,
         wait_agent.runner_slot_queue_size,
         _freeze_jsonish(wait_agent.runner_capacity_blockers),
+        # Occupancy accounting lives on the row itself (never the wait
+        # display source), for agent rows and clan containers alike.
+        agent.capacity_state,
+        agent.capacity_charged,
+        agent.capacity_weight_source,
+        agent.capacity_reason,
+        agent.capacity_claim_owner_key,
+        agent.capacity_claim_holder_dir,
+        agent.capacity_claim_holder_name,
+        agent.capacity_accounting_available,
         wait_agent.held_by,
         wait_agent.hold_expires_at,
         agent_file_change_hint(agent),

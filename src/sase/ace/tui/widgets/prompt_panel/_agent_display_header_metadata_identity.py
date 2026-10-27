@@ -79,6 +79,7 @@ def append_identity_fields(
             text.append("Owner: ", style="bold #87D7FF")
             text.append(f"{owner_badge}\n", style=_OWNER_BADGE_STYLE)
         _append_capacity_fields(text, agent)
+        _append_charged_capacity_field(text, agent)
         # Structured bead identity belongs exclusively to the deferred BEAD lane.
         is_known_phase = bool(
             agent.phase_bead_id or agent.agent_session_role == "phase"
@@ -129,6 +130,94 @@ def _suppress_capacity_fields(agent: Agent) -> bool:
         or agent.is_monitor
         or (agent.is_child_row and not agent.agent_session_parallel)
     )
+
+
+_CHARGED_CAPACITY_REASON_LABELS = {
+    "not_started": "not started — waiting on deps",
+    "queued": "queued",
+    "pending_question": "waiting on a question",
+    "pending_gate": "waiting on a gate",
+    "explicit_zero_weight": "explicit zero weight",
+    "invalid_weight": "invalid weight",
+    "not_live": "not live",
+    "no_pid": "no process evidence",
+    "done": "done",
+    "not_agent_record": "not an agent record",
+}
+
+
+def _charged_capacity_kind(agent: Agent) -> str:
+    """Return the holder-kind word for a charged capacity line."""
+    if agent.is_clan_container:
+        return "clan"
+    if agent.capacity_weight_source == "explicit_zero":
+        return "wait monitor"
+    if agent.is_monitor:
+        return "verify monitor"
+    if agent.is_gate:
+        return "gate"
+    return "worker"
+
+
+def _append_charged_capacity_field(text: Text, agent: Agent) -> None:
+    """Append the charged-now ``Capacity:`` line for agent and clan rows.
+
+    This is the one capacity field that is never suppressed for monitors
+    and clans: it shows what the row's claim is charged right now, not the
+    authored budget. Named procs never hold runner capacity and workflow
+    steps borrow their agent's row, so neither carries the line.
+    """
+    if agent.capacity_state is None:
+        return
+    if agent.is_named_proc or agent.is_workflow_step_child:
+        return
+    state = agent.capacity_state
+    if state == "holding":
+        kind = _charged_capacity_kind(agent)
+        detail = kind
+        if agent.capacity_weight_source == "explicit_zero":
+            detail += ", explicit w0"
+        if kind in ("verify monitor", "wait monitor", "gate"):
+            session = agent.agent_name or agent.presented_agent_name
+            if session:
+                detail += f", session {session}"
+        text.append("Capacity: ", style="bold #87D7FF")
+        text.append(
+            f"{format_capacity_value(agent.capacity_charged, minimum_decimal=False)}"
+            f" ({detail})\n",
+            style="#87D7D7",
+        )
+    elif state == "riding_claim":
+        holder = (
+            agent.capacity_claim_holder_name
+            or (agent.capacity_claim_holder_dir or "").rsplit("/", 1)[-1]
+            or "unknown holder"
+        )
+        text.append("Capacity: ", style="bold #87D7FF")
+        text.append(f"shared with {holder}\n", style="#87D7D7")
+    elif state == "waiting":
+        label = (
+            _CHARGED_CAPACITY_REASON_LABELS.get(agent.capacity_reason or "")
+            or "waiting for capacity"
+        )
+        text.append("Capacity: ", style="bold #87D7FF")
+        text.append(f"queued ({label})\n", style="#87D7D7")
+    elif state == "not_holding":
+        label = _CHARGED_CAPACITY_REASON_LABELS.get(agent.capacity_reason or "", "idle")
+        text.append("Capacity: ", style="bold #87D7FF")
+        text.append(f"none ({label})\n", style="#87D7D7")
+    else:
+        reason = agent.capacity_reason or "unknown"
+        if reason == "unavailable":
+            detail = "accounting unavailable"
+        elif reason == "no_entry":
+            detail = "no accounting entry"
+        elif reason == "invalid_weight":
+            detail = "invalid weight — admission blocked"
+        else:
+            detail = _CHARGED_CAPACITY_REASON_LABELS.get(reason, "unknown")
+        text.append("Capacity: ", style="bold #87D7FF")
+        text.append(f"? ({detail})\n", style="#87D7D7")
 
 
 def _append_capacity_fields(text: Text, agent: Agent) -> None:

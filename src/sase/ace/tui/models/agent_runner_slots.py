@@ -187,6 +187,7 @@ def _refresh_runner_slot_context_fallback(
             agent.runner_slot_queue_position = None
             agent.runner_slot_queue_size = None
             agent.runner_capacity_blockers = ()
+        _clear_capacity_accounting(agent)
         if agent.is_clan_container:
             apply_clan_container_status(
                 agent,
@@ -304,6 +305,7 @@ def _apply_runner_capacity_snapshot(
             )
         )
 
+    accounting, accounting_available = _accounting_index(raw_snapshot)
     for agent in agents:
         if agent.slot_requested_at:
             agent.runner_slots_in_use = running_count
@@ -321,6 +323,12 @@ def _apply_runner_capacity_snapshot(
             agent.runner_slot_queue_position = None
             agent.runner_slot_queue_size = None
             agent.runner_capacity_blockers = ()
+        _attach_capacity_accounting(
+            agent,
+            accounting.get(_capacity_artifact_dir(agent)),
+            available=accounting_available,
+            source_agents=source_agent_by_artifact_dir,
+        )
         if agent.is_clan_container:
             apply_clan_container_status(
                 agent,
@@ -340,6 +348,8 @@ def _apply_runner_capacity_snapshot(
                 slot_queued=slot_queued,
             )
 
+    _apply_clan_capacity_aggregates(agents, available=accounting_available)
+
     return RunnerCapacitySnapshot(
         effective_limit=effective_limit,
         slots_in_use=running_count,
@@ -355,6 +365,153 @@ def _apply_runner_capacity_snapshot(
             ),
         ),
     )
+
+
+def _accounting_index(
+    raw_snapshot: dict[str, Any],
+) -> tuple[dict[str, dict[str, Any]], bool]:
+    """Index the snapshot's per-record accounting rows by artifact dir."""
+    raw_accounting = raw_snapshot.get("accounting")
+    if not isinstance(raw_accounting, list):
+        return {}, False
+    indexed: dict[str, dict[str, Any]] = {}
+    for entry in raw_accounting:
+        if not isinstance(entry, dict):
+            continue
+        artifact_dir = _text_value(entry.get("artifact_dir"))
+        if artifact_dir is not None and artifact_dir not in indexed:
+            indexed[artifact_dir] = entry
+    return indexed, True
+
+
+def _clear_capacity_accounting(agent: Agent) -> None:
+    """Reset capacity display fields when no accounting can apply."""
+    agent.capacity_state = None
+    agent.capacity_charged = None
+    agent.capacity_weight_source = None
+    agent.capacity_reason = None
+    agent.capacity_claim_owner_key = None
+    agent.capacity_claim_holder_dir = None
+    agent.capacity_claim_holder_name = None
+    agent.capacity_accounting_available = None
+
+
+def _capacity_holder_display_name(
+    holder_dir: str | None,
+    own_dir: str,
+    source_agents: dict[str, Agent],
+) -> str | None:
+    """Resolve the holding member's display name for a riding-claim entry."""
+    if holder_dir is None or holder_dir == own_dir:
+        return None
+    holder = source_agents.get(holder_dir)
+    if holder is not None:
+        label = holder.presented_agent_name or holder.agent_name or holder.cl_name
+        if label:
+            return label
+    return holder_dir.rsplit("/", 1)[-1] or holder_dir
+
+
+def _attach_capacity_accounting(
+    agent: Agent,
+    entry: dict[str, Any] | None,
+    *,
+    available: bool,
+    source_agents: dict[str, Agent],
+) -> None:
+    """Attach one accounting entry to its agent row.
+
+    Workflow-step rows share their agent's artifact dir, so they are skipped
+    explicitly: the mark belongs to the agent row, never the step row. Named
+    procs never hold runner capacity and carry no mark either.
+    """
+    if agent.is_workflow_step_child or agent.is_named_proc:
+        _clear_capacity_accounting(agent)
+        return
+    agent.capacity_accounting_available = available
+    if entry is None:
+        agent.capacity_state = "unknown"
+        agent.capacity_charged = None
+        agent.capacity_weight_source = None
+        agent.capacity_reason = "unavailable" if not available else "no_entry"
+        agent.capacity_claim_owner_key = None
+        agent.capacity_claim_holder_dir = None
+        agent.capacity_claim_holder_name = None
+        return
+    own_dir = _capacity_artifact_dir(agent)
+    holder_dir = _text_value(entry.get("claim_holder_artifact_dir"))
+    agent.capacity_state = _text_value(entry.get("state")) or "unknown"
+    agent.capacity_charged = _finite_float(entry.get("charged_weight"))
+    agent.capacity_weight_source = _text_value(entry.get("weight_source"))
+    agent.capacity_reason = _text_value(entry.get("reason_code"))
+    agent.capacity_claim_owner_key = _text_value(entry.get("claim_owner_key"))
+    agent.capacity_claim_holder_dir = holder_dir
+    agent.capacity_claim_holder_name = _capacity_holder_display_name(
+        holder_dir, own_dir, source_agents
+    )
+
+
+def _apply_clan_capacity_aggregates(
+    agents: list[Agent],
+    *,
+    available: bool,
+) -> None:
+    """Sum member claims onto each clan container row.
+
+    A container's mark sums ``charged_weight`` over its members' distinct
+    ``claim_owner_key`` values, so serial riders sharing one claim count once
+    and the visible container marks sum to the chip total. Monitors and gates
+    hold capacity too, so membership here is every same-clan agent row, not
+    the countable-node subset behind the R/W/D chip.
+    """
+    for container in agents:
+        if not container.is_clan_container:
+            continue
+        key = (container.agent_clan, container.agent_clan_generation)
+        reference = container.presented_clan_reference_name()
+        holding: dict[str, float] = {}
+        unknown = False
+        members = 0
+        for member in agents:
+            if (
+                member.is_clan_container
+                or member.is_workflow_step_child
+                or member.is_named_proc
+            ):
+                continue
+            if (member.agent_clan, member.agent_clan_generation) != key:
+                continue
+            if member.presented_clan_reference_name() != reference:
+                continue
+            members += 1
+            if member.capacity_state == "holding":
+                owner = member.capacity_claim_owner_key or _capacity_artifact_dir(
+                    member
+                )
+                charged = member.capacity_charged or 0.0
+                holding[owner] = max(holding.get(owner, 0.0), charged)
+            elif member.capacity_state not in (
+                "riding_claim",
+                "waiting",
+                "not_holding",
+            ):
+                unknown = True
+        container.capacity_accounting_available = available
+        container.capacity_weight_source = None
+        container.capacity_reason = None
+        container.capacity_claim_owner_key = None
+        container.capacity_claim_holder_dir = None
+        container.capacity_claim_holder_name = None
+        if holding:
+            container.capacity_state = "holding"
+            container.capacity_charged = sum(holding.values())
+        elif members and not unknown:
+            container.capacity_state = "not_holding"
+            container.capacity_charged = 0.0
+        else:
+            container.capacity_state = "unknown"
+            container.capacity_charged = None
+            container.capacity_reason = "unavailable" if not available else "no_entry"
 
 
 def _capacity_holders(

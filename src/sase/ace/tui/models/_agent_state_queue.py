@@ -125,6 +125,20 @@ class AgentStateQueueFields:
     runner_slot_queue_size: int | None = None
     runner_capacity_blockers: tuple[dict[str, Any], ...] = field(default_factory=tuple)
 
+    # Per-record capacity accounting projected from the authoritative machine
+    # report (or the roster Rust snapshot before the first report lands).
+    # Attached by artifact dir to agent rows, never workflow-step rows; clan
+    # containers carry the summed aggregate of their members' distinct claims.
+    # ``None`` state means no report has been applied yet (no mark, no line).
+    capacity_state: str | None = None
+    capacity_charged: float | None = None
+    capacity_weight_source: str | None = None
+    capacity_reason: str | None = None
+    capacity_claim_owner_key: str | None = None
+    capacity_claim_holder_dir: str | None = None
+    capacity_claim_holder_name: str | None = None
+    capacity_accounting_available: bool | None = None
+
     # True while this row's own pending_question.json marker exists. Root rows
     # with this flag have yielded their runner slot; agent session status propagation
     # must not be used as a substitute because a child question remains exempt.

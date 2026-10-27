@@ -6,12 +6,30 @@ import math
 
 from rich.text import Text
 
+from sase.agent.status_buckets import agent_status_bucket
+
 from ..models.agent import Agent, wait_display_agent
 from ..models.agent_runner_slots import (
+    format_capacity_value,
     format_queue_weight_badge_value,
 )
 
 QUEUE_WEIGHT_BADGE_PREFIX_STYLE = "dim"
+
+# Occupancy mark family for charged runner capacity. ``▰N`` is what a
+# Running-bucket row is charged right now (``▰0`` for an explicit zero-weight
+# claim); ``▱`` is a Running row holding nothing (rider, unstarted, or
+# pending human); ``▱?`` is unknown (no accounting entry, invalid weight,
+# missing process evidence, or accounting unavailable). The ▰/▱ pair renders
+# as single-cell text in the Fira Code / DejaVu / Noto Emoji snapshot stack
+# with no emoji presentation, and neither glyph is an Agents-tab row token
+# today: rows use ● ○ ◐ ▪ ◆ ★ ▲ ▼ ▸ ❯ ⚙ ⚠ ⚑ ⚡ ⚒ ⊛ ◌ ↻ ↺ ⧖ ✗ ✓ ⏳ … ▶ ⋔ ▣
+# (the only ▰/▱ in the TUI is the prompt-completion frequency meter, a
+# different surface). The filled/hollow pairing reads as a gauge segment, and
+# the trailing ``?`` extends the hollow variant for the unknown case.
+CAPACITY_MARK_HOLDING_GLYPH = "▰"
+CAPACITY_MARK_IDLE_GLYPH = "▱"
+CAPACITY_MARK_STYLE = "dim"
 QUEUE_WEIGHT_BADGE_NUMBER_STYLE = "#87D7D7"
 QUEUE_CAPACITY_BADGE_NUMBER_STYLE = "#87AFD7"
 QUEUE_CAPACITY_BADGE_OVER_LIMIT_STYLE = "#FFD700"
@@ -88,17 +106,58 @@ def append_queue_capacity_badge(
     return True
 
 
+def _capacity_mark_text(agent: Agent) -> str | None:
+    """Return the occupancy mark for one row, or ``None`` when it shows none.
+
+    Marks draw on every Running-bucket agent row and clan container,
+    including collapsed clans. Clan containers carry their summed member
+    aggregate (see ``_apply_clan_capacity_aggregates``), so this reads the
+    row's own stored fields in both cases. ``None`` capacity state means no
+    report has been applied yet, which shows no mark rather than a guess.
+    """
+    if agent.capacity_state is None:
+        return None
+    if agent.is_workflow_step_child or agent.is_named_proc:
+        return None
+    if agent_status_bucket(agent) != "Running":
+        return None
+    if agent.capacity_state == "holding":
+        charged = agent.capacity_charged
+        if charged is None:
+            return f"{CAPACITY_MARK_HOLDING_GLYPH}?"
+        return (
+            f"{CAPACITY_MARK_HOLDING_GLYPH}"
+            f"{format_capacity_value(charged, minimum_decimal=False)}"
+        )
+    if agent.capacity_state in ("riding_claim", "waiting", "not_holding"):
+        return CAPACITY_MARK_IDLE_GLYPH
+    return f"{CAPACITY_MARK_IDLE_GLYPH}?"
+
+
+def append_capacity_mark(text: Text, agent: Agent) -> bool:
+    """Append the occupancy mark for *agent*'s row, if it shows one."""
+    mark = _capacity_mark_text(agent)
+    if mark is None:
+        return False
+    text.append(" ")
+    text.append(mark, style=CAPACITY_MARK_STYLE)
+    return True
+
+
 def append_agent_queue_badges(text: Text, agent: Agent) -> bool:
     """Append authored row badges for agent-bearing rows only."""
     appended = _append_agent_queue_weight_badge(text, agent)
+    if agent.is_clan_container:
+        # Clan containers carry the mark after the R/W/D chip instead
+        # (see ``format_agent_option``), never beside queue badges.
+        return appended
     if (
-        agent.is_clan_container
-        or agent.is_named_proc
+        agent.is_named_proc
         or agent.is_gate
         or agent.is_monitor
         or (agent.is_child_row and not agent.agent_session_parallel)
     ):
-        return appended
+        return append_capacity_mark(text, agent) or appended
     wait_agent = wait_display_agent(agent)
     capacity = (
         wait_agent.queue_capacity
@@ -115,6 +174,7 @@ def append_agent_queue_badges(text: Text, agent: Agent) -> bool:
             effective_limit=wait_agent.runner_effective_limit,
             multiplier=wait_agent.queue_capacity_multiplier,
         )
+        or append_capacity_mark(text, agent)
         or appended
     )
 

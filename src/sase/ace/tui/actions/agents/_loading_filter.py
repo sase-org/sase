@@ -172,6 +172,14 @@ class AgentLoadingFilterMixin(AgentLoadingStateMixin):
             "runner_slot_queue_position",
             "runner_slot_queue_size",
             "runner_capacity_blockers",
+            "capacity_state",
+            "capacity_charged",
+            "capacity_weight_source",
+            "capacity_reason",
+            "capacity_claim_owner_key",
+            "capacity_claim_holder_dir",
+            "capacity_claim_holder_name",
+            "capacity_accounting_available",
         )
         live_lists = (
             getattr(self, "_agents_with_children", ()),
