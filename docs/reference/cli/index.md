@@ -45,6 +45,7 @@ Groups:
 | [`sase file-hook`](file-hook.md)       | Inspect configured per-file repository hooks                                      |
 | [`sase final`](final.md)               | Inspect configured finalizers and declarations                                    |
 | [`sase flag`](flag.md)                 | Inspect, persist, and scaffold SASE feature flags                                 |
+| [`sase footprint`](footprint.md)       | Show the local usage census of sase surfaces.                                     |
 | [`sase gate`](gate.md)                 | Create or wait for durable command-backed gates                                   |
 | [`sase goal`](goal.md)                 | Create, list, and reshape durable goal records                                    |
 | [`sase init`](init.md)                 | Initialize SASE-managed resources                                                 |

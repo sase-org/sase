@@ -218,6 +218,7 @@ _MACRO_RESOURCE_ALLOWLIST: set[tuple[str, str]] = {
 # parser/flag code above is their source of truth.
 _MACRO_RESOURCE_SKIPS = frozenset(
     {
+        Path("src/sase/footprint/catalog.jsonl"),
         Path("tests/completion/snapshots/cli_spec.json"),
         Path("tests/shard_timings.json"),
         Path("tests/reproducible_flake_baseline.txt"),

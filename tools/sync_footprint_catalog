@@ -1,0 +1,68 @@
+#!/usr/bin/env python3
+"""Check or rewrite the checked-in Footprint catalog.jsonl."""
+
+from __future__ import annotations
+
+import argparse
+import difflib
+import sys
+from pathlib import Path
+
+REPO_ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(REPO_ROOT / "src"))
+
+from sase.footprint.catalog_gen import generate_entries, render_catalog
+
+
+CATALOG_PATH = REPO_ROOT / "src" / "sase" / "footprint" / "catalog.jsonl"
+
+
+def _current_text() -> str:
+    return render_catalog(generate_entries())
+
+
+def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description=__doc__)
+    mode = parser.add_mutually_exclusive_group()
+    mode.add_argument(
+        "--check",
+        action="store_true",
+        help="check for drift and exit non-zero when found (default)",
+    )
+    mode.add_argument(
+        "--write",
+        action="store_true",
+        help="rewrite the catalog in place",
+    )
+    return parser.parse_args(argv)
+
+
+def main(argv: list[str] | None = None) -> int:
+    args = _parse_args(argv)
+    if args.write:
+        CATALOG_PATH.write_text(_current_text(), encoding="utf-8")
+        return 0
+
+    current = _current_text()
+    checked_in = CATALOG_PATH.read_text(encoding="utf-8")
+    if current == checked_in:
+        return 0
+    diff = difflib.unified_diff(
+        checked_in.splitlines(),
+        current.splitlines(),
+        fromfile="checked-in catalog.jsonl",
+        tofile="regenerated catalog.jsonl",
+        lineterm="",
+    )
+    for line in list(diff)[:40]:
+        print(line, file=sys.stderr)
+    print(
+        "Footprint catalog drifted: run `just sync-footprint-catalog` "
+        "(`just fix` regenerates it).",
+        file=sys.stderr,
+    )
+    return 1
+
+
+if __name__ == "__main__":
+    raise SystemExit(main(sys.argv[1:]))

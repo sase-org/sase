@@ -328,6 +328,8 @@ lint: _setup (_header "lint") lint-keep-sorted
     @just _lint-symvision
     @printf "\n---------- Checking docs contract... ----------\n"
     @just docs-lint
+    @printf "\n---------- Checking Footprint catalog is current... ----------\n"
+    @just sync-footprint-catalog-check
     @printf "\n---------- Checking Python file line counts... ----------\n"
     @just _lint-toobig
 
@@ -478,6 +480,15 @@ _lint-symvision *args: _setup
     SASE_SYMVISION_BEAD_STATUS_ONLY=1 BD_COMMAND=tools/sase_bead {{ venv_bin }}/symvision src/sase \
         --exclude-decorator gate_command_entrypoint \
         --exclude-decorator builtin_chop \
+        --epic-symbol 'sase-1p1.2(other_id)' \
+        --epic-symbol 'sase-1p1.3(custom_id)' \
+        --epic-symbol 'sase-1p1.3(spool_dir)' \
+        --epic-symbol 'sase-1p1.3(mode_path)' \
+        --epic-symbol 'sase-1p1.3(effective_mode)' \
+        --epic-symbol 'sase-1p1.5(footprint_dir)' \
+        --epic-symbol 'sase-1p1.5(generation_path)' \
+        --epic-symbol 'sase-1p1.6(Overlay)' \
+        --epic-symbol 'sase-1p1.6(load_overlay)' \
         {{ args }}
 
 # Check Python file line counts (private, extracted for per-stage wrapping)
@@ -486,7 +497,7 @@ _lint-toobig *args:
     {{ venv_bin }}/toobig tests {{ if args == "" { "1000 850 700" } else { args } }}
 
 # Auto-fix all code (format + keep-sorted + docs budget ratchet)
-fix: (_header "fix") fmt-py fmt-docs docs-gen fmt-md fix-keep-sorted fix-docs-budgets
+fix: (_header "fix") fmt-py fmt-docs docs-gen fmt-md fix-keep-sorted fix-docs-budgets sync-footprint-catalog
 
 # Auto-format all code
 fmt: (_header "fmt") fmt-py fmt-docs docs-gen fmt-md
@@ -541,6 +552,14 @@ fmt-docs-check: _setup-format-tools _setup-prettier
 docs-gen-check: _venv
     @printf "\n---------- Checking sase-backed docs... ----------\n"
     {{ venv_bin }}/python tools/render_docs --sase-only --check
+
+# Regenerate the checked-in Footprint catalog from every sase registry.
+sync-footprint-catalog: _venv
+    {{ venv_bin }}/python tools/sync_footprint_catalog --write
+
+# Check the Footprint catalog matches the registries (CI mode, no writes).
+sync-footprint-catalog-check: _venv
+    {{ venv_bin }}/python tools/sync_footprint_catalog --check
 
 # Check the bundled size-alias policy from models.yml (CI mode, no writes).
 # Fails with fix-it diagnostics when the shipped catalog, tier defaults, or

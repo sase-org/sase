@@ -34,6 +34,7 @@ from sase.main.parser_editor import register_editor_parser
 from sase.main.parser_file_hook import register_file_hook_parser
 from sase.main.parser_final import register_final_parser
 from sase.main.parser_flag import register_flag_parser
+from sase.main.parser_footprint import register_footprint_parser
 from sase.main.parser_goal import register_goal_parser
 from sase.main.parser_gate import register_gate_parser
 from sase.main.parser_init import register_init_parser
@@ -100,6 +101,7 @@ COMMAND_REGISTRARS_BY_NAME: dict[str, Any] = {
         register_file_hook_parser,
         register_final_parser,
         register_flag_parser,
+        register_footprint_parser,
         register_goal_parser,
         register_gate_parser,
         register_init_parser,

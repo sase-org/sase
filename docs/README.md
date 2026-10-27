@@ -100,6 +100,7 @@
 - [sase file](reference/cli/file.md) — Filesystem completion helpers (consumed by editor integrations)
 - [sase final](reference/cli/final.md) — Inspect host-owned finalizer instances, provider provenance, and the current turn's declaration obligations.
 - [sase flag](reference/cli/flag.md) — Inspect the code-owned SASE feature-flag registry, persist a machine-local enable or disable choice, and scaffold a new flag plus its dedicated removal bead.
+- [sase footprint](reference/cli/footprint.md) — Footprint keeps an always-on, privacy-by-construction census of which sase surfaces (CLI commands and options, TUI actions and keys, views and modals, macros,…
 - [sase gate](reference/cli/gate.md) — Create durable command-backed gates from versioned JSON specifications, inspect what they ask for, run their repeatable actions, answer them headlessly, and…
 - [sase goal](reference/cli/goal.md) — Create, list, show, edit, drop, reopen, merge, and check durable goal records.
 - [CLI command groups](reference/cli/index.md) — Generated CLI reference, one page per sase command group.
@@ -319,6 +320,7 @@
 - [Commit workflow orchestrator](contribute/commit-workflow-orchestrator.md) — Contributor internals for commit workflow orchestration and finalization.
 - [Development](contribute/development.md) — This page orients contributors working in the sase repository.
 - [Fakey Testing Provider](contribute/fakey.md) — fakey is a deterministic fake agent CLI bundled with SASE.
+- [Footprint](contribute/footprint.md) — How Footprint feature IDs and the generated catalog work.
 - [Contribute](contribute/index.md) — Contributor guides, internals, contracts, and runbooks for SASE.
 - [Instruction bundle internals](contribute/instruction-bundle-internals.md) — Manifest, storage, cache, and delivery contracts for generated instruction bundles.
 - [Integration APIs](contribute/integration-apis.md) — SASE exposes a small set of Python helpers for external plugins, chat clients, mobile clients, and editor integrations.

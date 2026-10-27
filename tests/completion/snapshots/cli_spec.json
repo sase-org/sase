@@ -2531,6 +2531,73 @@
           {
             "aliases": [],
             "default_child": null,
+            "description_digest": "6cef32b855ad4852",
+            "hidden": false,
+            "mutex_groups": [],
+            "name": "load",
+            "options": [
+              {
+                "choices": null,
+                "default": null,
+                "dest": "help",
+                "hidden": false,
+                "kind": null,
+                "metavar": null,
+                "repeatable": false,
+                "required": false,
+                "strings": [
+                  "-h",
+                  "--help"
+                ],
+                "takes_value": false,
+                "value_hint": null
+              },
+              {
+                "choices": null,
+                "default": "False",
+                "dest": "json",
+                "hidden": false,
+                "kind": null,
+                "metavar": null,
+                "repeatable": false,
+                "required": false,
+                "strings": [
+                  "-j",
+                  "--json"
+                ],
+                "takes_value": false,
+                "value_hint": null
+              },
+              {
+                "choices": null,
+                "default": "False",
+                "dest": "rescan",
+                "hidden": false,
+                "kind": null,
+                "metavar": null,
+                "repeatable": false,
+                "required": false,
+                "strings": [
+                  "-r",
+                  "--rescan"
+                ],
+                "takes_value": false,
+                "value_hint": null
+              }
+            ],
+            "path": [
+              "agent",
+              "load"
+            ],
+            "positionals": [],
+            "run_policy": [],
+            "stdin": false,
+            "subcommands": [],
+            "writes": false
+          },
+          {
+            "aliases": [],
+            "default_child": null,
             "description_digest": "fea43ed163e0c5f6",
             "hidden": false,
             "mutex_groups": [],
@@ -16968,6 +17035,137 @@
                 "value_hint": null
               }
             ],
+            "run_policy": [],
+            "stdin": false,
+            "subcommands": [],
+            "writes": false
+          }
+        ],
+        "writes": false
+      },
+      {
+        "aliases": [],
+        "default_child": null,
+        "description_digest": "0a09165425a51f80",
+        "hidden": false,
+        "mutex_groups": [],
+        "name": "footprint",
+        "options": [
+          {
+            "choices": null,
+            "default": null,
+            "dest": "help",
+            "hidden": false,
+            "kind": null,
+            "metavar": null,
+            "repeatable": false,
+            "required": false,
+            "strings": [
+              "-h",
+              "--help"
+            ],
+            "takes_value": false,
+            "value_hint": null
+          }
+        ],
+        "path": [
+          "footprint"
+        ],
+        "positionals": [],
+        "run_policy": [],
+        "stdin": false,
+        "subcommands": [
+          {
+            "aliases": [],
+            "default_child": null,
+            "description_digest": "12a440171a404d10",
+            "hidden": false,
+            "mutex_groups": [],
+            "name": "catalog",
+            "options": [
+              {
+                "choices": null,
+                "default": null,
+                "dest": "help",
+                "hidden": false,
+                "kind": null,
+                "metavar": null,
+                "repeatable": false,
+                "required": false,
+                "strings": [
+                  "-h",
+                  "--help"
+                ],
+                "takes_value": false,
+                "value_hint": null
+              },
+              {
+                "choices": null,
+                "default": null,
+                "dest": "area",
+                "hidden": false,
+                "kind": null,
+                "metavar": "AREA",
+                "repeatable": false,
+                "required": false,
+                "strings": [
+                  "-A",
+                  "--area"
+                ],
+                "takes_value": true,
+                "value_hint": null
+              },
+              {
+                "choices": [
+                  "rich",
+                  "json",
+                  "markdown"
+                ],
+                "default": "rich",
+                "dest": "format",
+                "hidden": false,
+                "kind": null,
+                "metavar": null,
+                "repeatable": false,
+                "required": false,
+                "strings": [
+                  "-f",
+                  "--format"
+                ],
+                "takes_value": true,
+                "value_hint": null
+              },
+              {
+                "choices": [
+                  "cli",
+                  "tui",
+                  "view",
+                  "macro",
+                  "skill",
+                  "config",
+                  "auto",
+                  "plugin"
+                ],
+                "default": null,
+                "dest": "namespace",
+                "hidden": false,
+                "kind": null,
+                "metavar": "NS",
+                "repeatable": false,
+                "required": false,
+                "strings": [
+                  "-n",
+                  "--namespace"
+                ],
+                "takes_value": true,
+                "value_hint": null
+              }
+            ],
+            "path": [
+              "footprint",
+              "catalog"
+            ],
+            "positionals": [],
             "run_policy": [],
             "stdin": false,
             "subcommands": [],

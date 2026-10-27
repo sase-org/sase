@@ -119,6 +119,7 @@ def test_fix_routes_generated_docs_to_their_declared_venvs(tmp_path: Path) -> No
     _install_executable(
         tmp_path / ".venv/bin/python",
         'if [ "$1" = "tools/render_docs" ]; then echo "sase-python $*" >> "$JUST_SPY_FILE"; exit 0; fi\n'
+        'if [ "$1" = "tools/sync_footprint_catalog" ]; then echo "sase-python $*" >> "$JUST_SPY_FILE"; exit 0; fi\n'
         'echo forbidden-app-python >> "$JUST_SPY_FILE"\nexit 91\n',
     )
     _install_executable(
@@ -148,6 +149,7 @@ def test_fix_routes_generated_docs_to_their_declared_venvs(tmp_path: Path) -> No
     assert "ruff check --fix src/ tests/" in recorded
     assert "format-python tools/render_docs --format-only" in recorded
     assert "sase-python tools/render_docs --sase-only" in recorded
+    assert "sase-python tools/sync_footprint_catalog --write" in recorded
     assert "prettier --write **/*.md" in recorded
     assert "keep-sorted sample.yml" in recorded
     assert "forbidden-app-python" not in recorded

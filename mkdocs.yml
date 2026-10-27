@@ -155,6 +155,7 @@ nav:
               - sase file-hook: reference/cli/file-hook.md
               - sase final: reference/cli/final.md
               - sase flag: reference/cli/flag.md
+              - sase footprint: reference/cli/footprint.md
               - sase gate: reference/cli/gate.md
               - sase goal: reference/cli/goal.md
               - sase init: reference/cli/init.md
@@ -400,6 +401,7 @@ nav:
           - Tool run receipts: contribute/tool-run-receipts.md
           - Prepared monitor completion: contribute/monitor-completion.md
           - Telemetry: contribute/telemetry.md
+          - Footprint: contribute/footprint.md
           - Performance runbook: contribute/perf-runbook.md
           - Mobile MVP runbook: contribute/mobile-mvp-runbook.md
           - Release safety and recovery: contribute/release-safety.md

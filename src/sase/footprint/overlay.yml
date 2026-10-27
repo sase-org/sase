@@ -1,0 +1,27 @@
+schema: sase.footprint.overlay/1
+# Curated human knowledge, reviewed in PRs. Keys are exact feature IDs or
+# trailing-* globs; every key must match at least one catalog ID
+# (`sase footprint catalog` plus the drift guard keep them in sync).
+features:
+  cli:doctor*:
+    protected: recovery
+    why: Repairs a broken install; runs rarely by design.
+  cli:init*:
+    protected: bootstrap
+    why: First-run setup; runs rarely by design.
+  cli:update*:
+    protected: recovery
+    why: Repairs or upgrades the install itself; runs rarely by design.
+  cli:migrate*:
+    protected: recovery
+    why: Moves state between formats; runs rarely by design.
+  cli:restore*:
+    protected: recovery
+    why: Restores lost state; runs rarely by design.
+  cli:revert*:
+    protected: safety
+    why: Undoes applied changes; runs rarely by design.
+  cli:gate*:
+    protected: safety
+    why: Human approval decisions; rare by design and must stay reachable.
+retire_with: []

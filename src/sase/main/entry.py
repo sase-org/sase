@@ -306,6 +306,12 @@ def main() -> NoReturn:
 
         handle_flag_group(args)
 
+    # --- footprint ---
+    if args.command == "footprint":
+        from .footprint_handler import handle_footprint_command
+
+        sys.exit(handle_footprint_command(args))
+
     # --- gate ---
     if args.command == "gate":
         from .gate_handler import handle_gate_command

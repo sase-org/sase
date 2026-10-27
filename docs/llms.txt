@@ -102,6 +102,7 @@
 - [sase file](https://sase.sh/reference/cli/file/) — Filesystem completion helpers (consumed by editor integrations)
 - [sase final](https://sase.sh/reference/cli/final/) — Inspect host-owned finalizer instances, provider provenance, and the current turn's declaration obligations.
 - [sase flag](https://sase.sh/reference/cli/flag/) — Inspect the code-owned SASE feature-flag registry, persist a machine-local enable or disable choice, and scaffold a new flag plus its dedicated removal bead.
+- [sase footprint](https://sase.sh/reference/cli/footprint/) — Footprint keeps an always-on, privacy-by-construction census of which sase surfaces (CLI commands and options, TUI actions and keys, views and modals, macros,…
 - [sase gate](https://sase.sh/reference/cli/gate/) — Create durable command-backed gates from versioned JSON specifications, inspect what they ask for, run their repeatable actions, answer them headlessly, and…
 - [sase goal](https://sase.sh/reference/cli/goal/) — Create, list, show, edit, drop, reopen, merge, and check durable goal records.
 - [CLI command groups](https://sase.sh/reference/cli/) — Generated CLI reference, one page per sase command group.
@@ -321,6 +322,7 @@
 - [Commit workflow orchestrator](https://sase.sh/contribute/commit-workflow-orchestrator/) — Contributor internals for commit workflow orchestration and finalization.
 - [Development](https://sase.sh/contribute/development/) — This page orients contributors working in the sase repository.
 - [Fakey Testing Provider](https://sase.sh/contribute/fakey/) — fakey is a deterministic fake agent CLI bundled with SASE.
+- [Footprint](https://sase.sh/contribute/footprint/) — How Footprint feature IDs and the generated catalog work.
 - [Contribute](https://sase.sh/contribute/) — Contributor guides, internals, contracts, and runbooks for SASE.
 - [Instruction bundle internals](https://sase.sh/contribute/instruction-bundle-internals/) — Manifest, storage, cache, and delivery contracts for generated instruction bundles.
 - [Integration APIs](https://sase.sh/contribute/integration-apis/) — SASE exposes a small set of Python helpers for external plugins, chat clients, mobile clients, and editor integrations.
