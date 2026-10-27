@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from pathlib import Path
+from subprocess import CompletedProcess
 from typing import TYPE_CHECKING, Any
 
 from sase._interruptions import PublicationDrainTimedOut
@@ -31,6 +32,7 @@ from sase.core.agent_identity_facade import AgentOwnerIdentity
 
 if TYPE_CHECKING:
     from sase.agents_sync.publication_protection import PublicationProtectionScope
+    from sase.agents_sync.publication_recovery import PublicationPushRecovery
 
 IntegrateExportPass = Callable[
     [ProjectTarget, Path, AgentOwnerIdentity, GitRunner],
@@ -162,10 +164,54 @@ def _sync_project_transaction(
             push_attempts=1,
             diagnostics=exported.diagnostics,
         )
-    if not is_agents_non_fast_forward(pushed):
+    from sase.agents_sync.publication_recovery import (
+        RECOVERY_REBUILD_CLEAN,
+        RECOVERY_RETRY_DIVERGENCE,
+        REJECTED_REPOSITORY_RULE,
+        REJECTED_SECRET_SCAN,
+        recover_publication_push,
+        sanitized_push_error,
+    )
+
+    recovery = recover_publication_push(
+        repo,
+        git_runner,
+        project_key=target.project_key,
+        repository_identity=target.remote_url,
+        returncode=pushed.returncode,
+        stdout=pushed.stdout or "",
+        stderr=pushed.stderr or "",
+    )
+    if recovery.action == RECOVERY_REBUILD_CLEAN:
+        # Secret-scanning recovery already reset the managed clone to the
+        # fetched upstream tip and blocked the offending bytes. Rebuild clean
+        # units from sources without dropping another commit.
+        return _retry_after_secret_recovery(
+            target,
+            owner,
+            git_runner,
+            integrate_export_pass,
+            exported,
+            committed,
+            recovery,
+        )
+    if recovery.action != RECOVERY_RETRY_DIVERGENCE or not is_agents_non_fast_forward(
+        pushed
+    ):
+        if recovery.rejection.classification in (
+            REJECTED_SECRET_SCAN,
+            REJECTED_REPOSITORY_RULE,
+        ):
+            message = sanitized_push_error(
+                "git push failed",
+                recovery.rejection,
+                blocked_paths=recovery.blocked_paths,
+            )
+        else:
+            message = agents_git_error("git push failed", pushed)
         return _error(
             target,
-            agents_git_error("git push failed", pushed),
+            message,
             pulled=True,
             exported=exported.exported,
             export_refreshed=exported.refreshed,
@@ -195,14 +241,66 @@ def _sync_project_transaction(
                 push_attempts=1,
             )
 
-    cleanup_error = _clean_sync_worktree(repo, git_runner)
-    if cleanup_error is not None:
-        return _error(
-            target,
-            cleanup_error,
-            pulled=True,
-            push_attempts=1,
-        )
+    return _reintegrate_and_push(
+        target,
+        owner,
+        git_runner,
+        integrate_export_pass,
+        exported,
+        clean_first=True,
+    )
+
+
+def _retry_after_secret_recovery(
+    target: ProjectTarget,
+    owner: AgentOwnerIdentity,
+    git_runner: GitRunner,
+    integrate_export_pass: IntegrateExportPass,
+    exported: ExportCounts,
+    committed: bool,
+    recovery: PublicationPushRecovery,
+) -> SyncOutcome:
+    """Rebuild clean units after secret-scanning recovery reset the clone.
+
+    The managed clone is already at the fetched upstream tip and the
+    offending bytes are blocked, so no commit is dropped here. The rebuild
+    honors protection state, letting clean publication continue in this
+    drain. A second push failure is classified once more (recording any new
+    blocks) and then stops; pushes stay bounded at two per drain.
+    """
+
+    del committed
+    return _reintegrate_and_push(
+        target,
+        owner,
+        git_runner,
+        integrate_export_pass,
+        exported,
+        clean_first=False,
+        secret_recovery=recovery,
+    )
+
+
+def _reintegrate_and_push(
+    target: ProjectTarget,
+    owner: AgentOwnerIdentity,
+    git_runner: GitRunner,
+    integrate_export_pass: IntegrateExportPass,
+    exported: ExportCounts,
+    *,
+    clean_first: bool,
+    secret_recovery: PublicationPushRecovery | None = None,
+) -> SyncOutcome:
+    repo = target.sidecar_path
+    if clean_first:
+        cleanup_error = _clean_sync_worktree(repo, git_runner)
+        if cleanup_error is not None:
+            return _error(
+                target,
+                cleanup_error,
+                pulled=True,
+                push_attempts=1,
+            )
     repulled = pull_agents_rebase(repo, git_runner, "agents_sync.retry_pull")
     if repulled.returncode != 0:
         cleanup = abort_agents_rebase(repo, git_runner)
@@ -240,29 +338,15 @@ def _sync_project_transaction(
         dict.fromkeys((*exported.diagnostics, *retry_exported.diagnostics))
     )
     if retry_push.returncode != 0:
-        return _error(
+        return _retry_push_error(
             target,
-            agents_git_error("git push retry failed", retry_push),
-            pulled=True,
-            exported=max(exported.exported, retry_exported.exported),
-            export_refreshed=max(exported.refreshed, retry_exported.refreshed),
-            hoods_published=max(
-                exported.hoods_published, retry_exported.hoods_published
-            ),
-            hoods_refreshed=max(
-                exported.hoods_refreshed, retry_exported.hoods_refreshed
-            ),
-            hoods_unchanged=max(
-                exported.hoods_unchanged, retry_exported.hoods_unchanged
-            ),
-            agent_sessions_published=max(
-                exported.agent_sessions_published,
-                retry_exported.agent_sessions_published,
-            ),
-            runs_published=max(exported.runs_published, retry_exported.runs_published),
-            committed=retry_committed,
-            push_attempts=2,
-            diagnostics=all_diagnostics,
+            git_runner,
+            retry_push,
+            exported,
+            retry_exported,
+            retry_committed,
+            all_diagnostics,
+            secret_recovery=secret_recovery,
         )
     return SyncOutcome(
         target.project_key,
@@ -279,6 +363,71 @@ def _sync_project_transaction(
         runs_published=max(exported.runs_published, retry_exported.runs_published),
         committed=retry_committed,
         pushed=True,
+        push_attempts=2,
+        diagnostics=all_diagnostics,
+    )
+
+
+def _retry_push_error(
+    target: ProjectTarget,
+    git_runner: GitRunner,
+    retry_push: CompletedProcess[str],
+    exported: ExportCounts,
+    retry_exported: ExportCounts,
+    retry_committed: bool,
+    all_diagnostics: tuple[str, ...],
+    *,
+    secret_recovery: PublicationPushRecovery | None = None,
+) -> SyncOutcome:
+    """Classify a retry-push failure once more, then stop.
+
+    A second secret-scanning rejection records any newly attributed blocks
+    and resets again so the next drain starts clean, but never pushes a
+    third time in this drain.
+    """
+
+    from sase.agents_sync.publication_recovery import (
+        REJECTED_REPOSITORY_RULE,
+        REJECTED_SECRET_SCAN,
+        recover_publication_push,
+        sanitized_push_error,
+    )
+
+    second = recover_publication_push(
+        target.sidecar_path,
+        git_runner,
+        project_key=target.project_key,
+        repository_identity=target.remote_url,
+        returncode=retry_push.returncode,
+        stdout=retry_push.stdout or "",
+        stderr=retry_push.stderr or "",
+    )
+    if second.rejection.classification in (
+        REJECTED_SECRET_SCAN,
+        REJECTED_REPOSITORY_RULE,
+    ):
+        prior_blocked = secret_recovery.blocked_paths if secret_recovery else ()
+        blocked = tuple(dict.fromkeys((*prior_blocked, *second.blocked_paths)))
+        message = sanitized_push_error(
+            "git push retry failed", second.rejection, blocked_paths=blocked
+        )
+    else:
+        message = agents_git_error("git push retry failed", retry_push)
+    return _error(
+        target,
+        message,
+        pulled=True,
+        exported=max(exported.exported, retry_exported.exported),
+        export_refreshed=max(exported.refreshed, retry_exported.refreshed),
+        hoods_published=max(exported.hoods_published, retry_exported.hoods_published),
+        hoods_refreshed=max(exported.hoods_refreshed, retry_exported.hoods_refreshed),
+        hoods_unchanged=max(exported.hoods_unchanged, retry_exported.hoods_unchanged),
+        agent_sessions_published=max(
+            exported.agent_sessions_published,
+            retry_exported.agent_sessions_published,
+        ),
+        runs_published=max(exported.runs_published, retry_exported.runs_published),
+        committed=retry_committed,
         push_attempts=2,
         diagnostics=all_diagnostics,
     )

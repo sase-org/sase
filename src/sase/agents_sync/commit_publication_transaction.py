@@ -79,6 +79,14 @@ _REPOSITORY_STAGES = frozenset(
 )
 
 
+def _affected_request_identities(
+    keys: tuple[tuple[str, str], ...],
+) -> tuple[str, ...]:
+    """Render outbox logical keys as ledger-safe request identities."""
+
+    return tuple(f"{global_agent}@{revision}" for global_agent, revision in keys)
+
+
 def hood_timeout_stage(stage: str | None) -> bool:
     if not stage:
         return False
@@ -244,16 +252,56 @@ def publish_queued_transaction(
             drained=len(acked_keys),
             item_errors=(*item_errors, *gate_errors),
         )
-    if not git_sync.is_agents_non_fast_forward(pushed):
+    from sase.agents_sync.publication_recovery import (
+        RECOVERY_REBUILD_CLEAN,
+        RECOVERY_RETRY_DIVERGENCE,
+        REJECTED_REPOSITORY_RULE,
+        REJECTED_SECRET_SCAN,
+        recover_publication_push,
+        sanitized_push_error,
+    )
+
+    push_recovery = recover_publication_push(
+        target.sidecar_path,
+        git_runner,
+        project_key=target.project_key,
+        repository_identity=target.remote_url,
+        returncode=pushed.returncode,
+        stdout=pushed.stdout or "",
+        stderr=pushed.stderr or "",
+        affected_requests=_affected_request_identities(prepared_keys),
+    )
+    if push_recovery.action == RECOVERY_REBUILD_CLEAN:
+        # Secret-scanning recovery already reset the managed clone to the
+        # fetched upstream tip and blocked the offending bytes. Rebuild from
+        # sources without dropping another commit; protection state keeps
+        # the blocked bytes out of the retry.
+        already_reset = True
+    elif push_recovery.action != RECOVERY_RETRY_DIVERGENCE or not (
+        git_sync.is_agents_non_fast_forward(pushed)
+    ):
+        if push_recovery.rejection.classification in (
+            REJECTED_SECRET_SCAN,
+            REJECTED_REPOSITORY_RULE,
+        ):
+            push_message = sanitized_push_error(
+                "git push failed",
+                push_recovery.rejection,
+                blocked_paths=push_recovery.blocked_paths,
+            )
+        else:
+            push_message = git_sync.agents_git_error("git push failed", pushed)
         return DrainResult(
             item_errors=item_errors,
-            error=git_sync.agents_git_error("git push failed", pushed),
+            error=push_message,
             error_keys=prepared_keys,
             failure_scope=_REPOSITORY_SCOPE,
             failure_stage="push",
         )
+    else:
+        already_reset = False
 
-    if committed:
+    if committed and not already_reset:
         dropped = git_runner(
             target.sidecar_path,
             ["reset", "--hard", "HEAD^"],
@@ -365,9 +413,48 @@ def publish_queued_transaction(
             op="agents_sync.commit_publish_retry_push",
         )
     if retry_push.returncode != 0:
+        # A second failure is classified once more (recording any newly
+        # attributed blocks) and then stops; pushes stay bounded at two.
+        from sase.agents_sync.publication_recovery import (
+            REJECTED_REPOSITORY_RULE,
+            REJECTED_SECRET_SCAN,
+            recover_publication_push,
+            sanitized_push_error,
+        )
+
+        second = recover_publication_push(
+            target.sidecar_path,
+            git_runner,
+            project_key=target.project_key,
+            repository_identity=target.remote_url,
+            returncode=retry_push.returncode,
+            stdout=retry_push.stdout or "",
+            stderr=retry_push.stderr or "",
+            affected_requests=_affected_request_identities(retry_keys),
+        )
+        if second.rejection.classification in (
+            REJECTED_SECRET_SCAN,
+            REJECTED_REPOSITORY_RULE,
+        ):
+            prior_blocked = (
+                push_recovery.blocked_paths
+                if push_recovery.action == RECOVERY_REBUILD_CLEAN
+                else ()
+            )
+            retry_message = sanitized_push_error(
+                "git push retry failed",
+                second.rejection,
+                blocked_paths=tuple(
+                    dict.fromkeys((*prior_blocked, *second.blocked_paths))
+                ),
+            )
+        else:
+            retry_message = git_sync.agents_git_error(
+                "git push retry failed", retry_push
+            )
         return DrainResult(
             item_errors=all_item_errors,
-            error=git_sync.agents_git_error("git push retry failed", retry_push),
+            error=retry_message,
             error_keys=retry_keys,
             failure_scope=_REPOSITORY_SCOPE,
             failure_stage="retry_push",

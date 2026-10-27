@@ -197,6 +197,34 @@ def build_hood_snapshot(
     return snapshot, payload, tuple(notes)
 
 
+def _prior_content_blocked(
+    scope: PublicationProtectionScope, destination: str, content: bytes
+) -> bool:
+    """Return whether a GH013 rejection already blocked these exact bytes.
+
+    A failed lookup never authorizes publication, but it also never
+    withholds on its own: the fresh scan below still decides. Only a durable
+    ``blocked`` record for this exact digest withholds the candidate, so a
+    clean rebuild after rejection recovery cannot replay rejected bytes.
+    """
+
+    # Deferred so the protection modules stay out of the TUI startup closure.
+    from sase.agents_sync.publication_protection import (
+        lookup_publication_content_record,
+    )
+
+    try:
+        record = lookup_publication_content_record(
+            scope.project_key,
+            repository_identity=scope.repository_identity,
+            relative_destination=destination,
+            sha256=hashlib.sha256(content).hexdigest(),
+        )
+    except Exception:  # noqa: BLE001 - a failed lookup never authorizes publish.
+        return False
+    return isinstance(record, dict) and record.get("status") == "blocked"
+
+
 def _gate_run_files(
     run: InventoryRun,
     owner: AgentOwnerIdentity,
@@ -254,6 +282,21 @@ def _gate_run_files(
         if content is None:
             continue
         destination = f"{root}/{name}"
+        if _prior_content_blocked(scope, destination, content):
+            notes.append(f"withheld {destination}: blocked")
+            if kind in _STRUCTURAL_RUN_KINDS:
+                blocked_kinds.update(_CONTENT_RUN_KINDS)
+                blocked_kinds.update(_STRUCTURAL_RUN_KINDS)
+                return _GatedRun(
+                    run=run,
+                    record=None,
+                    blocked_kinds=frozenset(blocked_kinds),
+                    withheld_reason="blocked",
+                    notes=tuple(notes),
+                )
+            blocked_kinds.add(kind)
+            withheld_reason = withheld_reason or "blocked"
+            continue
         verdict = scan_publication_bytes(content, max_bytes=scope.max_bytes)
         status = verdict.disposition.get("status") if verdict.disposition else None
         try:

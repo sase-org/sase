@@ -6,6 +6,7 @@ from dataclasses import dataclass
 import logging
 import os
 from pathlib import Path
+import subprocess
 
 from sase.agents_sync.git import GitRunner, run_git
 from sase.agents_sync.models import ProjectTarget
@@ -244,12 +245,16 @@ def _publish_prompt_archive(
                     op="agents_sync.prompt_archive_push",
                 )
                 if pushed.returncode != 0:
+                    push_error = _classify_prompt_archive_push_error(
+                        target.sidecar_path,
+                        git_runner,
+                        pushed,
+                        scope,
+                    )
                     return PromptArchivePublicationOutcome(
                         queued=True,
                         prompt_path=prepared.prompt_path,
-                        error=git_sync.agents_git_error(
-                            "prompt archive git push failed", pushed
-                        ),
+                        error=push_error,
                         protection_status=prepared.protection_status,
                     )
             if prepared.protection_status is not None:
@@ -359,6 +364,54 @@ def prepare_prompt_archive(
         repository_roots_factory=_repository_roots,
         protection_scope=scope,
     )
+
+
+def _classify_prompt_archive_push_error(
+    repo: Path,
+    git_runner: GitRunner,
+    pushed: subprocess.CompletedProcess[str],
+    scope: object,
+) -> str:
+    """Classify a direct prompt-archive push failure without leaking secrets.
+
+    Secret-scanning rejections preserve sole-copy objects, record permanent
+    blocks, and reset the managed clone to the fetched upstream tip; the
+    queued request republishes clean units on the next drain because
+    protection state withholds the blocked bytes. Divergence keeps its
+    existing queued retry through the next drain's pull. The project key and
+    repository identity come from the protection scope built for this target.
+    """
+
+    from sase.agents_sync.publication_recovery import (
+        REJECTED_REPOSITORY_RULE,
+        REJECTED_SECRET_SCAN,
+        recover_publication_push,
+        sanitized_push_error,
+    )
+
+    project_key = getattr(scope, "project_key", "")
+    repository_identity = getattr(scope, "repository_identity", "")
+    recovery = recover_publication_push(
+        repo,
+        git_runner,
+        project_key=str(project_key),
+        repository_identity=str(repository_identity),
+        returncode=pushed.returncode,
+        stdout=pushed.stdout or "",
+        stderr=pushed.stderr or "",
+    )
+    if recovery.rejection.classification in (
+        REJECTED_SECRET_SCAN,
+        REJECTED_REPOSITORY_RULE,
+    ):
+        return sanitized_push_error(
+            "prompt archive git push failed",
+            recovery.rejection,
+            blocked_paths=recovery.blocked_paths,
+        )
+    from sase.agents_sync import git_sync
+
+    return git_sync.agents_git_error("prompt archive git push failed", pushed)
 
 
 def _drain_referenced_by_after_prompt_publish(

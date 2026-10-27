@@ -436,8 +436,9 @@ _lint-patch-stitch-terminology: _setup
 # row for facts_look_like_update_skew is dropped. If a later phase needs the
 # symbol allow-listed again, re-add a row re-keyed onto a still-open bead.
 # sase-1oh.5.1.2/.3 consumed the scan/record/retry and payload-verification
-# seams; sase-1oh.5.1.4 (rejection-recovery) still owns the push-rejection
-# classification pair.
+# seams; sase-1oh.5.1.4 (rejection-recovery) consumed the push-rejection
+# classification pair by wiring it into every agents-sidecar push path
+# through agents_sync.publication_recovery, so those rows are dropped.
 # sase-1jw.2 wires the machine-local plan project readers into approval; the
 # original symbol allowlist rows are now consumed and have been removed.
 # sase-1jx.10.1.4 (Apply, progress, Ready, and Failed) consumes
@@ -477,8 +478,6 @@ _lint-symvision *args: _setup
     SASE_SYMVISION_BEAD_STATUS_ONLY=1 BD_COMMAND=tools/sase_bead {{ venv_bin }}/symvision src/sase \
         --exclude-decorator gate_command_entrypoint \
         --exclude-decorator builtin_chop \
-        --epic-symbol "sase-1oh.5.1.4(record_publication_push_rejection)" \
-        --epic-symbol "sase-1oh.5.1.4(classify_sidecar_publication_push_result)" \
         {{ args }}
 
 # Check Python file line counts (private, extracted for per-stage wrapping)

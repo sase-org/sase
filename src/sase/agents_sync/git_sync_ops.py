@@ -121,6 +121,36 @@ def commit_agents_payload_if_dirty(
     return True
 
 
+def _candidate_rejection_blocked(
+    lookup: object,
+    scope: PublicationProtectionScope | None,
+    relative: str,
+    data: bytes,
+) -> bool:
+    """Return whether a GH013 rejection already blocked these exact bytes.
+
+    A failed lookup never withholds on its own; the fresh scan below still
+    decides. Only a durable ``blocked`` record for this exact digest keeps a
+    rebuilt candidate out of staging, so recovery cannot replay rejected
+    bytes through a path that bypasses snapshot gating.
+    """
+
+    if scope is None:
+        return False
+    import hashlib
+
+    try:
+        record = lookup(  # type: ignore[operator]
+            scope.project_key,
+            repository_identity=scope.repository_identity,
+            relative_destination=relative,
+            sha256=hashlib.sha256(data).hexdigest(),
+        )
+    except Exception:  # noqa: BLE001 - a failed lookup never authorizes publish.
+        return False
+    return isinstance(record, dict) and record.get("status") == "blocked"
+
+
 def _verify_agents_payload_protection(
     repo: Path,
     git_runner: GitRunner,
@@ -144,6 +174,7 @@ def _verify_agents_payload_protection(
 
     from sase.agents_sync.publication_protection import (
         MAX_PUBLICATION_SCAN_BYTES,
+        lookup_publication_content_record,
         record_publication_bytes_scan,
         scan_publication_bytes,
     )
@@ -174,6 +205,11 @@ def _verify_agents_payload_protection(
                 f"could not read {relative!r}"
             )
         if not data:
+            continue
+        if scope is not None and _candidate_rejection_blocked(
+            lookup_publication_content_record, scope, relative, data
+        ):
+            blocked += 1
             continue
         verdict = scan_publication_bytes(data, max_bytes=max_bytes)
         if scope is not None:

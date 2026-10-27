@@ -430,7 +430,7 @@ def _publish_migration_sidecars(
         )
         if pushed.returncode == 0:
             continue
-        detail = (pushed.stderr or pushed.stdout or "git push failed").strip()
+        detail = _sanitized_migration_push_detail(pushed)
         remaining = tuple(path for _name, path in pending[index:])
         raise RuntimeError(
             _publication_recovery_message(
@@ -441,6 +441,37 @@ def _publish_migration_sidecars(
                 repositories=remaining,
             )
         )
+
+
+def _sanitized_migration_push_detail(pushed: object) -> str:
+    """Describe a migration push failure without echoing remote secrets.
+
+    Secret-scanning and repository-rule rejections surface sanitized,
+    value-free text; transport and divergence failures keep their legacy
+    detail because migration retries are operator-driven, not a drain loop.
+    """
+
+    from sase.agents_sync.publication_recovery import (
+        REJECTED_REPOSITORY_RULE,
+        REJECTED_SECRET_SCAN,
+        PublicationPushRejection,
+        classify_publication_push,
+        sanitized_push_error,
+    )
+
+    stdout = str(getattr(pushed, "stdout", None) or "")
+    stderr = str(getattr(pushed, "stderr", None) or "")
+    rejection: PublicationPushRejection = classify_publication_push(
+        returncode=int(getattr(pushed, "returncode", 1)),
+        stdout=stdout,
+        stderr=stderr,
+    )
+    if rejection.classification in (
+        REJECTED_SECRET_SCAN,
+        REJECTED_REPOSITORY_RULE,
+    ):
+        return sanitized_push_error("migration push", rejection)
+    return (stderr or stdout or "git push failed").strip()
 
 
 def _ahead_subjects(repo: Path, git_runner: GitRunner) -> tuple[str, ...] | None:
