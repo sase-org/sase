@@ -11,18 +11,26 @@ in priority order:
 
 1. ``run.terminal.*`` carries the authoritative reply in ``payload.text``;
    ``payload.terminal`` is the outcome and ``payload.reason`` the detail.
+   When that text is present and no delta was streamed for the run, it is
+   also written to ``live_reply.md`` as a closed display chunk.
 2. ``run.output.delta`` is ``ephemeral`` and carries incremental fragments
-   that concatenate to the text the terminal event later returns; they can
-   split mid-word. The deltas of one run stream coalesce into a single
-   timestamped ``live_reply.md`` chunk for live display only and are never
-   appended to the returned content.
-3. A failed, rejected, or cancelled *task* is not a failed *run*. Muse emits
+   of the **final answer** that concatenate to the text the terminal event
+   later returns; they can split mid-word. The deltas of one run stream
+   coalesce into a single timestamped ``live_reply.md`` chunk for live
+   display only and are never appended to the returned content. Commentary
+   chunks from the session log may already occupy earlier rows in that file.
+3. Live commentary is not on stdout. While the process runs, SASE tails the
+   session log named by ``--session-id`` for ``assistant_message_committed``
+   records with ``phase == "commentary"`` and writes each accepted message
+   as its own ``live_reply.md`` chunk. Commentary never enters the returned
+   reply, salvage buffers, or host finalizers.
+4. A failed, rejected, or cancelled *task* is not a failed *run*. Muse emits
    ``task.lifecycle.rejected``/``cancelled`` on runs that exit ``0``, so
    task-level failures are recorded as diagnostics that only reach stderr
    when the process itself failed.
-4. Unrecognized payload types and higher schema versions never raise; they
+5. Unrecognized payload types and higher schema versions never raise; they
    are recorded as bounded artifact diagnostics instead.
-5. Exit code ``2`` is a CLI usage error, not a model failure, and says so.
+6. Exit code ``2`` is a CLI usage error, not a model failure, and says so.
 """
 
 from __future__ import annotations
@@ -32,7 +40,7 @@ import os
 import subprocess
 from collections.abc import Mapping
 from dataclasses import dataclass, field
-from typing import IO
+from typing import IO, TYPE_CHECKING
 
 from ._muse_session_usage import read_muse_session_usage
 from ._subprocess_artifacts import (
@@ -51,6 +59,9 @@ from ._tool_call_muse import (
     MuseToolCallTracker,
     append_muse_tool_call_events,
 )
+
+if TYPE_CHECKING:
+    from ._muse_commentary_tail import MuseCommentaryTail
 
 # --- Muse event-stream vocabulary -------------------------------------
 # Every payload-type and envelope-field string Muse's stream parser depends
@@ -92,6 +103,10 @@ MUSE_USAGE_ERROR_NOTE = (
 
 # Stream key for events that carry neither ``command_id`` nor ``run_stream.id``.
 _UNKEYED_RUN_STREAM = "<unkeyed>"
+# Private sentinels so commentary and the terminal-text fallback close their
+# live-reply chunks without colliding with a real run-stream id.
+_COMMENTARY_STREAM_KEY = "<muse-commentary>"
+_TERMINAL_FALLBACK_STREAM_KEY = "<muse-terminal-fallback>"
 
 _MAX_SCHEMA_DIAGNOSTICS = 5
 _schema_diagnostic_counts: dict[tuple[str, str], int] = {}
@@ -123,6 +138,7 @@ class _MuseStreamState:
     model_id: str | None = None
     provider_id: str | None = None
     tool_calls: MuseToolCallTracker = field(default_factory=MuseToolCallTracker)
+    commentary_tail: MuseCommentaryTail | None = None
 
 
 def stream_and_parse_muse_json_output(
@@ -143,13 +159,32 @@ def stream_and_parse_muse_json_output(
         live_reply_file=open_live_reply_file(),
         timestamps_file=open_live_reply_timestamps_file(),
     )
+    if session_id:
+        write_run_metadata_artifact(
+            {"muse_session_id": session_id, "runtime": MUSE_RUNTIME_NAME}
+        )
+        if state.live_reply_file is not None:
+
+            def _on_commentary(text: str) -> None:
+                _append_commentary(text, state)
+
+            from ._muse_commentary_tail import MuseCommentaryTail
+
+            state.commentary_tail = MuseCommentaryTail(session_id, _on_commentary)
 
     try:
         stderr_content, return_code = stream_json_lines(
             process,
             lambda line: _process_muse_json_line(line, state),
             suppress_output,
+            on_tick=(
+                state.commentary_tail.tick
+                if state.commentary_tail is not None
+                else None
+            ),
         )
+        if state.commentary_tail is not None:
+            state.commentary_tail.finish()
     finally:
         _close_delta_chunk(state)
         if state.live_reply_file:
@@ -262,6 +297,8 @@ def _stream_output_delta(
     if not isinstance(text, str) or not text:
         return
     stream_key = _run_stream_key(payload)
+    if state.open_stream_key != stream_key and state.commentary_tail is not None:
+        state.commentary_tail.drain()
     new_chunk = state.open_stream_key != stream_key
     if new_chunk:
         _close_delta_chunk(state)
@@ -301,13 +338,37 @@ def _close_delta_chunk(state: _MuseStreamState) -> None:
         print(flush=True)
 
 
+def _append_closed_live_reply_chunk(
+    text: str, state: _MuseStreamState, *, stream_key: str
+) -> None:
+    """Write *text* as one timestamped live-reply chunk and close it."""
+    _close_delta_chunk(state)
+    append_stream_delta(
+        text,
+        state.suppress_output,
+        state.live_reply_file,
+        state.timestamps_file,
+        new_chunk=True,
+    )
+    state.open_stream_key = stream_key
+    _close_delta_chunk(state)
+
+
+def _append_commentary(text: str, state: _MuseStreamState) -> None:
+    """Write one commentary message as its own closed live-reply chunk."""
+    _append_closed_live_reply_chunk(text, state, stream_key=_COMMENTARY_STREAM_KEY)
+
+
 def _capture_run_terminal(
     payload: Mapping[str, object],
     state: _MuseStreamState,
 ) -> None:
     """Record the authoritative reply text and the run's terminal outcome."""
+    if state.commentary_tail is not None:
+        state.commentary_tail.drain()
     state.saw_run_terminal = True
-    if state.open_stream_key == _run_stream_key(payload):
+    stream_key = _run_stream_key(payload)
+    if state.open_stream_key == stream_key:
         _close_delta_chunk(state)
 
     outcome = payload.get("terminal")
@@ -319,6 +380,10 @@ def _capture_run_terminal(
     text = payload.get("text")
     if isinstance(text, str) and text:
         state.terminal_texts.append(text)
+        if stream_key not in state.streamed_texts:
+            _append_closed_live_reply_chunk(
+                text, state, stream_key=_TERMINAL_FALLBACK_STREAM_KEY
+            )
 
 
 def _capture_task_diagnostic(

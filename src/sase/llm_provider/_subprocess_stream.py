@@ -152,6 +152,8 @@ def stream_json_lines(
     process: subprocess.Popen[str],
     handle_stdout_line: Callable[[str], None],
     suppress_output: bool,
+    *,
+    on_tick: Callable[[], None] | None = None,
 ) -> tuple[str, int]:
     """Stream decoded JSONL records and stderr from a subprocess without blocking.
 
@@ -160,6 +162,11 @@ def stream_json_lines(
     decoders preserve valid UTF-8 characters split across reads. Bounded reads
     and record dispatch keep a continuously-writing stdout from starving stderr
     or process/watchdog checks.
+
+    ``on_tick``, when given, is called once per main-loop pass after the
+    select/read block. The loop already wakes at least every 0.1 s even when
+    stdout is quiet, so a caller can poll a sidecar file without a thread.
+    Other providers omit it.
     """
     stderr_lines: list[str] = []
     stdout = _make_jsonl_pipe("stdout", process.stdout)
@@ -271,6 +278,8 @@ def stream_json_lines(
         # Observe a watchdog transition after every bounded pair of stream
         # batches; on normal exit the same readers continue through EOF.
         process.poll()
+        if on_tick is not None:
+            on_tick()
 
     # Keep this wait and settlement contract in step with the plain reader.
     return_code = process.wait()

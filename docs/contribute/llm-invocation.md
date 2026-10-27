@@ -28,6 +28,7 @@ invocations.
 | `src/sase/llm_provider/_subprocess_muse.py`                | Muse `exec --json` JSONL stream parser                                                                                           |
 | `src/sase/llm_provider/_tool_call_muse.py`                 | Muse tool-call record extraction from the event stream                                                                           |
 | `src/sase/llm_provider/_muse_session_usage.py`             | Muse token-usage recovery from the on-disk session log                                                                           |
+| `src/sase/llm_provider/_muse_commentary_tail.py`           | Muse live-commentary tail of the on-disk session log                                                                             |
 | `src/sase/llm_provider/grok.py`                            | xAI Grok Build provider implementation                                                                                           |
 | `src/sase/llm_provider/_subprocess_claude.py`              | Provider-neutral Anthropic-Messages stream reader shared by Claude and Grok                                                      |
 | `src/sase/llm_provider/_tool_call_grok.py`                 | Grok tool-call normalization (native names → canonical display names)                                                            |
@@ -336,12 +337,14 @@ ACE follows reply growth in the Main Reply card for the selected live agent.
 File-watcher events drive the normal update, with a one-second stat-only poll as a
 backstop; reply writes do not reload the Agents roster. The provider's terminal reply
 remains authoritative for the invocation result, while streamed deltas are the visible
-in-progress copy and a salvage source when terminal text is unavailable. Muse controls
-when it emits text: it is usually quiet through tool work, replies tend to arrive near
-the end of generation, and a short answer may arrive as one burst. ACE displays
-available deltas promptly but cannot show text Muse has not emitted. Under Rich's
-interactive provider timer, console output keeps fragments together until a newline;
-plain stdout and agent logs continue flushing fragments as they arrive.
+in-progress copy and a salvage source when terminal text is unavailable. Muse's final
+answer still arrives on stdout as `run.output.delta` fragments after the last tool call,
+but while the run is in progress SASE tails Muse's session log for `phase: "commentary"`
+messages and writes each one to `live_reply.md` as its own timestamped chunk. Those
+chunks are display-only; the returned reply remains the terminal text. ACE displays
+available chunks promptly. Under Rich's interactive provider timer, console output keeps
+fragments together until a newline; plain stdout and agent logs continue flushing
+fragments as they arrive.
 
 ### Output Suppression
 
