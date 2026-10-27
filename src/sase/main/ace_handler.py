@@ -136,6 +136,9 @@ def _exec_ace_restart_if_requested(exit_action: "AceExitAction | None") -> None:
     )
     exec_args = [sys.executable, "-m", "sase", *argv]
     try:
+        from sase.footprint._cli import record_active
+
+        record_active(0)
         from sase.ace.tui.util.startup_clock import EXEC_MONO_NS_ENV
 
         # CLOCK_MONOTONIC survives exec: the new process reads this back as
@@ -184,6 +187,9 @@ def _log_live_exit_threads() -> None:
 
 def _hard_exit_ace(exit_code: int) -> NoReturn:
     """Flush durable state, then exit without interpreter thread joins."""
+    from sase.footprint._cli import record_active
+
+    record_active(exit_code)
     from sase.telemetry import flush_metrics
 
     _log_live_exit_threads()

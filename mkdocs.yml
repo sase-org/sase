@@ -88,6 +88,7 @@ nav:
       - How changes land: concepts/landing.md
   - Reference:
       - Reference hub: reference/index.md
+      - Footprint: reference/footprint.md
       - TUI:
           - TUI hub: reference/tui/index.md
           - Launching: reference/tui/launching.md

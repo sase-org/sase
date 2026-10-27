@@ -102,7 +102,7 @@
 - [sase file](https://sase.sh/reference/cli/file/) — Filesystem completion helpers (consumed by editor integrations)
 - [sase final](https://sase.sh/reference/cli/final/) — Inspect host-owned finalizer instances, provider provenance, and the current turn's declaration obligations.
 - [sase flag](https://sase.sh/reference/cli/flag/) — Inspect the code-owned SASE feature-flag registry, persist a machine-local enable or disable choice, and scaffold a new flag plus its dedicated removal bead.
-- [sase footprint](https://sase.sh/reference/cli/footprint/) — Footprint keeps an always-on, privacy-by-construction census of which sase surfaces (CLI commands and options, TUI actions and keys, views and modals, macros,…
+- [sase footprint](https://sase.sh/reference/cli/footprint/) — Footprint keeps a local, privacy-by-construction census of which sase surfaces (CLI commands and options, TUI actions and keys, views and modals, macros,…
 - [sase gate](https://sase.sh/reference/cli/gate/) — Create durable command-backed gates from versioned JSON specifications, inspect what they ask for, run their repeatable actions, answer them headlessly, and…
 - [sase goal](https://sase.sh/reference/cli/goal/) — Create, list, show, edit, drop, reopen, merge, and check durable goal records.
 - [CLI command groups](https://sase.sh/reference/cli/) — Generated CLI reference, one page per sase command group.
@@ -189,6 +189,7 @@
 - [Diagnostics and support reports](https://sase.sh/reference/diagnostics/) — Read-only validation, diagnostics, logs, and support bundle behavior.
 - [SASE disk cleanup](https://sase.sh/reference/disk-cleanup/) — Inspect SASE-created bytes and delegate cleanup to the owning subsystem.
 - [Environment variables](https://sase.sh/reference/environment-variables/) — Environment variables that configure providers, SDD, plugins, runtime, and workspaces.
+- [Footprint](https://sase.sh/reference/footprint/) — Local usage census recording, its privacy limits, and the mode switch.
 - [Glossary](https://sase.sh/reference/glossary/) — Every SASE term, generated from the glossary memory web.
 - [Reference](https://sase.sh/reference/) — Look up exact SASE facts here, generated from code where possible.
 - [Shell Completion](https://sase.sh/reference/integrations/completion/) — Native zsh, bash, and fish completion from the live sase argparse tree.

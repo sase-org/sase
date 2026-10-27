@@ -1,6 +1,6 @@
 ---
 title: "sase footprint"
-description: "Footprint keeps an always-on, privacy-by-construction census of which sase surfaces (CLI commands and options, TUI actions and keys, views and modals, macros,…"
+description: "Footprint keeps a local, privacy-by-construction census of which sase surfaces (CLI commands and options, TUI actions and keys, views and modals, macros,…"
 ---
 
 <!-- generated, do not edit; source: argparse tree (tools/render_cli; run just fix to regenerate) -->
@@ -12,10 +12,10 @@ Show the local usage census of sase surfaces.
 Reference for `sase footprint`. Run `sase footprint --help` for the exact output on this checkout.
 
 ```text
-usage: sase footprint [-h] {catalog} ...
+usage: sase footprint [-h] {catalog,mode} ...
 ```
 
-Footprint keeps an always-on, privacy-by-construction census of which sase surfaces (CLI commands and options, TUI actions and keys, views and modals, macros, skills, config leaves, automation) are used, and joins it with a generated feature catalog. Bare `sase footprint` shows this help.
+Footprint keeps a local, privacy-by-construction census of which sase surfaces (CLI commands and options, TUI actions and keys, views and modals, macros, skills, config leaves, automation) are used, and joins it with a generated feature catalog. Use `sase footprint mode off` to stop recording. Bare `sase footprint` shows this help.
 
 Options:
 
@@ -25,9 +25,10 @@ Options:
 
 Subcommands:
 
-| Subcommand               | Summary                            |
-| ------------------------ | ---------------------------------- |
-| `sase footprint catalog` | List the generated feature catalog |
+| Subcommand               | Summary                               |
+| ------------------------ | ------------------------------------- |
+| `sase footprint catalog` | List the generated feature catalog    |
+| `sase footprint mode`    | Show or set local Footprint recording |
 
 ## `sase footprint catalog`
 
@@ -45,5 +46,25 @@ Options:
 | `-f FORMAT`, `--format FORMAT` | Output format (default: rich) (choices: `json`, `markdown`, `rich`)                                                     | `rich`  |
 | `-h`, `--help`                 | show this help message and exit                                                                                         | —       |
 | `-n NS`, `--namespace NS`      | Show only one namespace (for example cli) (choices: `auto`, `cli`, `config`, `macro`, `plugin`, `skill`, `tui`, `view`) | —       |
+
+## `sase footprint mode`
+
+```text
+usage: sase footprint mode [-h] [{local,off}]
+```
+
+Show the effective Footprint recording mode, or set it to `off` or `local`. Recording is local and stores no command arguments.
+
+Options:
+
+| Option         | Description                     | Default |
+| -------------- | ------------------------------- | ------- |
+| `-h`, `--help` | show this help message and exit | —       |
+
+Arguments:
+
+| Argument | Description                                     |
+| -------- | ----------------------------------------------- |
+| `mode`   | Recording mode (default: show the current mode) |
 
 Related: [CLI command groups](index.md).

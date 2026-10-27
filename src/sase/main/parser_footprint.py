@@ -10,11 +10,11 @@ _FORMAT_CHOICES = ("rich", "json", "markdown")
 
 _FOOTPRINT_SUMMARY = "Show the local usage census of sase surfaces."
 _FOOTPRINT_DESCRIPTION = (
-    "Footprint keeps an always-on, privacy-by-construction census of which "
+    "Footprint keeps a local, privacy-by-construction census of which "
     "sase surfaces (CLI commands and options, TUI actions and keys, views "
     "and modals, macros, skills, config leaves, automation) are used, and "
-    "joins it with a generated feature catalog. Bare `sase footprint` shows "
-    "this help."
+    "joins it with a generated feature catalog. Use `sase footprint mode off` "
+    "to stop recording. Bare `sase footprint` shows this help."
 )
 
 
@@ -28,9 +28,27 @@ def register_footprint_parser(subparsers: argparse._SubParsersAction) -> None:
     footprint_sub = footprint_parser.add_subparsers(
         dest="footprint_subcommand",
         help="Footprint views",
-        metavar="{catalog}",
+        metavar="{catalog,mode}",
     )
     _register_catalog_parser(footprint_sub)
+    _register_mode_parser(footprint_sub)
+
+
+def _register_mode_parser(footprint_sub: argparse._SubParsersAction) -> None:
+    mode_parser = footprint_sub.add_parser(
+        "mode",
+        help="Show or set local Footprint recording",
+        description=(
+            "Show the effective Footprint recording mode, or set it to `off` "
+            "or `local`. Recording is local and stores no command arguments."
+        ),
+    )
+    mode_parser.add_argument(
+        "mode",
+        nargs="?",
+        choices=("local", "off"),
+        help="Recording mode (default: show the current mode)",
+    )
 
 
 def _register_catalog_parser(

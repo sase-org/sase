@@ -21,10 +21,21 @@ def handle_footprint_command(args: argparse.Namespace) -> int:
     if subcommand is None:
         _print_group_help()
         return 0
+    if subcommand == "mode":
+        from sase.footprint._mode import DISCLOSURE, current_mode, set_mode
+
+        selected = getattr(args, "mode", None)
+        if selected is None:
+            print(f"Footprint recording mode: {current_mode()}")
+            print(DISCLOSURE)
+            return 0
+        set_mode(selected)
+        print(f"Footprint recording mode set to {selected}.")
+        return 0
     if subcommand == "catalog":
         return _handle_catalog(args)
     print(
-        f"sase footprint: unknown view {subcommand!r}. Implemented views: catalog.",
+        f"sase footprint: unknown view {subcommand!r}. Implemented views: catalog, mode.",
         file=sys.stderr,
     )
     return 2

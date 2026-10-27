@@ -100,7 +100,7 @@
 - [sase file](reference/cli/file.md) — Filesystem completion helpers (consumed by editor integrations)
 - [sase final](reference/cli/final.md) — Inspect host-owned finalizer instances, provider provenance, and the current turn's declaration obligations.
 - [sase flag](reference/cli/flag.md) — Inspect the code-owned SASE feature-flag registry, persist a machine-local enable or disable choice, and scaffold a new flag plus its dedicated removal bead.
-- [sase footprint](reference/cli/footprint.md) — Footprint keeps an always-on, privacy-by-construction census of which sase surfaces (CLI commands and options, TUI actions and keys, views and modals, macros,…
+- [sase footprint](reference/cli/footprint.md) — Footprint keeps a local, privacy-by-construction census of which sase surfaces (CLI commands and options, TUI actions and keys, views and modals, macros,…
 - [sase gate](reference/cli/gate.md) — Create durable command-backed gates from versioned JSON specifications, inspect what they ask for, run their repeatable actions, answer them headlessly, and…
 - [sase goal](reference/cli/goal.md) — Create, list, show, edit, drop, reopen, merge, and check durable goal records.
 - [CLI command groups](reference/cli/index.md) — Generated CLI reference, one page per sase command group.
@@ -187,6 +187,7 @@
 - [Diagnostics and support reports](reference/diagnostics.md) — Read-only validation, diagnostics, logs, and support bundle behavior.
 - [SASE disk cleanup](reference/disk-cleanup.md) — Inspect SASE-created bytes and delegate cleanup to the owning subsystem.
 - [Environment variables](reference/environment-variables.md) — Environment variables that configure providers, SDD, plugins, runtime, and workspaces.
+- [Footprint](reference/footprint.md) — Local usage census recording, its privacy limits, and the mode switch.
 - [Glossary](reference/glossary.md) — Every SASE term, generated from the glossary memory web.
 - [Reference](reference/index.md) — Look up exact SASE facts here, generated from code where possible.
 - [Shell Completion](reference/integrations/completion.md) — Native zsh, bash, and fish completion from the live sase argparse tree.

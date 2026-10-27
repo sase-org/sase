@@ -473,9 +473,9 @@ _lint-patch-stitch-terminology: _setup
 # sase-1no.2 exported STRANDED_LEAF_STYLE / STRANDED_BREADCRUMB_STYLE as
 # module constants (not public defs, so they cannot be --epic-symbol rows)
 # for sase-1no.3; sase-1no.4 consumed blocked_sentence, so its row is dropped.
-# sase-1p1 (Footprint usage census) exports the ledger facade from phase
-# sase-1p1.2; later phases consume it (catalog ingest, fold driver, derived
-# upsert, status/clear). Drop these rows when those callers land.
+# sase-1p1 (Footprint usage census) owns unused Rust facade exports until
+# later phases consume them (catalog ingest, fold driver, derived upsert,
+# status/clear). Drop each row when its caller lands.
 # Never put a comment
 # line inside the continued command below: just joins the lines, so the comment
 # would swallow every later argument.
@@ -483,7 +483,8 @@ _lint-symvision *args: _setup
     SASE_SYMVISION_BEAD_STATUS_ONLY=1 BD_COMMAND=tools/sase_bead {{ venv_bin }}/symvision src/sase \
         --exclude-decorator gate_command_entrypoint \
         --exclude-decorator builtin_chop \
-        --epic-symbol 'sase-1p1(footprint_dir)' \
+        --epic-symbol 'sase-1p1(other_id)' \
+        --epic-symbol 'sase-1p1(custom_id)' \
         --epic-symbol 'sase-1p1(footprint_ledger_path)' \
         --epic-symbol 'sase-1p1(footprint_spool_dir)' \
         --epic-symbol 'sase-1p1(footprint_wire_schema_version)' \
@@ -495,12 +496,6 @@ _lint-symvision *args: _setup
         --epic-symbol 'sase-1p1(footprint_prune)' \
         --epic-symbol 'sase-1p1(footprint_clear)' \
         --epic-symbol 'sase-1p1(footprint_validate_overlay)' \
-        --epic-symbol 'sase-1p1.2(other_id)' \
-        --epic-symbol 'sase-1p1.3(custom_id)' \
-        --epic-symbol 'sase-1p1.3(spool_dir)' \
-        --epic-symbol 'sase-1p1.3(mode_path)' \
-        --epic-symbol 'sase-1p1.3(effective_mode)' \
-        --epic-symbol 'sase-1p1.5(footprint_dir)' \
         --epic-symbol 'sase-1p1.5(generation_path)' \
         --epic-symbol 'sase-1p1.6(Overlay)' \
         --epic-symbol 'sase-1p1.6(load_overlay)' \
