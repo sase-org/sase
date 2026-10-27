@@ -24,6 +24,7 @@ from sase.config import core as config_core
 from sase.core.agent_artifact_index_lifecycle import (
     update_agent_artifact_index_for_marker_mutation,
 )
+from sase.core.agent_artifact_paths import canonical_agent_artifact_path
 from sase.llm_provider.fakey import FakeyProvider
 from sase.plan_chain import LEGACY_AGENT_FAMILY_PARALLEL_KEY
 
@@ -113,8 +114,20 @@ class _RunnerSlotFakeyHarness:
         crash: bool = False,
     ) -> _Agent:
         timestamp = f"202607130900{index:02d}"
-        artifacts_dir = self.artifacts_root / timestamp
-        artifacts_dir.mkdir()
+        # Production starter settlement resolves this timestamp through the
+        # canonical date-sharded layout (see
+        # ``sase.turns.followup._starter_artifacts_dir``). A flat
+        # ``ace-run/<timestamp>`` dir leaves the starter's own ``done.json``
+        # invisible to that wait, forcing a full 60-second timeout before
+        # every dispatch. Create the canonical path so the harness exercises
+        # the layout production actually reads.
+        artifacts_dir = canonical_agent_artifact_path(
+            "fakey-slots",
+            "ace-run",
+            timestamp,
+            projects_root=self.home / "projects",
+        )
+        artifacts_dir.mkdir(parents=True, exist_ok=True)
         meta: dict[str, object] = {
             "name": name or f"slot-{index}",
             "pid": os.getpid(),

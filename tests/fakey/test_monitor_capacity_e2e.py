@@ -42,6 +42,65 @@ from tests.monitor._fixtures import (
 _MONITOR_PROJECT = "fakey-slots"
 
 
+def test_runner_slot_harness_creates_canonical_sharded_agent_dirs(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The harness must create the date-sharded path production reads.
+
+    Production starter settlement resolves ``parent_timestamp`` through
+    :func:`sase.turns.followup._starter_artifacts_dir` (canonical layout
+    ``ace-run/YYYY/MM/<timestamp>``). A flat ``ace-run/<timestamp>`` dir
+    leaves the starter's ``done.json`` invisible there, so the real wait
+    exhausts its 60-second timeout before dispatch. This regression fails
+    in ~2 seconds on a flat layout instead of waiting out that minute.
+    """
+    import json as _json
+
+    from sase.core.agent_artifact_paths import canonical_agent_artifact_path
+    from sase.turns.followup import (
+        wait_for_starter,
+        wait_for_starter_artifacts_dir,
+    )
+
+    harness = _RunnerSlotFakeyHarness(tmp_path, monkeypatch, cap=1)
+    agent = harness.create_agent(0, name="layout-probe")
+    timestamp = "20260713090000"
+    expected = canonical_agent_artifact_path(
+        _MONITOR_PROJECT,
+        "ace-run",
+        timestamp,
+        projects_root=harness.home / "projects",
+    )
+    assert agent.artifacts_dir == expected
+    assert agent.artifacts_dir.is_dir()
+    # The workflow root and project-file derivation are unchanged: the
+    # workflow root stays the flat ``ace-run`` base and the project file
+    # stays two levels above it.
+    assert harness.artifacts_root == (
+        harness.home / "projects" / _MONITOR_PROJECT / "artifacts" / "ace-run"
+    )
+    assert (harness.artifacts_root.parents[1] / "fakey-slots.sase").is_file()
+
+    # Simulate a completed starter and prove the production wait observes
+    # it through the canonical path quickly.
+    (agent.artifacts_dir / "done.json").write_text(
+        _json.dumps({"outcome": "completed"}), encoding="utf-8"
+    )
+    assert wait_for_starter(_MONITOR_PROJECT, timestamp, timeout_seconds=5.0) is True
+    # The old flat location must not exist: if it did, the harness would be
+    # writing markers where production never looks.
+    assert not (harness.artifacts_root / timestamp).exists()
+    assert (
+        wait_for_starter_artifacts_dir(
+            str(harness.artifacts_root / timestamp),
+            timeout_seconds=1.0,
+            poll_seconds=0.05,
+        )
+        is False
+    )
+
+
 def test_weight_two_land_agent_session_retains_one_claim_through_real_dispatch_and_delayed_child_bootstrap(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -160,10 +219,18 @@ def test_weight_two_land_agent_session_retains_one_claim_through_real_dispatch_a
 
         successor_holder: dict[str, _Agent] = {}
         adopted_holder: dict[str, dict[str, object]] = {}
+        spawn_prompts: list[str] = []
 
         def fake_spawn(**kwargs: object) -> AgentLaunchResult:
             prompt = kwargs["prompt"]
             assert isinstance(prompt, str)
+            spawn_prompts.append(prompt)
+            # A degraded launch (starter wait timed out) omits the ``#fork:``
+            # prefix. Asserting it here proves the released starter's
+            # completion was observed rather than timed out.
+            assert "#fork:" in prompt, (
+                "successor prompt must fork the settled starter's chat"
+            )
             # Parse the successor's real weight/priority/capacity off its
             # real ``%queue`` prompt prefix -- proving what production
             # actually carried forward -- instead of hard-coding matching
@@ -215,6 +282,43 @@ def test_weight_two_land_agent_session_retains_one_claim_through_real_dispatch_a
             monitor_followup_module, "spawn_agent_subprocess", fake_spawn
         )
 
+        # Observe the real starter-settlement wait without replacing its
+        # outcome: delegate to production and record what it saw. A flat
+        # harness layout makes this poll the wrong directory for a full
+        # 60 seconds and return False; the canonical layout must see the
+        # starter's own done.json immediately and return True.
+        import sase.turns.followup as followup_module
+
+        real_starter_wait = followup_module.wait_for_starter_artifacts_dir
+        observed_starter_wait: dict[str, object] = {}
+
+        def observing_starter_wait(
+            starter_artifacts_dir: str,
+            *,
+            timeout_seconds: float,
+            poll_seconds: float = followup_module.STARTER_SETTLE_POLL_SECONDS,
+        ) -> bool:
+            observed_starter_wait["dir"] = starter_artifacts_dir
+            observed_starter_wait["timeout_seconds"] = timeout_seconds
+            result = real_starter_wait(
+                starter_artifacts_dir,
+                timeout_seconds=timeout_seconds,
+                poll_seconds=poll_seconds,
+            )
+            observed_starter_wait["result"] = result
+            return result
+
+        monkeypatch.setattr(
+            followup_module,
+            "wait_for_starter_artifacts_dir",
+            observing_starter_wait,
+        )
+
+        # The starter's own completion marker is already on disk: the
+        # release/join above drove the harness thread through done.json.
+        # Production settlement must observe this same file, not time out.
+        assert (starter.artifacts_dir / "done.json").is_file()
+
         # Drive the real production settlement entry point a completed
         # proc's own supervisor calls -- not a hand-authored
         # ``launch_followup_agent`` call against fabricated in-memory
@@ -228,6 +332,13 @@ def test_weight_two_land_agent_session_retains_one_claim_through_real_dispatch_a
             exit_code=0,
         )
 
+        assert observed_starter_wait.get("result") is True, (
+            "production starter settlement must observe done.json, not time out"
+        )
+        assert Path(str(observed_starter_wait.get("dir"))) == starter.artifacts_dir, (
+            "production starter wait must observe the released starter's own dir"
+        )
+        assert spawn_prompts, "expected exactly one successor spawn"
         assert adopted_holder["record"]["disposition"] == "acknowledged"
 
         done = wait_for_done(record.artifacts_dir)
