@@ -624,7 +624,7 @@ Options:
 usage: sase agent load [-h] [-j] [-r]
 ```
 
-Show this machine's runner capacity the way admission sees it: occupied units against the effective limit, which agents hold capacity and why, live agents holding nothing, and queued agents with their real blockers. Reads the same scan cache and Rust snapshot admission uses; display reads never take the admission lock. Exit 0 always: an invalid snapshot reads as blocked, never as free capacity.
+Show this machine's runner capacity the way admission sees it: a verdict and gauge, who is using capacity, who is queued and why, live agents holding nothing, and inactive records counted rather than listed. Reads the same scan cache and Rust snapshot admission uses; display reads never take the admission lock. Exit 0 always: an invalid snapshot reads as blocked, never as free capacity.
 
 Options:
 

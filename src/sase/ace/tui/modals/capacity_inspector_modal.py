@@ -287,7 +287,6 @@ class CapacityInspectorModal(
             else capacity_view(
                 self._report,
                 running_nodes=self._running_nodes,
-                expanded_idle_groups=self._expanded_groups,
                 now=self._clock(),
             )
         )

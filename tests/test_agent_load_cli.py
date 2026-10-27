@@ -15,7 +15,7 @@ from sase.agents.cli_load import (
     _report_to_json_dict,
 )
 from sase.core.runner_slots import capacity_view
-from tests._runner_slots_helpers import _always_live, _record
+from tests._runner_slots_helpers import _live_unless_stopped, _record
 from tests.test_machine_capacity_report import _report_from_records
 
 
@@ -42,12 +42,14 @@ def test_screenshot_shape_view_matches_plan_lines() -> None:
     assert view.admission_blocked is False
     assert view.accounting_unavailable is False
 
-    kinds = {row.name: row.kind for row in view.holdings}
+    kinds = {row.name: row.kind for row in view.charged}
     assert kinds["worker-a"] == "worker"
     assert kinds["verify-a"] == "verify monitor"
-    assert kinds["cutover"] == "wait monitor"
-    assert view.idle_groups == ()
+    assert [row.name for row in view.zero_weight] == ["cutover"]
+    assert view.waiting_groups == ()
     assert view.queued == ()
+    assert view.verdict is not None
+    assert view.verdict.tone == "ok"
 
 
 def test_running_line_omitted_without_running_nodes() -> None:
@@ -60,42 +62,29 @@ def test_riders_render_as_shared_with_holder() -> None:
     view = capacity_view(_report_from_records([parent, child]))
 
     assert [(row.name, row.holder_name) for row in view.riders] == [("sess2", "sess")]
-    assert [row.name for row in view.holdings] == ["sess"]
+    assert [row.name for row in view.charged] == ["sess"]
+    rendered = _render(view)
+    assert "shares sess's claim" in rendered
+    assert "Running at zero weight" in rendered
 
 
-def test_idle_groups_group_by_reason_and_truncate() -> None:
+def test_waiting_groups_preview_ten_names_in_cli() -> None:
     records = [
         _record(f"/idle-{index:02d}", requested_at=None, run_started=False)
         for index in range(12)
     ]
     view = capacity_view(_report_from_records(records))
 
-    assert [group.reason_code for group in view.idle_groups] == ["not_started"]
-    (group,) = view.idle_groups
+    assert [group.reason_code for group in view.waiting_groups] == ["not_started"]
+    (group,) = view.waiting_groups
     assert group.count == 12
-    assert group.truncated is True
-    assert group.hidden == 2
-    assert len(group.members) == 10
-
-
-def test_idle_groups_can_expand_and_keep_jump_identities() -> None:
-    records = [
-        _record(f"/idle-{index:02d}", requested_at=None, run_started=False)
-        for index in range(12)
-    ]
-    report = _report_from_records(records)
-
-    view = capacity_view(report)
-    (preview,) = view.idle_groups
-    assert preview.truncated is True
-    assert len(preview.member_artifact_dirs) == len(preview.members) == 10
-
-    expanded = capacity_view(report, expanded_idle_groups={"not_started"})
-    (group,) = expanded.idle_groups
-    assert group.truncated is False
-    assert group.hidden == 0
-    assert len(group.member_artifact_dirs) == len(group.members) == 12
-    assert group.member_artifact_dirs[0].endswith("idle-00")
+    assert len(group.members) == 12
+    rendered = _render(view)
+    compact = " ".join(rendered.split())
+    assert "waiting to start (12):" in compact
+    assert "idle-00" in compact
+    assert "+2 more" in compact
+    assert "idle-11" not in compact.split("+2 more")[0]
 
 
 def test_queued_rows_carry_real_blockers() -> None:
@@ -115,6 +104,10 @@ def test_queued_rows_carry_real_blockers() -> None:
     assert "blocked by capacity" in row.blocker
     assert "budget 2" in row.blocker
     assert row.artifact_dir.endswith("waiter")
+    rendered = _render(view)
+    assert "Queued for capacity (1)" in rendered
+    assert "waiter" in rendered
+    assert "blocked by capacity" in rendered
 
 
 def test_invalid_weight_is_blocked_never_free() -> None:
@@ -126,15 +119,19 @@ def test_invalid_weight_is_blocked_never_free() -> None:
     assert view.admission_blocked is True
     assert view.total_charged == 5.0
     rendered = _render(view)
-    assert "admission blocked" in rendered
+    assert "Admission blocked" in rendered
     assert "not free capacity" in rendered
+    assert "Needs attention" in rendered
+    assert "? free" in rendered
 
 
 def test_stale_report_says_so() -> None:
     view = capacity_view(
         _report_from_records(_screenshot_records(), scan_current=False)
     )
-    assert "stale (token changed)" in view.snapshot_line
+    assert view.scan_current is False
+    rendered = _render(view)
+    assert "records changed since scan" in rendered
 
 
 def test_over_limit_note_names_budgets() -> None:
@@ -152,10 +149,13 @@ def test_over_limit_note_names_budgets() -> None:
         )
     )
 
-    assert "5 of 1 units in use · 4 over budget" in view.headline
-    assert view.over_limit_note is not None
-    assert "c2" in view.over_limit_note
-    assert "no new work is admitted" in view.over_limit_note
+    assert view.verdict is not None
+    assert view.verdict.tone == "over"
+    assert "c2" in (view.verdict.detail or "")
+    rendered = _render(view)
+    assert "Over budget by 4" in rendered
+    assert "c2" in rendered
+    assert "over" in rendered.lower()
 
 
 def test_older_core_reports_accounting_unavailable() -> None:
@@ -165,7 +165,27 @@ def test_older_core_reports_accounting_unavailable() -> None:
     view = capacity_view(report)
 
     assert view.accounting_unavailable is True
-    assert "too old" in _render(view)
+    rendered = _render(view)
+    assert "totals only" in rendered
+    assert "Using capacity" not in rendered
+
+
+def test_inactive_records_are_counted_not_listed() -> None:
+    records = [
+        *_screenshot_records(),
+        _record("/dead", run_started=True, stopped_at="2026-07-12T13:00:00Z"),
+        _record("/done", run_started=True, done=True, pid=0),
+        _record("/hidden", run_started=True, appears_as_agent=False),
+    ]
+    view = capacity_view(_report_from_records(records, is_live=_live_unless_stopped))
+    rendered = _render(view)
+
+    assert "Ignored 3 inactive records:" in rendered
+    assert "1 not live" in rendered
+    assert "1 not agent records" in rendered
+    assert "1 done" in rendered
+    assert "dead" not in rendered.split("Ignored")[0]
+    assert "(sase agent load -j lists them)" in rendered
 
 
 def test_json_shape_carries_report_provenance_and_metadata() -> None:
@@ -218,12 +238,16 @@ def test_cli_pretty_output_has_all_sections() -> None:
     view = capacity_view(report, running_nodes=6)
     rendered = _render(view)
 
-    assert "5 of 8 units in use" in rendered
-    assert "Holding capacity" in rendered
+    assert "athena · 5 / 8 units in use · 3 free" in rendered
+    assert "Using capacity (5 units · 5 agents)" in rendered
     assert "verify monitor" in rendered
+    assert "Running at zero weight" in rendered
     assert "wait monitor" in rendered
-    assert "Queued for capacity: none" in rendered
+    assert "Queued for capacity (0)" in rendered
     assert "sase agent load -j" in rendered
+    assert view.verdict is not None
+    assert view.verdict.title in rendered
+    assert "█" in rendered or "░" in rendered
 
 
 def _render(view) -> str:

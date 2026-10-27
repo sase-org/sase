@@ -169,12 +169,14 @@ own weight so already-parked upgrades keep the same run-alone behavior.
 
 ## What holds capacity
 
-Run `sase agent load` to see this machine's capacity the way admission sees it: occupied
-units against the effective limit, one row per charged claim, live agents holding
-nothing grouped by reason, and queued agents with their real blockers.
-`sase agent load -j` prints the exact report (raw snapshot plus provenance and
-metadata). Every row below adds the stated amount to `occupied_capacity`, or nothing for
-the stated reason:
+Run `sase agent load` to see this machine's capacity the way admission sees it. The
+command shares the inspector's view: a headline of occupied units against the effective
+limit, a text gauge, a plain-English verdict, limit provenance, then tiered sections in
+this order — Needs attention (when accounting is invalid or unknown), Using capacity,
+Queued for capacity, Running at zero weight, live Not running groups, and a dim count of
+ignored inactive records. `sase agent load -j` prints the exact report (raw snapshot
+plus provenance and metadata). Every row below adds the stated amount to
+`occupied_capacity`, or nothing for the stated reason:
 
 - **A default worker** adds `1.0`. It charges its own standalone claim at the default
   weight.
@@ -197,7 +199,7 @@ the stated reason:
   budget at dispatch but hold no claim once running, and workflow Python/bash steps
   never hold capacity.
 
-When the snapshot is invalid, `sase agent load` says `admission blocked` and the shown
+When the snapshot is invalid, `sase agent load` prints the blocked verdict and the shown
 occupied units are a known subtotal, never free capacity.
 
 ## Held agents

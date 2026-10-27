@@ -24,11 +24,9 @@ def assemble_capacity_view(
     *,
     moment: float,
     running_nodes: int | None,
-    holdings: list[CapacityHoldingRow],
     riders: list[CapacityRiderRow],
     charged: tuple[CapacityHoldingRow, ...],
     zero_weight: tuple[CapacityHoldingRow, ...],
-    idle_groups: tuple[CapacityIdleGroup, ...],
     attention_groups: tuple[CapacityIdleGroup, ...],
     waiting_groups: tuple[CapacityIdleGroup, ...],
     inactive_groups: tuple[CapacityIdleGroup, ...],
@@ -60,12 +58,10 @@ def assemble_capacity_view(
         headline=headline,
         limit_line=_limit_line(report.limit, limit, moment),
         snapshot_line=_snapshot_line(report, moment, len(diagnostics)),
-        running_line=_running_line(running_nodes, holdings),
+        running_line=_running_line(running_nodes, charged, zero_weight),
         over_limit_note=over_limit_note,
-        holdings=tuple(holdings),
         riders=tuple(riders),
-        total_charged=sum(row.charged_weight for row in holdings),
-        idle_groups=idle_groups,
+        total_charged=sum(row.charged_weight for row in charged),
         queued=queued,
         diagnostics=diagnostics,
         admission_blocked=not report.accounting_valid,
@@ -220,15 +216,16 @@ def _snapshot_line(report: Any, now: float, diagnostic_count: int) -> str:
 
 
 def _running_line(
-    running_nodes: int | None, holdings: list[CapacityHoldingRow]
+    running_nodes: int | None,
+    charged: tuple[CapacityHoldingRow, ...],
+    zero_weight: tuple[CapacityHoldingRow, ...],
 ) -> str | None:
     """Return the running-nodes summary, or ``None`` when the TUI omits it."""
     if running_nodes is None:
         return None
-    holding = sum(1 for row in holdings if row.charged_weight > 0)
-    zero = sum(1 for row in holdings if row.charged_weight <= 0)
     return (
-        f"{running_nodes} running nodes · {holding} holding capacity · {zero} holding 0"
+        f"{running_nodes} running nodes · {len(charged)} holding capacity · "
+        f"{len(zero_weight)} holding 0"
     )
 
 

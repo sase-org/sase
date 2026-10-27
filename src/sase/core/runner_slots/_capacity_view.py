@@ -8,7 +8,6 @@ them with Rich; the capacity inspector modal renders the same sections.
 
 from __future__ import annotations
 
-from collections.abc import Collection
 from dataclasses import dataclass
 from typing import Literal
 
@@ -61,8 +60,6 @@ class CapacityIdleGroup:
     reason_label: str
     count: int
     members: tuple[str, ...]
-    truncated: bool
-    hidden: int
     member_artifact_dirs: tuple[str, ...] = ()
     tier: CapacityIdleTier = "waiting"
     explanation: str = ""
@@ -126,10 +123,8 @@ class MachineCapacityView:
     snapshot_line: str
     running_line: str | None
     over_limit_note: str | None
-    holdings: tuple[CapacityHoldingRow, ...]
     riders: tuple[CapacityRiderRow, ...]
     total_charged: float
-    idle_groups: tuple[CapacityIdleGroup, ...]
     queued: tuple[CapacityQueuedRow, ...]
     diagnostics: tuple[str, ...]
     admission_blocked: bool
@@ -171,24 +166,21 @@ def capacity_view(
     report: object,
     *,
     running_nodes: int | None = None,
-    expanded_idle_groups: Collection[str] = (),
     now: float | None = None,
 ) -> MachineCapacityView:
     """Project *report* into typed display sections.
 
     *report* is a :class:`MachineCapacityReport` (duck-typed so tests can
     pass doubles). *running_nodes* is the TUI's live Running-bucket count;
-    the CLI passes ``None`` and the running line is omitted. Names in
-    *expanded_idle_groups* show their complete member list instead of the
-    default bounded preview. *now* defaults to the report's ``computed_at``
-    so snapshot ages stay deterministic.
+    the CLI passes ``None`` and the running line is omitted. *now*
+    defaults to the report's ``computed_at`` so snapshot ages stay
+    deterministic.
     """
     from ._capacity_view_rows import project_capacity_view
 
     return project_capacity_view(
         report,
         running_nodes=running_nodes,
-        expanded_idle_groups=expanded_idle_groups,
         now=now,
     )
 

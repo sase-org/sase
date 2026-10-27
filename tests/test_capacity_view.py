@@ -28,11 +28,8 @@ _NOW = datetime(2026, 7, 12, 14, 0, tzinfo=UTC).timestamp()
 def _view(records: list[Any], **kwargs: Any) -> Any:
     now = kwargs.pop("now", _NOW)
     running_nodes = kwargs.pop("running_nodes", None)
-    expanded = kwargs.pop("expanded_idle_groups", ())
     report = _report_from_records(records, now=now, **kwargs)
-    return capacity_view(
-        report, running_nodes=running_nodes, expanded_idle_groups=expanded, now=now
-    )
+    return capacity_view(report, running_nodes=running_nodes, now=now)
 
 
 def _set(report: Any, **fields: Any) -> Any:
@@ -211,9 +208,8 @@ def test_unknown_holder_does_not_fall_through_to_not_started() -> None:
     accounting[0].pop("reason_code", None)
     _set(report, accounting=tuple(accounting))
     view = capacity_view(report)
-    assert [group.reason_code for group in view.idle_groups] == ["unknown_holder"]
-    assert view.idle_groups[0].reason_label == "claim holder unknown"
     assert [group.reason_code for group in view.attention_groups] == ["unknown_holder"]
+    assert view.attention_groups[0].reason_label == "claim holder unknown"
     assert view.waiting_groups == ()
 
 
@@ -257,8 +253,7 @@ def test_tier_assignment_for_every_reason_and_unrecognized_fallback() -> None:
     assert attention["no_pid"].reason_label == "no process evidence"
     assert attention["invalid_weight"].reason_label == "invalid weight"
     assert waiting["not_started"].explanation.startswith("Live, but its run")
-    assert attention["no_pid"].truncated is False
-    assert attention["no_pid"].hidden == 0
+    assert len(attention["no_pid"].members) == attention["no_pid"].count
 
     report = _report_from_records([_record("/x")], now=_NOW)
     extra = dict(report.accounting[0])
@@ -276,19 +271,14 @@ def test_tier_assignment_for_every_reason_and_unrecognized_fallback() -> None:
     assert group.tier == "waiting"
 
 
-def test_idle_groups_keep_legacy_labels_and_truncation() -> None:
+def test_waiting_groups_keep_complete_membership() -> None:
     records = [_record(f"/idle-{index:02d}") for index in range(12)]
     view = _view(records)
-    (legacy,) = view.idle_groups
-    assert legacy.reason_label == "not started"
-    assert legacy.truncated is True
-    assert legacy.hidden == 2
-    assert len(legacy.members) == 10
     (waiting,) = view.waiting_groups
     assert waiting.reason_label == "waiting to start"
-    assert waiting.truncated is False
-    assert waiting.hidden == 0
+    assert waiting.count == 12
     assert len(waiting.members) == 12
+    assert len(waiting.member_artifact_dirs) == 12
 
 
 def test_charged_zero_weight_split_sort_and_riders() -> None:
@@ -315,7 +305,6 @@ def test_charged_zero_weight_split_sort_and_riders() -> None:
     parent = _record("/sess", run_started=True, agent_session="s1")
     child = _record("/sess2", run_started=True, agent_session="s1")
     view = _view([heavy, light, zero, parent, child], configured=10, override=None)
-    assert [row.name for row in view.holdings] == ["cutover", "heavy", "light", "sess"]
     assert [row.name for row in view.charged] == ["heavy", "light", "sess"]
     assert [row.charged_weight for row in view.charged] == [2.0, 1.0, 1.0]
     assert view.charged[0].running_seconds == 4 * 3600
@@ -566,7 +555,7 @@ def test_legacy_screenshot_fields_are_unchanged() -> None:
     assert view.running_line == "6 running nodes · 5 holding capacity · 1 holding 0"
     assert view.over_limit_note is None
     assert view.total_charged == 5.0
-    assert view.idle_groups == ()
+    assert view.waiting_groups == ()
     assert view.queued == ()
     assert view.occupied == 5.0
     assert view.limit == 8.0

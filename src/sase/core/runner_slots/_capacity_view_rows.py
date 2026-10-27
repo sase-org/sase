@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Collection, Mapping
+from collections.abc import Mapping
 from typing import Any
 
 from ._capacity_view import (
@@ -19,8 +19,6 @@ from ._capacity_view_text import (
     seconds_since_stamp,
 )
 
-_IDLE_GROUP_LIMIT = 10
-
 _REASON_ORDER = (
     "not_started",
     "pending_question",
@@ -33,19 +31,6 @@ _REASON_ORDER = (
     "done",
     "not_agent_record",
 )
-
-_REASON_LABELS = {
-    "not_started": "not started",
-    "pending_question": "waiting on a question",
-    "pending_gate": "waiting on a gate",
-    "explicit_zero_weight": "explicit zero weight",
-    "invalid_weight": "invalid weight",
-    "not_live": "not live",
-    "no_pid": "no process evidence",
-    "unknown_holder": "claim holder unknown",
-    "done": "done",
-    "not_agent_record": "not an agent record",
-}
 
 _TIER_LABELS = {
     "not_started": "waiting to start",
@@ -113,7 +98,6 @@ def project_capacity_view(
     report: Any,
     *,
     running_nodes: int | None = None,
-    expanded_idle_groups: Collection[str] = (),
     now: float | None = None,
 ) -> MachineCapacityView:
     """Build the shared capacity view for *report*."""
@@ -144,31 +128,17 @@ def project_capacity_view(
         )
     )
 
-    idle_groups = _idle_groups(
-        accounting,
-        names,
-        expanded_groups=frozenset(expanded_idle_groups),
-        complete=False,
-    )
-    attention_groups = _idle_groups(
-        accounting, names, expanded_groups=frozenset(), complete=True, tier="attention"
-    )
-    waiting_groups = _idle_groups(
-        accounting, names, expanded_groups=frozenset(), complete=True, tier="waiting"
-    )
-    inactive_groups = _idle_groups(
-        accounting, names, expanded_groups=frozenset(), complete=True, tier="inactive"
-    )
+    attention_groups = _idle_groups(accounting, names, tier="attention")
+    waiting_groups = _idle_groups(accounting, names, tier="waiting")
+    inactive_groups = _idle_groups(accounting, names, tier="inactive")
     queued = _queued_rows(report.waiters, names, inputs, by_dir, moment)
     return assemble_capacity_view(
         report,
         moment=moment,
         running_nodes=running_nodes,
-        holdings=holdings,
         riders=riders,
         charged=charged,
         zero_weight=zero_weight,
-        idle_groups=idle_groups,
         attention_groups=attention_groups,
         waiting_groups=waiting_groups,
         inactive_groups=inactive_groups,
@@ -304,9 +274,8 @@ def _idle_tier(entry: Mapping[str, Any], code: str) -> str:
     return "waiting"
 
 
-def _reason_label(code: str, *, tiered: bool) -> str:
-    labels = _TIER_LABELS if tiered else _REASON_LABELS
-    return labels.get(code, code.replace("_", " "))
+def _reason_label(code: str) -> str:
+    return _TIER_LABELS.get(code, code.replace("_", " "))
 
 
 def _explanation(code: str) -> str:
@@ -320,8 +289,6 @@ def _idle_groups(
     accounting: tuple[Mapping[str, Any], ...],
     names: dict[str, str],
     *,
-    expanded_groups: frozenset[str] = frozenset(),
-    complete: bool = False,
     tier: str | None = None,
 ) -> tuple[CapacityIdleGroup, ...]:
     by_reason: dict[str, list[tuple[str, str, str]]] = {}
@@ -339,21 +306,14 @@ def _idle_groups(
     ordered.extend(sorted(code for code in by_reason if code not in _REASON_ORDER))
     for code in ordered:
         members = sorted(by_reason[code], key=lambda member: (member[0], member[1]))
-        if complete or code in expanded_groups:
-            shown = members
-        else:
-            shown = members[:_IDLE_GROUP_LIMIT]
-        hidden = 0 if complete else len(members) - len(shown)
         group_tier = members[0][2]
         groups.append(
             CapacityIdleGroup(
                 reason_code=code,
-                reason_label=_reason_label(code, tiered=complete or tier is not None),
+                reason_label=_reason_label(code),
                 count=len(members),
-                members=tuple(name for name, _, _ in shown),
-                truncated=hidden > 0,
-                hidden=hidden,
-                member_artifact_dirs=tuple(path for _, path, _ in shown),
+                members=tuple(name for name, _, _ in members),
+                member_artifact_dirs=tuple(path for _, path, _ in members),
                 tier=group_tier,  # type: ignore[arg-type]
                 explanation=_explanation(code),
             )
