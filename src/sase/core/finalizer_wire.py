@@ -238,6 +238,47 @@ class RemainingCommitWorkOutcomeWire:
     message: str | None = None
 
 
+@dataclass(frozen=True)
+class LandingMarkerFactWire:
+    cwd: str
+    run_id: str
+    operation_id: str | None = None
+    commit_sha: str | None = None
+    pushed: bool | None = None
+    settled: bool = False
+    superseded_by: str | None = None
+    head: str | None = None
+    dirty_fingerprint: str | None = None
+    message_digest: str | None = None
+
+
+@dataclass(frozen=True)
+class LandingAttemptFactWire:
+    repo_path: str
+    operation_id: str | None = None
+    head: str | None = None
+    dirty_fingerprint: str | None = None
+    message_digest: str | None = None
+    message_file: str | None = None
+
+
+@dataclass(frozen=True)
+class RepositoryLandingProofRequestWire:
+    run_id: str
+    repo_path: str
+    markers: list[LandingMarkerFactWire] = field(default_factory=list)
+    attempts: list[LandingAttemptFactWire] = field(default_factory=list)
+    source_run_id: str | None = None
+    executor_run_id: str | None = None
+
+
+@dataclass(frozen=True)
+class RepositoryLandingProofWire:
+    landed: bool
+    detail: str
+    covering_commit_sha: str | None = None
+
+
 def finalizer_add(instance_id: str) -> FinalizerSelectorOpWire:
     return FinalizerSelectorOpWire(op="add", instance_id=instance_id)
 
@@ -479,6 +520,16 @@ def remaining_commit_work_outcome_from_dict(
     )
 
 
+def repository_landing_proof_from_dict(
+    data: dict[str, Any],
+) -> RepositoryLandingProofWire:
+    return RepositoryLandingProofWire(
+        landed=bool(data["landed"]),
+        detail=str(data.get("detail") or ""),
+        covering_commit_sha=_optional_str(data.get("covering_commit_sha")),
+    )
+
+
 def _optional_str(value: Any) -> str | None:
     return None if value is None else str(value)
 
@@ -512,9 +563,13 @@ __all__ = [
     "FinalizerSubmissionPayloadWire",
     "FinalizerSubmissionValidationWire",
     "JsonValue",
+    "LandingAttemptFactWire",
+    "LandingMarkerFactWire",
     "RemainingCommitObligationFactWire",
     "RemainingCommitWorkOutcomeWire",
     "RemainingCommitWorkRequestWire",
+    "RepositoryLandingProofRequestWire",
+    "RepositoryLandingProofWire",
     "finalizer_add",
     "finalizer_aggregate_result_from_dict",
     "finalizer_assigned_bead_from_dict",
@@ -527,6 +582,7 @@ __all__ = [
     "finalizer_provider_spec_from_dict",
     "finalizer_remove",
     "finalizer_submission_validation_from_dict",
+    "repository_landing_proof_from_dict",
     "finalizer_wire_to_json_dict",
     "remaining_commit_work_outcome_from_dict",
 ]

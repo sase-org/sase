@@ -93,6 +93,14 @@ class TestClosePlusBeforeCommitFailure:
             assert "hook failed" in text
             ancestors = project.show(plan_id)
             assert ancestors.status == Status.OPEN
+            assert ancestors.completion_failure is not None
+            assert ancestors.completion_failure.run_id == "run-1"
+            ancestor_notes = [
+                note
+                for note in ancestors.notes
+                if note.text.startswith(STITCH_FAILED_NOTE_PREFIX)
+            ]
+            assert len(ancestor_notes) == 1
 
     def test_request_and_outcome_artifacts_persisted(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch

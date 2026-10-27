@@ -15,11 +15,14 @@ from sase.finalizers._failed_close_recovery_assess import (
     run_provenance,
 )
 from sase.finalizers.artifacts import write_json_atomic
+from sase.procs.text_bounding import bound_and_redact_text
 
 RECOVERY_REQUEST_FILENAME = "failed_close_recovery_request.json"
 RECOVERY_OUTCOME_FILENAME = "failed_close_recovery_outcome.json"
 _RECOVERY_JOURNAL_EVENT = "failed_close_recovery"
 _MACHINE_WORKFLOW = "failed_close_recovery"
+_DIAGNOSTIC_MAX_CHARS = 4000
+_RECOVERY_COMMIT_SUBJECT = "recover failed-run closes for "
 
 
 @dataclass
@@ -40,12 +43,17 @@ def _utc_now() -> str:
     return datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
+def _redact_diagnostic(text: str) -> str:
+    """Redact secrets and keep the bounded tail of one diagnostic string."""
+    return bound_and_redact_text(text, _DIAGNOSTIC_MAX_CHARS) or ""
+
+
 def _failure_code_and_message(failure: BaseException) -> tuple[str, str]:
     """Derive a stable failure code and message from a terminal exception."""
     from sase.finalizers.commit_types import BuiltinCommitFinalizerError
     from sase.finalizers.controller_context import FinalizerControllerError
 
-    message = str(failure).strip() or type(failure).__name__
+    message = _redact_diagnostic(str(failure).strip() or type(failure).__name__)
     if isinstance(failure, BuiltinCommitFinalizerError):
         diagnostics = failure.result.diagnostics if failure.result else ()
         if diagnostics:
@@ -150,6 +158,67 @@ def _push_recovery_mutation(beads_dir: Path) -> Any:
     return push_bead_work_launch(beads_dir)
 
 
+def _bead_state_is_dirty(beads_dir: Path) -> bool:
+    from sase.bead.sync import bead_state_is_clean
+
+    return not bead_state_is_clean(beads_dir)
+
+
+def _recovery_is_locally_committed(beads_dir: Path, run_id: str) -> bool:
+    """Return whether this run's recovery events are in a local commit."""
+    import subprocess
+
+    from sase.bead._sync_git import (
+        bead_state_is_clean,
+        find_git_root,
+        relative_pathspec,
+    )
+
+    repo = find_git_root(beads_dir)
+    if repo is None or not bead_state_is_clean(beads_dir):
+        return False
+    result = subprocess.run(
+        ["git", "log", "--format=%s", "--", relative_pathspec(beads_dir, repo)],
+        cwd=repo,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if result.returncode != 0:
+        return False
+    needle = f"{_RECOVERY_COMMIT_SUBJECT}{run_id}"
+    return any(needle in line for line in result.stdout.splitlines())
+
+
+def _ensure_recovery_committed(
+    beads_dir: Path,
+    run_id: str,
+    *,
+    already_locked: bool,
+    operation_context: Any | None,
+    required: bool,
+) -> tuple[bool, str]:
+    """Commit pending recovery events, or prove they are already committed.
+
+    An idempotent core result is not a commit receipt. ``(False, "")`` means
+    there was no recovery work to publish; a non-empty error is a real
+    failure.
+    """
+    if _recovery_is_locally_committed(beads_dir, run_id):
+        return True, ""
+    if not required and not _bead_state_is_dirty(beads_dir):
+        return False, ""
+    committed = _commit_recovery_mutation(
+        beads_dir,
+        run_id,
+        already_locked=already_locked,
+        operation_context=operation_context,
+    )
+    if _recovery_is_locally_committed(beads_dir, run_id) or committed:
+        return True, ""
+    return False, "recovery mutation was not committed to the bead store"
+
+
 def _run_machine_lane_recovery(
     project: str,
     request: Mapping[str, Any],
@@ -159,11 +228,11 @@ def _run_machine_lane_recovery(
     """Apply the recovery mutation through the machine write lane.
 
     Returns ``(report, committed, publication_error)``. ``committed`` is
-    false when the mutation changed nothing (idempotent retry) or when the
-    commit itself failed; ``publication_error`` names a commit or push
-    failure. The failed product hook is never invoked to commit the note,
-    and the user-owned primary snapshot is never touched: the store comes
-    from the machine lane and converges through sidecar auto-sync.
+    true only when the recovery events are in a local commit. An idempotent
+    core result is not a commit receipt; a pending recovery-store commit is
+    retried through this same machine-owned lane before push. The failed
+    product hook is never invoked to commit the note, and the user-owned
+    primary snapshot is never touched.
     """
     from sase.bead.background_store import schedule_beads_sidecar_convergence
     from sase.bead.store_locator import open_bead_project_for_beads_dir
@@ -177,22 +246,26 @@ def _run_machine_lane_recovery(
             with open_bead_project_for_beads_dir(beads_dir):
                 report = rust_beads.recover_failed_closes(beads_dir, request)
             changed = bool(report.get("changed"))
-            committed = False
-            if changed:
-                committed = _commit_recovery_mutation(
-                    beads_dir,
-                    run_id,
-                    already_locked=already_locked,
-                    operation_context=store.context,
-                )
-                if not committed:
+            already_applied = bool(report.get("already_applied"))
+            needs_publication = (
+                changed or already_applied or _bead_state_is_dirty(beads_dir)
+            )
+            committed, commit_error = _ensure_recovery_committed(
+                beads_dir,
+                run_id,
+                already_locked=already_locked,
+                operation_context=store.context,
+                required=needs_publication,
+            )
+            if not committed:
+                if needs_publication:
                     return (
                         dict(report),
                         False,
-                        "recovery mutation was not committed to the bead store",
+                        commit_error
+                        or "recovery mutation was not committed to the bead store",
                     )
-        if not changed and not report.get("already_applied"):
-            return dict(report), False, ""
+                return dict(report), False, ""
         push_error = ""
         try:
             outcome = _push_recovery_mutation(beads_dir)
@@ -207,12 +280,12 @@ def _run_machine_lane_recovery(
                 )
         except Exception as exc:
             push_error = str(exc) or type(exc).__name__
-        if changed or report.get("already_applied"):
+        if changed or already_applied or committed:
             try:
                 schedule_beads_sidecar_convergence(store.project)
             except Exception:
                 pass
-        return dict(report), committed if changed else True, push_error
+        return dict(report), committed, push_error
 
 
 def _recovered_ids(report: Mapping[str, Any], key: str) -> list[str]:
@@ -243,7 +316,7 @@ def coordinate_failed_close_recovery(
     try:
         return _coordinate_failed_close_recovery(artifacts_dir, failure, outcome)
     except Exception as exc:  # noqa: BLE001 - recovery must never mask failure.
-        outcome.error = str(exc) or type(exc).__name__
+        outcome.error = _redact_diagnostic(str(exc) or type(exc).__name__)
         return outcome
 
 

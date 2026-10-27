@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 from collections.abc import Iterator, Mapping, Sequence
@@ -11,11 +12,21 @@ from pathlib import Path
 from typing import Any
 
 from sase.agent.pending_handoff import has_pending_handoff
-from sase.bead.close_provenance import host_run_close_provenance
-from sase.finalizers.commit_repair_common import bound_stream
+from sase.bead.close_provenance import (
+    RECOVERY_RUN_ID_ENV_VAR,
+    RUN_ID_ENV_VAR,
+    host_run_close_provenance,
+)
+from sase.core.finalizer_wire import (
+    LandingAttemptFactWire,
+    LandingMarkerFactWire,
+    RepositoryLandingProofRequestWire,
+)
 from sase.finalizers.commit_repair_markers import load_commit_results
+from sase.procs.text_bounding import bound_and_redact_text
 
 STITCH_FAILED_NOTE_PREFIX = "STITCH FAILED:"
+_DIAGNOSTIC_MAX_CHARS = 4000
 
 
 @dataclass(frozen=True)
@@ -195,57 +206,91 @@ def _load_markers(artifacts_dir: str) -> tuple[Mapping[str, Any], ...]:
         return ()
 
 
+def _redact_diagnostic(text: str) -> str:
+    """Redact secrets and keep the bounded tail of one diagnostic string."""
+    return bound_and_redact_text(text, _DIAGNOSTIC_MAX_CHARS) or ""
+
+
+def _optional_text(value: Any) -> str | None:
+    if isinstance(value, str) and value.strip():
+        return value.strip()
+    return None
+
+
+def _landing_marker_fact(marker: Mapping[str, Any]) -> LandingMarkerFactWire | None:
+    from sase.llm_provider.commit_finalizer_git import normalize_path
+
+    cwd = marker.get("cwd")
+    if not isinstance(cwd, str) or not cwd.strip():
+        return None
+    pushed = marker.get("pushed")
+    return LandingMarkerFactWire(
+        cwd=normalize_path(cwd),
+        run_id=str(marker.get("run_id") or ""),
+        operation_id=_optional_text(marker.get("operation_id")),
+        commit_sha=_optional_text(marker.get("commit_sha")),
+        pushed=pushed if isinstance(pushed, bool) else None,
+        settled=bool(marker.get("settled")),
+        superseded_by=_optional_text(marker.get("superseded_by")),
+        head=_optional_text(marker.get("head")),
+        dirty_fingerprint=_optional_text(marker.get("dirty_fingerprint")),
+        message_digest=_optional_text(marker.get("message_digest")),
+    )
+
+
 def _landing_proof(
     repo: _ObligatedRepository,
     run_id: str,
     markers: Sequence[Mapping[str, Any]],
+    *,
+    artifacts_dir: str,
 ) -> _RepositorySettlement:
-    """Decide whether one exact marker proves this repo landed for this run."""
+    """Decide whether current attempt evidence proves this repo landed."""
+    from sase.core.finalizer_facade import assess_repository_landing_proof
     from sase.llm_provider.commit_finalizer_git import normalize_path
 
     want = normalize_path(repo.path)
-    for marker in markers:
-        if not isinstance(marker, Mapping):
-            continue
-        cwd = marker.get("cwd")
-        if not isinstance(cwd, str) or normalize_path(cwd) != want:
-            continue
-        if str(marker.get("run_id") or "") != run_id:
-            continue
-        if marker.get("settled") or marker.get("superseded_by"):
-            continue
-        commit_sha = marker.get("commit_sha")
-        if not isinstance(commit_sha, str) or not commit_sha.strip():
-            continue
-        if marker.get("pushed") is False:
-            return _RepositorySettlement(
-                repo=repo,
-                landed=False,
-                detail=f"commit {commit_sha[:12]} is unpushed",
-            )
-        return _RepositorySettlement(
-            repo=repo,
-            landed=True,
-            detail=f"commit {commit_sha[:12]}",
-        )
-    return _RepositorySettlement(repo=repo, landed=False, detail="no landing marker")
+    marker_facts = [
+        fact
+        for marker in markers
+        if isinstance(marker, Mapping)
+        for fact in [_landing_marker_fact(marker)]
+        if fact is not None
+    ]
+    source_run_id = (os.environ.get(RECOVERY_RUN_ID_ENV_VAR) or "").strip()
+    executor_run_id = (os.environ.get(RUN_ID_ENV_VAR) or "").strip()
+    request = RepositoryLandingProofRequestWire(
+        run_id=run_id,
+        repo_path=want,
+        markers=marker_facts,
+        attempts=_attempt_facts_for_repo(artifacts_dir, want),
+        source_run_id=source_run_id or None,
+        executor_run_id=executor_run_id or None,
+    )
+    proof = assess_repository_landing_proof(request)
+    return _RepositorySettlement(repo=repo, landed=proof.landed, detail=proof.detail)
 
 
-def _attempt_inputs_for_repo(
-    artifacts_dir: str,
-    repo_path: str,
-) -> list[dict[str, Any]]:
-    """Return recorded stitch attempt inputs touching *repo_path*, if any."""
+def _attempt_input_files(artifacts_dir: str) -> list[Path]:
+    found: list[Path] = []
+    for root_name in ("finalizers", "finalizer_runs"):
+        root = Path(artifacts_dir) / root_name
+        try:
+            found.extend(sorted(root.glob("*/attempt-*.inputs.json")))
+        except OSError:
+            continue
+    return found
+
+
+def _attempt_facts_for_repo(
+    artifacts_dir: str, repo_path: str
+) -> list[LandingAttemptFactWire]:
+    """Return recorded stitch attempt facts touching *repo_path*, if any."""
     from sase.llm_provider.commit_finalizer_git import normalize_path
 
-    runs_dir = Path(artifacts_dir) / "finalizer_runs"
-    try:
-        candidates = sorted(runs_dir.glob("*/attempt-*.inputs.json"))
-    except OSError:
-        return []
     want = normalize_path(repo_path)
-    matches: list[dict[str, Any]] = []
-    for candidate in candidates:
+    matches: list[LandingAttemptFactWire] = []
+    for candidate in _attempt_input_files(artifacts_dir):
         try:
             payload = json.loads(candidate.read_text(encoding="utf-8"))
         except (OSError, json.JSONDecodeError):
@@ -253,23 +298,40 @@ def _attempt_inputs_for_repo(
         if not isinstance(payload, dict):
             continue
         recorded = payload.get("repo_path")
-        if isinstance(recorded, str) and normalize_path(recorded) == want:
-            matches.append(payload)
+        if not isinstance(recorded, str) or normalize_path(recorded) != want:
+            continue
+        fingerprints = payload.get("dirty_fingerprints")
+        dirty_fingerprint = None
+        if fingerprints:
+            canonical = json.dumps(fingerprints, sort_keys=True)
+            dirty_fingerprint = hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+        matches.append(
+            LandingAttemptFactWire(
+                repo_path=want,
+                operation_id=_optional_text(payload.get("operation_id")),
+                head=_optional_text(payload.get("head")),
+                dirty_fingerprint=dirty_fingerprint,
+                message_digest=_optional_text(payload.get("message_digest")),
+                message_file=_optional_text(payload.get("message_file")),
+            )
+        )
     return matches
 
 
-def _message_files_for_repo(repo_path: str) -> list[str]:
-    """Return preserved commit-message paths under one repository."""
-    root = Path(repo_path) / ".sase" / "finalizers"
-    try:
-        candidates = sorted(root.glob("commit-message-*.txt"))
-    except OSError:
-        return []
-    return [str(candidate) for candidate in candidates if candidate.is_file()]
+def _message_files_from_attempts(
+    attempts: Sequence[LandingAttemptFactWire],
+) -> list[str]:
+    """Return commit-message paths recorded on this run's attempts."""
+    files = [
+        attempt.message_file.strip()
+        for attempt in attempts
+        if attempt.message_file and attempt.message_file.strip()
+    ]
+    return sorted(set(files))
 
 
 def _hook_tail_for_repo(artifacts_dir: str, repo_path: str) -> str:
-    """Return the bounded hook-output tail for one repository, if any."""
+    """Return the redacted hook-output tail for one repository, if any."""
     try:
         from sase.workflows.commit.command_hooks import (
             hook_output_tail_from_metadata,
@@ -279,7 +341,7 @@ def _hook_tail_for_repo(artifacts_dir: str, repo_path: str) -> str:
         hook = load_latest_commit_hook_metadata(artifacts_dir, repo_path)
         if hook is None:
             return ""
-        return bound_stream(hook_output_tail_from_metadata(hook))
+        return _redact_diagnostic(hook_output_tail_from_metadata(hook))
     except Exception:
         return ""
 
@@ -350,7 +412,9 @@ def assess_terminal_failure(
                 )
             )
             continue
-        settlements.append(_landing_proof(repo, run_id, markers))
+        settlements.append(
+            _landing_proof(repo, run_id, markers, artifacts_dir=artifacts_dir)
+        )
     unlanded = [item for item in settlements if not item.landed]
     if not unlanded:
         return _RecoveryAssessment(
@@ -384,9 +448,7 @@ def _stitch_attempted(
         if isinstance(marker, Mapping) and str(marker.get("run_id") or "") == run_id:
             return True
     for repo in obligations:
-        if _attempt_inputs_for_repo(artifacts_dir, repo.path):
-            return True
-        if _message_files_for_repo(repo.path):
+        if _attempt_facts_for_repo(artifacts_dir, repo.path):
             return True
     return False
 
@@ -428,11 +490,11 @@ def build_recovery_note(
     if assessment.stitch_attempted:
         message_files: list[str] = []
         for item in assessment.repositories:
-            message_files.extend(_message_files_for_repo(item.repo.path))
-            for attempt in _attempt_inputs_for_repo(artifacts_dir, item.repo.path):
-                recorded = attempt.get("message_file")
-                if isinstance(recorded, str) and recorded.strip():
-                    message_files.append(recorded.strip())
+            message_files.extend(
+                _message_files_from_attempts(
+                    _attempt_facts_for_repo(artifacts_dir, item.repo.path)
+                )
+            )
         unique_files = sorted(set(message_files))
         if unique_files:
             lines.append(
@@ -441,7 +503,7 @@ def build_recovery_note(
         else:
             lines.append("No commit-message file was preserved by the failed attempts.")
         lines.append(
-            "Failure evidence: " + bound_stream(assessment.failure_message) + "."
+            "Failure evidence: " + _redact_diagnostic(assessment.failure_message) + "."
         )
         tails = [
             _hook_tail_for_repo(artifacts_dir, item.repo.path)
@@ -449,12 +511,13 @@ def build_recovery_note(
         ]
         tails = [tail for tail in tails if tail]
         if tails:
-            lines.append("Hook output tail: " + " | ".join(tails) + ".")
+            combined = _redact_diagnostic(" | ".join(tails))
+            lines.append("Hook output tail: " + combined + ".")
     else:
         lines.append(
             "No stitch/message file was created: declaration recovery failed "
             "before a stitch ran. Declaration diagnostic: "
-            + bound_stream(assessment.failure_message)
+            + _redact_diagnostic(assessment.failure_message)
             + "."
         )
         declaration_evidence = declaration_evidence_path(artifacts_dir)

@@ -5,6 +5,7 @@ import pytest
 from sase.core.finalizer_facade import (
     RemainingCommitWorkError,
     aggregate_finalizer_outcomes,
+    assess_repository_landing_proof,
     authenticate_finalizer_plan,
     finalizer_context_digest,
     finalizer_json_digest,
@@ -340,3 +341,31 @@ def test_finalizer_facade_rejects_repair_handoff_identity_mismatch() -> None:
         select_remaining_commit_obligations(
             _remaining_request(declaration_turn_nonce="other-turn")
         )
+
+
+def test_finalizer_facade_assesses_repository_landing_proof() -> None:
+    proof = assess_repository_landing_proof(
+        {
+            "run_id": "run-1",
+            "repo_path": "/repo",
+            "markers": [
+                {
+                    "cwd": "/repo",
+                    "run_id": "run-1",
+                    "operation_id": "op-old",
+                    "commit_sha": "a" * 40,
+                    "pushed": True,
+                },
+                {
+                    "cwd": "/repo",
+                    "run_id": "run-1",
+                    "operation_id": "op-new",
+                    "commit_sha": "b" * 40,
+                    "pushed": False,
+                },
+            ],
+            "attempts": [],
+        }
+    )
+    assert proof.landed is False
+    assert "unpushed" in proof.detail

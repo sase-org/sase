@@ -17,11 +17,14 @@ from sase.core.finalizer_wire import (
     FinalizerSubmissionValidationWire,
     RemainingCommitWorkOutcomeWire,
     RemainingCommitWorkRequestWire,
+    RepositoryLandingProofRequestWire,
+    RepositoryLandingProofWire,
     finalizer_aggregate_result_from_dict,
     finalizer_plan_from_dict,
     finalizer_submission_validation_from_dict,
     finalizer_wire_to_json_dict,
     remaining_commit_work_outcome_from_dict,
+    repository_landing_proof_from_dict,
 )
 from sase.core.rust import require_rust_binding
 
@@ -189,9 +192,22 @@ def select_remaining_commit_obligations(
     return outcome
 
 
+def assess_repository_landing_proof(
+    request: RepositoryLandingProofRequestWire | dict[str, Any],
+) -> RepositoryLandingProofWire:
+    """Assess whether one obligated repository has proven landing coverage."""
+
+    binding = require_rust_binding("assess_repository_landing_proof")
+    payload = binding(finalizer_wire_to_json_dict(request))
+    if not isinstance(payload, dict):
+        raise TypeError("assess_repository_landing_proof returned a non-mapping")
+    return repository_landing_proof_from_dict(dict(payload))
+
+
 __all__ = [
     "RemainingCommitWorkError",
     "aggregate_finalizer_outcomes",
+    "assess_repository_landing_proof",
     "authenticate_finalizer_plan",
     "finalizer_context_digest",
     "finalizer_instance_spec_digest",

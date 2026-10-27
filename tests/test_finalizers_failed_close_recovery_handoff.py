@@ -216,6 +216,13 @@ class TestMultipleCloses:
             with pytest.raises(BuiltinCommitFinalizerError, match="hook failed"):
                 run_controller(artifacts)
         with BeadProject(tmp_path / "beadstore") as project:
-            assert project.show(task.id).status == Status.OPEN
-            assert project.show(phase_id).status == Status.OPEN
-            assert project.show(plan_id).status == Status.OPEN
+            for issue_id in (task.id, phase_id, plan_id):
+                issue = project.show(issue_id)
+                assert issue.status == Status.OPEN
+                assert issue.completion_failure is not None
+                failed_notes = [
+                    note
+                    for note in issue.notes
+                    if note.text.startswith(STITCH_FAILED_NOTE_PREFIX)
+                ]
+                assert len(failed_notes) == 1

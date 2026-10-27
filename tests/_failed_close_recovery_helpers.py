@@ -155,3 +155,58 @@ def record_landing_marker(artifacts: Path, repo: DirtyRepo) -> None:
         }
     )
     existing.write_text(json.dumps(payload), encoding="utf-8")
+
+
+def git_run(cwd: Path, *args: str) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(
+        ["git", *args], cwd=cwd, check=True, capture_output=True, text=True
+    )
+
+
+def seed_git_store_with_remote(root: Path, remote: Path) -> BeadProject:
+    remote.mkdir()
+    subprocess.run(["git", "init", "--bare", "-q", str(remote)], check=True)
+    project = seed_git_store(root)
+    git_run(root, "config", "user.name", "probe")
+    git_run(root, "config", "user.email", "probe@example.invalid")
+    git_run(root, "add", "-A")
+    git_run(root, "commit", "-m", "init beads", "--allow-empty")
+    git_run(root, "remote", "add", "origin", str(remote))
+    git_run(root, "push", "-u", "origin", "HEAD")
+    return project
+
+
+def git_push_origin(beads_dir: Path) -> SimpleNamespace:
+    from sase.bead._sync_git import find_git_root
+
+    repo = find_git_root(beads_dir)
+    assert repo is not None
+    result = subprocess.run(
+        ["git", "push", "origin", "HEAD"],
+        cwd=repo,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if result.returncode != 0:
+        return SimpleNamespace(
+            pushed=False,
+            skipped_no_remote=False,
+            error=result.stderr.strip() or "push failed",
+        )
+    return SimpleNamespace(pushed=True, skipped_no_remote=False, error=None)
+
+
+def recovery_events_in_repo(root: Path) -> int:
+    events_root = root / "sdd" / "beads" / "events"
+    if not events_root.is_dir():
+        events_root = root / "beads" / "events"
+    count = 0
+    for path in events_root.rglob("*.jsonl"):
+        for line in path.read_text(encoding="utf-8").splitlines():
+            if (
+                "completion_failure_recovered" in line
+                or "CompletionFailureRecovered" in line
+            ):
+                count += 1
+    return count

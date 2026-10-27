@@ -17,6 +17,10 @@ from tests.test_finalizers_failed_close_recovery_handoff import (
     TestPublicationFailure,
 )
 from tests.test_finalizers_failed_close_recovery_landing import TestLandingProofs
+from tests.test_finalizers_failed_close_recovery_retry import (
+    TestPublicationRetry,
+    TestRedactionAndDeclarationEvidence,
+)
 
 __test__ = False
 
@@ -28,4 +32,6 @@ __all__ = [
     "TestLandingProofs",
     "TestMultipleCloses",
     "TestPublicationFailure",
+    "TestPublicationRetry",
+    "TestRedactionAndDeclarationEvidence",
 ]
