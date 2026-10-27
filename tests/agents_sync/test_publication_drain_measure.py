@@ -13,6 +13,7 @@ from sase.agents_sync import (
     _commit_publication_locked as publication_locked,
     git_sync_ops,
 )
+from sase.agents_sync._git_sync_ops_lock import _read_lock_holder
 from sase.agents_sync.commit_publication_transaction import (
     DrainResult,
     PublicationTransactionHooks,
@@ -127,7 +128,7 @@ def test_bounded_agents_lock_writes_and_clears_holder(
     ) as acquired:
         assert acquired is True
         assert holder_path.is_file()
-        holder = git_sync_ops._read_lock_holder(lock_path)
+        holder = _read_lock_holder(lock_path)
         assert holder is not None
         assert holder.pid == os.getpid()
         assert holder.operation == "commit-publication-drain"
@@ -137,7 +138,7 @@ def test_bounded_agents_lock_writes_and_clears_holder(
         assert f"pid {os.getpid()}" in diagnostic
         assert "commit-publication-drain" in diagnostic
     assert not holder_path.exists()
-    assert git_sync_ops._read_lock_holder(lock_path) is None
+    assert _read_lock_holder(lock_path) is None
     assert git_sync_ops.lock_holder_diagnostic(lock_path) is None
 
 
@@ -148,14 +149,14 @@ def test_read_lock_holder_ignores_stale_pid(tmp_path: Path) -> None:
         json.dumps({"pid": 2**30, "operation": "x", "started_at": 1.0}),
         encoding="utf-8",
     )
-    assert git_sync_ops._read_lock_holder(lock_path) is None
+    assert _read_lock_holder(lock_path) is None
 
 
 def test_read_lock_holder_ignores_malformed_record(tmp_path: Path) -> None:
     lock_path = tmp_path / "sase-agents-sync.lock"
     holder_path = tmp_path / "sase-agents-sync.lock.holder"
     holder_path.write_text("not json", encoding="utf-8")
-    assert git_sync_ops._read_lock_holder(lock_path) is None
+    assert _read_lock_holder(lock_path) is None
     assert git_sync_ops.lock_holder_diagnostic(lock_path) is None
 
 

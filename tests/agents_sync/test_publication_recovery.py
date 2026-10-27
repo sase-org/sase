@@ -500,7 +500,9 @@ def test_snapshot_regeneration_publishes_unblocked_bytes(
 def test_pre_stage_verification_withholds_rejection_blocked_candidates(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    from sase.agents_sync import git_sync_ops
+    from sase.agents_sync._git_sync_ops_payload import (
+        _verify_agents_payload_protection,
+    )
     from sase.agents_sync.git import run_git
 
     remote, sidecar = setup_repo(tmp_path)
@@ -521,9 +523,7 @@ def test_pre_stage_verification_withholds_rejection_blocked_candidates(
         is not None
     )
 
-    error = git_sync_ops._verify_agents_payload_protection(
-        sidecar, run_git, scope=scope
-    )
+    error = _verify_agents_payload_protection(sidecar, run_git, scope=scope)
 
     assert error is not None and "withheld" in error
 
@@ -531,7 +531,9 @@ def test_pre_stage_verification_withholds_rejection_blocked_candidates(
 def test_pre_stage_verification_passes_unblocked_candidates(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    from sase.agents_sync import git_sync_ops
+    from sase.agents_sync._git_sync_ops_payload import (
+        _verify_agents_payload_protection,
+    )
     from sase.agents_sync.git import run_git
 
     remote, sidecar = setup_repo(tmp_path)
@@ -541,10 +543,7 @@ def test_pre_stage_verification_passes_unblocked_candidates(
     candidate.parent.mkdir(parents=True, exist_ok=True)
     candidate.write_bytes(b"ordinary clean bytes\n")
 
-    assert (
-        git_sync_ops._verify_agents_payload_protection(sidecar, run_git, scope=scope)
-        is None
-    )
+    assert _verify_agents_payload_protection(sidecar, run_git, scope=scope) is None
 
 
 def test_interrupted_recovery_resumes_idempotently(

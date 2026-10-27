@@ -31,7 +31,7 @@ _REVIEWED_DIR_OPERATION_CONTEXTS: dict[str, DirOpReview] = {
             "and rebuilds the artifact index after the batch."
         ),
     ),
-    "src/sase/agents_sync/git_sync_ops.py:ensure_agents_clone": DirOpReview(
+    "src/sase/agents_sync/_git_sync_ops_git.py:ensure_agents_clone": DirOpReview(
         exemption=(
             "Atomically publishes a freshly cloned agents sidecar checkout and "
             "removes only its temporary clone staging directory, not an agent "

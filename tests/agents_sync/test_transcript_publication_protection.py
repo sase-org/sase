@@ -10,11 +10,9 @@ import subprocess
 import pytest
 
 from sase.agents_sync import publication_protection as protection
+from sase.agents_sync._git_sync_ops_payload import _verify_agents_payload_protection
 from sase.agents_sync.git import run_git
-from sase.agents_sync.git_sync_ops import (
-    _verify_agents_payload_protection,
-    commit_agents_payload_if_dirty,
-)
+from sase.agents_sync.git_sync_ops import commit_agents_payload_if_dirty
 from sase.agents_sync.inventory import ProjectHoodInventory
 from sase.agents_sync.publication import publish_agent_hood, reconcile_agent_hoods
 from sase.agents_sync.v2_io import read_hood_snapshot
