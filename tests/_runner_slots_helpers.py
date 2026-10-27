@@ -18,6 +18,7 @@ def _record(
     project_name: str = "proj",
     pid: int = 100,
     run_started: bool = False,
+    run_started_at: str | None = None,
     requested_at: str | None = None,
     wait_runners: int | None = None,
     wait_priority: int | None = None,
@@ -62,7 +63,11 @@ def _record(
             wait_priority=meta_wait_priority,
             queue_weight=queue_weight,
             queue_weight_explicit=queue_weight_explicit,
-            run_started_at=("2026-07-12T12:00:00+00:00" if run_started else None),
+            run_started_at=(
+                run_started_at
+                if run_started_at is not None
+                else ("2026-07-12T12:00:00+00:00" if run_started else None)
+            ),
             stopped_at=stopped_at,
         ),
         waiting=(

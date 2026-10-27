@@ -10956,7 +10956,7 @@ CapacityInspectorModal #capacity-inspector-title {
 }
 
 CapacityInspectorModal #capacity-inspector-headline {
-    height: 1;
+    height: auto;
     padding: 0 1;
 }
 
@@ -10972,7 +10972,7 @@ CapacityInspectorModal #capacity-inspector-verdict {
 }
 
 CapacityInspectorModal #capacity-inspector-facts {
-    height: 1;
+    height: auto;
     padding: 0 1;
 }
 
@@ -10985,7 +10985,8 @@ CapacityInspectorModal #capacity-inspector-options {
 }
 
 CapacityInspectorModal #capacity-inspector-detail {
-    height: 3;
+    height: auto;
+    min-height: 4;
     border-top: solid $secondary;
     padding: 0 1;
 }

@@ -17,6 +17,10 @@ from tests.test_machine_capacity_report import (
 NOW = datetime(2026, 7, 12, 12, 3, tzinfo=UTC).timestamp()
 
 
+def _started(seconds_ago: float) -> str:
+    return datetime.fromtimestamp(NOW - seconds_ago, tz=UTC).isoformat()
+
+
 def screenshot_report():
     """Return the small five-of-eight report used by the original snapshot."""
     return _report_from_records(_screenshot_records(), now=NOW)
@@ -28,6 +32,7 @@ def busy_report():
         _record(
             "/holder-heavy",
             run_started=True,
+            run_started_at=_started(3 * 3600 + 12 * 60),
             name="sase-1oa.4",
             queue_weight=2.0,
             queue_weight_explicit=True,
@@ -36,6 +41,11 @@ def busy_report():
             _record(
                 f"/worker-{index}",
                 run_started=True,
+                run_started_at=_started(
+                    {1: 50 * 60, 2: 2 * 3600 + 60, 3: 12 * 60, 4: 6 * 60, 5: 4 * 60}[
+                        index
+                    ]
+                ),
                 name=(
                     "bob-cli-an.6.6.6.5.6.5.5.6.6.6.6.6.6.6.6.land"
                     if index == 1
@@ -47,6 +57,7 @@ def busy_report():
         _record(
             "/verify-monitor",
             run_started=True,
+            run_started_at=_started(18 * 60),
             name="sase-1lou.5.1.3",
             agent_session="verify-session",
             agent_session_role="monitor",
@@ -55,6 +66,7 @@ def busy_report():
         _record(
             "/wait-monitor",
             run_started=True,
+            run_started_at=_started(75 * 60),
             name="sase-1n6.10--mon",
             agent_session="wait-session",
             agent_session_role="monitor",

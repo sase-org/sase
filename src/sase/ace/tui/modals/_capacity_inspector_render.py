@@ -8,13 +8,15 @@ from typing import Any
 from rich.cells import cell_len
 from rich.text import Text
 
-from sase.core.runner_slots import capacity_gauge_cells, format_capacity_duration
+from sase.core.runner_slots import (
+    CAPACITY_REPORT_STALE_AFTER_SECONDS,
+    capacity_gauge_cells,
+    format_capacity_duration,
+)
 from sase.ace.tui.widgets._usage_indicator_palette import (
     usage_percent_color,
     usage_rejected_style,
 )
-
-_STALE_AFTER_SECONDS = 25.0
 
 
 def format_capacity_number(value: float) -> str:
@@ -23,6 +25,13 @@ def format_capacity_number(value: float) -> str:
     if number.is_integer():
         return str(int(number))
     return f"{number:g}"
+
+
+def empty_charged_message(view: Any) -> str:
+    """Return the Using-capacity empty state without treating unknown as free."""
+    if view.admission_blocked:
+        return "No known charged claims — free capacity is unknown"
+    return f"Nothing holds capacity — all {format_capacity_number(view.limit)} units are free"
 
 
 def middle_truncate(value: str, width: int) -> str:
@@ -48,7 +57,9 @@ def middle_truncate(value: str, width: int) -> str:
     return f"{left}…{right}"
 
 
-def render_headline(view: Any | None, *, now: float, dark: bool) -> Text:
+def render_headline(
+    view: Any | None, *, now: float, dark: bool, width: int | None = None
+) -> Text:
     """Render the occupied/free headline and live freshness label."""
     if view is None:
         return Text("Waiting for the first authoritative report…", style="yellow")
@@ -70,16 +81,19 @@ def render_headline(view: Any | None, *, now: float, dark: bool) -> Text:
         free_text = f"{format_capacity_number(max(0.0, free))} free"
         free_percent = 0.0 if limit <= 0 else max(0.0, free / limit * 100.0)
         free_style = f"bold {usage_percent_color(free_percent, dark=dark)}"
-    text.append(f"   {free_text}", style=free_style)
 
     if not view.scan_current:
         freshness = "⟳ records changed · rescanning"
         freshness_style = "yellow"
     else:
         age = max(0, int(now - float(view.computed_at)))
-        stale = age >= _STALE_AFTER_SECONDS
+        stale = age >= CAPACITY_REPORT_STALE_AFTER_SECONDS
         freshness = f"{'⟳ ' if stale else ''}updated {age}s ago"
         freshness_style = "yellow" if stale else "dim"
+
+    summary_width = cell_len(text.plain) + cell_len(free_text) + cell_len(freshness) + 6
+    separator = "\n" if width is not None and summary_width > width else "   "
+    text.append(f"{separator}{free_text}", style=free_style)
     text.append(f"   {freshness}", style=freshness_style)
     return text
 
@@ -149,14 +163,10 @@ def render_verdict(view: Any | None) -> Text:
     text = Text(f"{glyph} {verdict.title}", style=style)
     if verdict.detail:
         text.append(f"\n  {verdict.detail}", style="dim")
-    if view.over_limit_note:
-        text.append(f"\n  {view.over_limit_note}", style="dim")
-    if view.admission_blocked and not view.over_limit_note:
-        text.append("\n  Accounting is invalid; free capacity is unknown.", style="dim")
     return text
 
 
-def render_facts(view: Any | None, *, now: float) -> Text:
+def render_facts(view: Any | None, *, width: int | None = None) -> Text:
     """Render limit provenance and running/charged facts."""
     if view is None:
         return Text(
@@ -165,9 +175,9 @@ def render_facts(view: Any | None, *, now: float) -> Text:
     info = view.limit_info
     parts = [f"limit {format_capacity_number(view.limit)}"]
     if info is not None and info.override_source is not None:
-        age = max(0.0, now - float(info.override_created_at or now))
+        age = max(0.0, float(info.override_age_seconds or 0.0))
         duration = _override_age(age)
-        warning = " ⚠" if age >= 14 * 24 * 3600 else ""
+        warning = " ⚠" if info.override_long_lived else ""
         config = (
             f" (config {format_capacity_number(info.configured)})"
             if info.configured is not None
@@ -176,14 +186,21 @@ def render_facts(view: Any | None, *, now: float) -> Text:
         parts.append(f"{info.override_source} override for {duration}{warning}{config}")
     elif info is not None and info.configured is not None:
         parts.append(f"from config {format_capacity_number(info.configured)}")
-    facts = " · ".join(parts)
-    if view.running_line is not None:
-        running = (
-            f"{view.running_line.split(' running')[0]} running · "
-            f"{len(view.charged)} charged · {len(view.zero_weight)} at 0"
-        )
-        facts = f"{facts}     {running}"
-    return Text(facts, style="dim")
+    provenance = " · ".join(parts)
+    if view.running_line is None:
+        return Text(provenance, style="dim")
+    at_zero = len(view.zero_weight) + len(view.riders)
+    running = (
+        f"{view.running_line.split(' running')[0]} running · "
+        f"{len(view.charged)} charged · {at_zero} at 0"
+    )
+    combined = cell_len(provenance) + 5 + cell_len(running)
+    if width is not None and combined > width:
+        return Text(f"{provenance}\n{running}", style="dim")
+    gap = (
+        5 if width is None else max(5, width - cell_len(provenance) - cell_len(running))
+    )
+    return Text(f"{provenance}{' ' * gap}{running}", style="dim")
 
 
 def render_section_header(label: str, summary: str, *, width: int) -> Text:
@@ -206,39 +223,45 @@ def render_capacity_row(
     width: int,
     mark_style: str = "bold",
     name_style: str = "bold",
+    note_style: str = "dim",
 ) -> Text:
     """Render one row at the wide or narrow column breakpoint."""
     width = max(20, int(width))
     wide = width >= 96
     mark_width = 4
     kind_width = 16 if wide else 0
-    age_width = min(8, cell_len(age)) if age else 0
-    separators = 4 if wide else 2
-    note_width = min(cell_len(note), max(0, 34 if wide else 28))
-    name_width = min(
-        40 if wide else 28,
-        max(8, width - mark_width - kind_width - age_width - note_width - separators),
+    name_cap = 40 if wide else 28
+    age_width = 8 if age else 0
+    sep_after_mark = 1
+    sep_after_name = 2
+    sep_after_kind = 2 if wide else 0
+    sep_before_age = 1 if age_width else 0
+    overhead = (
+        mark_width
+        + sep_after_mark
+        + sep_after_name
+        + kind_width
+        + sep_after_kind
+        + sep_before_age
+        + age_width
     )
-    if (
-        name_width + mark_width + kind_width + age_width + note_width + separators
-        > width
-    ):
-        note_width = max(
-            0, width - mark_width - kind_width - age_width - separators - name_width
-        )
-    name_text = middle_truncate(name, name_width)
+    name_width = min(name_cap, max(8, width - overhead))
+    note_width = max(0, width - overhead - name_width)
+    name_text = _pad_cells(middle_truncate(name, name_width), name_width)
     note_text = _take_cells(note, note_width)
-    kind_text = _take_cells(kind, kind_width)
+    kind_text = _pad_cells(_take_cells(kind, kind_width), kind_width)
     text = Text(_pad_cells(mark, mark_width), style=mark_style)
     text.append(" " + name_text, style=name_style)
     if wide:
-        text.append("  " + _pad_cells(kind_text, kind_width), style="cyan")
+        text.append("  " + kind_text, style="cyan")
     if note_width:
-        text.append("  " + note_text, style="dim")
+        text.append("  " + _pad_cells(note_text, note_width), style=note_style)
     if age_width:
         used = cell_len(text.plain)
-        padding = max(1, width - used - age_width)
-        text.append(" " * padding + _pad_cells(age, age_width), style="dim")
+        padding = max(sep_before_age, width - used - age_width)
+        text.append(" " * padding + _pad_cells_left(age, age_width), style="dim")
+    if cell_len(text.plain) > width:
+        text = Text(_take_cells(text.plain, width), style=mark_style)
     return text
 
 
@@ -264,7 +287,7 @@ def render_detail(
     target_kind: str | None,
     row: Any | None,
     group: Any | None,
-    now: float,
+    snapshot: Any | None = None,
 ) -> Text:
     """Render the three-line detail strip for a highlighted row."""
     if view is None or row is None and group is None:
@@ -274,7 +297,9 @@ def render_detail(
             style="dim",
         )
     if target_kind in {"holder", "zero"} and row is not None:
-        project = _project_label(str(getattr(row, "project_key", "") or ""))
+        project = _project_label(
+            str(getattr(row, "project_key", "") or ""), snapshot=snapshot
+        )
         first = " · ".join(part for part in (row.name, row.kind, project) if part)
         weight = format_capacity_number(row.charged_weight)
         source = {
@@ -299,12 +324,17 @@ def render_detail(
         third += " · Enter jumps to this agent"
         return _three_lines(first, second, third)
     if target_kind == "rider" and row is not None:
-        first = f"{row.name} · rider · {row.project_key}"
+        project = _project_label(
+            str(getattr(row, "project_key", "") or ""), snapshot=snapshot
+        )
+        first = " · ".join(part for part in (row.name, "rider", project) if part)
         second = f"rides the claim charged through {row.holder_name}"
         third = "Serial session members share one claim · Enter jumps to this agent"
         return _three_lines(first, second, third)
     if target_kind == "queued" and row is not None:
-        project = _project_label(str(getattr(row, "project_key", "") or ""))
+        project = _project_label(
+            str(getattr(row, "project_key", "") or ""), snapshot=snapshot
+        )
         first = " · ".join(part for part in (row.name, project) if part)
         waiting = format_capacity_duration(row.waiting_seconds)
         second = (
@@ -333,12 +363,17 @@ def _three_lines(first: str, second: str, third: str) -> Text:
     return text
 
 
-def _project_label(project_key: str) -> str:
+def _project_label(project_key: str, snapshot: Any | None = None) -> str:
     if not project_key:
         return ""
-    from sase.project_display_names import project_display_name_for
+    from sase.project_display_names import (
+        project_display_name_for,
+        project_display_snapshot_is_warm,
+    )
 
-    return project_display_name_for(project_key)
+    if snapshot is None and not project_display_snapshot_is_warm():
+        return project_key
+    return project_display_name_for(project_key, snapshot=snapshot)
 
 
 def _absolute_since(stamp: object) -> str | None:
@@ -377,7 +412,12 @@ def _pad_cells(value: str, width: int) -> str:
     return value + " " * max(0, width - cell_len(value))
 
 
+def _pad_cells_left(value: str, width: int) -> str:
+    return " " * max(0, width - cell_len(value)) + value
+
+
 __all__ = [
+    "empty_charged_message",
     "format_capacity_number",
     "middle_truncate",
     "render_capacity_row",

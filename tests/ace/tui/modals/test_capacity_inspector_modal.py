@@ -6,6 +6,8 @@ import argparse
 import io
 import re
 from contextlib import redirect_stdout
+from datetime import UTC, datetime
+from pathlib import Path
 from unittest.mock import MagicMock
 
 from rich.text import Text
@@ -18,10 +20,13 @@ from sase.ace.tui.modals.capacity_inspector_modal import (
 )
 from sase.agents.cli_load import handle_agents_load
 from tests._runner_slots_helpers import _record
+from tests.ace.tui.visual._capacity_inspector_fixtures import busy_report
 from tests.test_machine_capacity_report import (
     _report_from_records,
     _screenshot_records,
 )
+
+_ROOT = Path(__file__).resolve().parents[4]
 
 
 def _report():
@@ -39,6 +44,19 @@ def _select(options: OptionList, option_id: str) -> None:
     )
 
 
+def _invalid_only_report():
+    bad = _record("/bad", run_started=True, name="invalid-weight")
+    assert bad.agent_meta is not None
+    object.__setattr__(bad.agent_meta, "queue_weight_invalid", True)
+    return _report_from_records([bad])
+
+
+def _valid_empty_report():
+    return _report_from_records(
+        [_record("/idle", requested_at=None, run_started=False)]
+    )
+
+
 class _InspectorApp(App[None]):
     def __init__(self, modal: CapacityInspectorModal) -> None:
         super().__init__()
@@ -53,6 +71,12 @@ class _InspectorApp(App[None]):
 
     def _on_dismiss(self, selection: CapacityInspectorSelection | None) -> None:
         self.selection = selection
+
+
+class _StyledInspectorApp(_InspectorApp):
+    """Modal host with the production ACE stylesheet."""
+
+    CSS_PATH = _ROOT / "src/sase/ace/tui/styles.tcss"
 
 
 async def test_capacity_inspector_shows_report_and_jumps_from_agent_rows() -> None:
@@ -178,6 +202,8 @@ async def test_capacity_inspector_refresh_keeps_identity_then_falls_back_in_sect
         options = modal.query_one("#capacity-inspector-options", OptionList)
         _select(options, "agent:/worker-b")
         await pilot.pause()
+        await pilot.pause()
+        await pilot.pause()
         modal.update_capacity_report(_report(), running_nodes=7)
         options = modal.query_one("#capacity-inspector-options", OptionList)
         assert options.options[options.highlighted].id == "agent:/worker-b"
@@ -249,3 +275,122 @@ async def test_capacity_inspector_freshness_uses_injected_clock() -> None:
         stale_report = _report_from_records(_screenshot_records(), scan_current=False)
         modal.update_capacity_report(stale_report, running_nodes=6)
         assert "records changed · rescanning" in headline.render().plain
+
+
+def test_invalid_only_empty_charged_does_not_read_as_free() -> None:
+    report = _invalid_only_report()
+    modal = CapacityInspectorModal(report, running_nodes=0)
+    options = "\n".join(_option_text(option) for option in modal._build_options())
+
+    assert "No known charged claims — free capacity is unknown" in options
+    assert "all 8 units are free" not in options
+    assert "invalid weight" in options.lower() or "invalid-weight" in options
+    assert "blocked" in modal._verdict_text().plain.lower()
+    assert "? free" in modal._headline_text().plain
+
+
+def test_valid_empty_charged_still_shows_all_free() -> None:
+    modal = CapacityInspectorModal(_valid_empty_report(), running_nodes=0)
+    options = "\n".join(_option_text(option) for option in modal._build_options())
+
+    assert "Nothing holds capacity — all 8 units are free" in options
+    assert "free capacity is unknown" not in options
+
+
+def test_busy_facts_count_includes_riders() -> None:
+    modal = CapacityInspectorModal(busy_report(), running_nodes=9)
+
+    assert "9 running · 7 charged · 2 at 0" in modal._facts_text().plain
+    options = "\n".join(_option_text(option) for option in modal._build_options())
+    assert "inherited" in options
+    assert "+1 rider" in options
+
+
+async def test_row_ages_stay_pinned_to_report_while_freshness_ticks() -> None:
+    computed = datetime(2026, 7, 12, 12, 3, tzinfo=UTC).timestamp()
+    holder = _record(
+        "/worker-a",
+        run_started=True,
+        run_started_at=datetime(2026, 7, 12, 12, 0, tzinfo=UTC).isoformat(),
+    )
+    idles = [
+        _record(f"/idle-{index:02d}", requested_at=None, run_started=False)
+        for index in range(3)
+    ]
+    report = _report_from_records([holder, *idles], now=computed)
+    moment = [computed + 120]
+    modal = CapacityInspectorModal(report, running_nodes=1, clock=lambda: moment[0])
+    app = _InspectorApp(modal)
+
+    async with app.run_test(size=(100, 32)) as pilot:
+        await pilot.pause()
+        options = modal.query_one("#capacity-inspector-options", OptionList)
+        row_text = "\n".join(_option_text(option) for option in options.options)
+        assert re.search(r"worker-a.*\b3m\b", row_text, re.S)
+        assert not re.search(r"worker-a.*\b5m\b", row_text, re.S)
+        headline = modal.query_one("#capacity-inspector-headline", Static)
+        assert "updated 120s ago" in headline.render().plain
+
+        _select(options, "group:not_started")
+        await pilot.press("l")
+        await pilot.pause()
+        await pilot.press("h")
+        await pilot.pause()
+        options = modal.query_one("#capacity-inspector-options", OptionList)
+        row_text = "\n".join(_option_text(option) for option in options.options)
+        assert re.search(r"worker-a.*\b3m\b", row_text, re.S)
+        assert not re.search(r"worker-a.*\b5m\b", row_text, re.S)
+
+        moment[0] = computed + 130
+        modal._tick_freshness()
+        assert "updated 130s ago" in headline.render().plain
+        options = modal.query_one("#capacity-inspector-options", OptionList)
+        row_text = "\n".join(_option_text(option) for option in options.options)
+        assert re.search(r"worker-a.*\b3m\b", row_text, re.S)
+
+
+async def test_detail_widget_shows_three_content_lines_with_production_styles() -> None:
+    modal = CapacityInspectorModal(_report(), running_nodes=6)
+    app = _StyledInspectorApp(modal)
+
+    async with app.run_test(size=(120, 40)) as pilot:
+        await pilot.pause()
+        await pilot.pause()
+        options = modal.query_one("#capacity-inspector-options", OptionList)
+        _select(options, "agent:/worker-a")
+        await pilot.pause()
+        detail = modal.query_one("#capacity-inspector-detail", Static)
+        plain = detail.render().plain
+        assert detail.content_size.height >= 3
+        assert plain.count("\n") >= 2
+        assert "Enter jumps" in plain
+
+        facts = modal.query_one("#capacity-inspector-facts", Static).render().plain
+        assert "6 running · 5 charged · 1 at 0" in facts
+
+
+async def test_narrow_busy_header_keeps_facts_and_queue_visible() -> None:
+    modal = CapacityInspectorModal(busy_report(), running_nodes=9)
+    app = _StyledInspectorApp(modal)
+
+    async with app.run_test(size=(80, 32)) as pilot:
+        await pilot.pause()
+        await pilot.pause()
+        facts = modal.query_one("#capacity-inspector-facts", Static).render().plain
+        headline = (
+            modal.query_one("#capacity-inspector-headline", Static).render().plain
+        )
+        options = "\n".join(
+            _option_text(option)
+            for option in modal.query_one(
+                "#capacity-inspector-options", OptionList
+            ).options
+        )
+        assert "updated" in headline
+        assert "9 running" in facts
+        assert "7 charged" in facts
+        assert "2 at 0" in facts
+        assert "QUEUED" in options
+        detail = modal.query_one("#capacity-inspector-detail", Static)
+        assert detail.content_size.height >= 3
+        assert "Enter jumps" in detail.render().plain

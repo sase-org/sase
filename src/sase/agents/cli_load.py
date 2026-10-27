@@ -167,7 +167,7 @@ def _gauge_text(view: Any, *, width: int) -> Text | None:
     fill = f"bold {usage_percent_color(free_percent, dark=True)}"
     rejected = usage_rejected_style(dark=True)
     styles = {
-        "used": fill,
+        "used": rejected if view.admission_blocked else fill,
         "over": rejected,
         "unknown": rejected,
         "limit": rejected,
@@ -241,7 +241,7 @@ def _attention_text(view: Any) -> Panel | None:
     for line in view.diagnostics:
         text.append(f"• {line}\n", style="yellow")
     return Panel(
-        Text(str(text).rstrip("\n")),
+        _rstrip_text(text),
         title="Needs attention",
         border_style="yellow",
     )
@@ -270,7 +270,7 @@ def _charged_table(view: Any) -> Panel:
     if not charged:
         table.add_row(
             "-",
-            f"Nothing holds capacity — all {_fmt(view.limit)} units are free",
+            _empty_charged_message(view),
             "",
             "",
             "",
@@ -321,7 +321,7 @@ def _zero_weight_text(view: Any) -> Text | None:
             f"shares {rider.holder_name}'s claim\n",
             style="dim",
         )
-    return Text(str(text).rstrip("\n"))
+    return _rstrip_text(text)
 
 
 def _waiting_text(view: Any) -> Text | None:
@@ -337,7 +337,7 @@ def _waiting_text(view: Any) -> Text | None:
         if hidden:
             text.append(f" · +{hidden} more", style="dim")
         text.append("\n")
-    return Text(str(text).rstrip("\n"))
+    return _rstrip_text(text)
 
 
 def _ignored_inactive_text(view: Any) -> Text | None:
@@ -367,7 +367,7 @@ def _diagnostics_panel(view: Any) -> Panel:
         text.append(f"• {line}\n")
     if view.admission_blocked:
         text.append("admission blocked\n", style="bold red")
-    return Panel(Text(str(text).rstrip("\n")), title="Diagnostics")
+    return Panel(_rstrip_text(text), title="Diagnostics")
 
 
 def _holding_note(row: Any) -> str:
@@ -402,3 +402,15 @@ def _fmt(value: float) -> str:
     if float(value).is_integer():
         return str(int(value))
     return f"{value:g}"
+
+
+def _empty_charged_message(view: Any) -> str:
+    if view.admission_blocked:
+        return "No known charged claims — free capacity is unknown"
+    return f"Nothing holds capacity — all {_fmt(view.limit)} units are free"
+
+
+def _rstrip_text(text: Text) -> Text:
+    while text.plain.endswith(("\n", " ")):
+        text = text[:-1]
+    return text

@@ -20,6 +20,7 @@ from sase.ace.tui.actions.clipboard import schedule_copy_delivery
 from sase.core.runner_slots import capacity_view, format_capacity_duration
 
 from ._capacity_inspector_render import (
+    empty_charged_message,
     format_capacity_number,
     render_capacity_row,
     render_detail,
@@ -174,9 +175,7 @@ class CapacityInspectorModal(
                 id=_OPTION_LIST_ID,
             )
             yield Static(
-                render_detail(
-                    view=None, target_kind=None, row=None, group=None, now=self._clock()
-                ),
+                render_detail(view=None, target_kind=None, row=None, group=None),
                 id="capacity-inspector-detail",
             )
             yield Static(render_footer(), id="capacity-inspector-footer")
@@ -287,9 +286,14 @@ class CapacityInspectorModal(
             else capacity_view(
                 self._report,
                 running_nodes=self._running_nodes,
-                now=self._clock(),
             )
         )
+
+    def _project_snapshot(self) -> Any | None:
+        try:
+            return getattr(self.app, "project_display_snapshot", None)
+        except Exception:
+            return None
 
     def _current_dark_theme(self) -> bool:
         try:
@@ -321,13 +325,25 @@ class CapacityInspectorModal(
             self._view,
             now=self._clock(),
             dark=self._current_dark_theme(),
+            width=self._header_width("#capacity-inspector-headline"),
         )
 
     def _verdict_text(self) -> Text:
         return render_verdict(self._view)
 
     def _facts_text(self) -> Text:
-        return render_facts(self._view, now=self._clock())
+        return render_facts(
+            self._view, width=self._header_width("#capacity-inspector-facts")
+        )
+
+    def _header_width(self, widget_id: str) -> int | None:
+        if not self.is_mounted:
+            return None
+        try:
+            width = self.query_one(widget_id, Static).size.width
+        except Exception:
+            return None
+        return width if width > 0 else None
 
     def _option_width(self) -> int:
         if self.is_mounted:
@@ -401,18 +417,18 @@ class CapacityInspectorModal(
             width,
         )
         if not charged:
-            self._add_disabled(
-                options,
-                f"Nothing holds capacity — all {format_capacity_number(view.limit)} units are free",
-            )
+            self._add_disabled(options, empty_charged_message(view))
         for row in charged:
             note_parts = []
             if row.weight_source == "explicit":
                 note_parts.append("explicit weight")
+            elif row.weight_source == "inherited":
+                note_parts.append("inherited")
             if row.authored_budget is not None:
                 note_parts.append(f"budget {row.authored_budget}")
             if row.rider_names:
-                note_parts.append(f"+{len(row.rider_names)} rider")
+                noun = "rider" if len(row.rider_names) == 1 else "riders"
+                note_parts.append(f"+{len(row.rider_names)} {noun}")
             self._add_agent(
                 options,
                 section="using",
@@ -452,6 +468,7 @@ class CapacityInspectorModal(
                 age=format_capacity_duration(row.waiting_seconds),
                 width=width,
                 mark_style=tone_styles.get(row.tone, "yellow"),
+                note_style=tone_styles.get(row.tone, "yellow"),
             )
 
         zero_rows = tuple(view.zero_weight)
@@ -547,6 +564,7 @@ class CapacityInspectorModal(
         age: str = "",
         mark_style: str = "bold",
         name_style: str = "bold",
+        note_style: str = "dim",
         group: Any | None = None,
         group_code: str | None = None,
     ) -> None:
@@ -559,6 +577,7 @@ class CapacityInspectorModal(
             width=width,
             mark_style=mark_style,
             name_style=name_style,
+            note_style=note_style,
         )
         options.append(Option(prompt, id=option_id))
         section_ids = self._section_option_ids.setdefault(section, [])
@@ -701,7 +720,7 @@ class CapacityInspectorModal(
             target_kind=None if action is None else action.detail_kind,
             row=None if action is None else action.row,
             group=None if action is None else action.group,
-            now=self._clock(),
+            snapshot=self._project_snapshot(),
         )
         try:
             self.query_one("#capacity-inspector-detail", Static).update(detail)

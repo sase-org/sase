@@ -9,10 +9,16 @@ from contextlib import redirect_stdout
 
 from rich.console import Console
 
+from sase.ace.tui.widgets._usage_indicator_palette import usage_rejected_style
 from sase.agents.cli_load import (
     handle_agents_load,
+    _attention_text,
+    _diagnostics_panel,
+    _gauge_text,
     _render_load_view,
     _report_to_json_dict,
+    _waiting_text,
+    _zero_weight_text,
 )
 from sase.core.runner_slots import capacity_view
 from tests._runner_slots_helpers import _live_unless_stopped, _record
@@ -254,3 +260,77 @@ def _render(view) -> str:
     buffer = io.StringIO()
     _render_load_view(view, machine="athena", console=Console(file=buffer, width=120))
     return buffer.getvalue()
+
+
+def _invalid_only_report():
+    bad = _record("/bad", run_started=True, name="invalid-weight")
+    assert bad.agent_meta is not None
+    object.__setattr__(bad.agent_meta, "queue_weight_invalid", True)
+    return _report_from_records([bad])
+
+
+def test_invalid_only_empty_charged_is_unknown_not_free() -> None:
+    view = capacity_view(_invalid_only_report())
+    rendered = _render(view)
+
+    assert "No known charged claims — free capacity is unknown" in rendered
+    assert "all 8 units are free" not in rendered
+    assert "Nothing holds capacity" not in rendered
+    assert "Needs attention" in rendered
+    assert "? free" in rendered
+
+
+def test_valid_empty_charged_still_shows_all_free() -> None:
+    view = capacity_view(
+        _report_from_records([_record("/idle", requested_at=None, run_started=False)])
+    )
+    rendered = _render(view)
+
+    assert "Nothing holds capacity — all 8 units are free" in rendered
+    assert "free capacity is unknown" not in rendered
+
+
+def test_cli_attention_zero_weight_and_waiting_keep_rich_spans() -> None:
+    view = capacity_view(_report_from_records(_screenshot_records(), configured=8))
+    zero = _zero_weight_text(view)
+    assert zero is not None
+    assert zero.spans
+    assert any("dim" in str(span.style) for span in zero.spans)
+
+    waiting_view = capacity_view(
+        _report_from_records(
+            [
+                _record(f"/idle-{index:02d}", requested_at=None, run_started=False)
+                for index in range(3)
+            ]
+        )
+    )
+    waiting = _waiting_text(waiting_view)
+    assert waiting is not None
+    assert waiting.spans
+    assert any("bold" in str(span.style) for span in waiting.spans)
+
+    blocked = capacity_view(_invalid_only_report())
+    attention = _attention_text(blocked)
+    assert attention is not None
+    body = attention.renderable
+    assert hasattr(body, "spans")
+    assert body.spans
+    assert any("yellow" in str(span.style) for span in body.spans)
+    diagnostics = _diagnostics_panel(blocked)
+    diag_body = diagnostics.renderable
+    assert hasattr(diag_body, "spans")
+    assert any("red" in str(span.style) for span in diag_body.spans)
+
+
+def test_cli_blocked_gauge_styles_known_used_as_rejected() -> None:
+    bad = _record("/bad", run_started=True)
+    assert bad.agent_meta is not None
+    object.__setattr__(bad.agent_meta, "queue_weight_invalid", True)
+    view = capacity_view(_report_from_records([*_screenshot_records(), bad]))
+    gauge = _gauge_text(view, width=32)
+    assert gauge is not None
+    rejected = usage_rejected_style(dark=True)
+    used = [span for span in gauge.spans if "█" in gauge.plain[span.start : span.end]]
+    assert used
+    assert any(rejected in str(span.style) for span in used)
