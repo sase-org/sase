@@ -163,7 +163,7 @@ def test_capacity_inspector_copy_matches_cli_json(monkeypatch: object) -> None:
 
     schedule = MagicMock()
     monkeypatch.setattr(  # type: ignore[attr-defined]
-        "sase.ace.tui.modals.capacity_inspector_modal.schedule_copy_delivery",
+        "sase.ace.tui.modals.capacity_inspector_screen.schedule_copy_delivery",
         schedule,
     )
     CapacityInspectorModal(report, running_nodes=6).action_copy_snapshot()
