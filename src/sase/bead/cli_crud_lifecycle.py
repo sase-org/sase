@@ -46,6 +46,9 @@ if TYPE_CHECKING:
 def handle_bead_open(args: argparse.Namespace) -> None:
     bead_context = resolve_bead_operation_context([args.id], for_write=True)
     issue_id = bead_context.resolved_ids[0]
+    from sase.bead.assigned_near_miss import refuse_if_assigned_near_miss
+
+    refuse_if_assigned_near_miss([args.id, issue_id])
     with bead_store_mutation(
         auto_commit_bead_store,
         bead_context=bead_context,
@@ -53,7 +56,15 @@ def handle_bead_open(args: argparse.Namespace) -> None:
         try:
             issue, reopened_ancestors = mutation.project.open(issue_id)
         except KeyError:
-            print(f"Error: issue not found: {args.id}", file=sys.stderr)
+            from sase.bead.assigned_near_miss import annotate_not_found_message
+
+            print(
+                "Error: "
+                + annotate_not_found_message(
+                    f"issue not found: {args.id}", requested=args.id
+                ),
+                file=sys.stderr,
+            )
             sys.exit(1)
         except ValueError as exc:
             print(f"Error: {exc}", file=sys.stderr)
@@ -204,6 +215,9 @@ def handle_bead_close(args: argparse.Namespace) -> None:
     phases = getattr(args, "phases", None)
     bead_context = resolve_bead_operation_context(args.ids, for_write=True)
     routed_ids = list(bead_context.resolved_ids)
+    from sase.bead.assigned_near_miss import refuse_if_assigned_near_miss
+
+    refuse_if_assigned_near_miss([*args.ids, *routed_ids])
     echo_rows: list[str] = []
     placement = "skip"
     placement_store: Any | None = None
@@ -278,7 +292,15 @@ def handle_bead_close(args: argparse.Namespace) -> None:
         except KeyError as exc:
             message = str(exc.args[0]) if exc.args else ""
             missing_id = message.rsplit("Issue not found:", 1)[-1].strip()
-            print(f"Error: issue not found: {missing_id}", file=sys.stderr)
+            from sase.bead.assigned_near_miss import annotate_not_found_message
+
+            print(
+                "Error: "
+                + annotate_not_found_message(
+                    f"issue not found: {missing_id}", requested=missing_id
+                ),
+                file=sys.stderr,
+            )
             sys.exit(1)
         except PhaseSelectorError as exc:
             print(f"Error: {exc}", file=sys.stderr)

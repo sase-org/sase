@@ -110,10 +110,29 @@ def execute_bead_cli(argv: list[str], *, materialize: bool = False) -> int | Non
 
         if not isinstance(exc, BeadOperationRoutingError):
             raise
-        print(f"Error: {exc}", file=sys.stderr)
+        from sase.bead.assigned_near_miss import annotate_not_found_message
+
+        print(f"Error: {annotate_not_found_message(str(exc))}", file=sys.stderr)
         return 1
     if context is None:
         return None
+
+    if argv and argv[0] in {"open", "update"} and context.bead_context is not None:
+        from sase.bead.assigned_near_miss import (
+            first_assigned_near_miss,
+            ids_from_operation_context,
+            near_miss_refusal_message,
+        )
+
+        hit = first_assigned_near_miss(ids_from_operation_context(context.bead_context))
+        if hit is not None:
+            if argv[0] == "open":
+                print(
+                    f"Error: {near_miss_refusal_message(*hit)}",
+                    file=sys.stderr,
+                )
+                return 1
+            return None
 
     if _is_mutating_verb(argv):
         from sase.core.state_write_guard import assert_bead_store_write_sandboxed

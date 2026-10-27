@@ -85,7 +85,9 @@ owned by another enabled project, that project's primary-workspace Justfile). Wi
 ID, every entry is printed. With an ID, only entries keyed to that bead or a descendant
 suffix (`<bead-id>` matches `<bead-id>` and `<bead-id>.2`) are shown. Land and phase
 agents should run this before closing: leftover entries go stale the instant the bead
-closes, and `sase bead close` refuses while any remain.
+closes, and `sase bead close` refuses while any remain. Inside a SASE agent run, a
+target that differs from the assigned bead by one interior segment prints the near-miss
+warning on stderr and still lists the entries.
 
 See the generated [`sase bead` CLI reference](../cli/bead.md#sase-bead-epic-symbols) for
 this command's options.

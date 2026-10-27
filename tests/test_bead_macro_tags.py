@@ -191,6 +191,8 @@ def test_builtin_phase_prompt_keeps_single_bead_ownership() -> None:
     assert "instead of another single-agent tale" in prose
     assert "unless one coder can clearly finish everything left" in prose
     assert "already closed when this run started" in prose
+    assert "Only the host notice tells you that" in prose
+    assert "you copied the wrong ID" in prose
     assert "sase bead open {{ bead_id }}" in body
 
 
@@ -252,6 +254,8 @@ def test_builtin_task_prompt_covers_closed_bead_attach() -> None:
     prose = _single_spaced(body)
 
     assert "already closed when this run started" in prose
+    assert "Only the host notice tells you that" in prose
+    assert "you copied the wrong ID" in prose
     assert "sase bead open {{ bead_id }}" in body
     assert "safe no-op or the real close" in prose
 

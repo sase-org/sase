@@ -21,9 +21,15 @@ def handle_bead_epic_symbols(args: argparse.Namespace) -> None:
     start = None
     target_id = getattr(args, "id", None)
     if target_id:
-        context = _resolve_symbol_bead_context(target_id)
-        target_id = context.resolved_ids[0] if context.resolved_ids else target_id
+        requested_id = str(target_id)
+        context = _resolve_symbol_bead_context(requested_id)
+        target_id = (
+            str(context.resolved_ids[0]) if context.resolved_ids else requested_id
+        )
         start = _symbol_scan_start(context)
+        from sase.bead.assigned_near_miss import warn_if_assigned_near_miss
+
+        warn_if_assigned_near_miss([requested_id, target_id])
     justfile = discover_justfile(start)
     entries = load_epic_symbol_entries(start)
     if target_id:
@@ -71,7 +77,12 @@ def _resolve_symbol_bead_context(target_id: str) -> Any:
     try:
         return resolve_operation_context_for_targets([target_id])
     except BeadOperationRoutingError as exc:
-        print(f"Error: {exc}", file=sys.stderr)
+        from sase.bead.assigned_near_miss import annotate_not_found_message
+
+        print(
+            f"Error: {annotate_not_found_message(str(exc), requested=target_id)}",
+            file=sys.stderr,
+        )
         sys.exit(1)
 
 

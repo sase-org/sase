@@ -217,6 +217,9 @@ def handle_bead_update(args: argparse.Namespace) -> None:
         sys.exit(1)
     bead_context = resolve_bead_operation_context(args.ids, for_write=True)
     issue_ids = list(bead_context.resolved_ids)
+    from sase.bead.assigned_near_miss import warn_if_assigned_near_miss
+
+    warn_if_assigned_near_miss([*args.ids, *issue_ids])
     with bead_store_mutation(
         auto_commit_bead_store,
         bead_context=bead_context,
@@ -255,7 +258,16 @@ def handle_bead_update(args: argparse.Namespace) -> None:
             try:
                 target = proj.show(issue_ids[0])
             except KeyError:
-                print(f"Error: issue not found: {issue_ids[0]}", file=sys.stderr)
+                from sase.bead.assigned_near_miss import annotate_not_found_message
+
+                print(
+                    "Error: "
+                    + annotate_not_found_message(
+                        f"issue not found: {issue_ids[0]}",
+                        requested=issue_ids[0],
+                    ),
+                    file=sys.stderr,
+                )
                 sys.exit(1)
             current = flag_fields(target)
             if current is None:
@@ -358,7 +370,15 @@ def handle_bead_update(args: argparse.Namespace) -> None:
         except KeyError as exc:
             message = str(exc.args[0]) if exc.args else ""
             missing_id = message.rsplit("Issue not found:", 1)[-1].strip()
-            print(f"Error: issue not found: {missing_id}", file=sys.stderr)
+            from sase.bead.assigned_near_miss import annotate_not_found_message
+
+            print(
+                "Error: "
+                + annotate_not_found_message(
+                    f"issue not found: {missing_id}", requested=missing_id
+                ),
+                file=sys.stderr,
+            )
             sys.exit(1)
         except ValueError as exc:
             print(f"Error: {exc}", file=sys.stderr)

@@ -46,5 +46,7 @@ def resolve_bead_operation_context(
 
 def _cli_routing_error_message(message: str) -> str:
     if message.startswith("Issue not found: "):
-        return f"issue not found: {message.removeprefix('Issue not found: ')}"
-    return message
+        message = f"issue not found: {message.removeprefix('Issue not found: ')}"
+    from sase.bead.assigned_near_miss import annotate_not_found_message
+
+    return annotate_not_found_message(message)

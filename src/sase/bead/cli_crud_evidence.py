@@ -218,6 +218,9 @@ def handle_bead_note(args: argparse.Namespace) -> None:
 
     bead_context = resolve_bead_operation_context([args.id], for_write=True)
     issue_id = bead_context.resolved_ids[0]
+    from sase.bead.assigned_near_miss import warn_if_assigned_near_miss
+
+    warn_if_assigned_near_miss([args.id, issue_id])
     echo_rows: list[str] = []
     placement = "skip"
     placement_store: Any | None = None
@@ -286,7 +289,15 @@ def handle_bead_note(args: argparse.Namespace) -> None:
                 )
                 operation = "note"
         except KeyError:
-            print(f"Error: issue not found: {args.id}", file=sys.stderr)
+            from sase.bead.assigned_near_miss import annotate_not_found_message
+
+            print(
+                "Error: "
+                + annotate_not_found_message(
+                    f"issue not found: {args.id}", requested=args.id
+                ),
+                file=sys.stderr,
+            )
             sys.exit(1)
         except ValueError as exc:
             print(f"Error: {exc}", file=sys.stderr)

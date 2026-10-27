@@ -446,6 +446,14 @@ def _run_bead_view_inner(
             )
         if audited_reason is not None:
             _record_bead_reads_before_print(batch, reason=audited_reason)
+            from sase.bead.assigned_near_miss import apply_read_near_miss
+
+            body, pager_document = apply_read_near_miss(
+                body,
+                batch,
+                format_name=args.format,
+                pager_document=pager_document,
+            )
 
     if images_hint and sys.stderr.isatty():
         print(f"\x1b[2m{images_hint}\x1b[0m", file=sys.stderr)
@@ -456,7 +464,14 @@ def _run_bead_view_inner(
     if images_mode == "kitty" and is_show and getattr(args, "format", "full") == "full":
         _emit_kitty_attachment_pixels(batch)
     for failure in batch.failures:
-        print(f"Error: {failure.message}", file=sys.stderr)
+        message = failure.message
+        if audited_reason is not None:
+            from sase.bead.assigned_near_miss import annotate_not_found_message
+
+            message = annotate_not_found_message(
+                message, requested=failure.requested_id
+            )
+        print(f"Error: {message}", file=sys.stderr)
     if batch.failures:
         sys.exit(1)
 

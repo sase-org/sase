@@ -112,9 +112,11 @@ also closes its assigned in-progress bead — see
 [Standalone Task Workflow](bead-triage.md#standalone-task-workflow) — so an explicit
 close is usually only needed for canceling, superseding, or a non-commit resolution.)
 Every requested bead is checked before the first write, so a batch either closes
-completely or leaves the store untouched. A bead with any non-closed descendant is
-rejected and names the unfinished work; phase agents should continue to close only their
-assigned phase bead, not the parent epic. Closing does not touch a bead's existing
+completely or leaves the store untouched. Inside a SASE agent run, a target that differs
+from the assigned bead by one interior segment is refused: the command names both IDs,
+exits non-zero, and writes nothing. A bead with any non-closed descendant is rejected
+and names the unfinished work; phase agents should continue to close only their assigned
+phase bead, not the parent epic. Closing does not touch a bead's existing
 [close history](bead-triage.md#close-history); a new record is only archived there the
 next time the bead reopens.
 
@@ -295,10 +297,13 @@ Display a quick-start guide with common command examples, including required tas
 ## `sase bead open <id>`
 
 Reopen an issue with an `issue_opened` event. Every closed ancestor above it is reopened
-in the same mutation, and the command prints the ancestor IDs it changed. Resolutions,
-close reasons, and close timestamps are archived into each reopened bead's close history
-instead of being discarded — see [Close History](bead-triage.md#close-history); the full
-history also remains available in `sase bead history --format full`.
+in the same mutation, and the command prints the ancestor IDs it changed. Inside a SASE
+agent run, a target that differs from the assigned bead by one interior segment is
+refused the same way as [`sase bead close`](#sase-bead-close-id-id2): both IDs are
+named, the command exits non-zero, and nothing is written. Resolutions, close reasons,
+and close timestamps are archived into each reopened bead's close history instead of
+being discarded — see [Close History](bead-triage.md#close-history); the full history
+also remains available in `sase bead history --format full`.
 
 ## `sase bead resolve-conflicts`
 
@@ -349,9 +354,11 @@ for this command's options.
 Update one or more fields on one or more issues. Every listed bead receives the same
 field changes in a single all-or-nothing store mutation: every ID is resolved and every
 resulting issue is validated before anything is written, so an unknown ID or an invalid
-field value leaves every named bead untouched. Duplicate IDs, including a shorthand
-alongside its resolved full form, collapse to a single update. A single-ID invocation is
-unaffected — same syntax, output line, and commit message as before.
+field value leaves every named bead untouched. Inside a SASE agent run, a target that
+differs from the assigned bead by one interior segment prints the near-miss warning on
+stderr and still applies the update. Duplicate IDs, including a shorthand alongside its
+resolved full form, collapse to a single update. A single-ID invocation is unaffected —
+same syntax, output line, and commit message as before.
 
 See the generated [`sase bead` CLI reference](../cli/bead.md#sase-bead-update) for this
 command's options.

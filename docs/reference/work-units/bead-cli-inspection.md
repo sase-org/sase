@@ -57,6 +57,8 @@ requires `text`, `--remove` forbids it.
 
 For the flattened text projection used by search indexes, bead pages, and
 `--field notes`, see `notes_text` under [`sase bead show`](#sase-bead-show-id-id2).
+Inside a SASE agent run, a target that differs from the assigned bead by one interior
+segment prints the near-miss warning on stderr and still appends the note.
 
 See the generated [`sase bead` CLI reference](../cli/bead.md#sase-bead-note) for this
 command's options.
@@ -79,6 +81,12 @@ the same row shape as `sase artifact read bead:<id>`. `..` expansion audits each
 expanded bead once, duplicates collapse after resolution so each bead is audited once
 per invocation, and unresolved IDs audit only the beads that did resolve. An
 audit-append failure prints the error, prints no bead output, and exits 1.
+
+When a SASE agent run has an assigned bead, and a requested ID differs from that
+assigned ID by exactly one inserted or deleted interior segment, `read` prints a warning
+banner at the top and bottom of text output (or on stderr for `--format json`) naming
+both IDs. A missing ID that is the same kind of near-miss appends
+`did you mean '<assigned>'?` to the not-found error.
 
 Inside a SASE agent run with an identity, the command also queues one
 `agent:<name> -read-> bead:<id>` graph-edge row per bead; outside an agent run it prints
