@@ -14,7 +14,10 @@ from sase.agents_sync import (
     _commit_publication_support as publication_support,
     git_sync,
 )
-from sase.agents_sync import commit_publication_transaction, git_sync_transaction
+from sase.agents_sync import (
+    _commit_publication_transaction_steps as transaction_steps,
+    git_sync_transaction,
+)
 from sase.agents_sync.commit_publication import publish_committed_agent_hood
 from sase.agents_sync.git import run_git
 from sase.agents_sync.models import TargetSelection
@@ -142,7 +145,7 @@ def test_manifest_timeout_cleans_regenerable_paths_and_preserves_objects(
 
     monkeypatch.setattr(publication_locked, "publish_agent_hood", publish_with_scratch)
     monkeypatch.setattr(
-        commit_publication_transaction,
+        transaction_steps,
         "read_owner_manifest",
         blocked_manifest,
     )
