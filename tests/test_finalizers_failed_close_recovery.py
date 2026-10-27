@@ -35,11 +35,11 @@ from sase.finalizers.config import (
     FinalizerFieldProvenance,
 )
 from sase.finalizers.controller import run_finalizers
+from sase.finalizers._failed_close_recovery_assess import assess_terminal_failure
 from sase.finalizers.failed_close_recovery import (
     RECOVERY_OUTCOME_FILENAME,
     RECOVERY_REQUEST_FILENAME,
     STITCH_FAILED_NOTE_PREFIX,
-    _assess_terminal_failure,
     coordinate_failed_close_recovery,
 )
 from sase.finalizers.plan import resolve_and_persist_finalizer_plan
@@ -134,14 +134,14 @@ def _machine_lane(monkeypatch: pytest.MonkeyPatch, beads_dir: Path) -> Iterator[
         )
 
     monkeypatch.setattr(
-        "sase.finalizers.failed_close_recovery._resolve_machine_project",
+        "sase.finalizers._failed_close_recovery_apply._resolve_machine_project",
         lambda _artifacts: "test-recovery",
     )
     monkeypatch.setattr(
-        "sase.finalizers.failed_close_recovery._acquire_recovery_store", acquire
+        "sase.finalizers._failed_close_recovery_apply._acquire_recovery_store", acquire
     )
     monkeypatch.setattr(
-        "sase.finalizers.failed_close_recovery._commit_recovery_mutation", commit
+        "sase.finalizers._failed_close_recovery_apply._commit_recovery_mutation", commit
     )
     yield
 
@@ -455,7 +455,7 @@ class TestControls:
                 run_controller(artifacts)
         with BeadProject(tmp_path / "beadstore") as project:
             assert project.show(phase_id).status == Status.CLOSED
-        assessment = _assess_terminal_failure(
+        assessment = assess_terminal_failure(
             str(artifacts),
             failure_code="boom_failed",
             failure_message="boom",
@@ -509,7 +509,7 @@ class TestLandingProofs:
         artifacts = tmp_path / "artifacts"
         self._submit_two_repo_declaration(monkeypatch, artifacts, (repo_a, repo_b))
         _record_landing_marker(artifacts, dirty_repo(repo_a, name="repo-0"))
-        assessment = _assess_terminal_failure(
+        assessment = assess_terminal_failure(
             str(artifacts),
             failure_code="stitch_failed",
             failure_message="hook failed",
@@ -553,7 +553,7 @@ class TestLandingProofs:
             (artifacts / "commit_results.json").write_text(
                 json.dumps(markers), encoding="utf-8"
             )
-            return _assess_terminal_failure(
+            return assess_terminal_failure(
                 str(artifacts),
                 failure_code="stitch_failed",
                 failure_message="hook failed",
@@ -599,7 +599,7 @@ class TestHandoffAndIdentity:
             PromptDirectives(), artifacts_dir=str(artifacts)
         )
         (artifacts / PLAN_PENDING_MARKER).write_text("1\n", encoding="utf-8")
-        assessment = _assess_terminal_failure(
+        assessment = assess_terminal_failure(
             str(artifacts),
             failure_code="stitch_failed",
             failure_message="hook failed",
@@ -662,7 +662,7 @@ class TestPublicationFailure:
         with _machine_lane(monkeypatch, beads_dir):
             submit_commit(artifacts)
             monkeypatch.setattr(
-                "sase.finalizers.failed_close_recovery._push_recovery_mutation",
+                "sase.finalizers._failed_close_recovery_apply._push_recovery_mutation",
                 lambda _beads: SimpleNamespace(
                     pushed=False, skipped_no_remote=False, error="push refused"
                 ),
@@ -697,7 +697,7 @@ class TestPublicationFailure:
         with _machine_lane(monkeypatch, beads_dir):
             submit_commit(artifacts)
             monkeypatch.setattr(
-                "sase.finalizers.failed_close_recovery._push_recovery_mutation",
+                "sase.finalizers._failed_close_recovery_apply._push_recovery_mutation",
                 lambda _beads: SimpleNamespace(
                     pushed=False, skipped_no_remote=False, error="push refused"
                 ),
@@ -707,7 +707,7 @@ class TestPublicationFailure:
             # A later retry recovers nothing new but finishes publication
             # through the real push (the failure patch above is replaced).
             monkeypatch.setattr(
-                "sase.finalizers.failed_close_recovery._push_recovery_mutation",
+                "sase.finalizers._failed_close_recovery_apply._push_recovery_mutation",
                 lambda beads: push_bead_work_launch(Path(beads)),
             )
             failure = BuiltinCommitFinalizerError(
