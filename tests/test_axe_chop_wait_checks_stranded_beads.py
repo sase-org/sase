@@ -7,6 +7,7 @@ import json
 import time
 from pathlib import Path
 from types import SimpleNamespace
+from uuid import uuid4
 
 import pytest
 
@@ -18,7 +19,11 @@ from sase.agent.pending_handoff import GATE_PENDING_MARKER, MONITOR_PENDING_MARK
 from sase.bead.model import Status
 from sase.core.agent_scan_wire import DoneMarkerWire
 from sase.core.stranded_work_facade import StrandedWorkReport, StrandedWorkVerdict
-from sase.notifications.store import load_notifications
+from sase.notifications.models import Notification
+from sase.notifications.store import (
+    append_notification,
+    load_notifications,
+)
 from sase.scripts._chop_wait_checks_common import StrandedBeadWaiter
 import sase.scripts._chop_wait_checks_terminal as wait_checks_terminal
 
@@ -59,7 +64,53 @@ def _wire_targeted_collector(
         "canonical_beads_dir_for_project",
         lambda _project: beads_dir,
     )
+
+    def statuses_for_project(_project: str, bead_ids: object) -> dict[str, str]:
+        wanted = {str(bead_id) for bead_id in bead_ids}
+        return {issue.id: issue.status.value for issue in issues if issue.id in wanted}
+
+    monkeypatch.setattr(
+        wait_checks_run,
+        "bead_statuses_for_project",
+        statuses_for_project,
+    )
     return beads_dir
+
+
+def _seed_stranded_notification(project: str, bead_id: str) -> None:
+    append_notification(
+        Notification(
+            id=str(uuid4()),
+            timestamp="2026-10-26T00:00:00+00:00",
+            sender="wait_checks",
+            notes=[f"Stranded bead: {bead_id}"],
+            tags=["wait", "blocked", "stranded"],
+            dedup_key=f"wait_checks:stranded-bead:{project}:{bead_id}",
+        )
+    )
+
+
+def _ensure_projects_dir(tmp_path: Path) -> None:
+    (tmp_path / ".sase" / "projects" / "proj").mkdir(parents=True, exist_ok=True)
+
+
+def _capture_collection_targets(
+    monkeypatch: pytest.MonkeyPatch,
+) -> list[tuple[str, tuple[str, ...]]]:
+    calls: list[tuple[str, tuple[str, ...]]] = []
+    real = wait_checks_run.collect_targeted_stranded_report
+
+    def wrapped(
+        project: str,
+        bead_ids: set[str] | frozenset[str] | tuple[str, ...],
+        *,
+        now: float,
+    ):
+        calls.append((project, tuple(sorted(bead_ids))))
+        return real(project, bead_ids, now=now)
+
+    monkeypatch.setattr(wait_checks_run, "collect_targeted_stranded_report", wrapped)
+    return calls
 
 
 def _make_waiters(tmp_path: Path, *suffixes: str) -> list[Path]:
@@ -413,3 +464,349 @@ def test_targeted_collector_loads_only_named_candidates_and_child_context(
         PROJECT,
         bead_ids=[_BEAD_ID],
     ) == {_BEAD_ID: "Target", "sase-1.2.plan": "Context"}
+
+
+def test_parse_stranded_bead_wait_dedup_key_ignores_malformed() -> None:
+    parse = wait_checks_terminal._parse_stranded_bead_wait_dedup_key
+    assert parse(f"wait_checks:stranded-bead:proj:{_BEAD_ID}") == ("proj", _BEAD_ID)
+    assert parse("wait_checks:stranded-bead:proj") is None
+    assert parse("wait_checks:stranded-bead:") is None
+    assert parse("wait_checks:terminal-blocked:/tmp/waiter") is None
+    assert parse("other:stranded-bead:proj:sase-1") is None
+    assert parse(None) is None
+
+
+def test_stranded_alert_dismisses_when_waiter_is_already_ready(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    closed_ids: set[str] = set()
+    _point_wait_bead_status(monkeypatch, closed_ids)
+    now = time.time()
+    artifact = tmp_path / "stranded-turn"
+    artifact.mkdir()
+    issues = [phase(_BEAD_ID, assignee=_BEAD_ID, parent_id=_PARENT_ID)]
+    records = [
+        record(
+            artifact,
+            name=_BEAD_ID,
+            session=_BEAD_ID,
+            done=DoneMarkerWire(outcome="completed", finished_at=now - 3600),
+        )
+    ]
+    _wire_targeted_collector(monkeypatch, tmp_path, issues, records)
+    waiter = _make_waiters(tmp_path, "waiter")[0]
+
+    run_wait_checks(tmp_path, monkeypatch)
+    assert len(load_notifications()) == 1
+
+    issues[:] = [phase(_BEAD_ID, assignee=_BEAD_ID, status=Status.CLOSED)]
+    closed_ids.add(_BEAD_ID)
+    (waiter / "ready.json").write_text("{}", encoding="utf-8")
+    run_wait_checks(tmp_path, monkeypatch)
+    assert len(load_notifications()) == 0
+
+    (waiter / "waiting.json").unlink()
+    run_wait_checks(tmp_path, monkeypatch)
+    assert load_notifications() == []
+
+
+def test_stranded_alert_dismisses_when_waiting_marker_is_removed(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    closed_ids: set[str] = set()
+    _point_wait_bead_status(monkeypatch, closed_ids)
+    now = time.time()
+    artifact = tmp_path / "stranded-turn"
+    artifact.mkdir()
+    issues = [phase(_BEAD_ID, assignee=_BEAD_ID, parent_id=_PARENT_ID)]
+    records = [
+        record(
+            artifact,
+            name=_BEAD_ID,
+            session=_BEAD_ID,
+            done=DoneMarkerWire(outcome="completed", finished_at=now - 3600),
+        )
+    ]
+    _wire_targeted_collector(monkeypatch, tmp_path, issues, records)
+    waiter = _make_waiters(tmp_path, "waiter")[0]
+
+    run_wait_checks(tmp_path, monkeypatch)
+    assert len(load_notifications()) == 1
+
+    issues[:] = [phase(_BEAD_ID, assignee=_BEAD_ID, status=Status.CLOSED)]
+    closed_ids.add(_BEAD_ID)
+    (waiter / "waiting.json").unlink()
+    run_wait_checks(tmp_path, monkeypatch)
+    assert load_notifications() == []
+
+
+def test_stranded_alert_dismisses_when_waiter_died(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    closed_ids: set[str] = set()
+    _point_wait_bead_status(monkeypatch, closed_ids)
+    now = time.time()
+    artifact = tmp_path / "stranded-turn"
+    artifact.mkdir()
+    issues = [phase(_BEAD_ID, assignee=_BEAD_ID, parent_id=_PARENT_ID)]
+    records = [
+        record(
+            artifact,
+            name=_BEAD_ID,
+            session=_BEAD_ID,
+            done=DoneMarkerWire(outcome="completed", finished_at=now - 3600),
+        )
+    ]
+    _wire_targeted_collector(monkeypatch, tmp_path, issues, records)
+    waiter = _make_waiters(tmp_path, "waiter")[0]
+
+    run_wait_checks(tmp_path, monkeypatch)
+    assert len(load_notifications()) == 1
+
+    (waiter / "agent_meta.json").write_text(
+        json.dumps({"stopped_at": "2026-10-26T00:00:00Z", "pid": 1}),
+        encoding="utf-8",
+    )
+    issues[:] = [phase(_BEAD_ID, assignee=_BEAD_ID, status=Status.CLOSED)]
+    closed_ids.add(_BEAD_ID)
+    run_wait_checks(tmp_path, monkeypatch)
+    assert load_notifications() == []
+
+
+@pytest.mark.parametrize("state", ["settling", "owned", "delegated"])
+def test_notification_only_reconciliation_dismisses_resolved_states(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    state: str,
+) -> None:
+    _point_wait_bead_status(monkeypatch)
+    now = time.time()
+    artifact = tmp_path / "active-turn"
+    artifact.mkdir()
+    issues = [phase(_BEAD_ID, assignee=_BEAD_ID, parent_id=_PARENT_ID)]
+    if state == "settling":
+        records = [
+            record(
+                artifact,
+                name=_BEAD_ID,
+                session=_BEAD_ID,
+                done=DoneMarkerWire(outcome="completed", finished_at=now - 30),
+            )
+        ]
+    elif state == "owned":
+        records = [record(artifact, name=_BEAD_ID, session=_BEAD_ID, pid=os.getpid())]
+    else:
+        from sase.agent.pending_handoff import PLAN_PENDING_MARKER
+
+        (artifact / PLAN_PENDING_MARKER).write_text("", encoding="utf-8")
+        records = [
+            record(
+                artifact,
+                name=_BEAD_ID,
+                session=_BEAD_ID,
+                done=DoneMarkerWire(outcome="completed", finished_at=now - 3600),
+            )
+        ]
+    _wire_targeted_collector(monkeypatch, tmp_path, issues, records)
+    monkeypatch.setattr(Path, "home", lambda: tmp_path)
+    _ensure_projects_dir(tmp_path)
+    _seed_stranded_notification("proj", _BEAD_ID)
+
+    run_wait_checks(tmp_path, monkeypatch)
+
+    assert load_notifications() == []
+
+
+def test_closed_bead_absent_from_reducer_still_dismisses_outstanding_alert(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _point_wait_bead_status(monkeypatch)
+    now = time.time()
+    artifact = tmp_path / "stranded-turn"
+    artifact.mkdir()
+    issues = [phase(_BEAD_ID, assignee=_BEAD_ID, status=Status.CLOSED)]
+    records = [
+        record(
+            artifact,
+            name=_BEAD_ID,
+            session=_BEAD_ID,
+            done=DoneMarkerWire(outcome="completed", finished_at=now - 3600),
+        )
+    ]
+    _wire_targeted_collector(monkeypatch, tmp_path, issues, records)
+    monkeypatch.setattr(Path, "home", lambda: tmp_path)
+    _ensure_projects_dir(tmp_path)
+    _seed_stranded_notification("proj", _BEAD_ID)
+    calls = _capture_collection_targets(monkeypatch)
+
+    run_wait_checks(tmp_path, monkeypatch)
+
+    assert load_notifications() == []
+    assert calls == []
+
+
+def test_status_read_failure_retains_outstanding_stranded_alert(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _point_wait_bead_status(monkeypatch)
+    now = time.time()
+    artifact = tmp_path / "stranded-turn"
+    artifact.mkdir()
+    issues = [phase(_BEAD_ID, assignee=_BEAD_ID, status=Status.CLOSED)]
+    records = [
+        record(
+            artifact,
+            name=_BEAD_ID,
+            session=_BEAD_ID,
+            done=DoneMarkerWire(outcome="completed", finished_at=now - 3600),
+        )
+    ]
+    _wire_targeted_collector(monkeypatch, tmp_path, issues, records)
+    monkeypatch.setattr(Path, "home", lambda: tmp_path)
+    _ensure_projects_dir(tmp_path)
+    _seed_stranded_notification("proj", _BEAD_ID)
+    monkeypatch.setattr(
+        wait_checks_run,
+        "bead_statuses_for_project",
+        lambda *_args, **_kwargs: None,
+    )
+
+    run_wait_checks(tmp_path, monkeypatch)
+
+    assert len(load_notifications()) == 1
+
+
+def test_collection_failure_retains_outstanding_stranded_alert(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _point_wait_bead_status(monkeypatch)
+    now = time.time()
+    artifact = tmp_path / "stranded-turn"
+    artifact.mkdir()
+    issues = [phase(_BEAD_ID, assignee=_BEAD_ID, parent_id=_PARENT_ID)]
+    records = [
+        record(
+            artifact,
+            name=_BEAD_ID,
+            session=_BEAD_ID,
+            done=DoneMarkerWire(outcome="completed", finished_at=now - 3600),
+        )
+    ]
+    _wire_targeted_collector(monkeypatch, tmp_path, issues, records)
+    monkeypatch.setattr(Path, "home", lambda: tmp_path)
+    _ensure_projects_dir(tmp_path)
+    _seed_stranded_notification("proj", _BEAD_ID)
+
+    def fail(*_args, **_kwargs):
+        raise OSError("index unavailable")
+
+    monkeypatch.setattr(wait_checks_run, "collect_targeted_stranded_report", fail)
+    run_wait_checks(tmp_path, monkeypatch)
+
+    assert len(load_notifications()) == 1
+
+
+def test_no_stranded_work_without_pending_waits_or_active_alerts(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    status_calls: list[object] = []
+    collect_calls: list[object] = []
+
+    def record_status(*args: object, **kwargs: object) -> dict[str, str]:
+        status_calls.append((args, kwargs))
+        return {}
+
+    def record_collect(*args: object, **kwargs: object) -> None:
+        collect_calls.append((args, kwargs))
+
+    monkeypatch.setattr(wait_checks_run, "bead_statuses_for_project", record_status)
+    monkeypatch.setattr(
+        wait_checks_run,
+        "collect_targeted_stranded_report",
+        record_collect,
+    )
+    _ensure_projects_dir(tmp_path)
+
+    run_wait_checks(tmp_path, monkeypatch)
+
+    assert load_notifications() == []
+    assert status_calls == []
+    assert collect_calls == []
+
+
+def test_reconciliation_collects_only_pending_and_outstanding_ids(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _point_wait_bead_status(monkeypatch)
+    now = time.time()
+    artifact = tmp_path / "stranded-turn"
+    artifact.mkdir()
+    other_id = "sase-9"
+    issues = [
+        phase(_BEAD_ID, assignee=_BEAD_ID, parent_id=_PARENT_ID),
+        phase(other_id, assignee=other_id, parent_id="sase-8"),
+        phase("sase-1.3", assignee="sase-1.3", parent_id=_PARENT_ID),
+    ]
+    records = [
+        record(
+            artifact,
+            name=_BEAD_ID,
+            session=_BEAD_ID,
+            done=DoneMarkerWire(outcome="completed", finished_at=now - 3600),
+        )
+    ]
+    _wire_targeted_collector(monkeypatch, tmp_path, issues, records)
+    _make_waiters(tmp_path, "waiter")
+    monkeypatch.setattr(Path, "home", lambda: tmp_path)
+    _seed_stranded_notification("other-proj", other_id)
+    append_notification(
+        Notification(
+            id=str(uuid4()),
+            timestamp="2026-10-26T00:00:00+00:00",
+            sender="wait_checks",
+            notes=["malformed"],
+            tags=["wait", "blocked", "stranded"],
+            dedup_key="wait_checks:stranded-bead:proj",
+        )
+    )
+    append_notification(
+        Notification(
+            id=str(uuid4()),
+            timestamp="2026-10-26T00:00:00+00:00",
+            sender="wait_checks",
+            notes=["unrelated"],
+            tags=["wait", "blocked"],
+            dedup_key="wait_checks:terminal-blocked:/tmp/waiter",
+        )
+    )
+    append_notification(
+        Notification(
+            id=str(uuid4()),
+            timestamp="2026-10-26T00:00:00+00:00",
+            sender="other",
+            notes=["wrong sender"],
+            tags=["stranded"],
+            dedup_key=f"wait_checks:stranded-bead:proj:{_BEAD_ID}",
+        )
+    )
+    calls = _capture_collection_targets(monkeypatch)
+
+    run_wait_checks(tmp_path, monkeypatch)
+
+    assert sorted(calls) == [
+        ("other-proj", (other_id,)),
+        ("proj", (_BEAD_ID,)),
+    ]
+    assert any(
+        row.dedup_key == f"wait_checks:stranded-bead:proj:{_BEAD_ID}"
+        for row in load_notifications()
+        if row.sender == "wait_checks"
+    )

@@ -17,6 +17,8 @@ from pathlib import Path
 from typing import Any
 
 from sase.axe.wait_marker_scan import scan_waiting_markers, waiting_runner_liveness
+from sase.bead.model import Status
+from sase.bead.store_locator import bead_statuses_for_project
 from sase.bead.wait_status import WaitBeadStatusCache
 from sase.chops.builtin import BuiltinChopRuntime, builtin_chop, run_builtin_chop
 from sase.chops.sdk import ChopResultBuilder
@@ -40,6 +42,7 @@ from sase.scripts._chop_wait_checks_run_waiters import (
     process_one_waiter,
 )
 from sase.scripts._chop_wait_checks_terminal import (
+    outstanding_stranded_bead_wait_targets,
     reconcile_epic_follow_notifications,
     reconcile_stranded_bead_wait_notifications,
     stranded_bead_wait_dedup_key,
@@ -116,48 +119,96 @@ def _marker_has_epic_follows(waiting_path: Path) -> bool:
 def _process_stranded_bead_waits(tick: WaitChecksTick) -> None:
     """Collect each touched project once and publish bead-level wait alerts."""
     now = time.time()
-    for project, bead_ids in sorted(tick.stranded_bead_ids_by_project.items()):
-        try:
-            snapshot = collect_targeted_stranded_report(
-                project,
-                bead_ids,
-                now=now,
-            )
-        except Exception as exc:  # noqa: BLE001 - alerts must fail open.
-            tick.runtime.log(
-                f"[wait_checks] Stranded-bead collection failed for {project}; "
-                f"leaving notifications unchanged: {exc}"
-            )
+    try:
+        outstanding = outstanding_stranded_bead_wait_targets()
+    except Exception as exc:  # noqa: BLE001 - alerts must fail open.
+        tick.runtime.log(
+            "[wait_checks] Stranded-bead notification load failed; "
+            f"leaving existing rows unchanged: {exc}"
+        )
+        outstanding = {}
+
+    projects = set(tick.stranded_bead_ids_by_project) | set(outstanding)
+    if not projects:
+        return
+
+    for project in sorted(projects):
+        pending_ids = tick.stranded_bead_ids_by_project.get(project, set())
+        notify_ids = outstanding.get(project, set())
+        target_ids = {
+            bead_id.strip()
+            for bead_id in pending_ids | notify_ids
+            if isinstance(bead_id, str) and bead_id.strip()
+        }
+        if not target_ids:
             continue
+
+        closed_ids = set(tick.stranded_bead_closed_ids_by_project.get(project, set()))
+        try:
+            status_by_id = bead_statuses_for_project(project, tuple(sorted(target_ids)))
+        except Exception as exc:  # noqa: BLE001 - missing status is not resolved.
+            tick.runtime.log(
+                f"[wait_checks] Stranded-bead status read failed for {project}; "
+                f"not treating missing status as resolved: {exc}"
+            )
+            status_by_id = None
+        else:
+            if status_by_id is None:
+                tick.runtime.log(
+                    f"[wait_checks] Stranded-bead status read unavailable for "
+                    f"{project}; not treating missing status as resolved"
+                )
+        if status_by_id is not None:
+            closed_ids.update(
+                bead_id
+                for bead_id in target_ids
+                if status_by_id.get(bead_id) == Status.CLOSED.value
+            )
+
+        collect_ids = target_ids - closed_ids
+        snapshot = None
+        if collect_ids:
+            try:
+                snapshot = collect_targeted_stranded_report(
+                    project,
+                    collect_ids,
+                    now=now,
+                )
+            except Exception as exc:  # noqa: BLE001 - alerts must fail open.
+                tick.runtime.log(
+                    f"[wait_checks] Stranded-bead collection failed for {project}; "
+                    f"leaving notifications unchanged: {exc}"
+                )
+                continue
 
         waiters_by_id = tick.stranded_bead_waiters_by_project.get(project, {})
         dismiss_keys = {
-            stranded_bead_wait_dedup_key(project, bead_id)
-            for bead_id in tick.stranded_bead_closed_ids_by_project.get(project, set())
+            stranded_bead_wait_dedup_key(project, bead_id) for bead_id in closed_ids
         }
-        for verdict in snapshot.report.verdicts:
-            key = stranded_bead_wait_dedup_key(project, verdict.bead_id)
-            if verdict.state in {"owned", "delegated", "settling"}:
-                dismiss_keys.add(key)
-                continue
-            if verdict.state != "stranded":
-                continue
-            blocked_waiters = waiters_by_id.get(verdict.bead_id, {})
-            if not blocked_waiters:
-                continue
-            try:
-                upsert_stranded_bead_wait_notification(
-                    project,
-                    verdict,
-                    snapshot.titles.get(verdict.bead_id, ""),
-                    tuple(blocked_waiters.values()),
-                    now=now,
-                )
-            except Exception as exc:  # noqa: BLE001 - alerts never park waiters.
-                tick.runtime.log(
-                    f"[wait_checks] Stranded-bead notification failed for "
-                    f"{project}:{verdict.bead_id}: {exc}"
-                )
+        if snapshot is not None:
+            for verdict in snapshot.report.verdicts:
+                key = stranded_bead_wait_dedup_key(project, verdict.bead_id)
+                if verdict.state in {"owned", "delegated", "settling"}:
+                    dismiss_keys.add(key)
+                    continue
+                if verdict.state != "stranded":
+                    continue
+                blocked_waiters = waiters_by_id.get(verdict.bead_id, {})
+                if not blocked_waiters:
+                    continue
+                try:
+                    upsert_stranded_bead_wait_notification(
+                        project,
+                        verdict,
+                        snapshot.titles.get(verdict.bead_id, ""),
+                        tuple(blocked_waiters.values()),
+                        now=now,
+                    )
+                except Exception as exc:  # noqa: BLE001 - alerts never park waiters.
+                    tick.runtime.log(
+                        f"[wait_checks] Stranded-bead notification failed for "
+                        f"{project}:{verdict.bead_id}: {exc}"
+                    )
 
         if dismiss_keys:
             try:

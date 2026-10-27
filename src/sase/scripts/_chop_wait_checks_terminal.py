@@ -187,6 +187,33 @@ def stranded_bead_wait_dedup_key(project: str, bead_id: str) -> str:
     return f"{_STRANDED_BEAD_DEDUP_PREFIX}{project}:{bead_id}"
 
 
+def _parse_stranded_bead_wait_dedup_key(key: str | None) -> tuple[str, str] | None:
+    """Return ``(project, bead_id)`` from a canonical stranded-bead wait key."""
+    if not isinstance(key, str) or not key.startswith(_STRANDED_BEAD_DEDUP_PREFIX):
+        return None
+    remainder = key.removeprefix(_STRANDED_BEAD_DEDUP_PREFIX)
+    project, sep, bead_id = remainder.partition(":")
+    project = project.strip()
+    bead_id = bead_id.strip()
+    if not sep or not project or not bead_id:
+        return None
+    return project, bead_id
+
+
+def outstanding_stranded_bead_wait_targets() -> dict[str, set[str]]:
+    """Group undismissed stranded-bead wait alerts by project and bead ID."""
+    targets: dict[str, set[str]] = {}
+    for row in load_notifications():
+        if row.sender != _TERMINAL_BLOCKED_WAIT_SENDER:
+            continue
+        parsed = _parse_stranded_bead_wait_dedup_key(row.dedup_key)
+        if parsed is None:
+            continue
+        project, bead_id = parsed
+        targets.setdefault(project, set()).add(bead_id)
+    return targets
+
+
 def upsert_stranded_bead_wait_notification(
     project: str,
     verdict: StrandedWorkVerdict,
@@ -564,6 +591,7 @@ __all__ = [
     "epic_follow_blocked_dedup_key",
     "epic_follow_land_failed_dedup_key",
     "epic_follow_launching_dedup_key",
+    "outstanding_stranded_bead_wait_targets",
     "reconcile_epic_follow_notifications",
     "reconcile_stranded_bead_wait_notifications",
     "stranded_bead_wait_dedup_key",
