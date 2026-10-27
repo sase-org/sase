@@ -34,8 +34,6 @@ _STALE_GLYPH = "⟳"
 _OVER_GLYPH = "▲"
 _OVERRIDE_MARK = "*"
 _FAULT_MARK = "!"
-_STALE_AFTER_SECONDS = 25.0
-_OVERRIDE_WARNING_AFTER_SECONDS = 14 * 24 * 3600
 _HOLDER_TOOLTIP_LIMIT = 12
 _INSPECTOR_HINT = ",l opens the capacity inspector"
 _REMOTE_NOTE = "This chip is this machine's capacity; remote capacity is not shown."
@@ -97,13 +95,19 @@ def _override_marks(provenance: Any, *, now: float) -> tuple[bool, bool]:
     created_at = getattr(active, "created_at", None)
     warning = False
     if expires_at is None and isinstance(created_at, (int, float)):
-        warning = (now - float(created_at)) >= _OVERRIDE_WARNING_AFTER_SECONDS
+        from sase.core.runner_slots import CAPACITY_OVERRIDE_WARNING_AFTER_SECONDS
+
+        warning = (now - float(created_at)) >= CAPACITY_OVERRIDE_WARNING_AFTER_SECONDS
     return True, warning
 
 
 def _is_stale(report_age_seconds: float | None) -> bool:
     """Return whether the report is older than ~2.5 poll cycles."""
-    return report_age_seconds is not None and report_age_seconds >= _STALE_AFTER_SECONDS
+    if report_age_seconds is None:
+        return False
+    from sase.core.runner_slots import CAPACITY_REPORT_STALE_AFTER_SECONDS
+
+    return report_age_seconds >= CAPACITY_REPORT_STALE_AFTER_SECONDS
 
 
 def _agent_load_value_style(

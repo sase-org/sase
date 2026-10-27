@@ -59,13 +59,23 @@ from ._signal import (
 )
 
 if TYPE_CHECKING:
+    from ._capacity_gauge import (
+        capacity_gauge_cells as capacity_gauge_cells,
+    )
     from ._capacity_view import (
+        CAPACITY_OVERRIDE_WARNING_AFTER_SECONDS as CAPACITY_OVERRIDE_WARNING_AFTER_SECONDS,
+        CAPACITY_REPORT_STALE_AFTER_SECONDS as CAPACITY_REPORT_STALE_AFTER_SECONDS,
+        CapacityGaugeCell as CapacityGaugeCell,
         CapacityHoldingRow as CapacityHoldingRow,
         CapacityIdleGroup as CapacityIdleGroup,
+        CapacityLimitInfo as CapacityLimitInfo,
         CapacityQueuedRow as CapacityQueuedRow,
         CapacityRiderRow as CapacityRiderRow,
+        CapacityTone as CapacityTone,
+        CapacityVerdict as CapacityVerdict,
         MachineCapacityView as MachineCapacityView,
         capacity_view as capacity_view,
+        format_capacity_duration as format_capacity_duration,
     )
     from ._machine_capacity import (
         DISPLAY_RESCAN_INTERVAL_SECONDS as DISPLAY_RESCAN_INTERVAL_SECONDS,
@@ -85,13 +95,21 @@ if TYPE_CHECKING:
 # consumers and admission wrappers, not by importing this package at TUI
 # startup. Keep them off the app import closure.
 _LAZY_EXPORTS = {
+    "CAPACITY_OVERRIDE_WARNING_AFTER_SECONDS": "sase.core.runner_slots._capacity_view",
+    "CAPACITY_REPORT_STALE_AFTER_SECONDS": "sase.core.runner_slots._capacity_view",
+    "CapacityGaugeCell": "sase.core.runner_slots._capacity_view",
     "CapacityHoldingRow": "sase.core.runner_slots._capacity_view",
     "CapacityIdleGroup": "sase.core.runner_slots._capacity_view",
+    "CapacityLimitInfo": "sase.core.runner_slots._capacity_view",
     "CapacityQueuedRow": "sase.core.runner_slots._capacity_view",
     "CapacityRiderRow": "sase.core.runner_slots._capacity_view",
+    "CapacityTone": "sase.core.runner_slots._capacity_view",
+    "CapacityVerdict": "sase.core.runner_slots._capacity_view",
     "DISPLAY_RESCAN_INTERVAL_SECONDS": "sase.core.runner_slots._machine_capacity",
     "MachineCapacityView": "sase.core.runner_slots._capacity_view",
+    "capacity_gauge_cells": "sase.core.runner_slots._capacity_gauge",
     "capacity_view": "sase.core.runner_slots._capacity_view",
+    "format_capacity_duration": "sase.core.runner_slots._capacity_view",
     "MachineCapacityRecordInputs": "sase.core.runner_slots._machine_capacity",
     "MachineCapacityReport": "sase.core.runner_slots._machine_capacity",
     "RUNNER_SLOT_SCAN_OPTIONS": "sase.core.runner_slots._scan",
@@ -119,10 +137,16 @@ def __dir__() -> list[str]:
 _PEP562_HOOKS = (__getattr__, __dir__)
 
 __all__ = [
+    "CAPACITY_OVERRIDE_WARNING_AFTER_SECONDS",
+    "CAPACITY_REPORT_STALE_AFTER_SECONDS",
+    "CapacityGaugeCell",
     "CapacityHoldingRow",
     "CapacityIdleGroup",
+    "CapacityLimitInfo",
     "CapacityQueuedRow",
     "CapacityRiderRow",
+    "CapacityTone",
+    "CapacityVerdict",
     "DEFAULT_QUEUE_WEIGHT",
     "DEFAULT_WAIT_PRIORITY",
     "DISPLAY_RESCAN_INTERVAL_SECONDS",
@@ -160,8 +184,10 @@ __all__ = [
     "runner_capacity_snapshot",
     "runner_capacity_snapshot_from_capacity_records",
     "runner_slot_admission_lock",
+    "capacity_gauge_cells",
     "capacity_session_keys_for_core",
     "capacity_view",
+    "format_capacity_duration",
     "runner_slot_candidate_record",
     "runner_slot_agent_session_key",
     "runner_slot_lock_path",
