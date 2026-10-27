@@ -17,13 +17,22 @@ from sase.core.wait_dependency_resolution import (
 from sase.agent.auto_restart.forward import recovery_in_flight
 from sase.core.wait_dependency_resolution._epic_follow import EpicFollowDecision
 from sase.core.wait_dependency_resolution._types import ArtifactCandidate
+from sase.core.stranded_work_facade import StrandedWorkVerdict
+from sase.bead.stranded_presentation import (
+    stranded_age_label,
+    stranded_cause_sentence,
+)
 from sase.notifications.models import Notification, normalize_notification_tags
 from sase.notifications.store import (
     load_notifications,
     mark_dismissed,
     upsert_notification,
 )
-from sase.scripts._chop_wait_checks_common import TerminalBlocker, WaitingMarker
+from sase.scripts._chop_wait_checks_common import (
+    StrandedBeadWaiter,
+    TerminalBlocker,
+    WaitingMarker,
+)
 
 _TERMINAL_BLOCKED_WAIT_SENDER = "wait_checks"
 
@@ -31,6 +40,7 @@ _TERMINAL_BLOCKED_WAIT_SENDER = "wait_checks"
 # waiter and target (or epic), so each case produces exactly one entry with
 # +1 corroboration on repeat ticks.
 _EPIC_FOLLOW_DEDUP_PREFIX = "wait_checks:epic-follow-"
+_STRANDED_BEAD_DEDUP_PREFIX = "wait_checks:stranded-bead:"
 
 # Mirrors the collector's ``launching_grace_seconds`` default: a LAUNCHING
 # follow stays quiet until its ``since`` is older than this.
@@ -168,6 +178,86 @@ def upsert_terminal_blocked_wait_notification(
             f"Still blocked on {blocker.dependency}: {blocker.artifact_dir} "
             f"({blocker.outcome})"
         ),
+        plus_one_timestamp=timestamp,
+    )
+
+
+def stranded_bead_wait_dedup_key(project: str, bead_id: str) -> str:
+    """Return the single shared wait notification key for a stranded bead."""
+    return f"{_STRANDED_BEAD_DEDUP_PREFIX}{project}:{bead_id}"
+
+
+def upsert_stranded_bead_wait_notification(
+    project: str,
+    verdict: StrandedWorkVerdict,
+    title: str,
+    waiters: tuple[StrandedBeadWaiter, ...],
+    *,
+    now: float,
+) -> None:
+    """Upsert one notification for a stranded bead with live waiters."""
+    timestamp = datetime.now(get_timezone()).isoformat()
+    waiter_lines = [
+        f"{waiter.name} ({waiter.artifact_dir})"
+        for waiter in sorted(waiters, key=lambda item: (item.name, item.artifact_dir))
+    ]
+    last_turn = verdict.last_turn or "unknown"
+    age = stranded_age_label(verdict.since, now)
+    last_turn_note = f"Last turn: {last_turn}"
+    if age:
+        last_turn_note += f" ({age} ago)"
+    notes = [
+        f"Stranded bead: {verdict.bead_id} — {title or '(untitled)'}",
+        f"Cause: {stranded_cause_sentence(verdict)}",
+        last_turn_note,
+        f"Waiters blocked: {', '.join(waiter_lines)}",
+    ]
+    if verdict.kind == "phase":
+        if verdict.parent_id:
+            notes.append(
+                "Relaunch with: `sase bead work "
+                f"{verdict.parent_id} --yes-to-all` "
+                "(relaunches every non-closed phase and the land agent)."
+            )
+        else:
+            notes.append(
+                "Relaunch the parent epic with `sase bead work <epic-id> "
+                "--yes-to-all` (relaunches every non-closed phase and the land agent)."
+            )
+    else:
+        notes.append(f"Relaunch with: `sase bead work {verdict.bead_id} --yes`.")
+    notes.append(
+        f"When the work is actually done, close it with `sase bead close "
+        f'{verdict.bead_id} --note "<what you verified>"`.'
+    )
+
+    files = [waiter.artifact_dir for waiter in waiters]
+    if verdict.last_turn_artifact_dir:
+        files.append(verdict.last_turn_artifact_dir)
+    action = None
+    action_data: dict[str, str] = {}
+    if verdict.last_turn and verdict.last_turn_artifact_dir:
+        action = "JumpToAgent"
+        action_data = {
+            "cl_name": verdict.last_turn,
+            "raw_suffix": Path(verdict.last_turn_artifact_dir).name,
+        }
+    notification = Notification(
+        id=str(uuid4()),
+        timestamp=timestamp,
+        sender=_TERMINAL_BLOCKED_WAIT_SENDER,
+        icon="!",
+        color="#D14343",
+        notes=notes,
+        files=list(dict.fromkeys(files)),
+        tags=normalize_notification_tags(["wait", "blocked", "stranded"]),
+        action=action,
+        action_data=action_data,
+        dedup_key=stranded_bead_wait_dedup_key(project, verdict.bead_id),
+    )
+    upsert_notification(
+        notification,
+        plus_one_note=f"Still blocked waiters: {', '.join(waiter_lines)}",
         plus_one_timestamp=timestamp,
     )
 
@@ -450,14 +540,37 @@ def reconcile_epic_follow_notifications(
     return dismissed
 
 
+def reconcile_stranded_bead_wait_notifications(
+    dismiss_dedup_keys: set[str],
+) -> int:
+    """Dismiss only stranded-bead rows whose bead state was freshly resolved."""
+    if not dismiss_dedup_keys:
+        return 0
+    dismissed = 0
+    for row in load_notifications():
+        if row.sender != _TERMINAL_BLOCKED_WAIT_SENDER:
+            continue
+        if row.dedup_key not in dismiss_dedup_keys:
+            continue
+        try:
+            if mark_dismissed(row.id):
+                dismissed += 1
+        except Exception:
+            continue
+    return dismissed
+
+
 __all__ = [
     "epic_follow_blocked_dedup_key",
     "epic_follow_land_failed_dedup_key",
     "epic_follow_launching_dedup_key",
     "reconcile_epic_follow_notifications",
+    "reconcile_stranded_bead_wait_notifications",
+    "stranded_bead_wait_dedup_key",
     "terminal_blockers",
     "upsert_epic_follow_blocked_notification",
     "upsert_epic_follow_land_failed_notification",
     "upsert_epic_follow_launching_notification",
     "upsert_terminal_blocked_wait_notification",
+    "upsert_stranded_bead_wait_notification",
 ]

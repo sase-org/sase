@@ -25,7 +25,16 @@ class TerminalBlocker:
     outcome: str
 
 
+@dataclass(frozen=True)
+class StrandedBeadWaiter:
+    """One waiter currently blocked on an unclosed bead."""
+
+    name: str
+    artifact_dir: str
+
+
 __all__ = [
+    "StrandedBeadWaiter",
     "TerminalBlocker",
     "WaitingMarker",
 ]

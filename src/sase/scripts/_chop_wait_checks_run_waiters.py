@@ -25,7 +25,11 @@ from sase.core.wait_dependency_resolution import (
     resolve_wait_release,
 )
 from sase.core.wait_dependency_resolution._artifact_state import artifact_dir_key
-from sase.scripts._chop_wait_checks_common import TerminalBlocker, WaitingMarker
+from sase.scripts._chop_wait_checks_common import (
+    StrandedBeadWaiter,
+    TerminalBlocker,
+    WaitingMarker,
+)
 from sase.scripts._chop_wait_checks_run_fs import (
     clone_empty_index,
     filesystem_dependency_rows,
@@ -89,6 +93,13 @@ class WaitChecksTick:
     epic_follow_seen: bool = False
     epic_follow_active_keys: set[str] = field(default_factory=set)
     epic_follow_reconciled_dirs: set[str] = field(default_factory=set)
+    stranded_bead_ids_by_project: dict[str, set[str]] = field(default_factory=dict)
+    stranded_bead_closed_ids_by_project: dict[str, set[str]] = field(
+        default_factory=dict
+    )
+    stranded_bead_waiters_by_project: dict[
+        str, dict[str, dict[str, StrandedBeadWaiter]]
+    ] = field(default_factory=dict)
     view_ms: int = 0
     view_rows: int = 0
     scope_cache_used: bool = False
@@ -177,6 +188,46 @@ def _epic_follow_notification_keys(
             f"[wait_checks] Epic-follow notification failed for {waiter_dir}: {exc}",
         )
     return active
+
+
+def _record_stranded_bead_waits(
+    tick: WaitChecksTick,
+    waiter: LiveWaiter,
+    blocked_on: tuple[str, ...],
+    closed_bead_ids: frozenset[str] | set[str] | None,
+) -> None:
+    """Remember bead waits for one post-resolution project collection."""
+    bead_ids = tuple(
+        dict.fromkeys(
+            bead_id.strip()
+            for bead_id in waiter.wait_for_beads
+            if isinstance(bead_id, str) and bead_id.strip()
+        )
+    )
+    if not bead_ids:
+        return
+    project = waiter.waiting_marker.project_name
+    tick.stranded_bead_ids_by_project.setdefault(project, set()).update(bead_ids)
+    if closed_bead_ids is not None:
+        tick.stranded_bead_closed_ids_by_project.setdefault(project, set()).update(
+            bead_id for bead_id in bead_ids if bead_id in closed_bead_ids
+        )
+
+    blocked = set(blocked_on)
+    waiter_dir = str(waiter.waiting_marker.waiting_path.parent)
+    waiter_name = waiter.data.get("cl_name")
+    if not isinstance(waiter_name, str) or not waiter_name:
+        waiter_name = waiter.waiting_marker.waiting_path.parent.name
+    per_project = tick.stranded_bead_waiters_by_project.setdefault(project, {})
+    for bead_id in bead_ids:
+        if bead_id not in blocked or (
+            closed_bead_ids is not None and bead_id in closed_bead_ids
+        ):
+            continue
+        per_project.setdefault(bead_id, {}).setdefault(
+            waiter_dir,
+            StrandedBeadWaiter(name=waiter_name, artifact_dir=waiter_dir),
+        )
 
 
 def process_one_waiter(
@@ -315,6 +366,7 @@ def process_one_waiter(
                 f"(blocked on: {blocked or '<unknown>'})",
             )
         return
+    _record_stranded_bead_waits(tick, waiter, status.blocked_on, closed_bead_ids)
     if wait_for_epics_of or wait_epic_follows:
         tick.epic_follow_seen = True
     if decision.patch is not None:
@@ -399,6 +451,10 @@ def process_one_waiter(
             self_artifact_dir=waiting_marker.waiting_path.parent,
         )
         for blocker in found_blockers:
+            if blocker.dependency in {
+                bead_id for bead_id in wait_for_beads if isinstance(bead_id, str)
+            }:
+                continue
             upsert_terminal_blocked_wait_notification(
                 waiting_marker,
                 data,

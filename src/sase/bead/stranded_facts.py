@@ -10,6 +10,7 @@ from __future__ import annotations
 
 from dataclasses import asdict
 from pathlib import Path
+from collections.abc import Iterable
 from typing import Any
 
 from sase.agent._running_listing_common import (
@@ -58,9 +59,12 @@ _PENDING_FOLLOWUP_AGENT = "<pending-turn-followup>"
 
 
 def collect_stranded_work_input(
-    project: str, *, now: float | None = None
+    project: str,
+    *,
+    now: float | None = None,
+    bead_ids: Iterable[str] | None = None,
 ) -> dict[str, Any]:
-    """Build the reducer input mapping for *project*."""
+    """Build reducer input for *project*, optionally scoped to named beads."""
     moment = float(now) if now is not None else _now_epoch()
     beads_dir = canonical_beads_dir_for_project(project)
     if beads_dir is None:
@@ -70,7 +74,7 @@ def collect_stranded_work_input(
             "settle_grace_seconds": _SETTLE_GRACE_SECONDS,
             "beads": [],
         }
-    candidates, context = _candidate_and_context_issues(beads_dir)
+    candidates, context = _candidate_and_context_issues(beads_dir, bead_ids=bead_ids)
     sessions = _session_record_cache(
         project, {issue.assignee for issue in candidates if issue.assignee}
     )
@@ -89,12 +93,14 @@ def collect_stranded_work_input(
     }
 
 
-def collect_issue_titles(project: str) -> dict[str, str]:
+def collect_issue_titles(
+    project: str, *, bead_ids: Iterable[str] | None = None
+) -> dict[str, str]:
     """Return bead-id to title for every issue the collector loaded."""
     beads_dir = canonical_beads_dir_for_project(project)
     if beads_dir is None:
         return {}
-    candidates, context = _candidate_and_context_issues(beads_dir)
+    candidates, context = _candidate_and_context_issues(beads_dir, bead_ids=bead_ids)
     titles: dict[str, str] = {}
     for issue in (*candidates, *context):
         if issue.id and issue.id not in titles:
@@ -109,10 +115,15 @@ def _now_epoch() -> float:
 
 
 def _candidate_and_context_issues(
-    beads_dir: Path,
+    beads_dir: Path, *, bead_ids: Iterable[str] | None = None
 ) -> tuple[list[Issue], list[Issue]]:
     in_progress = list_issues(beads_dir, statuses=[Status.IN_PROGRESS])
-    candidates = [issue for issue in in_progress if _is_candidate(issue)]
+    wanted = None if bead_ids is None else {item for item in bead_ids if item}
+    candidates = [
+        issue
+        for issue in in_progress
+        if _is_candidate(issue) and (wanted is None or issue.id in wanted)
+    ]
     phase_ids = {
         issue.id for issue in candidates if issue.issue_type is IssueType.PHASE
     }

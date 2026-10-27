@@ -206,6 +206,9 @@ Remedies: fork the last turn with `%id(bead=<id>) #fork:<turn>`, or close the be
 `sase bead close <id> --note "…"`. `sase doctor` reports stranded beads on the
 `project.beads` check.
 
+A live waiter blocked on a stranded bead raises one `wait_checks` notification for that
+bead, shared by all waiters currently blocked on it.
+
 ## Related
 
 - [Beads](beads.md)

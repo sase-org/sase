@@ -28,7 +28,7 @@ The following events generate notifications:
 | `service`                      | A desired-running service proc entered crash-loop or the restart policy gave up on it; the notes name the reason, restart count, log path, and the reviving `sase service proc start <name>` command |
 | `file-hooks`                   | A configured per-file hook completed or failed, or a producer-side dispatch failure before a command ran                                                                                             |
 | `mentors`                      | All mentors finished for a Patch entry (or none matched)                                                                                                                                             |
-| `wait_checks`                  | A `%wait` dependency ended in a terminal state that can never satisfy the waiter                                                                                                                     |
+| `wait_checks`                  | A `%wait` dependency ended in a terminal state that can never satisfy the waiter, or a live waiter is blocked on a stranded bead                                                                     |
 | `gate`                         | A gate turn's follow-up handoff failed; the notes name the failed stage and the resume command                                                                                                       |
 | `agent_hold`                   | A `%hold` or `sase agent hold` admission hold was armed or released                                                                                                                                  |
 | `runner_slot_admission`        | A held agent and the agent holding it are blocking each other (hold deadlock)                                                                                                                        |
@@ -201,6 +201,12 @@ of creating a new one.
   deliberately clearing the wait. The row attaches both artifact directories and carries
   the `wait`, `blocked`, and `terminal-dependency` tags; later checks append
   `Still blocked on …` evidence.
+- **Stranded-bead waits.** A live waiter blocked on an unclosed stranded bead raises one
+  `wait_checks` notification for that bead, shared by every blocked waiter. The notes
+  name the bead, its stranded cause and last turn, list the waiters, and provide the
+  relaunch or close command. When known, the row jumps to the bead's last agent turn and
+  carries the `wait`, `blocked`, and `stranded` tags; later checks append the current
+  blocked waiter list as `+1` evidence.
 - **Hold armed and released.** Arming a `sase agent hold` admission hold posts one
   `agent_hold` row per armer with the `agent-hold` and `armed` tags, its expiry, and any
   frozen `pending` capture counts. The

@@ -32,13 +32,19 @@ from sase.scripts._chop_wait_checks_run_fs import (
     filesystem_dependency_rows,
 )
 from sase.scripts._chop_wait_checks_common import WaitingMarker
+from sase.scripts._chop_wait_checks_stranded import collect_targeted_stranded_report
 from sase.scripts._chop_wait_checks_run_waiters import (
     MAX_TERMINAL_BLOCKER_LOGS,
     LiveWaiter,
     WaitChecksTick,
     process_one_waiter,
 )
-from sase.scripts._chop_wait_checks_terminal import reconcile_epic_follow_notifications
+from sase.scripts._chop_wait_checks_terminal import (
+    reconcile_epic_follow_notifications,
+    reconcile_stranded_bead_wait_notifications,
+    stranded_bead_wait_dedup_key,
+    upsert_stranded_bead_wait_notification,
+)
 
 
 def _as_list(value: object) -> list[Any]:
@@ -105,6 +111,67 @@ def _marker_has_epic_follows(waiting_path: Path) -> bool:
     except (json.JSONDecodeError, OSError):
         return False
     return isinstance(data, dict) and bool(data.get("wait_epic_follows"))
+
+
+def _process_stranded_bead_waits(tick: WaitChecksTick) -> None:
+    """Collect each touched project once and publish bead-level wait alerts."""
+    now = time.time()
+    for project, bead_ids in sorted(tick.stranded_bead_ids_by_project.items()):
+        try:
+            snapshot = collect_targeted_stranded_report(
+                project,
+                bead_ids,
+                now=now,
+            )
+        except Exception as exc:  # noqa: BLE001 - alerts must fail open.
+            tick.runtime.log(
+                f"[wait_checks] Stranded-bead collection failed for {project}; "
+                f"leaving notifications unchanged: {exc}"
+            )
+            continue
+
+        waiters_by_id = tick.stranded_bead_waiters_by_project.get(project, {})
+        dismiss_keys = {
+            stranded_bead_wait_dedup_key(project, bead_id)
+            for bead_id in tick.stranded_bead_closed_ids_by_project.get(project, set())
+        }
+        for verdict in snapshot.report.verdicts:
+            key = stranded_bead_wait_dedup_key(project, verdict.bead_id)
+            if verdict.state in {"owned", "delegated", "settling"}:
+                dismiss_keys.add(key)
+                continue
+            if verdict.state != "stranded":
+                continue
+            blocked_waiters = waiters_by_id.get(verdict.bead_id, {})
+            if not blocked_waiters:
+                continue
+            try:
+                upsert_stranded_bead_wait_notification(
+                    project,
+                    verdict,
+                    snapshot.titles.get(verdict.bead_id, ""),
+                    tuple(blocked_waiters.values()),
+                    now=now,
+                )
+            except Exception as exc:  # noqa: BLE001 - alerts never park waiters.
+                tick.runtime.log(
+                    f"[wait_checks] Stranded-bead notification failed for "
+                    f"{project}:{verdict.bead_id}: {exc}"
+                )
+
+        if dismiss_keys:
+            try:
+                dismissed = reconcile_stranded_bead_wait_notifications(dismiss_keys)
+            except Exception as exc:  # noqa: BLE001 - reconciliation fails open.
+                tick.runtime.log(
+                    f"[wait_checks] Stranded-bead reconcile failed for {project}: {exc}"
+                )
+                continue
+            if dismissed:
+                tick.runtime.log(
+                    f"[wait_checks] Cleared {dismissed} resolved stranded-bead "
+                    f"notification(s) for {project}"
+                )
 
 
 @builtin_chop("wait_checks")
@@ -326,6 +393,8 @@ def _run(
                     f"[wait_checks] Waiter {waiter_dir} ({waiter_name}) failed: {exc}",
                 )
             continue
+
+    _process_stranded_bead_waits(tick)
 
     resolve_ms = int((time.monotonic() - resolve_started) * 1000)
 
