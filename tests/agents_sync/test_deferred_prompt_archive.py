@@ -260,3 +260,37 @@ def test_full_sync_keeps_the_request_when_the_original_prompt_source_is_gone(
     assert "missing local source" in remaining.last_error or (
         "unresolved" in remaining.last_error
     )
+
+
+def test_full_sync_parks_a_blocked_prompt_without_charging_attempts(
+    deferred_publication: tuple[ProjectTarget, Path, Path],
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    from tests.agents_sync.test_prompt_archive_protection import (
+        MARKER,
+        _install_marker_scanner,
+    )
+    from sase.agents_sync.prompt_archive.protection import PROMPT_PROTECTION_BLOCKED
+
+    target, remote, artifacts_dir = deferred_publication
+    _install_marker_scanner(monkeypatch)
+    (artifacts_dir / "raw_xprompt.md").write_text(
+        f"deferred {MARKER.decode()}\n", encoding="utf-8"
+    )
+    _stub_full_sync(monkeypatch, target, artifacts_dir)
+
+    [outcome] = git_sync.sync_agents(("proj",))
+
+    assert outcome.error is None
+    verify = tmp_path / "verify-blocked-deferred"
+    git(tmp_path, "clone", str(remote), str(verify))
+    assert not any(
+        MARKER in path.read_bytes()
+        for path in verify.rglob("*")
+        if path.is_file() and ".git" not in path.parts
+    )
+    [remaining] = list_agent_publications("proj")
+    assert remaining.attempts == 0
+    assert not remaining.terminal
+    assert remaining.last_error == PROMPT_PROTECTION_BLOCKED

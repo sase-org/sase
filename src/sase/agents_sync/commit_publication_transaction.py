@@ -596,12 +596,19 @@ def _acknowledge_completed(
     for item in prepared_tuple:
         prompt_error = prompt_failures.get(item.logical_key)
         if prompt_error is not None:
+            from sase.agents_sync.prompt_archive.protection import (
+                should_charge_prompt_protection_failure,
+            )
+
+            charge = should_charge_prompt_protection_failure(prompt_error)
             hooks.update_publications(
                 target.project_key,
                 (item.logical_key,),
                 error=prompt_error,
-                increment_attempts=True,
-                quarantine_threshold=hooks.configured_max_attempts(),
+                increment_attempts=charge,
+                quarantine_threshold=(
+                    hooks.configured_max_attempts() if charge else None
+                ),
             )
             gate_errors.append(prompt_error)
             continue

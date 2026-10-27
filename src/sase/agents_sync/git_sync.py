@@ -173,12 +173,23 @@ def sync_agents(
                         f"published agent page for {item.global_agent!r} "
                         "did not materialize during full sync"
                     )
+                    from sase.agents_sync.prompt_archive.protection import (
+                        should_charge_prompt_protection_failure,
+                    )
+
+                    charge = (
+                        should_charge_prompt_protection_failure(prompt_error)
+                        if prompt_error is not None
+                        else True
+                    )
                     update_agent_publications(
                         target.project_key,
                         (item.logical_key,),
                         error=error,
-                        increment_attempts=True,
-                        quarantine_threshold=configured_publication_max_attempts(),
+                        increment_attempts=charge,
+                        quarantine_threshold=(
+                            configured_publication_max_attempts() if charge else None
+                        ),
                         terminal_reason=None if prompt_error else error,
                     )
             referenced_by_diagnostics: tuple[str, ...] = ()

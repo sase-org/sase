@@ -12,8 +12,8 @@ import pytest
 from sase.agents_sync import publication_protection as protection
 from sase.agents_sync.git import run_git
 from sase.agents_sync.git_sync_ops import (
+    _verify_agents_payload_protection,
     commit_agents_payload_if_dirty,
-    verify_agents_payload_protection,
 )
 from sase.agents_sync.inventory import ProjectHoodInventory
 from sase.agents_sync.publication import publish_agent_hood, reconcile_agent_hoods
@@ -336,7 +336,7 @@ def test_pre_stage_verification_blocks_dirty_secret_file(
     repo = _init_payload_repo(tmp_path / "sidecar")
     (repo / "agents" / "chat.md").write_bytes(b"dirty " + MARKER + b"\n")
 
-    error = verify_agents_payload_protection(repo, run_git)
+    error = _verify_agents_payload_protection(repo, run_git)
 
     assert error is not None and "withheld" in error
     owner = AgentOwnerIdentity("alice", "athena")
@@ -369,7 +369,7 @@ def test_pre_stage_verification_detects_digest_change(
     monkeypatch.setattr(protection, "scan_publication_bytes", mismatched_digest)
     (repo / "schema.json").write_bytes(b'{"dirty": true}\n')
 
-    error = verify_agents_payload_protection(repo, run_git)
+    error = _verify_agents_payload_protection(repo, run_git)
 
     assert error is not None and "changed between scanning and writing" in error
 
@@ -381,6 +381,6 @@ def test_pre_stage_verification_passes_clean_tree(
     _isolate_protection_state(tmp_path, monkeypatch)
     repo = _init_payload_repo(tmp_path / "sidecar")
 
-    assert verify_agents_payload_protection(repo, run_git) is None
+    assert _verify_agents_payload_protection(repo, run_git) is None
     owner = AgentOwnerIdentity("alice", "athena")
     assert commit_agents_payload_if_dirty(repo, owner, run_git) is False

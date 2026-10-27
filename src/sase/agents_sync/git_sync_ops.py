@@ -48,7 +48,7 @@ def commit_agents_payload_if_dirty(
     extra_paths: tuple[str, ...] = (),
     protection_scope: PublicationProtectionScope | None = None,
 ) -> bool | str:
-    protection_error = verify_agents_payload_protection(
+    protection_error = _verify_agents_payload_protection(
         repo,
         git_runner,
         scope=protection_scope,
@@ -73,6 +73,19 @@ def commit_agents_payload_if_dirty(
     )
     if staged.returncode != 0:
         return agents_git_error("could not stage agents sidecar payload", staged)
+    if extra_paths and protection_scope is not None:
+        from sase.agents_sync.prompt_archive.protection import (
+            unstage_unpublishable_archive_paths,
+        )
+
+        withheld = unstage_unpublishable_archive_paths(
+            repo,
+            git_runner,
+            scope=protection_scope,
+            archive_paths=extra_paths,
+        )
+        if withheld is not None:
+            return withheld
     dirty = git_runner(
         repo,
         ["diff", "--cached", "--quiet", "--", *staged_paths],
@@ -108,7 +121,7 @@ def commit_agents_payload_if_dirty(
     return True
 
 
-def verify_agents_payload_protection(
+def _verify_agents_payload_protection(
     repo: Path,
     git_runner: GitRunner,
     *,
@@ -665,5 +678,4 @@ __all__ = [
     "is_agents_non_fast_forward",
     "lock_holder_diagnostic",
     "pull_agents_rebase",
-    "verify_agents_payload_protection",
 ]

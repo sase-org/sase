@@ -62,6 +62,7 @@ STRING_PAIRS: set[tuple[str, str]] = {
     ("tests/agents_sync/test_inventory.py", '"raw_xprompt.md"'),
     ("tests/agents_sync/test_prompt_archive.py", '"raw_xprompt.md"'),
     ("tests/agents_sync/test_prompt_archive_objects.py", '"raw_xprompt.md"'),
+    ("tests/agents_sync/test_prompt_archive_protection.py", '"raw_xprompt.md"'),
     ("tests/agents_sync/test_prompt_archive_publish.py", '"raw_xprompt.md"'),
     (
         "tests/agents_sync/test_prompt_archive_validation.py",

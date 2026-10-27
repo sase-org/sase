@@ -9,6 +9,7 @@ so one lock acquisition -- and one durable retry -- covers both.
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from pathlib import Path
 
 from sase._interruptions import PublicationDrainTimedOut
@@ -26,6 +27,14 @@ from sase.core.agent_publication_recovery import (
 )
 from sase.sase_agent import sase_agent_ref_for_turn
 from sase.sdd.plan_header_block import PlanHeaderSectionKind, parse_plan_header_block
+
+
+@dataclass(frozen=True, slots=True)
+class _DeferredPromptPrepareResult:
+    """Whether a deferred restore wrote, and any protection withhold."""
+
+    wrote: bool
+    protection_status: str | None = None
 
 
 def prompt_runs_by_request(
@@ -53,24 +62,26 @@ def prepare_deferred_prompt_archive(
     git_runner: GitRunner,
     *,
     prompt_runs: dict[tuple[str, str], InventoryRun],
-) -> bool:
+) -> _DeferredPromptPrepareResult:
     """Regenerate one queued prompt archive in the active sidecar transaction.
 
     Returns whether an archive was written. A missing local source is no longer
     treated as success; callers classify that case through the recovery policy.
+    A blocked or unverified prompt is withheld without writing public bytes.
     """
 
     matching = prompt_runs.get((request.local_agent, request.primary_revision))
     if matching is None or matching.source_label is None:
-        return False
+        return _DeferredPromptPrepareResult(wrote=False)
     from sase.legacy_xprompt_names import resolve_raw_prompt_path
 
     artifacts_dir = Path(matching.source_label)
     if resolve_raw_prompt_path(artifacts_dir) is None:
-        return False
+        return _DeferredPromptPrepareResult(wrote=False)
+    from sase.agents_sync.prompt_archive.protection import protection_scope_for_target
     from sase.agents_sync.prompt_archive.publish import prepare_prompt_archive
 
-    prepare_prompt_archive(
+    prepared = prepare_prompt_archive(
         target=target,
         repo=target.sidecar_path,
         agent_name=matching.local_name,
@@ -79,8 +90,13 @@ def prepare_deferred_prompt_archive(
         commit_cwd=target.primary_checkout,
         agent_artifacts_dir=artifacts_dir,
         git_runner=git_runner,
+        protection_scope=protection_scope_for_target(target),
     )
-    return True
+    if prepared.protection_status is not None:
+        return _DeferredPromptPrepareResult(
+            wrote=False, protection_status=prepared.protection_status
+        )
+    return _DeferredPromptPrepareResult(wrote=True)
 
 
 def restore_deferred_prompt_archives(
@@ -107,15 +123,18 @@ def restore_deferred_prompt_archives(
     for request in requests:
         restore_error: str | None = None
         wrote = False
+        protection_status: str | None = None
         matching = prompt_runs.get((request.local_agent, request.primary_revision))
         local_source_present = _local_prompt_source_present(matching)
         try:
-            wrote = prepare_deferred_prompt_archive(
+            prepared = prepare_deferred_prompt_archive(
                 target,
                 request,
                 git_runner,
                 prompt_runs=prompt_runs,
             )
+            wrote = prepared.wrote
+            protection_status = prepared.protection_status
         except PublicationDrainTimedOut:
             raise
         except Exception as exc:  # noqa: BLE001 - durable auxiliary boundary
@@ -123,6 +142,13 @@ def restore_deferred_prompt_archives(
                 "could not restore deferred prompt archive for "
                 f"{request.global_agent}@{request.primary_revision[:12]}: {exc}"
             )
+        if protection_status is not None:
+            from sase.agents_sync.prompt_archive.protection import (
+                protection_skip_reason,
+            )
+
+            failures[request.logical_key] = protection_skip_reason(protection_status)
+            continue
         decision = classify_deferred_prompt_obligation(
             restore_wrote=wrote,
             restore_error=restore_error,

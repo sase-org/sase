@@ -49,6 +49,7 @@ class PromptArchivePublicationOutcome:
     prompt_path: Path | None = None
     skip_reason: str | None = None
     error: str | None = None
+    protection_status: str | None = None
 
 
 def publish_prompt_archive(
@@ -176,10 +177,16 @@ def _publish_prompt_archive(
         cleanup_error = _clean_prompt_archive_worktree(target.sidecar_path, git_runner)
         if cleanup_error is not None:
             return PromptArchivePublicationOutcome(queued=True, error=cleanup_error)
+        from sase.agents_sync.prompt_archive.protection import (
+            protection_scope_for_target,
+            protection_skip_reason,
+        )
+
+        scope = protection_scope_for_target(target)
         # Commit pending objects first so an identical object the remote already
         # tracks rebases cleanly instead of blocking the pull.
         objects_error = _publish_pending_archive_objects(
-            target.sidecar_path, git_runner
+            target.sidecar_path, git_runner, protection_scope=scope
         )
         if isinstance(objects_error, str):
             return PromptArchivePublicationOutcome(queued=True, error=objects_error)
@@ -210,17 +217,20 @@ def _publish_prompt_archive(
                 prompt_name=prompt_name,
                 yyyymm=yyyymm,
                 git_runner=git_runner,
+                protection_scope=scope,
             )
             commit_result = _commit_prompt_archive_if_dirty(
                 target.sidecar_path,
                 global_agent,
                 git_runner,
+                protection_scope=scope,
             )
             if isinstance(commit_result, str):
                 return PromptArchivePublicationOutcome(
                     queued=True,
                     prompt_path=prepared.prompt_path,
                     error=commit_result,
+                    protection_status=prepared.protection_status,
                 )
             should_push = (
                 commit_result
@@ -240,25 +250,39 @@ def _publish_prompt_archive(
                         error=git_sync.agents_git_error(
                             "prompt archive git push failed", pushed
                         ),
+                        protection_status=prepared.protection_status,
                     )
-            try:
-                from sase.core.artifact_ref_files_index import upsert_ref_file_versions
-
-                upsert_ref_file_versions(
-                    prepared.rendered.linked_records,
-                    agent_name=global_agent,
-                    project=target.project,
-                    sidecar_repo=target.sidecar_path.name,
+            if prepared.protection_status is not None:
+                prompt_outcome = PromptArchivePublicationOutcome(
+                    published=False,
+                    queued=True,
+                    prompt_path=prepared.prompt_path,
+                    skip_reason=protection_skip_reason(prepared.protection_status),
+                    protection_status=prepared.protection_status,
                 )
-            except Exception:
-                log.debug("Could not update artifact ref-files index", exc_info=True)
-            for request in prepared.referenced_by_requests:
-                enqueue_referenced_by_request(request)
-            prompt_outcome = PromptArchivePublicationOutcome(
-                published=bool(commit_result),
-                queued=True,
-                prompt_path=prepared.prompt_path,
-            )
+            else:
+                try:
+                    from sase.core.artifact_ref_files_index import (
+                        upsert_ref_file_versions,
+                    )
+
+                    upsert_ref_file_versions(
+                        prepared.rendered.linked_records,
+                        agent_name=global_agent,
+                        project=target.project,
+                        sidecar_repo=target.sidecar_path.name,
+                    )
+                except Exception:
+                    log.debug(
+                        "Could not update artifact ref-files index", exc_info=True
+                    )
+                for request in prepared.referenced_by_requests:
+                    enqueue_referenced_by_request(request)
+                prompt_outcome = PromptArchivePublicationOutcome(
+                    published=bool(commit_result),
+                    queued=True,
+                    prompt_path=prepared.prompt_path,
+                )
         finally:
             # A failed attempt is regenerated from the immutable local pool.
             cleanup_error = _clean_prompt_archive_worktree(
@@ -306,9 +330,18 @@ def prepare_prompt_archive(
     prompt_name: str | None = None,
     yyyymm: str | None = None,
     git_runner: GitRunner = run_git,
+    protection_scope: object | None = None,
 ) -> PreparedPromptArchive:
     """Prepare one archive inside a checkout whose write lock is already held."""
 
+    from sase.agents_sync.prompt_archive.protection import protection_scope_for_target
+    from sase.agents_sync.publication_protection import PublicationProtectionScope
+
+    scope = (
+        protection_scope
+        if isinstance(protection_scope, PublicationProtectionScope)
+        else protection_scope_for_target(target)
+    )
     return _prepare_prompt_archive(
         target=target,
         repo=repo,
@@ -324,6 +357,7 @@ def prepare_prompt_archive(
         git_runner=git_runner,
         hosted_resolver_factory=_hosted_resolver,
         repository_roots_factory=_repository_roots,
+        protection_scope=scope,
     )
 
 

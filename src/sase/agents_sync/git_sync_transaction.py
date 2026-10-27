@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from sase._interruptions import PublicationDrainTimedOut
 from sase.agents_sync.git import GitRunner
@@ -28,6 +28,9 @@ from sase.agents_sync.prompt_archive.git_ops import (
     publish_pending_archive_objects,
 )
 from sase.core.agent_identity_facade import AgentOwnerIdentity
+
+if TYPE_CHECKING:
+    from sase.agents_sync.publication_protection import PublicationProtectionScope
 
 IntegrateExportPass = Callable[
     [ProjectTarget, Path, AgentOwnerIdentity, GitRunner],
@@ -94,8 +97,12 @@ def _sync_project_transaction(
 ) -> SyncOutcome:
     repo = target.sidecar_path
     # Commit pending objects first so an identical object the remote already
-    # tracks rebases cleanly instead of blocking the pull.
-    pending_error = publish_pending_archive_objects(repo, git_runner)
+    # tracks rebases cleanly instead of blocking the pull. Hash-valid text
+    # still has to pass the content scan; blocked bytes stay out of this
+    # early commit.
+    pending_error = publish_pending_archive_objects(
+        repo, git_runner, protection_scope=_protection_scope(target)
+    )
     if isinstance(pending_error, str):
         return _error(target, pending_error)
     pulled = pull_agents_rebase(repo, git_runner, "agents_sync.pull")
@@ -289,10 +296,11 @@ def _commit_transaction_payload(
     export just wrote.
     """
 
-    from sase.agents_sync.publication_protection import PublicationProtectionScope
-
     repo = target.sidecar_path
-    published = publish_pending_archive_objects(repo, git_runner)
+    scope = _protection_scope(target)
+    published = publish_pending_archive_objects(
+        repo, git_runner, protection_scope=scope
+    )
     if isinstance(published, str):
         return published
     return commit_agents_payload_if_dirty(
@@ -300,10 +308,17 @@ def _commit_transaction_payload(
         owner,
         git_runner,
         extra_paths=PUBLISHED_ARCHIVE_PATHS,
-        protection_scope=PublicationProtectionScope(
-            project_key=target.project_key,
-            repository_identity=target.remote_url,
-        ),
+        protection_scope=scope,
+    )
+
+
+def _protection_scope(target: ProjectTarget) -> PublicationProtectionScope:
+    # Deferred so the protection modules stay out of the TUI startup closure.
+    from sase.agents_sync.publication_protection import PublicationProtectionScope
+
+    return PublicationProtectionScope(
+        project_key=target.project_key,
+        repository_identity=target.remote_url,
     )
 
 

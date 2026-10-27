@@ -44,6 +44,7 @@ def test_prepare_prompt_archive_links_and_copies_all_reference_classes(
         "# Rendered\n\n```python\nprint('sent to model')\n```\n",
         encoding="utf-8",
     )
+    monkeypatch.setenv("SASE_HOME", str(tmp_path / "state"))
 
     content = b"diagram bytes"
     digest = hashlib.sha256(content).hexdigest()
@@ -301,6 +302,7 @@ def test_prepare_prompt_archive_accepts_expanded_planner_prompt(
         encoding="utf-8",
     )
     (artifacts_dir / "raw_xprompt.md").write_text("Raw prompt.\n", encoding="utf-8")
+    monkeypatch.setenv("SASE_HOME", str(tmp_path / "state"))
     repo = tmp_path / "agents"
     repo.mkdir()
     target = ProjectTarget(

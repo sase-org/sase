@@ -4,13 +4,18 @@ from __future__ import annotations
 
 from pathlib import Path
 import subprocess
+from typing import TYPE_CHECKING
 
 from sase.agents_sync.git import GitRunner
 from sase.agents_sync.git_sync_ops import AGENTS_SYNC_AUTO_COMMIT_TYPE
 from sase.agents_sync.prompt_archive.archive_objects import (
     ARCHIVE_OBJECT_ROOT,
+    is_valid_archive_object,
     quarantine_invalid_pending_objects,
 )
+
+if TYPE_CHECKING:
+    from sase.agents_sync.publication_protection import PublicationProtectionScope
 
 # Roots rebuilt from the local artifact pool on every publication; cleaning may
 # reset, restore, and delete under them.
@@ -24,6 +29,8 @@ def commit_prompt_archive_if_dirty(
     repo: Path,
     global_agent: str,
     git_runner: GitRunner,
+    *,
+    protection_scope: PublicationProtectionScope | None = None,
 ) -> bool | str:
     """Commit only the incremental prompt/archive path set."""
 
@@ -44,6 +51,19 @@ def commit_prompt_archive_if_dirty(
     )
     if staged.returncode != 0:
         return _git_error("could not stage prompt archive", staged)
+    if protection_scope is not None:
+        from sase.agents_sync.prompt_archive.protection import (
+            unstage_unpublishable_archive_paths,
+        )
+
+        withheld = unstage_unpublishable_archive_paths(
+            repo,
+            git_runner,
+            scope=protection_scope,
+            archive_paths=archive_paths,
+        )
+        if withheld is not None:
+            return withheld
     dirty = git_runner(
         repo,
         ["diff", "--cached", "--quiet", "--", *archive_paths],
@@ -69,6 +89,8 @@ def commit_prompt_archive_if_dirty(
 def publish_pending_archive_objects(
     repo: Path,
     git_runner: GitRunner,
+    *,
+    protection_scope: PublicationProtectionScope | None = None,
 ) -> bool | str:
     """Commit hash-valid untracked ``files/objects`` and quarantine the rest.
 
@@ -76,17 +98,37 @@ def publish_pending_archive_objects(
     after writing it, or an older sase that never committed objects). Committing
     it before ``git pull --rebase`` keeps the pull from refusing to overwrite an
     identical object the remote already tracks: the identical add/add rebases
-    cleanly. The caller holds the agents sync lock.
+    cleanly. Hash validity is independent of the text-scan contract: a
+    hash-valid object still has to pass a content scan, or be explicit nontext,
+    before this commit. The caller holds the agents sync lock.
     """
 
     valid = quarantine_invalid_pending_objects(repo, git_runner)
     if isinstance(valid, str):
         return valid
-    if not valid:
+    publishable = _publishable_pending_objects(
+        repo, valid, protection_scope=protection_scope
+    )
+    if isinstance(publishable, str):
+        return publishable
+    if protection_scope is not None:
+        from sase.agents_sync.prompt_archive.protection import (
+            unstage_unpublishable_archive_paths,
+        )
+
+        withheld = unstage_unpublishable_archive_paths(
+            repo,
+            git_runner,
+            scope=protection_scope,
+            archive_paths=(ARCHIVE_OBJECT_ROOT,),
+        )
+        if withheld is not None:
+            return withheld
+    if not publishable:
         return False
     staged = git_runner(
         repo,
-        ["add", "--", *valid],
+        ["add", "--", *publishable],
         op="agents_sync.prompt_archive_objects_stage",
     )
     if staged.returncode != 0:
@@ -96,7 +138,7 @@ def publish_pending_archive_objects(
         "chore(agents): publish pending prompt-archive objects",
         git_runner,
         op="agents_sync.prompt_archive_objects_commit",
-        paths=valid,
+        paths=publishable,
     )
     return (
         True
@@ -180,6 +222,55 @@ def _commit_as_sase(
         ],
         op=op,
     )
+
+
+def _publishable_pending_objects(
+    repo: Path,
+    valid: tuple[str, ...],
+    *,
+    protection_scope: PublicationProtectionScope | None,
+) -> tuple[str, ...] | str:
+    """Keep hash-valid pending objects that are binary or clean text."""
+
+    if protection_scope is None:
+        return valid
+    from sase.agents_sync.prompt_archive.protection import (
+        preserve_private_publication_object,
+        publication_text_bytes,
+        scan_archive_text_file,
+    )
+
+    publishable: list[str] = []
+    for relative in valid:
+        if not is_valid_archive_object(repo, relative):
+            continue
+        path = repo / relative
+        try:
+            data = path.read_bytes()
+        except OSError as exc:
+            return f"could not read pending prompt archive object {relative}: {exc}"
+        if not publication_text_bytes(data):
+            publishable.append(relative)
+            continue
+        verdict = scan_archive_text_file(
+            path,
+            scope=protection_scope,
+            relative_destination=relative,
+        )
+        if verdict.publishable:
+            publishable.append(relative)
+            continue
+        try:
+            preserve_private_publication_object(
+                project_key=protection_scope.project_key,
+                sha256=verdict.sha256 or path.name,
+                source=path,
+            )
+        except (OSError, ValueError) as exc:
+            return (
+                f"could not preserve withheld prompt archive object {relative}: {exc}"
+            )
+    return tuple(publishable)
 
 
 def _tracked_archive_path(repo: Path, path: str, git_runner: GitRunner) -> bool:

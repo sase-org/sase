@@ -7,7 +7,6 @@ from dataclasses import dataclass
 import json
 import os
 from pathlib import Path
-import shutil
 import tempfile
 from typing import Any
 
@@ -26,7 +25,6 @@ from sase.agents_sync.prompt_archive.render import (
     render_prompt_document,
 )
 from sase.agents_sync.referenced_by_outbox import ReferencedByOutboxItem
-from sase.core.artifact_file_helpers import hash_file
 from sase.core.rust import require_rust_binding
 from sase.core.prompt_artifact_staging import (
     PROMPT_ARTIFACT_MANIFEST_NAME,
@@ -55,6 +53,7 @@ class PreparedPromptArchive:
     rendered: RenderedPromptArchive
     copied_artifacts: tuple[Path, ...]
     referenced_by_requests: tuple[ReferencedByOutboxItem, ...] = ()
+    protection_status: str | None = None
 
 
 def prepare_prompt_archive(
@@ -73,6 +72,7 @@ def prepare_prompt_archive(
     git_runner: GitRunner,
     hosted_resolver_factory: _HostedResolverFactory,
     repository_roots_factory: _RepositoryRootsFactory,
+    protection_scope: object | None = None,
 ) -> PreparedPromptArchive:
     """Prepare one archive inside a checkout whose write lock is already held."""
 
@@ -120,24 +120,84 @@ def prepare_prompt_archive(
     if prompt_content is None:
         raise FileNotFoundError(f"no raw prompt artifact in {agent_artifacts_dir}")
     prompt = prompt_content
+    from sase.agents_sync.prompt_archive.protection import (
+        filter_publishable_pool_records,
+        protection_scope_for_target,
+        scan_archive_text_bytes,
+    )
+    from sase.agents_sync.publication_protection import PublicationProtectionScope
+
+    scope = (
+        protection_scope
+        if isinstance(protection_scope, PublicationProtectionScope)
+        else protection_scope_for_target(target)
+    )
+    relative_prompt = prompt_path.relative_to(repo).as_posix()
+    affected = (f"{global_agent}@{primary_revision}",)
+    raw_verdict = scan_archive_text_bytes(
+        prompt.encode("utf-8"),
+        scope=scope,
+        relative_destination=relative_prompt,
+        affected_requests=affected,
+    )
+    empty = RenderedPromptArchive(document="", linked_records=(), reference_labels=())
+    if not raw_verdict.publishable:
+        return PreparedPromptArchive(
+            prompt_path,
+            empty,
+            (),
+            (),
+            raw_verdict.withheld_reason,
+        )
     agent_target = hosted.agent_url(global_agent) if hosted is not None else None
-    rendered = render_prompt_document(
+    plan_target = (
+        hosted.plan_url(resolved_plan_ref)
+        if hosted is not None and resolved_plan_ref is not None
+        else None
+    )
+    preview = render_prompt_document(
         prompt,
         records,
         artifact_target=target_resolver,
         agent_label=global_agent,
         agent_target=agent_target,
         plan_label=plan_label,
-        plan_target=(
-            hosted.plan_url(resolved_plan_ref)
-            if hosted is not None and resolved_plan_ref is not None
-            else None
-        ),
+        plan_target=plan_target,
     )
-    copied = _publish_linked_artifacts(
-        rendered.linked_records,
-        target_resolver,
+    accepted_records, copied = filter_publishable_pool_records(
+        preview.linked_records,
+        source_for=target_resolver.source_for,
+        repo=repo,
+        scope=scope,
+        affected_requests=affected,
     )
+    rendered = (
+        preview
+        if accepted_records == preview.linked_records
+        else render_prompt_document(
+            prompt,
+            accepted_records,
+            artifact_target=target_resolver,
+            agent_label=global_agent,
+            agent_target=agent_target,
+            plan_label=plan_label,
+            plan_target=plan_target,
+        )
+    )
+    rendered_verdict = scan_archive_text_bytes(
+        rendered.document.encode("utf-8"),
+        scope=scope,
+        relative_destination=relative_prompt,
+        affected_requests=affected,
+    )
+    if not rendered_verdict.publishable:
+        return PreparedPromptArchive(
+            prompt_path,
+            rendered,
+            copied,
+            (),
+            rendered_verdict.withheld_reason,
+        )
     referenced_by_requests = _plan_referenced_by_requests(
         target=target,
         rendered=rendered,
@@ -151,7 +211,15 @@ def prepare_prompt_archive(
     )
     _atomic_write_text(prompt_path, rendered.document)
     index_path = month_dir / "README.md"
-    _atomic_write_text(index_path, render_prompt_month_index(month_dir))
+    index_bytes = render_prompt_month_index(month_dir)
+    index_verdict = scan_archive_text_bytes(
+        index_bytes.encode("utf-8"),
+        scope=scope,
+        relative_destination=index_path.relative_to(repo).as_posix(),
+        affected_requests=affected,
+    )
+    if index_verdict.publishable:
+        _atomic_write_text(index_path, index_bytes)
     return PreparedPromptArchive(prompt_path, rendered, copied, referenced_by_requests)
 
 
@@ -255,26 +323,6 @@ class _ArtifactTargetResolver:
         source = (self.staging_root / pool_relpath).resolve(strict=False)
         pool = (self.staging_root / "pool").resolve(strict=False)
         return source if source.is_relative_to(pool) and source.is_file() else None
-
-
-def _publish_linked_artifacts(
-    records: tuple[PromptArtifactRecord, ...],
-    resolver: _ArtifactTargetResolver,
-) -> tuple[Path, ...]:
-    copied: list[Path] = []
-    for record in records:
-        source = resolver.source_for(record)
-        if source is None:
-            continue
-        expected = record.get("sha256")
-        if not expected or hash_file(source) != expected:
-            raise RuntimeError(f"prompt artifact digest mismatch: {source}")
-        destination = resolver.repo / str(
-            require_rust_binding("artifact_object_relpath")(expected)
-        )
-        _copy_content_addressed(source, destination, expected)
-        copied.append(destination)
-    return tuple(copied)
 
 
 def _plan_referenced_by_requests(
@@ -595,26 +643,6 @@ def _atomic_write_text(path: Path, content: str) -> None:
     try:
         tmp.write_text(content, encoding="utf-8")
         os.replace(tmp, path)
-    finally:
-        tmp.unlink(missing_ok=True)
-
-
-def _copy_content_addressed(source: Path, target: Path, digest: str) -> None:
-    if target.exists():
-        if hash_file(target) != digest:
-            raise RuntimeError(f"prompt artifact digest collision at {target}")
-        return
-    target.parent.mkdir(parents=True, exist_ok=True)
-    descriptor, raw_tmp = tempfile.mkstemp(
-        prefix=f".{target.name}.", suffix=".tmp", dir=target.parent
-    )
-    os.close(descriptor)
-    tmp = Path(raw_tmp)
-    try:
-        shutil.copy2(source, tmp)
-        if hash_file(tmp) != digest:
-            raise RuntimeError(f"prompt artifact changed while publishing: {source}")
-        os.replace(tmp, target)
     finally:
         tmp.unlink(missing_ok=True)
 

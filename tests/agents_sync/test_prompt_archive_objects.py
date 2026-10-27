@@ -165,6 +165,7 @@ def test_pending_object_the_remote_already_tracks_does_not_block_publication(
     git(other, "commit", "-m", "publish object elsewhere")
     git(other, "push")
     _write_object(sidecar, content)
+    monkeypatch.setenv("SASE_HOME", str(tmp_path / "state"))
     pull = run_git(sidecar, ["pull", "--rebase", "--no-autostash"], network=True)
     assert pull.returncode != 0
     assert "would be overwritten" in pull.stderr
