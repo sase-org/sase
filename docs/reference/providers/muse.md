@@ -226,7 +226,11 @@ hook system and does not read Muse state off disk for this. When `SASE_ARTIFACTS
 present, normalized records are appended to `$SASE_ARTIFACTS_DIR/tool_calls.jsonl` with
 `runtime: "muse"` and `source: "stream"` for sase's TUI
 [Agents Tab LLM Calls Panel](../tui/agents-deck-panels.md#agents-tab-llm-calls-panel).
-Fixture coverage is keyed to Muse release `0.1.0-R708.1`.
+Fixture coverage is keyed to Muse release `0.1.0-R708.1`, with the `shell`-tool fixture
+keyed to `1.3.0-R3401.1` and the commentary fixtures
+(`tests/llm_provider/fixtures/muse_exec_commentary_R6996.1.jsonl` and
+`tests/llm_provider/fixtures/muse_session_log_commentary_R6996.1.jsonl`) keyed to
+`1.4.13-R6996.1`.
 
 | Event                                             | Carries                                                                   | Use                                                              |
 | ------------------------------------------------- | ------------------------------------------------------------------------- | ---------------------------------------------------------------- |
