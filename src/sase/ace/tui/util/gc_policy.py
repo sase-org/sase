@@ -52,7 +52,7 @@ ENV_DISABLE = "SASE_TUI_GC_POLICY_DISABLE"
 ENV_CENSUS = "SASE_TUI_GC_CENSUS"
 TICK_INTERVAL_S = 1.0
 IDLE_QUIET_S = 3.0
-BACKSTOP_QUIET_S = 1.0
+BACKSTOP_QUIET_S = 3.0
 MIN_FULL_INTERVAL_S = 60.0
 FULL_BACKSTOP_S = 5 * 60.0
 RSS_GROWTH_BACKSTOP_BYTES = 500 * 1024 * 1024
@@ -393,7 +393,8 @@ class GCPolicy:
                 except Exception:
                     pass
             try:
-                collector.collect()
+                with gc_trigger("idle"):
+                    collector.collect()
             except Exception:
                 pass
         survivor_top: list[dict[str, Any]] = []
