@@ -142,6 +142,22 @@ def _record_pid(record: AgentArtifactRecordWire) -> int | None:
     return None if running is None else running.pid
 
 
+def _record_queue_weight_inherited(record: AgentArtifactRecordWire) -> bool:
+    """Return whether Rust should report this record's weight as inherited.
+
+    Verify monitors inherit the starter's ``queue_weight`` unless the monitor
+    was started with an explicit override (``monitor_queue_weight_overridden``
+    in ``agent_meta.json``). Mirrors Rust's ``is_real_monitor_member``.
+    """
+    meta = record.agent_meta
+    if meta is None or meta.agent_session_role != "monitor":
+        return False
+    turn = meta.agent_session_turn
+    if turn is None or turn.kind != "monitor" or not (turn.id or "").strip():
+        return False
+    return meta.monitor_queue_weight_overridden is not True
+
+
 def capacity_session_keys_for_core(
     *,
     agent_session: str | None,
@@ -242,6 +258,7 @@ def capacity_record_from_scan(
             "queue_weight": queue_weight,
             "queue_weight_explicit": queue_weight_explicit,
             "queue_weight_invalid": queue_weight_invalid,
+            "queue_weight_inherited": _record_queue_weight_inherited(record),
             "slot_requested_at": None if waiting is None else waiting.slot_requested_at,
             "queue_capacity": _record_queue_capacity(record),
             "queue_capacity_multiplier": _record_queue_capacity_multiplier(record),

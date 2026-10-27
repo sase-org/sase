@@ -64,6 +64,7 @@ def _supports_legacy_capacity_fallback(message: str) -> bool:
         field in message
         for field in (
             "queue_capacity",
+            "queue_weight_inherited",
             "holds",
             "agent_name",
             "workflow",
@@ -79,6 +80,7 @@ def _drop_queue_capacity_alias(record: Mapping[str, Any]) -> dict[str, Any]:
     item = with_queue_capacity_alias(record)
     item.pop("queue_capacity", None)
     item.pop("queue_capacity_explicit", None)
+    item.pop("queue_weight_inherited", None)
     for key in ("agent_name", "workflow", "clan", "tribe", "tribes", "created_at"):
         item.pop(key, None)
     return item
