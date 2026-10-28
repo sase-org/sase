@@ -1,7 +1,11 @@
 """Shared Rich render layer for Footprint reports and evidence cards."""
 
 from sase.footprint.render._heat import heat_strip
-from sase.footprint.render._markdown import card_markdown, report_markdown
+from sase.footprint.render._markdown import (
+    card_markdown,
+    report_markdown,
+    review_markdown,
+)
 from sase.footprint.render._report import (
     activity_strip,
     area_card_panel,
@@ -67,6 +71,7 @@ __all__ = [
     "heat_strip",
     "legend_text",
     "report_markdown",
+    "review_markdown",
     "surface_for_ns",
     "tiles_row",
 ]

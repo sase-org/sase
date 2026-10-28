@@ -2848,6 +2848,26 @@
                   "type": "string",
                   "description": "Copy the selected Footprint feature ID"
                 },
+                "keep_feature": {
+                  "type": "string",
+                  "description": "Choose a keep reason for the selected Footprint feature"
+                },
+                "later_feature": {
+                  "type": "string",
+                  "description": "Snooze the selected Footprint feature for 30 days"
+                },
+                "cut_feature": {
+                  "type": "string",
+                  "description": "Mark the selected Footprint feature for a cut review"
+                },
+                "undo_feature_decision": {
+                  "type": "string",
+                  "description": "Clear the selected Footprint review decision"
+                },
+                "finish_footprint_review": {
+                  "type": "string",
+                  "description": "Confirm and launch the Footprint review macro"
+                },
                 "scroll_down": {
                   "type": "string",
                   "description": "Scroll the statistics body down by half a page"

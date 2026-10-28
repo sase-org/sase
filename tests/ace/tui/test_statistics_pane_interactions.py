@@ -53,9 +53,9 @@ async def test_macro_focus_picker_all_clear_key_and_cancel(
         await page.pause()
         macro_scope = pane.query_one("#statistics-scope-macro", Static)
         assert macro_scope.display is True
-        assert "x focus" in pane.query_one("#statistics-hints", Static).render().plain
+        assert "m focus" in pane.query_one("#statistics-hints", Static).render().plain
 
-        await page.press("x")
+        await page.press("m")
         await page.expect_modal("StatisticsMacroPickerModal")
         await page.press("down", "enter")
         await page.wait_for(lambda _state: len(calls) == 2 and not pane._loading)
@@ -64,14 +64,14 @@ async def test_macro_focus_picker_all_clear_key_and_cancel(
         assert calls[-1][3] == "split_file"
         assert "■ #split_file" in _scope_plain(pane, "macro")
 
-        await page.press("x")
+        await page.press("m")
         await page.expect_modal("StatisticsMacroPickerModal")
         await page.press("up", "enter")
         await page.wait_for(lambda _state: len(calls) == 3 and not pane._loading)
         assert pane._macro_focus is None
         assert calls[-1][3] is None
 
-        await page.press("x")
+        await page.press("m")
         await page.expect_modal("StatisticsMacroPickerModal")
         await page.press("down", "enter")
         await page.wait_for(lambda _state: len(calls) == 4 and not pane._loading)
@@ -80,7 +80,7 @@ async def test_macro_focus_picker_all_clear_key_and_cancel(
         assert pane._macro_focus is None
         assert calls[-1][3] is None
 
-        await page.press("x")
+        await page.press("m")
         await page.expect_modal("StatisticsMacroPickerModal")
         await page.press("q")
         await page.expect_modal("ConfigCenterModal")

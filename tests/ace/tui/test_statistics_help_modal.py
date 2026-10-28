@@ -67,6 +67,11 @@ def test_help_documents_every_statistics_binding_and_current_scope() -> None:
             "drill_up",
             "find_feature",
             "copy_feature_id",
+            "keep_feature",
+            "later_feature",
+            "cut_feature",
+            "undo_feature_decision",
+            "finish_footprint_review",
             "focus_macro",
             "clear_macro_focus",
         }:

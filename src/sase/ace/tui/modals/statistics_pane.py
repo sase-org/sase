@@ -107,6 +107,8 @@ class StatisticsPane(StatisticsPaneActionsMixin):
         self._footprint_card_worker: Worker[Any] | None = None
         self._footprint_card_debouncer: DetailPanelDebouncer | None = None
         self._footprint_pending_highlight: str | None = None
+        self._footprint_decision_worker: Worker[Any] | None = None
+        self._footprint_finish_review_worker: Worker[Any] | None = None
         self._project_filter: str | None = None
         self._project_filter_options: tuple[str, ...] = ()
         self._project_filter_options_ready = False
@@ -165,6 +167,10 @@ class StatisticsPane(StatisticsPaneActionsMixin):
             self._code_worker.cancel()
         if self._footprint_card_worker is not None:
             self._footprint_card_worker.cancel()
+        if self._footprint_decision_worker is not None:
+            self._footprint_decision_worker.cancel()
+        if self._footprint_finish_review_worker is not None:
+            self._footprint_finish_review_worker.cancel()
         if self._current_project_seed_worker is not None:
             self._current_project_seed_worker.cancel()
 
@@ -469,6 +475,12 @@ class StatisticsPane(StatisticsPaneActionsMixin):
             return
         if event.worker is self._footprint_card_worker:
             self._on_footprint_card_worker_state(event)
+            return
+        if event.worker is self._footprint_decision_worker:
+            self._on_footprint_decision_worker_state(event)
+            return
+        if event.worker is self._footprint_finish_review_worker:
+            self._on_footprint_finish_review_worker_state(event)
             return
         if event.worker is not self._worker:
             return

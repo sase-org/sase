@@ -249,9 +249,9 @@ def test_scope_renderables_cover_range_group_project_and_status(
     pane._view = "perf"
     assert pane._group_scope_text().plain == " g  Group Perf · By Subsystem"
     pane._view = "macros"
-    assert pane._macro_scope_text().plain == " x/X  Macro All macros"
+    assert pane._macro_scope_text().plain == " m/X  Macro All macros"
     pane._macro_focus = "split_file"
-    assert pane._macro_scope_text().plain == " x/X  Macro ■ #split_file"
+    assert pane._macro_scope_text().plain == " m/X  Macro ■ #split_file"
 
     assert pane._project_scope_text().plain == " p/P  Project All projects"
     pane._view = "perf"

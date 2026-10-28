@@ -215,7 +215,16 @@ def _card_renderable(pane: Any, report: Mapping[str, Any]) -> RenderableType | N
     header = dict(report.get("header", {}))
     if isinstance(card, Mapping) and pane._footprint_card_for == target:
         kind, _name = target
-        return _card_panel(dict(card), header, area=kind == "area")
+        panel = _card_panel(dict(card), header, area=kind == "area")
+        if kind == "feature":
+            return Group(
+                panel,
+                Text(
+                    "k keep · l later · x cut · u undo · F finish review",
+                    style="dim",
+                ),
+            )
+        return panel
     if pane._footprint_card_error and pane._footprint_card is None:
         return Panel(
             Group(

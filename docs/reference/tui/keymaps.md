@@ -396,14 +396,19 @@ These are the bundled defaults for configurable TUI actions. The key and action 
 | `a` | Footprint Actor | `ace.keymaps.statistics.cycle_actor` |
 | `p` | Project Filter | `ace.keymaps.statistics.cycle_project_filter` |
 | `P` | Previous Project Filter | `ace.keymaps.statistics.cycle_project_filter_reverse` |
-| `x` | Focus Macro | `ace.keymaps.statistics.focus_macro` |
+| `m` | Focus Macro | `ace.keymaps.statistics.focus_macro` |
 | `X` | Clear Macro Focus | `ace.keymaps.statistics.clear_macro_focus` |
 | `j / down / Ctrl+N` | Next Footprint Row | `ace.keymaps.statistics.next_row` |
-| `k / up / Ctrl+P` | Previous Footprint Row | `ace.keymaps.statistics.prev_row` |
+| `up / Ctrl+P` | Previous Footprint Row | `ace.keymaps.statistics.prev_row` |
 | `Enter` | Open Area | `ace.keymaps.statistics.open_row` |
 | `backspace` | Back to Map | `ace.keymaps.statistics.drill_up` |
 | `/` | Find Feature | `ace.keymaps.statistics.find_feature` |
 | `y` | Copy Feature ID | `ace.keymaps.statistics.copy_feature_id` |
+| `k` | Keep with Reason | `ace.keymaps.statistics.keep_feature` |
+| `l` | Review Later | `ace.keymaps.statistics.later_feature` |
+| `x` | Mark for Cut | `ace.keymaps.statistics.cut_feature` |
+| `u` | Undo Review Decision | `ace.keymaps.statistics.undo_feature_decision` |
+| `F` | Finish Footprint Review | `ace.keymaps.statistics.finish_footprint_review` |
 | `Ctrl+D` | Scroll Down | `ace.keymaps.statistics.scroll_down` |
 | `Ctrl+U` | Scroll Up | `ace.keymaps.statistics.scroll_up` |
 | `r` | Refresh | `ace.keymaps.statistics.refresh` |

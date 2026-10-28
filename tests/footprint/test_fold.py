@@ -133,6 +133,7 @@ def test_fold_ledger_ingests_loc_folds_prunes_and_discloses_once(
     monkeypatch.setattr(
         fold, "_upsert_disclosure_notification", lambda: notifications.append(True)
     )
+    monkeypatch.setattr(fold, "_review_ready_candidates", lambda *_args: (False, 0))
 
     outcome = fold.fold_ledger(sase_home=tmp_path, today="2026-10-27")
 
@@ -169,6 +170,7 @@ def test_fold_ledger_does_not_repeat_disclosure_after_first_record(
         "_upsert_disclosure_notification",
         lambda: (_ for _ in ()).throw(AssertionError("duplicate disclosure")),
     )
+    monkeypatch.setattr(fold, "_review_ready_candidates", lambda *_args: (False, 0))
 
     outcome = fold.fold_ledger(
         sase_home=tmp_path,
@@ -177,6 +179,59 @@ def test_fold_ledger_does_not_repeat_disclosure_after_first_record(
     )
 
     assert outcome["status"] == after
+
+
+def test_fold_ledger_notifies_when_first_review_candidates_are_ready(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    status = {"first_record_day": "2026-10-27"}
+    monkeypatch.setattr(fold, "_footprint_settings", lambda: fold._DEFAULTS.copy())
+    monkeypatch.setattr(
+        fold,
+        "footprint_catalog_status",
+        lambda *_args, **_kwargs: {"known": True},
+    )
+    monkeypatch.setattr(
+        fold,
+        "footprint_fold",
+        lambda *_args, **_kwargs: {"records_folded": 0},
+    )
+    monkeypatch.setattr(
+        fold,
+        "footprint_prune",
+        lambda *_args, **_kwargs: {},
+    )
+    monkeypatch.setattr(fold, "_read_status", lambda *_args: status)
+    monkeypatch.setattr(fold, "_review_ready_candidates", lambda *_args: (True, 23))
+    notices: list[tuple[Path, int]] = []
+    monkeypatch.setattr(
+        fold,
+        "_append_review_ready_notification",
+        lambda home, candidates: notices.append((home, candidates)),
+    )
+
+    fold.fold_ledger(sase_home=tmp_path, today="2026-10-27", initial_status=status)
+
+    assert notices == [(tmp_path, 23)]
+
+
+def test_review_ready_notification_is_appended_once(
+    monkeypatch, tmp_path: Path
+) -> None:
+    from sase.notifications import store
+
+    notices: list[Any] = []
+    monkeypatch.setattr(store, "append_notification", notices.append)
+
+    fold._append_review_ready_notification(tmp_path, 23)
+    fold._append_review_ready_notification(tmp_path, 9)
+
+    assert len(notices) == 1
+    assert notices[0].sender == "footprint"
+    assert notices[0].notes == ["Your first Footprint review is ready: 23 candidates."]
+    assert notices[0].tags == ["footprint", "review_ready"]
+    assert (tmp_path / "footprint" / "review-ready-notified").is_file()
 
 
 def test_clear_ledger_writes_the_generation_file(monkeypatch, tmp_path: Path) -> None:

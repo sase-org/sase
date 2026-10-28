@@ -164,6 +164,11 @@ class StatisticsHelpModal(ModalScreen[None]):
                 "prev_row",
                 "find_feature",
                 "copy_feature_id",
+                "keep_feature",
+                "later_feature",
+                "cut_feature",
+                "undo_feature_decision",
+                "finish_footprint_review",
             } and (self._current_view != "footprint"):
                 continue
             if action == "open_row" and not (
@@ -242,6 +247,16 @@ class StatisticsHelpModal(ModalScreen[None]):
             return "find any catalog feature and drill to its area"
         if action == "copy_feature_id":
             return "copy the selected feature ID (or area name)"
+        if action == "keep_feature":
+            return "choose a reason and keep the selected feature"
+        if action == "later_feature":
+            return "snooze the selected feature for 30 days"
+        if action == "cut_feature":
+            return "mark the selected feature for an agent review plan"
+        if action == "undo_feature_decision":
+            return "clear the selected feature's local review decision"
+        if action == "finish_footprint_review":
+            return "confirm and launch #footprint_review for marked decisions"
         if action == "cycle_project_filter":
             return f"next ranked project (seeded); current: {self._project_label}"
         if action == "cycle_project_filter_reverse":

@@ -1,4 +1,4 @@
-{"count": 3630, "rev": "5ac917da2a96", "schema": "sase.footprint.catalog/1"}
+{"count": 3643, "rev": "8720e909f052", "schema": "sase.footprint.catalog/1"}
 {"area": "automation", "id": "auto:axe.agent_waits", "kind": "auto", "label": "Resolve agent wait dependencies within seconds of completion", "ns": "auto", "parent": null, "src": "sase/default_config.yml"}
 {"area": "automation", "id": "auto:axe.agent_waits.wait_checks", "kind": "auto", "label": "Resolve agent wait dependencies and write ready.json when satisfied", "ns": "auto", "parent": "auto:axe.agent_waits", "src": "sase/default_config.yml"}
 {"area": "automation", "id": "auto:axe.checks", "kind": "auto", "label": "Poll slower PR-submission and workspace-claim checks on a five-minute cadence", "ns": "auto", "parent": null, "src": "sase/default_config.yml"}
@@ -2496,6 +2496,7 @@
 {"area": "config.ace", "id": "config:ace.keymaps.statistics.clear_macro_focus", "kind": "config", "label": "Clear macro focus", "ns": "config", "parent": null, "src": "sase/default_config.yml"}
 {"area": "config.ace", "id": "config:ace.keymaps.statistics.copy_feature_id", "kind": "config", "label": "Copy feature id", "ns": "config", "parent": null, "src": "sase/default_config.yml"}
 {"area": "config.ace", "id": "config:ace.keymaps.statistics.custom_range", "kind": "config", "label": "Custom range", "ns": "config", "parent": null, "src": "sase/default_config.yml"}
+{"area": "config.ace", "id": "config:ace.keymaps.statistics.cut_feature", "kind": "config", "label": "Cut feature", "ns": "config", "parent": null, "src": "sase/default_config.yml"}
 {"area": "config.ace", "id": "config:ace.keymaps.statistics.cycle_actor", "kind": "config", "label": "Cycle actor", "ns": "config", "parent": null, "src": "sase/default_config.yml"}
 {"area": "config.ace", "id": "config:ace.keymaps.statistics.cycle_group", "kind": "config", "label": "Cycle group", "ns": "config", "parent": null, "src": "sase/default_config.yml"}
 {"area": "config.ace", "id": "config:ace.keymaps.statistics.cycle_project_filter", "kind": "config", "label": "Cycle project filter", "ns": "config", "parent": null, "src": "sase/default_config.yml"}
@@ -2504,9 +2505,12 @@
 {"area": "config.ace", "id": "config:ace.keymaps.statistics.cycle_range_reverse", "kind": "config", "label": "Cycle range reverse", "ns": "config", "parent": null, "src": "sase/default_config.yml"}
 {"area": "config.ace", "id": "config:ace.keymaps.statistics.drill_up", "kind": "config", "label": "Drill up", "ns": "config", "parent": null, "src": "sase/default_config.yml"}
 {"area": "config.ace", "id": "config:ace.keymaps.statistics.find_feature", "kind": "config", "label": "Find feature", "ns": "config", "parent": null, "src": "sase/default_config.yml"}
+{"area": "config.ace", "id": "config:ace.keymaps.statistics.finish_footprint_review", "kind": "config", "label": "Finish footprint review", "ns": "config", "parent": null, "src": "sase/default_config.yml"}
 {"area": "config.ace", "id": "config:ace.keymaps.statistics.focus_macro", "kind": "config", "label": "Focus macro", "ns": "config", "parent": null, "src": "sase/default_config.yml"}
 {"area": "config.ace", "id": "config:ace.keymaps.statistics.help", "kind": "config", "label": "Help", "ns": "config", "parent": null, "src": "sase/default_config.yml"}
 {"area": "config.ace", "id": "config:ace.keymaps.statistics.jump_to_entry", "kind": "config", "label": "Jump to entry", "ns": "config", "parent": null, "src": "sase/default_config.yml"}
+{"area": "config.ace", "id": "config:ace.keymaps.statistics.keep_feature", "kind": "config", "label": "Keep feature", "ns": "config", "parent": null, "src": "sase/default_config.yml"}
+{"area": "config.ace", "id": "config:ace.keymaps.statistics.later_feature", "kind": "config", "label": "Later feature", "ns": "config", "parent": null, "src": "sase/default_config.yml"}
 {"area": "config.ace", "id": "config:ace.keymaps.statistics.next_row", "kind": "config", "label": "Next row", "ns": "config", "parent": null, "src": "sase/default_config.yml"}
 {"area": "config.ace", "id": "config:ace.keymaps.statistics.next_view", "kind": "config", "label": "Next view", "ns": "config", "parent": null, "src": "sase/default_config.yml"}
 {"area": "config.ace", "id": "config:ace.keymaps.statistics.open_row", "kind": "config", "label": "Open row", "ns": "config", "parent": null, "src": "sase/default_config.yml"}
@@ -2516,6 +2520,7 @@
 {"area": "config.ace", "id": "config:ace.keymaps.statistics.scroll_down", "kind": "config", "label": "Scroll down", "ns": "config", "parent": null, "src": "sase/default_config.yml"}
 {"area": "config.ace", "id": "config:ace.keymaps.statistics.scroll_up", "kind": "config", "label": "Scroll up", "ns": "config", "parent": null, "src": "sase/default_config.yml"}
 {"area": "config.ace", "id": "config:ace.keymaps.statistics.select_view", "kind": "config", "label": "Select view", "ns": "config", "parent": null, "src": "sase/default_config.yml"}
+{"area": "config.ace", "id": "config:ace.keymaps.statistics.undo_feature_decision", "kind": "config", "label": "Undo feature decision", "ns": "config", "parent": null, "src": "sase/default_config.yml"}
 {"area": "config.ace", "id": "config:ace.keymaps.tool_runs.copy_run_id", "kind": "config", "label": "Copy run id", "ns": "config", "parent": null, "src": "sase/default_config.yml"}
 {"area": "config.ace", "id": "config:ace.keymaps.tool_runs.cycle_subtab", "kind": "config", "label": "Cycle subtab", "ns": "config", "parent": null, "src": "sase/default_config.yml"}
 {"area": "config.ace", "id": "config:ace.keymaps.tool_runs.cycle_subtab_reverse", "kind": "config", "label": "Cycle subtab reverse", "ns": "config", "parent": null, "src": "sase/default_config.yml"}
@@ -2905,6 +2910,7 @@
 {"area": "macros", "id": "macro:eval_parallel", "kind": "macro", "label": "Macro eval_parallel", "ns": "macro", "parent": null, "src": "sase/macros/eval_parallel.yml"}
 {"area": "macros", "id": "macro:file", "kind": "macro", "label": "Macro file", "ns": "macro", "parent": null, "src": "sase/macros/file.yml"}
 {"area": "macros", "id": "macro:fix_hook", "kind": "macro", "label": "Fix a failing hook command using its captured output file.", "ns": "macro", "parent": null, "src": "sase/macros/fix_hook.md"}
+{"area": "macros", "id": "macro:footprint_review", "kind": "macro", "label": "Turn reviewed Footprint keep, later, and cut decisions into curated overlay reasons and well-scoped task beads.", "ns": "macro", "parent": null, "src": "sase/macros/footprint_review.md"}
 {"area": "macros", "id": "macro:fork", "kind": "macro", "label": "Macro fork", "ns": "macro", "parent": null, "src": "sase/macros/fork.yml"}
 {"area": "macros", "id": "macro:fork_by_chat", "kind": "macro", "label": "Macro fork_by_chat", "ns": "macro", "parent": null, "src": "sase/macros/fork_by_chat.yml"}
 {"area": "macros", "id": "macro:git", "kind": "macro", "label": "Macro git", "ns": "macro", "parent": null, "src": "sase/macros/git.yml"}
@@ -3409,6 +3415,7 @@
 {"area": "tui.statistics", "id": "tui:statistics.clear_macro_focus", "kind": "action", "label": "Clear Macro Focus", "ns": "tui", "parent": null, "src": null}
 {"area": "tui.statistics", "id": "tui:statistics.copy_feature_id", "kind": "action", "label": "Copy Feature ID", "ns": "tui", "parent": null, "src": null}
 {"area": "tui.statistics", "id": "tui:statistics.custom_range", "kind": "action", "label": "Custom Range", "ns": "tui", "parent": null, "src": null}
+{"area": "tui.statistics", "id": "tui:statistics.cut_feature", "kind": "action", "label": "Mark for Cut", "ns": "tui", "parent": null, "src": null}
 {"area": "tui.statistics", "id": "tui:statistics.cycle_actor", "kind": "action", "label": "Footprint Actor", "ns": "tui", "parent": null, "src": null}
 {"area": "tui.statistics", "id": "tui:statistics.cycle_group", "kind": "action", "label": "Group By", "ns": "tui", "parent": null, "src": null}
 {"area": "tui.statistics", "id": "tui:statistics.cycle_project_filter", "kind": "action", "label": "Project Filter", "ns": "tui", "parent": null, "src": null}
@@ -3417,9 +3424,12 @@
 {"area": "tui.statistics", "id": "tui:statistics.cycle_range_reverse", "kind": "action", "label": "Previous Time Range", "ns": "tui", "parent": null, "src": null}
 {"area": "tui.statistics", "id": "tui:statistics.drill_up", "kind": "action", "label": "Back to Map", "ns": "tui", "parent": null, "src": null}
 {"area": "tui.statistics", "id": "tui:statistics.find_feature", "kind": "action", "label": "Find Feature", "ns": "tui", "parent": null, "src": null}
+{"area": "tui.statistics", "id": "tui:statistics.finish_footprint_review", "kind": "action", "label": "Finish Footprint Review", "ns": "tui", "parent": null, "src": null}
 {"area": "tui.statistics", "id": "tui:statistics.focus_macro", "kind": "action", "label": "Focus Macro", "ns": "tui", "parent": null, "src": null}
 {"area": "tui.statistics", "id": "tui:statistics.help", "kind": "action", "label": "Help", "ns": "tui", "parent": null, "src": null}
 {"area": "tui.statistics", "id": "tui:statistics.jump_to_entry", "kind": "action", "label": "Jump", "ns": "tui", "parent": null, "src": null}
+{"area": "tui.statistics", "id": "tui:statistics.keep_feature", "kind": "action", "label": "Keep with Reason", "ns": "tui", "parent": null, "src": null}
+{"area": "tui.statistics", "id": "tui:statistics.later_feature", "kind": "action", "label": "Review Later", "ns": "tui", "parent": null, "src": null}
 {"area": "tui.statistics", "id": "tui:statistics.next_row", "kind": "action", "label": "Next Footprint Row", "ns": "tui", "parent": null, "src": null}
 {"area": "tui.statistics", "id": "tui:statistics.next_view", "kind": "action", "label": "Next View", "ns": "tui", "parent": null, "src": null}
 {"area": "tui.statistics", "id": "tui:statistics.open_row", "kind": "action", "label": "Open Area", "ns": "tui", "parent": null, "src": null}
@@ -3429,6 +3439,7 @@
 {"area": "tui.statistics", "id": "tui:statistics.scroll_down", "kind": "action", "label": "Scroll Down", "ns": "tui", "parent": null, "src": null}
 {"area": "tui.statistics", "id": "tui:statistics.scroll_up", "kind": "action", "label": "Scroll Up", "ns": "tui", "parent": null, "src": null}
 {"area": "tui.statistics", "id": "tui:statistics.select_view", "kind": "action", "label": "Select View by Number", "ns": "tui", "parent": null, "src": null}
+{"area": "tui.statistics", "id": "tui:statistics.undo_feature_decision", "kind": "action", "label": "Undo Review Decision", "ns": "tui", "parent": null, "src": null}
 {"area": "tui.tasks", "id": "tui:tasks", "kind": "action", "label": "Open procs panel", "ns": "tui", "parent": null, "src": "ace/action:open_tasks_panel"}
 {"area": "tui.tool_runs", "id": "tui:tool_runs.copy_run_id", "kind": "action", "label": "Copy Run ID", "ns": "tui", "parent": null, "src": null}
 {"area": "tui.tool_runs", "id": "tui:tool_runs.cycle_subtab", "kind": "action", "label": "Next View", "ns": "tui", "parent": null, "src": null}
@@ -3596,6 +3607,8 @@
 {"area": "modals", "id": "view:modal.spellcheck_panel", "kind": "modal", "label": "Spellcheck panel dialog", "ns": "view", "parent": null, "src": "ace/tui/modals/spellcheck_panel_modal.py:SpellcheckPanelModal"}
 {"area": "modals", "id": "view:modal.stashed_prompts", "kind": "modal", "label": "Stashed prompts dialog", "ns": "view", "parent": null, "src": "ace/tui/modals/stashed_prompts_modal.py:StashedPromptsModal"}
 {"area": "modals", "id": "view:modal.statistics_footprint_finder", "kind": "modal", "label": "Statistics footprint finder dialog", "ns": "view", "parent": null, "src": "ace/tui/modals/statistics_footprint_finder_modal.py:StatisticsFootprintFinderModal"}
+{"area": "modals", "id": "view:modal.statistics_footprint_finish_review", "kind": "modal", "label": "Statistics footprint finish review dialog", "ns": "view", "parent": null, "src": "ace/tui/modals/statistics_footprint_review_modal.py:StatisticsFootprintFinishReviewModal"}
+{"area": "modals", "id": "view:modal.statistics_footprint_keep_reason", "kind": "modal", "label": "Statistics footprint keep reason dialog", "ns": "view", "parent": null, "src": "ace/tui/modals/statistics_footprint_review_modal.py:StatisticsFootprintKeepReasonModal"}
 {"area": "modals", "id": "view:modal.statistics_help", "kind": "modal", "label": "Statistics help dialog", "ns": "view", "parent": null, "src": "ace/tui/modals/statistics_help_modal.py:StatisticsHelpModal"}
 {"area": "modals", "id": "view:modal.statistics_macro_picker", "kind": "modal", "label": "Statistics macro picker dialog", "ns": "view", "parent": null, "src": "ace/tui/modals/statistics_macro_picker_modal.py:StatisticsMacroPickerModal"}
 {"area": "modals", "id": "view:modal.status", "kind": "modal", "label": "Status dialog", "ns": "view", "parent": null, "src": "ace/tui/modals/status_modal.py:StatusModal"}

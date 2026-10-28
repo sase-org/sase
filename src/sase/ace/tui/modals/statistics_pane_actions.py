@@ -52,8 +52,27 @@ class StatisticsPaneActionsMixin(StatisticsPaneLayoutMixin):
     _footprint_card_worker: Worker[Any] | None
     _footprint_card_debouncer: DetailPanelDebouncer | None
     _footprint_pending_highlight: str | None
+    _footprint_decision_worker: Worker[Any] | None
+    _footprint_finish_review_worker: Worker[Any] | None
 
     def check_action(self, action: str, parameters: tuple[object, ...]) -> bool | None:
+        review_actions = {
+            "keep_feature",
+            "later_feature",
+            "cut_feature",
+            "undo_feature_decision",
+        }
+        if action in review_actions:
+            if self._view != "footprint" or self._review_worker_running():
+                return False
+            row = self._footprint_selected_feature()
+            if row is None:
+                return False
+            if action == "undo_feature_decision":
+                return row.get("decision") is not None
+            return True
+        if action == "finish_footprint_review":
+            return self._view == "footprint" and not self._review_worker_running()
         if action in {"find_feature", "copy_feature_id"}:
             if self._view != "footprint":
                 return False
@@ -82,6 +101,17 @@ class StatisticsPaneActionsMixin(StatisticsPaneLayoutMixin):
         }:
             return False
         return super().check_action(action, parameters)
+
+    def _review_worker_running(self) -> bool:
+        """Return whether a decision write or finish-review query is pending."""
+        return any(
+            worker is not None
+            and worker.state in (WorkerState.PENDING, WorkerState.RUNNING)
+            for worker in (
+                self._footprint_decision_worker,
+                self._footprint_finish_review_worker,
+            )
+        )
 
     def _resolve_current_range(self) -> StatsRange:
         """Resolve the selected range; :class:`StatisticsPane` implements it."""
@@ -301,6 +331,210 @@ class StatisticsPaneActionsMixin(StatisticsPaneLayoutMixin):
         selected = items[min(max(0, self._footprint_selected_index), len(items) - 1)]
         feature_id = selected.get("id")
         return feature_id if isinstance(feature_id, str) and feature_id else None
+
+    def _footprint_selected_feature(self) -> dict[str, Any] | None:
+        """Return the selected feature row, excluding area and coverage rows."""
+        if self._view != "footprint":
+            return None
+        items = self._footprint_items()
+        if not items:
+            return None
+        index = min(max(0, self._footprint_selected_index), len(items) - 1)
+        selected = items[index]
+        feature_id = selected.get("id")
+        return selected if isinstance(feature_id, str) and ":" in feature_id else None
+
+    def action_keep_feature(self) -> None:
+        """Open the reason picker for the selected feature."""
+        row = self._footprint_selected_feature()
+        if row is None:
+            return
+        from .statistics_footprint_review_modal import (
+            StatisticsFootprintKeepReasonModal,
+        )
+
+        feature_id = str(row["id"])
+
+        def on_reason(reason: str | None) -> None:
+            if reason is not None:
+                self._record_footprint_decision(feature_id, "keep", reason)
+
+        self.app.push_screen(StatisticsFootprintKeepReasonModal(), on_reason)
+
+    def action_later_feature(self) -> None:
+        """Snooze the selected feature for the ledger's 30-day default."""
+        row = self._footprint_selected_feature()
+        if row is not None:
+            self._record_footprint_decision(str(row["id"]), "later", None)
+
+    def action_cut_feature(self) -> None:
+        """Mark the selected feature for a reviewed cut plan."""
+        row = self._footprint_selected_feature()
+        if row is not None:
+            self._record_footprint_decision(str(row["id"]), "cut", None)
+
+    def action_undo_feature_decision(self) -> None:
+        """Clear the selected feature's local review decision."""
+        row = self._footprint_selected_feature()
+        if row is not None and row.get("decision") is not None:
+            self._record_footprint_decision(str(row["id"]), "clear", None)
+
+    def _record_footprint_decision(
+        self,
+        feature_id: str,
+        decision: str,
+        reason: str | None,
+    ) -> None:
+        """Persist a local review decision away from Textual's message pump."""
+        if self._review_worker_running():
+            return
+        from sase.footprint.query import record_decision
+
+        def task() -> dict[str, Any]:
+            return record_decision(feature_id, decision, reason)
+
+        self._footprint_decision_worker = self.run_worker(
+            task,
+            thread=True,
+            exclusive=True,
+            group="statistics-footprint-review-decision",
+            exit_on_error=False,
+        )
+
+    def _on_footprint_decision_worker_state(self, event: Worker.StateChanged) -> None:
+        """Refresh the report after a local decision is durably recorded."""
+        if event.state == WorkerState.SUCCESS:
+            payload = event.worker.result
+            decision = payload.get("decision") if isinstance(payload, Mapping) else None
+            feature_id = (
+                payload.get("feature_id") if isinstance(payload, Mapping) else None
+            )
+            label = str(feature_id or "Feature")
+            if decision in (None, "clear"):
+                self.notify(f"Review decision cleared for {label}")
+            else:
+                self.notify(f"Marked {label} as {decision}")
+            self._schedule_load()
+        elif event.state == WorkerState.ERROR:
+            message = (
+                str(event.worker.error) if event.worker.error else "decision failed"
+            )
+            self.notify(
+                f"Could not save Footprint decision: {message}", severity="error"
+            )
+            self._schedule_load()
+        if event.state in (
+            WorkerState.SUCCESS,
+            WorkerState.ERROR,
+            WorkerState.CANCELLED,
+        ):
+            self._footprint_decision_worker = None
+
+    def action_finish_footprint_review(self) -> None:
+        """Load all decisions, then ask before launching their review macro."""
+        if self._view != "footprint" or self._review_worker_running():
+            return
+
+        def task() -> tuple[str, Any]:
+            from sase.footprint.query import build_report_request, fetch_report
+            from sase.footprint.render import review_markdown
+            from .statistics_footprint_review_modal import FootprintReviewCounts
+
+            report = fetch_report(
+                build_report_request(
+                    lens="decisions",
+                    actor="everyone",
+                    window_days=None,
+                )
+            )
+            rows = report.get("rows", [])
+            counts = {"keep": 0, "later": 0, "cut": 0}
+            if isinstance(rows, list):
+                for row in rows:
+                    if isinstance(row, Mapping) and row.get("decision") in counts:
+                        counts[str(row["decision"])] += 1
+            return (
+                review_markdown(report),
+                FootprintReviewCounts(
+                    keep=counts["keep"],
+                    later=counts["later"],
+                    cut=counts["cut"],
+                ),
+            )
+
+        self._footprint_finish_review_worker = self.run_worker(
+            task,
+            thread=True,
+            exclusive=True,
+            group="statistics-footprint-review-finish",
+            exit_on_error=False,
+        )
+
+    def _on_footprint_finish_review_worker_state(
+        self,
+        event: Worker.StateChanged,
+    ) -> None:
+        """Open a confirmation modal for a freshly loaded decision set."""
+        if event.state == WorkerState.SUCCESS:
+            payload = event.worker.result
+            if not (
+                isinstance(payload, tuple)
+                and len(payload) == 2
+                and isinstance(payload[0], str)
+            ):
+                return
+            markdown, counts = payload
+            if counts.actionable == 0:
+                self.notify("Mark a feature keep or cut before finishing the review")
+                self._footprint_finish_review_worker = None
+                return
+            from .statistics_footprint_review_modal import (
+                StatisticsFootprintFinishReviewModal,
+            )
+
+            def on_confirm(confirmed: bool | None) -> None:
+                if confirmed:
+                    self._launch_footprint_review(markdown)
+
+            self.app.push_screen(
+                StatisticsFootprintFinishReviewModal(counts),
+                on_confirm,
+            )
+        elif event.state == WorkerState.ERROR:
+            message = (
+                str(event.worker.error) if event.worker.error else "review load failed"
+            )
+            self.notify(
+                f"Could not prepare Footprint review: {message}", severity="error"
+            )
+        if event.state in (
+            WorkerState.SUCCESS,
+            WorkerState.ERROR,
+            WorkerState.CANCELLED,
+        ):
+            self._footprint_finish_review_worker = None
+
+    def _launch_footprint_review(self, markdown: str) -> None:
+        """Submit the confirmed review through ACE's normal launch guards."""
+        app = self.app
+        setup = getattr(app, "_setup_home_prompt_context", None)
+        finish = getattr(app, "_finish_agent_launch", None)
+        if not callable(setup) or not callable(finish):
+            self.notify(
+                "Agent launch is unavailable from this Statistics pane",
+                severity="error",
+            )
+            return
+        prompt = f"+sase\n#footprint_review::\n\n{markdown}"
+        try:
+            setup(
+                display_name="Footprint review",
+                history_sort_key="footprint-review",
+                prompt_origin="generated",
+            )
+            finish(prompt, prompt_origin="generated")
+        except Exception as exc:  # noqa: BLE001 - keep launch issues in the UI.
+            self.notify(f"Could not launch Footprint review: {exc}", severity="error")
 
     def _footprint_card_window(self) -> tuple[int | None, str]:
         """Derive card window days and today exactly as the view loader does."""

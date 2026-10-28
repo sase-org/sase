@@ -9320,6 +9320,50 @@ StatisticsMacroPickerModal #statistics-macro-picker-hints {
     margin-top: 1;
 }
 
+StatisticsFootprintKeepReasonModal,
+StatisticsFootprintFinishReviewModal {
+    align: center middle;
+}
+
+StatisticsFootprintKeepReasonModal #statistics-footprint-keep-reason-container,
+StatisticsFootprintFinishReviewModal #statistics-footprint-finish-container {
+    width: 68;
+    max-width: 92%;
+    height: auto;
+    max-height: 80%;
+    border: double #FF87D7;
+    background: $surface;
+    padding: 1 2;
+}
+
+StatisticsFootprintKeepReasonModal #statistics-footprint-keep-reason-title,
+StatisticsFootprintFinishReviewModal #statistics-footprint-finish-title {
+    height: 1;
+    text-align: center;
+    margin-bottom: 1;
+}
+
+StatisticsFootprintKeepReasonModal #statistics-footprint-keep-reason-list {
+    height: auto;
+    max-height: 10;
+    border: solid $secondary;
+}
+
+StatisticsFootprintKeepReasonModal #statistics-footprint-keep-reason-hints,
+StatisticsFootprintFinishReviewModal #statistics-footprint-finish-hints {
+    height: 1;
+    color: $text-muted;
+    text-align: center;
+    margin-top: 1;
+}
+
+StatisticsFootprintFinishReviewModal #statistics-footprint-finish-summary {
+    width: 100%;
+    height: auto;
+    margin: 1 0;
+    text-align: center;
+}
+
 /* Contextual Statistics reference built from the pane's loaded state. */
 StatisticsHelpModal {
     align: center middle;

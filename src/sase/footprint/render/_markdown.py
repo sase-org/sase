@@ -144,4 +144,65 @@ def card_markdown(card: dict[str, Any], header: dict[str, Any]) -> str:
     return "\n".join(lines).rstrip() + "\n"
 
 
-__all__ = ["card_markdown", "report_markdown"]
+def review_markdown(report: dict[str, Any]) -> str:
+    """Render every locally decided feature as agent-ready review Markdown."""
+    header = dict(report.get("header", {}))
+    rows = report.get("rows", [])
+    selected = (
+        [
+            dict(row)
+            for row in rows
+            if isinstance(row, dict) and row.get("decision") in {"keep", "later", "cut"}
+        ]
+        if isinstance(rows, list)
+        else []
+    )
+    selected.sort(key=lambda row: str(row.get("id", "")))
+
+    lines = ["# Footprint review decisions", ""]
+    lines.append(
+        f"Window {header.get('window_start', '—')} → "
+        f"{header.get('window_end', '—')} · actor everyone"
+    )
+    counts = dict.fromkeys(("keep", "later", "cut"), 0)
+    for row in selected:
+        decision = row.get("decision")
+        if decision in counts:
+            counts[decision] += 1
+    lines.append(
+        f"Marked: {counts['keep']} keep · {counts['later']} later · {counts['cut']} cut"
+    )
+    lines.append("")
+    for row in selected:
+        feature_id = str(row.get("id", ""))
+        decision = str(row.get("decision", ""))
+        lines.append(f"## `{feature_id}` — {row.get('label', feature_id)}")
+        lines.append("")
+        lines.append(
+            f"Decision: **{decision}** · area `{row.get('area', '—')}` · "
+            f"kind `{row.get('kind', '—')}` · state `{row.get('state', '—')}`"
+        )
+        reason = row.get("decision_reason")
+        if decision == "keep" and isinstance(reason, str) and reason:
+            lines.append(f"Keep reason: `{reason}`")
+        uses = row.get("uses", {})
+        if isinstance(uses, dict):
+            lines.append(
+                "Uses: "
+                + ", ".join(
+                    f"{actor} {uses.get(actor, 0)}"
+                    for actor in ("human", "agent", "automation")
+                )
+            )
+        lines.append(
+            f"Observed active days: {row.get('days_used', 0)} · "
+            f"last used: {row.get('last_used_day') or '—'} · "
+            f"carrying cost: {row.get('loc') if row.get('loc') is not None else 'unknown'} LOC"
+        )
+        lines.append("")
+        lines.append(f"> {evidence_sentence(row, header)}")
+        lines.append("")
+    return "\n".join(lines).rstrip() + "\n"
+
+
+__all__ = ["card_markdown", "report_markdown", "review_markdown"]

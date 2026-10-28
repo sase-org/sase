@@ -9,6 +9,7 @@ import os
 from pathlib import Path
 import tempfile
 from typing import Any
+from uuid import uuid4
 
 from sase.core.footprint_facade import (
     footprint_catalog_status,
@@ -114,6 +115,13 @@ def fold_ledger(
 
     if int(folded.get("records_folded", 0)) > 0 and not before.get("first_record_day"):
         _upsert_disclosure_notification()
+
+    try:
+        ready, candidates = _review_ready_candidates(store, day)
+        if ready and candidates > 0:
+            _append_review_ready_notification(home, candidates)
+    except Exception:  # noqa: BLE001 - a review notice must not break folding.
+        _LOG.warning("Failed to check Footprint review readiness", exc_info=True)
 
     status = _status_after_contention(home, day, before)
     return {
@@ -237,6 +245,66 @@ def _upsert_disclosure_notification() -> None:
         _LOG.warning(
             "Failed to upsert Footprint disclosure notification", exc_info=True
         )
+
+
+def _review_ready_candidates(store: Path, day: str) -> tuple[bool, int]:
+    """Return whether the candidate gate is met and how many cuts are ready."""
+    from sase.footprint.query import build_report_request, fetch_report
+
+    report = fetch_report(
+        build_report_request(
+            lens="cold",
+            actor="everyone",
+            window_days=60,
+            store_path=store,
+            today=day,
+        )
+    )
+    header = report.get("header", {})
+    tiles = report.get("tiles", {})
+    if not isinstance(header, Mapping) or not isinstance(tiles, Mapping):
+        return False, 0
+    candidates = tiles.get("candidates", 0)
+    return bool(header.get("gate_met")), max(0, int(candidates or 0))
+
+
+def _append_review_ready_notification(home: Path, candidates: int) -> None:
+    """Append the first candidate-ready inbox item once per local Footprint store."""
+    marker = home / "footprint" / "review-ready-notified"
+    marker.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+    try:
+        fd = os.open(marker, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+    except FileExistsError:
+        return
+    except OSError:
+        _LOG.warning("Could not reserve Footprint review-ready notice", exc_info=True)
+        return
+
+    try:
+        from sase.notifications.models import Notification, normalize_notification_tags
+        from sase.notifications.store import append_notification
+
+        notification = Notification(
+            id=str(uuid4()),
+            timestamp=datetime.now(UTC)
+            .isoformat(timespec="seconds")
+            .replace("+00:00", "Z"),
+            sender="footprint",
+            icon="◉",
+            notes=[f"Your first Footprint review is ready: {candidates} candidates."],
+            tags=normalize_notification_tags(("footprint", "review_ready")),
+        )
+        append_notification(notification)
+    except Exception:  # noqa: BLE001 - a failed notice is retried on the next fold.
+        try:
+            marker.unlink()
+        except OSError:
+            pass
+        _LOG.warning(
+            "Failed to append Footprint review-ready notification", exc_info=True
+        )
+    finally:
+        os.close(fd)
 
 
 def _write_generation_file(home: Path, generation: int) -> None:

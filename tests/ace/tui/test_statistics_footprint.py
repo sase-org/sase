@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import threading
 from types import SimpleNamespace
 from typing import Any
 from unittest.mock import PropertyMock, patch
@@ -226,6 +227,7 @@ def test_footprint_card_renders_each_evidence_state() -> None:
             pane._footprint_lens = "cold"
             rendered = _render_plain(pane._view_renderable(pane._last_result))
             assert phrase in rendered, state
+            assert "k keep · l later · x cut · u undo · F finish review" in rendered
         finally:
             _stop_size_patch(pane)
 
@@ -380,6 +382,126 @@ async def test_footprint_copy_sends_selected_feature_id(
         await page.wait_for(lambda _state: bool(copied))
         assert copied[0][0] == "tui:statistics.cycle_range"
         assert copied[0][1]["copied_label"] == "Feature ID"
+
+
+async def test_footprint_keep_reason_is_recorded_by_a_worker(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from sase.footprint import query as footprint_query
+
+    writes: list[tuple[int, str, str, str | None]] = []
+    main_thread = threading.get_ident()
+
+    def record_decision(
+        feature_id: str,
+        decision: str,
+        reason: str | None,
+    ) -> dict[str, str | None]:
+        writes.append((threading.get_ident(), feature_id, decision, reason))
+        return {"feature_id": feature_id, "decision": decision, "reason": reason}
+
+    monkeypatch.setattr(footprint_query, "record_decision", record_decision)
+    calls: list[tuple[object, ...]] = []
+    _patch_center(monkeypatch, calls)
+
+    async with AcePage() as page:
+        _, pane = await _open_statistics(page)
+        pane._set_view("footprint")
+        await _wait_statistics_settled(page, pane)
+        await page.press("enter")
+        await _wait_statistics_settled(page, pane)
+
+        await page.press("k")
+        await page.expect_modal("StatisticsFootprintKeepReasonModal")
+        await page.press("enter")
+        await page.wait_for(lambda _state: bool(writes))
+
+    thread_id, feature_id, decision, reason = writes[0]
+    assert thread_id != main_thread
+    assert feature_id == "cli:bead.list"
+    assert decision == "keep"
+    assert reason == "rare_by_design"
+
+
+async def test_footprint_finish_review_requires_confirmation_and_launches_macro(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from sase.footprint import query as footprint_query
+
+    request: dict[str, object] = {}
+    report = {
+        "header": {"window_start": "2026-08-28", "window_end": "2026-10-27"},
+        "rows": [
+            {"id": "cli:keep", "decision": "keep"},
+            {"id": "cli:later", "decision": "later"},
+            {"id": "cli:cut", "decision": "cut"},
+        ],
+    }
+    monkeypatch.setattr(
+        footprint_query,
+        "build_report_request",
+        lambda **kwargs: request.update(kwargs) or kwargs,
+    )
+    monkeypatch.setattr(footprint_query, "fetch_report", lambda _request: report)
+    monkeypatch.setattr(
+        "sase.footprint.render.review_markdown",
+        lambda _report: "# Marked Footprint decisions",
+    )
+    calls: list[tuple[object, ...]] = []
+    _patch_center(monkeypatch, calls)
+
+    async with AcePage() as page:
+        _, pane = await _open_statistics(page)
+        pane._set_view("footprint")
+        await _wait_statistics_settled(page, pane)
+
+        setup_calls: list[dict[str, object]] = []
+        launches: list[tuple[str, dict[str, object]]] = []
+        monkeypatch.setattr(
+            page.app,
+            "_setup_home_prompt_context",
+            lambda **kwargs: setup_calls.append(kwargs),
+        )
+        monkeypatch.setattr(
+            page.app,
+            "_finish_agent_launch",
+            lambda prompt, **kwargs: launches.append((prompt, kwargs)),
+        )
+
+        pane.action_finish_footprint_review()
+        await page.expect_modal("StatisticsFootprintFinishReviewModal")
+        assert not launches
+        assert request == {
+            "lens": "decisions",
+            "actor": "everyone",
+            "window_days": None,
+        }
+        summary = page.app.screen.query_one(
+            "#statistics-footprint-finish-summary", Static
+        ).render()
+        assert "1 keep · 1 later · 1 cut" in summary.plain
+
+        await page.press("escape")
+        assert not launches
+
+        pane.action_finish_footprint_review()
+        await page.expect_modal("StatisticsFootprintFinishReviewModal")
+        await page.press("enter")
+        await page.wait_for(lambda _state: bool(launches))
+
+    assert setup_calls == [
+        {
+            "display_name": "Footprint review",
+            "history_sort_key": "footprint-review",
+            "prompt_origin": "generated",
+        }
+    ]
+    assert launches == [
+        (
+            "+sase\n#footprint_review::\n\n# Marked Footprint decisions",
+            {"prompt_origin": "generated"},
+        )
+    ]
 
 
 async def test_footprint_finder_filters_and_drills_to_area(

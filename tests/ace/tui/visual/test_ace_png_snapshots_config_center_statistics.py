@@ -715,7 +715,6 @@ async def test_config_center_statistics_footprint_cold_card_png_snapshot(
         )
         scroll = pane.query_one("#statistics-body-scroll", VerticalScroll)
         scroll.scroll_end(animate=False)
-        scroll.scroll_to(y=max(0, scroll.max_scroll_y - 7), animate=False)
         await wait_for_visual_idle(page)
 
         ace_png_visual.assert_page_png(
