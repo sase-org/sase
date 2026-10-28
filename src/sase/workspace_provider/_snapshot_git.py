@@ -125,6 +125,24 @@ def status_paths(status_z: bytes) -> tuple[str, ...]:
     return tuple(paths)
 
 
+def special_index_paths(
+    repo_root: Path, *, env: dict[str, str] | None = None
+) -> set[str]:
+    """Return paths Git marks assume-unchanged or skip-worktree."""
+    output = require_git(
+        run_git_bytes(repo_root, "ls-files", "-v", "-z", env=env),
+        "git ls-files -v",
+    )
+    paths: set[str] = set()
+    for item in output.split(b"\0"):
+        if len(item) < 3 or item[1:2] != b" ":
+            continue
+        tag = item[:1]
+        if tag.islower() or tag == b"S":
+            paths.add(os.fsdecode(item[2:]))
+    return paths
+
+
 def digest_bytes(data: bytes) -> str:
     return hashlib.sha256(data).hexdigest()
 

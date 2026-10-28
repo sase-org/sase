@@ -38,11 +38,13 @@ isolated workspace. The agent opens linked or external repositories through
 `sase repo open` and works in the path it prints. Before its normal final response, the
 root agent uses the `/sase_final` skill to submit a declaration; the host then runs the
 configured finalizers, including committing changes under the default configuration.
-Numbered workspaces are reused. Before evicting leftover linked and external clones,
-SASE attempts to rescue local work to a durable recovery directory; it does not publish
-those clones during eviction, and a failed rescue does not stop eviction. See
-[workspace maintenance](#workspace-maintenance) for recovery and retention details, and
-[Monitors](../automation/monitors.md) for running a command from an opened repository.
+Numbered workspaces are reused. Before evicting or re-creating a checkout, SASE captures
+a verified snapshot of the main checkout and every nested clone under `sase/repos`.
+Snapshots store work beyond remote-tracking history, and restore fetches the recorded
+base first. If state cannot be preserved, preparation fails and leaves the affected
+clone intact. See [workspace maintenance](#workspace-maintenance) for recovery and
+retention details, and [Monitors](../automation/monitors.md) for running a command from
+an opened repository.
 
 ## Workspace Directory Layout
 
@@ -296,21 +298,26 @@ pass.
 
 Preparing a numbered workspace (`#2` and above) for a launch evicts everything under its
 `sase/repos/` directory — the sidecar and linked-repo clones — which would otherwise
-carry stale state into the new run. Leftover state from an earlier run never fails a new
-launch: preparation attempts to publish each sidecar once, then to rescue unpublished
-work to the durable rescue store outside the workspace
+carry stale state into the new run. Before eviction or re-creation, SASE captures a
+verified snapshot of every nested `sase/repos/` clone and the main checkout. The
+snapshot pack stores only objects beyond remote-tracking history; restore fetches the
+recorded base commits first. If a recorded remote no longer has those commits, restore
+fails closed. An unpreservable checkout fails preparation with `sidecar-protection` and
+stays in place. This includes unpublished snapshot payloads over 64 MiB, corrupt Git
+objects, and dirty submodules.
+
+After verified snapshots, the legacy bundle-and-patch rescue still attempts to preserve
+local-only commits and worktree edits in the durable rescue store outside the workspace
 (`~/.sase/projects/<project>/rescue/<YYYYMM>/`, falling back to `~/.sase/rescue/`).
-Linked and external clones use the same rescue store, with a bundle of local-only
-commits and a worktree patch; they are never published during eviction. Rescue is
-best-effort: if it fails, eviction can still discard local work. Tags never trigger a
-rescue on their own: they are bundled only as labels for local-only commits that a
+Linked and external clones are never published during eviction. This legacy rescue is
+best-effort; eviction proceeds only after verified snapshots succeed. Tags never trigger
+a rescue on their own: they are bundled only as labels for local-only commits that a
 branch, stash, recovery ref, or detached HEAD is already being rescued for, so upstream
 release tags in third-party clones produce no rescue entries. A tag whose commit nothing
-else references is not rescued. Eviction always proceeds. Each rescue pins a
-`refs/sase/recovery/` ref inside the store's own repository, writes a `manifest.json`
-with copy-pasteable restore commands
-(`git fetch <bundle> 'refs/*:refs/sase/rescued/<stamp>/*'`,
-`git apply --index <patch>`), and sends one inbox notification naming the rescue dir.
+else references is not rescued. Legacy rescue entries pin a `refs/sase/recovery/` ref
+inside the store's own repository, write a `manifest.json` with copy-pasteable restore
+commands (`git fetch <bundle> 'refs/*:refs/sase/rescued/<stamp>/*'`,
+`git apply --index <patch>`), and send one inbox notification naming the rescue dir.
 Entries older than 30 days (7 days for quarantined whole-clone copies) are reaped. See
 [Publication Verification](../work-units/bead-storage.md#publication-verification) for
 the invariant this protects and how to restore rescued commits by hand.

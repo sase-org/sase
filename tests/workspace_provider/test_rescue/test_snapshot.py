@@ -7,6 +7,7 @@ import os
 import stat
 import subprocess
 from pathlib import Path
+from typing import Any
 
 import pytest
 
@@ -25,6 +26,7 @@ from sase.workspace_provider.snapshot import (
 from tests.workspace_provider.test_rescue._helpers import (
     commit_file,
     git,
+    init_repo,
     redirect_state,
     rescue_entries,
     seed_remote_clone,
@@ -156,6 +158,221 @@ def test_snapshot_restores_tracked_and_untracked(
     )
     assert "src/new_impl.py" not in git(dest, "ls-files").stdout
     assert "src/dispatch.py" in git(dest, "diff", "--name-only", "HEAD").stdout
+
+
+def test_published_snapshot_thins_a_large_checkout_and_restores_exact_state(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    redirect_state(tmp_path, monkeypatch)
+    workspace, clone, remote = seed_remote_clone(tmp_path)
+    commit_file(clone, "modified.txt", "before\n", "modified base")
+    commit_file(clone, "staged.txt", "staged base\n", "staged base")
+    (clone / "large.bin").write_bytes(b"large-published-content" * (256 * 1024 // 23))
+    git(clone, "add", "--", "large.bin")
+    git(clone, "commit", "-m", "large published file")
+    git(clone, "push")
+
+    (clone / "modified.txt").write_text("modified locally\n", encoding="utf-8")
+    (clone / "staged.txt").write_text("staged locally\n", encoding="utf-8")
+    git(clone, "add", "--", "staged.txt")
+    (clone / "untracked.txt").write_bytes(b"new local bytes\x00\xff")
+    before = _source_probe(clone)
+    cap = 64 * 1024
+    monkeypatch.setattr(payload_module, "SNAPSHOT_MAX_BYTES", cap)
+
+    record = _snapshot(clone, workspace, reason="thin published base")
+    assert record is not None
+    manifest = json.loads(record.manifest_path.read_text(encoding="utf-8"))
+    assert manifest["base"]["mode"] == "published"
+    assert manifest["base"]["boundary_commits"] == [_head(clone)]
+    assert any(
+        remote_info["name"] == "origin" for remote_info in manifest["base"]["remotes"]
+    )
+    assert record.pack_path.stat().st_size < cap
+    assert record.pack_path.stat().st_size < 16 * 1024
+    _assert_source_unchanged(clone, before)
+
+    empty_dest = _restore_dest(tmp_path)
+    restore_git_snapshot(record.manifest_path, empty_dest)
+    assert _worktree_map(empty_dest) == _worktree_map(clone)
+    assert _ls_stage(empty_dest) == _ls_stage(clone)
+
+    fresh_dest = tmp_path / "fresh-remote-clone"
+    subprocess.run(
+        ["git", "clone", "-q", str(remote), str(fresh_dest)],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    restore_git_snapshot(record.manifest_path, fresh_dest)
+    assert _worktree_map(fresh_dest) == _worktree_map(clone)
+    assert _ls_stage(fresh_dest) == _ls_stage(clone)
+
+
+def test_published_snapshot_carries_local_commits_and_dirty_edits(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    redirect_state(tmp_path, monkeypatch)
+    workspace, clone, remote = seed_remote_clone(tmp_path)
+    pushed_tip = _head(clone)
+    commit_file(clone, "local-commit.txt", "local commit\n", "unpushed commit")
+    (clone / "local-commit.txt").write_text("working edit\n", encoding="utf-8")
+    (clone / "staged.txt").write_text("staged edit\n", encoding="utf-8")
+    git(clone, "add", "--", "staged.txt")
+    before = _source_probe(clone)
+
+    record = _snapshot(clone, workspace, reason="local-only commit and edits")
+    assert record is not None
+    manifest = json.loads(record.manifest_path.read_text(encoding="utf-8"))
+    assert manifest["base"]["mode"] == "published"
+    assert manifest["base"]["boundary_commits"] == [pushed_tip]
+    _assert_source_unchanged(clone, before)
+
+    dest = _restore_dest(tmp_path)
+    restore_git_snapshot(record.manifest_path, dest)
+    assert _head(dest) == _head(clone)
+    assert _worktree_map(dest) == _worktree_map(clone)
+    assert _ls_stage(dest) == _ls_stage(clone)
+    assert git(remote, "rev-parse", "refs/heads/main").stdout.strip() == pushed_tip
+
+
+def test_snapshot_without_remote_is_self_contained_and_legacy_manifest_restores(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    redirect_state(tmp_path, monkeypatch)
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    clone = tmp_path / "standalone"
+    init_repo(clone)
+    commit_file(clone, "tracked.txt", "base\n", "standalone file")
+    (clone / "tracked.txt").write_text("working bytes\n", encoding="utf-8")
+    (clone / "new.txt").write_text("untracked\n", encoding="utf-8")
+
+    record = _snapshot(clone, workspace, reason="self-contained")
+    assert record is not None
+    manifest = json.loads(record.manifest_path.read_text(encoding="utf-8"))
+    assert manifest["base"] == {
+        "mode": "self-contained",
+        "boundary_commits": [],
+        "remotes": [],
+        "remote_tracking_refs": [],
+    }
+
+    dest = _restore_dest(tmp_path)
+    restore_git_snapshot(record.manifest_path, dest)
+    assert _head(dest) == _head(clone)
+    assert _worktree_map(dest) == _worktree_map(clone)
+    assert _ls_stage(dest) == _ls_stage(clone)
+
+    del manifest["base"]
+    record.manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+    legacy_dest = tmp_path / "legacy-dest"
+    legacy_dest.mkdir()
+    restore_git_snapshot(record.manifest_path, legacy_dest)
+    assert _head(legacy_dest) == _head(clone)
+    assert _worktree_map(legacy_dest) == _worktree_map(clone)
+    assert _ls_stage(legacy_dest) == _ls_stage(clone)
+
+
+def test_published_snapshot_fails_before_worktree_write_when_base_is_unavailable(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    redirect_state(tmp_path, monkeypatch)
+    workspace, clone, remote = seed_remote_clone(tmp_path)
+    (clone / "base.txt").write_text("dirty bytes\n", encoding="utf-8")
+    record = _snapshot(clone, workspace, reason="unavailable base")
+    assert record is not None
+    manifest = json.loads(record.manifest_path.read_text(encoding="utf-8"))
+    boundary = manifest["base"]["boundary_commits"][0]
+    recorded_url = manifest["base"]["remotes"][0]["fetch_url"]
+    remote.rename(tmp_path / "moved-origin.git")
+
+    dest = _restore_dest(tmp_path)
+    with pytest.raises(PreservationError) as exc_info:
+        restore_git_snapshot(record.manifest_path, dest)
+    assert boundary in str(exc_info.value)
+    assert recorded_url in str(exc_info.value)
+    assert not (dest / "base.txt").exists()
+    assert [path.name for path in dest.iterdir()] == [".git"]
+
+
+def test_snapshot_hashes_only_dirty_candidates_in_a_large_clean_index(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    redirect_state(tmp_path, monkeypatch)
+    workspace, clone, _remote = seed_remote_clone(tmp_path)
+    for index in range(300):
+        path = clone / "tracked" / f"{index:03}.txt"
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(f"clean {index}\n", encoding="utf-8")
+    git(clone, "add", "--", "tracked")
+    git(clone, "commit", "-m", "many clean files")
+    git(clone, "push")
+    (clone / "tracked" / "100.txt").write_text("one dirty file\n", encoding="utf-8")
+
+    hash_object_calls: list[tuple[str, ...]] = []
+    real_run_git_bytes = payload_module.run_git_bytes
+
+    def count_hash_objects(
+        repo: Path, *args: str, **kwargs: Any
+    ) -> subprocess.CompletedProcess[bytes]:
+        if args and args[0] == "hash-object":
+            hash_object_calls.append(args)
+        return real_run_git_bytes(repo, *args, **kwargs)
+
+    monkeypatch.setattr(payload_module, "run_git_bytes", count_hash_objects)
+    record = _snapshot(clone, workspace, reason="hash only dirty candidate")
+    assert record is not None
+    assert len(hash_object_calls) <= 2
+
+
+def test_snapshot_captures_assume_unchanged_and_skip_worktree_edits(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    redirect_state(tmp_path, monkeypatch)
+    workspace, clone, _remote = seed_remote_clone(tmp_path)
+    commit_file(clone, "assume.txt", "assume base\n", "assume base")
+    commit_file(clone, "skip.txt", "skip base\n", "skip base")
+    git(clone, "push")
+    git(clone, "update-index", "--assume-unchanged", "assume.txt")
+    git(clone, "update-index", "--skip-worktree", "skip.txt")
+    (clone / "assume.txt").write_text("assume dirty\n", encoding="utf-8")
+    (clone / "skip.txt").write_text("skip dirty\n", encoding="utf-8")
+
+    record = _snapshot(clone, workspace, reason="special index flags")
+    assert record is not None
+    dest = _restore_dest(tmp_path)
+    restore_git_snapshot(record.manifest_path, dest)
+    assert (dest / "assume.txt").read_text(encoding="utf-8") == "assume dirty\n"
+    assert (dest / "skip.txt").read_text(encoding="utf-8") == "skip dirty\n"
+
+
+def test_snapshot_excludes_gitlink_commits_from_pack_and_restore(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    redirect_state(tmp_path, monkeypatch)
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    submodule = tmp_path / "submodule"
+    init_repo(submodule)
+    submodule_sha = _head(submodule)
+    clone = tmp_path / "superproject"
+    init_repo(clone)
+    commit_file(clone, "tracked.txt", "base\n", "tracked base")
+    git(clone, "update-index", "--add", "--cacheinfo", f"160000,{submodule_sha},module")
+    git(clone, "commit", "-m", "record gitlink")
+    (clone / "tracked.txt").write_text("working edit\n", encoding="utf-8")
+
+    record = _snapshot(clone, workspace, reason="gitlink preservation")
+    assert record is not None
+    dest = _restore_dest(tmp_path)
+    restore_git_snapshot(record.manifest_path, dest)
+    assert (dest / "tracked.txt").read_text(encoding="utf-8") == "working edit\n"
+    assert (
+        git(dest, "ls-files", "--stage", "--", "module").stdout
+        == git(clone, "ls-files", "--stage", "--", "module").stdout
+    )
+    assert not (dest / "module").exists()
 
 
 def test_snapshot_restores_staged_only_and_distinct_versions(

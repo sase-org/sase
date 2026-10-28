@@ -11,6 +11,7 @@ import pytest
 
 from sase.axe.runner_workspace_errors import WorkspacePreparationError
 from sase.axe.runner_workspace_protection import prepare_launch_workspace_repos
+from sase.workspace_provider import _snapshot_capture_payload as payload_module
 from sase.workspace_provider._snapshot_nested import discover_nested_git_repos
 from sase.workspace_provider.snapshot import (
     NestedPreservationError,
@@ -49,6 +50,23 @@ def _seed_origin(path: Path, text: str) -> Path:
     init_repo(path)
     commit_file(path, "tracked.txt", text, "tracked")
     return path
+
+
+def _seed_large_published_origin(tmp_path: Path) -> Path:
+    remote = tmp_path / "large-origin.git"
+    subprocess.run(
+        ["git", "init", "--bare", "-b", "main", str(remote)],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    seed = _seed_origin(tmp_path / "large-seed", "base tracked\n")
+    (seed / "large.bin").write_bytes(b"published large content\n" * 12_000)
+    git(seed, "add", "--", "large.bin")
+    git(seed, "commit", "-m", "large published file")
+    git(seed, "remote", "add", "origin", str(remote))
+    git(seed, "push", "-u", "origin", "main")
+    return remote
 
 
 def _dirty_nested(origin: Path, dest: Path, name: str) -> Path:
@@ -155,6 +173,81 @@ def test_preserve_nested_sidecar_linked_and_external(
     assert (ext / "tracked.txt").read_text(encoding="utf-8") == "external-working\n"
     assert _stage_for(ext, "tracked.txt") == external_stage
     assert _snapshot_manifests(home)
+
+
+def test_preserve_nested_large_published_clone_under_snapshot_cap(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    home, _ = redirect_state(tmp_path, monkeypatch)
+    parent = _ignored_parent(tmp_path / "parent")
+    remote = _seed_large_published_origin(tmp_path)
+    external = _clone(
+        remote,
+        parent / "sase" / "repos" / "external" / "projects" / "owner" / "repo",
+    )
+    git(external, "remote", "set-url", "origin", os.path.relpath(remote, external))
+    (external / "tracked.txt").write_text("small local edit\n", encoding="utf-8")
+    monkeypatch.setattr(payload_module, "SNAPSHOT_MAX_BYTES", 64 * 1024)
+
+    result = preserve_nested_repositories(
+        parent,
+        workspace_dir=parent,
+        workspace_num=WORKSPACE_NUM,
+        reason="large published external clone",
+    )
+    assert len(result.locations) == 1
+    manifest = json.loads(Path(result.locations[0]).read_text(encoding="utf-8"))
+    assert manifest["base"]["mode"] == "published"
+    assert manifest["base"]["remotes"][0]["fetch_url"] == str(remote.resolve())
+    assert (
+        Path(result.locations[0]).parent / "snapshot.pack"
+    ).stat().st_size < 64 * 1024
+
+    restored = tmp_path / "restored-large-external"
+    restored.mkdir()
+    restore_git_snapshot(result.locations[0], restored)
+    assert (restored / "tracked.txt").read_text(
+        encoding="utf-8"
+    ) == "small local edit\n"
+    assert (restored / "large.bin").read_bytes() == (
+        external / "large.bin"
+    ).read_bytes()
+
+
+def test_launch_eviction_preserves_large_published_external_clone(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    home, _ = redirect_state(tmp_path, monkeypatch)
+    parent = _ignored_parent(tmp_path / "workspace")
+    remote = _seed_large_published_origin(tmp_path)
+    external = _clone(
+        remote,
+        parent / "sase" / "repos" / "external" / "projects" / "owner" / "large-repo",
+    )
+    (external / "tracked.txt").write_text("edited before eviction\n", encoding="utf-8")
+    monkeypatch.setattr(payload_module, "SNAPSHOT_MAX_BYTES", 64 * 1024)
+    _configure_launch(monkeypatch, parent)
+
+    prepare_launch_workspace_repos(str(parent), WORKSPACE_NUM)
+
+    assert not (parent / "sase" / "repos").exists()
+    manifests = _snapshot_manifests(home)
+    assert manifests
+    snapshot_manifest = next(
+        path
+        for path in manifests
+        if json.loads(path.read_text(encoding="utf-8")).get("kind")
+        == "verified-snapshot"
+    )
+    restored = tmp_path / "restored-launch-large"
+    restored.mkdir()
+    restore_git_snapshot(snapshot_manifest, restored)
+    assert (restored / "tracked.txt").read_text(encoding="utf-8") == (
+        "edited before eviction\n"
+    )
+    assert (
+        restored / "large.bin"
+    ).read_bytes() == b"published large content\n" * 12_000
 
 
 def test_preserve_nested_git_file_worktree(

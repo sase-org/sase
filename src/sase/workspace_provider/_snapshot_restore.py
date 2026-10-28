@@ -29,7 +29,10 @@ def restore_git_snapshot(manifest_path: str | Path, dest: str | Path) -> None:
     """Load a verified snapshot into *dest* without touching the source.
 
     *dest* may be an empty directory (initialized as a git repo) or an
-    existing clone. Restore uses only objects recorded in the snapshot pack.
+    existing clone. A published-base snapshot fetches its recorded boundary
+    commits first; restore depends on the recorded remote retaining those
+    commits. A later force-push or branch deletion can strand the base, in
+    which case restore fails closed instead of guessing.
     """
     manifest_file = Path(manifest_path)
     dest_repo = Path(dest)
@@ -41,6 +44,7 @@ def restore_git_snapshot(manifest_path: str | Path, dest: str | Path) -> None:
             run_git_bytes(dest_repo, "init", "-b", "main"),
             "git init",
         )
+    _fetch_published_base(dest_repo, manifest)
     _unpack_pack(dest_repo, rescue_dir / SNAPSHOT_PACK_NAME)
     head = str(manifest["head"])
     require_git(
@@ -51,6 +55,83 @@ def restore_git_snapshot(manifest_path: str | Path, dest: str | Path) -> None:
     _materialize_tree(dest_repo, str(manifest["worktree_tree"]))
     _restore_index(dest_repo, manifest, rescue_dir)
     _restore_operation_markers(dest_repo, rescue_dir / "operation")
+
+
+def _fetch_published_base(dest_repo: Path, manifest: dict[str, object]) -> None:
+    if "base" not in manifest:
+        return
+    base = manifest["base"]
+    if not isinstance(base, dict):
+        raise PreservationError("snapshot base metadata is malformed")
+    mode = base.get("mode")
+    if mode == "self-contained":
+        return
+    if mode != "published":
+        raise PreservationError(f"snapshot base mode is unsupported: {mode!r}")
+    raw_boundaries = base.get("boundary_commits", [])
+    if not isinstance(raw_boundaries, list):
+        raise PreservationError("snapshot base has malformed boundary commits")
+    boundaries = sorted({str(sha) for sha in raw_boundaries if sha})
+    if not boundaries:
+        return
+
+    raw_remotes = base.get("remotes", [])
+    if not isinstance(raw_remotes, list):
+        raise PreservationError("snapshot base has malformed remotes")
+    urls = sorted(
+        {
+            str(remote["fetch_url"])
+            for remote in raw_remotes
+            if isinstance(remote, dict) and remote.get("fetch_url")
+        }
+    )
+    tried: list[str] = []
+    missing = _missing_commits(dest_repo, boundaries)
+    if not missing:
+        return
+
+    for url in urls:
+        tried.append(url)
+        run_git_bytes(
+            dest_repo,
+            "fetch",
+            "--no-tags",
+            url,
+            *missing,
+        )
+        missing = _missing_commits(dest_repo, boundaries)
+        if not missing:
+            return
+
+    snapshot_id = str(manifest.get("snapshot_id", "snapshot"))
+    for url in urls:
+        refspec = f"+refs/heads/*:refs/sase/snapshot-base/{snapshot_id}/*"
+        run_git_bytes(
+            dest_repo,
+            "fetch",
+            "--no-tags",
+            url,
+            refspec,
+        )
+        missing = _missing_commits(dest_repo, boundaries)
+        if not missing:
+            return
+
+    missing_text = ", ".join(missing)
+    urls_text = ", ".join(tried) if tried else "<none recorded>"
+    raise PreservationError(
+        "published snapshot base commits are unavailable: "
+        f"{missing_text}; URLs tried: {urls_text}"
+    )
+
+
+def _missing_commits(dest_repo: Path, commits: list[str]) -> list[str]:
+    missing: list[str] = []
+    for sha in commits:
+        result = run_git_bytes(dest_repo, "cat-file", "-e", f"{sha}^{{commit}}")
+        if result.returncode != 0:
+            missing.append(sha)
+    return missing
 
 
 def _load_manifest(manifest_path: Path) -> dict[str, object]:
@@ -104,6 +185,8 @@ def _materialize_tree(dest_repo: Path, tree: str) -> None:
             raise PreservationError(f"malformed ls-tree row: {item!r}")
         mode = parts[0].decode("ascii")
         sha = parts[2].decode("ascii")
+        if mode == "160000":
+            continue
         rel = os.fsdecode(path_b)
         dest = safe_repo_path(dest_repo, rel)
         dest.parent.mkdir(parents=True, exist_ok=True)

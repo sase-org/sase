@@ -3,7 +3,10 @@
 ``snapshot_git_repo`` is the required-preservation entry point. It reuses
 rescue store allocation and never mutates the source index, worktree, HEAD,
 or operation state. Callers that still want best-effort behavior keep using
-:func:`sase.workspace_provider.rescue.rescue_git_repo`.
+:func:`sase.workspace_provider.rescue.rescue_git_repo`. A published-base
+snapshot stores only objects beyond remote-tracking history and depends on the
+recorded remote retaining its boundary commits. A later force-push or branch
+deletion can strand that base, so restore fails closed when it cannot fetch it.
 """
 
 from __future__ import annotations

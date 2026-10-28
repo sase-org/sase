@@ -28,6 +28,7 @@ from sase.workspace_provider._snapshot_git import (
     require_git,
     run_git_bytes,
     safe_repo_path,
+    special_index_paths,
     status_paths,
 )
 from sase.workspace_provider._snapshot_model import (
@@ -92,7 +93,7 @@ def _snapshot_git_repo(
     allocated: list[Path],
 ) -> SnapshotRecord | None:
     state = read_source_state(repo_root)
-    if not _has_work(state):
+    if not _has_work(repo_root, state):
         return None
     _refuse_nested_repositories(repo_root, state)
     safe_label = sanitize_label(label or repo_root.name)
@@ -240,13 +241,15 @@ def _digest_untracked(repo_root: Path, paths_z: bytes) -> str:
     return digest.hexdigest()
 
 
-def _has_work(state: SourceState) -> bool:
+def _has_work(repo_root: Path, state: SourceState) -> bool:
     for rel in status_paths(state.status_z):
         if not is_managed_sidecar_rel(rel):
             return True
     # Sidecar-only status means the main checkout has no work of its own;
     # sidecars are rescued through their own boundaries.
-    return any(entry.stage != 0 for entry in state.entries)
+    return any(entry.stage != 0 for entry in state.entries) or any(
+        not is_managed_sidecar_rel(path) for path in special_index_paths(repo_root)
+    )
 
 
 def _refuse_nested_repositories(repo_root: Path, state: SourceState) -> None:
