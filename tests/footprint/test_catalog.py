@@ -12,6 +12,8 @@ import pytest
 import yaml
 
 from sase.footprint import catalog_gen, ids
+from sase.footprint._catalog_gen_commands import _flatten_mode_keys, gen_tui
+from sase.footprint._catalog_gen_shared import load_bundled_config, package_resource
 from sase.footprint.catalog import load_catalog, load_overlay
 
 
@@ -118,7 +120,7 @@ def test_every_command_spec_has_an_id(
     from sase.ace.tui.commands.catalog import build_command_catalog
     from sase.ace.tui.keymaps.registry import load_keymap_registry
 
-    registry = load_keymap_registry(catalog_gen._load_bundled_config()["ace"])
+    registry = load_keymap_registry(load_bundled_config()["ace"])
     specs = [
         spec
         for spec in build_command_catalog(registry)
@@ -137,7 +139,7 @@ def test_every_keymap_scope_field_and_mode_key_has_an_id(
     from sase.ace.tui.keymaps.registry import load_keymap_registry
     from sase.ace.tui.keymaps.types import KeymapRegistry
 
-    registry = load_keymap_registry(catalog_gen._load_bundled_config()["ace"])
+    registry = load_keymap_registry(load_bundled_config()["ace"])
     scopes = [
         f.name
         for f in dataclass_fields(KeymapRegistry)
@@ -153,7 +155,7 @@ def test_every_keymap_scope_field_and_mode_key_has_an_id(
     for mode_name, cls in _BUILTIN_MODE_CLASSES.items():
         short = mode_name[: -len("_mode")] if mode_name.endswith("_mode") else mode_name
         flat: dict[str, None] = {}
-        catalog_gen._flatten_mode_keys(short, dict(cls().keys), flat)
+        _flatten_mode_keys(short, dict(cls().keys), flat)
         assert flat
         for dotted in flat:
             feature_id = f"tui:{dotted}"
@@ -188,10 +190,10 @@ def test_every_macro_and_skill_has_an_id(
 ) -> None:
     from sase.macro.loader_skills import SKILL_FRAME_TEMPLATE_FILENAME
 
-    macros_dir = catalog_gen._package_resource("macros")
+    macros_dir = package_resource("macros")
     for path in sorted(macros_dir.glob("*.md")) + sorted(macros_dir.glob("*.yml")):
         assert f"macro:{ids.sanitize(path.stem)}" in by_id
-    skills_dir = catalog_gen._package_resource("macros", "skills")
+    skills_dir = package_resource("macros", "skills")
     for path in sorted(skills_dir.glob("*.md")):
         if path.name == SKILL_FRAME_TEMPLATE_FILENAME:
             continue
@@ -201,7 +203,7 @@ def test_every_macro_and_skill_has_an_id(
 def test_every_config_leaf_has_an_id(
     by_id: dict[str, dict[str, Any]],
 ) -> None:
-    cfg = catalog_gen._load_bundled_config()
+    cfg = load_bundled_config()
     assert "footprint" not in cfg
     leaves: set[str] = set()
 
@@ -225,7 +227,7 @@ def test_every_config_leaf_has_an_id(
 def test_every_axe_routine_and_job_has_an_id(
     by_id: dict[str, dict[str, Any]],
 ) -> None:
-    cfg = catalog_gen._load_bundled_config()
+    cfg = load_bundled_config()
     routines = cfg["axe"]["routines"]
     assert routines
     for routine, info in routines.items():
@@ -254,14 +256,14 @@ def test_custom_modes_never_enter_the_catalog() -> None:
     from sase.ace.tui.keymaps import KeymapRegistry
     from sase.ace.tui.keymaps.mode_keymaps import ModeKeymaps
 
-    entries = catalog_gen._gen_tui()
+    entries = gen_tui()
     default_ids = {entry.id for entry in entries}
     from sase.ace.tui.keymaps.registry import load_keymap_registry
 
-    registry = load_keymap_registry(catalog_gen._load_bundled_config()["ace"])
+    registry = load_keymap_registry(load_bundled_config()["ace"])
     assert isinstance(registry, KeymapRegistry)
     registry.modes["custom_foo"] = ModeKeymaps(prefix="X", keys={"bar": "b"})
-    custom_ids = {entry.id for entry in catalog_gen._gen_tui(registry)}
+    custom_ids = {entry.id for entry in gen_tui(registry)}
     assert custom_ids == default_ids
     assert "tui:custom_foo.bar" not in custom_ids
     assert not [fid for fid in custom_ids if fid.startswith("tui:custom.")]
@@ -298,7 +300,7 @@ def test_provider_discovered_subtabs_never_enter_the_catalog(
         ]
 
     monkeypatch.setattr(catalog_module, "build_command_catalog", fake_catalog)
-    ids_out = {entry.id for entry in catalog_gen._gen_tui()}
+    ids_out = {entry.id for entry in gen_tui()}
     assert "tui:artifacts.stitches" in ids_out
     assert "tui:artifacts.ref_plan" not in ids_out
 
