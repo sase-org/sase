@@ -153,6 +153,8 @@ def test_self_heal_repairs_stash_pop_conflict(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """Unmerged paths with no marker still heal via rescue plus reset/clean."""
+    import json
+
     home, _ = _redirect_state(tmp_path, monkeypatch)
     origin = tmp_path / "origin"
     _init_origin(origin)
@@ -172,6 +174,14 @@ def test_self_heal_repairs_stash_pop_conflict(
     entries = _rescue_entries(home)
     assert entries, "expected a rescue entry for the unmerged worktree"
     assert any((entry / "worktree.patch").is_file() for entry in entries)
+    assert any(
+        (entry / "manifest.json").is_file()
+        and json.loads((entry / "manifest.json").read_text(encoding="utf-8")).get(
+            "kind"
+        )
+        == "verified-snapshot"
+        for entry in entries
+    ), "expected a verified snapshot before the destructive clean"
 
 
 def test_self_heal_clears_stale_rebase_marker_without_rescue(
@@ -367,24 +377,48 @@ def test_self_heal_carries_clean_rebase_without_rescue(
 def test_self_heal_stashes_plain_dirty_worktree_without_rescue(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """A plain dirty worktree keeps its stash backup and files no rescue."""
+    """A plain dirty worktree keeps its stash backup and a verified snapshot."""
+    import json
+
+    from sase.workspace_provider.snapshot import restore_git_snapshot
+
     home, _ = _redirect_state(tmp_path, monkeypatch)
     origin = tmp_path / "origin"
     _init_origin(origin)
     checkout = _clone(origin, tmp_path / "ws7")
     (checkout / "README.md").write_text("dirty edit\n", encoding="utf-8")
+    (checkout / "new_impl.py").write_text("untracked-impl\n", encoding="utf-8")
 
     _prepare(checkout)
 
     assert _porcelain(checkout) == ""
     assert _git(checkout, "stash", "list").stdout.strip(), "expected a stash entry"
-    assert _rescue_entries(home) == []
+    entries = _rescue_entries(home)
+    assert entries, "expected a verified snapshot for the dirty worktree"
+    manifests = [entry / "manifest.json" for entry in entries]
+    assert any(
+        json.loads(path.read_text(encoding="utf-8")).get("kind") == "verified-snapshot"
+        for path in manifests
+        if path.is_file()
+    )
+    snapshot_manifest = next(
+        path
+        for path in manifests
+        if path.is_file()
+        and json.loads(path.read_text(encoding="utf-8")).get("kind")
+        == "verified-snapshot"
+    )
+    dest = tmp_path / "restore-dest"
+    dest.mkdir()
+    restore_git_snapshot(snapshot_manifest, dest)
+    assert (dest / "README.md").read_text(encoding="utf-8") == "dirty edit\n"
+    assert (dest / "new_impl.py").read_text(encoding="utf-8") == "untracked-impl\n"
 
 
 def test_self_heal_false_keeps_failing(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Without self-heal, a wedged checkout still fails closed (no rescue)."""
+    """Without self-heal, a wedged checkout still fails closed with preservation."""
     home, _ = _redirect_state(tmp_path, monkeypatch)
     origin = tmp_path / "origin"
     _init_origin(origin)
@@ -399,7 +433,10 @@ def test_self_heal_false_keeps_failing(
         prepare_workspace(str(checkout), "heal-cl", VCS_DEFAULT_REVISION)
 
     assert exc_info.value.reclone_eligible is False
-    assert _rescue_entries(home) == []
+    assert _rescue_entries(home), "expected verified preservation before refusal"
+    # The failed preparation leaves the wedged checkout untouched.
+    git_dir = _git_dir(checkout)
+    assert (git_dir / "rebase-merge").exists() or (git_dir / "rebase-apply").exists()
 
 
 def test_self_heal_fetch_failure_is_hard_and_ineligible(
@@ -422,7 +459,7 @@ def test_self_heal_fetch_failure_is_hard_and_ineligible(
 def test_self_heal_skipped_for_non_git_provider(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Providers without heal operations keep today's fail-closed behavior."""
+    """Providers without heal operations fail closed with verified preservation."""
     from unittest.mock import MagicMock
 
     home, _ = _redirect_state(tmp_path, monkeypatch)
@@ -469,4 +506,36 @@ def test_self_heal_skipped_for_non_git_provider(
 
     assert exc_info.value.step == "clean"
     assert exc_info.value.reclone_eligible is False
-    assert _rescue_entries(home) == []
+    assert _rescue_entries(home), "expected verified preservation before refusal"
+
+
+def test_self_heal_preservation_failure_refuses_clean(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Incomplete preservation refuses the clean without touching the worktree."""
+    from sase.workspace_provider.snapshot import PreservationError
+
+    home, _ = _redirect_state(tmp_path, monkeypatch)
+    origin = tmp_path / "origin"
+    _init_origin(origin)
+    checkout = _clone(origin, tmp_path / "ws7")
+    (checkout / "README.md").write_text("dirty edit\n", encoding="utf-8")
+    (checkout / "new_impl.py").write_text("untracked-impl\n", encoding="utf-8")
+
+    monkeypatch.setattr(
+        "sase.workspace_provider.snapshot.snapshot_git_repo",
+        lambda *args, **kwargs: (_ for _ in ()).throw(
+            PreservationError("injected incomplete preservation")
+        ),
+    )
+
+    with pytest.raises(WorkspacePreparationError) as exc_info:
+        _prepare(checkout)
+
+    assert exc_info.value.step == "clean"
+    assert exc_info.value.reclone_eligible is False
+    assert "verified preservation failed" in exc_info.value.reason
+    # Failed preservation leaves tracked and untracked bytes untouched.
+    assert (checkout / "README.md").read_text(encoding="utf-8") == "dirty edit\n"
+    assert (checkout / "new_impl.py").read_text(encoding="utf-8") == "untracked-impl\n"
+    assert _porcelain(checkout) != ""

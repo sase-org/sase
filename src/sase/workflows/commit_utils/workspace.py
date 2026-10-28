@@ -1,12 +1,44 @@
 """Workspace and diff management utilities."""
 
 import os
+import sys
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from sase.core.patch import strip_reverted_suffix
 from sase.core.paths import make_safe_filename, sharded_path
 from sase.core.time import generate_timestamp
 from sase.vcs_provider import get_vcs_provider
+
+if TYPE_CHECKING:
+    from sase.workspace_provider.snapshot import SnapshotRecord
+
+
+def _verified_snapshot_before_cleanup(
+    workspace_dir: str,
+    *,
+    workspace_num: int,
+    label: str,
+    reason: str,
+) -> "SnapshotRecord | None":
+    """Capture a verified snapshot before a source-mutating cleanup.
+
+    Returns the snapshot record, or ``None`` when the checkout is a proven
+    no-work tree. Raises :class:`PreservationError` when preservation is
+    incomplete; callers must not proceed to destructive Git operations.
+    """
+    from sase.workspace_provider.snapshot import snapshot_git_repo
+
+    record = snapshot_git_repo(
+        workspace_dir,
+        workspace_dir=workspace_dir,
+        workspace_num=workspace_num,
+        label=label,
+        reason=reason,
+    )
+    if record is not None:
+        print(f"Verified preservation: {record.manifest_path}")
+    return record
 
 
 def save_diff(
@@ -94,15 +126,30 @@ def apply_diffs_to_workspace(
     return True, ""
 
 
-def clean_workspace(workspace_dir: str) -> bool:
+def clean_workspace(workspace_dir: str, *, workspace_num: int = 1) -> bool:
     """Clean the workspace by reverting all uncommitted changes.
+
+    Captures a verified snapshot before the first source-mutating reset so
+    tracked, staged, and untracked bytes stay recoverable outside the
+    checkout. A preservation failure refuses the clean.
 
     Args:
         workspace_dir: The workspace directory to clean.
+        workspace_num: Owning workspace identity for rescue entry naming.
 
     Returns:
         True if successful, False otherwise.
     """
+    try:
+        _verified_snapshot_before_cleanup(
+            workspace_dir,
+            workspace_num=workspace_num,
+            label="cleanup",
+            reason="commit-utils clean_workspace before reset/clean",
+        )
+    except Exception as exc:
+        print(f"verified preservation failed: {exc}", file=sys.stderr)
+        return False
     try:
         provider = get_vcs_provider(workspace_dir)
         success, _ = provider.clean_workspace(workspace_dir)
@@ -111,19 +158,34 @@ def clean_workspace(workspace_dir: str) -> bool:
         return False
 
 
-def run_sase_hg_clean(workspace_dir: str, diff_name: str) -> tuple[bool, str]:
+def run_sase_hg_clean(
+    workspace_dir: str, diff_name: str, *, workspace_num: int = 1
+) -> tuple[bool, str]:
     """Save changes and clean the workspace.
 
     This saves any uncommitted changes to a diff file before cleaning.
-    Should be called BEFORE switching branches.
+    Should be called BEFORE switching branches. A verified snapshot is
+    captured before the stash so tracked, staged, and untracked bytes stay
+    recoverable outside the checkout even when the stash cannot be created;
+    ``--include-untracked`` stays in the normal stash path.
 
     Args:
         workspace_dir: The workspace directory to clean.
         diff_name: Name for the backup diff file (without .diff extension).
+        workspace_num: Owning workspace identity for rescue entry naming.
 
     Returns:
         Tuple of (success, error_message).
     """
+    try:
+        _verified_snapshot_before_cleanup(
+            workspace_dir,
+            workspace_num=workspace_num,
+            label="cleanup",
+            reason=f"run_sase_hg_clean before stash_and_clean ({diff_name})",
+        )
+    except Exception as exc:
+        return False, f"verified preservation failed: {exc}"
     try:
         provider = get_vcs_provider(workspace_dir)
         success, error = provider.stash_and_clean(diff_name, workspace_dir)

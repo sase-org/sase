@@ -658,3 +658,120 @@ class TestRecreateEndToEnd:
             )
         finally:
             os.chdir(session_cwd)
+
+
+class TestRecreatePreservationGuard:
+    def test_dirty_worktree_is_recoverable_after_checkout_removal(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        import json
+
+        from sase.workspace_provider.snapshot import restore_git_snapshot
+
+        home, _ = _redirect_state(tmp_path, monkeypatch)
+        origin = tmp_path / "origin"
+        _init_origin(origin)
+        primary = _clone(origin, tmp_path / "primary")
+        workspace = _clone(primary, tmp_path / "primary_7")
+        (workspace / "README.md").write_text("dirty tracked\n", encoding="utf-8")
+        (workspace / "new_impl.py").write_text("untracked-impl\n", encoding="utf-8")
+
+        result = recreate_managed_workspace(
+            str(workspace),
+            7,
+            config={"workspace": {"root": "adjacent"}},
+            env={},
+        )
+
+        assert result.rstrip("/") == str(workspace)
+        assert _git(workspace, "status", "--porcelain").stdout.strip() == ""
+        entries = _rescue_entries(home)
+        snapshot_manifest = next(
+            entry / "manifest.json"
+            for entry in entries
+            if (entry / "manifest.json").is_file()
+            and json.loads((entry / "manifest.json").read_text(encoding="utf-8")).get(
+                "kind"
+            )
+            == "verified-snapshot"
+        )
+        dest = tmp_path / "restore-dest"
+        dest.mkdir()
+        restore_git_snapshot(snapshot_manifest, dest)
+        assert (dest / "README.md").read_text(encoding="utf-8") == "dirty tracked\n"
+        assert (dest / "new_impl.py").read_text(encoding="utf-8") == "untracked-impl\n"
+
+    def test_preservation_failure_leaves_checkout_intact(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        from sase.workspace_provider.snapshot import PreservationError
+
+        home, _ = _redirect_state(tmp_path, monkeypatch)
+        origin = tmp_path / "origin"
+        _init_origin(origin)
+        primary = _clone(origin, tmp_path / "primary")
+        workspace = _clone(primary, tmp_path / "primary_7")
+        (workspace / "README.md").write_text("dirty tracked\n", encoding="utf-8")
+        (workspace / "new_impl.py").write_text("untracked-impl\n", encoding="utf-8")
+
+        monkeypatch.setattr(
+            "sase.workspace_provider.snapshot.snapshot_git_repo",
+            lambda *args, **kwargs: (_ for _ in ()).throw(
+                PreservationError("injected incomplete preservation")
+            ),
+        )
+
+        with pytest.raises(RuntimeError, match="verified preservation"):
+            recreate_managed_workspace(
+                str(workspace),
+                7,
+                config={"workspace": {"root": "adjacent"}},
+                env={},
+            )
+
+        # Failed preservation leaves tracked and untracked bytes untouched.
+        assert (workspace / "README.md").read_text(encoding="utf-8") == (
+            "dirty tracked\n"
+        )
+        assert (workspace / "new_impl.py").read_text(encoding="utf-8") == (
+            "untracked-impl\n"
+        )
+        assert workspace.is_dir()
+
+    def test_preservation_failure_is_not_reclone_eligible(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        from sase.workspace_provider.snapshot import PreservationError
+
+        _redirect_state(tmp_path, monkeypatch)
+        origin = tmp_path / "origin"
+        _init_origin(origin)
+        checkout = _clone(origin, tmp_path / "ws7")
+        (checkout / "README.md").write_text("dirty edit\n", encoding="utf-8")
+
+        monkeypatch.setattr(
+            "sase.workspace_provider.snapshot.snapshot_git_repo",
+            lambda *args, **kwargs: (_ for _ in ()).throw(
+                PreservationError("injected incomplete preservation")
+            ),
+        )
+
+        from sase.axe.runner_workspace import (
+            WorkspacePreparationError,
+            prepare_workspace,
+        )
+        from sase.vcs_provider import VCS_DEFAULT_REVISION
+
+        with pytest.raises(WorkspacePreparationError) as exc_info:
+            prepare_workspace(
+                str(checkout),
+                "heal-cl",
+                VCS_DEFAULT_REVISION,
+                workspace_num=7,
+                self_heal=True,
+            )
+
+        assert exc_info.value.reclone_eligible is False
+        # A non-eligible refusal must not delete the checkout.
+        assert checkout.is_dir()
+        assert (checkout / "README.md").read_text(encoding="utf-8") == "dirty edit\n"

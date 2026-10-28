@@ -494,10 +494,18 @@ def recreate_managed_workspace(
     sharing, origin rewrite, registry record, checkout marker, and SDD clone
     all follow the normal path.
 
+    A verified snapshot is required before the original is moved aside; an
+    unsupported or corrupt source that cannot be saved stays intact instead
+    of being deleted.
+
     Refuses ``workspace_num <= 1``: the primary checkout may hold the user's
     own work and is never re-created.
     """
     from sase.workspace_provider.rescue import rescue_git_repo
+    from sase.workspace_provider.snapshot import (
+        PreservationError,
+        snapshot_git_repo,
+    )
 
     if workspace_num <= 1:
         raise RuntimeError(
@@ -505,6 +513,26 @@ def recreate_managed_workspace(
             f"({workspace_dir}); numbered workspaces only"
         )
     checkout = workspace_dir.rstrip("/") or workspace_dir
+    try:
+        snapshot_record = snapshot_git_repo(
+            checkout,
+            workspace_dir=checkout,
+            workspace_num=workspace_num,
+            label="checkout",
+            reason="last-resort workspace re-creation: verified preservation",
+        )
+    except PreservationError as exc:
+        raise RuntimeError(
+            "refusing to re-create workspace checkout without complete "
+            f"verified preservation ({checkout}): {exc}"
+        ) from exc
+    except Exception as exc:
+        raise RuntimeError(
+            "refusing to re-create workspace checkout without complete "
+            f"verified preservation ({checkout}): {exc}"
+        ) from exc
+    if snapshot_record is not None:
+        print(f"Verified preservation: {snapshot_record.manifest_path}")
     rescue_git_repo(
         checkout,
         workspace_dir=checkout,

@@ -13,8 +13,48 @@ if TYPE_CHECKING:
     from sase.vcs_provider import VCSProvider
     from sase.vcs_provider._types import CheckoutInspection
     from sase.workspace_provider.rescue import RescueRecord
+    from sase.workspace_provider.snapshot import SnapshotRecord
 
 logger = logging.getLogger(__name__)
+
+
+def require_verified_snapshot(
+    workspace_dir: str,
+    workspace_num: int,
+    *,
+    label: str,
+    reason: str,
+    step: str,
+) -> "SnapshotRecord | None":
+    """Capture a verified snapshot before a destructive heal step.
+
+    Returns the record, or ``None`` when the checkout is a proven no-work
+    tree. Raises a non-reclone-eligible :class:`WorkspacePreparationError`
+    when preservation is incomplete; callers must not proceed to destructive
+    Git operations and the reclone path must not delete the checkout.
+    """
+    from sase.workspace_provider.snapshot import snapshot_git_repo
+
+    try:
+        record = snapshot_git_repo(
+            workspace_dir,
+            workspace_dir=workspace_dir,
+            workspace_num=workspace_num,
+            label=label,
+            reason=reason,
+        )
+    except Exception as exc:
+        reason_msg = f"verified preservation failed before {label}: {exc}"
+        print(reason_msg, file=sys.stderr)
+        raise WorkspacePreparationError(
+            reason_msg,
+            step=step,
+            workspace_dir=workspace_dir,
+            reclone_eligible=False,
+        ) from exc
+    if record is not None:
+        print(f"Self-heal: verified preservation for {label} at {record.manifest_path}")
+    return record
 
 
 def rescue_checkout_for_heal(
@@ -70,11 +110,24 @@ def heal_checkout_rung(
     *,
     is_default_parent: bool,
     workspace_dir: str,
+    workspace_num: int = 1,
 ) -> tuple[bool, str | None]:
-    """Retry a failed checkout with ``-f``, then recreate the default branch."""
+    """Retry a failed checkout with ``-f``, then recreate the default branch.
+
+    A verified snapshot is required before the forced checkout and again
+    before branch recreation when Git may have produced new state. A
+    preservation failure raises a non-reclone-eligible preparation error.
+    """
     print(
         f"Self-heal: checkout of {update_target} failed "
         f"({checkout_err or 'unknown error'}); retrying with -f"
+    )
+    require_verified_snapshot(
+        workspace_dir,
+        workspace_num,
+        label="forced-checkout",
+        reason=f"self-heal: checkout of {update_target} failed; preserving before -f",
+        step="checkout",
     )
     try:
         forced_ok, forced_err = provider.force_checkout(update_target, workspace_dir)
@@ -93,6 +146,13 @@ def heal_checkout_rung(
     print(
         f"Self-heal: forced checkout failed ({forced_err or 'unknown error'}); "
         f"recreating {branch} at {remote_ref}"
+    )
+    require_verified_snapshot(
+        workspace_dir,
+        workspace_num,
+        label="branch-recreate",
+        reason=f"self-heal: recreating {branch} at {remote_ref}; preserving before -B",
+        step="checkout",
     )
     try:
         recreated_ok, recreated_err = provider.recreate_branch_from_remote(
@@ -140,6 +200,13 @@ def heal_sync_rung(
         f"Self-heal: rebase onto {remote_ref} failed "
         f"({rebase_err or 'unknown error'}); aborting and rescuing local commits"
     )
+    require_verified_snapshot(
+        workspace_dir,
+        workspace_num,
+        label="sync-conflict",
+        reason=f"self-heal: rebase onto {remote_ref} conflicted; preserving before abort",
+        step="sync",
+    )
     with contextlib.suppress(Exception):
         provider.abort_sync(workspace_dir)
     recovery_ref = _pin_heal_recovery_ref(workspace_dir)
@@ -148,6 +215,13 @@ def heal_sync_rung(
         workspace_num,
         label="sync-conflict",
         reason=f"self-heal: rebase onto {remote_ref} conflicted",
+    )
+    require_verified_snapshot(
+        workspace_dir,
+        workspace_num,
+        label="sync-reset",
+        reason=f"self-heal: preserving before reset to {remote_ref}",
+        step="sync",
     )
     try:
         reset_ok, reset_err = provider.reset_to_remote(remote_ref, workspace_dir)
@@ -253,6 +327,7 @@ def verify_healed_checkout(
 __all__ = [
     "heal_checkout_rung",
     "heal_sync_rung",
+    "require_verified_snapshot",
     "rescue_checkout_for_heal",
     "rescue_heal_state",
     "verify_healed_checkout",

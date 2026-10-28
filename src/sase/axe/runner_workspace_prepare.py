@@ -13,6 +13,7 @@ from sase.axe.runner_workspace_errors import WorkspacePreparationError
 from sase.axe.runner_workspace_heal import (
     heal_checkout_rung,
     heal_sync_rung,
+    require_verified_snapshot,
     rescue_checkout_for_heal,
     rescue_heal_state,
     verify_healed_checkout,
@@ -174,6 +175,16 @@ def _prepare_workspace_locked(
     if inspection is not None and provider is not None:
         rescued = rescue_heal_state(workspace_dir, workspace_num, inspection)
         if inspection.operations:
+            require_verified_snapshot(
+                workspace_dir,
+                workspace_num,
+                label="abort",
+                reason=(
+                    "self-heal: preserving before aborting "
+                    f"{', '.join(inspection.operations)}"
+                ),
+                step="heal",
+            )
             try:
                 abort_ok, abort_err = provider.abort_in_progress_operations(
                     workspace_dir
@@ -195,9 +206,23 @@ def _prepare_workspace_locked(
             for label in inspection.operations:
                 print(f"Aborted stale {label} in {workspace_dir}")
 
-    # Clean workspace (saves any existing changes to a diff file)
+    # Clean workspace (saves any existing changes to a diff file).
+    # run_sase_hg_clean captures a verified snapshot before its stash, so
+    # normal launches and direct callers obtain durable preservation before
+    # the first source-mutating cleanup. A preservation failure must not
+    # fall through to the destructive reset/clean fallback below.
     print("Cleaning workspace...")
-    success, error = run_sase_hg_clean(workspace_dir, f"{cl_name}-{backup_suffix}")
+    success, error = run_sase_hg_clean(
+        workspace_dir, f"{cl_name}-{backup_suffix}", workspace_num=workspace_num
+    )
+    if error and "verified preservation failed" in error:
+        print(f"sase_hg_clean failed: {error}", file=sys.stderr)
+        raise WorkspacePreparationError(
+            error,
+            step="clean",
+            workspace_dir=workspace_dir,
+            reclone_eligible=False,
+        )
     # (Healing implies a resolved provider; the extra conjunct is for typing.)
     if not success and healing and provider is not None:
         print(
@@ -211,6 +236,13 @@ def _prepare_workspace_locked(
                 label="checkout",
                 reason="self-heal: stash backup failed before clean",
             )
+        require_verified_snapshot(
+            workspace_dir,
+            workspace_num,
+            label="stash-failure-clean",
+            reason="self-heal: preserving before reset/clean after stash failure",
+            step="clean",
+        )
         try:
             clean_ok, clean_err = provider.clean_workspace(workspace_dir)
         except NotImplementedError:
@@ -260,6 +292,7 @@ def _prepare_workspace_locked(
             checkout_err,
             is_default_parent=is_default_parent,
             workspace_dir=workspace_dir,
+            workspace_num=workspace_num,
         )
     if not checkout_ok:
         reason = (

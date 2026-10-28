@@ -195,19 +195,40 @@ def read_source_state(repo_root: Path) -> SourceState:
 
 
 def _has_work(state: SourceState) -> bool:
-    if any(part for part in state.status_z.split(b"\0") if part):
-        return True
+    from sase.workspace_provider._snapshot_git import status_paths as _status_paths
+
+    for rel in _status_paths(state.status_z):
+        if not _is_managed_sidecar_rel(rel):
+            return True
+    # Sidecar-only status means the main checkout has no work of its own;
+    # sidecars are rescued through their own boundaries.
     return any(entry.stage != 0 for entry in state.entries)
+
+
+def _is_managed_sidecar_rel(rel: str) -> bool:
+    """Whether *rel* lives under the managed sidecar root.
+
+    Clones under ``sase/repos/`` have their own rescue boundaries
+    (sidecar/linked/external rescue before eviction), so the main-checkout
+    snapshot neither captures nor refuses them.
+    """
+    return rel == "sase/repos" or rel.startswith("sase/repos/")
 
 
 def _refuse_nested_repositories(repo_root: Path, state: SourceState) -> None:
     seen: set[Path] = set()
     for rel in status_paths(state.status_z):
+        if _is_managed_sidecar_rel(rel):
+            continue
         nested = nested_git_root(repo_root, rel)
         if nested is not None:
+            if _is_managed_sidecar_rel(nested.relative_to(repo_root).as_posix()):
+                continue
             seen.add(nested)
     for entry in state.entries:
         if entry.mode == "160000":
+            if _is_managed_sidecar_rel(entry.path):
+                continue
             path = safe_repo_path(repo_root, entry.path)
             if path.is_dir():
                 dirty = run_git_bytes(path, "status", "--porcelain=v1", "-z", "-uall")
@@ -374,12 +395,16 @@ def _worktree_entries(
             paths.add(os.fsdecode(item))
     entries: list[IndexEntry] = []
     for rel in sorted(paths):
+        if _is_managed_sidecar_rel(rel):
+            continue
         path = safe_repo_path(repo_root, rel)
         if not path.exists() and not os.path.lexists(path):
             continue
         if path.is_dir() and not path.is_symlink():
             nested = nested_git_root(repo_root, rel)
             if nested is not None:
+                if _is_managed_sidecar_rel(nested.relative_to(repo_root).as_posix()):
+                    continue
                 raise PreservationError(
                     f"refusing to snapshot nested repository content: {nested}"
                 )
