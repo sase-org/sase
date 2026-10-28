@@ -12,10 +12,12 @@ Show the local usage census of sase surfaces.
 Reference for `sase footprint`. Run `sase footprint --help` for the exact output on this checkout.
 
 ```text
-usage: sase footprint [-h] {catalog,clear,mode,status} ...
+usage: sase footprint [-h] {catalog,clear,decide,list,mode,show,status} ...
 ```
 
-Footprint keeps a local, privacy-by-construction census of which sase surfaces (CLI commands and options, TUI actions and keys, views and modals, macros, skills, config leaves, automation) are used, and joins it with a generated feature catalog. Use `sase footprint mode off` to stop recording. Bare `sase footprint` shows this help.
+Footprint keeps a local, privacy-by-construction census of which sase surfaces (CLI commands and options, TUI actions and keys, views and modals, macros, skills, config leaves, automation) are used, and joins it with a generated feature catalog. Use `sase footprint mode off` to stop recording. Bare `sase footprint` delegates to `list`.
+
+Bare `sase footprint` defaults to `sase footprint list`.
 
 Options:
 
@@ -29,7 +31,10 @@ Subcommands:
 | ------------------------ | ------------------------------------------ |
 | `sase footprint catalog` | List the generated feature catalog         |
 | `sase footprint clear`   | Clear local Footprint data                 |
+| `sase footprint decide`  | Record a Footprint review decision         |
+| `sase footprint list`    | List Footprint features by lens            |
 | `sase footprint mode`    | Show or set local Footprint recording      |
+| `sase footprint show`    | Show one Footprint feature or area         |
 | `sase footprint status`  | Show Footprint recording and ledger status |
 
 ## `sase footprint catalog`
@@ -64,6 +69,51 @@ Options:
 | `-h`, `--help` | show this help message and exit       | —       |
 | `-y`, `--yes`  | Clear without asking for confirmation | `false` |
 
+## `sase footprint decide`
+
+```text
+usage: sase footprint decide [-h] ID {keep,later,cut,clear}
+                             [-r {rare_by_design,safety,agent_facing,api_contract,other}]
+```
+
+Record a local review decision for one feature ID: keep (with an optional keep reason), later (snooze 30 days), cut (mark for removal), or clear (delete the decision).
+
+Options:
+
+| Option                         | Description                                                                                                | Default |
+| ------------------------------ | ---------------------------------------------------------------------------------------------------------- | ------- |
+| `-h`, `--help`                 | show this help message and exit                                                                            | —       |
+| `-r REASON`, `--reason REASON` | Keep reason (default: none) (choices: `agent_facing`, `api_contract`, `other`, `rare_by_design`, `safety`) | —       |
+
+Arguments:
+
+| Argument     | Description                            |
+| ------------ | -------------------------------------- |
+| `feature_id` | Feature ID (for example cli:bead.list) |
+| `decision`   | Review decision                        |
+
+## `sase footprint list`
+
+```text
+usage: sase footprint list [-h] [-a {you,agents,automation,everyone}]
+                           [-A AREA] [-f {rich,json,markdown}]
+                           [-l {map,cold,fading,agent-only,dead-paths,friction,hot,coverage,decisions}]
+                           [-r RANGE]
+```
+
+List Footprint features through one of nine lenses. Pending spool data is folded first when the last fold is more than ten minutes old.
+
+Options:
+
+| Option                         | Description                                                                                                                             | Default |
+| ------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------- | ------- |
+| `-a ACTOR`, `--actor ACTOR`    | Actor scope (default: you) (choices: `agents`, `automation`, `everyone`, `you`)                                                         | `you`   |
+| `-A AREA`, `--area AREA`       | Show only one area (for example cli.bead)                                                                                               | —       |
+| `-f FORMAT`, `--format FORMAT` | Output format (default: rich) (choices: `json`, `markdown`, `rich`)                                                                     | `rich`  |
+| `-h`, `--help`                 | show this help message and exit                                                                                                         | —       |
+| `-l LENS`, `--lens LENS`       | Report lens (default: map) (choices: `agent-only`, `cold`, `coverage`, `dead-paths`, `decisions`, `fading`, `friction`, `hot`; +1 more) | `map`   |
+| `-r RANGE`, `--range RANGE`    | Window: Nd, Nw, or all (default: 60d)                                                                                                   | `60d`   |
+
 ## `sase footprint mode`
 
 ```text
@@ -83,6 +133,30 @@ Arguments:
 | Argument | Description                                     |
 | -------- | ----------------------------------------------- |
 | `mode`   | Recording mode (default: show the current mode) |
+
+## `sase footprint show`
+
+```text
+usage: sase footprint show [-h] ID [-a {you,agents,automation,everyone}]
+                           [-f {rich,json,markdown}] [-r RANGE]
+```
+
+Show the evidence card for one feature ID or area. Pending spool data is folded first when the last fold is more than ten minutes old.
+
+Options:
+
+| Option                         | Description                                                                     | Default |
+| ------------------------------ | ------------------------------------------------------------------------------- | ------- |
+| `-a ACTOR`, `--actor ACTOR`    | Actor scope (default: you) (choices: `agents`, `automation`, `everyone`, `you`) | `you`   |
+| `-f FORMAT`, `--format FORMAT` | Output format (default: rich) (choices: `json`, `markdown`, `rich`)             | `rich`  |
+| `-h`, `--help`                 | show this help message and exit                                                 | —       |
+| `-r RANGE`, `--range RANGE`    | Window: Nd, Nw, or all (default: 60d)                                           | `60d`   |
+
+Arguments:
+
+| Argument     | Description                                                           |
+| ------------ | --------------------------------------------------------------------- |
+| `feature_id` | Feature ID (for example cli:bead.list) or area (for example cli.bead) |
 
 ## `sase footprint status`
 

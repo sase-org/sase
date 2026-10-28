@@ -335,7 +335,13 @@ def test_footprint_cli_group_exists() -> None:
     assert args.footprint_subcommand == "catalog"
     assert args.namespace == "cli"
     bare = parser.parse_args(["footprint"])
-    assert bare.footprint_subcommand is None
+    assert bare.footprint_subcommand == "list"
+    assert (bare.lens, bare.actor, bare.range, bare.format) == (
+        "map",
+        "you",
+        "60d",
+        "rich",
+    )
 
 
 def test_footprint_catalog_json_lists_filtered_entries(capsys: Any) -> None:

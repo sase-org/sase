@@ -44,11 +44,17 @@ def handle_footprint_command(args: argparse.Namespace) -> int:
         return _handle_catalog(args)
     if subcommand == "clear":
         return _handle_clear(args)
+    if subcommand == "decide":
+        return _handle_decide(args)
+    if subcommand == "list":
+        return _handle_list(args)
+    if subcommand == "show":
+        return _handle_show(args)
     if subcommand == "status":
         return _handle_status(args)
     print(
         f"sase footprint: unknown view {subcommand!r}. "
-        "Implemented views: catalog, clear, mode, status.",
+        "Implemented views: catalog, clear, decide, list, mode, show, status.",
         file=sys.stderr,
     )
     return 2
@@ -355,6 +361,209 @@ def _print_catalog_markdown(rev: str, entries: list[CatalogEntry]) -> None:
         for entry in [entry for entry in entries if entry.area == area]:
             print(f"- `{entry.id}` — {entry.label}")
         print()
+
+
+def _handle_list(args: argparse.Namespace) -> int:
+    from sase.footprint.fold import fold_if_stale
+    from sase.footprint.query import (
+        build_report_request,
+        fetch_report,
+        parse_range_days,
+    )
+    from sase.footprint.render import report_markdown
+
+    fmt = getattr(args, "format", None) or "rich"
+    lens = getattr(args, "lens", None) or "map"
+    actor = getattr(args, "actor", None) or "you"
+    try:
+        window_days = parse_range_days(getattr(args, "range", None) or "60d")
+    except ValueError as exc:
+        print(f"sase footprint list: {exc}", file=sys.stderr)
+        return 2
+    try:
+        fold_if_stale()
+    except (OSError, RuntimeError, TimeoutError, ValueError) as exc:
+        print(f"Could not fold Footprint spool: {exc}", file=sys.stderr)
+        return 1
+    try:
+        report = fetch_report(
+            build_report_request(
+                lens=lens,
+                actor=actor,
+                window_days=window_days,
+                area=getattr(args, "area", None),
+            )
+        )
+    except (OSError, RuntimeError, TimeoutError, ValueError) as exc:
+        print(f"Could not read Footprint report: {exc}", file=sys.stderr)
+        return 1
+    if fmt == "json":
+        print(json.dumps(report, indent=2, sort_keys=True))
+        return 0
+    if fmt == "markdown":
+        print(report_markdown(report, lens), end="")
+        return 0
+    _print_report_rich(report, lens)
+    return 0
+
+
+def _handle_show(args: argparse.Namespace) -> int:
+    from sase.footprint.fold import fold_if_stale
+    from sase.footprint.query import (
+        build_card_request,
+        build_report_request,
+        fetch_card,
+        fetch_report,
+        parse_range_days,
+    )
+    from sase.footprint.render import card_markdown
+
+    fmt = getattr(args, "format", None) or "rich"
+    actor = getattr(args, "actor", None) or "you"
+    target = getattr(args, "feature_id", None) or ""
+    try:
+        window_days = parse_range_days(getattr(args, "range", None) or "60d")
+    except ValueError as exc:
+        print(f"sase footprint show: {exc}", file=sys.stderr)
+        return 2
+    try:
+        fold_if_stale()
+    except (OSError, RuntimeError, TimeoutError, ValueError) as exc:
+        print(f"Could not fold Footprint spool: {exc}", file=sys.stderr)
+        return 1
+    try:
+        card = fetch_card(
+            build_card_request(target=target, actor=actor, window_days=window_days)
+        )
+    except (OSError, RuntimeError, TimeoutError, ValueError) as exc:
+        print(f"Could not read Footprint card: {exc}", file=sys.stderr)
+        return 1
+    try:
+        header_report = fetch_report(
+            build_report_request(lens="map", actor=actor, window_days=window_days)
+        )
+    except (OSError, RuntimeError, TimeoutError, ValueError):
+        header_report = {"header": {"actor": actor, "observed_active_days": {}}}
+    header = dict(header_report.get("header", {}))
+    if fmt == "json":
+        print(json.dumps(card, indent=2, sort_keys=True))
+        return 0
+    if fmt == "markdown":
+        print(card_markdown(card, header), end="")
+        return 0
+    _print_card_rich(card, header)
+    return 0
+
+
+def _handle_decide(args: argparse.Namespace) -> int:
+    from sase.footprint.ids import is_valid_feature_id
+    from sase.footprint.query import record_decision
+
+    feature_id = getattr(args, "feature_id", None) or ""
+    decision = getattr(args, "decision", None) or ""
+    reason = getattr(args, "reason", None)
+    if not is_valid_feature_id(feature_id):
+        print(
+            f"sase footprint decide: invalid feature ID {feature_id!r}",
+            file=sys.stderr,
+        )
+        return 2
+    try:
+        result = record_decision(feature_id, decision, reason)
+    except (OSError, RuntimeError, TimeoutError, ValueError) as exc:
+        print(f"Could not record Footprint decision: {exc}", file=sys.stderr)
+        return 1
+    stored = result.get("decision")
+    if stored is None:
+        Console().print(f"Cleared decision for `{feature_id}`.", style="dim")
+    else:
+        suffix = f" ({result.get('reason')})" if result.get("reason") else ""
+        Console().print(
+            f"Recorded `{feature_id}` → {stored}{suffix}.",
+            style="green",
+        )
+    return 0
+
+
+def _print_report_rich(report: dict[str, Any], lens: str) -> None:
+    from rich.columns import Columns
+
+    from sase.footprint.render import (
+        area_row_text,
+        feature_row_text,
+        header_chip,
+        header_text,
+        legend_text,
+        tiles_row,
+    )
+
+    console = Console()
+    header_line = header_text(report)
+    header_line.append("   ")
+    header_line.append_text(header_chip(report))
+    console.print(header_line)
+    header = dict(report.get("header", {}))
+    tiles = dict(report.get("tiles", {}))
+    if int(tiles.get("total", 0) or 0) <= 0 and not header.get("recording_since"):
+        console.print(
+            "No Footprint data yet · recording since now · first fold within the hour",
+            style="dim",
+        )
+        console.print(legend_text())
+        return
+    tile_group = tiles_row(report)
+    assert isinstance(tile_group, Group)
+    console.print(Columns(list(tile_group.renderables), equal=True))
+    if lens == "map":
+        width = max(12, min(48, console.size.width - 44))
+        areas = report.get("areas", [])
+        if not areas:
+            console.print("No areas in this lens.", style="dim")
+        for area in areas if isinstance(areas, list) else []:
+            if isinstance(area, dict):
+                console.print(area_row_text(area, strip_width=width))
+    elif lens == "coverage":
+        table = Table(show_header=True, header_style="bold", box=None, pad_edge=False)
+        table.add_column("SURFACE")
+        table.add_column("MEASURED", justify="right")
+        table.add_column("ACTIVE", justify="right")
+        table.add_column("TORN", justify="right")
+        table.add_column("DROPPED", justify="right")
+        table.add_column("UNKNOWN", justify="right")
+        table.add_column("INCOMPLETE", justify="right")
+        for item in (
+            report.get("coverage", [])
+            if isinstance(report.get("coverage"), list)
+            else []
+        ):
+            if not isinstance(item, dict):
+                continue
+            table.add_row(
+                str(item.get("surface", "")),
+                str(item.get("measured_days", 0)),
+                str(item.get("active_days", 0)),
+                str(item.get("torn", 0)),
+                str(item.get("dropped", 0)),
+                str(item.get("unknown_ids", 0)),
+                str(item.get("incomplete_days", 0)),
+            )
+        console.print(table)
+    else:
+        rows = report.get("rows", [])
+        if not rows:
+            console.print("No features in this lens.", style="dim")
+        for row in rows if isinstance(rows, list) else []:
+            if isinstance(row, dict):
+                console.print(feature_row_text(row))
+    console.print(legend_text())
+
+
+def _print_card_rich(card: dict[str, Any], header: dict[str, Any]) -> None:
+    from sase.footprint.render import card_panel, legend_text
+
+    console = Console()
+    console.print(card_panel(card, header))
+    console.print(legend_text())
 
 
 __all__ = ["handle_footprint_command"]
