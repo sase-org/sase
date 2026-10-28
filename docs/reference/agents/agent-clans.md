@@ -217,7 +217,9 @@ its `@tribe` labels follow the name. A real multi-member session root ends with 
 azure container `<name>`, while its concrete member rows retain their exact `--<suffix>`
 names. Plain agent annotations and a lone plan proposer with only its display-only
 planner child remain gold. Press `l` once on a collapsed clan to reveal its direct
-members. The clan's outer fold is binary, so move to a session or workflow row and press
+members. `,j` (next unread done agent) and `,J` (next stopped agent) also reach a member
+row hidden only by a collapsed clan: the jump expands just that clan and selects the
+member. The clan's outer fold is binary, so move to a session or workflow row and press
 `l` there to reveal that row's descendants. Lowercase `h` moves from any agent, Bash,
 Python, parallel, embedded, or compatibility workflow step to its validated immediate
 workflow, session, clan, or tribe parent without changing fold state. Uppercase `H`

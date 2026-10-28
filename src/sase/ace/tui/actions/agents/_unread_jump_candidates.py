@@ -186,6 +186,13 @@ class AgentUnreadJumpCandidatesMixin:
         fold_manager = getattr(self, "_fold_manager", None)
         if not complete or fold_manager is None:
             return []
+        if not any(
+            not agent.is_clan_container
+            and agent.identity not in seen
+            and predicate(agent)
+            for agent in complete
+        ):
+            return []
 
         candidates: list[TimedAgentJumpCandidate] = []
         projected = self._prospective_clan_member_panels(complete)

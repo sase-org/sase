@@ -126,9 +126,12 @@ class AgentUnreadNavigationMixin(
                 self._acknowledge_agent_unread(agent)
 
         def predicate(agent: Agent) -> bool:
+            current_unread_ids: set[tuple[AgentType, str, str | None]] = getattr(
+                self, "_unread_completed_agent_ids", set()
+            )
             return (
                 is_agents_tab_agent_node(agent)
-                and agent.identity in unread_ids
+                and agent.identity in current_unread_ids
                 and is_unread_completed_status(agent.status)
             )
 
@@ -140,11 +143,12 @@ class AgentUnreadNavigationMixin(
         )
 
     def _jump_to_next_stopped_agent(self) -> bool:
-        """Move focus to the next visible stopped agent without acknowledging it."""
+        """Move focus to the next stopped row, including rows hidden by a collapsed clan."""
         return self._jump_to_next_matching_agent_by_time(
             predicate=lambda agent: is_stopped_agent_status(agent.status),
             after_select=None,
             time_for_agent=_stopped_agent_jump_time,
+            include_collapsed_clan_members=True,
         )
 
     def _jump_to_next_matching_agent_by_time(
@@ -359,7 +363,7 @@ class AgentUnreadNavigationMixin(
         predicate: Callable[[Agent], bool],
         after_select: Callable[[Agent, bool, bool], None] | None,
     ) -> bool:
-        """Expand one target clan, refilter, resolve by identity, and select."""
+        """Expand one target clan, refilter, validate, and select the target."""
         from ._agent_tab_jump import (
             ensure_agent_tab_for_identity,
             restore_agent_tab,
@@ -409,10 +413,7 @@ class AgentUnreadNavigationMixin(
             restore_agent_tab(self, previous_tab)
             return False
         target_agent = self._agents[target_idx]
-        unread_ids: set[tuple[AgentType, str, str | None]] = getattr(
-            self, "_unread_completed_agent_ids", set()
-        )
-        if target_agent.identity not in unread_ids or not predicate(target_agent):
+        if not predicate(target_agent):
             restore_agent_tab(self, previous_tab)
             return False
 
