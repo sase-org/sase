@@ -204,6 +204,80 @@ def test_link_inlet_publication_that_breaks_the_archive_restores_the_scratch(
     assert "decision-branch-unknown" in error
 
 
+def test_link_inlet_publication_failure_restores_the_scratch(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """A failed inlet publish leaves the scratch plan in place with an error."""
+    from sase.sdd.artifact_link_inlet import ArtifactLinkFrontmatterInletError
+
+    content = DECISIONS_TALE.replace(
+        "size: small\n",
+        "size: small\n"
+        "links:\n"
+        "  - ref: research:202608/source.md\n"
+        "    relation: derives-from\n"
+        "    description: uses source report\n",
+    )
+
+    def _failing_publish(archived: Path, **_kwargs: object) -> tuple[()]:
+        raise ArtifactLinkFrontmatterInletError("injected inlet failure")
+
+    monkeypatch.setattr(
+        "sase.sdd.artifact_link_inlet.publish_plan_artifact_link_inlet",
+        _failing_publish,
+    )
+    monkeypatch.setattr(
+        "sase.main.plan_propose_handler._derive_links_for_archived_plan",
+        lambda *_args, **_kwargs: None,
+    )
+
+    code, plan_file, artifacts_dir, sase_home, kill = _propose(
+        tmp_path, monkeypatch, content, lambda raw: raw
+    )
+
+    assert code == 1
+    _assert_nothing_proposed(plan_file, content, artifacts_dir, sase_home, kill)
+    assert "injected inlet failure" in capsys.readouterr().err
+
+
+def test_link_inlet_store_error_restores_the_scratch(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """An invalid store during publish also keeps the scratch plan in place."""
+    content = DECISIONS_TALE.replace(
+        "size: small\n",
+        "size: small\n"
+        "links:\n"
+        "  - ref: research:202608/source.md\n"
+        "    relation: derives-from\n"
+        "    description: uses source report\n",
+    )
+
+    def _broken_store_publish(archived: Path, **_kwargs: object) -> tuple[()]:
+        raise RuntimeError("artifact-link event store is invalid: colliding ids")
+
+    monkeypatch.setattr(
+        "sase.sdd.artifact_link_inlet.publish_plan_artifact_link_inlet",
+        _broken_store_publish,
+    )
+    monkeypatch.setattr(
+        "sase.main.plan_propose_handler._derive_links_for_archived_plan",
+        lambda *_args, **_kwargs: None,
+    )
+
+    code, plan_file, artifacts_dir, sase_home, kill = _propose(
+        tmp_path, monkeypatch, content, lambda raw: raw
+    )
+
+    assert code == 1
+    _assert_nothing_proposed(plan_file, content, artifacts_dir, sase_home, kill)
+    assert "artifact-link event store is invalid" in capsys.readouterr().err
+
+
 def test_second_formatting_pass_that_breaks_validation_proposes_nothing(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

@@ -404,6 +404,8 @@ def handle_plan_propose_command(plan_file: str) -> NoReturn:
             roots=(sase_subdir("plans"),),
         )
         if source_ref is None:
+            plan_path.write_text(original, encoding="utf-8")
+            archived_path.unlink(missing_ok=True)
             print(
                 f"Error: archived plan has no canonical plan reference: {archived_path}",
                 file=sys.stderr,
@@ -416,6 +418,13 @@ def handle_plan_propose_command(plan_file: str) -> NoReturn:
                 inlet=link_inlet,
             )
         except ArtifactLinkFrontmatterInletError as exc:
+            plan_path.write_text(original, encoding="utf-8")
+            archived_path.unlink(missing_ok=True)
+            print(f"Error: {exc}", file=sys.stderr)
+            sys.exit(1)
+        except Exception as exc:  # noqa: BLE001 - any inlet failure keeps the scratch plan.
+            plan_path.write_text(original, encoding="utf-8")
+            archived_path.unlink(missing_ok=True)
             print(f"Error: {exc}", file=sys.stderr)
             sys.exit(1)
 
