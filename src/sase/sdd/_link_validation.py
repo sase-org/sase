@@ -5,7 +5,11 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-from sase.sdd._link_files import list_sdd_files, resolve_sdd_root
+from sase.sdd._link_files import (
+    invalid_sdd_root_message,
+    list_sdd_files,
+    resolve_sdd_root,
+)
 from sase.sdd._link_models import SddIssue, SddValidation
 from sase.sdd._link_parent import LocalPlanChanges, parent_section_issue
 from sase.sdd._legacy_prompt_files import list_plans_store_prompt_files
@@ -36,7 +40,7 @@ def validate_sdd_tree(
             severity="error",
             code="invalid-root",
             path=str(root),
-            message=f"SDD path does not exist or is not a directory: {root}",
+            message=invalid_sdd_root_message(root),
         )
         return SddValidation(root=root, files=[], issues=[issue])
 

@@ -236,7 +236,9 @@ configured inventory. They require no configuration entry. `sase repo open` reso
 them after inventory names in two forms:
 
 - Another registered SASE project name opens that project's primary repo from its local
-  checkout, without network access, under `sase/repos/external/projects/<project>`.
+  checkout, without network access, under `sase/repos/external/projects/<project>`. The
+  open also provisions that project's own plans sidecar inside the external checkout for
+  validation, without synchronizing an existing matching clone.
 - `gh:owner/repo`, or the `owner/repo` shorthand, clones through the installed GitHub
   workspace provider under `sase/repos/external/gh/<owner>/<repo>`.
 

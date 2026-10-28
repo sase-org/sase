@@ -97,6 +97,14 @@ def open_external_repo(
         project_reference=project_reference,
     )
     path = _materialize_external_repo(target)
+    if target.project_source_dir is not None:
+        from sase.main._repo_open_external_sdd import provision_external_plans_sidecar
+
+        provision_external_plans_sidecar(
+            canonical_name=target.canonical_name,
+            dest_dir=path,
+            project_source_dir=target.project_source_dir,
+        )
     record_opened_external_repo(
         target.canonical_name,
         path,

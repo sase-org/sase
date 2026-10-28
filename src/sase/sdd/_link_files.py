@@ -113,10 +113,86 @@ def _looks_like_project_root(path: Path) -> bool:
     return has_project_marker and not any((path / kind).is_dir() for kind in LIST_KINDS)
 
 
+def invalid_sdd_root_message(root: Path) -> str:
+    """Return the invalid-root message, with a nested-clone remedy when needed."""
+
+    message = f"SDD path does not exist or is not a directory: {root}"
+    git_root = _git_checkout_root(root)
+    if git_root is not None and _repo_open_clone_owner(git_root) is not None:
+        return (
+            f"{message}. Rerun `sase repo open` for this checkout to "
+            "provision its plans sidecar"
+        )
+    return message
+
+
 def _resolve_project_sdd_root(project_root: Path) -> Path:
+    try:
+        nested = _nested_repo_open_sdd_root(project_root)
+    except Exception:
+        nested = None
+    if nested is not None:
+        return nested
     try:
         from sase.sdd.store import resolve_sdd_dir
 
         return resolve_sdd_dir(project_root, 1)
     except Exception:
         return project_root / ".sase" / "sdd"
+
+
+def _nested_repo_open_sdd_root(project_root: Path) -> Path | None:
+    """Resolve a nested repo-open checkout from its own store record."""
+
+    git_root = _git_checkout_root(project_root)
+    if git_root is None or _repo_open_clone_owner(git_root) is None:
+        return None
+
+    from sase.sdd._store_records import is_materialized_record, read_sdd_store_record
+    from sase.sdd.store import resolve_sdd_store
+
+    if not is_materialized_record(read_sdd_store_record(git_root)):
+        return None
+
+    checkout = str(git_root)
+
+    def checkout_local(_workspace_dir: str, _workspace_num: int) -> str:
+        return checkout
+
+    return resolve_sdd_store(
+        git_root,
+        1,
+        primary_workspace_resolver=checkout_local,
+    ).sdd_dir
+
+
+def _git_checkout_root(path: Path) -> Path | None:
+    current = path.expanduser().resolve(strict=False)
+    for candidate in (current, *current.parents):
+        if (candidate / ".git").exists():
+            return candidate
+    return None
+
+
+def _repo_open_clone_owner(git_root: Path) -> Path | None:
+    """Return the host checkout when *git_root* is a repo-open clone."""
+
+    from sase._linked_repo_paths import (
+        EXTERNAL_REPO_CLONES_SUBDIR,
+        LINKED_REPO_CLONES_SUBDIR,
+    )
+    from sase.workspace_provider.marker import find_marker_from_cwd
+
+    found = find_marker_from_cwd(str(git_root))
+    if found is None:
+        return None
+    owner = Path(found[0]).expanduser().resolve(strict=False)
+    resolved_root = git_root.expanduser().resolve(strict=False)
+    for subdir in (EXTERNAL_REPO_CLONES_SUBDIR, LINKED_REPO_CLONES_SUBDIR):
+        clone_root = owner.joinpath(*subdir)
+        try:
+            resolved_root.relative_to(clone_root)
+        except ValueError:
+            continue
+        return owner
+    return None

@@ -4,7 +4,11 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from sase.sdd._link_files import list_sdd_files, resolve_sdd_root
+from sase.sdd._link_files import (
+    invalid_sdd_root_message,
+    list_sdd_files,
+    resolve_sdd_root,
+)
 from sase.sdd._link_models import RepairAction, RepairReport, SddFile, SddIssue
 from sase.sdd._link_parent import LocalPlanChanges, parent_section_issue
 from sase.sdd._link_support import (
@@ -31,7 +35,7 @@ def repair_sdd_links(path: str | None = None, *, write: bool = False) -> RepairR
             severity="error",
             code="invalid-root",
             path=str(root),
-            message=f"SDD path does not exist or is not a directory: {root}",
+            message=invalid_sdd_root_message(root),
         )
         return RepairReport(
             root=root, write=write, actions=[], issues=[issue], changed_files=[]

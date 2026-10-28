@@ -97,7 +97,7 @@ Options:
 usage: sase repo open [-h] REPO [-p PROJECT] -r REASON [-w N]
 ```
 
-Resolve a repository in three tiers: a primary, sidecar, or linked repository in the host project; another registered SASE project; or an external provider ref such as gh:owner/repo (owner/repo is GitHub shorthand). Provider refs and registered projects that match a configured linked repo open that linked checkout and explain the redirect on stderr. Materialize the selected checkout in one workspace context without cleaning, resetting, or synchronizing an existing checkout, then print only the opened path. The workspace defaults to the checkout that contains the current directory.
+Resolve a repository in three tiers: a primary, sidecar, or linked repository in the host project; another registered SASE project; or an external provider ref such as gh:owner/repo (owner/repo is GitHub shorthand). Provider refs and registered projects that match a configured linked repo open that linked checkout and explain the redirect on stderr. Materialize the selected checkout in one workspace context without cleaning, resetting, or synchronizing an existing checkout, then print only the opened path. Opening a registered SASE project also provisions that project's own plans sidecar inside the external checkout for validation, without synchronizing an existing matching clone. The workspace defaults to the checkout that contains the current directory.
 
 Options:
 

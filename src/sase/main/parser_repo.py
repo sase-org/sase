@@ -178,7 +178,10 @@ def register_repo_parser(subparsers: argparse._SubParsersAction) -> None:
             "explain the redirect on stderr. Materialize the selected checkout "
             "in one workspace context without cleaning, resetting, or "
             "synchronizing an existing checkout, then print only the opened "
-            "path. The workspace defaults to the checkout that contains the "
+            "path. Opening a registered SASE project also provisions that "
+            "project's own plans sidecar inside the external checkout for "
+            "validation, without synchronizing an existing matching clone. "
+            "The workspace defaults to the checkout that contains the "
             "current directory."
         ),
         epilog=(
