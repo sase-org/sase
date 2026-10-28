@@ -73,6 +73,28 @@ It keeps command and option IDs only, discards the source lines, skips untimesta
 entries, and replaces the previous `derived.history` origin on re-run. The file it reads
 still contains everything else you type.
 
+## Merging machines
+
+To review usage from two machines together, export on one and import on the other:
+
+1. `sase footprint export -o week.jsonl` on the first machine.
+2. Copy `week.jsonl` to the second machine.
+3. `sase footprint import week.jsonl` on the second machine.
+
+`sase footprint export -p` prints exactly the bytes `-o` would write, so you can inspect
+a pack before sharing it. Each run mints fresh nonces. Use `-w N` to export only the N
+most recent complete weeks.
+
+Packs are weekly, bucketed (`1 | 2-5 | 6-20 | 21+`), and built-in IDs only: no custom
+names, config values, option IDs, or plugin names, and no identity (no paths, hosts,
+users, projects, or sessions).
+
+Import is replace-all: it replaces the previous imports, so re-importing never double
+counts. Usage days merge as `min(7, local + imported)` per week (an upper bound, erring
+toward keeping), and observed days merge as `max(local, imported)` (a lower bound,
+keeping the candidate gate conservative). Dead paths, friction, and coverage stay local.
+Reports and cards with imports show `+N imported packs (imported YYYY-MM-DD)`.
+
 ## Reading the report
 
 Run `sase footprint list` to report the ledger through one of nine lenses, and

@@ -48,6 +48,14 @@ def handle_footprint_command(args: argparse.Namespace) -> int:
         return _handle_clear(args)
     if subcommand == "decide":
         return _handle_decide(args)
+    if subcommand == "export":
+        from sase.main.footprint_transfer_handler import handle_export
+
+        return handle_export(args)
+    if subcommand == "import":
+        from sase.main.footprint_transfer_handler import handle_import
+
+        return handle_import(args)
     if subcommand == "list":
         return _handle_list(args)
     if subcommand == "show":
@@ -56,7 +64,8 @@ def handle_footprint_command(args: argparse.Namespace) -> int:
         return _handle_status(args)
     print(
         f"sase footprint: unknown view {subcommand!r}. "
-        "Implemented views: backfill, catalog, clear, decide, list, mode, show, status.",
+        "Implemented views: backfill, catalog, clear, decide, export, import, "
+        "list, mode, show, status.",
         file=sys.stderr,
     )
     return 2

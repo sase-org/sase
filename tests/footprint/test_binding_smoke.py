@@ -12,14 +12,14 @@ from sase.core.footprint_facade import (
     footprint_catalog_status,
     footprint_clear,
     footprint_decide,
+    footprint_export,
     footprint_fold,
+    footprint_import,
     footprint_ingest_catalog,
     footprint_prune,
     footprint_report,
     footprint_status,
     footprint_upsert_derived,
-    footprint_validate_overlay,
-    footprint_wire_schema_version,
 )
 from sase.core.rust import require_rust_binding
 
@@ -37,7 +37,6 @@ def _catalog(path: Path, entries: list[dict[str, object]]) -> None:
 
 def test_schema_version_matches_binding() -> None:
     assert FOOTPRINT_WIRE_SCHEMA_VERSION == 1
-    assert footprint_wire_schema_version() == FOOTPRINT_WIRE_SCHEMA_VERSION
     binding = require_rust_binding("footprint_wire_schema_version")
     assert int(binding()) == FOOTPRINT_WIRE_SCHEMA_VERSION
 
@@ -109,7 +108,22 @@ def test_ingest_fold_status_derived_prune_clear(tmp_path: Path) -> None:
     )
     pruned = footprint_prune(store, "2026-10-27", 400)
     assert pruned["daily_deleted"] == 0
-    footprint_validate_overlay({"schema": "sase.footprint.overlay/1", "features": {}})
+    require_rust_binding("footprint_validate_overlay")(
+        {"schema": "sase.footprint.overlay/1", "features": {}}
+    )
+    exported = footprint_export(
+        {
+            "store_path": store,
+            "today": "2026-10-27",
+            "weeks": None,
+            "sase": "0.18.1",
+            "os": "linux",
+        }
+    )
+    assert isinstance(exported, list)
+    imported = footprint_import(store, [], "2026-10-27", dry_run=True)
+    assert imported["dry_run"] is True
+    assert imported["packs_imported"] == 0
     reported = footprint_report(
         {
             "store_path": store,

@@ -147,6 +147,18 @@ Each feature has exactly one evidence state: `not_measured`, `too_new`, `used`,
 return an empty report and do not create the file.
 
 Lenses: `map`, `cold`, `fading`, `agent-only`, `dead-paths`, `friction`, `hot`,
-`coverage`, `decisions`. Map with no area returns area rows only. There is no
-multi-machine merge yet: the report header carries no imported-pack count, so usage days
-and observed active days are local-only until an export/import phase lands.
+`coverage`, `decisions`. Map with no area returns area rows only. Multi-machine merge
+arrives through export/import: the report header carries the imported-pack count and
+day, usage days merge as `min(7, local + imported)` per week, and observed days merge as
+`max(local, imported)`. Dead paths, friction, and coverage stay local.
+
+## Export governance
+
+Export packs carry exactly these fields per pack: `schema`, `nonce`, `week`, `sase`
+(major.minor), `os` (`linux`/`darwin`), `observed` days per surface, `features` (`id`,
+`actor`, `days`, bucketed `n`), and `not_measured` surfaces. Excluded: `~custom` and
+`~other` IDs, config leaves, option IDs (`#dest`), plugin names, reviews, durations, and
+imported data.
+
+Any change to the exported fields requires a new decision record. A server can never
+enable extra fields or modes: the pack shape is fixed by the exporter.

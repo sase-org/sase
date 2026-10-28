@@ -36,6 +36,24 @@ def surface_for_ns(ns: str) -> str:
     return ns if ns in _SURFACES else "cli"
 
 
+def imported_pack_note(header: Mapping[str, Any] | dict[str, Any]) -> str | None:
+    """Return the merged-machines note, or None when nothing was imported."""
+
+    if not isinstance(header, Mapping):
+        return None
+    try:
+        count = int(header.get("imported_pack_count", 0) or 0)
+    except (TypeError, ValueError):
+        return None
+    if count <= 0:
+        return None
+    noun = "pack" if count == 1 else "packs"
+    day = header.get("imported_day")
+    if isinstance(day, str) and day:
+        return f"+{count} imported {noun} (imported {day})"
+    return f"+{count} imported {noun}"
+
+
 def header_text(report: dict[str, Any]) -> Text:
     """Return the trust line for a report header."""
     header = dict(report.get("header", {}))
@@ -55,6 +73,9 @@ def header_text(report: dict[str, Any]) -> Text:
     text.append(f" · last {window_label}", style=MUTED_STYLE)
     text.append(f" · {active} of {window_total} days active", style=MUTED_STYLE)
     text.append(f" · recording since {recording_since}", style=MUTED_STYLE)
+    note = imported_pack_note(header)
+    if note is not None:
+        text.append(f" · {note}", style=MUTED_STYLE)
     return text
 
 
@@ -187,6 +208,9 @@ def card_panel(card: dict[str, Any], header: dict[str, Any]) -> Panel:
     subtitle = f"{row.get('id', '')} · {row.get('area', '')} · {row.get('kind', '')}"
     lines: list[RenderableType] = []
     lines.append(Text(evidence_sentence(card, header), style=""))
+    note = imported_pack_note(header)
+    if note is not None:
+        lines.append(Text(note, style=MUTED_STYLE))
     uses = row.get("uses", {})
     if isinstance(uses, dict):
         lines.append(
@@ -262,6 +286,9 @@ def area_card_panel(summary: dict[str, Any], header: dict[str, Any]) -> Panel:
             style=MUTED_STYLE,
         ),
     ]
+    note = imported_pack_note(header)
+    if note is not None:
+        lines.append(Text(note, style=MUTED_STYLE))
     unused = summary.get("unused_by_loc", [])
     if isinstance(unused, list) and unused:
         lines.append(Text("Largest unused by LOC", style="bold"))
@@ -456,6 +483,7 @@ __all__ = [
     "feature_row_text",
     "header_chip",
     "header_text",
+    "imported_pack_note",
     "legend_text",
     "surface_for_ns",
     "tiles_row",

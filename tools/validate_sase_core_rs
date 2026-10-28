@@ -478,6 +478,8 @@ REQUIRED_BINDINGS = (
     "footprint_prune",
     "footprint_clear",
     "footprint_validate_overlay",
+    "footprint_export",
+    "footprint_import",
     "footprint_report",
     "footprint_card",
     "footprint_decide",

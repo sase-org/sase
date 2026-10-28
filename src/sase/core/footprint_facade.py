@@ -51,10 +51,44 @@ def _require_wire_schema() -> None:
         )
 
 
-def footprint_wire_schema_version() -> int:
-    """Return the Footprint wire schema version from the Rust binding."""
+def footprint_export(
+    request: Mapping[str, Any],
+    *,
+    busy_timeout_ms: int = 250,
+) -> list[dict[str, Any]]:
+    """Return identity-free weekly export packs for ``request``."""
 
-    return int(require_rust_binding("footprint_wire_schema_version")())
+    _require_wire_schema()
+    payload = dict(request)
+    store_path = payload.get("store_path")
+    if store_path is not None:
+        payload["store_path"] = _path_str(store_path)
+    result = require_rust_binding("footprint_export")(
+        payload,
+        busy_timeout_ms,
+    )
+    return [dict(pack) for pack in result]
+
+
+def footprint_import(
+    store_path: Path | str,
+    packs: Sequence[Mapping[str, Any]],
+    today: str,
+    *,
+    dry_run: bool = False,
+    busy_timeout_ms: int = 250,
+) -> dict[str, Any]:
+    """Replace imported weekly tables with ``packs``, deduped by nonce."""
+
+    _require_wire_schema()
+    payload = require_rust_binding("footprint_import")(
+        _path_str(store_path),
+        [dict(pack) for pack in packs],
+        str(today),
+        bool(dry_run),
+        busy_timeout_ms,
+    )
+    return dict(payload)
 
 
 def footprint_catalog_status(
@@ -193,13 +227,6 @@ def footprint_clear(
         busy_timeout_ms,
     )
     return dict(payload)
-
-
-def footprint_validate_overlay(overlay: Mapping[str, Any]) -> None:
-    """Validate overlay JSON produced from YAML by Python."""
-
-    _require_wire_schema()
-    require_rust_binding("footprint_validate_overlay")(dict(overlay))
 
 
 def _query_request(request: Mapping[str, Any]) -> dict[str, Any]:

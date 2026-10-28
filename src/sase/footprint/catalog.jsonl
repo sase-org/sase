@@ -1,4 +1,4 @@
-{"count": 3646, "rev": "9b574753b579", "schema": "sase.footprint.catalog/1"}
+{"count": 3652, "rev": "3b2bd39d5ea0", "schema": "sase.footprint.catalog/1"}
 {"area": "automation", "id": "auto:axe.agent_waits", "kind": "auto", "label": "Resolve agent wait dependencies within seconds of completion", "ns": "auto", "parent": null, "src": "sase/default_config.yml"}
 {"area": "automation", "id": "auto:axe.agent_waits.wait_checks", "kind": "auto", "label": "Resolve agent wait dependencies and write ready.json when satisfied", "ns": "auto", "parent": "auto:axe.agent_waits", "src": "sase/default_config.yml"}
 {"area": "automation", "id": "auto:axe.checks", "kind": "auto", "label": "Poll slower PR-submission and workspace-claim checks on a five-minute cadence", "ns": "auto", "parent": null, "src": "sase/default_config.yml"}
@@ -799,6 +799,12 @@
 {"area": "cli.footprint", "id": "cli:footprint.clear#yes", "kind": "option", "label": "Option --yes of cli:footprint.clear", "ns": "cli", "parent": "cli:footprint.clear", "src": "sase/main/parser_footprint.py:register_footprint_parser"}
 {"area": "cli.footprint", "id": "cli:footprint.decide", "kind": "command", "label": "Record a Footprint review decision", "ns": "cli", "parent": null, "src": "sase/main/parser_footprint.py:register_footprint_parser"}
 {"area": "cli.footprint", "id": "cli:footprint.decide#reason", "kind": "option", "label": "Option --reason of cli:footprint.decide", "ns": "cli", "parent": "cli:footprint.decide", "src": "sase/main/parser_footprint.py:register_footprint_parser"}
+{"area": "cli.footprint", "id": "cli:footprint.export", "kind": "command", "label": "Export weekly identity-free usage packs", "ns": "cli", "parent": null, "src": "sase/main/parser_footprint.py:register_footprint_parser"}
+{"area": "cli.footprint", "id": "cli:footprint.export#output", "kind": "option", "label": "Option --output of cli:footprint.export", "ns": "cli", "parent": "cli:footprint.export", "src": "sase/main/parser_footprint.py:register_footprint_parser"}
+{"area": "cli.footprint", "id": "cli:footprint.export#preview", "kind": "option", "label": "Option --preview of cli:footprint.export", "ns": "cli", "parent": "cli:footprint.export", "src": "sase/main/parser_footprint.py:register_footprint_parser"}
+{"area": "cli.footprint", "id": "cli:footprint.export#weeks", "kind": "option", "label": "Option --weeks of cli:footprint.export", "ns": "cli", "parent": "cli:footprint.export", "src": "sase/main/parser_footprint.py:register_footprint_parser"}
+{"area": "cli.footprint", "id": "cli:footprint.import", "kind": "command", "label": "Import weekly usage packs from another machine", "ns": "cli", "parent": null, "src": "sase/main/parser_footprint.py:register_footprint_parser"}
+{"area": "cli.footprint", "id": "cli:footprint.import#dry_run", "kind": "option", "label": "Option --dry_run of cli:footprint.import", "ns": "cli", "parent": "cli:footprint.import", "src": "sase/main/parser_footprint.py:register_footprint_parser"}
 {"area": "cli.footprint", "id": "cli:footprint.list", "kind": "command", "label": "List Footprint features by lens", "ns": "cli", "parent": null, "src": "sase/main/parser_footprint.py:register_footprint_parser"}
 {"area": "cli.footprint", "id": "cli:footprint.list#actor", "kind": "option", "label": "Option --actor of cli:footprint.list", "ns": "cli", "parent": "cli:footprint.list", "src": "sase/main/parser_footprint.py:register_footprint_parser"}
 {"area": "cli.footprint", "id": "cli:footprint.list#area", "kind": "option", "label": "Option --area of cli:footprint.list", "ns": "cli", "parent": "cli:footprint.list", "src": "sase/main/parser_footprint.py:register_footprint_parser"}

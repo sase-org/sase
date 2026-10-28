@@ -5,7 +5,10 @@ from __future__ import annotations
 import argparse
 import fnmatch
 import json
+import subprocess
+import sys
 from dataclasses import fields as dataclass_fields
+from pathlib import Path
 from typing import Any
 
 import pytest
@@ -42,14 +45,15 @@ def test_all_ids_valid_and_unique_and_sorted(
         previous = entry["id"]
 
 
-def test_checked_in_catalog_matches_generator(
-    generated: list[dict[str, Any]],
-) -> None:
-    header, entries = load_catalog()
-    assert header.count == len(entries) == len(generated)
-    rendered = catalog_gen.render_catalog(generated)
-    assert header.rev == json.loads(rendered.splitlines()[0])["rev"]
-    assert [entry.id for entry in entries] == [entry["id"] for entry in generated]
+def test_checked_in_catalog_matches_generator() -> None:
+    repo_root = Path(__file__).resolve().parents[2]
+    tool = repo_root / "tools" / "sync_footprint_catalog"
+    result = subprocess.run(
+        [sys.executable, str(tool), "--check"],
+        capture_output=True,
+        text=True,
+    )
+    assert result.returncode == 0, result.stderr
 
 
 def test_generator_is_deterministic() -> None:

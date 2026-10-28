@@ -17375,6 +17375,156 @@
           {
             "aliases": [],
             "default_child": null,
+            "description_digest": "799dae332ba134ad",
+            "hidden": false,
+            "mutex_groups": [
+              [
+                "output",
+                "preview"
+              ]
+            ],
+            "name": "export",
+            "options": [
+              {
+                "choices": null,
+                "default": null,
+                "dest": "help",
+                "hidden": false,
+                "kind": null,
+                "metavar": null,
+                "repeatable": false,
+                "required": false,
+                "strings": [
+                  "-h",
+                  "--help"
+                ],
+                "takes_value": false,
+                "value_hint": null
+              },
+              {
+                "choices": null,
+                "default": null,
+                "dest": "output",
+                "hidden": false,
+                "kind": "path",
+                "metavar": "FILE",
+                "repeatable": false,
+                "required": false,
+                "strings": [
+                  "-o",
+                  "--output"
+                ],
+                "takes_value": true,
+                "value_hint": "path"
+              },
+              {
+                "choices": null,
+                "default": "False",
+                "dest": "preview",
+                "hidden": false,
+                "kind": null,
+                "metavar": null,
+                "repeatable": false,
+                "required": false,
+                "strings": [
+                  "-p",
+                  "--preview"
+                ],
+                "takes_value": false,
+                "value_hint": null
+              },
+              {
+                "choices": null,
+                "default": null,
+                "dest": "weeks",
+                "hidden": false,
+                "kind": null,
+                "metavar": "N",
+                "repeatable": false,
+                "required": false,
+                "strings": [
+                  "-w",
+                  "--weeks"
+                ],
+                "takes_value": true,
+                "value_hint": "int"
+              }
+            ],
+            "path": [
+              "footprint",
+              "export"
+            ],
+            "positionals": [],
+            "run_policy": [],
+            "stdin": false,
+            "subcommands": [],
+            "writes": false
+          },
+          {
+            "aliases": [],
+            "default_child": null,
+            "description_digest": "6ecbdb19422e27cb",
+            "hidden": false,
+            "mutex_groups": [],
+            "name": "import",
+            "options": [
+              {
+                "choices": null,
+                "default": null,
+                "dest": "help",
+                "hidden": false,
+                "kind": null,
+                "metavar": null,
+                "repeatable": false,
+                "required": false,
+                "strings": [
+                  "-h",
+                  "--help"
+                ],
+                "takes_value": false,
+                "value_hint": null
+              },
+              {
+                "choices": null,
+                "default": "False",
+                "dest": "dry_run",
+                "hidden": false,
+                "kind": null,
+                "metavar": null,
+                "repeatable": false,
+                "required": false,
+                "strings": [
+                  "-n",
+                  "--dry-run"
+                ],
+                "takes_value": false,
+                "value_hint": null
+              }
+            ],
+            "path": [
+              "footprint",
+              "import"
+            ],
+            "positionals": [
+              {
+                "choices": null,
+                "dest": "files",
+                "is_remainder": false,
+                "kind": "path",
+                "metavar": "FILE",
+                "nargs": "+",
+                "required": true,
+                "value_hint": "path"
+              }
+            ],
+            "run_policy": [],
+            "stdin": false,
+            "subcommands": [],
+            "writes": false
+          },
+          {
+            "aliases": [],
+            "default_child": null,
             "description_digest": "700368f1f36b07ea",
             "hidden": false,
             "mutex_groups": [],

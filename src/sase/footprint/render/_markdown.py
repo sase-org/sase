@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from sase.footprint.render._report import evidence_sentence
+from sase.footprint.render._report import evidence_sentence, imported_pack_note
 
 
 def report_markdown(report: dict[str, Any], lens: str) -> str:
@@ -15,9 +15,12 @@ def report_markdown(report: dict[str, Any], lens: str) -> str:
     lines.append("")
     window = header.get("window_days")
     window_label = "all" if window is None else f"{window}d"
+    note = imported_pack_note(header)
+    suffix = f" · {note}" if note is not None else ""
     lines.append(
         f"Window {header.get('window_start', '—')} → {header.get('window_end', '—')}"
         f" ({window_label}) · recording since {header.get('recording_since') or '—'}"
+        f"{suffix}"
     )
     lines.append(
         f"Used {tiles.get('used', 0)}/{tiles.get('total', 0)}"
@@ -113,6 +116,9 @@ def card_markdown(card: dict[str, Any], header: dict[str, Any]) -> str:
     )
     lines.append("")
     lines.append(evidence_sentence(card, header))
+    note = imported_pack_note(header)
+    if note is not None:
+        lines.append(note)
     lines.append("")
     uses = row.get("uses", {})
     if isinstance(uses, dict) and uses:

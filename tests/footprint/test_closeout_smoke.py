@@ -2,10 +2,8 @@
 
 Drives real CLI processes and one TUI pilot session against a sandboxed
 ``SASE_HOME``, folds the spool, and asserts the report, card, decision flow,
-and privacy floor (no secrets leak into spool, ledger output, or markdown).
-
-Export preview/import is intentionally out of scope: no export subcommand,
-facade function, or catalog ID exists in this tree (see the phase bead notes).
+export preview/import round trip, and privacy floor (no secrets leak into
+spool, ledger output, packs, or markdown).
 """
 
 from __future__ import annotations
@@ -122,6 +120,44 @@ async def _drive_smoke(
     for forbidden in forbidden_tokens:
         assert forbidden not in spool_text
 
+    # Seed one complete past ISO week so export has a pack to project.
+    # This lands before the first fold below, so status folds it.
+    from datetime import date as _date
+    from datetime import timedelta as _timedelta
+
+    from sase import __version__ as _version
+
+    _today = _date.today()
+    _monday_this_week = _today - _timedelta(days=_today.weekday())
+    _sunday_last = _monday_this_week - _timedelta(days=1)
+    _week_days = [
+        (_sunday_last - _timedelta(days=offset)).isoformat()
+        for offset in range(6, -1, -1)
+    ]
+    _spool_dir = home / "footprint" / "spool"
+    _spool_dir.mkdir(parents=True, exist_ok=True)
+    for _day in _week_days:
+        # Actor "unknown" mirrors sandbox CLI runs (no TTY): it keeps
+        # cli:version agent-only (the agent run above gives it agent days
+        # with no human days) so the agent-only lens assertion below holds.
+        (_spool_dir / f"{_day}.jsonl").write_text(
+            json.dumps(
+                {
+                    "s": 1,
+                    "d": _day,
+                    "f": "cli:version",
+                    "a": "unknown",
+                    "v": "cli",
+                    "o": "ok",
+                    "n": 1,
+                    "ms": 5,
+                    "ver": _version,
+                }
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+
     # 3. Fold (status folds-if-stale first), then read the review markdown.
     folded = _run_sase(["footprint", "status", "-f", "json"], home)
     assert folded.returncode == 0, folded.stderr
@@ -169,7 +205,32 @@ async def _drive_smoke(
     assert inbox.exists()
     assert "footprint.disclosure" in inbox.read_text(encoding="utf-8")
 
-    # 5. Privacy floor: rendered output carries counts, never secrets.
-    rendered = "\n".join([*maps.values(), card.stdout, decisions.stdout])
+    # 5. Export preview + import round trip over the seeded complete week.
+    preview = _run_sase(["footprint", "export", "-p"], home)
+    assert preview.returncode == 0, preview.stderr
+    assert "`cli:version`" in preview.stdout or "cli:version" in preview.stdout
+    for forbidden in forbidden_tokens:
+        assert forbidden not in preview.stdout
+    pack_file = tmp_path / "packs.jsonl"
+    exported = _run_sase(["footprint", "export", "-o", str(pack_file), "-w", "1"], home)
+    assert exported.returncode == 0, exported.stderr
+    assert pack_file.is_file()
+    assert "packs · weeks" in exported.stdout
+    imported = _run_sase(["footprint", "import", str(pack_file)], home)
+    assert imported.returncode == 0, imported.stderr
+    assert "pack(s)" in imported.stdout
+    listed = _run_sase(
+        ["footprint", "list", "-l", "map", "-a", "everyone", "-f", "json"],
+        home,
+    )
+    assert listed.returncode == 0, listed.stderr
+    imported_header = json.loads(listed.stdout)["header"]
+    assert int(imported_header.get("imported_pack_count", 0)) >= 1
+    assert imported_header.get("imported_day")
+
+    # 6. Privacy floor: rendered output carries counts, never secrets.
+    rendered = "\n".join(
+        [*maps.values(), card.stdout, decisions.stdout, preview.stdout]
+    )
     for forbidden in forbidden_tokens:
         assert forbidden not in rendered

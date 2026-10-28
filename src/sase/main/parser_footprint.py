@@ -52,12 +52,14 @@ def register_footprint_parser(subparsers: argparse._SubParsersAction) -> None:
     footprint_sub = footprint_parser.add_subparsers(
         dest="footprint_subcommand",
         help="Footprint views",
-        metavar="{backfill,catalog,clear,decide,list,mode,show,status}",
+        metavar="{backfill,catalog,clear,decide,export,import,list,mode,show,status}",
     )
     _register_backfill_parser(footprint_sub)
     _register_catalog_parser(footprint_sub)
     _register_clear_parser(footprint_sub)
     _register_decide_parser(footprint_sub)
+    _register_export_parser(footprint_sub)
+    _register_import_parser(footprint_sub)
     _register_list_parser(footprint_sub)
     _register_mode_parser(footprint_sub)
     _register_show_parser(footprint_sub)
@@ -210,6 +212,79 @@ def _register_decide_parser(
         choices=_REASON_CHOICES,
         default=None,
         help="Keep reason (default: none)",
+    )
+
+
+def _register_export_parser(
+    footprint_sub: argparse._SubParsersAction,
+) -> None:
+    export_parser = footprint_sub.add_parser(
+        "export",
+        help="Export weekly identity-free usage packs",
+        description=(
+            "Export weekly, bucketed usage packs with no identity: built-in "
+            "feature IDs only, no custom names, config values, option IDs, or "
+            "plugin names. Each run mints fresh nonces."
+        ),
+        epilog=(
+            "examples:\n"
+            "  sase footprint export -o week.jsonl\n"
+            "  sase footprint export -p | head -c 400\n"
+            "  sase footprint export -o week.jsonl -w 4"
+        ),
+    )
+    target = export_parser.add_mutually_exclusive_group(required=True)
+    target.add_argument(
+        "-o",
+        "--output",
+        default=None,
+        metavar="FILE",
+        help="Write packs as JSON Lines to FILE (mode 0600)",
+    )
+    target.add_argument(
+        "-p",
+        "--preview",
+        action="store_true",
+        help="Print exactly the bytes --output would write",
+    )
+    export_parser.add_argument(
+        "-w",
+        "--weeks",
+        type=int,
+        default=None,
+        metavar="N",
+        help="Export only the N most recent complete weeks (default: all)",
+    )
+
+
+def _register_import_parser(
+    footprint_sub: argparse._SubParsersAction,
+) -> None:
+    import_parser = footprint_sub.add_parser(
+        "import",
+        help="Import weekly usage packs from another machine",
+        description=(
+            "Import weekly usage packs exported on another machine. Import is "
+            "replace-all: it replaces the previous imports, so re-importing "
+            "never double counts."
+        ),
+        epilog=(
+            "examples:\n"
+            "  sase footprint import week.jsonl\n"
+            "  sase footprint import one.jsonl two.jsonl -n"
+        ),
+    )
+    import_parser.add_argument(
+        "files",
+        metavar="FILE",
+        nargs="+",
+        help="Pack file(s) to import (JSON Lines, one pack per line)",
+    )
+    import_parser.add_argument(
+        "-n",
+        "--dry-run",
+        action="store_true",
+        help="Validate and count packs without changing the ledger",
     )
 
 

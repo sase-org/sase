@@ -13,7 +13,7 @@ Reference for `sase footprint`. Run `sase footprint --help` for the exact output
 
 ```text
 usage: sase footprint [-h]
-                      {backfill,catalog,clear,decide,list,mode,show,status} ...
+                      {backfill,catalog,clear,decide,export,import,list,mode,show,status} ...
 ```
 
 Footprint keeps a local, privacy-by-construction census of which sase surfaces (CLI commands and options, TUI actions and keys, views and modals, macros, skills, config leaves, automation) are used, and joins it with a generated feature catalog. Use `sase footprint mode off` to stop recording. Bare `sase footprint` delegates to `list`.
@@ -34,6 +34,8 @@ Subcommands:
 | `sase footprint catalog`  | List the generated feature catalog                |
 | `sase footprint clear`    | Clear local Footprint data                        |
 | `sase footprint decide`   | Record a Footprint review decision                |
+| `sase footprint export`   | Export weekly identity-free usage packs           |
+| `sase footprint import`   | Import weekly usage packs from another machine    |
 | `sase footprint list`     | List Footprint features by lens                   |
 | `sase footprint mode`     | Show or set local Footprint recording             |
 | `sase footprint show`     | Show one Footprint feature or area                |
@@ -109,6 +111,44 @@ Arguments:
 | ------------ | -------------------------------------- |
 | `feature_id` | Feature ID (for example cli:bead.list) |
 | `decision`   | Review decision                        |
+
+## `sase footprint export`
+
+```text
+usage: sase footprint export [-h] (-o FILE | -p) [-w N]
+```
+
+Export weekly, bucketed usage packs with no identity: built-in feature IDs only, no custom names, config values, option IDs, or plugin names. Each run mints fresh nonces.
+
+Options:
+
+| Option                     | Description                                                 | Default |
+| -------------------------- | ----------------------------------------------------------- | ------- |
+| `-h`, `--help`             | show this help message and exit                             | —       |
+| `-o FILE`, `--output FILE` | Write packs as JSON Lines to FILE (mode 0600)               | —       |
+| `-p`, `--preview`          | Print exactly the bytes --output would write                | `false` |
+| `-w N`, `--weeks N`        | Export only the N most recent complete weeks (default: all) | —       |
+
+## `sase footprint import`
+
+```text
+usage: sase footprint import [-h] FILE [FILE ...] [-n]
+```
+
+Import weekly usage packs exported on another machine. Import is replace-all: it replaces the previous imports, so re-importing never double counts.
+
+Options:
+
+| Option            | Description                                          | Default |
+| ----------------- | ---------------------------------------------------- | ------- |
+| `-n`, `--dry-run` | Validate and count packs without changing the ledger | `false` |
+| `-h`, `--help`    | show this help message and exit                      | —       |
+
+Arguments:
+
+| Argument | Description                                            |
+| -------- | ------------------------------------------------------ |
+| `files`  | Pack file(s) to import (JSON Lines, one pack per line) |
 
 ## `sase footprint list`
 

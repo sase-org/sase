@@ -122,12 +122,13 @@ The shipped Rust-backed operations are grouped by the Python facade that calls t
   owns bundle composition and manifest assembly. Readers continue to accept v1.
 - Footprint usage-census ledger (`footprint_catalog_status`, `footprint_ingest_catalog`,
   `footprint_fold`, `footprint_upsert_derived`, `footprint_status`, `footprint_prune`,
-  `footprint_clear`, `footprint_validate_overlay`, `footprint_report`, `footprint_card`,
-  `footprint_decide`, and `footprint_wire_schema_version`), called through
-  `sase.core.footprint_facade`. Rust owns spool validation, catalog ingest, the SQLite
-  ledger at `~/.sase/footprint/footprint.sqlite`, checkpointed fold, derived upserts,
-  prune, clear, report and card queries (lenses, evidence states, candidate gate), and
-  local review decisions. Python reaches the store only through `sase_core_rs` bindings.
+  `footprint_clear`, `footprint_validate_overlay`, `footprint_export`,
+  `footprint_import`, `footprint_report`, `footprint_card`, `footprint_decide`, and
+  `footprint_wire_schema_version`), called through `sase.core.footprint_facade`. Rust
+  owns spool validation, catalog ingest, the SQLite ledger at
+  `~/.sase/footprint/footprint.sqlite`, checkpointed fold, derived upserts, prune,
+  clear, report and card queries (lenses, evidence states, candidate gate), and local
+  review decisions. Python reaches the store only through `sase_core_rs` bindings.
   Launch-boundary macro usage for derived rows is `agent_stats_query_macro_usage`,
   called through `sase.stats.query`.
 - Git object-sharing planning for managed workspaces (`plan_git_object_sharing`)
