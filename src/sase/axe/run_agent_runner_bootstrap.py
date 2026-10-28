@@ -146,7 +146,13 @@ def _write_bootstrap_agent_meta(
     write_agent_meta(artifacts_dir, agent_meta)
 
 
-def _capture_commit_finalizer_baseline(artifacts_dir: str) -> bool:
+def _capture_commit_finalizer_baseline(
+    artifacts_dir: str,
+    *,
+    workspace_dir: str | None = None,
+    workspace_num: int | None = None,
+    project_name: str | None = None,
+) -> bool:
     """Snapshot pre-existing repository checkouts before this agent's first turn.
 
     An agent-session-attach continuation inherits its parent's baseline instead of
@@ -166,59 +172,37 @@ def _capture_commit_finalizer_baseline(artifacts_dir: str) -> bool:
         resolve_finalizer_project_dir,
     )
 
-    if _inherit_parent_commit_finalizer_baseline(artifacts_dir):
-        return True
-    capture_dirty_baseline(resolve_finalizer_project_dir(), artifacts_dir)
-    return False
-
-
-def _inherit_parent_commit_finalizer_baseline(artifacts_dir: str) -> bool:
-    """Copy an agent-session-attach parent's baseline into ``artifacts_dir``.
-
-    Returns ``True`` when the parent's baseline was inherited, so the caller
-    skips capturing a fresh one. Best-effort: any missing plan, missing
-    parent baseline file, or copy failure falls back to a fresh capture
-    rather than failing the run, matching ``capture_dirty_baseline``'s own
-    contract.
-    """
-    import shutil
-
     from sase.agent.agent_session_attach import (
         AgentSessionAttachError,
         load_agent_session_attach_plan_from_env,
-    )
-    from sase.llm_provider.commit_finalizer_baseline import (
-        BASELINE_FILENAME,
-        FINALIZER_BASELINE_FILENAME,
     )
 
     try:
         plan = load_agent_session_attach_plan_from_env()
     except AgentSessionAttachError:
-        return False
-    if plan is None:
-        return False
-
-    parent_generic = os.path.join(
-        plan.parent_artifacts_dir, FINALIZER_BASELINE_FILENAME
-    )
-    parent_legacy = os.path.join(plan.parent_artifacts_dir, BASELINE_FILENAME)
-    if os.path.isfile(parent_generic):
-        source = parent_generic
-    elif os.path.isfile(parent_legacy):
-        source = parent_legacy
-    else:
-        return False
-
-    try:
-        os.makedirs(artifacts_dir, exist_ok=True)
-        shutil.copyfile(
-            source,
-            os.path.join(artifacts_dir, os.path.basename(source)),
+        plan = None
+    if plan is not None:
+        from sase.llm_provider.commit_finalizer_inheritance import (
+            inherit_commit_finalizer_responsibility,
         )
-    except OSError:
-        return False
-    return True
+
+        if inherit_commit_finalizer_responsibility(
+            parent_artifacts_dir=plan.parent_artifacts_dir,
+            child_artifacts_dir=artifacts_dir,
+            predecessor_name=plan.parent_name,
+            successor_name=plan.agent_name,
+            project_name=project_name or plan.parent_project_name,
+            parent_workspace_dir=plan.parent_workspace_dir,
+            child_workspace_dir=workspace_dir,
+            workspace_num=(
+                workspace_num
+                if workspace_num is not None
+                else plan.parent_workspace_num
+            ),
+        ):
+            return True
+    capture_dirty_baseline(resolve_finalizer_project_dir(), artifacts_dir)
+    return False
 
 
 def _load_submitted_prompt(state: RunnerRunState) -> None:
@@ -397,7 +381,10 @@ def bootstrap_agent_run(state: RunnerRunState) -> RunnerBootstrap:
 
     enter_agent_workspace(state.workspace_dir, state.workspace_num)
     inherited_commit_finalizer_baseline = _capture_commit_finalizer_baseline(
-        state.artifacts_dir
+        state.artifacts_dir,
+        workspace_dir=state.workspace_dir,
+        workspace_num=state.workspace_num,
+        project_name=state.project_name,
     )
 
     info = extract_directives_and_write_meta(

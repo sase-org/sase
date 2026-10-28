@@ -5,7 +5,6 @@ from __future__ import annotations
 import json
 import logging
 import os
-import shutil
 from collections.abc import Sequence
 from datetime import UTC, datetime
 from pathlib import Path
@@ -374,6 +373,11 @@ def create_followup_artifacts(
         new_artifacts_dir,
         prev_artifacts_dir=prev_artifacts_dir,
         workspace_dir=workspace_dir if isinstance(workspace_dir, str) else None,
+        workspace_num=workspace_num,
+        project_name=project_name,
+        predecessor_name=_clean_metadata_name(base_meta.get("name")),
+        successor_name=_clean_metadata_name(followup_meta.get("name")),
+        parent_workspace_dir=_clean_metadata_name(base_meta.get("workspace_dir")),
     )
     return new_artifacts_dir
 
@@ -383,39 +387,51 @@ def _seed_followup_commit_finalizer_baseline(
     *,
     prev_artifacts_dir: str | None,
     workspace_dir: str | None,
+    workspace_num: int | None,
+    project_name: str,
+    predecessor_name: str | None,
+    successor_name: str | None,
+    parent_workspace_dir: str | None,
 ) -> None:
-    """Copy the previous run's baseline, then bind it to this follow-up workspace.
+    """Transfer finalizer responsibility and bind the workspace baseline.
 
     In-process follow-ups get a new artifacts directory that would otherwise
     have no ``main`` run-start record. Best-effort: never raises.
     """
     try:
         from sase.llm_provider.commit_finalizer_baseline import (
-            BASELINE_FILENAME,
-            FINALIZER_BASELINE_FILENAME,
             bind_run_start_baseline_to_workspace,
+            capture_dirty_baseline,
+        )
+        from sase.llm_provider.commit_finalizer_inheritance import (
+            inherit_commit_finalizer_responsibility,
         )
 
-        dest = Path(new_artifacts_dir)
-        dest_generic = dest / FINALIZER_BASELINE_FILENAME
-        if not dest_generic.is_file() and prev_artifacts_dir:
-            parent = Path(prev_artifacts_dir)
-            if (parent / FINALIZER_BASELINE_FILENAME).is_file():
-                source = parent / FINALIZER_BASELINE_FILENAME
-            elif (parent / BASELINE_FILENAME).is_file():
-                source = parent / BASELINE_FILENAME
-            else:
-                source = None
-            if source is not None:
-                shutil.copyfile(source, dest / source.name)
+        baseline_ready = inherit_commit_finalizer_responsibility(
+            parent_artifacts_dir=prev_artifacts_dir,
+            child_artifacts_dir=new_artifacts_dir,
+            predecessor_name=predecessor_name,
+            successor_name=successor_name,
+            project_name=project_name,
+            parent_workspace_dir=parent_workspace_dir,
+            child_workspace_dir=workspace_dir,
+            workspace_num=workspace_num,
+        )
         if workspace_dir and workspace_dir.strip():
-            bind_run_start_baseline_to_workspace(
-                workspace_dir.strip(),
-                new_artifacts_dir,
-                inherited=True,
-            )
+            if baseline_ready:
+                bind_run_start_baseline_to_workspace(
+                    workspace_dir.strip(),
+                    new_artifacts_dir,
+                    inherited=True,
+                )
+            else:
+                capture_dirty_baseline(workspace_dir.strip(), new_artifacts_dir)
     except Exception:
         _logger.warning(
             "Failed to seed follow-up commit finalizer baseline",
             exc_info=True,
         )
+
+
+def _clean_metadata_name(value: object) -> str | None:
+    return value.strip() if isinstance(value, str) and value.strip() else None

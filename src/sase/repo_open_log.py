@@ -131,6 +131,39 @@ def append_repo_open_event(
             output_file.flush()
 
 
+def append_repo_open_event_once(
+    event: RepoOpenEvent,
+    *,
+    log_path: Path | None = None,
+) -> bool:
+    """Append *event* only when its stable event id is not already recorded.
+
+    Inherited repository opens use a deterministic id so a restarted
+    continuation can repeat initialization without duplicating its audit row.
+    """
+    path = log_path or _repo_open_log_path(event.project)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with locked_file(path.with_suffix(".lock"), fcntl.LOCK_EX):
+        if path.exists():
+            try:
+                for line in path.read_text(encoding="utf-8").splitlines():
+                    if not line.strip():
+                        continue
+                    try:
+                        row = json.loads(line)
+                    except json.JSONDecodeError:
+                        continue
+                    if isinstance(row, dict) and row.get("id") == event.id:
+                        return False
+            except OSError:
+                pass
+        with path.open("a", encoding="utf-8") as output_file:
+            json.dump(asdict(event), output_file, sort_keys=True)
+            output_file.write("\n")
+            output_file.flush()
+    return True
+
+
 def read_repo_open_events(
     *,
     project: str | None = None,
@@ -296,6 +329,7 @@ __all__ = [
     "REPO_OPEN_LOG_SCHEMA_VERSION",
     "RepoOpenEvent",
     "append_repo_open_event",
+    "append_repo_open_event_once",
     "build_repo_open_event",
     "filter_repo_open_events",
     "read_repo_open_events",

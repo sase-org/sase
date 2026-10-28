@@ -169,6 +169,53 @@ def opened_repo_records(artifact_root: Path | None) -> dict[str, dict[str, str]]
     return records
 
 
+def merge_opened_repo_records(
+    artifact_root: Path,
+    inherited_records: Mapping[str, Mapping[str, str]],
+) -> dict[str, dict[str, str]]:
+    """Merge inherited records into an artifact root without rebasing baselines.
+
+    Records already present in the destination win. This preserves repository
+    opens performed by the successor while making predecessor responsibility
+    visible to the existing discovery readers.
+    """
+    root = artifact_root.expanduser().resolve(strict=False)
+    merged = opened_repo_records(root)
+    for raw_name, raw_record in inherited_records.items():
+        name = raw_name.strip()
+        if not name or name in merged:
+            continue
+        workspace_dir = raw_record.get("workspace_dir", "")
+        kind = raw_record.get("kind", "")
+        if kind not in {"linked", "external"}:
+            continue
+        record = {
+            "name": name,
+            "workspace_dir": normalize_path(workspace_dir) if workspace_dir else "",
+            "reason": raw_record.get("reason", "").strip(),
+            "opened_at": raw_record.get("opened_at", "").strip(),
+            "kind": kind,
+        }
+        if kind == "external":
+            ref = raw_record.get("ref", name).strip()
+            record["ref"] = ref or name
+        baseline_error = raw_record.get("baseline_error", "").strip()
+        if baseline_error:
+            record["baseline_error"] = baseline_error
+        merged[name] = record
+
+    if not merged:
+        return merged
+    root.mkdir(parents=True, exist_ok=True)
+    _write_opened_marker(root / OPENED_LINKED_FILENAME, merged, "linked_repos")
+    linked = {
+        name: record for name, record in merged.items() if record["kind"] == "linked"
+    }
+    if linked:
+        _write_opened_marker(root / OPENED_SIBLINGS_FILENAME, linked, "siblings")
+    return merged
+
+
 def _write_opened_marker(
     marker: Path, records: dict[str, dict[str, str]], records_key: str
 ) -> None:
