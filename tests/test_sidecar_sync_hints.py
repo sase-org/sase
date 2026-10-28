@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
@@ -18,6 +19,37 @@ def test_marked_hint_is_pending() -> None:
     hints.mark_sidecar_sync_hint("proj", "plans")
 
     assert hints.pending_sidecar_sync_roles("proj") == ("plans",)
+
+
+def test_mark_normalizes_known_project_label_to_directory_key(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    snapshot = SimpleNamespace(
+        project_key_for_ref=lambda ref: "gh_acme__widget" if ref == "widget" else None
+    )
+    monkeypatch.setattr(
+        "sase.project_display_names.load_project_ref_display_snapshot",
+        lambda: snapshot,
+    )
+
+    hints.mark_sidecar_sync_hint("widget", "beads")
+
+    assert hints.pending_sidecar_sync_roles("gh_acme__widget") == ("beads",)
+    assert hints.pending_sidecar_sync_roles("widget") == ()
+
+
+def test_mark_preserves_unknown_project_ref(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    snapshot = SimpleNamespace(project_key_for_ref=lambda _ref: None)
+    monkeypatch.setattr(
+        "sase.project_display_names.load_project_ref_display_snapshot",
+        lambda: snapshot,
+    )
+
+    hints.mark_sidecar_sync_hint("unknown", "beads")
+
+    assert hints.pending_sidecar_sync_roles("unknown") == ("beads",)
 
 
 def test_marking_the_same_role_twice_does_not_duplicate() -> None:

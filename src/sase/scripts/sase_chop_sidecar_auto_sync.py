@@ -12,7 +12,9 @@ Projects with a live, unresolved bead waiter are hinted into the ``beads``
 role every tick, unblocking waiters even when a project has not opted that
 role into ``auto_sync``: the sync performed is still the same conservative
 fetch/fast-forward, so this implicit coverage is strictly less invasive than
-the managed-integration waiter refresh path it replaces.
+the managed-integration waiter refresh path it replaces. A pending hint left
+by a verified bead publication or launch claim also forces one beads-role
+convergence, even without the ``auto_sync`` opt-in.
 """
 
 from __future__ import annotations
@@ -237,17 +239,21 @@ def _targets_for_project(
         )
         roles = ()
 
-    # A live bead waiter must converge the beads role even when the project
-    # has not opted it into auto_sync: this is the one implicit-coverage
-    # carve-out described in the module docstring.
+    hinted = set(pending_sidecar_sync_roles(record.project_name))
+    # Live bead waiters and verified bead publications/claims must converge
+    # the beads role even when the project has not opted it into auto_sync.
+    # The fetch/fast-forward policy remains the same conservative sync.
     force_beads = (
-        record.project_name in live_bead_wait_projects
+        bead_refresh_mode() != "off"
+        and (
+            record.project_name in live_bead_wait_projects
+            or BEADS_SIDECAR_ROLE in hinted
+        )
         and BEADS_SIDECAR_ROLE not in roles
     )
     if not roles and not force_beads:
         return []
 
-    hinted = set(pending_sidecar_sync_roles(record.project_name))
     targets = [
         _Target(
             project_key=record.project_name,

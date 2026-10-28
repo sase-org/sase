@@ -613,7 +613,11 @@ def _apply_mutation_side_effects(
     )
 
     try:
-        ensure_bead_mutation_published(write_beads_dir, description=committed_message)
+        ensure_bead_mutation_published(
+            write_beads_dir,
+            description=committed_message,
+            project_key=(None if bead_context is None else bead_context.project_key),
+        )
     except BeadPublicationError:
         return False
     return True

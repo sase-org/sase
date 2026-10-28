@@ -233,10 +233,12 @@ deliberately fail closed and leave the agent parked; sase's TUI run-now action r
 the manual escape hatch. While live bead waits are outstanding, `sidecar_auto_sync`
 hints their projects' `beads` role every tick — even when that role has not opted into
 `auto_sync` — so the one conservative fetch/fast-forward sync policy converges it
-promptly instead of a competing managed-integration refresh path. The waiting runner
-also marks the same hint on a coarser ten-minute cadence as an outage backstop, in case
-a job failure ever leaves the tick-driven hint unconsumed. Setting
-`sdd.bead_refresh.mode: off` disables both hint paths.
+promptly instead of a competing managed-integration refresh path. A pending beads hint
+written after verified bead publication or a launch claim also forces convergence
+without the `auto_sync` opt-in. The waiting runner marks the same hint on a coarser
+ten-minute cadence as an outage backstop, in case a job failure ever leaves the
+tick-driven hint unconsumed. Setting `sdd.bead_refresh.mode: off` disables these hint
+carve-outs.
 
 A parked runner with agent dependencies stats `ready.json` every 0.5 seconds; the
 60-second direct-resolution fallback cadence is unchanged.

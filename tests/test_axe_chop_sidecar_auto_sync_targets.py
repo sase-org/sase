@@ -62,6 +62,54 @@ def test_hinted_role_refreshes_and_clears_its_hint(
     assert result.counters["refreshed"] == 1
 
 
+def test_pending_beads_hint_forces_target_without_auto_sync_opt_in(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    configure_sidecar_sync(
+        monkeypatch,
+        tmp_path,
+        records=[make_project(tmp_path)],
+        roles_by_project={},
+        hinted_by_project={"proj": ("beads",)},
+    )
+    sync = MagicMock(
+        return_value=SidecarSyncResult("proj", "beads", "refreshed", "fast-forwarded")
+    )
+    monkeypatch.setattr(sidecar_sync_chop, "sync_primary_sidecar_role", sync)
+
+    result = sidecar_sync_chop._run(make_runtime(tmp_path))
+
+    sync.assert_called_once()
+    args, kwargs = sync.call_args
+    assert args[:2] == ("proj", "beads")
+    assert kwargs["require_auto_sync_opt_in"] is False
+    assert result.counters["targets"] == 1
+
+
+def test_pending_beads_hint_does_not_duplicate_opted_in_target(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    configure_sidecar_sync(
+        monkeypatch,
+        tmp_path,
+        records=[make_project(tmp_path)],
+        roles_by_project={"proj": ("beads",)},
+        hinted_by_project={"proj": ("beads",)},
+    )
+    sync = MagicMock(
+        return_value=SidecarSyncResult("proj", "beads", "up_to_date", "already fresh")
+    )
+    monkeypatch.setattr(sidecar_sync_chop, "sync_primary_sidecar_role", sync)
+
+    result = sidecar_sync_chop._run(make_runtime(tmp_path))
+
+    sync.assert_called_once()
+    assert sync.call_args.kwargs["require_auto_sync_opt_in"] is True
+    assert result.counters["targets"] == 1
+
+
 def test_multiple_roles_in_one_project_are_all_attempted(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -148,6 +196,7 @@ def test_bead_refresh_mode_off_skips_the_live_wait_scan(
         tmp_path,
         records=[make_project(tmp_path)],
         roles_by_project={},
+        hinted_by_project={"proj": ("beads",)},
         bead_refresh_mode="off",
     )
     monkeypatch.setattr(

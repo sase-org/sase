@@ -39,10 +39,12 @@ into conservative background convergence: SASE fetches and fast-forwards it only
 it is clean, attached, and non-diverged, and never rebases, commits, hard-resets, or
 removes user state. A dirty, detached, diverged, remote-mismatched, or
 not-yet-materialized primary sidecar clone is left untouched and reported rather than
-repaired. Managed projects enable `auto_sync` for the generated `plans`, `beads`, and
-`research` entries; custom roles default to `false` and opt in with the same property.
-See [Ownership Boundary](../../contribute/workspace-provider.md#ownership-boundary) for
-the underlying primary/leased distinction and how sync is scheduled.
+repaired. Managed projects default `auto_sync` to `true` for declared builtin `plans`
+and `beads` entries that omit the setting, matching the managed defaults for those
+roles. An explicit `false` is respected; custom roles, including `research`, and
+non-managed projects keep the `false` default. See
+[Ownership Boundary](../../contribute/workspace-provider.md#ownership-boundary) for the
+underlying primary/leased distinction and how sync is scheduled.
 
 `repos.sidecar` is a two-bucket mapping keyed by role: `builtin` holds overrides of the
 reserved `plans`, `beads`, `agents`, `attachments`, and `attachments-private` roles, and

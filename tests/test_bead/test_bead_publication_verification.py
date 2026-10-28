@@ -10,11 +10,14 @@ from __future__ import annotations
 import argparse
 import subprocess
 from pathlib import Path
+from types import SimpleNamespace
+from unittest.mock import MagicMock
 
 import pytest
 
 from sase.bead import cli as bead_cli
 from sase.bead.cli_common import BeadPublicationError
+from sase.bead.cli_common_publication import ensure_bead_mutation_published
 from sase.bead.cli_location import BeadsLocation
 from sase.bead.model import IssueType, Status
 from sase.bead.project import BEADS_DIRNAME_ROOT, BeadProject
@@ -225,6 +228,120 @@ def test_verification_is_not_applicable_without_an_upstream(tmp_path: Path) -> N
     assert status.applicable is False
     assert status.has_upstream is False
     assert status.published is True
+
+
+@pytest.mark.parametrize("initially_published", [True, False])
+@pytest.mark.parametrize("project_key", ["gh_acme__widget", None])
+def test_verified_publication_hints_beads_convergence(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    initially_published: bool,
+    project_key: str | None,
+) -> None:
+    """Both proof paths hint by the supplied key or owning checkout marker."""
+    statuses = [initially_published] if initially_published else [False, True]
+    verification = iter(statuses)
+    monkeypatch.setattr(
+        "sase.bead.sync.verify_bead_store_published",
+        lambda _path: SimpleNamespace(published=next(verification)),
+    )
+    push = MagicMock(return_value="pushed")
+    monkeypatch.setattr("sase.bead.sync.push_bead_work_launch", push)
+    hint = MagicMock()
+    monkeypatch.setattr(
+        "sase.bead.background_store.schedule_beads_sidecar_convergence", hint
+    )
+    marker_lookup = MagicMock(
+        return_value=(
+            str(tmp_path),
+            SimpleNamespace(project_key="marker-project-key"),
+        )
+    )
+    monkeypatch.setattr(
+        "sase.workspace_provider.marker.find_marker_from_cwd", marker_lookup
+    )
+
+    outcome = ensure_bead_mutation_published(
+        tmp_path / "beads",
+        project_key=project_key,
+    )
+
+    assert outcome is (None if initially_published else "pushed")
+    assert push.called is (not initially_published)
+    hint.assert_called_once_with(
+        "marker-project-key" if project_key is None else project_key
+    )
+    assert marker_lookup.called is (project_key is None)
+
+
+def test_unpublished_bead_mutation_does_not_hint(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        "sase.bead.sync.verify_bead_store_published",
+        lambda _path: SimpleNamespace(published=False),
+    )
+    monkeypatch.setattr("sase.bead.sync.push_bead_work_launch", lambda *_a, **_k: None)
+    monkeypatch.setattr(
+        "sase.bead.sync.bead_publication_failure_lines",
+        lambda *_a, **_k: ["not published"],
+    )
+    hint = MagicMock()
+    monkeypatch.setattr(
+        "sase.bead.background_store.schedule_beads_sidecar_convergence", hint
+    )
+
+    with pytest.raises(BeadPublicationError):
+        ensure_bead_mutation_published(
+            tmp_path / "beads",
+            project_key="gh_acme__widget",
+        )
+
+    hint.assert_not_called()
+
+
+def test_verification_error_skips_beads_hint(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        "sase.bead.sync.verify_bead_store_published",
+        MagicMock(side_effect=OSError("verification unavailable")),
+    )
+    hint = MagicMock()
+    monkeypatch.setattr(
+        "sase.bead.background_store.schedule_beads_sidecar_convergence", hint
+    )
+
+    assert (
+        ensure_bead_mutation_published(
+            tmp_path / "beads",
+            project_key="gh_acme__widget",
+        )
+        is None
+    )
+    hint.assert_not_called()
+
+
+def test_refresh_mode_off_suppresses_publication_hint(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        "sase.bead.sync.verify_bead_store_published",
+        lambda _path: SimpleNamespace(published=True),
+    )
+    monkeypatch.setattr("sase.bead.sync.bead_refresh_mode", lambda: "off")
+    mark_hint = MagicMock()
+    monkeypatch.setattr("sase._sidecar_sync_hints.mark_sidecar_sync_hint", mark_hint)
+
+    ensure_bead_mutation_published(
+        tmp_path / "beads",
+        project_key="gh_acme__widget",
+    )
+
+    mark_hint.assert_not_called()
 
 
 def test_verification_is_not_applicable_for_an_in_tree_store(tmp_path: Path) -> None:

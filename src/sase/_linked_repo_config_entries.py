@@ -28,6 +28,7 @@ from sase._linked_repo_config_keys import (
 )
 from sase._linked_repo_config_state import (
     RepoConfigCacheKey,
+    read_project_local_config,
     repo_config_cache_key,
 )
 from sase._linked_repo_identity import resolve_sidecar_repo_identity
@@ -115,7 +116,17 @@ def merged_sidecar_entries_from_config(
     """
 
     primary = str(Path(primary_workspace_dir).expanduser().resolve(strict=False))
-    cached = _merged_sidecar_entries_cached(primary, repo_config_cache_key(config))
+    local_config = read_project_local_config(primary)
+    managed_builtin_roles = (
+        _managed_builtin_auto_sync_roles(config)
+        if local_config.get("is_sase_managed") is True
+        else frozenset()
+    )
+    cached = _merged_sidecar_entries_cached(
+        primary,
+        repo_config_cache_key(config),
+        managed_builtin_roles,
+    )
     return [dict(entry) for entry in cached]
 
 
@@ -123,6 +134,7 @@ def merged_sidecar_entries_from_config(
 def _merged_sidecar_entries_cached(
     primary_workspace_dir: str,
     config_key: RepoConfigCacheKey,
+    managed_builtin_roles: frozenset[str],
 ) -> tuple[Mapping[str, Any], ...]:
     config = config_key.config
     normalized: list[Mapping[str, Any]] = []
@@ -137,7 +149,8 @@ def _merged_sidecar_entries_cached(
         )
         normalized_entry = dict(entry)
         normalized_entry.setdefault("auto_clone", False)
-        normalized_entry.setdefault("auto_sync", False)
+        role = identity.role if identity is not None else normalized_entry.get("name")
+        normalized_entry.setdefault("auto_sync", role in managed_builtin_roles)
         normalized_entry.setdefault("visibility", "public")
         if normalized_entry.get("name") == ATTACHMENTS_PRIVATE_SIDECAR_ROLE:
             # The private attachment store is private-only: an explicit
@@ -159,6 +172,22 @@ def _merged_sidecar_entries_cached(
             normalized_entry[SIDECAR_REMOTE_URL_KEY] = identity.remote_url
         normalized.append(normalized_entry)
     return tuple(normalized)
+
+
+def _managed_builtin_auto_sync_roles(config: Mapping[str, Any]) -> frozenset[str]:
+    """Return builtin plans/beads entries eligible for managed auto-sync."""
+
+    repos = config.get(REPOS_CONFIG_KEY)
+    raw = repos.get(REPOS_SIDECAR_CONFIG_KEY) if isinstance(repos, Mapping) else None
+    if not isinstance(raw, Mapping):
+        return frozenset()
+    builtin = _sidecar_bucket_entries(raw, SIDECAR_BUILTIN_CONFIG_KEY)
+    custom = _sidecar_bucket_entries(raw, SIDECAR_CUSTOM_CONFIG_KEY)
+    return frozenset(
+        role
+        for role in (PLANS_SIDECAR_ROLE, BEADS_SIDECAR_ROLE)
+        if role in builtin and role not in custom
+    )
 
 
 def reset_entries_caches() -> None:

@@ -29,6 +29,17 @@ def _hints_path(project_key: str) -> Path:
 def mark_sidecar_sync_hint(project_key: str, role: str) -> None:
     """Record that *role* changed for *project_key* and should sync soon."""
 
+    try:
+        from sase.project_display_names import load_project_ref_display_snapshot
+
+        project_key = (
+            load_project_ref_display_snapshot().project_key_for_ref(project_key)
+            or project_key
+        )
+    except Exception:
+        # Hinting is best-effort; an unavailable registry should not prevent
+        # the caller from recording its original project reference.
+        pass
     path = _hints_path(project_key)
     hints = _read_hints(path)
     hints[role] = datetime.now(UTC).isoformat()

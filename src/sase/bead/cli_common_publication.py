@@ -69,6 +69,7 @@ def ensure_bead_mutation_published(
     beads_dir: Path,
     *,
     description: str | None = None,
+    project_key: str | None = None,
 ) -> Any | None:
     """Verify a committed bead mutation was published; publish it if not.
 
@@ -90,6 +91,7 @@ def ensure_bead_mutation_published(
     try:
         status = verify_bead_store_published(beads_dir)
         if status.published:
+            _hint_bead_sidecar_convergence(beads_dir, project_key)
             return None
         outcome = push_bead_work_launch(
             beads_dir,
@@ -97,6 +99,7 @@ def ensure_bead_mutation_published(
         )
         status = verify_bead_store_published(beads_dir)
         if status.published:
+            _hint_bead_sidecar_convergence(beads_dir, project_key)
             return outcome
         lines = bead_publication_failure_lines(status, description=description)
     except Exception:
@@ -111,3 +114,30 @@ def ensure_bead_mutation_published(
     for line in lines:
         print(line, file=sys.stderr)
     raise BeadPublicationError(lines[0], diagnostic="\n".join(lines))
+
+
+def _hint_bead_sidecar_convergence(
+    beads_dir: Path,
+    project_key: str | None,
+) -> None:
+    """Hint primary convergence after publication is proven, best-effort."""
+
+    if not project_key:
+        try:
+            from sase.workspace_provider.marker import find_marker_from_cwd
+
+            found = find_marker_from_cwd(str(beads_dir))
+            if found is not None:
+                _checkout, marker = found
+                project_key = marker.project_key
+        except Exception:
+            return
+    if not project_key:
+        return
+    try:
+        from sase.bead.background_store import schedule_beads_sidecar_convergence
+
+        schedule_beads_sidecar_convergence(project_key)
+    except Exception:
+        # The mutation is already published; hint persistence is advisory.
+        return

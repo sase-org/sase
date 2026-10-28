@@ -187,7 +187,7 @@ def _schedule_launch_claim_convergence(workspace_dir: str) -> None:
     if found is None:
         return
     _checkout, marker = found
-    project = marker.project_name or marker.project_key
+    project = marker.project_key or marker.project_name
     if project:
         schedule_beads_sidecar_convergence(project)
 

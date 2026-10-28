@@ -345,8 +345,9 @@ write goes through one of these mechanisms instead:
   or missing clones are left untouched and reported. See
   [`auto_sync` vs. `auto_clone`](../reference/config/repositories-behavior.md#repos) for
   the config-level distinction; sync runs both from a durable per-project/role hint
-  recorded right after a workspace-sidecar publication and from a scheduled backstop
-  job.
+  recorded after a verified bead publication or launch claim and from a scheduled
+  backstop job. Hints use the project's directory key, so project labels and aliases
+  resolve to the same pending hint.
 
 `sase.workspace_provider.ownership.authorize_store_mutation` and the `writable_*`
 helpers are the shared enforcement point close to every store mutation seam, so a new

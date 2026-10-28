@@ -48,8 +48,11 @@ def schedule_beads_sidecar_convergence(project: str) -> None:
     if not project or project == "home":
         return
     try:
+        from sase.bead.sync import bead_refresh_mode
         from sase._sidecar_sync_hints import mark_sidecar_sync_hint
 
+        if bead_refresh_mode() == "off":
+            return
         mark_sidecar_sync_hint(project, "beads")
     except Exception:
         return

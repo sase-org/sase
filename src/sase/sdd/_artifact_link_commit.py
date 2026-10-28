@@ -335,7 +335,11 @@ def commit_bead_link_events(
     if not committed:
         return
     try:
-        ensure_bead_mutation_published(beads_dir, description=BEAD_LINK_COMMIT_MESSAGE)
+        ensure_bead_mutation_published(
+            beads_dir,
+            description=BEAD_LINK_COMMIT_MESSAGE,
+            project_key=link_store.project_key,
+        )
     except BeadPublicationError as exc:
         raise ArtifactLinkPersistError(str(exc), diagnostic=exc.diagnostic) from exc
 

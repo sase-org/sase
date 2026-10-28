@@ -165,6 +165,77 @@ def test_auto_sync_defaults_false_and_is_independent_of_auto_clone(
     assert by_name["research"]["auto_sync"] is True
 
 
+def test_managed_project_defaults_builtin_plans_and_beads_to_auto_sync(
+    tmp_path: Path,
+) -> None:
+    """Managed builtin plans/beads inherit the injected auto-sync default."""
+    primary = tmp_path / "widget"
+    primary.mkdir()
+    _set_github_origin(primary, "git@github.com:acme/widget.git")
+    config_path = primary / "sase" / "sase.yml"
+    config_path.parent.mkdir()
+    config_path.write_text("is_sase_managed: true\n", encoding="utf-8")
+    config = {
+        "repos": {
+            "sidecar": {
+                "builtin": {
+                    "beads": {"auto_clone": True},
+                    "plans": {"auto_clone": True},
+                },
+                "custom": {"research": {"auto_clone": True}},
+            }
+        }
+    }
+
+    entries = merged_sidecar_entries_from_config(
+        config, primary_workspace_dir=str(primary)
+    )
+    by_name = {entry["name"]: entry for entry in entries}
+
+    assert by_name["plans"]["auto_sync"] is True
+    assert by_name["beads"]["auto_sync"] is True
+    assert by_name["research"]["auto_sync"] is False
+
+
+def test_managed_project_respects_explicit_auto_sync_false_and_refreshes_cache(
+    tmp_path: Path,
+) -> None:
+    """The managed marker participates in normalization and its cache key."""
+    primary = tmp_path / "widget"
+    primary.mkdir()
+    _set_github_origin(primary, "git@github.com:acme/widget.git")
+    config_path = primary / "sase" / "sase.yml"
+    config_path.parent.mkdir()
+    config_path.write_text("is_sase_managed: false\n", encoding="utf-8")
+    config = {
+        "repos": {
+            "sidecar": {
+                "builtin": {
+                    "beads": {},
+                    "plans": {"auto_sync": False},
+                }
+            }
+        }
+    }
+
+    before = merged_sidecar_entries_from_config(
+        config, primary_workspace_dir=str(primary)
+    )
+    assert {entry["name"]: entry["auto_sync"] for entry in before} == {
+        "plans": False,
+        "beads": False,
+    }
+
+    config_path.write_text("is_sase_managed: true\n", encoding="utf-8")
+    after = merged_sidecar_entries_from_config(
+        config, primary_workspace_dir=str(primary)
+    )
+    assert {entry["name"]: entry["auto_sync"] for entry in after} == {
+        "plans": False,
+        "beads": True,
+    }
+
+
 def test_bucketed_sidecar_skips_non_mapping_values(tmp_path: Path) -> None:
     """Runtime parsing stays forgiving; doctor is what reports bad shapes."""
     primary = tmp_path / "widget"

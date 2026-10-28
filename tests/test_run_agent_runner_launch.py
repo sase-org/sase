@@ -8,9 +8,27 @@ from zoneinfo import ZoneInfo
 
 import pytest
 
-from sase.axe.run_agent_runner_bead import closed_bead_launch_notice
+from sase.axe.run_agent_runner_bead import (
+    _schedule_launch_claim_convergence,
+    closed_bead_launch_notice,
+)
 from sase.axe.run_agent_runner_launch import _promote_bead_claim
 from sase.bead.model import Issue, Resolution, Status
+
+
+def test_launch_claim_hints_use_the_marker_project_key(monkeypatch, tmp_path) -> None:
+    marker = SimpleNamespace(project_key="gh_acme__widget", project_name="widget")
+    monkeypatch.setattr(
+        "sase.workspace_provider.marker.find_marker_from_cwd",
+        lambda _path: (str(tmp_path), marker),
+    )
+    from sase.bead import background_store
+
+    schedule = patch.object(background_store, "schedule_beads_sidecar_convergence")
+    with schedule as schedule_hint:
+        _schedule_launch_claim_convergence(str(tmp_path))
+
+    schedule_hint.assert_called_once_with("gh_acme__widget")
 
 
 @pytest.mark.parametrize("force_reuse", [False, True], ids=["normal", "force-reuse"])

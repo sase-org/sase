@@ -89,7 +89,7 @@
         },
         "auto_sync": {
           "type": "boolean",
-          "description": "Opt this role's materialized primary sidecar clone into conservative background convergence: fetch and fast-forward only while clean, attached, and non-diverged. Independent of auto_clone. The intrinsic agents role ignores this setting.",
+          "description": "Opt this role's materialized primary sidecar clone into conservative background convergence: fetch and fast-forward only while clean, attached, and non-diverged. Independent of auto_clone. In managed projects, builtin plans and beads entries default to true when omitted; custom roles, non-managed projects, and the intrinsic agents role default to false. An explicit false is always respected.",
           "default": false
         },
         "description": {

@@ -460,7 +460,12 @@ def _require_published_bead_mutation(
     )
     if location is None or location.is_in_tree or location.read_only:
         return None
-    return ensure_bead_mutation_published(location.beads_dir, description=description)
+    project_key = None if bead_context is None else bead_context.project_key
+    return ensure_bead_mutation_published(
+        location.beads_dir,
+        description=description,
+        project_key=project_key,
+    )
 
 
 def _push_committed_bead_store(
