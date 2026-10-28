@@ -1,9 +1,10 @@
 """Thin Footprint ledger adapter over ``sase_core_rs``.
 
 Rust owns spool validation, catalog ingest, the SQLite ledger, fold,
-derived upserts, prune, and clear. This module is a wire-only facade:
-it resolves paths, releases the GIL inside the bindings, and never opens
-the store through stdlib ``sqlite3``.
+derived upserts, prune, clear, report and card queries, and local review
+decisions. This module is a wire-only facade: it resolves paths, releases
+the GIL inside the bindings, and never opens the store through stdlib
+``sqlite3``.
 """
 
 from __future__ import annotations
@@ -199,3 +200,69 @@ def footprint_validate_overlay(overlay: Mapping[str, Any]) -> None:
 
     _require_wire_schema()
     require_rust_binding("footprint_validate_overlay")(dict(overlay))
+
+
+def _query_request(request: Mapping[str, Any]) -> dict[str, Any]:
+    payload = dict(request)
+    store_path = payload.get("store_path")
+    if store_path is not None:
+        payload["store_path"] = _path_str(store_path)
+    overlay = payload.get("overlay")
+    if isinstance(overlay, Mapping):
+        payload["overlay"] = dict(overlay)
+    return payload
+
+
+def footprint_report(
+    request: Mapping[str, Any],
+    *,
+    busy_timeout_ms: int = 250,
+) -> dict[str, Any]:
+    """Return a lens report (header, tiles, areas, rows, coverage)."""
+
+    _require_wire_schema()
+    payload = require_rust_binding("footprint_report")(
+        _query_request(request),
+        busy_timeout_ms,
+    )
+    return dict(payload)
+
+
+def footprint_card(
+    request: Mapping[str, Any],
+    *,
+    busy_timeout_ms: int = 250,
+) -> dict[str, Any]:
+    """Return an evidence card for one feature or area."""
+
+    _require_wire_schema()
+    payload = require_rust_binding("footprint_card")(
+        _query_request(request),
+        busy_timeout_ms,
+    )
+    return dict(payload)
+
+
+def footprint_decide(
+    store_path: Path | str,
+    feature_id: str,
+    decision: str,
+    reason: str | None,
+    today: str,
+    snooze_days: int = 30,
+    *,
+    busy_timeout_ms: int = 250,
+) -> dict[str, Any]:
+    """Record, snooze, or clear a local review decision."""
+
+    _require_wire_schema()
+    payload = require_rust_binding("footprint_decide")(
+        _path_str(store_path),
+        str(feature_id),
+        str(decision),
+        None if reason is None else str(reason),
+        str(today),
+        int(snooze_days),
+        busy_timeout_ms,
+    )
+    return dict(payload)

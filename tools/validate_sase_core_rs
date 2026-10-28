@@ -471,6 +471,9 @@ REQUIRED_BINDINGS = (
     "footprint_prune",
     "footprint_clear",
     "footprint_validate_overlay",
+    "footprint_report",
+    "footprint_card",
+    "footprint_decide",
 )
 
 # Public Python compatibility symbols intentionally retained alongside the

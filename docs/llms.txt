@@ -323,7 +323,7 @@
 - [Commit workflow orchestrator](https://sase.sh/contribute/commit-workflow-orchestrator/) — Contributor internals for commit workflow orchestration and finalization.
 - [Development](https://sase.sh/contribute/development/) — This page orients contributors working in the sase repository.
 - [Fakey Testing Provider](https://sase.sh/contribute/fakey/) — fakey is a deterministic fake agent CLI bundled with SASE.
-- [Footprint](https://sase.sh/contribute/footprint/) — How Footprint feature IDs and the generated catalog work.
+- [Footprint](https://sase.sh/contribute/footprint/) — How Footprint feature IDs, the catalog, and report queries work.
 - [Contribute](https://sase.sh/contribute/) — Contributor guides, internals, contracts, and runbooks for SASE.
 - [Instruction bundle internals](https://sase.sh/contribute/instruction-bundle-internals/) — Manifest, storage, cache, and delivery contracts for generated instruction bundles.
 - [Integration APIs](https://sase.sh/contribute/integration-apis/) — SASE exposes a small set of Python helpers for external plugins, chat clients, mobile clients, and editor integrations.

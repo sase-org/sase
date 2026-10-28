@@ -8,11 +8,14 @@ from pathlib import Path
 
 from sase.core.footprint_facade import (
     FOOTPRINT_WIRE_SCHEMA_VERSION,
+    footprint_card,
     footprint_catalog_status,
     footprint_clear,
+    footprint_decide,
     footprint_fold,
     footprint_ingest_catalog,
     footprint_prune,
+    footprint_report,
     footprint_status,
     footprint_upsert_derived,
     footprint_validate_overlay,
@@ -107,6 +110,37 @@ def test_ingest_fold_status_derived_prune_clear(tmp_path: Path) -> None:
     pruned = footprint_prune(store, "2026-10-27", 400)
     assert pruned["daily_deleted"] == 0
     footprint_validate_overlay({"schema": "sase.footprint.overlay/1", "features": {}})
+    reported = footprint_report(
+        {
+            "store_path": store,
+            "today": "2026-10-27",
+            "lens": "map",
+            "overlay": {"schema": "sase.footprint.overlay/1"},
+        }
+    )
+    assert reported["schema_version"] == FOOTPRINT_WIRE_SCHEMA_VERSION
+    assert any(area["area"] == "cli.bead" for area in reported["areas"])
+    evidence = footprint_card(
+        {
+            "store_path": store,
+            "today": "2026-10-27",
+            "feature_id": "cli:bead.list",
+        }
+    )
+    assert evidence["row"]["id"] == "cli:bead.list"
+    kept = footprint_decide(
+        store, "cli:bead.list", "keep", "agent_facing", "2026-10-27"
+    )
+    assert kept["decision"] == "keep"
+    missing = footprint_report(
+        {
+            "store_path": tmp_path / "missing.sqlite",
+            "today": "2026-10-27",
+            "lens": "cold",
+        }
+    )
+    assert missing["tiles"]["total"] == 0
+    assert not (tmp_path / "missing.sqlite").exists()
     cleared = footprint_clear(store, spool)
     assert cleared["generation"] == 1
     assert list(spool.glob("*.jsonl")) == []

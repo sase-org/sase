@@ -25,6 +25,9 @@ def test_validate_sase_core_rs_requires_footprint_bindings() -> None:
         "footprint_prune",
         "footprint_clear",
         "footprint_validate_overlay",
+        "footprint_report",
+        "footprint_card",
+        "footprint_decide",
     }
 
     assert footprint_bindings <= set(validator.REQUIRED_BINDINGS)

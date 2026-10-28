@@ -475,7 +475,8 @@ _lint-patch-stitch-terminology: _setup
 # for sase-1no.3; sase-1no.4 consumed blocked_sentence, so its row is dropped.
 # sase-1p1 (Footprint usage census) owns unused Rust facade exports until
 # later phases consume them (catalog ingest, fold driver, derived upsert,
-# status/clear). Drop each row when its caller lands.
+# status/clear). Query facades and Overlay/load_overlay are consumed by
+# sase-1p1.8 (cli_report). Drop each row when its caller lands.
 # Never put a comment
 # line inside the continued command below: just joins the lines, so the comment
 # would swallow every later argument.
@@ -490,6 +491,9 @@ _lint-symvision *args: _setup
         --epic-symbol 'sase-1p1(footprint_validate_overlay)' \
         --epic-symbol 'sase-1p1.8(Overlay)' \
         --epic-symbol 'sase-1p1.8(load_overlay)' \
+        --epic-symbol 'sase-1p1.8(footprint_report)' \
+        --epic-symbol 'sase-1p1.8(footprint_card)' \
+        --epic-symbol 'sase-1p1.8(footprint_decide)' \
         {{ args }}
 
 # Check Python file line counts (private, extracted for per-stage wrapping)

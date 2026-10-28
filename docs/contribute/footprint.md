@@ -1,6 +1,6 @@
 ---
 title: "Footprint"
-description: "How Footprint feature IDs and the generated catalog work."
+description: "How Footprint feature IDs, the catalog, and report queries work."
 ---
 
 # Footprint: feature IDs and the catalog
@@ -112,3 +112,23 @@ surfaces with a `why`, `keep` reasons (`rare_by_design`, `safety`, `agent_facing
 `api_contract`, `other`), and `retire_with` siblings a cut should remove together. Every
 key is an exact ID or a trailing-`*` glob, and every key must match at least one catalog
 ID. The generator test fails otherwise.
+
+## Queries, evidence, and reviews
+
+Report and card queries live in sase-core. Python calls them through
+`sase.core.footprint_facade.footprint_report`, `footprint_card`, and `footprint_decide`.
+The request carries the store path, the overlay as JSON (Python parses YAML), `today`,
+an optional window (`60` days by default, `null` for all), actor scope (`you` / `agents`
+/ `automation` / `everyone`), lens, optional area or feature ID, and the gate
+thresholds.
+
+Each feature has exactly one evidence state: `not_measured`, `too_new`, `used`,
+`rare_by_design`, `no_recorded_use`, or `retired`. A local review decision (`keep` /
+`later` / `cut`) is metadata on top of that state. Overlay `keep` counts as decided.
+`later` re-enters Cold after `snooze_until`. The candidate gate is 60 catalog days and
+30 observed active days, excluding a 3-day live calibration window. Missing stores
+return an empty report and do not create the file.
+
+Lenses: `map`, `cold`, `fading`, `agent-only`, `dead-paths`, `friction`, `hot`,
+`coverage`, `decisions`. Map with no area returns area rows only. `imported_pack_count`
+stays 0 until the export/import phase.
