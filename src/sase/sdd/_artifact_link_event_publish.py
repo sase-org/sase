@@ -3,11 +3,11 @@
 from __future__ import annotations
 
 from collections.abc import Iterable, Mapping, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 import fcntl
 from pathlib import Path
 import time
-from typing import Any, Literal
+from typing import TYPE_CHECKING, Any, Literal
 
 from sase.core.paths import sase_projects_dir
 from sase.memory.locks import locked_file
@@ -23,10 +23,11 @@ from sase.sdd._artifact_link_event_canonical import (
     canonical_artifact_link_event_object as _canonical_artifact_link_event_object,
 )
 from sase.sdd._artifact_link_event_install import (
+    artifact_link_bytes_are_durable as _artifact_link_bytes_are_durable,
     clean_artifact_link_event_staging as _clean_artifact_link_event_staging,
     event_object_is_durable as _event_object_is_durable,
     install_artifact_link_event_object as _install_artifact_link_event_object,
-    reject_existing_operation_collisions as _reject_existing_operation_collisions,
+    verify_artifact_link_operation_selection as _verify_operation_selection,
 )
 from sase.sdd._artifact_link_event_local_store import (
     artifact_link_local_event_root as _artifact_link_local_event_root,
@@ -46,6 +47,9 @@ from sase.sdd._artifact_link_event_project import (
     apply_events_to_beads as _apply_events_to_beads,
 )
 from sase.sdd.artifact_link_store import ArtifactLinkStore
+
+if TYPE_CHECKING:
+    from sase.sdd._artifact_link_event_quarantine import ArtifactLinkQuarantineFinding
 
 
 @dataclass(frozen=True, slots=True)
@@ -68,6 +72,7 @@ class _ParkedPublication:
     """One operation parked after typed bead-endpoint classification."""
 
     operation_id: str
+    digest: str
     reasons: tuple[str, ...]
     endpoints: tuple[dict[str, Any], ...]
 
@@ -91,6 +96,11 @@ class _ArtifactLinkEventPublishReport:
     event_paths: tuple[Path, ...] = ()
     durable_event_paths: tuple[Path, ...] = ()
     published_operation_ids: tuple[str, ...] = ()
+    published_event_keys: tuple[tuple[str, str], ...] = ()
+    parked_event_keys: tuple[tuple[str, str], ...] = ()
+    quarantined_event_keys: tuple[tuple[str, str], ...] = ()
+    quarantine_findings: tuple[ArtifactLinkQuarantineFinding, ...] = ()
+    quarantine_paths: tuple[Path, ...] = ()
     parked_operations: tuple[_ParkedPublication, ...] = ()
     transient_operation_ids: tuple[str, ...] = ()
     beads_changed: bool = False
@@ -106,6 +116,16 @@ class _RootPublishReport:
     root_outcomes: tuple[_ArtifactLinkEventRootOutcome, ...]
     publication_error: str | None = None
     skip_diagnostics: tuple[str, ...] = ()
+
+
+@dataclass(frozen=True, slots=True)
+class _QuarantinePersistReport:
+    event_keys: tuple[tuple[str, str], ...] = ()
+    findings: tuple[ArtifactLinkQuarantineFinding, ...] = ()
+    paths: tuple[Path, ...] = ()
+    committed: bool = False
+    diagnostics: tuple[str, ...] = ()
+    publication_errors: tuple[str, ...] = ()
 
 
 @dataclass(slots=True)
@@ -124,6 +144,10 @@ class _OperationPublicationState:
     def operation_id(self) -> str:
         return str(self.item.event["operation_id"])
 
+    @property
+    def event_key(self) -> tuple[str, str]:
+        return self.operation_id, self.item.digest
+
 
 def publish_artifact_link_events(
     store: ArtifactLinkStore,
@@ -138,7 +162,7 @@ def publish_artifact_link_events(
 ) -> _ArtifactLinkEventPublishReport:
     """Publish immutable link events and update local non-durable projections."""
 
-    objects = _dedupe_event_objects(
+    objects = _unique_event_objects(
         _canonical_artifact_link_event_object(event) for event in events
     )
     if not objects:
@@ -182,6 +206,14 @@ def _publish_event_objects_locked(
     from sase.sdd._artifact_link_event_project import (
         BEAD_PROJECTION_DEFERRED_DIAGNOSTIC,
     )
+    from sase.sdd._artifact_link_event_collision import (
+        candidate_from_event as _candidate_from_event,
+        partition_artifact_link_candidates as _partition_candidates,
+    )
+    from sase.sdd._artifact_link_event_quarantine import (
+        ArtifactLinkQuarantineFinding,
+        persist_artifact_link_quarantine_record,
+    )
 
     if deadline is not None and time.monotonic() >= deadline:
         return _ArtifactLinkEventPublishReport(
@@ -189,13 +221,86 @@ def _publish_event_objects_locked(
             skip_diagnostics=(BEAD_PROJECTION_DEFERRED_DIAGNOSTIC,),
             deferred=True,
         )
-    states = _operation_states(store, objects, extra_roots=extra_roots)
+    # Include pending outbox events so an older queued payload beats a newer
+    # incoming replay. The Rust partition runs under the project publication
+    # lock and before any root write or projection.
+    snapshot = store.artifact_link_event_snapshot(
+        include_pending=True,
+        strict=True,
+    )
+    input_digests = {item.digest for item in objects}
+    incoming_candidates = tuple(
+        _candidate_from_event(
+            item.event,
+            tier="incoming",
+            source_locator=f"incoming:{item.event['operation_id']}",
+            digest=item.digest,
+            canonical_json=item.canonical_json,
+        )
+        for item in objects
+    )
+    partition = _partition_candidates((*snapshot.candidates, *incoming_candidates))
+    accepted_digests = {item.digest for item in partition.accepted}
+    accepted_objects = tuple(
+        item for item in objects if item.digest in accepted_digests
+    )
+    findings_by_digest = {
+        finding.rejected_digest: finding
+        for finding in partition.findings
+        if finding.rejected_digest in input_digests
+    }
+    rejected_objects = tuple(
+        item for item in objects if item.digest not in accepted_digests
+    )
+    findings_by_key: dict[tuple[str, str], ArtifactLinkQuarantineFinding] = {}
+    for item in rejected_objects:
+        finding = findings_by_digest.get(item.digest)
+        if finding is None:
+            raise RuntimeError(
+                "artifact-link collision partition rejected an input without a finding"
+            )
+        findings_by_key[(str(item.event["operation_id"]), item.digest)] = finding
+
+    quarantine = _persist_incoming_quarantine_findings(
+        store,
+        findings_by_key,
+        objects=objects,
+        candidates=snapshot.candidates,
+        extra_roots=extra_roots,
+        mutation_origin=mutation_origin,
+        push_after_commit=push_after_commit,
+        artifacts_dir=artifacts_dir,
+        persist=persist_artifact_link_quarantine_record,
+        canonical_event_object=_canonical_artifact_link_event_object,
+        is_durable=_artifact_link_bytes_are_durable,
+    )
+    if not accepted_objects:
+        quarantine_diagnostics = [*quarantine.diagnostics]
+        quarantine_diagnostics.extend(
+            finding.render() for finding in quarantine.findings
+        )
+        return _ArtifactLinkEventPublishReport(
+            attempted=len(objects),
+            committed=quarantine.committed,
+            quarantined_event_keys=quarantine.event_keys,
+            quarantine_findings=quarantine.findings,
+            quarantine_paths=quarantine.paths,
+            publication_error="\n".join(quarantine.publication_errors) or None,
+            skip_diagnostics=tuple(dict.fromkeys(quarantine_diagnostics)),
+        )
+
+    states = _operation_states(
+        store,
+        accepted_objects,
+        extra_roots=extra_roots,
+    )
     grouped = _objects_by_root_for(states)
     event_paths: list[Path] = []
     durable_paths: list[Path] = []
-    diagnostics: list[str] = []
-    publication_errors: list[str] = []
-    committed = False
+    diagnostics: list[str] = list(quarantine.diagnostics)
+    diagnostics.extend(finding.render() for finding in quarantine.findings)
+    publication_errors: list[str] = list(quarantine.publication_errors)
+    committed = quarantine.committed
 
     for root, root_objects in grouped.items():
         outcome = _publish_root_events(
@@ -283,6 +388,14 @@ def _publish_event_objects_locked(
 
     if not aggregate_ready:
         published_ids = ()
+    published_event_keys = tuple(
+        state.event_key
+        for state in states.values()
+        if state.operation_id in published_ids
+    )
+    parked_event_keys = tuple(
+        (item.operation_id, item.digest) for item in receipts.parked
+    )
     return _ArtifactLinkEventPublishReport(
         attempted=len(objects),
         published=len(published_ids),
@@ -290,6 +403,11 @@ def _publish_event_objects_locked(
         event_paths=tuple(dict.fromkeys(event_paths)),
         durable_event_paths=tuple(dict.fromkeys(durable_paths)),
         published_operation_ids=published_ids,
+        published_event_keys=published_event_keys,
+        parked_event_keys=parked_event_keys,
+        quarantined_event_keys=quarantine.event_keys,
+        quarantine_findings=quarantine.findings,
+        quarantine_paths=quarantine.paths,
         parked_operations=receipts.parked,
         transient_operation_ids=receipts.transient_ids,
         beads_changed=bead_result.changed,
@@ -298,6 +416,186 @@ def _publish_event_objects_locked(
         skip_diagnostics=tuple(dict.fromkeys(diagnostics)),
         deferred=bead_result.deferred,
         bead_projection_failed=bool(bead_result.failed),
+    )
+
+
+def _persist_incoming_quarantine_findings(
+    store: ArtifactLinkStore,
+    findings_by_key: Mapping[tuple[str, str], Any],
+    *,
+    objects: Sequence[_ArtifactLinkEventObject],
+    candidates: Sequence[Any],
+    extra_roots: Sequence[Path],
+    mutation_origin: str,
+    push_after_commit: bool | Literal["async"] | None,
+    artifacts_dir: str | Path | None,
+    persist: Any,
+    canonical_event_object: Any,
+    is_durable: Any,
+) -> _QuarantinePersistReport:
+    """Persist rejected bytes before reporting them settled to the outbox."""
+
+    from sase.sdd._artifact_link_commit import (
+        artifact_link_publication_error_for_roots,
+        commit_artifact_link_indexes,
+    )
+    from sase.sdd._artifact_link_event_local_store import (
+        artifact_link_local_event_root,
+    )
+    from sase.sdd._git_contention import store_git_write_lock
+
+    if not findings_by_key:
+        return _QuarantinePersistReport()
+
+    local_root = artifact_link_local_event_root(store.project_key).resolve(strict=False)
+    all_states = _operation_states(store, objects, extra_roots=extra_roots)
+    roots_by_key: dict[tuple[str, str], set[Path]] = {}
+    findings_by_root: dict[Path, list[tuple[tuple[str, str], Any]]] = {}
+    for event_key, finding in findings_by_key.items():
+        _, digest = event_key
+        roots: set[Path] = set()
+        state = all_states.get(digest)
+        if state is not None:
+            roots.update(_required_roots(state))
+        roots.update(
+            Path(str(candidate.root)).expanduser().resolve(strict=False)
+            for candidate in candidates
+            if getattr(candidate, "digest", None) == digest
+            and getattr(candidate, "root", None)
+        )
+        if not roots:
+            roots.add(local_root)
+        roots_by_key[event_key] = roots
+        for root in roots:
+            findings_by_root.setdefault(root, []).append((event_key, finding))
+
+    persisted_roots: dict[tuple[str, str], set[Path]] = {
+        key: set() for key in findings_by_key
+    }
+    relative_by_key: dict[tuple[str, str], str] = {}
+    paths: list[Path] = []
+    diagnostics: list[str] = []
+    publication_errors: list[str] = []
+    committed = False
+
+    def persist_at_root(
+        root: Path, entries: Sequence[tuple[tuple[str, str], Any]]
+    ) -> None:
+        nonlocal committed
+        installed: list[tuple[tuple[str, str], Any, str, Path, bytes]] = []
+        for event_key, finding in entries:
+            try:
+                rejected = canonical_event_object(finding.rejected_event)
+                relative = str(
+                    persist(
+                        root,
+                        finding,
+                        rejected_canonical_json=rejected.canonical_json,
+                    )
+                )
+                record_path = root / relative
+                installed.append(
+                    (
+                        event_key,
+                        finding,
+                        relative,
+                        record_path,
+                        record_path.read_bytes(),
+                    )
+                )
+            except Exception as exc:  # noqa: BLE001 - retry leaves the outbox row.
+                diagnostics.append(
+                    f"could not persist artifact-link quarantine for "
+                    f"{event_key[0]}:{event_key[1]} in {root}: {exc}"
+                )
+        if not installed:
+            return
+
+        if root != local_root:
+            try:
+                result = commit_artifact_link_indexes(
+                    [],
+                    store=store.sdd_store,
+                    project_key=store.project_key,
+                    repo_roots=(root,),
+                    artifacts_dir=artifacts_dir,
+                    already_locked=True,
+                    mutation_origin=mutation_origin,
+                    push_after_commit=False,
+                    verify_publication=False,
+                    extra_paths_by_root={
+                        root: [record_path for _, _, _, record_path, _ in installed]
+                    },
+                    message=ARTIFACT_LINK_EVENT_COMMIT_MESSAGE,
+                )
+                committed = committed or result.committed
+            except Exception as exc:  # noqa: BLE001 - retry from the durable outbox.
+                diagnostics.extend(
+                    f"could not commit artifact-link quarantine for "
+                    f"{event_key[0]}:{event_key[1]} in {root}: {exc}"
+                    for event_key, *_ in installed
+                )
+                return
+
+        for event_key, finding, relative, record_path, payload in installed:
+            if not is_durable(root, relative, payload):
+                diagnostics.append(
+                    f"artifact-link quarantine is not durable for "
+                    f"{event_key[0]}:{event_key[1]} in {root}"
+                )
+                continue
+            persisted_roots[event_key].add(root)
+            relative_by_key[event_key] = relative
+            paths.append(record_path)
+
+        if root != local_root and push_after_commit is not False:
+            publication_error = artifact_link_publication_error_for_roots(
+                (root,),
+                store=store.sdd_store,
+                project_key=store.project_key,
+                register_retry=mutation_origin == "machine",
+                description=ARTIFACT_LINK_EVENT_COMMIT_MESSAGE,
+            )
+            if publication_error:
+                publication_errors.append(publication_error)
+
+    for root, entries in sorted(
+        findings_by_root.items(), key=lambda item: item[0].as_posix()
+    ):
+        if root == local_root:
+            persist_at_root(root, entries)
+            continue
+        with store_git_write_lock(
+            root,
+            op="artifact_link.event_quarantine",
+            mutates_worktree=True,
+        ) as acquired:
+            if not acquired:
+                diagnostics.extend(
+                    f"could not acquire quarantine write lock for "
+                    f"{event_key[0]}:{event_key[1]} in {root}"
+                    for event_key, _ in entries
+                )
+                continue
+            persist_at_root(root, entries)
+
+    successful_keys = tuple(
+        key
+        for key, required_roots in roots_by_key.items()
+        if required_roots and required_roots.issubset(persisted_roots[key])
+    )
+    report_findings = tuple(
+        replace(findings_by_key[key], record_path=relative_by_key[key])
+        for key in successful_keys
+        if key in relative_by_key
+    )
+    return _QuarantinePersistReport(
+        event_keys=successful_keys,
+        findings=report_findings,
+        paths=tuple(dict.fromkeys(paths)),
+        committed=committed,
+        diagnostics=tuple(dict.fromkeys(diagnostics)),
+        publication_errors=tuple(dict.fromkeys(publication_errors)),
     )
 
 
@@ -338,7 +636,7 @@ def _publish_root_events(
         paths: list[Path] = []
         created_paths: set[Path] = set()
         _clean_artifact_link_event_staging(root)
-        _reject_existing_operation_collisions(root, objects)
+        _verify_operation_selection(root, objects)
         for item in objects:
             path = root / item.relative_path
             if _install_artifact_link_event_object(root, item):
@@ -404,10 +702,9 @@ def _operation_states(
     )
     states: dict[str, _OperationPublicationState] = {}
     for item in objects:
-        operation_id = str(item.event["operation_id"])
         requirements = _event_owner_requirements(item.event, document_kinds)
         bead_refs = requirements.get("bead_refs")
-        states[operation_id] = _OperationPublicationState(
+        states[item.digest] = _OperationPublicationState(
             item=item,
             requirements=requirements,
             resolved_roots=_resolved_document_roots_for_store(store, requirements),
@@ -459,7 +756,7 @@ def _install_local_receipt_events(
     if not local_states:
         return False
     local_root = _artifact_link_local_event_root(store.project_key)
-    _reject_existing_operation_collisions(
+    _verify_operation_selection(
         local_root,
         [state.item for state in local_states],
     )
@@ -540,6 +837,7 @@ def _published_operation_ids(
             parked.append(
                 _ParkedPublication(
                     operation_id=state.operation_id,
+                    digest=state.item.digest,
                     reasons=reasons,
                     endpoints=tuple(endpoints or ()),
                 )
@@ -593,20 +891,20 @@ def _bead_endpoint_wires(
     return endpoints
 
 
-def _dedupe_event_objects(
+def _unique_event_objects(
     objects: Iterable[_ArtifactLinkEventObject],
 ) -> tuple[_ArtifactLinkEventObject, ...]:
-    by_operation: dict[str, _ArtifactLinkEventObject] = {}
+    by_digest: dict[str, _ArtifactLinkEventObject] = {}
     order: list[str] = []
     for item in objects:
-        operation_id = str(item.event.get("operation_id") or "")
-        existing = by_operation.get(operation_id)
+        digest = item.digest
+        existing = by_digest.get(digest)
         if existing is not None:
             if existing.canonical_json != item.canonical_json:
                 raise _ArtifactLinkEventPublishError(
-                    f"operation_id `{operation_id}` was reused for different events"
+                    f"artifact-link event digest collision for `{digest}`"
                 )
             continue
-        by_operation[operation_id] = item
-        order.append(operation_id)
-    return tuple(by_operation[operation_id] for operation_id in order)
+        by_digest[digest] = item
+        order.append(digest)
+    return tuple(by_digest[digest] for digest in order)

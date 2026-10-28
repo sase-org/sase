@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import subprocess
+import json
 from pathlib import Path
 
 import pytest
@@ -10,12 +11,12 @@ import pytest
 from sase.bead.model import IssueType
 from sase.bead.project import BeadProject
 from sase.sdd._artifact_link_event_canonical import (
-    ArtifactLinkEventCorruptionError,
     canonical_artifact_link_event_object,
 )
 from sase.sdd._artifact_link_event_local_store import artifact_link_local_event_root
 from sase.sdd.artifact_link_event_publisher import (
     active_operation_ids_for_row,
+    edge_remove_event,
     observation_or_put_event_from_row,
     publish_artifact_link_events,
     rows_from_events,
@@ -142,7 +143,9 @@ def test_publish_event_rejects_same_path_with_different_bytes(
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text("{}\n", encoding="utf-8")
 
-    with pytest.raises(ArtifactLinkEventCorruptionError):
+    # Snapshot validation rejects malformed bytes before publication reaches
+    # the installer's same-path byte comparison.
+    with pytest.raises(RuntimeError, match="artifact-link event store is invalid"):
         publish_artifact_link_events(
             store,
             (event,),
@@ -153,7 +156,7 @@ def test_publish_event_rejects_same_path_with_different_bytes(
     assert _commit_count(plans) == 1
 
 
-def test_publish_event_rejects_committed_operation_id_collision_before_persistence(
+def test_publish_event_quarantines_committed_collision_and_keeps_store_writable(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -194,25 +197,106 @@ def test_publish_event_rejects_committed_operation_id_collision_before_persisten
         push_after_commit=False,
         mutation_origin="machine",
     )
-    before_paths = sorted(path.relative_to(plans) for path in plans.rglob("*.json"))
-
-    with pytest.raises(
-        ArtifactLinkEventCorruptionError,
-        match="reused for different artifact-link event bytes",
-    ):
-        publish_artifact_link_events(
-            store,
-            (second,),
-            push_after_commit=False,
-            mutation_origin="machine",
-        )
-
-    assert (
-        sorted(path.relative_to(plans) for path in plans.rglob("*.json"))
-        == before_paths
+    report = publish_artifact_link_events(
+        store,
+        (second,),
+        push_after_commit=False,
+        mutation_origin="machine",
     )
-    assert _commit_count(plans) == 2
+
+    second_object = canonical_artifact_link_event_object(second)
+    assert report.published == 0
+    assert report.quarantined_event_keys == ((operation_id, second_object.digest),)
+    assert len(report.quarantine_paths) == 1
+    [record_path] = report.quarantine_paths
+    record = json.loads(record_path.read_text(encoding="utf-8"))
+    assert record["rejected_event"] == second
+    assert record["rejected_digest"] == second_object.digest
+    snapshot = store.artifact_link_event_snapshot(include_pending=False, strict=True)
+    assert snapshot.accepted_events == (first,)
+    assert len(snapshot.quarantine_findings) == 1
+    assert snapshot.quarantine_findings[0].rejected_event == second
+    assert _commit_count(plans) == 3
     assert _status(plans) == ""
+
+    unrelated = observation_or_put_event_from_row(
+        _row(
+            source="agent:reader",
+            relation="read",
+            target="plan:202609/a.md",
+            origin="read",
+            description="fresh unrelated operation",
+        ),
+        project_key=store.project_key,
+        operation_id="d" * 32,
+    )
+    unrelated_report = publish_artifact_link_events(
+        store,
+        (unrelated,),
+        push_after_commit=False,
+        mutation_origin="machine",
+    )
+    assert unrelated_report.published_operation_ids == ("d" * 32,)
+    assert _commit_count(plans) == 4
+
+
+def test_conflicting_edge_remove_is_quarantined_before_projection(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    redirect_sase_home(monkeypatch, tmp_path / ".sase")
+    allow_machine_sidecar_writes(monkeypatch)
+    plans = tmp_path / "plans"
+    _init_repo(plans, "202609/a.md")
+    store = ArtifactLinkStore(
+        project_key="gh_sase-org__sase",
+        sidecar_roots={"plan": plans},
+    )
+    operation_id = "e" * 32
+    original = observation_or_put_event_from_row(
+        _row(
+            source="plan:202609/a.md",
+            relation="related",
+            target="plan:202609/original.md",
+            description="original edge",
+        ),
+        project_key=store.project_key,
+        operation_id=operation_id,
+    )
+    publish_artifact_link_events(
+        store,
+        (original,),
+        push_after_commit=False,
+        mutation_origin="machine",
+    )
+    remove = edge_remove_event(
+        project_key=store.project_key,
+        operation_id=operation_id,
+        source_ref="plan:202609/a.md",
+        relation="related",
+        target_ref="plan:202609/original.md",
+        created_by="agent:event.athena.worker",
+        origin="manual",
+        created_at="2026-09-09T00:00:00Z",
+        observed_operation_ids=("f" * 32,),
+    )
+
+    report = publish_artifact_link_events(
+        store,
+        (remove,),
+        push_after_commit=False,
+        mutation_origin="machine",
+    )
+
+    remove_object = canonical_artifact_link_event_object(remove)
+    assert report.published == 0
+    assert report.quarantined_event_keys == ((operation_id, remove_object.digest),)
+    snapshot = store.artifact_link_event_snapshot(strict=True)
+    assert snapshot.accepted_events == (original,)
+    assert snapshot.rows == rows_from_events((original,))
+    assert len(snapshot.quarantine_findings) == 1
+    assert snapshot.quarantine_findings[0].rejected_event == remove
+    assert _commit_count(plans) == 3
 
 
 def test_publish_ownerless_event_gets_machine_local_receipt(
@@ -321,7 +405,7 @@ def test_publish_bead_only_events_get_local_history_before_bead_receipt(
         assert aggregate_row["uses"] == 2
 
 
-def test_publish_bead_only_event_rejects_local_operation_collision(
+def test_publish_bead_only_event_quarantines_local_operation_collision(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -358,22 +442,33 @@ def test_publish_bead_only_event_rejects_local_operation_collision(
             mutation_origin="machine",
         )
         local_root = artifact_link_local_event_root(store.project_key)
-        before_paths = sorted(local_root.rglob("*.json"))
+        canonical = event(f"agent:reader read bead:{issue.id}")
+        canonical_object = canonical_artifact_link_event_object(canonical)
+        event_path = local_root / canonical_object.relative_path
 
-        with pytest.raises(
-            ArtifactLinkEventCorruptionError,
-            match="reused for different artifact-link event bytes",
-        ):
-            publish_artifact_link_events(
-                store,
-                (event("changed payload"),),
-                push_after_commit=False,
-                mutation_origin="machine",
-            )
+        rejected = event("changed payload")
+        rejected_object = canonical_artifact_link_event_object(rejected)
+        report = publish_artifact_link_events(
+            store,
+            (rejected,),
+            push_after_commit=False,
+            mutation_origin="machine",
+        )
 
-        assert sorted(local_root.rglob("*.json")) == before_paths
+        assert report.published == 0
+        assert report.quarantined_event_keys == (
+            (operation_id, rejected_object.digest),
+        )
+        assert event_path.read_bytes() == canonical_object.payload
+        [record_path] = report.quarantine_paths
+        assert (
+            json.loads(record_path.read_text(encoding="utf-8"))["rejected_event"]
+            == rejected
+        )
         [link] = project.show(issue.id).links
         assert link.uses == 1
+        [aggregate_row] = store.load_aggregate()["rows"]
+        assert aggregate_row["uses"] == 1
 
 
 def test_publish_event_with_unresolved_document_owner_stays_pending(

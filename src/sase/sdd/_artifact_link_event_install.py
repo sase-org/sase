@@ -3,17 +3,16 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
-import json
 import os
 from pathlib import Path
 import subprocess
 from uuid import uuid4
 
+from sase.core.rust import require_rust_binding
 from sase.sdd._artifact_link_event_canonical import (
     ArtifactLinkEventCorruptionError,
     ArtifactLinkEventObject,
     ArtifactLinkEventPublishError,
-    canonical_artifact_link_event_object,
 )
 
 
@@ -111,42 +110,99 @@ def clean_artifact_link_event_staging(root: str | Path) -> int:
     return removed
 
 
-def reject_existing_operation_collisions(
+def verify_artifact_link_operation_selection(
     root: str | Path,
     objects: Sequence[ArtifactLinkEventObject],
 ) -> None:
-    """Reject reused operation IDs with different existing event bytes."""
+    """Recheck the core-selected winners against one locked event root.
+
+    The publication lock performs the full cross-root partition before any
+    projection or installation. This narrower check runs after taking a root's
+    Git write lock, so a concurrent durable replay cannot slip between that
+    selection and the write. A newly observed collision asks the caller to
+    retry; the next full partition will quarantine it with complete evidence.
+    """
+
+    from sase.sdd._artifact_link_event_collision import (
+        candidate_from_event,
+        partition_artifact_link_candidates,
+    )
 
     root = Path(root).expanduser().resolve(strict=False)
-    by_operation = {str(item.event["operation_id"]): item for item in objects}
+    operation_ids = {str(item.event["operation_id"]) for item in objects}
+    candidates = []
     event_root = root / "link-events" / "v1"
-    if not event_root.is_dir():
-        return
-    for path in sorted(event_root.rglob("*.json")):
-        if not path.is_file():
-            continue
-        try:
-            data = json.loads(path.read_text(encoding="utf-8"))
-        except (OSError, json.JSONDecodeError):
-            continue
-        if not isinstance(data, dict):
-            continue
-        operation_id = str(data.get("operation_id") or "")
-        incoming = by_operation.get(operation_id)
-        if incoming is None:
-            continue
-        try:
-            existing = canonical_artifact_link_event_object(data)
-        except Exception as exc:
-            raise ArtifactLinkEventCorruptionError(
-                f"artifact-link event path for operation_id `{operation_id}` "
-                f"is invalid: {path}: {exc}"
-            ) from exc
-        if existing.payload != incoming.payload:
-            raise ArtifactLinkEventCorruptionError(
-                f"operation_id `{operation_id}` was reused for different "
-                f"artifact-link event bytes already present at {path}"
+    if event_root.is_dir():
+        for path in sorted(event_root.rglob("*.json")):
+            if path.is_symlink():
+                raise ArtifactLinkEventCorruptionError(
+                    f"artifact-link event path is a symlink: {path}"
+                )
+            if not path.is_file():
+                continue
+            relative = path.relative_to(root).as_posix()
+            try:
+                validated = require_rust_binding("artifact_link_event_validate_bytes")(
+                    path.read_bytes(), relative
+                )
+                event = dict(validated["event"])
+            except Exception as exc:
+                raise ArtifactLinkEventCorruptionError(
+                    f"artifact-link event path is invalid: {path}: {exc}"
+                ) from exc
+            if str(event.get("operation_id") or "") not in operation_ids:
+                continue
+            candidates.append(
+                candidate_from_event(
+                    event,
+                    tier="durable",
+                    source_locator=f"recheck:{relative}",
+                    root=str(root),
+                    relative_path=relative,
+                    digest=str(validated["digest"]),
+                    canonical_json=str(validated["canonical_json"]),
+                )
             )
+    candidates.extend(
+        candidate_from_event(
+            item.event,
+            tier="incoming",
+            source_locator=f"recheck:incoming:{item.event['operation_id']}",
+            digest=item.digest,
+            canonical_json=item.canonical_json,
+        )
+        for item in objects
+    )
+    partition = partition_artifact_link_candidates(candidates)
+    accepted_digests = {item.digest for item in partition.accepted}
+    rejected = [item for item in objects if item.digest not in accepted_digests]
+    if rejected:
+        item = rejected[0]
+        raise ArtifactLinkEventPublishError(
+            f"artifact-link event selection changed while publishing operation_id "
+            f"`{item.event['operation_id']}`; retry to quarantine the replay"
+        )
+
+
+def artifact_link_bytes_are_durable(
+    root: str | Path,
+    relative_path: str | Path,
+    payload: bytes,
+) -> bool:
+    """Return whether *root* durably contains these exact bytes at one path."""
+
+    root = Path(root).expanduser().resolve(strict=False)
+    relative = Path(relative_path)
+    if relative.is_absolute() or ".." in relative.parts:
+        return False
+    if _is_git_repo(root):
+        result = _git_show(root, relative.as_posix())
+        return result is not None and result.stdout == payload
+    try:
+        path = root / relative
+        return not path.is_symlink() and path.read_bytes() == payload
+    except OSError:
+        return False
 
 
 def event_object_is_durable(
@@ -245,9 +301,10 @@ def _fsync_directory(path: Path) -> None:
 
 
 __all__ = [
+    "artifact_link_bytes_are_durable",
     "clean_artifact_link_event_staging",
     "event_object_is_durable",
     "install_artifact_link_bytes",
     "install_artifact_link_event_object",
-    "reject_existing_operation_collisions",
+    "verify_artifact_link_operation_selection",
 ]

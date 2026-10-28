@@ -11,6 +11,7 @@ import argparse
 import json
 from pathlib import Path
 import subprocess
+from types import SimpleNamespace
 
 import pytest
 
@@ -21,9 +22,16 @@ from sase.artifact_cli.link_ops import (
     handle_link_rm,
     remove_artifact_link,
 )
+from sase.artifact_cli.doctor import handle_doctor
 from sase.bead._sync_publication import PushOutcome
+from sase.core.artifact_file_facade import ArtifactFileIndexInspection
+from sase.sdd._artifact_link_event_canonical import (
+    canonical_artifact_link_event_object,
+)
+from sase.sdd.artifact_link_event_publisher import observation_or_put_event_from_row
 from sase.sdd.artifact_link_store import ArtifactLinkStore
 from tests._conftest_environment import redirect_sase_home
+from tests.main._artifact_cli_link_health_helpers import stub_resolve_cli_reference
 from tests.main._artifact_cli_link_helpers import (
     make_store,
     patch_link_ops_store,
@@ -127,6 +135,119 @@ def test_add_list_rm_round_trip(
     )
     assert "removed implements" in capsys.readouterr().out
     assert store.load_artifact_rows("plan:202608/a.md") == ()
+
+
+def test_link_add_survives_historical_collision_and_doctor_reports_quarantine(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    store = make_store(tmp_path, monkeypatch)
+    patch_link_ops_store(monkeypatch, store)
+    monkeypatch.setattr(
+        "sase.artifact_cli.link_health.resolve_artifact_link_store",
+        lambda: store,
+    )
+    stub_resolve_cli_reference(
+        monkeypatch,
+        lambda _ref, **_kwargs: SimpleNamespace(
+            resolution=SimpleNamespace(status="exact", resolved_path=None)
+        ),
+    )
+    plans = store.sidecar_roots["plan"]
+    documents = plans / "202608"
+    documents.mkdir()
+    (documents / "a.md").write_text("# A\n", encoding="utf-8")
+    (documents / "b.md").write_text("# B\n", encoding="utf-8")
+    _git(plans, "add", "-A")
+    _git(plans, "commit", "-m", "add artifact-link test documents")
+
+    operation_id = "9" * 32
+    original = observation_or_put_event_from_row(
+        {
+            "schema_version": 2,
+            "source_ref": "plan:202608/a.md",
+            "relation": "related",
+            "target_ref": "plan:202608/original.md",
+            "description": "historical winner",
+            "origin": "manual",
+            "created_by": "bbugyi200.athena.y2",
+            "created_at": "2026-08-18T23:40:00Z",
+            "uses": 1,
+        },
+        project_key=store.project_key,
+        operation_id=operation_id,
+    )
+    replay = observation_or_put_event_from_row(
+        {
+            "schema_version": 2,
+            "source_ref": "plan:202608/a.md",
+            "relation": "related",
+            "target_ref": "plan:202608/replay.md",
+            "description": "historical replay",
+            "origin": "manual",
+            "created_by": "bbugyi200.athena.y2",
+            "created_at": "2026-08-18T23:40:00Z",
+            "uses": 1,
+        },
+        project_key=store.project_key,
+        operation_id=operation_id,
+    )
+    original_object = canonical_artifact_link_event_object(original)
+    replay_object = canonical_artifact_link_event_object(replay)
+    original_path = plans / original_object.relative_path
+    replay_path = plans / replay_object.relative_path
+    original_path.parent.mkdir(parents=True, exist_ok=True)
+    replay_path.parent.mkdir(parents=True, exist_ok=True)
+    original_path.write_bytes(original_object.payload)
+    _git(plans, "add", str(original_path.relative_to(plans)))
+    _git(plans, "commit", "-m", "original historical event")
+    replay_path.write_bytes(replay_object.payload)
+    _git(plans, "add", str(replay_path.relative_to(plans)))
+    _git(plans, "commit", "-m", "conflicting historical replay")
+    original_bytes = original_path.read_bytes()
+    replay_bytes = replay_path.read_bytes()
+
+    assert (
+        handle_link_add(
+            argparse.Namespace(
+                source_ref="plan:202608/a.md",
+                relation="implements",
+                target_ref="plan:202608/b.md",
+                why="unrelated CLI write remains available",
+            )
+        )
+        == 0
+    )
+    assert "added" in capsys.readouterr().out
+
+    monkeypatch.setattr(
+        "sase.artifact_cli.doctor.inspect_artifact_file_index",
+        lambda: ArtifactFileIndexInspection(
+            total_rows=0,
+            supported_rows=0,
+            vcs_reference_rows=0,
+            missing_enrichment_ids=(),
+            missing_stored_path_ids=(),
+            missing_source_path_ids=(),
+            vcs_provenance_incomplete_ids=(),
+            duplicate_ids=(),
+            unrecognized_schema_versions=(),
+            malformed_rows=0,
+        ),
+    )
+    assert handle_doctor(argparse.Namespace(fix=False, verify=False)) == 1
+    doctor_output = capsys.readouterr().out
+    assert "3 durable / 0 pending" in doctor_output
+    assert "Link event quarantine" in doctor_output
+    assert "historical_ancestor_wins" in doctor_output
+    assert original_path.read_bytes() == original_bytes
+    assert replay_path.read_bytes() == replay_bytes
+    assert original_path.is_file() and replay_path.is_file()
+    targets = {row["target_ref"] for row in store.load_durable_rows()}
+    assert "plan:202608/original.md" in targets
+    assert "plan:202608/replay.md" not in targets
+    assert "plan:202608/b.md" in targets
 
 
 def test_unchanged_add_retries_unpublished_partial_root(

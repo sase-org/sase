@@ -7,6 +7,7 @@ from dataclasses import dataclass
 import json
 from typing import Any
 
+from sase.core.rust import require_rust_binding
 from sase.sdd._artifact_link_store_support import validate_artifact_link_row
 from sase.sdd.artifact_link_event_publisher import (
     canonical_event as _canonical_event,
@@ -201,6 +202,15 @@ def event_operation_id(event: Mapping[str, Any]) -> str:
     return operation_id(event.get("operation_id"))
 
 
+def event_key(entry: ArtifactLinkOutboxEntry) -> tuple[str, str] | None:
+    """Return the payload-aware settlement identity for one event entry."""
+
+    if entry.event is None:
+        return None
+    digest = str(require_rust_binding("artifact_link_event_digest")(entry.event))
+    return entry.id, digest
+
+
 def _integer_schema_version(value: object) -> int:
     if not isinstance(value, int) or isinstance(value, bool):
         raise RuntimeError("artifact-link outbox schema_version must be an integer")
@@ -221,6 +231,7 @@ __all__ = [
     "ArtifactLinkOutboxEntry",
     "entry_from_line",
     "event_from_row",
+    "event_key",
     "event_operation_id",
     "operation_id",
     "required_text",

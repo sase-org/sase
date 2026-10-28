@@ -23,6 +23,7 @@ from sase.sdd._artifact_link_outbox_types import (
     ArtifactLinkOutboxEntry as _ArtifactLinkOutboxEntry,
     entry_from_line as _entry_from_line,
     event_from_row as _event_from_row,
+    event_key as _entry_event_key,
     event_operation_id as _event_operation_id,
     operation_id as _operation_id,
     required_text as _required_text,
@@ -348,24 +349,38 @@ def inspect_artifact_link_outbox(
 def rewrite_artifact_link_outbox_without_ids(
     project_key: str,
     *,
-    drained_ids: set[str],
+    drained_ids: set[str] | None = None,
+    settled_event_keys: set[tuple[str, str]] | None = None,
     dropped: list[_ArtifactLinkOutboxEntry],
 ) -> None:
     path = _artifact_link_outbox_path(project_key)
     with locked_file(path.with_suffix(".lock"), fcntl.LOCK_EX):
         current = _read_outbox_records_unlocked(path, project_key)
         dropped_ids = {dropped_entry.id for dropped_entry in dropped}
+        dropped_keys = {
+            key
+            for dropped_entry in dropped
+            if (key := _entry_event_key(dropped_entry)) is not None
+        }
+        drained = drained_ids or set()
+        settled = settled_event_keys or set()
         kept_lines: list[str] = []
-        seen_ids: set[str] = set()
+        seen_event_keys: set[tuple[str, str]] = set()
         for record in current:
             if record.entry is None:
                 kept_lines.append(record.line)
                 continue
-            if record.entry.id in drained_ids or record.entry.id in dropped_ids:
+            event_key = _entry_event_key(record.entry)
+            if record.entry.id in drained:
                 continue
-            if record.entry.id in seen_ids:
+            if event_key is not None:
+                if event_key in settled or event_key in dropped_keys:
+                    continue
+                if event_key in seen_event_keys:
+                    continue
+                seen_event_keys.add(event_key)
+            elif record.entry.id in dropped_ids:
                 continue
-            seen_ids.add(record.entry.id)
             kept_lines.append(record.line)
         _write_lines(path, kept_lines)
     if dropped:
@@ -490,7 +505,7 @@ def _reject_outbox_operation_collision(
     skip_collision_scan: bool = False,
     check_parked: bool = True,
 ) -> bool:
-    """Reject a reused operation id whose canonical payload bytes differ.
+    """Skip exact queued/parked retries while retaining colliding payloads.
 
     Returns True when the identical event is already queued or parked, so the
     caller must not append another copy. When the operation id was minted
@@ -520,12 +535,7 @@ def _reject_outbox_operation_collision(
     if parked is None or parked.entry.event is None:
         return False
     existing = _canonical_event_object(parked.entry.event)
-    if existing.payload != incoming.payload:
-        raise RuntimeError(
-            f"artifact-link outbox operation_id `{operation_id}` "
-            "was reused for different event bytes"
-        )
-    return True
+    return existing.payload == incoming.payload
 
 
 def _identical_event_already_on_path(
@@ -561,12 +571,8 @@ def _identical_event_already_on_path(
         if entry is None or entry.id != operation_id or entry.event is None:
             continue
         existing = _canonical_event_object(entry.event)
-        if existing.payload != incoming.payload:
-            raise RuntimeError(
-                f"artifact-link outbox operation_id `{operation_id}` "
-                "was reused for different event bytes"
-            )
-        found_identical = True
+        if existing.payload == incoming.payload:
+            found_identical = True
     return found_identical
 
 

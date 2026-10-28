@@ -20,6 +20,7 @@ from sase.sdd._artifact_link_outbox_io import (
 )
 from sase.sdd._artifact_link_outbox_types import (
     ArtifactLinkOutboxEntry as _ArtifactLinkOutboxEntry,
+    event_key as _entry_event_key,
     sidecar_refs as _sidecar_refs,
 )
 from sase.sdd._artifact_link_store_support import BEAD_KIND, kind_of_ref
@@ -50,6 +51,7 @@ class _ArtifactLinkOutboxDrainReport:
 
     queued: int
     drained: int = 0
+    quarantined: int = 0
     retained: int = 0
     retained_legacy: int = 0
     retained_invalid: int = 0
@@ -59,6 +61,7 @@ class _ArtifactLinkOutboxDrainReport:
     transient: int = 0
     bead_projection_failed: int = 0
     parked_details: tuple[_ParkedDrainDetail, ...] = ()
+    quarantine_details: tuple[str, ...] = ()
     committed: bool = False
     changed_indexes: tuple[Path, ...] = ()
     event_paths: tuple[Path, ...] = ()
@@ -142,40 +145,66 @@ def drain_artifact_link_outbox(
         mutation_origin="machine",
         deadline=deadline,
     )
-    published_event_ids = set(event_report.published_operation_ids)
-    parked_by_id = {item.operation_id: item for item in event_report.parked_operations}
-    parked_ids = set(parked_by_id)
-    drainable_by_id = {entry.id: entry for entry in event_drainable}
+    published_event_keys = set(event_report.published_event_keys)
+    parked_by_key = {
+        (item.operation_id, item.digest): item
+        for item in event_report.parked_operations
+    }
+    parked_event_keys = set(parked_by_key)
+    quarantined_event_keys = set(event_report.quarantined_event_keys)
+    drainable_by_key = {
+        key: entry
+        for entry in event_drainable
+        if (key := _entry_event_key(entry)) is not None
+    }
     parked_records = [
         _parked_entry_from_outbox(
-            drainable_by_id[operation_id],
+            drainable_by_key[event_key],
             reasons=parked.reasons,
             endpoints=parked.endpoints,
             now=observed_at,
         )
-        for operation_id, parked in parked_by_id.items()
-        if operation_id in drainable_by_id
+        for event_key, parked in parked_by_key.items()
+        if event_key in drainable_by_key
     ]
     parked_new = _append_parked_entries(link_store.project_key, parked_records)
     retained.extend(
         entry
         for entry in event_drainable
-        if entry.id not in published_event_ids and entry.id not in parked_ids
+        if (key := _entry_event_key(entry)) not in published_event_keys
+        and key not in parked_event_keys
+        and key not in quarantined_event_keys
     )
     event_skip_diagnostics = event_report.skip_diagnostics
-    leave_ids = published_event_ids | parked_ids
+    settled_event_keys = (
+        published_event_keys | parked_event_keys | quarantined_event_keys
+    )
+    drained_count = sum(
+        1
+        for entry in event_drainable
+        if _entry_event_key(entry) in published_event_keys
+    )
+    parked_count = sum(
+        1 for entry in event_drainable if _entry_event_key(entry) in parked_event_keys
+    )
+    quarantined_count = sum(
+        1
+        for entry in event_drainable
+        if _entry_event_key(entry) in quarantined_event_keys
+    )
 
     _rewrite_without_ids(
         link_store.project_key,
-        drained_ids=leave_ids,
+        settled_event_keys=settled_event_keys,
         dropped=stale,
     )
     parked_total = _inspect_parked(link_store.project_key).parked
     return _ArtifactLinkOutboxDrainReport(
         queued=len(entries),
-        drained=len(published_event_ids),
+        drained=drained_count,
+        quarantined=quarantined_count,
         retained=(
-            len(entries) - len(published_event_ids) - len(stale) - len(parked_ids)
+            len(entries) - drained_count - len(stale) - parked_count - quarantined_count
         ),
         retained_legacy=stats.legacy_queued,
         retained_invalid=stats.invalid_queued,
@@ -187,6 +216,11 @@ def drain_artifact_link_outbox(
         parked_details=tuple(
             _ParkedDrainDetail(operation_id=item.operation_id, reasons=item.reasons)
             for item in event_report.parked_operations
+        ),
+        quarantine_details=tuple(
+            str(finding.render())
+            for finding in event_report.quarantine_findings
+            if hasattr(finding, "render")
         ),
         committed=event_report.committed,
         changed_indexes=(),

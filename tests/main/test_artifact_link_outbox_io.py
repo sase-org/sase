@@ -27,6 +27,9 @@ from sase.sdd.artifact_link_outbox import (
     drain_artifact_link_outbox,
 )
 from sase.sdd.artifact_link_event_publisher import observation_or_put_event_from_row
+from sase.sdd._artifact_link_event_canonical import (
+    canonical_artifact_link_event_object,
+)
 from sase.sdd.artifact_link_release_evidence import (
     record_artifact_link_release_evidence,
 )
@@ -36,7 +39,7 @@ from tests.main.artifact_link_outbox_helpers import _init_plans_repo, _outbox_li
 from tests.sdd._artifact_link_store_helpers import _row, allow_machine_sidecar_writes
 
 
-def test_outbox_rejects_reused_operation_id_with_different_event_bytes(
+def test_outbox_retains_reused_operation_id_with_different_event_bytes(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -61,15 +64,20 @@ def test_outbox_rejects_reused_operation_id_with_different_event_bytes(
         run_id="run-1",
         event=first,
     )
-    with pytest.raises(RuntimeError, match="reused for different event bytes"):
-        append_artifact_link_outbox_event(
-            project_key=project_key,
-            agent_name="reader",
-            run_id="run-1",
-            event=second,
-        )
+    append_artifact_link_outbox_event(
+        project_key=project_key,
+        agent_name="reader",
+        run_id="run-1",
+        event=second,
+    )
 
-    assert len(_outbox_lines(home, project_key)) == 1
+    entries = read_artifact_link_outbox_entries(project_key)
+    assert len(entries) == 2
+    assert {entry.id for entry in entries} == {operation_id}
+    assert {entry.event["kind"]["description"] for entry in entries} == {
+        first["kind"]["description"],
+        second["kind"]["description"],
+    }
 
 
 _PER_LINE_SCAN_BINDINGS = frozenset(
@@ -175,14 +183,23 @@ def test_caller_supplied_id_append_scans_only_matching_lines(
     scan_calls = [name for name in calls if name in _PER_LINE_SCAN_BINDINGS]
     assert scan_calls.count("artifact_link_outbox_classify_line") == 1
 
-    with pytest.raises(RuntimeError, match="reused for different event bytes"):
-        append_artifact_link_outbox_entry(
-            project_key=project_key,
-            agent_name="reader",
-            run_id="run-1",
-            row=_row(source="agent:reader", target="plan:other.md", origin="read"),
-            entry_id=operation_id,
+    append_artifact_link_outbox_entry(
+        project_key=project_key,
+        agent_name="reader",
+        run_id="run-1",
+        row=_row(source="agent:reader", target="plan:other.md", origin="read"),
+        entry_id=operation_id,
+    )
+    assert (
+        len(
+            [
+                entry
+                for entry in read_artifact_link_outbox_entries(project_key)
+                if entry.id == operation_id
+            ]
         )
+        == 2
+    )
 
 
 def test_identical_event_reappend_is_a_noop(
@@ -278,6 +295,49 @@ def test_rewrite_compacts_duplicate_outbox_ids(
     rewrite_artifact_link_outbox_without_ids(project_key, drained_ids=set(), dropped=[])
 
     assert len(_outbox_lines(home, project_key)) == 1
+
+
+def test_rewrite_settles_one_digest_without_dropping_same_id_sibling(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    home = tmp_path / ".sase"
+    redirect_sase_home(monkeypatch, home)
+    project_key = "gh_sase-org__sase"
+    operation_id = "e" * 32
+    first = observation_or_put_event_from_row(
+        _row(source="agent:reader", target="plan:first.md", origin="read"),
+        project_key=project_key,
+        operation_id=operation_id,
+    )
+    second = observation_or_put_event_from_row(
+        _row(source="agent:reader", target="plan:second.md", origin="read"),
+        project_key=project_key,
+        operation_id=operation_id,
+    )
+    append_artifact_link_outbox_event(
+        project_key=project_key,
+        agent_name="reader",
+        run_id="run-1",
+        event=first,
+    )
+    append_artifact_link_outbox_event(
+        project_key=project_key,
+        agent_name="reader",
+        run_id="run-2",
+        event=second,
+    )
+
+    first_key = (operation_id, canonical_artifact_link_event_object(first).digest)
+    rewrite_artifact_link_outbox_without_ids(
+        project_key,
+        settled_event_keys={first_key},
+        dropped=[],
+    )
+
+    [remaining] = read_artifact_link_outbox_entries(project_key)
+    assert remaining.id == operation_id
+    assert remaining.event == second
 
 
 def test_ineligible_drain_never_silently_drops_an_unconverted_legacy_row(
