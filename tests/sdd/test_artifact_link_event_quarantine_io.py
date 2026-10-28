@@ -157,3 +157,107 @@ def test_attach_admission_evidence_fills_local_sequences(
     [updated] = attach_admission_evidence((candidate,))
 
     assert updated.evidence.admission_sequence == 1
+
+
+def _persist_finding(tmp_path: Path):
+    first, second = _colliding_events()
+    snapshot = reduce_artifact_link_event_inputs(
+        durable_events=(first, second),
+        strict=True,
+    )
+    finding = snapshot.quarantine_findings[0]
+    relative = persist_artifact_link_quarantine_record(
+        tmp_path,
+        finding,
+        rejected_canonical_json=_canonical_json(finding.rejected_event),
+    )
+    return finding, relative
+
+
+def test_load_rejects_namespace_symlink_to_outside_record(tmp_path: Path) -> None:
+    outside = tmp_path / "outside"
+    store = tmp_path / "store"
+    outside.mkdir()
+    store.mkdir()
+    finding, relative = _persist_finding(outside)
+    outside_bytes = (outside / relative).read_bytes()
+    namespace = store / "link-events" / "quarantine"
+    namespace.mkdir(parents=True)
+    (namespace / "v1").symlink_to(outside / "link-events" / "quarantine" / "v1")
+
+    findings, errors = load_artifact_link_quarantine_records((store,))
+
+    assert findings == ()
+    assert any("symlink" in error for error in errors)
+    assert (outside / relative).read_bytes() == outside_bytes
+    with pytest.raises(ArtifactLinkEventCorruptionError, match="symlink"):
+        persist_artifact_link_quarantine_record(
+            store,
+            finding,
+            rejected_canonical_json=_canonical_json(finding.rejected_event),
+        )
+    assert (outside / relative).read_bytes() == outside_bytes
+
+
+def test_load_and_persist_reject_operation_dir_and_leaf_symlinks(
+    tmp_path: Path,
+) -> None:
+    finding, relative = _persist_finding(tmp_path)
+    record_path = tmp_path / relative
+    payload = record_path.read_bytes()
+    outside = tmp_path / "outside.json"
+    outside.write_bytes(payload)
+
+    record_path.unlink()
+    record_path.symlink_to(outside)
+    findings, errors = load_artifact_link_quarantine_records((tmp_path,))
+    assert findings == ()
+    assert any("symlink" in error for error in errors)
+    with pytest.raises(ArtifactLinkEventCorruptionError, match="symlink"):
+        persist_artifact_link_quarantine_record(
+            tmp_path,
+            finding,
+            rejected_canonical_json=_canonical_json(finding.rejected_event),
+        )
+
+    record_path.unlink()
+    op_dir = record_path.parent
+    relocated = tmp_path / "relocated-op"
+    relocated.mkdir()
+    (relocated / record_path.name).write_bytes(payload)
+    op_dir.rmdir()
+    op_dir.symlink_to(relocated)
+    findings, errors = load_artifact_link_quarantine_records((tmp_path,))
+    assert findings == ()
+    assert any("symlink" in error for error in errors)
+
+
+def test_load_rejects_broken_namespace_symlink(tmp_path: Path) -> None:
+    namespace = tmp_path / "link-events" / "quarantine"
+    namespace.mkdir(parents=True)
+    (namespace / "v1").symlink_to(tmp_path / "missing-target")
+
+    findings, errors = load_artifact_link_quarantine_records((tmp_path,))
+
+    assert findings == ()
+    assert any("symlink" in error for error in errors)
+
+
+def test_symlinked_store_root_ancestor_is_accepted(tmp_path: Path) -> None:
+    real = tmp_path / "real-store"
+    linked = tmp_path / "linked-store"
+    real.mkdir()
+    linked.symlink_to(real)
+    finding, relative = _persist_finding(linked)
+
+    findings, errors = load_artifact_link_quarantine_records((linked,))
+    assert errors == ()
+    assert len(findings) == 1
+    assert (real / relative).is_file()
+    assert not (real / relative).is_symlink()
+    again = persist_artifact_link_quarantine_record(
+        linked,
+        finding,
+        rejected_canonical_json=_canonical_json(finding.rejected_event),
+    )
+    assert again == relative

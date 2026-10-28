@@ -10,6 +10,7 @@ from __future__ import annotations
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
 import json
+import os
 from pathlib import Path
 from typing import Any
 
@@ -18,10 +19,16 @@ from sase.sdd._artifact_link_event_history import ArtifactLinkCollisionEvidence
 from sase.sdd._artifact_link_event_canonical import ArtifactLinkEventCorruptionError
 from sase.sdd._artifact_link_event_install import install_artifact_link_bytes
 
-_QUARANTINE_STAGING = Path("link-events") / "quarantine" / "v1" / ".staging"
+_QUARANTINE_NAMESPACE = Path("link-events") / "quarantine" / "v1"
+_QUARANTINE_STAGING = _QUARANTINE_NAMESPACE / ".staging"
 _ADMISSION_DIR = Path("link-events") / "admission" / "v1"
 _ADMISSION_STAGING = _ADMISSION_DIR / ".staging"
 _ADMISSION_SCHEMA_VERSION = 1
+_UNSAFE_SYMLINK = "quarantine path is a symlink"
+_UNSAFE_NOT_DIRECTORY = "quarantine path is not a directory"
+_UNSAFE_NOT_FILE = "quarantine path is not a regular file"
+_UNSAFE_ESCAPE = "quarantine path escapes the store root"
+_UNSAFE_BROKEN = "quarantine path is a broken symlink"
 
 
 def _reusable_quarantine_record(
@@ -42,6 +49,8 @@ def _reusable_quarantine_record(
     """
 
     resolved = Path(root).expanduser().resolve(strict=False)
+    if _unsafe_quarantine_file_reason(resolved, relative, leaf_must_exist=True):
+        return None
     existing_path = resolved / relative
     try:
         if existing_path.is_symlink() or not existing_path.is_file():
@@ -138,6 +147,12 @@ def persist_artifact_link_quarantine_record(
             f"artifact-link quarantine record path is invalid for "
             f"{finding.operation_id}:{finding.rejected_digest}: {exc}"
         ) from exc
+    resolved_root = Path(root).expanduser().resolve(strict=False)
+    unsafe = _unsafe_quarantine_file_reason(
+        resolved_root, relative, leaf_must_exist=False
+    )
+    if unsafe is not None:
+        raise ArtifactLinkEventCorruptionError(f"{relative}: {unsafe}")
     existing_relative = _reusable_quarantine_record(
         root,
         relative,
@@ -205,16 +220,18 @@ def load_artifact_link_quarantine_records(
         if root in seen_roots:
             continue
         seen_roots.add(root)
-        record_root = root / "link-events" / "quarantine" / "v1"
-        if not record_root.is_dir():
+        record_root = root / _QUARANTINE_NAMESPACE
+        namespace_error = _unsafe_quarantine_dir_reason(
+            root, _QUARANTINE_NAMESPACE.as_posix()
+        )
+        if namespace_error == "missing":
             continue
-        for path in sorted(record_root.rglob("*.json")):
-            if not path.is_file() or path.is_symlink():
-                if path.is_symlink():
-                    errors.append(
-                        f"{_display_path(root, path)}: quarantine path is a symlink"
-                    )
-                continue
+        if namespace_error is not None:
+            errors.append(f"{_QUARANTINE_NAMESPACE.as_posix()}: {namespace_error}")
+            continue
+        scanned_files, scan_errors = _scan_quarantine_tree(root, record_root)
+        errors.extend(scan_errors)
+        for path in scanned_files:
             try:
                 payload = json.loads(path.read_text(encoding="utf-8"))
             except (OSError, json.JSONDecodeError) as exc:
@@ -256,6 +273,12 @@ def load_artifact_link_quarantine_records(
                     f"{actual_relative}: quarantine project "
                     f"{validated.get('project_key')!r} != {expected_project_key!r}"
                 )
+                continue
+            file_error = _unsafe_quarantine_file_reason(
+                root, actual_relative, leaf_must_exist=True
+            )
+            if file_error is not None:
+                errors.append(f"{actual_relative}: {file_error}")
                 continue
             findings.append(_finding_from_record(validated, relative=actual_relative))
     return tuple(findings), tuple(errors)
@@ -458,6 +481,115 @@ def _display_path(root: Path, path: Path) -> str:
         return path.relative_to(root).as_posix()
     except ValueError:
         return str(path)
+
+
+def _unsafe_quarantine_dir_reason(root: Path, relative: str) -> str | None:
+    """Return why *relative* is an unsafe directory tree, or ``missing``."""
+
+    return _walk_quarantine_components(
+        root, relative, leaf_kind="directory", leaf_must_exist=True
+    )
+
+
+def _unsafe_quarantine_file_reason(
+    root: Path,
+    relative: str,
+    *,
+    leaf_must_exist: bool,
+) -> str | None:
+    """Return why *relative* is an unsafe record path under *root*."""
+
+    return _walk_quarantine_components(
+        root, relative, leaf_kind="file", leaf_must_exist=leaf_must_exist
+    )
+
+
+def _walk_quarantine_components(
+    root: Path,
+    relative: str,
+    *,
+    leaf_kind: str,
+    leaf_must_exist: bool,
+) -> str | None:
+    rel = Path(relative)
+    if rel.is_absolute() or any(part in {"", ".", ".."} for part in rel.parts):
+        return _UNSAFE_ESCAPE
+    cursor = root
+    for index, part in enumerate(rel.parts):
+        cursor = cursor / part
+        last = index == len(rel.parts) - 1
+        if cursor.is_symlink():
+            try:
+                exists = cursor.exists()
+            except OSError:
+                exists = False
+            return _UNSAFE_SYMLINK if exists else _UNSAFE_BROKEN
+        if not cursor.exists():
+            if last and not leaf_must_exist:
+                break
+            if not last and not leaf_must_exist:
+                break
+            return "missing"
+        if last:
+            if leaf_kind == "directory" and not cursor.is_dir():
+                return _UNSAFE_NOT_DIRECTORY
+            if leaf_kind == "file" and not cursor.is_file():
+                return _UNSAFE_NOT_FILE
+        elif not cursor.is_dir():
+            return _UNSAFE_NOT_DIRECTORY
+    try:
+        parent = (root / rel).parent.resolve(strict=False)
+        located = parent / rel.name
+        located.relative_to(root)
+        if located.exists() and not located.is_symlink():
+            located.resolve(strict=False).relative_to(root)
+    except (OSError, ValueError):
+        return _UNSAFE_ESCAPE
+    return None
+
+
+def _scan_quarantine_tree(
+    root: Path, record_root: Path
+) -> tuple[list[Path], list[str]]:
+    files: list[Path] = []
+    errors: list[str] = []
+    for dirpath, dirnames, filenames in os.walk(record_root, followlinks=False):
+        kept: list[str] = []
+        for name in dirnames:
+            child = Path(dirpath) / name
+            display = _display_path(root, child)
+            if child.is_symlink():
+                try:
+                    exists = child.exists()
+                except OSError:
+                    exists = False
+                detail = _UNSAFE_SYMLINK if exists else _UNSAFE_BROKEN
+                errors.append(f"{display}: {detail}")
+                continue
+            if not child.is_dir():
+                errors.append(f"{display}: {_UNSAFE_NOT_DIRECTORY}")
+                continue
+            kept.append(name)
+        dirnames[:] = kept
+        for name in filenames:
+            if not name.endswith(".json"):
+                continue
+            path = Path(dirpath) / name
+            display = _display_path(root, path)
+            if path.is_symlink():
+                try:
+                    exists = path.exists()
+                except OSError:
+                    exists = False
+                detail = _UNSAFE_SYMLINK if exists else _UNSAFE_BROKEN
+                errors.append(f"{display}: {detail}")
+                continue
+            if not path.is_file():
+                errors.append(f"{display}: {_UNSAFE_NOT_FILE}")
+                continue
+            files.append(path)
+    files.sort()
+    return files, errors
 
 
 __all__ = [

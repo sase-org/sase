@@ -49,27 +49,42 @@ def attach_collision_history(
     if not needed:
         return tuple(candidates)
     grouped: dict[str, list[Any]] = {}
+    query_roots: list[Path] = []
+    seen_query_roots: set[Path] = set()
     for candidate in candidates:
         digest = str(getattr(candidate, "digest", "") or "")
         root = getattr(candidate, "root", None)
         if digest not in needed or not root:
             continue
         grouped.setdefault(str(root), []).append(candidate)
-    evidence_by_digest: dict[tuple[str, str], ArtifactLinkCollisionEvidence] = {}
+        resolved = Path(str(root)).expanduser().resolve(strict=False)
+        if resolved in seen_query_roots:
+            continue
+        seen_query_roots.add(resolved)
+        if _is_git_repo(resolved) and not _is_shallow_repository(resolved):
+            query_roots.append(resolved)
+    if not grouped:
+        return tuple(candidates)
+    first_adds: dict[tuple[str, str], ArtifactLinkCollisionEvidence] = {}
     for root, members in grouped.items():
-        evidence_by_digest.update(_root_history(Path(root), members))
+        first_adds.update(_root_first_adds(Path(root), members))
+    ancestors_by_key = _cross_root_ancestors(query_roots, first_adds)
     updated: list[Any] = []
     for candidate in candidates:
         digest = str(getattr(candidate, "digest", "") or "")
         root = getattr(candidate, "root", None)
-        key = (str(root), digest) if root else None
-        extra = evidence_by_digest.get(key) if key is not None else None
+        if not root:
+            updated.append(candidate)
+            continue
+        key = (str(root), digest)
+        extra = first_adds.get(key)
         if extra is None:
             updated.append(candidate)
             continue
         current = getattr(candidate, "evidence", ArtifactLinkCollisionEvidence())
         if not isinstance(current, ArtifactLinkCollisionEvidence):
             current = ArtifactLinkCollisionEvidence()
+        ancestors = ancestors_by_key.get(key, extra.ancestor_commit_ids)
         updated.append(
             replace(
                 candidate,
@@ -77,7 +92,7 @@ def attach_collision_history(
                     history_complete=extra.history_complete,
                     first_commit_id=extra.first_commit_id,
                     first_commit_at=extra.first_commit_at,
-                    ancestor_commit_ids=extra.ancestor_commit_ids,
+                    ancestor_commit_ids=ancestors,
                     admission_sequence=current.admission_sequence,
                 ),
             )
@@ -108,7 +123,7 @@ def collided_digests_for(
     return frozenset(collided)
 
 
-def _root_history(
+def _root_first_adds(
     root: Path,
     members: Sequence[Any],
 ) -> dict[tuple[str, str], ArtifactLinkCollisionEvidence]:
@@ -125,7 +140,7 @@ def _root_history(
                 history_complete=False,
             )
         return incomplete
-    first_adds: dict[str, tuple[str, str]] = {}
+    result: dict[tuple[str, str], ArtifactLinkCollisionEvidence] = {}
     for candidate in members:
         digest = str(getattr(candidate, "digest", "") or "")
         relative = getattr(candidate, "relative_path", None)
@@ -134,27 +149,40 @@ def _root_history(
         first_add = _first_add_commit(root, str(relative))
         if first_add is None:
             continue
-        first_adds[digest] = first_add
-    ancestors_by_digest: dict[str, list[str]] = {digest: [] for digest in first_adds}
-    digests = tuple(first_adds)
-    for digest in digests:
-        commit_id, _commit_at = first_adds[digest]
-        for other in digests:
-            if other == digest:
-                continue
-            other_commit, _other_at = first_adds[other]
-            if _is_ancestor(root, other_commit, commit_id):
-                ancestors_by_digest[digest].append(other_commit)
-    result: dict[tuple[str, str], ArtifactLinkCollisionEvidence] = {}
-    for digest, (commit_id, commit_at) in first_adds.items():
-        ancestors = tuple(sorted(set(ancestors_by_digest.get(digest, ()))))
+        commit_id, commit_at = first_add
         result[(str(root), digest)] = ArtifactLinkCollisionEvidence(
             history_complete=True,
             first_commit_id=commit_id,
             first_commit_at=commit_at,
-            ancestor_commit_ids=ancestors,
         )
     return result
+
+
+def _cross_root_ancestors(
+    query_roots: Sequence[Path],
+    first_adds: Mapping[tuple[str, str], ArtifactLinkCollisionEvidence],
+) -> dict[tuple[str, str], tuple[str, ...]]:
+    """Prove ancestry among known first-add commits wherever objects exist."""
+
+    complete: dict[tuple[str, str], str] = {}
+    for key, evidence in first_adds.items():
+        commit_id = evidence.first_commit_id
+        if evidence.history_complete and commit_id:
+            complete[key] = commit_id
+    unique_commits = tuple(dict.fromkeys(complete.values()))
+    if len(unique_commits) < 2 or not query_roots:
+        return dict.fromkeys(complete, ())
+    ancestors_of: dict[str, set[str]] = {commit: set() for commit in unique_commits}
+    for descendant in unique_commits:
+        for ancestor in unique_commits:
+            if ancestor == descendant:
+                continue
+            if _is_ancestor_in_any(query_roots, ancestor, descendant):
+                ancestors_of[descendant].add(ancestor)
+    return {
+        key: tuple(sorted(ancestors_of.get(commit_id, ())))
+        for key, commit_id in complete.items()
+    }
 
 
 def _first_add_commit(root: Path, relative_path: str) -> tuple[str, str] | None:
@@ -181,6 +209,10 @@ def _first_add_commit(root: Path, relative_path: str) -> tuple[str, str] | None:
     if not separator or len(commit_id.strip()) < 7 or not commit_at.strip():
         return None
     return commit_id.strip(), commit_at.strip()
+
+
+def _is_ancestor_in_any(roots: Sequence[Path], ancestor: str, descendant: str) -> bool:
+    return any(_is_ancestor(root, ancestor, descendant) for root in roots)
 
 
 def _is_ancestor(root: Path, ancestor: str, descendant: str) -> bool:
