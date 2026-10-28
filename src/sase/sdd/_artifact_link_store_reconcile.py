@@ -408,8 +408,9 @@ class ArtifactLinkStoreReconcileMixin:
         deadline: float | None = None,
         skip_diagnostics: list[str] | None = None,
     ) -> ArtifactLinkEventSnapshot:
-        durable_events: list[dict[str, Any]] = []
-        pending_events: list[dict[str, Any]] = []
+        from sase.sdd._artifact_link_event_collision import ArtifactLinkEventCandidate
+
+        candidates: list[ArtifactLinkEventCandidate] = []
         local_identity = self._store_identity()
         remaining = tuple(stores)
         for index, store in enumerate(remaining):
@@ -433,12 +434,14 @@ class ArtifactLinkStoreReconcileMixin:
                 if is_local:
                     snapshot.assert_healthy()
                 continue
-            durable_events.extend(snapshot.durable_events)
-            if include_local_pending and is_local:
-                pending_events.extend(snapshot.pending_events)
+            for candidate in snapshot.candidates:
+                if candidate.tier == "pending" and not (
+                    include_local_pending and is_local
+                ):
+                    continue
+                candidates.append(candidate)
         return reduce_artifact_link_event_inputs(
-            durable_events=durable_events,
-            pending_events=pending_events,
+            candidates=candidates,
             strict=True,
         )
 

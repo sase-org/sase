@@ -260,13 +260,24 @@ def rows_from_events(
 
 
 def reduce_events(events: Iterable[Mapping[str, Any] | None]) -> dict[str, Any]:
-    """Reduce canonical events and return Rust reduction metadata."""
+    """Partition then reduce canonical events and return Rust reduction metadata."""
 
     canonical_events = [canonical_event(event) for event in events if event is not None]
     if not canonical_events:
         return {"schema_version": _EVENT_SCHEMA_VERSION, "rows": [], "edges": []}
+    from sase.sdd._artifact_link_event_collision import (
+        candidates_from_events,
+        partition_artifact_link_candidates,
+    )
+
+    partition = partition_artifact_link_candidates(
+        candidates_from_events(canonical_events, tier="durable")
+    )
+    accepted = [dict(item.event) for item in partition.accepted]
+    if not accepted:
+        return {"schema_version": _EVENT_SCHEMA_VERSION, "rows": [], "edges": []}
     reduction = require_rust_binding("artifact_link_events_reduce")(
-        canonical_events,
+        accepted,
         [],
     )
     if not isinstance(reduction, Mapping):

@@ -67,6 +67,12 @@ def test_validate_sase_core_rs_requires_artifact_link_bindings() -> None:
         "artifact_link_event_validate_bytes",
         "artifact_link_event_resolve_aliases",
         "artifact_link_events_reduce",
+        "artifact_link_collision_wire_schema_version",
+        "artifact_link_quarantine_wire_schema_version",
+        "artifact_link_collision_partition",
+        "artifact_link_quarantine_record_path",
+        "artifact_link_quarantine_record_canonical_json",
+        "artifact_link_quarantine_record_validate",
         "artifact_link_publication_ownership_wire_schema_version",
         "artifact_link_event_owner_requirements",
         "artifact_link_publication_receipt",
@@ -103,6 +109,8 @@ def test_validate_sase_core_rs_requires_artifact_link_bindings() -> None:
             artifact_row_resolution_wire_schema_version=lambda: 1,
             artifact_link_publication_state_wire_schema_version=lambda: 1,
             artifact_link_publication_ownership_wire_schema_version=lambda: 1,
+            artifact_link_collision_wire_schema_version=lambda: 1,
+            artifact_link_quarantine_wire_schema_version=lambda: 1,
         )
     )
     assert not validator._validate_artifact_link_schema(
@@ -259,6 +267,14 @@ def test_validate_sase_core_rs_probes_artifact_link_event_contract() -> None:
                 }
             ]
         },
+        artifact_link_collision_partition=lambda request: {
+            "schema_version": 1,
+            "accepted": [],
+            "groups": [{"rejected": [{"digest": "d" * 64}]}],
+        },
+        artifact_link_quarantine_record_path=lambda operation_id, digest: (
+            f"link-events/quarantine/v1/{operation_id}/{digest}.json"
+        ),
     )
     assert validator._validate_artifact_link_event_contract(good)
 

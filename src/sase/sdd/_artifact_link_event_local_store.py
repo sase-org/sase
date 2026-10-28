@@ -22,10 +22,16 @@ def install_local_artifact_link_event(
 ) -> bool:
     """Install one ownerless event in the machine-local durable event root."""
 
-    return install_artifact_link_event_object(
-        artifact_link_local_event_root(project_key),
-        item,
+    from sase.sdd._artifact_link_event_quarantine import record_artifact_link_admission
+
+    root = artifact_link_local_event_root(project_key)
+    created = install_artifact_link_event_object(root, item)
+    record_artifact_link_admission(
+        root,
+        digest=item.digest,
+        operation_id=str(item.event.get("operation_id") or ""),
     )
+    return created
 
 
 def local_artifact_link_event_is_durable(

@@ -17,25 +17,37 @@ from sase.sdd._artifact_link_event_canonical import (
 )
 
 
-def install_artifact_link_event_object(
+def install_artifact_link_bytes(
     root: str | Path,
-    item: ArtifactLinkEventObject,
+    relative_path: str | Path,
+    payload: bytes,
+    *,
+    staging_dir: str | Path | None = None,
 ) -> bool:
-    """Install *item* at its content-addressed path with atomic no-replace."""
+    """Install *payload* at *relative_path* with atomic no-replace plus fsync."""
 
     root = Path(root).expanduser().resolve(strict=False)
-    final_path = root / item.relative_path
-    if _existing_event_is_installed(root, final_path, item.payload):
+    relative = Path(relative_path)
+    if relative.is_absolute() or ".." in relative.parts:
+        raise ArtifactLinkEventCorruptionError(
+            f"artifact-link path must be a relative file path: {relative}"
+        )
+    final_path = root / relative
+    if _existing_bytes_are_installed(root, final_path, payload):
         return False
 
     final_path.parent.mkdir(parents=True, exist_ok=True)
-    staging_dir = root / "link-events" / "v1" / ".staging"
-    staging_dir.mkdir(parents=True, exist_ok=True)
-    staging = staging_dir / f"{item.digest}.{os.getpid()}.{uuid4().hex}.tmp"
+    staging_root = (
+        Path(staging_dir) if staging_dir is not None else relative.parent / ".staging"
+    )
+    if not staging_root.is_absolute():
+        staging_root = root / staging_root
+    staging_root.mkdir(parents=True, exist_ok=True)
+    staging = staging_root / f"{final_path.name}.{os.getpid()}.{uuid4().hex}.tmp"
     fd = os.open(staging, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o644)
     try:
         with os.fdopen(fd, "wb") as stream:
-            stream.write(item.payload)
+            stream.write(payload)
             stream.flush()
             os.fsync(stream.fileno())
         while True:
@@ -44,7 +56,7 @@ def install_artifact_link_event_object(
                 created = True
                 break
             except FileExistsError:
-                if _existing_event_is_installed(root, final_path, item.payload):
+                if _existing_bytes_are_installed(root, final_path, payload):
                     created = False
                     break
     except BaseException:
@@ -56,6 +68,20 @@ def install_artifact_link_event_object(
             pass
     _fsync_directory(final_path.parent)
     return created
+
+
+def install_artifact_link_event_object(
+    root: str | Path,
+    item: ArtifactLinkEventObject,
+) -> bool:
+    """Install *item* at its content-addressed path with atomic no-replace."""
+
+    return install_artifact_link_bytes(
+        root,
+        item.relative_path,
+        item.payload,
+        staging_dir=Path("link-events") / "v1" / ".staging",
+    )
 
 
 def clean_artifact_link_event_staging(root: str | Path) -> int:
@@ -135,7 +161,7 @@ def event_object_is_durable(
     return _working_tree_contains_event(root, item)
 
 
-def _existing_event_is_installed(root: Path, path: Path, payload: bytes) -> bool:
+def _existing_bytes_are_installed(root: Path, path: Path, payload: bytes) -> bool:
     if path.is_symlink():
         raise ArtifactLinkEventCorruptionError(
             f"artifact-link event path is a symlink: {path}"
@@ -221,6 +247,7 @@ def _fsync_directory(path: Path) -> None:
 __all__ = [
     "clean_artifact_link_event_staging",
     "event_object_is_durable",
+    "install_artifact_link_bytes",
     "install_artifact_link_event_object",
     "reject_existing_operation_collisions",
 ]

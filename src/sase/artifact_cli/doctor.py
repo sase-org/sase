@@ -191,6 +191,11 @@ def _print_report(
             "Orphaned link-event tombstones",
             link_report.event_orphaned_tombstones,
         )
+        _add_ids(
+            table,
+            "Link event quarantine",
+            link_report.event_quarantine_findings,
+        )
         table.add_row("Recorded reads", str(link_report.read_events))
         table.add_row(
             "Sidecar vs aggregate links",

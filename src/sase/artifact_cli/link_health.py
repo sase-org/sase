@@ -74,6 +74,7 @@ class ArtifactLinkHealthReport:
     event_validation_failures: tuple[str, ...] = ()
     event_reduction_errors: tuple[str, ...] = ()
     event_orphaned_tombstones: tuple[str, ...] = ()
+    event_quarantine_findings: tuple[str, ...] = ()
     publication_pending: tuple[str, ...] = ()
     publication_aged: tuple[str, ...] = ()
     publication_diagnostics: tuple[str, ...] = ()
@@ -101,6 +102,7 @@ class ArtifactLinkHealthReport:
                 self.event_validation_failures,
                 self.event_reduction_errors,
                 self.event_orphaned_tombstones,
+                self.event_quarantine_findings,
                 self.publication_aged,
                 self.publication_diagnostics,
                 self.cutover_errors,
@@ -148,6 +150,7 @@ def inspect_artifact_link_health(*, fix: bool = False) -> ArtifactLinkHealthRepo
             event_validation_failures=event_health.event_validation_failures,
             event_reduction_errors=event_health.event_reduction_errors,
             event_orphaned_tombstones=event_health.event_orphaned_tombstones,
+            event_quarantine_findings=event_health.event_quarantine_findings,
             publication_pending=publication_health.publication_pending,
             publication_aged=publication_health.publication_aged,
             publication_diagnostics=publication_health.publication_diagnostics,
@@ -251,6 +254,7 @@ def inspect_artifact_link_health(*, fix: bool = False) -> ArtifactLinkHealthRepo
         event_validation_failures=event_health.event_validation_failures,
         event_reduction_errors=event_health.event_reduction_errors,
         event_orphaned_tombstones=event_health.event_orphaned_tombstones,
+        event_quarantine_findings=event_health.event_quarantine_findings,
         publication_pending=publication_health.publication_pending,
         publication_aged=publication_health.publication_aged,
         publication_diagnostics=publication_health.publication_diagnostics,

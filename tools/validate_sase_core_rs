@@ -247,6 +247,12 @@ REQUIRED_BINDINGS = (
     "artifact_link_event_validate_bytes",
     "artifact_link_event_resolve_aliases",
     "artifact_link_events_reduce",
+    "artifact_link_collision_wire_schema_version",
+    "artifact_link_quarantine_wire_schema_version",
+    "artifact_link_collision_partition",
+    "artifact_link_quarantine_record_path",
+    "artifact_link_quarantine_record_canonical_json",
+    "artifact_link_quarantine_record_validate",
     "artifact_link_publication_ownership_wire_schema_version",
     "artifact_link_event_owner_requirements",
     "artifact_link_publication_receipt",
@@ -538,6 +544,8 @@ def _validate_artifact_link_schema(module: ModuleType) -> bool:
         "artifact_row_resolution_wire_schema_version": 1,
         "artifact_link_publication_state_wire_schema_version": 1,
         "artifact_link_publication_ownership_wire_schema_version": 1,
+        "artifact_link_collision_wire_schema_version": 1,
+        "artifact_link_quarantine_wire_schema_version": 1,
     }
     valid = True
     for binding_name, expected_version in expected.items():
@@ -625,6 +633,44 @@ def _validate_artifact_link_event_contract(module: ModuleType) -> bool:
             aliases, ["plan:202609/old.md"]
         )
         reduction = module.artifact_link_events_reduce([put, event, event], aliases)
+        replay_source = dict(event)
+        kind = event["kind"]
+        if not isinstance(kind, dict):
+            raise RuntimeError("artifact-link event kind is not an object")
+        replay_kind = dict(kind)
+        replay_kind["description"] = "conflicting replay"
+        replay_source["kind"] = replay_kind
+        replay = module.artifact_link_event_canonicalize(replay_source)
+        replay_canonical = module.artifact_link_event_canonical_json(replay)
+        replay_digest = module.artifact_link_event_digest(replay)
+        partition = module.artifact_link_collision_partition(
+            {
+                "schema_version": 1,
+                "candidates": [
+                    {
+                        "event": canonical,
+                        "digest": digest,
+                        "canonical_json": canonical_json,
+                        "tier": "durable",
+                    },
+                    {
+                        "event": replay,
+                        "digest": replay_digest,
+                        "canonical_json": replay_canonical,
+                        "tier": "incoming",
+                    },
+                ],
+            }
+        )
+        if not isinstance(partition, dict) or not partition.get("groups"):
+            raise RuntimeError("collision partition returned no groups")
+        rejected_digest = partition["groups"][0]["rejected"][0]["digest"]
+        record_path = module.artifact_link_quarantine_record_path(
+            observation_id,
+            rejected_digest,
+        )
+        if "quarantine/v1" not in record_path:
+            raise RuntimeError(f"unexpected quarantine path {record_path}")
         requirements = module.artifact_link_event_owner_requirements(event, ["plan"])
         pending_receipt = module.artifact_link_publication_receipt(
             requirements,

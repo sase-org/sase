@@ -6,6 +6,7 @@ from pathlib import Path
 
 import pytest
 
+from sase.artifact_cli._link_health_signals import event_health_values
 from sase.sdd._artifact_link_event_canonical import rows_from_events
 from sase.sdd.artifact_link_outbox import append_artifact_link_outbox_event
 from tests.sdd._artifact_link_event_store_test_helpers import (
@@ -158,3 +159,40 @@ def test_orphaned_tombstone_converges_when_predecessor_arrives(
     assert store.load_durable_rows() == rows_from_events(
         (visible, tombstone, predecessor)
     )
+
+
+def test_quarantine_is_visible_without_blocking_store_health(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    store = make_store(tmp_path, monkeypatch)
+    created_at = "2026-09-09T12:00:00Z"
+    write_event(
+        tmp_path / "plans",
+        edge_event(
+            "a" * 32,
+            target="plan:202608/original.md",
+            description="original payload",
+            created_at=created_at,
+        ),
+    )
+    write_event(
+        tmp_path / "plans",
+        edge_event(
+            "a" * 32,
+            target="plan:202608/replay.md",
+            description="replay payload",
+            created_at=created_at,
+        ),
+    )
+
+    snapshot = store.artifact_link_event_snapshot(strict=True)
+    health = event_health_values(store)
+
+    assert snapshot.quarantine_findings
+    assert snapshot.healthy is True
+    assert snapshot.blocking_problem_messages == ()
+    assert health.event_quarantine_findings
+    assert "collision" in health.event_quarantine_findings[0]
+    assert health.event_reduction_errors == ()
+    assert health.event_validation_failures == ()

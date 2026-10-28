@@ -10,16 +10,13 @@ import subprocess
 import time
 from typing import Any
 
-from sase.core.rust import require_rust_binding
 from sase.sdd._artifact_link_event_canonical import (
     ArtifactLinkEventObject as _ArtifactLinkEventObject,
     edge_from_row as _edge_from_row,
     event_remove_row as _event_remove_row,
     probe_row_from_edge as _probe_row_from_edge,
-    reduce_events as _reduce_events,
     rows_from_events,
 )
-from sase.sdd._artifact_link_event_local_store import artifact_link_local_event_root
 from sase.sdd._artifact_link_bead_endpoint import (
     BeadEndpointEvidence,
     classify_bead_issue_ids,
@@ -64,17 +61,14 @@ def _active_operation_ids_for_edge(
 ) -> tuple[str, ...]:
     """Return active event-version operation ids for a canonical event edge."""
 
-    events = tuple(event.event for event in _iter_event_objects(store))
-    if not events:
-        return ()
-    reduction = _reduce_events(events)
-    reduced_edges = reduction.get("edges")
-    if not isinstance(reduced_edges, list):
+    snapshot = store.artifact_link_event_snapshot(
+        include_pending=False,
+        strict=False,
+    )
+    if snapshot.blocking_problem_messages:
         return ()
     canonical_edge = _edge_from_row(_probe_row_from_edge(edge))
-    for reduced in reduced_edges:
-        if not isinstance(reduced, dict):
-            continue
+    for reduced in snapshot.edges:
         if reduced.get("edge") != canonical_edge:
             continue
         versions = reduced.get("versions")
@@ -129,17 +123,21 @@ def apply_events_to_beads(
                 changed=False,
                 deferred=True,
             )
-        store_events = tuple(event.event for event in _iter_event_objects(store))
+        store_snapshot = store.artifact_link_event_snapshot(
+            include_pending=False,
+            strict=True,
+        )
         incoming_events = tuple(item.event for item in objects)
-        union_events = (*store_events, *incoming_events)
         snapshot = reduce_artifact_link_event_inputs(
-            durable_events=union_events,
+            candidates=store_snapshot.candidates,
+            incoming_events=incoming_events,
+            validation_findings=store_snapshot.validation_findings,
             strict=True,
         )
         desired, active_operations, affected = _desired_endpoint_projections(
             snapshot.edges
         )
-        raw_operations = _raw_endpoint_operations(union_events)
+        raw_operations = _raw_endpoint_operations(snapshot.accepted_events)
         affected.update(raw_operations)
         scoped = (
             affected
@@ -626,41 +624,6 @@ def _event_type(event: Mapping[str, Any]) -> str:
     if not isinstance(kind, dict):
         return ""
     return str(kind.get("type") or "")
-
-
-def _iter_event_objects(store: ArtifactLinkStore) -> Iterable[_ArtifactLinkEventObject]:
-    seen_roots: set[Path] = set()
-    roots = (
-        *store.sidecar_roots.values(),
-        artifact_link_local_event_root(store.project_key),
-    )
-    for root in roots:
-        resolved = root.expanduser().resolve(strict=False)
-        if resolved in seen_roots:
-            continue
-        seen_roots.add(resolved)
-        events_root = resolved / "link-events" / "v1"
-        if not events_root.is_dir():
-            continue
-        for path in sorted(events_root.rglob("*.json")):
-            try:
-                payload = path.read_bytes()
-                relative = path.relative_to(resolved).as_posix()
-                validated = dict(
-                    require_rust_binding("artifact_link_event_validate_bytes")(
-                        payload,
-                        relative,
-                    )
-                )
-            except Exception:
-                continue
-            yield _ArtifactLinkEventObject(
-                event=dict(validated["event"]),
-                canonical_json=str(validated["canonical_json"]),
-                payload=payload,
-                digest=str(validated["digest"]),
-                relative_path=Path(str(validated["path"])),
-            )
 
 
 __all__ = [

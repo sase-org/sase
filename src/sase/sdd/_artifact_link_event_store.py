@@ -10,6 +10,17 @@ import time
 from typing import Any
 
 from sase.core.rust import require_rust_binding
+from sase.sdd._artifact_link_event_collision import (
+    ArtifactLinkEventCandidate,
+    candidate_from_event,
+    event_edge_identity,
+    partition_artifact_link_candidates,
+)
+from sase.sdd._artifact_link_event_quarantine import (
+    ArtifactLinkQuarantineFinding,
+    load_artifact_link_quarantine_records,
+    merge_quarantine_findings,
+)
 from sase.sdd._artifact_link_store_support import (
     artifact_link_row_identity,
     canonicalize_artifact_link_ref,
@@ -51,11 +62,14 @@ class ArtifactLinkEventSnapshot:
     pending_rows: tuple[dict[str, Any], ...] = ()
     durable_events: tuple[dict[str, Any], ...] = ()
     pending_events: tuple[dict[str, Any], ...] = ()
+    accepted_events: tuple[dict[str, Any], ...] = ()
+    candidates: tuple[ArtifactLinkEventCandidate, ...] = ()
     aliases: tuple[dict[str, str], ...] = ()
     edges: tuple[dict[str, Any], ...] = ()
     validation_findings: tuple[ArtifactLinkEventValidationFinding, ...] = ()
     reduction_errors: tuple[str, ...] = ()
     orphaned_tombstones: tuple[str, ...] = ()
+    quarantine_findings: tuple[ArtifactLinkQuarantineFinding, ...] = ()
     pending_stats: _ArtifactLinkPendingStats = _ArtifactLinkPendingStats()
     durable_event_count: int = 0
     pending_event_count: int = 0
@@ -106,7 +120,12 @@ class ArtifactLinkEventSnapshot:
     def _cached_edge_identities(self) -> frozenset[tuple[str, ...]]:
         cached = self._edge_identity_cache
         if cached is None:
-            cached = _event_edge_identities(self.edges)
+            identities = set(_event_edge_identities(self.edges))
+            for finding in self.quarantine_findings:
+                identity = event_edge_identity(finding.rejected_event)
+                if identity is not None:
+                    identities.add(identity)
+            cached = frozenset(identities)
             object.__setattr__(self, "_edge_identity_cache", cached)
         return cached
 
@@ -188,40 +207,53 @@ class ArtifactLinkEventStoreAdapter:
     ) -> ArtifactLinkEventSnapshot:
         """Return reduced durable events, optionally overlaid with pending events."""
 
-        durable_events, findings = self._durable_events()
-        pending_events, pending_stats = (
-            self._pending_events(
+        durable_candidates, findings, roots = self._durable_candidates()
+        pending_candidates, pending_stats = (
+            self._pending_candidates(
                 now=now,
                 exclude_operation_ids=exclude_pending_event_ids,
             )
             if include_pending
             else ((), _ArtifactLinkPendingStats())
         )
+        persisted, persisted_errors = load_artifact_link_quarantine_records(roots)
+        quarantine_errors = tuple(
+            ArtifactLinkEventValidationFinding(
+                "invalid-quarantine",
+                error.split(": ", 1)[0],
+                error.split(": ", 1)[-1] if ": " in error else error,
+            )
+            for error in persisted_errors
+        )
         return reduce_artifact_link_event_inputs(
-            durable_events=durable_events,
-            pending_events=pending_events,
-            validation_findings=findings,
+            candidates=(*durable_candidates, *pending_candidates),
+            validation_findings=(*findings, *quarantine_errors),
             pending_stats=pending_stats,
+            persisted_quarantine=persisted,
             strict=strict,
         )
 
-    def _durable_events(
+    def _durable_candidates(
         self,
     ) -> tuple[
-        tuple[dict[str, Any], ...], tuple[ArtifactLinkEventValidationFinding, ...]
+        tuple[ArtifactLinkEventCandidate, ...],
+        tuple[ArtifactLinkEventValidationFinding, ...],
+        tuple[Path, ...],
     ]:
-        events: list[dict[str, Any]] = []
+        candidates: list[ArtifactLinkEventCandidate] = []
         findings: list[ArtifactLinkEventValidationFinding] = []
         seen_roots: set[Path] = set()
-        roots = (
-            *self.sidecar_roots.values(),
-            artifact_link_local_event_root(self.project_key),
+        roots: list[Path] = []
+        labeled_roots = (
+            *self.sidecar_roots.items(),
+            ("local", artifact_link_local_event_root(self.project_key)),
         )
-        for root in roots:
+        for kind, root in labeled_roots:
             root = root.expanduser().resolve(strict=False)
             if root in seen_roots:
                 continue
             seen_roots.add(root)
+            roots.append(root)
             for path in _iter_event_object_paths(root):
                 try:
                     relpath = path.relative_to(root).as_posix()
@@ -239,7 +271,17 @@ class ArtifactLinkEventStoreAdapter:
                             )
                         )
                         continue
-                    events.append(event)
+                    candidates.append(
+                        candidate_from_event(
+                            event,
+                            tier="durable",
+                            source_locator=f"{kind}:{relpath}",
+                            root=str(root),
+                            relative_path=relpath,
+                            digest=str(validated["digest"]),
+                            canonical_json=str(validated["canonical_json"]),
+                        )
+                    )
                 except (
                     OSError,
                     TypeError,
@@ -254,24 +296,33 @@ class ArtifactLinkEventStoreAdapter:
                             str(exc),
                         )
                     )
-        return tuple(events), tuple(findings)
+        return tuple(candidates), tuple(findings), tuple(roots)
 
-    def _pending_events(
+    def _pending_candidates(
         self,
         *,
         now: float | None,
         exclude_operation_ids: Iterable[str],
-    ) -> tuple[tuple[dict[str, Any], ...], _ArtifactLinkPendingStats]:
+    ) -> tuple[tuple[ArtifactLinkEventCandidate, ...], _ArtifactLinkPendingStats]:
         from sase.sdd.artifact_link_outbox import (
             pending_artifact_link_outbox_event_created_at,
             pending_artifact_link_outbox_events,
         )
 
+        events = pending_artifact_link_outbox_events(
+            self.project_key,
+            exclude_operation_ids=exclude_operation_ids,
+        )
+        candidates = tuple(
+            candidate_from_event(
+                event,
+                tier="pending",
+                source_locator=f"pending:outbox:{event.get('operation_id') or ''}",
+            )
+            for event in events
+        )
         return (
-            pending_artifact_link_outbox_events(
-                self.project_key,
-                exclude_operation_ids=exclude_operation_ids,
-            ),
+            candidates,
             _pending_stats(
                 pending_artifact_link_outbox_event_created_at(
                     self.project_key,
@@ -284,52 +335,85 @@ class ArtifactLinkEventStoreAdapter:
 
 def reduce_artifact_link_event_inputs(
     *,
-    durable_events: Iterable[Mapping[str, Any]],
+    durable_events: Iterable[Mapping[str, Any]] = (),
     pending_events: Iterable[Mapping[str, Any]] = (),
+    incoming_events: Iterable[Mapping[str, Any]] = (),
+    candidates: Iterable[ArtifactLinkEventCandidate] | None = None,
     validation_findings: Iterable[ArtifactLinkEventValidationFinding] = (),
     pending_stats: _ArtifactLinkPendingStats | None = None,
+    persisted_quarantine: Iterable[ArtifactLinkQuarantineFinding] = (),
     strict: bool = False,
 ) -> ArtifactLinkEventSnapshot:
-    """Reduce already-validated durable and pending event inputs."""
+    """Partition then reduce already-validated durable and pending event inputs."""
 
-    durable = tuple(dict(event) for event in durable_events)
-    pending = tuple(dict(event) for event in pending_events)
-    reduction_events = (*durable, *pending)
+    prepared: list[ArtifactLinkEventCandidate] = (
+        list(candidates)
+        if candidates is not None
+        else [
+            *candidates_from_tier(durable_events, "durable"),
+            *candidates_from_tier(pending_events, "pending"),
+        ]
+    )
+    if incoming_events:
+        prepared.extend(candidates_from_tier(incoming_events, "incoming"))
+    prepared_candidates = tuple(prepared)
+    durable = tuple(
+        dict(candidate.event)
+        for candidate in prepared_candidates
+        if candidate.tier == "durable"
+    )
+    pending = tuple(
+        dict(candidate.event)
+        for candidate in prepared_candidates
+        if candidate.tier == "pending"
+    )
     rows: tuple[dict[str, Any], ...] = ()
     durable_rows: tuple[dict[str, Any], ...] = ()
     pending_rows: tuple[dict[str, Any], ...] = ()
+    accepted_events: tuple[dict[str, Any], ...] = ()
     aliases: tuple[dict[str, str], ...] = ()
     edges: tuple[dict[str, Any], ...] = ()
     reduction_errors: tuple[str, ...] = ()
     orphaned: tuple[str, ...] = ()
-    if durable:
+    findings: tuple[ArtifactLinkQuarantineFinding, ...] = ()
+    if prepared_candidates:
         try:
-            durable_reduction = require_rust_binding("artifact_link_events_reduce")(
-                list(durable),
-                [],
+            partition = partition_artifact_link_candidates(prepared_candidates)
+            findings = partition.findings
+            accepted_events = tuple(dict(item.event) for item in partition.accepted)
+            accepted_durable = tuple(
+                dict(item.event)
+                for item in partition.accepted
+                if item.tier == "durable"
             )
-            durable_rows = _reduced_rows(durable_reduction)
-        except (TypeError, ValueError, RuntimeError, AttributeError) as exc:
-            reduction_errors = (*reduction_errors, str(exc))
-    if pending:
-        try:
-            pending_reduction = require_rust_binding("artifact_link_events_reduce")(
-                [*_alias_events(durable), *pending],
-                [],
+            accepted_pending = tuple(
+                dict(item.event)
+                for item in partition.accepted
+                if item.tier == "pending"
             )
-            pending_rows = _reduced_rows(pending_reduction)
-        except (TypeError, ValueError, RuntimeError, AttributeError) as exc:
-            reduction_errors = (*reduction_errors, str(exc))
-    if reduction_events:
-        try:
-            reduction = require_rust_binding("artifact_link_events_reduce")(
-                list(reduction_events),
-                [],
-            )
-            rows = _reduced_rows(reduction)
-            aliases = _reduced_aliases(reduction)
-            edges = _reduced_edges(reduction)
-            orphaned = _orphaned_tombstones(edges)
+            if accepted_durable:
+                durable_rows = _reduced_rows(
+                    require_rust_binding("artifact_link_events_reduce")(
+                        list(accepted_durable),
+                        [],
+                    )
+                )
+            if accepted_pending:
+                pending_rows = _reduced_rows(
+                    require_rust_binding("artifact_link_events_reduce")(
+                        [*_alias_events(accepted_durable), *accepted_pending],
+                        [],
+                    )
+                )
+            if accepted_events:
+                reduction = require_rust_binding("artifact_link_events_reduce")(
+                    list(accepted_events),
+                    [],
+                )
+                rows = _reduced_rows(reduction)
+                aliases = _reduced_aliases(reduction)
+                edges = _reduced_edges(reduction)
+                orphaned = _orphaned_tombstones(edges)
         except (TypeError, ValueError, RuntimeError, AttributeError) as exc:
             reduction_errors = (str(exc),)
     snapshot = ArtifactLinkEventSnapshot(
@@ -338,11 +422,17 @@ def reduce_artifact_link_event_inputs(
         pending_rows=pending_rows,
         durable_events=durable,
         pending_events=pending,
+        accepted_events=accepted_events,
+        candidates=prepared_candidates,
         aliases=aliases,
         edges=edges,
         validation_findings=tuple(validation_findings),
         reduction_errors=reduction_errors,
         orphaned_tombstones=orphaned,
+        quarantine_findings=merge_quarantine_findings(
+            findings,
+            persisted_quarantine,
+        ),
         pending_stats=pending_stats or _ArtifactLinkPendingStats(),
         durable_event_count=len(durable),
         pending_event_count=len(pending),
@@ -350,6 +440,13 @@ def reduce_artifact_link_event_inputs(
     if strict:
         snapshot.assert_healthy()
     return snapshot
+
+
+def candidates_from_tier(
+    events: Iterable[Mapping[str, Any]],
+    tier: str,
+) -> tuple[ArtifactLinkEventCandidate, ...]:
+    return tuple(candidate_from_event(event, tier=tier) for event in events)
 
 
 def _iter_event_object_paths(root: Path) -> Iterable[Path]:
@@ -527,8 +624,10 @@ def _join_problems(messages: Iterable[str]) -> str:
 
 __all__ = [
     "ARTIFACT_LINK_EVENT_DIR",
+    "ArtifactLinkEventCandidate",
     "ArtifactLinkEventSnapshot",
     "ArtifactLinkEventStoreAdapter",
     "ArtifactLinkEventValidationFinding",
+    "ArtifactLinkQuarantineFinding",
     "reduce_artifact_link_event_inputs",
 ]

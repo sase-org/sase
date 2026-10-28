@@ -85,6 +85,41 @@ def test_doctor_reports_link_divergence_counters(
     assert "Artifact-link publications pending" in output
 
 
+def test_doctor_reports_link_event_quarantine_as_unhealthy(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    finding = "collision: historical_ancestor_wins"
+    monkeypatch.setattr(
+        "sase.artifact_cli.doctor.inspect_artifact_file_index",
+        lambda: ArtifactFileIndexInspection(
+            total_rows=0,
+            supported_rows=0,
+            vcs_reference_rows=0,
+            missing_enrichment_ids=(),
+            missing_stored_path_ids=(),
+            missing_source_path_ids=(),
+            vcs_provenance_incomplete_ids=(),
+            duplicate_ids=(),
+            unrecognized_schema_versions=(),
+            malformed_rows=0,
+        ),
+    )
+    monkeypatch.setattr(
+        "sase.artifact_cli.doctor.inspect_artifact_link_health",
+        lambda *, fix=False: ArtifactLinkHealthReport(
+            skipped=False,
+            event_quarantine_findings=(finding,),
+        ),
+    )
+
+    assert handle_doctor(argparse.Namespace(fix=False, verify=False)) == 1
+    output = capsys.readouterr().out
+    assert "unhealthy" in output
+    assert "Link event quarantine" in output
+    assert "historical_ancestor_wins" in output
+
+
 def test_doctor_reports_skipped_link_checks_for_missing_store(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],

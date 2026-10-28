@@ -24,6 +24,7 @@ class _EventHealthValues:
     event_validation_failures: tuple[str, ...] = ()
     event_reduction_errors: tuple[str, ...] = ()
     event_orphaned_tombstones: tuple[str, ...] = ()
+    event_quarantine_findings: tuple[str, ...] = ()
 
 
 def event_health_values(store: ArtifactLinkStore) -> _EventHealthValues:
@@ -46,6 +47,9 @@ def event_health_values(store: ArtifactLinkStore) -> _EventHealthValues:
         ),
         event_reduction_errors=event_snapshot.reduction_errors,
         event_orphaned_tombstones=event_snapshot.orphaned_tombstones,
+        event_quarantine_findings=tuple(
+            finding.render() for finding in event_snapshot.quarantine_findings
+        ),
     )
 
 
