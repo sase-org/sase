@@ -26,6 +26,9 @@ _FILE_OPERATION_MARKERS = (
     "BISECT_EXPECTED_REV",
 )
 
+DIR_OPERATION_MARKERS = _DIR_OPERATION_MARKERS
+FILE_OPERATION_MARKERS = _FILE_OPERATION_MARKERS
+
 
 class PreservationError(RuntimeError):
     """A required checkout snapshot could not be completed.

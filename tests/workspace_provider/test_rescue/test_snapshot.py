@@ -10,7 +10,10 @@ from pathlib import Path
 
 import pytest
 
-from sase.workspace_provider import _snapshot_capture as capture_module
+from sase.workspace_provider import (
+    _snapshot_capture_payload as payload_module,
+    _snapshot_capture_source as source_module,
+)
 from sase.workspace_provider._snapshot_model import SourceState
 from sase.workspace_provider.snapshot import (
     PreservationError,
@@ -380,7 +383,7 @@ def test_snapshot_capture_failure_leaves_source_and_prior_snapshot(
     def boom(*_args: object, **_kwargs: object) -> object:
         raise OSError("injected pack failure")
 
-    monkeypatch.setattr(capture_module, "_write_pack", boom)
+    monkeypatch.setattr(payload_module, "_write_pack", boom)
     with pytest.raises(PreservationError, match="injected pack failure"):
         _snapshot(clone, workspace, reason="second")
     _assert_source_unchanged(clone, before)
@@ -403,7 +406,7 @@ def test_snapshot_manifest_failure_does_not_publish(
     def boom(*_args: object, **_kwargs: object) -> object:
         raise OSError("injected manifest failure")
 
-    monkeypatch.setattr(capture_module, "publish_manifest", boom)
+    monkeypatch.setattr(payload_module, "publish_manifest", boom)
     with pytest.raises(PreservationError, match="injected manifest failure"):
         _snapshot(clone, workspace)
     _assert_source_unchanged(clone, before)
@@ -418,7 +421,7 @@ def test_snapshot_size_cap_fails_closed(
     _make_dirty_wiring(clone)
     (clone / "src" / "dispatch.py").write_text("x" * 200, encoding="utf-8")
     before = _source_probe(clone)
-    monkeypatch.setattr(capture_module, "SNAPSHOT_MAX_BYTES", 16)
+    monkeypatch.setattr(payload_module, "SNAPSHOT_MAX_BYTES", 16)
 
     with pytest.raises(PreservationError, match="cap"):
         _snapshot(clone, workspace, reason="cap")
@@ -433,7 +436,7 @@ def test_snapshot_detects_source_change_during_capture(
     workspace, clone, _remote = seed_remote_clone(tmp_path)
     _make_dirty_wiring(clone)
     before = _source_probe(clone)
-    original = capture_module.read_source_state
+    original = source_module.read_source_state
     calls = {"n": 0}
 
     def flipped(repo: Path) -> SourceState:
@@ -446,7 +449,7 @@ def test_snapshot_detects_source_change_during_capture(
             return original(repo)
         return state
 
-    monkeypatch.setattr(capture_module, "read_source_state", flipped)
+    monkeypatch.setattr(source_module, "read_source_state", flipped)
     with pytest.raises(PreservationError, match="changed during snapshot"):
         _snapshot(clone, workspace, reason="race")
     assert calls["n"] >= 2
@@ -482,7 +485,7 @@ def test_snapshot_detects_untracked_source_change_during_capture(
     untracked = clone / "src" / "new.py"
     untracked.parent.mkdir()
     untracked.write_bytes(b"before capture\n")
-    original = capture_module.read_source_state
+    original = source_module.read_source_state
     calls = {"n": 0}
 
     def flipped(repo: Path) -> SourceState:
@@ -493,7 +496,7 @@ def test_snapshot_detects_untracked_source_change_during_capture(
             return original(repo)
         return state
 
-    monkeypatch.setattr(capture_module, "read_source_state", flipped)
+    monkeypatch.setattr(source_module, "read_source_state", flipped)
     with pytest.raises(PreservationError, match="changed during snapshot"):
         _snapshot(clone, workspace, reason="untracked-race")
 
