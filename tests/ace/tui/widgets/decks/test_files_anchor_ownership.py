@@ -13,12 +13,16 @@ from typing import Any
 
 from textual.app import App, ComposeResult
 from textual.containers import VerticalScroll
+from textual.widgets import Static
 
 from sase.ace.testing import wait_for
 from sase.ace.tui.widgets.agent_detail import AgentDetail
 from sase.ace.tui.widgets.decks.model import DeckId, RenderMode
 from tests.ace.tui.widgets._agent_display_helpers import make_agent
-from tests.ace.tui.widgets.decks._deck_settle import wait_for_anchor_scroll
+from tests.ace.tui.widgets.decks._deck_settle import (
+    describe_files_nav,
+    wait_for_anchor_scroll,
+)
 
 _ROOT = Path(__file__).resolve().parents[5]
 
@@ -82,6 +86,7 @@ async def test_hidden_paged_restore_preserves_spread_scroll(tmp_path: Path) -> N
             pilot,
             lambda: _files_scroll_y(panel),
             lambda: panel._files_anchor_row(1),
+            diagnose=lambda: describe_files_nav(panel),
         )
         anchor = panel._files_anchor_row(1)
         assert anchor is not None and anchor > 0, f"anchor={anchor!r}"
@@ -126,6 +131,7 @@ async def test_visible_paged_restore_still_moves_viewport(tmp_path: Path) -> Non
             pilot,
             lambda: _files_scroll_y(panel),
             lambda: panel._files_anchor_row(1),
+            diagnose=lambda: describe_files_nav(panel),
         )
         anchor = panel._files_anchor_row(1)
         assert anchor is not None and anchor > 0
@@ -173,6 +179,7 @@ async def test_superseding_navigation_owns_target_and_manual_scroll_holds(
             pilot,
             lambda: _files_scroll_y(panel),
             lambda: panel._files_anchor_row(0),
+            diagnose=lambda: describe_files_nav(panel),
         )
         anchor0 = panel._files_anchor_row(0)
         assert anchor0 == 0
@@ -184,6 +191,7 @@ async def test_superseding_navigation_owns_target_and_manual_scroll_holds(
             pilot,
             lambda: _files_scroll_y(panel),
             lambda: panel._files_anchor_row(1),
+            diagnose=lambda: describe_files_nav(panel),
         )
         anchor1 = panel._files_anchor_row(1)
         assert anchor1 is not None and anchor1 > 0
@@ -236,6 +244,7 @@ async def test_late_layout_resumes_pending_navigation(tmp_path: Path) -> None:
                 pilot,
                 lambda: _files_scroll_y(panel),
                 lambda: real_anchor(1),
+                diagnose=lambda: describe_files_nav(panel),
             )
         finally:
             panel._files_anchor_row = real_anchor  # type: ignore[method-assign]
@@ -247,3 +256,67 @@ async def test_late_layout_resumes_pending_navigation(tmp_path: Path) -> None:
             f"late layout did not resume navigation: "
             f"scroll_y={int(scroll.scroll_y)} anchor={anchor}"
         )
+
+
+async def test_stalled_navigation_resumes_on_scroll_extent_growth(
+    tmp_path: Path,
+) -> None:
+    """An extent that grows after the retry chain runs out resumes the jump.
+
+    Holds the Files scroll extent short of the page-1 anchor for more
+    refresh hops than the bounded retry chain survives, so the pending
+    navigation is still recorded but no callback remains to finish it.
+    Growing the scroll extent afterwards — with no new anchor publish —
+    must resume the pending navigation and land on the live anchor.
+    """
+    agent = _make_two_file_agent(tmp_path)
+    app = _DetailApp()
+    async with app.run_test(size=(160, 40)) as pilot:
+        await pilot.pause()
+        detail = app.query_one("#agent-detail-panel", AgentDetail)
+        panel = detail.deck_area.panel(0)
+        # Hold the trailing-reserve extent off so the scroll container stays
+        # short of the page-1 anchor while the retry chain runs.
+        real_enable = panel.files_spread_view.enable_section_layout_reserve
+        panel.files_spread_view.enable_section_layout_reserve = (  # type: ignore[method-assign]
+            lambda **kwargs: False
+        )
+        try:
+            detail.update_display(agent)
+            await pilot.pause()
+            detail.show_deck(0, DeckId.FILES)
+            panel = await _ready_spread_panel(tmp_path, pilot, detail)
+            panel.cycle_card(1)
+            # Wait until the bounded chain runs out of hops while the
+            # extent stays short: retries exhausted, request still pending.
+            await wait_for(
+                pilot,
+                lambda: int(getattr(panel, "_files_scroll_retry", 0) or 0) >= 8,
+            )
+            anchor = panel._files_anchor_row(1)
+            assert anchor is not None and anchor > 0, f"anchor={anchor!r}"
+            scroll = panel.query_one("#agent-deck-panel-0-files-scroll", VerticalScroll)
+            assert int(scroll.max_scroll_y) < anchor, (
+                f"extent was not held short: max={int(scroll.max_scroll_y)} "
+                f"anchor={anchor}"
+            )
+            # The chain gave up, but the request is still pending.
+            assert panel._files_pending_scroll_index == 1
+            assert panel._files_scroll_retry >= 8
+            # The extent grows after the last layout publish, with no anchor
+            # republish: the pending navigation must resume and land.
+            await scroll.mount(Static("\n".join(f"filler {i}" for i in range(60))))
+            await wait_for_anchor_scroll(
+                pilot,
+                lambda: _files_scroll_y(panel),
+                lambda: panel._files_anchor_row(1),
+                diagnose=lambda: describe_files_nav(panel),
+            )
+            anchor = panel._files_anchor_row(1)
+            assert anchor is not None and anchor > 0
+            assert int(scroll.scroll_y) == anchor, (
+                f"extent growth did not resume navigation: "
+                f"scroll_y={int(scroll.scroll_y)} anchor={anchor}"
+            )
+        finally:
+            panel.files_spread_view.enable_section_layout_reserve = real_enable  # type: ignore[method-assign]

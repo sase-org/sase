@@ -140,6 +140,23 @@ class PanelSpreadFilesScrollMixin(PanelSpreadCardsMixin):
         except Exception:
             pass
 
+    def _on_files_scroll_extent(self, _old: Any, _new: Any) -> None:
+        """Resume stalled Files navigation when the scroll extent changes.
+
+        The retry chain is bounded, so a pending jump can run out of hops
+        while the scroll extent is still short of its anchor. Anchor
+        publishes already re-arm the chain; a later extent change (for
+        example the trailing reserve landing several layouts after the
+        last publish) must re-arm it too, or the jump stalls forever.
+        """
+        try:
+            pending = getattr(self, "_files_pending_scroll_index", None)
+        except Exception:
+            return
+        if pending is None:
+            return
+        self._reschedule_files_scroll_after_layout()
+
     def _reschedule_files_scroll_after_layout(self) -> None:
         """Resume pending Files navigation after anchors/reserve publish."""
         try:

@@ -16,7 +16,10 @@ from tests.ace.tui.widgets._agent_display_helpers import (
     make_agent,
     make_artifact_agent,
 )
-from tests.ace.tui.widgets.decks._deck_settle import wait_for_anchor_scroll
+from tests.ace.tui.widgets.decks._deck_settle import (
+    describe_files_nav,
+    wait_for_anchor_scroll,
+)
 
 _ROOT = Path(__file__).resolve().parents[5]
 
@@ -173,6 +176,7 @@ async def test_files_ctrl_j_scrolls_page_anchor_to_top(tmp_path: Path) -> None:
             pilot,
             lambda: _files_scroll_y(panel),
             lambda: panel._files_anchor_row(1),
+            diagnose=lambda: describe_files_nav(panel),
         )
         anchor = panel._files_anchor_row(1)
         assert anchor is not None and anchor > 0

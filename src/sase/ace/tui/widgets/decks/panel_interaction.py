@@ -50,6 +50,12 @@ class DeckPanelInteractionMixin:
                 VerticalScroll,
             )
             self.watch(files_scroll, "scroll_y", self._on_files_scroll_y, init=False)
+            self.watch(
+                files_scroll,
+                "virtual_size",
+                self._on_files_scroll_extent,  # type: ignore[attr-defined]
+                init=False,
+            )
         except Exception:
             pass
 
