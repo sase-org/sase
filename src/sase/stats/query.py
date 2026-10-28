@@ -80,6 +80,22 @@ def query_run_stats(
     return payload
 
 
+def query_macro_usage(
+    *,
+    index_path: Path | str | None = None,
+) -> dict[str, Any]:
+    """Return identity-free launch-boundary macro rows for Footprint."""
+    resolved_index = (
+        Path(index_path).expanduser()
+        if index_path is not None
+        else default_agent_artifact_index_path()
+    )
+    binding = require_rust_binding("agent_stats_query_macro_usage")
+    with agent_artifact_index_operation_lock():
+        payload: dict[str, Any] = binding(str(resolved_index))
+    return payload
+
+
 def query_activity_stats(
     *,
     start_ts: int,
@@ -117,5 +133,6 @@ __all__ = [
     "LEGACY_RUNTIME_GROUP_BY",
     "RuntimeGroupBy",
     "query_activity_stats",
+    "query_macro_usage",
     "query_run_stats",
 ]

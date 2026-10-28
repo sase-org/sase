@@ -70,6 +70,7 @@ REQUIRED_BINDINGS = (
     "query_agent_output_variable_selectors",
     "agent_output_variable_selector_wire_schema_version",
     "agent_stats_query_runs",
+    "agent_stats_query_macro_usage",
     "agent_stats_query_activity",
     "agent_cleanup_wire_schema_version",
     "plan_agent_cleanup",

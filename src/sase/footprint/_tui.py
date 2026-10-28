@@ -195,14 +195,9 @@ def _safe_version() -> str:
 
 def _reset_after_fork() -> None:
     """Discard inherited counts after a fork; the parent thread is gone."""
-    global _ACTOR, _PID, _START_GENERATION, _GENERATION_LOADED, _THREAD, _STOP
-    with _LOCK:
-        _COUNTS.clear()
-    _ACTOR = None
+    global _PID, _STOP
+    _reset_for_tests()
     _PID = os.getpid()
-    _START_GENERATION = None
-    _GENERATION_LOADED = False
-    _THREAD = None
     _STOP = threading.Event()
 
 

@@ -14,6 +14,7 @@ def test_statistics_facade_smoke_through_real_bindings(tmp_path: Path) -> None:
     extension = pytest.importorskip("sase_core_rs")
     required = {
         "agent_stats_query_runs",
+        "agent_stats_query_macro_usage",
         "agent_stats_query_activity",
         "rebuild_agent_artifact_index",
     }

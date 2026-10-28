@@ -3,7 +3,7 @@ from typing import Any
 
 from pytest import MonkeyPatch
 
-from sase.stats.query import query_activity_stats, query_run_stats
+from sase.stats.query import query_activity_stats, query_macro_usage, query_run_stats
 
 
 def test_query_run_stats_passes_paths_and_request_to_rust(
@@ -75,6 +75,27 @@ def test_query_run_stats_passes_macro_request_controls(
     assert requests[0]["macro_top_n"] == 21
     assert requests[0]["macro_breakdown_top_n"] == 8
     assert requests[0]["macro_focus"] == "split_file"
+
+
+def test_query_macro_usage_passes_index_to_rust(
+    monkeypatch: MonkeyPatch, tmp_path: Path
+) -> None:
+    calls: list[tuple[object, ...]] = []
+
+    def binding(*args: object) -> dict[str, Any]:
+        calls.append(args)
+        return {"schema_version": 1, "rows": []}
+
+    monkeypatch.setattr(
+        "sase.stats.query.require_rust_binding",
+        lambda name: binding if name == "agent_stats_query_macro_usage" else None,
+    )
+    index = tmp_path / "index.sqlite"
+
+    result = query_macro_usage(index_path=index)
+
+    assert result == {"schema_version": 1, "rows": []}
+    assert calls == [(str(index),)]
 
 
 def test_query_activity_stats_uses_home_for_default_index(

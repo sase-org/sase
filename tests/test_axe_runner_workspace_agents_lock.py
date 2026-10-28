@@ -107,8 +107,10 @@ def test_prepare_workspace_holds_agents_lock_across_the_clean(
     provider = _successful_provider()
     observed: list[bool] = []
 
-    def _clean(workspace_dir: str, diff_name: str) -> tuple[bool, None]:
-        assert workspace_dir and diff_name
+    def _clean(
+        workspace_dir: str, diff_name: str, *, workspace_num: int = 1
+    ) -> tuple[bool, None]:
+        assert workspace_dir and diff_name and workspace_num >= 1
         observed.append(_lock_is_free(_lock_path(repo)))
         return (True, None)
 
@@ -135,8 +137,10 @@ def test_prepare_workspace_leaves_workspace_scoped_agents_clone_unguarded(
     monkeypatch.setenv("SASE_AGENTS_SYNC_LOCK_TIMEOUT", "0")
     observed: list[bool] = []
 
-    def _clean(workspace_dir: str, diff_name: str) -> tuple[bool, None]:
-        assert workspace_dir and diff_name
+    def _clean(
+        workspace_dir: str, diff_name: str, *, workspace_num: int = 1
+    ) -> tuple[bool, None]:
+        assert workspace_dir and diff_name and workspace_num >= 1
         observed.append(_lock_is_free(_lock_path(repo)))
         return (True, None)
 

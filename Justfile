@@ -474,10 +474,11 @@ _lint-patch-stitch-terminology: _setup
 # module constants (not public defs, so they cannot be --epic-symbol rows)
 # for sase-1no.3; sase-1no.4 consumed blocked_sentence, so its row is dropped.
 # sase-1p1 (Footprint usage census) owns unused Rust facade exports until
-# later phases consume them (catalog ingest, fold driver, derived upsert,
-# status/clear). Query facades and Overlay/load_overlay were consumed by
-# sase-1p1.8 (cli_report), so those rows are dropped. Drop each remaining
-# row when its caller lands.
+# later phases consume them (catalog ingest, fold driver, status/clear).
+# sase-1p1.7 consumed other_id, custom_id, and footprint_upsert_derived.
+# Query facades and Overlay/load_overlay were consumed by sase-1p1.8
+# (cli_report), so those rows are dropped. Drop each remaining row when
+# its caller lands.
 # Never put a comment
 # line inside the continued command below: just joins the lines, so the comment
 # would swallow every later argument.
@@ -486,7 +487,6 @@ _lint-symvision *args: _setup
         --exclude-decorator gate_command_entrypoint \
         --exclude-decorator builtin_chop \
         --epic-symbol 'sase-1p1(footprint_wire_schema_version)' \
-        --epic-symbol 'sase-1p1(footprint_upsert_derived)' \
         --epic-symbol 'sase-1p1(footprint_validate_overlay)' \
         {{ args }}
 

@@ -92,7 +92,7 @@ def test_prepare_workspace_rescues_unpushed_bead_commits_before_sidecar_reset(
     monkeypatch.setattr("sase.bead.sync.push_bead_work_launch", fail_publish)
     monkeypatch.setattr(
         "sase.workflows.commit_utils.run_sase_hg_clean",
-        lambda *_args: (True, ""),
+        lambda *_args, **_kwargs: (True, ""),
     )
     monkeypatch.setattr(
         "sase.axe.runner_workspace_prepare.get_vcs_provider",

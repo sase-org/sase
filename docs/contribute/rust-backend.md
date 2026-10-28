@@ -128,6 +128,8 @@ The shipped Rust-backed operations are grouped by the Python facade that calls t
   ledger at `~/.sase/footprint/footprint.sqlite`, checkpointed fold, derived upserts,
   prune, clear, report and card queries (lenses, evidence states, candidate gate), and
   local review decisions. Python reaches the store only through `sase_core_rs` bindings.
+  Launch-boundary macro usage for derived rows is `agent_stats_query_macro_usage`,
+  called through `sase.stats.query`.
 - Git object-sharing planning for managed workspaces (`plan_git_object_sharing`)
 - AXE configuration composition and entry-edit planning (`axe_config_compose`,
   `axe_config_plan_entry`), including routine/job input aliases, description-shape

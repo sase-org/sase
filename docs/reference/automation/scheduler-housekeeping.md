@@ -42,9 +42,11 @@ refresh cadence.
 
 The `footprint_fold` job ingests a changed catalog, folds pending local usage records,
 applies spool retention, and prunes daily aggregates older than
-[`footprint.retention_days`](../config/runtime.md#footprint). It runs hourly because the
-spool is append-only on CLI and TUI paths. A busy ledger skips the pass so an
-interactive status read can continue with the existing snapshot.
+[`footprint.retention_days`](../config/runtime.md#footprint). After the fold it
+refreshes derived census rows from macro launches, skill-use logs, the current
+config-override snapshot, and AXE cycle telemetry. It runs hourly because the spool is
+append-only on CLI and TUI paths. A busy ledger skips the pass so an interactive status
+read can continue with the existing snapshot.
 
 The `managed_tmp_reap` job bounds every managed SASE temp root writers actually used.
 Each `get_sase_managed_tmpdir()` call registers its resolved root (`$SASE_TMPDIR`, else

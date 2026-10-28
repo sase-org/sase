@@ -104,6 +104,23 @@ the `_hard_exit_ace` flush tuple.
 | TUI startup     | Zero Footprint work before first paint. Index maps are built lazily on the first hit                                                             |
 | `j`/`k`         | p95 under 16 ms unchanged (`SASE_TUI_PERF=1`, `bench_tui_jk_panes.py::test_bench_patches_jk`); a regression over 0.5 ms blocks work on the seams |
 
+## Derived sources
+
+The hourly fold job also upserts usage that already exists elsewhere, as identity-free
+daily rows through `footprint_upsert_derived`. Each source owns one `origin` and is
+recomputed idempotently; a failure logs and leaves that origin's previous rows intact.
+
+| Origin            | Source                                                 | Actor / via                   |
+| ----------------- | ------------------------------------------------------ | ----------------------------- |
+| `derived.macros`  | Launch-prompt macros (`agent_stats_query_macro_usage`) | `human` or `agent` / `prompt` |
+| `derived.skills`  | `skill_uses.jsonl` (`skill_name` + day only)           | `agent` / `prompt`            |
+| `derived.config`  | User + overlay config leaf paths (never values)        | `human` / `config`            |
+| `derived.auto`    | `sase_axe_cycles_total` by `cycle_type`                | `automation` / `auto`         |
+| `derived.history` | Opt-in `sase footprint backfill` of zsh history        | `human` / `cli`               |
+
+Non-catalog macro and skill names collapse to `~custom`. AXE jobs without a matching
+telemetry series are left unmeasured. History backfill is never part of the hourly job.
+
 ## What the overlay is for
 
 `src/sase/footprint/overlay.yml` holds curated human knowledge, reviewed in PRs:

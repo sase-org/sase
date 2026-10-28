@@ -12,7 +12,8 @@ Show the local usage census of sase surfaces.
 Reference for `sase footprint`. Run `sase footprint --help` for the exact output on this checkout.
 
 ```text
-usage: sase footprint [-h] {catalog,clear,decide,list,mode,show,status} ...
+usage: sase footprint [-h]
+                      {backfill,catalog,clear,decide,list,mode,show,status} ...
 ```
 
 Footprint keeps a local, privacy-by-construction census of which sase surfaces (CLI commands and options, TUI actions and keys, views and modals, macros, skills, config leaves, automation) are used, and joins it with a generated feature catalog. Use `sase footprint mode off` to stop recording. Bare `sase footprint` delegates to `list`.
@@ -27,15 +28,32 @@ Options:
 
 Subcommands:
 
-| Subcommand               | Summary                                    |
-| ------------------------ | ------------------------------------------ |
-| `sase footprint catalog` | List the generated feature catalog         |
-| `sase footprint clear`   | Clear local Footprint data                 |
-| `sase footprint decide`  | Record a Footprint review decision         |
-| `sase footprint list`    | List Footprint features by lens            |
-| `sase footprint mode`    | Show or set local Footprint recording      |
-| `sase footprint show`    | Show one Footprint feature or area         |
-| `sase footprint status`  | Show Footprint recording and ledger status |
+| Subcommand                | Summary                                           |
+| ------------------------- | ------------------------------------------------- |
+| `sase footprint backfill` | Import timestamped sase commands from zsh history |
+| `sase footprint catalog`  | List the generated feature catalog                |
+| `sase footprint clear`    | Clear local Footprint data                        |
+| `sase footprint decide`   | Record a Footprint review decision                |
+| `sase footprint list`     | List Footprint features by lens                   |
+| `sase footprint mode`     | Show or set local Footprint recording             |
+| `sase footprint show`     | Show one Footprint feature or area                |
+| `sase footprint status`   | Show Footprint recording and ledger status        |
+
+## `sase footprint backfill`
+
+```text
+usage: sase footprint backfill [-h] [-p FILE] [-y]
+```
+
+One-shot import of timestamped `sase` lines from zsh extended history into the local Footprint ledger. Only command and option IDs are kept. The file is never stored, the import is never automatic, and the history file still contains everything else you type. Re-running replaces the previous history origin.
+
+Options:
+
+| Option                   | Description                                         | Default |
+| ------------------------ | --------------------------------------------------- | ------- |
+| `-h`, `--help`           | show this help message and exit                     | —       |
+| `-p FILE`, `--path FILE` | History file (default: $HISTFILE or ~/.zsh_history) | —       |
+| `-y`, `--yes`            | Import without asking for confirmation              | `false` |
 
 ## `sase footprint catalog`
 

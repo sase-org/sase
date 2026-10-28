@@ -52,8 +52,9 @@ def register_footprint_parser(subparsers: argparse._SubParsersAction) -> None:
     footprint_sub = footprint_parser.add_subparsers(
         dest="footprint_subcommand",
         help="Footprint views",
-        metavar="{catalog,clear,decide,list,mode,show,status}",
+        metavar="{backfill,catalog,clear,decide,list,mode,show,status}",
     )
+    _register_backfill_parser(footprint_sub)
     _register_catalog_parser(footprint_sub)
     _register_clear_parser(footprint_sub)
     _register_decide_parser(footprint_sub)
@@ -61,6 +62,40 @@ def register_footprint_parser(subparsers: argparse._SubParsersAction) -> None:
     _register_mode_parser(footprint_sub)
     _register_show_parser(footprint_sub)
     _register_status_parser(footprint_sub)
+
+
+def _register_backfill_parser(
+    footprint_sub: argparse._SubParsersAction,
+) -> None:
+    backfill_parser = footprint_sub.add_parser(
+        "backfill",
+        help="Import timestamped sase commands from zsh history",
+        description=(
+            "One-shot import of timestamped `sase` lines from zsh extended "
+            "history into the local Footprint ledger. Only command and option "
+            "IDs are kept. The file is never stored, the import is never "
+            "automatic, and the history file still contains everything else "
+            "you type. Re-running replaces the previous history origin."
+        ),
+        epilog=(
+            "examples:\n"
+            "  sase footprint backfill\n"
+            "  sase footprint backfill -p ~/.zsh_history -y"
+        ),
+    )
+    backfill_parser.add_argument(
+        "-p",
+        "--path",
+        default=None,
+        metavar="FILE",
+        help="History file (default: $HISTFILE or ~/.zsh_history)",
+    )
+    backfill_parser.add_argument(
+        "-y",
+        "--yes",
+        action="store_true",
+        help="Import without asking for confirmation",
+    )
 
 
 def _register_mode_parser(footprint_sub: argparse._SubParsersAction) -> None:

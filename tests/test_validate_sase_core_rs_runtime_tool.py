@@ -219,6 +219,7 @@ def test_validate_sase_core_rs_requires_agent_stats_work_bindings() -> None:
     stats_bindings = {
         "rebuild_agent_artifact_index",
         "agent_stats_query_runs",
+        "agent_stats_query_macro_usage",
         "agent_stats_query_activity",
     }
 

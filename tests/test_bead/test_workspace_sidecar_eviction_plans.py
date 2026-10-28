@@ -9,6 +9,7 @@ import pytest
 
 from sase.axe import runner_workspace_sidecar as workspace_module
 from sase.axe.runner_workspace import prepare_launch_workspace_repos
+from sase.axe.runner_workspace_errors import WorkspacePreparationError
 
 from .sync_conflict_regression_helpers import _git
 from .sync_test_helpers import init_git_repo
@@ -39,6 +40,7 @@ def test_eviction_quarantines_unborn_head_sidecar_and_reclones(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    """Unborn HEAD cannot be snapshotted, so eviction fails closed."""
     workspace, plans, _remote = _seed_workspace_sidecar_repo(tmp_path)
     _damage_sidecar_unborn_head(plans)
     home, notified = _redirect_state(tmp_path, monkeypatch)
@@ -57,24 +59,16 @@ def test_eviction_quarantines_unborn_head_sidecar_and_reclones(
         recreate_plans_sidecar,
     )
 
-    cloned_sidecars = prepare_launch_workspace_repos(str(workspace), _WORKSPACE_NUM)
+    with pytest.raises(
+        WorkspacePreparationError, match="verified nested preservation failed"
+    ) as exc_info:
+        prepare_launch_workspace_repos(str(workspace), _WORKSPACE_NUM)
 
-    assert clones == [(str(workspace), _WORKSPACE_NUM, True)]
-    assert cloned_sidecars == {str(plans.resolve())}
-    assert (plans / ".git").is_dir()
-    # The damaged clone was quarantined into the durable rescue store outside
-    # the workspace — never into the workspace itself — and eviction proceeded.
+    assert "Needed a single revision" in exc_info.value.reason
+    assert clones == []
     assert not (workspace / ".sase" / "sidecar-quarantine").exists()
-    entries = _rescue_entries(home)
-    assert len(entries) == 1
-    quarantined = entries[0] / "quarantined-clone"
-    assert (quarantined / ".git").is_dir()
-    assert len(notified) == 1
-    sender, _cl_name, _success, notes, kwargs = notified[0]
-    assert sender == "workspace-rescue"
-    assert any("quarantin" in note for note in notes)
-    assert any(str(entries[0]) in note for note in notes)
-    assert kwargs["extra_files"] == [str(entries[0])]
+    assert _rescue_entries(home) == []
+    assert notified == []
 
 
 def test_eviction_proceeds_when_damaged_sidecar_quarantine_fails(
@@ -82,6 +76,7 @@ def test_eviction_proceeds_when_damaged_sidecar_quarantine_fails(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
+    """Preservation fails before quarantine, so eviction does not proceed."""
     workspace, plans, _remote = _seed_workspace_sidecar_repo(tmp_path)
     _damage_sidecar_unborn_head(plans)
     _home, notified = _redirect_state(tmp_path, monkeypatch)
@@ -95,16 +90,15 @@ def test_eviction_proceeds_when_damaged_sidecar_quarantine_fails(
         _record_clone(clones),
     )
 
-    prepare_launch_workspace_repos(str(workspace), _WORKSPACE_NUM)
+    with pytest.raises(
+        WorkspacePreparationError, match="verified nested preservation failed"
+    ) as exc_info:
+        prepare_launch_workspace_repos(str(workspace), _WORKSPACE_NUM)
 
-    assert clones == [(str(workspace), _WORKSPACE_NUM, True)]
-    stderr = capsys.readouterr().err
-    assert "may lose local commits" in stderr
-    assert "proceeding with eviction" in stderr
-    assert len(notified) == 1
-    sender, _cl_name, success, _notes, _kwargs = notified[0]
-    assert sender == "workspace-rescue"
-    assert success is False
+    assert "Needed a single revision" in exc_info.value.reason
+    assert clones == []
+    assert "proceeding with eviction" not in capsys.readouterr().err
+    assert notified == []
 
 
 def test_eviction_publishes_unpushed_plans_sidecar_commit(

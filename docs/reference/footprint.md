@@ -57,10 +57,21 @@ confirmation; pass `-y` to skip the prompt. Clearing advances a generation numbe
 counts buffered before the clear are discarded. The recording mode stays as set.
 
 The hourly `footprint_fold` job ingests a changed catalog, folds pending spool lines,
-applies spool retention, and prunes old daily aggregates. It skips a pass when the
-ledger is busy. `sase doctor` warns when local recording has unfolded spool bytes older
-than three days. The first fold that stores records adds one disclosure notification to
-the inbox.
+applies spool retention, and prunes old daily aggregates. After a successful fold it
+also refreshes derived rows from macro launch history, skill-use counts, the current
+config-override snapshot, and AXE cycle telemetry. Each source is recomputed
+idempotently; a failure in one source leaves that origin's previous rows intact.
+`sase doctor` warns when local recording has unfolded spool bytes older than three days.
+The first fold that stores records adds one disclosure notification to the inbox.
+
+## History backfill
+
+`sase footprint backfill` is a one-shot, local-only import of timestamped `sase` lines
+from zsh extended history (`$HISTFILE` or `~/.zsh_history`). It is never automatic. The
+command prints a per-command preview and asks for confirmation (`-y` skips the prompt).
+It keeps command and option IDs only, discards the source lines, skips untimestamped
+entries, and replaces the previous `derived.history` origin on re-run. The file it reads
+still contains everything else you type.
 
 ## Reading the report
 

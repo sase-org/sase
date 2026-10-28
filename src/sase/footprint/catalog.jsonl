@@ -1,4 +1,4 @@
-{"count": 3643, "rev": "8720e909f052", "schema": "sase.footprint.catalog/1"}
+{"count": 3646, "rev": "9b574753b579", "schema": "sase.footprint.catalog/1"}
 {"area": "automation", "id": "auto:axe.agent_waits", "kind": "auto", "label": "Resolve agent wait dependencies within seconds of completion", "ns": "auto", "parent": null, "src": "sase/default_config.yml"}
 {"area": "automation", "id": "auto:axe.agent_waits.wait_checks", "kind": "auto", "label": "Resolve agent wait dependencies and write ready.json when satisfied", "ns": "auto", "parent": "auto:axe.agent_waits", "src": "sase/default_config.yml"}
 {"area": "automation", "id": "auto:axe.checks", "kind": "auto", "label": "Poll slower PR-submission and workspace-claim checks on a five-minute cadence", "ns": "auto", "parent": null, "src": "sase/default_config.yml"}
@@ -788,6 +788,9 @@
 {"area": "cli.flag", "id": "cli:flag.show", "kind": "command", "label": "Show one feature flag's provenance, bead, and call sites", "ns": "cli", "parent": null, "src": "sase/main/parser_flag.py:register_flag_parser"}
 {"area": "cli.flag", "id": "cli:flag.show#json", "kind": "option", "label": "Option --json of cli:flag.show", "ns": "cli", "parent": "cli:flag.show", "src": "sase/main/parser_flag.py:register_flag_parser"}
 {"area": "cli.footprint", "id": "cli:footprint", "kind": "command", "label": "Show the local usage census of sase surfaces.", "ns": "cli", "parent": null, "src": "sase/main/parser_footprint.py:register_footprint_parser"}
+{"area": "cli.footprint", "id": "cli:footprint.backfill", "kind": "command", "label": "Import timestamped sase commands from zsh history", "ns": "cli", "parent": null, "src": "sase/main/parser_footprint.py:register_footprint_parser"}
+{"area": "cli.footprint", "id": "cli:footprint.backfill#path", "kind": "option", "label": "Option --path of cli:footprint.backfill", "ns": "cli", "parent": "cli:footprint.backfill", "src": "sase/main/parser_footprint.py:register_footprint_parser"}
+{"area": "cli.footprint", "id": "cli:footprint.backfill#yes", "kind": "option", "label": "Option --yes of cli:footprint.backfill", "ns": "cli", "parent": "cli:footprint.backfill", "src": "sase/main/parser_footprint.py:register_footprint_parser"}
 {"area": "cli.footprint", "id": "cli:footprint.catalog", "kind": "command", "label": "List the generated feature catalog", "ns": "cli", "parent": null, "src": "sase/main/parser_footprint.py:register_footprint_parser"}
 {"area": "cli.footprint", "id": "cli:footprint.catalog#area", "kind": "option", "label": "Option --area of cli:footprint.catalog", "ns": "cli", "parent": "cli:footprint.catalog", "src": "sase/main/parser_footprint.py:register_footprint_parser"}
 {"area": "cli.footprint", "id": "cli:footprint.catalog#format", "kind": "option", "label": "Option --format of cli:footprint.catalog", "ns": "cli", "parent": "cli:footprint.catalog", "src": "sase/main/parser_footprint.py:register_footprint_parser"}

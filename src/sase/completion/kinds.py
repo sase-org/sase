@@ -333,6 +333,7 @@ _VALUE_HINT_TABLE: Final[dict[str, str]] = dict.fromkeys(
         "fcm_project_id",
         "fcm_service_account_json",
         "feedback",
+        "feature_id",
         "field",
         "gateway_command",
         "goal_id",

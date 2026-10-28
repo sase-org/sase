@@ -6,6 +6,7 @@ from typing import Any
 
 from sase.chops.builtin import BuiltinChopRuntime, builtin_chop, run_builtin_chop
 from sase.chops.sdk import ChopResultBuilder
+from sase.footprint.derived import fold_derived_sources
 from sase.footprint.fold import fold_ledger
 
 
@@ -14,6 +15,9 @@ def _run(runtime: BuiltinChopRuntime) -> ChopResultBuilder:
     outcome = fold_ledger()
     folded = _mapping(outcome.get("fold"))
     pruned = _mapping(outcome.get("prune"))
+    derived = (
+        fold_derived_sources() if outcome.get("reason") != "lock_contended" else {}
+    )
     if int(folded.get("records_folded", 0)):
         runtime.log(
             f"folded {folded['records_folded']} Footprint record(s) "
@@ -36,6 +40,7 @@ def _run(runtime: BuiltinChopRuntime) -> ChopResultBuilder:
             "spool_files_expired": int(folded.get("files_expired", 0)),
             "daily_pruned": int(pruned.get("daily_deleted", 0)),
             "coverage_pruned": int(pruned.get("coverage_deleted", 0)),
+            "derived": _derived_field(derived),
         },
         reason=str(reason) if reason else None,
     )
@@ -43,6 +48,19 @@ def _run(runtime: BuiltinChopRuntime) -> ChopResultBuilder:
 
 def _mapping(value: Any) -> dict[str, Any]:
     return value if isinstance(value, dict) else {}
+
+
+def _derived_field(derived: dict[str, Any]) -> str | None:
+    parts: list[str] = []
+    for origin, result in derived.items():
+        if not isinstance(result, dict):
+            continue
+        name = origin.removeprefix("derived.")
+        if result.get("ok"):
+            parts.append(f"{name}:{int(result.get('rows', 0))}")
+        else:
+            parts.append(f"{name}:fail")
+    return ",".join(parts) or None
 
 
 def main() -> None:

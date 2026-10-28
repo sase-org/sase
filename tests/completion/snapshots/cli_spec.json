@@ -17045,7 +17045,7 @@
       },
       {
         "aliases": [],
-        "default_child": null,
+        "default_child": "list",
         "description_digest": "0a09165425a51f80",
         "hidden": false,
         "mutex_groups": [],
@@ -17075,6 +17075,73 @@
         "run_policy": [],
         "stdin": false,
         "subcommands": [
+          {
+            "aliases": [],
+            "default_child": null,
+            "description_digest": "5d4d8e08288b1c9e",
+            "hidden": false,
+            "mutex_groups": [],
+            "name": "backfill",
+            "options": [
+              {
+                "choices": null,
+                "default": null,
+                "dest": "help",
+                "hidden": false,
+                "kind": null,
+                "metavar": null,
+                "repeatable": false,
+                "required": false,
+                "strings": [
+                  "-h",
+                  "--help"
+                ],
+                "takes_value": false,
+                "value_hint": null
+              },
+              {
+                "choices": null,
+                "default": null,
+                "dest": "path",
+                "hidden": false,
+                "kind": "path",
+                "metavar": "FILE",
+                "repeatable": false,
+                "required": false,
+                "strings": [
+                  "-p",
+                  "--path"
+                ],
+                "takes_value": true,
+                "value_hint": "path"
+              },
+              {
+                "choices": null,
+                "default": "False",
+                "dest": "yes",
+                "hidden": false,
+                "kind": null,
+                "metavar": null,
+                "repeatable": false,
+                "required": false,
+                "strings": [
+                  "-y",
+                  "--yes"
+                ],
+                "takes_value": false,
+                "value_hint": null
+              }
+            ],
+            "path": [
+              "footprint",
+              "backfill"
+            ],
+            "positionals": [],
+            "run_policy": [],
+            "stdin": false,
+            "subcommands": [],
+            "writes": false
+          },
           {
             "aliases": [],
             "default_child": null,
@@ -17225,6 +17292,223 @@
           {
             "aliases": [],
             "default_child": null,
+            "description_digest": "08470f8283e57f53",
+            "hidden": false,
+            "mutex_groups": [],
+            "name": "decide",
+            "options": [
+              {
+                "choices": null,
+                "default": null,
+                "dest": "help",
+                "hidden": false,
+                "kind": null,
+                "metavar": null,
+                "repeatable": false,
+                "required": false,
+                "strings": [
+                  "-h",
+                  "--help"
+                ],
+                "takes_value": false,
+                "value_hint": null
+              },
+              {
+                "choices": [
+                  "rare_by_design",
+                  "safety",
+                  "agent_facing",
+                  "api_contract",
+                  "other"
+                ],
+                "default": null,
+                "dest": "reason",
+                "hidden": false,
+                "kind": null,
+                "metavar": null,
+                "repeatable": false,
+                "required": false,
+                "strings": [
+                  "-r",
+                  "--reason"
+                ],
+                "takes_value": true,
+                "value_hint": "text"
+              }
+            ],
+            "path": [
+              "footprint",
+              "decide"
+            ],
+            "positionals": [
+              {
+                "choices": null,
+                "dest": "feature_id",
+                "is_remainder": false,
+                "kind": null,
+                "metavar": "ID",
+                "nargs": null,
+                "required": true,
+                "value_hint": "text"
+              },
+              {
+                "choices": [
+                  "keep",
+                  "later",
+                  "cut",
+                  "clear"
+                ],
+                "dest": "decision",
+                "is_remainder": false,
+                "kind": null,
+                "metavar": "decision",
+                "nargs": null,
+                "required": true,
+                "value_hint": null
+              }
+            ],
+            "run_policy": [],
+            "stdin": false,
+            "subcommands": [],
+            "writes": false
+          },
+          {
+            "aliases": [],
+            "default_child": null,
+            "description_digest": "700368f1f36b07ea",
+            "hidden": false,
+            "mutex_groups": [],
+            "name": "list",
+            "options": [
+              {
+                "choices": null,
+                "default": null,
+                "dest": "help",
+                "hidden": false,
+                "kind": null,
+                "metavar": null,
+                "repeatable": false,
+                "required": false,
+                "strings": [
+                  "-h",
+                  "--help"
+                ],
+                "takes_value": false,
+                "value_hint": null
+              },
+              {
+                "choices": [
+                  "you",
+                  "agents",
+                  "automation",
+                  "everyone"
+                ],
+                "default": "you",
+                "dest": "actor",
+                "hidden": false,
+                "kind": null,
+                "metavar": null,
+                "repeatable": false,
+                "required": false,
+                "strings": [
+                  "-a",
+                  "--actor"
+                ],
+                "takes_value": true,
+                "value_hint": null
+              },
+              {
+                "choices": null,
+                "default": null,
+                "dest": "area",
+                "hidden": false,
+                "kind": null,
+                "metavar": "AREA",
+                "repeatable": false,
+                "required": false,
+                "strings": [
+                  "-A",
+                  "--area"
+                ],
+                "takes_value": true,
+                "value_hint": "text"
+              },
+              {
+                "choices": [
+                  "rich",
+                  "json",
+                  "markdown"
+                ],
+                "default": "rich",
+                "dest": "format",
+                "hidden": false,
+                "kind": null,
+                "metavar": null,
+                "repeatable": false,
+                "required": false,
+                "strings": [
+                  "-f",
+                  "--format"
+                ],
+                "takes_value": true,
+                "value_hint": null
+              },
+              {
+                "choices": [
+                  "map",
+                  "cold",
+                  "fading",
+                  "agent-only",
+                  "dead-paths",
+                  "friction",
+                  "hot",
+                  "coverage",
+                  "decisions"
+                ],
+                "default": "map",
+                "dest": "lens",
+                "hidden": false,
+                "kind": null,
+                "metavar": null,
+                "repeatable": false,
+                "required": false,
+                "strings": [
+                  "-l",
+                  "--lens"
+                ],
+                "takes_value": true,
+                "value_hint": null
+              },
+              {
+                "choices": null,
+                "default": "60d",
+                "dest": "range",
+                "hidden": false,
+                "kind": null,
+                "metavar": "RANGE",
+                "repeatable": false,
+                "required": false,
+                "strings": [
+                  "-r",
+                  "--range"
+                ],
+                "takes_value": true,
+                "value_hint": "text"
+              }
+            ],
+            "path": [
+              "footprint",
+              "list"
+            ],
+            "positionals": [],
+            "run_policy": [],
+            "stdin": false,
+            "subcommands": [],
+            "writes": false
+          },
+          {
+            "aliases": [],
+            "default_child": null,
             "description_digest": "2a4ee61d9e43fbd4",
             "hidden": false,
             "mutex_groups": [],
@@ -17264,6 +17548,109 @@
                 "nargs": "?",
                 "required": false,
                 "value_hint": null
+              }
+            ],
+            "run_policy": [],
+            "stdin": false,
+            "subcommands": [],
+            "writes": false
+          },
+          {
+            "aliases": [],
+            "default_child": null,
+            "description_digest": "41a96b4664ba5825",
+            "hidden": false,
+            "mutex_groups": [],
+            "name": "show",
+            "options": [
+              {
+                "choices": null,
+                "default": null,
+                "dest": "help",
+                "hidden": false,
+                "kind": null,
+                "metavar": null,
+                "repeatable": false,
+                "required": false,
+                "strings": [
+                  "-h",
+                  "--help"
+                ],
+                "takes_value": false,
+                "value_hint": null
+              },
+              {
+                "choices": [
+                  "you",
+                  "agents",
+                  "automation",
+                  "everyone"
+                ],
+                "default": "you",
+                "dest": "actor",
+                "hidden": false,
+                "kind": null,
+                "metavar": null,
+                "repeatable": false,
+                "required": false,
+                "strings": [
+                  "-a",
+                  "--actor"
+                ],
+                "takes_value": true,
+                "value_hint": null
+              },
+              {
+                "choices": [
+                  "rich",
+                  "json",
+                  "markdown"
+                ],
+                "default": "rich",
+                "dest": "format",
+                "hidden": false,
+                "kind": null,
+                "metavar": null,
+                "repeatable": false,
+                "required": false,
+                "strings": [
+                  "-f",
+                  "--format"
+                ],
+                "takes_value": true,
+                "value_hint": null
+              },
+              {
+                "choices": null,
+                "default": "60d",
+                "dest": "range",
+                "hidden": false,
+                "kind": null,
+                "metavar": "RANGE",
+                "repeatable": false,
+                "required": false,
+                "strings": [
+                  "-r",
+                  "--range"
+                ],
+                "takes_value": true,
+                "value_hint": "text"
+              }
+            ],
+            "path": [
+              "footprint",
+              "show"
+            ],
+            "positionals": [
+              {
+                "choices": null,
+                "dest": "feature_id",
+                "is_remainder": false,
+                "kind": null,
+                "metavar": "ID",
+                "nargs": null,
+                "required": true,
+                "value_hint": "text"
               }
             ],
             "run_policy": [],

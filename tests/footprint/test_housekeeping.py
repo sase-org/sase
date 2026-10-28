@@ -92,9 +92,57 @@ def test_hourly_job_is_registered_and_emits_fold_summary(monkeypatch) -> None:
             "prune": {"daily_deleted": 0, "coverage_deleted": 0},
         },
     )
+    monkeypatch.setattr(
+        sase_chop_footprint_fold,
+        "fold_derived_sources",
+        lambda: {
+            "derived.macros": {"ok": True, "rows": 3},
+            "derived.skills": {"ok": False, "rows": 0},
+        },
+    )
     runtime = Runtime()
 
     sase_chop_footprint_fold._run(runtime)
 
     assert runtime.summary["records_folded"] == 2
     assert runtime.summary["folded"] is True
+    assert runtime.summary["derived"] == "macros:3,skills:fail"
+
+
+def test_hourly_job_skips_derived_when_lock_contended(monkeypatch) -> None:
+    class Runtime:
+        def __init__(self) -> None:
+            self.summary = None
+
+        def log(self, _message: str, _color: str) -> None:
+            pass
+
+        def emit_summary(self, summary, *, reason=None):
+            self.summary = summary
+            return summary
+
+    monkeypatch.setattr(
+        sase_chop_footprint_fold,
+        "fold_ledger",
+        lambda: {
+            "folded": False,
+            "reason": "lock_contended",
+            "fold": {},
+            "prune": {},
+        },
+    )
+
+    def _must_not_run() -> dict[str, object]:
+        raise AssertionError("derived must not run")
+
+    monkeypatch.setattr(
+        sase_chop_footprint_fold,
+        "fold_derived_sources",
+        _must_not_run,
+    )
+    runtime = Runtime()
+
+    sase_chop_footprint_fold._run(runtime)
+
+    assert runtime.summary["reason"] == "lock_contended"
+    assert runtime.summary["derived"] is None

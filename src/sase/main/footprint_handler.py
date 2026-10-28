@@ -40,6 +40,8 @@ def handle_footprint_command(args: argparse.Namespace) -> int:
         set_mode(selected)
         print(f"Footprint recording mode set to {selected}.")
         return 0
+    if subcommand == "backfill":
+        return _handle_backfill(args)
     if subcommand == "catalog":
         return _handle_catalog(args)
     if subcommand == "clear":
@@ -54,7 +56,7 @@ def handle_footprint_command(args: argparse.Namespace) -> int:
         return _handle_status(args)
     print(
         f"sase footprint: unknown view {subcommand!r}. "
-        "Implemented views: catalog, clear, decide, list, mode, show, status.",
+        "Implemented views: backfill, catalog, clear, decide, list, mode, show, status.",
         file=sys.stderr,
     )
     return 2
@@ -119,6 +121,87 @@ def _handle_status(args: argparse.Namespace) -> int:
         print(json.dumps(status, indent=2, sort_keys=True))
     else:
         _print_status(status)
+    return 0
+
+
+def _handle_backfill(args: argparse.Namespace) -> int:
+    from pathlib import Path
+
+    from rich.prompt import Confirm
+    from rich.table import Table
+
+    from sase.footprint.derived import upsert_origin
+    from sase.footprint.derived_history import (
+        ORIGIN as HISTORY_ORIGIN,
+        default_history_path,
+        extract_history_rows,
+    )
+    from sase.main.parser import create_parser
+
+    history_path = (
+        Path(args.path).expanduser()
+        if getattr(args, "path", None)
+        else default_history_path()
+    )
+    if not history_path.is_file():
+        print(f"History file not found: {history_path}", file=sys.stderr)
+        return 1
+    try:
+        from sase.core.time import local_now
+
+        preview = extract_history_rows(
+            history_path,
+            parser=create_parser(),
+            today=local_now().date().isoformat(),
+        )
+    except (OSError, ValueError) as exc:
+        print(f"Could not read history file: {exc}", file=sys.stderr)
+        return 1
+
+    console = Console()
+    console.print(
+        "Footprint history backfill is local-only and never automatic. "
+        "The file you selected contains everything else you type; only "
+        "timestamped `sase` command and option IDs are imported."
+    )
+    table = Table(title="Preview", show_header=True, header_style="bold")
+    table.add_column("Command")
+    table.add_column("Count", justify="right")
+    for feature_id, count in preview.commands.most_common():
+        table.add_row(feature_id, str(count))
+    console.print(table)
+    console.print(
+        f"{preview.imported} command(s), {preview.options} option(s) · "
+        f"{preview.skipped_untimestamped} untimestamped skipped · "
+        f"{preview.skipped_other} discarded"
+    )
+    if not getattr(args, "yes", False):
+        if not sys.stdin.isatty():
+            print(
+                "Confirmation required; rerun with `sase footprint backfill -y`.",
+                file=sys.stderr,
+            )
+            return 2
+        try:
+            confirmed = Confirm.ask(
+                f"Import {preview.imported} command(s) from {history_path}?",
+                default=False,
+            )
+        except (EOFError, OSError):
+            confirmed = False
+        if not confirmed:
+            console.print("History was not imported.", style="dim")
+            return 0
+    try:
+        upsert_origin(HISTORY_ORIGIN, preview.days, preview.rows, preview.coverage)
+    except (OSError, RuntimeError, TimeoutError, ValueError) as exc:
+        print(f"Could not import history: {exc}", file=sys.stderr)
+        return 1
+    console.print(
+        f"Imported {preview.imported} command(s) from {history_path} "
+        f"into the local Footprint ledger.",
+        style="green",
+    )
     return 0
 
 

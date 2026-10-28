@@ -167,9 +167,23 @@ def set_parser_path(
     hit: CliHit, parser: argparse.ArgumentParser, argv: Sequence[str]
 ) -> None:
     """Resolve the safe parser command path and its leaf option destinations."""
+    feature_id, dests = resolve_command_ids(parser, argv)
+    hit.set_feature(feature_id)
+    hit.set_options(dests)
+
+
+def resolve_command_ids(
+    parser: argparse.ArgumentParser, argv: Sequence[str]
+) -> tuple[str, list[str]]:
+    """Return ``(feature_id, option dests)`` for *argv* after the ``sase`` word.
+
+    First-party plugin command words are recorded as ``plugin:<word>``.
+    Everything else walks the parser the same way the live CLI recorder does.
+    """
+    if argv and argv[0] in ids.FIRST_PARTY_PLUGIN_COMMANDS:
+        return f"plugin:{argv[0]}", []
     words, leaf = _parser_path(parser, argv)
-    hit.set_path(words)
-    hit.set_options(_option_dests(leaf, argv))
+    return ids.cli_id(words), _option_dests(leaf, argv)
 
 
 def _parser_path(
@@ -278,5 +292,6 @@ __all__ = [
     "begin",
     "disable_active",
     "record_active",
+    "resolve_command_ids",
     "set_parser_path",
 ]
