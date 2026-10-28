@@ -234,6 +234,22 @@ def test_review_ready_notification_is_appended_once(
     assert (tmp_path / "footprint" / "review-ready-notified").is_file()
 
 
+def test_disclosure_upsert_reaches_the_inbox(monkeypatch, tmp_path: Path) -> None:
+    """The real disclosure upsert must satisfy the notification store contract.
+
+    ``upsert_notification`` with a ``dedup_key`` requires ``plus_one_note``;
+    without it the Rust binding raises and the disclosure never lands.
+    """
+    home = tmp_path / "home"
+    monkeypatch.setenv("SASE_HOME", str(home))
+
+    fold._upsert_disclosure_notification()
+
+    inbox = home / "notifications" / "notifications.jsonl"
+    assert inbox.exists()
+    assert "footprint.disclosure" in inbox.read_text(encoding="utf-8")
+
+
 def test_clear_ledger_writes_the_generation_file(monkeypatch, tmp_path: Path) -> None:
     home = tmp_path / "home"
     monkeypatch.setenv("SASE_HOME", str(home))

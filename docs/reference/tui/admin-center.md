@@ -178,9 +178,9 @@ and `R` refreshes the off-thread cached inventory.
 ### Statistics tab
 
 The Statistics tab aggregates durable agent run and activity records over a selectable
-time range. Its eight numbered views are **01 Overview**, **02 Runners**, **03
+time range. Its nine numbered views are **01 Overview**, **02 Runners**, **03
 Projects**, **04 Providers**, **05 Activity**, **06 Macros**, **07 Plans & Questions**,
-and **08 Perf**. The Runners view uses today's effective global limit—including a
+**08 Perf**, and **09 Footprint**. The Runners view uses today's effective global limit—including a
 temporary override—as present-day context, never as historical configuration. The
 Projects view reports default-branch output, committed plans, lifetime code, and this
 machine's runs. Press `g` to group by project, repo, language, model, or Project →
@@ -189,13 +189,19 @@ to model and skips project while cycling. Macros can group by usage, model, proj
 Perf combines TUI startup and responsiveness logs with telemetry latency and
 reliability; its grouping cycles through subsystem, provider, and workflow. A pane-wide
 project filter lets you apply the same scope to the run-backed views, but Perf is global
-and marks the project chip **not applied**.
+and marks the project chip **not applied**. Footprint is the local usage census of
+which sase surfaces you actually use; see the
+[Footprint reference](../footprint.md) for its lenses, evidence states, and review flow.
 
 The pane loads only while visible, refreshes every 30 seconds, and performs its queries
-off the UI thread. Use `[` / `]` to change views or press `0` followed by `1`–`8` to
-select the view displayed as `01` through `08`. Use `t`/`T` or `c` to choose a preset or
-custom range, `g` to change the Projects, Macros, or Perf grouping, `p`/`P` to cycle the
-project filter forward or backward, and `r` to refresh immediately. Keyed scope chips
+off the UI thread. Use `[` / `]` to change views or press `0` followed by `1`–`9` to
+select the view displayed as `01` through `09`. Use `t`/`T` or `c` to choose a preset or
+custom range, `g` to change the Projects, Macros, Perf, or Footprint lens grouping, `a`
+to cycle the Footprint actor scope, `p`/`P` to cycle the
+project filter forward or backward, and `r` to refresh immediately. On the Footprint
+view, `enter` drills into an area, `backspace` returns, `/` finds a feature, `y` copies
+its ID, `k` / `l` / `x` / `u` record keep / later / cut / clear decisions, and `F`
+launches the `#footprint_review` flow. Keyed scope chips
 keep the effective range, grouping, and project visible; the **Group** chip appears only
 in those three groupable views and names the selected dimension there. Project scopes
 use configured display names while retaining canonical keys internally. First open seeds

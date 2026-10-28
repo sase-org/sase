@@ -147,5 +147,6 @@ Each feature has exactly one evidence state: `not_measured`, `too_new`, `used`,
 return an empty report and do not create the file.
 
 Lenses: `map`, `cold`, `fading`, `agent-only`, `dead-paths`, `friction`, `hot`,
-`coverage`, `decisions`. Map with no area returns area rows only. `imported_pack_count`
-stays 0 until the export/import phase.
+`coverage`, `decisions`. Map with no area returns area rows only. There is no
+multi-machine merge yet: the report header carries no imported-pack count, so usage days
+and observed active days are local-only until an export/import phase lands.

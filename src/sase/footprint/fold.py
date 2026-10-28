@@ -240,7 +240,10 @@ def _upsert_disclosure_notification() -> None:
         dedup_key="footprint.disclosure",
     )
     try:
-        upsert_notification(notification)
+        upsert_notification(
+            notification,
+            plus_one_note="Footprint is still recording local usage counts.",
+        )
     except Exception:  # noqa: BLE001 - disclosure must not break the fold.
         _LOG.warning(
             "Failed to upsert Footprint disclosure notification", exc_info=True

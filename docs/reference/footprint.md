@@ -124,5 +124,17 @@ Record review decisions with
 `rare_by_design`, `safety`, `agent_facing`, `api_contract`, `other`). A decision is
 metadata on top of the evidence state; `later` snoozes 30 days and then re-enters Cold.
 
+## Reviewing in the TUI
+
+Open Admin Center → Statistics → `09 Footprint` for the same report with drill-down. The
+header shows the actor, window, observed active days, and a `PREVIEW` / `READY` chip;
+tiles jump to the Map, Cold, and Agent-only lenses. `g` cycles the nine lenses, `a`
+cycles the actor scope, and `t` / `T` cycle the shared range presets (the report default
+is `60d`). `enter` drills from the Map into an area, `backspace` returns, `/` finds a
+feature, and `y` copies its ID. `k` opens the keep-reason picker, `l` snoozes, `x` marks
+for cut, and `u` clears the decision. `F` launches the `#footprint_review` agent in the
+configured review project to turn cut decisions into deletion task beads and keep
+decisions into overlay reasons.
+
 Related: [`sase footprint`](cli/footprint.md) ·
 [Environment variables](environment-variables.md).

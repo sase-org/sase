@@ -8,9 +8,11 @@ description: "SASE records debugging and health metric history locally."
 SASE records debugging and health metric history locally. No network service is
 required: instrumented processes accumulate metric deltas in memory, periodically flush
 them to a SQLite store through the Rust core, and query the same store through the
-telemetry diagnostics CLI. Historical product-usage questions are answered by the Admin
-Center's Statistics tab from durable run and activity records instead of this
-short-lived metric store.
+telemetry diagnostics CLI. "Which parts of sase do I actually use?" is a product-usage
+question, not a health question: it is answered by Footprint, the local usage census in
+`src/sase/footprint/` with its own SQLite ledger (`~/.sase/footprint/`), not by this
+short-lived metric store. See the [Footprint contributor guide](footprint.md) and the
+[Footprint reference](../reference/footprint.md).
 
 Telemetry is enabled by default. Set `telemetry.enabled: false` to opt out;
 instrumentation then remains connected to lightweight no-op stubs and no samples are
@@ -189,8 +191,10 @@ Open the SASE Admin Center with `#` or the command palette, then press `6` or se
 records. **Projects** loads the shared project-stats report instead: default-branch
 output, committed plans, lifetime code, and this machine's runs. The eighth, **Perf**,
 combines bounded TUI diagnostic logs with the telemetry metric store described above.
-The pane loads only while visible, performs aggregation off the UI thread, refreshes
-every 30 seconds, and shows loading, empty-range, and query-error states in place.
+The ninth, **Footprint**, is the local usage census and reads the separate Footprint
+ledger, never the telemetry store. The pane loads only while visible, performs
+aggregation off the UI thread, refreshes every 30 seconds, and shows loading,
+empty-range, and query-error states in place.
 
 The scope header makes the current controls explicit: **Range** shows a friendly summary
 and, when space permits, its absolute span; **Group** appears only in the Projects,
@@ -207,7 +211,7 @@ covers is whatever the agent-artifact index and the telemetry store still retain
 [Retention and rollups](perf-runbook.md#retention-and-rollups) for the Perf view's two
 retention rules.
 
-The eight numbered views answer different questions:
+The nine numbered views answer different questions:
 
 | #   | View                  | Contents                                                                                                                                                                                                                                                                          |
 | --- | --------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -219,6 +223,7 @@ The eight numbered views answer different questions:
 | 06  | **Macros**            | Macro use by frequency, model, project, and co-usage, with an optional focused Macro drill-down.                                                                                                                                                                                  |
 | 07  | **Plans & Questions** | Plan lifecycle and tier/phase distributions plus question-session counts and sizes.                                                                                                                                                                                               |
 | 08  | **Perf**              | TUI startup and responsiveness, launch and agent/LLM latency, reliability, and the health of each data source.                                                                                                                                                                    |
+| 09  | **Footprint**         | Local usage census by feature catalog, lens, and actor; see the [Footprint contributor guide](footprint.md).                                                                                                                                                                      |
 
 Each populated view ends with a compact legend defining its calculated metrics. Press
 `?` for the complete per-view glossary, control list, active range/group/project scope,
@@ -255,11 +260,11 @@ The default focused-pane keys are:
 | Key                 | Action                                                                                   |
 | ------------------- | ---------------------------------------------------------------------------------------- |
 | `[`/`]`             | Cycle statistic views.                                                                   |
-| `0`, then `1`–`8`   | Select the corresponding `01`–`08` Statistics view.                                      |
+| `0`, then `1`–`9`   | Select the corresponding `01`–`09` Statistics view.                                      |
 | `'`                 | Arm the same numbered-view selection as `0`.                                             |
 | `t`/`T`             | Cycle Today, 24h, 7d, 30d, 90d, and All forward / backward.                              |
 | `c`                 | Enter a custom absolute or relative time range.                                          |
-| `g`                 | Cycle grouping in Projects, Macros, or Perf.                                             |
+| `g`                 | Cycle grouping in Projects, Macros, or Perf; cycle the lens on the Footprint view.       |
 | `p`                 | Cycle All → each project from the latest unfiltered ranking → All.                       |
 | `P`                 | Cycle the same project order backward, wrapping in either direction.                     |
 | `x` / `X`           | Focus one Macro / return to all Macros in the Macros view.                               |

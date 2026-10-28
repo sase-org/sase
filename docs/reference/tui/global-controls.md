@@ -278,7 +278,7 @@ want to change.
 These keys dispatch only while the Admin Center Statistics pane is focused. They may
 overlap app-level bindings without creating a global conflict, and the pane's hint bar
 always shows the effective keys. Press the configured `select_view` prefix and then
-`1`–`8` to select the matching view displayed as `01` through `08`; bare digits continue
+`1`–`9` to select the matching view displayed as `01` through `09`; bare digits continue
 to switch the Admin Center's top-level tabs. `jump_to_entry` arms that same
 numbered-view selection, which is how the Admin Center-wide `'` behaves on a pane that
 has no row cursor to jump between — the visible strip numbers serve as its hints. The
