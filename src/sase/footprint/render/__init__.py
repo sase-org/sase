@@ -4,6 +4,7 @@ from sase.footprint.render._heat import heat_strip
 from sase.footprint.render._markdown import card_markdown, report_markdown
 from sase.footprint.render._report import (
     activity_strip,
+    area_card_panel,
     area_row_text,
     card_panel,
     decision_badge_text,
@@ -54,6 +55,7 @@ __all__ = [
     "ZERO_GLYPH",
     "ZERO_STYLE",
     "activity_strip",
+    "area_card_panel",
     "area_row_text",
     "card_markdown",
     "card_panel",

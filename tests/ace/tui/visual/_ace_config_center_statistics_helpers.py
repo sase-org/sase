@@ -5,6 +5,7 @@ from __future__ import annotations
 import pytest
 
 from sase.ace.tui.modals import statistics_pane as sp
+from sase.ace.tui.modals import statistics_pane_footprint as spf
 from sase.ace.tui.modals.statistics_pane import StatisticsPane
 from sase.ace.tui.modals.statistics_pane_data import StatisticsViewData
 from sase.stats.views import build_statistics_views
@@ -114,6 +115,93 @@ def _patch_statistics_projects_measuring_code(
     )
 
 
+def _snapshot_footprint_card(
+    target: tuple[str, str],
+    *,
+    actor: str = "you",
+    window_days: int | None = None,
+    today: str = "",
+) -> dict[str, object]:
+    """Return a deterministic evidence card for the Statistics snapshots."""
+    del actor, window_days, today
+    report = _result("footprint", _STATISTICS_RANGE)
+    rows = [dict(row) for row in report.footprint["rows"]]
+    areas = [dict(area) for area in report.footprint["areas"]]
+    kind, name = target
+    if kind == "area":
+        area = next((item for item in areas if item["area"] == name), None)
+        if area is None:
+            area = {
+                "area": name,
+                "total": 0,
+                "used": 0,
+                "used_pct": 0,
+                "recency_7d": 0,
+                "recency_30d": 0,
+                "recency_window": 0,
+                "recency_none": 0,
+                "recency_not_measured": 0,
+            }
+        unused = [
+            {
+                "id": row["id"],
+                "label": row["label"],
+                "ns": row["ns"],
+                "area": row["area"],
+                "kind": row["kind"],
+                "loc": row.get("loc"),
+            }
+            for row in rows
+            if row["area"] == name and not row["days_used"]
+        ]
+        return {
+            "row": {
+                "id": name,
+                "label": name,
+                "ns": name.split(".", 1)[0] if "." in name else name,
+                "area": name,
+                "kind": "area",
+                "state": "",
+                "uses": {"human": 0, "agent": 0, "automation": 0},
+                "days_used": 0,
+                "last_used_day": None,
+                "last_used_actor": None,
+                "via": {},
+                "loc": None,
+                "protected": None,
+                "decision": None,
+                "decision_reason": None,
+                "coverage_incomplete": False,
+            },
+            "daily_series": [],
+            "first_in_catalog": None,
+            "last_in_catalog": None,
+            "parent": None,
+            "children": [],
+            "retire_with": [],
+            "area_summary": {**area, "unused_by_loc": unused},
+        }
+    row = next((item for item in rows if item["id"] == name), rows[0])
+    series = [
+        {
+            "day": f"2026-10-{day:02d}",
+            "n": 1 if row["days_used"] and day % 3 else 0,
+            "measured": bool(day % 2),
+        }
+        for day in range(1, 15)
+    ]
+    return {
+        "row": dict(row),
+        "daily_series": series,
+        "first_in_catalog": "2026-08-01",
+        "last_in_catalog": "2026-10-26",
+        "parent": None,
+        "children": [],
+        "retire_with": [],
+        "area_summary": None,
+    }
+
+
 def _patch_statistics_footprint(
     monkeypatch: pytest.MonkeyPatch,
     *,
@@ -122,6 +210,7 @@ def _patch_statistics_footprint(
 ) -> None:
     """Return deterministic Footprint reports for the Statistics snapshots."""
     monkeypatch.setattr(sp, "resolve_preset", lambda _key: _STATISTICS_RANGE)
+    monkeypatch.setattr(spf, "fetch_footprint_card", _snapshot_footprint_card)
 
     def load(
         view: str,

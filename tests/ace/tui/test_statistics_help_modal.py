@@ -65,6 +65,8 @@ def test_help_documents_every_statistics_binding_and_current_scope() -> None:
             "prev_row",
             "open_row",
             "drill_up",
+            "find_feature",
+            "copy_feature_id",
             "focus_macro",
             "clear_macro_focus",
         }:
@@ -92,6 +94,8 @@ def test_help_group_control_is_visible_only_for_grouping_views() -> None:
             assert "Group By — Footprint · Map" in controls
             assert "Footprint Actor — current actor: you" in controls
             assert "Next Footprint Row" in controls
+            assert "Find Feature — find any catalog feature" in controls
+            assert "Copy Feature ID — copy the selected feature ID" in controls
         else:
             assert "Group By" not in controls
 

@@ -158,9 +158,13 @@ class StatisticsHelpModal(ModalScreen[None]):
         for (action, description), (key, _) in zip(
             _STATISTICS_BINDING_META, bindings, strict=True
         ):
-            if action in {"cycle_actor", "next_row", "prev_row"} and (
-                self._current_view != "footprint"
-            ):
+            if action in {
+                "cycle_actor",
+                "next_row",
+                "prev_row",
+                "find_feature",
+                "copy_feature_id",
+            } and (self._current_view != "footprint"):
                 continue
             if action == "open_row" and not (
                 self._current_view == "footprint"
@@ -234,6 +238,10 @@ class StatisticsHelpModal(ModalScreen[None]):
             return "open the selected map area"
         if action == "drill_up":
             return "return from the selected area to the map"
+        if action == "find_feature":
+            return "find any catalog feature and drill to its area"
+        if action == "copy_feature_id":
+            return "copy the selected feature ID (or area name)"
         if action == "cycle_project_filter":
             return f"next ranked project (seeded); current: {self._project_label}"
         if action == "cycle_project_filter_reverse":
@@ -283,7 +291,20 @@ class StatisticsHelpModal(ModalScreen[None]):
         text.append("Preview", style=f"bold {_CYAN}")
         text.append(
             " — candidate counts remain provisional until the active-day gate is met; "
-            "the view never treats missing coverage as zero use.",
+            "the view never treats missing coverage as zero use.\n",
+            style="dim",
+        )
+        text.append("Card", style=f"bold {_CYAN}")
+        text.append(
+            " — the evidence card beside (wide) or below (narrow) the list "
+            "follows the highlight; the area summary shows map areas.\n",
+            style="dim",
+        )
+        text.append("Finder", style=f"bold {_CYAN}")
+        text.append(
+            f" — {key_display_name(self._keymaps.find_feature)} filters every "
+            "catalog feature and drills to its area; "
+            f"{key_display_name(self._keymaps.copy_feature_id)} copies the ID.",
             style="dim",
         )
         return text

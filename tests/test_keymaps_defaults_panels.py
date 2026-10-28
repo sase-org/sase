@@ -105,6 +105,8 @@ def test_default_config_covers_all_statistics_keymaps() -> None:
         "prev_row": "k,up,ctrl+p",
         "open_row": "enter",
         "drill_up": "backspace",
+        "find_feature": "slash",
+        "copy_feature_id": "y",
         "scroll_down": "ctrl+d",
         "scroll_up": "ctrl+u",
         "refresh": "r",

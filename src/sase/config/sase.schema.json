@@ -2840,6 +2840,14 @@
                   "type": "string",
                   "description": "Return from a Footprint area to its map"
                 },
+                "find_feature": {
+                  "type": "string",
+                  "description": "Find a Footprint feature by name and drill to its area"
+                },
+                "copy_feature_id": {
+                  "type": "string",
+                  "description": "Copy the selected Footprint feature ID"
+                },
                 "scroll_down": {
                   "type": "string",
                   "description": "Scroll the statistics body down by half a page"

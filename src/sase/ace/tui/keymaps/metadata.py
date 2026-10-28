@@ -221,6 +221,8 @@ _STATISTICS_BINDING_META: tuple[tuple[str, str], ...] = (
     ("prev_row", "Previous Footprint Row"),
     ("open_row", "Open Area"),
     ("drill_up", "Back to Map"),
+    ("find_feature", "Find Feature"),
+    ("copy_feature_id", "Copy Feature ID"),
     ("scroll_down", "Scroll Down"),
     ("scroll_up", "Scroll Up"),
     ("refresh", "Refresh"),

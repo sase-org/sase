@@ -2,15 +2,20 @@
 
 from __future__ import annotations
 
+import math
 from collections.abc import Mapping
+from datetime import datetime
 from typing import Any, cast
 
 from textual import on
 from textual.containers import VerticalScroll
 from textual.events import Click, Key
 from textual.widgets import Input, Static
+from textual.worker import Worker, WorkerState
 
 from sase.ace.tui.keymaps import split_key_alternatives
+from sase.ace.tui.util.debounce import DetailPanelDebouncer
+from sase.core.time import get_timezone
 from sase.ace.tui.widgets.panel_tab_strip import PanelTabStrip
 from sase.stats.loader import StatisticsViewData
 from sase.stats.ranges import PRESET_ORDER, PresetKey, StatsRange, parse_stats_range
@@ -35,8 +40,26 @@ class StatisticsPaneActionsMixin(StatisticsPaneLayoutMixin):
     _project_filter_options: tuple[str, ...]
     _project_filter_seeded: bool
     _macro_focus_options: tuple[str, ...]
+    _footprint_lens: str
+    _footprint_actor: str
+    _footprint_area: str | None
+    _footprint_selected_index: int
+    _footprint_card: dict[str, Any] | None
+    _footprint_card_for: tuple[str, str] | None
+    _footprint_card_error: str
+    _footprint_card_loading: bool
+    _footprint_card_generation: int
+    _footprint_card_worker: Worker[Any] | None
+    _footprint_card_debouncer: DetailPanelDebouncer | None
+    _footprint_pending_highlight: str | None
 
     def check_action(self, action: str, parameters: tuple[object, ...]) -> bool | None:
+        if action in {"find_feature", "copy_feature_id"}:
+            if self._view != "footprint":
+                return False
+            if action == "find_feature":
+                return True
+            return bool(self._footprint_items())
         if action in {"cycle_actor", "next_row", "prev_row", "open_row", "drill_up"}:
             if self._view != "footprint":
                 return False
@@ -242,7 +265,147 @@ class StatisticsPaneActionsMixin(StatisticsPaneLayoutMixin):
         self._footprint_selected_index = (self._footprint_selected_index + delta) % len(
             items
         )
+        # The highlight paints inline (tui_perf rule 7); the evidence card
+        # follows through the debouncer instead of blocking the keypress.
         self._paint_current_view()
+        self._schedule_footprint_card()
+
+    def _footprint_card_target(self) -> tuple[str, str] | None:
+        """Return the ``(kind, name)`` the evidence card should show, if any."""
+        if self._view != "footprint":
+            return None
+        if self._footprint_lens == "coverage" and self._footprint_area is None:
+            return None
+        items = self._footprint_items()
+        if not items:
+            return None
+        selected = items[min(max(0, self._footprint_selected_index), len(items) - 1)]
+        if self._footprint_lens == "map" and self._footprint_area is None:
+            area = selected.get("area")
+            if isinstance(area, str) and area:
+                return ("area", area)
+            return None
+        feature_id = selected.get("id")
+        if isinstance(feature_id, str) and feature_id:
+            return ("feature", feature_id)
+        return None
+
+    def _footprint_current_feature_id(self) -> str | None:
+        """Return the selected feature ID for the finder and copy actions."""
+        card_for = getattr(self, "_footprint_card_for", None)
+        if isinstance(card_for, tuple) and card_for[0] == "feature":
+            return card_for[1]
+        items = self._footprint_items()
+        if not items:
+            return None
+        selected = items[min(max(0, self._footprint_selected_index), len(items) - 1)]
+        feature_id = selected.get("id")
+        return feature_id if isinstance(feature_id, str) and feature_id else None
+
+    def _footprint_card_window(self) -> tuple[int | None, str]:
+        """Derive card window days and today exactly as the view loader does."""
+        selected_range = self._range
+        duration_seconds = max(1, selected_range.end_ts - selected_range.start_ts)
+        window_days = (
+            None
+            if selected_range.start_ts <= 0
+            else max(1, math.ceil(duration_seconds / 86_400))
+        )
+        end_ts = max(0, selected_range.end_ts - 1)
+        today = datetime.fromtimestamp(end_ts, tz=get_timezone()).date().isoformat()
+        return window_days, today
+
+    def _schedule_footprint_card(self) -> None:
+        """Debounce the evidence card fetch; the highlight already painted."""
+        if self._view != "footprint":
+            return
+        debouncer = self._footprint_card_debouncer
+        if debouncer is None:
+            self._start_footprint_card_load()
+            return
+        debouncer.schedule(self._start_footprint_card_load)
+
+    def _start_footprint_card_load(self) -> None:
+        """Fetch the evidence card for the current selection in a worker."""
+        if self._view != "footprint":
+            return
+        from .statistics_pane_footprint import fetch_footprint_card
+
+        target = self._footprint_card_target()
+        if target is None:
+            self._footprint_card = None
+            self._footprint_card_for = None
+            self._footprint_card_error = ""
+            self._footprint_card_loading = False
+            return
+        self._footprint_card_generation += 1
+        generation = self._footprint_card_generation
+        actor = self._footprint_actor
+        window_days, today = self._footprint_card_window()
+        card_worker = self._footprint_card_worker
+        if card_worker is not None and card_worker.state in (
+            WorkerState.PENDING,
+            WorkerState.RUNNING,
+        ):
+            card_worker.cancel()
+        self._footprint_card_loading = True
+        self._footprint_card_error = ""
+
+        def task() -> tuple[int, tuple[str, str], dict[str, Any]]:
+            card = fetch_footprint_card(
+                target, actor=actor, window_days=window_days, today=today
+            )
+            return (generation, target, card)
+
+        self._footprint_card_worker = self.run_worker(
+            task,
+            thread=True,
+            exclusive=True,
+            group="statistics-footprint-card",
+            exit_on_error=False,
+        )
+        self._paint_current_view()
+
+    def _on_footprint_card_worker_state(self, event: Worker.StateChanged) -> None:
+        """Apply a finished card fetch only when it still matches selection."""
+        worker = event.worker
+        if event.state == WorkerState.SUCCESS:
+            payload = worker.result
+            if not (isinstance(payload, tuple) and len(payload) == 3):
+                return
+            generation, target, card = payload
+            if generation != self._footprint_card_generation:
+                return
+            if not isinstance(card, dict):
+                return
+            if target != self._footprint_card_target():
+                return
+            self._footprint_card = card
+            self._footprint_card_for = target
+            self._footprint_card_error = ""
+            self._footprint_card_loading = False
+            if self._view == "footprint":
+                self._paint_current_view()
+        elif event.state == WorkerState.ERROR:
+            message = str(worker.error) if worker.error else "card load failed"
+            self._footprint_card_loading = False
+            if self._footprint_card is None:
+                self._footprint_card_error = message
+            if self._view == "footprint":
+                self._paint_current_view()
+
+    def _apply_pending_footprint_highlight(self) -> None:
+        """Highlight the finder-chosen feature once its drill rows land."""
+        pending = self._footprint_pending_highlight
+        if pending is None or self._view != "footprint":
+            return
+        self._footprint_pending_highlight = None
+        items = self._footprint_items()
+        for index, item in enumerate(items):
+            if item.get("id") == pending:
+                self._footprint_selected_index = index
+                return
+        self._footprint_selected_index = 0
 
     def action_open_row(self) -> None:
         """Drill from the map into the selected area's feature rows."""
@@ -268,6 +431,65 @@ class StatisticsPaneActionsMixin(StatisticsPaneLayoutMixin):
         self._footprint_area = None
         self._footprint_selected_index = 0
         self._selection_changed(reload=True)
+
+    def action_find_feature(self) -> None:
+        """Open the filterable feature finder over the whole catalog."""
+        if self._view != "footprint":
+            return
+        from .statistics_footprint_finder_modal import (
+            FootprintFeatureChoice,
+            StatisticsFootprintFinderModal,
+            catalog_features,
+        )
+
+        try:
+            features = catalog_features()
+        except Exception as exc:
+            self.notify(f"Feature catalog unavailable: {exc}", severity="error")
+            return
+
+        def on_picked(choice: FootprintFeatureChoice | None) -> None:
+            if choice is None or not choice.feature_id:
+                return
+            # Switch to the All-features drill of the feature's area with
+            # the chosen feature highlighted once its rows land.
+            self._footprint_lens = "map"
+            self._footprint_area = choice.area
+            self._footprint_selected_index = 0
+            self._footprint_pending_highlight = choice.feature_id
+            self._selection_changed(reload=True)
+            self.focus()
+
+        self.app.push_screen(
+            StatisticsFootprintFinderModal(
+                features,
+                current_feature_id=self._footprint_current_feature_id(),
+            ),
+            on_picked,
+        )
+
+    def action_copy_feature_id(self) -> None:
+        """Copy the selected feature ID (or area name) to the clipboard."""
+        if self._view != "footprint":
+            return
+        target = self._footprint_card_target()
+        if target is None:
+            return
+        _kind, name = target
+        try:
+            from sase.ace.tui.actions.clipboard import schedule_copy_delivery
+
+            schedule_copy_delivery(
+                self.app,
+                name,
+                copied_label="Feature ID",
+                task_name="footprint-pane-copy-feature-id",
+            )
+        except Exception:
+            try:
+                self.app.copy_to_clipboard(name)  # type: ignore[attr-defined]
+            except Exception:
+                self.notify(f"copy {name}", severity="information")
 
     def action_cycle_project_filter(self) -> None:
         """Cycle forward through All and cached ranked projects."""

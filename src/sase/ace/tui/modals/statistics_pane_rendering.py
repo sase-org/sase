@@ -502,6 +502,8 @@ class StatisticsPanePresentationBase(StatisticsViewsRenderingMixin, Vertical):
                 hints.append(f"   {self._effective_key('open_row')} area")
             elif self._footprint_area is not None:
                 hints.append(f"   {self._effective_key('drill_up')} map")
+            hints.append(f"   {self._effective_key('find_feature')} find")
+            hints.append(f"   {self._effective_key('copy_feature_id')} copy id")
             hints.append(f"   {self._effective_key('refresh')} refresh")
             hints.append(f"   {self._effective_key('help')} help")
             return hints

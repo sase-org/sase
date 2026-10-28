@@ -99,6 +99,14 @@ class StatisticsPane(StatisticsPaneActionsMixin):
         self._footprint_actor = "you"
         self._footprint_area: str | None = None
         self._footprint_selected_index = 0
+        self._footprint_card: dict[str, Any] | None = None
+        self._footprint_card_for: tuple[str, str] | None = None
+        self._footprint_card_error = ""
+        self._footprint_card_loading = False
+        self._footprint_card_generation = 0
+        self._footprint_card_worker: Worker[Any] | None = None
+        self._footprint_card_debouncer: DetailPanelDebouncer | None = None
+        self._footprint_pending_highlight: str | None = None
         self._project_filter: str | None = None
         self._project_filter_options: tuple[str, ...] = ()
         self._project_filter_options_ready = False
@@ -134,6 +142,7 @@ class StatisticsPane(StatisticsPaneActionsMixin):
     def on_mount(self) -> None:
         self.query_one("#statistics-custom-range", Input).display = False
         self._load_debouncer = DetailPanelDebouncer(self.app)
+        self._footprint_card_debouncer = DetailPanelDebouncer(self.app)
         self._refresh_timer = self.set_interval(
             _REFRESH_INTERVAL_SECONDS,
             self._on_refresh_tick,
@@ -145,6 +154,8 @@ class StatisticsPane(StatisticsPaneActionsMixin):
     def on_unmount(self) -> None:
         if self._load_debouncer is not None:
             self._load_debouncer.cancel()
+        if self._footprint_card_debouncer is not None:
+            self._footprint_card_debouncer.cancel()
         if self._refresh_timer is not None:
             self._refresh_timer.stop()
             self._refresh_timer = None
@@ -152,6 +163,8 @@ class StatisticsPane(StatisticsPaneActionsMixin):
             self._worker.cancel()
         if self._code_worker is not None:
             self._code_worker.cancel()
+        if self._footprint_card_worker is not None:
+            self._footprint_card_worker.cancel()
         if self._current_project_seed_worker is not None:
             self._current_project_seed_worker.cancel()
 
@@ -188,8 +201,11 @@ class StatisticsPane(StatisticsPaneActionsMixin):
         """Pause pending work while another Admin Center tab is active."""
         if active:
             self._ensure_loaded()
-        elif self._load_debouncer is not None:
-            self._load_debouncer.cancel()
+        else:
+            if self._load_debouncer is not None:
+                self._load_debouncer.cancel()
+            if self._footprint_card_debouncer is not None:
+                self._footprint_card_debouncer.cancel()
 
     def _ensure_loaded(self) -> None:
         if self._auto_load and not self._loaded_once and not self._loading:
@@ -325,6 +341,10 @@ class StatisticsPane(StatisticsPaneActionsMixin):
         generation = self._load_generation
         self._inflight_selection = selection
         self._inflight_identity = identity
+        if view == "footprint":
+            # A new report invalidates any in-flight evidence card fetch:
+            # the rows it was fetched for may no longer be selected.
+            self._footprint_card_generation += 1
         if self._code_worker is not None:
             self._code_worker.cancel()
             self._code_worker = None
@@ -447,6 +467,9 @@ class StatisticsPane(StatisticsPaneActionsMixin):
         if event.worker is self._code_worker:
             self._on_code_worker_state(event)
             return
+        if event.worker is self._footprint_card_worker:
+            self._on_footprint_card_worker_state(event)
+            return
         if event.worker is not self._worker:
             return
         if event.state == WorkerState.SUCCESS:
@@ -552,8 +575,11 @@ class StatisticsPane(StatisticsPaneActionsMixin):
         else:
             self._code_complete = False
             self._code_fingerprint = None
+        self._apply_pending_footprint_highlight()
         self._cache_filter_options(result)
         self._paint_current_view()
+        if self._view == "footprint":
+            self._schedule_footprint_card()
         if (
             self._view == "projects"
             and result.project_stats is not None

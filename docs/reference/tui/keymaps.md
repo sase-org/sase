@@ -402,6 +402,8 @@ These are the bundled defaults for configurable TUI actions. The key and action 
 | `k / up / Ctrl+P` | Previous Footprint Row | `ace.keymaps.statistics.prev_row` |
 | `Enter` | Open Area | `ace.keymaps.statistics.open_row` |
 | `backspace` | Back to Map | `ace.keymaps.statistics.drill_up` |
+| `/` | Find Feature | `ace.keymaps.statistics.find_feature` |
+| `y` | Copy Feature ID | `ace.keymaps.statistics.copy_feature_id` |
 | `Ctrl+D` | Scroll Down | `ace.keymaps.statistics.scroll_down` |
 | `Ctrl+U` | Scroll Up | `ace.keymaps.statistics.scroll_up` |
 | `r` | Refresh | `ace.keymaps.statistics.refresh` |

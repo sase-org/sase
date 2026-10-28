@@ -239,6 +239,52 @@ def card_panel(card: dict[str, Any], header: dict[str, Any]) -> Panel:
     )
 
 
+def area_card_panel(summary: dict[str, Any], header: dict[str, Any]) -> Panel:
+    """Return the area summary card for the map lens: totals, buckets, LOC."""
+    area = str(summary.get("area", ""))
+    ns = str(summary.get("ns", ""))
+    total = max(0, int(summary.get("total", 0) or 0))
+    used = max(0, int(summary.get("used", 0) or 0))
+    pct = int(summary.get("used_pct", 0) or 0)
+    lines: list[RenderableType] = [
+        Text(f"{used}/{total} used · {pct}%", style="bold"),
+        Text(
+            "recency ≤7d "
+            f"{int(summary.get('recency_7d', 0) or 0)}"
+            " · ≤30d "
+            f"{int(summary.get('recency_30d', 0) or 0)}"
+            " · in window "
+            f"{int(summary.get('recency_window', 0) or 0)}"
+            " · no recorded use "
+            f"{int(summary.get('recency_none', 0) or 0)}"
+            " · not measured "
+            f"{int(summary.get('recency_not_measured', 0) or 0)}",
+            style=MUTED_STYLE,
+        ),
+    ]
+    unused = summary.get("unused_by_loc", [])
+    if isinstance(unused, list) and unused:
+        lines.append(Text("Largest unused by LOC", style="bold"))
+        for row in unused[:5]:
+            if not isinstance(row, Mapping):
+                continue
+            label = str(row.get("label", row.get("id", "")))
+            feature_id = str(row.get("id", ""))
+            loc = row.get("loc")
+            loc_text = f" · {format_count(loc)} LOC" if isinstance(loc, int) else ""
+            lines.append(Text(f"{label} `{feature_id}`{loc_text}", style=MUTED_STYLE))
+    else:
+        lines.append(Text("No unused features in this area.", style=MUTED_STYLE))
+    return Panel(
+        Group(*lines),
+        title=Text(area, style="bold"),
+        subtitle=f"{ns} · area summary",
+        subtitle_align="left",
+        border_style="cyan",
+        padding=(1, 2),
+    )
+
+
 def activity_strip(series: list[dict[str, Any]], *, width: int = 52) -> Text:
     """Render daily activity; unmeasured days are a dim gap, never a zero bar."""
     width = max(8, int(width))
@@ -402,6 +448,7 @@ def legend_text() -> Text:
 
 __all__ = [
     "activity_strip",
+    "area_card_panel",
     "area_row_text",
     "card_panel",
     "decision_badge_text",

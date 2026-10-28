@@ -298,6 +298,8 @@ class StatisticsPaneKeymaps:
     prev_row: str = "k,up,ctrl+p"
     open_row: str = "enter"
     drill_up: str = "backspace"
+    find_feature: str = "slash"
+    copy_feature_id: str = "y"
     scroll_down: str = "ctrl+d"
     scroll_up: str = "ctrl+u"
     refresh: str = "r"
