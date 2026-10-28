@@ -345,6 +345,13 @@ class StatisticsPaneActionsMixin(StatisticsPaneLayoutMixin):
         resolved = validated_statistics_view(view)
         if resolved is None or resolved == self._view:
             return
+        try:
+            app = self.app  # type: ignore[attr-defined]
+            record = getattr(app, "_footprint_record_stats_view", None)
+            if callable(record):
+                record(resolved)
+        except Exception:
+            pass
         self._view = resolved
         try:
             self.query_one("#statistics-views", PanelTabStrip).set_active_tab(resolved)

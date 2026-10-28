@@ -49,6 +49,12 @@ class LifecycleMixin:
         from ..util.pump_tasks import cancel_pump_free_tasks
         from ..util.trace import set_startup_window
 
+        try:
+            from sase.footprint._tui import flush_now
+
+            flush_now()
+        except Exception:
+            pass
         set_startup_window(False)
         stop_tui_heap_sampler(self)
         stop_capacity_feed = getattr(self, "_stop_machine_capacity_report_feed", None)

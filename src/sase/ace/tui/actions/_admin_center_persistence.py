@@ -79,6 +79,10 @@ class AdminCenterPersistenceMixin:
 
     def _on_admin_center_tab_activated(self, tab: CenterTab) -> None:
         """Receive the modal's successful-navigation callback."""
+        try:
+            self._footprint_record_admin_tab(tab)  # type: ignore[attr-defined]
+        except Exception:
+            pass
         self._remember_admin_center_tab(tab)
 
     def _save_admin_center_tab_now(self, history: AdminCenterTabHistory) -> None:

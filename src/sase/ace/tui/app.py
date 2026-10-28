@@ -13,6 +13,7 @@ from textual.markup import MarkupError
 from textual.reactive import reactive
 
 from sase.ace.tui.util.session_registration import register_ace_session
+from sase.footprint._tui_seams import FootprintTuiMixin
 from sase.logs import current_toast_session, record_toast
 
 if TYPE_CHECKING:
@@ -122,6 +123,7 @@ __all__ = [
 
 
 class AceApp(
+    FootprintTuiMixin,
     AppLayoutMixin,
     AppWatchersMixin,
     AgentWorkflowMixin,

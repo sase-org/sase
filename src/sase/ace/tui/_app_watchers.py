@@ -73,6 +73,10 @@ class AppWatchersMixin:
         """React to tab changes by showing/hiding views."""
         if old_tab == new_tab:
             return
+        try:
+            self._footprint_record_tab(new_tab)  # type: ignore[attr-defined]
+        except Exception:
+            pass
 
         if old_tab == "agents":
             self._cancel_selected_live_reply_follow()
@@ -285,6 +289,10 @@ class AppWatchersMixin:
         """Switch Artifacts panes and preserve PR detail/refresh isolation."""
         if old_subtab == new_subtab:
             return
+        try:
+            self._footprint_record_subtab(new_subtab)  # type: ignore[attr-defined]
+        except Exception:
+            pass
         clear_link_trail = getattr(self, "_clear_link_trail_if_unguarded", None)
         if callable(clear_link_trail):
             clear_link_trail()
@@ -379,4 +387,8 @@ class AppWatchersMixin:
         new_subtab: FilesSubTab,
     ) -> None:
         """Compatibility watcher for the retired nested Files panes."""
-        del old_subtab, new_subtab
+        del old_subtab
+        try:
+            self._footprint_record_subtab(new_subtab)  # type: ignore[attr-defined]
+        except Exception:
+            pass

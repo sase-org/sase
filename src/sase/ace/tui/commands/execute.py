@@ -37,6 +37,12 @@ if TYPE_CHECKING:
 
 def execute_command(app: AceApp, spec: CommandSpec) -> None:  # type: ignore[no-untyped-def]
     """Run ``spec`` on the live ``app`` via existing dispatch paths."""
+    record = getattr(app, "_footprint_record_palette", None)
+    if callable(record):
+        try:
+            record(spec.id)
+        except Exception:
+            pass
     executor = spec.executor
     kind = executor.kind
 

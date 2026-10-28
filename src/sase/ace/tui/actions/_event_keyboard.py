@@ -13,6 +13,17 @@ if TYPE_CHECKING:
     from textual.widgets import Input, TextArea
 
 
+def _footprint_note(app: object, mode: str, key: str) -> None:
+    """Record a prefix-mode hit without ever changing key handling."""
+    record = getattr(app, "_footprint_record_mode_key", None)
+    if not callable(record):
+        return
+    try:
+        record(mode, key)
+    except Exception:
+        pass
+
+
 class EventKeyboardMixin(EventHandlersBase):
     """Mixin providing key and text-input event handlers."""
 
@@ -53,6 +64,7 @@ class EventKeyboardMixin(EventHandlersBase):
                 event.stop()
         elif self._fold_mode_active:
             if self._handle_fold_key(event.key):  # type: ignore[attr-defined]
+                _footprint_note(self, "fold", event.key)
                 event.prevent_default()
                 event.stop()
         elif self._checkout_mode_active:
@@ -61,10 +73,12 @@ class EventKeyboardMixin(EventHandlersBase):
                 event.stop()
         elif self._saved_query_mode_active:
             if self._handle_saved_query_key(event.key):  # type: ignore[attr-defined]
+                _footprint_note(self, "saved_query", event.key)
                 event.prevent_default()
                 event.stop()
         elif self._copy_mode_active:
             if self._handle_copy_key(event.key):  # type: ignore[attr-defined]
+                _footprint_note(self, "copy", event.key)
                 event.prevent_default()
                 event.stop()
         elif (
@@ -77,18 +91,22 @@ class EventKeyboardMixin(EventHandlersBase):
                 event.stop()
         elif self._leader_mode_active:
             if self._handle_leader_key(event.key):  # type: ignore[attr-defined]
+                _footprint_note(self, "leader", event.key)
                 event.prevent_default()
                 event.stop()
         elif getattr(self, "_bead_issue_mode_active", False):
             if self._handle_bead_issue_key(event.key):  # type: ignore[attr-defined]
+                _footprint_note(self, "bead_issue", event.key)
                 event.prevent_default()
                 event.stop()
         elif self._bang_mode_active:
             if self._handle_bang_key(event.key):  # type: ignore[attr-defined]
+                _footprint_note(self, "bang", event.key)
                 event.prevent_default()
                 event.stop()
         elif self._custom_mode_active is not None:
             if self._handle_custom_mode_key(event.key):  # type: ignore[attr-defined]
+                _footprint_note(self, "custom", event.key)
                 event.prevent_default()
                 event.stop()
         elif event.key in self._custom_mode_prefixes:

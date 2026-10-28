@@ -190,10 +190,11 @@ def _hard_exit_ace(exit_code: int) -> NoReturn:
     from sase.footprint._cli import record_active
 
     record_active(exit_code)
+    from sase.footprint._tui import flush_now
     from sase.telemetry import flush_metrics
 
     _log_live_exit_threads()
-    for flush in (flush_metrics, sys.stdout.flush, sys.stderr.flush):
+    for flush in (flush_now, flush_metrics, sys.stdout.flush, sys.stderr.flush):
         try:
             flush()
         except Exception:

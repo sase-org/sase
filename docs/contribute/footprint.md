@@ -59,6 +59,51 @@ stay visible in diffs.
 `src/sase/footprint/catalog.py` loads the catalog and the overlay off the hot path; hot
 paths import only `ids` and `paths`.
 
+## Recording seams
+
+The TUI records at five seams, all funnelled through one mixin
+(`src/sase/footprint/_tui_seams.py:FootprintTuiMixin`, first in the `AceApp` bases) so
+every hit goes through the same counter (`src/sase/footprint/_tui.py:bump`):
+
+- **`AceApp.run_action` override.** Counts only when `super()` returns `True`. The count
+  is keyed by the `default_namespace` class scope plus the action name with parameters
+  stripped, via a lazily built and cached class→scope map. `ids.NAVIGATION_ACTIONS` are
+  skipped. `via` is `mouse` when `on_mouse_down` set a one-shot flag, otherwise `key`.
+- **Palette.** `commands/execute.py:execute_command` records one hit for `tui:<spec.id>`
+  with `via=palette` (`custom.*` collapses to `tui:~custom`).
+- **Prefix modes.** `actions/_event_keyboard.py:on_key` records `tui:<mode>.<field>`
+  with `via=mode` when a `_handle_<mode>_key` returns `True`, through a reverse
+  key→field map per mode that is rebuilt when the keymap registry object changes.
+  Covered modes are `fold`, `copy`, `leader`, `bang`, `bead_issue`, and `saved_query`
+  (slot digits); custom modes record `tui:custom.~custom`. `escape` cancels are never
+  counted. Checkout, ancestry, and entry-jump keys are navigation chrome and are not
+  recorded.
+- **View entry.** `watch_current_tab` records `view:tab.<name>`, the artifacts/files
+  subtab watchers record `view:tab.<subtab>`, the admin center callback records
+  `view:admin.<tab>`, and the Statistics `_set_view` records `view:stats.<view>`. Tab
+  switches count only after startup completes and never for the restored initial tab.
+  All view entries use `via=key`.
+- **Modals.** The `AceApp.push_screen` override records `view:modal.<snake>` for every
+  `ModalScreen`.
+
+The counter is a `dict[(feature_id, via), int]` with one actor classified once at the
+first flush. A daemon thread (`sase-footprint-flusher`) wakes every 60 s; when dirty it
+swaps the dict, writes aggregated spool lines plus one `probe: tui` line via `_spool`,
+and re-reads the mode and generation files. When the mode is `off`, or the generation
+changed since the counts began, the batch is discarded. `flush_now(timeout=0.2)` runs
+the same write synchronously and is called from `actions/lifecycle.py` `on_unmount` and
+the `_hard_exit_ace` flush tuple.
+
+## Performance budgets
+
+| Path            | Budget                                                                                                                                           |
+| --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| CLI hit         | ≤ 100 µs p99 added. No new imports beyond stdlib plus `sase.footprint._cli`/`_spool`/`_actor`/`_mode`/`paths`/`ids`                              |
+| TUI action bump | ≤ 2 µs. Zero event-loop I/O (asserted by monkeypatching `os.write` and by thread attribution of every spool write)                               |
+| TUI flush       | Daemon thread only. No Textual timer, no pump involvement                                                                                        |
+| TUI startup     | Zero Footprint work before first paint. Index maps are built lazily on the first hit                                                             |
+| `j`/`k`         | p95 under 16 ms unchanged (`SASE_TUI_PERF=1`, `bench_tui_jk_panes.py::test_bench_patches_jk`); a regression over 0.5 ms blocks work on the seams |
+
 ## What the overlay is for
 
 `src/sase/footprint/overlay.yml` holds curated human knowledge, reviewed in PRs:
