@@ -18,8 +18,15 @@ from sase.workspace_provider._rescue_store import (
     RescueRecord,
     quarantine_directory,
 )
+from sase.workspace_provider.snapshot import (
+    PreservationError,
+    SnapshotRecord,
+    restore_git_snapshot,
+    snapshot_git_repo,
+)
 
 __all__ = [
+    "PreservationError",
     "RESCUE_BUNDLE_NAME",
     "RESCUE_ENTRY_RETENTION_DAYS",
     "RESCUE_GIT_TIMEOUT_SECONDS",
@@ -30,6 +37,9 @@ __all__ = [
     "RESCUE_QUARANTINE_RETENTION_DAYS",
     "RESCUE_SCHEMA_VERSION",
     "RescueRecord",
+    "SnapshotRecord",
     "quarantine_directory",
     "rescue_git_repo",
+    "restore_git_snapshot",
+    "snapshot_git_repo",
 ]
