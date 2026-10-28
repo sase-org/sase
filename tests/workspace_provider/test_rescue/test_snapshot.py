@@ -13,6 +13,8 @@ import pytest
 
 from sase.workspace_provider import (
     _snapshot_capture_payload as payload_module,
+    _snapshot_capture_payload_objects as payload_objects_module,
+    _snapshot_capture_payload_trees as payload_trees_module,
     _snapshot_capture_source as source_module,
 )
 from sase.workspace_provider._snapshot_model import SourceState
@@ -178,7 +180,7 @@ def test_published_snapshot_thins_a_large_checkout_and_restores_exact_state(
     (clone / "untracked.txt").write_bytes(b"new local bytes\x00\xff")
     before = _source_probe(clone)
     cap = 64 * 1024
-    monkeypatch.setattr(payload_module, "SNAPSHOT_MAX_BYTES", cap)
+    monkeypatch.setattr(payload_objects_module, "SNAPSHOT_MAX_BYTES", cap)
 
     record = _snapshot(clone, workspace, reason="thin published base")
     assert record is not None
@@ -311,7 +313,7 @@ def test_snapshot_hashes_only_dirty_candidates_in_a_large_clean_index(
     (clone / "tracked" / "100.txt").write_text("one dirty file\n", encoding="utf-8")
 
     hash_object_calls: list[tuple[str, ...]] = []
-    real_run_git_bytes = payload_module.run_git_bytes
+    real_run_git_bytes = payload_trees_module.run_git_bytes
 
     def count_hash_objects(
         repo: Path, *args: str, **kwargs: Any
@@ -320,7 +322,7 @@ def test_snapshot_hashes_only_dirty_candidates_in_a_large_clean_index(
             hash_object_calls.append(args)
         return real_run_git_bytes(repo, *args, **kwargs)
 
-    monkeypatch.setattr(payload_module, "run_git_bytes", count_hash_objects)
+    monkeypatch.setattr(payload_trees_module, "run_git_bytes", count_hash_objects)
     record = _snapshot(clone, workspace, reason="hash only dirty candidate")
     assert record is not None
     assert len(hash_object_calls) <= 2
@@ -600,7 +602,7 @@ def test_snapshot_capture_failure_leaves_source_and_prior_snapshot(
     def boom(*_args: object, **_kwargs: object) -> object:
         raise OSError("injected pack failure")
 
-    monkeypatch.setattr(payload_module, "_write_pack", boom)
+    monkeypatch.setattr(payload_module, "write_pack", boom)
     with pytest.raises(PreservationError, match="injected pack failure"):
         _snapshot(clone, workspace, reason="second")
     _assert_source_unchanged(clone, before)
@@ -638,7 +640,7 @@ def test_snapshot_size_cap_fails_closed(
     _make_dirty_wiring(clone)
     (clone / "src" / "dispatch.py").write_text("x" * 200, encoding="utf-8")
     before = _source_probe(clone)
-    monkeypatch.setattr(payload_module, "SNAPSHOT_MAX_BYTES", 16)
+    monkeypatch.setattr(payload_objects_module, "SNAPSHOT_MAX_BYTES", 16)
 
     with pytest.raises(PreservationError, match="cap"):
         _snapshot(clone, workspace, reason="cap")

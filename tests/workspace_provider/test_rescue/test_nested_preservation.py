@@ -11,7 +11,9 @@ import pytest
 
 from sase.axe.runner_workspace_errors import WorkspacePreparationError
 from sase.axe.runner_workspace_protection import prepare_launch_workspace_repos
-from sase.workspace_provider import _snapshot_capture_payload as payload_module
+from sase.workspace_provider import (
+    _snapshot_capture_payload_objects as payload_objects_module,
+)
 from sase.workspace_provider._snapshot_nested import discover_nested_git_repos
 from sase.workspace_provider.snapshot import (
     NestedPreservationError,
@@ -187,7 +189,7 @@ def test_preserve_nested_large_published_clone_under_snapshot_cap(
     )
     git(external, "remote", "set-url", "origin", os.path.relpath(remote, external))
     (external / "tracked.txt").write_text("small local edit\n", encoding="utf-8")
-    monkeypatch.setattr(payload_module, "SNAPSHOT_MAX_BYTES", 64 * 1024)
+    monkeypatch.setattr(payload_objects_module, "SNAPSHOT_MAX_BYTES", 64 * 1024)
 
     result = preserve_nested_repositories(
         parent,
@@ -225,7 +227,7 @@ def test_launch_eviction_preserves_large_published_external_clone(
         parent / "sase" / "repos" / "external" / "projects" / "owner" / "large-repo",
     )
     (external / "tracked.txt").write_text("edited before eviction\n", encoding="utf-8")
-    monkeypatch.setattr(payload_module, "SNAPSHOT_MAX_BYTES", 64 * 1024)
+    monkeypatch.setattr(payload_objects_module, "SNAPSHOT_MAX_BYTES", 64 * 1024)
     _configure_launch(monkeypatch, parent)
 
     prepare_launch_workspace_repos(str(parent), WORKSPACE_NUM)
