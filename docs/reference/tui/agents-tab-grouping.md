@@ -299,8 +299,9 @@ group and `h` to fold it; from a member row, `h` folds its group and returns the
 to that group. Selection stays on the same row across report refreshes when it still
 exists, and expanded groups stay open. The three-line detail strip describes the
 highlighted holder, rider, waiter, group, or member. Press Enter on an agent row to jump
-to it. Press `y` to copy the exact JSON printed by `sase agent load -j`. A new capacity
-report refreshes the open inspector automatically.
+to the agent's Agents-tab row, expanding the collapsed clan, tribe panel, or status
+group that hides it. Press `y` to copy the exact JSON printed by `sase agent load -j`. A
+new capacity report refreshes the open inspector automatically.
 
 An optional status strip follows in the form
 `[S stopped · T starting · R running · W waiting · F failed · U unread · D done]`, with

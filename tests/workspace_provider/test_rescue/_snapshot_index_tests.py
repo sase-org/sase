@@ -17,9 +17,11 @@ from tests.workspace_provider.test_rescue._helpers import (
     seed_remote_clone,
 )
 from tests.workspace_provider.test_rescue._snapshot_helpers import (
+    assert_source_unchanged,
     head,
     restore_dest,
     snapshot,
+    source_probe,
     worktree_map,
     ls_stage,
 )

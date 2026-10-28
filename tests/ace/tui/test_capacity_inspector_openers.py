@@ -79,7 +79,7 @@ async def test_inspector_selection_jumps_to_the_named_agent(
 ) -> None:
     navigate = MagicMock(return_value=True)
     monkeypatch.setattr(
-        "sase.ace.tui.actions.agents._notification_actions.navigate_to_agent_tab",
+        "sase.ace.tui.actions.agents._notification_actions.navigate_to_named_agent",
         navigate,
     )
     app = _InspectorOpenerApp()
@@ -99,4 +99,4 @@ async def test_inspector_selection_jumps_to_the_named_agent(
         await pilot.press("enter")
         await pilot.pause()
 
-    navigate.assert_called_once_with(app, "worker-a")
+    navigate.assert_called_once_with(app, "worker-a", artifact_dir="/worker-a")

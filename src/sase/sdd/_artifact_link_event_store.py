@@ -352,12 +352,12 @@ def reduce_artifact_link_event_inputs(
         list(candidates)
         if candidates is not None
         else [
-            *candidates_from_tier(durable_events, "durable"),
-            *candidates_from_tier(pending_events, "pending"),
+            *_candidates_from_tier(durable_events, "durable"),
+            *_candidates_from_tier(pending_events, "pending"),
         ]
     )
     if incoming_events:
-        prepared.extend(candidates_from_tier(incoming_events, "incoming"))
+        prepared.extend(_candidates_from_tier(incoming_events, "incoming"))
     prepared_candidates = tuple(prepared)
     durable = tuple(
         dict(candidate.event)
@@ -444,7 +444,7 @@ def reduce_artifact_link_event_inputs(
     return snapshot
 
 
-def candidates_from_tier(
+def _candidates_from_tier(
     events: Iterable[Mapping[str, Any]],
     tier: str,
 ) -> tuple[ArtifactLinkEventCandidate, ...]:

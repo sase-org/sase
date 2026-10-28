@@ -5,6 +5,7 @@ import subprocess
 
 import pytest
 
+import sase.workspace_provider as workspace_provider
 from sase.workspace_provider.snapshot import (
     PreservationError,
     restore_git_snapshot,
@@ -25,9 +26,12 @@ from tests.workspace_provider.test_rescue._snapshot_helpers import (
     make_dirty_wiring,
     restore_dest,
     snapshot,
+    source_probe,
     worktree_map,
     ls_stage,
 )
+
+payload_objects_module = workspace_provider._snapshot_capture_payload_objects
 
 
 def test_snapshot_returns_none_when_checkout_is_clean(

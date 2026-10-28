@@ -70,7 +70,7 @@ def _parse_positive_int(number: str, original: str) -> int:
     return parsed
 
 
-def review_settings() -> dict[str, int]:
+def _review_settings() -> dict[str, int]:
     """Return gate thresholds from config with wire defaults."""
     from sase.config.core import load_merged_config
 
@@ -90,7 +90,7 @@ def _config_int(value: Any, default: int) -> int:
     return max(value, 0)
 
 
-def overlay_payload(path: Path | None = None) -> dict[str, Any]:
+def _overlay_payload(path: Path | None = None) -> dict[str, Any]:
     """Return the curated overlay as JSON for the Rust query wire."""
     overlay: Overlay = load_overlay(path)
     return {
@@ -113,13 +113,13 @@ def build_report_request(
     """Build a ``footprint_report`` request dict."""
     from sase.footprint.paths import ledger_path
 
-    settings = review_settings()
+    settings = _review_settings()
     request: dict[str, Any] = {
         "store_path": str(store_path) if store_path is not None else str(ledger_path()),
         "today": today or date.today().isoformat(),
         "lens": lens,
         "actor": actor,
-        "overlay": dict(overlay) if overlay is not None else overlay_payload(),
+        "overlay": dict(overlay) if overlay is not None else _overlay_payload(),
         "min_catalog_days": settings["min_catalog_days"],
         "min_active_days": settings["min_active_days"],
         "calibration_days": settings["calibration_days"],
@@ -146,13 +146,13 @@ def build_card_request(
     """Build a ``footprint_card`` request for a feature ID or area."""
     from sase.footprint.paths import ledger_path
 
-    settings = review_settings()
+    settings = _review_settings()
     request: dict[str, Any] = {
         "store_path": str(store_path) if store_path is not None else str(ledger_path()),
         "today": today or date.today().isoformat(),
         "actor": actor,
         "lens": "map",
-        "overlay": dict(overlay) if overlay is not None else overlay_payload(),
+        "overlay": dict(overlay) if overlay is not None else _overlay_payload(),
         "min_catalog_days": settings["min_catalog_days"],
         "min_active_days": settings["min_active_days"],
         "calibration_days": settings["calibration_days"],
@@ -207,8 +207,6 @@ __all__ = [
     "build_report_request",
     "fetch_card",
     "fetch_report",
-    "overlay_payload",
     "parse_range_days",
     "record_decision",
-    "review_settings",
 ]

@@ -21,7 +21,7 @@ _MANIFEST_NAME = "manifest.json"
 
 
 @dataclass(frozen=True)
-class SnapshotEvidence:
+class _SnapshotEvidence:
     """Snapshot records and diagnostics retained with a failed-close retry."""
 
     records: tuple[dict[str, Any], ...]
@@ -35,7 +35,7 @@ def capture_failed_close_snapshots(
     assessment: RecoveryAssessment,
     *,
     run_id: str,
-) -> SnapshotEvidence:
+) -> _SnapshotEvidence:
     """Capture only host-assessed, unlanded repositories before cleanup can run."""
     previous_records, previous_errors, previous_locations = _read_prior_evidence(
         Path(artifacts_dir)
@@ -97,7 +97,7 @@ def capture_failed_close_snapshots(
         for item in records
         if _manifest_is_complete(Path(str(item.get("manifest_path", ""))))
     ]
-    return SnapshotEvidence(
+    return _SnapshotEvidence(
         records=tuple(_dedupe_records(records)),
         locations=tuple(_unique(complete_locations + locations)),
         errors=tuple(_dedupe_errors(errors)),
@@ -257,4 +257,4 @@ def _redact(value: str) -> str:
     return bound_and_redact_text(value, 4000) or "snapshot failed"
 
 
-__all__ = ["SnapshotEvidence", "capture_failed_close_snapshots"]
+__all__ = ["capture_failed_close_snapshots"]

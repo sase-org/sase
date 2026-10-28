@@ -35,7 +35,7 @@ class ArtifactLinkEventCandidate:
 
 
 @dataclass(frozen=True, slots=True)
-class ArtifactLinkCollisionPartition:
+class _ArtifactLinkCollisionPartition:
     """Accepted payloads plus typed quarantine findings."""
 
     accepted: tuple[ArtifactLinkEventCandidate, ...]
@@ -92,11 +92,11 @@ def candidate_from_event(
 
 def partition_artifact_link_candidates(
     candidates: Sequence[ArtifactLinkEventCandidate],
-) -> ArtifactLinkCollisionPartition:
+) -> _ArtifactLinkCollisionPartition:
     """Select accepted payloads through sase-core after attaching evidence."""
 
     if not candidates:
-        return ArtifactLinkCollisionPartition(accepted=(), findings=())
+        return _ArtifactLinkCollisionPartition(accepted=(), findings=())
     with_admission = attach_admission_evidence(candidates)
     collided = collided_digests_for(with_admission)
     prepared = attach_collision_history(with_admission, collided_digests=collided)
@@ -120,7 +120,7 @@ def partition_artifact_link_candidates(
         if not isinstance(group, Mapping):
             continue
         findings.extend(_group_findings(group, by_digest))
-    return ArtifactLinkCollisionPartition(
+    return _ArtifactLinkCollisionPartition(
         accepted=tuple(accepted),
         findings=tuple(findings),
     )
@@ -252,7 +252,6 @@ def _group_findings(
 
 
 __all__ = [
-    "ArtifactLinkCollisionPartition",
     "ArtifactLinkEventCandidate",
     "candidate_from_event",
     "candidates_from_events",

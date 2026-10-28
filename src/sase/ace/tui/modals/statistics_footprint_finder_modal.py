@@ -48,7 +48,7 @@ class FootprintFeatureChoice:
 
 
 @dataclass(frozen=True)
-class FinderFeature:
+class _FinderFeature:
     """One catalog feature shown by the finder."""
 
     feature_id: str
@@ -57,13 +57,13 @@ class FinderFeature:
     kind: str
 
 
-def catalog_features() -> tuple[FinderFeature, ...]:
+def catalog_features() -> tuple[_FinderFeature, ...]:
     """Return every catalog feature sorted by label for the finder."""
     from sase.footprint.catalog import load_catalog
 
     _header, entries = load_catalog()
     features = tuple(
-        FinderFeature(
+        _FinderFeature(
             feature_id=entry.id,
             label=entry.label,
             area=entry.area,
@@ -92,7 +92,7 @@ class StatisticsFootprintFinderModal(
 
     def __init__(
         self,
-        features: tuple[FinderFeature, ...],
+        features: tuple[_FinderFeature, ...],
         *,
         current_feature_id: str | None = None,
     ) -> None:
@@ -142,20 +142,20 @@ class StatisticsFootprintFinderModal(
         return text
 
     @staticmethod
-    def _row_label(feature: FinderFeature) -> Text:
+    def _row_label(feature: _FinderFeature) -> Text:
         text = Text()
         text.append(f"{feature.label:<28.28}", style="bold #87D7FF")
         text.append(f"{feature.area:<18.18}", style="#C6A0F6")
         text.append(feature.feature_id, style="dim")
         return text
 
-    def _create_options(self, features: list[FinderFeature]) -> list[Option]:
+    def _create_options(self, features: list[_FinderFeature]) -> list[Option]:
         return [
             Option(self._row_label(feature), id=feature.feature_id)
             for feature in features
         ]
 
-    def _matches(self, feature: FinderFeature, needle: str) -> bool:
+    def _matches(self, feature: _FinderFeature, needle: str) -> bool:
         if not needle:
             return True
         folded = needle.casefold()
@@ -226,7 +226,6 @@ class StatisticsFootprintFinderModal(
 
 
 __all__ = [
-    "FinderFeature",
     "FootprintFeatureChoice",
     "StatisticsFootprintFinderModal",
     "catalog_features",

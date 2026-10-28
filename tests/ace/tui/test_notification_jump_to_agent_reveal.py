@@ -17,7 +17,6 @@ from sase.ace.tui.actions.agents._notification_navigation import (
     navigate_to_agent_tab,
 )
 from sase.ace.tui.actions.navigation._agent_reveal import AgentRevealFailure
-from sase.ace.tui.actions.navigation._node_jump import NodeJumpNavigationMixin
 from sase.ace.tui.models._agent_tree import agent_fold_key, project_clan_tree
 from sase.ace.tui.models.agent_groups import GroupingMode, build_agent_tree
 from sase.ace.tui.models.group_fold import GroupFoldRegistry
@@ -28,41 +27,8 @@ from tests.ace.tui.visual._ace_png_snapshot_startup import (
     wait_for_startup,
 )
 
-from ._member_jump_navigation_helpers import JumpHarness, make_agent, make_clan
-
-
-class _Harness(NodeJumpNavigationMixin, JumpHarness):
-    """Production-shaped harness with tab-switch and unread tracking."""
-
-    def __init__(self, complete: list[Any], container: Any) -> None:
-        super().__init__(complete, container)
-        self._agent_search_query = ""
-        self.hide_non_run_agents = False
-        self._hideable_agents: list[Any] = []
-        self.tab_save_calls = 0
-        self.tab_switch_calls: list[str] = []
-        self.saved_tab_positions: dict[str, int] = {}
-        self.acknowledged: list[Any] = []
-        self.armed: list[Any] = []
-        self.jump_calls: list[tuple[Any, str, str]] = []
-
-    def _save_current_tab_position(self) -> None:
-        self.tab_save_calls += 1
-        self.saved_tab_positions[self.current_tab] = self.current_idx
-
-    def _switch_to_tab(self, tab: str) -> None:
-        self.tab_switch_calls.append(tab)
-        self.current_tab = tab
-        if tab == "agents" and "agents" in self.saved_tab_positions:
-            saved = self.saved_tab_positions["agents"]
-            self.current_idx = max(0, min(saved, len(self._agents) - 1))
-
-    def _acknowledge_agent_unread(self, agent: Any) -> bool:
-        self.acknowledged.append(agent)
-        return True
-
-    def _arm_manual_unread_after_departure(self, agent: Any | None) -> None:
-        self.armed.append(agent)
+from ._agent_jump_clan_helpers import ClanJumpHarness, collapsed_clan
+from ._member_jump_navigation_helpers import make_agent, make_clan
 
 
 def _notification(
@@ -85,24 +51,8 @@ def _notification(
     )
 
 
-def _collapsed_clan() -> tuple[_Harness, Any, Any]:
-    complete, container = make_clan(2)
-    target = container.runtime_children[1]
-    app = _Harness(complete, container)
-    clan_key = agent_fold_key(container)
-    assert clan_key is not None
-    app._fold_manager.collapse(clan_key)
-    app._refilter_agents()
-    app.current_idx = next(
-        index
-        for index, agent in enumerate(app._agents)
-        if agent.identity == container.identity
-    )
-    return app, container, target
-
-
 def test_collapsed_clan_member_is_revealed() -> None:
-    app, _container, target = _collapsed_clan()
+    app, _container, target = collapsed_clan()
     assert all(agent.identity != target.identity for agent in app._agents)
 
     notification = _notification(
@@ -120,7 +70,7 @@ def test_every_layer_at_once() -> None:
     complete, container = make_clan(2, mixed_tribes=True)
     members = list(container.runtime_children)
     target = members[1]
-    app = _Harness(complete, container)
+    app = ClanJumpHarness(complete, container)
     clan_key = agent_fold_key(container)
     assert clan_key is not None
 
@@ -178,7 +128,7 @@ def test_every_layer_at_once() -> None:
 
 
 def test_jump_from_another_tab_restores_agents_index() -> None:
-    app, container, target = _collapsed_clan()
+    app, container, target = collapsed_clan()
     pre_jump_idx = app.current_idx
     pre_jump_identity = app._agents[pre_jump_idx].identity
     assert pre_jump_identity == container.identity
@@ -208,7 +158,7 @@ def test_ambiguous_legacy_payload_selects_visible_row() -> None:
     clan_raw = [make_agent("hidden-member", clan="research")]
     complete = project_clan_tree([visible, *clan_raw])
     container = next(agent for agent in complete if agent.is_clan_container)
-    app = _Harness(complete, visible)
+    app = ClanJumpHarness(complete, visible)
     clan_key = agent_fold_key(container)
     assert clan_key is not None
     app._fold_manager.collapse(clan_key)
@@ -226,14 +176,14 @@ def test_ambiguous_legacy_payload_selects_visible_row() -> None:
 
 
 def test_unloaded_agent_warns_not_found() -> None:
-    app, _container, _target = _collapsed_clan()
+    app, _container, _target = collapsed_clan()
     assert handle_jump_to_agent(app, _notification("missing-agent")) is False
     expected = f"Agent '{humanize_cl_name('missing-agent')}' not found"
     assert app.notifications == [expected]
 
 
 def test_handler_routes_through_node_identity_with_agent_subject() -> None:
-    app, _container, target = _collapsed_clan()
+    app, _container, target = collapsed_clan()
     seen: list[tuple[Any, str, str]] = []
     real_jump = app._jump_to_node_identity
 
@@ -252,7 +202,7 @@ def test_handler_routes_through_node_identity_with_agent_subject() -> None:
 
 
 def test_failed_reveal_toasts_agent_subject() -> None:
-    app, _container, target = _collapsed_clan()
+    app, _container, target = collapsed_clan()
 
     def _stuck(_identity: Any) -> AgentRevealFailure | None:
         return AgentRevealFailure.TARGET_NOT_VISIBLE
@@ -281,7 +231,7 @@ def test_navigate_to_agent_tab_prefers_pid_and_reveals() -> None:
     container = next(agent for agent in complete if agent.is_clan_container)
     visible = next(agent for agent in complete if getattr(agent, "pid", None) == 111)
     hidden = next(agent for agent in complete if getattr(agent, "pid", None) == 222)
-    app = _Harness(complete, visible)
+    app = ClanJumpHarness(complete, visible)
     clan_key = agent_fold_key(container)
     assert clan_key is not None
     app._fold_manager.collapse(clan_key)

@@ -49,7 +49,7 @@ def preserve_nested_repositories(
     """
     parent = Path(parent_root).expanduser()
     proven = {Path(path).expanduser().resolve(strict=False) for path in already_proven}
-    roots = discover_nested_git_repos(parent, within=within)
+    roots = _discover_nested_git_repos(parent, within=within)
     locations: list[str] = []
     kept: list[Path] = []
     for root in roots:
@@ -80,7 +80,7 @@ def preserve_nested_repositories(
     return NestedPreservation(locations=tuple(locations), roots=tuple(kept))
 
 
-def discover_nested_git_repos(
+def _discover_nested_git_repos(
     parent_root: str | Path,
     *,
     within: Sequence[str | Path] = (),

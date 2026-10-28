@@ -5,6 +5,7 @@ Provides agent/patch lookup by notification fields and tab navigation.
 
 from __future__ import annotations
 
+import os
 from collections.abc import Callable, Sequence
 from typing import TYPE_CHECKING, Any
 from typing import Protocol
@@ -232,15 +233,24 @@ def jump_to_loaded_agent(app: object, target: Any) -> bool:
     return False
 
 
-def navigate_to_agent_tab(app: object, cl_name: str, pid: int | None = None) -> bool:
+def navigate_to_agent_tab(
+    app: object,
+    cl_name: str,
+    pid: int | None = None,
+    *,
+    raw_suffix: str | None = None,
+) -> bool:
     """Navigate to an agent in the Agents tab.
 
-    Matches by PID first (most precise), then falls back to cl_name.
+    Matches by PID first (most precise), then the runner's raw suffix
+    together with ``cl_name``, then ``cl_name`` alone.
 
     Args:
         app: The AceApp instance.
         cl_name: The Patch name to match.
         pid: Optional PID for precise matching.
+        raw_suffix: Optional runner suffix so a clan member wins over a
+            sibling that shares ``cl_name``.
 
     Returns:
         True if the agent was found and selected.
@@ -252,12 +262,67 @@ def navigate_to_agent_tab(app: object, cl_name: str, pid: int | None = None) -> 
     if pid is not None:
         target = resolve_loaded_agent(app, lambda agent: agent.pid == pid)
 
+    if target is None and raw_suffix is not None:
+        target = resolve_loaded_agent(
+            app,
+            lambda agent: agent.raw_suffix == raw_suffix and agent.cl_name == cl_name,
+        )
+
     # Fallback to cl_name match
     if target is None:
         target = resolve_loaded_agent(app, lambda agent: agent.cl_name == cl_name)
 
     if target is None:
         app.notify(f"Agent '{humanize_cl_name(cl_name)}' not found", severity="warning")  # type: ignore[attr-defined]
+        return False
+    return jump_to_loaded_agent(app, target)
+
+
+def _normalized_artifact_dir(path: str) -> str:
+    """Normalize an artifacts path with string ops only (no disk I/O)."""
+    return os.path.normpath(os.path.expanduser(path))
+
+
+def navigate_to_named_agent(
+    app: object, name: str, *, artifact_dir: str | None = None
+) -> bool:
+    """Navigate to a named agent in the Agents tab.
+
+    Each match tier is its own :func:`resolve_loaded_agent` scan so an
+    exact later-roster hit beats a looser earlier-roster hit. Order:
+
+    1. Normalized ``artifacts_dir`` (capacity inspector rows).
+    2. ``agent_name == name``.
+    3. ``monitor_id == name`` (monitor fallback names).
+
+    Args:
+        app: The AceApp instance.
+        name: Agent name or monitor id from the capacity inspector.
+        artifact_dir: Optional artifacts directory from the same row.
+
+    Returns:
+        True if the agent was found and selected.
+    """
+    enter_agents_tab(app)
+
+    target: Any | None = None
+    if artifact_dir:
+        wanted = _normalized_artifact_dir(artifact_dir)
+
+        def _matches_artifact_dir(agent: Any, *, _wanted: str = wanted) -> bool:
+            raw = getattr(agent, "artifacts_dir", None)
+            if not raw:
+                return False
+            return _normalized_artifact_dir(str(raw)) == _wanted
+
+        target = resolve_loaded_agent(app, _matches_artifact_dir)
+    if target is None:
+        target = resolve_loaded_agent(app, lambda agent: agent.agent_name == name)
+    if target is None:
+        target = resolve_loaded_agent(app, lambda agent: agent.monitor_id == name)
+
+    if target is None:
+        app.notify(f"Agent '{name}' not found", severity="warning")  # type: ignore[attr-defined]
         return False
     return jump_to_loaded_agent(app, target)
 

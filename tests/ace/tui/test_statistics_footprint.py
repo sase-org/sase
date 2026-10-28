@@ -513,10 +513,10 @@ async def test_footprint_finder_filters_and_drills_to_area(
         finder_modal,
         "catalog_features",
         lambda: (
-            finder_modal.FinderFeature(
+            finder_modal._FinderFeature(
                 "cli:bead.list", "bead list", "cli.bead", "command"
             ),
-            finder_modal.FinderFeature(
+            finder_modal._FinderFeature(
                 "tui:statistics.cycle_range",
                 "Cycle Statistics range",
                 "tui.statistics",
@@ -553,11 +553,11 @@ async def test_footprint_finder_filters_and_drills_to_area(
 
 def test_footprint_finder_matches_label_or_id() -> None:
     from sase.ace.tui.modals.statistics_footprint_finder_modal import (
-        FinderFeature,
+        _FinderFeature,
         StatisticsFootprintFinderModal,
     )
 
-    feature = FinderFeature("cli:bead.list", "bead list", "cli.bead", "command")
+    feature = _FinderFeature("cli:bead.list", "bead list", "cli.bead", "command")
     modal = StatisticsFootprintFinderModal((feature,))
     assert modal._matches(feature, "")
     assert modal._matches(feature, "bead")

@@ -11,7 +11,7 @@ from sase.sdd._artifact_link_event_canonical import ArtifactLinkEventCorruptionE
 from sase.sdd._artifact_link_event_collision import candidate_from_event
 from sase.sdd._artifact_link_event_install import install_artifact_link_bytes
 from sase.sdd._artifact_link_event_quarantine import (
-    admission_sequence_for,
+    _admission_sequence_for,
     attach_admission_evidence,
     load_artifact_link_quarantine_records,
     persist_artifact_link_quarantine_record,
@@ -133,8 +133,8 @@ def test_admission_sequence_assigns_monotonic_first_wins_values(
     assert first == 1
     assert second == 2
     assert again == 1
-    assert admission_sequence_for(tmp_path, "a" * 64) == 1
-    assert admission_sequence_for(tmp_path, "c" * 64) == 2
+    assert _admission_sequence_for(tmp_path, "a" * 64) == 1
+    assert _admission_sequence_for(tmp_path, "c" * 64) == 2
 
 
 def test_attach_admission_evidence_fills_local_sequences(

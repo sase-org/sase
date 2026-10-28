@@ -14,7 +14,7 @@ from sase.axe.runner_workspace_protection import prepare_launch_workspace_repos
 from sase.workspace_provider import (
     _snapshot_capture_payload_objects as payload_objects_module,
 )
-from sase.workspace_provider._snapshot_nested import discover_nested_git_repos
+from sase.workspace_provider._snapshot_nested import _discover_nested_git_repos
 from sase.workspace_provider.snapshot import (
     NestedPreservationError,
     PreservationError,
@@ -324,7 +324,7 @@ def test_enumeration_failure_is_refused(
         else:
             pytest.skip("listing a mode-0 directory succeeded")
         with pytest.raises(PreservationError, match="enumerate"):
-            discover_nested_git_repos(parent)
+            _discover_nested_git_repos(parent)
     finally:
         os.chmod(repos, 0o755)
 

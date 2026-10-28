@@ -252,7 +252,12 @@ class AxeServiceMixin:
             else:  # agents
                 from .agents._notification_actions import navigate_to_agent_tab
 
-                navigate_to_agent_tab(self, result.cl_name, result.pid)
+                navigate_to_agent_tab(
+                    self,
+                    result.cl_name,
+                    result.pid,
+                    raw_suffix=result.raw_suffix,
+                )
 
         # Collect background procs for the modal
         from ..proc_observer import proc_projection_for
@@ -293,9 +298,9 @@ class AxeServiceMixin:
         def on_dismiss(result: CapacityInspectorSelection | None) -> None:
             if result is None:
                 return
-            from .agents._notification_actions import navigate_to_agent_tab
+            from .agents._notification_actions import navigate_to_named_agent
 
-            navigate_to_agent_tab(self, result.name)
+            navigate_to_named_agent(self, result.name, artifact_dir=result.artifact_dir)
 
         self.push_screen(  # type: ignore[attr-defined]
             CapacityInspectorModal(report, running_nodes=running_nodes),

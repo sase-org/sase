@@ -250,7 +250,7 @@ def rows_from_events(
 ) -> tuple[dict[str, Any], ...]:
     """Reduce canonical events into legacy row projections via Rust."""
 
-    reduction = reduce_events(events)
+    reduction = _reduce_events(events)
     rows = reduction.get("rows")
     if not isinstance(rows, list):
         raise RuntimeError("sase_core_rs returned malformed link-event rows")
@@ -259,7 +259,7 @@ def rows_from_events(
     )
 
 
-def reduce_events(events: Iterable[Mapping[str, Any] | None]) -> dict[str, Any]:
+def _reduce_events(events: Iterable[Mapping[str, Any] | None]) -> dict[str, Any]:
     """Partition then reduce canonical events and return Rust reduction metadata."""
 
     canonical_events = [canonical_event(event) for event in events if event is not None]

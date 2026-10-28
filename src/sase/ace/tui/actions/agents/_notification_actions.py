@@ -37,6 +37,7 @@ from ._notification_navigation import (
     get_meta_patch_name as get_meta_patch_name,
     navigate_to_agent_tab as navigate_to_agent_tab,
     navigate_to_changespec_tab as navigate_to_changespec_tab,  # legacy compatibility alias
+    navigate_to_named_agent as navigate_to_named_agent,
     navigate_to_patch_tab as navigate_to_patch_tab,
 )
 
@@ -62,6 +63,7 @@ __all__ = [
     "handle_view_error_report",
     "handle_view_report",
     "navigate_to_agent_tab",
+    "navigate_to_named_agent",
     "navigate_to_patch_tab",
     "navigate_to_changespec_tab",  # legacy compatibility alias
     "open_user_question_modal_from_marker",

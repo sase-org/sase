@@ -341,7 +341,7 @@ def record_artifact_link_admission(
     return _admission_record(root, digest) or sequence
 
 
-def admission_sequence_for(root: str | Path, digest: str) -> int | None:
+def _admission_sequence_for(root: str | Path, digest: str) -> int | None:
     """Return the persisted admission sequence for *digest*, if any."""
 
     return _admission_record(Path(root).expanduser().resolve(strict=False), digest)
@@ -359,7 +359,7 @@ def attach_admission_evidence(candidates: Sequence[Any]) -> tuple[Any, ...]:
         if not root or not digest:
             updated.append(candidate)
             continue
-        sequence = admission_sequence_for(root, digest)
+        sequence = _admission_sequence_for(root, digest)
         if sequence is None:
             updated.append(candidate)
             continue
@@ -620,7 +620,6 @@ def _scan_quarantine_tree(
 
 __all__ = [
     "ArtifactLinkQuarantineFinding",
-    "admission_sequence_for",
     "attach_admission_evidence",
     "load_artifact_link_quarantine_records",
     "merge_quarantine_findings",

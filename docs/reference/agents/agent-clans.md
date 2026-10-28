@@ -217,36 +217,37 @@ its `@tribe` labels follow the name. A real multi-member session root ends with 
 azure container `<name>`, while its concrete member rows retain their exact `--<suffix>`
 names. Plain agent annotations and a lone plan proposer with only its display-only
 planner child remain gold. Press `l` once on a collapsed clan to reveal its direct
-members. `,j` (next unread done agent) and `,J` (next stopped agent) also reach a member
-row hidden only by a collapsed clan: the jump expands just that clan and selects the
-member. The clan's outer fold is binary, so move to a session or workflow row and press
-`l` there to reveal that row's descendants. Lowercase `h` moves from any agent, Bash,
-Python, parallel, embedded, or compatibility workflow step to its validated immediate
-workflow, session, clan, or tribe parent without changing fold state. Uppercase `H`
-first retreats a selected open workflow or sequential-session agent node by one fold
-level. After that agent node is collapsed, the next press fully collapses every
-remaining open agent node in the next grouping scope, then collapses only the open
-canonical clan enclosing the selection. The next press from that collapsed clan
-container collapses every remaining open canonical clan in the group, and only then does
-a later press fall back to selected-row structural handling and grouping collapse. A
-selection without an open enclosing workflow, session, or clan proceeds directly to the
-group-wide remaining-agent-node sweep. Selecting the clan row shows an aggregate `CLAN`
-header and a navigable summary of every section represented across its members. In the
-Agents list, one-wave clans keep status priority — Failed, Stopped, Running/Starting,
-Queued, Waiting, Done — and then launch recency within a bucket. Layered clans use
-dependency wave order, with launch order breaking ties and unresolved members trailing.
-The `CLAN MEMBERS` jump-panel roster uses wave order for layered clans, matching the
-tree; one-wave clans keep chronological launch order. These numbers stay stable while
-statuses change. The runtime is the union of member run intervals, with human-wait
-windows excluded — including a gate turn's pending and settling window — so concurrent
-members are not double-counted. When a sequential session has a concrete agent or
-monitor turn currently executing, the collapsed and expanded session container row shows
-`🏃‍♂️ <current-turn-runtime> / <session-total-runtime>` so the active turn duration is
-visible without opening the session. A clan container's live suffix collapses its
-parallel lanes with a minimum instead, since more than one lane can be live at once:
-`<lowest-running-lane-runtime> / <clan-total-runtime>`, where a sequential-session lane
-contributes its own total runtime -- the same value its own row shows to the right of
-its suffix.
+members. Every Agents-tab jump also reaches a member row hidden only by a collapsed
+clan, and the jump expands only the folds on the member's path. Examples include the
+Node Finder `"`, notification jumps, the capacity inspector, the runners modal, `agent:`
+links, and `,j` / `,J`. The clan's outer fold is binary, so move to a session or
+workflow row and press `l` there to reveal that row's descendants. Lowercase `h` moves
+from any agent, Bash, Python, parallel, embedded, or compatibility workflow step to its
+validated immediate workflow, session, clan, or tribe parent without changing fold
+state. Uppercase `H` first retreats a selected open workflow or sequential-session agent
+node by one fold level. After that agent node is collapsed, the next press fully
+collapses every remaining open agent node in the next grouping scope, then collapses
+only the open canonical clan enclosing the selection. The next press from that collapsed
+clan container collapses every remaining open canonical clan in the group, and only then
+does a later press fall back to selected-row structural handling and grouping collapse.
+A selection without an open enclosing workflow, session, or clan proceeds directly to
+the group-wide remaining-agent-node sweep. Selecting the clan row shows an aggregate
+`CLAN` header and a navigable summary of every section represented across its members.
+In the Agents list, one-wave clans keep status priority — Failed, Stopped,
+Running/Starting, Queued, Waiting, Done — and then launch recency within a bucket.
+Layered clans use dependency wave order, with launch order breaking ties and unresolved
+members trailing. The `CLAN MEMBERS` jump-panel roster uses wave order for layered
+clans, matching the tree; one-wave clans keep chronological launch order. These numbers
+stay stable while statuses change. The runtime is the union of member run intervals,
+with human-wait windows excluded — including a gate turn's pending and settling window —
+so concurrent members are not double-counted. When a sequential session has a concrete
+agent or monitor turn currently executing, the collapsed and expanded session container
+row shows `🏃‍♂️ <current-turn-runtime> / <session-total-runtime>` so the active turn
+duration is visible without opening the session. A clan container's live suffix
+collapses its parallel lanes with a minimum instead, since more than one lane can be
+live at once: `<lowest-running-lane-runtime> / <clan-total-runtime>`, where a
+sequential-session lane contributes its own total runtime -- the same value its own row
+shows to the right of its suffix.
 
 ### Clan summary folding
 
