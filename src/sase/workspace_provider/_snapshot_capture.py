@@ -219,11 +219,19 @@ def _digest_untracked(repo_root: Path, paths_z: bytes) -> str:
         if not raw_path:
             continue
         rel = os.fsdecode(raw_path)
+        # Sidecar clones have their own snapshot/rescue boundary. Including
+        # them here would hash nested git directories as blobs and couple the
+        # parent fingerprint to trees this snapshot must not capture.
+        if _is_managed_sidecar_rel(rel):
+            continue
         path = safe_repo_path(repo_root, rel)
         digest.update(len(raw_path).to_bytes(8, "big"))
         digest.update(raw_path)
         if not os.path.lexists(path):
             digest.update(b"missing\0")
+            continue
+        if path.is_dir() and not path.is_symlink():
+            digest.update(b"dir\0")
             continue
         digest.update(file_mode_for_path(path).encode("ascii") + b"\0")
         content_digest = hashlib.sha256()
@@ -433,7 +441,9 @@ def _worktree_entries(
     env: dict[str, str],
     byte_total: int,
 ) -> tuple[list[IndexEntry], int]:
-    tracked = {entry.path for entry in state.entries if entry.stage in {0, 2}}
+    # Live worktree bytes can belong to any index stage. Delete/modify
+    # conflicts are stages 1+3; add/delete can be stage 3 only.
+    tracked = {entry.path for entry in state.entries}
     untracked = require_git(
         run_git_bytes(repo_root, "ls-files", "-z", "-o", "--exclude-standard"),
         "git ls-files --others",

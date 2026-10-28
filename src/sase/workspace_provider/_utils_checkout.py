@@ -464,9 +464,35 @@ def _remove_corrupt_checkout(target_checkout_dir: str, workspace_num: int) -> No
     today's clone-fresh recovery.
     """
     from sase._linked_repo_workspaces import move_aside_for_background_delete
+    from sase.workspace_provider.snapshot import (
+        NestedPreservationError,
+        PreservationError,
+        format_preservation_locations,
+        preserve_nested_repositories,
+    )
 
-    _rescue_doomed_sidecars(target_checkout_dir, workspace_num)
     target = target_checkout_dir.rstrip("/") or target_checkout_dir
+    try:
+        nested = preserve_nested_repositories(
+            target,
+            workspace_dir=target,
+            workspace_num=workspace_num,
+            reason="corrupt workspace checkout replacement: nested preservation",
+        )
+    except NestedPreservationError as exc:
+        loc = format_preservation_locations(exc.locations)
+        raise RuntimeError(
+            "refusing to replace corrupt workspace checkout without complete "
+            f"verified nested preservation ({target}): {exc}{loc}"
+        ) from exc
+    except PreservationError as exc:
+        raise RuntimeError(
+            "refusing to replace corrupt workspace checkout without complete "
+            f"verified nested preservation ({target}): {exc}"
+        ) from exc
+    if nested.locations:
+        print(f"Verified nested preservation: {', '.join(nested.locations)}")
+    _rescue_doomed_sidecars(target_checkout_dir, workspace_num)
     try:
         move_aside_for_background_delete(target, tag="sase-corrupt-trash")
     except OSError:
@@ -503,7 +529,10 @@ def recreate_managed_workspace(
     """
     from sase.workspace_provider.rescue import rescue_git_repo
     from sase.workspace_provider.snapshot import (
+        NestedPreservationError,
         PreservationError,
+        format_preservation_locations,
+        preserve_nested_repositories,
         snapshot_git_repo,
     )
 
@@ -513,6 +542,7 @@ def recreate_managed_workspace(
             f"({workspace_dir}); numbered workspaces only"
         )
     checkout = workspace_dir.rstrip("/") or workspace_dir
+    locations: list[str] = []
     try:
         snapshot_record = snapshot_git_repo(
             checkout,
@@ -532,7 +562,30 @@ def recreate_managed_workspace(
             f"verified preservation ({checkout}): {exc}"
         ) from exc
     if snapshot_record is not None:
+        locations.append(str(snapshot_record.manifest_path))
         print(f"Verified preservation: {snapshot_record.manifest_path}")
+    try:
+        nested = preserve_nested_repositories(
+            checkout,
+            workspace_dir=checkout,
+            workspace_num=workspace_num,
+            reason="last-resort workspace re-creation: nested repository preservation",
+        )
+    except NestedPreservationError as exc:
+        loc = format_preservation_locations([*locations, *exc.locations])
+        raise RuntimeError(
+            "refusing to re-create workspace checkout without complete "
+            f"verified nested preservation ({checkout}): {exc}{loc}"
+        ) from exc
+    except PreservationError as exc:
+        loc = format_preservation_locations(locations)
+        raise RuntimeError(
+            "refusing to re-create workspace checkout without complete "
+            f"verified nested preservation ({checkout}): {exc}{loc}"
+        ) from exc
+    locations.extend(nested.locations)
+    if nested.locations:
+        print(f"Verified nested preservation: {', '.join(nested.locations)}")
     rescue_git_repo(
         checkout,
         workspace_dir=checkout,

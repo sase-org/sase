@@ -215,11 +215,43 @@ def prepare_launch_workspace_repos(
     proceeds with eviction: leftover state from an earlier run never fails a
     new launch.
     """
+    from sase.axe.runner_workspace_errors import WorkspacePreparationError
     from sase.linked_repos import clear_workspace_repos
+    from sase.workspace_provider.snapshot import (
+        NestedPreservationError,
+        PreservationError,
+        format_preservation_locations,
+        preserve_nested_repositories,
+    )
 
     # Only numbered workspaces evict sidecars; the primary checkout's clones
     # survive ``clear_workspace_repos`` untouched.
     if workspace_num > 1:
+        try:
+            nested = preserve_nested_repositories(
+                workspace_dir,
+                workspace_dir=workspace_dir,
+                workspace_num=workspace_num,
+                reason="launch-time eviction: nested repository preservation",
+            )
+        except NestedPreservationError as exc:
+            loc = format_preservation_locations(exc.locations)
+            raise WorkspacePreparationError(
+                "verified nested preservation failed before launch eviction: "
+                f"{exc}{loc}",
+                step="sidecar-protection",
+                workspace_dir=str(workspace_dir),
+                reclone_eligible=False,
+            ) from exc
+        except PreservationError as exc:
+            raise WorkspacePreparationError(
+                f"verified nested preservation failed before launch eviction: {exc}",
+                step="sidecar-protection",
+                workspace_dir=str(workspace_dir),
+                reclone_eligible=False,
+            ) from exc
+        if nested.locations:
+            print(f"Verified nested preservation: {', '.join(nested.locations)}")
         protect_unpushed_sidecar_commits(
             workspace_dir, evicting=True, workspace_num=workspace_num
         )

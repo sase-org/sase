@@ -391,6 +391,63 @@ class TestConflictTriggersResetAndReplay:
         assert (restored / "collision.py").read_bytes() == b"local untracked\x00bytes"
         assert "collision.py" not in _run_capture(["ls-files"], restored)
 
+    def test_delete_modify_conflict_bytes_recover_after_reset(
+        self, tmp_path: Path
+    ) -> None:
+        origin = tmp_path / "origin"
+        _init_origin(origin)
+        (origin / "conflict.txt").write_text("base\n", encoding="utf-8")
+        _run(["add", "conflict.txt"], origin)
+        _run(["commit", "-q", "-m", "base conflict"], origin)
+        checkout = tmp_path / "proj_10"
+        _clone(origin, checkout)
+        _run(["checkout", "-b", "theirs"], checkout)
+        (checkout / "conflict.txt").write_text("theirs\n", encoding="utf-8")
+        _run(["commit", "-aq", "-m", "theirs change"], checkout)
+        _run(["checkout", "-q", "main"], checkout)
+        _run(["rm", "--", "conflict.txt"], checkout)
+        _run(["commit", "-q", "-m", "delete on main"], checkout)
+        merge = subprocess.run(
+            ["git", "merge", "theirs"],
+            cwd=checkout,
+            capture_output=True,
+            text=True,
+        )
+        assert merge.returncode != 0
+        unique = b"unique manual conflict edits\n"
+        (checkout / "conflict.txt").write_bytes(unique)
+        src_stage = _run_capture(
+            ["ls-files", "--stage", "--", "conflict.txt"], checkout
+        )
+        assert " 1\tconflict.txt" in src_stage
+        assert " 3\tconflict.txt" in src_stage
+        context = _context(checkout, tmp_path / "proj")
+        attempts = 0
+
+        def _operation() -> str:
+            nonlocal attempts
+            attempts += 1
+            if attempts == 1:
+                raise ReplayConflict("delete/modify conflict")
+            return "recovered"
+
+        result = reset_and_replay(context, checkout, _operation)
+
+        assert result.value == "recovered"
+        # Reset is to the verified upstream tip (origin/main still has the
+        # base file). Live conflict bytes live in the snapshot, not HEAD.
+        assert (checkout / "conflict.txt").read_text(encoding="utf-8") == "base\n"
+        assert _run_capture(["status", "--porcelain"], checkout).strip() == ""
+        assert len(result.recovery_locations) == 1
+        restored = tmp_path / "restored-du"
+        restored.mkdir()
+        restore_git_snapshot(result.recovery_locations[0], restored)
+        assert (restored / "conflict.txt").read_bytes() == unique
+        dest_stage = _run_capture(
+            ["ls-files", "--stage", "--", "conflict.txt"], restored
+        )
+        assert dest_stage == src_stage
+
     def test_semantic_push_race_conflict_resets_to_new_upstream_tip(
         self, tmp_path: Path
     ) -> None:
@@ -440,6 +497,91 @@ class TestConflictTriggersResetAndReplay:
         )
         assert result.value == "ok"
         assert not generated.exists()
+
+    def test_clear_paths_preserve_dirty_nested_git_repo(self, tmp_path: Path) -> None:
+        origin = tmp_path / "origin"
+        checkout = tmp_path / "proj_10"
+        _init_origin(origin)
+        (origin / ".gitignore").write_text("sase/repos/\n", encoding="utf-8")
+        _run(["add", ".gitignore"], origin)
+        _run(["commit", "-q", "-m", "ignore nested repos"], origin)
+        _clone(origin, checkout)
+        nested_origin = tmp_path / "nested-origin"
+        _init_origin(nested_origin)
+        nested = checkout / "sase" / "repos" / "linked" / "plugin"
+        nested.parent.mkdir(parents=True)
+        _clone(nested_origin, nested)
+        (nested / "README.md").write_text("nested staged\n", encoding="utf-8")
+        _run(["add", "README.md"], nested)
+        (nested / "README.md").write_text("nested working\n", encoding="utf-8")
+        (nested / "untracked.txt").write_text("nested untracked\n", encoding="utf-8")
+        nested_stage = _run_capture(["ls-files", "--stage", "--", "README.md"], nested)
+        context = _context(checkout, tmp_path / "proj")
+        n = 0
+
+        def _operation() -> str:
+            nonlocal n
+            n += 1
+            if n == 1:
+                raise ReplayConflict("clear nested clones")
+            return "ok"
+
+        result = reset_and_replay(
+            context, checkout, _operation, clear_paths=[checkout / "sase" / "repos"]
+        )
+        assert result.value == "ok"
+        assert not nested.exists()
+        assert len(result.recovery_locations) == 1
+        restored = tmp_path / "restored-nested-clear"
+        restored.mkdir()
+        restore_git_snapshot(result.recovery_locations[0], restored)
+        assert (restored / "README.md").read_text(encoding="utf-8") == (
+            "nested working\n"
+        )
+        assert (restored / "untracked.txt").read_text(encoding="utf-8") == (
+            "nested untracked\n"
+        )
+        assert (
+            _run_capture(["ls-files", "--stage", "--", "README.md"], restored)
+            == nested_stage
+        )
+
+    def test_clear_paths_refuse_when_nested_snapshot_fails(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        origin = tmp_path / "origin"
+        checkout = tmp_path / "proj_10"
+        _init_origin(origin)
+        (origin / ".gitignore").write_text("sase/repos/\n", encoding="utf-8")
+        _run(["add", ".gitignore"], origin)
+        _run(["commit", "-q", "-m", "ignore nested repos"], origin)
+        _clone(origin, checkout)
+        nested_origin = tmp_path / "nested-origin"
+        _init_origin(nested_origin)
+        nested = checkout / "sase" / "repos" / "linked" / "plugin"
+        nested.parent.mkdir(parents=True)
+        _clone(nested_origin, nested)
+        (nested / "README.md").write_text("must remain\n", encoding="utf-8")
+        context = _context(checkout, tmp_path / "proj")
+
+        def boom(*args: object, **kwargs: object) -> object:
+            del args, kwargs
+            raise PreservationError("injected nested capture failure")
+
+        monkeypatch.setattr(reset_replay, "preserve_nested_repositories", boom)
+
+        def _operation() -> str:
+            raise ReplayConflict("clear nested clones")
+
+        with pytest.raises(ResetReplayError, match="nested"):
+            reset_and_replay(
+                context,
+                checkout,
+                _operation,
+                max_attempts=2,
+                clear_paths=[checkout / "sase" / "repos"],
+            )
+        assert (nested / "README.md").read_text(encoding="utf-8") == "must remain\n"
 
     def test_clear_paths_outside_checkout_are_refused(self, tmp_path: Path) -> None:
         origin = tmp_path / "origin"

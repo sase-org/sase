@@ -37,7 +37,12 @@ from sase.workspace_provider.ownership import (
     OperationContext,
     WorkspaceOwnershipError,
 )
-from sase.workspace_provider.snapshot import PreservationError, snapshot_git_repo
+from sase.workspace_provider.snapshot import (
+    NestedPreservationError,
+    PreservationError,
+    preserve_nested_repositories,
+    snapshot_git_repo,
+)
 from sase.workspace_provider.utils import (
     abort_in_progress_git_operations,
     get_default_branch,
@@ -352,6 +357,32 @@ def _reset_leased_checkout(
             ) from exc
         if snapshot is not None:
             recovery_locations = (str(snapshot.manifest_path.resolve()),)
+            _validate_snapshot_clear_boundaries(clear_paths, recovery_locations)
+        if clear_paths:
+            try:
+                nested = preserve_nested_repositories(
+                    repo_root,
+                    workspace_dir=workspace_dir,
+                    workspace_num=workspace_num,
+                    reason="before reset-and-replay clear of nested repositories",
+                    within=clear_paths,
+                    already_proven=(repo_root,),
+                )
+            except NestedPreservationError as exc:
+                raise _ResetFailure(
+                    f"could not preserve nested repositories before reset: {exc}",
+                    recovery_ref=recovery_ref,
+                    recovery_locations=_merge_locations(
+                        recovery_locations, exc.locations
+                    ),
+                ) from exc
+            except PreservationError as exc:
+                raise _ResetFailure(
+                    f"could not preserve nested repositories before reset: {exc}",
+                    recovery_ref=recovery_ref,
+                    recovery_locations=recovery_locations,
+                ) from exc
+            recovery_locations = _merge_locations(recovery_locations, nested.locations)
             _validate_snapshot_clear_boundaries(clear_paths, recovery_locations)
         recovery_ref = _snapshot_pre_reset_head(repo_root, clock=clock)
 

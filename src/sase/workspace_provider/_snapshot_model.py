@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -32,6 +33,23 @@ class PreservationError(RuntimeError):
     The source index, worktree, HEAD, and operation state are left unchanged.
     Incomplete capture directories are removed. Successful snapshots are kept.
     """
+
+
+class NestedPreservationError(PreservationError):
+    """A nested repository could not be fully preserved before removal.
+
+    ``locations`` lists manifests captured before the failure so callers can
+    surface partial proof in the operation diagnostic.
+    """
+
+    def __init__(
+        self,
+        message: str,
+        *,
+        locations: Sequence[str] = (),
+    ) -> None:
+        super().__init__(message)
+        self.locations = tuple(location for location in locations if location)
 
 
 @dataclass(frozen=True)

@@ -279,6 +279,13 @@ def test_checkout_replacement_rescues_linked_clones(
         )
         _utils_checkout._remove_corrupt_checkout(str(workspace), WORKSPACE_NUM)
     else:
+        _git(workspace, "init", "-b", "main")
+        _git(workspace, "config", "user.email", "test@example.com")
+        _git(workspace, "config", "user.name", "Test")
+        _git(workspace, "config", "commit.gpgsign", "false")
+        (workspace / ".gitignore").write_text("sase/repos/\n", encoding="utf-8")
+        _git(workspace, "add", ".gitignore")
+        _git(workspace, "commit", "-m", "ignore nested repos")
         monkeypatch.setattr(
             "sase.axe.runner_workspace_prepare.rescue_sidecars_before_eviction",
             lambda *_args, **_kwargs: True,
@@ -301,14 +308,19 @@ def test_checkout_replacement_rescues_linked_clones(
         )
 
     entries = _rescue_entries(home)
-    assert len(entries) == 1
-    bundle = entries[0] / "local-commits.bundle"
-    assert (
-        local_sha
-        in subprocess.run(
+    bundles = [
+        entry / "local-commits.bundle"
+        for entry in entries
+        if (entry / "local-commits.bundle").is_file()
+    ]
+    assert bundles
+    bundle_text = "\n".join(
+        subprocess.run(
             ["git", "bundle", "list-heads", str(bundle)],
             check=True,
             capture_output=True,
             text=True,
         ).stdout
+        for bundle in bundles
     )
+    assert local_sha in bundle_text

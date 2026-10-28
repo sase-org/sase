@@ -16,8 +16,14 @@ from sase.workspace_provider._snapshot_model import (
     SNAPSHOT_KIND,
     SNAPSHOT_MAX_BYTES,
     SNAPSHOT_PACK_NAME,
+    NestedPreservationError,
     PreservationError,
     SnapshotRecord,
+)
+from sase.workspace_provider._snapshot_nested import (
+    NestedPreservation,
+    format_preservation_locations,
+    preserve_nested_repositories,
 )
 from sase.workspace_provider._snapshot_restore import restore_git_snapshot
 
@@ -25,8 +31,12 @@ __all__ = [
     "SNAPSHOT_KIND",
     "SNAPSHOT_MAX_BYTES",
     "SNAPSHOT_PACK_NAME",
+    "NestedPreservation",
+    "NestedPreservationError",
     "PreservationError",
     "SnapshotRecord",
+    "format_preservation_locations",
+    "preserve_nested_repositories",
     "restore_git_snapshot",
     "snapshot_git_repo",
     "snapshot_source_fingerprint",
