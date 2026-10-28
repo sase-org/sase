@@ -261,3 +261,102 @@ def test_symlinked_store_root_ancestor_is_accepted(tmp_path: Path) -> None:
         rejected_canonical_json=_canonical_json(finding.rejected_event),
     )
     assert again == relative
+
+
+def test_load_rejects_operation_plain_file(tmp_path: Path) -> None:
+    root = tmp_path / "store"
+    namespace = root / "link-events" / "quarantine" / "v1"
+    namespace.mkdir(parents=True)
+    operation = namespace / ("a" * 32)
+    operation.write_text("not a directory", encoding="utf-8")
+    before = operation.read_bytes()
+
+    findings, errors = load_artifact_link_quarantine_records((root,))
+
+    assert findings == ()
+    assert any("not a directory" in error for error in errors)
+    assert operation.read_bytes() == before
+
+
+def test_load_rejects_operation_broken_symlink(tmp_path: Path) -> None:
+    root = tmp_path / "store"
+    namespace = root / "link-events" / "quarantine" / "v1"
+    namespace.mkdir(parents=True)
+    (namespace / ("a" * 32)).symlink_to(tmp_path / "missing-target")
+
+    findings, errors = load_artifact_link_quarantine_records((root,))
+
+    assert findings == ()
+    assert any("broken" in error for error in errors)
+
+
+def test_load_rejects_staging_plain_file_and_broken_symlink(
+    tmp_path: Path,
+) -> None:
+    for shape in ("plain-file", "broken-symlink"):
+        root = tmp_path / f"store-{shape}"
+        namespace = root / "link-events" / "quarantine" / "v1"
+        namespace.mkdir(parents=True)
+        staging = namespace / ".staging"
+        if shape == "plain-file":
+            staging.write_text("not a directory", encoding="utf-8")
+        else:
+            staging.symlink_to(tmp_path / "missing-target")
+        findings, errors = load_artifact_link_quarantine_records((root,))
+        assert findings == (), shape
+        assert errors, shape
+        assert any(
+            "not a directory" in error or "broken" in error for error in errors
+        ), shape
+
+
+def test_persist_rejects_staging_symlink_without_outside_write(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from sase.sdd import _artifact_link_event_install as install_module
+
+    root = tmp_path / "store"
+    namespace = root / "link-events" / "quarantine" / "v1"
+    namespace.mkdir(parents=True)
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    (namespace / ".staging").symlink_to(outside, target_is_directory=True)
+
+    finding, _ = _persist_finding(tmp_path / "other")
+    writes: list[str] = []
+    real_open = install_module.os.open
+
+    def observe_open(path, flags, *args, **kwargs):  # type: ignore[no-untyped-def]
+        if flags & install_module.os.O_CREAT:
+            try:
+                resolved = str((Path(path).resolve(strict=False)).relative_to(tmp_path))
+            except ValueError:
+                resolved = str(path)
+            writes.append(resolved)
+        return real_open(path, flags, *args, **kwargs)
+
+    monkeypatch.setattr(install_module.os, "open", observe_open)
+    with pytest.raises(ArtifactLinkEventCorruptionError, match="staging|symlink"):
+        persist_artifact_link_quarantine_record(
+            root,
+            finding,
+            rejected_canonical_json=_canonical_json(finding.rejected_event),
+        )
+    assert writes == []
+    assert list(outside.iterdir()) == []
+    assert not (root / "link-events" / "quarantine" / "v1" / ("a" * 32)).exists()
+
+
+def test_persist_rejects_staging_plain_file(tmp_path: Path) -> None:
+    root = tmp_path / "store"
+    namespace = root / "link-events" / "quarantine" / "v1"
+    namespace.mkdir(parents=True)
+    (namespace / ".staging").write_text("not a directory", encoding="utf-8")
+    finding, _ = _persist_finding(tmp_path / "other")
+
+    with pytest.raises(ArtifactLinkEventCorruptionError, match="not a directory"):
+        persist_artifact_link_quarantine_record(
+            root,
+            finding,
+            rejected_canonical_json=_canonical_json(finding.rejected_event),
+        )

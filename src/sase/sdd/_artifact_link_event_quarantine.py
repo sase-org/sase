@@ -153,6 +153,16 @@ def persist_artifact_link_quarantine_record(
     )
     if unsafe is not None:
         raise ArtifactLinkEventCorruptionError(f"{relative}: {unsafe}")
+    staging_unsafe = _walk_quarantine_components(
+        resolved_root,
+        _QUARANTINE_STAGING.as_posix(),
+        leaf_kind="directory",
+        leaf_must_exist=False,
+    )
+    if staging_unsafe is not None:
+        raise ArtifactLinkEventCorruptionError(
+            f"{_QUARANTINE_STAGING.as_posix()}: {staging_unsafe}"
+        )
     existing_relative = _reusable_quarantine_record(
         root,
         relative,
@@ -554,6 +564,7 @@ def _scan_quarantine_tree(
     files: list[Path] = []
     errors: list[str] = []
     for dirpath, dirnames, filenames in os.walk(record_root, followlinks=False):
+        is_top = Path(dirpath) == record_root
         kept: list[str] = []
         for name in dirnames:
             child = Path(dirpath) / name
@@ -573,6 +584,21 @@ def _scan_quarantine_tree(
         dirnames[:] = kept
         for name in filenames:
             if not name.endswith(".json"):
+                # Top-level entries must be operation directories or the
+                # staging directory. A plain file or broken symlink at the
+                # operation path would otherwise be silently ignored.
+                if is_top:
+                    path = Path(dirpath) / name
+                    display = _display_path(root, path)
+                    if path.is_symlink():
+                        try:
+                            exists = path.exists()
+                        except OSError:
+                            exists = False
+                        detail = _UNSAFE_SYMLINK if exists else _UNSAFE_BROKEN
+                        errors.append(f"{display}: {detail}")
+                    else:
+                        errors.append(f"{display}: {_UNSAFE_NOT_DIRECTORY}")
                 continue
             path = Path(dirpath) / name
             display = _display_path(root, path)
