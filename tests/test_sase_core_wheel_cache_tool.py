@@ -74,7 +74,11 @@ def fake_cargo(tmp_path: Path) -> Path:
     cargo.write_text(
         "#!/bin/sh\n"
         'if [ -n "${FAKE_CARGO_COUNTER:-}" ]; then printf build >> "$FAKE_CARGO_COUNTER"; fi\n'
-        'sleep "${FAKE_CARGO_DELAY:-0}"\n'
+        'if [ -n "${FAKE_CARGO_RELEASE:-}" ]; then\n'
+        '  while [ ! -f "$FAKE_CARGO_RELEASE" ]; do sleep 0.01; done\n'
+        "else\n"
+        '  sleep "${FAKE_CARGO_DELAY:-0}"\n'
+        "fi\n"
         "profile=\n"
         'while [ "$#" -gt 0 ]; do\n'
         '  if [ "$1" = "--profile" ]; then shift; profile="$1"; fi\n'
@@ -505,8 +509,12 @@ def test_lsp_store_rechecks_after_waiting_for_identity_lock(
     fake_rustc: Path,
     tmp_path: Path,
 ) -> None:
+    """Hold the first cargo until the second store is waiting on the identity lock."""
     cache_dir = tmp_path / "cache"
     counter = tmp_path / "cargo-count"
+    release = tmp_path / "cargo-release"
+    second_stdout_path = tmp_path / "second.stdout"
+    second_stderr_path = tmp_path / "second.stderr"
     args = [
         *_tool_args(
             "store",
@@ -522,27 +530,62 @@ def test_lsp_store_rechecks_after_waiting_for_identity_lock(
         str(core_checkout / "target/lsp"),
     ]
     env = os.environ.copy()
-    env.update({"FAKE_CARGO_COUNTER": str(counter), "FAKE_CARGO_DELAY": "0.3"})
+    env.update({"PYTHONUNBUFFERED": "1"})
+    first_env = env.copy()
+    first_env.update(
+        {
+            "FAKE_CARGO_COUNTER": str(counter),
+            "FAKE_CARGO_RELEASE": str(release),
+        }
+    )
     first = subprocess.Popen(
         args,
         cwd=ROOT,
-        env=env,
+        env=first_env,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         text=True,
     )
-    deadline = time.monotonic() + 5
-    while not counter.exists() and time.monotonic() < deadline:
-        time.sleep(0.01)  # sase-test-wait: polls for fake cargo start marker
-    assert counter.exists()
+    try:
+        deadline = time.monotonic() + 5
+        while not counter.exists() and time.monotonic() < deadline:
+            time.sleep(0.01)  # sase-test-wait: polls for fake cargo start marker
+        assert counter.exists()
 
-    second = _run(args, cwd=ROOT, env=env)
-    first_stdout, first_stderr = first.communicate(timeout=5)
+        with (
+            second_stdout_path.open("w", encoding="utf-8") as out,
+            second_stderr_path.open("w", encoding="utf-8") as err,
+        ):
+            second = subprocess.Popen(args, cwd=ROOT, env=env, stdout=out, stderr=err)
+        try:
+            wait_deadline = time.monotonic() + 5
+            while time.monotonic() < wait_deadline:
+                if "Waiting for the shared build lock" in second_stderr_path.read_text(
+                    encoding="utf-8"
+                ):
+                    break
+                time.sleep(0.01)  # sase-test-wait: polls for lock-wait stderr
+            else:
+                pytest.fail(
+                    "Waiting for the shared build lock in "
+                    + repr(second_stderr_path.read_text(encoding="utf-8"))
+                )
+        finally:
+            release.write_text("go\n", encoding="utf-8")
+            second.wait(timeout=10)
+        first_stdout, first_stderr = first.communicate(timeout=10)
+    finally:
+        if first.poll() is None:
+            first.kill()
+            first.communicate(timeout=5)
 
+    second_stdout = second_stdout_path.read_text(encoding="utf-8")
+    second_stderr = second_stderr_path.read_text(encoding="utf-8")
     assert first.returncode == 0, first_stderr
+    assert second.returncode == 0, second_stderr
     assert Path(first_stdout.strip()).is_file()
-    assert Path(second.stdout.strip()).is_file()
-    assert "Waiting for the shared build lock" in second.stderr
+    assert Path(second_stdout.strip()).is_file()
+    assert "Waiting for the shared build lock" in second_stderr
     assert counter.read_text(encoding="utf-8") == "build"
 
 
