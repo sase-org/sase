@@ -530,14 +530,10 @@ def test_lsp_store_rechecks_after_waiting_for_identity_lock(
         str(core_checkout / "target/lsp"),
     ]
     env = os.environ.copy()
-    env.update({"PYTHONUNBUFFERED": "1"})
+    # Both stores count cargo runs so the waiter's recheck must skip the build.
+    env.update({"FAKE_CARGO_COUNTER": str(counter), "PYTHONUNBUFFERED": "1"})
     first_env = env.copy()
-    first_env.update(
-        {
-            "FAKE_CARGO_COUNTER": str(counter),
-            "FAKE_CARGO_RELEASE": str(release),
-        }
-    )
+    first_env["FAKE_CARGO_RELEASE"] = str(release)
     first = subprocess.Popen(
         args,
         cwd=ROOT,
