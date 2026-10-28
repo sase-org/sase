@@ -216,7 +216,9 @@ class ArtifactLinkEventStoreAdapter:
             if include_pending
             else ((), _ArtifactLinkPendingStats())
         )
-        persisted, persisted_errors = load_artifact_link_quarantine_records(roots)
+        persisted, persisted_errors = load_artifact_link_quarantine_records(
+            roots, expected_project_key=self.project_key
+        )
         quarantine_errors = tuple(
             ArtifactLinkEventValidationFinding(
                 "invalid-quarantine",

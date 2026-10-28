@@ -15,12 +15,64 @@ from typing import Any
 
 from sase.core.rust import require_rust_binding
 from sase.sdd._artifact_link_event_history import ArtifactLinkCollisionEvidence
+from sase.sdd._artifact_link_event_canonical import ArtifactLinkEventCorruptionError
 from sase.sdd._artifact_link_event_install import install_artifact_link_bytes
 
 _QUARANTINE_STAGING = Path("link-events") / "quarantine" / "v1" / ".staging"
 _ADMISSION_DIR = Path("link-events") / "admission" / "v1"
 _ADMISSION_STAGING = _ADMISSION_DIR / ".staging"
 _ADMISSION_SCHEMA_VERSION = 1
+
+
+def _reusable_quarantine_record(
+    root: str | Path,
+    relative: str,
+    finding: ArtifactLinkQuarantineFinding,
+    *,
+    rejected_canonical_json: str,
+) -> str | None:
+    """Return *relative* without writing when a matching immutable record exists.
+
+    A match requires the stored record to validate and to agree on project,
+    operation, accepted/rejected digests, and the full rejected payload
+    (event plus canonical JSON). Basis, detail, ambiguity, and locator may
+    differ across the durability transition and do not block reuse. Any other
+    difference, malformed bytes, or symlink returns None so the normal
+    no-replace install reports corruption.
+    """
+
+    resolved = Path(root).expanduser().resolve(strict=False)
+    existing_path = resolved / relative
+    try:
+        if existing_path.is_symlink() or not existing_path.is_file():
+            return None
+        payload = json.loads(existing_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return None
+    if not isinstance(payload, dict):
+        return None
+    try:
+        validated = dict(
+            require_rust_binding("artifact_link_quarantine_record_validate")(payload)
+        )
+    except (TypeError, ValueError, RuntimeError, AttributeError):
+        return None
+    if str(validated.get("project_key") or "") != finding.project_key:
+        return None
+    if str(validated.get("operation_id") or "") != finding.operation_id:
+        return None
+    if str(validated.get("accepted_digest") or "") != finding.accepted_digest:
+        return None
+    if str(validated.get("rejected_digest") or "") != finding.rejected_digest:
+        return None
+    stored_event = validated.get("rejected_event")
+    if not isinstance(stored_event, Mapping):
+        return None
+    if dict(stored_event) != dict(finding.rejected_event):
+        return None
+    if str(validated.get("rejected_canonical_json") or "") != rejected_canonical_json:
+        return None
+    return relative
 
 
 @dataclass(frozen=True, slots=True)
@@ -64,14 +116,36 @@ def persist_artifact_link_quarantine_record(
     *,
     rejected_canonical_json: str,
 ) -> str:
-    """Persist one quarantine record. Repeat replays with the same bytes are no-ops."""
+    """Persist one quarantine record. Repeat replays with the same bytes are no-ops.
 
-    relative = str(
-        require_rust_binding("artifact_link_quarantine_record_path")(
-            finding.operation_id,
-            finding.rejected_digest,
+    Once the winner is durable the partition reports a stronger basis
+    (``durable_beats_pending``/``durable_beats_incoming``) with different
+    detail/ambiguity/locator for the same accepted/rejected decision. Reuse a
+    validated existing immutable record when its identity and full rejected
+    payload match, preserving its original bytes and provenance. Different
+    payloads, malformed evidence, or incompatible decisions remain corruption.
+    """
+
+    try:
+        relative = str(
+            require_rust_binding("artifact_link_quarantine_record_path")(
+                finding.operation_id,
+                finding.rejected_digest,
+            )
         )
+    except (TypeError, ValueError, RuntimeError) as exc:
+        raise ArtifactLinkEventCorruptionError(
+            f"artifact-link quarantine record path is invalid for "
+            f"{finding.operation_id}:{finding.rejected_digest}: {exc}"
+        ) from exc
+    existing_relative = _reusable_quarantine_record(
+        root,
+        relative,
+        finding,
+        rejected_canonical_json=rejected_canonical_json,
     )
+    if existing_relative is not None:
+        return existing_relative
     record = {
         "schema_version": int(
             require_rust_binding("artifact_link_quarantine_wire_schema_version")()
@@ -88,9 +162,17 @@ def persist_artifact_link_quarantine_record(
     }
     if finding.source_locator is not None:
         record["source_locator"] = finding.source_locator
-    canonical = str(
-        require_rust_binding("artifact_link_quarantine_record_canonical_json")(record)
-    )
+    try:
+        canonical = str(
+            require_rust_binding("artifact_link_quarantine_record_canonical_json")(
+                record
+            )
+        )
+    except (TypeError, ValueError, RuntimeError) as exc:
+        raise ArtifactLinkEventCorruptionError(
+            f"artifact-link quarantine record is invalid for "
+            f"{finding.operation_id}:{finding.rejected_digest}: {exc}"
+        ) from exc
     install_artifact_link_bytes(
         root,
         relative,
@@ -102,13 +184,22 @@ def persist_artifact_link_quarantine_record(
 
 def load_artifact_link_quarantine_records(
     roots: Iterable[str | Path],
+    expected_project_key: str | None = None,
 ) -> tuple[tuple[ArtifactLinkQuarantineFinding, ...], tuple[str, ...]]:
-    """Load persisted quarantine records from *roots*. Invalid files are blocking."""
+    """Load persisted quarantine records from *roots*. Invalid files are blocking.
+
+    Each record's operation/digest path and, when *expected_project_key* is
+    given, its store project are enforced alongside the existing
+    symlink/corruption rules. Valid quarantine stays a nonblocking diagnostic;
+    malformed or misfiled records remain blocking. Read-only callers stay
+    side-effect free.
+    """
 
     findings: list[ArtifactLinkQuarantineFinding] = []
     errors: list[str] = []
     seen_roots: set[Path] = set()
     validate = require_rust_binding("artifact_link_quarantine_record_validate")
+    record_path_binding = require_rust_binding("artifact_link_quarantine_record_path")
     for raw_root in roots:
         root = Path(raw_root).expanduser().resolve(strict=False)
         if root in seen_roots:
@@ -139,9 +230,34 @@ def load_artifact_link_quarantine_records(
             except (TypeError, ValueError, RuntimeError, AttributeError) as exc:
                 errors.append(f"{_display_path(root, path)}: {exc}")
                 continue
-            findings.append(
-                _finding_from_record(validated, relative=_display_path(root, path))
-            )
+            try:
+                expected_relative = str(
+                    record_path_binding(
+                        str(validated.get("operation_id") or ""),
+                        str(validated.get("rejected_digest") or ""),
+                    )
+                )
+            except (TypeError, ValueError, RuntimeError, AttributeError) as exc:
+                errors.append(f"{_display_path(root, path)}: {exc}")
+                continue
+            actual_relative = _display_path(root, path)
+            if actual_relative != expected_relative:
+                errors.append(
+                    f"{actual_relative}: quarantine path does not match "
+                    f"operation {validated.get('operation_id')} digest "
+                    f"{validated.get('rejected_digest')}"
+                )
+                continue
+            if (
+                expected_project_key is not None
+                and str(validated.get("project_key") or "") != expected_project_key
+            ):
+                errors.append(
+                    f"{actual_relative}: quarantine project "
+                    f"{validated.get('project_key')!r} != {expected_project_key!r}"
+                )
+                continue
+            findings.append(_finding_from_record(validated, relative=actual_relative))
     return tuple(findings), tuple(errors)
 
 

@@ -114,6 +114,17 @@ def _root_history(
 ) -> dict[tuple[str, str], ArtifactLinkCollisionEvidence]:
     if not _is_git_repo(root):
         return {}
+    if _is_shallow_repository(root):
+        incomplete: dict[tuple[str, str], ArtifactLinkCollisionEvidence] = {}
+        for candidate in members:
+            digest = str(getattr(candidate, "digest", "") or "")
+            relative = getattr(candidate, "relative_path", None)
+            if not digest or not relative:
+                continue
+            incomplete[(str(root), digest)] = ArtifactLinkCollisionEvidence(
+                history_complete=False,
+            )
+        return incomplete
     first_adds: dict[str, tuple[str, str]] = {}
     for candidate in members:
         digest = str(getattr(candidate, "digest", "") or "")
@@ -191,6 +202,18 @@ def _is_git_repo(root: Path) -> bool:
         ["rev-parse", "--is-inside-work-tree"],
         cwd=root,
         op="artifact-link-collision-git-probe",
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    return result.returncode == 0 and result.stdout.strip() == "true"
+
+
+def _is_shallow_repository(root: Path) -> bool:
+    result = run_sdd_git(
+        ["rev-parse", "--is-shallow-repository"],
+        cwd=root,
+        op="artifact-link-collision-shallow-probe",
         check=False,
         capture_output=True,
         text=True,
