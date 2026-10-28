@@ -49,7 +49,7 @@ class _RepositorySettlement:
 
 
 @dataclass(frozen=True)
-class _RecoveryAssessment:
+class RecoveryAssessment:
     """The read-only verdict a terminal failure was assessed against."""
 
     should_recover: bool
@@ -367,10 +367,10 @@ def assess_terminal_failure(
     failure_code: str,
     failure_message: str,
     provenance: Mapping[str, Any] | None = None,
-) -> _RecoveryAssessment:
+) -> RecoveryAssessment:
     """Decide whether a terminal failure warrants failed-close recovery."""
     if not artifacts_dir:
-        return _RecoveryAssessment(
+        return RecoveryAssessment(
             should_recover=False,
             reason="no_artifacts_dir",
             failure_code=failure_code,
@@ -378,7 +378,7 @@ def assess_terminal_failure(
         )
     proven = provenance if provenance is not None else run_provenance()
     if proven is None:
-        return _RecoveryAssessment(
+        return RecoveryAssessment(
             should_recover=False,
             reason="no_run_provenance",
             failure_code=failure_code,
@@ -387,7 +387,7 @@ def assess_terminal_failure(
     run_id = str(proven.get("run_id", ""))
     try:
         if has_pending_handoff(artifacts_dir):
-            return _RecoveryAssessment(
+            return RecoveryAssessment(
                 should_recover=False,
                 reason="pending_handoff",
                 failure_code=failure_code,
@@ -397,7 +397,7 @@ def assess_terminal_failure(
         pass
     obligations, deferred_ids, markers = _context_obligations(artifacts_dir)
     if not obligations:
-        return _RecoveryAssessment(
+        return RecoveryAssessment(
             should_recover=False,
             reason="no_repository_obligations",
             failure_code=failure_code,
@@ -417,7 +417,7 @@ def assess_terminal_failure(
         )
     unlanded = [item for item in settlements if not item.landed]
     if not unlanded:
-        return _RecoveryAssessment(
+        return RecoveryAssessment(
             should_recover=False,
             reason="all_repositories_landed",
             repositories=tuple(settlements),
@@ -427,7 +427,7 @@ def assess_terminal_failure(
             failure_code=failure_code,
             failure_message=failure_message,
         )
-    return _RecoveryAssessment(
+    return RecoveryAssessment(
         should_recover=True,
         reason="unlanded_repository_obligations",
         repositories=tuple(settlements),
@@ -454,7 +454,7 @@ def _stitch_attempted(
 
 
 def build_recovery_note(
-    assessment: _RecoveryAssessment,
+    assessment: RecoveryAssessment,
     provenance: Mapping[str, Any],
     *,
     artifacts_dir: str,
@@ -534,6 +534,7 @@ def build_recovery_note(
 
 
 __all__ = [
+    "RecoveryAssessment",
     "STITCH_FAILED_NOTE_PREFIX",
     "assess_terminal_failure",
     "build_recovery_note",

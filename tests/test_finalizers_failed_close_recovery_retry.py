@@ -19,7 +19,7 @@ from sase.bead.model import Status
 from sase.bead.project import BeadProject
 from sase.bead.sync import commit_failed_close_recovery
 from sase.finalizers._failed_close_recovery_assess import (
-    _RecoveryAssessment,
+    RecoveryAssessment,
     build_recovery_note,
 )
 from sase.finalizers.commit import (
@@ -283,7 +283,7 @@ class TestRedactionAndDeclarationEvidence:
     ) -> None:
         secret = "ghp_synthetic_not_a_real_token_123"
         diagnostic = f"api_key={secret}\nhook failed near the end"
-        assessment = _RecoveryAssessment(
+        assessment = RecoveryAssessment(
             should_recover=True,
             reason="unlanded_repository_obligations",
             stitch_attempted=True,

@@ -8,7 +8,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from sase.finalizers._failed_close_recovery_assess import _RecoveryAssessment
+from sase.finalizers._failed_close_recovery_assess import RecoveryAssessment
 from sase.procs.text_bounding import bound_and_redact_text
 from sase.workspace_provider.snapshot import (
     SNAPSHOT_KIND,
@@ -32,7 +32,7 @@ class SnapshotEvidence:
 
 def capture_failed_close_snapshots(
     artifacts_dir: str,
-    assessment: _RecoveryAssessment,
+    assessment: RecoveryAssessment,
     *,
     run_id: str,
 ) -> SnapshotEvidence:
