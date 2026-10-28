@@ -17113,7 +17113,7 @@
                   "--area"
                 ],
                 "takes_value": true,
-                "value_hint": null
+                "value_hint": "text"
               },
               {
                 "choices": [
@@ -17164,6 +17164,160 @@
             "path": [
               "footprint",
               "catalog"
+            ],
+            "positionals": [],
+            "run_policy": [],
+            "stdin": false,
+            "subcommands": [],
+            "writes": false
+          },
+          {
+            "aliases": [],
+            "default_child": null,
+            "description_digest": "e6b7f7fea6a68153",
+            "hidden": false,
+            "mutex_groups": [],
+            "name": "clear",
+            "options": [
+              {
+                "choices": null,
+                "default": null,
+                "dest": "help",
+                "hidden": false,
+                "kind": null,
+                "metavar": null,
+                "repeatable": false,
+                "required": false,
+                "strings": [
+                  "-h",
+                  "--help"
+                ],
+                "takes_value": false,
+                "value_hint": null
+              },
+              {
+                "choices": null,
+                "default": "False",
+                "dest": "yes",
+                "hidden": false,
+                "kind": null,
+                "metavar": null,
+                "repeatable": false,
+                "required": false,
+                "strings": [
+                  "-y",
+                  "--yes"
+                ],
+                "takes_value": false,
+                "value_hint": null
+              }
+            ],
+            "path": [
+              "footprint",
+              "clear"
+            ],
+            "positionals": [],
+            "run_policy": [],
+            "stdin": false,
+            "subcommands": [],
+            "writes": false
+          },
+          {
+            "aliases": [],
+            "default_child": null,
+            "description_digest": "2a4ee61d9e43fbd4",
+            "hidden": false,
+            "mutex_groups": [],
+            "name": "mode",
+            "options": [
+              {
+                "choices": null,
+                "default": null,
+                "dest": "help",
+                "hidden": false,
+                "kind": null,
+                "metavar": null,
+                "repeatable": false,
+                "required": false,
+                "strings": [
+                  "-h",
+                  "--help"
+                ],
+                "takes_value": false,
+                "value_hint": null
+              }
+            ],
+            "path": [
+              "footprint",
+              "mode"
+            ],
+            "positionals": [
+              {
+                "choices": [
+                  "local",
+                  "off"
+                ],
+                "dest": "mode",
+                "is_remainder": false,
+                "kind": null,
+                "metavar": "mode",
+                "nargs": "?",
+                "required": false,
+                "value_hint": null
+              }
+            ],
+            "run_policy": [],
+            "stdin": false,
+            "subcommands": [],
+            "writes": false
+          },
+          {
+            "aliases": [],
+            "default_child": null,
+            "description_digest": "e1ca6b3c0749c43c",
+            "hidden": false,
+            "mutex_groups": [],
+            "name": "status",
+            "options": [
+              {
+                "choices": null,
+                "default": null,
+                "dest": "help",
+                "hidden": false,
+                "kind": null,
+                "metavar": null,
+                "repeatable": false,
+                "required": false,
+                "strings": [
+                  "-h",
+                  "--help"
+                ],
+                "takes_value": false,
+                "value_hint": null
+              },
+              {
+                "choices": [
+                  "rich",
+                  "json"
+                ],
+                "default": "rich",
+                "dest": "format",
+                "hidden": false,
+                "kind": null,
+                "metavar": null,
+                "repeatable": false,
+                "required": false,
+                "strings": [
+                  "-f",
+                  "--format"
+                ],
+                "takes_value": true,
+                "value_hint": null
+              }
+            ],
+            "path": [
+              "footprint",
+              "status"
             ],
             "positionals": [],
             "run_policy": [],

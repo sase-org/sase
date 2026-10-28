@@ -485,20 +485,11 @@ _lint-symvision *args: _setup
         --exclude-decorator builtin_chop \
         --epic-symbol 'sase-1p1(other_id)' \
         --epic-symbol 'sase-1p1(custom_id)' \
-        --epic-symbol 'sase-1p1(footprint_ledger_path)' \
-        --epic-symbol 'sase-1p1(footprint_spool_dir)' \
         --epic-symbol 'sase-1p1(footprint_wire_schema_version)' \
-        --epic-symbol 'sase-1p1(footprint_catalog_status)' \
-        --epic-symbol 'sase-1p1(footprint_ingest_catalog)' \
-        --epic-symbol 'sase-1p1(footprint_fold)' \
         --epic-symbol 'sase-1p1(footprint_upsert_derived)' \
-        --epic-symbol 'sase-1p1(footprint_status)' \
-        --epic-symbol 'sase-1p1(footprint_prune)' \
-        --epic-symbol 'sase-1p1(footprint_clear)' \
         --epic-symbol 'sase-1p1(footprint_validate_overlay)' \
-        --epic-symbol 'sase-1p1.5(generation_path)' \
-        --epic-symbol 'sase-1p1.6(Overlay)' \
-        --epic-symbol 'sase-1p1.6(load_overlay)' \
+        --epic-symbol 'sase-1p1.8(Overlay)' \
+        --epic-symbol 'sase-1p1.8(load_overlay)' \
         {{ args }}
 
 # Check Python file line counts (private, extracted for per-stage wrapping)

@@ -81,6 +81,7 @@ def build_doctor_registry(context: DoctorContext) -> DiagnosticRegistry:
     from sase.doctor.checks_deep import deep_check_specs
     from sase.doctor.checks_dispatch import dispatch_check_specs
     from sase.doctor.checks_external_mirror import external_mirror_check_specs
+    from sase.doctor.checks_footprint import footprint_check_specs
     from sase.doctor.checks_integrations import integration_check_specs
     from sase.doctor.checks_plugins import plugin_check_specs
     from sase.doctor.checks_project import project_check_specs
@@ -120,6 +121,7 @@ def build_doctor_registry(context: DoctorContext) -> DiagnosticRegistry:
             *instructions_check_specs(context),
             *flag_check_specs(context),
             *telemetry_check_specs(context),
+            *footprint_check_specs(context),
             *integration_check_specs(context),
             *deep_check_specs(context),
             *tools_check_specs(context),

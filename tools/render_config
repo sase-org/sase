@@ -129,6 +129,7 @@ FAMILIES: dict[str, tuple[str, str, tuple[str, ...]]] = {
             "artifacts",
             "artifact_refs",
             "disk",
+            "footprint",
             "managed_tmp",
             "markdown",
             "monitor",

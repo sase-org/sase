@@ -28,10 +28,12 @@ def register_footprint_parser(subparsers: argparse._SubParsersAction) -> None:
     footprint_sub = footprint_parser.add_subparsers(
         dest="footprint_subcommand",
         help="Footprint views",
-        metavar="{catalog,mode}",
+        metavar="{catalog,clear,mode,status}",
     )
     _register_catalog_parser(footprint_sub)
+    _register_clear_parser(footprint_sub)
     _register_mode_parser(footprint_sub)
+    _register_status_parser(footprint_sub)
 
 
 def _register_mode_parser(footprint_sub: argparse._SubParsersAction) -> None:
@@ -91,6 +93,46 @@ def _register_catalog_parser(
         default=None,
         metavar="NS",
         help="Show only one namespace (for example cli)",
+    )
+
+
+def _register_clear_parser(
+    footprint_sub: argparse._SubParsersAction,
+) -> None:
+    clear_parser = footprint_sub.add_parser(
+        "clear",
+        help="Clear local Footprint data",
+        description=(
+            "Delete the local Footprint ledger and spool, then advance the "
+            "generation so buffered TUI counts are discarded."
+        ),
+    )
+    clear_parser.add_argument(
+        "-y",
+        "--yes",
+        action="store_true",
+        help="Clear without asking for confirmation",
+    )
+
+
+def _register_status_parser(
+    footprint_sub: argparse._SubParsersAction,
+) -> None:
+    status_parser = footprint_sub.add_parser(
+        "status",
+        help="Show Footprint recording and ledger status",
+        description=(
+            "Show recording mode, ledger size, spool backlog, catalog, "
+            "coverage, and fold faults. Pending spool data is folded first "
+            "when the last fold is more than ten minutes old."
+        ),
+    )
+    status_parser.add_argument(
+        "-f",
+        "--format",
+        choices=("rich", "json"),
+        default="rich",
+        help="Output format (default: rich)",
     )
 
 

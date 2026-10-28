@@ -53,6 +53,11 @@ def _catalog_path() -> Path:
     return Path(str(importlib.resources.files("sase.footprint") / "catalog.jsonl"))
 
 
+def catalog_path() -> Path:
+    """Return the checked-in generated catalog path for the fold driver."""
+    return _catalog_path()
+
+
 def _overlay_path() -> Path:
     """Return the curated overlay path."""
     return Path(str(importlib.resources.files("sase.footprint") / "overlay.yml"))
@@ -103,6 +108,7 @@ def load_overlay(path: Path | None = None) -> Overlay:
 __all__ = [
     "CatalogEntry",
     "Overlay",
+    "catalog_path",
     "load_catalog",
     "load_overlay",
 ]

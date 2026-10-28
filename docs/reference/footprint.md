@@ -22,9 +22,9 @@ contains:
 - An outcome (`ok`, `error`, `usage_error`, `help`, or `cancelled`), a count, elapsed
   milliseconds, the local calendar date, and the SASE version.
 
-The spool uses private local files and is folded by later Footprint features. A full
-daily file stops accepting CLI records after 32 MiB; a small drop record reports skipped
-lines when space remains.
+The spool uses private local files and is folded into a local daily ledger by the hourly
+`footprint_fold` housekeeping job. A full daily file stops accepting CLI records after
+32 MiB; a small drop record reports skipped lines when space remains.
 
 ## What it never records
 
@@ -44,6 +44,23 @@ Run `sase footprint mode off` to stop recording new CLI hits. Run
 `SASE_FOOTPRINT=off` disables recording for one process and takes precedence over the
 mode file. `sase footprint mode` prints the effective mode and a short disclosure. The
 mode switch does not delete records already in the spool.
+
+## Status and clear
+
+Run `sase footprint status` to see the effective mode, privacy summary, first recorded
+day, ledger size, spool backlog, catalog revision, seven-day coverage, and any dropped,
+torn, or unknown-ID records. Status folds pending spool data when the last fold is more
+than ten minutes old. Use `-f json` for the ledger status wire data.
+
+Run `sase footprint clear` to remove the ledger and spool. The command asks for
+confirmation; pass `-y` to skip the prompt. Clearing advances a generation number so TUI
+counts buffered before the clear are discarded. The recording mode stays as set.
+
+The hourly `footprint_fold` job ingests a changed catalog, folds pending spool lines,
+applies spool retention, and prunes old daily aggregates. It skips a pass when the
+ledger is busy. `sase doctor` warns when local recording has unfolded spool bytes older
+than three days. The first fold that stores records adds one disclosure notification to
+the inbox.
 
 Related: [`sase footprint`](cli/footprint.md) ·
 [Environment variables](environment-variables.md).

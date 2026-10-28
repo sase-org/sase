@@ -14,6 +14,7 @@ Periodic maintenance:
 | Job                          | Description                                                                      |
 | ---------------------------- | -------------------------------------------------------------------------------- |
 | `error_digest`               | Send error notification digests (creates `ViewErrorReport` notification action)  |
+| `footprint_fold`             | Fold local Footprint spool records into the daily census ledger                  |
 | `notification_store_compact` | Archive old dismissed notifications out of the live JSONL store                  |
 | `managed_tmp_reap`           | Prune stale scratch under every registered managed SASE temp root                |
 | `proc_runtime_sweep`         | Prune stale rowless proc runtime directories                                     |
@@ -38,6 +39,12 @@ by moving dismissed rows older than 3 days into `notifications-archive.jsonl`. U
 and still-actionable rows stay in the live file. sase's TUI snapshot reads are memoized
 against an mtime+size token, so this pass lives on `housekeeping` rather than the TUI
 refresh cadence.
+
+The `footprint_fold` job ingests a changed catalog, folds pending local usage records,
+applies spool retention, and prunes daily aggregates older than
+[`footprint.retention_days`](../config/runtime.md#footprint). It runs hourly because the
+spool is append-only on CLI and TUI paths. A busy ledger skips the pass so an
+interactive status read can continue with the existing snapshot.
 
 The `managed_tmp_reap` job bounds every managed SASE temp root writers actually used.
 Each `get_sase_managed_tmpdir()` call registers its resolved root (`$SASE_TMPDIR`, else

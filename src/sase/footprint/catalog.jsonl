@@ -1,4 +1,4 @@
-{"count": 3597, "rev": "c9928ef1bdc0", "schema": "sase.footprint.catalog/1"}
+{"count": 3602, "rev": "560413cbc1fb", "schema": "sase.footprint.catalog/1"}
 {"area": "automation", "id": "auto:axe.agent_waits", "kind": "auto", "label": "Resolve agent wait dependencies within seconds of completion", "ns": "auto", "parent": null, "src": "sase/default_config.yml"}
 {"area": "automation", "id": "auto:axe.agent_waits.wait_checks", "kind": "auto", "label": "Resolve agent wait dependencies and write ready.json when satisfied", "ns": "auto", "parent": "auto:axe.agent_waits", "src": "sase/default_config.yml"}
 {"area": "automation", "id": "auto:axe.checks", "kind": "auto", "label": "Poll slower PR-submission and workspace-claim checks on a five-minute cadence", "ns": "auto", "parent": null, "src": "sase/default_config.yml"}
@@ -27,6 +27,7 @@
 {"area": "automation", "id": "auto:axe.housekeeping.bead_stale_cleanup", "kind": "auto", "label": "Sweep stale sub-threshold ready task beads into one BeadStaleCleanup gate", "ns": "auto", "parent": "auto:axe.housekeeping", "src": "sase/default_config.yml"}
 {"area": "automation", "id": "auto:axe.housekeeping.disk_pressure", "kind": "auto", "label": "React when SASE's filesystem crosses disk-pressure thresholds", "ns": "auto", "parent": "auto:axe.housekeeping", "src": "sase/default_config.yml"}
 {"area": "automation", "id": "auto:axe.housekeeping.error_digest", "kind": "auto", "label": "Send a notification digest of errors from the last hour", "ns": "auto", "parent": "auto:axe.housekeeping", "src": "sase/default_config.yml"}
+{"area": "automation", "id": "auto:axe.housekeeping.footprint_fold", "kind": "auto", "label": "Fold local Footprint spool records into the daily census ledger", "ns": "auto", "parent": "auto:axe.housekeeping", "src": "sase/default_config.yml"}
 {"area": "automation", "id": "auto:axe.housekeeping.gate_turn_reclaim", "kind": "auto", "label": "Settle pending gate turns whose durable gates answered, cancelled, expired, or disappeared", "ns": "auto", "parent": "auto:axe.housekeeping", "src": "sase/default_config.yml"}
 {"area": "automation", "id": "auto:axe.housekeeping.managed_tmp_reap", "kind": "auto", "label": "Prune stale scratch under the managed SASE temp root", "ns": "auto", "parent": "auto:axe.housekeeping", "src": "sase/default_config.yml"}
 {"area": "automation", "id": "auto:axe.housekeeping.notification_store_compact", "kind": "auto", "label": "Archive old dismissed notifications out of the live JSONL store", "ns": "auto", "parent": "auto:axe.housekeeping", "src": "sase/default_config.yml"}
@@ -791,7 +792,11 @@
 {"area": "cli.footprint", "id": "cli:footprint.catalog#area", "kind": "option", "label": "Option --area of cli:footprint.catalog", "ns": "cli", "parent": "cli:footprint.catalog", "src": "sase/main/parser_footprint.py:register_footprint_parser"}
 {"area": "cli.footprint", "id": "cli:footprint.catalog#format", "kind": "option", "label": "Option --format of cli:footprint.catalog", "ns": "cli", "parent": "cli:footprint.catalog", "src": "sase/main/parser_footprint.py:register_footprint_parser"}
 {"area": "cli.footprint", "id": "cli:footprint.catalog#namespace", "kind": "option", "label": "Option --namespace of cli:footprint.catalog", "ns": "cli", "parent": "cli:footprint.catalog", "src": "sase/main/parser_footprint.py:register_footprint_parser"}
+{"area": "cli.footprint", "id": "cli:footprint.clear", "kind": "command", "label": "Clear local Footprint data", "ns": "cli", "parent": null, "src": "sase/main/parser_footprint.py:register_footprint_parser"}
+{"area": "cli.footprint", "id": "cli:footprint.clear#yes", "kind": "option", "label": "Option --yes of cli:footprint.clear", "ns": "cli", "parent": "cli:footprint.clear", "src": "sase/main/parser_footprint.py:register_footprint_parser"}
 {"area": "cli.footprint", "id": "cli:footprint.mode", "kind": "command", "label": "Show or set local Footprint recording", "ns": "cli", "parent": null, "src": "sase/main/parser_footprint.py:register_footprint_parser"}
+{"area": "cli.footprint", "id": "cli:footprint.status", "kind": "command", "label": "Show Footprint recording and ledger status", "ns": "cli", "parent": null, "src": "sase/main/parser_footprint.py:register_footprint_parser"}
+{"area": "cli.footprint", "id": "cli:footprint.status#format", "kind": "option", "label": "Option --format of cli:footprint.status", "ns": "cli", "parent": "cli:footprint.status", "src": "sase/main/parser_footprint.py:register_footprint_parser"}
 {"area": "cli.gate", "id": "cli:gate", "kind": "command", "label": "Create or wait for durable command-backed gates", "ns": "cli", "parent": null, "src": "sase/main/parser_gate.py:register_gate_parser"}
 {"area": "cli.gate", "id": "cli:gate.act", "kind": "command", "label": "Run one repeatable gate action without answering the gate", "ns": "cli", "parent": null, "src": "sase/main/parser_gate.py:register_gate_parser"}
 {"area": "cli.gate", "id": "cli:gate.act#id", "kind": "option", "label": "Option --id of cli:gate.act", "ns": "cli", "parent": "cli:gate.act", "src": "sase/main/parser_gate.py:register_gate_parser"}

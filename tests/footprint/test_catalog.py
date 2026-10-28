@@ -204,12 +204,14 @@ def test_every_config_leaf_has_an_id(
     by_id: dict[str, dict[str, Any]],
 ) -> None:
     cfg = load_bundled_config()
-    assert "footprint" not in cfg
+    assert "footprint" in cfg
     leaves: set[str] = set()
 
     def visit(node: Any, prefix: str) -> None:
         assert isinstance(node, dict)
         for key in node:
+            if prefix == "" and key == "footprint":
+                continue
             segment = ids.sanitize(str(key))
             path = f"{prefix}.{segment}" if prefix else segment
             if isinstance(node[key], dict):

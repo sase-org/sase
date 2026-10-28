@@ -6088,6 +6088,68 @@
           "deprecated": true
         }
       }
+    },
+    "footprint": {
+      "type": "object",
+      "description": "Retention and review thresholds for the local Footprint usage census.",
+      "additionalProperties": false,
+      "properties": {
+        "retention_days": {
+          "type": "integer",
+          "minimum": 1,
+          "default": 400,
+          "description": "Days to retain daily Footprint aggregates and coverage."
+        },
+        "spool_keep_days": {
+          "type": "integer",
+          "minimum": 0,
+          "default": 7,
+          "description": "Days to keep spool files after every complete line has been folded."
+        },
+        "spool_max_age_days": {
+          "type": "integer",
+          "minimum": 1,
+          "default": 30,
+          "description": "Maximum spool-file age before the file is discarded and coverage is marked incomplete."
+        },
+        "review": {
+          "type": "object",
+          "description": "Thresholds used to decide when a Footprint feature has enough observed history for review.",
+          "additionalProperties": false,
+          "properties": {
+            "min_catalog_days": {
+              "type": "integer",
+              "minimum": 1,
+              "default": 60,
+              "description": "Minimum days a feature must be present in the catalog before it can be reviewed."
+            },
+            "min_active_days": {
+              "type": "integer",
+              "minimum": 1,
+              "default": 30,
+              "description": "Minimum observed active days required on a surface before its features can be reviewed."
+            },
+            "calibration_days": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 3,
+              "description": "Initial observed days excluded while Footprint recording calibrates."
+            },
+            "fading_days": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 30,
+              "description": "Days without use after which previously active features count as fading."
+            }
+          }
+        },
+        "review_project": {
+          "type": "string",
+          "minLength": 1,
+          "default": "sase",
+          "description": "Project where a finished Footprint review launches its review macro."
+        }
+      }
     }
   }
 }

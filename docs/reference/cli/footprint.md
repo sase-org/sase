@@ -12,7 +12,7 @@ Show the local usage census of sase surfaces.
 Reference for `sase footprint`. Run `sase footprint --help` for the exact output on this checkout.
 
 ```text
-usage: sase footprint [-h] {catalog,mode} ...
+usage: sase footprint [-h] {catalog,clear,mode,status} ...
 ```
 
 Footprint keeps a local, privacy-by-construction census of which sase surfaces (CLI commands and options, TUI actions and keys, views and modals, macros, skills, config leaves, automation) are used, and joins it with a generated feature catalog. Use `sase footprint mode off` to stop recording. Bare `sase footprint` shows this help.
@@ -25,10 +25,12 @@ Options:
 
 Subcommands:
 
-| Subcommand               | Summary                               |
-| ------------------------ | ------------------------------------- |
-| `sase footprint catalog` | List the generated feature catalog    |
-| `sase footprint mode`    | Show or set local Footprint recording |
+| Subcommand               | Summary                                    |
+| ------------------------ | ------------------------------------------ |
+| `sase footprint catalog` | List the generated feature catalog         |
+| `sase footprint clear`   | Clear local Footprint data                 |
+| `sase footprint mode`    | Show or set local Footprint recording      |
+| `sase footprint status`  | Show Footprint recording and ledger status |
 
 ## `sase footprint catalog`
 
@@ -46,6 +48,21 @@ Options:
 | `-f FORMAT`, `--format FORMAT` | Output format (default: rich) (choices: `json`, `markdown`, `rich`)                                                     | `rich`  |
 | `-h`, `--help`                 | show this help message and exit                                                                                         | —       |
 | `-n NS`, `--namespace NS`      | Show only one namespace (for example cli) (choices: `auto`, `cli`, `config`, `macro`, `plugin`, `skill`, `tui`, `view`) | —       |
+
+## `sase footprint clear`
+
+```text
+usage: sase footprint clear [-h] [-y]
+```
+
+Delete the local Footprint ledger and spool, then advance the generation so buffered TUI counts are discarded.
+
+Options:
+
+| Option         | Description                           | Default |
+| -------------- | ------------------------------------- | ------- |
+| `-h`, `--help` | show this help message and exit       | —       |
+| `-y`, `--yes`  | Clear without asking for confirmation | `false` |
 
 ## `sase footprint mode`
 
@@ -66,5 +83,20 @@ Arguments:
 | Argument | Description                                     |
 | -------- | ----------------------------------------------- |
 | `mode`   | Recording mode (default: show the current mode) |
+
+## `sase footprint status`
+
+```text
+usage: sase footprint status [-h] [-f {rich,json}]
+```
+
+Show recording mode, ledger size, spool backlog, catalog, coverage, and fold faults. Pending spool data is folded first when the last fold is more than ten minutes old.
+
+Options:
+
+| Option                         | Description                                             | Default |
+| ------------------------------ | ------------------------------------------------------- | ------- |
+| `-f FORMAT`, `--format FORMAT` | Output format (default: rich) (choices: `json`, `rich`) | `rich`  |
+| `-h`, `--help`                 | show this help message and exit                         | —       |
 
 Related: [CLI command groups](index.md).

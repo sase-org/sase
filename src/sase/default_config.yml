@@ -134,6 +134,19 @@ procs:
   runtime_orphan_horizon_seconds: 259200
   runtime_orphan_max_removals: 2000
 
+# Retention for the local Footprint usage census. Only the background fold and
+# explicit report commands read this section; CLI and TUI recorders stay fast.
+footprint:
+  retention_days: 400
+  spool_keep_days: 7
+  spool_max_age_days: 30
+  review:
+    min_catalog_days: 60
+    min_active_days: 30
+    calibration_days: 3
+    fading_days: 30
+  review_project: sase
+
 # Operational ToolRun ledger retention. Named tool argv lives only in the
 # project's sase/sase.yml `tools:` catalog and is not merged from this file.
 tool_runs:
@@ -1634,6 +1647,14 @@ axe:
             Reads the AXE error log and the last successful digest timestamp, then notifies only about newer errors
             within the rolling one-hour window. The checkpoint advances to the newest notified timestamp, preventing
             duplicate digests while leaving unsent errors eligible after a notification failure.
+        - name: footprint_fold
+          script: sase_job_footprint_fold
+          timeout: "2m"
+          description: |-
+            Fold local Footprint spool records into the daily census ledger
+
+            Ingests the generated catalog when its revision changes, folds pending spool lines, applies spool
+            retention, and prunes old daily aggregates. A short SQLite lock timeout skips a contended pass.
         - name: notification_store_compact
           script: sase_job_notification_store_compact
           timeout: "2m"
