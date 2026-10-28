@@ -59,6 +59,7 @@ class SourceFingerprint:
     ls_files_digest: str
     diff_cached_digest: str
     diff_worktree_digest: str
+    untracked_digest: str
 
 
 @dataclass(frozen=True)

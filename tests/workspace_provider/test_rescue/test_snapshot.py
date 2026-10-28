@@ -17,6 +17,7 @@ from sase.workspace_provider.snapshot import (
     SnapshotRecord,
     restore_git_snapshot,
     snapshot_git_repo,
+    snapshot_source_fingerprint,
 )
 from tests.workspace_provider.test_rescue._helpers import (
     commit_file,
@@ -136,6 +137,7 @@ def test_snapshot_restores_tracked_and_untracked(
     manifest = json.loads(record.manifest_path.read_text(encoding="utf-8"))
     assert manifest["kind"] == "verified-snapshot"
     assert manifest["snapshot_id"] == record.snapshot_id
+    assert manifest["source_fingerprint"] == snapshot_source_fingerprint(clone)
     _assert_source_unchanged(clone, before)
 
     dest = _restore_dest(tmp_path)
@@ -353,6 +355,50 @@ def test_snapshot_detects_source_change_during_capture(
     )
     assert _head(clone) == before[0]
     assert _index_bytes(clone) == before[1]
+
+
+def test_snapshot_source_fingerprint_tracks_untracked_bytes(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    redirect_state(tmp_path, monkeypatch)
+    _workspace, clone, _remote = seed_remote_clone(tmp_path)
+    untracked = clone / "src" / "new.py"
+    untracked.parent.mkdir()
+    untracked.write_bytes(b"first version\n")
+
+    first = snapshot_source_fingerprint(clone)
+    untracked.write_bytes(b"second version\n")
+    second = snapshot_source_fingerprint(clone)
+
+    assert first != second
+
+
+def test_snapshot_detects_untracked_source_change_during_capture(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    home, _notified = redirect_state(tmp_path, monkeypatch)
+    workspace, clone, _remote = seed_remote_clone(tmp_path)
+    untracked = clone / "src" / "new.py"
+    untracked.parent.mkdir()
+    untracked.write_bytes(b"before capture\n")
+    original = capture_module.read_source_state
+    calls = {"n": 0}
+
+    def flipped(repo: Path) -> SourceState:
+        calls["n"] += 1
+        state = original(repo)
+        if calls["n"] >= 2:
+            (repo / "src" / "new.py").write_bytes(b"changed during capture\n")
+            return original(repo)
+        return state
+
+    monkeypatch.setattr(capture_module, "read_source_state", flipped)
+    with pytest.raises(PreservationError, match="changed during snapshot"):
+        _snapshot(clone, workspace, reason="untracked-race")
+
+    assert calls["n"] >= 2
+    assert rescue_entries(home) == []
+    assert untracked.read_bytes() == b"changed during capture\n"
 
 
 def test_snapshot_ids_are_unique_for_same_head_and_timestamp(

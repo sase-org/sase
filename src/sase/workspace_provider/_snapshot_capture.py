@@ -7,6 +7,7 @@ import json
 import os
 import shutil
 import time
+from dataclasses import asdict
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -77,6 +78,18 @@ def snapshot_git_repo(
     except Exception as exc:
         _discard_incomplete(allocated)
         raise PreservationError(f"checkout snapshot failed: {exc}") from exc
+
+
+def snapshot_source_fingerprint(repo_root: str | Path) -> dict[str, str]:
+    """Return a stable read-only fingerprint for deciding whether to reuse a snapshot."""
+    repo = Path(repo_root)
+    before = read_source_state(repo).fingerprint
+    after = read_source_state(repo).fingerprint
+    if before != after:
+        raise PreservationError(
+            "source checkout changed while checking its fingerprint"
+        )
+    return asdict(after)
 
 
 def _snapshot_git_repo(
@@ -165,6 +178,10 @@ def read_source_state(repo_root: Path) -> SourceState:
         run_git_bytes(repo_root, "diff", "--binary", "HEAD"),
         "git diff",
     )
+    untracked = require_git(
+        run_git_bytes(repo_root, "ls-files", "-z", "-o", "--exclude-standard"),
+        "git ls-files --others",
+    )
     object_dir = _absolute_git_path(repo_root, "objects")
     index_path = _absolute_git_path(repo_root, "index")
     index_bytes = (
@@ -179,6 +196,7 @@ def read_source_state(repo_root: Path) -> SourceState:
         ls_files_digest=digest_bytes(ls_files),
         diff_cached_digest=digest_bytes(diff_cached),
         diff_worktree_digest=digest_bytes(diff_worktree),
+        untracked_digest=_digest_untracked(repo_root, untracked),
     )
     return SourceState(
         fingerprint=fingerprint,
@@ -192,6 +210,36 @@ def read_source_state(repo_root: Path) -> SourceState:
         object_dir=object_dir,
         index_path=index_path,
     )
+
+
+def _digest_untracked(repo_root: Path, paths_z: bytes) -> str:
+    """Hash untracked path metadata and bytes, which Git diffs do not include."""
+    digest = hashlib.sha256()
+    for raw_path in paths_z.split(b"\0"):
+        if not raw_path:
+            continue
+        rel = os.fsdecode(raw_path)
+        path = safe_repo_path(repo_root, rel)
+        digest.update(len(raw_path).to_bytes(8, "big"))
+        digest.update(raw_path)
+        if not os.path.lexists(path):
+            digest.update(b"missing\0")
+            continue
+        digest.update(file_mode_for_path(path).encode("ascii") + b"\0")
+        content_digest = hashlib.sha256()
+        size = 0
+        if path.is_symlink():
+            target = os.fsencode(os.readlink(path))
+            content_digest.update(target)
+            size = len(target)
+        else:
+            with path.open("rb") as stream:
+                while chunk := stream.read(1024 * 1024):
+                    content_digest.update(chunk)
+                    size += len(chunk)
+        digest.update(size.to_bytes(8, "big"))
+        digest.update(content_digest.digest())
+    return digest.hexdigest()
 
 
 def _has_work(state: SourceState) -> bool:
@@ -317,6 +365,7 @@ def _capture_into(
         "reason": reason,
         "branch": state.branch,
         "head": state.head,
+        "source_fingerprint": asdict(state.fingerprint),
         "base_tree": state.base_tree,
         "index_tree": index_tree,
         "worktree_tree": worktree_tree,

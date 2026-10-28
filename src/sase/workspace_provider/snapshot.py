@@ -8,7 +8,10 @@ or operation state. Callers that still want best-effort behavior keep using
 
 from __future__ import annotations
 
-from sase.workspace_provider._snapshot_capture import snapshot_git_repo
+from sase.workspace_provider._snapshot_capture import (
+    snapshot_git_repo,
+    snapshot_source_fingerprint,
+)
 from sase.workspace_provider._snapshot_model import (
     SNAPSHOT_KIND,
     SNAPSHOT_MAX_BYTES,
@@ -26,4 +29,5 @@ __all__ = [
     "SnapshotRecord",
     "restore_git_snapshot",
     "snapshot_git_repo",
+    "snapshot_source_fingerprint",
 ]

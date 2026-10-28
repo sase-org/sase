@@ -51,6 +51,11 @@ class TestControls:
     def test_success_leaves_close_alone(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
+        snapshot_calls: list[object] = []
+        monkeypatch.setattr(
+            "sase.finalizers._failed_close_recovery_snapshots.snapshot_git_repo",
+            lambda *args, **kwargs: snapshot_calls.append((args, kwargs)),
+        )
         repo = tmp_path / "repo"
         repo.mkdir()
         artifacts = tmp_path / "artifacts"
@@ -73,6 +78,7 @@ class TestControls:
         with BeadProject(tmp_path / "beadstore") as project:
             assert project.show(phase_id).status == Status.CLOSED
         assert not (artifacts / RECOVERY_REQUEST_FILENAME).exists()
+        assert snapshot_calls == []
 
     def test_successful_retry_leaves_close_alone(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
@@ -135,6 +141,11 @@ class TestControls:
     def test_landed_commit_plus_later_plugin_failure_leaves_close_alone(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
+        snapshot_calls: list[object] = []
+        monkeypatch.setattr(
+            "sase.finalizers._failed_close_recovery_snapshots.snapshot_git_repo",
+            lambda *args, **kwargs: snapshot_calls.append((args, kwargs)),
+        )
         repo = tmp_path / "repo"
         repo.mkdir()
         artifacts = tmp_path / "artifacts"
@@ -183,6 +194,7 @@ class TestControls:
         with BeadProject(tmp_path / "beadstore") as project:
             assert project.show(phase_id).status == Status.CLOSED
         assert not (artifacts / RECOVERY_REQUEST_FILENAME).exists()
+        assert snapshot_calls == []
 
     def test_clean_completion_failure_leaves_close_alone(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch

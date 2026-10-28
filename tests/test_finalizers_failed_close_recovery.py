@@ -21,6 +21,9 @@ from tests.test_finalizers_failed_close_recovery_retry import (
     TestPublicationRetry,
     TestRedactionAndDeclarationEvidence,
 )
+from tests.test_finalizers_failed_close_recovery_snapshots import (
+    TestFailedCloseSnapshots,
+)
 
 __test__ = False
 
@@ -28,6 +31,7 @@ __all__ = [
     "TestClosePlusBeforeCommitFailure",
     "TestClosePlusDeclarationRecoveryFailure",
     "TestControls",
+    "TestFailedCloseSnapshots",
     "TestHandoffAndIdentity",
     "TestLandingProofs",
     "TestMultipleCloses",

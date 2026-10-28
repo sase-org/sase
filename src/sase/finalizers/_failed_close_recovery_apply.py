@@ -37,6 +37,8 @@ class _RecoveryOutcome:
     published: bool = False
     publication_error: str = ""
     error: str = ""
+    snapshot_locations: list[str] = field(default_factory=list)
+    snapshot_errors: list[dict[str, str]] = field(default_factory=list)
 
 
 def _utc_now() -> str:
@@ -342,26 +344,57 @@ def _coordinate_failed_close_recovery(
     run_id = str(provenance.get("run_id", ""))
     agent_name = str(provenance.get("agent_name", ""))
     artifact_dir = str(provenance.get("artifact_dir", ""))
-    evidence_locations = [
-        str(location)
-        for location in [
-            artifacts_dir,
-            artifact_dir,
-            declaration_evidence_path(artifacts_dir),
+    from sase.finalizers._failed_close_recovery_snapshots import (
+        capture_failed_close_snapshots,
+    )
+
+    try:
+        snapshot_evidence = capture_failed_close_snapshots(
+            artifacts_dir, assessment, run_id=run_id
+        )
+        snapshots = [dict(row) for row in snapshot_evidence.records]
+        snapshot_locations = list(snapshot_evidence.locations)
+        snapshot_errors = [dict(row) for row in snapshot_evidence.errors]
+        previous_evidence_locations = list(
+            snapshot_evidence.previous_evidence_locations
+        )
+    except Exception as exc:  # noqa: BLE001 - snapshot failure must not block reopening.
+        snapshots = []
+        snapshot_locations = []
+        snapshot_errors = [
+            {"repo": "snapshot coordinator", "error": _redact_diagnostic(str(exc))}
         ]
-        if location
-    ]
+        previous_evidence_locations = []
+    evidence_locations = list(
+        dict.fromkeys(
+            str(location)
+            for location in [
+                artifacts_dir,
+                artifact_dir,
+                declaration_evidence_path(artifacts_dir),
+                *previous_evidence_locations,
+                *snapshot_locations,
+            ]
+            if location
+        )
+    )
+    outcome.snapshot_locations = snapshot_locations
+    outcome.snapshot_errors = snapshot_errors
     note = build_recovery_note(
         assessment,
         provenance,
         artifacts_dir=artifacts_dir,
         evidence_locations=evidence_locations,
+        snapshot_errors=snapshot_errors,
     )
     request = {
         "run_id": run_id,
         "failed_at": _utc_now(),
         "failure_code": failure_code,
         "evidence_locations": evidence_locations,
+        "snapshots": snapshots,
+        "snapshot_locations": snapshot_locations,
+        "snapshot_errors": snapshot_errors,
         "note": note,
         "actor": agent_name,
     }
@@ -380,11 +413,18 @@ def _coordinate_failed_close_recovery(
                 "error": outcome.error,
                 "request": request,
                 "failure_code": failure_code,
+                "snapshot_locations": snapshot_locations,
+                "snapshot_errors": snapshot_errors,
             },
         )
         _record_recovery_journal(
             artifacts_dir,
-            {"error": outcome.error, "failure_code": failure_code},
+            {
+                "error": outcome.error,
+                "failure_code": failure_code,
+                "snapshot_locations": snapshot_locations,
+                "snapshot_errors": snapshot_errors,
+            },
         )
         return outcome
     outcome.attempted = True
@@ -411,11 +451,18 @@ def _coordinate_failed_close_recovery(
                 "error": outcome.error,
                 "request": request,
                 "failure_code": failure_code,
+                "snapshot_locations": snapshot_locations,
+                "snapshot_errors": snapshot_errors,
             },
         )
         _record_recovery_journal(
             artifacts_dir,
-            {"error": outcome.error, "failure_code": failure_code},
+            {
+                "error": outcome.error,
+                "failure_code": failure_code,
+                "snapshot_locations": snapshot_locations,
+                "snapshot_errors": snapshot_errors,
+            },
         )
         return outcome
     outcome.recovered = _recovered_ids(report, "recovered")
@@ -442,6 +489,8 @@ def _coordinate_failed_close_recovery(
             "error": outcome.error,
             "request": request,
             "failure_code": failure_code,
+            "snapshot_locations": snapshot_locations,
+            "snapshot_errors": snapshot_errors,
         },
     )
     _record_recovery_journal(
@@ -452,6 +501,8 @@ def _coordinate_failed_close_recovery(
             "published": outcome.published,
             "error": outcome.error,
             "failure_code": failure_code,
+            "snapshot_locations": snapshot_locations,
+            "snapshot_errors": snapshot_errors,
         },
     )
     return outcome

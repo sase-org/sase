@@ -459,6 +459,7 @@ def build_recovery_note(
     *,
     artifacts_dir: str,
     evidence_locations: Sequence[str],
+    snapshot_errors: Sequence[Mapping[str, str]] = (),
 ) -> str:
     """Render the ``STITCH FAILED:`` note recorded on every recovered bead."""
     run_id = str(provenance.get("run_id", ""))
@@ -525,6 +526,10 @@ def build_recovery_note(
             lines.append("Declaration recovery evidence: " + declaration_evidence + ".")
     if evidence_locations:
         lines.append("Evidence locations: " + "; ".join(evidence_locations) + ".")
+    for error in snapshot_errors:
+        name = str(error.get("repo") or error.get("repo_path") or "repository")
+        detail = _redact_diagnostic(str(error.get("error", "snapshot failed")))
+        lines.append(f"Verified snapshot unavailable for {name}: {detail}.")
     return "\n".join(lines)
 
 
