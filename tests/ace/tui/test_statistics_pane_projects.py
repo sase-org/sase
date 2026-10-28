@@ -23,11 +23,11 @@ from sase.stats.render.compose import render_project_stats
 from sase.stats.render.context import RenderContext
 
 from tests.ace.tui._statistics_pane_helpers import (
-    _open_statistics,
-    _patch_center,
-    _render_plain,
-    _result,
-    _wait_statistics_settled,
+    open_statistics as _open_statistics,
+    patch_center as _patch_center,
+    render_plain as _render_plain,
+    result as _result,
+    wait_statistics_settled as _wait_statistics_settled,
 )
 from tests.stats._project_render_fixtures import (
     MACHINE,

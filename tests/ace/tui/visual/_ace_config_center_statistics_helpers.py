@@ -18,7 +18,9 @@ from tests.ace.tui.visual._ace_config_center_statistics_views import (
     _populated_project_stats,
     _populated_statistics_view,
 )
-from tests.ace.tui._statistics_pane_helpers import _result
+from tests.ace.tui._statistics_pane_helpers import (
+    result as _result,
+)
 
 
 def _patch_statistics_perf_degraded(monkeypatch: pytest.MonkeyPatch) -> None:

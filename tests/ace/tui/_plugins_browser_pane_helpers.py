@@ -588,3 +588,9 @@ def _uninstall_ready(
     for other in remaining:
         argv += ["--with", f"sase-{other}"]
     return UninstallReady(requirement=requirement, display_name=name, argv=argv)
+
+
+# Shared names for test helper modules that compose these plugin fixtures.
+plugin_catalog = _catalog
+patch_plugin_catalog = _patch_catalog
+patch_other_config_panes = _patch_other_panes

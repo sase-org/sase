@@ -13,9 +13,9 @@ from sase.stats.ranges import resolve_preset
 from sase.stats.views import build_statistics_views
 
 from tests.ace.tui._statistics_pane_helpers import (
-    _activity_payload,
-    _result,
-    _run_payload,
+    activity_payload as _activity_payload,
+    result as _result,
+    run_payload as _run_payload,
 )
 
 

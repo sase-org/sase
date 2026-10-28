@@ -22,16 +22,16 @@ from tests.ace.tui._plugins_browser_pane_helpers import (
     _patch_other_panes,
 )
 from tests.ace.tui._statistics_pane_helpers import (
-    _NOW,
-    _activity_payload,
-    _assert_range_scope_matches_selection,
-    _open_statistics,
-    _patch_center,
-    _render_plain,
-    _result,
-    _run_payload,
-    _scope_plain,
-    _wait_statistics_settled,
+    NOW as _NOW,
+    activity_payload as _activity_payload,
+    assert_range_scope_matches_selection as _assert_range_scope_matches_selection,
+    open_statistics as _open_statistics,
+    patch_center as _patch_center,
+    render_plain as _render_plain,
+    result as _result,
+    run_payload as _run_payload,
+    scope_plain as _scope_plain,
+    wait_statistics_settled as _wait_statistics_settled,
 )
 from tests._project_display_case import ProjectDisplayCase
 

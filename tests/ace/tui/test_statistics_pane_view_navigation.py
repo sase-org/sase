@@ -14,10 +14,10 @@ from sase.ace.tui.widgets.panel_tab_strip import PanelTabStrip
 from sase.stats.ranges import StatsRange
 
 from tests.ace.tui._statistics_pane_helpers import (
-    _assert_statistics_chrome,
-    _open_statistics,
-    _patch_center,
-    _wait_statistics_settled,
+    assert_statistics_chrome as _assert_statistics_chrome,
+    open_statistics as _open_statistics,
+    patch_center as _patch_center,
+    wait_statistics_settled as _wait_statistics_settled,
 )
 
 

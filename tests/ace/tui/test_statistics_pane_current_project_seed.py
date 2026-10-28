@@ -11,7 +11,10 @@ from sase.ace.tui.modals.statistics_pane_data import StatisticsView
 from sase.current_project import CurrentProject
 from sase.stats.ranges import StatsRange
 
-from tests.ace.tui._statistics_pane_helpers import _open_statistics, _patch_center
+from tests.ace.tui._statistics_pane_helpers import (
+    open_statistics as _open_statistics,
+    patch_center as _patch_center,
+)
 
 
 def _current_project(project_key: str) -> CurrentProject:

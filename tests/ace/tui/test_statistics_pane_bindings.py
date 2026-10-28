@@ -14,10 +14,10 @@ from sase.ace.tui.modals.statistics_pane_data import StatisticsView
 from sase.stats.ranges import StatsRange
 
 from tests.ace.tui._statistics_pane_helpers import (
-    _open_statistics,
-    _patch_center,
-    _scope_plain,
-    _wait_statistics_settled,
+    open_statistics as _open_statistics,
+    patch_center as _patch_center,
+    scope_plain as _scope_plain,
+    wait_statistics_settled as _wait_statistics_settled,
 )
 
 

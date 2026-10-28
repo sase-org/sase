@@ -15,8 +15,8 @@ from sase.ace.tui.modals.statistics_pane_data import (
 from sase.stats.ranges import StatsRange
 
 from tests.ace.tui._statistics_pane_helpers import (
-    _open_statistics,
-    _patch_center,
+    open_statistics as _open_statistics,
+    patch_center as _patch_center,
 )
 
 

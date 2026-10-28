@@ -10,10 +10,10 @@ from sase.stats.ranges import StatsRange
 from sase.stats.views import build_statistics_views
 
 from tests.ace.tui._statistics_pane_helpers import (
-    _activity_payload,
-    _render_plain,
-    _result,
-    _run_payload,
+    activity_payload as _activity_payload,
+    render_plain as _render_plain,
+    result as _result,
+    run_payload as _run_payload,
 )
 from tests._project_display_case import ProjectDisplayCase
 

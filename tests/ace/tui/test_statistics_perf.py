@@ -19,9 +19,9 @@ from sase.stats import build_perf_view
 from sase.stats.perf_query import PerfGroupBy
 from sase.stats.ranges import StatsRange
 from tests.ace.tui._statistics_pane_helpers import (
-    _open_statistics,
-    _patch_center,
-    _result,
+    open_statistics as _open_statistics,
+    patch_center as _patch_center,
+    result as _result,
 )
 from tests.stats._views_payloads import (
     perf_logs_payload,
