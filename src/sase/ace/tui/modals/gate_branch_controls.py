@@ -277,6 +277,7 @@ class GateBranchControls(VerticalScroll):
         self._set_active_branch(branch_index)
         first = self.query_one(f"#gate-option-{branch_index}-0", Button)
         first.focus(scroll_visible=False)
+        first.scroll_visible(animate=False)
 
     def toggle_option(self, branch_index: int, option_index: int) -> None:
         """Toggle one AND-member option and refresh its branch submit state."""

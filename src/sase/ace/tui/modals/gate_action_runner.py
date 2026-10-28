@@ -209,7 +209,7 @@ class GateActionsMixin:
             [] if branch is None else branch.visible_control_ids()  # type: ignore[union-attr]
         )
 
-    def focus_gate_control(self, delta: int) -> None:
+    def focus_gate_control(self, delta: int, *, scroll_visible: bool = True) -> None:
         """Move focus across the Actions and Decision controls as one ring."""
         control_ids = self._gate_control_ids()
         if not control_ids:
@@ -221,7 +221,10 @@ class GateActionsMixin:
         except ValueError:
             current = -1 if delta > 0 else 0
         target = control_ids[(current + delta) % len(control_ids)]
-        self.query_one(f"#{target}", Widget).focus(scroll_visible=False)  # type: ignore[attr-defined]
+        control = self.query_one(f"#{target}", Widget)  # type: ignore[attr-defined]
+        control.focus(scroll_visible=False)
+        if scroll_visible:
+            control.scroll_visible(animate=False)
 
     # -- action dispatch ---------------------------------------------------
 

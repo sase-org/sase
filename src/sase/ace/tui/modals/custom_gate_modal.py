@@ -205,7 +205,7 @@ class CustomGateModal(
 
     def on_mount(self) -> None:
         self._sync_submission_block()
-        self.focus_gate_control(1)
+        self.focus_gate_control(1, scroll_visible=False)
         self.call_after_refresh(self._fit_compact_review_scroll)
 
     def on_resize(self, _event: Any) -> None:

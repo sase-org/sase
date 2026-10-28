@@ -9,10 +9,19 @@ from textual.pilot import Pilot
 from textual.widget import Widget
 from textual.widgets import Static
 
+import pytest
+
 from sase.ace.testing import wait_for
 from sase.ace.tui.modals.custom_gate_modal import CustomGateModal
+from sase.ace.tui.modals.gate_branch_controls import GateBranchControls
+from sase.notification_gates.models import GateGroup
 
-from ._custom_gate_modal_helpers import StyledGateTestApp, data, option
+from ._custom_gate_modal_helpers import (
+    StyledGateTestApp,
+    data,
+    option,
+    wait_for_terminal,
+)
 
 
 _LONG_NOTES = tuple(
@@ -22,30 +31,10 @@ _LONG_NOTES = tuple(
 ) + ("Shell command: " + "./scripts/verify-release --check " * 18,)
 
 
-async def _wait_for_terminal(pilot: Pilot[None], width: int, height: int) -> None:
-    """Wait until the active screen has laid out at *width* x *height*.
-
-    Textual holds the App-level ``Resize`` before forwarding it to the
-    screen (until ``_on_idle`` in 8.0, behind a 1/120s debounce timer since
-    8.2), and since 8.2 ``Screen.size`` derives from ``App.size``. Neither
-    size proves the screen reflowed, so a geometry predicate that already
-    holds at the stale layout passes before the resize lands. ``Widget``'s
-    ``outer_size`` is ``_size``, which only the screen's own
-    ``_refresh_layout`` updates, so it proves the reflow.
-    """
-
-    def terminal_matches() -> bool:
-        return tuple(pilot.app.size) == (width, height) and tuple(
-            pilot.app.screen.outer_size
-        ) == (width, height)
-
-    await wait_for(pilot, terminal_matches)
-
-
 async def _wait_for_mounted_modal(
     pilot: Pilot[None], modal: CustomGateModal, width: int, height: int
 ) -> None:
-    await _wait_for_terminal(pilot, width, height)
+    await wait_for_terminal(pilot, width, height)
 
     def shell_mounted() -> bool:
         return bool(modal.query("#custom-gate-container"))
@@ -55,7 +44,7 @@ async def _wait_for_mounted_modal(
 
 async def _resize_and_wait(pilot: Pilot[None], width: int, height: int) -> None:
     await pilot.resize_terminal(width, height)
-    await _wait_for_terminal(pilot, width, height)
+    await wait_for_terminal(pilot, width, height)
 
 
 def _footer_fits_inside_shell(footer: Widget, shell: Widget) -> Callable[[], bool]:
@@ -181,6 +170,62 @@ async def test_preview_gate_does_not_get_compact_scroll_limit() -> None:
         scroll = modal.query_one("#custom-gate-review-scroll", VerticalScroll)
         await wait_for(pilot, lambda: scroll.styles.max_height is None)
         assert scroll.styles.max_height is None
+
+
+@pytest.mark.parametrize("preview", [False, True])
+async def test_jk_navigation_keeps_lower_branches_visible(preview: bool) -> None:
+    options = (
+        option("attest"),
+        option("approve"),
+        option("rotation_only"),
+        option("defer"),
+        option("reject"),
+    )
+    modal = CustomGateModal(
+        data(
+            options=options,
+            branches=(
+                ("attest", "approve"),
+                ("rotation_only",),
+                ("defer",),
+                ("reject",),
+            ),
+            groups=(
+                GateGroup(options=("attest", "approve"), label="Attest and approve"),
+            ),
+            preview_name="review.md" if preview else None,
+            preview_text="# Review\n" if preview else None,
+            notes=_LONG_NOTES,
+        )
+    )
+    async with StyledGateTestApp().run_test(size=(160, 50)) as pilot:
+        pilot.app.push_screen(modal)
+        await _wait_for_mounted_modal(pilot, modal, 160, 50)
+        if preview:
+            rail = modal.query_one(
+                ".gate-review-body > .gate-review-actions", VerticalScroll
+            )
+        else:
+            rail = modal.query_one("#custom-gate-review-scroll", VerticalScroll)
+
+        await wait_for(pilot, lambda: rail.scroll_y == 0)
+        assert rail.scroll_y == 0
+
+        branch = modal.query_one(GateBranchControls)
+        control_ids = branch.visible_control_ids()
+        seen: set[str] = set()
+        for _ in control_ids:
+            await pilot.press("j")
+            await pilot.pause()
+            focused = pilot.app.screen.focused
+            assert focused is not None and focused.id is not None
+            seen.add(focused.id)
+            assert rail.region.contains_region(focused.region), (
+                f"{focused.id} outside rail {focused.region} vs {rail.region}"
+            )
+        assert "gate-singleton-1" in seen
+        assert "gate-singleton-2" in seen
+        assert "gate-singleton-3" in seen
 
 
 async def test_custom_preview_rail_grows_and_stacks_at_narrow_breakpoint() -> None:

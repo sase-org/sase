@@ -2044,8 +2044,13 @@ GateInputPanel > #gate-input-container {
 
 GateInputPanel #gate-input-body {
     height: auto;
+    /* Runtime fitting in GateInputPanel overrides this first-frame cap. */
     max-height: 32;
     scrollbar-gutter: stable;
+}
+
+GateInputPanel .gate-input-section {
+    height: auto;
 }
 
 GateInputPanel .gate-input-section-title {

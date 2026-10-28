@@ -7,6 +7,9 @@ from typing import Any
 
 from textual.app import App
 
+from textual.pilot import Pilot
+
+from sase.ace.testing import wait_for
 from sase.ace.tui.modals.custom_gate_modal import (
     CustomGateModalData,
 )
@@ -109,6 +112,26 @@ def open_panel(app: App[None]) -> GateInputPanel:
     screen = app.screen
     assert isinstance(screen, GateInputPanel)
     return screen
+
+
+async def wait_for_terminal(pilot: Pilot[None], width: int, height: int) -> None:
+    """Wait until the active screen has laid out at *width* x *height*.
+
+    Textual holds the App-level ``Resize`` before forwarding it to the
+    screen (until ``_on_idle`` in 8.0, behind a 1/120s debounce timer since
+    8.2), and since 8.2 ``Screen.size`` derives from ``App.size``. Neither
+    size proves the screen reflowed, so a geometry predicate that already
+    holds at the stale layout passes before the resize lands. ``Widget``'s
+    ``outer_size`` is ``_size``, which only the screen's own
+    ``_refresh_layout`` updates, so it proves the reflow.
+    """
+
+    def terminal_matches() -> bool:
+        return tuple(pilot.app.size) == (width, height) and tuple(
+            pilot.app.screen.outer_size
+        ) == (width, height)
+
+    await wait_for(pilot, terminal_matches)
 
 
 def task_triage_data() -> CustomGateModalData:

@@ -41,6 +41,8 @@ class GateInputPanelResult:
 
 _NoteInput = GateNoteInput
 
+_BODY_MIN_ROWS = 6
+
 
 class GateInputPanel(ModalScreen[GateInputPanelResult | None]):
     """Collect the typed inputs for one gate selection and submit or cancel."""
@@ -68,6 +70,7 @@ class GateInputPanel(ModalScreen[GateInputPanelResult | None]):
         self._keymaps = gate_keymaps or GateModalKeymaps()
         self._sections: list[GateInputSection] = []
         self._draft: GateInputDraft | None = None
+        self._body_max_height: int | None = None
         self._mode_label = ""
         self._mode_indicator = ""
         self._bindings = BindingsMap(
@@ -146,6 +149,38 @@ class GateInputPanel(ModalScreen[GateInputPanelResult | None]):
         self._refresh_submit_state()
         if not self._focus_first_invalid():
             self._focus_first()
+        self.call_after_refresh(self._fit_body_scroll)
+
+    def on_resize(self, _event: Any) -> None:
+        if not self.is_mounted:
+            return
+        self.call_after_refresh(self._fit_body_scroll)
+
+    def _fit_body_scroll(self) -> None:
+        """Fit the input body between the shell top and the footer."""
+        if not self.is_mounted:
+            return
+        if not self.query("#gate-input-container"):
+            return
+        shell = self.query_one("#gate-input-container", Container)
+        body = self.query_one("#gate-input-body", VerticalScroll)
+        footer = self.query_one("#gate-input-footer", Static)
+        if shell.region.width <= 0:
+            return
+        max_height = shell.styles.max_height
+        shell_max = (
+            int(max_height.resolve(self.size, self.app.size))
+            if max_height is not None
+            else self.size.height
+        )
+        top = body.region.y - shell.region.y
+        bottom = footer.region.bottom - body.region.bottom + shell.styles.gutter.bottom
+        new_max = max(_BODY_MIN_ROWS, shell_max - top - bottom)
+        if self._body_max_height == new_max:
+            return
+        self._body_max_height = new_max
+        body.styles.max_height = new_max
+        self.call_after_refresh(self._fit_body_scroll)
 
     def on_typed_input_form_changed(self, event: TypedInputForm.Changed) -> None:
         self._refresh_submit_state()

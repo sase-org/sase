@@ -70,7 +70,9 @@ class PlanApprovalControlsMixin:
             branch_ids = []
         return [*action_ids, *decision_ids, *branch_ids]
 
-    def focus_gate_control(self, delta: int) -> None:  # type: ignore[override]
+    def focus_gate_control(  # type: ignore[override]
+        self, delta: int, *, scroll_visible: bool = True
+    ) -> None:
         control_ids = self._gate_control_ids()
         if not control_ids:
             return
