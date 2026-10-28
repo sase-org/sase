@@ -10,6 +10,27 @@ from ._agent_unread_navigation_helpers import CollapsedClanJumpApp
 from sase.ace.tui.models._agent_tree import agent_fold_key, project_clan_tree
 
 
+def test_stopped_jump_reveals_collapsed_clan_custom_gate_member() -> None:
+    origin = make_agent(name="origin", status="RUNNING", raw_suffix="origin")
+    target = make_agent(
+        name="research.confirm",
+        status="CONFIRM",
+        raw_suffix="target",
+        start_time=datetime(2026, 7, 18, 12, 0, 0),
+    )
+    target.status_bucket = "Stopped"
+    target.agent_clan = "research"
+    target.agent_clan_generation = "generation"
+    complete = project_clan_tree([origin, target])
+    app = CollapsedClanJumpApp(complete, current_identity=origin.identity)
+
+    assert app._jump_to_next_stopped_agent()
+
+    clan = next(agent for agent in complete if agent.is_clan_container)
+    assert app._fold_manager.get(agent_fold_key(clan)).name == "EXPANDED"
+    assert app._agents[app.current_idx].identity == target.identity
+
+
 def test_stopped_jump_reveals_collapsed_clan_member_without_acknowledging(
     monkeypatch,
 ) -> None:

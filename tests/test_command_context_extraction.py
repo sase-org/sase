@@ -239,9 +239,11 @@ def test_stopped_agent_count_uses_stopped_status_bucket() -> None:
         SimpleNamespace(status="FAILED"),
         SimpleNamespace(status="WAITING INPUT"),
         SimpleNamespace(status="RUNNING"),
+        SimpleNamespace(status="CONFIRM", status_bucket="Stopped"),
+        SimpleNamespace(status="PLAN", status_bucket="Running"),
     ]
     app = SimpleNamespace(_agents=agents)
-    assert _stopped_agent_count(app) == 2  # type: ignore[arg-type]
+    assert _stopped_agent_count(app) == 3  # type: ignore[arg-type]
 
 
 def test_unread_completed_agent_count_includes_plan_done() -> None:

@@ -9,7 +9,7 @@ from typing import TYPE_CHECKING, Any
 from sase.agent.status_buckets import is_pending_plan_review_status
 
 from ...models.agent_status import (
-    is_stopped_agent_status,
+    is_stopped_agent,
     is_unread_completed_status,
 )
 from ...models.agent_nodes import is_agents_tab_agent_node
@@ -82,7 +82,7 @@ class AgentUnreadNavigationMixin(
 
     def _has_stopped_agent(self) -> bool:
         """Return True when a stopped agent row is currently loaded."""
-        return any(is_stopped_agent_status(agent.status) for agent in self._agents)
+        return any(is_stopped_agent(agent) for agent in self._agents)
 
     def _jump_to_next_unread_done_agent(self) -> bool:
         """Reveal and select the next unread completed agent, then acknowledge it."""
@@ -145,7 +145,7 @@ class AgentUnreadNavigationMixin(
     def _jump_to_next_stopped_agent(self) -> bool:
         """Move focus to the next stopped row, including rows hidden by a collapsed clan."""
         return self._jump_to_next_matching_agent_by_time(
-            predicate=lambda agent: is_stopped_agent_status(agent.status),
+            predicate=is_stopped_agent,
             after_select=None,
             time_for_agent=_stopped_agent_jump_time,
             include_collapsed_clan_members=True,

@@ -34,18 +34,22 @@ log = logging.getLogger(__name__)
 _FLUSH_TIMEOUT_SECONDS = 2.0
 
 
-def _attention_status(status: object) -> bool:
-    """Return True when *status* marks a root needing attention."""
+def _attention_root(root: object) -> bool:
+    """Return True when *root* marks a row needing attention."""
+    try:
+        status = root.status  # type: ignore[attr-defined]
+    except Exception:
+        return False
     if not isinstance(status, str):
         return False
     try:
         from ...models.agent_status import (
-            is_stopped_agent_status,
+            is_stopped_agent,
             is_unread_completed_status,
         )
 
         return bool(
-            is_stopped_agent_status(status)
+            is_stopped_agent(root)
             or status == "FAILED"
             or is_unread_completed_status(status)
         )
@@ -214,11 +218,7 @@ class AgentTabsLifecycleMixin:
                 continue
             if key not in wanted:
                 continue
-            try:
-                status = root.status
-            except Exception:
-                continue
-            if not _attention_status(status):
+            if not _attention_root(root):
                 continue
             try:
                 started_at = (

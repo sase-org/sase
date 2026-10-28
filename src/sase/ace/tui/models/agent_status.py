@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from sase.agent.status_buckets import status_bucket_for_values
+from sase.agent.status_buckets import status_bucket_for_values, valid_status_bucket
 
 # Shared semantic colors for agent-status presentation.
 RUNNING_COLOR = "#FFD700"
@@ -45,6 +45,21 @@ def is_unread_completed_status(status: str) -> bool:
 def is_stopped_agent_status(status: str) -> bool:
     """Return True for statuses displayed in the Stopped agent bucket."""
     return status_bucket_for_values(status) == "Stopped"
+
+
+def is_stopped_agent(agent: object) -> bool:
+    """Return True for rows displayed in the Stopped agent bucket.
+
+    Honors an explicit ``status_bucket`` override exactly like the grouping
+    and header counts (``agent_status_bucket``), so a pending custom gate
+    whose display label is free-form (``CONFIRM``) counts as stopped and a
+    settling gate still labeled ``PLAN`` does not.
+    """
+    override = valid_status_bucket(getattr(agent, "status_bucket", None))
+    if override is not None:
+        return override == "Stopped"
+    status = getattr(agent, "status", None)
+    return isinstance(status, str) and is_stopped_agent_status(status)
 
 
 def is_failed_agent_status(status: str) -> bool:

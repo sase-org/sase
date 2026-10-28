@@ -20,7 +20,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any
 
 from sase.ace.tui.models.agent_status import (
-    is_stopped_agent_status,
+    is_stopped_agent,
     is_unread_completed_status,
 )
 from sase.ace.tui.models.agent_nodes import is_agents_tab_agent_node
@@ -301,7 +301,7 @@ def _completed_agent_count(app: AceApp) -> int:  # type: ignore[no-untyped-def]
 
 def _stopped_agent_count(app: AceApp) -> int:  # type: ignore[no-untyped-def]
     agents = getattr(app, "_agents", [])
-    return sum(1 for a in agents if is_stopped_agent_status(a.status))
+    return sum(1 for a in agents if is_stopped_agent(a))
 
 
 def _unread_completed_agent_count(app: AceApp) -> int:  # type: ignore[no-untyped-def]

@@ -32,6 +32,47 @@ def test_has_stopped_agent_tracks_stopped_status_bucket() -> None:
     assert UnreadJumpApp([question])._has_stopped_agent() is True
 
 
+def test_has_stopped_agent_honors_status_bucket_override() -> None:
+    confirm = make_agent(name="confirm", status="CONFIRM", raw_suffix="confirm")
+    confirm.status_bucket = "Stopped"
+    settling = make_agent(name="settling", status="PLAN", raw_suffix="settling")
+    settling.status_bucket = "Running"
+    running = make_agent(name="running", status="RUNNING", raw_suffix="running")
+
+    assert UnreadJumpApp([confirm])._has_stopped_agent() is True
+    assert UnreadJumpApp([settling, running])._has_stopped_agent() is False
+    assert UnreadJumpApp([settling, running])._jump_to_next_stopped_agent() is False
+
+
+def test_jump_to_next_stopped_agent_visits_custom_gate_and_plan(
+    notification_dismiss: Mock,
+) -> None:
+    running = make_agent(name="running", status="RUNNING", raw_suffix="running")
+    confirm = make_agent(
+        name="confirm",
+        status="CONFIRM",
+        raw_suffix="confirm",
+        start_time=datetime(2026, 5, 7, 12, 0, 0),
+    )
+    confirm.status_bucket = "Stopped"
+    plan = make_agent(
+        name="plan",
+        status="PLAN",
+        raw_suffix="plan",
+        start_time=datetime(2026, 5, 7, 8, 0, 0),
+    )
+    plan.plan_times = [datetime(2026, 5, 7, 10, 0, 0)]
+    app = UnreadJumpApp([running, confirm, plan], current_idx=0)
+
+    assert app._jump_to_next_stopped_agent()
+    assert app._agents[app.current_idx] is confirm
+    assert app._jump_to_next_stopped_agent()
+    assert app._agents[app.current_idx] is plan
+    assert app._jump_to_next_stopped_agent()
+    assert app._agents[app.current_idx] is confirm
+    notification_dismiss.assert_not_called()
+
+
 def test_jump_to_next_stopped_agent_uses_stopped_recency_and_wraps(
     notification_dismiss: Mock,
 ) -> None:

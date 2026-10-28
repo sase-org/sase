@@ -330,6 +330,14 @@ def test_startup_selection_attention_tab() -> None:
     assert owner._active_agent_tab == _SASE
 
 
+def test_startup_selection_attention_tab_pending_custom_gate() -> None:
+    owner = _TabOwner([_row("b", tab="sase", status="CONFIRM")])
+    owner._agents_with_children[0].status_bucket = "Stopped"
+    owner.reindex(owner._agents_with_children)
+    assert owner._reconcile_active_agent_tab() is True
+    assert owner._active_agent_tab == _SASE
+
+
 def test_empty_first_catalog_does_not_consume_startup_selection() -> None:
     owner = _TabOwner([])
     owner._agent_tab_index = build_agent_tab_index([], _view())

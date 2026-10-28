@@ -357,7 +357,9 @@ while following one epic, `WAITING ↪ ◐2` while following several epics, and
 `WAITING ↪ !` when the follow is blocked. An armed target with no recorded follow stage
 adds no row noise. They are not the trailing gold `◆` linked-bead badge that marks an
 agent launched by `sase bead work`. **Stopped** keeps the strict "you need to act"
-semantics for plan approval, questions, and workflow input.
+semantics for plan approval, questions, workflow input, and pending gates (including
+custom `/sase_gate` gates with their own pending label); `,J` targets exactly the rows
+in the Stopped bucket.
 
 ## Related
 
