@@ -20,7 +20,7 @@ from sase.bead._sync_publication import PushOutcome, head_is_published
 from sase.bead.sync import push_bead_work_launch
 from sase.sdd.plan_archive import archive_plan_file
 from sase.sdd.store import SddStore
-from sase.workspace_provider.reset_replay import ResetReplayError
+from sase.workspace_provider.reset_replay import ResetRecoveryOutcome, ResetReplayError
 from tests.plan_validation_helpers import VALID_TALE_PLAN
 from tests.sdd_store._helpers import clone, commit_all, git, init_bare_repo
 from tests.workspace_lease_helpers import patched_operational_lease
@@ -146,7 +146,7 @@ def test_archive_resets_store_repo_not_workspace_on_conflict(
     reset_roots: list[Path] = []
     original = reset_replay._reset_leased_checkout
 
-    def _spy(repo_root: Path, **kwargs: object) -> str | None:
+    def _spy(repo_root: Path, **kwargs: object) -> ResetRecoveryOutcome:
         reset_roots.append(Path(repo_root).resolve())
         return original(repo_root, **kwargs)
 

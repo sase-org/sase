@@ -37,6 +37,7 @@ from sase.workspace_provider.ownership import (
     OperationContext,
     WorkspaceOwnershipError,
 )
+from sase.workspace_provider.snapshot import PreservationError, snapshot_git_repo
 from sase.workspace_provider.utils import (
     abort_in_progress_git_operations,
     get_default_branch,
@@ -67,14 +68,27 @@ class ResetReplayError(RuntimeError):
         attempts: int,
         last_error: Exception | None = None,
         recovery_ref: str | None = None,
+        recovery_locations: Sequence[str] = (),
     ) -> None:
         message = f"reset-and-replay exhausted {attempts} attempt(s): {detail}"
         if recovery_ref:
             message = f"{message}; abandoned HEAD preserved at {recovery_ref}"
+        locations = _unique_locations(recovery_locations)
+        if locations:
+            message = f"{message}; recoverable work preserved at {', '.join(locations)}"
         super().__init__(message)
         self.attempts = attempts
         self.last_error = last_error
         self.recovery_ref = recovery_ref
+        self.recovery_locations = locations
+
+
+@dataclass(frozen=True)
+class ResetRecoveryOutcome:
+    """Recovery evidence produced by one direct checkout reset."""
+
+    recovery_ref: str | None = None
+    recovery_locations: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -85,10 +99,22 @@ class ResetReplayResult:
     attempts: int
     reset_performed: bool
     recovery_ref: str | None = None
+    recovery_locations: tuple[str, ...] = ()
 
 
 class _ResetFailure(RuntimeError):
     """Internal signal that the Git-level reset step itself failed."""
+
+    def __init__(
+        self,
+        detail: str,
+        *,
+        recovery_ref: str | None = None,
+        recovery_locations: Sequence[str] = (),
+    ) -> None:
+        super().__init__(detail)
+        self.recovery_ref = recovery_ref
+        self.recovery_locations = _unique_locations(recovery_locations)
 
 
 def reset_and_replay(
@@ -116,6 +142,7 @@ def reset_and_replay(
     attempts = 0
     reset_performed = False
     recovery_ref: str | None = None
+    recovery_locations: tuple[str, ...] = ()
     while True:
         attempts += 1
         try:
@@ -127,26 +154,47 @@ def reset_and_replay(
                     str(exc),
                     attempts=attempts,
                     last_error=exc,
+                    recovery_ref=recovery_ref,
+                    recovery_locations=recovery_locations,
                 ) from exc
             if is_conflict:
+                clear_targets = _validate_owned_paths(context, clear_paths)
                 try:
-                    ref = _reset_leased_checkout(root, clock=clock)
+                    outcome = _reset_leased_checkout(
+                        root,
+                        clock=clock,
+                        workspace_dir=context.checkout_dir,
+                        workspace_num=context.workspace_num,
+                        clear_paths=clear_targets,
+                    )
                 except _ResetFailure as reset_exc:
                     raise ResetReplayError(
                         str(reset_exc),
                         attempts=attempts,
                         last_error=exc,
+                        recovery_ref=reset_exc.recovery_ref or recovery_ref,
+                        recovery_locations=_merge_locations(
+                            recovery_locations, reset_exc.recovery_locations
+                        ),
                     ) from reset_exc
                 reset_performed = True
-                recovery_ref = ref or recovery_ref
-                if clear_paths:
-                    _clear_owned_paths(context, clear_paths)
+                recovery_ref = outcome.recovery_ref or recovery_ref
+                recovery_locations = _merge_locations(
+                    recovery_locations, outcome.recovery_locations
+                )
+                if clear_targets:
+                    _clear_owned_paths(
+                        context,
+                        clear_targets,
+                        protected_locations=recovery_locations,
+                    )
             continue
         return ResetReplayResult(
             value=value,
             attempts=attempts,
             reset_performed=reset_performed,
             recovery_ref=recovery_ref,
+            recovery_locations=recovery_locations,
         )
 
 
@@ -163,14 +211,34 @@ def reset_leased_checkout_to_upstream(
     not be snapshotted.
     """
 
+    return reset_leased_checkout_to_upstream_with_recovery(
+        context, repo_root, clock=clock
+    ).recovery_ref
+
+
+def reset_leased_checkout_to_upstream_with_recovery(
+    context: OperationContext,
+    repo_root: str | Path,
+    *,
+    clock: Callable[[], float] | None = None,
+) -> ResetRecoveryOutcome:
+    """Reset a leased checkout and return both the legacy ref and snapshot locators."""
+
     root = _require_leased_checkout(context, repo_root)
     try:
-        return _reset_leased_checkout(root, clock=clock)
+        return _reset_leased_checkout(
+            root,
+            clock=clock,
+            workspace_dir=context.checkout_dir,
+            workspace_num=context.workspace_num,
+        )
     except _ResetFailure as exc:
         raise ResetReplayError(
             str(exc),
             attempts=0,
             last_error=exc,
+            recovery_ref=exc.recovery_ref,
+            recovery_locations=exc.recovery_locations,
         ) from exc
 
 
@@ -201,45 +269,127 @@ def _require_leased_checkout(
 def _clear_owned_paths(
     context: OperationContext,
     paths: Sequence[str | Path],
+    *,
+    protected_locations: Sequence[str] = (),
 ) -> None:
+    resolved_paths = _validate_owned_paths(context, paths)
+    for location in protected_locations:
+        rescue_dir = Path(location).expanduser().resolve(strict=False).parent
+        for resolved in resolved_paths:
+            if rescue_dir == resolved or rescue_dir.is_relative_to(resolved):
+                raise WorkspaceOwnershipError(
+                    "reset-and-replay refuses to clear a verified recovery snapshot: "
+                    f"{location}"
+                )
+    for resolved in resolved_paths:
+        shutil.rmtree(resolved, ignore_errors=True)
+
+
+def _validate_owned_paths(
+    context: OperationContext,
+    paths: Sequence[str | Path],
+) -> tuple[Path, ...]:
     checkout = context.checkout_dir.expanduser().resolve(strict=False)
+    resolved_paths: list[Path] = []
     for raw in paths:
         resolved = Path(raw).expanduser().resolve(strict=False)
-        if not resolved.is_relative_to(checkout):
+        if not resolved.is_relative_to(checkout) or resolved == checkout:
             raise WorkspaceOwnershipError(
                 f"reset-and-replay refuses to clear {resolved}: "
-                f"outside leased checkout {checkout}"
+                f"outside leased checkout {checkout} or equal to the checkout root"
             )
-        shutil.rmtree(resolved, ignore_errors=True)
+        resolved_paths.append(resolved)
+    return tuple(resolved_paths)
+
+
+def _validate_snapshot_clear_boundaries(
+    clear_paths: Sequence[str | Path],
+    recovery_locations: Sequence[str],
+) -> None:
+    for location in recovery_locations:
+        rescue_dir = Path(location).expanduser().resolve(strict=False).parent
+        for raw in clear_paths:
+            clear_path = Path(raw).expanduser().resolve(strict=False)
+            if rescue_dir == clear_path or rescue_dir.is_relative_to(clear_path):
+                raise WorkspaceOwnershipError(
+                    "reset-and-replay refuses a clear path containing a verified "
+                    f"recovery snapshot: {location}"
+                )
+
+
+def _unique_locations(locations: Sequence[str]) -> tuple[str, ...]:
+    return tuple(dict.fromkeys(location for location in locations if location))
+
+
+def _merge_locations(*groups: Sequence[str]) -> tuple[str, ...]:
+    return _unique_locations(tuple(location for group in groups for location in group))
 
 
 def _reset_leased_checkout(
     repo_root: Path,
     *,
     clock: Callable[[], float] | None = None,
-) -> str | None:
-    """Abort in-progress ops, fetch, hard reset to upstream. Returns a diagnostic ref."""
+    workspace_dir: str | Path,
+    workspace_num: int,
+    clear_paths: Sequence[str | Path] = (),
+) -> ResetRecoveryOutcome:
+    """Snapshot, abort, fetch, and reset. Return all recovery locators."""
 
-    _abort_in_progress_operations(repo_root)
-    fetch = _run_git(["fetch", "--quiet", "origin"], repo_root)
-    if fetch.returncode != 0:
-        raise _ResetFailure(f"git fetch failed: {_git_error(fetch)}")
-    upstream = _resolve_upstream(repo_root)
-    upstream_sha_result = _run_git(
-        ["rev-parse", "--verify", upstream],
-        repo_root,
-    )
-    if upstream_sha_result.returncode != 0 or not upstream_sha_result.stdout.strip():
-        raise _ResetFailure(
-            f"could not resolve upstream {upstream!r}: "
-            f"{_git_error(upstream_sha_result)}"
+    recovery_ref: str | None = None
+    recovery_locations: tuple[str, ...] = ()
+    try:
+        try:
+            snapshot = snapshot_git_repo(
+                repo_root,
+                workspace_dir=workspace_dir,
+                workspace_num=workspace_num,
+                label=repo_root.name or "checkout",
+                reason="before reset-and-replay abort/reset",
+            )
+        except PreservationError as exc:
+            raise _ResetFailure(
+                f"could not preserve checkout before reset: {exc}"
+            ) from exc
+        if snapshot is not None:
+            recovery_locations = (str(snapshot.manifest_path.resolve()),)
+            _validate_snapshot_clear_boundaries(clear_paths, recovery_locations)
+        recovery_ref = _snapshot_pre_reset_head(repo_root, clock=clock)
+
+        # Pin HEAD only after the strict snapshot proves the tree clean or saves
+        # its dirty bytes. The ref remains useful if abort or fetch fails.
+        _abort_in_progress_operations(repo_root)
+        fetch = _run_git(["fetch", "--quiet", "origin"], repo_root)
+        if fetch.returncode != 0:
+            raise _ResetFailure(f"git fetch failed: {_git_error(fetch)}")
+        upstream = _resolve_upstream(repo_root)
+        upstream_sha_result = _run_git(
+            ["rev-parse", "--verify", upstream],
+            repo_root,
         )
-    upstream_sha = upstream_sha_result.stdout.strip()
-    recovery_ref = _snapshot_pre_reset_head(repo_root, clock=clock)
-    reset = _run_git_mutation(["reset", "--hard", upstream_sha], repo_root)
-    if reset.returncode != 0:
-        raise _ResetFailure(f"git reset --hard failed: {_git_error(reset)}")
-    return recovery_ref
+        if (
+            upstream_sha_result.returncode != 0
+            or not upstream_sha_result.stdout.strip()
+        ):
+            raise _ResetFailure(
+                f"could not resolve upstream {upstream!r}: "
+                f"{_git_error(upstream_sha_result)}"
+            )
+        upstream_sha = upstream_sha_result.stdout.strip()
+        reset = _run_git_mutation(["reset", "--hard", upstream_sha], repo_root)
+        if reset.returncode != 0:
+            raise _ResetFailure(f"git reset --hard failed: {_git_error(reset)}")
+        return ResetRecoveryOutcome(
+            recovery_ref=recovery_ref,
+            recovery_locations=recovery_locations,
+        )
+    except _ResetFailure as exc:
+        raise _ResetFailure(
+            str(exc),
+            recovery_ref=exc.recovery_ref or recovery_ref,
+            recovery_locations=_merge_locations(
+                recovery_locations, exc.recovery_locations
+            ),
+        ) from exc
 
 
 def _abort_in_progress_operations(repo_root: Path) -> None:
@@ -324,7 +474,9 @@ __all__ = [
     "ReplayConflict",
     "ReplayDeferred",
     "ResetReplayError",
+    "ResetRecoveryOutcome",
     "ResetReplayResult",
     "reset_and_replay",
     "reset_leased_checkout_to_upstream",
+    "reset_leased_checkout_to_upstream_with_recovery",
 ]

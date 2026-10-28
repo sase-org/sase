@@ -18,9 +18,11 @@ from sase.workspace_provider.reset_replay import (
     ReplayConflict,
     ReplayDeferred,
     ResetReplayError,
+    ResetRecoveryOutcome,
     ResetReplayResult,
     reset_and_replay as run_reset_and_replay,
     reset_leased_checkout_to_upstream,
+    reset_leased_checkout_to_upstream_with_recovery,
 )
 from sase.workspace_provider.store import PRIMARY_WORKSPACE_NUM
 
@@ -192,6 +194,20 @@ class OperationalLease:
         """
 
         return reset_leased_checkout_to_upstream(
+            self.context,
+            self.checkout_dir if repo_root is None else repo_root,
+            clock=clock,
+        )
+
+    def reset_to_upstream_with_recovery(
+        self,
+        *,
+        repo_root: str | Path | None = None,
+        clock: Callable[[], float] | None = None,
+    ) -> ResetRecoveryOutcome:
+        """Reset and return both the legacy HEAD ref and durable snapshot locators."""
+
+        return reset_leased_checkout_to_upstream_with_recovery(
             self.context,
             self.checkout_dir if repo_root is None else repo_root,
             clock=clock,

@@ -156,8 +156,10 @@ def archive_approved_plan(
             ensure_bare_git_sdd_initialized(workspace_dir, commit=True, push=False)
 
         archive_repo = None if sdd_store.is_in_tree else sdd_store.repo_root
+        direct_recovery_locations: tuple[str, ...] = ()
         if archive_repo is not None and _store_has_unpublished_head(archive_repo):
-            lease.reset_to_upstream(repo_root=archive_repo)
+            direct_reset = lease.reset_to_upstream_with_recovery(repo_root=archive_repo)
+            direct_recovery_locations = direct_reset.recovery_locations
 
         if if_exists == "refuse":
             _raise_if_already_committed(src_plan, sdd_store)
@@ -218,10 +220,28 @@ def archive_approved_plan(
                 repo_root=archive_repo,
             )
         except ResetReplayError as exc:
-            recovery_ref = None
+            recovery_ref = exc.recovery_ref
+            recovery_locations = tuple(
+                dict.fromkeys((*direct_recovery_locations, *exc.recovery_locations))
+            )
             if archive_repo is not None:
                 try:
-                    recovery_ref = lease.reset_to_upstream(repo_root=archive_repo)
+                    direct_reset = lease.reset_to_upstream_with_recovery(
+                        repo_root=archive_repo
+                    )
+                    recovery_ref = direct_reset.recovery_ref or recovery_ref
+                    recovery_locations = tuple(
+                        dict.fromkeys(
+                            (*recovery_locations, *direct_reset.recovery_locations)
+                        )
+                    )
+                except ResetReplayError as reset_exc:
+                    recovery_ref = reset_exc.recovery_ref or recovery_ref
+                    recovery_locations = tuple(
+                        dict.fromkeys(
+                            (*recovery_locations, *reset_exc.recovery_locations)
+                        )
+                    )
                 except Exception:
                     log.debug(
                         "failed to reset the SDD store after archive exhaustion",
@@ -232,6 +252,7 @@ def archive_approved_plan(
                 attempts=exc.attempts,
                 last_error=exc.last_error,
                 recovery_ref=recovery_ref,
+                recovery_locations=recovery_locations,
             ) from exc
         return result.value
 
