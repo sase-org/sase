@@ -11,9 +11,9 @@ from textual.worker import WorkerState
 
 from sase.ace.testing import AcePage
 from sase.ace.tui.modals import statistics_pane as sp
+from sase.ace.tui.modals._statistics_pane_load import StatisticsLoadResult
 from sase.ace.tui.modals.statistics_pane import (
     StatisticsPane,
-    _StatisticsLoadResult,
     _load_project_code_stats,
 )
 from sase.ace.tui.modals.statistics_pane_project_merge import merge_project_code_stats
@@ -197,7 +197,7 @@ def test_late_code_result_from_an_old_generation_is_ignored() -> None:
     pane._load_generation = 2
     pane._last_result = _result("projects", pane._range, facets={"output", "runs"})
     pane._code_complete = False
-    stale = _StatisticsLoadResult(
+    stale = StatisticsLoadResult(
         generation=1,
         kind="code",
         payload=all_projects_view(facets={"code"}),
@@ -244,7 +244,7 @@ def test_failed_refresh_retains_the_last_good_projects_report() -> None:
     pane._last_result = good
     pane._load_generation = 1
     worker = SimpleNamespace(
-        result=_StatisticsLoadResult(1, "primary", good),
+        result=StatisticsLoadResult(1, "primary", good),
         error=RuntimeError("store unavailable"),
     )
     pane._worker = worker  # type: ignore[assignment]
@@ -448,7 +448,7 @@ def test_refs_conflict_keeps_painted_until_fresh_code(
     monkeypatch.setattr(pane, "_start_code_load", lambda _generation: None)
     monkeypatch.setattr(pane, "call_after_refresh", lambda _callback: None)
 
-    pane._on_primary_success(_StatisticsLoadResult(2, "primary", fresh))
+    pane._on_primary_success(StatisticsLoadResult(2, "primary", fresh))
 
     assert pane._last_result is settled
     assert pane._unmerged_primary is not None
