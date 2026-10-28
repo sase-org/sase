@@ -80,6 +80,9 @@ _setup-format-tools: _format-venv
 # sase-core-rs exact pin for dev installs. Prints nothing when no
 # buildable sase-core checkout or explicit SASE_CORE_WHEEL exists, keeping the
 # pyproject constraint authoritative for normal published-wheel resolution.
+# Nested `just` re-evaluates variables from a fresh process, so every
+# command-substitution of this recipe must forward `--set venv_dir` and
+# `--set sase_core_dir` (bob-cli-di).
 _core-overrides-arg:
     @if [ -n "${SASE_CORE_WHEEL:-}" ] || { [ -f "{{ sase_core_dir }}/Cargo.toml" ] && command -v cargo > /dev/null 2>&1; }; then \
         printf "sase-core-rs\n" > "{{ core_overrides_file }}"; \
@@ -137,7 +140,7 @@ _setup: _venv
         {{ venv_bin }}/python tools/validate_sase_core_rs --sase-core-dir "{{ sase_core_dir }}" || exit $?; \
     fi; \
     if [ $((validation_status & 12)) -ne 0 ]; then \
-        uv pip install --python {{ venv_bin }}/python --no-sources $(just _core-overrides-arg) --reinstall-package mypy -e ".[dev]"; \
+        uv pip install --python {{ venv_bin }}/python --no-sources $(just --set venv_dir "{{ venv_dir }}" --set sase_core_dir "{{ sase_core_dir }}" _core-overrides-arg) --reinstall-package mypy -e ".[dev]"; \
     fi
     @just --set venv_dir "{{ venv_dir }}" _setup-required-plugins
 
@@ -196,7 +199,7 @@ _install-venv EXTRAS: _venv
         printf "[install-venv] Installing local sase_core_rs from {{ sase_core_dir }} for local dev.\n"; \
         just --set venv_dir "{{ venv_dir }}" --set sase_core_dir "{{ sase_core_dir }}" rust-install "{{ venv_dir_abs }}"; \
     fi
-    uv pip install --python {{ venv_bin }}/python --no-sources $(just _core-overrides-arg) -e ".[{{ EXTRAS }}]"
+    uv pip install --python {{ venv_bin }}/python --no-sources $(just --set venv_dir "{{ venv_dir }}" --set sase_core_dir "{{ sase_core_dir }}" _core-overrides-arg) -e ".[{{ EXTRAS }}]"
     @just --set venv_dir "{{ venv_dir }}" _setup-required-plugins
 
 [group('install')]
@@ -267,7 +270,7 @@ _setup-visual: _setup
         exit "$validation_status"; \
     fi; \
     if [ $((validation_status & 4)) -ne 0 ]; then \
-        uv pip install --python {{ venv_bin }}/python --no-sources $(just _core-overrides-arg) -e ".[dev,visual]"; \
+        uv pip install --python {{ venv_bin }}/python --no-sources $(just --set venv_dir "{{ venv_dir }}" --set sase_core_dir "{{ sase_core_dir }}" _core-overrides-arg) -e ".[dev,visual]"; \
     fi
 
 # The fan-out demo uses an isolated venv so its sase-github install cannot
@@ -283,7 +286,7 @@ _setup-demos:
             {{ demo_venv_bin }}/python tools/validate_sase_core_rs; \
         fi; \
     fi
-    uv pip install --python {{ demo_venv_bin }}/python --no-sources $(just --set venv_dir "{{ demo_venv_dir }}" _core-overrides-arg) -e .
+    uv pip install --python {{ demo_venv_bin }}/python --no-sources $(just --set venv_dir "{{ demo_venv_dir }}" --set sase_core_dir "{{ sase_core_dir }}" _core-overrides-arg) -e .
     @if [ -f "{{ sase_github_dir }}/pyproject.toml" ]; then \
         printf "[setup-demos] Installing workspace-matched sase-github from %s.\n" "{{ sase_github_dir }}"; \
         uv pip install --python {{ demo_venv_bin }}/python --no-deps -e "{{ sase_github_dir }}"; \
@@ -305,7 +308,7 @@ _setup-terminal-smoke: _setup
         exit "$validation_status"; \
     fi; \
     if [ $((validation_status & 4)) -ne 0 ]; then \
-        uv pip install --python {{ venv_bin }}/python --no-sources $(just _core-overrides-arg) -e ".[dev,terminal-smoke]"; \
+        uv pip install --python {{ venv_bin }}/python --no-sources $(just --set venv_dir "{{ venv_dir }}" --set sase_core_dir "{{ sase_core_dir }}" _core-overrides-arg) -e ".[dev,terminal-smoke]"; \
     fi
 
 # Run linters (ruff + mypy + feature flags + pyscripts + test waits + changelog + terminology audit + symvision + docs contract + toobig + keep-sorted)

@@ -213,7 +213,9 @@ def test_just_test_rust_install_targets_active_venv() -> None:
     ) in output
     assert (
         "uv pip install --python /tmp/sase-custom-venv/bin/python "
-        "--no-sources $(just _core-overrides-arg) "
+        '--no-sources $(just --set venv_dir "/tmp/sase-custom-venv" '
+        '--set sase_core_dir "/tmp/sase-custom-core" '
+        "_core-overrides-arg) "
         '--reinstall-package mypy -e ".[dev]"'
     ) in output
     assert (
@@ -227,6 +229,42 @@ def test_just_test_rust_install_targets_active_venv() -> None:
     assert '-e ".[dev,visual]"' not in output
 
 
+def _run_core_overrides_arg(
+    root: Path,
+    *just_args: str,
+    env_vars: dict[str, str] | None = None,
+) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(
+        [
+            "just",
+            "--justfile",
+            str(root / "Justfile"),
+            *just_args,
+            "_core-overrides-arg",
+        ],
+        cwd=root,
+        env=_clean_sase_core_env(env_vars or {}),
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+
+
+def _write_fake_core(root: Path, name: str = "opened-core") -> Path:
+    core = root / name
+    core.mkdir()
+    (core / "Cargo.toml").write_text(
+        '[package]\nname = "sase-core-fixture"\nversion = "0.0.0"\n',
+        encoding="utf-8",
+    )
+    return core
+
+
+def _require_cargo() -> None:
+    if shutil.which("cargo") is None:
+        pytest.skip("cargo is required to emit source-path core overrides")
+
+
 def test_core_overrides_are_enabled_for_prebuilt_wheel(
     isolated_justfile_root: Path,
 ) -> None:
@@ -234,24 +272,170 @@ def test_core_overrides_are_enabled_for_prebuilt_wheel(
     wheel.touch()
     (isolated_justfile_root / ".venv").mkdir()
 
-    result = subprocess.run(
-        [
-            "just",
-            "--justfile",
-            str(isolated_justfile_root / "Justfile"),
-            "_core-overrides-arg",
-        ],
-        cwd=isolated_justfile_root,
-        env=_clean_sase_core_env({"SASE_CORE_WHEEL": str(wheel)}),
-        check=True,
-        capture_output=True,
-        text=True,
+    result = _run_core_overrides_arg(
+        isolated_justfile_root,
+        env_vars={"SASE_CORE_WHEEL": str(wheel)},
     )
 
     assert result.stdout.strip() == "--overrides .venv/sase-core-rs-overrides.txt"
     assert (isolated_justfile_root / ".venv/sase-core-rs-overrides.txt").read_text(
         encoding="utf-8"
     ) == "sase-core-rs\n"
+
+
+def test_core_overrides_arg_writes_wheel_override_into_set_venv_dir(
+    isolated_justfile_root: Path,
+) -> None:
+    wheel = isolated_justfile_root / "sase_core_rs-test.whl"
+    wheel.touch()
+    (isolated_justfile_root / "scratch-venv").mkdir()
+
+    result = _run_core_overrides_arg(
+        isolated_justfile_root,
+        "--set",
+        "venv_dir",
+        "scratch-venv",
+        env_vars={"SASE_CORE_WHEEL": str(wheel)},
+    )
+
+    assert (
+        result.stdout.strip() == "--overrides scratch-venv/sase-core-rs-overrides.txt"
+    )
+    assert (
+        isolated_justfile_root / "scratch-venv/sase-core-rs-overrides.txt"
+    ).read_text(encoding="utf-8") == "sase-core-rs\n"
+    assert not (isolated_justfile_root / ".venv/sase-core-rs-overrides.txt").exists()
+
+
+def test_core_overrides_arg_emits_for_set_sase_core_dir(
+    isolated_justfile_root: Path,
+) -> None:
+    _require_cargo()
+    core = _write_fake_core(isolated_justfile_root)
+    (isolated_justfile_root / "scratch-venv").mkdir()
+
+    result = _run_core_overrides_arg(
+        isolated_justfile_root,
+        "--set",
+        "venv_dir",
+        "scratch-venv",
+        "--set",
+        "sase_core_dir",
+        str(core),
+    )
+    bare = _run_core_overrides_arg(isolated_justfile_root)
+
+    assert (
+        result.stdout.strip() == "--overrides scratch-venv/sase-core-rs-overrides.txt"
+    )
+    assert (
+        isolated_justfile_root / "scratch-venv/sase-core-rs-overrides.txt"
+    ).read_text(encoding="utf-8") == "sase-core-rs\n"
+    assert bare.stdout.strip() == ""
+    assert not (isolated_justfile_root / ".venv/sase-core-rs-overrides.txt").exists()
+
+
+def test_core_overrides_arg_emits_for_sase_core_dir_env(
+    isolated_justfile_root: Path,
+) -> None:
+    _require_cargo()
+    core = _write_fake_core(isolated_justfile_root)
+    (isolated_justfile_root / ".venv").mkdir()
+
+    result = _run_core_overrides_arg(
+        isolated_justfile_root,
+        env_vars={"SASE_CORE_DIR": str(core)},
+    )
+
+    assert result.stdout.strip() == "--overrides .venv/sase-core-rs-overrides.txt"
+    assert (isolated_justfile_root / ".venv/sase-core-rs-overrides.txt").read_text(
+        encoding="utf-8"
+    ) == "sase-core-rs\n"
+
+
+def test_core_overrides_arg_is_empty_without_local_core_or_wheel(
+    isolated_justfile_root: Path,
+) -> None:
+    (isolated_justfile_root / ".venv").mkdir()
+
+    result = _run_core_overrides_arg(isolated_justfile_root)
+
+    assert result.stdout.strip() == ""
+    assert not (isolated_justfile_root / ".venv/sase-core-rs-overrides.txt").exists()
+
+
+def _forwarded_core_overrides_arg(venv_dir: str, sase_core_dir: str) -> str:
+    return (
+        f'just --set venv_dir "{venv_dir}" '
+        f'--set sase_core_dir "{sase_core_dir}" '
+        "_core-overrides-arg"
+    )
+
+
+@pytest.mark.parametrize(
+    ("recipe", "venv_dir", "install_extra"),
+    [
+        ("install-venv", "/tmp/sase-custom-venv", '-e ".[dev]"'),
+        ("_setup", "/tmp/sase-custom-venv", '--reinstall-package mypy -e ".[dev]"'),
+        ("_setup-visual", "/tmp/sase-custom-venv", '-e ".[dev,visual]"'),
+        (
+            "_setup-terminal-smoke",
+            "/tmp/sase-custom-venv",
+            '-e ".[dev,terminal-smoke]"',
+        ),
+        ("_setup-demos", ".venv-demos", "-e ."),
+    ],
+)
+def test_editable_reinstall_forwards_core_override_settings(
+    recipe: str, venv_dir: str, install_extra: str
+) -> None:
+    result = subprocess.run(
+        [
+            "just",
+            "--justfile",
+            str(ROOT / "Justfile"),
+            "--dry-run",
+            "--set",
+            "venv_dir",
+            "/tmp/sase-custom-venv",
+            "--set",
+            "sase_core_dir",
+            "/tmp/sase-custom-core",
+            recipe,
+        ],
+        cwd=ROOT,
+        env=_clean_sase_core_env({}),
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    output = result.stdout + result.stderr
+    python_bin = f"{venv_dir}/bin/python"
+    forwarded = _forwarded_core_overrides_arg(venv_dir, "/tmp/sase-custom-core")
+    assert (
+        f"uv pip install --python {python_bin} --no-sources $({forwarded}) "
+        f"{install_extra}"
+    ) in output
+    assert "$(just _core-overrides-arg)" not in output
+
+
+def test_every_nested_core_overrides_just_forwards_settings() -> None:
+    justfile = (ROOT / "Justfile").read_text(encoding="utf-8")
+    for line_no, line in enumerate(justfile.splitlines(), start=1):
+        stripped = line.strip()
+        if "_core-overrides-arg" not in stripped:
+            continue
+        if stripped.startswith("#") or stripped.startswith("_core-overrides-arg"):
+            continue
+        if "$(just" not in stripped:
+            continue
+        assert "--set venv_dir" in stripped, (
+            f"Justfile:{line_no} nested _core-overrides-arg lost venv_dir: {stripped}"
+        )
+        assert "--set sase_core_dir" in stripped, (
+            f"Justfile:{line_no} nested _core-overrides-arg lost sase_core_dir: "
+            f"{stripped}"
+        )
 
 
 @pytest.mark.parametrize(
