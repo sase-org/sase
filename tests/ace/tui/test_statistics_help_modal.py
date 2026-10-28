@@ -58,12 +58,21 @@ def test_help_documents_every_statistics_binding_and_current_scope() -> None:
     controls = modal._controls_text().plain
 
     for action, description in _STATISTICS_BINDING_META:
-        if action in {"cycle_group", "focus_macro", "clear_macro_focus"}:
+        if action in {
+            "cycle_group",
+            "cycle_actor",
+            "next_row",
+            "prev_row",
+            "open_row",
+            "drill_up",
+            "focus_macro",
+            "clear_macro_focus",
+        }:
             assert description not in controls
         else:
             assert description in controls
     assert "Last 7 days · exact range" in controls
-    assert "0  Select View by Number — press 0 then 1-8; default chords 01-08" in (
+    assert "0  Select View by Number — press 0 then 1-9; default chords 01-09" in (
         controls
     )
     assert "next ranked project (seeded); current: All projects" in controls
@@ -79,6 +88,10 @@ def test_help_group_control_is_visible_only_for_grouping_views() -> None:
             assert "Group By — Macros · By Usage" in controls
         elif view == "perf":
             assert "Group By — Perf · By Subsystem" in controls
+        elif view == "footprint":
+            assert "Group By — Footprint · Map" in controls
+            assert "Footprint Actor — current actor: you" in controls
+            assert "Next Footprint Row" in controls
         else:
             assert "Group By" not in controls
 

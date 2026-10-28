@@ -5,11 +5,15 @@ from __future__ import annotations
 import time
 from collections.abc import Collection
 from dataclasses import dataclass, field
+from datetime import datetime
+import math
+from typing import Any
 
 from sase.project_display_names import (
     ProjectDisplaySnapshot,
     load_project_display_snapshot,
 )
+from sase.core.time import get_timezone
 from sase.stats import PerfView, build_perf_view
 from sase.stats.perf_query import (
     PerfGroupBy,
@@ -47,6 +51,10 @@ class StatisticsViewData:
     )
     perf: PerfView | None = None
     project_stats: ProjectStatsView | None = None
+    footprint: dict[str, Any] | None = None
+    footprint_lens: str = "map"
+    footprint_actor: str = "you"
+    footprint_area: str | None = None
 
 
 def load_statistics_view(
@@ -58,8 +66,41 @@ def load_statistics_view(
     *,
     facets: Collection[ProjectStatsFacet] | None = None,
     preset: str | None = None,
+    footprint_lens: str = "map",
+    footprint_actor: str = "you",
+    footprint_area: str | None = None,
 ) -> StatisticsViewData:
     """Query composite bindings or the Projects report off-thread."""
+    if view == "footprint":
+        from sase.footprint.query import build_report_request, fetch_report
+
+        duration_seconds = max(1, selected_range.end_ts - selected_range.start_ts)
+        window_days = (
+            None
+            if selected_range.start_ts <= 0
+            else max(1, math.ceil(duration_seconds / 86_400))
+        )
+        end_ts = max(0, selected_range.end_ts - 1)
+        today = datetime.fromtimestamp(end_ts, tz=get_timezone()).date().isoformat()
+        request = build_report_request(
+            lens=footprint_lens,
+            actor=footprint_actor,
+            window_days=window_days,
+            area=footprint_area,
+            today=today,
+        )
+        return StatisticsViewData(
+            view=view,
+            selected_range=selected_range,
+            generated_at=time.time(),
+            project_filter=project_filter,
+            macro_focus=macro_focus,
+            footprint=fetch_report(request),
+            footprint_lens=footprint_lens,
+            footprint_actor=footprint_actor,
+            footprint_area=footprint_area,
+        )
+
     from sase.config.core import get_max_running_agents
     from sase.telemetry._config import get_telemetry_config as load_telemetry_config
 

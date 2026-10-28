@@ -334,6 +334,150 @@ def _activity_payload() -> dict:
     }
 
 
+def _footprint_report(
+    *,
+    lens: str = "map",
+    actor: str = "you",
+    area: str | None = None,
+    empty: bool = False,
+) -> dict[str, Any]:
+    """Build a deterministic map/lens response for Statistics pane tests."""
+    areas = [
+        {
+            "area": "cli.bead",
+            "total": 10,
+            "used": 6,
+            "used_pct": 60,
+            "recency_7d": 2,
+            "recency_30d": 2,
+            "recency_window": 2,
+            "recency_none": 3,
+            "recency_not_measured": 1,
+        },
+        {
+            "area": "tui.statistics",
+            "total": 12,
+            "used": 7,
+            "used_pct": 58,
+            "recency_7d": 3,
+            "recency_30d": 2,
+            "recency_window": 2,
+            "recency_none": 4,
+            "recency_not_measured": 1,
+        },
+        {
+            "area": "mobile",
+            "total": 3,
+            "used": 0,
+            "used_pct": 0,
+            "recency_7d": 0,
+            "recency_30d": 0,
+            "recency_window": 0,
+            "recency_none": 0,
+            "recency_not_measured": 3,
+        },
+    ]
+    features = [
+        {
+            "id": "cli:bead.list",
+            "label": "bead list",
+            "ns": "cli",
+            "area": "cli.bead",
+            "kind": "command",
+            "state": "used",
+            "uses": {"human": 9, "agent": 4, "automation": 0},
+            "days_used": 5,
+            "last_used_day": "2026-10-27",
+            "via": {"cli": 13},
+            "loc": 520,
+        },
+        {
+            "id": "cli:bead.close",
+            "label": "bead close",
+            "ns": "cli",
+            "area": "cli.bead",
+            "kind": "command",
+            "state": "no_recorded_use",
+            "uses": {"human": 0, "agent": 0, "automation": 0},
+            "days_used": 0,
+            "last_used_day": None,
+            "via": {},
+            "loc": 210,
+        },
+        {
+            "id": "tui:statistics.cycle_range",
+            "label": "Cycle Statistics range",
+            "ns": "tui",
+            "area": "tui.statistics",
+            "kind": "action",
+            "state": "used",
+            "uses": {"human": 3, "agent": 0, "automation": 0},
+            "days_used": 2,
+            "last_used_day": "2026-10-26",
+            "via": {"key": 3},
+            "loc": 30,
+        },
+        {
+            "id": "plugin:mobile",
+            "label": "Mobile integration",
+            "ns": "plugin",
+            "area": "mobile",
+            "kind": "plugin",
+            "state": "not_measured",
+            "uses": {"human": 0, "agent": 0, "automation": 0},
+            "days_used": 0,
+            "last_used_day": None,
+            "via": {},
+            "loc": 0,
+        },
+    ]
+    if area is not None:
+        features = [row for row in features if row["area"] == area]
+    return {
+        "schema_version": 1,
+        "header": {
+            "actor": actor,
+            "window_days": 60,
+            "observed_active_days": {"cli": 12, "tui": 3, "macro": 2},
+            "recording_since": "2026-10-01",
+            "gate_met": False,
+            "gate_active_days": 12,
+            "gate_required_days": 30,
+        },
+        "tiles": {
+            "total": 0 if empty else 25,
+            "used": 0 if empty else 13,
+            "candidates": 0 if empty else 3,
+            "candidates_preview": True,
+            "rare_by_design": 0 if empty else 2,
+            "agent_only": 0 if empty else 1,
+            "not_measured": 0 if empty else 5,
+        },
+        "areas": [] if empty else areas,
+        "rows": [] if empty else features,
+        "coverage": [
+            {
+                "surface": "cli",
+                "measured_days": 12,
+                "active_days": 12,
+                "torn": 0,
+                "dropped": 1,
+                "unknown_ids": 2,
+                "incomplete_days": 0,
+            },
+            {
+                "surface": "tui",
+                "measured_days": 3,
+                "active_days": 3,
+                "torn": 1,
+                "dropped": 0,
+                "unknown_ids": 0,
+                "incomplete_days": 1,
+            },
+        ],
+    }
+
+
 def _perf_view(
     selected_range: StatsRange,
     *,
@@ -363,7 +507,27 @@ def _result(
     perf_group_by: PerfGroupBy = "subsystem",
     perf: PerfView | None = None,
     facets: set[str] | frozenset[str] | None = None,
+    footprint_lens: str = "map",
+    footprint_actor: str = "you",
+    footprint_area: str | None = None,
 ) -> StatisticsViewData:
+    if view == "footprint":
+        return StatisticsViewData(
+            view=view,
+            selected_range=selected_range,
+            generated_at=_NOW,
+            project_filter=project_filter,
+            macro_focus=macro_focus,
+            footprint=_footprint_report(
+                lens=footprint_lens,
+                actor=footprint_actor,
+                area=footprint_area,
+                empty=empty,
+            ),
+            footprint_lens=footprint_lens,
+            footprint_actor=footprint_actor,
+            footprint_area=footprint_area,
+        )
     run_payload: dict[str, Any] = (
         {} if empty else _run_payload(selected_range, runtime_group_by)
     )
@@ -482,6 +646,13 @@ def _patch_center(
             macro_focus=macro_focus,
             perf_group_by=perf_group_by,
             facets=facets if isinstance(facets, (set, frozenset)) else None,
+            footprint_lens=str(kwargs.get("footprint_lens", "map")),
+            footprint_actor=str(kwargs.get("footprint_actor", "you")),
+            footprint_area=(
+                kwargs.get("footprint_area")
+                if isinstance(kwargs.get("footprint_area"), str)
+                else None
+            ),
         )
 
     def load_code(

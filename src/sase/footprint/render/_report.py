@@ -71,7 +71,7 @@ def header_chip(report: dict[str, Any]) -> Text:
     )
 
 
-def tiles_row(report: dict[str, Any]) -> RenderableType:
+def tiles_row(report: dict[str, Any], *, tile_width: int = 22) -> Group:
     """Return the five summary tiles for a report."""
     tiles = dict(report.get("tiles", {}))
     preview = bool(tiles.get("candidates_preview", False))
@@ -83,14 +83,14 @@ def tiles_row(report: dict[str, Any]) -> RenderableType:
             f"{format_count(used)} / {format_count(total)}",
             caption="Used",
             key="footprint-used",
-            width=22,
+            width=tile_width,
             height=5,
         ),
         render_stat_tile(
             format_count(candidates),
-            caption="Candidates",
+            caption="Candidates · preview" if preview else "Candidates",
             key="footprint-candidates",
-            width=22,
+            width=tile_width,
             height=5,
             status="warning" if preview else None,
         ),
@@ -98,21 +98,21 @@ def tiles_row(report: dict[str, Any]) -> RenderableType:
             format_count(int(tiles.get("rare_by_design", 0) or 0)),
             caption="Rare by design",
             key="footprint-rare",
-            width=22,
+            width=tile_width,
             height=5,
         ),
         render_stat_tile(
             format_count(int(tiles.get("agent_only", 0) or 0)),
             caption="Agent-only",
             key="footprint-agent",
-            width=22,
+            width=tile_width,
             height=5,
         ),
         render_stat_tile(
             format_count(int(tiles.get("not_measured", 0) or 0)),
             caption="Not measured",
             key="footprint-unmeasured",
-            width=22,
+            width=tile_width,
             height=5,
         ),
     )

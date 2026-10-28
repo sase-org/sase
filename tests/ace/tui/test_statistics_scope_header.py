@@ -102,6 +102,13 @@ _REVIEWED_COPY: dict[str, tuple[str, str, str, str, str]] = {
         ),
         "Assess responsiveness, latency, stalls, and health.",
     ),
+    "footprint": (
+        "Footprint",
+        "Footprint",
+        "Foot",
+        "Review feature usage by surface, lens, actor, and coverage.",
+        "Review feature usage and coverage.",
+    ),
 }
 
 
@@ -115,8 +122,9 @@ def test_statistics_view_catalog_is_the_authoritative_ordered_source() -> None:
         "macros",
         "plans_questions",
         "perf",
+        "footprint",
     )
-    assert len(STATISTICS_VIEW_SPECS) == 8
+    assert len(STATISTICS_VIEW_SPECS) == 9
     assert VIEW_ORDER == tuple(spec.id for spec in STATISTICS_VIEW_SPECS)
     assert VIEW_LABELS == {spec.id: spec.label for spec in STATISTICS_VIEW_SPECS}
     assert VIEW_COMPACT_LABELS == {
@@ -133,6 +141,7 @@ def test_statistics_view_catalog_is_the_authoritative_ordered_source() -> None:
         "projects",
         "macros",
         "perf",
+        "footprint",
     }
     for spec in STATISTICS_VIEW_SPECS:
         label, compact_label, micro_label, full, compact = _REVIEWED_COPY[spec.id]

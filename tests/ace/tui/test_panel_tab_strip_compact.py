@@ -204,7 +204,7 @@ async def test_compact_labels_preserve_active_treatment_and_click_ranges() -> No
 
 
 @pytest.mark.parametrize("width", (120, 90))
-def test_eight_statistics_tabs_fit_standard_admin_center_widths(width: int) -> None:
+def test_nine_statistics_tabs_fit_standard_admin_center_widths(width: int) -> None:
     strip = PanelTabStrip(
         layout._VIEW_TABS,
         "overview",
@@ -226,8 +226,8 @@ def test_eight_statistics_tabs_fit_standard_admin_center_widths(width: int) -> N
 
     assert strip._line_width == len(rendered.plain)
     assert strip._line_width <= width
-    assert len(strip._tab_ranges) == 8
-    assert "8" in rendered.plain
+    assert len(strip._tab_ranges) == 9
+    assert "9" in rendered.plain
 
 
 def test_full_labels_remain_canonical_until_compact_threshold() -> None:

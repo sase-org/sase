@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from typing import cast
+from collections.abc import Mapping
+from typing import Any, cast
 
 from textual import on
 from textual.containers import VerticalScroll
@@ -14,6 +15,8 @@ from sase.ace.tui.widgets.panel_tab_strip import PanelTabStrip
 from sase.stats.loader import StatisticsViewData
 from sase.stats.ranges import PRESET_ORDER, PresetKey, StatsRange, parse_stats_range
 from sase.stats.registry import (
+    FOOTPRINT_ACTOR_ORDER,
+    FOOTPRINT_LENS_ORDER,
     MACROS_GROUP_ORDER,
     PERF_GROUP_ORDER,
     VIEW_LABELS,
@@ -33,6 +36,30 @@ class StatisticsPaneActionsMixin(StatisticsPaneLayoutMixin):
     _project_filter_seeded: bool
     _macro_focus_options: tuple[str, ...]
 
+    def check_action(self, action: str, parameters: tuple[object, ...]) -> bool | None:
+        if action in {"cycle_actor", "next_row", "prev_row", "open_row", "drill_up"}:
+            if self._view != "footprint":
+                return False
+            if action == "cycle_actor":
+                return True
+            if action == "open_row":
+                return (
+                    self._footprint_lens == "map"
+                    and self._footprint_area is None
+                    and bool(self._footprint_items())
+                )
+            if action == "drill_up":
+                return self._footprint_area is not None
+            return bool(self._footprint_items())
+        if self._view == "footprint" and action in {
+            "cycle_project_filter",
+            "cycle_project_filter_reverse",
+            "focus_macro",
+            "clear_macro_focus",
+        }:
+            return False
+        return super().check_action(action, parameters)
+
     def _resolve_current_range(self) -> StatsRange:
         """Resolve the selected range; :class:`StatisticsPane` implements it."""
         raise NotImplementedError
@@ -40,6 +67,29 @@ class StatisticsPaneActionsMixin(StatisticsPaneLayoutMixin):
     def _schedule_load(self) -> None:
         """Coalesce a reload; :class:`StatisticsPane` implements it."""
         raise NotImplementedError
+
+    def _footprint_items(
+        self,
+        report: Mapping[str, Any] | None = None,
+    ) -> tuple[dict[str, Any], ...]:
+        """Return the rows shown by the selected Footprint lens."""
+        if report is None:
+            result = getattr(self, "_last_result", None)
+            report = (
+                result.footprint if isinstance(result, StatisticsViewData) else None
+            )
+        if not isinstance(report, Mapping):
+            return ()
+        if self._footprint_lens == "map" and self._footprint_area is None:
+            key = "areas"
+        elif self._footprint_lens == "coverage" and self._footprint_area is None:
+            key = "coverage"
+        else:
+            key = "rows"
+        values = report.get(key, [])
+        if not isinstance(values, list):
+            return ()
+        return tuple(dict(value) for value in values if isinstance(value, Mapping))
 
     def on_key(self, event: Key) -> None:
         """Resolve one armed numbered-view selection before modal bindings."""
@@ -156,6 +206,68 @@ class StatisticsPaneActionsMixin(StatisticsPaneLayoutMixin):
             index = PERF_GROUP_ORDER.index(self._perf_group_by)
             self._perf_group_by = PERF_GROUP_ORDER[(index + 1) % len(PERF_GROUP_ORDER)]
             self._selection_changed(reload=True)
+        elif self._view == "footprint":
+            index = FOOTPRINT_LENS_ORDER.index(self._footprint_lens)
+            self._footprint_lens = FOOTPRINT_LENS_ORDER[
+                (index + 1) % len(FOOTPRINT_LENS_ORDER)
+            ]
+            self._footprint_selected_index = 0
+            self._selection_changed(reload=True)
+
+    def action_cycle_actor(self) -> None:
+        """Cycle Footprint actor scope from you through the full census."""
+        if self._view != "footprint":
+            return
+        index = FOOTPRINT_ACTOR_ORDER.index(self._footprint_actor)
+        self._footprint_actor = FOOTPRINT_ACTOR_ORDER[
+            (index + 1) % len(FOOTPRINT_ACTOR_ORDER)
+        ]
+        self._footprint_selected_index = 0
+        self._selection_changed(reload=True)
+
+    def action_next_row(self) -> None:
+        """Move the selected Footprint row down without reloading data."""
+        self._move_footprint_row(1)
+
+    def action_prev_row(self) -> None:
+        """Move the selected Footprint row up without reloading data."""
+        self._move_footprint_row(-1)
+
+    def _move_footprint_row(self, delta: int) -> None:
+        if self._view != "footprint":
+            return
+        items = self._footprint_items()
+        if not items:
+            return
+        self._footprint_selected_index = (self._footprint_selected_index + delta) % len(
+            items
+        )
+        self._paint_current_view()
+
+    def action_open_row(self) -> None:
+        """Drill from the map into the selected area's feature rows."""
+        if self._view != "footprint" or self._footprint_lens != "map":
+            return
+        if self._footprint_area is not None:
+            return
+        items = self._footprint_items()
+        if not items:
+            return
+        selected = items[self._footprint_selected_index]
+        area = selected.get("area")
+        if not isinstance(area, str) or not area:
+            return
+        self._footprint_area = area
+        self._footprint_selected_index = 0
+        self._selection_changed(reload=True)
+
+    def action_drill_up(self) -> None:
+        """Return from area details to the complete Footprint map."""
+        if self._view != "footprint" or self._footprint_area is None:
+            return
+        self._footprint_area = None
+        self._footprint_selected_index = 0
+        self._selection_changed(reload=True)
 
     def action_cycle_project_filter(self) -> None:
         """Cycle forward through All and cached ranked projects."""
@@ -276,6 +388,9 @@ class StatisticsPaneActionsMixin(StatisticsPaneLayoutMixin):
                 projects_group_by=self._effective_projects_group_by(),
                 macros_group_by=self._macros_group_by,
                 perf_group_by=self._perf_group_by,
+                footprint_lens=self._footprint_lens,
+                footprint_actor=self._footprint_actor,
+                footprint_area=self._footprint_area,
                 project_label=project_label,
                 macro_focus_label=(
                     "All macros"

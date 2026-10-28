@@ -2804,6 +2804,10 @@
                   "type": "string",
                   "description": "Cycle the active statistics grouping strategy"
                 },
+                "cycle_actor": {
+                  "type": "string",
+                  "description": "Cycle the Footprint actor scope"
+                },
                 "cycle_project_filter": {
                   "type": "string",
                   "description": "Cycle the global statistics project filter forward"
@@ -2819,6 +2823,22 @@
                 "clear_macro_focus": {
                   "type": "string",
                   "description": "Clear the active Statistics macro focus"
+                },
+                "next_row": {
+                  "type": "string",
+                  "description": "Select the next Footprint row"
+                },
+                "prev_row": {
+                  "type": "string",
+                  "description": "Select the previous Footprint row"
+                },
+                "open_row": {
+                  "type": "string",
+                  "description": "Open the selected Footprint area"
+                },
+                "drill_up": {
+                  "type": "string",
+                  "description": "Return from a Footprint area to its map"
                 },
                 "scroll_down": {
                   "type": "string",

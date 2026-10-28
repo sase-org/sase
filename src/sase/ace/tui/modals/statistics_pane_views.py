@@ -49,6 +49,10 @@ class StatisticsViewsRenderingMixin(
     size: Any
 
     def _view_renderable(self, result: StatisticsViewData) -> Any:
+        if self._view == "footprint":
+            from .statistics_pane_footprint import footprint_renderable
+
+            return footprint_renderable(self, result)
         if self._view == "projects":
             return self._projects_renderable(result)
         views = result.views

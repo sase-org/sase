@@ -61,6 +61,9 @@ class StatisticsHelpModal(ModalScreen[None]):
         projects_group_by: ProjectsGroupBy,
         macros_group_by: MacrosGroupBy,
         perf_group_by: PerfGroupBy = "subsystem",
+        footprint_lens: str = "map",
+        footprint_actor: str = "you",
+        footprint_area: str | None = None,
         project_label: str,
         macro_focus_label: str = "All macros",
         generated_at: float | None,
@@ -72,6 +75,9 @@ class StatisticsHelpModal(ModalScreen[None]):
         self._projects_group_by = projects_group_by
         self._macros_group_by = macros_group_by
         self._perf_group_by = perf_group_by
+        self._footprint_lens = footprint_lens
+        self._footprint_actor = footprint_actor
+        self._footprint_area = footprint_area
         self._project_label = project_label
         self._macro_focus_label = macro_focus_label
         self._generated_at = generated_at
@@ -107,7 +113,7 @@ class StatisticsHelpModal(ModalScreen[None]):
         return title
 
     def _content(self) -> RenderableType:
-        return Group(
+        sections: list[RenderableType] = [
             self._section("Views", self._views_text()),
             Text(""),
             self._section("Controls", self._controls_text()),
@@ -116,15 +122,18 @@ class StatisticsHelpModal(ModalScreen[None]):
             Text(""),
             self._section("Runner methodology", self._runner_methodology_text()),
             Text(""),
-            self._section(
-                "Macro methodology",
-                self._macro_methodology_text(),
-            ),
+            self._section("Macro methodology", self._macro_methodology_text()),
             Text(""),
             self._section("Perf methodology", self._perf_methodology_text()),
             Text(""),
             self._section("Data & freshness", self._freshness_text()),
-        )
+        ]
+        if self._current_view == "footprint":
+            sections[2:2] = [
+                self._section("Footprint", self._footprint_methodology_text()),
+                Text(""),
+            ]
+        return Group(*sections)
 
     @staticmethod
     def _section(title: str, body: Text) -> Panel:
@@ -149,8 +158,27 @@ class StatisticsHelpModal(ModalScreen[None]):
         for (action, description), (key, _) in zip(
             _STATISTICS_BINDING_META, bindings, strict=True
         ):
+            if action in {"cycle_actor", "next_row", "prev_row"} and (
+                self._current_view != "footprint"
+            ):
+                continue
+            if action == "open_row" and not (
+                self._current_view == "footprint"
+                and self._footprint_lens == "map"
+                and self._footprint_area is None
+            ):
+                continue
+            if action == "drill_up" and not (
+                self._current_view == "footprint" and self._footprint_area is not None
+            ):
+                continue
             if action == "cycle_group" and not statistics_view_supports_grouping(
                 self._current_view
+            ):
+                continue
+            if (
+                action in {"cycle_project_filter", "cycle_project_filter_reverse"}
+                and self._current_view == "footprint"
             ):
                 continue
             if (
@@ -190,7 +218,22 @@ class StatisticsHelpModal(ModalScreen[None]):
                 return f"Macros · {self._macros_group_label()}"
             if self._current_view == "perf":
                 return f"Perf · {self._perf_group_label()}"
+            if self._current_view == "footprint":
+                return (
+                    "Footprint · "
+                    f"{statistics_group_label('footprint', self._footprint_lens)}"
+                )
             return f"Projects · {self._projects_group_label()}"
+        if action == "cycle_actor":
+            return f"current actor: {self._footprint_actor}"
+        if action == "next_row":
+            return "move down in the Footprint list"
+        if action == "prev_row":
+            return "move up in the Footprint list"
+        if action == "open_row":
+            return "open the selected map area"
+        if action == "drill_up":
+            return "return from the selected area to the map"
         if action == "cycle_project_filter":
             return f"next ranked project (seeded); current: {self._project_label}"
         if action == "cycle_project_filter_reverse":
@@ -216,6 +259,35 @@ class StatisticsHelpModal(ModalScreen[None]):
     def _perf_group_label(self) -> str:
         return statistics_group_label("perf", self._perf_group_by)
 
+    def _footprint_methodology_text(self) -> Text:
+        text = Text()
+        text.append("Map", style=f"bold {_CYAN}")
+        text.append(
+            " — every catalog area; recency bars, no recorded use, and not measured "
+            "are separate states. "
+            f"{key_display_name(self._keymaps.open_row)} opens an area; "
+            f"{key_display_name(self._keymaps.drill_up)} returns to the map.\n",
+            style="dim",
+        )
+        text.append("Lens", style=f"bold {_CYAN}")
+        text.append(
+            " — g cycles the map, cold, fading, agent-only, dead paths, friction, "
+            "hot, coverage, and decisions rows.\n",
+            style="dim",
+        )
+        text.append("Actor", style=f"bold {_CYAN}")
+        text.append(
+            " — a cycles you, agents, automation, and everyone.\n",
+            style="dim",
+        )
+        text.append("Preview", style=f"bold {_CYAN}")
+        text.append(
+            " — candidate counts remain provisional until the active-day gate is met; "
+            "the view never treats missing coverage as zero use.",
+            style="dim",
+        )
+        return text
+
     def _glossary_text(self) -> Text:
         text = Text()
         for view_index, view in enumerate(VIEW_ORDER):
@@ -237,7 +309,8 @@ class StatisticsHelpModal(ModalScreen[None]):
             "Questions query durable agent-run records through the Rust "
             "statistics bindings. Projects reports default-branch output, "
             "committed plans, lifetime code, and this machine's runs. Perf "
-            "combines TUI logs with the telemetry metric store.\n",
+            "combines TUI logs with the telemetry metric store. Footprint reads "
+            "the separate local usage ledger.\n",
             style="dim",
         )
         text.append("Range", style=f"bold {_GOLD}")

@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from sase.stats.loader import StatisticsViewData, load_statistics_view
 from sase.stats.registry import (
+    FOOTPRINT_ACTOR_ORDER,
+    FOOTPRINT_LENS_ORDER,
     MACROS_GROUP_ORDER,
     PERF_GROUP_ORDER,
     PROJECTS_GROUP_ORDER,
@@ -27,6 +29,8 @@ from sase.stats.registry import (
 )
 
 __all__ = [
+    "FOOTPRINT_ACTOR_ORDER",
+    "FOOTPRINT_LENS_ORDER",
     "MACROS_GROUP_ORDER",
     "PERF_GROUP_ORDER",
     "PROJECTS_GROUP_ORDER",

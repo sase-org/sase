@@ -9,6 +9,8 @@ from sase.ace.tui.modals.statistics_pane_data import load_statistics_view as tui
 from sase.ace.tui.modals.statistics_pane_legends import VIEW_LEGENDS as TUI_VIEW_LEGENDS
 from sase.stats.loader import load_statistics_view
 from sase.stats.registry import (
+    FOOTPRINT_ACTOR_ORDER,
+    FOOTPRINT_LENS_ORDER,
     MACROS_GROUP_ORDER,
     PERF_GROUP_ORDER,
     PROJECTS_GROUP_ORDER,
@@ -29,6 +31,7 @@ _CLI_NAMES = {
     "macros": "macro",
     "plans_questions": "plan",
     "perf": "perf",
+    "footprint": "footprint",
 }
 
 
@@ -106,11 +109,15 @@ def test_groupings_stay_on_the_pre_tui_ids() -> None:
         "provider",
         "workflow",
     )
+    assert tuple(group.id for group in by_id["footprint"].groupings) == (
+        FOOTPRINT_LENS_ORDER
+    )
+    assert FOOTPRINT_ACTOR_ORDER == ("you", "agents", "automation", "everyone")
     assert PROJECTS_GROUP_ORDER == ("project", "repo", "language", "model", "patch")
     assert MACROS_GROUP_ORDER == ("usage", "model", "project", "pairing")
     assert PERF_GROUP_ORDER == ("subsystem", "provider", "workflow")
     for spec in STATISTICS_VIEW_SPECS:
-        if spec.id in {"projects", "macros", "perf"}:
+        if spec.id in {"projects", "macros", "perf", "footprint"}:
             assert statistics_view_supports_grouping(spec.id)
             continue
         assert spec.groupings == ()

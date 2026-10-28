@@ -48,6 +48,9 @@ class StatisticsPanePresentationBase(StatisticsViewsRenderingMixin, Vertical):
     _projects_group_by: ProjectsGroupBy
     _macros_group_by: MacrosGroupBy
     _perf_group_by: PerfGroupBy
+    _footprint_lens: str
+    _footprint_actor: str
+    _footprint_area: str | None
     _project_filter: str | None
     _macro_focus: str | None
     _preset_key: PresetKey | None
@@ -63,7 +66,7 @@ class StatisticsPanePresentationBase(StatisticsViewsRenderingMixin, Vertical):
     _pending_view_select: bool
 
     def _paint_loading(self) -> None:
-        show_tiles = self._view in {"overview", "perf"}
+        show_tiles = self._view in {"overview", "perf", "footprint"}
         self._set_tiles_visible(show_tiles)
         if show_tiles:
             self._clear_tile_tooltips()
@@ -85,7 +88,7 @@ class StatisticsPanePresentationBase(StatisticsViewsRenderingMixin, Vertical):
     def _paint_current_view(self) -> None:
         result = self._last_result
         self._update_heading()
-        show_tiles = self._view in {"overview", "perf"}
+        show_tiles = self._view in {"overview", "perf", "footprint"}
         self._set_tiles_visible(show_tiles)
         if result is None or not self._result_paints_view(result, self._view):
             self._paint_loading()
@@ -101,7 +104,7 @@ class StatisticsPanePresentationBase(StatisticsViewsRenderingMixin, Vertical):
                 self._runners_unavailable_renderable(result),
             )
             return
-        if self._current_view_is_empty(result):
+        if self._view != "footprint" and self._current_view_is_empty(result):
             self._set_tiles_visible(False)
             self._update_static(
                 "#statistics-body",
@@ -112,11 +115,25 @@ class StatisticsPanePresentationBase(StatisticsViewsRenderingMixin, Vertical):
             self._paint_overview_tiles(result)
         elif self._view == "perf":
             self._paint_perf_tiles(result)
+        elif self._view == "footprint":
+            self._paint_footprint_tiles(result)
         self._update_static("#statistics-body", self._view_renderable(result))
+
+    def _paint_footprint_tiles(self, result: StatisticsViewData) -> None:
+        if result.footprint is None:
+            return
+        from sase.footprint.render import tiles_row
+
+        tiles = tiles_row(result.footprint, tile_width=self._tile_width())
+        for index, renderable in enumerate(tiles.renderables):
+            self._update_static(f"#statistics-tile-{index}", renderable)
+        self._clear_tile_tooltips()
 
     def _result_paints_view(
         self, result: StatisticsViewData, view: StatisticsView
     ) -> bool:
+        if view == "footprint":
+            return result.footprint is not None
         if view == "projects":
             return result.project_stats is not None
         if view == "perf":
@@ -404,8 +421,21 @@ class StatisticsPanePresentationBase(StatisticsViewsRenderingMixin, Vertical):
                 f"Perf · {statistics_group_label('perf', self._perf_group_by)}",
                 style=f"bold {_GREEN}",
             )
+        elif self._view == "footprint":
+            scope.append(
+                "Footprint · "
+                f"{statistics_group_label('footprint', self._footprint_lens)}",
+                style=f"bold {_GREEN}",
+            )
         else:
             scope.append("—", style="dim")
+        return scope
+
+    def _actor_scope_text(self) -> Text:
+        scope = self._scope_text(
+            self._effective_key("cycle_actor"), "Actor", accent=_GOLD
+        )
+        scope.append(self._footprint_actor.title(), style=f"bold {_GOLD}")
         return scope
 
     def _project_scope_text(self) -> Text:
@@ -457,6 +487,23 @@ class StatisticsPanePresentationBase(StatisticsViewsRenderingMixin, Vertical):
                 f"press {self._view_selection_range_text()} to select a view",
                 style=f"bold {_ACCENT}",
             )
+            return hints
+        if self._view == "footprint":
+            hints.append(
+                f"{self._effective_key('prev_view')} / "
+                f"{self._effective_key('next_view')} views   "
+                f"{self._effective_key('cycle_range')} range   "
+                f"{self._effective_key('cycle_group')} lens   "
+                f"{self._effective_key('cycle_actor')} actor   "
+                f"{self._effective_key('prev_row')}/{self._effective_key('next_row')} rows",
+                style=f"bold {_ACCENT}",
+            )
+            if self._footprint_area is None and self._footprint_lens == "map":
+                hints.append(f"   {self._effective_key('open_row')} area")
+            elif self._footprint_area is not None:
+                hints.append(f"   {self._effective_key('drill_up')} map")
+            hints.append(f"   {self._effective_key('refresh')} refresh")
+            hints.append(f"   {self._effective_key('help')} help")
             return hints
         hints.append(
             f"{self._effective_key('prev_view')} / "
@@ -536,6 +583,17 @@ class StatisticsPanePresentationBase(StatisticsViewsRenderingMixin, Vertical):
                 "hidden",
             )
             group_scope.update(self._group_scope_text())
+        except Exception:
+            pass
+        try:
+            actor_scope = self.query_one("#statistics-scope-actor", Static)
+            actor_scope.set_class(self._view != "footprint", "hidden")
+            actor_scope.update(self._actor_scope_text())
+        except Exception:
+            pass
+        try:
+            project_scope = self.query_one("#statistics-scope-project", Static)
+            project_scope.set_class(self._view == "footprint", "hidden")
         except Exception:
             pass
         self._update_static("#statistics-scope-project", self._project_scope_text())

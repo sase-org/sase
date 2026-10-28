@@ -38,6 +38,7 @@ from tests.ace.tui.visual._ace_config_center_projects_helpers import (
 )
 from tests.ace.tui.visual._ace_config_center_statistics_helpers import (
     _patch_statistics_empty,
+    _patch_statistics_footprint,
     _patch_statistics_loading,
     _patch_statistics_perf_degraded,
     _patch_statistics_populated,
@@ -66,6 +67,7 @@ __all__ = [
     "_patch_plugins_catalog",
     "_patch_project_records",
     "_patch_statistics_empty",
+    "_patch_statistics_footprint",
     "_patch_statistics_loading",
     "_patch_statistics_perf_degraded",
     "_patch_statistics_populated",

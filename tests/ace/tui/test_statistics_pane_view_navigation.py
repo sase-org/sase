@@ -24,13 +24,14 @@ from tests.ace.tui._statistics_pane_helpers import (
 @pytest.mark.parametrize(
     ("width", "tier"),
     (
-        (130, "full"),
+        (150, "full"),
+        (130, "compact"),
         (120, "compact"),
-        (90, "compact"),
+        (90, "micro"),
         (70, "micro"),
     ),
 )
-def test_numbered_eight_view_strip_fits_each_statistics_layout_tier(
+def test_numbered_nine_view_strip_fits_each_statistics_layout_tier(
     width: int,
     tier: str,
 ) -> None:
@@ -50,11 +51,11 @@ def test_numbered_eight_view_strip_fits_each_statistics_layout_tier(
 
     assert strip._line_width == len(rendered.plain)
     assert strip._line_width <= width
-    assert len(strip._tab_ranges) == 8
+    assert len(strip._tab_ranges) == 9
     assert [
         rendered.plain[start:end].split(maxsplit=1)[0]
         for start, end in strip._tab_ranges.values()
-    ] == [f"{number:02d}" for number in range(1, 9)]
+    ] == [f"{number:02d}" for number in range(1, 10)]
 
 
 async def test_view_cycle_reuses_composite_result_and_updates_strip(
@@ -93,7 +94,7 @@ async def test_view_cycle_reuses_composite_result_and_updates_strip(
         _assert_statistics_chrome(pane)
 
 
-async def test_eight_view_keyboard_and_mouse_navigation_share_order(
+async def test_nine_view_keyboard_and_mouse_navigation_share_order(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     calls: list[tuple[StatisticsView, StatsRange, str | None, str | None]] = []
@@ -109,25 +110,25 @@ async def test_eight_view_keyboard_and_mouse_navigation_share_order(
         assert tuple(visited) == VIEW_ORDER
         await page.wait_for(
             lambda _state: (
-                pane._view == "perf"
+                pane._view == "footprint"
                 and pane._last_result is not None
-                and pane._last_result.perf is not None
+                and pane._last_result.footprint is not None
                 and not pane._loading
                 and (
                     pane._load_debouncer is None or not pane._load_debouncer.is_pending
                 )
             )
         )
-        assert calls[-1][0] == "perf"
+        assert calls[-1][0] == "footprint"
         strip = pane.query_one("#statistics-views", PanelTabStrip)
         strip.post_message(PanelTabStrip.TabClicked("runners"))
         await page.wait_for(lambda _state: pane._view == "runners")
         await _wait_statistics_settled(page, pane)
 
         assert VIEW_ORDER[1] == "runners"
-        assert VIEW_ORDER[-1] == "perf"
+        assert VIEW_ORDER[-1] == "footprint"
         assert strip._active_tab == "runners"
-        assert calls[-1][0] in {"perf", "runners"}
+        assert calls[-1][0] in {"footprint", "runners"}
 
 
 async def test_every_view_selection_path_keeps_heading_tab_rail_and_view_aligned(

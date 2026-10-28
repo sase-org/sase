@@ -17,6 +17,7 @@ from tests.ace.tui.visual._ace_config_center_statistics_views import (
     _populated_project_stats,
     _populated_statistics_view,
 )
+from tests.ace.tui._statistics_pane_helpers import _result
 
 
 def _patch_statistics_perf_degraded(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -113,6 +114,73 @@ def _patch_statistics_projects_measuring_code(
     )
 
 
+def _patch_statistics_footprint(
+    monkeypatch: pytest.MonkeyPatch,
+    *,
+    empty: bool = False,
+    all_unknown: bool = False,
+) -> None:
+    """Return deterministic Footprint reports for the Statistics snapshots."""
+    monkeypatch.setattr(sp, "resolve_preset", lambda _key: _STATISTICS_RANGE)
+
+    def load(
+        view: str,
+        selected_range: object,
+        project_filter: str | None = None,
+        macro_focus: str | None = None,
+        perf_group_by: str = "subsystem",
+        *,
+        footprint_lens: str = "map",
+        footprint_actor: str = "you",
+        footprint_area: str | None = None,
+        **_kw: object,
+    ) -> StatisticsViewData:
+        if view != "footprint":
+            return _populated_statistics_view(
+                view,
+                selected_range,  # type: ignore[arg-type]
+                project_filter,
+                macro_focus,
+                perf_group_by=perf_group_by,  # type: ignore[arg-type]
+            )
+        result = _result(
+            "footprint",
+            selected_range,  # type: ignore[arg-type]
+            project_filter=project_filter,
+            macro_focus=macro_focus,
+            empty=empty,
+            footprint_lens=footprint_lens,
+            footprint_actor=footprint_actor,
+            footprint_area=footprint_area,
+        )
+        if all_unknown and result.footprint is not None:
+            result.footprint["tiles"] = {
+                "total": 18,
+                "used": 0,
+                "candidates": 0,
+                "candidates_preview": True,
+                "rare_by_design": 0,
+                "agent_only": 0,
+                "not_measured": 18,
+            }
+            result.footprint["areas"] = [
+                {
+                    "area": "mobile",
+                    "total": 18,
+                    "used": 0,
+                    "used_pct": 0,
+                    "recency_7d": 0,
+                    "recency_30d": 0,
+                    "recency_window": 0,
+                    "recency_none": 0,
+                    "recency_not_measured": 18,
+                }
+            ]
+        return result
+
+    monkeypatch.setattr(sp, "load_statistics_view", load)
+
+
 def _patch_statistics_empty(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(sp, "resolve_preset", lambda _key: _STATISTICS_RANGE)
     monkeypatch.setattr(
@@ -144,6 +212,7 @@ def _patch_statistics_loading(monkeypatch: pytest.MonkeyPatch) -> None:
 
 __all__ = [
     "_patch_statistics_empty",
+    "_patch_statistics_footprint",
     "_patch_statistics_loading",
     "_patch_statistics_perf_degraded",
     "_patch_statistics_populated",

@@ -393,10 +393,15 @@ These are the bundled defaults for configurable TUI actions. The key and action 
 | `T` | Previous Time Range | `ace.keymaps.statistics.cycle_range_reverse` |
 | `c` | Custom Range | `ace.keymaps.statistics.custom_range` |
 | `g` | Group By | `ace.keymaps.statistics.cycle_group` |
+| `a` | Footprint Actor | `ace.keymaps.statistics.cycle_actor` |
 | `p` | Project Filter | `ace.keymaps.statistics.cycle_project_filter` |
 | `P` | Previous Project Filter | `ace.keymaps.statistics.cycle_project_filter_reverse` |
 | `x` | Focus Macro | `ace.keymaps.statistics.focus_macro` |
 | `X` | Clear Macro Focus | `ace.keymaps.statistics.clear_macro_focus` |
+| `j / down / Ctrl+N` | Next Footprint Row | `ace.keymaps.statistics.next_row` |
+| `k / up / Ctrl+P` | Previous Footprint Row | `ace.keymaps.statistics.prev_row` |
+| `Enter` | Open Area | `ace.keymaps.statistics.open_row` |
+| `backspace` | Back to Map | `ace.keymaps.statistics.drill_up` |
 | `Ctrl+D` | Scroll Down | `ace.keymaps.statistics.scroll_down` |
 | `Ctrl+U` | Scroll Up | `ace.keymaps.statistics.scroll_up` |
 | `r` | Refresh | `ace.keymaps.statistics.refresh` |

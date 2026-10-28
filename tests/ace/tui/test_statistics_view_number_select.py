@@ -20,7 +20,7 @@ from tests.ace.tui._statistics_pane_helpers import (
 )
 
 
-async def test_number_prefix_selects_second_seventh_and_eighth_views(
+async def test_number_prefix_selects_second_seventh_eighth_and_ninth_views(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     calls: list[tuple[StatisticsView, StatsRange, str | None, str | None]] = []
@@ -33,7 +33,7 @@ async def test_number_prefix_selects_second_seventh_and_eighth_views(
         assert pane._pending_view_select is True
         assert (
             pane.query_one("#statistics-hints", Static).render().plain
-            == "0… press 1-8 to select a view"
+            == "0… press 1-9 to select a view"
         )
         await page.press("2")
         await page.wait_for(lambda _state: pane._view == "runners")
@@ -50,8 +50,13 @@ async def test_number_prefix_selects_second_seventh_and_eighth_views(
         assert modal._active_tab == "statistics"
         assert pane._pending_view_select is False
 
+        await page.press("0", "9")
+        await page.wait_for(lambda _state: pane._view == "footprint")
+        assert modal._active_tab == "statistics"
+        assert pane._pending_view_select is False
 
-async def test_number_prefix_ignores_out_of_range_digit(
+
+async def test_repeated_zero_prefix_stays_armed_without_selecting_a_view(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     calls: list[tuple[StatisticsView, StatsRange, str | None, str | None]] = []
@@ -60,12 +65,12 @@ async def test_number_prefix_ignores_out_of_range_digit(
     async with AcePage() as page:
         modal, pane = await _open_statistics(page)
 
-        await page.press("0", "9")
+        await page.press("0", "0")
         await page.pause()
 
         assert modal._active_tab == "statistics"
         assert pane._view == "overview"
-        assert pane._pending_view_select is False
+        assert pane._pending_view_select is True
 
 
 async def test_bare_digit_keeps_switching_admin_center_tabs(
@@ -221,7 +226,7 @@ async def test_configured_prefix_arms_the_same_number_selection(
 
         await page.press("f4")
         hints = pane.query_one("#statistics-hints", Static).render().plain
-        assert hints == "f4… press 1-8 to select a view"
+        assert hints == "f4… press 1-9 to select a view"
         await page.press("2")
         await page.wait_for(lambda _state: pane._view == "runners")
 

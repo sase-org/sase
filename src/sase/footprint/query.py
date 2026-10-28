@@ -20,32 +20,13 @@ from sase.core.footprint_facade import (
     footprint_report,
 )
 from sase.footprint.catalog import Overlay, load_overlay
-
-LENSES: tuple[str, ...] = (
-    "map",
-    "cold",
-    "fading",
-    "agent-only",
-    "dead-paths",
-    "friction",
-    "hot",
-    "coverage",
-    "decisions",
+from sase.footprint.constants import (
+    ACTOR_SCOPES,
+    DECISIONS,
+    FORMATS,
+    KEEP_REASONS,
+    LENSES,
 )
-
-ACTOR_SCOPES: tuple[str, ...] = ("you", "agents", "automation", "everyone")
-
-FORMATS: tuple[str, ...] = ("rich", "json", "markdown")
-
-KEEP_REASONS: tuple[str, ...] = (
-    "rare_by_design",
-    "safety",
-    "agent_facing",
-    "api_contract",
-    "other",
-)
-
-DECISIONS: tuple[str, ...] = ("keep", "later", "cut", "clear")
 
 _DEFAULT_REVIEW = {
     "min_catalog_days": 60,

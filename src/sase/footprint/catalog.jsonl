@@ -1,4 +1,4 @@
-{"count": 3614, "rev": "940325dbebf5", "schema": "sase.footprint.catalog/1"}
+{"count": 3625, "rev": "47c8c4ef15b8", "schema": "sase.footprint.catalog/1"}
 {"area": "automation", "id": "auto:axe.agent_waits", "kind": "auto", "label": "Resolve agent wait dependencies within seconds of completion", "ns": "auto", "parent": null, "src": "sase/default_config.yml"}
 {"area": "automation", "id": "auto:axe.agent_waits.wait_checks", "kind": "auto", "label": "Resolve agent wait dependencies and write ready.json when satisfied", "ns": "auto", "parent": "auto:axe.agent_waits", "src": "sase/default_config.yml"}
 {"area": "automation", "id": "auto:axe.checks", "kind": "auto", "label": "Poll slower PR-submission and workspace-claim checks on a five-minute cadence", "ns": "auto", "parent": null, "src": "sase/default_config.yml"}
@@ -2495,15 +2495,20 @@
 {"area": "config.ace", "id": "config:ace.keymaps.snippets.travel_back", "kind": "config", "label": "Travel back", "ns": "config", "parent": null, "src": "sase/default_config.yml"}
 {"area": "config.ace", "id": "config:ace.keymaps.statistics.clear_macro_focus", "kind": "config", "label": "Clear macro focus", "ns": "config", "parent": null, "src": "sase/default_config.yml"}
 {"area": "config.ace", "id": "config:ace.keymaps.statistics.custom_range", "kind": "config", "label": "Custom range", "ns": "config", "parent": null, "src": "sase/default_config.yml"}
+{"area": "config.ace", "id": "config:ace.keymaps.statistics.cycle_actor", "kind": "config", "label": "Cycle actor", "ns": "config", "parent": null, "src": "sase/default_config.yml"}
 {"area": "config.ace", "id": "config:ace.keymaps.statistics.cycle_group", "kind": "config", "label": "Cycle group", "ns": "config", "parent": null, "src": "sase/default_config.yml"}
 {"area": "config.ace", "id": "config:ace.keymaps.statistics.cycle_project_filter", "kind": "config", "label": "Cycle project filter", "ns": "config", "parent": null, "src": "sase/default_config.yml"}
 {"area": "config.ace", "id": "config:ace.keymaps.statistics.cycle_project_filter_reverse", "kind": "config", "label": "Cycle project filter reverse", "ns": "config", "parent": null, "src": "sase/default_config.yml"}
 {"area": "config.ace", "id": "config:ace.keymaps.statistics.cycle_range", "kind": "config", "label": "Cycle range", "ns": "config", "parent": null, "src": "sase/default_config.yml"}
 {"area": "config.ace", "id": "config:ace.keymaps.statistics.cycle_range_reverse", "kind": "config", "label": "Cycle range reverse", "ns": "config", "parent": null, "src": "sase/default_config.yml"}
+{"area": "config.ace", "id": "config:ace.keymaps.statistics.drill_up", "kind": "config", "label": "Drill up", "ns": "config", "parent": null, "src": "sase/default_config.yml"}
 {"area": "config.ace", "id": "config:ace.keymaps.statistics.focus_macro", "kind": "config", "label": "Focus macro", "ns": "config", "parent": null, "src": "sase/default_config.yml"}
 {"area": "config.ace", "id": "config:ace.keymaps.statistics.help", "kind": "config", "label": "Help", "ns": "config", "parent": null, "src": "sase/default_config.yml"}
 {"area": "config.ace", "id": "config:ace.keymaps.statistics.jump_to_entry", "kind": "config", "label": "Jump to entry", "ns": "config", "parent": null, "src": "sase/default_config.yml"}
+{"area": "config.ace", "id": "config:ace.keymaps.statistics.next_row", "kind": "config", "label": "Next row", "ns": "config", "parent": null, "src": "sase/default_config.yml"}
 {"area": "config.ace", "id": "config:ace.keymaps.statistics.next_view", "kind": "config", "label": "Next view", "ns": "config", "parent": null, "src": "sase/default_config.yml"}
+{"area": "config.ace", "id": "config:ace.keymaps.statistics.open_row", "kind": "config", "label": "Open row", "ns": "config", "parent": null, "src": "sase/default_config.yml"}
+{"area": "config.ace", "id": "config:ace.keymaps.statistics.prev_row", "kind": "config", "label": "Prev row", "ns": "config", "parent": null, "src": "sase/default_config.yml"}
 {"area": "config.ace", "id": "config:ace.keymaps.statistics.prev_view", "kind": "config", "label": "Prev view", "ns": "config", "parent": null, "src": "sase/default_config.yml"}
 {"area": "config.ace", "id": "config:ace.keymaps.statistics.refresh", "kind": "config", "label": "Refresh", "ns": "config", "parent": null, "src": "sase/default_config.yml"}
 {"area": "config.ace", "id": "config:ace.keymaps.statistics.scroll_down", "kind": "config", "label": "Scroll down", "ns": "config", "parent": null, "src": "sase/default_config.yml"}
@@ -3401,15 +3406,20 @@
 {"area": "tui.statistics", "id": "tui:statistics", "kind": "action", "label": "Open statistics", "ns": "tui", "parent": null, "src": "ace/action:open_statistics_panel"}
 {"area": "tui.statistics", "id": "tui:statistics.clear_macro_focus", "kind": "action", "label": "Clear Macro Focus", "ns": "tui", "parent": null, "src": null}
 {"area": "tui.statistics", "id": "tui:statistics.custom_range", "kind": "action", "label": "Custom Range", "ns": "tui", "parent": null, "src": null}
+{"area": "tui.statistics", "id": "tui:statistics.cycle_actor", "kind": "action", "label": "Footprint Actor", "ns": "tui", "parent": null, "src": null}
 {"area": "tui.statistics", "id": "tui:statistics.cycle_group", "kind": "action", "label": "Group By", "ns": "tui", "parent": null, "src": null}
 {"area": "tui.statistics", "id": "tui:statistics.cycle_project_filter", "kind": "action", "label": "Project Filter", "ns": "tui", "parent": null, "src": null}
 {"area": "tui.statistics", "id": "tui:statistics.cycle_project_filter_reverse", "kind": "action", "label": "Previous Project Filter", "ns": "tui", "parent": null, "src": null}
 {"area": "tui.statistics", "id": "tui:statistics.cycle_range", "kind": "action", "label": "Time Range", "ns": "tui", "parent": null, "src": null}
 {"area": "tui.statistics", "id": "tui:statistics.cycle_range_reverse", "kind": "action", "label": "Previous Time Range", "ns": "tui", "parent": null, "src": null}
+{"area": "tui.statistics", "id": "tui:statistics.drill_up", "kind": "action", "label": "Back to Map", "ns": "tui", "parent": null, "src": null}
 {"area": "tui.statistics", "id": "tui:statistics.focus_macro", "kind": "action", "label": "Focus Macro", "ns": "tui", "parent": null, "src": null}
 {"area": "tui.statistics", "id": "tui:statistics.help", "kind": "action", "label": "Help", "ns": "tui", "parent": null, "src": null}
 {"area": "tui.statistics", "id": "tui:statistics.jump_to_entry", "kind": "action", "label": "Jump", "ns": "tui", "parent": null, "src": null}
+{"area": "tui.statistics", "id": "tui:statistics.next_row", "kind": "action", "label": "Next Footprint Row", "ns": "tui", "parent": null, "src": null}
 {"area": "tui.statistics", "id": "tui:statistics.next_view", "kind": "action", "label": "Next View", "ns": "tui", "parent": null, "src": null}
+{"area": "tui.statistics", "id": "tui:statistics.open_row", "kind": "action", "label": "Open Area", "ns": "tui", "parent": null, "src": null}
+{"area": "tui.statistics", "id": "tui:statistics.prev_row", "kind": "action", "label": "Previous Footprint Row", "ns": "tui", "parent": null, "src": null}
 {"area": "tui.statistics", "id": "tui:statistics.prev_view", "kind": "action", "label": "Previous View", "ns": "tui", "parent": null, "src": null}
 {"area": "tui.statistics", "id": "tui:statistics.refresh", "kind": "action", "label": "Refresh", "ns": "tui", "parent": null, "src": null}
 {"area": "tui.statistics", "id": "tui:statistics.scroll_down", "kind": "action", "label": "Scroll Down", "ns": "tui", "parent": null, "src": null}
@@ -3599,6 +3609,7 @@
 {"area": "modals", "id": "view:modal.workflow_select", "kind": "modal", "label": "Workflow select dialog", "ns": "view", "parent": null, "src": "ace/tui/modals/workflow_select_modal.py:WorkflowSelectModal"}
 {"area": "modals", "id": "view:modal.workspace_input", "kind": "modal", "label": "Workspace input dialog", "ns": "view", "parent": null, "src": "ace/tui/modals/workspace_input_modal.py:WorkspaceInputModal"}
 {"area": "views", "id": "view:stats.activity", "kind": "view", "label": "Activity", "ns": "view", "parent": null, "src": "sase/stats/registry.py:STATISTICS_VIEW_SPECS"}
+{"area": "views", "id": "view:stats.footprint", "kind": "view", "label": "Footprint", "ns": "view", "parent": null, "src": "sase/stats/registry.py:STATISTICS_VIEW_SPECS"}
 {"area": "views", "id": "view:stats.macros", "kind": "view", "label": "Macros", "ns": "view", "parent": null, "src": "sase/stats/registry.py:STATISTICS_VIEW_SPECS"}
 {"area": "views", "id": "view:stats.overview", "kind": "view", "label": "Overview", "ns": "view", "parent": null, "src": "sase/stats/registry.py:STATISTICS_VIEW_SPECS"}
 {"area": "views", "id": "view:stats.perf", "kind": "view", "label": "Perf", "ns": "view", "parent": null, "src": "sase/stats/registry.py:STATISTICS_VIEW_SPECS"}

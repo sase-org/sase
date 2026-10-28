@@ -11,6 +11,7 @@ from tests.ace.tui.visual._ace_config_center_png_snapshot_helpers import (
     _patch_config_view,
     _patch_plugins_catalog,
     _patch_statistics_empty,
+    _patch_statistics_footprint,
     _patch_statistics_loading,
     _patch_statistics_perf_degraded,
     _patch_statistics_populated,
@@ -636,4 +637,140 @@ async def test_config_center_statistics_loading_png_snapshot(
             page,
             "config_center_statistics_loading_120x40",
             title="ACE SASE Admin Center — Statistics loading state",
+        )
+
+
+async def test_config_center_statistics_footprint_map_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _patch_siblings(monkeypatch)
+    _patch_statistics_footprint(monkeypatch)
+
+    async with AcePage(query='"visual"', patches=patches()) as page:
+        await wait_for_startup(page)
+        page.app.theme = "textual-dark"
+        await page.press(page.artifacts_digit("patches"))
+        await page.expect_state("artifacts_subtab", "patches")
+        _, pane = await _open_statistics_modal(page)
+        pane._set_view("footprint")
+        await page.wait_for(
+            lambda _state: (
+                pane._last_result is not None
+                and pane._last_result.footprint is not None
+                and not pane._loading
+            )
+        )
+        await wait_for_visual_idle(page)
+
+        ace_png_visual.assert_page_png(
+            page,
+            "config_center_statistics_footprint_map_120x40",
+            title="ACE SASE Admin Center — Statistics Footprint map",
+        )
+
+
+async def test_config_center_statistics_footprint_area_narrow_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _patch_siblings(monkeypatch)
+    _patch_statistics_footprint(monkeypatch)
+
+    async with AcePage(
+        query='"visual"',
+        patches=patches(),
+        size=(90, 30),
+    ) as page:
+        await wait_for_startup(page)
+        page.app.theme = "textual-light"
+        await page.press(page.artifacts_digit("patches"))
+        await page.expect_state("artifacts_subtab", "patches")
+        _, pane = await _open_statistics_modal(page)
+        pane._set_view("footprint")
+        await page.wait_for(
+            lambda _state: (
+                pane._last_result is not None
+                and pane._last_result.footprint is not None
+                and not pane._loading
+            )
+        )
+        pane._footprint_selected_index = 1
+        pane.action_open_row()
+        await page.wait_for(
+            lambda _state: (
+                pane._last_result is not None
+                and pane._last_result.footprint_area == "tui.statistics"
+                and not pane._loading
+            )
+        )
+        await wait_for_visual_idle(page)
+
+        ace_png_visual.assert_page_png(
+            page,
+            "config_center_statistics_footprint_area_narrow_light_90x30",
+            title="ACE SASE Admin Center — Statistics Footprint area",
+        )
+
+
+async def test_config_center_statistics_footprint_empty_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _patch_siblings(monkeypatch)
+    _patch_statistics_footprint(monkeypatch, empty=True)
+
+    async with AcePage(query='"visual"', patches=patches()) as page:
+        await wait_for_startup(page)
+        await page.press(page.artifacts_digit("patches"))
+        await page.expect_state("artifacts_subtab", "patches")
+        _, pane = await _open_statistics_modal(page)
+        pane._set_view("footprint")
+        await page.wait_for(
+            lambda _state: (
+                pane._last_result is not None
+                and pane._last_result.footprint is not None
+                and not pane._loading
+            )
+        )
+        await wait_for_visual_idle(page)
+
+        ace_png_visual.assert_page_png(
+            page,
+            "config_center_statistics_footprint_empty_120x40",
+            title="ACE SASE Admin Center — Statistics Footprint empty",
+        )
+
+
+async def test_config_center_statistics_footprint_all_unknown_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _patch_siblings(monkeypatch)
+    _patch_statistics_footprint(monkeypatch, all_unknown=True)
+
+    async with AcePage(
+        query='"visual"',
+        patches=patches(),
+        size=(90, 30),
+    ) as page:
+        await wait_for_startup(page)
+        page.app.theme = "textual-light"
+        await page.press(page.artifacts_digit("patches"))
+        await page.expect_state("artifacts_subtab", "patches")
+        _, pane = await _open_statistics_modal(page)
+        pane._set_view("footprint")
+        await page.wait_for(
+            lambda _state: (
+                pane._last_result is not None
+                and pane._last_result.footprint is not None
+                and not pane._loading
+            )
+        )
+        await wait_for_visual_idle(page)
+
+        ace_png_visual.assert_page_png(
+            page,
+            "config_center_statistics_footprint_all_unknown_light_90x30",
+            title="ACE SASE Admin Center — Statistics Footprint all unknown",
         )

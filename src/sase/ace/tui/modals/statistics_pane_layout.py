@@ -22,10 +22,10 @@ from sase.stats.registry import (
 from .statistics_pane_rendering import StatisticsPanePresentationBase
 
 _ACCENT = "#FF87D7"
-# Full eight-tab line is 130 cells with 01-style shortcuts; compact is 90.
-# Use compact at 120 columns and keep the 90-column layout unclipped.
-_VIEWS_COMPACT_BELOW_WIDTH = 131
-_VIEWS_MICRO_BELOW_WIDTH = 90
+# The full nine-tab line needs about 145 cells with 01-style shortcuts.
+# Use compact at 130 columns and micro labels below 100 columns.
+_VIEWS_COMPACT_BELOW_WIDTH = 150
+_VIEWS_MICRO_BELOW_WIDTH = 100
 _VIEW_TABS: tuple[PanelTab, ...] = tuple(
     PanelTab(
         spec.id,
@@ -140,6 +140,16 @@ class StatisticsPaneLayoutMixin(StatisticsPanePresentationBase):
                 classes=(
                     "statistics-scope-part"
                     if statistics_view_supports_grouping(self._view)
+                    else "statistics-scope-part hidden"
+                ),
+                markup=False,
+            )
+            yield Static(
+                self._actor_scope_text(),
+                id="statistics-scope-actor",
+                classes=(
+                    "statistics-scope-part"
+                    if self._view == "footprint"
                     else "statistics-scope-part hidden"
                 ),
                 markup=False,

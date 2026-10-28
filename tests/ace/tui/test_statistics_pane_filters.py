@@ -131,7 +131,7 @@ async def test_group_cycle_is_view_sensitive_and_projects_reuses_result(
     async with AcePage() as page:
         _, pane = await _open_statistics(page)
 
-        grouping_views = {"projects", "macros", "perf"}
+        grouping_views = {"projects", "macros", "perf", "footprint"}
         for view in VIEW_ORDER:
             pane._set_view(view)
             await page.pause()
@@ -144,6 +144,7 @@ async def test_group_cycle_is_view_sensitive_and_projects_reuses_result(
             assert pane._projects_group_by == "project"
             assert pane._perf_group_by == "subsystem"
 
+        pane._set_view("perf")
         await page.wait_for(
             lambda _state: (
                 pane._last_result is not None

@@ -12,6 +12,7 @@ from typing import Literal
 
 from rich.text import Text
 
+from sase.footprint.constants import ACTOR_SCOPES, LENSES
 from sase.stats.perf_query import PerfGroupBy
 
 StatisticsView = Literal[
@@ -23,6 +24,7 @@ StatisticsView = Literal[
     "macros",
     "plans_questions",
     "perf",
+    "footprint",
 ]
 ProjectsGroupBy = Literal["project", "repo", "language", "model", "patch"]
 MacrosGroupBy = Literal["usage", "model", "project", "pairing"]
@@ -161,6 +163,23 @@ _PERF_GROUPINGS: tuple[StatisticsGrouping, ...] = (
     StatisticsGrouping("subsystem", "By Subsystem"),
     StatisticsGrouping("provider", "By Provider"),
     StatisticsGrouping("workflow", "By Workflow"),
+)
+_FOOTPRINT_LENS_LABELS: dict[str, str] = {
+    "map": "Map",
+    "cold": "Cold",
+    "fading": "Fading",
+    "agent-only": "Agent-only",
+    "dead-paths": "Dead paths",
+    "friction": "Friction",
+    "hot": "Hot",
+    "coverage": "Coverage",
+    "decisions": "Decisions",
+}
+FOOTPRINT_LENS_ORDER: tuple[str, ...] = LENSES
+FOOTPRINT_ACTOR_ORDER: tuple[str, ...] = ACTOR_SCOPES
+_FOOTPRINT_GROUPINGS: tuple[StatisticsGrouping, ...] = tuple(
+    StatisticsGrouping(lens, _FOOTPRINT_LENS_LABELS[lens])
+    for lens in FOOTPRINT_LENS_ORDER
 )
 
 
@@ -370,6 +389,30 @@ STATISTICS_VIEW_SPECS: tuple[StatisticsViewSpec, ...] = (
             ),
         ),
     ),
+    StatisticsViewSpec(
+        "footprint",
+        "Footprint",
+        "Footprint",
+        "Foot",
+        "Review feature usage by surface, lens, actor, and coverage.",
+        "Review feature usage and coverage.",
+        cli_name="footprint",
+        groupings=_FOOTPRINT_GROUPINGS,
+        legends=(
+            MetricLegend(
+                "Map",
+                "the feature catalog grouped by area; recency and coverage stay distinct",
+            ),
+            MetricLegend(
+                "Lens", "a focused view of cold, fading, hot, or uncertain use"
+            ),
+            MetricLegend("Actor", "you, agents, automation, or everyone"),
+            MetricLegend(
+                "Preview",
+                "candidate counts stay provisional until the active-day gate is met",
+            ),
+        ),
+    ),
 )
 STATISTICS_VIEW_BY_ID: dict[StatisticsView, StatisticsViewSpec] = {
     spec.id: spec for spec in STATISTICS_VIEW_SPECS
@@ -445,6 +488,8 @@ def statistics_view_description_text(
 
 
 __all__ = [
+    "FOOTPRINT_ACTOR_ORDER",
+    "FOOTPRINT_LENS_ORDER",
     "MACROS_GROUP_ORDER",
     "PERF_GROUP_ORDER",
     "PROJECTS_GROUP_ORDER",

@@ -73,7 +73,7 @@ def _load_project_code_stats(
 
 
 class StatisticsPane(StatisticsPaneActionsMixin):
-    """Eight numeric Statistics views backed by durable agent activity."""
+    """Nine Statistics views backed by durable local activity reports."""
 
     can_focus = True
     BINDINGS = []
@@ -95,6 +95,10 @@ class StatisticsPane(StatisticsPaneActionsMixin):
         self._projects_group_by: ProjectsGroupBy = "project"
         self._macros_group_by: MacrosGroupBy = "usage"
         self._perf_group_by: PerfGroupBy = "subsystem"
+        self._footprint_lens = "map"
+        self._footprint_actor = "you"
+        self._footprint_area: str | None = None
+        self._footprint_selected_index = 0
         self._project_filter: str | None = None
         self._project_filter_options: tuple[str, ...] = ()
         self._project_filter_options_ready = False
@@ -172,7 +176,7 @@ class StatisticsPane(StatisticsPaneActionsMixin):
             self._paint_current_view()
         elif perf_changed and self._view == "perf":
             self._paint_current_view()
-        elif self._view == "projects" and self._last_result is not None:
+        elif self._view in {"projects", "footprint"} and self._last_result is not None:
             self._paint_current_view()
 
     def focus_default(self) -> None:
@@ -212,17 +216,25 @@ class StatisticsPane(StatisticsPaneActionsMixin):
         return self._range
 
     def _current_selection(self) -> tuple[object, ...]:
-        return (
+        selection: tuple[object, ...] = (
             self._view,
             self._range,
             self._project_filter,
             self._macro_focus,
             self._perf_group_by if self._view == "perf" else None,
         )
+        if self._view == "footprint":
+            return (
+                *selection,
+                self._footprint_lens,
+                self._footprint_actor,
+                self._footprint_area,
+            )
+        return selection
 
     def _selection_identity(self) -> tuple[object, ...]:
         """User selection without resolved bounds for revalidation checks."""
-        return (
+        identity: tuple[object, ...] = (
             self._view,
             self._preset_key,
             self._custom_range_value if self._preset_key is None else None,
@@ -230,6 +242,14 @@ class StatisticsPane(StatisticsPaneActionsMixin):
             self._macro_focus,
             self._perf_group_by if self._view == "perf" else None,
         )
+        if self._view == "footprint":
+            return (
+                *identity,
+                self._footprint_lens,
+                self._footprint_actor,
+                self._footprint_area,
+            )
+        return identity
 
     def _painted_matches_current(self) -> bool:
         """Whether the painted report belongs to the current user selection."""
@@ -258,6 +278,7 @@ class StatisticsPane(StatisticsPaneActionsMixin):
                 result.view == self._view
                 or (
                     self._view != "projects"
+                    and self._view != "footprint"
                     and result.view != "projects"
                     and result.views is not None
                 )
@@ -267,6 +288,15 @@ class StatisticsPane(StatisticsPaneActionsMixin):
                 or (
                     result.perf is not None
                     and result.perf.group_by == self._perf_group_by
+                )
+            )
+            and (
+                self._view != "footprint"
+                or (
+                    result.footprint is not None
+                    and result.footprint_lens == self._footprint_lens
+                    and result.footprint_actor == self._footprint_actor
+                    and result.footprint_area == self._footprint_area
                 )
             )
         )
@@ -287,6 +317,9 @@ class StatisticsPane(StatisticsPaneActionsMixin):
         project_filter = self._project_filter
         macro_focus = self._macro_focus
         perf_group_by = self._perf_group_by
+        footprint_lens = self._footprint_lens
+        footprint_actor = self._footprint_actor
+        footprint_area = self._footprint_area
         preset = self._preset_key
         self._load_generation += 1
         generation = self._load_generation
@@ -308,17 +341,29 @@ class StatisticsPane(StatisticsPaneActionsMixin):
             self._paint_loading()
 
         def task() -> _StatisticsLoadResult:
-            return _StatisticsLoadResult(
-                generation,
-                "primary",
-                load_statistics_view(
+            if view == "footprint":
+                loaded = load_statistics_view(
+                    view,
+                    selected_range,
+                    project_filter,
+                    macro_focus,
+                    footprint_lens=footprint_lens,
+                    footprint_actor=footprint_actor,
+                    footprint_area=footprint_area,
+                )
+            else:
+                loaded = load_statistics_view(
                     view,
                     selected_range,
                     project_filter,
                     macro_focus,
                     perf_group_by=perf_group_by,
                     preset=preset,
-                ),
+                )
+            return _StatisticsLoadResult(
+                generation,
+                "primary",
+                loaded,
             )
 
         self._worker = self.run_worker(

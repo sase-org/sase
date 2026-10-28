@@ -72,10 +72,13 @@ def test_view_renderables_include_verified_metric_definitions() -> None:
             "Global = Perf ignores the project filter; "
             "its sources have no project labels"
         ),
+        "footprint": "█ ≤7d  ▓ ≤30d  ▒ ≤window  · no recorded use  ? not measured",
     }
     for view in VIEW_ORDER:
         pane._view = view
-        painted = result if view != "projects" else _result("projects", pane._range)
+        painted = (
+            _result(view, pane._range) if view in {"projects", "footprint"} else result
+        )
         assert expected[view] in _render_plain(pane._view_renderable(painted))
 
 

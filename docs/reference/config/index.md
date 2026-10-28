@@ -15,7 +15,7 @@ Exact configuration keys generated from the schema and bundled defaults.
 | --------------------------------------------------- | ---------------------------------------------------------------------------------------- | ------------ |
 | [Core and identity](core.md)                        | Repository ownership, identity, and machine-wide configuration switches.                 | 10           |
 | [Memory and instructions](memory.md)                | Project memory, generated instruction templates, and their compatibility aliases.        | 10           |
-| [TUI](tui.md)                                       | Settings for SASE's terminal interface and its configurable panes.                       | 345          |
+| [TUI](tui.md)                                       | Settings for SASE's terminal interface and its configurable panes.                       | 350          |
 | [Scheduler](scheduler.md)                           | AXE scheduler routines, jobs, and execution limits.                                      | 629          |
 | [LLM provider](llm-provider.md)                     | Provider selection, model defaults, and model execution policy.                          | 103          |
 | [Agents and runners](agents.md)                     | Agent launch, completion, capacity, restart, and process-scope settings.                 | 55           |
