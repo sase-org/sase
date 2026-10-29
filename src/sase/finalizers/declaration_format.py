@@ -19,6 +19,19 @@ def format_context_pretty(payload: Mapping[str, Any]) -> str:
         "",
         "Selected instances:",
     ]
+    handoff = context.get("handoff")
+    if isinstance(handoff, Mapping):
+        lines.extend(["", "Staged handoff:"])
+        lines.append(
+            "  "
+            f"{handoff.get('kind', '<unknown>')} "
+            f"(staged ref: {handoff.get('staged_ref', '<unknown>')}; "
+            "successor workspace: "
+            f"{handoff.get('successor_workspace', '<unknown>')})"
+        )
+        prepared_ref = handoff.get("prepared_intent_ref")
+        if isinstance(prepared_ref, str) and prepared_ref:
+            lines.append(f"  Prepared intent: {prepared_ref}")
     selected = payload.get("selected_instances")
     if isinstance(selected, list) and selected:
         for item in selected:
@@ -63,6 +76,12 @@ def format_context_pretty(payload: Mapping[str, Any]) -> str:
         lines.extend(["", "Commit declaration:"])
         if isinstance(rule, str) and rule:
             lines.append(f"  {rule}")
+        allowed_actions = commit_declaration.get("allowed_repository_actions")
+        if isinstance(allowed_actions, list) and allowed_actions:
+            lines.append(
+                "  Allowed repository actions: "
+                + ", ".join(str(action) for action in allowed_actions)
+            )
         assigned = commit_declaration.get("assigned_bead")
         if isinstance(assigned, Mapping):
             bead_id = assigned.get("bead_id")

@@ -24,6 +24,7 @@ from typing import Any
 from sase.core.finalizer_facade import finalizer_json_digest
 from sase.core.finalizer_wire import (
     FinalizerContextWire,
+    FinalizerHandoffWire,
     FinalizerObligationWire,
     FinalizerPayloadRequirementWire,
     FinalizerPlanWire,
@@ -36,6 +37,7 @@ from sase.llm_provider.commit_finalizer_git_status import (
 )
 from sase.llm_provider.commit_finalizer_types import DirtyRepo, DirtyState
 from sase.memory.locks import locked_file
+from sase.finalizers.commit_carry import carry_action_allowed_for_handoff
 
 FINAL_CONTEXT_HOST_FILENAME = "final_context_host.json"
 FINAL_SUBMISSION_HOST_FILENAME = "final_submission_host.json"
@@ -210,10 +212,13 @@ def read_host_repository_file(path: Path) -> tuple[HostRepositoryRecord, ...]:
 def build_context_requirements(
     plan: FinalizerPlanWire,
     dirty_state: DirtyState,
+    *,
+    handoff: FinalizerHandoffWire | None = None,
 ) -> tuple[list[FinalizerPayloadRequirementWire], list[FinalizerObligationWire]]:
     requirements: list[FinalizerPayloadRequirementWire] = []
     obligations: list[FinalizerObligationWire] = []
     repository_obligations: list[FinalizerObligationWire] | None = None
+    carry_allowed = carry_action_allowed_for_handoff(handoff)
 
     for entry in plan.entries:
         if entry.provider_ref == "builtin@commit":
@@ -223,24 +228,26 @@ def build_context_requirements(
                 ]
                 obligations.extend(repository_obligations)
             trigger = "dirty_repository" if repository_obligations else "not_triggered"
+            submission_required = bool(repository_obligations) and not carry_allowed
+            digest_input: dict[str, Any] = {
+                "instance_id": entry.instance_id,
+                "trigger": trigger,
+                "repositories": [
+                    {
+                        "id": obligation.obligation_id,
+                        "digest": obligation.digest,
+                    }
+                    for obligation in repository_obligations
+                ],
+            }
+            if repository_obligations and carry_allowed:
+                digest_input["submission_required"] = False
             requirements.append(
                 FinalizerPayloadRequirementWire(
                     instance_id=entry.instance_id,
                     trigger=trigger,
-                    submission_required=bool(repository_obligations),
-                    requirement_digest=finalizer_json_digest(
-                        {
-                            "instance_id": entry.instance_id,
-                            "trigger": trigger,
-                            "repositories": [
-                                {
-                                    "id": obligation.obligation_id,
-                                    "digest": obligation.digest,
-                                }
-                                for obligation in repository_obligations
-                            ],
-                        }
-                    ),
+                    submission_required=submission_required,
+                    requirement_digest=finalizer_json_digest(digest_input),
                 )
             )
             continue

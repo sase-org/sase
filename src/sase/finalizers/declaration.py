@@ -19,6 +19,7 @@ from __future__ import annotations
 
 from collections.abc import Iterator, Mapping
 from contextlib import contextmanager
+from copy import deepcopy
 from dataclasses import dataclass, replace
 import os
 from pathlib import Path
@@ -26,6 +27,7 @@ import secrets
 from typing import Any
 
 from sase.agent.identity import resolve_local_agent_name
+from sase.agent.staged_handoff import StagedHandoffError, read_staged_handoff
 from sase.core.finalizer_facade import (
     validate_finalizer_context,
     validate_finalizer_submission,
@@ -34,6 +36,7 @@ from sase.core.finalizer_wire import (
     FINALIZER_WIRE_SCHEMA_VERSION,
     FinalizerAssignedBeadWire,
     FinalizerContextWire,
+    FinalizerHandoffWire,
     FinalizerObligationWire,
     FinalizerPlanWire,
     finalizer_wire_to_json_dict,
@@ -43,6 +46,7 @@ from sase.finalizers.declaration_deferrals import adjudicate_commit_deferrals
 from sase.finalizers.declaration_context_evidence import (
     build_commit_declaration_context,
 )
+from sase.finalizers.commit_carry import carry_action_allowed_for_handoff
 from sase.finalizers.declaration_manifest import (
     FINAL_CONTEXT_FILENAME,
     FINAL_SUBMISSION_ATTEMPTS_FILENAME,
@@ -182,6 +186,8 @@ def submit_final_manifest(
     manifest: Mapping[str, Any],
     *,
     artifacts_dir: str | None = None,
+    _synthesized_provenance: Mapping[str, Any] | None = None,
+    _only_if_absent: bool = False,
 ) -> dict[str, Any]:
     """Validate and atomically publish one finalizer declaration manifest."""
 
@@ -189,6 +195,15 @@ def submit_final_manifest(
     content_digest = _safe_value_digest(manifest)
 
     with hold_finalizer_declaration_lock(root):
+        submission_path = root / FINAL_SUBMISSION_FILENAME
+        if _only_if_absent and (
+            submission_path.exists() or submission_path.is_symlink()
+        ):
+            raise FinalizerDeclarationError(
+                "a finalizer submission already exists; preserve and validate it "
+                "instead of replacing it with synthesized carry",
+                code="submission_already_exists",
+            )
         host_records = _read_host_repository_file(root / FINAL_CONTEXT_HOST_FILENAME)
         try:
             plan = load_finalizer_plan(root)
@@ -267,6 +282,15 @@ def submit_final_manifest(
             )
             raise stale
 
+        if _synthesized_provenance is not None:
+            if not _only_if_absent or not carry_action_allowed_for_handoff(
+                current.handoff
+            ):
+                raise FinalizerDeclarationError(
+                    "host-synthesized carry requires a legal unprepared staged handoff",
+                    code="synthesized_carry_invalid",
+                )
+
         try:
             accepted_deferrals = adjudicate_commit_deferrals(
                 plan,
@@ -295,6 +319,8 @@ def submit_final_manifest(
             "accepted_deferrals": [item.to_json() for item in accepted_deferrals],
             "verdict_provenance": _verdict_provenance(envelope),
         }
+        if _synthesized_provenance is not None:
+            submission_payload["synthesized"] = dict(_synthesized_provenance)
         _append_attempt_record_locked(
             root,
             accepted=True,
@@ -313,6 +339,81 @@ def submit_final_manifest(
         return submission_payload
 
 
+def synthesize_carry_declaration(
+    publication: FinalContextPublication,
+    *,
+    artifacts_dir: str | None = None,
+) -> dict[str, Any] | None:
+    """Persist host-authored carry when a dirty inheriting handoff has no submission."""
+
+    context = publication.context
+    repository_ids = [
+        obligation.obligation_id
+        for obligation in context.obligations
+        if obligation.kind == "repository"
+    ]
+    if (
+        publication.submission_required
+        or not repository_ids
+        or not carry_action_allowed_for_handoff(context.handoff)
+    ):
+        return None
+
+    manifest = deepcopy(publication.payload.get("manifest_template"))
+    if not isinstance(manifest, dict):
+        raise FinalizerDeclarationError(
+            "finalizer context has no usable manifest template",
+            code="malformed_final_context",
+        )
+    payloads = manifest.get("payloads")
+    if not isinstance(payloads, list):
+        raise FinalizerDeclarationError(
+            "finalizer manifest template payloads are malformed",
+            code="malformed_final_context",
+        )
+
+    carried: set[str] = set()
+    for item in payloads:
+        if not isinstance(item, Mapping):
+            continue
+        payload = item.get("payload")
+        if not isinstance(payload, Mapping):
+            continue
+        repositories = payload.get("repositories")
+        if not isinstance(repositories, list):
+            continue
+        for decision in repositories:
+            if not isinstance(decision, dict):
+                continue
+            repo_id = decision.get("repo_id")
+            if not isinstance(repo_id, str) or repo_id not in repository_ids:
+                continue
+            decision["action"] = "carry"
+            decision.pop("message", None)
+            decision.pop("bead_action", None)
+            carried.add(repo_id)
+    if carried != set(repository_ids):
+        raise FinalizerDeclarationError(
+            "manifest template does not cover every repository eligible for carry",
+            code="malformed_final_context",
+        )
+
+    handoff = context.handoff
+    if handoff is None:
+        return None
+    provenance = {
+        "kind": "handoff_carry",
+        "source": "host",
+        "staged_ref": handoff.staged_ref,
+    }
+    return submit_final_manifest(
+        manifest,
+        artifacts_dir=artifacts_dir,
+        _synthesized_provenance=provenance,
+        _only_if_absent=True,
+    )
+
+
 def read_final_manifest_from_path(path: str) -> Mapping[str, Any]:
     """Read one JSON manifest from a path or stdin marker."""
 
@@ -329,8 +430,9 @@ def final_submission_is_current(*, artifacts_dir: str | None = None) -> bool:
     with hold_finalizer_declaration_lock(root):
         plan = load_finalizer_plan(root)
         context = load_latest_finalizer_context(root)
-        if not _context_requires_submission(context):
-            return True
+        submission_path = root / FINAL_SUBMISSION_FILENAME
+        if not (submission_path.exists() or submission_path.is_symlink()):
+            return not _context_requires_submission(context)
         try:
             submission = load_latest_finalizer_submission(root)
             envelope = normalize_submission_envelope(submission["submission"])
@@ -409,7 +511,16 @@ def _build_live_context(
     # Never absorbs at execution time; there, only the backstop applies.
     absorbed = absorb_raw_local_commits(resolve_finalizer_project_dir(), root)
     dirty_state = _collect_dirty_state(root)
-    requirements, obligations = _build_context_requirements(plan, dirty_state)
+    # This reader is deliberately lock-free: publication already holds the
+    # declaration lock, and taking the handoff lock here would reverse the
+    # staging lock order. Atomic record replacement gives us one validated
+    # staged identity without waiting on its writer.
+    handoff = _handoff_from_staged_record(root)
+    requirements, obligations = _build_context_requirements(
+        plan,
+        dirty_state,
+        handoff=handoff,
+    )
     host_records = _host_repository_records(dirty_state)
     assigned_bead = _assigned_bead_context(dirty_state, obligations)
 
@@ -422,6 +533,7 @@ def _build_live_context(
         requirements=requirements,
         obligations=obligations,
         assigned_bead=assigned_bead,
+        handoff=handoff,
     )
     context_digest = validate_finalizer_context(plan, context)
     context = replace(context, context_digest=context_digest)
@@ -435,6 +547,40 @@ def _build_live_context(
         ),
         context=context,
         host_records=host_records,
+    )
+
+
+def _handoff_from_staged_record(root: Path) -> FinalizerHandoffWire | None:
+    try:
+        record = read_staged_handoff(str(root))
+    except StagedHandoffError as exc:
+        raise FinalizerDeclarationError(
+            f"staged handoff state is invalid: {exc}",
+            code="invalid_staged_handoff",
+        ) from exc
+    if record is None:
+        return None
+
+    payload = record.get("payload")
+    if not isinstance(payload, Mapping):
+        raise FinalizerDeclarationError(
+            "staged handoff payload is malformed",
+            code="invalid_staged_handoff",
+        )
+    prepared_intent_ref = payload.get("prepared_intent_ref")
+    if prepared_intent_ref is not None and (
+        not isinstance(prepared_intent_ref, str) or not prepared_intent_ref.strip()
+    ):
+        raise FinalizerDeclarationError(
+            "staged prepared intent reference is malformed",
+            code="invalid_staged_handoff",
+        )
+    return FinalizerHandoffWire(
+        kind=str(record["kind"]),
+        staged_ref=str(record["staged_id"]),
+        successor_workspace=str(record["successor_workspace"]),
+        carry_allowed=bool(record["carry_allowed"]),
+        prepared_intent_ref=prepared_intent_ref,
     )
 
 
@@ -592,5 +738,6 @@ __all__ = [
     "repository_state_digest",
     "require_artifacts_dir",
     "submit_final_manifest",
+    "synthesize_carry_declaration",
     "validate_provider_payloads",
 ]

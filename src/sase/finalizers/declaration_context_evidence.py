@@ -11,6 +11,7 @@ from sase.core.finalizer_wire import (
     FinalizerContextWire,
     FinalizerObligationWire,
 )
+from sase.finalizers.commit_carry import carry_action_allowed_for_handoff
 from sase.finalizers.commit_validation import protected_baseline_paths
 from sase.finalizers.declaration_recovery_evidence import (
     MAX_PATHS_PER_REPO,
@@ -58,6 +59,10 @@ def build_commit_declaration_context(
     payload: dict[str, Any] = {
         "rule": COMMIT_DECLARATION_RULE,
         "default_action": "commit",
+        "allowed_repository_actions": [
+            "commit",
+            *(["carry"] if carry_action_allowed_for_handoff(context.handoff) else []),
+        ],
         "deferral": {
             "purpose": (
                 "Use a typed deferral only when the repository tree itself "
@@ -81,6 +86,19 @@ def build_commit_declaration_context(
             _absorbed_raw_commits_entry(absorbed) for absorbed in absorbed_raw_commits
         ],
     }
+    if context.handoff is not None:
+        handoff = context.handoff
+        payload["handoff"] = {
+            "kind": handoff.kind,
+            "staged_ref": handoff.staged_ref,
+            "successor_workspace": handoff.successor_workspace,
+            "carry_allowed": handoff.carry_allowed,
+            **(
+                {"prepared_intent_ref": handoff.prepared_intent_ref}
+                if handoff.prepared_intent_ref is not None
+                else {}
+            ),
+        }
     if context.assigned_bead is not None:
         payload["assigned_bead"] = {
             "bead_id": context.assigned_bead.bead_id,

@@ -9,6 +9,7 @@ from typing import Any
 from sase.core.finalizer_facade import check_repository_action
 from sase.core.finalizer_wire import (
     FinalizerContextWire,
+    FinalizerHandoffWire,
     FinalizerInstanceResultWire,
     FinalizerOutcomeEvidenceWire,
     RepositoryActionCheckRequestWire,
@@ -215,13 +216,31 @@ def proven_coverage_ids_from_result_payload(
 def check_carry_action(context: FinalizerContextWire) -> None:
     """Raise ``ValueError`` when Rust rejects carry against *context*."""
 
-    outcome = check_repository_action(
-        RepositoryActionCheckRequestWire(action="carry", handoff=context.handoff)
-    )
+    outcome = _carry_action_outcome(context.handoff)
     if outcome.status == "allowed":
         return
     message = outcome.message or "carry is not allowed for this host context"
     raise ValueError(message)
+
+
+def carry_action_allowed_for_handoff(
+    handoff: FinalizerHandoffWire | None,
+) -> bool:
+    """Return whether ordinary carry is legal for this staged handoff.
+
+    Prepared intents have their own host-coverage bridge. Until that bridge
+    proves sealed coverage, their descriptors must not relax the ordinary
+    declaration requirement merely because they name an intent.
+    """
+    if handoff is None or handoff.prepared_intent_ref is not None:
+        return False
+    return _carry_action_outcome(handoff).status == "allowed"
+
+
+def _carry_action_outcome(handoff: FinalizerHandoffWire | None) -> Any:
+    return check_repository_action(
+        RepositoryActionCheckRequestWire(action="carry", handoff=handoff)
+    )
 
 
 def _staged_ref_from_context(context: FinalizerContextWire) -> str:
@@ -237,6 +256,7 @@ def carry_decision_allowed_keys() -> frozenset[str]:
 
 __all__ = [
     "CARRY_EVIDENCE_KIND",
+    "carry_action_allowed_for_handoff",
     "carry_decision_allowed_keys",
     "carry_evidence_for_context",
     "carry_repo_ids",

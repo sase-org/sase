@@ -52,7 +52,10 @@ def manifest_template(context: FinalizerContextWire) -> dict[str, Any]:
         if obligation.kind == "repository"
     ]
     for requirement in context.requirements:
-        if not requirement.submission_required:
+        if (
+            not requirement.submission_required
+            and requirement.trigger != "dirty_repository"
+        ):
             continue
         payload: Any
         if requirement.trigger == "dirty_repository":

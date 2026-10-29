@@ -17,6 +17,7 @@ from sase.core.finalizer_wire import (
 from sase.finalizers.commit_carry import current_commit_obligations_satisfied
 from sase.finalizers.declaration import (
     FINAL_CONTEXT_FILENAME,
+    FINAL_SUBMISSION_FILENAME,
     FINAL_DECLARATION_RECOVERY_PROMPT_FILENAME,
     SASE_FINAL_TURN_NONCE_ENV,
     FinalContextPublication,
@@ -25,6 +26,8 @@ from sase.finalizers.declaration import (
     final_submission_is_current,
     load_latest_finalizer_submission,
     publish_final_context,
+    require_artifacts_dir,
+    synthesize_carry_declaration,
 )
 from sase.finalizers.executor import FinalizerExecutionContext
 from sase.finalizers.providers import BUILTIN_COMMIT_PROVIDER_REF
@@ -120,10 +123,32 @@ def ensure_current_declaration(
 ) -> Any:
     """Recover a required stale declaration within its one-shot budget."""
     publication = publish_final_context(artifacts_dir=artifacts_dir)
-    if not publication.submission_required or final_submission_is_current(
-        artifacts_dir=artifacts_dir
-    ):
-        return invoke_result
+    submission_path = (
+        require_artifacts_dir(
+            artifacts_dir,
+            "finalizer declaration check",
+        )
+        / FINAL_SUBMISSION_FILENAME
+    )
+    submission_exists = submission_path.exists() or submission_path.is_symlink()
+    if final_submission_is_current(artifacts_dir=artifacts_dir):
+        if not submission_exists:
+            try:
+                synthesize_carry_declaration(
+                    publication,
+                    artifacts_dir=artifacts_dir,
+                )
+            except FinalizerDeclarationError as exc:
+                if exc.code != "submission_already_exists":
+                    raise
+                if final_submission_is_current(artifacts_dir=artifacts_dir):
+                    return invoke_result
+                # An explicit submission won the race but is stale; let the
+                # ordinary one-shot recovery below repair it.
+            else:
+                return invoke_result
+        else:
+            return invoke_result
     if declaration_recovery_spent(artifacts_dir):
         raise FinalizerControllerError(
             "required finalizer declaration is missing or stale and the "
