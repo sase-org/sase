@@ -118,6 +118,12 @@ def _should_hold_workspace(
     A failed run always needs one. A completed run needs one too when the
     host upheld a commit deferral: the tree is dirty on purpose and someone
     still has to finish the commit by hand.
+
+    Staged turns reach here with ``failed`` after a held adoption (unresolved
+    stage, failed finalization, or provider failure), so the existing failed
+    branch already retains dirty failed work through the failure hold. An
+    explicit user kill discards the stage first, so ``was_killed`` correctly
+    releases. Adopted staged turns settle as ordinary completions.
     """
     if (
         was_killed
@@ -156,6 +162,36 @@ def _agent_meta_has_promoted_bead_claim(artifacts_dir: str) -> bool:
     except (FileNotFoundError, json.JSONDecodeError, OSError):
         return False
     return isinstance(payload, dict) and payload.get("bead_claim_promoted") is True
+
+
+def _has_staged_handoff(artifacts_dir: str | None) -> bool:
+    """Return whether staged state keeps a waiting bead claim.
+
+    An unresolved stage, a held adoption receipt, or malformed staged state
+    all keep the claim: the later re-adopt/reconciliation phase owns it, not
+    this shutdown.
+    """
+    if not artifacts_dir:
+        return False
+    try:
+        from sase.agent.staged_handoff import (
+            StagedHandoffError,
+            read_adoption_receipt,
+            read_staged_handoff,
+        )
+
+        try:
+            if read_staged_handoff(artifacts_dir) is not None:
+                return True
+        except StagedHandoffError:
+            return True
+        try:
+            return read_adoption_receipt(artifacts_dir) is not None
+        except StagedHandoffError:
+            return True
+    except Exception:  # noqa: BLE001 - shutdown guard fails open.
+        return False
+    return False
 
 
 def _held_bead_claim_for_shutdown(
@@ -325,9 +361,11 @@ def finalize_runner_shutdown(
         try:
             from sase.agent.pending_handoff import has_pending_handoff
 
-            if not has_pending_handoff(
-                context.artifacts_dir
-            ) and not _agent_meta_has_promoted_bead_claim(context.artifacts_dir):
+            if (
+                not has_pending_handoff(context.artifacts_dir)
+                and not _has_staged_handoff(context.artifacts_dir)
+                and not _agent_meta_has_promoted_bead_claim(context.artifacts_dir)
+            ):
                 from sase.bead.claims import (
                     BeadClaimReleaseOutcome,
                     release_bead_claim_for_agent,

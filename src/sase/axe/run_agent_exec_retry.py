@@ -258,6 +258,30 @@ def _usage_limit_skip_reason(detection: UsageLimitDetection) -> str:
     )
 
 
+def _staged_blocks_retry(artifacts_dir: str | None) -> str | None:
+    """Return why a staged handoff forbids retry, or ``None`` when absent.
+
+    Both a valid staged record and malformed staged state block automatic
+    retry, fallback, re-clone, and re-preparation: the staged turn must reach
+    the completion controller instead of re-running ordinary work.
+    """
+    if not artifacts_dir:
+        return None
+    try:
+        from sase.agent.staged_handoff import (
+            StagedHandoffError,
+            read_staged_handoff,
+        )
+
+        if read_staged_handoff(artifacts_dir) is not None:
+            return "staged handoff pending; retry skipped"
+    except StagedHandoffError:
+        return "malformed staged handoff; retry skipped"
+    except Exception:  # noqa: BLE001 - retry guard fails open.
+        return None
+    return None
+
+
 def handle_workflow_error(
     exc: Exception,
     tracker: RetryTracker,
@@ -271,6 +295,22 @@ def handle_workflow_error(
     """
     error_str = str(exc)
     artifacts_dir = state.current_artifacts_dir or ctx.artifacts_dir
+    staged_block_reason = _staged_blocks_retry(artifacts_dir)
+    if staged_block_reason is not None:
+        snippet = truncate_error_snippet(error_str)
+        snapshot_attempt(
+            state.current_artifacts_dir or ctx.artifacts_dir,
+            tracker.retry_count + 1,
+            status="raised",
+            start_epoch=tracker.attempt_start_epoch,
+            end_epoch=time.time(),
+            error_full=error_str,
+            error_snippet=snippet,
+            model=ctx.agent_model,
+            used_fallback=tracker.using_fallback,
+            reason=staged_block_reason,
+        )
+        return "raise"
     _refresh_execution_provider(tracker, artifacts_dir)
     from sase.continuation_capture import (
         persist_agent_delta_best_effort,

@@ -309,6 +309,45 @@ def _closed_at_epoch(issue: Issue) -> float | None:
     return _epoch(issue.closed_at)
 
 
+def _staged_facts(artifact_dir: str) -> tuple[str | None, str | None]:
+    """Return ``(staged_kind, staged_receipt_outcome)`` for stranded display.
+
+    Malformed staged state reports ``"malformed"`` so the reducer never
+    restarts or discards it as an ordinary abandoned run.
+    """
+    try:
+        from sase.agent.staged_handoff import (
+            StagedHandoffError,
+            read_adoption_receipt,
+            read_staged_handoff,
+        )
+    except Exception:  # noqa: BLE001 - facts collection fails open.
+        return None, None
+    kind: str | None = None
+    try:
+        record = read_staged_handoff(artifact_dir)
+        if record is not None:
+            raw_kind = record.get("kind")
+            kind = raw_kind if isinstance(raw_kind, str) and raw_kind else "plan"
+    except StagedHandoffError:
+        kind = "malformed"
+    except Exception:  # noqa: BLE001 - facts collection fails open.
+        kind = None
+    outcome: str | None = None
+    try:
+        receipt = read_adoption_receipt(artifact_dir)
+        if receipt is not None:
+            raw_outcome = receipt.get("outcome")
+            outcome = (
+                raw_outcome if isinstance(raw_outcome, str) and raw_outcome else "held"
+            )
+    except StagedHandoffError:
+        outcome = "malformed"
+    except Exception:  # noqa: BLE001 - facts collection fails open.
+        outcome = None
+    return kind, outcome
+
+
 def _member_facts(record: AgentArtifactRecordWire) -> dict[str, Any]:
     meta = record.agent_meta
     name = ""
@@ -320,10 +359,11 @@ def _member_facts(record: AgentArtifactRecordWire) -> dict[str, Any]:
     lifecycle = _lifecycle(record)
     process_live = _process_live(record)
     pending = pending_handoff_kind(record.artifact_dir)
+    staged_kind, staged_outcome = _staged_facts(record.artifact_dir)
     followup_outcome, followup_pending, followup_agent, turn_state = _followup_fields(
         record
     )
-    return {
+    facts: dict[str, Any] = {
         "name": name,
         "artifact_dir": record.artifact_dir,
         "turn_kind": turn_kind,
@@ -332,6 +372,9 @@ def _member_facts(record: AgentArtifactRecordWire) -> dict[str, Any]:
         "remote": _is_remote(record),
         "finalizing": _is_finalizing(record),
         "pending_handoff": pending,
+        # Staged fields ride the same reducer wire once the sase-core pin
+        # includes them; omit when absent so the currently pinned core
+        # (which denies unknown fields) still accepts ordinary members.
         "handoff_inflight": _handoff_inflight(record.artifact_dir),
         "recovery_in_flight": recovery_in_flight(record.artifact_dir),
         "turn_state": turn_state,
@@ -342,6 +385,11 @@ def _member_facts(record: AgentArtifactRecordWire) -> dict[str, Any]:
         "started_at": _started_at(record),
         "ended_at": _ended_at(record),
     }
+    if staged_kind is not None:
+        facts["staged_handoff"] = staged_kind
+    if staged_outcome is not None:
+        facts["staged_receipt_outcome"] = staged_outcome
+    return facts
 
 
 def _turn_kind(record: AgentArtifactRecordWire) -> str:

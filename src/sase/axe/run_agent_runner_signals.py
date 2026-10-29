@@ -49,6 +49,8 @@ def install_workspace_release_sigterm_handler(
             except Exception:
                 fallback_artifacts_dir = None
         artifacts_dir = os.environ.get("SASE_ARTIFACTS_DIR") or fallback_artifacts_dir
+        if _has_staged_handoff(artifacts_dir):
+            return
         if _has_pending_handoff_marker(
             artifacts_dir, markers=_NON_MONITOR_HANDOFF_MARKERS
         ):
@@ -81,4 +83,36 @@ def _has_pending_handoff_marker(
         artifacts_path = Path(artifacts_dir)
         return any((artifacts_path / marker).exists() for marker in markers)
     except OSError:
+        return False
+
+
+def _has_staged_handoff(artifacts_dir: str | None) -> bool:
+    """Return whether staged state keeps the workspace claim on SIGTERM.
+
+    Covers the valid record, the adoption receipt's held outcome, and
+    malformed staged state: all three keep the claim until the post-workflow
+    adoption boundary or the later reconciler, never the signal handler.
+    """
+    if not artifacts_dir:
+        return False
+    try:
+        from sase.agent.staged_handoff import (
+            StagedHandoffError,
+            read_adoption_receipt,
+            read_staged_handoff,
+        )
+
+        try:
+            if read_staged_handoff(artifacts_dir) is not None:
+                return True
+        except StagedHandoffError:
+            return True
+        try:
+            receipt = read_adoption_receipt(artifacts_dir)
+        except StagedHandoffError:
+            return True
+        except Exception:  # noqa: BLE001 - receipt read fails open.
+            return False
+        return receipt is not None
+    except Exception:  # noqa: BLE001 - signal guard fails open.
         return False

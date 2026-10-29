@@ -153,6 +153,34 @@ def pending_question(artifacts_dir: Path | None, meta: Mapping[str, Any]) -> boo
     return bool(meta.get("question_session_id"))
 
 
+def _has_staged_handoff(artifacts_dir: str) -> bool:
+    """Return whether staged state blocks automatic restart.
+
+    A valid staged record, a held adoption receipt, or malformed staged
+    state all count as pending: the later reconciler owns them, and the
+    healer must never restart or discard them as an ordinary abandoned run.
+    """
+    try:
+        from sase.agent.staged_handoff import (
+            StagedHandoffError,
+            read_adoption_receipt,
+            read_staged_handoff,
+        )
+
+        try:
+            if read_staged_handoff(artifacts_dir) is not None:
+                return True
+        except StagedHandoffError:
+            return True
+        try:
+            return read_adoption_receipt(artifacts_dir) is not None
+        except StagedHandoffError:
+            return True
+    except Exception:  # noqa: BLE001 - classifier input fails open.
+        return False
+    return False
+
+
 def pending_handoff(artifacts_dir: Path | None) -> bool:
     """Return whether a plan/question/monitor/gate/pipe handoff is pending."""
     if artifacts_dir is None:
@@ -160,7 +188,9 @@ def pending_handoff(artifacts_dir: Path | None) -> bool:
     try:
         from sase.agent.pending_handoff import has_pending_handoff
 
-        return bool(has_pending_handoff(str(artifacts_dir)))
+        if has_pending_handoff(str(artifacts_dir)):
+            return True
+        return _has_staged_handoff(str(artifacts_dir))
     except Exception:
         return False
 

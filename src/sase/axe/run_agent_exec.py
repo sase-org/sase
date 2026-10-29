@@ -220,8 +220,72 @@ def _handle_killed_iteration(
 
     # Neither a user kill nor a handoff: an external teardown (OOM policy on
     # the launcher's scope, a manual kill, a host stop). Record it as such.
+    # Staged records are never treated as a successful handoff here: an
+    # unresolved stage stays on disk for the later reconciler, and the caller
+    # decides the failed outcome through the staged dispatch path.
     record_kill_provenance(state.current_artifacts_dir, state, kill_time=kill_time)
     return "killed"
+
+
+def _dispatch_staged_on_workflow_error(
+    ctx: AgentExecContext,
+    state: LoopState,
+) -> bool:
+    """Finalize a staged turn after a workflow/provider error.
+
+    Returns ``True`` when a staged record (or malformed staged state)
+    governed this turn: the caller must end the loop with a failed outcome
+    instead of retrying ordinary work or re-raising. Returns ``False`` when
+    no staged state exists and normal retry handling should proceed.
+    """
+    try:
+        from sase.agent.staged_handoff import (
+            StagedHandoffError,
+            read_staged_handoff,
+        )
+
+        try:
+            staged = read_staged_handoff(state.current_artifacts_dir)
+        except StagedHandoffError:
+            staged = {"staged_id": "malformed"}
+        if staged is None:
+            return False
+    except Exception:  # noqa: BLE001 - staged detection fails open to retry.
+        return False
+    try:
+        staged_dispatch = dispatch_completed_staged_handoff(
+            state.current_artifacts_dir,
+            StagedInlineContinuation(ctx=ctx, state=state),
+        )
+    except Exception:  # noqa: BLE001 - held receipt already records the cause.
+        logging.getLogger(__name__).exception(
+            "staged handoff %s adoption failed after workflow error",
+            state.current_artifacts_dir,
+        )
+        state.loop_outcome = "failed"
+        return True
+    if staged_dispatch is None:
+        return False
+    if not staged_dispatch.adopted:
+        logging.getLogger(__name__).error(
+            "staged handoff %s held after workflow error: %s",
+            state.current_artifacts_dir,
+            staged_dispatch.reason,
+        )
+        state.loop_outcome = "failed"
+        return True
+    if staged_dispatch.outcome is None:
+        # An inline continuation cannot safely resume after the ordinary
+        # task itself failed; hold the turn as failed instead of retrying.
+        logging.getLogger(__name__).error(
+            "staged handoff %s adopted without a terminal outcome "
+            "after workflow error; holding as failed",
+            state.current_artifacts_dir,
+        )
+        state.loop_outcome = "failed"
+        return True
+    state.loop_outcome = staged_dispatch.outcome
+    return True
 
 
 def _export_exec_agent_tab(
@@ -356,6 +420,9 @@ def _run_execution_loop_bound(
             )
         except Exception as wf_exc:
             if not was_killed():
+                if _dispatch_staged_on_workflow_error(ctx, state):
+                    loop_ended_without_kill = True
+                    break
                 converted_exc = gate_intent_lost_error_for(
                     wf_exc,
                     state.current_artifacts_dir,

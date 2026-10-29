@@ -61,6 +61,10 @@ def _cleanup_launch_scratch(
     proc_root: Path | None,
 ) -> None:
     scratch_key = os.environ.get(SASE_LAUNCH_SCRATCH_KEY_ENV)
+    # Staged adoption uses the real outcome (``completed``/``failed``), never a
+    # shell-handoff outcome, so its scratch cleans normally. Held-run evidence
+    # (stage, archived proposal, receipts, failed done marker) lives in the
+    # artifacts dir and is preserved by the failure hold, not by this scratch.
     if exec_outcome in SHELL_HANDOFF_OUTCOMES:
         # Monitor settlement owns the starter's cargo target after a monitor
         # handoff; gate handoffs continue to the dead-launch backstop.

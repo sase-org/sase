@@ -44,6 +44,10 @@ def ensure_final_declaration_or_recover(
     # remain authoritative during recovery without introducing an import cycle.
     from sase.finalizers import declaration
 
+    # Legacy handoffs skip declaration recovery; staged turns never take
+    # this path (staged records are not legacy markers) and proceed to the
+    # ordinary one-shot recovery below. Recovery-owned staging stays refused
+    # by staged admission's finalizer-owned-turn guard.
     if has_pending_handoff(artifacts_dir):
         FINALIZER_RECOVERIES.labels(kind="declaration", result="handoff").inc()
         return invoke_result

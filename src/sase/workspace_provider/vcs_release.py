@@ -18,6 +18,7 @@ import os
 from dataclasses import dataclass
 
 from sase.agent.pending_handoff import has_pending_handoff
+from sase.agent.staged_handoff import StagedHandoffError, read_staged_handoff
 from sase.logs.workspace_claim_ledger import record_running_field_mutation
 from sase.running_field import release_workspace
 from sase.workspace_provider.occupant import (
@@ -69,7 +70,7 @@ def release_vcs_workspace(
     if artifacts_dir is None:
         artifacts_dir = os.environ.get("SASE_ARTIFACTS_DIR")
 
-    if has_pending_handoff(artifacts_dir):
+    if has_pending_handoff(artifacts_dir) or _has_staged_handoff(artifacts_dir):
         _record_refusal(
             project_file=project_file,
             workspace_num=workspace_num,
@@ -136,6 +137,23 @@ def _clear_owned_occupant(
         )
         return False
     return clear_owned_occupant_record(workspace_dir, runner_pid)
+
+
+def _has_staged_handoff(artifacts_dir: str | None) -> bool:
+    """Return whether staged state keeps the claim until the adoption boundary.
+
+    Malformed staged state also keeps the claim: it is held evidence, never
+    absence. A VCS release step must not release the claim between finalizers
+    and adoption.
+    """
+    if not artifacts_dir:
+        return False
+    try:
+        return read_staged_handoff(artifacts_dir) is not None
+    except StagedHandoffError:
+        return True
+    except Exception:  # noqa: BLE001 - release guard fails open.
+        return False
 
 
 def _skip_reason_for_release_error(error: str | None) -> str:

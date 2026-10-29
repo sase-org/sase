@@ -44,6 +44,9 @@ def should_skip_finalizers(artifacts_dir: str | None) -> bool:
         return True
     if not os.environ.get("SASE_AGENT_TIMESTAMP"):
         return True
+    # Staged turns never use the legacy skip path: ``has_pending_handoff``
+    # covers only legacy markers, so a staged record correctly returns False
+    # here and reaches the ordinary finalizer controller.
     return has_pending_handoff(artifacts_dir)
 
 

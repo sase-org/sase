@@ -120,7 +120,11 @@ def postprocess_success(
         model_tier: The model tier used.
         start_timestamp: Timestamp when the invocation started.
     """
-    # Play audio notification (only if not suppressed)
+    # Play audio notification (only if not suppressed). Staged handoffs end
+    # through normal host completion, not a kill, so they keep the ordinary
+    # reply sound: only legacy pending markers suppress it. Error/response
+    # evidence is always logged regardless of staged state; a stage never
+    # suppresses finalization.
     if not context.suppress_output and not has_pending_handoff(context.artifacts_dir):
         run_bam_command("Agent reply received", delay=0.2)
 
