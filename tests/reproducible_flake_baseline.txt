@@ -32,12 +32,11 @@ tests/ace/tui/test_visual_fixture_host_paths.py::test_visual_fixtures_embed_no_h
 tests/completion/test_build.py::test_mutex_groups_found
 # sase-1ou.3 (for sase-12f): harness created flat ace-run/<timestamp> dirs while
 # production starter settlement reads canonical ace-run/YYYY/MM/<timestamp>;
-# fixed by creating canonical_agent_artifact_path dirs in
-# tests/fakey/_runner_slot_harness.py plus settlement-observation assertions in
-# tests/fakey/test_monitor_capacity_e2e.py (uncommitted phase tree; verified UTC
-# cutoff below — epic lander reconciles fixing SHA/landing instant at host
-# finalization).
-# fixed-at: 2026-10-27T16:09:47Z tests/fakey/test_monitor_capacity_e2e.py::test_weight_two_land_agent_session_retains_one_claim_through_real_dispatch_and_delayed_child_bootstrap
+# fixed by a42eedc1c4 "fix(tests): make monitor capacity e2e load-robust via
+# canonical artifact path" (committed 2026-10-27T17:22:09Z), which creates
+# canonical_agent_artifact_path dirs in tests/fakey/_runner_slot_harness.py and
+# asserts settlement observation in tests/fakey/test_monitor_capacity_e2e.py.
+# fixed-at: 2026-10-27T17:22:09Z tests/fakey/test_monitor_capacity_e2e.py::test_weight_two_land_agent_session_retains_one_claim_through_real_dispatch_and_delayed_child_bootstrap
 # sase-120
 tests/sdd/test_git_identity_fixture.py::test_sdd_git_identity_survives_empty_home_subprocess
 # sase-12g
@@ -344,15 +343,6 @@ tests/test_agent_names_extract_metadata.py::TestExtractDirectivesMetadata::test_
 tests/test_agent_names_extract_metadata.py::TestExtractDirectivesMetadata::test_preserved_batch_predecessor_context_rebinds_refreshed_wait
 tests/test_macro_directive_contract.py::test_runtime_directive_vocabulary_matches_core_contract
 #
-# sase-165.5: the stale-extension flake is fixed at the root cause — `just
-# check` now rebuilds the dev extension when the linked sase-core source has
-# changed since the build (built-from stamp plus the core-source freshness
-# bit). Retires this node's failure evidence recorded at or before the fix.
-# This later directive supersedes the 2026-09-08T22:11:29Z directive added by
-# a5e642c929 (sase-xe.16.8.f0) for the same node; kept is the e8d238688f
-# instant, which retires the evidence of both fixes.
-# fixed-at: 2026-09-22T13:25:12Z tests/test_check_sase_core_rs_bindings_tool.py::test_dev_extension_exposes_every_collected_name
-#
 # sase-zt.6.5.4.3 landing reconciliation: current collectable nodes promoted by
 # selection-health from historical full-run records and routed to filed owners by
 # sase-zt.6.5.land. These raw entries preserve owner debt; the fixed-at entry
@@ -445,14 +435,53 @@ tests/test_agent_load_tiering_production_oracle.py::test_production_machine_quer
 # fixed-at: 2026-10-27T19:37:05Z tests/tool/test_detach.py::test_watchdog_reports_ended_join_monitor
 # fixed-at: 2026-10-27T19:37:05Z tests/tool/test_detach.py::test_watchdog_stops_unjoined_run_when_starter_dies
 # fixed-at: 2026-10-27T19:37:05Z tests/tool/test_settlement_retention.py::test_handoff_end_to_end_publishes_one_notification
-# sase-18t: remaining nodes lack per-node proof of the fixed SQLite mechanism;
-# retain until attributed. The owner group-kill node also has an exit-order flake.
-tests/tool/test_demand_runs.py::test_foreground_run_records_context_usage_and_grant
-tests/tool/test_executor.py::test_nested_run_has_parent_and_no_duplicate_logs
+#
+# sase-1ou landing reconciliation (2026-10-28). The tests/tool/ nodes parked
+# under sase-18t never recorded its SQLite busy signature, so they move to
+# their own owners as sase-18t closes. The demand_runs, executor, and
+# known_continuation nodes drop out: closed owners sase-1f0, sase-1jl, and
+# sase-1gi postdate every one of their failure records.
+# sase-1fi: soft-ceiling exit 124 under load (superseded sase-1j9 named this node).
 tests/tool/test_inline_escalation.py::test_fast_success_matches_inline
-tests/tool/test_known_continuation.py::test_agent_run_stops_on_a_new_item
+# sase-1p2: group-kill child-alive exit-order flake; the inline-caller node is
+# the same file's sibling group-kill assertion.
 tests/tool/test_wrapper_fidelity.py::test_inline_caller_group_sigkill_leaves_no_survivors
 tests/tool/test_wrapper_fidelity.py::test_owner_child_shares_wrapper_group_and_group_kill_leaves_no_survivors
+# sase-1oj.4: capacity-only scan adoption. Every gate-countable failure ran on a
+# tree without its fix: e7d9f7a479 "feat(runner-slots): adopt pruned capacity
+# scan" (committed 2026-10-27T02:05:57Z) and f83711219c "test(runner-slots):
+# pin live pids in capacity-scan adoption tests" (committed 2026-10-27T03:45:36Z).
+# fixed-at: 2026-10-27T02:05:57Z tests/test_core_agent_scan_options.py::test_capacity_only_skips_done_dirs_and_keeps_active_ones
+# fixed-at: 2026-10-27T03:45:36Z tests/test_run_agent_runner_slot_scan_capacity.py::test_capacity_blocked_head_then_high_budget_launch_uses_real_scan
+# fixed-at: 2026-10-27T03:45:36Z tests/test_run_agent_runner_slot_scan_capacity.py::test_capacity_blocked_waiter_does_not_park_the_queue_behind_it
+# sase-1al: empty command-line panel semicolon palette hop flakes in parallel check.
+tests/ace/tui/command_line/test_panel_shell_pilot.py::test_empty_panel_semicolon_hops_to_palette_and_back
+# sase-19m: agy usage probe rate-limit classification under the loaded lane.
+tests/llm_provider/test_agy_usage_probe.py::test_agy_usage_probe_timeout_with_rate_limit_stderr_is_rate_limited
+# sase-xo: agents-sync blocked-render bounded drain under the full lane.
+tests/agents_sync/test_commit_publication_bounded_drain.py::test_blocked_render_is_bounded_and_leaves_the_request_queued
+# sase-1pc: doc-phrase terminology audits (sase-1ou.1 class-(d) note #3).
+tests/test_agent_session_terminology.py::test_current_docs_skills_and_memory_avoid_stale_family_phrases
+tests/test_sase_turn_terminology.py::test_current_docs_skills_and_memory_avoid_stale_shell_phrases
+# sase-1pd: unowned ACE TUI pilot nodes (sase-1ou.1 class-(d) note #2).
+tests/ace/tui/modals/test_new_project_create_flow.py::test_owner_switch_preserves_per_owner_drafts
+tests/ace/tui/test_proc_producer_inventory.py::test_inventory_matches_live_production_source
+tests/ace/tui/test_screenshot_export.py::test_app_export_body_tolerates_signal_task_refresh_wait_error
+tests/ace/tui/widgets/test_agent_display_workflow_async.py::test_workflow_snapshot_render_reads_state_once_and_uses_parsed_data
+tests/ace/tui/widgets/test_directive_completion_candidates.py::test_directive_completion_includes_representative_descriptions
+tests/ace/tui/widgets/test_directive_completion_candidates.py::test_directive_completion_matches_aliases_to_canonical_insertions
+tests/ace/tui/widgets/test_directive_completion_interactions.py::test_ctrl_t_at_alias_partial_inserts_canonical_directive
+tests/ace/tui/widgets/test_directive_completion_interactions.py::test_percent_partial_auto_opens_directive_panel
+# sase-1pe: unowned misc nodes (sase-1ou.1 class-(d) note #4).
+tests/completion/test_kind_coverage.py::test_every_value_slot_is_kinded_choiced_or_hinted
+tests/instructions/test_scoreboard_conformance.py::test_conformance_warns_for_duplicate_root_and_leaked_helper_markers
+tests/main/test_monitor_handler_start_implicit.py::test_start_implicit_agent_session_container_derives_cwd_from_the_live_member
+tests/test_agent_launch_executor.py::test_execute_single_launch_plan_uses_preallocated_context_and_timestamp
+tests/test_axe_run_agent_runner_deferred_workspace_flow.py::TestDeferredWorkspaceFlow::test_deferred_wait_gates_before_claim_and_prepares_claimed_workspace
+tests/test_commit_publication_inline.py::test_tagged_commit_publishes_and_pushes_every_sidecar_before_returning
+tests/test_plan_validate.py::test_facade_rehydrates_valid_tale_and_ordered_schema
+tests/test_pytest_isolation_guards.py::test_no_undo_on_shared_monkeypatch_fixture
+tests/test_pytest_isolation_guards.py::test_session_sandbox_seal_is_not_first_test
 # sase-13a: zsh sbd alias static bead-tree completion PTY flake under load.
 tests/completion/test_zsh_smoke.py::test_alias_sbd_completes_static_bead_tree[sbd show --for-sbd show --format ]
 # sase-1em: registry-rebuild live-identity flake under the full parallel lane.
