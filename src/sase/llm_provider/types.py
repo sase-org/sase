@@ -16,10 +16,12 @@ class LLMInvocationError(Exception):
 
 
 # Mapping from old terminology to new
-_MODEL_SIZE_TO_TIER: dict[str, ModelTier] = {"big": "large", "little": "small"}
+MODEL_SIZE_TO_TIER: dict[str, ModelTier] = {"big": "large", "little": "small"}
+_MODEL_SIZE_TO_TIER = MODEL_SIZE_TO_TIER
 
 # Reverse mapping for display
-_MODEL_TIER_TO_LABEL: dict[ModelTier, str] = {"large": "BIG", "small": "LITTLE"}
+MODEL_TIER_TO_LABEL: dict[ModelTier, str] = {"large": "BIG", "small": "LITTLE"}
+_MODEL_TIER_TO_LABEL = MODEL_TIER_TO_LABEL
 
 
 @dataclass(frozen=True)

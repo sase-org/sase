@@ -14,7 +14,7 @@ from sase.history.chat import save_chat_history
 from sase.history.chat_extras import format_extra_sections
 from sase.output import print_prompt_and_response
 
-from .types import _MODEL_TIER_TO_LABEL, LoggingContext, ModelTier
+from .types import MODEL_TIER_TO_LABEL, LoggingContext, ModelTier
 
 
 def log_prompt_and_response(
@@ -170,7 +170,7 @@ def postprocess_error(
         model_tier: The model tier used.
         start_timestamp: Timestamp when the invocation started.
     """
-    model_tier_label = _MODEL_TIER_TO_LABEL[model_tier]
+    model_tier_label = MODEL_TIER_TO_LABEL[model_tier]
     agent_type_with_tier = f"{context.agent_type} [{model_tier_label}]"
 
     # Print error using Rich formatting (only if not suppressed)

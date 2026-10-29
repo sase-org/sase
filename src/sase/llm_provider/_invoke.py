@@ -4,7 +4,6 @@ This is the provider-agnostic orchestration layer that delegates the actual
 LLM call to a pluggable provider.
 """
 
-import logging
 import os
 import subprocess
 import time
@@ -13,14 +12,18 @@ from typing import Any, Literal, cast
 
 from sase.continuation_capture import (
     ContinuationSegmentCapture,
-    record_prepared_prompt_capture_best_effort,
 )
-from sase.core.time import generate_timestamp
 from sase.env_contracts import (
     SASE_PROVIDER_SYNC_CEILING_SECONDS_ENV,
     SASE_PROVIDER_SYNC_SOFT_CEILING_SECONDS_ENV,
 )
 from ._instruction_boundary import invoke_with_instructions
+from ._invoke_errors import finalize_staged_after_provider_error
+from ._invoke_provider_setup import (
+    prepare_provider_invocation,
+    provider_sync_ceiling_seconds as _provider_sync_ceiling_seconds,
+)
+from ._invoke_setup import prepare_invocation
 from .messages import AIMessage
 from sase.output import print_decision_counts, print_prompt_and_response
 from sase.telemetry.metrics import (
@@ -35,166 +38,24 @@ from sase.telemetry.metrics import (
 from .postprocessing import (
     postprocess_error,
     postprocess_success,
-    save_prompt_to_file,
 )
 from .preprocessing import preprocess_prompt
 from sase.macro.directives import PromptDirectives
-from .config import resolve_effective_effort
-from .continuation_budget import enforce_continuation_budget
 from .gate_intent_guard import raise_if_gate_intent_lost
 from .launch_selection import LaunchSelection
 from .registry import (
     LLM_EXEC_PROVIDER_ENV,
-    capture_provider_routing_context,
     get_default_provider_name,
     get_provider,
     resolve_execution_provider_name,
 )
 from .usage_limit_disable import handle_possible_usage_limit
 from .types import (
-    InvokeResult,
+    MODEL_SIZE_TO_TIER,
+    MODEL_TIER_TO_LABEL,
     LLMInvocationError,
-    LLMInvocationOptions,
-    _MODEL_SIZE_TO_TIER,
-    _MODEL_TIER_TO_LABEL,
-    LoggingContext,
     ModelTier,
 )
-
-logger = logging.getLogger(__name__)
-
-
-def _staged_present_for_provider_failure(artifacts_dir: str | None) -> bool:
-    """Return whether a staged handoff governs a provider failure.
-
-    Malformed staged state counts as present: it is a refusal/held failure,
-    never absence.
-    """
-    if not artifacts_dir:
-        return False
-    try:
-        from sase.agent.staged_handoff import (
-            StagedHandoffError,
-            read_staged_handoff,
-        )
-
-        return read_staged_handoff(artifacts_dir) is not None
-    except StagedHandoffError:
-        return True
-    except Exception:  # noqa: BLE001 - failure detection fails closed to retry.
-        return False
-
-
-def _record_provider_failure(
-    artifacts_dir: str | None,
-    error_content: str,
-    execution_provider_label: str,
-) -> None:
-    """Persist provider-failure evidence for the staged completion controller."""
-    if not artifacts_dir:
-        return
-    try:
-        from datetime import UTC, datetime
-        from pathlib import Path
-
-        from sase.agent.gate_intent import atomic_write_json
-
-        payload = {
-            "schema_version": 1,
-            "recorded_at": datetime.now(UTC).isoformat().replace("+00:00", "Z"),
-            "provider": execution_provider_label,
-            "error": error_content[:4000],
-        }
-        atomic_write_json(Path(artifacts_dir) / ".sase_provider_failure.json", payload)
-    except Exception:  # noqa: BLE001 - failure recording never masks the error.
-        logger.debug("provider-failure recording failed", exc_info=True)
-
-
-def _finalize_staged_after_provider_error(
-    *,
-    provider: Any,
-    query: str,
-    error_content: str,
-    model_tier: ModelTier,
-    suppress_output: bool,
-    model_override: str | None,
-    artifacts_dir: str | None,
-    options: Any,
-    execution_provider_label: str,
-) -> None:
-    """Run finalizers after a staged ordinary-provider failure.
-
-    Uses the original provider/options with a recorded provider-failure
-    result. Never reruns the ordinary prompt. Never recurses when the failed
-    invocation itself is finalizer-owned (declaration recovery or repair).
-    Failures here never mask the original provider error.
-    """
-    if not artifacts_dir:
-        return
-    try:
-        from sase.finalizers.owned_turn import finalizer_owned_turn_is_active
-    except Exception:  # noqa: BLE001 - fail open to raising the original error.
-        return
-    if finalizer_owned_turn_is_active():
-        return
-    if not _staged_present_for_provider_failure(artifacts_dir):
-        return
-    _record_provider_failure(artifacts_dir, error_content, execution_provider_label)
-    try:
-        from sase.finalizers import run_finalizers
-
-        failure_result = InvokeResult(content=error_content, usage=None)
-        run_finalizers(
-            provider=provider,
-            original_prompt=query,
-            invoke_result=failure_result,
-            model_tier=model_tier,
-            suppress_output=suppress_output,
-            model_override=model_override,
-            artifacts_dir=artifacts_dir,
-            options=options,
-        )
-    except Exception:  # noqa: BLE001 - original provider error always wins.
-        logger.debug(
-            "staged finalization after provider failure did not settle",
-            exc_info=True,
-        )
-
-
-def _provider_sync_ceiling_seconds(provider: object) -> int | None:
-    """Return *provider*'s validated synchronous kill ceiling, if any.
-
-    A provider without the hook, an exception, a non-integer, or a value
-    <= 0 all resolve to ``None`` (no ceiling), so the export fails open.
-    """
-    accessor = getattr(provider, "sync_ceiling_seconds", None)
-    if accessor is None:
-        return None
-    try:
-        value = accessor()
-    except Exception:
-        return None
-    if isinstance(value, bool) or not isinstance(value, int):
-        return None
-    if value <= 0:
-        return None
-    return value
-
-
-def _mark_usage_hot_for_launch(provider_name: str | None) -> None:
-    """Best-effort hot hint for the provider this launch is about to use.
-
-    Never raises and adds no failure modes to launches; the hint itself
-    resolves collection eligibility and probe capability before writing.
-    """
-    try:
-        if not provider_name:
-            return
-        from sase.llm_provider.usage.refresh import mark_provider_usage_hot_hint
-
-        mark_provider_usage_hot_hint(provider_name)
-    except Exception:
-        logger.debug("usage hot hint failed for %r", provider_name, exc_info=True)
 
 
 def invoke_agent(
@@ -268,7 +129,7 @@ def invoke_agent(
     """
     # Handle deprecated model_size parameter
     if model_size is not None:
-        model_tier = _MODEL_SIZE_TO_TIER[model_size]
+        model_tier = MODEL_SIZE_TO_TIER[model_size]
 
     # Check for global model tier override (env var)
     tier_override = os.environ.get("SASE_MODEL_TIER_OVERRIDE") or os.environ.get(
@@ -276,159 +137,42 @@ def invoke_agent(
     )
     if tier_override:
         # Accept both old ("big"/"little") and new ("large"/"small") values
-        if tier_override in _MODEL_SIZE_TO_TIER:
-            model_tier = _MODEL_SIZE_TO_TIER[tier_override]
+        if tier_override in MODEL_SIZE_TO_TIER:
+            model_tier = MODEL_SIZE_TO_TIER[tier_override]
         elif tier_override in ("large", "small"):
             model_tier = cast(ModelTier, tier_override)
 
-    # Build logging context
-    context = LoggingContext(
+    prepared = prepare_invocation(
+        prompt,
         agent_type=agent_type,
+        model_tier=model_tier,
         iteration=iteration,
         workflow_tag=workflow_tag,
         artifacts_dir=artifacts_dir,
-        suppress_output=suppress_output,
         workflow=workflow,
+        suppress_output=suppress_output,
         timestamp=timestamp,
         is_home_mode=is_home_mode,
         branch_or_workspace=branch_or_workspace,
         decision_counts=decision_counts,
+        provider_name=provider_name,
+        skip_preprocessing=skip_preprocessing,
+        directives=directives,
+        launch_selection=launch_selection,
+        authored_local_request=authored_local_request,
+        continuation_segments=continuation_segments,
+        model_tier_label=MODEL_TIER_TO_LABEL[model_tier],
+        preprocess_prompt_fn=preprocess_prompt,
+        print_decision_counts_fn=print_decision_counts,
+        print_prompt_and_response_fn=print_prompt_and_response,
     )
-
-    # 1. Preprocess prompt
-    if skip_preprocessing:
-        query = prompt
-        result_directives = directives or PromptDirectives()
-    else:
-        result = preprocess_prompt(prompt, is_home_mode=is_home_mode)
-        query = result.prompt
-        result_directives = result.directives
-        continuation_segments = result.continuation_segments
-        authored_local_request = prompt
-    if artifacts_dir:
-        record_prepared_prompt_capture_best_effort(
-            artifacts_dir,
-            authored_local_request=authored_local_request or prompt,
-            materialized_prompt=query,
-            segments=continuation_segments,
-        )
-        from sase.continuation_baseline import (
-            measure_provider_preprocess,
-            record_shadow_measurement,
-        )
-
-        record_shadow_measurement(
-            artifacts_dir,
-            measure_provider_preprocess(
-                query,
-                model_tier=model_tier,
-                model_override=result_directives.model,
-                provider_name=provider_name,
-            ),
-        )
-    from sase.finalizers.plan import resolve_and_persist_finalizer_plan
-
-    finalizer_plan = resolve_and_persist_finalizer_plan(
-        result_directives,
-        artifacts_dir=artifacts_dir,
-    )
-    if finalizer_plan is not None and artifacts_dir:
-        from sase.axe.run_agent_helpers import update_meta_field
-
-        update_meta_field(
-            artifacts_dir,
-            "finalizers",
-            finalizer_plan.agent_meta_projection(),
-        )
-        from sase.finalizers.status_summary import FinalizerStatusTracker
-
-        FinalizerStatusTracker(artifacts_dir).seal_planned(
-            plan_digest=finalizer_plan.plan.plan_digest,
-            instance_ids=list(finalizer_plan.selected_instances),
-        )
-    model_override = result_directives.model
-    model_alias_overrides = dict(result_directives.model_alias_overrides)
-    if model_alias_overrides and artifacts_dir:
-        from .launch_alias_overrides import export_launch_alias_overrides
-
-        export_launch_alias_overrides(model_alias_overrides)
-        from sase.axe.run_agent_helpers import update_meta_field
-
-        update_meta_field(
-            artifacts_dir,
-            "model_alias_overrides",
-            model_alias_overrides,
-        )
-
-    # A caller that already owns a concrete launch selection hands over that
-    # exact provider/model/effort so it is never resolved or consumed twice.
-    routing_context = capture_provider_routing_context()
-    if launch_selection is not None:
-        provider_name = launch_selection.provider
-        model_override = launch_selection.model
-        effective_effort = launch_selection.reasoning_effort
-        effort_explicit = launch_selection.effort_explicit
-    else:
-        from .launch_selection import resolve_launch_selection
-
-        selection = resolve_launch_selection(
-            result_directives,
-            model_alias_overrides,
-            model_tier=model_tier,
-            provider_name=provider_name,
-            consume=True,
-            routing_context=routing_context,
-        )
-        if selection is not None:
-            provider_name = selection.provider
-            model_override = selection.model
-            effective_effort = selection.reasoning_effort
-            effort_explicit = selection.effort_explicit
-        else:
-            # Caller supplied provider_name directly with no %model directive;
-            # nothing to resolve here (model_tier drives the fallback below).
-            effective_effort, effort_explicit = resolve_effective_effort(
-                result_directives, None
-            )
-
-    invocation_options = LLMInvocationOptions(
-        reasoning_effort=effective_effort,
-        explicit=effort_explicit,
-    )
-
-    # 2. Build display label
-    if model_override:
-        agent_type_with_tier = f"{agent_type} [{model_override}]"
-    else:
-        model_tier_label = _MODEL_TIER_TO_LABEL[model_tier]
-        agent_type_with_tier = f"{agent_type} [{model_tier_label}]"
-
-    # 3. Display decision counts (if not suppressed)
-    if not suppress_output and decision_counts is not None:
-        print_decision_counts(decision_counts)
-
-    # 4. Print prompt BEFORE execution (if not suppressed)
-    if not suppress_output:
-        print_prompt_and_response(
-            prompt=query,
-            response="",
-            agent_type=agent_type_with_tier,
-            iteration=iteration,
-            show_prompt=True,
-            show_response=False,
-        )
-
-    # 5. Generate or use provided timestamp
-    start_timestamp = timestamp or generate_timestamp()
-
-    # 6. Save prompt to artifacts
-    if artifacts_dir:
-        save_prompt_to_file(
-            prompt=query,
-            artifacts_dir=artifacts_dir,
-            agent_type=agent_type,
-            iteration=iteration,
-        )
+    query = prepared.query
+    context = prepared.context
+    model_override = prepared.model_override
+    provider_name = prepared.provider_name
+    invocation_options = prepared.invocation_options
+    routing_context = prepared.routing_context
+    start_timestamp = prepared.start_timestamp
 
     # 7. Get provider and invoke
     requested_provider_label = provider_name or get_default_provider_name(
@@ -453,89 +197,23 @@ def invoke_agent(
 
         mint_finalizer_turn_nonce()
     try:
-        provider = get_provider(
-            provider_lookup_name,
+        provider, query = prepare_provider_invocation(
+            provider_lookup_name=provider_lookup_name,
+            execution_provider_label=execution_provider_label,
+            requested_provider_label=requested_provider_label,
             routing_context=routing_context,
-        )
-        # Export the execution provider's synchronous kill ceiling around
-        # every provider invocation (popping any inherited value when the
-        # provider declares none), so each provider subprocess — including
-        # the finalizer follow-up turns inside run_finalizers — sees it.
-        sync_ceiling = _provider_sync_ceiling_seconds(provider)
-        if sync_ceiling is None:
-            os.environ.pop(SASE_PROVIDER_SYNC_CEILING_SECONDS_ENV, None)
-        else:
-            os.environ[SASE_PROVIDER_SYNC_CEILING_SECONDS_ENV] = str(sync_ceiling)
-        # Export the execution provider's resolved soft ceiling beside the
-        # hard ceiling: the provider entry first, then default. A malformed
-        # value is ignored (the getter warns) and never fails a launch.
-        try:
-            from sase.config.tools import get_tool_runs_soft_ceiling_seconds
-
-            soft_ceiling = get_tool_runs_soft_ceiling_seconds(execution_provider_label)
-        except Exception:  # noqa: BLE001 - soft-ceiling export fails open.
-            soft_ceiling = None
-        if soft_ceiling is None:
-            os.environ.pop(SASE_PROVIDER_SYNC_SOFT_CEILING_SECONDS_ENV, None)
-        else:
-            os.environ[SASE_PROVIDER_SYNC_SOFT_CEILING_SECONDS_ENV] = str(soft_ceiling)
-        if artifacts_dir:
-            from sase.axe.run_agent_helpers import update_meta_field
-
-            update_meta_field(
-                artifacts_dir,
-                "exec_llm_provider",
-                execution_provider_label,
-            )
-        _mark_usage_hot_for_launch(execution_provider_label)
-        from sase.monitor.continuation_delivery import (
-            adopt_ordinary_continuation_delivery,
-        )
-
-        adopt_ordinary_continuation_delivery()
-        budget_model_name = model_override
-        if budget_model_name is None:
-            try:
-                budget_model_name = provider.resolve_model_name(model_tier)
-            except Exception:
-                budget_model_name = None
-        if not isinstance(budget_model_name, str):
-            budget_model_name = None
-        query = enforce_continuation_budget(
-            query,
-            artifacts_dir=artifacts_dir,
-            provider_name=execution_provider_label,
+            query=query,
             model_tier=model_tier,
             model_override=model_override,
-            model_name=budget_model_name,
+            artifacts_dir=artifacts_dir,
             options=invocation_options,
+            context=context,
+            get_provider_fn=get_provider,
+            provider_sync_ceiling_fn=_provider_sync_ceiling_seconds,
         )
-        if context.metadata_model is None:
-            metadata_model = budget_model_name
-            if execution_provider_label != requested_provider_label:
-                metadata_provider = get_provider(
-                    requested_provider_label,
-                    routing_context=routing_context,
-                )
-                try:
-                    metadata_model = metadata_provider.resolve_model_name(model_tier)
-                except Exception:
-                    metadata_model = None
-            elif metadata_model is None:
-                try:
-                    metadata_model = provider.resolve_model_name(model_tier)
-                except Exception:
-                    metadata_model = None
-            if (
-                isinstance(metadata_model, str)
-                and metadata_model
-                and metadata_model != "unknown"
-            ):
-                context.metadata_model = metadata_model
         if artifacts_dir:
             from sase.axe.runner_lifecycle_phase import mark_lifecycle_phase
 
-            mark_lifecycle_phase(artifacts_dir, "provider_running")
         invoke_result = invoke_with_instructions(
             provider,
             query,
@@ -640,7 +318,7 @@ def invoke_agent(
         )
 
         if "provider" in locals():
-            _finalize_staged_after_provider_error(
+            finalize_staged_after_provider_error(
                 provider=provider,
                 query=query,
                 error_content=error_content,
@@ -682,7 +360,7 @@ def invoke_agent(
         )
 
         if "provider" in locals():
-            _finalize_staged_after_provider_error(
+            finalize_staged_after_provider_error(
                 provider=provider,
                 query=query,
                 error_content=error_content,
@@ -717,7 +395,7 @@ def invoke_agent(
         )
 
         if "provider" in locals():
-            _finalize_staged_after_provider_error(
+            finalize_staged_after_provider_error(
                 provider=provider,
                 query=query,
                 error_content=error_content,
