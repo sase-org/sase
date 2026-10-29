@@ -558,7 +558,7 @@ usage: sase bead epic-symbols [-h] [-c {auto,always,never}]
                               [-f {compact,json}] [id]
 ```
 
-List --epic-symbol entries from the working tree's Justfile. With an ID, only entries keyed to that bead or its descendant suffixes are shown. Land and phase agents should run this before closing: leftover entries go stale the instant the bead closes, and sase bead close refuses while any remain.
+List --epic-symbol entries from the working tree's Justfile and the default branch's Justfile, tagging each row with the source it came from. With an ID, only entries keyed to that bead or its descendant suffixes are shown. Land and phase agents should run this before closing: leftover entries go stale the instant the bead closes, and sase bead close refuses while any remain.
 
 Options:
 

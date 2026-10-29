@@ -11,7 +11,7 @@ from sase.bead.epic_symbols import (
     _LeftoverEpicSymbolsError,
     _leftover_epic_symbols_for_close,
     _parse_epic_symbol_entries,
-    discover_justfile,
+    _discover_justfile,
     entries_for_beads,
     raise_if_leftover_epic_symbols,
     raise_if_surviving_flag_definition,
@@ -128,12 +128,12 @@ def test_discover_justfile_stops_at_git_root_without_crossing_it(
     nested = repo / "src"
     nested.mkdir()
 
-    assert discover_justfile(nested) is None
+    assert _discover_justfile(nested) is None
 
     justfile = repo / "Justfile"
     justfile.write_text('--epic-symbol "sase-x(Foo)"\n', encoding="utf-8")
 
-    assert discover_justfile(nested) == justfile
+    assert _discover_justfile(nested) == justfile
 
 
 def test_raise_if_leftover_epic_symbols_names_the_justfile_flags(

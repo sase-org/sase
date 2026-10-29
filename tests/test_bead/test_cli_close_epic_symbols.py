@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import subprocess
+
 import pytest
 
 from sase.bead import cli as bead_cli
@@ -373,4 +375,142 @@ def test_close_without_usable_local_checkout_falls_back_to_owner(
 
     assert "OwnerFallback" in capsys.readouterr().err
     with BeadProject(owner) as project:
+        assert project.show(issue.id).status is not Status.CLOSED
+
+
+def _git_run(path: Path, *args: str) -> None:
+    subprocess.run(["git", *args], cwd=path, capture_output=True, check=True)
+
+
+def _init_git_repo(path: Path) -> None:
+    path.mkdir(parents=True, exist_ok=True)
+    _git_run(path, "init", "-b", "master")
+    _git_run(path, "config", "user.email", "sase-test@example.com")
+    _git_run(path, "config", "user.name", "sase-test")
+    _git_run(path, "config", "commit.gpgsign", "false")
+
+
+def test_close_refuses_upstream_only_epic_symbol_row(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    work = tmp_path / "work"
+    remote = tmp_path / "remote"
+    _init_git_repo(remote)
+    remote.joinpath("Justfile").write_text("symvision src\n", encoding="utf-8")
+    _git_run(remote, "add", "Justfile")
+    _git_run(remote, "commit", "-m", "initial justfile")
+    _git_run(tmp_path, "clone", str(remote), str(work))
+    with BeadProject.init(work):
+        pass
+    isolate_bead_store_resolution(monkeypatch, work, project_name="test-project")
+    with BeadProject(work) as project:
+        epic = project.create("Ranking", IssueType.PLAN, tier=BeadTier.EPIC)
+    remote.joinpath("Justfile").write_text(
+        f'symvision src \\\n        --epic-symbol "{epic.id}(UpstreamSymbol)"\n',
+        encoding="utf-8",
+    )
+    _git_run(remote, "add", "Justfile")
+    _git_run(remote, "commit", "-m", "sibling phase lands a whitelist row")
+    work.joinpath("Justfile").write_text("symvision src\n", encoding="utf-8")
+
+    args = create_parser().parse_args(["bead", "close", epic.id])
+    with pytest.raises(SystemExit, match="1"):
+        bead_cli.handle_bead_close(args)
+
+    error = capsys.readouterr().err
+    assert f"refusing to close {epic.id}" in error
+    assert f'--epic-symbol "{epic.id}(UpstreamSymbol)"' in error
+    assert "origin/master" in error
+    with BeadProject(work) as project:
+        assert project.show(epic.id).status is not Status.CLOSED
+
+
+def test_epic_symbols_lists_upstream_only_row(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    work = tmp_path / "work"
+    remote = tmp_path / "remote"
+    _init_git_repo(remote)
+    remote.joinpath("Justfile").write_text("symvision src\n", encoding="utf-8")
+    _git_run(remote, "add", "Justfile")
+    _git_run(remote, "commit", "-m", "initial justfile")
+    _git_run(tmp_path, "clone", str(remote), str(work))
+    with BeadProject.init(work):
+        pass
+    isolate_bead_store_resolution(monkeypatch, work, project_name="test-project")
+    with BeadProject(work) as project:
+        epic = project.create("Ranking", IssueType.PLAN, tier=BeadTier.EPIC)
+    remote.joinpath("Justfile").write_text(
+        f'symvision src \\\n        --epic-symbol "{epic.id}(UpstreamSymbol)"\n',
+        encoding="utf-8",
+    )
+    _git_run(remote, "add", "Justfile")
+    _git_run(remote, "commit", "-m", "sibling phase lands a whitelist row")
+    work.joinpath("Justfile").write_text("symvision src\n", encoding="utf-8")
+
+    bead_cli.handle_bead_epic_symbols(
+        create_parser().parse_args(
+            ["bead", "epic-symbols", epic.id, "--color", "never"]
+        )
+    )
+
+    output = capsys.readouterr().out
+    assert f'--epic-symbol "{epic.id}(UpstreamSymbol)"' in output
+    assert "origin/master" in output
+
+
+def test_close_fetch_failure_falls_back_to_local_with_warning(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    work = tmp_path / "work"
+    _init_git_repo(work)
+    with BeadProject.init(work):
+        pass
+    isolate_bead_store_resolution(monkeypatch, work, project_name="test-project")
+    with BeadProject(work) as project:
+        issue = project.create("Cleanup", IssueType.PLAN)
+    work.joinpath("Justfile").write_text(
+        f'symvision src \\\n        --epic-symbol "{issue.id}(LocalSymbol)"\n',
+        encoding="utf-8",
+    )
+    _git_run(work, "add", "Justfile")
+    _git_run(work, "commit", "-m", "local justfile")
+    _git_run(work, "remote", "add", "origin", str(tmp_path / "no-such-remote"))
+
+    with pytest.raises(SystemExit, match="1"):
+        bead_cli.handle_bead_close(
+            create_parser().parse_args(["bead", "close", issue.id])
+        )
+
+    error = capsys.readouterr().err
+    assert f'--epic-symbol "{issue.id}(LocalSymbol)"' in error
+    assert "upstream" in error.lower()
+    assert "local Justfile" in error
+    with BeadProject(work) as project:
+        assert project.show(issue.id).status is not Status.CLOSED
+
+
+def test_update_status_closed_refuses_leftover_epic_symbols(
+    project_dir: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    with BeadProject(project_dir) as project:
+        issue = project.create("Cleanup", IssueType.PLAN)
+    _write_justfile(project_dir, f'--epic-symbol "{issue.id}(TempSymbol)"')
+
+    with pytest.raises(SystemExit, match="1"):
+        bead_cli.handle_bead_update(
+            create_parser().parse_args(["bead", "update", issue.id, "-s", "closed"])
+        )
+
+    error = capsys.readouterr().err
+    assert f"refusing to close {issue.id}" in error
+    assert f'--epic-symbol "{issue.id}(TempSymbol)"' in error
+    with BeadProject(project_dir) as project:
         assert project.show(issue.id).status is not Status.CLOSED

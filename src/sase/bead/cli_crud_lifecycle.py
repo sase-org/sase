@@ -128,7 +128,7 @@ def _print_close_result_row(
     print(f"{prefix:<18}{issue.id} — {issue.title}{suffix}")
 
 
-def _refuse_leftover_epic_symbols(
+def refuse_leftover_epic_symbols(
     issues: list[Issue],
     *,
     start: Path | None = None,
@@ -137,6 +137,8 @@ def _refuse_leftover_epic_symbols(
 
     Takes pre-fetched issues: the caller shares this single read with note
     authoring so a close costs one authoring read plus the mutation load.
+    Shared with ``sase bead update --status closed``, which closes without
+    the close-time flow.
     """
     raise_if_leftover_epic_symbols(issues, start=start)
     raise_if_surviving_flag_definition(issues, start=start)
@@ -236,7 +238,7 @@ def handle_bead_close(args: argparse.Namespace) -> None:
             pre_close_issues = [
                 mutation.project.show(raw_id) for raw_id in dict.fromkeys(resolved_ids)
             ]
-            _refuse_leftover_epic_symbols(
+            refuse_leftover_epic_symbols(
                 pre_close_issues,
                 start=_owner_symbol_start(bead_context),
             )

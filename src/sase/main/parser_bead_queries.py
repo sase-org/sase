@@ -25,7 +25,9 @@ def register_bead_epic_symbols_parser(
         "epic-symbols",
         help="List Justfile --epic-symbol whitelist entries",
         description=(
-            "List --epic-symbol entries from the working tree's Justfile. "
+            "List --epic-symbol entries from the working tree's Justfile and "
+            "the default branch's Justfile, tagging each row with the "
+            "source it came from. "
             "With an ID, only entries keyed to that bead or its descendant "
             "suffixes are shown. Land and phase agents should run this "
             "before closing: leftover entries go stale the instant the bead "

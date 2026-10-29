@@ -10,14 +10,23 @@ from typing import Any
 
 from sase.bead.cli_dep_render import ANSI_BOLD_BLUE, resolve_color, styled
 from sase.bead.epic_symbols import (
-    discover_justfile,
     entries_for_beads,
-    load_epic_symbol_entries,
+    load_epic_symbol_scan,
 )
 
 
+def _entry_sources_suffix(entry: Any) -> str:
+    if not entry.origins:
+        return ""
+    return f" [{', '.join(entry.origins)}]"
+
+
 def handle_bead_epic_symbols(args: argparse.Namespace) -> None:
-    """List Justfile ``--epic-symbol`` entries, optionally scoped to one bead."""
+    """List Justfile ``--epic-symbol`` entries, optionally scoped to one bead.
+
+    Reads the working tree's Justfile and the default branch's Justfile; a
+    fetch or read failure warns loudly and falls back to the local rows.
+    """
     start = None
     target_id = getattr(args, "id", None)
     if target_id:
@@ -30,15 +39,22 @@ def handle_bead_epic_symbols(args: argparse.Namespace) -> None:
         from sase.bead.assigned_near_miss import warn_if_assigned_near_miss
 
         warn_if_assigned_near_miss([requested_id, target_id])
-    justfile = discover_justfile(start)
-    entries = load_epic_symbol_entries(start)
+    scan = load_epic_symbol_scan(start)
+    if scan.upstream_warning is not None:
+        print(scan.upstream_warning, file=sys.stderr)
+    entries = list(scan.entries)
     if target_id:
         entries = entries_for_beads(entries, [target_id])
 
     fmt = getattr(args, "format", "compact")
     if fmt == "json":
         payload = {
-            "justfile": str(justfile) if justfile is not None else None,
+            "justfile": str(scan.local_justfile)
+            if scan.local_justfile is not None
+            else None,
+            "upstream_justfile": scan.upstream_justfile,
+            "upstream_stale": scan.upstream_stale,
+            "upstream_warning": scan.upstream_warning,
             "bead_id": target_id,
             "entries": [
                 {
@@ -46,6 +62,7 @@ def handle_bead_epic_symbols(args: argparse.Namespace) -> None:
                     "symbol": entry.symbol,
                     "raw": entry.raw,
                     "flag": entry.flag,
+                    "sources": list(entry.origins),
                 }
                 for entry in entries
             ],
@@ -61,11 +78,14 @@ def handle_bead_epic_symbols(args: argparse.Namespace) -> None:
         return
 
     use_color = resolve_color(getattr(args, "color", "auto"))
-    if justfile is not None:
-        print(f"Justfile: {justfile}")
+    if scan.local_justfile is not None:
+        print(f"Justfile: {scan.local_justfile}")
+    if scan.upstream_justfile is not None:
+        stale = " (stale: fetch failed)" if scan.upstream_stale else ""
+        print(f"Upstream Justfile: {scan.upstream_justfile}{stale}")
     for entry in entries:
         bead = styled(entry.bead_id, ANSI_BOLD_BLUE, use_color)
-        print(f'--epic-symbol "{bead}({entry.symbol})"')
+        print(f'--epic-symbol "{bead}({entry.symbol})"{_entry_sources_suffix(entry)}')
 
 
 def _resolve_symbol_bead_context(target_id: str) -> Any:
