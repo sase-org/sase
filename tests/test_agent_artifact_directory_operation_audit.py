@@ -349,7 +349,7 @@ _REVIEWED_DIR_OPERATION_CONTEXTS: dict[str, DirOpReview] = {
             "allocation list and are retained."
         ),
     ),
-    "src/sase/workflows/commit/rebase_gate_runner.py:remove": DirOpReview(
+    "src/sase/workflows/commit/rebase_gate_execution.py:remove": DirOpReview(
         exemption=(
             "Removes only the rebase gate runner's private tempfile.mkdtemp "
             "directory containing one invocation's context and result JSON, "

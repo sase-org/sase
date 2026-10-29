@@ -19,6 +19,9 @@ from typing import Any
 import pytest
 
 from sase.workflows.commit import rebase_gate_runner as runner
+from sase.workflows.commit import rebase_gate_execution as execution
+from sase.workflows.commit import rebase_gate_process as process
+from sase.workflows.commit import rebase_gate_settings as settings
 from sase.workflows.commit.rebase_gate_budget import (
     GateBudgetExhausted,
     GateWorkBudget,
@@ -140,7 +143,7 @@ class GateHarness:
                 {"commit_hooks": {"after_rebase": ""}},
             )
 
-        monkeypatch.setattr(runner, "load_merged_config_for_local_path", fake_load)
+        monkeypatch.setattr(settings, "load_merged_config_for_local_path", fake_load)
 
         def validate_timeout(value: float) -> float:
             if not math.isfinite(value) or value <= 0 or value > 30:
@@ -343,7 +346,7 @@ def test_oversize_report_is_dropped(
 ) -> None:
     root = tmp_path / "repo"
     root.mkdir()
-    monkeypatch.setattr(runner, "_RESULT_CAP_BYTES", 64)
+    monkeypatch.setattr(execution, "_RESULT_CAP_BYTES", 64)
     hook = write_checker(
         tmp_path / "checker.py",
         exit_code=0,
@@ -468,7 +471,7 @@ def test_cancellation_kills_and_reaps_hook_group(
             time.sleep(0.01)  # sase-test-wait: wait for the hook start marker
         raise asyncio.CancelledError()
 
-    monkeypatch.setattr(runner, "_wait_gate_process", cancel_after_start)
+    monkeypatch.setattr(process, "_wait_gate_process", cancel_after_start)
 
     with pytest.raises(asyncio.CancelledError):
         runner.run_after_rebase_gate(make_context(), str(root))
@@ -707,7 +710,7 @@ def test_config_load_failure_warns(harness: GateHarness, tmp_path: Path) -> None
     def broken(path: Path) -> dict[str, Any]:
         raise RuntimeError("config store exploded")
 
-    harness.monkeypatch.setattr(runner, "load_merged_config_for_local_path", broken)
+    harness.monkeypatch.setattr(settings, "load_merged_config_for_local_path", broken)
     harness.fake_classify("pass")
     outcome = runner.run_after_rebase_gate(make_context(), str(root))
 
