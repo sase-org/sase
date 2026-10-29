@@ -743,8 +743,11 @@ sessions. Tracing starts when `AceApp` initializes, while each snapshot is sched
 from the TUI timer into a pump-free task and written from a worker thread. For
 collector-side attribution of cyclic garbage (which types the idle collection actually
 reclaimed, and which tracked types survived), use `SASE_TUI_GC_CENSUS=1` instead; that
-path writes `tui_gc_census` rows into `tui_stalls.jsonl` and lengthens the pause.
-Samples append one compact JSONL record to:
+path writes `tui_gc_census` rows into `tui_stalls.jsonl` and lengthens the pause. The
+surviving-types half of the row needs Python 3.14+. On 3.12 and 3.13 it is skipped, and
+the row records `survivor_census: "skipped_unsafe_python"`, because `gc.get_objects()`
+on those versions can crash worker threads that are building tuples. Samples append one
+compact JSONL record to:
 
 ```text
 ~/.sase/perf/tui_heap.jsonl
@@ -1018,8 +1021,11 @@ Set `SASE_TUI_GC_CENSUS=1` to opt into a type census on idle-triggered full coll
 at most once every 10 minutes. That collection runs with `gc.DEBUG_SAVEALL`, writes a
 `tui_gc_census` row (the 40 most common collected types as `module.qualname`, the 40
 most common surviving tracked types, and `census_duration_s`), then clears `gc.garbage`
-and collects again to free them. The census lengthens the pause; leave it off unless you
-are attributing garbage. Default is off.
+and collects again to free them. The surviving-types half needs Python 3.14+; on 3.12
+and 3.13 it is skipped and the row records `survivor_census: "skipped_unsafe_python"`,
+because `gc.get_objects()` on those versions can crash worker threads that are building
+tuples. The census lengthens the pause; leave it off unless you are attributing garbage.
+Default is off.
 
 ### Frozen-share report
 

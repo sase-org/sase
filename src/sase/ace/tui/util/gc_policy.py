@@ -20,7 +20,10 @@ Every collection runs under :func:`gc_trigger` (from
 watchdog can attribute any resulting hitch. The policy is driven by a 1 s
 ``set_interval`` whose callback stays thin and synchronous; it never reads
 ``/proc`` on the UI thread (RSS comes from the telemetry heartbeat sample)
-and never auto-installs under the ``sase.ace.testing`` harness.
+and never auto-installs under the ``sase.ace.testing`` harness. The opt-in
+survivor census (``SASE_TUI_GC_CENSUS=1``) needs Python 3.14+; earlier
+CPython versions skip ``gc.get_objects()`` and record collected-garbage
+types only.
 """
 
 from __future__ import annotations
@@ -28,6 +31,7 @@ from __future__ import annotations
 import gc
 import logging
 import os
+import sys
 import threading
 import time
 from collections import Counter
@@ -80,6 +84,16 @@ def is_enabled() -> bool:
 def _census_enabled() -> bool:
     """Return whether the opt-in GC census is on (``SASE_TUI_GC_CENSUS=1``)."""
     return os.environ.get(ENV_CENSUS) == "1"
+
+
+def _survivor_census_safe() -> bool:
+    """Return whether ``gc.get_objects()`` is safe to hold during a census.
+
+    On CPython < 3.14, ``gc.get_objects()`` exposes tuples that other threads
+    are still building, and holding them makes those threads'
+    ``_PyTuple_Resize`` fail with ``SystemError``.
+    """
+    return sys.version_info >= (3, 14)
 
 
 def _type_key(obj: object) -> str:
@@ -213,6 +227,7 @@ class GCPolicy:
         self._own_last_full_mono: float | None = None
         self._rss_at_last_full: int | None = None
         self._last_trim_mono: float | None = None
+        self._logged_survivor_census_skip = False
 
     def heartbeat_fields(self) -> dict[str, Any]:
         """Extra heartbeat fields published via ``register_heartbeat_provider``."""
@@ -367,7 +382,10 @@ class GCPolicy:
 
         Lengthens the pause: ``gc.DEBUG_SAVEALL`` retains collected cycles
         until a second collect frees them. Rate-limited to once per
-        ``CENSUS_INTERVAL_S`` and only on the ``idle`` trigger.
+        ``CENSUS_INTERVAL_S`` and only on the ``idle`` trigger. The
+        surviving-types half needs Python 3.14+; earlier interpreters skip
+        ``get_objects()`` and emit ``survivor_census:
+        "skipped_unsafe_python"``.
         """
         self._last_census_mono = now_mono
         start = self._monotonic()
@@ -398,18 +416,31 @@ class GCPolicy:
             except Exception:
                 pass
         survivor_top: list[dict[str, Any]] = []
-        survivor_count = 0
-        get_objects = getattr(collector, "get_objects", None)
-        if callable(get_objects):
-            try:
-                survivor_top, survivor_count = _top_types(get_objects())
-            except Exception:
-                pass
+        survivor_count: int | None
+        if _survivor_census_safe():
+            survivor_census = "ok"
+            survivor_count = 0
+            get_objects = getattr(collector, "get_objects", None)
+            if callable(get_objects):
+                try:
+                    survivor_top, survivor_count = _top_types(get_objects())
+                except Exception:
+                    pass
+        else:
+            survivor_census = "skipped_unsafe_python"
+            survivor_count = None
+            if not self._logged_survivor_census_skip:
+                self._logged_survivor_census_skip = True
+                log.warning(
+                    "Survivor type census skipped: needs Python 3.14+; "
+                    "recording collected-garbage types only"
+                )
         payload = {
             "garbage_top": garbage_top,
             "survivor_top": survivor_top,
             "garbage_count": garbage_count,
             "survivor_count": survivor_count,
+            "survivor_census": survivor_census,
             "census_duration_s": round(self._monotonic() - start, 6),
         }
         if self._census_emit is not None:

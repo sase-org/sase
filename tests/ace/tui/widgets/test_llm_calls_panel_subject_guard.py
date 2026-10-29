@@ -6,11 +6,13 @@ calls onto B, and B's skipped fetch must start when A's worker finishes.
 
 from __future__ import annotations
 
+import logging
 from datetime import datetime
 from types import SimpleNamespace
 from typing import Any, cast
 from unittest.mock import MagicMock, patch
 
+import pytest
 from textual.worker import Worker, WorkerState
 
 from sase.ace.tui.models.agent import Agent, AgentType
@@ -117,3 +119,60 @@ def test_stale_worker_error_starts_current_fetch_without_painting() -> None:
     assert panel.update.call_count == 0
     assert panel.run_worker.call_count == 1
     assert panel._current_worker_subject == agent_b.identity
+
+
+def test_fetch_workers_do_not_exit_on_error() -> None:
+    """Background fetches keep the TUI up when the worker raises."""
+    agent = _agent("aaa")
+    panel = _build_panel()
+    with (
+        patch(
+            "sase.ace.tui.widgets.llm_calls_panel.should_throttle_tool_sources",
+            return_value=False,
+        ),
+        patch("sase.ace.tui.widgets.llm_calls_panel.mark_tool_source_fetch_started"),
+        patch(
+            "sase.ace.tui.widgets.llm_calls_panel.supports_slow_tool_sources",
+            return_value=False,
+        ),
+        patch("sase.ace.tui.widgets.llm_calls_panel.invalidate_tool_source_caches"),
+        patch(
+            "sase.ace.tui.widgets.llm_calls_panel.peek_tool_calls_cache_entry",
+            return_value=None,
+        ),
+    ):
+        panel._start_background_fetch(agent)
+        start_kwargs = panel.run_worker.call_args.kwargs
+        assert start_kwargs["thread"] is True
+        assert start_kwargs["exit_on_error"] is False
+
+        panel.run_worker.reset_mock()
+        panel._current_worker = MagicMock(is_running=False)
+        panel.refresh_llm_calls(agent)
+        refresh_kwargs = panel.run_worker.call_args.kwargs
+        assert refresh_kwargs["thread"] is True
+        assert refresh_kwargs["exit_on_error"] is False
+
+
+def test_current_worker_error_renders_and_logs(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """A live fetch failure paints the panel error and logs the worker error."""
+    agent_a = _agent("aaa")
+    panel = _build_panel()
+    boom = RuntimeError("boom")
+    worker = MagicMock(is_running=False)
+    worker.error = boom
+    panel._current_agent = agent_a
+    panel._current_worker = worker
+    panel._current_worker_subject = agent_a.identity
+
+    with caplog.at_level(
+        logging.WARNING, logger="sase.ace.tui.widgets.llm_calls_panel"
+    ):
+        panel.on_worker_state_changed(_event(worker, WorkerState.ERROR))
+
+    assert panel.update.call_count == 1
+    rendered = str(panel.update.call_args.args[0])
+    assert "Error fetching tool calls" in rendered
+    assert "LLM calls fetch failed" in caplog.text

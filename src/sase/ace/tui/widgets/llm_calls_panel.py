@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from datetime import datetime
 from typing import Any, cast
 
@@ -52,6 +53,8 @@ from ._llm_calls_panel_types import (
     coerce_detail_level,
     detail_level_label,
 )
+
+log = logging.getLogger(__name__)
 
 _LLMCallsCacheEntry = ToolsCacheEntry
 _llm_calls_cache = tools_cache
@@ -179,7 +182,9 @@ class AgentLLMCallsPanel(Static):
         def fetch_task() -> LLMCallsPanelFetchResult:
             return self._fetch_llm_calls_result_in_background(agent)
 
-        self._current_worker = self.run_worker(fetch_task, thread=True)
+        self._current_worker = self.run_worker(
+            fetch_task, thread=True, exit_on_error=False
+        )
         self._current_worker_subject = agent.identity
 
     def refresh_llm_calls(self, agent: Agent) -> None:
@@ -205,7 +210,9 @@ class AgentLLMCallsPanel(Static):
         def fetch_task() -> LLMCallsPanelFetchResult:
             return self._fetch_llm_calls_result_in_background(agent)
 
-        self._current_worker = self.run_worker(fetch_task, thread=True)
+        self._current_worker = self.run_worker(
+            fetch_task, thread=True, exit_on_error=False
+        )
         self._current_worker_subject = agent.identity
 
     def get_llm_calls_text(self) -> str | None:
@@ -452,6 +459,8 @@ class AgentLLMCallsPanel(Static):
             )
             self._restore_scroll_position(scroll_pos)
         elif event.state == WorkerState.ERROR:
+            error = event.worker.error
+            log.warning("LLM calls fetch failed", exc_info=error)
             if self._is_stale_worker():
                 self._drop_stale_result_and_refetch()
                 return
