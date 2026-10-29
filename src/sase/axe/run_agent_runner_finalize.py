@@ -228,6 +228,77 @@ def _completion_output_variables(
     }
 
 
+def _held_staged_handoff_note(current_artifacts_dir: str | None) -> str | None:
+    """Name a held staged handoff for failure notifications, if any.
+
+    A refused adoption ends the run as failed; the completion note must name
+    the held kind, staged ID, and concrete reason so the user can re-adopt.
+    """
+    if not current_artifacts_dir:
+        return None
+    try:
+        from sase.agent.staged_handoff import (
+            StagedHandoffError,
+            read_adoption_receipt,
+            read_staged_handoff,
+        )
+
+        try:
+            receipt = read_adoption_receipt(current_artifacts_dir)
+        except StagedHandoffError:
+            return "Staged handoff state is malformed and held for re-adoption."
+        except Exception:
+            return None
+        if receipt is None:
+            return None
+        if receipt.get("outcome") == "adopted":
+            return None
+        if receipt.get("outcome") != "handoff_not_adopted":
+            return None
+        record_malformed = False
+        try:
+            record = read_staged_handoff(current_artifacts_dir)
+        except StagedHandoffError:
+            record = None
+            record_malformed = True
+        except Exception:
+            return None
+        if record_malformed:
+            kind = "malformed"
+            record_id: str | None = None
+        elif record is None:
+            kind = "unknown"
+            record_id = None
+        else:
+            raw_kind = record.get("kind")
+            kind = raw_kind if isinstance(raw_kind, str) and raw_kind else "unknown"
+            raw_record_id = record.get("staged_id")
+            record_id = (
+                raw_record_id
+                if isinstance(raw_record_id, str) and raw_record_id
+                else None
+            )
+        raw_staged_id = receipt.get("staged_id")
+        if isinstance(raw_staged_id, str) and raw_staged_id:
+            staged_id = raw_staged_id
+        elif record_id is not None:
+            staged_id = record_id
+        else:
+            staged_id = "unknown"
+        raw_reason = receipt.get("reason")
+        reason = (
+            raw_reason
+            if isinstance(raw_reason, str) and raw_reason.strip()
+            else "unknown reason"
+        )
+        return (
+            f"Staged {kind} handoff {staged_id} was not adopted: {reason}. "
+            "Its staged record and archived proposal are kept for re-adoption."
+        )
+    except Exception:
+        return None
+
+
 def _sdd_publication_error(current_artifacts_dir: str | None) -> str | None:
     """Read the planner's recorded SDD publication failure, if any.
 
@@ -376,6 +447,10 @@ def send_completion_notification(
     ]
     if not success and error_summary:
         notes.append(error_summary)
+    if not success:
+        held_staged_note = _held_staged_handoff_note(current_artifacts_dir)
+        if held_staged_note:
+            notes.append(held_staged_note)
     sdd_publication_error = _sdd_publication_error(current_artifacts_dir)
     if sdd_publication_error:
         notes.append(

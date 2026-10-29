@@ -372,9 +372,8 @@ def _member_facts(record: AgentArtifactRecordWire) -> dict[str, Any]:
         "remote": _is_remote(record),
         "finalizing": _is_finalizing(record),
         "pending_handoff": pending,
-        # Staged fields ride the same reducer wire once the sase-core pin
-        # includes them; omit when absent so the currently pinned core
-        # (which denies unknown fields) still accepts ordinary members.
+        "staged_handoff": staged_kind,
+        "staged_receipt_outcome": staged_outcome,
         "handoff_inflight": _handoff_inflight(record.artifact_dir),
         "recovery_in_flight": recovery_in_flight(record.artifact_dir),
         "turn_state": turn_state,
@@ -385,10 +384,6 @@ def _member_facts(record: AgentArtifactRecordWire) -> dict[str, Any]:
         "started_at": _started_at(record),
         "ended_at": _ended_at(record),
     }
-    if staged_kind is not None:
-        facts["staged_handoff"] = staged_kind
-    if staged_outcome is not None:
-        facts["staged_receipt_outcome"] = staged_outcome
     return facts
 
 
