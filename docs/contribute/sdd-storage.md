@@ -338,13 +338,16 @@ Managed Git commands disable `rerere` and `rerere.autoupdate`, so a user's ambie
 configuration cannot replay a cached textual conflict resolution over SASE's semantic
 bead merge. During a rebase SASE also resolves conflicts it can prove are generated:
 bead event state, artifact-link indexes and managed `## Links` / `## Referenced By`
-blocks, and the `AGENTS` / `COMMITS` rows of a month-sharded plan's generated header
-(see [Artifact Links](../reference/work-units/plans.md#artifact-links)). Any other
-conflict, including authored plan text, is not merged. Ordinary transactional
-integration restores the pre-rebase state after a failed rebase and refuses unsafe or
-unprovable recovery. A Git command that hits its timeout mid-integration gets the same
-treatment: the in-progress rebase is aborted and the rollback to the locked starting
-state is verified, so a slow remote cannot leave the checkout wedged mid-rebase.
+blocks, the `AGENTS` / `COMMITS` rows of a month-sharded plan's generated header (see
+[Artifact Links](../reference/work-units/plans.md#artifact-links)), and a
+`repos.linked[].revision_pin` file whose two SHAs are linearly ordered in the pinned
+checkout (the descendant SHA wins; diverged or unreadable pins fall through to model
+repair). Any other conflict, including authored plan text, is not merged. Ordinary
+transactional integration restores the pre-rebase state after a failed rebase and
+refuses unsafe or unprovable recovery. A Git command that hits its timeout
+mid-integration gets the same treatment: the in-progress rebase is aborted and the
+rollback to the locked starting state is verified, so a slow remote cannot leave the
+checkout wedged mid-rebase.
 
 The background bead sync worker adds one more rollback. Before publishing, it checks
 that its unpublished commits do not drop or rewrite bead events already on the upstream.

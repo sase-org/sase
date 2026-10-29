@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -32,6 +33,10 @@ from sase.sdd._plan_header_conflict_resolver import (
     is_plan_header_conflict_path,
     resolve_plan_header_conflicts,
 )
+from sase.sdd._revision_pin_conflict_resolver import (
+    is_revision_pin_conflict_path,
+    resolve_revision_pin_conflicts,
+)
 
 
 @dataclass(frozen=True)
@@ -46,11 +51,18 @@ def resolve_semantic_conflicts(
     cwd: str | Path = ".",
     *,
     beads_dir: str | Path | None = None,
+    revision_pin_sibling_dirs: Mapping[str, str | Path] | None = None,
+    revision_pin_pins: Mapping[str, str] | None = None,
 ) -> _SemanticConflictResolution:
     """Resolve every currently unmerged path claimed by a semantic resolver."""
 
     try:
-        return _resolve_semantic_conflicts(Path(cwd), beads_dir)
+        return _resolve_semantic_conflicts(
+            Path(cwd),
+            beads_dir,
+            revision_pin_sibling_dirs=revision_pin_sibling_dirs,
+            revision_pin_pins=revision_pin_pins,
+        )
     except GitProbeFailure as error:
         return _SemanticConflictResolution(False, str(error))
 
@@ -58,6 +70,9 @@ def resolve_semantic_conflicts(
 def _resolve_semantic_conflicts(
     cwd: Path,
     beads_dir: str | Path | None,
+    *,
+    revision_pin_sibling_dirs: Mapping[str, str | Path] | None = None,
+    revision_pin_pins: Mapping[str, str] | None = None,
 ) -> _SemanticConflictResolution:
     repo_root = git_repo_root(cwd)
     if repo_root is None:
@@ -78,6 +93,7 @@ def _resolve_semantic_conflicts(
     link_conflicts: list[str] = []
     link_markdown_conflicts: list[str] = []
     plan_header_conflicts: list[str] = []
+    pin_conflicts: list[str] = []
     unclaimed: list[str] = []
     for path in conflicted:
         if bead_prefix is not None and is_bead_path(path, bead_prefix):
@@ -88,6 +104,8 @@ def _resolve_semantic_conflicts(
             link_markdown_conflicts.append(path)
         elif is_plan_header_conflict_path(repo_root, path):
             plan_header_conflicts.append(path)
+        elif is_revision_pin_conflict_path(repo_root, path, pins=revision_pin_pins):
+            pin_conflicts.append(path)
         else:
             unclaimed.append(path)
 
@@ -98,6 +116,7 @@ def _resolve_semantic_conflicts(
                 not link_conflicts
                 and not link_markdown_conflicts
                 and not plan_header_conflicts
+                and not pin_conflicts
             )
             else "non-semantic conflicts remain: "
         )
@@ -157,6 +176,22 @@ def _resolve_semantic_conflicts(
                 bead_relocations,
             )
         resolved.extend(plan_header_result.resolved_files)
+
+    if pin_conflicts:
+        pin_result = resolve_revision_pin_conflicts(
+            repo_root,
+            tuple(pin_conflicts),
+            sibling_dirs=revision_pin_sibling_dirs,
+            pins=revision_pin_pins,
+        )
+        if not pin_result.ok:
+            return _SemanticConflictResolution(
+                False,
+                pin_result.message,
+                tuple(sorted(dict.fromkeys(resolved))),
+                bead_relocations,
+            )
+        resolved.extend(pin_result.resolved_files)
 
     message = "resolved semantic conflicts: " + ", ".join(
         sorted(dict.fromkeys(resolved))

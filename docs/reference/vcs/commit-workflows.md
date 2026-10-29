@@ -50,7 +50,9 @@ Creates an actual git commit on the current branch and pushes it.
 1. Stage files (`git add -A`, honoring `-x/--exclude`, or the internal allowlist)
 2. Stage in-repo SDD bead and plan files when present
 3. Validate staged changes exist
-4. Merge with `origin/<default_branch>` to keep the branch current
+4. Merge with `origin/<default_branch>` to keep the branch current (a rebase conflict
+   limited to generated state — bead events, artifact-link indexes, plan-header rows, or
+   a linearly-ordered `revision_pin` — resolves mechanically first)
 5. `git commit -m <message>`
 6. Fold any straggler bead-store changes into the commit via amend
 7. Push to remote with retry on failure
