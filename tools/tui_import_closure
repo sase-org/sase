@@ -2,9 +2,10 @@
 """Measure the TUI startup import closure and diff it against a revision.
 
 With no arguments, imports ``sase.ace.tui.app`` in a fresh interpreter and
-prints the module count. With ``--diff REV``, the same import is measured
-at ``REV`` from a temporary detached worktree (using this interpreter with
-``PYTHONPATH`` pointed at the worktree's ``src``), and the ``sase.*``
+prints the first-party (``sase`` / ``sase.*``) module count the import-budget
+guard enforces. With ``--diff REV``, the same import is measured at ``REV``
+from a temporary detached worktree (using this interpreter with
+``PYTHONPATH`` pointed at the worktree's ``src``), and the first-party
 modules added and removed since ``REV`` are printed. The worktree is
 removed afterwards.
 """
@@ -37,10 +38,19 @@ MEASURE_SNIPPET = textwrap.dedent(
     print(json.dumps({
         "elapsed_seconds": elapsed,
         "module_count": len(sys.modules),
-        "sase_modules": sorted(name for name in sys.modules if name.startswith("sase.")),
+        "sase_modules": sorted(
+            name
+            for name in sys.modules
+            if name == "sase" or name.startswith("sase.")
+        ),
     }))
     """
 )
+
+
+def is_first_party_module(name: str) -> bool:
+    """Return True for the ``sase`` package and its submodules."""
+    return name == "sase" or name.startswith("sase.")
 
 
 @dataclass(frozen=True)
@@ -48,6 +58,10 @@ class ClosureMeasurement:
     elapsed_seconds: float
     module_count: int
     sase_modules: tuple[str, ...]
+
+    @property
+    def sase_module_count(self) -> int:
+        return len(self.sase_modules)
 
 
 def _measure(cwd: Path, extra_src: Path | None = None) -> ClosureMeasurement:
@@ -73,7 +87,9 @@ def _measure(cwd: Path, extra_src: Path | None = None) -> ClosureMeasurement:
     return ClosureMeasurement(
         elapsed_seconds=float(payload["elapsed_seconds"]),
         module_count=int(payload["module_count"]),
-        sase_modules=tuple(payload["sase_modules"]),
+        sase_modules=tuple(
+            name for name in payload["sase_modules"] if is_first_party_module(name)
+        ),
     )
 
 
@@ -122,12 +138,63 @@ def _colored(text: str, code: str) -> str:
     return f"\033[{code}m{text}\033[0m"
 
 
+def format_current_line(measurement: ClosureMeasurement) -> str:
+    """Return the bare-form summary line (first-party count first)."""
+    return (
+        f"TUI app import closure: {measurement.sase_module_count} sase.* "
+        f"modules ({measurement.module_count} total, "
+        f"{measurement.elapsed_seconds:.2f}s CPU)"
+    )
+
+
+def format_base_line(rev: str, sha: str, measurement: ClosureMeasurement) -> str:
+    """Return the ``--diff`` baseline summary line."""
+    return (
+        f"at {rev} ({sha[:12]}): {measurement.sase_module_count} sase.* "
+        f"modules ({measurement.module_count} total)"
+    )
+
+
+def format_change_line(current: ClosureMeasurement, base: ClosureMeasurement) -> str:
+    """Return the ``--diff`` first-party delta line."""
+    sase_delta = current.sase_module_count - base.sase_module_count
+    total_delta = current.module_count - base.module_count
+    return f"change: {sase_delta:+d} sase.* modules ({total_delta:+d} total)"
+
+
+def format_diff_lines(
+    current: ClosureMeasurement,
+    base: ClosureMeasurement,
+    *,
+    rev: str,
+    sha: str,
+) -> list[str]:
+    """Return ``--diff`` body lines after the current-closure summary."""
+    lines = [
+        format_base_line(rev, sha, base),
+        format_change_line(current, base),
+    ]
+    added = sorted(set(current.sase_modules) - set(base.sase_modules))
+    removed = sorted(set(base.sase_modules) - set(current.sase_modules))
+    if added:
+        lines.append(_colored(f"added ({len(added)}):", "32"))
+        for name in added:
+            lines.append(f"  {_colored('+' + name, '32')}")
+    if removed:
+        lines.append(_colored(f"removed ({len(removed)}):", "31"))
+        for name in removed:
+            lines.append(f"  {_colored('-' + name, '31')}")
+    if not added and not removed:
+        lines.append("no sase.* module changes")
+    return lines
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description=(
-            "Print the fresh-interpreter module count for "
-            "`import sase.ace.tui.app`, optionally diffing the `sase.*` "
-            "closure against a revision."
+            "Print the fresh-interpreter first-party (sase / sase.*) "
+            "module count for `import sase.ace.tui.app`, optionally "
+            "diffing that closure against a revision."
         ),
     )
     parser.add_argument(
@@ -136,9 +203,9 @@ def build_parser() -> argparse.ArgumentParser:
         metavar="REV",
         default=None,
         help=(
-            "diff the current closure against REV (measured from a "
-            "temporary detached worktree) and list added/removed sase.* "
-            "modules"
+            "diff the current first-party closure against REV (measured "
+            "from a temporary detached worktree) and list added/removed "
+            "sase.* modules"
         ),
     )
     return parser
@@ -147,29 +214,13 @@ def build_parser() -> argparse.ArgumentParser:
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     current = _measure(REPO_ROOT)
-    print(
-        f"TUI app import closure: {current.module_count} modules "
-        f"({len(current.sase_modules)} sase.*, "
-        f"{current.elapsed_seconds:.2f}s CPU)"
-    )
+    print(format_current_line(current))
     if args.diff is None:
         return 0
     sha = _resolve_rev(args.diff)
     base = _measure_at_rev(args.diff, sha)
-    print(f"at {args.diff} ({sha[:12]}): {base.module_count} modules")
-    added = sorted(set(current.sase_modules) - set(base.sase_modules))
-    removed = sorted(set(base.sase_modules) - set(current.sase_modules))
-    print(f"change: {current.module_count - base.module_count:+d} modules")
-    if added:
-        print(_colored(f"added ({len(added)}):", "32"))
-        for name in added:
-            print(f"  {_colored('+' + name, '32')}")
-    if removed:
-        print(_colored(f"removed ({len(removed)}):", "31"))
-        for name in removed:
-            print(f"  {_colored('-' + name, '31')}")
-    if not added and not removed:
-        print("no sase.* module changes")
+    for line in format_diff_lines(current, base, rev=args.diff, sha=sha):
+        print(line)
     return 0
 
 
