@@ -100,6 +100,7 @@ def _workspace_claim_request_from_dict(
             else int(data["transfer_from_pid"])
         ),
         pinned=bool(data.get("pinned", False)),
+        skip_workspaces=tuple(int(num) for num in (data.get("skip_workspaces") or ())),
     )
 
 

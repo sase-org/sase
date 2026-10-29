@@ -3,9 +3,13 @@
 import contextlib
 from collections.abc import Generator
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from sase.axe.runner_workspace_beads import protect_workspace_bead_stores
 from sase.axe.runner_workspace_sidecar import protect_sidecar_repos
+
+if TYPE_CHECKING:
+    from sase.axe.runner_workspace_errors import WorkspacePreparationError
 
 
 def _agents_sidecar_clone_root(workspace_dir: str | Path) -> Path | None:
@@ -203,6 +207,8 @@ def rescue_repo_clones_before_eviction(
 def prepare_launch_workspace_repos(
     workspace_dir: str,
     workspace_num: int,
+    *,
+    project: str | None = None,
 ) -> frozenset[str]:
     """Evict launch-scoped repos and strictly recreate required sidecars.
 
@@ -224,6 +230,8 @@ def prepare_launch_workspace_repos(
         preserve_nested_repositories,
     )
 
+    project_name = _project_name_for_workspace(workspace_dir, project)
+
     # Only numbered workspaces evict sidecars; the primary checkout's clones
     # survive ``clear_workspace_repos`` untouched.
     if workspace_num > 1:
@@ -236,22 +244,33 @@ def prepare_launch_workspace_repos(
             )
         except NestedPreservationError as exc:
             loc = format_preservation_locations(exc.locations)
-            raise WorkspacePreparationError(
+            detail = (
                 "verified nested preservation failed before launch eviction: "
-                f"{exc}{loc}",
-                step="sidecar-protection",
-                workspace_dir=str(workspace_dir),
-                reclone_eligible=False,
+                f"{exc}{loc}"
+            )
+            raise _quarantine_preparation_error(
+                detail,
+                workspace_dir=workspace_dir,
+                workspace_num=workspace_num,
+                project=project_name,
+                nested_root=exc.nested_root,
+                dirty_paths=exc.dirty_paths,
             ) from exc
         except PreservationError as exc:
-            raise WorkspacePreparationError(
-                f"verified nested preservation failed before launch eviction: {exc}",
-                step="sidecar-protection",
-                workspace_dir=str(workspace_dir),
-                reclone_eligible=False,
+            detail = (
+                f"verified nested preservation failed before launch eviction: {exc}"
+            )
+            raise _quarantine_preparation_error(
+                detail,
+                workspace_dir=workspace_dir,
+                workspace_num=workspace_num,
+                project=project_name,
+                nested_root="",
+                dirty_paths=(),
             ) from exc
         if nested.locations:
             print(f"Verified nested preservation: {', '.join(nested.locations)}")
+        _clear_slot_refusal(project_name, workspace_num)
         protect_unpushed_sidecar_commits(
             workspace_dir, evicting=True, workspace_num=workspace_num
         )
@@ -284,6 +303,70 @@ def prepare_launch_workspace_repos(
     if not (plans / ".git").is_dir():
         return frozenset()
     return frozenset({str(plans.resolve())})
+
+
+def _project_name_for_workspace(
+    workspace_dir: str,
+    project: str | None,
+) -> str:
+    if project and project.strip():
+        return project.strip()
+    try:
+        from sase.workspace_provider.marker import find_marker_from_cwd, read_marker
+
+        marker = read_marker(str(Path(workspace_dir).expanduser()))
+        if marker is None:
+            found = find_marker_from_cwd(str(Path(workspace_dir).expanduser()))
+            marker = found[1] if found is not None else None
+    except Exception:  # noqa: BLE001 - identity is best-effort for quarantine.
+        marker = None
+    if marker is not None and marker.project_name:
+        return marker.project_name
+    return Path(workspace_dir).name or "workspace"
+
+
+def _clear_slot_refusal(project: str, workspace_num: int) -> None:
+    try:
+        from sase.workspace_provider.slot_refusal import clear_refusal
+
+        clear_refusal(project, workspace_num)
+    except Exception:  # noqa: BLE001 - clearing must not fail a successful launch.
+        pass
+
+
+def _quarantine_preparation_error(
+    detail: str,
+    *,
+    workspace_dir: str,
+    workspace_num: int,
+    project: str,
+    nested_root: str,
+    dirty_paths: tuple[str, ...],
+) -> "WorkspacePreparationError":
+    from sase.axe.runner_workspace_errors import WorkspacePreparationError
+    from sase.workspace_provider.slot_refusal import (
+        format_actionable_message,
+        record_slot_refusal,
+    )
+
+    nested = nested_root or str(Path(workspace_dir).expanduser() / "sase" / "repos")
+    try:
+        record = record_slot_refusal(
+            project=project,
+            workspace_num=workspace_num,
+            nested_repo=nested,
+            reason=detail,
+            dirty_paths=dirty_paths,
+        )
+        message = f"{format_actionable_message(record)} ({detail})"
+    except Exception:  # noqa: BLE001 - recording must not hide the refusal.
+        message = detail
+    return WorkspacePreparationError(
+        message,
+        step="sidecar-protection",
+        workspace_dir=str(workspace_dir),
+        reclone_eligible=False,
+    )
 
 
 __all__ = [

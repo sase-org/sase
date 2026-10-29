@@ -69,11 +69,15 @@ def preserve_nested_repositories(
             raise NestedPreservationError(
                 f"could not preserve nested repository {root}: {exc}",
                 locations=locations,
+                nested_root=root,
+                dirty_paths=_dirty_paths_for(root),
             ) from exc
         except Exception as exc:
             raise NestedPreservationError(
                 f"could not preserve nested repository {root}: {exc}",
                 locations=locations,
+                nested_root=root,
+                dirty_paths=_dirty_paths_for(root),
             ) from exc
         if record is not None:
             locations.append(str(record.manifest_path.resolve(strict=False)))
@@ -133,6 +137,13 @@ def _collect_git_roots(
         if child.is_symlink() or not child.is_dir():
             continue
         _collect_git_roots(child, parent_key, found)
+
+
+def _dirty_paths_for(root: Path) -> tuple[str, ...]:
+    from sase.workspace_provider.slot_refusal import bounded_dirty_paths
+
+    listed = bounded_dirty_paths(root)
+    return listed if listed is not None else ()
 
 
 def _label_for(root: Path, parent: Path) -> str:

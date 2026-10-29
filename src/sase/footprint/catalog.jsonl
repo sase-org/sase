@@ -1,4 +1,4 @@
-{"count": 3654, "rev": "6839fc9bdc18", "schema": "sase.footprint.catalog/1"}
+{"count": 3655, "rev": "f477d2451ad6", "schema": "sase.footprint.catalog/1"}
 {"area": "automation", "id": "auto:axe.agent_waits", "kind": "auto", "label": "Resolve agent wait dependencies within seconds of completion", "ns": "auto", "parent": null, "src": "sase/default_config.yml"}
 {"area": "automation", "id": "auto:axe.agent_waits.wait_checks", "kind": "auto", "label": "Resolve agent wait dependencies and write ready.json when satisfied", "ns": "auto", "parent": "auto:axe.agent_waits", "src": "sase/default_config.yml"}
 {"area": "automation", "id": "auto:axe.checks", "kind": "auto", "label": "Poll slower PR-submission and workspace-claim checks on a five-minute cadence", "ns": "auto", "parent": null, "src": "sase/default_config.yml"}
@@ -2004,6 +2004,7 @@
 {"area": "cli.workspace", "id": "cli:workspace.path", "kind": "command", "label": "Print the checkout path for a workspace number", "ns": "cli", "parent": null, "src": "sase/main/parser_workspace.py:register_workspace_parser"}
 {"area": "cli.workspace", "id": "cli:workspace.path#project", "kind": "option", "label": "Option --project of cli:workspace.path", "ns": "cli", "parent": "cli:workspace.path", "src": "sase/main/parser_workspace.py:register_workspace_parser"}
 {"area": "cli.workspace", "id": "cli:workspace.repair", "kind": "command", "label": "Reconcile the workspace registry with the filesystem", "ns": "cli", "parent": null, "src": "sase/main/parser_workspace.py:register_workspace_parser"}
+{"area": "cli.workspace", "id": "cli:workspace.repair#clear_refusal", "kind": "option", "label": "Option --clear_refusal of cli:workspace.repair", "ns": "cli", "parent": "cli:workspace.repair", "src": "sase/main/parser_workspace.py:register_workspace_parser"}
 {"area": "cli.workspace", "id": "cli:workspace.repair#dry_run", "kind": "option", "label": "Option --dry_run of cli:workspace.repair", "ns": "cli", "parent": "cli:workspace.repair", "src": "sase/main/parser_workspace.py:register_workspace_parser"}
 {"area": "cli.workspace", "id": "cli:workspace.repair#project", "kind": "option", "label": "Option --project of cli:workspace.repair", "ns": "cli", "parent": "cli:workspace.repair", "src": "sase/main/parser_workspace.py:register_workspace_parser"}
 {"area": "config.ace", "id": "config:ace.agent_decks.block_spread_max_screens", "kind": "config", "label": "Block spread max screens", "ns": "config", "parent": null, "src": "sase/default_config.yml"}

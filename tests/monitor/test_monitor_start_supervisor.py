@@ -131,8 +131,10 @@ def test_start_monitor_scrubs_agent_identity_from_the_supervisor_env(
     captured_env: dict[str, str] = {}
 
     def fake_popen(*args: object, **kwargs: object) -> object:
+        pass_fds = kwargs.get("pass_fds")
         env = kwargs.get("env")
-        if isinstance(env, dict):
+        if pass_fds and isinstance(env, dict):
+            captured_env.clear()
             captured_env.update(env)
         return real_popen(*args, **kwargs)  # type: ignore[arg-type]
 

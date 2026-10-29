@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import argparse
 
+from sase.completion.kinds import ValueKind, set_completion_kind
+
 
 def register_workspace_parser(subparsers: argparse._SubParsersAction) -> None:
     """Register the ``sase workspace`` subcommand parser."""
@@ -161,18 +163,32 @@ def register_workspace_parser(subparsers: argparse._SubParsersAction) -> None:
         "repair",
         help="Reconcile the workspace registry with the filesystem",
     )
-    repair_parser.add_argument(
-        "-p",
-        "--project",
+    clear_refusal = repair_parser.add_argument(
+        "-C",
+        "--clear-refusal",
+        nargs="?",
+        const="*",
         default=None,
-        help="Project to repair (default: infer from current directory)",
+        metavar="NUM",
+        help=(
+            "Clear a nested-preservation workspace refusal. Pass NUM to "
+            "force-clear that slot; omit NUM to clear refusals whose nested "
+            "repo is now clean or gone"
+        ),
     )
+    set_completion_kind(clear_refusal, ValueKind.WORKSPACE)
     repair_parser.add_argument(
         "-n",
         "--dry-run",
         action="store_true",
         dest="dry_run",
         help="Report planned changes without touching the filesystem or registry",
+    )
+    repair_parser.add_argument(
+        "-p",
+        "--project",
+        default=None,
+        help="Project to repair (default: infer from current directory)",
     )
 
     migrate_parser = workspace_sub.add_parser(

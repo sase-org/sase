@@ -439,11 +439,12 @@ def test_start_monitor_kills_a_supervisor_that_never_writes_the_ack_marker(
     spawned: list[subprocess.Popen[bytes]] = []
 
     def fake_popen(*args: object, **kwargs: object) -> object:
-        del args
+        pass_fds = kwargs.get("pass_fds")
+        if not pass_fds:
+            return real_popen(*args, **kwargs)  # type: ignore[arg-type]
         # Alive, but wedged before it could write `.monitor_started`.
         stalled = real_popen(["sleep", "30"])
         spawned.append(stalled)
-        pass_fds = kwargs["pass_fds"]
         assert isinstance(pass_fds, tuple)
         pid_fd = pass_fds[0]
         assert isinstance(pid_fd, int)

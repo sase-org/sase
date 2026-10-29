@@ -43590,7 +43590,7 @@
           {
             "aliases": [],
             "default_child": null,
-            "description_digest": "9b70441413727070",
+            "description_digest": "dfd287ac673c2659",
             "hidden": false,
             "mutex_groups": [],
             "name": "repair",
@@ -43614,15 +43614,15 @@
               {
                 "choices": null,
                 "default": null,
-                "dest": "project",
+                "dest": "clear_refusal",
                 "hidden": false,
-                "kind": "project",
-                "metavar": null,
+                "kind": "workspace",
+                "metavar": "NUM",
                 "repeatable": false,
                 "required": false,
                 "strings": [
-                  "-p",
-                  "--project"
+                  "-C",
+                  "--clear-refusal"
                 ],
                 "takes_value": true,
                 "value_hint": null
@@ -43641,6 +43641,22 @@
                   "--dry-run"
                 ],
                 "takes_value": false,
+                "value_hint": null
+              },
+              {
+                "choices": null,
+                "default": null,
+                "dest": "project",
+                "hidden": false,
+                "kind": "project",
+                "metavar": null,
+                "repeatable": false,
+                "required": false,
+                "strings": [
+                  "-p",
+                  "--project"
+                ],
+                "takes_value": true,
                 "value_hint": null
               }
             ],

@@ -15,6 +15,7 @@ from sase.running_field import (
     get_first_available_axe_workspace,
     get_first_available_workspace,
 )
+from sase.workspace_provider.slot_refusal import record_slot_refusal
 from tests._running_field_helpers import create_project_file_with_running
 
 
@@ -59,6 +60,30 @@ def test_get_first_available_workspace_skips_claimed_unified_pool_slot(
         assert workspace_num == 11
     finally:
         Path(project_file).unlink()
+
+
+def test_get_first_available_workspace_skips_quarantined_slot(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A standing nested-preservation refusal is treated as occupied."""
+    project_file = tmp_path / "demo.sase"
+    project_file.write_text(
+        "# Test Project\n\nNAME: Demo\nSTATUS: Ready\n", encoding="utf-8"
+    )
+    monkeypatch.setenv("SASE_HOME", str(tmp_path / "sase-home"))
+    monkeypatch.setattr(
+        "sase.workspace_provider.slot_refusal.nested_repo_still_refuses",
+        lambda _nested: True,
+    )
+    record_slot_refusal(
+        project="demo",
+        workspace_num=10,
+        nested_repo=tmp_path / "nested",
+        reason="cap exceeded",
+        dirty_paths=("tracked.txt",),
+        notify=False,
+    )
+    assert get_first_available_workspace(str(project_file)) == 11
 
 
 def test_get_first_available_axe_workspace_returns_first_gap(tmp_path: Path) -> None:

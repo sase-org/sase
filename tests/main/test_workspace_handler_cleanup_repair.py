@@ -20,6 +20,7 @@ from sase.workspace_provider.registry import (
     save_registry,
 )
 from sase.workspace_provider.store import WorkspaceStore
+from sase.workspace_provider.slot_refusal import list_refusals, record_slot_refusal
 from sase.workspace_provider.utils import non_interactive_git_env
 from tests.main.workspace_handler_helpers import make_args, project_layout
 
@@ -558,3 +559,87 @@ class TestRepair:
         assert "dissociating shared object alternate for #10" in out
         assert not alternates.exists()
         _git(checkout, "fsck", "--connectivity-only")
+
+    def test_repair_force_clears_standing_refusal(
+        self,
+        project_layout: tuple[str, str, Path],
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        project_name, _, _primary = project_layout
+        nested = tmp_path / "nested"
+        nested.mkdir()
+        (nested / ".git").mkdir()
+        (nested / "tracked.txt").write_text("dirty\n", encoding="utf-8")
+        monkeypatch.setattr(
+            "sase.workspace_provider.slot_refusal.nested_repo_still_refuses",
+            lambda _nested: True,
+        )
+        record_slot_refusal(
+            project=project_name,
+            workspace_num=10,
+            nested_repo=nested,
+            reason="cap exceeded",
+            dirty_paths=("tracked.txt",),
+            notify=False,
+        )
+        assert list_refusals(project_name)
+
+        args = make_args(
+            workspace_subcommand="repair",
+            project=project_name,
+            dry_run=False,
+            clear_refusal="10",
+        )
+        with pytest.raises(SystemExit) as exc:
+            handle_workspace_command(args)
+        assert exc.value.code == 0
+        out = capsys.readouterr().out
+        assert "clearing nested-preservation refusal for #10" in out
+        assert list_refusals(project_name) == []
+
+    def test_repair_auto_clears_stale_refusal_and_skips_still_dirty(
+        self,
+        project_layout: tuple[str, str, Path],
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        project_name, _, _primary = project_layout
+        record_slot_refusal(
+            project=project_name,
+            workspace_num=11,
+            nested_repo=tmp_path / "gone-nested",
+            reason="cap exceeded",
+            dirty_paths=("tracked.txt",),
+            notify=False,
+        )
+        monkeypatch.setattr(
+            "sase.workspace_provider.slot_refusal.nested_repo_still_refuses",
+            lambda nested: "still-dirty" in str(nested),
+        )
+        record_slot_refusal(
+            project=project_name,
+            workspace_num=10,
+            nested_repo=tmp_path / "still-dirty",
+            reason="cap exceeded",
+            dirty_paths=("tracked.txt",),
+            notify=False,
+        )
+
+        args = make_args(
+            workspace_subcommand="repair",
+            project=project_name,
+            dry_run=False,
+            clear_refusal="*",
+        )
+        with pytest.raises(SystemExit) as exc:
+            handle_workspace_command(args)
+        assert exc.value.code == 0
+        out = capsys.readouterr().out
+        assert "clearing nested-preservation refusal for #11" in out
+        assert "skipping refusal #10:" in out
+        assert "pass --clear-refusal 10 to force-clear" in out
+        remaining = list_refusals(project_name)
+        assert [record.workspace_num for record in remaining] == [10]

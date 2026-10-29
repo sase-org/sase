@@ -124,6 +124,7 @@ def test_fix_routes_generated_docs_to_their_declared_venvs(tmp_path: Path) -> No
     )
     _install_executable(
         tmp_path / ".venv-format/bin/ruff",
+        'if [ "$1" = "--version" ]; then echo "ruff 0.17.3"; exit 0; fi\n'
         'echo ruff "$@" >> "$JUST_SPY_FILE"\nexit 0\n',
     )
     _install_executable(

@@ -173,7 +173,9 @@ class TestDeferredWorkspaceFlow:
             events.append(("prepare", workspace_dir))
             return True
 
-        def prepare_sidecars(workspace_dir: str, workspace_num: int) -> frozenset[str]:
+        def prepare_sidecars(
+            workspace_dir: str, workspace_num: int, *_args: Any, **_kwargs: Any
+        ) -> frozenset[str]:
             assert workspace_dir == str(real_ws)
             assert workspace_num == 3
             events.append("prepare-sidecars")

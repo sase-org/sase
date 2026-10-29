@@ -80,6 +80,72 @@ def claimed_nums(
     return {claim.workspace_num for claim in get_claimed_workspaces(project_file)}
 
 
+def _refusal_repair_plan(
+    project: str,
+    clear_refusal: str | None,
+    *,
+    dry_run: bool,
+) -> tuple[list[tuple[int, str]], list[tuple[int, str]]]:
+    """Plan (and optionally apply) nested-preservation refusal clears.
+
+    *clear_refusal* is ``None`` (auto-clear stale records during repair),
+    ``"*"`` (``--clear-refusal`` without a number), or a workspace number
+    string for a force-clear.
+    """
+    from sase.workspace_provider.slot_refusal import (
+        SlotRefusalRecord,
+        clear_refusal as force_clear_refusal,
+        clear_stale_refusals,
+        list_refusals,
+        nested_repo_still_refuses,
+    )
+
+    clears: list[tuple[int, str]] = []
+    skips: list[tuple[int, str]] = []
+    if clear_refusal not in {None, "*"}:
+        try:
+            workspace_num = int(clear_refusal)
+        except (TypeError, ValueError):
+            skips.append((0, f"invalid workspace number {clear_refusal!r}"))
+            return clears, skips
+        records: dict[int, SlotRefusalRecord] = {
+            record.workspace_num: record for record in list_refusals(project)
+        }
+        record = records.get(workspace_num)
+        if record is None:
+            skips.append((workspace_num, "no standing nested-preservation refusal"))
+            return clears, skips
+        if not dry_run:
+            force_clear_refusal(project, workspace_num)
+        clears.append((workspace_num, record.nested_repo))
+        return clears, skips
+
+    stale = []
+    standing = []
+    for record in list_refusals(project):
+        if nested_repo_still_refuses(record.nested_repo):
+            standing.append(record)
+        else:
+            stale.append(record)
+    if not dry_run:
+        clear_stale_refusals(project)
+        if clear_refusal is None:
+            # Repair always drops refusals that no longer apply.
+            pass
+    for record in stale:
+        clears.append((record.workspace_num, record.nested_repo))
+    if clear_refusal == "*":
+        for record in standing:
+            skips.append(
+                (
+                    record.workspace_num,
+                    "nested repo is still dirty; pass "
+                    f"--clear-refusal {record.workspace_num} to force-clear",
+                )
+            )
+    return clears, skips
+
+
 def _is_stale(
     entry: WorkspaceEntry,
     *,
@@ -538,6 +604,11 @@ def handle_repair(
     dissociate: list[tuple[int, str]] = []
     alternate_failures: list[tuple[int, str]] = []
     alternate_skips: list[tuple[int, str]] = []
+    refusal_clears, refusal_skips = _refusal_repair_plan(
+        ctx.project_name,
+        getattr(args, "clear_refusal", None),
+        dry_run=bool(args.dry_run),
+    )
 
     for num, entry in sorted_entries(registry):
         if num == PRIMARY_WORKSPACE_NUM:
@@ -589,6 +660,8 @@ def handle_repair(
         and not dissociate
         and not alternate_failures
         and not alternate_skips
+        and not refusal_clears
+        and not refusal_skips
     ):
         print("Registry is in sync with the filesystem.")
         return 0
@@ -609,6 +682,11 @@ def handle_repair(
         print(f"skipping #{num}: {detail}")
     for num, detail in alternate_failures:
         print(f"failed #{num}: {detail}", file=sys.stderr)
+    for num, nested in refusal_clears:
+        verb = "would clear" if args.dry_run else "clearing"
+        print(f"{verb} nested-preservation refusal for #{num}: {nested}")
+    for num, detail in refusal_skips:
+        print(f"skipping refusal #{num}: {detail}")
 
     if args.dry_run:
         return 1 if alternate_failures else 0

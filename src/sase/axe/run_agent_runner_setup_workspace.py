@@ -155,7 +155,11 @@ def prepare_workspace_if_needed(
         raise RuntimeError(
             f"Failed to prepare workspace {workspace_dir}: {exc.reason}"
         ) from exc
-    fresh_sidecars = prepare_launch_workspace_repos(workspace_dir, workspace_num)
+    fresh_sidecars = prepare_launch_workspace_repos(
+        workspace_dir,
+        workspace_num,
+        project=project_name,
+    )
     print("===========================")
     print()
     return fresh_sidecars

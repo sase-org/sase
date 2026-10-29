@@ -149,15 +149,16 @@ Arguments:
 ## `sase workspace repair`
 
 ```text
-usage: sase workspace repair [-h] [-p PROJECT] [-n]
+usage: sase workspace repair [-h] [-C [NUM]] [-n] [-p PROJECT]
 ```
 
 Options:
 
-| Option                            | Description                                                        | Default |
-| --------------------------------- | ------------------------------------------------------------------ | ------- |
-| `-n`, `--dry-run`                 | Report planned changes without touching the filesystem or registry | `false` |
-| `-h`, `--help`                    | show this help message and exit                                    | —       |
-| `-p PROJECT`, `--project PROJECT` | Project to repair (default: infer from current directory)          | —       |
+| Option                            | Description                                                                                                                                         | Default |
+| --------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- | ------- |
+| `-C NUM`, `--clear-refusal NUM`   | Clear a nested-preservation workspace refusal. Pass NUM to force-clear that slot; omit NUM to clear refusals whose nested repo is now clean or gone | —       |
+| `-n`, `--dry-run`                 | Report planned changes without touching the filesystem or registry                                                                                  | `false` |
+| `-h`, `--help`                    | show this help message and exit                                                                                                                     | —       |
+| `-p PROJECT`, `--project PROJECT` | Project to repair (default: infer from current directory)                                                                                           | —       |
 
 Related: [CLI command groups](index.md).

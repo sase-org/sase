@@ -403,9 +403,21 @@ MANIFEST_PATH = ROOT / "tests" / "contract_manifest.txt"
 # under the command above on this host. The whole 88-entry set measured
 # 144.73 s under the command above on this host (single run; 1064 passed).
 # The next candidate should displace an entry rather than add one.
-_MANIFEST_ENTRY_BUDGET = 88
+#
+# Re-curated to 90 on 2026-10-29 (sase-1pn.2) to repair a stale onto
+# manifest: `test_core_finalizer_handoff.py` and
+# `test_ratchet_core_window_tool_ref.py` already carried
+# `pytest.mark.contract` (split from `test_core_finalizer_facade.py` and
+# `tools/ratchet_core_pin --ref` coverage) but were never listed. Admitting
+# them restores `collect_contract_files() == committed manifest` without
+# expanding behavioral coverage. The two files measured 2.30 s standalone
+# (8 passed) under the command above on this host. The whole 90-entry set
+# measured 154.57 s under the command above on this host (single run;
+# 1097 passed). The next candidate should displace an entry rather than
+# add one.
+_MANIFEST_ENTRY_BUDGET = 90
 _MEASURED_SERIAL_COST = (
-    "144.73 serial seconds across 88 entries (single run; 1064 passed)"
+    "154.57 serial seconds across 90 entries (single run; 1097 passed)"
 )
 
 

@@ -13,6 +13,7 @@ tests/test_config_schema_gate_turn.py
 tests/test_config_schema_keymaps.py
 tests/test_config_schema_runtime_limits.py
 tests/test_core_finalizer_facade.py
+tests/test_core_finalizer_handoff.py
 tests/test_demo_media_postprocessor.py
 tests/test_exercise_release.py
 tests/test_gemini_active_surface_guard.py
@@ -40,6 +41,7 @@ tests/test_ratchet_core_window_tool_core.py
 tests/test_ratchet_core_window_tool_guardrails.py
 tests/test_ratchet_core_window_tool_modes.py
 tests/test_ratchet_core_window_tool_reconciliation.py
+tests/test_ratchet_core_window_tool_ref.py
 tests/test_release_candidate_inventory.py
 tests/test_release_candidate_publish.py
 tests/test_release_candidate_published_core.py

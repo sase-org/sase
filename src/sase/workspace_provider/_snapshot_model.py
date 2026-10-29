@@ -50,9 +50,13 @@ class NestedPreservationError(PreservationError):
         message: str,
         *,
         locations: Sequence[str] = (),
+        nested_root: str | Path | None = None,
+        dirty_paths: Sequence[str] = (),
     ) -> None:
         super().__init__(message)
         self.locations = tuple(location for location in locations if location)
+        self.nested_root = str(nested_root) if nested_root else ""
+        self.dirty_paths = tuple(path for path in dirty_paths if path)
 
 
 @dataclass(frozen=True)

@@ -233,3 +233,26 @@ def test_workspace_claim_request_round_trips_json_shape() -> None:
         "claim_request": payload,
     }
     assert agent_launch_prepared_from_dict(prepared_payload).claim_request == request
+
+
+def test_workspace_claim_request_round_trips_skip_workspaces() -> None:
+    request = WorkspaceClaimRequestWire(
+        project_file="/tmp/project.sase",
+        workspace_num=0,
+        workflow_name="run",
+        pid=123,
+        skip_workspaces=(10, 12),
+    )
+
+    payload = agent_launch_wire_to_json_dict(request)
+    assert payload["skip_workspaces"] == [10, 12]
+    prepared_payload = {
+        "schema_version": AGENT_LAUNCH_WIRE_SCHEMA_VERSION,
+        "prompt_file": "/tmp/prompt.md",
+        "output_path": "/tmp/agent.log",
+        "safe_name": "agent",
+        "argv": ["python", "runner.py"],
+        "cwd": "/tmp",
+        "claim_request": payload,
+    }
+    assert agent_launch_prepared_from_dict(prepared_payload).claim_request == request

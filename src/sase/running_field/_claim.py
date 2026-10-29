@@ -20,6 +20,16 @@ from sase.running_field._model import (
 from sase.telemetry.metrics import WORKSPACE_ACTIVE
 
 
+def _skip_workspaces_for(project_file: str) -> tuple[int, ...]:
+    try:
+        from sase.workspace_provider.slot_refusal import skip_workspace_nums_for_project
+
+        skipped = skip_workspace_nums_for_project(_project_name_from_file(project_file))
+    except Exception:  # noqa: BLE001 - skip-list reads fail open.
+        return ()
+    return tuple(sorted(skipped))
+
+
 def _project_name_from_file(project_file: str) -> str:
     path = Path(project_file)
     if path.name.endswith("-archive.sase"):
@@ -257,6 +267,7 @@ def claim_next_axe_workspace(
                         cl_name=cl_name or "",
                         artifacts_timestamp=artifacts_timestamp or "",
                         pinned=pinned,
+                        skip_workspaces=_skip_workspaces_for(project_file),
                     ),
                 )
                 outcome = dict(plan["outcome"])

@@ -30,6 +30,7 @@ class WorkspaceClaimRequestWire:
     artifacts_timestamp: str = ""
     transfer_from_pid: int | None = None
     pinned: bool = False
+    skip_workspaces: tuple[int, ...] = ()
 
 
 @dataclass(frozen=True)

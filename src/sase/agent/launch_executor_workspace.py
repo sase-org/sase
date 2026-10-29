@@ -64,6 +64,16 @@ def spawn_slot_with_workspace_retry(
     relocation_occupant: str | None = None
     current_extra_env = dict(extra_env) if extra_env else None
 
+    if is_pinned and pinned_num is not None:
+        from pathlib import Path
+
+        from sase.workspace_provider.slot_refusal import (
+            raise_if_workspace_quarantined,
+        )
+
+        project = context.project_name or Path(context.project_file).stem
+        raise_if_workspace_quarantined(project, pinned_num)
+
     for attempt in range(1, max_attempts + 1):
         preclaim: _WorkspacePreClaim | None = None
         try:

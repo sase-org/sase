@@ -21,6 +21,7 @@ from sase.core.agent_launch_wire_records import (
     LaunchUnitWire,
     ProcUnitWire,
     WaitTargetWire,
+    WorkspaceClaimRequestWire,
 )
 
 
@@ -213,6 +214,11 @@ def agent_launch_wire_to_json_dict(record: Any) -> Any:
         if record.uncertain is not None:
             result["uncertain"] = record.uncertain
         return result
+    if isinstance(record, WorkspaceClaimRequestWire):
+        payload = asdict(record)
+        if not payload.get("skip_workspaces"):
+            payload.pop("skip_workspaces", None)
+        return agent_launch_wire_to_json_dict(payload)
     if hasattr(record, "__dataclass_fields__"):
         return agent_launch_wire_to_json_dict(asdict(record))
     return record

@@ -88,6 +88,7 @@ def get_first_available_workspace(
     """
     claims = get_claimed_workspaces(project_file)
     claimed_nums = {claim.workspace_num for claim in claims}
+    claimed_nums.update(_skip_workspace_nums(project_file))
 
     for n in range(min_workspace, max_workspace + 1):
         if n not in claimed_nums:
@@ -129,6 +130,7 @@ def get_first_available_axe_workspace(
     """
     claims = get_claimed_workspaces(project_file)
     claimed_nums = {claim.workspace_num for claim in claims}
+    claimed_nums.update(_skip_workspace_nums(project_file))
 
     for n in range(min_workspace, max_workspace + 1):
         if n not in claimed_nums:
@@ -138,6 +140,24 @@ def get_first_available_axe_workspace(
         f"All axe workspaces ({min_workspace}-{max_workspace}) are claimed "
         f"in {project_file}"
     )
+
+
+def _skip_workspace_nums(project_file: str) -> set[int]:
+    try:
+        from pathlib import Path
+
+        from sase.workspace_provider.slot_refusal import skip_workspace_nums_for_project
+
+        name = Path(project_file).name
+        if name.endswith("-archive.sase"):
+            project = name.removesuffix("-archive.sase")
+        elif name.endswith("-archive.gp"):
+            project = name.removesuffix("-archive.gp")
+        else:
+            project = Path(project_file).stem
+        return set(skip_workspace_nums_for_project(project))
+    except Exception:  # noqa: BLE001 - skip-list reads fail open.
+        return set()
 
 
 def _normalize_legacy_primary(workspace_num: int) -> int:
