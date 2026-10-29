@@ -17,8 +17,8 @@ from sase.core.finalizer_wire import (
 
 
 CARRY_EVIDENCE_KIND = "carried_repo"
-_PREPARED_EVIDENCE_KIND = "prepared_repo"
-_COVERAGE_KINDS = frozenset({CARRY_EVIDENCE_KIND, _PREPARED_EVIDENCE_KIND})
+PREPARED_EVIDENCE_KIND = "prepared_repo"
+_COVERAGE_KINDS = frozenset({CARRY_EVIDENCE_KIND, PREPARED_EVIDENCE_KIND})
 _CARRY_DECISION_KEYS = frozenset({"repo_id", "action"})
 
 
@@ -77,6 +77,32 @@ def carry_evidence_for_context(
 ) -> list[FinalizerOutcomeEvidenceWire]:
     """Build carry evidence for every accepted carry decision in *context*."""
 
+    return _coverage_evidence_for_ids(
+        sorted(carry_repo_ids(decisions)),
+        context,
+        kind=CARRY_EVIDENCE_KIND,
+    )
+
+
+def prepared_evidence_for_ids(
+    repo_ids: Sequence[str],
+    context: FinalizerContextWire,
+) -> list[FinalizerOutcomeEvidenceWire]:
+    """Build prepared-coverage evidence for sealed repositories in *context*."""
+
+    return _coverage_evidence_for_ids(
+        repo_ids,
+        context,
+        kind=PREPARED_EVIDENCE_KIND,
+    )
+
+
+def _coverage_evidence_for_ids(
+    repo_ids: Sequence[str],
+    context: FinalizerContextWire,
+    *,
+    kind: str,
+) -> list[FinalizerOutcomeEvidenceWire]:
     staged_ref = _staged_ref_from_context(context)
     digest_by_id = {
         obligation.obligation_id: obligation.digest or ""
@@ -88,8 +114,9 @@ def carry_evidence_for_context(
             repo_id=repo_id,
             digest=digest_by_id.get(repo_id, ""),
             staged_ref=staged_ref,
+            kind=kind,
         )
-        for repo_id in sorted(carry_repo_ids(decisions))
+        for repo_id in sorted(repo_ids)
     ]
 
 
@@ -256,12 +283,14 @@ def carry_decision_allowed_keys() -> frozenset[str]:
 
 __all__ = [
     "CARRY_EVIDENCE_KIND",
+    "PREPARED_EVIDENCE_KIND",
     "carry_action_allowed_for_handoff",
     "carry_decision_allowed_keys",
     "carry_evidence_for_context",
     "carry_repo_ids",
     "check_carry_action",
     "current_commit_obligations_satisfied",
+    "prepared_evidence_for_ids",
     "proven_coverage_ids_from_result_payload",
     "repos_with_action",
 ]

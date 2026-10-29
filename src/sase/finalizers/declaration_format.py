@@ -82,6 +82,11 @@ def format_context_pretty(payload: Mapping[str, Any]) -> str:
                 "  Allowed repository actions: "
                 + ", ".join(str(action) for action in allowed_actions)
             )
+        prepared_coverage = commit_declaration.get("prepared_coverage")
+        if isinstance(prepared_coverage, Mapping) and prepared_coverage.get("eligible"):
+            lines.append(
+                "  Prepared coverage: starter leaves sealed work for host completion"
+            )
         assigned = commit_declaration.get("assigned_bead")
         if isinstance(assigned, Mapping):
             bead_id = assigned.get("bead_id")

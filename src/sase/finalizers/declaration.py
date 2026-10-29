@@ -47,6 +47,11 @@ from sase.finalizers.declaration_context_evidence import (
     build_commit_declaration_context,
 )
 from sase.finalizers.commit_carry import carry_action_allowed_for_handoff
+from sase.finalizers.prepared_coverage import (
+    PreparedStarterCoverage,
+    evaluate_prepared_starter_coverage_for_artifacts,
+    prepared_coverage_omits_starter_submission,
+)
 from sase.finalizers.declaration_manifest import (
     FINAL_CONTEXT_FILENAME,
     FINAL_SUBMISSION_ATTEMPTS_FILENAME,
@@ -516,10 +521,27 @@ def _build_live_context(
     # staging lock order. Atomic record replacement gives us one validated
     # staged identity without waiting on its writer.
     handoff = _handoff_from_staged_record(root)
+    prepared_coverage = None
+    prepared_eligible = False
+    if handoff is not None and handoff.prepared_intent_ref:
+        prepared_coverage = evaluate_prepared_starter_coverage_for_artifacts(
+            root,
+            plan_digest=plan.plan_digest,
+            obligation_ids=[
+                repository_obligation_id(repo) for repo in dirty_state.repos
+            ],
+            run_id=run_id,
+            agent_id=agent_id,
+            workspace_id=(os.environ.get("SASE_WORKSPACE_NUM") or "").strip() or None,
+        )
+        prepared_eligible = prepared_coverage_omits_starter_submission(
+            root, prepared_coverage
+        )
     requirements, obligations = _build_context_requirements(
         plan,
         dirty_state,
         handoff=handoff,
+        prepared_coverage_eligible=prepared_eligible,
     )
     host_records = _host_repository_records(dirty_state)
     assigned_bead = _assigned_bead_context(dirty_state, obligations)
@@ -544,6 +566,7 @@ def _build_live_context(
             root=root,
             host_records=host_records,
             absorbed_raw_commits=absorbed,
+            prepared_coverage=prepared_coverage,
         ),
         context=context,
         host_records=host_records,
@@ -632,6 +655,7 @@ def _context_payload(
     root: Path,
     host_records: tuple[HostRepositoryRecord, ...],
     absorbed_raw_commits: tuple[AbsorbedRawCommits, ...] = (),
+    prepared_coverage: PreparedStarterCoverage | None = None,
 ) -> dict[str, Any]:
     requirement_by_id = {item.instance_id: item for item in context.requirements}
     selected = []
@@ -659,6 +683,7 @@ def _context_payload(
             context=context,
             host_records=host_records,
             absorbed_raw_commits=absorbed_raw_commits,
+            prepared_coverage=prepared_coverage,
         ),
         "manifest_template": _manifest_template(context),
     }

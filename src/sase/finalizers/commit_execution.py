@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
+import os
 from typing import Any
 
 from sase.core.finalizer_wire import (
@@ -15,6 +16,7 @@ from sase.finalizers.commit_carry import (
     carry_evidence_for_context,
     carry_repo_ids,
     check_carry_action,
+    prepared_evidence_for_ids,
     repos_with_action,
 )
 from sase.finalizers.commit_declaration import (
@@ -155,6 +157,14 @@ def execute_commit_finalizer(
                     evidence=(),
                 ),
             )
+        prepared = _prepared_starter_satisfaction(
+            context.artifacts_dir,
+            instance.instance_id,
+            invoke_result=invoke_result,
+            state=state,
+        )
+        if prepared is not None:
+            return prepared
         result = failed_result(
             instance.instance_id,
             "missing_commit_declaration",
@@ -546,6 +556,68 @@ def execute_commit_finalizer(
             attempts=attempts,
             evidence=evidence,
             diagnostics=diagnostics,
+        ),
+    )
+
+
+def _prepared_starter_satisfaction(
+    artifacts_dir: str | None,
+    instance_id: str,
+    *,
+    invoke_result: InvokeResult,
+    state: Any,
+) -> BuiltinCommitExecution | None:
+    """Return prepared-coverage success when the starter must not commit."""
+
+    from sase.finalizers.declaration import (
+        load_latest_finalizer_context,
+        require_artifacts_dir,
+    )
+    from sase.finalizers.prepared_coverage import (
+        evaluate_prepared_starter_coverage_for_artifacts,
+        prepared_coverage_omits_starter_submission,
+    )
+
+    try:
+        root = require_artifacts_dir(artifacts_dir, "prepared starter coverage")
+        context = load_latest_finalizer_context(root)
+    except Exception:
+        return None
+    obligation_ids = [
+        obligation.obligation_id
+        for obligation in context.obligations
+        if obligation.kind == "repository"
+    ]
+    coverage = evaluate_prepared_starter_coverage_for_artifacts(
+        root,
+        plan_digest=context.plan_digest,
+        obligation_ids=obligation_ids,
+        run_id=context.run_id,
+        agent_id=context.agent_id,
+        workspace_id=(os.environ.get("SASE_WORKSPACE_NUM") or "").strip() or None,
+    )
+    if not prepared_coverage_omits_starter_submission(root, coverage):
+        return None
+    evidence = prepared_evidence_for_ids(coverage.covered_repository_ids, context)
+    artifacts = artifact_root(str(root))
+    raise_if_unpublished_machine_state(
+        state,
+        instance_id=instance_id,
+        invoke_result=invoke_result,
+        evidence=evidence,
+    )
+    raise_if_unpublished_local_commits(
+        artifacts,
+        instance_id=instance_id,
+        invoke_result=invoke_result,
+        evidence=evidence,
+    )
+    return BuiltinCommitExecution(
+        invoke_result=invoke_result,
+        result=success_result(
+            instance_id,
+            attempts=(),
+            evidence=evidence,
         ),
     )
 

@@ -12,6 +12,7 @@ from sase.core.finalizer_wire import (
     FinalizerObligationWire,
 )
 from sase.finalizers.commit_carry import carry_action_allowed_for_handoff
+from sase.finalizers.prepared_coverage import PreparedStarterCoverage
 from sase.finalizers.commit_validation import protected_baseline_paths
 from sase.finalizers.declaration_recovery_evidence import (
     MAX_PATHS_PER_REPO,
@@ -50,6 +51,7 @@ def build_commit_declaration_context(
     context: FinalizerContextWire,
     host_records: Sequence[HostRepositoryRecord],
     absorbed_raw_commits: Sequence[AbsorbedRawCommits] = (),
+    prepared_coverage: PreparedStarterCoverage | None = None,
 ) -> dict[str, Any]:
     """Return model-visible guidance for authoring commit declarations."""
 
@@ -98,6 +100,16 @@ def build_commit_declaration_context(
                 if handoff.prepared_intent_ref is not None
                 else {}
             ),
+        }
+    if (
+        prepared_coverage is not None
+        and context.handoff is not None
+        and context.handoff.prepared_intent_ref is not None
+    ):
+        payload["prepared_coverage"] = {
+            "eligible": prepared_coverage.eligible,
+            "covered_repository_ids": list(prepared_coverage.covered_repository_ids),
+            "reason": prepared_coverage.reason,
         }
     if context.assigned_bead is not None:
         payload["assigned_bead"] = {

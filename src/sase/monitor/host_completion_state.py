@@ -62,6 +62,7 @@ def install_prepared_declaration(
 ) -> None:
     """Submit the prepared payloads against the current host-issued context."""
 
+    publication = _publication_for_prepared_install(artifacts_dir, publication)
     declaration = deepcopy(intent.get("declaration") or {})
     if not isinstance(declaration, dict):
         raise FinalizerDeclarationError(
@@ -107,6 +108,39 @@ def install_prepared_declaration(
         envelope["plan_digest"] = plan.plan_digest
     _bind_finalizer_process_identity(artifacts_dir)
     submit_final_manifest(envelope, artifacts_dir=artifacts_dir)
+
+
+def _publication_for_prepared_install(artifacts_dir: str, publication: Any) -> Any:
+    """Refresh context so starter prepared satisfaction cannot trap install."""
+
+    if getattr(publication, "submission_required", True) is not False:
+        return publication
+    context = getattr(publication, "context", None)
+    handoff = getattr(context, "handoff", None)
+    if handoff is None or not getattr(handoff, "prepared_intent_ref", None):
+        return publication
+    from sase.monitor.delivery import (
+        load_host_completion_receipt,
+        persist_host_completion_receipt,
+    )
+
+    if load_host_completion_receipt(artifacts_dir) is None:
+        persist_host_completion_receipt(
+            artifacts_dir,
+            {
+                "schema_version": 1,
+                "status": FINALIZING_STATUS,
+                "reason": "prepared_declaration_install",
+            },
+        )
+    refreshed = publish_final_context(artifacts_dir=artifacts_dir)
+    if refreshed.submission_required:
+        return refreshed
+    raise FinalizerDeclarationError(
+        "host completion cannot install a prepared declaration while starter "
+        "prepared coverage still omits submission",
+        code="prepared_install_trapped",
+    )
 
 
 def snapshot_execution_context(

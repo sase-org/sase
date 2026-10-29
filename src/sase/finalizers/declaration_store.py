@@ -214,11 +214,13 @@ def build_context_requirements(
     dirty_state: DirtyState,
     *,
     handoff: FinalizerHandoffWire | None = None,
+    prepared_coverage_eligible: bool = False,
 ) -> tuple[list[FinalizerPayloadRequirementWire], list[FinalizerObligationWire]]:
     requirements: list[FinalizerPayloadRequirementWire] = []
     obligations: list[FinalizerObligationWire] = []
     repository_obligations: list[FinalizerObligationWire] | None = None
     carry_allowed = carry_action_allowed_for_handoff(handoff)
+    omit_submission = carry_allowed or prepared_coverage_eligible
 
     for entry in plan.entries:
         if entry.provider_ref == "builtin@commit":
@@ -228,7 +230,7 @@ def build_context_requirements(
                 ]
                 obligations.extend(repository_obligations)
             trigger = "dirty_repository" if repository_obligations else "not_triggered"
-            submission_required = bool(repository_obligations) and not carry_allowed
+            submission_required = bool(repository_obligations) and not omit_submission
             digest_input: dict[str, Any] = {
                 "instance_id": entry.instance_id,
                 "trigger": trigger,
@@ -240,7 +242,7 @@ def build_context_requirements(
                     for obligation in repository_obligations
                 ],
             }
-            if repository_obligations and carry_allowed:
+            if repository_obligations and omit_submission:
                 digest_input["submission_required"] = False
             requirements.append(
                 FinalizerPayloadRequirementWire(
