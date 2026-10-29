@@ -14,6 +14,7 @@ This package also hosts the Rust-bindable facade layer (see
 - :mod:`sase.core.git_query_facade` — Git query parsers.
 - :mod:`sase.core.retryability_facade` — GitHub transport retryability classifier.
 - :mod:`sase.core.glossary_facade` — glossary validation and matching.
+- :mod:`sase.core.rebase_gate` — typed rebase-gate policy facade.
 
 The Rust extension is a hard runtime dependency. Ported facades call
 :func:`sase.core.rust.require_rust_binding` to look up the relevant
@@ -94,6 +95,32 @@ _LAZY_EXPORTS = {
         "sase.core.glossary_facade",
         "validate_glossary_entries",
     ),
+    "ChangedPathWire": ("sase.core.rebase_gate", "ChangedPathWire"),
+    "CommandFactsWire": ("sase.core.rebase_gate", "CommandFactsWire"),
+    "ConfigWire": ("sase.core.rebase_gate", "ConfigWire"),
+    "ContextUpdateWire": ("sase.core.rebase_gate", "ContextUpdateWire"),
+    "ContextWire": ("sase.core.rebase_gate", "ContextWire"),
+    "DecisionWire": ("sase.core.rebase_gate", "DecisionWire"),
+    "FindingWire": ("sase.core.rebase_gate", "FindingWire"),
+    "InputIdsWire": ("sase.core.rebase_gate", "InputIdsWire"),
+    "RebaseFactsWire": ("sase.core.rebase_gate", "RebaseFactsWire"),
+    "ReportWire": ("sase.core.rebase_gate", "ReportWire"),
+    "build_rebase_gate_context": (
+        "sase.core.rebase_gate",
+        "build_rebase_gate_context",
+    ),
+    "classify_rebase_gate_result": (
+        "sase.core.rebase_gate",
+        "classify_rebase_gate_result",
+    ),
+    "merge_rebase_gate_contexts": (
+        "sase.core.rebase_gate",
+        "merge_rebase_gate_contexts",
+    ),
+    "update_rebase_gate_context": (
+        "sase.core.rebase_gate",
+        "update_rebase_gate_context",
+    ),
     "ensure_sase_directory": ("sase.core.paths", "ensure_sase_directory"),
     "get_sase_managed_tmpdir": (
         "sase.core.paths",
@@ -145,6 +172,20 @@ __all__ = [
     "strip_hook_prefix",
     "strip_reverted_suffix",
     "validate_glossary_entries",
+    "ChangedPathWire",
+    "CommandFactsWire",
+    "ConfigWire",
+    "ContextUpdateWire",
+    "ContextWire",
+    "DecisionWire",
+    "FindingWire",
+    "InputIdsWire",
+    "RebaseFactsWire",
+    "ReportWire",
+    "build_rebase_gate_context",
+    "classify_rebase_gate_result",
+    "merge_rebase_gate_contexts",
+    "update_rebase_gate_context",
 ]
 
 if TYPE_CHECKING:
@@ -176,6 +217,22 @@ if TYPE_CHECKING:
         patch_name_to_branch_with_suffix,
         patch_names_match,
         strip_reverted_suffix,
+    )
+    from sase.core.rebase_gate import (
+        ChangedPathWire,
+        CommandFactsWire,
+        ConfigWire,
+        ContextUpdateWire,
+        ContextWire,
+        DecisionWire,
+        FindingWire,
+        InputIdsWire,
+        RebaseFactsWire,
+        ReportWire,
+        build_rebase_gate_context,
+        classify_rebase_gate_result,
+        merge_rebase_gate_contexts,
+        update_rebase_gate_context,
     )
     from sase.core.paths import (
         ensure_sase_directory,
