@@ -64,7 +64,7 @@ Options:
 ```text
 usage: sase gate answer [-h] [-d | -D] [-f FEEDBACK] -i REQUEST_ID [-I JSON]
                         [-j] -k KIND [-o OPTION_ID] [-O OPTION_ID=JSON]
-                        [-R | -r] [-s FIELD=VALUE]
+                        [-Q PATH] [-R | -r] [-s FIELD=VALUE]
 ```
 
 Answer a gate by selecting one branch's options and supplying each selected option's declared input. Input is delivered to commands as JSON on stdin and never as command arguments. Per-option values (--set, --option-input) and one shared value (--input) are mutually exclusive submission contracts.
@@ -83,6 +83,7 @@ Options:
 | `-D`, `--no-detach`                                  | Answer inline even for a gate turn, overriding its detached default                                                                                 | `false` |
 | `-o OPTION_ID`, `--option OPTION_ID`                 | Select one option of a single branch; repeat for an AND branch                                                                                      | —       |
 | `-O OPTION_ID=JSON`, `--option-input OPTION_ID=JSON` | Whole JSON input value for one selected option, as a literal, @FILE, or - for stdin; repeat per option                                              | —       |
+| `-Q PATH`, `--request-path PATH`                     | Private versioned operation request sidecar. Defaults to $SASE_PROC_REQUEST_PATH when that environment variable is set.                             | —       |
 | `-R`, `--restart`                                    | Run the whole branch again after a partially executed attempt                                                                                       | `false` |
 | `-r`, `--resume`                                     | Continue a partially executed option branch, or resume an already-answered turn whose requested follow-up never launched                            | `false` |
 | `-s FIELD=VALUE`, `--set FIELD=VALUE`                | Set one declared input field, typed by its declaration, on every selected option that accepts it; repeat for more fields                            | —       |

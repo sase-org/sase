@@ -3,8 +3,9 @@
 import json
 from pathlib import Path
 from types import SimpleNamespace
-from typing import Any
 from unittest.mock import MagicMock, patch
+
+import pytest
 
 from sase.ace.tui.models.agent import Agent, AgentType
 from sase.ace.tui.modals.user_question_modal import (
@@ -17,7 +18,7 @@ from sase.notifications.store import load_notifications
 from sase.user_question_actions import user_question_gate_spec
 
 
-def test_neutral_question_response_runs_as_tracked_background_task() -> None:
+def test_neutral_question_response_uses_one_durable_proc() -> None:
     gate = create_gate(
         user_question_gate_spec(
             [{"question": "Tracked?", "options": [{"label": "Yes"}]}],
@@ -25,28 +26,139 @@ def test_neutral_question_response_runs_as_tracked_background_task() -> None:
         )
     )
     notification = load_notifications()[0]
-    captured: dict[str, Any] = {}
     app = MagicMock()
     app._agents = []
     app._agent_status_overrides = {}
+    submitted: list[tuple[tuple[object, ...], dict[str, object]]] = []
 
     def submit(*args: object, **kwargs: object) -> object:
-        captured["body"] = args[1]
-        captured["on_complete"] = kwargs["on_complete"]
+        submitted.append((args, kwargs))
         return object()
 
-    app._submit_session_worker = submit
+    app._submit_durable_proc = submit
+    app._submit_session_worker = MagicMock(
+        side_effect=AssertionError("neutral answers must use a durable proc")
+    )
+    response_written = MagicMock()
+    from sase.ace.tui.actions.agents import _notification_question_modal
+
+    with (
+        patch.object(
+            _notification_question_modal,
+            "_on_user_question_response_written",
+            response_written,
+        ),
+        patch(
+            "sase.user_question_actions.execute_user_question_response"
+        ) as execute_in_process,
+        patch(
+            "sase.ace.tui.actions.agents._notification_utils.schedule_gate_decision_receipt_refresh"
+        ) as refresh_receipt,
+        patch(
+            "sase.user_question_actions.run_user_question_response_side_effects"
+        ) as run_side_effects,
+    ):
+        from sase.ace.tui.actions.agents._notification_modals import (
+            handle_user_question,
+        )
+
+        assert handle_user_question(app, notification) is True
+        on_dismiss = app.push_screen.call_args[0][1]
+        on_dismiss(
+            UserQuestionResult(
+                answers=[
+                    _QuestionAnswer(
+                        question="Tracked?",
+                        selected=["Yes"],
+                        custom_feedback=None,
+                    )
+                ],
+                global_note="",
+            )
+        )
+
+        assert len(submitted) == 1
+        args, kwargs = submitted[0]
+        request_id = str(
+            notification.action_data.get("request_id") or gate.bundle_path.name
+        )
+        assert args[0] == [
+            "sase",
+            "gate",
+            "answer",
+            "--id",
+            request_id,
+            "--kind",
+            "question",
+            "--no-detach",
+            "--json",
+        ]
+        assert kwargs["operation"] == "gate.answer"
+        assert kwargs["request"] == {
+            "option_ids": ["submit"],
+            "input_data": {
+                "answers": [
+                    {
+                        "question": "Tracked?",
+                        "selected": ["Yes"],
+                        "custom_feedback": None,
+                    }
+                ],
+                "global_note": "",
+            },
+            "feedback": None,
+            "source": "tui",
+        }
+        assert kwargs["concurrency_keys"] == (f"notification-gate:{notification.id}",)
+        assert kwargs["display_name"] == f"answer question {request_id}"
+        assert gate.response_path.exists() is False
+        execute_in_process.assert_not_called()
+
+        kwargs["on_complete"](
+            SimpleNamespace(
+                payload={"status": "answered"},
+                success=True,
+                message="Question answered",
+            )
+        )
+
+    response_written.assert_called_once()
+    refresh_receipt.assert_called_once_with(
+        app,
+        notification=notification,
+        bundle_path=gate.bundle_path,
+    )
+    run_side_effects.assert_called_once()
+    (context,) = run_side_effects.call_args.args
+    assert context.notification_id == notification.id
+    assert context.host_action_data["response_dir"] == str(gate.bundle_path)
+    assert run_side_effects.call_args.kwargs == {"source": "tui"}
+    app.notify.assert_called_once_with("Question answered")
+    app._refresh_notification_count.assert_called_once()
+
+
+def test_invalid_neutral_question_answer_fails_before_submission() -> None:
+    create_gate(
+        user_question_gate_spec(
+            [{"question": "Pick?", "options": [{"label": "Yes"}]}],
+            session_id="invalid-question-answer",
+        )
+    )
+    notification = load_notifications()[0]
+    app = MagicMock()
+    app._agents = []
+    app._agent_status_overrides = {}
+    app._submit_durable_proc = MagicMock()
 
     from sase.ace.tui.actions.agents._notification_modals import handle_user_question
 
     assert handle_user_question(app, notification) is True
-    on_dismiss = app.push_screen.call_args[0][1]
-    on_dismiss(
+    app.push_screen.call_args[0][1](
         UserQuestionResult(
             answers=[
                 _QuestionAnswer(
-                    question="Tracked?",
-                    selected=["Yes"],
+                    question="Pick?",
+                    selected=["No"],
                     custom_feedback=None,
                 )
             ],
@@ -54,16 +166,55 @@ def test_neutral_question_response_runs_as_tracked_background_task() -> None:
         )
     )
 
-    assert not gate.response_path.exists()
-    tracked = captured["body"]()
-    captured["on_complete"](
-        SimpleNamespace(
-            payload=tracked.payload,
-            success=tracked.success,
-            message=tracked.message,
+    app._submit_durable_proc.assert_not_called()
+    app.notify.assert_called_once()
+    assert app.notify.call_args.kwargs["severity"] == "error"
+
+
+@pytest.mark.parametrize("code", ["already_answered", "gate_cancelled"])
+def test_durable_question_maps_answered_failures_to_warning(code: str) -> None:
+    create_gate(
+        user_question_gate_spec(
+            [{"question": "Already?", "options": [{"label": "Yes"}]}],
+            session_id=f"already-{code}",
         )
     )
-    assert gate.response_path.is_file()
+    notification = load_notifications()[0]
+    app = MagicMock()
+    app._agents = []
+    app._agent_status_overrides = {}
+    submitted: dict[str, object] = {}
+
+    def submit(*_args: object, **kwargs: object) -> object:
+        submitted.update(kwargs)
+        return object()
+
+    app._submit_durable_proc = submit
+
+    from sase.ace.tui.actions.agents._notification_modals import handle_user_question
+
+    assert handle_user_question(app, notification) is True
+    app.push_screen.call_args[0][1](
+        UserQuestionResult(
+            answers=[
+                _QuestionAnswer(
+                    question="Already?",
+                    selected=["Yes"],
+                    custom_feedback=None,
+                )
+            ],
+            global_note="",
+        )
+    )
+    submitted["on_complete"](
+        SimpleNamespace(success=False, message="answer failed", payload={"code": code})
+    )
+
+    app.notify.assert_called_once_with(
+        "Question was already answered",
+        severity="warning",
+    )
+    app._refresh_notification_count.assert_called_once()
 
 
 def test_user_question_response_dismisses_notification_and_marks_answered(

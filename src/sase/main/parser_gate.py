@@ -5,7 +5,7 @@ from __future__ import annotations
 import argparse
 
 from sase.agent.legacy_agent_family_syntax import normalize_agent_session_fork
-from sase.ops.cli import add_operation_io_flags
+from sase.ops.cli import add_operation_io_flags, add_operation_request_flag
 
 # Mirrors ``sase.gate_turn.state.TERMINAL_GATE_STATES`` plus ``pending`` and
 # ``settling``, spelled out here so building the parser never imports the
@@ -221,6 +221,7 @@ def _register_answer_parser(gate_subparsers: argparse._SubParsersAction) -> None
             "@FILE, or - for stdin; repeat per option"
         ),
     )
+    add_operation_request_flag(answer_parser)
     retry_group = answer_parser.add_mutually_exclusive_group()
     retry_group.add_argument(
         "-R",

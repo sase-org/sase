@@ -42,6 +42,27 @@ class _UserQuestionActionResult:
     message: str = "Question answered"
 
 
+@dataclass(frozen=True)
+class _ResolvedUserQuestionRequest:
+    """Question request details prepared for a host surface."""
+
+    root: Path
+    response_path: Path
+    legacy: bool
+    questions: list[dict[str, Any]]
+
+
+@dataclass(frozen=True)
+class _PreparedUserQuestionResponse:
+    """Validated question answers ready for gate execution."""
+
+    root: Path
+    response_path: Path
+    legacy: bool
+    questions: list[dict[str, Any]]
+    normalized: dict[str, Any]
+
+
 class UserQuestionActionError(RuntimeError):
     """Deterministic host-side user-question action failure."""
 
@@ -145,12 +166,11 @@ def execute_user_question_response(
     source: str = "question_response",
 ) -> _UserQuestionActionResult:
     """Resolve a neutral UserQuestion, with legacy in-flight fallback."""
-    bundle = _resolve_question_bundle(context)
-    questions = _questions_from_request_root(bundle.root, legacy=bundle.legacy)
-    normalized = _normalize_user_question_response(questions, response_data)
+    prepared = _prepare_user_question_response(context, response_data)
+    normalized = prepared.normalized
 
-    if bundle.legacy:
-        response_path = bundle.response
+    if prepared.legacy:
+        response_path = prepared.response_path
         _write_json_once(response_path, normalized, context.notification_id)
         response_json = normalized
         response_file = QUESTION_RESPONSE_FILE
@@ -163,7 +183,7 @@ def execute_user_question_response(
         from sase.notification_gates.models import GateError
         from sase.notification_gates.paths import RESPONSE_FILENAME
 
-        envelope, _adapter = load_and_verify_bundle(bundle.root)
+        envelope, _adapter = load_and_verify_bundle(prepared.root)
         turn_backed = isinstance(envelope.get("turn"), dict) or isinstance(
             envelope.get("shell"), dict
         )
@@ -184,7 +204,7 @@ def execute_user_question_response(
             if not isinstance(shared_feedback, str) or not shared_feedback.strip():
                 shared_feedback = None
             execution = execute_gate_selection(
-                bundle.root,
+                prepared.root,
                 [QUESTION_OPTION_ID],
                 normalized,
                 feedback=shared_feedback,
@@ -207,7 +227,7 @@ def execute_user_question_response(
         if execution.already_completed:
             raise UserQuestionActionError(
                 "conflict_already_handled",
-                context.notification_id or str(bundle.root),
+                context.notification_id or str(prepared.root),
                 "response already exists",
             )
         response_json = execution.response
@@ -228,11 +248,11 @@ def execute_user_question_response(
         if not isinstance(result, dict):
             raise UserQuestionActionError(
                 "invalid_response",
-                str(bundle.response),
+                str(prepared.response_path),
                 "question command returned no result object",
             )
-        normalized = _normalize_user_question_response(questions, result)
-        response_path = bundle.response
+        normalized = _normalize_user_question_response(prepared.questions, result)
+        response_path = prepared.response_path
         response_file = RESPONSE_FILENAME
 
     _run_question_side_effects(context, source=source)
@@ -249,6 +269,49 @@ def read_user_question_request(response_dir: str | Path) -> dict[str, Any]:
     """Read a neutral question payload first, then an in-flight legacy request."""
     root = Path(response_dir).expanduser()
     return _request_from_root(root, legacy=not (root / "request.json").is_file())
+
+
+def resolve_user_question_request(
+    context: UserQuestionActionContext,
+) -> _ResolvedUserQuestionRequest:
+    """Resolve a question bundle and validate its questions for a UI surface."""
+    bundle = _resolve_question_bundle(context)
+    questions = _questions_from_request_root(bundle.root, legacy=bundle.legacy)
+    return _ResolvedUserQuestionRequest(
+        root=bundle.root,
+        response_path=bundle.response,
+        legacy=bundle.legacy,
+        questions=questions,
+    )
+
+
+def normalize_user_question_response(
+    questions: list[dict[str, Any]], response_data: Mapping[str, Any]
+) -> dict[str, Any]:
+    """Normalize and validate modal answers against already-loaded questions."""
+    return _normalize_user_question_response(questions, response_data)
+
+
+def run_user_question_response_side_effects(
+    context: UserQuestionActionContext, *, source: str = "question_response"
+) -> None:
+    """Dismiss and mark a question notification after a durable answer."""
+    _run_question_side_effects(context, source=source)
+
+
+def _prepare_user_question_response(
+    context: UserQuestionActionContext,
+    response_data: Mapping[str, Any],
+) -> _PreparedUserQuestionResponse:
+    """Resolve the bundle and validate answers before a host submits the answer."""
+    request = resolve_user_question_request(context)
+    return _PreparedUserQuestionResponse(
+        root=request.root,
+        response_path=request.response_path,
+        legacy=request.legacy,
+        questions=request.questions,
+        normalized=normalize_user_question_response(request.questions, response_data),
+    )
 
 
 def validate_user_questions(value: object) -> list[dict[str, Any]]:
@@ -610,9 +673,12 @@ __all__ = [
     "automatic_question_response",
     "execute_user_question_gate_command",
     "execute_user_question_response",
+    "normalize_user_question_response",
     "question_gate_command_script",
     "question_response_schema",
     "read_user_question_request",
+    "resolve_user_question_request",
+    "run_user_question_response_side_effects",
     "user_question_gate_spec",
     "validate_user_questions",
 ]

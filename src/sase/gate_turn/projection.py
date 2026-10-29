@@ -32,6 +32,7 @@ def gate_turn_followup_needs_attention(record: GateTurnRecord) -> bool:
     try:
         decision = classify_gate_handoff(
             {
+                "artifacts_dir": record.artifacts_dir,
                 "gate_id": record.gate_id,
                 "gate_kind": record.kind,
                 "gate_state": record.gate_state,
@@ -47,6 +48,7 @@ def gate_turn_followup_needs_attention(record: GateTurnRecord) -> bool:
                 "gate_followup_error_type": record.followup_error_type,
             },
             mode="diagnose",
+            holds_followup_lock=False,
             already_settled=True,
             followup_requested=bool(record.next_action),
         )

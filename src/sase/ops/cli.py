@@ -21,8 +21,8 @@ from .models import (
 )
 
 
-def add_operation_io_flags(parser: argparse.ArgumentParser) -> None:
-    """Add optional request/result path flags, sorted alphabetically."""
+def add_operation_request_flag(parser: argparse.ArgumentParser) -> None:
+    """Add the optional operation request path flag."""
     parser.add_argument(
         "-Q",
         "--request-path",
@@ -34,6 +34,11 @@ def add_operation_io_flags(parser: argparse.ArgumentParser) -> None:
             f"${REQUEST_ENV} when that environment variable is set."
         ),
     )
+
+
+def add_operation_io_flags(parser: argparse.ArgumentParser) -> None:
+    """Add optional request/result path flags, sorted alphabetically."""
+    add_operation_request_flag(parser)
     parser.add_argument(
         "-R",
         "--result-path",

@@ -2,21 +2,28 @@
 
 from __future__ import annotations
 
+import json
 import os
 import time
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass
+from datetime import datetime, UTC
 from pathlib import Path
 from typing import Any, Literal
 
 from sase.config import get_gate_turn_reclaim_grace_seconds
 from sase.core.agent_scan_wire import AgentArtifactRecordWire
 from sase.gate_turn.handoff import (
+    ATTEMPT_ID_FIELD,
+    ATTEMPT_STAGE_FIELD,
+    ATTEMPT_STARTED_AT_FIELD,
+    ERROR_TYPE_FIELD,
     RECONCILE_BATCH_SIZE,
     apply_decision,
     classify_gate_handoff,
     collect_successor_evidence,
     load_reconcile_cursor,
+    notify_handoff_failure,
     store_reconcile_cursor,
     with_gate_followup_lock,
 )
@@ -48,6 +55,9 @@ from sase.notification_gates.executor import cancel_gate
 from sase.notification_gates.failure_outcome import record_owner_lost_outcome_if_current
 from sase.notification_gates.hashing import load_and_verify_bundle
 from sase.notification_gates.models import GateError
+from sase.ops.names import GATE_ANSWER
+from sase.procs.request import ProcSubmitRequest
+from sase.procs.submission import submit_proc_request
 
 
 _MAX_ERROR_DETAILS = 5
@@ -62,6 +72,7 @@ _SNAPSHOT_MTIME_SLACK_SECONDS = 1.0
 #: not measure and pass the real one, used to decide whether a mid-pass
 #: refresh still leaves room before the deadline.
 _DEFAULT_SNAPSHOT_READ_SECONDS = 7.0
+_INTERRUPTED_ATTEMPT_GRACE_SECONDS = 120.0
 
 
 @dataclass(frozen=True)
@@ -320,6 +331,7 @@ class GateHandoffReconcileSummary:
     scanned: int = 0
     incomplete: int = 0
     adopted: int = 0
+    resumed: int = 0
     skipped: int = 0
     errors: int = 0
     deferred: int = 0
@@ -330,6 +342,7 @@ class GateHandoffReconcileSummary:
             "handoff_scanned": self.scanned,
             "handoff_incomplete": self.incomplete,
             "handoff_adopted": self.adopted,
+            "handoff_resumed": self.resumed,
             "handoff_skipped": self.skipped,
             "handoff_errors": self.errors,
             "handoff_deferred": self.deferred,
@@ -383,6 +396,7 @@ def reconcile_incomplete_gate_handoffs(
         "scanned": 0,
         "incomplete": 0,
         "adopted": 0,
+        "resumed": 0,
         "skipped": 0,
         "errors": 0,
         "deferred": 0,
@@ -463,6 +477,8 @@ def _reconcile_project(
                 counts["incomplete"] += 1
             elif outcome == "adopted":
                 counts["adopted"] += 1
+            elif outcome == "resumed":
+                counts["resumed"] += 1
             else:
                 counts["skipped"] += 1
         store_reconcile_cursor(
@@ -489,23 +505,31 @@ def _diagnose_one(
         )
         if agent_session_records is None:
             return None
-        meta = {
-            "gate_id": live.gate_id,
-            "gate_kind": live.kind,
-            "gate_state": live.gate_state,
-            "gate_request_fingerprint": live.request_fingerprint,
-            "name": live.member_agent_name,
-            "agent_session": live.lane,
-            "gate_followup_outcome": live.followup_outcome,
-            "gate_followup_agent": live.followup_agent,
-            "gate_followup_error": live.followup_error,
-            "gate_followup_degraded_reason": live.followup_degraded_reason,
-            "gate_followup_prompt_path": live.followup_prompt_path,
-            "gate_followup_attempt_id": live.followup_attempt_id,
-            "gate_followup_attempt_stage": live.followup_attempt_stage,
-            "gate_followup_error_stage": live.followup_error_stage,
-            "gate_followup_error_type": live.followup_error_type,
-        }
+        meta = _read_reclaim_meta(live.artifacts_dir)
+        meta.update(
+            {
+                key: value
+                for key, value in {
+                    "gate_id": live.gate_id,
+                    "gate_kind": live.kind,
+                    "gate_state": live.gate_state,
+                    "gate_request_fingerprint": live.request_fingerprint,
+                    "name": live.member_agent_name,
+                    "agent_session": live.lane,
+                    "gate_followup_outcome": live.followup_outcome,
+                    "gate_followup_agent": live.followup_agent,
+                    "gate_followup_error": live.followup_error,
+                    "gate_followup_degraded_reason": live.followup_degraded_reason,
+                    "gate_followup_prompt_path": live.followup_prompt_path,
+                    "gate_followup_attempt_id": live.followup_attempt_id,
+                    "gate_followup_attempt_stage": live.followup_attempt_stage,
+                    "gate_followup_error_stage": live.followup_error_stage,
+                    "gate_followup_error_type": live.followup_error_type,
+                    "artifacts_dir": live.artifacts_dir,
+                }.items()
+                if value is not None
+            }
+        )
         evidence = collect_successor_evidence(
             project_name=live.project_name,
             agent_session=live.lane,
@@ -521,17 +545,164 @@ def _diagnose_one(
         decision = classify_gate_handoff(
             meta,
             mode="diagnose",
+            holds_followup_lock=True,
             already_settled=True,
             followup_requested=bool(live.next_action),
             successor_evidence=evidence,
         )
+        if _is_interrupted_attempt(meta, decision, evidence):
+            if _attempt_is_recent(meta, now=time.time()):
+                return None
+            attempt_id = meta.get(ATTEMPT_ID_FIELD)
+            if (
+                isinstance(attempt_id, str)
+                and attempt_id
+                and meta.get("gate_followup_auto_resume_attempt_id") != attempt_id
+            ):
+                try:
+                    _auto_resume_interrupted_attempt(live, meta, attempt_id)
+                except Exception:
+                    # The durable attempt marker keeps this to one submission;
+                    # notification below gives a human the explicit resume command.
+                    pass
+                else:
+                    return "resumed"
         apply_decision(live.artifacts_dir, meta, decision)
         recovery = str(decision.get("recovery") or "")
         if recovery == "adopt":
             return "adopted"
         if decision.get("needs_attention"):
+            attempt_id = meta.get(ATTEMPT_ID_FIELD)
+            already_reported = bool(meta.get(ERROR_TYPE_FIELD)) or (
+                isinstance(attempt_id, str)
+                and meta.get("gate_followup_attention_notified_attempt_id")
+                == attempt_id
+            )
+            if not already_reported:
+                stage = meta.get(ATTEMPT_STAGE_FIELD)
+                notify_handoff_failure(
+                    meta,
+                    error=str(decision.get("reason") or "follow-up needs attention"),
+                    stage=(
+                        stage if isinstance(stage, str) and stage else "interrupted"
+                    ),
+                )
+                if isinstance(attempt_id, str) and attempt_id:
+                    _persist_reclaim_meta(
+                        live.artifacts_dir,
+                        meta,
+                        gate_followup_attention_notified_attempt_id=attempt_id,
+                    )
             return "incomplete"
         return "skipped"
+
+
+def _read_reclaim_meta(artifacts_dir: str) -> dict[str, Any]:
+    """Load full gate metadata needed by reclaim decisions and notifications."""
+    value = json.loads(
+        (Path(artifacts_dir) / "agent_meta.json").read_text(encoding="utf-8")
+    )
+    if not isinstance(value, dict):
+        raise ValueError(f"agent_meta.json at {artifacts_dir!r} is not an object")
+    value["artifacts_dir"] = artifacts_dir
+    return value
+
+
+def _is_interrupted_attempt(
+    meta: Mapping[str, Any],
+    decision: Mapping[str, Any],
+    evidence: Mapping[str, Any],
+) -> bool:
+    """Return whether the classifier found an unambiguous interrupted launch."""
+    return (
+        meta.get(ATTEMPT_STAGE_FIELD) in {"preparing", "launching"}
+        and not meta.get(ERROR_TYPE_FIELD)
+        and decision.get("recovery") == "resume"
+        and bool(decision.get("resume_eligible"))
+        and not bool(evidence.get("ambiguous"))
+        and not evidence.get("attached_agent")
+        and not bool(evidence.get("running"))
+        and not bool(evidence.get("completed"))
+    )
+
+
+def _attempt_is_recent(meta: dict[str, Any], *, now: float) -> bool:
+    """Wait 120 seconds before recovering a launch that may still be indexing."""
+    started_at = meta.get(ATTEMPT_STARTED_AT_FIELD)
+    if not isinstance(started_at, str) or not started_at:
+        return False
+    try:
+        started = datetime.fromisoformat(started_at.replace("Z", "+00:00"))
+    except ValueError:
+        return False
+    if started.tzinfo is None:
+        started = started.replace(tzinfo=UTC)
+    return now - started.timestamp() < _INTERRUPTED_ATTEMPT_GRACE_SECONDS
+
+
+def _auto_resume_interrupted_attempt(
+    record: GateTurnRecord,
+    meta: dict[str, Any],
+    attempt_id: str,
+) -> None:
+    """Persist one resume marker and submit its gate answer as a supervised proc."""
+    now = datetime.fromtimestamp(time.time(), tz=UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
+    _persist_reclaim_meta(
+        record.artifacts_dir,
+        meta,
+        gate_followup_auto_resume_attempt_id=attempt_id,
+        gate_followup_auto_resume_at=now,
+    )
+    selected = meta.get("gate_selected_option_ids")
+    if not isinstance(selected, list):
+        raise ValueError("gate_selected_option_ids is missing or invalid")
+    submit_proc_request(
+        ProcSubmitRequest(
+            argv=[
+                "sase",
+                "gate",
+                "answer",
+                "--id",
+                record.gate_id,
+                "--kind",
+                record.kind,
+                "--no-detach",
+                "--json",
+            ],
+            label=f"Gate resume: {record.kind}/{record.gate_id}",
+            cwd=str(Path.cwd()),
+            origin="gate-turn-reclaim-resume",
+            operation=GATE_ANSWER,
+            operation_payload={
+                "option_ids": selected,
+                "retry": "resume",
+                "source": "gate-reconcile",
+            },
+            project=record.project_name,
+            cl_name=str(meta.get("cl_name") or "") or None,
+        )
+    )
+
+
+def _persist_reclaim_meta(
+    artifacts_dir: str,
+    meta: dict[str, Any],
+    **fields: Any,
+) -> None:
+    """Persist reclaim markers while preserving the full gate metadata object."""
+    from sase.axe.agent_meta import write_agent_meta_atomic
+    from sase.core.agent_artifact_index_lifecycle import (
+        update_agent_artifact_index_for_marker_mutation,
+    )
+
+    meta.update(fields)
+    payload = dict(meta)
+    payload.pop("artifacts_dir", None)
+    write_agent_meta_atomic(
+        artifacts_dir,
+        payload,
+        index_updater=update_agent_artifact_index_for_marker_mutation,
+    )
 
 
 def _resolve_agent_session_records(

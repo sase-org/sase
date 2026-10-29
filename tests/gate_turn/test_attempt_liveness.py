@@ -3,10 +3,12 @@
 from __future__ import annotations
 
 import os
+from pathlib import Path
 
 import pytest
 
 from sase.gate_turn.attempt_liveness import gate_followup_attempt_is_live
+from sase.gate_turn.handoff import with_gate_followup_lock
 
 
 def test_recorded_live_attempt_without_pid_is_live() -> None:
@@ -42,3 +44,36 @@ def test_recorded_live_attempt_checks_owner_pid(
 
 def test_unrecorded_attempt_is_not_live() -> None:
     assert not gate_followup_attempt_is_live({"gate_followup_attempt_live": False})
+
+
+def test_running_owner_with_unheld_lock_is_an_orphaned_attempt(tmp_path: Path) -> None:
+    (tmp_path / ".gate_followup.lock").touch()
+
+    assert not gate_followup_attempt_is_live(
+        {
+            "gate_followup_attempt_live": True,
+            "gate_followup_attempt_owner_pid": os.getpid(),
+        },
+        artifacts_dir=str(tmp_path),
+    )
+
+
+def test_held_followup_lock_proves_attempt_is_live(tmp_path: Path) -> None:
+    with with_gate_followup_lock(str(tmp_path)):
+        assert gate_followup_attempt_is_live(
+            {
+                "gate_followup_attempt_live": True,
+                "gate_followup_attempt_owner_pid": -1,
+            },
+            artifacts_dir=str(tmp_path),
+        )
+
+
+def test_missing_followup_lock_means_attempt_is_not_live(tmp_path: Path) -> None:
+    assert not gate_followup_attempt_is_live(
+        {
+            "gate_followup_attempt_live": True,
+            "gate_followup_attempt_owner_pid": os.getpid(),
+        },
+        artifacts_dir=str(tmp_path),
+    )

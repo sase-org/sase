@@ -29,6 +29,7 @@ from sase.core.paths import sase_projects_dir
 from sase.gate_turn.attempt_liveness import (
     ATTEMPT_LIVE_FIELD,
     ATTEMPT_OWNER_PID_FIELD,
+    FOLLOWUP_LOCK_NAME,
     gate_followup_attempt_is_live,
 )
 from sase.notification_gates.durability import atomic_write_json, file_lock
@@ -38,7 +39,6 @@ logger = logging.getLogger(__name__)
 
 HandoffMode = Literal["settle", "resume", "diagnose"]
 
-FOLLOWUP_LOCK_NAME = ".gate_followup.lock"
 ATTEMPT_ID_FIELD = "gate_followup_attempt_id"
 ATTEMPT_FINGERPRINT_FIELD = "gate_followup_attempt_fingerprint"
 ATTEMPT_STAGE_FIELD = "gate_followup_attempt_stage"
@@ -77,6 +77,7 @@ def classify_gate_handoff(
     meta: Mapping[str, Any],
     *,
     mode: HandoffMode,
+    holds_followup_lock: bool,
     already_settled: bool,
     followup_requested: bool,
     creator_live: bool = False,
@@ -100,21 +101,34 @@ def classify_gate_handoff(
         "followup_error": _str(meta.get("gate_followup_error")),
         "followup_degraded_reason": _str(meta.get("gate_followup_degraded_reason")),
         "followup_prompt_path": _str(meta.get("gate_followup_prompt_path")),
-        "attempt": _attempt_snapshot(meta, fingerprint),
+        "attempt": _attempt_snapshot(
+            meta,
+            fingerprint,
+            holds_followup_lock=holds_followup_lock,
+        ),
         "successor_evidence": dict(successor_evidence or {}),
     }
     return decide_gate_followup(request)
 
 
 def _attempt_snapshot(
-    meta: Mapping[str, Any], fingerprint: str
+    meta: Mapping[str, Any],
+    fingerprint: str,
+    *,
+    holds_followup_lock: bool,
 ) -> dict[str, Any] | None:
     """Return the persisted attempt wire, marking dead owners as not live."""
     attempt_id = _str(meta.get(ATTEMPT_ID_FIELD))
     if not attempt_id:
         return None
     owner_pid = _optional_int(meta.get(ATTEMPT_OWNER_PID_FIELD))
-    live = gate_followup_attempt_is_live(meta)
+    live = (
+        False
+        if holds_followup_lock
+        else gate_followup_attempt_is_live(
+            meta, artifacts_dir=meta.get("artifacts_dir")
+        )
+    )
     return {
         "attempt_id": attempt_id,
         "fingerprint": _str(meta.get(ATTEMPT_FINGERPRINT_FIELD)) or fingerprint or None,

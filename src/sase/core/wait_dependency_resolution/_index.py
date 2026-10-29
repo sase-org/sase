@@ -361,7 +361,11 @@ class WaitDependencyIndex(WaitDependencyIndexQueries):
             archived_completion=archived_completion,
             outcome=outcome,
             has_done_marker=has_done_marker,
-            turn_followup_agent=turn_followup_handoff_agent(meta, done_data),
+            turn_followup_agent=turn_followup_handoff_agent(
+                meta,
+                done_data,
+                artifacts_dir=artifact_dir,
+            ),
             turn_followup_outcome=turn_followup_outcome(meta, done_data),
             turn_member_kind=turn_member_kind_for_meta(meta),
             recorded_epic_ids=recorded_epic_ids,

@@ -326,15 +326,19 @@ configured.
 
 Answering a turn-backed gate runs its commands in a supervised detached proc by default,
 so they survive the client that submitted the decision; `sase gate answer --no-detach`
-opts into inline execution. Use `sase gate list` for pending turns,
-`sase gate list --all` for their history, `sase gate show <turn>` for the resolved
-branches and follow-up disposition, and `sase gate cancel <turn>` to settle a pending
-turn without a follow-up. Approval history keeps its decision label (`TALE APPROVED` and
-similar); that label does not imply the coder is running. A failed or interrupted
-handoff is shown as needing attention with the
+opts into inline execution. ACE also submits neutral question-modal answers as durable
+gate-answer procs, so question settlement and follow-up launch survive an ACE restart.
+Use `sase gate list` for pending turns, `sase gate list --all` for their history,
+`sase gate show <turn>` for the resolved branches and follow-up disposition, and
+`sase gate cancel <turn>` to settle a pending turn without a follow-up. Approval history
+keeps its decision label (`TALE APPROVED` and similar); that label does not imply the
+coder is running. A failed or interrupted handoff is shown as needing attention with the
 `sase gate answer --kind <kind> --id <id> --option ... --resume` recovery command. An
-agent that creates a gate turn must end its turn rather than call `sase gate wait`;
-direct waiting remains available to non-agent scripts.
+eligible interrupted launch is given a 120-second indexing window, then the hourly
+`gate_turn_reclaim` job submits one supervised resume attempt. If that attempt was
+already submitted or submission fails, reclaim sends one notification with the resume
+command. An agent that creates a gate turn must end its turn rather than call
+`sase gate wait`; direct waiting remains available to non-agent scripts.
 
 ### Gate inputs
 

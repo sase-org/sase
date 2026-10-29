@@ -18047,7 +18047,7 @@
           {
             "aliases": [],
             "default_child": null,
-            "description_digest": "fc32435fbb540685",
+            "description_digest": "026434b610b70a4f",
             "hidden": false,
             "mutex_groups": [
               [
@@ -18220,6 +18220,22 @@
                 ],
                 "takes_value": true,
                 "value_hint": "text"
+              },
+              {
+                "choices": null,
+                "default": null,
+                "dest": "operation_request_path",
+                "hidden": false,
+                "kind": "path",
+                "metavar": "PATH",
+                "repeatable": false,
+                "required": false,
+                "strings": [
+                  "-Q",
+                  "--request-path"
+                ],
+                "takes_value": true,
+                "value_hint": "path"
               },
               {
                 "choices": null,

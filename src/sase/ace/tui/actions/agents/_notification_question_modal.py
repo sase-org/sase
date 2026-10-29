@@ -6,7 +6,7 @@ import logging
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING, Literal
+from typing import TYPE_CHECKING, Any, Literal
 
 from ._notification_utils import refresh_notification_agent_or_request
 
@@ -54,6 +54,7 @@ def handle_user_question(app: object, notification: Notification) -> bool:
         app,
         str(bundle.root),
         notification_id=notification.id,
+        notification=notification,
         action_data=dict(notification.action_data),
         debug_context=debug_context_from_notification(notification),
         on_response_written=lambda: _on_user_question_response_written(
@@ -93,6 +94,7 @@ def open_user_question_modal_from_marker(
             app,
             response_dir,
             notification_id=None,
+            notification=None,
             action_data={"response_dir": response_dir},
             debug_context=None,
             on_response_written=None,
@@ -107,6 +109,7 @@ def open_user_question_modal_from_marker(
         app,
         response_dir,
         notification_id=None,
+        notification=None,
         action_data={"response_dir": response_dir},
         debug_context=None,
         on_response_written=on_written,
@@ -118,19 +121,28 @@ def _open_user_question_modal(
     response_dir: str,
     *,
     notification_id: str | None,
+    notification: Notification | None,
     action_data: dict[str, str],
     debug_context: GateDebugContext | None,
     on_response_written: Callable[[], None] | None,
 ) -> bool:
     from ...modals import UserQuestionModal, UserQuestionResult
     from sase.user_question_actions import (
+        UserQuestionActionContext,
         UserQuestionActionError,
-        read_user_question_request,
+        resolve_user_question_request,
     )
 
     response_path = Path(response_dir)
+    context_data = dict(action_data)
+    context_data.setdefault("response_dir", str(response_path))
     try:
-        request_data = read_user_question_request(response_path)
+        request = resolve_user_question_request(
+            UserQuestionActionContext(
+                notification_id=notification_id,
+                host_action_data=context_data,
+            )
+        )
     except UserQuestionActionError as e:
         app.notify(  # type: ignore[attr-defined]
             f"Error reading question request: {e}; press d on the notification to debug",
@@ -138,7 +150,7 @@ def _open_user_question_modal(
         )
         return False
 
-    questions = request_data.get("questions", [])
+    questions = request.questions
 
     def on_dismiss(result: object) -> None:
         if result is None:
@@ -164,6 +176,10 @@ def _open_user_question_modal(
             notification_id=notification_id,
             action_data=action_data,
             response_data=response_data,
+            questions=questions,
+            legacy=request.legacy,
+            bundle_path=request.root,
+            notification=notification,
             on_response_written=on_response_written,
         )
 
@@ -181,22 +197,151 @@ def _submit_question_response_task(
     notification_id: str | None,
     action_data: dict[str, str],
     response_data: dict[str, object],
+    questions: list[dict[str, object]],
+    legacy: bool,
+    bundle_path: Path,
+    notification: Notification | None,
     on_response_written: Callable[[], None] | None,
 ) -> None:
     """Run the hashed question command as tracked background work in ACE."""
     from sase.ace.tui.actions.proc_actions import TrackedProcResult
+    from sase.user_question_actions import (
+        UserQuestionActionContext,
+        UserQuestionActionError,
+        normalize_user_question_response,
+        run_user_question_response_side_effects,
+    )
 
-    request_id = action_data.get("request_id") or response_dir.name
+    request_id = action_data.get("request_id") or bundle_path.name
+    context_data = dict(action_data)
+    context_data.setdefault("response_dir", str(response_dir))
+    try:
+        normalized = normalize_user_question_response(
+            questions,
+            response_data,
+        )
+    except UserQuestionActionError as exc:
+        _finish_question_response_task(
+            app,
+            _QuestionResponseTaskOutcome(str(exc), False, "error"),
+            on_response_written,
+        )
+        return
+
+    if not legacy:
+        submit_durable = getattr(app, "_submit_durable_proc", None)
+        if callable(submit_durable):
+            from sase.ace.tui.actions._durable_ops import (
+                durable_fingerprint,
+                durable_request_payload,
+                sase_argv,
+            )
+            from sase.ops.names import GATE_ANSWER
+
+            note = normalized.get("global_note")
+            feedback = note if isinstance(note, str) and note.strip() else None
+
+            def on_complete(completion: object) -> None:
+                success = bool(getattr(completion, "success", False))
+                payload = getattr(completion, "payload", None)
+                code = payload.get("code") if isinstance(payload, dict) else None
+                if success:
+                    run_user_question_response_side_effects(
+                        UserQuestionActionContext(
+                            notification_id=notification_id,
+                            host_action_data=context_data,
+                        ),
+                        source="tui",
+                    )
+                    outcome = _QuestionResponseTaskOutcome(
+                        str(getattr(completion, "message", "Question answered")),
+                        True,
+                    )
+                elif code in {
+                    "already_answered",
+                    "gate_cancelled",
+                    "conflict_already_handled",
+                }:
+                    outcome = _QuestionResponseTaskOutcome(
+                        "Question was already answered", False, "warning"
+                    )
+                else:
+                    outcome = _QuestionResponseTaskOutcome(
+                        str(
+                            getattr(
+                                completion,
+                                "message",
+                                "Question response failed",
+                            )
+                        ),
+                        False,
+                        "error",
+                    )
+                _finish_question_response_task(app, outcome, on_response_written)
+
+            try:
+                submitted = submit_durable(
+                    sase_argv(
+                        "gate",
+                        "answer",
+                        "--id",
+                        request_id,
+                        "--kind",
+                        "question",
+                        "--no-detach",
+                        "--json",
+                    ),
+                    operation=GATE_ANSWER,
+                    request=durable_request_payload(
+                        option_ids=["submit"],
+                        input_data=normalized,
+                        feedback=feedback,
+                        source="tui",
+                    ),
+                    request_fingerprint=durable_fingerprint(
+                        GATE_ANSWER,
+                        "question",
+                        request_id,
+                        "submit",
+                        "",
+                        "tui",
+                    ),
+                    concurrency_keys=(
+                        f"notification-gate:{notification_id or request_id}",
+                    ),
+                    label=f"answer question {request_id}",
+                    display_name=f"answer question {request_id}",
+                    cl_name=f"question {request_id}",
+                    project_file=str(bundle_path),
+                    on_complete=on_complete,
+                    reload_on_complete=False,
+                    notify_on_complete=False,
+                )
+            except Exception:
+                log.exception("Failed to submit durable question answer")
+                _finish_question_response_task(
+                    app,
+                    _QuestionResponseTaskOutcome(
+                        "Question response failed", False, "error"
+                    ),
+                    on_response_written,
+                )
+                return
+            if submitted is not None and notification is not None:
+                from ._notification_utils import schedule_gate_decision_receipt_refresh
+
+                schedule_gate_decision_receipt_refresh(
+                    app,
+                    notification=notification,
+                    bundle_path=bundle_path,
+                )
+            return
 
     def task_body() -> _QuestionResponseTaskOutcome:
         from sase.user_question_actions import (
-            UserQuestionActionContext,
-            UserQuestionActionError,
             execute_user_question_response,
         )
 
-        context_data = dict(action_data)
-        context_data.setdefault("response_dir", str(response_dir))
         try:
             result = execute_user_question_response(
                 UserQuestionActionContext(

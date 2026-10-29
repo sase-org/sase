@@ -48,6 +48,7 @@ _COUNTERS_ZERO = {
     "handoff_deferred": 0,
     "handoff_errors": 0,
     "handoff_incomplete": 0,
+    "handoff_resumed": 0,
     "handoff_scanned": 0,
     "handoff_skipped": 0,
     "lost": 0,
@@ -139,7 +140,7 @@ def test_gate_turn_reclaim_emits_action_summary(
     monkeypatch.setattr(
         script,
         "reconcile_incomplete_gate_handoffs",
-        lambda **_kwargs: GateHandoffReconcileSummary(),
+        lambda **_kwargs: GateHandoffReconcileSummary(resumed=1),
     )
 
     run_builtin_chop("gate_turn_reclaim", ["--context", str(context_path)])
@@ -149,6 +150,7 @@ def test_gate_turn_reclaim_emits_action_summary(
     assert "scanned=3" in out
     assert "answered=1" in out
     assert "lost=1" in out
+    assert "handoff_resumed=1" in out
     assert "gate turn reclaim progress: reclaim phase done" in out
     assert "gate turn reclaim progress: reconcile done" in out
     result = json.loads(result_path.read_text(encoding="utf-8"))
@@ -158,6 +160,7 @@ def test_gate_turn_reclaim_emits_action_summary(
         **_COUNTERS_ZERO,
         "answered": 1,
         "lost": 1,
+        "handoff_resumed": 1,
         "scanned": 3,
     }
 

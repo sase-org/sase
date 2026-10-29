@@ -11,6 +11,7 @@ from sase.core.wait_dependency_resolution import (
     build_wait_dependency_index,
     dependency_resolution_status,
 )
+from sase.gate_turn.handoff import with_gate_followup_lock
 from tests._agent_names_fixtures import make_agent
 from tests._gate_wait_dependency_helpers import (
     _agent_session_fork_source,
@@ -25,7 +26,7 @@ def _gate_session_with_failed_followup(
     attempt_stage: str,
     owner_pid: int | None,
     done_outcome: str | None,
-) -> None:
+) -> Path:
     root_dir = make_agent(
         tmp_path,
         "proj",
@@ -58,6 +59,7 @@ def _gate_session_with_failed_followup(
         },
     )
     _write_gate_done(gate_dir, gate_state="answered", followup_outcome=done_outcome)
+    return gate_dir
 
 
 def test_gate_next_action_without_followup_disposition_blocks_handoff_window(
@@ -170,7 +172,7 @@ def test_live_failed_gate_attempt_keeps_session_pending(
     tmp_path: Path,
     done_outcome: str | None,
 ) -> None:
-    _gate_session_with_failed_followup(
+    gate_dir = _gate_session_with_failed_followup(
         tmp_path,
         attempt_live=True,
         attempt_stage="launching",
@@ -178,10 +180,11 @@ def test_live_failed_gate_attempt_keeps_session_pending(
         done_outcome=done_outcome,
     )
 
-    index = build_wait_dependency_index(
-        "proj",
-        projects_root=tmp_path / ".sase/projects",
-    )
+    with with_gate_followup_lock(str(gate_dir)):
+        index = build_wait_dependency_index(
+            "proj",
+            projects_root=tmp_path / ".sase/projects",
+        )
 
     agent_session = index.agent_session_candidate("gate-lane")
     assert agent_session is not None
@@ -230,4 +233,22 @@ def test_settled_failed_gate_attempt_releases_session(
     assert agent_session.is_resolved
     assert dependency_resolution_status(index, ["gate-lane"]).resolved
     if owner_is_live is False:
-        assert checked_pids == [os.getpid()]
+        assert checked_pids == []
+
+
+def test_reexeced_gate_attempt_does_not_keep_session_pending(tmp_path: Path) -> None:
+    gate_dir = _gate_session_with_failed_followup(
+        tmp_path,
+        attempt_live=True,
+        attempt_stage="launching",
+        owner_pid=os.getpid(),
+        done_outcome="failed",
+    )
+    (gate_dir / ".gate_followup.lock").touch()
+
+    index = build_wait_dependency_index(
+        "proj",
+        projects_root=tmp_path / ".sase/projects",
+    )
+
+    assert dependency_resolution_status(index, ["gate-lane"]).resolved

@@ -1,4 +1,4 @@
-{"count": 3655, "rev": "f477d2451ad6", "schema": "sase.footprint.catalog/1"}
+{"count": 3656, "rev": "e700f82c7779", "schema": "sase.footprint.catalog/1"}
 {"area": "automation", "id": "auto:axe.agent_waits", "kind": "auto", "label": "Resolve agent wait dependencies within seconds of completion", "ns": "auto", "parent": null, "src": "sase/default_config.yml"}
 {"area": "automation", "id": "auto:axe.agent_waits.wait_checks", "kind": "auto", "label": "Resolve agent wait dependencies and write ready.json when satisfied", "ns": "auto", "parent": "auto:axe.agent_waits", "src": "sase/default_config.yml"}
 {"area": "automation", "id": "auto:axe.checks", "kind": "auto", "label": "Poll slower PR-submission and workspace-claim checks on a five-minute cadence", "ns": "auto", "parent": null, "src": "sase/default_config.yml"}
@@ -835,6 +835,7 @@
 {"area": "cli.gate", "id": "cli:gate.answer#json", "kind": "option", "label": "Option --json of cli:gate.answer", "ns": "cli", "parent": "cli:gate.answer", "src": "sase/main/parser_gate.py:register_gate_parser"}
 {"area": "cli.gate", "id": "cli:gate.answer#kind", "kind": "option", "label": "Option --kind of cli:gate.answer", "ns": "cli", "parent": "cli:gate.answer", "src": "sase/main/parser_gate.py:register_gate_parser"}
 {"area": "cli.gate", "id": "cli:gate.answer#no_detach", "kind": "option", "label": "Option --no_detach of cli:gate.answer", "ns": "cli", "parent": "cli:gate.answer", "src": "sase/main/parser_gate.py:register_gate_parser"}
+{"area": "cli.gate", "id": "cli:gate.answer#operation_request_path", "kind": "option", "label": "Option --operation_request_path of cli:gate.answer", "ns": "cli", "parent": "cli:gate.answer", "src": "sase/main/parser_gate.py:register_gate_parser"}
 {"area": "cli.gate", "id": "cli:gate.answer#option", "kind": "option", "label": "Option --option of cli:gate.answer", "ns": "cli", "parent": "cli:gate.answer", "src": "sase/main/parser_gate.py:register_gate_parser"}
 {"area": "cli.gate", "id": "cli:gate.answer#option_input", "kind": "option", "label": "Option --option_input of cli:gate.answer", "ns": "cli", "parent": "cli:gate.answer", "src": "sase/main/parser_gate.py:register_gate_parser"}
 {"area": "cli.gate", "id": "cli:gate.answer#restart", "kind": "option", "label": "Option --restart of cli:gate.answer", "ns": "cli", "parent": "cli:gate.answer", "src": "sase/main/parser_gate.py:register_gate_parser"}

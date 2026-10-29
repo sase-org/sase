@@ -112,10 +112,41 @@ def test_suffixless_sudo_gate_does_not_adopt_its_completed_creator() -> None:
             "gate_request_fingerprint": "sha256:incident",
         },
         mode="settle",
+        holds_followup_lock=False,
         already_settled=False,
         followup_requested=True,
         successor_evidence=evidence,
     )
+    assert decision["launch_allowed"] is True
+
+
+def test_resume_classification_with_owned_lock_treats_persisted_attempt_as_dead() -> (
+    None
+):
+    decision = classify_gate_handoff(
+        {
+            "gate_id": "interrupted-gate",
+            "gate_kind": "plan",
+            "gate_state": "answered",
+            "gate_request_fingerprint": "sha256:interrupted",
+            "gate_selected_option_ids": ["approve"],
+            "gate_followup_attempt_id": "attempt-1",
+            "gate_followup_attempt_stage": "launching",
+            "gate_followup_attempt_live": True,
+            "gate_followup_attempt_owner_pid": 1,
+        },
+        mode="resume",
+        holds_followup_lock=True,
+        already_settled=True,
+        followup_requested=True,
+        successor_evidence={
+            "attached_agent": None,
+            "running": False,
+            "completed": False,
+            "ambiguous": False,
+        },
+    )
+
     assert decision["launch_allowed"] is True
 
 

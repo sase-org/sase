@@ -213,7 +213,10 @@ lock is held), so an `%auto` gate that is still executing its selected commands 
 marked lost; a turn whose creator died before recording a bundle is still settled lost
 on a later pass. It then diagnoses settled gates whose requested successor never
 recorded, reading the agent artifact index once per pass and resuming from a per-project
-cursor. Work left when the pass-wide time budget runs out is deferred to the next tick.
+cursor. An eligible interrupted launch waits 120 seconds for indexing, then gets one
+supervised resume attempt. If reclaim already submitted that attempt or submission
+fails, it sends one notification with the resume command. Work left when the pass-wide
+time budget runs out is deferred to the next tick.
 
 The `artifact_link_backfill` job runs four bounded jobs per enabled project. It sweeps
 older documents for deterministic derived links, resuming from a per-project checkpoint

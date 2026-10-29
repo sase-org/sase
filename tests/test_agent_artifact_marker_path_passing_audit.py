@@ -320,6 +320,13 @@ _REVIEWED_PATH_PASSING_CONTEXTS: dict[str, PathPassingReview] = {
             "check by the liveness prober; no marker is written here."
         ),
     ),
+    "src/sase/gate_turn/reclaim.py:_read_reclaim_meta": PathPassingReview(
+        exemption=(
+            "Read-only gate-turn recovery lookup: agent_meta.json is loaded to "
+            "inspect selected options and attempt markers; later metadata writes "
+            "use write_agent_meta_atomic and refresh the Tier 1 artifact index."
+        ),
+    ),
     "src/sase/scripts/_chop_wait_checks_run.py:_run": PathPassingReview(
         exemption=(
             "Run-scoped agent_meta.json read cache: marker paths are dict "

@@ -157,6 +157,8 @@ def turn_followup_outcome(
 def turn_followup_handoff_agent(
     meta: Mapping[str, Any],
     done_data: Mapping[str, Any] | None,
+    *,
+    artifacts_dir: str | Path | None = None,
 ) -> str | None:
     """Return a successor agent or a placeholder while a gate handoff is pending.
 
@@ -188,7 +190,12 @@ def turn_followup_handoff_agent(
             followup_outcome is None
             or (
                 followup_outcome not in SUCCESSFUL_TURN_FOLLOWUP_OUTCOMES
-                and gate_followup_attempt_is_live(meta)
+                and gate_followup_attempt_is_live(
+                    meta,
+                    artifacts_dir=(
+                        str(artifacts_dir) if artifacts_dir is not None else None
+                    ),
+                )
             )
         )
         and isinstance(next_action, str)

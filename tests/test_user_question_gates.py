@@ -125,6 +125,56 @@ def test_question_gate_executes_complete_form_and_marks_handled(
     assert entry["state"] == "already_handled"
 
 
+def test_gate_answer_operation_request_accepts_normalized_question_input(
+    question_gate_home: Path,
+) -> None:
+    from sase.main.gate_handler import handle_gate_command
+    from sase.main.parser import create_parser
+    from sase.ops import DurableOperationRequest, write_operation_request
+    from sase.ops.names import GATE_ANSWER
+
+    gate = create_gate(
+        user_question_gate_spec(_questions(), session_id="question-operation-request")
+    )
+    request_path = question_gate_home / "operation-request.json"
+    write_operation_request(
+        request_path,
+        DurableOperationRequest(
+            operation=GATE_ANSWER,
+            payload={
+                "option_ids": ["submit"],
+                "input_data": _complete_response(),
+                "feedback": "Prefer the durable path",
+                "source": "tui",
+            },
+        ),
+    )
+    args = create_parser().parse_args(
+        [
+            "gate",
+            "answer",
+            "--id",
+            "question-operation-request",
+            "--kind",
+            "question",
+            "--no-detach",
+            "--json",
+            "-Q",
+            str(request_path),
+        ]
+    )
+
+    with pytest.raises(SystemExit) as exit_info:
+        handle_gate_command(args)
+
+    assert int(exit_info.value.code or 0) == 0
+    response = json.loads(gate.response_path.read_text(encoding="utf-8"))
+    assert response["selected_option_ids"] == ["submit"]
+    assert response["option_results"] == [
+        {"id": "submit", "result": _complete_response()}
+    ]
+
+
 def test_incomplete_question_form_leaves_gate_answerable(
     question_gate_home: Path,
 ) -> None:

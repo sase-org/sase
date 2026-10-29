@@ -89,6 +89,7 @@ def launch_or_record_followup(
     decision = classify_gate_handoff(
         meta,
         mode="resume" if resume else ("diagnose" if already_settled else "settle"),
+        holds_followup_lock=True,
         already_settled=already_settled,
         followup_requested=followup_requested,
         successor_evidence=evidence,
