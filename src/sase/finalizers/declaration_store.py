@@ -37,7 +37,6 @@ from sase.llm_provider.commit_finalizer_git_status import (
 )
 from sase.llm_provider.commit_finalizer_types import DirtyRepo, DirtyState
 from sase.memory.locks import locked_file
-from sase.finalizers.commit_carry import carry_action_allowed_for_handoff
 
 FINAL_CONTEXT_HOST_FILENAME = "final_context_host.json"
 FINAL_SUBMISSION_HOST_FILENAME = "final_submission_host.json"
@@ -216,6 +215,8 @@ def build_context_requirements(
     handoff: FinalizerHandoffWire | None = None,
     prepared_coverage_eligible: bool = False,
 ) -> tuple[list[FinalizerPayloadRequirementWire], list[FinalizerObligationWire]]:
+    from sase.finalizers.commit_carry import carry_action_allowed_for_handoff
+
     requirements: list[FinalizerPayloadRequirementWire] = []
     obligations: list[FinalizerObligationWire] = []
     repository_obligations: list[FinalizerObligationWire] | None = None

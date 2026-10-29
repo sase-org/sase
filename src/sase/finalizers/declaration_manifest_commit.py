@@ -20,10 +20,6 @@ from sase.core.finalizer_wire import (
     finalizer_deferral_from_dict,
     finalizer_wire_to_json_dict,
 )
-from sase.finalizers.commit_carry import (
-    carry_decision_allowed_keys,
-    check_carry_action,
-)
 from sase.finalizers.declaration_store import (
     FinalizerDeclarationError,
     HostRepositoryRecord,
@@ -383,6 +379,11 @@ def _validate_carry_decision(
     repo_id: str,
     decision: Mapping[str, Any],
 ) -> None:
+    from sase.finalizers.commit_carry import (
+        carry_decision_allowed_keys,
+        check_carry_action,
+    )
+
     _reject_extra_keys(decision, set(carry_decision_allowed_keys()), "carry")
     try:
         check_carry_action(context)

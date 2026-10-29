@@ -12,13 +12,6 @@ from sase.core.finalizer_wire import (
     FinalizerOutcomeEvidenceWire,
 )
 from sase.finalizers.commit_bead import ensure_no_residual_dirt
-from sase.finalizers.commit_carry import (
-    carry_evidence_for_context,
-    carry_repo_ids,
-    check_carry_action,
-    prepared_evidence_for_ids,
-    repos_with_action,
-)
 from sase.finalizers.commit_declaration import (
     accepted_deferrals_for_instance,
     accepted_repos_from_host,
@@ -102,6 +95,12 @@ def execute_commit_finalizer(
     ledger_before_already_clean: Sequence[Mapping[str, Any]] | None = None,
 ) -> BuiltinCommitExecution:
     """Execute accepted ``commit`` declarations through ``sase stitch create``."""
+    from sase.finalizers.commit_carry import (
+        carry_evidence_for_context,
+        carry_repo_ids,
+        check_carry_action,
+        repos_with_action,
+    )
 
     if instance.provider_ref != _COMMIT_PROVIDER_REF:
         raise BuiltinCommitFinalizerError(
@@ -569,6 +568,7 @@ def _prepared_starter_satisfaction(
 ) -> BuiltinCommitExecution | None:
     """Return prepared-coverage success when the starter must not commit."""
 
+    from sase.finalizers.commit_carry import prepared_evidence_for_ids
     from sase.finalizers.declaration import (
         load_latest_finalizer_context,
         require_artifacts_dir,

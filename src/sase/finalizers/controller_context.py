@@ -14,7 +14,6 @@ from sase.core.finalizer_wire import (
     FinalizerPlanWire,
     finalizer_wire_to_json_dict,
 )
-from sase.finalizers.commit_carry import current_commit_obligations_satisfied
 from sase.finalizers.declaration import (
     FINAL_CONTEXT_FILENAME,
     FINAL_SUBMISSION_FILENAME,
@@ -202,6 +201,8 @@ def pending_instance_ids(
     ran_non_commit: set[str],
 ) -> tuple[str, ...]:
     """Find plan instances that still need to run for the published context."""
+    from sase.finalizers.commit_carry import current_commit_obligations_satisfied
+
     selected = payload.get("selected_instances")
     requirements: dict[str, Mapping[str, Any]] = {}
     if isinstance(selected, list):

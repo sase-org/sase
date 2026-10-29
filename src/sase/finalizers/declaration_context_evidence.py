@@ -4,15 +4,13 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from sase.core.finalizer_wire import (
     FINALIZER_DEFERRAL_REASONS,
     FinalizerContextWire,
     FinalizerObligationWire,
 )
-from sase.finalizers.commit_carry import carry_action_allowed_for_handoff
-from sase.finalizers.prepared_coverage import PreparedStarterCoverage
 from sase.finalizers.commit_validation import protected_baseline_paths
 from sase.finalizers.declaration_recovery_evidence import (
     MAX_PATHS_PER_REPO,
@@ -31,6 +29,9 @@ from sase.llm_provider.commit_finalizer_git import (
     split_pre_existing_changed_files,
 )
 from sase.llm_provider.commit_finalizer_raw_commits import AbsorbedRawCommits
+
+if TYPE_CHECKING:
+    from sase.finalizers.prepared_coverage import PreparedStarterCoverage
 
 COMMIT_DECLARATION_RULE = (
     "SASE agents work in ephemeral numbered workspace clones, so uncommitted "
@@ -54,6 +55,7 @@ def build_commit_declaration_context(
     prepared_coverage: PreparedStarterCoverage | None = None,
 ) -> dict[str, Any]:
     """Return model-visible guidance for authoring commit declarations."""
+    from sase.finalizers.commit_carry import carry_action_allowed_for_handoff
 
     records_by_id = {record.obligation_id: record for record in host_records}
     baseline = load_dirty_baseline(root)

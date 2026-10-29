@@ -1,4 +1,10 @@
-"""Parity tests for the finalizer handoff wire and prepared coverage."""
+"""Parity tests for the finalizer handoff wire and prepared coverage.
+
+Kept off the contract set: published sase-core-rs 0.42.7 predates the
+handoff descriptor, repository-action, and prepared-coverage bindings.
+Release-core-floor-smoke installs that wheel, so this stays a local/dev
+gate until a floor that exports them ships.
+"""
 
 from __future__ import annotations
 
@@ -31,8 +37,6 @@ from sase.core.finalizer_wire import (
     repository_action_outcome_from_dict,
 )
 
-
-pytestmark = pytest.mark.contract
 
 STAGED = "123e4567-e89b-12d3-a456-426614174000"
 

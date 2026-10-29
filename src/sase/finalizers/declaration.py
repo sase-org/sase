@@ -24,10 +24,9 @@ from dataclasses import dataclass, replace
 import os
 from pathlib import Path
 import secrets
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from sase.agent.identity import resolve_local_agent_name
-from sase.agent.staged_handoff import StagedHandoffError, read_staged_handoff
 from sase.core.finalizer_facade import (
     validate_finalizer_context,
     validate_finalizer_submission,
@@ -45,12 +44,6 @@ from sase.finalizers.declaration_format import format_context_pretty
 from sase.finalizers.declaration_deferrals import adjudicate_commit_deferrals
 from sase.finalizers.declaration_context_evidence import (
     build_commit_declaration_context,
-)
-from sase.finalizers.commit_carry import carry_action_allowed_for_handoff
-from sase.finalizers.prepared_coverage import (
-    PreparedStarterCoverage,
-    evaluate_prepared_starter_coverage_for_artifacts,
-    prepared_coverage_omits_starter_submission,
 )
 from sase.finalizers.declaration_manifest import (
     FINAL_CONTEXT_FILENAME,
@@ -102,6 +95,9 @@ from sase.llm_provider.commit_finalizer_raw_commits import (
 from sase.llm_provider.commit_finalizer_state import collect_dirty_state
 from sase.llm_provider.commit_finalizer_types import DirtyState
 from sase.telemetry.metrics import FINALIZER_SELECTED
+
+if TYPE_CHECKING:
+    from sase.finalizers.prepared_coverage import PreparedStarterCoverage
 
 SASE_FINAL_TURN_NONCE_ENV = "SASE_FINAL_TURN_NONCE"
 
@@ -288,6 +284,8 @@ def submit_final_manifest(
             raise stale
 
         if _synthesized_provenance is not None:
+            from sase.finalizers.commit_carry import carry_action_allowed_for_handoff
+
             if not _only_if_absent or not carry_action_allowed_for_handoff(
                 current.handoff
             ):
@@ -350,6 +348,7 @@ def synthesize_carry_declaration(
     artifacts_dir: str | None = None,
 ) -> dict[str, Any] | None:
     """Persist host-authored carry when a dirty inheriting handoff has no submission."""
+    from sase.finalizers.commit_carry import carry_action_allowed_for_handoff
 
     context = publication.context
     repository_ids = [
@@ -524,6 +523,11 @@ def _build_live_context(
     prepared_coverage = None
     prepared_eligible = False
     if handoff is not None and handoff.prepared_intent_ref:
+        from sase.finalizers.prepared_coverage import (
+            evaluate_prepared_starter_coverage_for_artifacts,
+            prepared_coverage_omits_starter_submission,
+        )
+
         prepared_coverage = evaluate_prepared_starter_coverage_for_artifacts(
             root,
             plan_digest=plan.plan_digest,
@@ -574,6 +578,8 @@ def _build_live_context(
 
 
 def _handoff_from_staged_record(root: Path) -> FinalizerHandoffWire | None:
+    from sase.agent.staged_handoff import StagedHandoffError, read_staged_handoff
+
     try:
         record = read_staged_handoff(str(root))
     except StagedHandoffError as exc:
