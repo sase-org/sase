@@ -17,6 +17,7 @@ from sase.workflows.commit.checkpoint import (
     checkpoint_delete,
     checkpoint_load,
     checkpoint_save,
+    bind_checkpoint_persistence,
     ensure_operation_id,
 )
 from sase.workflows.commit.commit_tracking import (
@@ -353,7 +354,8 @@ class CommitWorkflow(BaseWorkflow):
 
         print_status(f"Dispatching {self._method} to VCS provider...", "progress")
         _emit_stitch_step(self._method, state="start")
-        ok, result = dispatch(self._payload, cwd)
+        with bind_checkpoint_persistence(cp):
+            ok, result = dispatch(self._payload, cwd)
         if not ok:
             from sase.finalizers.commit_repair_common import bound_stream
             from sase.workflows.commit.rebase_gate_coordinator import is_gate_blocked

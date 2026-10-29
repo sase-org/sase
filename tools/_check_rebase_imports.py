@@ -10,9 +10,11 @@ wheel cannot shadow the committed tree.
 from __future__ import annotations
 
 import ast
+import importlib.abc
 import importlib.util
 import json
 import os
+import stat
 import subprocess
 import sys
 from collections.abc import Mapping, Sequence
@@ -57,6 +59,176 @@ class _NameVerdict:
 
 class CheckerError(Exception):
     """Infrastructure failure: emit ``status=error`` and fail open."""
+
+
+class CommittedTree:
+    """Read and verify only files named by the committed tree identity."""
+
+    def __init__(self, repo: Path, tree: str) -> None:
+        self.repo = repo.resolve()
+        self.tree = tree
+        self._source_cache: dict[str, bytes] = {}
+
+    def _entry(self, rel_path: str) -> tuple[str, bytes]:
+        """Return the committed mode and blob for one exact repository path."""
+        completed = subprocess.run(
+            ["git", "ls-tree", "-z", self.tree, "--", f":(literal){rel_path}"],
+            cwd=self.repo,
+            check=False,
+            capture_output=True,
+            timeout=_GIT_TIMEOUT_SECONDS,
+        )
+        if completed.returncode != 0:
+            detail = (completed.stderr or completed.stdout).decode(
+                "utf-8", errors="replace"
+            ).strip()
+            raise CheckerError(f"git ls-tree failed for {rel_path}: {detail}")
+        entries = [entry for entry in completed.stdout.split(b"\0") if entry]
+        if len(entries) != 1:
+            raise CheckerError(
+                f"{rel_path} does not resolve to one entry in committed tree {self.tree}"
+            )
+        metadata, entry_path = entries[0].split(b"\t", 1)
+        if os.fsdecode(entry_path) != rel_path:
+            raise CheckerError(f"git resolved an unexpected tree path for {rel_path}")
+        try:
+            mode_bytes, kind, oid = metadata.split()
+        except ValueError as exc:
+            raise CheckerError(f"malformed git tree entry for {rel_path}") from exc
+        if kind != b"blob":
+            raise CheckerError(f"{rel_path} is not a committed source blob")
+        blob = subprocess.run(
+            ["git", "cat-file", "blob", os.fsdecode(oid)],
+            cwd=self.repo,
+            check=False,
+            capture_output=True,
+            timeout=_GIT_TIMEOUT_SECONDS,
+        )
+        if blob.returncode != 0:
+            detail = (blob.stderr or blob.stdout).decode("utf-8", errors="replace").strip()
+            raise CheckerError(f"git cat-file failed for {rel_path}: {detail}")
+        return mode_bytes.decode("ascii"), blob.stdout
+
+    def source_bytes(self, rel_path: str) -> bytes:
+        """Verify worktree identity and return committed Python source bytes."""
+        posix = _posix_relpath(rel_path)
+        if (
+            not posix
+            or posix.startswith("/")
+            or "\0" in posix
+            or any(part in ("", ".", "..") for part in posix.split("/"))
+        ):
+            raise CheckerError(f"invalid repository-relative source path {rel_path!r}")
+        cached = self._source_cache.get(posix)
+        if cached is not None:
+            return cached
+        source = self.repo / Path(*posix.split("/"))
+        mode, committed = self._entry(posix)
+        try:
+            source_info = source.lstat()
+        except OSError as exc:
+            raise CheckerError(f"cannot inspect committed source {posix}: {exc}") from exc
+        if mode == "120000":
+            if not stat.S_ISLNK(source_info.st_mode):
+                raise CheckerError(f"committed symlink {posix} is not a worktree symlink")
+            try:
+                link_target = os.fsencode(os.readlink(source))
+            except OSError as exc:
+                raise CheckerError(f"cannot read committed symlink {posix}: {exc}") from exc
+            if link_target != committed:
+                raise CheckerError(f"worktree symlink {posix} differs from committed tree")
+            try:
+                resolved = source.resolve(strict=True)
+                rel_target = resolved.relative_to(self.repo).as_posix()
+            except (OSError, ValueError) as exc:
+                raise CheckerError(
+                    f"committed symlink {posix} resolves outside the repository"
+                ) from exc
+            if rel_target == posix:
+                raise CheckerError(f"committed symlink cycle at {posix}")
+            result = self.source_bytes(rel_target)
+        else:
+            if mode not in ("100644", "100755"):
+                raise CheckerError(f"unsupported committed source mode {mode} for {posix}")
+            if stat.S_ISLNK(source_info.st_mode) or not stat.S_ISREG(source_info.st_mode):
+                raise CheckerError(f"worktree source type for {posix} differs from committed tree")
+            try:
+                working = source.read_bytes()
+            except OSError as exc:
+                raise CheckerError(f"cannot read committed source {posix}: {exc}") from exc
+            if working != committed:
+                raise CheckerError(f"worktree source {posix} differs from committed tree")
+            result = committed
+        self._source_cache[posix] = result
+        return result
+
+
+class _CommittedSourceLoader(importlib.abc.Loader):
+    """Execute first-party modules from verified committed source bytes."""
+
+    def __init__(self, tree: CommittedTree, name: str, source: Path) -> None:
+        self.tree = tree
+        self.name = name
+        self.source = source
+
+    def create_module(self, spec: Any) -> None:
+        del spec
+        return None
+
+    def exec_module(self, module: Any) -> None:
+        rel_path = self.source.relative_to(self.tree.repo).as_posix()
+        source = self.tree.source_bytes(rel_path)
+        filename = str(self.source)
+        module.__file__ = filename
+        code = compile(source, filename, "exec")
+        exec(code, module.__dict__)
+
+
+class _MissingFirstPartyLoader(importlib.abc.Loader):
+    """Stop missing first-party modules from falling through to site-packages."""
+
+    def __init__(self, name: str) -> None:
+        self.name = name
+
+    def create_module(self, spec: Any) -> None:
+        del spec
+        return None
+
+    def exec_module(self, module: Any) -> None:
+        del module
+        raise ModuleNotFoundError(f"no committed first-party module named {self.name}")
+
+
+class _CommittedSourceFinder(importlib.abc.MetaPathFinder):
+    """Load every ``sase`` import from the named committed tree."""
+
+    def __init__(self, tree: CommittedTree, src_root: Path) -> None:
+        self.tree = tree
+        self.src_root = src_root
+
+    def find_spec(
+        self,
+        fullname: str,
+        path: Sequence[str] | None = None,
+        target: Any = None,
+    ) -> Any:
+        del path, target
+        if not _is_first_party_module(fullname):
+            return None
+        source = _module_source_path(self.src_root, fullname)
+        if source is None:
+            return importlib.util.spec_from_loader(
+                fullname,
+                _MissingFirstPartyLoader(fullname),
+                origin="committed-tree-missing",
+            )
+        loader = _CommittedSourceLoader(self.tree, fullname, source)
+        return importlib.util.spec_from_loader(
+            fullname,
+            loader,
+            origin=str(source),
+            is_package=source.name == "__init__.py",
+        )
 
 
 def _is_type_checking_test(test: ast.expr) -> bool:
@@ -195,7 +367,8 @@ def _python_paths_not_matching_tree(repo: Path, tree: str) -> list[str]:
     queries = (
         ("diff", "--name-only", "-z", tree, "--"),
         ("diff", "--cached", "--name-only", "-z", tree, "--"),
-        ("ls-files", "-o", "--exclude-standard", "-z", "--"),
+        ("ls-files", "-o", "-z", "--"),
+        ("ls-files", "-o", "-i", "--exclude-standard", "-z", "--"),
     )
     seen: set[str] = set()
     for args in queries:
@@ -245,7 +418,7 @@ def _module_source_path(src_root: Path, module_name: str) -> Path | None:
     return None
 
 
-def _prepare_import_env(src_root: Path) -> None:
+def _prepare_import_env(tree: CommittedTree, src_root: Path) -> None:
     sys.dont_write_bytecode = True
     os.environ["PYTHONDONTWRITEBYTECODE"] = "1"
     src = str(src_root)
@@ -254,68 +427,45 @@ def _prepare_import_env(src_root: Path) -> None:
     except ValueError:
         pass
     sys.path.insert(0, src)
+    for name in tuple(sys.modules):
+        if name == FIRST_PARTY_ROOT or name.startswith(FIRST_PARTY_ROOT + "."):
+            del sys.modules[name]
+    sys.meta_path.insert(0, _CommittedSourceFinder(tree, src_root))
     importlib.invalidate_caches()
 
 
-def _origin_matches(module: Any, source: Path) -> bool:
-    filename = getattr(module, "__file__", None)
-    if not isinstance(filename, str) or not filename:
-        return False
-    try:
-        return Path(filename).resolve() == source.resolve()
-    except OSError:
-        return False
-
-
-def _exec_source_module(name: str, source: Path) -> Any:
-    existing = sys.modules.get(name)
-    if existing is not None and _origin_matches(existing, source):
-        return existing
-    spec = importlib.util.spec_from_file_location(name, source)
-    if spec is None or spec.loader is None:
-        raise CheckerError(f"could not create import spec for {name} from {source}")
-    if source.name == "__init__.py":
-        spec.submodule_search_locations = [str(source.parent)]
-    module = importlib.util.module_from_spec(spec)
-    sys.modules[name] = module
-    try:
-        spec.loader.exec_module(module)
-    except Exception as exc:
-        sys.modules.pop(name, None)
-        raise CheckerError(
-            f"importing first-party module {name} from {source} failed: "
-            f"{type(exc).__name__}: {exc}"
-        ) from exc
-    if not _origin_matches(module, source):
-        raise CheckerError(
-            f"loaded {name} from {getattr(module, '__file__', None)!r} "
-            f"instead of checkout path {source}"
-        )
-    return module
-
-
-def _load_first_party(src_root: Path, module_name: str) -> Any | None:
+def _load_first_party(
+    tree: CommittedTree,
+    src_root: Path,
+    module_name: str,
+) -> Any | None:
     """Load ``module_name`` from ``src``.
 
     Returns the module on success, ``None`` when it is absent from ``src``,
     or raises :class:`CheckerError` on a load failure.
     """
 
-    parts = module_name.split(".")
-    for index in range(1, len(parts) + 1):
-        name = ".".join(parts[:index])
-        source = _module_source_path(src_root, name)
-        if source is None:
-            return None
-        _exec_source_module(name, source)
-    return sys.modules.get(module_name)
+    if _module_source_path(src_root, module_name) is None:
+        return None
+    try:
+        return importlib.import_module(module_name)
+    except Exception as exc:
+        raise CheckerError(
+            f"importing first-party module {module_name} from committed tree "
+            f"{tree.tree} failed: {type(exc).__name__}: {exc}"
+        ) from exc
 
 
-def _resolve_name(src_root: Path, module_name: str, imported_name: str) -> _NameVerdict:
+def _resolve_name(
+    tree: CommittedTree,
+    src_root: Path,
+    module_name: str,
+    imported_name: str,
+) -> _NameVerdict:
     if not _is_first_party_module(module_name):
         return _NameVerdict("ok", "not a first-party sase import")
     try:
-        loaded = _load_first_party(src_root, module_name)
+        loaded = _load_first_party(tree, src_root, module_name)
     except CheckerError as exc:
         return _NameVerdict("error", str(exc))
     if loaded is None:
@@ -336,18 +486,17 @@ def _resolve_name(src_root: Path, module_name: str, imported_name: str) -> _Name
             f"{module_name!r}",
         )
     try:
-        _exec_source_module(submodule, sub_source)
+        _load_first_party(tree, src_root, submodule)
     except CheckerError as exc:
         return _NameVerdict("error", str(exc))
     return _NameVerdict("ok", "package submodule import")
 
 
-def _inspect_path(repo: Path, rel_path: str) -> list[ImportSite]:
-    file_path = repo / rel_path
+def _inspect_path(tree: CommittedTree, rel_path: str) -> list[ImportSite]:
     try:
-        source = file_path.read_text(encoding="utf-8")
-    except OSError as exc:
-        raise CheckerError(f"cannot read {rel_path}: {exc}") from exc
+        source = tree.source_bytes(rel_path).decode("utf-8")
+    except UnicodeError as exc:
+        raise CheckerError(f"cannot decode committed Python source {rel_path}: {exc}") from exc
     try:
         return collect_import_sites(source, rel_path)
     except SyntaxError as exc:
@@ -431,14 +580,15 @@ def check_repository(
         raise CheckerError(f"checked repository has no {SRC_DIRNAME}/ directory")
 
     _verify_committed_tree(repo, current_head, current_tree)
-    _prepare_import_env(src_root)
+    committed_tree = CommittedTree(repo, current_tree)
+    _prepare_import_env(committed_tree, src_root)
 
     python_paths = _changed_python_paths(
         cast(Sequence[Mapping[str, Any]], changed_paths)
     )
     sites: list[ImportSite] = []
     for rel_path in python_paths:
-        sites.extend(_inspect_path(repo, rel_path))
+        sites.extend(_inspect_path(committed_tree, rel_path))
 
     verdicts: dict[tuple[str, str], _NameVerdict] = {}
     findings: list[dict[str, Any]] = []
@@ -448,7 +598,9 @@ def check_repository(
         key = (site.module, site.imported_name)
         verdict = verdicts.get(key)
         if verdict is None:
-            verdict = _resolve_name(src_root, site.module, site.imported_name)
+            verdict = _resolve_name(
+                committed_tree, src_root, site.module, site.imported_name
+            )
             verdicts[key] = verdict
         if verdict.status == "ok":
             continue

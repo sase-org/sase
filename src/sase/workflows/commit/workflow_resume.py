@@ -13,7 +13,10 @@ from sase.llm_provider.commit_finalizer_git_status import (
 from sase.output import print_status
 from sase.telemetry.metrics import VCS_OPERATIONS
 from sase.workspace_provider.utils import reconcile_managed_checkout_origin
-from sase.workflows.commit.checkpoint import CommitCheckpoint
+from sase.workflows.commit.checkpoint import (
+    CommitCheckpoint,
+    bind_checkpoint_persistence,
+)
 from sase.workflows.commit.runtime_tags import (
     run_owned_commit_tags,
     update_trailing_commit_tags,
@@ -126,9 +129,10 @@ def resume_commit_workflow(
         if restamp_failure is not None:
             return restamp_failure
         try:
-            ok, err = provider.finalize_commit(  # type: ignore[attr-defined]
-                cp.payload, cp.cwd
-            )
+            with bind_checkpoint_persistence(cp, checkpoint_save):
+                ok, err = provider.finalize_commit(  # type: ignore[attr-defined]
+                    cp.payload, cp.cwd
+                )
         except NotImplementedError:
             print_status(
                 "finalize_commit not supported by this VCS provider; "

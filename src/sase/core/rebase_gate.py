@@ -108,6 +108,14 @@ def _check_binding_schema() -> None:
         )
 
 
+def validate_rebase_gate_timeout_seconds(timeout_seconds: float) -> float:
+    """Return a timeout accepted by Rust's shared gate configuration policy."""
+    _check_binding_schema()
+    return float(
+        require_rust_binding("validate_rebase_gate_timeout_seconds")(timeout_seconds)
+    )
+
+
 def _require_dict(value: Any, description: str) -> dict[str, Any]:
     if not isinstance(value, dict):
         raise TypeError(f"sase_core_rs returned a non-dict {description}")
@@ -189,6 +197,7 @@ __all__ = [
     "FindingWire",
     "ReportWire",
     "DecisionWire",
+    "validate_rebase_gate_timeout_seconds",
     "build_rebase_gate_context",
     "merge_rebase_gate_contexts",
     "update_rebase_gate_context",

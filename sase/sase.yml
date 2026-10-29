@@ -1,6 +1,6 @@
 commit_hooks:
   before: "just fix"
-  after_rebase: "python3 tools/check_rebase_imports"
+  after_rebase: "./.venv/bin/python tools/check_rebase_imports"
   after_rebase_timeout_seconds: 10
 is_sase_managed: true
 memory:

@@ -7,6 +7,10 @@ import json
 import os
 import time
 import uuid
+from collections.abc import Callable
+from collections.abc import Iterator
+from contextlib import contextmanager
+from contextvars import ContextVar, Token
 from dataclasses import dataclass, field
 
 from sase.core.paths import sase_subdir
@@ -45,6 +49,47 @@ class CommitCheckpoint:
     run_id: str | None = None
     completed_steps: list[str] = field(default_factory=list)
     created_at: float = field(default_factory=time.time)
+
+
+CheckpointSave = Callable[[CommitCheckpoint], str | None]
+
+_BOUND_CHECKPOINT: ContextVar[tuple[CommitCheckpoint, CheckpointSave | None] | None] = (
+    ContextVar("sase_bound_commit_checkpoint", default=None)
+)
+
+
+@contextmanager
+def bind_checkpoint_persistence(
+    cp: CommitCheckpoint,
+    save: CheckpointSave | None = None,
+) -> Iterator[None]:
+    """Bind the active checkpoint while dispatch mutates its payload.
+
+    The binding lives in a ContextVar rather than the JSON payload, so no
+    callable state is persisted and nested workflow calls restore their
+    previous binding on exit.
+    """
+    token: Token[tuple[CommitCheckpoint, CheckpointSave | None] | None] = (
+        _BOUND_CHECKPOINT.set((cp, save))
+    )
+    try:
+        yield
+    finally:
+        _BOUND_CHECKPOINT.reset(token)
+
+
+def persist_checkpoint_payload(payload: dict) -> None:
+    """Save the checkpoint bound to *payload*, if this workflow owns it."""
+    bound = _BOUND_CHECKPOINT.get()
+    if bound is None:
+        return
+    cp, save = bound
+    if cp.payload is not payload:
+        return
+    if save is None:
+        checkpoint_save(cp)
+    else:
+        save(cp)
 
 
 def _new_operation_id() -> str:

@@ -9,6 +9,7 @@ delegation of command facts plus the checker's report to the facade.
 from __future__ import annotations
 
 import json
+import math
 import os
 import subprocess
 import sys
@@ -18,6 +19,10 @@ from typing import Any
 import pytest
 
 from sase.workflows.commit import rebase_gate_runner as runner
+from sase.workflows.commit.rebase_gate_budget import (
+    GateBudgetExhausted,
+    GateWorkBudget,
+)
 
 HEAD = "a" * 40
 TREE = "b" * 40
@@ -63,6 +68,29 @@ def make_report(status: str, **overrides: Any) -> dict[str, Any]:
         ]
     report.update(overrides)
     return report
+
+
+def test_one_budget_passes_decreasing_timeouts_and_stops_exhausted_work() -> None:
+    now = [0.0]
+    budget = GateWorkBudget(
+        timeout_seconds=3.0,
+        teardown_reserve_seconds=0.5,
+        clock=lambda: now[0],
+    )
+    received: list[float] = []
+
+    def query(*, timeout: float) -> None:
+        received.append(timeout)
+        now[0] += 0.75
+
+    budget.run(query)
+    budget.run(query)
+    budget.run(query)
+    budget.run(query)
+    assert received == [2.5, 1.75, 1.0, 0.25]
+    with pytest.raises(GateBudgetExhausted):
+        budget.run(query)
+    assert received == [2.5, 1.75, 1.0, 0.25]
 
 
 def write_checker(
@@ -113,6 +141,18 @@ class GateHarness:
             )
 
         monkeypatch.setattr(runner, "load_merged_config_for_local_path", fake_load)
+
+        def validate_timeout(value: float) -> float:
+            if not math.isfinite(value) or value <= 0 or value > 30:
+                raise ValueError(
+                    "timeout_seconds must be finite, greater than 0, and at most 30"
+                )
+            return value
+
+        monkeypatch.setattr(
+            "sase.core.rebase_gate.validate_rebase_gate_timeout_seconds",
+            validate_timeout,
+        )
 
     def configure(
         self,
@@ -366,8 +406,74 @@ def test_timeout_kills_process_group_and_warns(
     assert outcome.duration_seconds < 8.0
     assert outcome.metadata_path is not None
     metadata = json.loads(outcome.metadata_path.read_text(encoding="utf-8"))
-    assert metadata["status"] == "decided"
+    assert metadata["status"] == "warned"
     assert metadata["timed_out"] is True
+
+
+def test_surviving_child_is_killed_after_group_leader_exits(
+    harness: GateHarness, tmp_path: Path
+) -> None:
+    root = tmp_path / "repo"
+    root.mkdir()
+    pid_file = tmp_path / "child.pid"
+    release_file = tmp_path / "release-child"
+    alive_file = tmp_path / "child-survived"
+    script = tmp_path / "descendant.py"
+    script.write_text(
+        "import os, signal, time\n"
+        f"pid_file = {str(pid_file)!r}\n"
+        f"release_file = {str(release_file)!r}\n"
+        f"alive_file = {str(alive_file)!r}\n"
+        "pid = os.fork()\n"
+        "if pid:\n"
+        "    while not os.path.exists(pid_file): time.sleep(0.01)\n"
+        "    raise SystemExit(0)\n"
+        "signal.signal(signal.SIGTERM, signal.SIG_IGN)\n"
+        "open(pid_file, 'w').write(str(os.getpid()))\n"
+        "while not os.path.exists(release_file): time.sleep(0.01)\n"
+        "open(alive_file, 'w').write('alive')\n",
+        encoding="utf-8",
+    )
+    harness.configure(root, f"{sys.executable} {script}", timeout=2.0)
+    harness.fake_classify("warn")
+
+    outcome = runner.run_after_rebase_gate(make_context(), str(root))
+
+    assert outcome.decision["verdict"] == "warn"
+    assert pid_file.is_file()
+    release_file.touch()
+    import time
+
+    deadline = time.monotonic() + 0.3
+    while time.monotonic() < deadline and not alive_file.exists():
+        time.sleep(0.01)  # sase-test-wait: observe cleanup after releasing the child
+    assert not alive_file.exists()
+
+
+def test_cancellation_kills_and_reaps_hook_group(
+    harness: GateHarness, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import asyncio
+
+    root = tmp_path / "repo"
+    root.mkdir()
+    started = tmp_path / "hook-started"
+    harness.configure(root, f"touch {started} && exec sleep 30", timeout=2.0)
+
+    def cancel_after_start(*args: Any, **kwargs: Any) -> Any:
+        import time
+
+        deadline = time.monotonic() + 1
+        while not started.exists() and time.monotonic() < deadline:
+            time.sleep(0.01)  # sase-test-wait: wait for the hook start marker
+        raise asyncio.CancelledError()
+
+    monkeypatch.setattr(runner, "_wait_gate_process", cancel_after_start)
+
+    with pytest.raises(asyncio.CancelledError):
+        runner.run_after_rebase_gate(make_context(), str(root))
+
+    assert started.exists()
 
 
 def test_excessive_output_is_bounded(
@@ -507,7 +613,10 @@ def test_disabled_hook_launches_no_process(
     assert harness.captured["report"] is None
 
 
-@pytest.mark.parametrize("timeout", ["ten", True, [5], {"s": 5}])
+@pytest.mark.parametrize(
+    "timeout",
+    ["ten", True, [5], {"s": 5}, 0, -1, 30.1, float("inf"), float("nan")],
+)
 def test_invalid_timeout_warns_without_launching(
     harness: GateHarness, tmp_path: Path, timeout: Any
 ) -> None:
@@ -524,6 +633,28 @@ def test_invalid_timeout_warns_without_launching(
 
     assert outcome.decision["verdict"] == "warn"
     assert outcome.metadata_path is None
+
+
+def test_invalid_timeout_is_preflighted_before_context_git_queries(
+    harness: GateHarness, tmp_path: Path
+) -> None:
+    from sase.workflows.commit.rebase_gate_coordinator import (
+        begin_rebase_gate_capture,
+    )
+
+    root = tmp_path / "repo"
+    root.mkdir()
+    harness.configure(root, "true", timeout=float("nan"))
+    git_calls: list[tuple[list[str], str]] = []
+
+    def run(args: list[str], cwd: str, **kwargs: Any) -> Any:
+        git_calls.append((args, cwd))
+        raise AssertionError("invalid config must stop before context discovery")
+
+    capture = begin_rebase_gate_capture(str(root), run, "origin/master", payload={})
+
+    assert capture is None
+    assert git_calls == []
 
 
 def test_non_string_hook_warns_without_launching(

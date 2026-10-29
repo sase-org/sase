@@ -364,7 +364,12 @@ def test_stale_installed_package_does_not_satisfy_src(tmp_path: Path) -> None:
     _write(stale, "sase/mod.py", "X = 1\n")
     repo = _init_repo(
         tmp_path,
-        _base_files(**{"src/sase/importer.py": "from sase.mod import X\n"}),
+        _base_files(
+            **{
+                "src/sase/mod.py": "Present = 1\n_X = 1\n",
+                "src/sase/importer.py": "from sase.mod import X\n",
+            }
+        ),
     )
     pythonpath = str(stale)
     existing = os.environ.get("PYTHONPATH", "")
@@ -379,6 +384,94 @@ def test_stale_installed_package_does_not_satisfy_src(tmp_path: Path) -> None:
     assert report is not None
     assert report["status"] == "findings"
     assert report["findings"][0]["imported_name"] == "X"
+
+
+def test_stale_pyc_is_never_used_for_committed_source(tmp_path: Path) -> None:
+    repo = _init_repo(
+        tmp_path,
+        _base_files(**{"src/sase/importer.py": "from sase.mod import X\n"}),
+    )
+    module = repo / "src/sase/mod.py"
+    subprocess.run(
+        [
+            sys.executable,
+            "-c",
+            "import py_compile, sys; py_compile.compile(sys.argv[1])",
+            str(module),
+        ],
+        cwd=repo,
+        check=True,
+    )
+    original_stat = module.stat()
+    module.write_text("Y = 1\n", encoding="utf-8")
+    os.utime(module, ns=(original_stat.st_atime_ns, original_stat.st_mtime_ns))
+    _git(repo, "add", "src/sase/mod.py")
+    _git(repo, "commit", "-m", "remove X")
+
+    proc, report = _run_tool(
+        repo,
+        _context(
+            repo,
+            [_change("src/sase/importer.py"), _change("src/sase/mod.py")],
+        ),
+    )
+
+    assert proc.returncode == 1
+    assert report is not None
+    assert report["status"] == "findings"
+    assert report["findings"][0]["imported_name"] == "X"
+
+
+def test_ignored_untracked_first_party_source_is_not_certified(tmp_path: Path) -> None:
+    repo = _init_repo(
+        tmp_path,
+        _base_files(
+            **{
+                ".gitignore": "__pycache__/\nsrc/sase/ghost.py\n",
+                "src/sase/importer.py": "from sase.ghost import X\n",
+            }
+        ),
+    )
+    _write(repo, "src/sase/ghost.py", "X = 1\n")
+
+    proc, report = _run_tool(
+        repo,
+        _context(repo, [_change("src/sase/importer.py")]),
+    )
+
+    assert proc.returncode == 1
+    assert report is not None
+    assert report["status"] == "error"
+    assert "does not match the committed tree" in str(report.get("diagnostics"))
+
+
+def test_transitive_symlink_source_must_resolve_inside_committed_tree(
+    tmp_path: Path,
+) -> None:
+    repo = _init_repo(
+        tmp_path,
+        _base_files(
+            **{
+                "src/sase/mod.py": "from sase.transitive import Present\n",
+                "src/sase/importer.py": "from sase.mod import Present\n",
+            }
+        ),
+    )
+    outside = tmp_path / "outside.py"
+    outside.write_text("Present = 1\n", encoding="utf-8")
+    (repo / "src/sase/transitive.py").symlink_to("../../../outside.py")
+    _git(repo, "add", "src/sase/transitive.py")
+    _git(repo, "commit", "-m", "add symlinked import")
+
+    proc, report = _run_tool(
+        repo,
+        _context(repo, [_change("src/sase/importer.py")]),
+    )
+
+    assert proc.returncode == 1
+    assert report is not None
+    assert report["status"] == "error"
+    assert "resolves outside the repository" in str(report.get("diagnostics"))
 
 
 def test_allowlist_skips_type_checking_only(tmp_path: Path) -> None:

@@ -121,6 +121,10 @@ _LAZY_EXPORTS = {
         "sase.core.rebase_gate",
         "update_rebase_gate_context",
     ),
+    "validate_rebase_gate_timeout_seconds": (
+        "sase.core.rebase_gate",
+        "validate_rebase_gate_timeout_seconds",
+    ),
     "ensure_sase_directory": ("sase.core.paths", "ensure_sase_directory"),
     "get_sase_managed_tmpdir": (
         "sase.core.paths",
@@ -186,6 +190,7 @@ __all__ = [
     "classify_rebase_gate_result",
     "merge_rebase_gate_contexts",
     "update_rebase_gate_context",
+    "validate_rebase_gate_timeout_seconds",
 ]
 
 if TYPE_CHECKING:
@@ -233,6 +238,7 @@ if TYPE_CHECKING:
         classify_rebase_gate_result,
         merge_rebase_gate_contexts,
         update_rebase_gate_context,
+        validate_rebase_gate_timeout_seconds,
     )
     from sase.core.paths import (
         ensure_sase_directory,

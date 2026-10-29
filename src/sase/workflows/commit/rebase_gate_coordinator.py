@@ -9,8 +9,9 @@ only calls these helpers.
 
 All helpers are best-effort and fail open: gate problems never raise, so a
 checker or git failure can only skip the check, never block publication.
-Only cancellation propagates, and pending state is stored before the runner
-starts so cancellation cannot lose a required check.
+Only cancellation propagates. Candidate inputs are checkpointed before a
+rebase, and the current result identity is checkpointed before the runner
+starts, so interruption cannot lose a required check.
 """
 
 from __future__ import annotations
@@ -18,48 +19,55 @@ from __future__ import annotations
 from collections.abc import Callable, Mapping
 from typing import Any, Literal, cast
 
+from sase.output import print_status
 from sase.core.rebase_gate import (
     ChangedPathWire,
     ChangeKind,
     ContextWire,
     RebaseFactsWire,
 )
-from sase.workflows.commit.rebase_gate_runner import RebaseGateOutcome
+from sase.workflows.commit.checkpoint import persist_checkpoint_payload
+from sase.workflows.commit.rebase_gate_budget import (
+    GateBudgetExhausted,
+    GateWorkBudget,
+)
+from sase.workflows.commit.rebase_gate_runner import (
+    GateSettings,
+    RebaseGateOutcome,
+    load_after_rebase_gate_settings,
+    run_after_rebase_gate,
+)
 
-GateOutcome = Literal["applied", "conflict"]
+GateOutcome = Literal["applied", "conflict", "no_op", "failed"]
 
 REBASE_GATE_PENDING_KEY = "_rebase_gate_pending"
 REBASE_GATE_BLOCKED_KEY = "_rebase_gate_blocked"
+REBASE_GATE_CAPTURE_KEY = "_rebase_gate_capture"
 
-_GIT_TIMEOUT_SECONDS = 60
+_DEFAULT_GATE_TIMEOUT_SECONDS = 10.0
 
 __all__ = [
     "REBASE_GATE_BLOCKED_KEY",
+    "REBASE_GATE_CAPTURE_KEY",
     "REBASE_GATE_PENDING_KEY",
     "begin_rebase_gate_capture",
     "complete_rebase_gate_check",
+    "clear_rebase_gate_state",
     "is_gate_blocked",
     "run_pending_rebase_gate",
     "stash_rebase_gate_for_conflict",
 ]
 
 
-def _hook_configured_for_path(path: str) -> bool:
-    """Return whether *path*'s project layer sets a non-empty after hook."""
-    from sase.config.core import load_merged_config_for_local_path
-    from sase.workflows.commit.hook_utils import local_config_path_for_repo_root
+class _GateDiscoveryError(RuntimeError):
+    """A gate-specific Git query failed; it cannot certify a clean tree."""
 
-    try:
-        config = load_merged_config_for_local_path(
-            local_config_path_for_repo_root(path)
-        )
-    except Exception:
-        return False
-    hooks = config.get("commit_hooks", {})
-    if not isinstance(hooks, dict):
-        return False
-    hook = hooks.get("after_rebase", "")
-    return isinstance(hook, str) and bool(hook.strip())
+
+def _warn_gate(reason: str, detail: str | None = None) -> None:
+    """Emit visible fail-open evidence for coordinator-side failures."""
+    print_status(f"Rebase gate warning: {reason}", "warning")
+    if detail:
+        print_status(f"Rebase gate detail: {detail}", "warning")
 
 
 def _load_pending_context(payload: Mapping[str, Any]) -> dict[str, Any] | None:
@@ -85,48 +93,122 @@ def _store_pending_context(
         payload[REBASE_GATE_PENDING_KEY] = context
 
 
+def _store_capture(payload: dict[str, Any], capture: dict[str, Any] | None) -> None:
+    if capture is None:
+        payload.pop(REBASE_GATE_CAPTURE_KEY, None)
+    else:
+        payload[REBASE_GATE_CAPTURE_KEY] = capture
+
+
+def clear_rebase_gate_state(payload: dict[str, Any]) -> None:
+    """Clear gate state after the corresponding commit is pushed."""
+    _store_pending_context(payload, None)
+    _store_capture(payload, None)
+    payload.pop(REBASE_GATE_BLOCKED_KEY, None)
+    persist_checkpoint_payload(payload)
+
+
 def is_gate_blocked(payload: Mapping[str, Any]) -> bool:
     """Return whether *payload* carries an explicit gate finding."""
     return payload.get(REBASE_GATE_BLOCKED_KEY) is True
 
 
-def _run_git(run: Callable[..., Any], args: list[str], cwd: str) -> str | None:
+def _run_git(
+    run: Callable[..., Any],
+    args: list[str],
+    cwd: str,
+    budget: GateWorkBudget,
+) -> str:
+    """Run one gate Git query within the remaining shared budget."""
     try:
-        out = run(args, cwd, timeout=_GIT_TIMEOUT_SECONDS)
-    except Exception:
-        return None
+        out = budget.run(run, args, cwd)
+    except GateBudgetExhausted:
+        raise
+    except Exception as exc:
+        raise _GateDiscoveryError(f"{' '.join(args)} failed: {exc}") from exc
     if out is None or not getattr(out, "success", False):
-        return None
-    text = getattr(out, "stdout", "") or ""
-    stripped = text.strip()
-    return stripped or None
+        detail = ""
+        if out is not None:
+            detail = (getattr(out, "stderr", "") or getattr(out, "stdout", "")).strip()
+        raise _GateDiscoveryError(
+            f"{' '.join(args)} failed" + (f": {detail}" if detail else "")
+        )
+    return getattr(out, "stdout", "") or ""
 
 
 def begin_rebase_gate_capture(
     cwd: str,
     run: Callable[..., Any],
     upstream_ref: str,
-) -> dict[str, str] | None:
+    payload: dict[str, Any] | None = None,
+) -> dict[str, Any] | None:
     """Capture immutable git IDs before a rebase that may combine work.
 
-    Returns ``None`` without running git when no after hook is configured.
+    The candidate input IDs and original path union are checkpointed before
+    the rebase starts. The in-memory budget/settings travel with the capture,
+    but never enter the JSON checkpoint payload.
     """
-    if not _hook_configured_for_path(cwd):
+    budget = GateWorkBudget(_DEFAULT_GATE_TIMEOUT_SECONDS)
+    settings, warning = load_after_rebase_gate_settings(cwd, budget)
+    if warning is not None:
+        _warn_gate(*warning)
         return None
-    repo_root = _run_git(run, ["git", "rev-parse", "--show-toplevel"], cwd)
-    old_head = _run_git(run, ["git", "rev-parse", "HEAD"], cwd)
-    upstream_tip = _run_git(run, ["git", "rev-parse", upstream_ref], cwd)
-    if repo_root is None or old_head is None or upstream_tip is None:
+    if settings is None or not settings.hook_command:
         return None
-    merge_base = _run_git(run, ["git", "merge-base", old_head, upstream_tip], cwd)
-    if merge_base is None:
-        return None
-    return {
-        "repository_root": repo_root,
-        "old_head": old_head,
-        "upstream_tip": upstream_tip,
-        "merge_base": merge_base,
+    capture: dict[str, Any] = {
+        "candidate": None,
+        "_budget": budget,
+        "_settings": settings,
     }
+    try:
+        repo_root = _run_git(
+            run, ["git", "rev-parse", "--show-toplevel"], cwd, budget
+        ).strip()
+        old_head = _run_git(run, ["git", "rev-parse", "HEAD"], cwd, budget).strip()
+        upstream_tip = _run_git(
+            run, ["git", "rev-parse", upstream_ref], cwd, budget
+        ).strip()
+        merge_base = _run_git(
+            run, ["git", "merge-base", old_head, upstream_tip], cwd, budget
+        ).strip()
+        old_tree = _run_git(
+            run, ["git", "rev-parse", f"{old_head}^{{tree}}"], cwd, budget
+        ).strip()
+        ids = {
+            "repository_root": repo_root,
+            "old_head": old_head,
+            "upstream_tip": upstream_tip,
+            "merge_base": merge_base,
+        }
+        candidate = _build_context(ids, "conflict", old_head, old_tree, [], [])
+        if candidate is not None:
+            local_changes = _collect_changed_paths(
+                cwd, run, merge_base, old_head, budget
+            )
+            upstream_changes = _collect_changed_paths(
+                cwd, run, merge_base, upstream_tip, budget
+            )
+            candidate = _update_context(
+                candidate,
+                repo_root,
+                old_head,
+                old_tree,
+                [*local_changes, *upstream_changes],
+            )
+            capture.update(ids=ids, candidate=candidate)
+            if payload is not None:
+                _store_capture(
+                    payload,
+                    {"schema_version": 1, "candidate": candidate},
+                )
+                persist_checkpoint_payload(payload)
+        return capture
+    except GateBudgetExhausted as exc:
+        _warn_gate("gate budget expired during context discovery", str(exc))
+        return capture
+    except Exception as exc:  # noqa: BLE001 - discovery errors fail open
+        _warn_gate("could not discover complete rebase context", str(exc))
+        return capture
 
 
 _STATUS_KIND: dict[str, ChangeKind] = {
@@ -145,29 +227,25 @@ def _collect_changed_paths(
     run: Callable[..., Any],
     base: str,
     head: str,
+    budget: GateWorkBudget,
 ) -> list[ChangedPathWire]:
     """Return the NUL-safe ``base..head`` path union with rename metadata."""
-    try:
-        out = run(
-            [
-                "git",
-                "diff",
-                "--name-status",
-                "-z",
-                "-M",
-                "--no-color",
-                base,
-                head,
-                "--",
-            ],
-            cwd,
-            timeout=_GIT_TIMEOUT_SECONDS,
-        )
-    except Exception:
-        return []
-    if out is None or not getattr(out, "success", False):
-        return []
-    raw = getattr(out, "stdout", "") or ""
+    raw = _run_git(
+        run,
+        [
+            "git",
+            "diff",
+            "--name-status",
+            "-z",
+            "-M",
+            "--no-color",
+            base,
+            head,
+            "--",
+        ],
+        cwd,
+        budget,
+    )
     parts = raw.split("\0")
     changes: list[ChangedPathWire] = []
     index = 0
@@ -178,37 +256,41 @@ def _collect_changed_paths(
             continue
         kind = _STATUS_KIND.get(status[:1])
         if kind is None:
-            continue
+            raise _GateDiscoveryError(f"unrecognized git path status {status!r}")
         if kind in ("renamed", "copied"):
             if index + 1 >= len(parts):
-                break
+                raise _GateDiscoveryError(
+                    f"incomplete {kind} record in git path output"
+                )
             old_path = parts[index]
             new_path = parts[index + 1]
             index += 2
             if not old_path or not new_path:
-                continue
+                raise _GateDiscoveryError(f"empty path in git {kind} record")
             changes.append({"path": new_path, "kind": kind, "old_path": old_path})
         else:
             if index >= len(parts):
-                break
+                raise _GateDiscoveryError(
+                    f"incomplete {kind} record in git path output"
+                )
             path = parts[index]
             index += 1
             if not path:
-                continue
+                raise _GateDiscoveryError(f"empty path in git {kind} record")
             changes.append({"path": path, "kind": kind})
     return changes
 
 
 def _resolve_current_ids(
-    cwd: str, run: Callable[..., Any]
-) -> tuple[str | None, str | None]:
-    head = _run_git(run, ["git", "rev-parse", "HEAD"], cwd)
-    tree = _run_git(run, ["git", "rev-parse", "HEAD^{tree}"], cwd)
+    cwd: str, run: Callable[..., Any], budget: GateWorkBudget
+) -> tuple[str, str]:
+    head = _run_git(run, ["git", "rev-parse", "HEAD"], cwd, budget).strip()
+    tree = _run_git(run, ["git", "rev-parse", "HEAD^{tree}"], cwd, budget).strip()
     return head, tree
 
 
 def _build_context(
-    capture: Mapping[str, str],
+    capture: Mapping[str, Any],
     outcome: GateOutcome,
     head: str,
     tree: str,
@@ -231,8 +313,10 @@ def _build_context(
     }
     try:
         built = build_rebase_gate_context(facts)
-    except Exception:
-        return None
+    except Exception as exc:
+        raise _GateDiscoveryError(
+            f"rebase gate policy rejected Git facts: {exc}"
+        ) from exc
     if built is None:
         return None
     return cast(dict[str, Any], built)
@@ -248,41 +332,65 @@ def _merge_contexts(
             cast(ContextWire | None, existing),
             cast(ContextWire | None, incoming),
         )
-    except Exception:
-        return incoming if incoming is not None else existing
+    except Exception as exc:
+        raise _GateDiscoveryError(
+            f"could not merge pending rebase context: {exc}"
+        ) from exc
     if merged is None:
         return None
     return cast(dict[str, Any], merged)
 
 
+def _update_context(
+    context: dict[str, Any],
+    repo_root: str,
+    head: str,
+    tree: str,
+    changes: list[ChangedPathWire],
+) -> dict[str, Any]:
+    from sase.core.rebase_gate import ContextUpdateWire, update_rebase_gate_context
+
+    update: ContextUpdateWire = {
+        "schema_version": 1,
+        "repository_root": repo_root,
+        "current_head": head,
+        "current_tree": tree,
+        "changed_paths": changes,
+    }
+    try:
+        refreshed = update_rebase_gate_context(cast(ContextWire, context), update)
+    except Exception as exc:
+        raise _GateDiscoveryError(f"could not update rebase context: {exc}") from exc
+    return cast(dict[str, Any], refreshed)
+
+
 def _evaluate_context(
-    payload: dict[str, Any], context: dict[str, Any], repo_root: str
+    payload: dict[str, Any],
+    context: dict[str, Any],
+    repo_root: str,
+    budget: GateWorkBudget,
+    settings: GateSettings,
 ) -> tuple[bool, str | None]:
     """Run the gate for *context*; True means the push may proceed."""
-    from sase.workflows.commit.rebase_gate_runner import run_after_rebase_gate
-
     try:
-        outcome = run_after_rebase_gate(cast(ContextWire, context), repo_root)
-    except (KeyboardInterrupt, SystemExit):
-        raise
-    except BaseException:
-        # Cancellation stays cancellation; anything else fails open while
-        # keeping the stored pending context for the next attempt.
-        import asyncio
-
-        try:
-            if isinstance(asyncio.current_task(), asyncio.Task):
-                raise
-        except RuntimeError:
-            pass
+        outcome = run_after_rebase_gate(
+            cast(ContextWire, context),
+            repo_root,
+            budget=budget,
+            settings=settings,
+        )
+    except Exception:
+        _warn_gate("rebase gate runner failed; allowing publication")
         return True, None
     decision = outcome.decision
     if _verdict_of(outcome) == "block":
         head = str(context.get("current_head", ""))
         tree = str(context.get("current_tree", ""))
         payload[REBASE_GATE_BLOCKED_KEY] = True
+        persist_checkpoint_payload(payload)
         return False, _format_gate_block_message(decision, head=head, tree=tree)
-    _store_pending_context(payload, None)
+    payload.pop(REBASE_GATE_BLOCKED_KEY, None)
+    persist_checkpoint_payload(payload)
     return True, None
 
 
@@ -337,79 +445,79 @@ def complete_rebase_gate_check(
     cwd: str,
     run: Callable[..., Any],
     payload: dict[str, Any],
-    capture: dict[str, str] | None,
+    capture: dict[str, Any] | None,
     *,
     outcome: GateOutcome = "applied",
 ) -> tuple[bool, str | None]:
-    """Build, persist, and evaluate the gate context for a finished rebase.
-
-    Returns ``(True, None)`` when the push may proceed and
-    ``(False, message)`` for a confirmed finding. Never raises for gate
-    errors; cancellation propagates with pending state already stored.
-    """
+    """Refresh, persist, and evaluate the context for a finished rebase."""
     if capture is None:
-        return True, None
-    head, tree = _resolve_current_ids(cwd, run)
-    if head is None or tree is None:
-        return True, None
-    local_changes = _collect_changed_paths(
-        cwd, run, capture["merge_base"], capture["old_head"]
-    )
-    upstream_changes = _collect_changed_paths(
-        cwd, run, capture["merge_base"], capture["upstream_tip"]
-    )
-    incoming = _build_context(
-        capture, outcome, head, tree, local_changes, upstream_changes
-    )
-    if incoming is None:
-        return True, None
-    merged = _merge_contexts(_load_pending_context(payload), incoming)
-    if merged is None:
-        return True, None
-    _store_pending_context(payload, merged)
-    return _evaluate_context(payload, merged, capture["repository_root"])
+        return run_pending_rebase_gate(cwd, run, payload)
+    budget = cast(GateWorkBudget, capture["_budget"])
+    settings = cast(GateSettings, capture["_settings"])
+    candidate = capture.get("candidate")
+    if candidate is None:
+        return _evaluate_pending_with_budget(cwd, run, payload, budget, settings)
+    if outcome == "no_op":
+        _store_capture(payload, None)
+        persist_checkpoint_payload(payload)
+        return _evaluate_pending_with_budget(cwd, run, payload, budget, settings)
+    if outcome != "applied":
+        _warn_gate("rebase result was not confirmed; gate context retained")
+        return _evaluate_pending_with_budget(cwd, run, payload, budget, settings)
+
+    try:
+        head, tree = _resolve_current_ids(cwd, run, budget)
+        upstream_tip = str(capture["ids"]["upstream_tip"])
+        resolved_paths = _collect_changed_paths(cwd, run, upstream_tip, head, budget)
+        incoming = _update_context(
+            cast(dict[str, Any], candidate),
+            str(capture["ids"]["repository_root"]),
+            head,
+            tree,
+            resolved_paths,
+        )
+        merged = _merge_contexts(_load_pending_context(payload), incoming)
+        if merged is None:
+            raise _GateDiscoveryError("eligible rebase produced no pending context")
+        _store_pending_context(payload, merged)
+        _store_capture(payload, None)
+        persist_checkpoint_payload(payload)
+        return _evaluate_context(
+            payload,
+            merged,
+            str(capture["ids"]["repository_root"]),
+            budget,
+            settings,
+        )
+    except GateBudgetExhausted as exc:
+        _warn_gate("gate budget expired while refreshing rebase context", str(exc))
+    except Exception as exc:  # noqa: BLE001 - discovery errors fail open
+        _warn_gate("could not refresh rebase context; publication allowed", str(exc))
+    return True, None
 
 
 def stash_rebase_gate_for_conflict(
     cwd: str,
     run: Callable[..., Any],
     payload: dict[str, Any],
-    capture: dict[str, str] | None,
+    capture: dict[str, Any] | None,
 ) -> None:
     """Retain pending context when a rebase stops for manual resolution.
 
     Uses the pre-rebase IDs so a later resume can refresh the context for
     the repaired HEAD; manual resolution cannot bypass the check.
     """
-    if capture is None:
+    if capture is None or capture.get("candidate") is None:
         return
     try:
-        tree = _run_git(
-            run, ["git", "rev-parse", f"{capture['old_head']}^{{tree}}"], cwd
-        )
-        if tree is None:
-            return
-        local_changes = _collect_changed_paths(
-            cwd, run, capture["merge_base"], capture["old_head"]
-        )
-        upstream_changes = _collect_changed_paths(
-            cwd, run, capture["merge_base"], capture["upstream_tip"]
-        )
-        incoming = _build_context(
-            capture,
-            "conflict",
-            capture["old_head"],
-            tree,
-            local_changes,
-            upstream_changes,
-        )
-        if incoming is None:
-            return
+        incoming = cast(dict[str, Any], capture["candidate"])
         merged = _merge_contexts(_load_pending_context(payload), incoming)
         if merged is not None:
             _store_pending_context(payload, merged)
-    except Exception:
-        return
+            _store_capture(payload, None)
+            persist_checkpoint_payload(payload)
+    except Exception as exc:  # noqa: BLE001 - keep the durable candidate
+        _warn_gate("could not persist conflict rebase context", str(exc))
 
 
 def run_pending_rebase_gate(
@@ -423,39 +531,112 @@ def run_pending_rebase_gate(
     so an unchanged broken tree blocks again. Returns ``(True, None)`` when
     no check is pending or the tree is allowed onward.
     """
+    if (
+        _load_pending_context(payload) is None
+        and payload.get(REBASE_GATE_CAPTURE_KEY) is None
+    ):
+        return True, None
     pending = _load_pending_context(payload)
-    if pending is None:
+    stored_capture = payload.get(REBASE_GATE_CAPTURE_KEY)
+    candidate = (
+        stored_capture.get("candidate") if isinstance(stored_capture, dict) else None
+    )
+    repo_root = (
+        str(pending.get("repository_root", ""))
+        if pending is not None
+        else str(candidate.get("repository_root", ""))
+        if isinstance(candidate, dict)
+        else cwd
+    ) or cwd
+    budget = GateWorkBudget(_DEFAULT_GATE_TIMEOUT_SECONDS)
+    settings, warning = load_after_rebase_gate_settings(repo_root, budget)
+    if warning is not None:
+        _warn_gate(*warning)
         return True, None
-    repo_root = str(pending.get("repository_root", "")) or cwd
-    if not _hook_configured_for_path(repo_root):
-        _store_pending_context(payload, None)
+    if settings is None:
+        _warn_gate("could not validate project gate settings")
         return True, None
-    head, tree = _resolve_current_ids(cwd, run)
-    if head is None or tree is None:
+    if not settings.hook_command:
+        clear_rebase_gate_state(payload)
         return True, None
-    context = pending
-    if head != pending.get("current_head") or tree != pending.get("current_tree"):
-        repair_paths = _collect_changed_paths(
-            cwd, run, str(pending.get("current_head", "")), head
-        )
-        if not pending.get("current_head"):
-            return True, None
-        try:
-            from sase.core.rebase_gate import (
-                ContextUpdateWire,
-                update_rebase_gate_context,
-            )
+    return _evaluate_pending_with_budget(cwd, run, payload, budget, settings)
 
-            update: ContextUpdateWire = {
-                "schema_version": 1,
-                "repository_root": str(pending.get("repository_root", "")),
-                "current_head": head,
-                "current_tree": tree,
-                "changed_paths": repair_paths,
-            }
-            refreshed = update_rebase_gate_context(cast(ContextWire, pending), update)
-        except Exception:
+
+def _evaluate_pending_with_budget(
+    cwd: str,
+    run: Callable[..., Any],
+    payload: dict[str, Any],
+    budget: GateWorkBudget,
+    settings: GateSettings,
+) -> tuple[bool, str | None]:
+    """Recover any interrupted rebase, refresh repair paths, and run the gate."""
+    stored_capture = payload.get(REBASE_GATE_CAPTURE_KEY)
+    candidate = (
+        stored_capture.get("candidate") if isinstance(stored_capture, dict) else None
+    )
+    try:
+        if isinstance(candidate, dict):
+            head, tree = _resolve_current_ids(cwd, run, budget)
+            old_head = str(candidate.get("current_head", ""))
+            if head == old_head:
+                # The process stopped before the rebase changed the branch.
+                _store_capture(payload, None)
+                persist_checkpoint_payload(payload)
+            else:
+                upstream_tip = str(
+                    (candidate.get("inputs") or [{}])[0].get("upstream_tip", "")
+                )
+                merge_base = _run_git(
+                    run, ["git", "merge-base", upstream_tip, head], cwd, budget
+                ).strip()
+                if merge_base == upstream_tip:
+                    paths = _collect_changed_paths(cwd, run, upstream_tip, head, budget)
+                    refreshed = _update_context(
+                        candidate,
+                        str(candidate.get("repository_root", cwd)),
+                        head,
+                        tree,
+                        paths,
+                    )
+                    merged = _merge_contexts(_load_pending_context(payload), refreshed)
+                    if merged is not None:
+                        _store_pending_context(payload, merged)
+                        _store_capture(payload, None)
+                        persist_checkpoint_payload(payload)
+                else:
+                    _warn_gate(
+                        "could not confirm the interrupted rebase result; allowing publication",
+                        f"current HEAD {head} does not contain captured upstream {upstream_tip}",
+                    )
+
+        pending = _load_pending_context(payload)
+        if pending is None:
             return True, None
-        context = cast(dict[str, Any], refreshed)
-        _store_pending_context(payload, context)
-    return _evaluate_context(payload, context, repo_root)
+        head, tree = _resolve_current_ids(cwd, run, budget)
+        context = pending
+        if head != pending.get("current_head") or tree != pending.get("current_tree"):
+            previous_head = str(pending.get("current_head", ""))
+            if not previous_head:
+                raise _GateDiscoveryError("pending context has no previous HEAD")
+            repair_paths = _collect_changed_paths(cwd, run, previous_head, head, budget)
+            context = _update_context(
+                pending,
+                str(pending.get("repository_root", "") or cwd),
+                head,
+                tree,
+                repair_paths,
+            )
+            _store_pending_context(payload, context)
+            persist_checkpoint_payload(payload)
+        return _evaluate_context(
+            payload,
+            context,
+            str(context.get("repository_root", cwd)),
+            budget,
+            settings,
+        )
+    except GateBudgetExhausted as exc:
+        _warn_gate("gate budget expired during pending-context discovery", str(exc))
+    except Exception as exc:  # noqa: BLE001 - discovery errors fail open
+        _warn_gate("could not refresh pending rebase context", str(exc))
+    return True, None

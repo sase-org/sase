@@ -6,7 +6,7 @@ shared across all git-based VCS plugins.
 """
 
 import os
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, Literal
 
 from sase.bead.project import BEADS_DIRNAME
 from sase.telemetry.metrics import VCS_OPERATIONS
@@ -16,6 +16,14 @@ from sase.vcs_provider._types import CommandOutput
 
 _SEMANTIC_REBASE_CONTINUE_LIMIT = 20
 _PUSH_REBASE_RETRY_LIMIT = 3
+
+
+def _rebase_was_noop(output: object) -> bool:
+    """Recognize Git's explicit successful no-op rebase result."""
+    text = "\n".join(
+        str(getattr(output, field, "") or "") for field in ("stdout", "stderr")
+    ).lower()
+    return "is up to date" in text or "is already up to date" in text
 
 
 class GitCommitDispatchMixin(CommandRunner):
@@ -188,7 +196,7 @@ class GitCommitDispatchMixin(CommandRunner):
             )
 
             gate_capture = begin_rebase_gate_capture(
-                cwd, self._run, f"origin/{default_branch}"
+                cwd, self._run, f"origin/{default_branch}", payload
             )
         return self._rebase_onto_origin_default(
             cwd, default_branch, payload=payload, gate_capture=gate_capture
@@ -199,21 +207,29 @@ class GitCommitDispatchMixin(CommandRunner):
         cwd: str,
         default_branch: str,
         payload: dict | None = None,
-        gate_capture: dict[str, str] | None = None,
+        gate_capture: dict[str, Any] | None = None,
     ) -> tuple[bool, str | None]:
         rebase = self._run(
             ["git", "rebase", "--autostash", f"origin/{default_branch}"],
             cwd,
             timeout=600,
         )
-        if rebase.success or self._continue_rebase_resolving_semantic_conflicts(cwd):
-            if payload is not None and gate_capture is not None:
+        semantic_rebase = False
+        if not rebase.success:
+            semantic_rebase = self._continue_rebase_resolving_semantic_conflicts(cwd)
+        if rebase.success or semantic_rebase:
+            if payload is not None:
                 from sase.workflows.commit.rebase_gate_coordinator import (
                     complete_rebase_gate_check,
                 )
 
+                gate_outcome: Literal["applied", "no_op"] = (
+                    "applied"
+                    if semantic_rebase or not _rebase_was_noop(rebase)
+                    else "no_op"
+                )
                 allowed, gate_message = complete_rebase_gate_check(
-                    cwd, self._run, payload, gate_capture, outcome="applied"
+                    cwd, self._run, payload, gate_capture, outcome=gate_outcome
                 )
                 if not allowed:
                     self._record_unpushed_commit_marker(payload, cwd, gate_message)
@@ -340,6 +356,12 @@ class GitCommitDispatchMixin(CommandRunner):
         for attempt in range(_PUSH_REBASE_RETRY_LIMIT + 1):
             push = self._run(["git", "push", "origin", branch], cwd)
             if push.success:
+                if payload is not None:
+                    from sase.workflows.commit.rebase_gate_coordinator import (
+                        clear_rebase_gate_state,
+                    )
+
+                    clear_rebase_gate_state(payload)
                 return (True, None)
             last_err = push.stderr.strip() or push.stdout.strip()
             if attempt >= _PUSH_REBASE_RETRY_LIMIT:
@@ -359,7 +381,7 @@ class GitCommitDispatchMixin(CommandRunner):
             gate_capture = None
             if payload is not None:
                 gate_capture = begin_rebase_gate_capture(
-                    cwd, self._run, f"origin/{default_branch}"
+                    cwd, self._run, f"origin/{default_branch}", payload
                 )
             ok, err = self._rebase_onto_origin_default(
                 cwd, default_branch, payload=payload, gate_capture=gate_capture

@@ -38,7 +38,6 @@ hook; it only executes one gate context on demand.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 import json
@@ -50,6 +49,7 @@ import tempfile
 import threading
 import time
 import uuid
+from dataclasses import dataclass
 from typing import Any, Literal, cast
 
 from sase.config.core import load_merged_config_for_local_path
@@ -61,9 +61,12 @@ from sase.core.rebase_gate import (
     DecisionWire,
     ReportWire,
 )
+from sase.workflows.commit.rebase_gate_budget import (
+    GateBudgetExhausted,
+    GateWorkBudget,
+)
 from sase.output import print_status
 from sase.workflows.commit.hook_utils import (
-    HOOK_READER_JOIN_SECONDS,
     decode_tail,
     drain_stream,
     hook_log_root,
@@ -79,9 +82,9 @@ REBASE_GATE_RESULT_ENV = "SASE_REBASE_RESULT"
 GATE_PHASE_LABEL = "after_rebase"
 
 _DEFAULT_TIMEOUT_SECONDS = 10.0
-_INVALID_TIMEOUT_SENTINEL = -1.0
 _RESULT_CAP_BYTES = 1_048_576
-_KILL_GRACE_SECONDS = 1.0
+_KILL_GRACE_SECONDS = 0.1
+_INHERITED_PIPE_PROBE_SECONDS = 0.05
 
 GateStepState = Literal["start", "ok", "fail"]
 
@@ -105,9 +108,20 @@ class RebaseGateOutcome:
     stderr_tail: str
 
 
+@dataclass(frozen=True)
+class GateSettings:
+    """Project-local command settings after Rust timeout preflight."""
+
+    hook_command: str
+    timeout_seconds: float
+
+
 def run_after_rebase_gate(
     context: ContextWire,
     repo_root: str,
+    *,
+    budget: GateWorkBudget | None = None,
+    settings: GateSettings | None = None,
 ) -> RebaseGateOutcome:
     """Execute the configured after-rebase hook for *context*.
 
@@ -117,6 +131,7 @@ def run_after_rebase_gate(
     gate errors; cancellation is re-raised.
     """
     started = time.monotonic()
+    budget = budget or GateWorkBudget()
     root = normalize_path(repo_root)
     if not isinstance(context, dict):
         return _warn_without_evidence(
@@ -125,54 +140,119 @@ def run_after_rebase_gate(
             f"expected a context object, got {type(context).__name__}",
         )
 
-    try:
-        config = load_merged_config_for_local_path(
-            local_config_path_for_repo_root(root)
-        )
-    except Exception as exc:  # noqa: BLE001 - config failure fails open
+    warning: tuple[str, str | None] | None = None
+    if settings is None:
+        settings, warning = load_after_rebase_gate_settings(root, budget)
+    if warning is not None:
+        reason, diagnostics = warning
         return _warn_without_evidence(
             started,
+            reason,
+            diagnostics,
+        )
+    if settings is None:
+        return _warn_without_evidence(
+            started,
+            "could not validate project configuration; rebase gate skipped",
+            None,
+        )
+    if not settings.hook_command:
+        return _classify_disabled(context, started, settings.timeout_seconds)
+    return _execute_gate(
+        context,
+        root,
+        settings.hook_command,
+        settings.timeout_seconds,
+        started,
+        budget,
+    )
+
+
+def load_after_rebase_gate_settings(
+    repo_root: str,
+    budget: GateWorkBudget,
+) -> tuple[GateSettings | None, tuple[str, str | None] | None]:
+    """Load project settings and validate numeric policy through Rust.
+
+    Returns a visible warning tuple for invalid settings. Empty hooks are
+    represented as disabled settings and do not trigger gate-context work.
+    """
+    root = normalize_path(repo_root)
+    try:
+        with budget.measure():
+            config = load_merged_config_for_local_path(
+                local_config_path_for_repo_root(root)
+            )
+    except GateBudgetExhausted:
+        return None, (
+            "rebase gate budget expired while loading project configuration",
+            None,
+        )
+    except Exception as exc:  # noqa: BLE001 - config failure fails open
+        return None, (
             "could not load project configuration; rebase gate skipped",
             str(exc),
         )
 
     hooks = config.get("commit_hooks", {})
     if not isinstance(hooks, dict):
-        return _warn_without_evidence(
-            started,
+        return None, (
             "invalid commit_hooks configuration; rebase gate skipped",
             f"expected an object, got {type(hooks).__name__}",
         )
     hook_raw = hooks.get("after_rebase", "")
     if not isinstance(hook_raw, str):
-        return _warn_without_evidence(
-            started,
+        return None, (
             "invalid commit_hooks.after_rebase; rebase gate skipped",
             f"expected a string, got {hook_raw!r}",
         )
     hook = hook_raw.strip()
     timeout_raw = hooks.get("after_rebase_timeout_seconds", _DEFAULT_TIMEOUT_SECONDS)
     timeout = _normalize_timeout(timeout_raw)
-
-    if not hook:
-        return _classify_disabled(context, started, timeout_raw)
     if timeout is None:
-        return _warn_without_evidence(
-            started,
+        return None, (
             "invalid commit_hooks.after_rebase_timeout_seconds; rebase gate skipped",
-            f"expected positive finite seconds at most 30, got {timeout_raw!r}",
+            f"expected a numeric timeout, got {timeout_raw!r}",
         )
-    return _execute_gate(context, root, hook, timeout, started)
+    try:
+        with budget.measure():
+            from sase.core.rebase_gate import (
+                validate_rebase_gate_timeout_seconds,
+            )
+
+            timeout = validate_rebase_gate_timeout_seconds(timeout)
+    except GateBudgetExhausted:
+        return None, (
+            "rebase gate budget expired while validating configuration",
+            None,
+        )
+    except ValueError as exc:
+        return None, (
+            "invalid commit_hooks.after_rebase_timeout_seconds; rebase gate skipped",
+            str(exc),
+        )
+    except Exception as exc:  # noqa: BLE001 - missing binding fails open
+        return None, (
+            "rebase gate configuration policy unavailable; gate skipped",
+            str(exc),
+        )
+    budget.set_timeout(timeout)
+    if not hook:
+        return GateSettings("", timeout), None
+    return GateSettings(hook, timeout), None
 
 
 def _normalize_timeout(value: Any) -> float | None:
-    """Return *value* as seconds, or None when it is missing/unusable."""
+    """Convert a numeric configuration value; Rust owns all numeric bounds."""
     if value is None:
         return _DEFAULT_TIMEOUT_SECONDS
     if isinstance(value, bool):
         return None
     if isinstance(value, (int, float)):
-        return float(value)
+        try:
+            return float(value)
+        except OverflowError:
+            return None
     return None
 
 
@@ -209,17 +289,14 @@ def _warn_without_evidence(
 def _classify_disabled(
     context: ContextWire,
     started: float,
-    timeout_raw: Any,
+    timeout: float,
 ) -> RebaseGateOutcome:
     """Return the facade's skip verdict without launching a process."""
     from sase.core.rebase_gate import classify_rebase_gate_result
 
-    timeout = _normalize_timeout(timeout_raw)
     config: ConfigWire = {
         "hook_command": "",
-        "timeout_seconds": (
-            timeout if timeout is not None else _INVALID_TIMEOUT_SENTINEL
-        ),
+        "timeout_seconds": timeout,
     }
     try:
         decision = classify_rebase_gate_result(context, config, {}, None)
@@ -256,18 +333,19 @@ def _execute_gate(
     hook: str,
     timeout: float,
     started: float,
+    budget: GateWorkBudget,
 ) -> RebaseGateOutcome:
-    """Run *hook* under the shared deadline and classify the outcome."""
+    """Run *hook* under the remaining shared budget and classify the result."""
     from sase.core.rebase_gate import classify_rebase_gate_result
 
-    deadline = started + timeout
     changed_paths = context.get("changed_paths", [])
     changed_count = len(changed_paths) if isinstance(changed_paths, list) else 0
 
     try:
-        evidence_root = hook_log_root()
-        evidence_root.mkdir(parents=True, exist_ok=True)
-    except OSError as exc:
+        with budget.measure():
+            evidence_root = hook_log_root()
+            evidence_root.mkdir(parents=True, exist_ok=True)
+    except (OSError, GateBudgetExhausted) as exc:
         return _warn_without_evidence(
             started,
             "could not create rebase gate evidence; gate skipped",
@@ -323,54 +401,47 @@ def _execute_gate(
     print_status(f"Running after-rebase gate: {hook}", "progress")
     _emit_gate_step(hook, state="start", detail=hook)
 
+    workdir: Path | None = None
+    result_path: Path | None = None
+    facts: CommandFactsWire = {"timed_out": False}
+    stdout_tail = ""
+    stderr_tail = ""
+    decision: DecisionWire | None = None
+    warning: tuple[str, str | None] | None = None
     try:
-        workdir = Path(tempfile.mkdtemp(prefix="sase-rebase-gate-"))
-    except OSError as exc:
-        return _fail_open_with_evidence(
-            started,
-            metadata_path,
-            metadata,
+        with budget.measure():
+            workdir = Path(tempfile.mkdtemp(prefix="sase-rebase-gate-"))
+            context_path = workdir / "context.json"
+            result_path = workdir / "result.json"
+            context_path.write_text(
+                json.dumps(dict(context), indent=2, sort_keys=True) + "\n",
+                encoding="utf-8",
+            )
+        metadata.update({"status": "running"})
+        _write_json_best_effort(metadata_path, metadata)
+
+        facts, stdout_tail, stderr_tail = _run_gate_command(
             hook,
-            "could not create rebase gate input; gate skipped",
-            str(exc),
-        )
-    context_path = workdir / "context.json"
-    result_path = workdir / "result.json"
-    try:
-        context_path.write_text(
-            json.dumps(dict(context), indent=2, sort_keys=True) + "\n",
-            encoding="utf-8",
-        )
-    except OSError as exc:
-        _cleanup_workdir(workdir)
-        return _fail_open_with_evidence(
-            started,
-            metadata_path,
-            metadata,
-            hook,
-            "could not write rebase gate context; gate skipped",
-            str(exc),
+            repo_root=root,
+            context_path=context_path,
+            result_path=result_path,
+            stdout_path=stdout_path,
+            stderr_path=stderr_path,
+            stdout_tail_path=stdout_tail_path,
+            stderr_tail_path=stderr_tail_path,
+            budget=budget,
+            metadata=metadata,
+            metadata_path=metadata_path,
         )
 
-    metadata.update({"status": "running"})
-    _write_json_best_effort(metadata_path, metadata)
+        report = None
+        if result_path is not None and budget.work_remaining > 0:
+            try:
+                with budget.measure():
+                    report = _read_gate_report(result_path)
+            except GateBudgetExhausted:
+                report = None
 
-    facts, stdout_tail, stderr_tail = _run_gate_command(
-        hook,
-        repo_root=root,
-        context_path=context_path,
-        result_path=result_path,
-        stdout_path=stdout_path,
-        stderr_path=stderr_path,
-        stdout_tail_path=stdout_tail_path,
-        stderr_tail_path=stderr_tail_path,
-        deadline=deadline,
-        metadata=metadata,
-        metadata_path=metadata_path,
-    )
-    report = _read_gate_report(result_path)
-
-    try:
         decision = classify_rebase_gate_result(
             context,
             {"hook_command": hook, "timeout_seconds": timeout},
@@ -378,22 +449,24 @@ def _execute_gate(
             report,
         )
     except Exception as exc:  # noqa: BLE001 - facade failure fails open
-        _cleanup_workdir(workdir)
-        return _fail_open_with_evidence(
-            started,
-            metadata_path,
-            metadata,
-            hook,
-            "rebase gate policy unavailable; gate skipped",
-            str(exc),
-            stdout_tail=stdout_tail,
-            stderr_tail=stderr_tail,
+        warning = (
+            "rebase gate work failed; allowing publication",
+            f"{type(exc).__name__}: {exc}",
         )
+    finally:
+        if workdir is not None:
+            _cleanup_workdir(workdir, budget)
 
-    duration = time.monotonic() - started
+    duration = budget.spent_seconds
+    if warning is not None:
+        decision = _warn_decision(*warning)
+    if decision is None:
+        decision = _warn_decision(
+            "rebase gate did not produce a decision; allowing publication", None
+        )
     metadata.update(
         {
-            "status": "decided",
+            "status": "warned" if decision.get("verdict") == "warn" else "decided",
             "verdict": decision.get("verdict", ""),
             "reason": decision.get("reason", ""),
             "findings": decision.get("findings", []),
@@ -404,7 +477,6 @@ def _execute_gate(
         }
     )
     _write_json_best_effort(metadata_path, metadata)
-    _cleanup_workdir(workdir)
     _report_decision(hook, decision, metadata_path)
     _emit_gate_step(
         hook,
@@ -430,15 +502,20 @@ def _run_gate_command(
     stderr_path: Path,
     stdout_tail_path: Path,
     stderr_tail_path: Path,
-    deadline: float,
+    budget: GateWorkBudget,
     metadata: dict[str, object],
     metadata_path: Path,
 ) -> tuple[CommandFactsWire, str, str]:
-    """Launch *cmd* and wait up to *deadline*; always reaps the process.
+    """Launch *cmd* within the remaining budget and always reap its group.
 
     Returns command facts plus the captured output tails. Cancellation
-    terminates the subprocess group best-effort and is re-raised.
+    terminates and reaps the subprocess group best-effort, then propagates.
     """
+    remaining = budget.work_remaining
+    if remaining <= 0:
+        return {"timed_out": True}, "", ""
+    command_started = budget.clock()
+    deadline = time.monotonic() + remaining
     env = dict(os.environ)
     env[REBASE_GATE_CONTEXT_ENV] = str(context_path)
     env[REBASE_GATE_RESULT_ENV] = str(result_path)
@@ -455,6 +532,7 @@ def _run_gate_command(
             start_new_session=True,
         )
     except OSError as exc:
+        budget.charge_elapsed(command_started)
         metadata.update({"status": "failed_to_start", "error": str(exc)})
         _write_json_best_effort(metadata_path, metadata)
         return (
@@ -500,17 +578,38 @@ def _run_gate_command(
             daemon=True,
         ),
     ]
-    for thread in threads:
-        thread.start()
+    timed_out = False
+    term_signal: int | None = None
+    teardown_deadline = deadline + budget.teardown_remaining
     try:
-        exit_code, timed_out, term_signal = _wait_gate_process(process, deadline)
-    except BaseException:
-        _terminate_group(process)
+        for thread in threads:
+            thread.start()
+        exit_code, timed_out, term_signal = _wait_gate_process(
+            process, deadline, budget
+        )
+        pipe_deadline = min(
+            deadline,
+            time.monotonic() + _INHERITED_PIPE_PROBE_SECONDS,
+        )
+        for thread in threads:
+            thread.join(timeout=max(0.0, pipe_deadline - time.monotonic()))
+        descendants = _process_group_exists(process.pid)
+        readers_alive = any(thread.is_alive() for thread in threads)
+        if not timed_out and (descendants or readers_alive):
+            _terminate_and_reap_group(process, budget)
+            timed_out = True
         _close_pipes(process)
+        for thread in threads:
+            thread.join(timeout=max(0.0, teardown_deadline - time.monotonic()))
+    except BaseException:
+        _terminate_and_reap_group(process, budget)
+        _close_pipes(process)
+        for thread in threads:
+            if thread.ident is not None:
+                thread.join(timeout=min(0.05, budget.teardown_remaining))
+        budget.charge_elapsed(command_started)
         raise
-    for thread in threads:
-        thread.join(timeout=HOOK_READER_JOIN_SECONDS)
-    _close_pipes(process)
+    budget.charge_elapsed(command_started)
 
     with lock:
         stdout_tail = decode_tail(tails["stdout"])
@@ -539,6 +638,7 @@ def _run_gate_command(
 def _wait_gate_process(
     process: subprocess.Popen[bytes],
     deadline: float,
+    budget: GateWorkBudget,
 ) -> tuple[int | None, bool, int | None]:
     """Wait for *process* up to *deadline*; kill the group on timeout.
 
@@ -551,15 +651,17 @@ def _wait_gate_process(
             raise subprocess.TimeoutExpired(process.args, remaining)
         returncode = process.wait(timeout=remaining)
     except subprocess.TimeoutExpired:
+        grace = min(_KILL_GRACE_SECONDS, budget.teardown_remaining / 2)
         _terminate_group(process)
+        grace_end = time.monotonic() + grace
+        _wait_group_until(process.pid, grace_end)
+        _terminate_group(process, kill=True)
         try:
-            returncode = process.wait(timeout=_KILL_GRACE_SECONDS)
+            returncode = process.wait(timeout=grace)
         except subprocess.TimeoutExpired:
-            _terminate_group(process, kill=True)
-            try:
-                returncode = process.wait(timeout=_KILL_GRACE_SECONDS)
-            except subprocess.TimeoutExpired:
-                return None, True, None
+            return None, True, None
+        if returncode is None:
+            return None, True, None
         return _split_returncode(returncode, timed_out=True)
     return _split_returncode(returncode, timed_out=False)
 
@@ -587,6 +689,39 @@ def _terminate_group(process: subprocess.Popen[bytes], *, kill: bool = False) ->
             pass
 
 
+def _process_group_exists(group_id: int) -> bool:
+    """Return whether a hook process group still has any members."""
+    try:
+        os.killpg(group_id, 0)
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        return True
+    except (OSError, AttributeError, ValueError):
+        return False
+    return True
+
+
+def _wait_group_until(group_id: int, deadline: float) -> None:
+    """Give TERM-handling descendants a brief bounded chance to exit."""
+    while time.monotonic() < deadline and _process_group_exists(group_id):
+        time.sleep(min(0.01, max(0.0, deadline - time.monotonic())))
+
+
+def _terminate_and_reap_group(
+    process: subprocess.Popen[bytes], budget: GateWorkBudget
+) -> None:
+    """Terminate descendants even when the original group leader exited."""
+    grace = min(_KILL_GRACE_SECONDS, budget.teardown_remaining / 2)
+    _terminate_group(process)
+    _wait_group_until(process.pid, time.monotonic() + grace)
+    _terminate_group(process, kill=True)
+    try:
+        process.wait(timeout=grace)
+    except (OSError, subprocess.TimeoutExpired):
+        pass
+
+
 def _close_pipes(process: subprocess.Popen[bytes]) -> None:
     """Close captured pipes so stray readers unblock; never raises."""
     for stream in (process.stdout, process.stderr):
@@ -607,49 +742,16 @@ def _read_gate_report(result_path: Path) -> ReportWire | None:
     try:
         if not result_path.is_file():
             return None
-        if result_path.stat().st_size > _RESULT_CAP_BYTES:
+        with result_path.open("rb") as stream:
+            payload = stream.read(_RESULT_CAP_BYTES + 1)
+        if len(payload) > _RESULT_CAP_BYTES:
             return None
-        raw = json.loads(result_path.read_text(encoding="utf-8"))
-    except (OSError, ValueError):
+        raw = json.loads(payload.decode("utf-8"))
+    except (OSError, UnicodeError, ValueError):
         return None
     if not isinstance(raw, dict):
         return None
     return cast("ReportWire", raw)
-
-
-def _fail_open_with_evidence(
-    started: float,
-    metadata_path: Path,
-    metadata: dict[str, object],
-    hook: str,
-    reason: str,
-    diagnostics: str | None,
-    *,
-    stdout_tail: str = "",
-    stderr_tail: str = "",
-) -> RebaseGateOutcome:
-    """Fail open after evidence exists; records the warning there."""
-    decision = _warn_decision(reason, diagnostics)
-    metadata.update(
-        {
-            "status": "warned",
-            "verdict": "warn",
-            "reason": reason,
-            "diagnostics": diagnostics,
-            "duration_seconds": time.monotonic() - started,
-            "end_time": datetime.now(UTC).isoformat(),
-        }
-    )
-    _write_json_best_effort(metadata_path, metadata)
-    _report_decision(hook, decision, metadata_path)
-    _emit_gate_step(hook, state="fail", detail=reason)
-    return RebaseGateOutcome(
-        decision=decision,
-        duration_seconds=time.monotonic() - started,
-        metadata_path=metadata_path,
-        stdout_tail=stdout_tail,
-        stderr_tail=stderr_tail,
-    )
 
 
 def _write_json_best_effort(path: Path, payload: dict[str, object]) -> None:
@@ -660,13 +762,39 @@ def _write_json_best_effort(path: Path, payload: dict[str, object]) -> None:
         pass
 
 
-def _cleanup_workdir(workdir: Path) -> None:
+def _cleanup_workdir(workdir: Path, budget: GateWorkBudget) -> None:
     """Remove transient gate files; cleanup failures fail open."""
+    failures: list[OSError] = []
+
+    def remove() -> None:
+        try:
+            shutil.rmtree(workdir, ignore_errors=False)
+        except OSError as exc:
+            failures.append(exc)
+
+    worker = threading.Thread(target=remove, daemon=True)
     try:
-        shutil.rmtree(workdir, ignore_errors=False)
-    except OSError as exc:
+        worker.start()
+    except RuntimeError as exc:
         print_status(
-            f"Rebase gate: could not remove temporary directory {workdir}: {exc}",
+            f"Rebase gate: could not start temporary directory cleanup for {workdir}: {exc}",
+            "warning",
+        )
+        return
+    try:
+        with budget.measure(teardown=True):
+            worker.join(timeout=budget.teardown_remaining)
+    except GateBudgetExhausted:
+        pass
+    if worker.is_alive():
+        print_status(
+            f"Rebase gate: temporary directory cleanup exceeded its bounded allowance: {workdir}",
+            "warning",
+        )
+    elif failures:
+        cleanup_error = failures[0]
+        print_status(
+            f"Rebase gate: could not remove temporary directory {workdir}: {cleanup_error}",
             "warning",
         )
 

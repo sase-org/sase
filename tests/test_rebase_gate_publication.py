@@ -17,6 +17,12 @@ from typing import Any
 import pytest
 
 from sase.vcs_provider.plugins.bare_git import BareGitPlugin
+from sase.workflows.commit.checkpoint import (
+    CommitCheckpoint,
+    bind_checkpoint_persistence,
+    checkpoint_load,
+    checkpoint_save,
+)
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 CHECKER = REPO_ROOT / "tools" / "check_rebase_imports"
@@ -116,18 +122,21 @@ def _ledger(artifacts: Path) -> list[dict[str, Any]]:
 
 
 def _run_counter(monkeypatch: pytest.MonkeyPatch) -> dict[str, Any]:
+    import sase.workflows.commit.rebase_gate_coordinator as coordinator
     import sase.workflows.commit.rebase_gate_runner as runner
 
     calls: dict[str, Any] = {"count": 0, "verdicts": []}
     original = runner.run_after_rebase_gate
 
-    def recording(context: Any, repo_root: str) -> Any:
+    def recording(context: Any, repo_root: str, **kwargs: Any) -> Any:
         calls["count"] += 1
-        outcome = original(context, repo_root)
+        outcome = original(context, repo_root, **kwargs)
         calls["verdicts"].append(outcome.decision.get("verdict", ""))
         return outcome
 
-    monkeypatch.setattr(runner, "run_after_rebase_gate", recording)
+    # The coordinator imports the runner entry point directly, so patch the
+    # call site that publication uses rather than only the defining module.
+    monkeypatch.setattr(coordinator, "run_after_rebase_gate", recording)
     return calls
 
 
@@ -263,33 +272,79 @@ def test_manual_textual_conflict_resume_runs_pending_gate(
 ) -> None:
     _origin, _seed, worker = _clone_pair(tmp_path)
     _artifacts(monkeypatch, tmp_path)
+    calls = _run_counter(monkeypatch)
     peer = _peer(tmp_path, tmp_path / "origin.git")
     (worker / "src" / "sase" / "thing.py").write_text(
         "X = 1\nY = 2\n", encoding="utf-8"
     )
-    (peer / "src" / "sase" / "thing.py").write_text("X = 1\nZ = 3\n", encoding="utf-8")
+    (worker / "src" / "sase" / "user.py").write_text(
+        "from sase.thing import X\n", encoding="utf-8"
+    )
+    (peer / "src" / "sase" / "thing.py").write_text("_X = 1\nZ = 3\n", encoding="utf-8")
     _git(peer, "add", "src/sase/thing.py")
     _git(peer, "commit", "-m", "peer thing")
     _git(peer, "push", "origin", "master")
 
-    ok, err = BareGitPlugin().vcs_create_commit(
-        {"message": "worker thing", "files": ["src/sase/thing.py"]}, str(worker)
-    )
+    checkpoint_path = tmp_path / "commit_state.json"
+    payload: dict[str, Any] = {
+        "message": "worker thing",
+        "files": ["src/sase/thing.py", "src/sase/user.py"],
+    }
+    cp = CommitCheckpoint(method="create_commit", payload=payload, cwd=str(worker))
+    checkpoint_save(cp, str(checkpoint_path))
+    with bind_checkpoint_persistence(
+        cp, lambda saved: checkpoint_save(saved, str(checkpoint_path))
+    ):
+        ok, err = BareGitPlugin().vcs_create_commit(payload, str(worker))
     assert ok is False, err
     assert (
         _git(worker, "diff", "--name-only", "--diff-filter=U").stdout.strip()
         == "src/sase/thing.py"
     )
+    saved = checkpoint_load(str(checkpoint_path))
+    assert saved is not None
+    assert isinstance(saved.payload.get("_rebase_gate_pending"), dict)
 
-    # Manual resolution through the normal rebase flow, then resume publishes.
+    # Resolve the textual conflict. A fresh checkpoint load must run the gate
+    # against the resolved committed tree and retain the blocked state.
     (worker / "src" / "sase" / "thing.py").write_text(
-        "X = 1\nY = 2\nZ = 3\n", encoding="utf-8"
+        "_X = 1\nY = 2\nZ = 3\n", encoding="utf-8"
     )
     _git(worker, "add", "src/sase/thing.py")
     _git(worker, "-c", "core.editor=true", "rebase", "--continue")
-    resume_payload: dict[str, Any] = {"message": "worker thing"}
-    ok, err = BareGitPlugin().vcs_finalize_commit(resume_payload, str(worker))
+    resumed = checkpoint_load(str(checkpoint_path))
+    assert resumed is not None
+    with bind_checkpoint_persistence(
+        resumed, lambda saved: checkpoint_save(saved, str(checkpoint_path))
+    ):
+        ok, err = BareGitPlugin().vcs_finalize_commit(resumed.payload, str(worker))
+    assert ok is False
+    assert err is not None and "Rebase gate finding" in err
+    assert calls["verdicts"] == ["block"]
+    blocked = checkpoint_load(str(checkpoint_path))
+    assert blocked is not None
+    assert blocked.payload.get("_rebase_gate_blocked") is True
+    assert isinstance(blocked.payload.get("_rebase_gate_pending"), dict)
+
+    # Amend the repair and resume from another fresh checkpoint load. The
+    # successful push is what finally clears the durable pending context.
+    (worker / "src" / "sase" / "user.py").write_text(
+        "from sase.thing import _X\n", encoding="utf-8"
+    )
+    _git(worker, "add", "src/sase/user.py")
+    _git(worker, "commit", "--amend", "--no-edit", "--quiet")
+    repaired = checkpoint_load(str(checkpoint_path))
+    assert repaired is not None
+    with bind_checkpoint_persistence(
+        repaired, lambda saved: checkpoint_save(saved, str(checkpoint_path))
+    ):
+        ok, err = BareGitPlugin().vcs_finalize_commit(repaired.payload, str(worker))
     assert ok is True, err
+    assert calls["verdicts"] == ["block", "pass"]
+    published = checkpoint_load(str(checkpoint_path))
+    assert published is not None
+    assert published.payload.get("_rebase_gate_pending") is None
+    assert published.payload.get("_rebase_gate_blocked") is None
 
 
 def test_clean_divergent_rebase_publishes(
