@@ -193,6 +193,18 @@ class SectionViewMixin(Static):
 
     def get_content_height(self, container: Size, viewport: Size, width: int) -> int:
         """Reserve enough non-document layout to top-align the final title."""
+        reserve_enabled = (
+            bool(getattr(self, "_section_layout_reserve_enabled", False))
+            and self._section_view_features_enabled()
+        )
+        if reserve_enabled:
+            # Textual keys ``_content_height_cache`` by width only. A hit
+            # skips ``visual.get_height``, so newly published anchors never
+            # join this measure and trailing reserve stays 0.
+            try:
+                self._content_height_cache = (None, 0)
+            except Exception:
+                pass
         real_height = super().get_content_height(container, viewport, width)
         self._section_real_content_height = real_height
         anchors = (
@@ -218,12 +230,11 @@ class SectionViewMixin(Static):
             )
         )
         top_anchors = [anchor for anchor in anchors if anchor.role in wanted_roles]
-        if (
-            getattr(self, "_section_layout_reserve_enabled", False)
-            and self._section_view_features_enabled()
-            and top_anchors
-        ):
-            reserve = max(0, top_anchors[-1].row + container.height - real_height)
+        if reserve_enabled and top_anchors:
+            layout_height = int(container.height)
+            if layout_height <= 0:
+                layout_height = int(viewport.height)
+            reserve = max(0, top_anchors[-1].row + layout_height - real_height)
         self._section_layout_reserve = reserve
         return real_height + reserve
 
@@ -293,12 +304,28 @@ class SectionViewMixin(Static):
             getattr(self, "_section_layout_reserve_include_blocks", False)
         )
         if already and (not bool(include_blocks) or blocks_already):
+            # The flag can be set by the paged→spread restore before
+            # anchors and container height match. A no-op here leaves
+            # ``max_scroll_y=0`` because later scroll retries only
+            # ``call_after_refresh`` and never remeasure.
+            self.refresh_section_layout_reserve()
             return False
         self._section_layout_reserve_enabled = True
         if bool(include_blocks):
             self._section_layout_reserve_include_blocks = True
-        self.refresh(layout=True)
+        self.refresh_section_layout_reserve()
         return True
+
+    def refresh_section_layout_reserve(self) -> None:
+        """Remeasure auto-height so a live trailing reserve can expand extent."""
+        try:
+            self.clear_cached_dimensions()
+        except Exception:
+            pass
+        try:
+            self.refresh(layout=True)
+        except Exception:
+            pass
 
     def _publish_section_layout(
         self,

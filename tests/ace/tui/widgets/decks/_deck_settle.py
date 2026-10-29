@@ -50,10 +50,20 @@ def describe_files_nav(panel: Any) -> str:
         confirmed = bool(getattr(panel, "_files_scroll_confirmed", False))
     except Exception:
         confirmed = "<unreadable>"  # type: ignore[assignment]
+    try:
+        spread = panel.files_spread_view
+        reserve = int(getattr(spread, "_section_layout_reserve", 0) or 0)
+        reserve_on = bool(getattr(spread, "_section_layout_reserve_enabled", False))
+        real_height = int(getattr(spread, "_section_real_content_height", 0) or 0)
+    except Exception:
+        reserve = "<unreadable>"  # type: ignore[assignment]
+        reserve_on = "<unreadable>"  # type: ignore[assignment]
+        real_height = "<unreadable>"  # type: ignore[assignment]
     return (
         f"files_nav: scroll_y={scroll_y} max_scroll_y={max_scroll_y} "
         f"pending={pending_repr} retry={retry} "
-        f"generation={generation} confirmed={confirmed}"
+        f"generation={generation} confirmed={confirmed} "
+        f"reserve={reserve} reserve_on={reserve_on} real_h={real_height}"
     )
 
 

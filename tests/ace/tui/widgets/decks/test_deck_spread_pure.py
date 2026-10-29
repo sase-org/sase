@@ -210,6 +210,42 @@ def test_reserve_covers_last_card_anchor() -> None:
     assert total >= 40 + 20 - 30 + 30 or total >= 30
 
 
+def test_reserve_uses_viewport_when_container_height_is_zero() -> None:
+    from textual.geometry import Size
+
+    from sase.ace.tui.widgets.prompt_panel._section_navigation import (
+        PromptPanelSectionAnchor,
+        PromptPanelSectionRole,
+    )
+    from sase.ace.tui.widgets.prompt_panel._section_view import SectionViewMixin
+
+    class _View(SectionViewMixin):  # type: ignore[misc]
+        pass
+
+    view = _View.__new__(_View)
+    SectionViewMixin.__init__(view)  # type: ignore[call-arg]
+    view._section_generation = 1
+    view._section_anchor_generation = 1
+    view._section_anchor_width = 80
+    view._section_anchors = (
+        PromptPanelSectionAnchor("card:reply", 6, PromptPanelSectionRole.CARD),
+    )
+    view._section_layout_reserve_enabled = True
+    container = Size(80, 0)
+    viewport = Size(80, 20)
+    import textual.widgets._static as _static_mod
+
+    orig = _static_mod.Static.get_content_height
+    try:
+        _static_mod.Static.get_content_height = lambda self, c, v, w: 12  # type: ignore[method-assign]
+        total = SectionViewMixin.get_content_height(view, container, viewport, 80)
+    finally:
+        _static_mod.Static.get_content_height = orig  # type: ignore[method-assign]
+    # last row 6 + viewport 20 - real 12 = 14 reserve; total 26.
+    assert view._section_layout_reserve == 14
+    assert total == 26
+
+
 def test_separators_render_and_meta() -> None:
     console = Console(width=40)
     options = console.options.update_width(40)

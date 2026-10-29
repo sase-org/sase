@@ -320,3 +320,87 @@ async def test_stalled_navigation_resumes_on_scroll_extent_growth(
             )
         finally:
             panel.files_spread_view.enable_section_layout_reserve = real_enable  # type: ignore[method-assign]
+
+
+async def test_trailing_reserve_remeasures_when_flag_already_enabled(
+    tmp_path: Path,
+) -> None:
+    """A flag-only enable must still grow max_scroll_y to the live anchor.
+
+    CI timed out with max_scroll_y=0, live_target=6, pending=1, retry=8
+    after the paged→spread restore had already set
+    ``_section_layout_reserve_enabled``. ``enable_section_layout_reserve``
+    then no-op'd, and scroll retries only ``call_after_refresh`` (paint)
+    so trailing reserve never remeasured. Hold reserve out of
+    ``get_content_height`` through the first retries, then let it apply:
+    navigation must request layout and land without a filler widget.
+    """
+    agent = _make_two_file_agent(tmp_path)
+    app = _DetailApp()
+    async with app.run_test(size=(160, 40)) as pilot:
+        await pilot.pause()
+        detail = app.query_one("#agent-detail-panel", AgentDetail)
+        detail.update_display(agent)
+        await pilot.pause()
+        detail.show_deck(0, DeckId.FILES)
+        panel = await _ready_spread_panel(tmp_path, pilot, detail)
+        spread = panel.files_spread_view
+        scroll = panel.query_one("#agent-deck-panel-0-files-scroll", VerticalScroll)
+        real_height = spread.get_content_height
+        held: dict[str, bool] = {"hold": True}
+
+        def _without_reserve(container: Any, viewport: Any, width: int) -> int:
+            if held["hold"]:
+                height = Static.get_content_height(spread, container, viewport, width)
+                spread._section_layout_reserve = 0
+                return int(height)
+            return int(real_height(container, viewport, width))
+
+        spread.get_content_height = _without_reserve  # type: ignore[method-assign]
+        try:
+            spread._section_layout_reserve_enabled = False
+            spread.clear_cached_dimensions()
+            spread.refresh(layout=True)
+            await wait_for(
+                pilot,
+                lambda: (
+                    panel._files_anchor_row(1) is not None
+                    and int(scroll.max_scroll_y) < int(panel._files_anchor_row(1) or 0)
+                ),
+            )
+            anchor = panel._files_anchor_row(1)
+            assert anchor is not None and anchor > 0, f"anchor={anchor!r}"
+            assert int(scroll.max_scroll_y) < anchor, (
+                f"extent still overflowed without reserve: "
+                f"max={int(scroll.max_scroll_y)} anchor={anchor}"
+            )
+            # CI ordering: flag is on from the spread restore; height was
+            # measured without a usable reserve.
+            spread._section_layout_reserve_enabled = True
+            spread._section_layout_reserve = 0
+            panel.cycle_card(1)
+            await wait_for(
+                pilot,
+                lambda: int(getattr(panel, "_files_scroll_retry", 0) or 0) >= 2,
+            )
+            assert panel._files_pending_scroll_index == 1
+            assert int(scroll.max_scroll_y) < anchor
+            held["hold"] = False
+            await wait_for_anchor_scroll(
+                pilot,
+                lambda: _files_scroll_y(panel),
+                lambda: panel._files_anchor_row(1),
+                diagnose=lambda: describe_files_nav(panel),
+            )
+        finally:
+            spread.get_content_height = real_height  # type: ignore[method-assign]
+        live_anchor = panel._files_anchor_row(1)
+        assert live_anchor is not None and live_anchor > 0
+        assert int(scroll.max_scroll_y) >= live_anchor, (
+            f"reserve did not expand extent: max={int(scroll.max_scroll_y)} "
+            f"anchor={live_anchor} {describe_files_nav(panel)}"
+        )
+        assert int(scroll.scroll_y) == live_anchor, (
+            f"navigation did not land: scroll_y={int(scroll.scroll_y)} "
+            f"anchor={live_anchor}"
+        )

@@ -58,6 +58,14 @@ class PanelSpreadFilesScrollMixin(PanelSpreadCardsMixin):
             self._files_scroll_confirmed = False
             spread_view = self.files_spread_view  # type: ignore[attr-defined]
             spread_view.enable_section_layout_reserve()
+            # Enabling the flag is not enough: the paged→spread restore
+            # may already have set it, and a prior layout can have
+            # measured height without a usable trailing reserve. Force a
+            # remeasure so ``max_scroll_y`` can reach the live anchor.
+            try:
+                spread_view.refresh_section_layout_reserve()
+            except Exception:
+                pass
             # Update the hidden paged index silently so E/clipboard follow.
             try:
                 file_view.set_current_index_silent(nxt)
@@ -137,6 +145,28 @@ class PanelSpreadFilesScrollMixin(PanelSpreadCardsMixin):
             from .document_transitions_capture import sync_scrollbar_position
 
             sync_scrollbar_position(scroll)
+        except Exception:
+            pass
+
+    def _refresh_files_spread_reserve(self) -> None:
+        """Remeasure Files spread trailing reserve so the extent can grow."""
+        try:
+            spread_view = self.files_spread_view  # type: ignore[attr-defined]
+        except Exception:
+            return
+        refresh = getattr(spread_view, "refresh_section_layout_reserve", None)
+        if callable(refresh):
+            try:
+                refresh()
+                return
+            except Exception:
+                pass
+        try:
+            spread_view.clear_cached_dimensions()
+        except Exception:
+            pass
+        try:
+            spread_view.refresh(layout=True)
         except Exception:
             pass
 
@@ -239,6 +269,11 @@ class PanelSpreadFilesScrollMixin(PanelSpreadCardsMixin):
                 self._files_scroll_confirmed = False
             except Exception:
                 pass
+            if row is not None and max_scroll_y < row:
+                # Extent never grows on its own: scroll retries are
+                # paint hops. Remeasure trailing reserve against the
+                # live viewport so the next hop can land.
+                self._refresh_files_spread_reserve()
             try:
                 retries = int(getattr(self, "_files_scroll_retry", 0) or 0)
             except Exception:
