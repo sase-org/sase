@@ -67,6 +67,7 @@ from sase.workflows.commit.hook_utils import (
     decode_tail,
     drain_stream,
     hook_log_root,
+    local_config_path_for_repo_root,
     normalize_path,
     repo_digest,
     write_json_atomic,
@@ -125,7 +126,9 @@ def run_after_rebase_gate(
         )
 
     try:
-        config = load_merged_config_for_local_path(Path(root))
+        config = load_merged_config_for_local_path(
+            local_config_path_for_repo_root(root)
+        )
     except Exception as exc:  # noqa: BLE001 - config failure fails open
         return _warn_without_evidence(
             started,

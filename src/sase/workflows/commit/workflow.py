@@ -356,14 +356,39 @@ class CommitWorkflow(BaseWorkflow):
         ok, result = dispatch(self._payload, cwd)
         if not ok:
             from sase.finalizers.commit_repair_common import bound_stream
+            from sase.workflows.commit.rebase_gate_coordinator import is_gate_blocked
 
             _emit_stitch_step(self._method, state="fail", detail=bound_stream(result))
+            if is_gate_blocked(self._payload):
+                # Explicit rebase gate finding (not a hook-output substring
+                # match): keep HEAD local with pushed=false, keep the
+                # checkpoint, and return the recoverable conflict result.
+                cp.commit_sha = resolve_head_commit_sha(provider, cp.cwd)
+                cp.commit_tree = resolve_head_tree_id(provider, cp.cwd)
+                cp.pushed = False
+                cp.dispatch_error = result
+                ensure_operation_id(cp)
+                checkpoint_save(cp)
+                self._record_unpushed_commit_marker_if_present(cp, provider, result)
+                _log_commit_failed(self._method, "rebase_gate_findings")
+                VCS_OPERATIONS.labels(
+                    provider=getattr(provider, "_provider_name", "unknown"),
+                    operation="commit_rebase_gate_blocked",
+                    status="ok",
+                ).inc()
+                print_status(
+                    f"{self._method} blocked by the rebase gate: {result}",
+                    "warning",
+                )
+                return RunResult.CONFLICT
             if _classify_dispatch_failure(result) == "push_failed":
                 _emit_stitch_step("push", state="fail", detail=bound_stream(result))
             if _is_conflict_state(provider, cwd):
                 if _classify_dispatch_failure(result) == "no_staged_changes":
                     cp.no_commit_dispatched = True
-                    checkpoint_save(cp)
+                # Persist stashed gate context so manual resolution and resume
+                # cannot bypass the pending check.
+                checkpoint_save(cp)
                 _log_commit_failed(self._method, "sync_conflict")
                 VCS_OPERATIONS.labels(
                     provider=getattr(provider, "_provider_name", "unknown"),

@@ -480,9 +480,6 @@ _lint-patch-stitch-terminology: _setup
 # phases consume them (adoption 1.1.2, proposal-command 1.1.4).
 # Proposal-command now consumes the remaining helpers in plan_propose_handler.py;
 # its --epic-symbol rows are removed.
-# sase-1pm.5.1.2 (gate-runner) exported the after-rebase execution seams;
-# sase-1pm.5.1.4 (publication) consumes them by wiring the gate coordinator
-# into commit dispatch. Drop these rows once publication lands a real caller.
 # Never put a comment
 # line inside the continued command below: just joins the lines, so the comment
 # would swallow every later argument.
@@ -490,8 +487,6 @@ _lint-symvision *args: _setup
     SASE_SYMVISION_BEAD_STATUS_ONLY=1 BD_COMMAND=tools/sase_bead {{ venv_bin }}/symvision src/sase \
         --exclude-decorator gate_command_entrypoint \
         --exclude-decorator builtin_chop \
-        --epic-symbol 'sase-1pm.5.1.4(run_after_rebase_gate)' \
-        --epic-symbol 'sase-1pm.5.1.4(RebaseGateOutcome)' \
         {{ args }}
 
 # Check Python file line counts (private, extracted for per-stage wrapping)

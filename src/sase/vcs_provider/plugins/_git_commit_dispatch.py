@@ -165,7 +165,9 @@ class GitCommitDispatchMixin(CommandRunner):
         remote_check = self._run(["git", "remote", "get-url", "origin"], cwd)
         return remote_check.success
 
-    def _sync_with_origin_after_commit(self, cwd: str) -> tuple[bool, str | None]:
+    def _sync_with_origin_after_commit(
+        self, cwd: str, payload: dict | None = None
+    ) -> tuple[bool, str | None]:
         """Fetch and rebase the local commit onto origin/<default>."""
         if self._current_branch(cwd) is None:
             return (True, None)
@@ -179,20 +181,50 @@ class GitCommitDispatchMixin(CommandRunner):
         )
         if not fetch.success:
             return self._to_result(fetch, f"git fetch origin {default_branch}")
-        return self._rebase_onto_origin_default(cwd, default_branch)
+        gate_capture = None
+        if payload is not None:
+            from sase.workflows.commit.rebase_gate_coordinator import (
+                begin_rebase_gate_capture,
+            )
+
+            gate_capture = begin_rebase_gate_capture(
+                cwd, self._run, f"origin/{default_branch}"
+            )
+        return self._rebase_onto_origin_default(
+            cwd, default_branch, payload=payload, gate_capture=gate_capture
+        )
 
     def _rebase_onto_origin_default(
-        self, cwd: str, default_branch: str
+        self,
+        cwd: str,
+        default_branch: str,
+        payload: dict | None = None,
+        gate_capture: dict[str, str] | None = None,
     ) -> tuple[bool, str | None]:
         rebase = self._run(
             ["git", "rebase", "--autostash", f"origin/{default_branch}"],
             cwd,
             timeout=600,
         )
-        if rebase.success:
+        if rebase.success or self._continue_rebase_resolving_semantic_conflicts(cwd):
+            if payload is not None and gate_capture is not None:
+                from sase.workflows.commit.rebase_gate_coordinator import (
+                    complete_rebase_gate_check,
+                )
+
+                allowed, gate_message = complete_rebase_gate_check(
+                    cwd, self._run, payload, gate_capture, outcome="applied"
+                )
+                if not allowed:
+                    self._record_unpushed_commit_marker(payload, cwd, gate_message)
+                    return (False, gate_message)
             return (True, None)
-        if self._continue_rebase_resolving_semantic_conflicts(cwd):
-            return (True, None)
+        if payload is not None and gate_capture is not None:
+            from sase.workflows.commit.rebase_gate_coordinator import (
+                stash_rebase_gate_for_conflict,
+            )
+
+            stash_rebase_gate_for_conflict(cwd, self._run, payload, gate_capture)
         return (
             False,
             self._format_rebase_conflict(cwd, default_branch, rebase),
@@ -295,7 +327,7 @@ class GitCommitDispatchMixin(CommandRunner):
         return (True, None)
 
     def _push_current_branch_with_rebase_retry(
-        self, cwd: str
+        self, cwd: str, payload: dict | None = None
     ) -> tuple[bool, str | None]:
         """Push current branch, rebasing and retrying on remote movement."""
         if not self._has_origin(cwd):
@@ -319,8 +351,24 @@ class GitCommitDispatchMixin(CommandRunner):
             )
             if not fetch.success:
                 return self._to_result(fetch, f"git fetch origin {default_branch}")
-            ok, err = self._rebase_onto_origin_default(cwd, default_branch)
+            from sase.workflows.commit.rebase_gate_coordinator import (
+                begin_rebase_gate_capture,
+                is_gate_blocked,
+            )
+
+            gate_capture = None
+            if payload is not None:
+                gate_capture = begin_rebase_gate_capture(
+                    cwd, self._run, f"origin/{default_branch}"
+                )
+            ok, err = self._rebase_onto_origin_default(
+                cwd, default_branch, payload=payload, gate_capture=gate_capture
+            )
             if not ok:
+                if payload is not None and is_gate_blocked(payload) and err is not None:
+                    # Explicit gate finding: keep the message unwrapped so the
+                    # workflow can return CONFLICT with repair guidance.
+                    return (False, err)
                 return (
                     False,
                     f"git push failed and rebase could not resolve it: {err}",
@@ -496,11 +544,11 @@ class GitCommitDispatchMixin(CommandRunner):
         if not payload.get("_skip_bead_amend"):
             self._amend_bead_changes(payload, cwd)
 
-        ok, err = self._sync_with_origin_after_commit(cwd)
+        ok, err = self._sync_with_origin_after_commit(cwd, payload)
         if not ok:
             return (False, err)
 
-        ok, err = self._push_current_branch_with_rebase_retry(cwd)
+        ok, err = self._push_current_branch_with_rebase_retry(cwd, payload)
         if not ok:
             return (False, self._format_unpushed_commit_failure(payload, cwd, err))
 
@@ -589,10 +637,24 @@ class GitCommitDispatchMixin(CommandRunner):
     @hookimpl
     def vcs_finalize_commit(self, payload: dict, cwd: str) -> tuple[bool, str | None]:
         """Re-run idempotent post-commit operations after a resumed workflow."""
+        from sase.workflows.commit.rebase_gate_coordinator import (
+            is_gate_blocked,
+            run_pending_rebase_gate,
+        )
+
         if not payload.get("_skip_bead_amend"):
             self._amend_bead_changes(payload, cwd)
-        ok, err = self._push_current_branch_with_rebase_retry(cwd)
+        # Run pending gate work even when no fresh rebase occurs: an unchanged
+        # broken tree must block again, and repairs are folded into the
+        # refreshed context (unstaged edits never count as a fixed tree).
+        allowed, gate_message = run_pending_rebase_gate(cwd, self._run, payload)
+        if not allowed:
+            self._record_unpushed_commit_marker(payload, cwd, gate_message)
+            return (False, gate_message)
+        ok, err = self._push_current_branch_with_rebase_retry(cwd, payload)
         if not ok:
+            if is_gate_blocked(payload) and err is not None:
+                return (False, err)
             return (False, self._format_unpushed_commit_failure(payload, cwd, err))
         VCS_OPERATIONS.labels(
             provider=self._provider_name,

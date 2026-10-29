@@ -137,6 +137,24 @@ def resume_commit_workflow(
             )
         else:
             if not ok:
+                from sase.workflows.commit.rebase_gate_coordinator import (
+                    is_gate_blocked,
+                )
+
+                if is_gate_blocked(cp.payload):
+                    # Explicit rebase gate finding on resume: keep the
+                    # checkpoint and return the recoverable conflict result.
+                    wf._record_unpushed_commit_marker_if_present(cp, provider, err)
+                    print_status(
+                        f"finalize_commit blocked by the rebase gate: {err}",
+                        "warning",
+                    )
+                    VCS_OPERATIONS.labels(
+                        provider=provider_name,
+                        operation="commit_resume",
+                        status="conflict",
+                    ).inc()
+                    return RunResult.CONFLICT
                 recorded = wf._record_unpushed_commit_marker_if_present(
                     cp, provider, err
                 )

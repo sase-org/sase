@@ -27,10 +27,29 @@ __all__ = [
     "drain_stream",
     "get_repo_root",
     "hook_log_root",
+    "local_config_path_for_repo_root",
     "normalize_path",
     "repo_digest",
     "write_json_atomic",
 ]
+
+
+def local_config_path_for_repo_root(repo_root: str) -> Path:
+    """Return the project-local config file for *repo_root*.
+
+    Canonical ``sase/sase.yml`` is preferred while root-level ``sase.yml``
+    remains readable for compatibility. Falls back to *repo_root* itself
+    (which the YAML loader reads as missing) when neither file exists, so
+    callers keep default behavior without extra existence checks.
+    """
+    root = Path(repo_root).expanduser()
+    for candidate in (root / "sase" / "sase.yml", root / "sase.yml"):
+        try:
+            if candidate.is_file():
+                return candidate
+        except OSError:
+            continue
+    return root
 
 
 def get_repo_root(cwd: str) -> str:

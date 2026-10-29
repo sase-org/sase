@@ -175,8 +175,15 @@ blocks the push. Timeout, signal, spawn failure, unsupported exits,
 malformed/missing/stale reports, invalid settings, and explicit `error` reports all warn
 and allow the push — unlike `before`/`after`, no gate error aborts dispatch.
 
+A confirmed finding keeps the local commit unpublished with `pushed=false`, keeps the
+commit checkpoint (including the pending gate context), and returns exit 2 with repair
+instructions: include the fix in the local commit through the SASE repair flow, then run
+`sase stitch create --resume`. The pending context is refreshed for the repaired HEAD on
+resume, so an unchanged broken tree blocks again.
+
 Source: `src/sase/default_config.yml`, `src/sase/workflows/commit/commit_hooks.py`,
 `src/sase/workflows/commit/command_hooks.py`,
+`src/sase/workflows/commit/rebase_gate_coordinator.py`,
 `src/sase/workflows/commit/rebase_gate_runner.py`,
 `src/sase/workflows/commit/workflow.py`
 

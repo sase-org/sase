@@ -1,5 +1,7 @@
 commit_hooks:
   before: "just fix"
+  after_rebase: "python3 tools/check_rebase_imports"
+  after_rebase_timeout_seconds: 10
 is_sase_managed: true
 memory:
   h1_title: "Structured Agentic Software Engineering (SASE) - Agent Instructions"
