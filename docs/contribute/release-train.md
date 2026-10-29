@@ -250,8 +250,11 @@ behind it, the proposed or executed action, and the escalation:
 | `gate_red`               | the Master gate or a required check is red at the candidate SHA       |
 | `qualify_red`            | qualification failed against the published core                       |
 | `exercise_red`           | the Linux or macOS exercise leg failed                                |
-| `core_lag`               | no complete published core contains the source pin yet                |
-| `core_cut_red`           | the newest completed sase-core cut failed                             |
+| `core_lag`               | no complete published core contains the source pin yet; the steward   |
+|                          | dispatches at most one core cut per UTC day, only with merge          |
+|                          | authority on                                                          |
+| `core_cut_red`           | the newest completed merge-capable sase-core cut failed (push and     |
+|                          | heal runs never merge the release PR, so they are not cuts)           |
 | `core_ci_red`            | the core side is red                                                  |
 | `core_incompatible`      | the published core does not satisfy the dependency contract           |
 | `install_broken`         | the family install canary is red (never blocks a qualified candidate) |

@@ -12,6 +12,7 @@ from _release_watch_health_test_helpers import (
     HEAD,
     OBSERVED,
     REPO,
+    RUN_CREATED,
     ReleaseFactsError,
     ScriptedGithub,
     b64,
@@ -172,6 +173,7 @@ def test_in_flight_cut_carries_pin_and_no_evidence() -> None:
         sha=CORE_SHA,
         status="in_progress",
         conclusion=None,
+        event="schedule",
     )
     sase = ScriptedGithub(REPO, reads={})
     cuts = make_health(make_facts(sase), cut_world([run])).read_core_facts(OBSERVED)[
@@ -185,8 +187,127 @@ def test_in_flight_cut_carries_pin_and_no_evidence() -> None:
             "status": "in_progress",
             "conclusion": None,
             "diagnostic_available": True,
+            "event": "schedule",
+            "started_at": RUN_CREATED,
         }
     ]
+
+
+def test_push_run_is_never_a_cut() -> None:
+    run = run_row(
+        9,
+        workflow="release-plz.yml",
+        sha=CORE_SHA,
+        status="completed",
+        conclusion="success",
+        event="push",
+    )
+    sase = ScriptedGithub(REPO, reads={})
+    cuts = make_health(make_facts(sase), cut_world([run])).read_core_facts(OBSERVED)[
+        "cuts"
+    ]
+    assert cuts == []
+
+
+def test_heal_schedule_without_merge_is_not_a_cut() -> None:
+    run = run_row(
+        9,
+        workflow="release-plz.yml",
+        sha=CORE_SHA,
+        status="completed",
+        conclusion="success",
+        event="schedule",
+    )
+    core = cut_world(
+        [run],
+        jobs_by_attempt={
+            ("9", 1): [job_row(11, name="Merge release PR", conclusion="skipped")]
+        },
+    )
+    sase = ScriptedGithub(REPO, reads={})
+    cuts = make_health(make_facts(sase), core).read_core_facts(OBSERVED)["cuts"]
+    assert cuts == []
+
+
+def test_daily_cut_with_merge_is_a_cut() -> None:
+    run = run_row(
+        9,
+        workflow="release-plz.yml",
+        sha=CORE_SHA,
+        status="completed",
+        conclusion="success",
+        event="schedule",
+    )
+    core = cut_world(
+        [run],
+        jobs_by_attempt={
+            ("9", 1): [job_row(11, name="Merge release PR", conclusion="success")]
+        },
+    )
+    sase = ScriptedGithub(REPO, reads={})
+    cuts = make_health(make_facts(sase), core).read_core_facts(OBSERVED)["cuts"]
+    assert cuts == [
+        {
+            "run_id": "9",
+            "attempt": 1,
+            "source_pin": CORE_SHA,
+            "status": "completed",
+            "conclusion": "success",
+            "diagnostic_available": True,
+            "event": "schedule",
+            "started_at": RUN_CREATED,
+        }
+    ]
+
+
+def test_dry_run_dispatch_without_merge_is_not_a_cut() -> None:
+    run = run_row(
+        9,
+        workflow="release-plz.yml",
+        sha=CORE_SHA,
+        status="completed",
+        conclusion="success",
+        event="workflow_dispatch",
+    )
+    core = cut_world(
+        [run],
+        jobs_by_attempt={
+            ("9", 1): [job_row(11, name="Merge release PR", conclusion="skipped")]
+        },
+    )
+    sase = ScriptedGithub(REPO, reads={})
+    cuts = make_health(make_facts(sase), core).read_core_facts(OBSERVED)["cuts"]
+    assert cuts == []
+
+
+def test_green_push_does_not_supersede_failed_cut() -> None:
+    push = run_row(
+        10,
+        workflow="release-plz.yml",
+        sha=CORE_SHA,
+        status="completed",
+        conclusion="success",
+        event="push",
+    )
+    cut = run_row(
+        9,
+        workflow="release-plz.yml",
+        sha=CORE_SHA,
+        status="completed",
+        conclusion="failure",
+        event="schedule",
+    )
+    line = "CORE_CUT_RED check=tests run=https://example.test/9 attempt=1"
+    core = cut_world(
+        [push, cut],
+        jobs_by_attempt={("9", 1): [job_row(11, conclusion="failure", check_run=99)]},
+        annotations={"99": [{"message": line, "annotation_level": "failure"}]},
+    )
+    sase = ScriptedGithub(REPO, reads={})
+    cuts = make_health(make_facts(sase), core).read_core_facts(OBSERVED)["cuts"]
+    assert [item["run_id"] for item in cuts] == ["9"]
+    assert cuts[0]["typed_failure"] == line
+    assert cuts[0]["diagnostic_available"] is True
 
 
 def test_red_cut_with_typed_annotation_is_evidence() -> None:
@@ -196,6 +317,7 @@ def test_red_cut_with_typed_annotation_is_evidence() -> None:
         sha=CORE_SHA,
         status="completed",
         conclusion="failure",
+        event="schedule",
     )
     line = "CORE_CUT_RED check=tests run=https://example.test/9 attempt=1"
     core = cut_world(
@@ -216,6 +338,7 @@ def test_red_cut_without_annotation_fails_closed() -> None:
         sha=CORE_SHA,
         status="completed",
         conclusion="failure",
+        event="schedule",
     )
     core = cut_world(
         [run],
@@ -237,6 +360,7 @@ def test_never_registered_cut_parses() -> None:
         sha=CORE_SHA,
         status="completed",
         conclusion="failure",
+        event="schedule",
     )
     line = "CHECKS_NEVER_REGISTERED check=checks run=unknown attempt=0"
     core = cut_world(
@@ -256,18 +380,25 @@ def test_cancelled_cut_needs_no_diagnostic() -> None:
         sha=CORE_SHA,
         status="completed",
         conclusion="cancelled",
+        event="schedule",
+    )
+    core = cut_world(
+        [run],
+        jobs_by_attempt={
+            ("9", 1): [job_row(11, name="Merge release PR", conclusion="cancelled")]
+        },
     )
     sase = ScriptedGithub(REPO, reads={})
-    cuts = make_health(make_facts(sase), cut_world([run])).read_core_facts(OBSERVED)[
-        "cuts"
-    ]
+    cuts = make_health(make_facts(sase), core).read_core_facts(OBSERVED)["cuts"]
+    assert cuts[0]["event"] == "schedule"
     assert "typed_failure" not in cuts[0]
     assert cuts[0]["diagnostic_available"] is True
 
 
 def test_cuts_keep_newest_twenty_completed_plus_in_flight() -> None:
     runs = [
-        run_row(100 + i, workflow="release-plz.yml", sha=CORE_SHA) for i in range(21)
+        run_row(100 + i, workflow="release-plz.yml", sha=CORE_SHA, event="schedule")
+        for i in range(21)
     ]
     live = run_row(
         7,
@@ -275,11 +406,19 @@ def test_cuts_keep_newest_twenty_completed_plus_in_flight() -> None:
         sha=CORE_SHA,
         status="in_progress",
         conclusion=None,
+        event="schedule",
     )
+    jobs = {
+        (str(100 + i), 1): [
+            job_row(200 + i, name="Merge release PR", conclusion="success")
+        ]
+        for i in range(21)
+    }
     sase = ScriptedGithub(REPO, reads={})
-    cuts = make_health(make_facts(sase), cut_world(runs + [live])).read_core_facts(
-        OBSERVED
-    )["cuts"]
+    cuts = make_health(
+        make_facts(sase), cut_world(runs + [live], jobs)
+    ).read_core_facts(OBSERVED)["cuts"]
     assert len(cuts) == 21
     assert cuts[0]["run_id"] == "7"
     assert cuts[0]["status"] == "in_progress"
+    assert all(item["event"] == "schedule" for item in cuts)

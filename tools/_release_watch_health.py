@@ -25,6 +25,15 @@ Conventions honored by this reader:
 * Core-cut ``source_pin`` is the cut run's own head SHA: a completed
   green cut at core commit X covers a sase source pin of X. Equality
   matching against the lagging pin is the Rust policy's job.
+* A core cut is a run that could merge the release PR: a ``schedule`` or
+  ``workflow_dispatch`` run whose "Merge release PR" job ran (was not
+  skipped). ``push`` runs and merge-skipped heal or dry-run dispatches
+  are never cuts, so a green push at the lagging pin neither satisfies
+  ``CORE_LAG`` nor supersedes a failed cut. In-flight schedule and
+  dispatch runs count as in-flight cuts, which conservatively blocks a
+  second dispatch. Each cut also carries the run ``event`` and
+  ``started_at`` (``run_started_at``, falling back to ``created_at``)
+  so the Rust daily dispatch cap can derive UTC days.
 * Canary verdicts normalize the install-smoke schema-v1 ``green``/``red``
   to the policy wire's ``pass``/``fail``. Anything else is an explicit
   marker (``unparsable``, ``unexpected_identity``), never a pass.
@@ -108,6 +117,12 @@ _FLIGHT_STATUSES = {
     "requested",
     "waiting_for_deploy",
 }
+# Only runs that could merge the core release PR are cuts. Push runs never
+# merge it; the six-hourly heal schedule and dry-run dispatches skip the
+# merge job too. The merge job's display name in release-plz.yml.
+_MERGE_JOB_NAME = "Merge release PR"
+# Run events that can carry a merge-capable cut.
+_CUT_EVENTS = {"schedule", "workflow_dispatch"}
 _CUT_FAILURE_CONCLUSIONS = {
     "failure",
     "timed_out",
@@ -460,6 +475,24 @@ class ReleaseHealthReader:
                     return first
         return None
 
+    def _merge_job_ran(self, run_id: str, attempt: int) -> bool:
+        """Whether the run's "Merge release PR" job ran (was not skipped).
+
+        Push runs never reach this check: the caller only asks about
+        ``schedule`` and ``workflow_dispatch`` runs. A skipped merge job
+        means a heal schedule or a dry-run dispatch, neither of which is
+        a cut. Anything else (success, failure, cancelled, even a queued
+        job with no conclusion yet) counts as ran; completion of the run
+        itself is the caller's concern.
+        """
+        for job in self._raw_jobs(run_id, attempt):
+            if job["name"] != _MERGE_JOB_NAME:
+                continue
+            conclusion = (job["conclusion"] or "").strip().lower()
+            if conclusion and conclusion != "skipped":
+                return True
+        return False
+
     def _cut_wire(
         self, run: dict[str, Any], typed: str | None, diagnostic: bool
     ) -> dict[str, Any]:
@@ -472,22 +505,43 @@ class ReleaseHealthReader:
             "status": _text(run["status"], f"run {run['run_id']}.status"),
             "conclusion": run["conclusion"],
             "diagnostic_available": diagnostic,
+            "event": run.get("event"),
+            # The daily dispatch cap derives UTC days from run timestamps;
+            # a queued run has no start yet, so fall back to creation.
+            "started_at": run.get("started_at") or run.get("created_at"),
         }
         if typed is not None:
             wire["typed_failure"] = typed
         return wire
 
     def _read_cuts(self, since: datetime, until: datetime) -> list[dict[str, Any]]:
-        """Return cuts newest first: in-flight plus newest completed."""
+        """Return cuts newest first: in-flight plus newest completed.
+
+        Only merge-capable runs are cuts: ``push`` runs never merge the
+        release PR, and a completed ``schedule`` or ``workflow_dispatch``
+        run is a cut only when its "Merge release PR" job ran. In-flight
+        schedule and dispatch runs count as in-flight cuts without a job
+        read, which conservatively blocks a second dispatch.
+        """
         runs = self._core.read_runs(CORE_CUT_WORKFLOW, since=since, until=until)
-        kept: list[dict[str, Any]] = []
-        completed = 0
+        in_flight: list[dict[str, Any]] = []
+        completed: list[dict[str, Any]] = []
         for run in runs:
+            if (run.get("event") or "") not in _CUT_EVENTS:
+                # Push (and any unknown event): never a cut.
+                continue
             if run["status"] in _FLIGHT_STATUSES:
-                kept.append(run)
-            elif run["status"] == "completed" and completed < CUT_HISTORY_LIMIT:
-                completed += 1
-                kept.append(run)
+                in_flight.append(run)
+            elif run["status"] == "completed" and len(completed) < CUT_HISTORY_LIMIT:
+                if self._merge_job_ran(run["run_id"], run["attempt"]):
+                    completed.append(run)
+                # Merge-skipped heal and dry-run dispatches are not cuts
+                # and do not consume history budget.
+        kept = sorted(
+            in_flight + completed,
+            key=lambda item: (item["created_at"], item["attempt"], item["run_id"]),
+            reverse=True,
+        )
         cuts = []
         for run in kept:
             if run["status"] in _FLIGHT_STATUSES:
