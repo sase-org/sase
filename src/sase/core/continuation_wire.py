@@ -391,6 +391,38 @@ class ConditionalCompletionConsumeRequestWire(TypedDict):
     intent: ConditionalCompletionIntentWire
 
 
+class PreparedReservationWire(TypedDict):
+    staged_id: str
+    monitor_id: str
+    request_fingerprint: str
+    command: list[str]
+
+
+class PreparedStarterCoverageRequestWire(TypedDict):
+    schema_version: int
+    intent: ConditionalCompletionIntentWire
+    staged_id: str
+    staged_kind: str
+    starter_run_id: str
+    starter_agent_id: str
+    monitor_id: str
+    command: list[str]
+    request_fingerprint: str
+    current_observations: list[_RepositoryObservationWire]
+    current_plan_digest: str
+    reservation: NotRequired[PreparedReservationWire | None]
+    starter_workspace_id: NotRequired[str | None]
+    current_obligation_ids: NotRequired[list[str]]
+
+
+class PreparedStarterCoverageDecisionWire(TypedDict):
+    schema_version: int
+    eligible: bool
+    covered_repository_ids: NotRequired[list[str]]
+    reason: NotRequired[str | None]
+    reasons: NotRequired[list[str]]
+
+
 def continuation_wire_to_json_dict(value: Any) -> Any:
     """Project continuation wire values to plain dict/list primitives."""
 
@@ -442,6 +474,9 @@ __all__ = [
     "MonitorResultWire",
     "MonitorTimeoutKind",
     "ObservedPathKind",
+    "PreparedReservationWire",
+    "PreparedStarterCoverageDecisionWire",
+    "PreparedStarterCoverageRequestWire",
     "RetainedLogMetadataWire",
     "VerificationLevel",
     "continuation_wire_to_json_dict",

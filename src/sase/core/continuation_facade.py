@@ -25,6 +25,8 @@ from sase.core.continuation_wire import (
     JsonMapping,
     JsonObject,
     MonitorResultWire,
+    PreparedStarterCoverageDecisionWire,
+    PreparedStarterCoverageRequestWire,
     continuation_wire_to_json_dict,
 )
 from sase.core.rust import require_rust_binding
@@ -304,6 +306,27 @@ def invalidate_conditional_completion(
     )
 
 
+def evaluate_prepared_starter_coverage(
+    request: PreparedStarterCoverageRequestWire | JsonMapping,
+) -> PreparedStarterCoverageDecisionWire:
+    """Check whether a sealed intent satisfies the starter's obligation."""
+
+    binding = require_rust_binding("continuation_evaluate_prepared_starter_coverage")
+    payload = _json_object(
+        binding(continuation_wire_to_json_dict(request)),
+        "continuation_evaluate_prepared_starter_coverage",
+    )
+    return PreparedStarterCoverageDecisionWire(
+        schema_version=int(payload["schema_version"]),
+        eligible=bool(payload["eligible"]),
+        covered_repository_ids=[
+            str(item) for item in payload.get("covered_repository_ids", [])
+        ],
+        reason=payload.get("reason"),
+        reasons=[str(item) for item in payload.get("reasons", [])],
+    )
+
+
 def _json_object(value: Any, operation: str) -> JsonObject:
     if not isinstance(value, Mapping):
         raise TypeError(f"{operation} returned a non-mapping payload")
@@ -316,6 +339,7 @@ __all__ = [
     "consume_conditional_completion",
     "decide_resume_adoption",
     "evaluate_conditional_completion",
+    "evaluate_prepared_starter_coverage",
     "freeze_continuation_policy",
     "invalidate_conditional_completion",
     "new_continuation_delivery_record",

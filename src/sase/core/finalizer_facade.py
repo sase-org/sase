@@ -8,6 +8,7 @@ from sase.core.finalizer_wire import (
     FinalizerAggregateResultWire,
     FinalizerAssignedBeadWire,
     FinalizerContextWire,
+    FinalizerHandoffWire,
     FinalizerInstanceResultWire,
     FinalizerInstanceSpecWire,
     FinalizerPlanInputWire,
@@ -17,6 +18,8 @@ from sase.core.finalizer_wire import (
     FinalizerSubmissionValidationWire,
     RemainingCommitWorkOutcomeWire,
     RemainingCommitWorkRequestWire,
+    RepositoryActionCheckRequestWire,
+    RepositoryActionOutcomeWire,
     RepositoryLandingProofRequestWire,
     RepositoryLandingProofWire,
     finalizer_aggregate_result_from_dict,
@@ -24,6 +27,7 @@ from sase.core.finalizer_wire import (
     finalizer_submission_validation_from_dict,
     finalizer_wire_to_json_dict,
     remaining_commit_work_outcome_from_dict,
+    repository_action_outcome_from_dict,
     repository_landing_proof_from_dict,
 )
 from sase.core.rust import require_rust_binding
@@ -148,6 +152,27 @@ def finalizer_json_digest(value: Any) -> str:
     return str(binding(value))
 
 
+def validate_finalizer_handoff(
+    handoff: FinalizerHandoffWire | dict[str, Any],
+) -> None:
+    """Validate one finalizer handoff descriptor through Rust."""
+
+    binding = require_rust_binding("validate_finalizer_handoff")
+    binding(finalizer_wire_to_json_dict(handoff))
+
+
+def check_repository_action(
+    request: RepositoryActionCheckRequestWire | dict[str, Any],
+) -> RepositoryActionOutcomeWire:
+    """Adjudicate one commit/carry action; deferrals stay on their own path."""
+
+    binding = require_rust_binding("check_repository_action")
+    payload = binding(finalizer_wire_to_json_dict(request))
+    if not isinstance(payload, dict):
+        raise TypeError("check_repository_action returned a non-mapping")
+    return repository_action_outcome_from_dict(dict(payload))
+
+
 def aggregate_finalizer_outcomes(
     results: list[FinalizerInstanceResultWire] | list[dict[str, Any]],
 ) -> FinalizerAggregateResultWire:
@@ -209,6 +234,7 @@ __all__ = [
     "aggregate_finalizer_outcomes",
     "assess_repository_landing_proof",
     "authenticate_finalizer_plan",
+    "check_repository_action",
     "finalizer_context_digest",
     "finalizer_instance_spec_digest",
     "finalizer_json_digest",
@@ -220,6 +246,7 @@ __all__ = [
     "validate_finalizer_assigned_bead_binding",
     "validate_finalizer_bead_decision",
     "validate_finalizer_context",
+    "validate_finalizer_handoff",
     "validate_finalizer_instance_spec",
     "validate_finalizer_plan",
     "validate_finalizer_provider_spec",

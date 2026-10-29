@@ -110,6 +110,29 @@ class FinalizerAssignedBeadWire:
 
 
 @dataclass(frozen=True)
+class FinalizerHandoffWire:
+    kind: str
+    staged_ref: str
+    successor_workspace: str
+    carry_allowed: bool = False
+    prepared_intent_ref: str | None = None
+
+
+@dataclass(frozen=True)
+class RepositoryActionCheckRequestWire:
+    action: str
+    handoff: FinalizerHandoffWire | None = None
+
+
+@dataclass(frozen=True)
+class RepositoryActionOutcomeWire:
+    status: str
+    action: str | None = None
+    code: str | None = None
+    message: str | None = None
+
+
+@dataclass(frozen=True)
 class FinalizerContextWire:
     schema_version: int
     run_id: str
@@ -120,6 +143,7 @@ class FinalizerContextWire:
     obligations: list[FinalizerObligationWire] = field(default_factory=list)
     context_digest: str | None = None
     assigned_bead: FinalizerAssignedBeadWire | None = None
+    handoff: FinalizerHandoffWire | None = None
 
 
 @dataclass(frozen=True)
@@ -386,6 +410,31 @@ def finalizer_plan_from_dict(data: dict[str, Any]) -> FinalizerPlanWire:
     )
 
 
+def finalizer_handoff_from_dict(
+    data: dict[str, Any] | None,
+) -> FinalizerHandoffWire | None:
+    if data is None:
+        return None
+    return FinalizerHandoffWire(
+        kind=str(data["kind"]),
+        staged_ref=str(data["staged_ref"]),
+        successor_workspace=str(data["successor_workspace"]),
+        carry_allowed=bool(data.get("carry_allowed", False)),
+        prepared_intent_ref=_optional_str(data.get("prepared_intent_ref")),
+    )
+
+
+def repository_action_outcome_from_dict(
+    data: dict[str, Any],
+) -> RepositoryActionOutcomeWire:
+    return RepositoryActionOutcomeWire(
+        status=str(data["status"]),
+        action=_optional_str(data.get("action")),
+        code=_optional_str(data.get("code")),
+        message=_optional_str(data.get("message")),
+    )
+
+
 def finalizer_context_from_dict(data: dict[str, Any]) -> FinalizerContextWire:
     return FinalizerContextWire(
         schema_version=int(data["schema_version"]),
@@ -414,6 +463,7 @@ def finalizer_context_from_dict(data: dict[str, Any]) -> FinalizerContextWire:
         ],
         context_digest=_optional_str(data.get("context_digest")),
         assigned_bead=finalizer_assigned_bead_from_dict(data.get("assigned_bead")),
+        handoff=finalizer_handoff_from_dict(data.get("handoff")),
     )
 
 
@@ -548,6 +598,7 @@ __all__ = [
     "FinalizerContextWire",
     "FinalizerDeferralWire",
     "FinalizerDiagnosticWire",
+    "FinalizerHandoffWire",
     "FinalizerInstancePolicyWire",
     "FinalizerInstanceResultWire",
     "FinalizerInstanceSpecWire",
@@ -563,6 +614,8 @@ __all__ = [
     "FinalizerSubmissionPayloadWire",
     "FinalizerSubmissionValidationWire",
     "JsonValue",
+    "RepositoryActionCheckRequestWire",
+    "RepositoryActionOutcomeWire",
     "LandingAttemptFactWire",
     "LandingMarkerFactWire",
     "RemainingCommitObligationFactWire",
@@ -576,12 +629,14 @@ __all__ = [
     "finalizer_clear",
     "finalizer_context_from_dict",
     "finalizer_deferral_from_dict",
+    "finalizer_handoff_from_dict",
     "finalizer_instance_result_from_dict",
     "finalizer_instance_spec_from_dict",
     "finalizer_plan_from_dict",
     "finalizer_provider_spec_from_dict",
     "finalizer_remove",
     "finalizer_submission_validation_from_dict",
+    "repository_action_outcome_from_dict",
     "repository_landing_proof_from_dict",
     "finalizer_wire_to_json_dict",
     "remaining_commit_work_outcome_from_dict",

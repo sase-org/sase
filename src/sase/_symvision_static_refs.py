@@ -84,6 +84,21 @@ from sase.feature_flags.state import (
 )
 from sase.feature_flags.state import SavedFeatureFlagState as _SavedFeatureFlagState
 from sase.feature_flags.state import feature_flag_state_path as _feature_flag_state_path
+from sase.core.continuation_facade import (
+    evaluate_prepared_starter_coverage as _evaluate_prepared_starter_coverage,
+)
+from sase.core.continuation_wire import (
+    PreparedReservationWire as _PreparedReservationWire,
+)
+from sase.core.finalizer_facade import (
+    check_repository_action as _check_repository_action,
+)
+from sase.core.finalizer_facade import (
+    validate_finalizer_handoff as _validate_finalizer_handoff,
+)
+from sase.core.finalizer_wire import (
+    finalizer_handoff_from_dict as _finalizer_handoff_from_dict,
+)
 from sase.core.finalizer_wire import (
     finalizer_selector_op_from_dict as _finalizer_selector_op_from_dict,
 )
@@ -159,6 +174,7 @@ _PUBLIC_API_REFS = (
     _FinalizerSubmissionPayloadWire,
     _FlagListSummary,
     _ModelsPanel,
+    _PreparedReservationWire,
     _RunTarget,
     _SavedFeatureFlagSetOutcome,
     _SavedFeatureFlagState,
@@ -167,6 +183,9 @@ _PUBLIC_API_REFS = (
     _build_finalizer_inventory,
     _build_node_request,
     _authenticate_finalizer_plan,
+    _check_repository_action,
+    _evaluate_prepared_starter_coverage,
+    _validate_finalizer_handoff,
     _auto_commit_done_plan_status_if_possible,
     _auto_commit_external_sdd_prompt_qa_if_possible,
     _auto_commit_sdd_bead_reprojection_if_possible,
@@ -182,6 +201,7 @@ _PUBLIC_API_REFS = (
     _finalizer_attempt_from_dict,
     _finalizer_context_digest,
     _finalizer_diagnostic_from_dict,
+    _finalizer_handoff_from_dict,
     _finalizer_instance_policy_from_dict,
     _finalizer_instance_result_from_dict,
     _finalizer_instance_spec_digest,
