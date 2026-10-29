@@ -7,6 +7,7 @@ from copy import deepcopy
 from dataclasses import dataclass
 import json
 import os
+import re
 from pathlib import Path
 from typing import Any
 
@@ -382,10 +383,39 @@ def _successful_receipt_repo_ids(artifacts_dir: str) -> set[str]:
     return found
 
 
-def _marker_is_successful(marker: Mapping[str, Any]) -> bool:
-    if marker.get("result") != "ok":
+_SHA_RE = re.compile(r"\A[0-9a-f]{4,40}\Z", re.IGNORECASE)
+
+
+def _result_matches_sha(result: Any, sha: str) -> bool:
+    """Return whether *result* names the same commit as ledger field *sha*.
+
+    ``write_result_marker`` stores the dispatch result as ``result``: the
+    short SHA for ``create_commit`` while ``commit_sha`` holds the full SHA.
+    One is a prefix of the other. PR URLs (``create_pull_request``) and diff
+    paths (``create_proposal``) never match, so other methods stay out.
+    """
+    if not isinstance(result, str):
         return False
-    return bool(marker.get("commit_sha") or marker.get("sha"))
+    short = result.strip().lower()
+    full = sha.strip().lower()
+    if not _SHA_RE.match(short) or not _SHA_RE.match(full):
+        return False
+    return full.startswith(short) or short.startswith(full)
+
+
+def _marker_is_successful(marker: Mapping[str, Any]) -> bool:
+    # Failure lanes must stay failures: unpushed local commits and dispatch
+    # errors still need recovery even though their markers carry SHAs.
+    if marker.get("pushed") is False:
+        return False
+    if marker.get("dispatch_error"):
+        return False
+    sha = marker.get("commit_sha") or marker.get("sha")
+    if not isinstance(sha, str) or not sha.strip():
+        return False
+    if marker.get("result") == "ok":
+        return True
+    return _result_matches_sha(marker.get("result"), sha)
 
 
 def _has_any_successful_receipt(artifacts_dir: str) -> bool:
