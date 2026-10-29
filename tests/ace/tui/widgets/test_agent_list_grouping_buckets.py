@@ -230,6 +230,29 @@ def test_by_status_running_banner_carries_rail_glyph() -> None:
     assert plain.startswith(f"{glyph} Running")
 
 
+def test_by_status_monitoring_banner_carries_monitor_glyph() -> None:
+    """A monitoring session renders a ``⚙ Monitoring`` banner in BY_STATUS."""
+    agent = make_agent(cl_name="a", status="TESTING")
+    agent.status_bucket = "Running"
+    agent.monitor_start_status = "TESTING"
+    agent.monitor_stop_status = "TESTED"
+    agent.monitor_state = "running"
+    widget = AgentList()
+    widget.update_list(
+        [agent],
+        current_idx=0,
+        grouping_mode=GroupingMode.BY_STATUS,
+    )
+    assert _status_bucket_banner_labels(widget) == ["Monitoring"]
+    options = list(widget._options)
+    plain = options[0].prompt.plain  # type: ignore[union-attr]
+    glyph, glyph_style = RAIL_BUCKET_GLYPHS["Monitoring"]
+    assert glyph == "⚙"
+    assert plain.startswith(f"{glyph} Monitoring")
+    spans = {s.style for s in options[0].prompt.spans}  # type: ignore[union-attr]
+    assert glyph_style in spans
+
+
 def test_by_status_waiting_banner_carries_rail_glyph() -> None:
     """``Waiting`` uses the rail ``◷``, not the banned ``⏳``."""
     widget = AgentList()

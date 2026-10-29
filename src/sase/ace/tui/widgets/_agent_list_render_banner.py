@@ -136,11 +136,12 @@ def format_banner_option(
     - BY_DATE L0 (date bucket): bold sky-blue label + heavy rule, no
       project bar — the bucket name is the visual anchor.
     - BY_STATUS L0 (status bucket): leading rail bucket glyph (``?`` for
-      ``Stopped``) in its rail style + bold sky-blue label + heavy rule.
+      ``Stopped``, ``⚙`` for ``Monitoring``) in its rail style + bold
+      sky-blue label + heavy rule.
     - BY_MACHINE L1 (status subgroup): ``▎`` bar + rail bucket glyph (e.g.
-      ``▎ ▶ Running``) in its rail style + label, light rule ``─`` —
-      always the middle-tier register, even when the subgroup has no
-      name-root children.
+      ``▎ ▶ Running``, ``▎ ⚙ Monitoring``) in its rail style + label,
+      light rule ``─`` — always the middle-tier register, even when the
+      subgroup has no name-root children.
     - L1/L2/L3 (name-root) in any mode: dim-gray ``▸`` branch glyph, teal
       label, dim-gray light rule ``─`` and chip.
 

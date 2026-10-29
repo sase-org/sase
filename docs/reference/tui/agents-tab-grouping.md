@@ -86,7 +86,9 @@ status: its label and styling, including the `FINALIZING` word and the `RETRYING
 countdown, on both the clan row and the CLAN `Status:` line. For example, a session
 running a `TESTING` monitor makes the clan read `TESTING`, while a failed monitor with
 an authored stop label can read `TESTED [W1 F1 D9]` and still remain in the Failed
-group. The status bucket, precedence, and count chip are unchanged; `TESTED` is only the
+group. The shared status bucket, precedence, and count chip are unchanged — a clan
+showing a running monitor's start label still counts as running there — while `BY_STATUS`
+grouping places such a clan under `Monitoring`; `TESTED` is only the
 authored turn label, not proof that verification passed. When the aggregate is `QUEUED`
 and exactly one direct member is queued, the clan row and CLAN `Status:` line also show
 that member's admission rank (`QUEUED #3/4`), plus the same `pN` / `held by` extras the
@@ -193,7 +195,7 @@ changes:
 | ------------ | ----------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `STANDARD`   | Project (with optional Patch sub-level)                                       | The "by project" default. Uses the 2-/3-level layout described above.                                                                                                               |
 | `BY_DATE`    | `Today` / `Yesterday` / `This Week` / `Earlier`                               | Date bucket at L0, then a date-aware L1 subgroup. Sorted newest-first within each bucket.                                                                                           |
-| `BY_STATUS`  | `Stopped` / `Failed` / `Running` / `Queued` / `Waiting` / `Done` / `Starting` | Bucketed by shared status semantics; status priority fixes bucket position. Standalone agent nodes precede name subgroups, with launch recency sorting units inside each partition. |
+| `BY_STATUS`  | `Stopped` / `Failed` / `Running` / `Monitoring` / `Queued` / `Waiting` / `Done` / `Starting` | Bucketed by shared status semantics, with live-monitor rows split into `Monitoring`; status priority fixes bucket position. Standalone agent nodes precede name subgroups, with launch recency sorting units inside each partition. |
 | `BY_MACHINE` | `here`, then remote aliases alphabetically                                    | Machine at L0, status at L1, then name-root/name-prefix groups. Project and Patch levels are omitted.                                                                               |
 
 In `BY_DATE` mode, sase's TUI chooses one L1 subgroup style from the L0 date bucket:
@@ -208,7 +210,10 @@ into a `(no time)` subgroup that sorts last.
 
 In `BY_STATUS` mode the L0 banner is the status bucket and L1 is the name-root, with the
 same singleton-suppression rule as `STANDARD`. Status priority fixes the bucket order:
-Stopped, Failed, Running, Queued, Waiting, Done, Starting. Within each bucket,
+Stopped, Failed, Running, Monitoring, Queued, Waiting, Done, Starting. `Monitoring`
+holds an agent node — or a clan row mirroring its lone monitoring member — whose row
+shows a running monitor's start label; header and summary counts still count it as
+running. Within each bucket,
 standalone sase agents render before every visible name-root subgroup; `start_time`
 sorts agent nodes newest-first inside the standalone partition and subgroup units
 newest-first inside the subgroup partition. The same partitioning rule applies under a
@@ -225,11 +230,12 @@ bucket remains last and its transient rows remain hidden, so startup-only work d
 displace active rows during daemon or launch refreshes. Each mode keeps its own
 per-group fold registry, so collapsing buckets in `BY_STATUS` doesn't affect the project
 layout you had in `STANDARD`. `BY_STATUS` banners are prefixed with semantic glyphs
-(`▲`, `✗`, `▶`, `…`, `⏳`, `✓`, `◐`) so the bucket title still leads visually.
+(`?`, `✗`, `▶`, `⚙`, `○`, `◷`, `✓`, `◐`) so the bucket title still leads visually.
 
 In `BY_MACHINE` mode, local rows use the `here` L0 bucket and remote rows use their
 enrolled alias. Every machine is divided into the same priority-ordered status groups as
-`BY_STATUS`, and every status banner remains visible even for a singleton because it
+`BY_STATUS` — including a `Monitoring` subgroup for rows showing a running monitor's
+start label — and every status banner remains visible even for a singleton because it
 communicates lifecycle state. Within a status group, standalone sase agents precede
 name-root/name-prefix groups and launch recency supplies the same deterministic
 ordering. A status change can therefore move a row between subgroups while keeping it

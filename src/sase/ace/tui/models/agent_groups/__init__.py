@@ -23,7 +23,8 @@ any of its non-project-scoped agents targets a Patch
        fourth structural level.
 
 ``BY_STATUS`` replaces the project level with a priority-ordered status
-bucket, then uses the same name-root and optional name-prefix levels. Within a
+bucket (live-monitor rows split into ``Monitoring``), then uses the same
+name-root and optional name-prefix levels. Within a
 status bucket, standalone sase agents render before visible name-root subgroups;
 launch recency sorts units only within those two partitions. The same rule
 places lanes directly under a name-root before its visible dotted-prefix
@@ -65,6 +66,7 @@ under Earlier; real labels always emit a banner, while the synthetic
 """
 
 from ._buckets import (
+    MONITORING_STATUS_GROUP,
     NO_PATCH_LABEL,
     NO_HOUR_LABEL,
     NO_PROJECT,
@@ -74,6 +76,7 @@ from ._buckets import (
     _TERMINAL_STATUSES,
     date_bucket_for,
     date_subgroup_bucket_for,
+    row_displays_live_monitor,
     status_bucket_for,
 )
 from ._keys import (
@@ -110,6 +113,7 @@ _panel_uses_changespec_level = panel_uses_patch_level  # legacy compatibility al
 __all__ = [
     "GroupRow",
     "GroupingMode",
+    "MONITORING_STATUS_GROUP",
     "NO_PATCH_LABEL",
     "NO_CHANGESPEC_LABEL",  # legacy compatibility alias
     "NO_HOUR_LABEL",
@@ -128,6 +132,7 @@ __all__ = [
     "machine_grouping_signature",
     "panel_uses_patch_level",
     "rendered_group_keys",
+    "row_displays_live_monitor",
     "status_bucket_for",
     "status_grouping_signature",
 ]

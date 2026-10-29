@@ -13,6 +13,7 @@ from sase.agent.status_buckets import (
 )
 from sase.gate_turn.state import gate_state_is_terminal
 from sase.monitor_state import monitor_state_is_terminal
+from sase.monitor_status import monitor_status_pair
 
 from ..agent import Agent
 from ..date_subgroups import (
@@ -45,8 +46,8 @@ class GroupingMode(Enum):
       ``This Week`` / ``Earlier``) derived from each agent's shared
       BY_DATE anchor.
     - ``BY_STATUS``: L0 is a status bucket (``Stopped`` / ``Failed`` /
-      ``Running`` / ``Queued`` / ``Waiting`` / ``Done`` / ``Starting``)
-      derived from each agent's ``status``.
+      ``Running`` / ``Monitoring`` / ``Queued`` / ``Waiting`` / ``Done`` /
+      ``Starting``) derived from each agent's ``status``.
     - ``BY_MACHINE``: L0 is the fleet machine alias, with local rows under
       ``local``.  Each machine bucket is further sub-grouped by the same
       priority-ordered status bucket used by ``BY_STATUS``, then by
@@ -70,16 +71,23 @@ class GroupingMode(Enum):
 
 _DATE_BUCKETS: tuple[str, ...] = ("Today", "Yesterday", "This Week", "Earlier")
 # User-attention priority: actionable stopped/failed work first, active work
-# next, then waiting and completed work. Keep transient startup rows last.
+# next (live monitors sit beside Running), then waiting and completed work.
+# Keep transient startup rows last.
 _STATUS_BUCKETS: tuple[str, ...] = (
     "Stopped",
     "Failed",
     "Running",
+    "Monitoring",
     "Queued",
     "Waiting",
     "Done",
     "Starting",
 )
+
+#: Grouping-only TUI label for rows displaying a running monitor's start
+#: label. Not a shared status bucket: query filters, counts, and integrations
+#: keep reading such rows as ``Running``.
+MONITORING_STATUS_GROUP = "Monitoring"
 
 
 def date_anchor_time(agent: Agent) -> datetime | None:
@@ -187,6 +195,28 @@ def date_subgroup_sort_key(
     return (1, 0)
 
 
+def row_displays_live_monitor(agent: Agent) -> bool:
+    """Return whether *agent* currently shows a running monitor's start label.
+
+    Row-local: reads only the row's own ``status``, ``monitor_start_status``,
+    ``monitor_stop_status``, and ``monitor_state`` so per-row grouping
+    signatures stay cheap and consistent. Matches the same
+    status-equals-pair-start rule as ``monitor_status_presentation``: a live
+    monitor (non-terminal ``monitor_state``) whose ``status`` equals the
+    pair's start half. A missing or unknown ``monitor_state`` counts as live,
+    following the doctrine that a monitor that has not reported never reads
+    as finished.
+    """
+    start = agent.monitor_start_status
+    stop = agent.monitor_stop_status
+    if not start and not stop:
+        return False
+    if monitor_state_is_terminal(agent.monitor_state):
+        return False
+    pair = monitor_status_pair(start, stop)
+    return (agent.status or "").casefold() == pair.start.casefold()
+
+
 def status_bucket_for(agent: Agent) -> str:
     """Map ``agent.status`` to a status bucket.
 
@@ -194,8 +224,14 @@ def status_bucket_for(agent: Agent) -> str:
     rules.  ``FAILED`` display statuses land in ``Failed`` and ``WAITING``
     statuses land in ``Waiting``.  Anything not explicitly bucketed lands in
     ``Running`` (the agent is in flight from the user's perspective).
+
+    Rows whose shared bucket is ``Running`` but which display a running
+    monitor's start label group under the grouping-only ``Monitoring`` label.
     """
-    return agent_status_bucket(agent)
+    bucket = agent_status_bucket(agent)
+    if bucket == "Running" and row_displays_live_monitor(agent):
+        return MONITORING_STATUS_GROUP
+    return bucket
 
 
 def bucket_sort_index(mode: GroupingMode, bucket: str) -> int:

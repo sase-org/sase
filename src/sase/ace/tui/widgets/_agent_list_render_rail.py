@@ -20,7 +20,11 @@ from sase.agent.status_buckets import agent_status_bucket
 
 from ..models._agent_tree import agent_tree_depth
 from ..models.agent import AgentType
-from ..models.agent_groups import GroupingMode, banner_label
+from ..models.agent_groups import (
+    MONITORING_STATUS_GROUP,
+    GroupingMode,
+    banner_label,
+)
 from ..models.agent_panels import agent_panel_label
 from ..models.agent_relative_label import relative_agent_label
 from ..models.agent_status import RUNNING_COLOR, STOPPED_COLOR, STOPPED_STATUS
@@ -84,7 +88,12 @@ RAIL_FAILED_STYLE = "bold #FF5F5F"
 RAIL_COLLAPSED_MARK_STYLE = "#FFD75F"
 RAIL_COLLAPSED_MARK_DIM_STYLE = "#AFAFAF"
 
-#: Bucket name → ``(glyph, style)`` for all seven status buckets. The TUI
+# Static kind glyph for monitor rows, also used for the grouping-only
+# Monitoring bucket banner. Defined before the bucket map so the map can
+# reference it.
+RAIL_MONITOR_GLYPH = _MONITOR_GLYPH
+
+#: Bucket name → ``(glyph, style)`` for all status buckets. The TUI
 #: rail and TUI banners share this map; the CLI ``AGENT_STATUS_BUCKET_GLYPHS``
 #: map stays untouched.
 RAIL_BUCKET_GLYPHS: dict[str, tuple[str, str]] = {
@@ -92,6 +101,9 @@ RAIL_BUCKET_GLYPHS: dict[str, tuple[str, str]] = {
     "Failed": ("✗", RAIL_FAILED_STYLE),
     "Starting": ("◐", "bold #87D7FF"),
     "Running": ("▶", RUNNING_COLOR),
+    # Grouping-only label that ``agent_status_bucket`` never returns, so the
+    # per-row rail glyph lookup in ``rail_agent_cells`` is unaffected.
+    MONITORING_STATUS_GROUP: (RAIL_MONITOR_GLYPH, _MONITOR_GLYPH_STYLE),
     "Queued": ("○", "#5F87FF"),
     "Waiting": ("◷", "#AF87FF"),
     # Done rows refine bold/dim by unread state in ``rail_agent_cells``;
@@ -101,7 +113,6 @@ RAIL_BUCKET_GLYPHS: dict[str, tuple[str, str]] = {
 RAIL_DONE_READ_STYLE = "dim #5FD75F"
 
 # Static kind glyphs for the legend and for rows whose kind outranks status.
-RAIL_MONITOR_GLYPH = _MONITOR_GLYPH
 RAIL_GATE_GLYPH = _GATE_GLYPH
 RAIL_WORKFLOW_GLYPH = "≡"
 RAIL_STEP_GLYPH = "❯"

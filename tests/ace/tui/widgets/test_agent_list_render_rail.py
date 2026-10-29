@@ -122,6 +122,7 @@ def test_constants() -> None:
         "Failed",
         "Starting",
         "Running",
+        "Monitoring",
         "Queued",
         "Waiting",
         "Done",

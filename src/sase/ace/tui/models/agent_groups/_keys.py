@@ -129,10 +129,10 @@ def status_grouping_signature(
 ) -> tuple[str, str, str, int, datetime | None]:
     """Return the ``BY_STATUS`` grouping determinants for a single agent.
 
-    Captures exactly the fields that decide which status bucket and
-    name-root / name-prefix subgroup and position a row renders under: the
-    status bucket, name root, name prefix, exact-prefix member rank, and launch
-    anchor. Used by the in-place row-patch guard to confirm a badge-only change
+    Captures exactly the fields that decide which status bucket (including
+    the grouping-only ``Monitoring`` label) and name-root / name-prefix
+    subgroup and position a row renders under: the status bucket, name root,
+    name prefix, exact-prefix member rank, and launch anchor. Used by the in-place row-patch guard to confirm a badge-only change
     (e.g. a deferred live-hint pencil) leaves the row in the same group and
     position before patching its Option in place; any difference means the row
     may have moved and the caller must rebuild instead.
@@ -151,10 +151,11 @@ def machine_grouping_signature(
 ) -> tuple[str, str, str, str, int, datetime | None]:
     """Return the ``BY_MACHINE`` grouping determinants for a single agent.
 
-    Captures exactly the fields that decide which machine, status subgroup,
-    and name-root / name-prefix position a row renders under: the machine
-    alias, status bucket, name root, name prefix, exact-prefix member rank,
-    and launch anchor. Used by the in-place row-patch guard to confirm a
+    Captures exactly the fields that decide which machine, status subgroup
+    (including the grouping-only ``Monitoring`` label), and name-root /
+    name-prefix position a row renders under: the machine alias, status
+    bucket, name root, name prefix, exact-prefix member rank, and launch
+    anchor. Used by the in-place row-patch guard to confirm a
     badge-only change leaves the row in the same group and position before
     patching its Option in place; a status-bucket move means the row may have
     moved to a different subgroup, so the caller must rebuild instead.

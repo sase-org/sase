@@ -318,6 +318,30 @@ def test_by_status_status_bucket_move_refuses_row_patch(monkeypatch: Any) -> Non
     )
 
 
+def test_by_status_running_to_monitoring_refuses_row_patch(
+    monkeypatch: Any,
+) -> None:
+    old_agent = _agent("alpha", tribe=None, suffix="a1", status="RUNNING")
+    app = _by_status_app([old_agent], monkeypatch)
+    app._agents_refresh_trace_records.clear()
+
+    new_agent = replace(
+        old_agent,
+        status="TESTING",
+        monitor_start_status="TESTING",
+        monitor_stop_status="TESTED",
+        monitor_state="running",
+    )
+    app._agents = [new_agent]
+
+    # Running -> Monitoring crosses grouping buckets, so the in-place patch
+    # must refuse and leave the caller to rebuild the affected panel.
+    assert app._try_patch_agent_row(new_agent) is False
+    assert app._agents_refresh_trace_records[-1].fallback_reason == (
+        "status_membership_change"
+    )
+
+
 def test_by_status_launch_anchor_change_refuses_row_patch(monkeypatch: Any) -> None:
     old_agent = _agent("alpha", tribe=None, suffix="a1", status="RUNNING")
     app = _by_status_app([old_agent], monkeypatch)
