@@ -209,6 +209,15 @@ evidence path again together with the last 50 lines of its output. When the host
 finalizer has to stop a hung stitch, its diagnostic points at the most recent hook
 record for that repository (see [Commit Finalizer](#commit-finalizer)).
 
+An after-rebase gate run reuses the same directory and bounded log/tail files, with a
+`kind` of `after_rebase_gate` on its record. The record additionally carries the pending
+context's input IDs, the changed-file count, the configured deadline, the verdict with
+its reason, and the command facts (exit code, signal, timeout, or spawn error). Its
+`status` moves from `starting` to `running` and then to `finished`, `timeout`,
+`failed_to_start`, `decided`, or `warned`. Unlike `before`/`after`, the gate never
+aborts dispatch on error: every infrastructure or protocol problem warns and allows the
+push, and only a valid matching `findings` report blocks it.
+
 #### Explicit Bead Action
 
 `sase stitch create` never changes a bead's lifecycle on its own. When the payload has

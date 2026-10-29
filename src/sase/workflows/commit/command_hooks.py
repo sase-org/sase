@@ -5,28 +5,30 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
-import hashlib
 import json
 import os
 import subprocess
 import sys
-import tempfile
 import threading
 import time
-from typing import BinaryIO, Literal
+from typing import Literal
 import uuid
 
 from sase.config.core import load_merged_config
 from sase.output import print_status
-from sase.workflows.commit.hook_utils import get_repo_root
+from sase.workflows.commit.hook_utils import (
+    HOOK_LOG_DIRNAME,
+    HOOK_READER_JOIN_SECONDS,
+    decode_tail,
+    drain_stream,
+    get_repo_root,
+    hook_log_root,
+    normalize_path,
+    repo_digest,
+    write_json_atomic,
+)
 
 CommitHookPhase = Literal["before", "after"]
-
-HOOK_LOG_DIRNAME = "commit_hooks"
-_LOG_CAP_BYTES = 1_048_576
-_TAIL_CAP_BYTES = 16_384
-_READ_CHUNK_BYTES = 65_536
-_READER_JOIN_SECONDS = 1.0
 
 
 @dataclass(frozen=True)
@@ -126,12 +128,12 @@ def _run_hook_command(
     phase: CommitHookPhase,
     repo_root: str,
 ) -> _HookRunResult:
-    root = _hook_log_root()
+    root = hook_log_root()
     root.mkdir(parents=True, exist_ok=True)
-    repo_digest = _repo_digest(repo_root)
+    digest = repo_digest(repo_root)
     stem = (
         f"{datetime.now(UTC).strftime('%Y%m%dT%H%M%S.%fZ')}"
-        f".{phase}.{repo_digest}.{os.getpid()}.{uuid.uuid4().hex[:8]}"
+        f".{phase}.{digest}.{os.getpid()}.{uuid.uuid4().hex[:8]}"
     )
     paths = _HookLogPaths(
         metadata=root / f"{stem}.json",
@@ -146,8 +148,8 @@ def _run_hook_command(
         "status": "starting",
         "command": cmd,
         "phase": phase,
-        "repo_root": _normalize_path(repo_root),
-        "repo_digest": repo_digest,
+        "repo_root": normalize_path(repo_root),
+        "repo_digest": digest,
         "start_time": datetime.now(UTC).isoformat(),
         "start_time_epoch": time.time(),
         "invocation": {
@@ -163,7 +165,7 @@ def _run_hook_command(
             "stderr_tail": str(paths.stderr_tail),
         },
     }
-    _write_json_atomic(paths.metadata, metadata)
+    write_json_atomic(paths.metadata, metadata)
     for path in (paths.stdout, paths.stderr, paths.stdout_tail, paths.stderr_tail):
         path.touch(exist_ok=False)
     print_status(f"{phase.capitalize()} commit hook evidence: {paths.metadata}", "info")
@@ -188,7 +190,7 @@ def _run_hook_command(
                 "error": str(exc),
             }
         )
-        _write_json_atomic(paths.metadata, metadata)
+        write_json_atomic(paths.metadata, metadata)
         return _HookRunResult(
             returncode=127,
             duration_seconds=duration,
@@ -200,7 +202,7 @@ def _run_hook_command(
         )
 
     metadata.update({"status": "running", "pid": process.pid})
-    _write_json_atomic(paths.metadata, metadata)
+    write_json_atomic(paths.metadata, metadata)
 
     lock = threading.Lock()
     written = {"stdout": 0, "stderr": 0}
@@ -209,7 +211,7 @@ def _run_hook_command(
 
     threads = [
         threading.Thread(
-            target=_drain_stream,
+            target=drain_stream,
             args=(
                 process.stdout,
                 "stdout",
@@ -223,7 +225,7 @@ def _run_hook_command(
             daemon=True,
         ),
         threading.Thread(
-            target=_drain_stream,
+            target=drain_stream,
             args=(
                 process.stderr,
                 "stderr",
@@ -241,12 +243,12 @@ def _run_hook_command(
         thread.start()
     returncode = process.wait()
     for thread in threads:
-        thread.join(timeout=_READER_JOIN_SECONDS)
+        thread.join(timeout=HOOK_READER_JOIN_SECONDS)
 
     duration = time.monotonic() - started
     with lock:
-        stdout_tail = _decode_tail(tails["stdout"])
-        stderr_tail = _decode_tail(tails["stderr"])
+        stdout_tail = decode_tail(tails["stdout"])
+        stderr_tail = decode_tail(tails["stderr"])
         stdout_truncated = truncated["stdout"]
         stderr_truncated = truncated["stderr"]
     metadata.update(
@@ -259,7 +261,7 @@ def _run_hook_command(
             "end_time": datetime.now(UTC).isoformat(),
         }
     )
-    _write_json_atomic(paths.metadata, metadata)
+    write_json_atomic(paths.metadata, metadata)
     return _HookRunResult(
         returncode=returncode,
         duration_seconds=duration,
@@ -269,72 +271,6 @@ def _run_hook_command(
         stdout_truncated=stdout_truncated,
         stderr_truncated=stderr_truncated,
     )
-
-
-def _drain_stream(
-    stream: BinaryIO | None,
-    name: Literal["stdout", "stderr"],
-    log_path: Path,
-    tail_path: Path,
-    lock: threading.Lock,
-    written: dict[str, int],
-    truncated: dict[str, bool],
-    tails: dict[str, bytearray],
-) -> None:
-    if stream is None:
-        return
-    try:
-        while True:
-            chunk = stream.read(_READ_CHUNK_BYTES)
-            if not chunk:
-                break
-            with lock:
-                _append_bounded_log(log_path, name, chunk, written, truncated)
-                tails[name].extend(chunk)
-                if len(tails[name]) > _TAIL_CAP_BYTES:
-                    del tails[name][: len(tails[name]) - _TAIL_CAP_BYTES]
-                _write_bytes_atomic(tail_path, bytes(tails[name]))
-    except OSError:
-        return
-    finally:
-        try:
-            stream.close()
-        except OSError:
-            pass
-
-
-def _append_bounded_log(
-    path: Path,
-    name: Literal["stdout", "stderr"],
-    chunk: bytes,
-    written: dict[str, int],
-    truncated: dict[str, bool],
-) -> None:
-    if truncated[name]:
-        return
-    room = _LOG_CAP_BYTES - written[name]
-    with path.open("ab") as handle:
-        if len(chunk) <= room:
-            handle.write(chunk)
-            written[name] += len(chunk)
-            return
-        if room > 0:
-            handle.write(chunk[:room])
-            written[name] += room
-        marker = (
-            f"\n[commit hook {name} log truncated after {_LOG_CAP_BYTES} bytes; "
-            "see the .tail file for recent output]\n"
-        ).encode()
-        handle.write(marker)
-        truncated[name] = True
-
-
-def _hook_log_root() -> Path:
-    artifacts_dir = os.environ.get("SASE_ARTIFACTS_DIR", "").strip()
-    if artifacts_dir:
-        return Path(artifacts_dir) / HOOK_LOG_DIRNAME
-    owner = str(getattr(os, "getuid", lambda: "user")())
-    return Path(tempfile.gettempdir()) / "sase-commit-hooks" / owner
 
 
 def load_latest_commit_hook_metadata(
@@ -349,7 +285,7 @@ def load_latest_commit_hook_metadata(
         candidates = list(root.glob("*.json"))
     except OSError:
         return None
-    repo_norm = _normalize_path(repo_path)
+    repo_norm = normalize_path(repo_path)
     newest: tuple[float, dict[str, object]] | None = None
     for path in candidates:
         try:
@@ -358,7 +294,7 @@ def load_latest_commit_hook_metadata(
             continue
         if not isinstance(data, dict):
             continue
-        if _normalize_path(str(data.get("repo_root") or "")) != repo_norm:
+        if normalize_path(str(data.get("repo_root") or "")) != repo_norm:
             continue
         data["metadata_path"] = str(path)
         start = data.get("start_time_epoch")
@@ -388,42 +324,3 @@ def _read_text_path(value: object) -> str:
         return Path(value).read_text(encoding="utf-8", errors="replace")
     except OSError:
         return ""
-
-
-def _write_json_atomic(path: Path, payload: dict[str, object]) -> None:
-    tmp_path = path.with_name(f".{path.name}.{os.getpid()}.tmp")
-    try:
-        tmp_path.write_text(
-            json.dumps(payload, indent=2, sort_keys=True) + "\n",
-            encoding="utf-8",
-        )
-        os.replace(tmp_path, path)
-    finally:
-        try:
-            tmp_path.unlink()
-        except FileNotFoundError:
-            pass
-
-
-def _write_bytes_atomic(path: Path, payload: bytes) -> None:
-    tmp_path = path.with_name(f".{path.name}.{os.getpid()}.tmp")
-    try:
-        tmp_path.write_bytes(payload)
-        os.replace(tmp_path, path)
-    finally:
-        try:
-            tmp_path.unlink()
-        except FileNotFoundError:
-            pass
-
-
-def _decode_tail(value: bytearray) -> str:
-    return bytes(value).decode("utf-8", errors="replace")
-
-
-def _repo_digest(repo_root: str) -> str:
-    return hashlib.sha256(_normalize_path(repo_root).encode("utf-8")).hexdigest()[:12]
-
-
-def _normalize_path(path: str) -> str:
-    return os.path.normcase(os.path.abspath(os.path.expanduser(path)))

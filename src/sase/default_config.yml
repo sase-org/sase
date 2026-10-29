@@ -9,6 +9,8 @@ use_chezmoi: false
 commit_hooks:
   before: ""
   after: ""
+  after_rebase: ""
+  after_rebase_timeout_seconds: 10
 file_hooks: []
 # Project-declared plugin dependencies. A linked checkout is not an install.
 # Every non-builtin <plugin>@ prefix in project config must appear here.

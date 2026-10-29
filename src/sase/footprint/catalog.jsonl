@@ -1,4 +1,4 @@
-{"count": 3652, "rev": "3b2bd39d5ea0", "schema": "sase.footprint.catalog/1"}
+{"count": 3654, "rev": "6839fc9bdc18", "schema": "sase.footprint.catalog/1"}
 {"area": "automation", "id": "auto:axe.agent_waits", "kind": "auto", "label": "Resolve agent wait dependencies within seconds of completion", "ns": "auto", "parent": null, "src": "sase/default_config.yml"}
 {"area": "automation", "id": "auto:axe.agent_waits.wait_checks", "kind": "auto", "label": "Resolve agent wait dependencies and write ready.json when satisfied", "ns": "auto", "parent": "auto:axe.agent_waits", "src": "sase/default_config.yml"}
 {"area": "automation", "id": "auto:axe.checks", "kind": "auto", "label": "Poll slower PR-submission and workspace-claim checks on a five-minute cadence", "ns": "auto", "parent": null, "src": "sase/default_config.yml"}
@@ -2706,6 +2706,8 @@
 {"area": "config.commit", "id": "config:commit.message.allowed_types", "kind": "config", "label": "Allowed types", "ns": "config", "parent": null, "src": "sase/default_config.yml"}
 {"area": "config.commit", "id": "config:commit.message.require_conventional_subject", "kind": "config", "label": "Require conventional subject", "ns": "config", "parent": null, "src": "sase/default_config.yml"}
 {"area": "config.commit_hooks", "id": "config:commit_hooks.after", "kind": "config", "label": "After", "ns": "config", "parent": null, "src": "sase/default_config.yml"}
+{"area": "config.commit_hooks", "id": "config:commit_hooks.after_rebase", "kind": "config", "label": "After rebase", "ns": "config", "parent": null, "src": "sase/default_config.yml"}
+{"area": "config.commit_hooks", "id": "config:commit_hooks.after_rebase_timeout_seconds", "kind": "config", "label": "After rebase timeout seconds", "ns": "config", "parent": null, "src": "sase/default_config.yml"}
 {"area": "config.commit_hooks", "id": "config:commit_hooks.before", "kind": "config", "label": "Before", "ns": "config", "parent": null, "src": "sase/default_config.yml"}
 {"area": "config.default_linked_repos", "id": "config:default_linked_repos", "kind": "config", "label": "Default linked repos", "ns": "config", "parent": null, "src": "sase/default_config.yml"}
 {"area": "config.disk", "id": "config:disk.pressure.error_free_percent", "kind": "config", "label": "Error free percent", "ns": "config", "parent": null, "src": "sase/default_config.yml"}

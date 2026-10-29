@@ -5400,7 +5400,7 @@
     },
     "commit_hooks": {
       "type": "object",
-      "description": "Commands to run before VCS dispatch and after a commit-producing dispatch succeeds.",
+      "description": "Commands to run before VCS dispatch, after a commit-producing dispatch succeeds, and after a rebase combines divergent work.",
       "additionalProperties": false,
       "properties": {
         "before": {
@@ -5412,6 +5412,18 @@
           "type": "string",
           "description": "Command to run after a commit is created and, where applicable, pushed. Empty string means disabled.",
           "default": ""
+        },
+        "after_rebase": {
+          "type": "string",
+          "description": "Command to run after a rebase combines divergent work, before pushing the resulting tree. Empty string means disabled. Runs with repository-root cwd and SASE_REBASE_CONTEXT/SASE_REBASE_RESULT environment variables naming the JSON context input and result files. Gate errors fail open and allow the push.",
+          "default": ""
+        },
+        "after_rebase_timeout_seconds": {
+          "type": "number",
+          "description": "Wall-clock budget in seconds for after-rebase gate execution: context preparation, command execution, teardown, and result reads share one monotonic deadline. Positive finite seconds, maximum 30. Invalid values warn and skip the gate.",
+          "default": 10,
+          "exclusiveMinimum": 0,
+          "maximum": 30
         }
       }
     },

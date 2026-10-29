@@ -10,6 +10,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 import sase.workflows.commit.command_hooks as command_hooks
+import sase.workflows.commit.hook_utils as hook_utils
 from sase.workflows.commit.command_hooks import (
     _HookRunResult,
     run_after_commit_hook,
@@ -105,7 +106,7 @@ def test_hook_command_writes_bounded_logs_and_recent_tail(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.setenv("SASE_ARTIFACTS_DIR", str(tmp_path / "artifacts"))
-    monkeypatch.setattr(command_hooks, "_LOG_CAP_BYTES", 24)
+    monkeypatch.setattr(hook_utils, "HOOK_LOG_CAP_BYTES", 24)
     script = tmp_path / "hook.py"
     script.write_text(
         "import sys\n"
@@ -132,5 +133,5 @@ def test_hook_command_writes_bounded_logs_and_recent_tail(
     stdout_log = Path(str(paths["stdout"])).read_text(encoding="utf-8")
     stdout_tail = Path(str(paths["stdout_tail"])).read_text(encoding="utf-8")
     assert "truncated after 24 bytes" in stdout_log
-    assert len(stdout_tail) <= command_hooks._TAIL_CAP_BYTES
+    assert len(stdout_tail) <= hook_utils.HOOK_TAIL_CAP_BYTES
     assert "x" in stdout_tail

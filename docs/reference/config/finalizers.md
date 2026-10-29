@@ -146,6 +146,8 @@ repeating the other phase.
 commit_hooks:
   before: "just fix" # default: ""
   after: "chezmoi update -a --force" # default: ""
+  after_rebase: "" # default: ""
+  after_rebase_timeout_seconds: 10 # default: 10
 ```
 
 [Generated reference for `commit_hooks`](repositories.md#commit_hooks)
@@ -160,7 +162,22 @@ checkpointed so a normal resume does not rerun it. A crash after the external co
 succeeds but before that checkpoint write can run it again, so `after` commands must be
 safe to repeat.
 
+`after_rebase` gates pushes that follow a rebase combining divergent work. It runs in
+the repository root with `SASE_REBASE_CONTEXT` naming a temporary JSON file holding the
+pending gate context (schema version, immutable input IDs, current HEAD/tree, changed
+paths) and `SASE_REBASE_RESULT` naming the fresh result file the checker writes (schema
+version, checked HEAD/tree, `clean`/`findings`/`error` status, findings, and
+diagnostics). Changed paths travel in the context file, never interpolated into shell
+text. Context preparation, command execution, teardown, and result reads share one
+monotonic deadline of `after_rebase_timeout_seconds` (default 10, maximum 30); the
+subprocess group is terminated on timeout. Only a valid matching `findings` report
+blocks the push. Timeout, signal, spawn failure, unsupported exits,
+malformed/missing/stale reports, invalid settings, and explicit `error` reports all warn
+and allow the push — unlike `before`/`after`, no gate error aborts dispatch.
+
 Source: `src/sase/default_config.yml`, `src/sase/workflows/commit/commit_hooks.py`,
+`src/sase/workflows/commit/command_hooks.py`,
+`src/sase/workflows/commit/rebase_gate_runner.py`,
 `src/sase/workflows/commit/workflow.py`
 
 ## Related
