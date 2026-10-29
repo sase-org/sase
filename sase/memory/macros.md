@@ -156,14 +156,17 @@ current branch's Patch, and suffixes duplicates with `_<N>`. `#sync` syncs/rebas
 launches conflict help; `#git:<ref>` checks out a ref and reports the diff.
 
 **Rule:** Agents never create git commits, branches, or PRs directly. Host-owned
-finalizers run after the model returns. Finish with `/sase_final`, which reads
+finalizers run after the model returns. A turn-ending command that reports `Staged`
+leaves the root agent running; finish through `/sase_final`, which reads
 `sase final context` and submits one `sase final submit` manifest when a payload is
-required. That declaration covers every repository the agent changed during the turn,
-including linked, sidecar, or external repos opened through `/sase_repo`; it is not
-narrowed by the launch ref or by a host prompt scoped to one repository. The default
-`builtin@commit` instance dispatches accepted decisions through `sase stitch create`,
-honoring `SASE_COMMIT_METHOD`, `SASE_PR_NAME`, `SASE_PR_STATUS`, and `SASE_BUG_ID`.
-Intentional plan/monitor/pipe/questions handoffs skip declaration. Use `gh` only for
-GitHub API/PR reads when needed.
+required. Stage before declaring, do not mutate after a successful declaration, and
+never wait for your own staged handoff. A command that does not report `Staged` uses the
+legacy marker-and-kill flow and ends the turn mechanically. Native helpers return to the
+root agent and never declare. A declaration covers every repository the agent changed
+during the turn, including linked, sidecar, or external repos opened through
+`/sase_repo`; it is not narrowed by the launch ref or by a host prompt scoped to one
+repository. The default `builtin@commit` instance dispatches accepted decisions through
+`sase stitch create`, honoring `SASE_COMMIT_METHOD`, `SASE_PR_NAME`, `SASE_PR_STATUS`,
+and `SASE_BUG_ID`. Use `gh` only for GitHub API/PR reads when needed.
 
 Typical project-task prompt: `+sase %auto #pr:my_change <task text>`.

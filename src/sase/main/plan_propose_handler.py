@@ -176,22 +176,58 @@ def _formatted_plan_failure(
 def handle_plan_propose_command(plan_file: str) -> NoReturn:
     """Submit a plan file for approval (used by /sase_plan skill).
 
-    1. Guard: verify SASE_AGENT and SASE_ARTIFACTS_DIR env vars
-    2. Validate plan_file exists
-    3. Validate the authored plan tier (a pinned auto tier selects coverage;
-       a cross-tier pin parks the plan for review)
-    4. Format the plan with prettier and re-validate the formatted text: if
-       formatting would change validity or the decision callouts, exit 1
-       before touching the scratch file, the archive, or the runner
-    5. Move plan into the ~/.sase/plans/ archive (consumes the scratch file)
-    6. Write .sase_plan_pending marker JSON to SASE_ARTIFACTS_DIR
-    7. Kill the agent runner's process group via SIGTERM
+    The feature snapshot selects either staged completion or the legacy
+    marker-and-kill protocol. In both cases admission happens before any plan
+    archive or artifact-link mutation.
     """
     try:
         artifacts_dir = handoff_guard(command="sase plan propose")
     except PendingHandoffError as exc:
         print(f"Error: {exc}", file=sys.stderr)
         sys.exit(1)
+
+    from sase.agent.staged_handoff import (
+        StagedHandoffError,
+        acquire_staging_reservation,
+        release_staging_reservation,
+        staged_handoffs_enabled,
+    )
+
+    use_staged_handoffs = staged_handoffs_enabled()
+    reservation_id: str | None = None
+    if use_staged_handoffs:
+        try:
+            reservation_id = acquire_staging_reservation(
+                artifacts_dir=artifacts_dir,
+                command="sase plan propose",
+            )
+        except StagedHandoffError as exc:
+            print(f"Error: {exc}", file=sys.stderr)
+            sys.exit(1)
+
+    try:
+        _handle_plan_propose_after_guard(
+            plan_file,
+            artifacts_dir=artifacts_dir,
+            use_staged_handoffs=use_staged_handoffs,
+            reservation_id=reservation_id,
+        )
+    finally:
+        if reservation_id is not None:
+            release_staging_reservation(
+                reservation_id,
+                artifacts_dir=artifacts_dir,
+            )
+
+
+def _handle_plan_propose_after_guard(
+    plan_file: str,
+    *,
+    artifacts_dir: str,
+    use_staged_handoffs: bool,
+    reservation_id: str | None,
+) -> NoReturn:
+    """Validate and publish a proposal after reserving its handoff slot."""
 
     # Validate plan file exists
     plan_path = Path(plan_file).resolve()
@@ -451,26 +487,53 @@ def handle_plan_propose_command(plan_file: str) -> NoReturn:
         print(failure, file=sys.stderr)
         sys.exit(1)
 
-    # Write .sase_plan_pending marker JSON. ``plan_file`` points at the durable
-    # archive copy; ``original_file`` is retained for provenance/debugging even
-    # though the scratch file no longer exists after the move above.
-    try:
-        write_pending_handoff_marker(
-            PLAN_PENDING_MARKER,
-            {
-                "plan_file": str(archived_path),
-                "original_file": str(plan_path),
-            },
-            artifacts_dir=artifacts_dir,
+    if use_staged_handoffs:
+        from sase.agent.staged_handoff import (
+            StagedHandoffError,
+            build_plan_staged_record,
+            write_staged_handoff,
         )
-    except PendingHandoffError as exc:
-        print(f"Error: {exc}", file=sys.stderr)
-        sys.exit(1)
+
+        try:
+            write_staged_handoff(
+                build_plan_staged_record(
+                    plan_file=str(archived_path),
+                    original_file=str(plan_path),
+                ),
+                artifacts_dir=artifacts_dir,
+                command="sase plan propose",
+                reservation_id=reservation_id,
+            )
+        except StagedHandoffError as exc:
+            print(f"Error: {exc}", file=sys.stderr)
+            sys.exit(1)
+    else:
+        # Keep the legacy marker payload and mechanical turn ending intact
+        # while the inherited feature snapshot has the flag disabled.
+        try:
+            write_pending_handoff_marker(
+                PLAN_PENDING_MARKER,
+                {
+                    "plan_file": str(archived_path),
+                    "original_file": str(plan_path),
+                },
+                artifacts_dir=artifacts_dir,
+            )
+        except PendingHandoffError as exc:
+            print(f"Error: {exc}", file=sys.stderr)
+            sys.exit(1)
 
     # Pulse a file at a path the TUI inotify watcher and surface-token probe
     # both see. The marker write deeper in the artifact tree does not reliably
     # wake Agents-tab refreshes, especially for sharded ace-run layouts.
     _touch_turn_refresh_pulse_for_artifacts_dir(artifacts_dir)
+
+    if use_staged_handoffs:
+        print(
+            "Staged plan proposal. Nothing starts until this turn ends; "
+            "finish with `/sase_final`."
+        )
+        sys.exit(0)
 
     # Kill the agent runner's process group (which includes the claude
     # subprocess). We cannot use our own process group because Claude Code
@@ -484,10 +547,9 @@ def _derive_links_for_archived_plan(
 ) -> None:
     """Best-effort: derive candidate links (e.g. `implements` from `bead:`).
 
-    Proposing a plan terminates the runner mechanically, so this is the only
-    place a handoff can be caught at all -- a finalizer or a later
-    commit-triggered hook never runs for this turn. Never raises: a
-    derivation failure must not block a plan handoff.
+    Proposal-time link publication stays beside archiving so the archived
+    plan and its links keep their existing host-owned sidecar commit path.
+    Never raises: a derivation failure must not block a plan handoff.
     """
 
     try:

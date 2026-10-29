@@ -233,8 +233,11 @@ def _disable_prettier_for_skill_generation(
                 "expected schema and all diagnostics",
                 "Do not propose a plan that has not passed validation",
                 "sase plan propose sase_plan_<name>.md",
-                "writes a handoff marker",
-                "do not poll response files yourself",
+                "reports **Staged**",
+                "Nothing starts until your turn ends",
+                "finish through `/sase_final`",
+                "the legacy command has ended your turn mechanically",
+                "Do not poll response files yourself.",
             ),
         ),
         (
