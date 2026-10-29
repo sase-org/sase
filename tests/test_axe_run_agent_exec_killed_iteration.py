@@ -7,6 +7,13 @@ from pathlib import Path
 from unittest.mock import patch
 
 from sase.agent.gate_intent import GATE_INTENT_PREFIX
+from sase.agent.staged_handoff import (
+    STAGED_HANDOFF_RESPONSE_FILENAME,
+    build_plan_staged_record,
+    read_staged_handoff,
+    write_staged_handoff,
+    write_staged_handoff_response,
+)
 from sase.agent.user_kill import USER_KILL_INTENT_MARKER
 from sase.axe.run_agent_exec import LoopState, _handle_killed_iteration
 
@@ -166,10 +173,27 @@ def test_monitor_marker_newer_than_sigterm_is_ignored_as_user_kill(
     assert not marker_path.exists()
 
 
-def test_user_kill_intent_wins_over_plan_marker(tmp_path: Path) -> None:
+def test_user_kill_intent_wins_over_plan_marker(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
     ctx = make_exec_ctx(tmp_path, is_home_mode=False)
     state = _state(Path(ctx.artifacts_dir))
     artifacts = Path(ctx.artifacts_dir)
+    monkeypatch.setenv("SASE_AGENT", "1")
+    staged_record = build_plan_staged_record(
+        plan_file="/tmp/plan.md",
+        original_file="/tmp/scratch.md",
+        dirty_obligations_at_stage=[],
+        staged_id="aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee",
+        created_at="2026-10-28T12:00:00Z",
+    )
+    write_staged_handoff(staged_record, artifacts_dir=str(artifacts))
+    write_staged_handoff_response(
+        str(staged_record["staged_id"]),
+        "planner response",
+        artifacts_dir=str(artifacts),
+    )
     _write_marker(
         artifacts,
         USER_KILL_INTENT_MARKER,
@@ -197,6 +221,8 @@ def test_user_kill_intent_wins_over_plan_marker(tmp_path: Path) -> None:
     plan.assert_not_called()
     assert (artifacts / USER_KILL_INTENT_MARKER).exists()
     assert not (artifacts / ".sase_plan_pending").exists()
+    assert read_staged_handoff(str(artifacts)) is None
+    assert not (artifacts / STAGED_HANDOFF_RESPONSE_FILENAME).exists()
     assert not (artifacts / f"{GATE_INTENT_PREFIX}123.json").exists()
     result = _tool_call_records(artifacts)[-1]
     assert result["event"] == "ToolResult"

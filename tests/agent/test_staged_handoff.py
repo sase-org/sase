@@ -17,6 +17,7 @@ from sase.agent.pending_handoff_write import (
 from sase.agent.staged_handoff import (
     STAGED_HANDOFF_FILENAME,
     STAGED_HANDOFF_RECEIPT_FILENAME,
+    STAGED_HANDOFF_RESPONSE_FILENAME,
     STAGING_RESERVATION_FILENAME,
     StagedHandoffError,
     _has_accepted_current_final_submission,
@@ -26,11 +27,13 @@ from sase.agent.staged_handoff import (
     occupying_handoff_names,
     read_adoption_receipt,
     read_staged_handoff,
+    read_staged_handoff_response,
     receipt_authorizes,
     release_staging_reservation,
     staged_handoffs_enabled,
     write_adoption_receipt,
     write_staged_handoff,
+    write_staged_handoff_response,
 )
 from sase.feature_flags import override_flags
 from sase.feature_flags.registry import FeatureFlag, feature_flag_definitions
@@ -201,6 +204,35 @@ def test_discard_clears_staged_record_and_reservation(
     discard_staged_handoff(str(tmp_path))
     assert read_staged_handoff(str(tmp_path)) is None
     assert not (tmp_path / STAGING_RESERVATION_FILENAME).exists()
+
+
+def test_staged_provider_response_is_bound_to_its_record(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    _agent_env(monkeypatch, tmp_path)
+    record = _plan_record(tmp_path)
+    write_staged_handoff(record, artifacts_dir=str(tmp_path))
+
+    path = write_staged_handoff_response(
+        str(record["staged_id"]),
+        "the ordinary provider response",
+        artifacts_dir=str(tmp_path),
+    )
+
+    assert path.name == STAGED_HANDOFF_RESPONSE_FILENAME
+    assert (
+        read_staged_handoff_response(
+            str(record["staged_id"]), artifacts_dir=str(tmp_path)
+        )
+        == "the ordinary provider response"
+    )
+    with pytest.raises(StagedHandoffError, match="identity mismatch"):
+        read_staged_handoff_response(
+            "bbbbbbbb-bbbb-4ccc-8ddd-eeeeeeeeeeee", artifacts_dir=str(tmp_path)
+        )
+
+    discard_staged_handoff(str(tmp_path))
+    assert not path.exists()
 
 
 def test_receipt_identity_rejects_other_staged_id(

@@ -5,7 +5,10 @@ from unittest.mock import patch
 
 import pytest
 
-from sase.axe.run_agent_exec_plan import handle_plan_marker
+from sase.axe.run_agent_exec_plan import (
+    handle_plan_marker,
+    handle_staged_plan_marker,
+)
 from sase.axe.run_agent_exec_questions import handle_questions_marker
 from sase.llm_provider._plan_utils import PlanApprovalResult
 from sase.main.qa_prompt import build_qa_round
@@ -78,6 +81,38 @@ class TestFeedbackRoundChatPath:
         assert captured["metadata_multi_agent_prompt"] == (
             "~/.sase/multi_prompts/202606/main.md"
         )
+
+    def test_staged_plan_chat_keeps_real_response_and_adds_plan_preview(
+        self, tmp_path
+    ) -> None:
+        ctx = make_ctx(tmp_path)
+        state = make_state(tmp_path)
+        plan_file = str(tmp_path / "plan.md")
+        (tmp_path / "plan.md").write_text(VALID_TALE_PLAN)
+        approval = PlanApprovalResult(action="approve", plan_file=plan_file)
+        captured: dict = {}
+
+        with (
+            patch_plan_gate_turn_result(approval),
+            patch(
+                "sase.sdd.files.write_sdd_files",
+                return_value=(tmp_path / "spec.md", tmp_path / "plan.md"),
+            ),
+            patch(
+                "sase.history.chat.save_chat_history",
+                side_effect=lambda **kw: captured.update(kw) or "/fake/chat",
+            ),
+        ):
+            handle_staged_plan_marker(
+                {"plan_file": plan_file},
+                ctx,
+                state,
+                planner_response="The model's actual final response.",
+            )
+
+        assert captured["response"] == "The model's actual final response."
+        assert "## Proposed Plan Preview" in captured["extra_sections"]
+        assert captured["extra_sections"].endswith("plan")
 
     def test_handle_plan_marker_round2_uses_round_suffix_in_agent_name(
         self, tmp_path

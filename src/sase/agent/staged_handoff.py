@@ -39,6 +39,7 @@ from sase.memory.locks import locked_file
 
 STAGED_HANDOFF_FILENAME = ".sase_handoff_staged.json"
 STAGED_HANDOFF_RECEIPT_FILENAME = ".sase_handoff_adopted.json"
+STAGED_HANDOFF_RESPONSE_FILENAME = ".sase_handoff_response.json"
 STAGING_RESERVATION_FILENAME = ".sase_handoff_staging.json"
 HANDOFF_LOCK_FILENAME = ".sase_handoff.lock"
 
@@ -151,6 +152,60 @@ def read_staged_handoff(artifacts_dir: str | None = None) -> dict[str, Any] | No
         ) from exc
 
 
+def write_staged_handoff_response(
+    staged_id: str,
+    response: str,
+    *,
+    artifacts_dir: str | None = None,
+) -> Path:
+    """Persist the ordinary provider response for the active staged handoff.
+
+    Finalizer declaration recovery may replace the invocation result. Keeping
+    the ordinary response under the staged ID lets the planner chat retain the
+    model's actual final answer without confusing it with recovery output.
+    """
+    root = _artifacts_root(artifacts_dir)
+    with acquire_handoff_locks(root):
+        record = read_staged_handoff(str(root))
+        if record is None or record.get("staged_id") != staged_id:
+            raise StagedHandoffError(
+                "cannot persist provider response for a different staged handoff"
+            )
+        path = root / STAGED_HANDOFF_RESPONSE_FILENAME
+        atomic_write_json(
+            path,
+            {
+                "schema_version": 1,
+                "staged_id": staged_id,
+                "response": response,
+            },
+        )
+        return path
+
+
+def read_staged_handoff_response(
+    staged_id: str,
+    *,
+    artifacts_dir: str | None = None,
+) -> str | None:
+    """Read the ordinary provider response only for its matching staged ID."""
+    root = _artifacts_root(artifacts_dir)
+    path = root / STAGED_HANDOFF_RESPONSE_FILENAME
+    if not _exists(path):
+        return None
+    payload = _read_json_object(path, label="staged handoff provider response")
+    if payload.get("schema_version") != 1 or payload.get("staged_id") != staged_id:
+        raise StagedHandoffError(
+            f"malformed staged handoff provider response {path.name}: identity mismatch"
+        )
+    response = payload.get("response")
+    if not isinstance(response, str):
+        raise StagedHandoffError(
+            f"malformed staged handoff provider response {path.name}: response is not text"
+        )
+    return response
+
+
 def write_staged_handoff(
     record: Mapping[str, Any],
     *,
@@ -183,7 +238,11 @@ def discard_staged_handoff(artifacts_dir: str | None = None) -> None:
     if root is None:
         return
     with acquire_handoff_locks(root):
-        for name in (STAGED_HANDOFF_FILENAME, STAGING_RESERVATION_FILENAME):
+        for name in (
+            STAGED_HANDOFF_FILENAME,
+            STAGED_HANDOFF_RESPONSE_FILENAME,
+            STAGING_RESERVATION_FILENAME,
+        ):
             path = root / name
             try:
                 path.unlink()
@@ -455,6 +514,7 @@ __all__ = [
     "HANDOFF_LOCK_FILENAME",
     "STAGED_HANDOFF_FILENAME",
     "STAGED_HANDOFF_RECEIPT_FILENAME",
+    "STAGED_HANDOFF_RESPONSE_FILENAME",
     "STAGING_RESERVATION_FILENAME",
     "StagedHandoffError",
     "acquire_handoff_locks",
@@ -465,9 +525,11 @@ __all__ = [
     "occupying_handoff_names",
     "read_adoption_receipt",
     "read_staged_handoff",
+    "read_staged_handoff_response",
     "receipt_authorizes",
     "release_staging_reservation",
     "staged_handoffs_enabled",
     "write_adoption_receipt",
     "write_staged_handoff",
+    "write_staged_handoff_response",
 ]

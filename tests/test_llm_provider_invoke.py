@@ -264,6 +264,66 @@ def test_invoke_agent_records_provider_preprocess_shadow_measurement(
     }
 
 
+def test_staged_provider_response_is_saved_before_finalizer_recovery(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from sase.agent.staged_handoff import (
+        build_plan_staged_record,
+        read_staged_handoff_response,
+        write_staged_handoff,
+    )
+
+    artifacts = tmp_path / "20261028T120000"
+    artifacts.mkdir()
+    (artifacts / "agent_meta.json").write_text("{}", encoding="utf-8")
+    monkeypatch.setenv("SASE_AGENT", "1")
+    record = build_plan_staged_record(
+        plan_file=str(tmp_path / "archive.md"),
+        original_file=str(tmp_path / "scratch.md"),
+        dirty_obligations_at_stage=[],
+        staged_id="aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee",
+        created_at="2026-10-28T12:00:00Z",
+    )
+    write_staged_handoff(record, artifacts_dir=str(artifacts))
+    provider = MagicMock()
+    provider.invoke.return_value = InvokeResult(content="ordinary final response")
+
+    def declaration_recovery(**kwargs: object) -> InvokeResult:
+        assert (
+            read_staged_handoff_response(
+                str(record["staged_id"]), artifacts_dir=str(artifacts)
+            )
+            == "ordinary final response"
+        )
+        return InvokeResult(content="declaration recovery response")
+
+    with (
+        patch("sase.llm_provider._invoke.get_provider", return_value=provider),
+        patch(
+            "sase.llm_provider._invoke.preprocess_prompt",
+            return_value=_PreprocessResult(prompt="preprocessed"),
+        ),
+        patch("sase.llm_provider._invoke.postprocess_success"),
+        patch("sase.finalizers.run_finalizers", side_effect=declaration_recovery),
+    ):
+        result = invoke_agent(
+            "prompt",
+            agent_type="test",
+            artifacts_dir=str(artifacts),
+            provider_name="fakey",
+            suppress_output=True,
+        )
+
+    assert result.content == "declaration recovery response"
+    assert (
+        read_staged_handoff_response(
+            str(record["staged_id"]), artifacts_dir=str(artifacts)
+        )
+        == "ordinary final response"
+    )
+
+
 def test_monitor_continuation_budget_refusal_records_nonlaunchable(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

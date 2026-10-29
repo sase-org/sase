@@ -90,9 +90,44 @@ def handle_plan_marker(
 
     Returns a loop-outcome string to break the loop, or ``None`` to continue.
     """
+    return _handle_plan_handoff(
+        plan_data,
+        ctx,
+        state,
+        planner_response=None,
+        interrupted=True,
+    )
+
+
+def handle_staged_plan_marker(
+    plan_data: dict[str, Any],
+    ctx: AgentExecContext,
+    state: LoopState,
+    *,
+    planner_response: str,
+) -> str | None:
+    """Adopt a settled staged plan without the legacy kill interruption."""
+    return _handle_plan_handoff(
+        plan_data,
+        ctx,
+        state,
+        planner_response=planner_response,
+        interrupted=False,
+    )
+
+
+def _handle_plan_handoff(
+    plan_data: dict[str, Any],
+    ctx: AgentExecContext,
+    state: LoopState,
+    *,
+    planner_response: str | None,
+    interrupted: bool,
+) -> str | None:
     mark_lifecycle_phase(state.current_artifacts_dir, "handoff")
-    normalize_handoff_interruption_state(state.current_artifacts_dir)
-    finalize_handoff_artifacts_as_completed(state.current_artifacts_dir)
+    if interrupted:
+        normalize_handoff_interruption_state(state.current_artifacts_dir)
+        finalize_handoff_artifacts_as_completed(state.current_artifacts_dir)
     # Only set the planner suffix on the original workflow entry;
     # feedback round agents keep their numeric suffixes.
     if state.feedback_round == 0:
@@ -118,14 +153,16 @@ def handle_plan_marker(
         },
     )
 
-    # Clear the killed flag set by the plan command's SIGTERM
-    # so the poll loop only exits on a NEW kill signal.
-    reset_killed()
+    if interrupted:
+        # Clear the killed flag set by the plan command's SIGTERM so the poll
+        # loop only exits on a NEW kill signal.
+        reset_killed()
     return _handle_plan_via_gate_turn(
         plan_data,
         ctx,
         state,
         agent_runtime=agent_runtime,
+        planner_response=planner_response,
     )
 
 
@@ -135,6 +172,7 @@ def _handle_plan_via_gate_turn(
     state: LoopState,
     *,
     agent_runtime: str | None,
+    planner_response: str | None = None,
 ) -> str | None:
     plan_file = plan_data.get("plan_file")
     if not isinstance(plan_file, str) or not plan_file:
@@ -157,7 +195,12 @@ def _handle_plan_via_gate_turn(
         plan_result = plan_result_from_gate_creation(creation)
         if plan_result is None:
             return "plan_rejected"
-        return _continue_after_plan_result(plan_result, ctx, state)
+        return _continue_after_plan_result(
+            plan_result,
+            ctx,
+            state,
+            planner_response=planner_response,
+        )
 
     from sase.axe.run_agent_exec_gate import handle_gate_marker
 
@@ -174,6 +217,8 @@ def _continue_after_plan_result(
     plan_result: Any,
     ctx: AgentExecContext,
     state: LoopState,
+    *,
+    planner_response: str | None = None,
 ) -> str | None:
     # Write plan_path.json so the TUI can show the plan
     # in the file panel for the .plan agent entry.
@@ -197,13 +242,28 @@ def _continue_after_plan_result(
     _planner_suffix = state.current_role_suffix or PLAN_CHAIN_PLAN_SUFFIX
     planner_agent = agent_name_for_suffix(ctx, _planner_suffix)
     _planner_extra = format_extra_sections(state.current_artifacts_dir)
+    planner_extra = _planner_extra
+    if planner_response is None:
+        response_content = plan_response
+    else:
+        response_content = planner_response
+        sections = [
+            section
+            for section in (
+                _planner_extra,
+                f"## Proposed Plan Preview\n\n{plan_response.strip()}",
+            )
+            if isinstance(section, str) and section.strip()
+        ]
+        planner_extra = "\n\n".join(sections) or None
+
     _planner_chat = save_chat_history(
         prompt=state.current_prompt,
-        response=plan_response,
+        response=response_content,
         workflow="ace-run",
         agent=planner_agent,
         timestamp=ctx.timestamp,
-        extra_sections=_planner_extra,
+        extra_sections=planner_extra,
         branch_or_workspace=ctx.cl_name,
         metadata_agent=planner_agent,
         metadata_model=ctx.agent_model,

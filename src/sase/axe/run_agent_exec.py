@@ -18,6 +18,10 @@ from sase.axe.run_agent_exec_gate import handle_gate_marker
 from sase.axe.run_agent_exec_monitor import handle_monitor_marker
 from sase.axe.run_agent_exec_pipe import handle_pipe_marker
 from sase.axe.run_agent_exec_plan import handle_plan_marker
+from sase.axe.run_agent_exec_staged import (
+    StagedInlineContinuation,
+    dispatch_completed_staged_handoff,
+)
 from sase.axe.run_agent_exec_plan_artifacts import (
     get_embedded_workflow_refs as _get_embedded_workflow_refs,
 )
@@ -31,10 +35,12 @@ from sase.axe.run_agent_exec_types import (
 from sase.axe.run_agent_workspace_identity import (
     rebind_agent_workspace_identity_from_output,
 )
+from sase.agent.staged_handoff import discard_staged_handoff
 from sase.axe.run_agent_helpers import (
     extract_step_output_and_diff_path,
     is_workflow_noop,
     read_and_delete_marker,
+    update_meta_field,
 )
 from sase.axe.runner_lifecycle_phase import mark_lifecycle_phase
 from sase.axe.runner_signals import killed_at, reset_killed, was_killed
@@ -163,6 +169,7 @@ def _handle_killed_iteration(
     discard_gate_intents(state.current_artifacts_dir)
 
     if has_user_kill_intent(state.current_artifacts_dir):
+        discard_staged_handoff(state.current_artifacts_dir)
         read_and_delete_marker(state.current_artifacts_dir, ".sase_plan_pending")
         read_and_delete_marker(state.current_artifacts_dir, ".sase_questions_pending")
         read_and_delete_marker(state.current_artifacts_dir, ".sase_monitor_pending")
@@ -196,14 +203,19 @@ def _handle_killed_iteration(
         mark_lifecycle_phase(state.current_artifacts_dir, "handoff")
 
     if plan_data and _marker_predates_kill(plan_data, kill_time):
+        update_meta_field(state.current_artifacts_dir, "handoff_protocol", "killed")
         return handle_plan_marker(plan_data, ctx, state)
     if q_data and _marker_predates_kill(q_data, kill_time):
+        update_meta_field(state.current_artifacts_dir, "handoff_protocol", "killed")
         return handle_questions_marker(q_data, ctx, state)
     if monitor_data and _marker_predates_kill(monitor_data, kill_time):
+        update_meta_field(state.current_artifacts_dir, "handoff_protocol", "killed")
         return handle_monitor_marker(monitor_data, ctx, state)
     if gate_data and _marker_predates_kill(gate_data, kill_time):
+        update_meta_field(state.current_artifacts_dir, "handoff_protocol", "killed")
         return handle_gate_marker(gate_data, ctx, state)
     if pipe_data and _marker_predates_kill(pipe_data, kill_time):
+        update_meta_field(state.current_artifacts_dir, "handoff_protocol", "killed")
         return handle_pipe_marker(pipe_data, ctx, state)
 
     # Neither a user kill nor a handoff: an external teardown (OOM policy on
@@ -360,6 +372,25 @@ def _run_execution_loop_bound(
             result = None
 
         if not was_killed():
+            staged_dispatch = dispatch_completed_staged_handoff(
+                state.current_artifacts_dir,
+                StagedInlineContinuation(ctx=ctx, state=state),
+            )
+            if staged_dispatch is not None:
+                if not staged_dispatch.adopted:
+                    logging.getLogger(__name__).error(
+                        "staged handoff %s held: %s",
+                        state.current_artifacts_dir,
+                        staged_dispatch.reason,
+                    )
+                    state.loop_outcome = "failed"
+                    loop_ended_without_kill = True
+                    break
+                if staged_dispatch.outcome is None:
+                    # Plan feedback and synchronous auto-approval can hand
+                    # control to the next prompt without ending the loop.
+                    continue
+                state.loop_outcome = staged_dispatch.outcome
             loop_ended_without_kill = True
             break
 

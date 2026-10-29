@@ -455,6 +455,18 @@ def invoke_agent(
         raise_if_gate_intent_lost(artifacts_dir)
         if artifacts_dir:
             mark_lifecycle_phase(artifacts_dir, "finalizing")
+            from sase.agent.staged_handoff import (
+                read_staged_handoff,
+                write_staged_handoff_response,
+            )
+
+            staged_handoff = read_staged_handoff(artifacts_dir)
+            if staged_handoff is not None:
+                write_staged_handoff_response(
+                    str(staged_handoff["staged_id"]),
+                    invoke_result.content,
+                    artifacts_dir=artifacts_dir,
+                )
         from sase.finalizers import run_finalizers
 
         invoke_result = run_finalizers(
