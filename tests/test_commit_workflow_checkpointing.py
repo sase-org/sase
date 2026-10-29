@@ -242,7 +242,7 @@ def test_run_push_failure_reports_checkpoint_write_failure_but_keeps_marker(
             return_value=None,
         ),
         patch(
-            "sase.workflows.commit.workflow.checkpoint_save",
+            "sase.workflows.commit._workflow_tracking.checkpoint_save",
             side_effect=save_until_unpushed,
         ),
         patch("sase.workflows.commit.workflow.print_status") as status,
@@ -282,7 +282,7 @@ def test_run_push_failure_reports_marker_write_failure_but_keeps_checkpoint(
 
     with (
         patch(
-            "sase.workflows.commit.workflow.write_result_marker",
+            "sase.workflows.commit._workflow_tracking.write_result_marker",
             return_value=False,
         ),
         patch("sase.workflows.commit.workflow.print_status") as status,
@@ -322,11 +322,11 @@ def test_run_push_failure_reports_when_no_durable_recovery_evidence_written(
 
     with (
         patch(
-            "sase.workflows.commit.workflow.checkpoint_save",
+            "sase.workflows.commit._workflow_tracking.checkpoint_save",
             return_value=None,
         ),
         patch(
-            "sase.workflows.commit.workflow.write_result_marker",
+            "sase.workflows.commit._workflow_tracking.write_result_marker",
             return_value=False,
         ),
         patch("sase.workflows.commit.workflow.print_status") as status,
@@ -375,10 +375,13 @@ def test_run_records_completed_steps_in_order_for_create_commit(
 
     with (
         patch(
-            "sase.workflows.commit.workflow.append_commits_entry",
+            "sase.workflows.commit._workflow_tracking.append_commits_entry",
             return_value="42",
         ),
-        patch("sase.workflows.commit.workflow.checkpoint_save", side_effect=spy_save),
+        patch(
+            "sase.workflows.commit._workflow_tracking.checkpoint_save",
+            side_effect=spy_save,
+        ),
     ):
         assert wf.run() == RunResult.OK
 
@@ -423,10 +426,13 @@ def test_run_records_completed_steps_for_pull_request(
 
     with (
         patch(
-            "sase.workflows.commit.workflow.create_patch",
+            "sase.workflows.commit._workflow_tracking.create_patch",
             return_value="proj_feat_1",
         ),
-        patch("sase.workflows.commit.workflow.checkpoint_save", side_effect=spy_save),
+        patch(
+            "sase.workflows.commit._workflow_tracking.checkpoint_save",
+            side_effect=spy_save,
+        ),
     ):
         assert wf.run() == RunResult.OK
 
@@ -523,10 +529,13 @@ def test_dispatch_step_recorded_after_success(
 
     with (
         patch(
-            "sase.workflows.commit.workflow.append_commits_entry",
+            "sase.workflows.commit._workflow_tracking.append_commits_entry",
             return_value="1",
         ),
-        patch("sase.workflows.commit.workflow.checkpoint_save", side_effect=spy_save),
+        patch(
+            "sase.workflows.commit._workflow_tracking.checkpoint_save",
+            side_effect=spy_save,
+        ),
     ):
         assert wf.run() == RunResult.OK
 
@@ -563,10 +572,13 @@ def test_dispatch_records_commit_sha_for_run_owned_ledger(
 
     with (
         patch(
-            "sase.workflows.commit.workflow.append_commits_entry",
+            "sase.workflows.commit._workflow_tracking.append_commits_entry",
             return_value="1",
         ),
-        patch("sase.workflows.commit.workflow.checkpoint_save", side_effect=spy_save),
+        patch(
+            "sase.workflows.commit._workflow_tracking.checkpoint_save",
+            side_effect=spy_save,
+        ),
     ):
         assert wf.run() == RunResult.OK
 
@@ -606,7 +618,9 @@ def test_pre_dispatch_checkpoint_written_before_dispatch(
 
     wf = CommitWorkflow({"message": "fix: checkpoint"}, "create_commit")
 
-    with patch("sase.workflows.commit.workflow.checkpoint_save", side_effect=spy_save):
+    with patch(
+        "sase.workflows.commit._workflow_tracking.checkpoint_save", side_effect=spy_save
+    ):
         assert wf.run() == RunResult.CONFLICT
 
     assert saves_before_dispatch == [[]]

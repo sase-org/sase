@@ -387,21 +387,21 @@ def test_stitch_emits_steps_only_when_channel_set(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     from sase.workflows.commit.command_hooks import _emit_hook_step
-    from sase.workflows.commit.workflow import _emit_stitch_step
+    from sase.workflows.commit._workflow_tracking import emit_stitch_step
     from sase.workflows.commit.workflow_publication import _emit_publication_step
 
     monkeypatch.delenv(STEPS_ENV_VAR, raising=False)
     _emit_hook_step("before", "just fix", state="start", detail="just fix")
-    _emit_stitch_step("create_commit", state="start")
+    emit_stitch_step("create_commit", state="start")
     _emit_publication_step(state="start")
 
     steps = tmp_path / "attempt-1.main.steps.jsonl"
     monkeypatch.setenv(STEPS_ENV_VAR, str(steps))
     _emit_hook_step("before", "just fix", state="start", detail="just fix")
     _emit_hook_step("before", "just fix", state="ok")
-    _emit_stitch_step("create_commit", state="start")
-    _emit_stitch_step("create_commit", state="ok")
-    _emit_stitch_step("push", state="ok")
+    emit_stitch_step("create_commit", state="start")
+    emit_stitch_step("create_commit", state="ok")
+    emit_stitch_step("push", state="ok")
     _emit_publication_step(state="start")
     _emit_publication_step(state="ok")
     records = _read_jsonl(steps)

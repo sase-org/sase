@@ -47,11 +47,15 @@ def test_resume_handles_pull_request_path(
 
     with (
         patch(
-            "sase.workflows.commit.workflow.create_patch",
+            "sase.workflows.commit._workflow_tracking.create_patch",
             return_value="proj_feat_1",
         ) as mock_cs,
-        patch("sase.workflows.commit.workflow.append_commits_entry") as mock_append,
-        patch("sase.workflows.commit.workflow.write_result_marker") as mock_marker,
+        patch(
+            "sase.workflows.commit._workflow_tracking.append_commits_entry"
+        ) as mock_append,
+        patch(
+            "sase.workflows.commit._workflow_tracking.write_result_marker"
+        ) as mock_marker,
     ):
         assert CommitWorkflow.resume() == RunResult.OK
 
@@ -77,10 +81,10 @@ def test_resume_is_idempotent_across_repeated_invocations(
 
     with (
         patch(
-            "sase.workflows.commit.workflow.append_commits_entry",
+            "sase.workflows.commit._workflow_tracking.append_commits_entry",
             return_value="1",
         ),
-        patch("sase.workflows.commit.workflow.write_result_marker"),
+        patch("sase.workflows.commit._workflow_tracking.write_result_marker"),
     ):
         assert CommitWorkflow.resume() == RunResult.OK
 
@@ -99,10 +103,10 @@ def test_resume_tolerates_hg_missing_finalize_commit(
 
     with (
         patch(
-            "sase.workflows.commit.workflow.append_commits_entry",
+            "sase.workflows.commit._workflow_tracking.append_commits_entry",
             return_value="1",
         ),
-        patch("sase.workflows.commit.workflow.write_result_marker"),
+        patch("sase.workflows.commit._workflow_tracking.write_result_marker"),
     ):
         assert CommitWorkflow.resume() == RunResult.OK
 
@@ -199,7 +203,7 @@ def test_resume_updates_unpushed_marker_after_finalize(
 
     with (
         patch(
-            "sase.workflows.commit.workflow.append_commits_entry",
+            "sase.workflows.commit._workflow_tracking.append_commits_entry",
             return_value="1",
         ),
         patch(
@@ -269,8 +273,8 @@ def test_resume_detects_existing_patch_in_project_file(
     checkpoint.checkpoint_save(cp)
 
     with (
-        patch("sase.workflows.commit.workflow.create_patch") as mock_cs,
-        patch("sase.workflows.commit.workflow.write_result_marker"),
+        patch("sase.workflows.commit._workflow_tracking.create_patch") as mock_cs,
+        patch("sase.workflows.commit._workflow_tracking.write_result_marker"),
     ):
         assert CommitWorkflow.resume() == RunResult.OK
 
@@ -299,7 +303,7 @@ def test_resume_attributes_markers_to_checkpointed_repo_not_process_cwd(
     save_resume_checkpoint(cwd=str(checkpoint_cwd), payload={"message": "fix: bug"})
 
     with patch(
-        "sase.workflows.commit.workflow.append_commits_entry",
+        "sase.workflows.commit._workflow_tracking.append_commits_entry",
         return_value="42",
     ):
         assert CommitWorkflow.resume() == RunResult.OK
@@ -381,10 +385,12 @@ def test_resume_adopts_unpushed_rebased_head(
             return_value=[],
         ),
         patch(
-            "sase.workflows.commit.workflow.append_commits_entry",
+            "sase.workflows.commit._workflow_tracking.append_commits_entry",
             return_value="1",
         ),
-        patch("sase.workflows.commit.workflow.write_result_marker") as mock_marker,
+        patch(
+            "sase.workflows.commit._workflow_tracking.write_result_marker"
+        ) as mock_marker,
     ):
         assert CommitWorkflow.resume() == RunResult.OK
 

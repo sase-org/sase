@@ -2,12 +2,9 @@
 
 from __future__ import annotations
 
-import logging
 import os
-from dataclasses import dataclass
 
 from sase.output import print_status
-from sase.ace.deltas import refresh_deltas_after_commits_change
 from sase.telemetry.metrics import VCS_OPERATIONS
 from sase.vcs_provider import get_vcs_provider
 from sase.workflows.base import BaseWorkflow
@@ -16,23 +13,17 @@ from sase.workflows.commit.checkpoint import (
     CommitCheckpoint,
     checkpoint_delete,
     checkpoint_load,
-    checkpoint_save,
     bind_checkpoint_persistence,
     ensure_operation_id,
 )
 from sase.workflows.commit.commit_tracking import (
-    append_commits_entry,
     capture_pre_commit_diff,
     cleanup_reservation,
-    create_patch,
     resolve_cl_name,
     resolve_project_file,
-    write_result_marker,
 )
 from sase.workflows.commit.bead_hooks import (
-    BeadActionPolicyError,
     apply_bead_commit_tag,
-    close_assigned_bead_after_commit,
     handle_beads,
     validate_bead_action_before_commit,
 )
@@ -54,22 +45,20 @@ from sase.workflows.commit.pr_operations import (
 from sase.workflows.commit.runtime_tags import apply_runtime_commit_tags
 from sase.workflows.commit.runtime_tags import apply_tracked_commit_tags
 from sase.workflows.commit.runtime_tags import resolve_local_agent_name
-from sase.workflows.commit.workflow_publication import run_agent_publication_step
 from sase.workflows.commit.workflow_resume import resume_commit_workflow
 from sase.workflows.commit.workflow_support import (
-    classify_dispatch_failure as _classify_dispatch_failure,
-)
-from sase.workflows.commit.workflow_support import (
-    explicit_parent_resolves as _explicit_parent_resolves,
-)
-from sase.workflows.commit.workflow_support import (
-    is_conflict_state as _is_conflict_state,
-)
-from sase.workflows.commit.workflow_support import (
-    log_commit_failed as _log_commit_failed,
+    classify_dispatch_failure,
+    explicit_parent_resolves,
+    is_conflict_state,
+    log_commit_failed,
 )
 from sase.workflows.commit.workflow_support import resolve_head_commit_sha
 from sase.workflows.commit.workflow_support import resolve_head_tree_id
+from sase.workflows.commit._workflow_tracking import (
+    CommitWorkflowTrackingMixin,
+    emit_stitch_step,
+    save_checkpoint,
+)
 from sase.workflows.commit.workflow_types import (
     EXIT_CODE_CONFLICT,
     METHOD_ALIASES,
@@ -77,60 +66,8 @@ from sase.workflows.commit.workflow_types import (
     RunResult,
 )
 
-_logger = logging.getLogger(__name__)
 
-
-@dataclass(frozen=True)
-class _UnpushedCommitPersistence:
-    commit_sha: str
-    checkpoint_path: str | None
-    marker_written: bool
-
-    @property
-    def durable(self) -> bool:
-        return bool(self.checkpoint_path) or self.marker_written
-
-    @property
-    def failure_details(self) -> list[str]:
-        details: list[str] = []
-        if not self.checkpoint_path:
-            details.append("commit_state.json checkpoint write failed")
-        if not self.marker_written:
-            details.append("commit_results.json unpushed marker write failed")
-        return details
-
-
-def _unpushed_persistence_detail(record: _UnpushedCommitPersistence) -> str:
-    if record.durable:
-        missing = record.failure_details
-        if not missing:
-            return " Run `sase stitch create --resume` to retry the push."
-        return (
-            " Recovery evidence was partially recorded; "
-            + "; ".join(missing)
-            + ". Run `sase stitch create --resume` to retry from the durable "
-            "checkpoint or marker."
-        )
-    return (
-        " Automatic recovery evidence could not be recorded: "
-        + "; ".join(record.failure_details)
-        + ". The local commit remains in the repository; inspect it manually "
-        "before retrying."
-    )
-
-
-def _emit_stitch_step(step: str, *, state: str, detail: str | None = None) -> None:
-    """Emit a stitch step on the finalizer step channel; never raises."""
-
-    try:
-        from sase.finalizers.steps import emit_step
-
-        emit_step(step, state=state, detail=detail)
-    except Exception:  # noqa: BLE001 - observability is best-effort
-        pass
-
-
-class CommitWorkflow(BaseWorkflow):
+class CommitWorkflow(CommitWorkflowTrackingMixin, BaseWorkflow):
     """A workflow that dispatches commit operations to VCS provider hooks."""
 
     def __init__(self, payload: dict, method: str) -> None:
@@ -160,23 +97,23 @@ class CommitWorkflow(BaseWorkflow):
                 f"(aliases: {aliases})",
                 "error",
             )
-            _log_commit_failed(self._method, "other")
+            log_commit_failed(self._method, "other")
             return RunResult.FAILED
 
         if not isinstance(self._payload, dict):
             print_status("Payload must be a JSON object.", "error")
-            _log_commit_failed(self._method, "other")
+            log_commit_failed(self._method, "other")
             return RunResult.FAILED
         if "message" not in self._payload and self._method != "create_pull_request":
             print_status("Payload missing required 'message' field.", "error")
-            _log_commit_failed(self._method, "other")
+            log_commit_failed(self._method, "other")
             return RunResult.FAILED
         if self._method == "create_pull_request" and not self._payload.get("name"):
             print_status(
                 "Payload missing required 'name' field for create_pull_request.",
                 "error",
             )
-            _log_commit_failed(self._method, "other")
+            log_commit_failed(self._method, "other")
             return RunResult.FAILED
 
         policy = load_commit_message_policy()
@@ -185,7 +122,7 @@ class CommitWorkflow(BaseWorkflow):
         )
         if rejection is not None:
             print_status(rejection, "error")
-            _log_commit_failed(self._method, "invalid_message")
+            log_commit_failed(self._method, "invalid_message")
             return RunResult.FAILED
 
         cwd = os.getcwd()
@@ -194,7 +131,7 @@ class CommitWorkflow(BaseWorkflow):
             cwd,
             method=self._method,
         ):
-            _log_commit_failed(self._method, "other")
+            log_commit_failed(self._method, "other")
             return RunResult.FAILED
 
         provider = None
@@ -205,7 +142,7 @@ class CommitWorkflow(BaseWorkflow):
         except Exception as exc:
             provider_lookup_error = exc
         else:
-            if _is_conflict_state(provider, cwd):
+            if is_conflict_state(provider, cwd):
                 cp = CommitCheckpoint(
                     method=self._method,
                     payload=self._payload,
@@ -215,8 +152,8 @@ class CommitWorkflow(BaseWorkflow):
                     run_id=os.environ.get("SASE_AGENT_TIMESTAMP", "").strip() or None,
                 )
                 ensure_operation_id(cp)
-                checkpoint_save(cp)
-                _log_commit_failed(self._method, "sync_conflict")
+                save_checkpoint(cp)
+                log_commit_failed(self._method, "sync_conflict")
                 VCS_OPERATIONS.labels(
                     provider=getattr(provider, "_provider_name", "unknown"),
                     operation="commit_conflict_detected",
@@ -245,7 +182,7 @@ class CommitWorkflow(BaseWorkflow):
                     "-x/--exclude on commit dispatch.",
                     "error",
                 )
-                _log_commit_failed(self._method, "other")
+                log_commit_failed(self._method, "other")
                 return RunResult.FAILED
 
         apply_bead_commit_tag(self._payload, cwd=cwd)
@@ -258,7 +195,7 @@ class CommitWorkflow(BaseWorkflow):
 
         # Run commit_hooks.before (e.g. `just fix`) after all files are staged.
         if not run_before_commit_hook(cwd):
-            _log_commit_failed(self._method, "before_hook_failed")
+            log_commit_failed(self._method, "before_hook_failed")
             return RunResult.FAILED
 
         # Pre-compute the _<N> suffix for create_pull_request so the PR branch is
@@ -292,7 +229,7 @@ class CommitWorkflow(BaseWorkflow):
             explicit_parent = self._payload.get("parent")
             if explicit_parent:
                 self._parent_cl_name = str(explicit_parent)
-                if not _explicit_parent_resolves(self._parent_cl_name):
+                if not explicit_parent_resolves(self._parent_cl_name):
                     print_status(
                         f"Explicit parent '{self._parent_cl_name}' does not "
                         "resolve to an existing Patch — dropping it so "
@@ -350,17 +287,17 @@ class CommitWorkflow(BaseWorkflow):
             run_id=os.environ.get("SASE_AGENT_TIMESTAMP", "").strip() or None,
         )
         ensure_operation_id(cp)
-        checkpoint_save(cp)
+        save_checkpoint(cp)
 
         print_status(f"Dispatching {self._method} to VCS provider...", "progress")
-        _emit_stitch_step(self._method, state="start")
+        emit_stitch_step(self._method, state="start")
         with bind_checkpoint_persistence(cp):
             ok, result = dispatch(self._payload, cwd)
         if not ok:
             from sase.finalizers.commit_repair_common import bound_stream
             from sase.workflows.commit.rebase_gate_coordinator import is_gate_blocked
 
-            _emit_stitch_step(self._method, state="fail", detail=bound_stream(result))
+            emit_stitch_step(self._method, state="fail", detail=bound_stream(result))
             if is_gate_blocked(self._payload):
                 # Explicit rebase gate finding (not a hook-output substring
                 # match): keep HEAD local with pushed=false, keep the
@@ -370,9 +307,9 @@ class CommitWorkflow(BaseWorkflow):
                 cp.pushed = False
                 cp.dispatch_error = result
                 ensure_operation_id(cp)
-                checkpoint_save(cp)
+                save_checkpoint(cp)
                 self._record_unpushed_commit_marker_if_present(cp, provider, result)
-                _log_commit_failed(self._method, "rebase_gate_findings")
+                log_commit_failed(self._method, "rebase_gate_findings")
                 VCS_OPERATIONS.labels(
                     provider=getattr(provider, "_provider_name", "unknown"),
                     operation="commit_rebase_gate_blocked",
@@ -383,15 +320,15 @@ class CommitWorkflow(BaseWorkflow):
                     "warning",
                 )
                 return RunResult.CONFLICT
-            if _classify_dispatch_failure(result) == "push_failed":
-                _emit_stitch_step("push", state="fail", detail=bound_stream(result))
-            if _is_conflict_state(provider, cwd):
-                if _classify_dispatch_failure(result) == "no_staged_changes":
+            if classify_dispatch_failure(result) == "push_failed":
+                emit_stitch_step("push", state="fail", detail=bound_stream(result))
+            if is_conflict_state(provider, cwd):
+                if classify_dispatch_failure(result) == "no_staged_changes":
                     cp.no_commit_dispatched = True
                 # Persist stashed gate context so manual resolution and resume
                 # cannot bypass the pending check.
-                checkpoint_save(cp)
-                _log_commit_failed(self._method, "sync_conflict")
+                save_checkpoint(cp)
+                log_commit_failed(self._method, "sync_conflict")
                 VCS_OPERATIONS.labels(
                     provider=getattr(provider, "_provider_name", "unknown"),
                     operation="commit_conflict_detected",
@@ -404,21 +341,21 @@ class CommitWorkflow(BaseWorkflow):
                     "warning",
                 )
                 return RunResult.CONFLICT
-            failure_reason = _classify_dispatch_failure(result)
+            failure_reason = classify_dispatch_failure(result)
             unpushed = self._record_unpushed_commit_marker_if_present(
                 cp, provider, result
             )
             if unpushed is not None:
-                detail = _unpushed_persistence_detail(unpushed)
+                detail = self._unpushed_persistence_detail(unpushed)
                 print_status(
                     f"{self._method} created local commit {cp.commit_sha} "
                     f"but failed before publishing it: {result}.{detail}",
                     "error",
                 )
-                _log_commit_failed(self._method, failure_reason)
+                log_commit_failed(self._method, failure_reason)
                 return RunResult.FAILED
             print_status(f"{self._method} failed: {result}", "error")
-            _log_commit_failed(self._method, failure_reason)
+            log_commit_failed(self._method, failure_reason)
             cleanup_reservation(self._reserved_name)
             checkpoint_delete()
             return RunResult.FAILED
@@ -435,10 +372,10 @@ class CommitWorkflow(BaseWorkflow):
             cp.commit_tree = resolve_head_tree_id(provider, cwd)
         cp.dispatch_result = result
         cp.completed_steps.append("dispatch")
-        checkpoint_save(cp)
-        _emit_stitch_step(self._method, state="ok")
+        save_checkpoint(cp)
+        emit_stitch_step(self._method, state="ok")
         if self._method in ("create_commit", "create_pull_request"):
-            _emit_stitch_step("push", state="ok")
+            emit_stitch_step("push", state="ok")
 
         self._run_file_hooks(cp, provider)
 
@@ -453,94 +390,6 @@ class CommitWorkflow(BaseWorkflow):
         checkpoint_delete()
         return RunResult.OK
 
-    def _record_unpushed_commit_marker_if_present(
-        self,
-        cp: CommitCheckpoint,
-        provider: object,
-        dispatch_error: str | None,
-    ) -> _UnpushedCommitPersistence | None:
-        """Persist recoverable local commits when dispatch failed during push."""
-        if self._method not in ("create_commit", "create_pull_request"):
-            return None
-        if _classify_dispatch_failure(dispatch_error) != "push_failed":
-            return None
-
-        head_sha = resolve_head_commit_sha(provider, cp.cwd)
-        if not head_sha or head_sha == (
-            cp.pre_dispatch_revision or cp.primary_revision
-        ):
-            return None
-
-        cp.commit_sha = head_sha
-        cp.commit_tree = resolve_head_tree_id(provider, cp.cwd)
-        cp.dispatch_result = head_sha
-        cp.pushed = False
-        cp.dispatch_error = dispatch_error
-        ensure_operation_id(cp)
-        checkpoint_path = checkpoint_save(cp)
-        marker_written = write_result_marker(
-            self._method,
-            self._payload,
-            self._diff_path,
-            head_sha,
-            cp.cs_name,
-            commit_sha=cp.commit_sha,
-            commit_tree=cp.commit_tree,
-            commit_cwd=cp.cwd,
-            pushed=False,
-            dispatch_error=dispatch_error,
-            operation_id=cp.operation_id,
-        )
-        return _UnpushedCommitPersistence(
-            commit_sha=head_sha,
-            checkpoint_path=checkpoint_path,
-            marker_written=marker_written,
-        )
-
-    def _run_file_hooks(self, cp: CommitCheckpoint, provider: object) -> None:
-        """Capture a committed revision once without gating the workflow."""
-        if self._method not in ("create_commit", "create_pull_request"):
-            return
-        if "file_hooks" in cp.completed_steps:
-            return
-        from sase.config.file_hooks import load_file_hooks
-        from sase.file_hooks.producer import produce_commit_file_hooks
-
-        try:
-            hooks = load_file_hooks()
-        except Exception:
-            produce_commit_file_hooks(
-                repo_root=cp.cwd,
-                commit_sha=cp.commit_sha,
-                provider=provider,  # type: ignore[arg-type]
-                project_file=cp.project_file,
-                producer="commit",
-            )
-            cp.completed_steps.append("file_hooks")
-            checkpoint_save(cp)
-            return
-        commit_sha = cp.commit_sha
-        if hooks and not commit_sha:
-            try:
-                commit_sha = provider.revision_id(  # type: ignore[attr-defined]
-                    "HEAD", cp.cwd
-                )
-            except Exception:
-                _logger.warning(
-                    "File-hook commit SHA lookup failed; continuing",
-                    exc_info=True,
-                )
-        produce_commit_file_hooks(
-            repo_root=cp.cwd,
-            commit_sha=commit_sha,
-            provider=provider,  # type: ignore[arg-type]
-            project_file=cp.project_file,
-            producer="commit",
-            hooks=hooks,
-        )
-        cp.completed_steps.append("file_hooks")
-        checkpoint_save(cp)
-
     def _run_after_hook(self, cp: CommitCheckpoint) -> bool:
         """Run and checkpoint the post-dispatch hook when this method commits."""
         if self._method not in ("create_commit", "create_pull_request"):
@@ -548,7 +397,7 @@ class CommitWorkflow(BaseWorkflow):
         if "after_hook" in cp.completed_steps:
             return True
         if not run_after_commit_hook(cp.cwd):
-            _log_commit_failed(self._method, "after_hook_failed")
+            log_commit_failed(self._method, "after_hook_failed")
             print_status(
                 "The commit may already be pushed. Fix the after-hook failure, "
                 "then run `sase stitch create --resume`; do not create a "
@@ -557,151 +406,8 @@ class CommitWorkflow(BaseWorkflow):
             )
             return False
         cp.completed_steps.append("after_hook")
-        checkpoint_save(cp)
+        save_checkpoint(cp)
         return True
-
-    def _repoint_reservation_after_resuffix(self) -> None:
-        """Move the Patch reservation to a re-suffixed PR branch name.
-
-        When the VCS dispatch renames the branch to escape a remote collision
-        it records the new name in ``payload["name"]``.  Drop the now-stale
-        reservation stub and adopt the new name as ``_reserved_name`` so the
-        Patch is created under the branch that was actually pushed.
-        """
-        new_name = self._payload.get("name")
-        if not new_name or new_name == self._reserved_name:
-            return
-        try:
-            from sase.workflows.commit.patch_operations import remove_reservation
-            from sase.workflows.utils import get_project_from_workspace
-
-            project_name = get_project_from_workspace()
-            if project_name and self._reserved_name:
-                remove_reservation(project_name, self._reserved_name)
-        except Exception:
-            pass  # Best-effort cleanup; the Patch still uses the new name.
-        self._reserved_name = new_name
-
-    def _run_tracking_steps(
-        self, cp: CommitCheckpoint, result: str | None
-    ) -> RunResult:
-        """Run the post-dispatch tracking steps and update *cp* as each completes.
-
-        Steps already listed in ``cp.completed_steps`` are skipped so this
-        helper is reusable from the resume path.  Returns ``RunResult.OK``
-        when every applicable step succeeds.
-        """
-        if self._method == "create_pull_request":
-            if "create_patch" in cp.completed_steps:
-                cs_name = cp.cs_name
-            else:
-                cs_name = create_patch(
-                    self._payload,
-                    self._base_cl_name,
-                    self._parent_cl_name,
-                    self._reserved_name,
-                    pr_url=result,
-                )
-                if cs_name is None:
-                    cleanup_reservation(self._reserved_name)
-                else:
-                    cp.cs_name = cs_name
-                    cp.completed_steps.append("create_patch")
-                    checkpoint_save(cp)
-        else:
-            cs_name = cp.cs_name
-
-        if "write_result_marker" not in cp.completed_steps:
-            write_result_marker(
-                self._method,
-                self._payload,
-                self._diff_path,
-                result,
-                cs_name,
-                commit_sha=cp.commit_sha,
-                commit_tree=cp.commit_tree,
-                commit_cwd=cp.cwd,
-                pushed=cp.pushed,
-                dispatch_error=cp.dispatch_error,
-                operation_id=cp.operation_id,
-            )
-            cp.completed_steps.append("write_result_marker")
-            checkpoint_save(cp)
-
-        publication_result = self._run_agent_publication_step(cp)
-        if publication_result != RunResult.OK:
-            return publication_result
-
-        if self._method in ("create_commit", "create_proposal"):
-            if "append_commits_entry" in cp.completed_steps:
-                entry_id = cp.entry_id
-            else:
-                entry_id = append_commits_entry(
-                    self._project_file,
-                    self._cl_name,
-                    self._payload,
-                    self._method,
-                    self._diff_path,
-                    expected_entry_id=cp.entry_id,
-                )
-                if entry_id:
-                    cp.entry_id = entry_id
-                    cp.completed_steps.append("append_commits_entry")
-                    checkpoint_save(cp)
-
-            if entry_id and "final_result_marker" not in cp.completed_steps:
-                write_result_marker(
-                    self._method,
-                    self._payload,
-                    self._diff_path,
-                    result,
-                    cs_name,
-                    entry_id=entry_id,
-                    commit_sha=cp.commit_sha,
-                    commit_tree=cp.commit_tree,
-                    commit_cwd=cp.cwd,
-                    pushed=cp.pushed,
-                    dispatch_error=cp.dispatch_error,
-                    operation_id=cp.operation_id,
-                )
-                cp.completed_steps.append("final_result_marker")
-                checkpoint_save(cp)
-
-            project_file = self._project_file or cp.project_file
-            cl_name = self._cl_name or cp.cl_name
-            if project_file and cl_name:
-                refresh_deltas_after_commits_change(project_file, cl_name, cp.cwd)
-
-        if (
-            self._method in ("create_commit", "create_pull_request")
-            and "close_bead" not in cp.completed_steps
-        ):
-            try:
-                close_completed = close_assigned_bead_after_commit(
-                    cp.payload,
-                    cp.cwd,
-                    method=self._method,
-                    strict=True,
-                )
-            except BeadActionPolicyError as exc:
-                _log_commit_failed(self._method, "other")
-                print_status(str(exc), "error")
-                return RunResult.FAILED
-            if close_completed:
-                cp.completed_steps.append("close_bead")
-                checkpoint_save(cp)
-
-        return RunResult.OK
-
-    def _run_agent_publication_step(self, cp: CommitCheckpoint) -> RunResult:
-        """Publish sidecars after the first durable result marker exists."""
-        published = run_agent_publication_step(
-            cp,
-            self._method,
-            checkpoint_save=checkpoint_save,
-            get_vcs_provider=get_vcs_provider,
-        )
-        return RunResult.OK if published else RunResult.FAILED
 
     @classmethod
     def resume(cls, *, bead_action: str | None = None) -> RunResult:
@@ -710,8 +416,8 @@ class CommitWorkflow(BaseWorkflow):
             cls,
             bead_action=bead_action,
             checkpoint_load=checkpoint_load,
-            checkpoint_save=checkpoint_save,
+            checkpoint_save=save_checkpoint,
             checkpoint_delete=checkpoint_delete,
             get_vcs_provider=get_vcs_provider,
-            is_conflict_state=_is_conflict_state,
+            is_conflict_state=is_conflict_state,
         )

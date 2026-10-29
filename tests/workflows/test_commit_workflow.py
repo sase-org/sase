@@ -405,7 +405,7 @@ def test_unresolvable_explicit_parent_is_dropped() -> None:
             return_value=mock_provider,
         ),
         patch(
-            "sase.workflows.commit.workflow._explicit_parent_resolves",
+            "sase.workflows.commit.workflow.explicit_parent_resolves",
             return_value=False,
         ),
     ):
@@ -443,7 +443,7 @@ def test_resolvable_explicit_parent_is_kept() -> None:
             return_value=mock_provider,
         ),
         patch(
-            "sase.workflows.commit.workflow._explicit_parent_resolves",
+            "sase.workflows.commit.workflow.explicit_parent_resolves",
             return_value=True,
         ),
     ):

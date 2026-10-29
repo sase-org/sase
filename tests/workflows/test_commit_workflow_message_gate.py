@@ -71,7 +71,9 @@ def _run_until_dispatch(
         stack.enter_context(
             patch("sase.workflows.commit.workflow.capture_pre_commit_diff")
         )
-        stack.enter_context(patch("sase.workflows.commit.workflow.checkpoint_save"))
+        stack.enter_context(
+            patch("sase.workflows.commit._workflow_tracking.checkpoint_save")
+        )
         stack.enter_context(patch("sase.workflows.commit.workflow.checkpoint_delete"))
         stack.enter_context(patch("sase.workflows.commit.workflow.cleanup_reservation"))
         if policy is not None:
@@ -100,7 +102,7 @@ def test_invalid_message_fails_before_side_effects_and_logs_reason() -> None:
             return_value=provider,
         ) as get_provider,
         patch("sase.workflows.commit.workflow.print_status") as print_status,
-        patch("sase.workflows.commit.workflow._log_commit_failed") as log_failed,
+        patch("sase.workflows.commit.workflow.log_commit_failed") as log_failed,
     ):
         result = CommitWorkflow(payload, "create_commit").run()
 
@@ -161,7 +163,7 @@ def test_empty_message_is_rejected_for_every_method(method: str) -> None:
     with (
         patch("sase.workflows.commit.workflow.get_vcs_provider") as get_provider,
         patch("sase.workflows.commit.workflow.print_status") as print_status,
-        patch("sase.workflows.commit.workflow._log_commit_failed") as log_failed,
+        patch("sase.workflows.commit.workflow.log_commit_failed") as log_failed,
     ):
         result = CommitWorkflow(payload, method).run()
 

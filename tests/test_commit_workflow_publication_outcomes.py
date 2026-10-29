@@ -82,7 +82,7 @@ def test_commit_publishes_post_commit_revision_not_pre_dispatch_head(
             side_effect=capture_hood,
         ),
         patch(
-            "sase.workflows.commit.workflow.append_commits_entry",
+            "sase.workflows.commit._workflow_tracking.append_commits_entry",
             return_value=None,
         ),
     ):
@@ -112,7 +112,7 @@ def test_publication_failure_with_durable_outbox_keeps_primary_successful(
             ),
         ) as publish,
         patch(
-            "sase.workflows.commit.workflow.append_commits_entry",
+            "sase.workflows.commit._workflow_tracking.append_commits_entry",
             return_value=None,
         ),
     ):
@@ -148,7 +148,7 @@ def test_unqueueable_publication_fails_the_commit_with_a_resume_hint(
             ),
         ),
         patch(
-            "sase.workflows.commit.workflow.append_commits_entry",
+            "sase.workflows.commit._workflow_tracking.append_commits_entry",
             return_value=None,
         ),
     ):
@@ -178,7 +178,7 @@ def test_publication_raising_fails_the_commit_with_a_resume_hint(
             side_effect=RuntimeError("agents lock is wedged"),
         ),
         patch(
-            "sase.workflows.commit.workflow.append_commits_entry",
+            "sase.workflows.commit._workflow_tracking.append_commits_entry",
             return_value=None,
         ),
     ):
@@ -217,7 +217,7 @@ def test_deferred_prompt_archive_rides_the_durable_agent_publication(
             return_value=CommitPublicationOutcome(published=True),
         ),
         patch(
-            "sase.workflows.commit.workflow.append_commits_entry",
+            "sase.workflows.commit._workflow_tracking.append_commits_entry",
             return_value=None,
         ),
     ):
@@ -255,7 +255,7 @@ def test_unqueueable_prompt_archive_fails_the_commit_with_a_resume_hint(
             side_effect=AssertionError("agent publication must not run"),
         ),
         patch(
-            "sase.workflows.commit.workflow.append_commits_entry",
+            "sase.workflows.commit._workflow_tracking.append_commits_entry",
             return_value=None,
         ),
     ):
@@ -287,7 +287,7 @@ def test_publication_without_target_warns_but_keeps_primary_successful(
             ),
         ) as publish,
         patch(
-            "sase.workflows.commit.workflow.append_commits_entry",
+            "sase.workflows.commit._workflow_tracking.append_commits_entry",
             return_value=None,
         ),
     ):
@@ -325,7 +325,7 @@ def test_publication_warning_names_quarantined_backlog(
             ),
         ),
         patch(
-            "sase.workflows.commit.workflow.append_commits_entry",
+            "sase.workflows.commit._workflow_tracking.append_commits_entry",
             return_value=None,
         ),
     ):
@@ -360,7 +360,7 @@ def test_publication_warning_names_drop_command_for_retired_backlog(
             ),
         ),
         patch(
-            "sase.workflows.commit.workflow.append_commits_entry",
+            "sase.workflows.commit._workflow_tracking.append_commits_entry",
             return_value=None,
         ),
     ):
@@ -407,7 +407,7 @@ def test_agent_session_member_commit_uses_metadata_for_footer_and_publication(
             return_value=CommitPublicationOutcome(queued=True),
         ) as publish,
         patch(
-            "sase.workflows.commit.workflow.append_commits_entry",
+            "sase.workflows.commit._workflow_tracking.append_commits_entry",
             return_value=None,
         ),
     ):

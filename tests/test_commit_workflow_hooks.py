@@ -87,7 +87,7 @@ def test_after_hook_failure_preserves_post_dispatch_checkpoint(
             "sase.workflows.commit.workflow.run_after_commit_hook",
             return_value=False,
         ),
-        patch("sase.workflows.commit.workflow.write_result_marker") as marker,
+        patch("sase.workflows.commit._workflow_tracking.write_result_marker") as marker,
     ):
         result = CommitWorkflow({"message": "fix: bug"}, "create_commit").run()
 

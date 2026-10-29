@@ -40,16 +40,16 @@ def test_resume_reaches_close_bead_step(
     snapshots: list[list[str]] = []
     with (
         patch(
-            "sase.workflows.commit.workflow.append_commits_entry",
+            "sase.workflows.commit._workflow_tracking.append_commits_entry",
             return_value="42",
         ),
-        patch("sase.workflows.commit.workflow.write_result_marker"),
+        patch("sase.workflows.commit._workflow_tracking.write_result_marker"),
         patch(
-            "sase.workflows.commit.workflow.close_assigned_bead_after_commit",
+            "sase.workflows.commit._workflow_tracking.close_assigned_bead_after_commit",
             return_value=True,
         ) as close_bead,
         patch(
-            "sase.workflows.commit.workflow.checkpoint_save",
+            "sase.workflows.commit._workflow_tracking.checkpoint_save",
             side_effect=lambda cp: snapshots.append(list(cp.completed_steps)) or None,
         ),
     ):
@@ -83,9 +83,9 @@ def test_resume_skips_completed_close_bead_step(
     )
 
     with (
-        patch("sase.workflows.commit.workflow.write_result_marker"),
+        patch("sase.workflows.commit._workflow_tracking.write_result_marker"),
         patch(
-            "sase.workflows.commit.workflow.close_assigned_bead_after_commit"
+            "sase.workflows.commit._workflow_tracking.close_assigned_bead_after_commit"
         ) as close_bead,
     ):
         assert CommitWorkflow.resume() == RunResult.OK
@@ -112,10 +112,10 @@ def test_resume_after_hook_failure_does_not_finalize_or_duplicate_dispatch(
             return_value=True,
         ) as after_hook,
         patch(
-            "sase.workflows.commit.workflow.append_commits_entry",
+            "sase.workflows.commit._workflow_tracking.append_commits_entry",
             return_value="42",
         ),
-        patch("sase.workflows.commit.workflow.write_result_marker"),
+        patch("sase.workflows.commit._workflow_tracking.write_result_marker"),
     ):
         assert CommitWorkflow.resume() == RunResult.OK
 
@@ -148,7 +148,11 @@ def test_resume_publishes_agent_hood_without_redispatching_primary_commit(
             return_value=CommitPublicationOutcome(published=True),
         ) as publish,
         patch(
-            "sase.workflows.commit.workflow.append_commits_entry",
+            "sase.workflows.commit._workflow_tracking.get_vcs_provider",
+            return_value=provider,
+        ),
+        patch(
+            "sase.workflows.commit._workflow_tracking.append_commits_entry",
             return_value=None,
         ),
     ):
@@ -179,10 +183,10 @@ def test_resume_skips_completed_after_hook(
     with (
         patch("sase.workflows.commit.workflow.run_after_commit_hook") as after_hook,
         patch(
-            "sase.workflows.commit.workflow.append_commits_entry",
+            "sase.workflows.commit._workflow_tracking.append_commits_entry",
             return_value="42",
         ),
-        patch("sase.workflows.commit.workflow.write_result_marker"),
+        patch("sase.workflows.commit._workflow_tracking.write_result_marker"),
     ):
         assert CommitWorkflow.resume() == RunResult.OK
 
@@ -208,14 +212,16 @@ def test_resume_skips_already_completed_tracking_steps(
 
     with (
         patch(
-            "sase.workflows.commit.workflow.append_commits_entry",
+            "sase.workflows.commit._workflow_tracking.append_commits_entry",
             return_value="7",
         ) as mock_append,
         patch(
-            "sase.workflows.commit.workflow.refresh_deltas_after_commits_change",
+            "sase.workflows.commit._workflow_tracking.refresh_deltas_after_commits_change",
             return_value=True,
         ) as mock_refresh,
-        patch("sase.workflows.commit.workflow.write_result_marker") as mock_marker,
+        patch(
+            "sase.workflows.commit._workflow_tracking.write_result_marker"
+        ) as mock_marker,
     ):
         assert CommitWorkflow.resume() == RunResult.OK
 

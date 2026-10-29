@@ -116,8 +116,12 @@ def test_resume_no_commit_dispatched_clean_repo_finishes_without_tracking(
             "sase.workflows.commit.workflow_resume.git_changed_files",
             return_value=[],
         ),
-        patch("sase.workflows.commit.workflow.write_result_marker") as mock_marker,
-        patch("sase.workflows.commit.workflow.append_commits_entry") as mock_append,
+        patch(
+            "sase.workflows.commit._workflow_tracking.write_result_marker"
+        ) as mock_marker,
+        patch(
+            "sase.workflows.commit._workflow_tracking.append_commits_entry"
+        ) as mock_append,
         patch("sase.workflows.commit.workflow.run_after_commit_hook") as mock_after,
     ):
         assert CommitWorkflow.resume() == RunResult.OK
@@ -146,7 +150,9 @@ def test_resume_legacy_subject_mismatch_clean_repo_finishes_without_tracking(
             "sase.workflows.commit.workflow_resume.git_changed_files",
             return_value=[],
         ),
-        patch("sase.workflows.commit.workflow.write_result_marker") as mock_marker,
+        patch(
+            "sase.workflows.commit._workflow_tracking.write_result_marker"
+        ) as mock_marker,
     ):
         assert CommitWorkflow.resume() == RunResult.OK
 
@@ -224,10 +230,12 @@ def test_resume_replays_tracking_after_conflict_resolution(
             side_effect=lambda _cwd: events.append("after") or True,
         ),
         patch(
-            "sase.workflows.commit.workflow.append_commits_entry",
+            "sase.workflows.commit._workflow_tracking.append_commits_entry",
             return_value="42",
         ) as mock_append,
-        patch("sase.workflows.commit.workflow.write_result_marker") as mock_marker,
+        patch(
+            "sase.workflows.commit._workflow_tracking.write_result_marker"
+        ) as mock_marker,
     ):
         assert CommitWorkflow.resume() == RunResult.OK
 
@@ -259,10 +267,12 @@ def test_resume_records_finalized_commit_sha_for_conflict_originated_dispatch(
 
     with (
         patch(
-            "sase.workflows.commit.workflow.append_commits_entry",
+            "sase.workflows.commit._workflow_tracking.append_commits_entry",
             return_value="42",
         ),
-        patch("sase.workflows.commit.workflow.write_result_marker") as mock_marker,
+        patch(
+            "sase.workflows.commit._workflow_tracking.write_result_marker"
+        ) as mock_marker,
     ):
         assert CommitWorkflow.resume() == RunResult.OK
 
@@ -293,10 +303,10 @@ def test_resume_resolves_commit_sha_after_finalize_commit(
 
     with (
         patch(
-            "sase.workflows.commit.workflow.append_commits_entry",
+            "sase.workflows.commit._workflow_tracking.append_commits_entry",
             return_value="42",
         ),
-        patch("sase.workflows.commit.workflow.write_result_marker"),
+        patch("sase.workflows.commit._workflow_tracking.write_result_marker"),
     ):
         assert CommitWorkflow.resume() == RunResult.OK
 
@@ -316,10 +326,12 @@ def test_resume_resolves_commit_sha_when_finalize_commit_unsupported(
 
     with (
         patch(
-            "sase.workflows.commit.workflow.append_commits_entry",
+            "sase.workflows.commit._workflow_tracking.append_commits_entry",
             return_value="1",
         ),
-        patch("sase.workflows.commit.workflow.write_result_marker") as mock_marker,
+        patch(
+            "sase.workflows.commit._workflow_tracking.write_result_marker"
+        ) as mock_marker,
     ):
         assert CommitWorkflow.resume() == RunResult.OK
 
@@ -345,10 +357,10 @@ def test_resume_reuses_checkpointed_bead_tag_without_reapplying_it(
     with (
         patch("sase.workflows.commit.workflow.apply_bead_commit_tag") as apply_tag,
         patch(
-            "sase.workflows.commit.workflow.append_commits_entry",
+            "sase.workflows.commit._workflow_tracking.append_commits_entry",
             return_value=None,
         ),
-        patch("sase.workflows.commit.workflow.write_result_marker"),
+        patch("sase.workflows.commit._workflow_tracking.write_result_marker"),
     ):
         assert CommitWorkflow.resume() == RunResult.OK
 
@@ -392,10 +404,10 @@ def test_resume_restamps_footer_dropped_during_conflict_resolution(
 
     with (
         patch(
-            "sase.workflows.commit.workflow.append_commits_entry",
+            "sase.workflows.commit._workflow_tracking.append_commits_entry",
             return_value=None,
         ),
-        patch("sase.workflows.commit.workflow.write_result_marker"),
+        patch("sase.workflows.commit._workflow_tracking.write_result_marker"),
     ):
         assert CommitWorkflow.resume() == RunResult.OK
 

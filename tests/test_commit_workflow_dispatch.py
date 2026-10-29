@@ -66,25 +66,25 @@ class TestCommitWorkflowDispatch:
                 return_value=True,
             ),
             patch(
-                "sase.workflows.commit.workflow.write_result_marker",
+                "sase.workflows.commit._workflow_tracking.write_result_marker",
                 side_effect=lambda *_args, **_kwargs: events.append("marker"),
             ),
             patch(
-                "sase.workflows.commit.workflow.run_agent_publication_step",
+                "sase.workflows.commit._workflow_tracking.run_agent_publication_step",
                 side_effect=lambda *_args, **_kwargs: (
                     events.append("publication") or True
                 ),
             ),
             patch(
-                "sase.workflows.commit.workflow.append_commits_entry",
+                "sase.workflows.commit._workflow_tracking.append_commits_entry",
                 side_effect=lambda *_args, **_kwargs: events.append("append") or "7",
             ),
             patch(
-                "sase.workflows.commit.workflow.close_assigned_bead_after_commit",
+                "sase.workflows.commit._workflow_tracking.close_assigned_bead_after_commit",
                 side_effect=lambda *_args, **_kwargs: events.append("close") or True,
             ) as close_bead,
             patch(
-                "sase.workflows.commit.workflow.checkpoint_save",
+                "sase.workflows.commit._workflow_tracking.checkpoint_save",
                 side_effect=lambda cp: (
                     snapshots.append(list(cp.completed_steps)) or None
                 ),
@@ -131,12 +131,12 @@ class TestCommitWorkflowDispatch:
                 return_value=True,
             ),
             patch(
-                "sase.workflows.commit.workflow.create_patch",
+                "sase.workflows.commit._workflow_tracking.create_patch",
                 return_value="proj_feat_1",
             ),
-            patch("sase.workflows.commit.workflow.write_result_marker"),
+            patch("sase.workflows.commit._workflow_tracking.write_result_marker"),
             patch(
-                "sase.workflows.commit.workflow.close_assigned_bead_after_commit",
+                "sase.workflows.commit._workflow_tracking.close_assigned_bead_after_commit",
                 return_value=True,
             ) as close_bead,
         ):
@@ -253,7 +253,7 @@ class TestCommitWorkflowDispatch:
         wf = CommitWorkflow({"message": "test: provider failure"}, "create_commit")
 
         with patch(
-            "sase.workflows.commit.workflow.close_assigned_bead_after_commit"
+            "sase.workflows.commit._workflow_tracking.close_assigned_bead_after_commit"
         ) as close_bead:
             assert wf.run() == RunResult.FAILED
 
@@ -285,7 +285,7 @@ class TestCommitWorkflowDispatch:
         )
 
         with patch(
-            "sase.workflows.commit.workflow.close_assigned_bead_after_commit"
+            "sase.workflows.commit._workflow_tracking.close_assigned_bead_after_commit"
         ) as close_bead:
             assert wf.run() == RunResult.CONFLICT
 
@@ -343,10 +343,11 @@ class TestProposalSkipsBeadsAndPlan:
             patch("sase.workflows.commit.workflow.handle_beads") as mock_beads,
             patch("sase.workflows.commit.workflow.handle_sase_plan") as mock_plan,
             patch(
-                "sase.workflows.commit.workflow.append_commits_entry", return_value=None
+                "sase.workflows.commit._workflow_tracking.append_commits_entry",
+                return_value=None,
             ),
             patch(
-                "sase.workflows.commit.workflow.close_assigned_bead_after_commit"
+                "sase.workflows.commit._workflow_tracking.close_assigned_bead_after_commit"
             ) as close_bead,
         ):
             assert wf.run() == RunResult.OK
@@ -372,7 +373,8 @@ class TestProposalSkipsBeadsAndPlan:
         with (
             patch.dict("os.environ", {"SASE_ARTIFACTS_DIR": str(tmp_path)}),
             patch(
-                "sase.workflows.commit.workflow.append_commits_entry", return_value=None
+                "sase.workflows.commit._workflow_tracking.append_commits_entry",
+                return_value=None,
             ),
         ):
             assert wf.run() == RunResult.OK
@@ -393,7 +395,8 @@ class TestProposalSkipsBeadsAndPlan:
             patch("sase.workflows.commit.workflow.handle_beads") as mock_beads,
             patch("sase.workflows.commit.workflow.handle_sase_plan") as mock_plan,
             patch(
-                "sase.workflows.commit.workflow.append_commits_entry", return_value=None
+                "sase.workflows.commit._workflow_tracking.append_commits_entry",
+                return_value=None,
             ),
         ):
             assert wf.run() == RunResult.OK

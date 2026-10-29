@@ -463,7 +463,7 @@ def test_workflow_checkpoints_best_effort_publication_once(
         lambda *_args, **_kwargs: None,
     )
     monkeypatch.setattr(
-        "sase.workflows.commit.workflow.checkpoint_save",
+        "sase.workflows.commit._workflow_tracking.checkpoint_save",
         lambda _cp: None,
     )
     workflow = CommitWorkflow(cp.payload, cp.method)
@@ -492,7 +492,7 @@ def test_workflow_ignores_unexpected_publication_exception(
         lambda *_args, **_kwargs: None,
     )
     monkeypatch.setattr(
-        "sase.workflows.commit.workflow.checkpoint_save",
+        "sase.workflows.commit._workflow_tracking.checkpoint_save",
         lambda _cp: None,
     )
 
