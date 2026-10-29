@@ -117,6 +117,9 @@ somewhere stale.
 
 Lit `▶`/`◐` targets get a softly tinted number/name/glyph pill in collapsed, narrowed,
 and expanded views; `+N` counts hidden targets, with `▶M` for hidden in-flight ones.
+A session target counts as in flight while its current turn is a running monitor, not
+only a running agent turn; the same applies to a clan or tribe-member target whose only
+live lane is such a session.
 Layered clan legends add dim `┊` dividers between same-row neighbors from different wave
 groups, never at a row edge, and an `N WAVES` or `N WAVES + LAND` suffix, dropped first
 when tight. Expanded `CLAN MEMBERS` entries label wave, land, and unresolved groups with

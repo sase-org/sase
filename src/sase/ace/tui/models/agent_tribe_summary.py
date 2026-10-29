@@ -16,6 +16,7 @@ from ._agent_clan import (
     sase_agent_status_counts,
     agent_status_projections,
     agent_summary_status_counts,
+    clan_members,
 )
 from ._agent_clan_sections import (
     ClanErrorEntry,
@@ -35,6 +36,7 @@ from ._agent_tree import (
 )
 from .agent import Agent, AgentType, compute_row_runtime
 from .agent_session_members import (
+    agent_session_running_monitor_row,
     concrete_agent_session_member_rows,
     is_sequential_agent_session_container,
     monitor_row_is_settled,
@@ -389,10 +391,19 @@ def _unit_snapshot(
         projection.agent.identity: projection.bucket
         for projection in agent_status_projections((unit,))
     }
-    unit_bucket = aggregate_agent_group_bucket(
+    base_entries = tuple(
         (row.status, bucket)
         for row in rows
         if (bucket := effective_bucket_by_identity.get(row.identity)) is not None
+    )
+    lanes = clan_members(unit) if unit.is_clan_container else (unit,)
+    monitor_entries = tuple(
+        (monitor.status, "Running")
+        for lane in lanes
+        if (monitor := agent_session_running_monitor_row(lane)) is not None
+    )
+    unit_bucket = aggregate_agent_group_bucket(
+        (*base_entries, *monitor_entries)
     ) or agent_status_bucket(unit)
     children = tuple(
         _TribeUnitChild(

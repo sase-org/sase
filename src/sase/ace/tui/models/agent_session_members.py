@@ -399,6 +399,19 @@ def current_agent_session_turn_row(agent: Agent) -> Agent | None:
     return None
 
 
+def agent_session_running_monitor_row(agent: Agent) -> Agent | None:
+    """Return the session's current turn when it is a running monitor turn.
+
+    A monitor nests under the agent turn that started it, so aggregates built
+    from a session's agent turns settle a lane whose only live work is that
+    monitor. Callers add this row to their lane entries to keep it in flight.
+    """
+    current = current_agent_session_turn_row(agent)
+    if current is not None and current.is_monitor:
+        return current
+    return None
+
+
 def concrete_agent_session_member_rows(agent: Agent) -> tuple[Agent, ...]:
     """Return ordered concrete agent turns represented by a session container.
 
@@ -597,6 +610,7 @@ __all__ = [
     "current_agent_session_turn_row",
     "agent_session_member_status_buckets",
     "agent_session_roster_container",
+    "agent_session_running_monitor_row",
     "gate_row_is_settled",
     "is_sequential_agent_session_container",
     "monitor_row_is_settled",

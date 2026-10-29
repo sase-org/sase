@@ -6,7 +6,11 @@ map to lane status entries.
 
 from __future__ import annotations
 
-from sase.ace.tui.models.agent_session_members import current_agent_session_turn_row
+from sase.ace.tui.models._agent_tree import project_clan_tree
+from sase.ace.tui.models.agent_session_members import (
+    agent_session_running_monitor_row,
+    current_agent_session_turn_row,
+)
 from tests.ace.tui.models._agent_session_members_helpers import (
     make_agent,
     make_monitor_member,
@@ -22,6 +26,11 @@ __all__ = [
     "test_lane_entries_keep_failed_bucket_when_followup_errored",
     "test_lane_entries_map_final_launched_monitor_to_running",
     "test_lane_entries_skip_non_final_failed_monitor_with_launched_followup",
+    "test_running_monitor_row_returns_nested_running_monitor",
+    "test_running_monitor_row_returns_none_for_agent_turn",
+    "test_running_monitor_row_returns_none_for_settled_monitor",
+    "test_running_monitor_row_returns_none_for_non_session_row",
+    "test_running_monitor_row_returns_none_for_clan_container",
 ]
 
 
@@ -209,6 +218,86 @@ def test_lane_entries_map_final_launched_monitor_to_running() -> None:
     entries = agent_session_lane_status_entries((root, monitor))
 
     assert entries[-1] == ("TESTED", "Running")
+
+
+def test_running_monitor_row_returns_nested_running_monitor() -> None:
+    root = make_agent("alpha--0", role="root", status="DONE", stop_offset=1)
+    coder = make_agent(
+        "alpha--code",
+        role="code",
+        parent_timestamp=root.raw_suffix,
+        status="DONE",
+        start_offset=2,
+        stop_offset=3,
+    )
+    monitor = make_monitor_member(
+        "alpha--mon",
+        root=coder,
+        monitor_id="m-running",
+        monitor_state="running",
+    )
+    root.runtime_children = [coder]
+    root.followup_agents = [coder]
+    coder.runtime_children = [monitor]
+    coder.followup_agents = [monitor]
+
+    assert agent_session_running_monitor_row(root) is monitor
+
+
+def test_running_monitor_row_returns_none_for_agent_turn() -> None:
+    root = make_agent("alpha--0", role="root", status="RUNNING")
+    waiting_child = make_agent(
+        "alpha--review",
+        role="review",
+        parent_timestamp=root.raw_suffix,
+        status="WAITING",
+        start_offset=1,
+    )
+    root.followup_agents = [waiting_child]
+
+    assert agent_session_running_monitor_row(root) is None
+
+
+def test_running_monitor_row_returns_none_for_settled_monitor() -> None:
+    root = make_agent("alpha--0", role="root", status="DONE", stop_offset=1)
+    coder = make_agent(
+        "alpha--code",
+        role="code",
+        parent_timestamp=root.raw_suffix,
+        status="DONE",
+        start_offset=2,
+        stop_offset=3,
+    )
+    monitor = make_monitor_member(
+        "alpha--mon",
+        root=coder,
+        monitor_id="m-settled",
+        monitor_state="completed",
+        stop_offset=4,
+    )
+    root.runtime_children = [coder]
+    root.followup_agents = [coder]
+    coder.runtime_children = [monitor]
+    coder.followup_agents = [monitor]
+
+    assert agent_session_running_monitor_row(root) is None
+
+
+def test_running_monitor_row_returns_none_for_non_session_row() -> None:
+    agent = make_agent("solo", role="code", status="RUNNING")
+    agent.agent_session = None
+
+    assert agent_session_running_monitor_row(agent) is None
+
+
+def test_running_monitor_row_returns_none_for_clan_container() -> None:
+    member = make_agent("bench.1", role="code", status="DONE", stop_offset=1)
+    member.agent_clan = "bench"
+    member.agent_clan_generation = "gen-1"
+    clan = project_clan_tree([member])[0]
+
+    assert clan.is_clan_container is True
+    assert agent_session_running_monitor_row(clan) is None
 
 
 def test_lane_entries_keep_failed_bucket_when_followup_errored() -> None:
