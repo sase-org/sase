@@ -11,6 +11,7 @@ import yaml  # type: ignore[import-untyped]
 from sase.sdd._link_models import SddFile
 from sase.sdd._link_support import LIST_KINDS, relpath
 from sase.sdd._paths import has_month_dirs, is_month_dir_name
+from sase.sdd._store_types import SddStore
 from sase.sdd.artifact_links import parse_sdd_artifact_link
 from sase.sdd.plan_tiers import classify_plan_file
 
@@ -117,18 +118,15 @@ def invalid_sdd_root_message(root: Path) -> str:
     """Return the invalid-root message, with a nested-clone remedy when needed."""
 
     message = f"SDD path does not exist or is not a directory: {root}"
-    git_root = _git_checkout_root(root)
-    if git_root is not None and _repo_open_clone_owner(git_root) is not None:
-        return (
-            f"{message}. Rerun `sase repo open` for this checkout to "
-            "provision its plans sidecar"
-        )
+    remedy = nested_repo_open_plans_remedy(root)
+    if remedy is not None:
+        return f"{message}. {remedy}"
     return message
 
 
 def _resolve_project_sdd_root(project_root: Path) -> Path:
     try:
-        nested = _nested_repo_open_sdd_root(project_root)
+        nested = nested_repo_open_sdd_root(project_root)
     except Exception:
         nested = None
     if nested is not None:
@@ -141,29 +139,61 @@ def _resolve_project_sdd_root(project_root: Path) -> Path:
         return project_root / ".sase" / "sdd"
 
 
-def _nested_repo_open_sdd_root(project_root: Path) -> Path | None:
-    """Resolve a nested repo-open checkout from its own store record."""
+def nested_repo_open_checkout_root(path: str | Path | None = None) -> Path | None:
+    """Return the repo-open checkout containing *path*, when it is nested."""
 
-    git_root = _git_checkout_root(project_root)
+    candidate = Path.cwd() if path is None else Path(path)
+    git_root = _git_checkout_root(candidate)
     if git_root is None or _repo_open_clone_owner(git_root) is None:
+        return None
+    return git_root
+
+
+def nested_repo_open_sdd_root(path: str | Path | None = None) -> Path | None:
+    """Return a nested repo-open checkout's materialized SDD root."""
+
+    store = _nested_repo_open_store(path)
+    return None if store is None else store.sdd_dir
+
+
+def nested_repo_open_plans_root(path: str | Path | None = None) -> Path | None:
+    """Return a nested repo-open checkout's materialized plans root."""
+
+    store = _nested_repo_open_store(path)
+    return None if store is None else store.kind_root("plans")
+
+
+def nested_repo_open_plans_remedy(path: str | Path | None = None) -> str | None:
+    """Return the setup remedy for an unprovisioned nested repo-open checkout."""
+
+    if nested_repo_open_checkout_root(path) is None:
+        return None
+    return "Rerun `sase repo open` for this checkout to provision its plans sidecar"
+
+
+def _nested_repo_open_store(path: str | Path | None = None) -> SddStore | None:
+    """Resolve a nested repo-open store only when its record is materialized."""
+
+    checkout_root = nested_repo_open_checkout_root(path)
+    if checkout_root is None:
         return None
 
     from sase.sdd._store_records import is_materialized_record, read_sdd_store_record
     from sase.sdd.store import resolve_sdd_store
 
-    if not is_materialized_record(read_sdd_store_record(git_root)):
+    if not is_materialized_record(read_sdd_store_record(checkout_root)):
         return None
 
-    checkout = str(git_root)
+    checkout = str(checkout_root)
 
     def checkout_local(_workspace_dir: str, _workspace_num: int) -> str:
         return checkout
 
     return resolve_sdd_store(
-        git_root,
+        checkout_root,
         1,
         primary_workspace_resolver=checkout_local,
-    ).sdd_dir
+    )
 
 
 def _git_checkout_root(path: Path) -> Path | None:

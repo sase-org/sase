@@ -37,33 +37,77 @@ class _CommittedPlanSweep:
 
 def _resolve_committed_plans_root(*, cwd: Path | None = None) -> Path:
     """Resolve the plans root from agent env or provider-owned SDD state."""
+    workspace = Path.cwd() if cwd is None else cwd
+
+    from sase.sdd._link_files import (
+        nested_repo_open_checkout_root,
+        nested_repo_open_plans_root,
+        nested_repo_open_sdd_root,
+    )
+
+    nested_checkout = nested_repo_open_checkout_root(workspace)
+    if nested_checkout is not None:
+        nested_sdd_root = nested_repo_open_sdd_root(workspace)
+        if nested_sdd_root is not None:
+            nested_plans_root = nested_repo_open_plans_root(workspace)
+            if nested_plans_root is not None:
+                return nested_plans_root.resolve()
+
+        from sase.linked_repos import sidecar_repo_clone_dir
+
+        return Path(sidecar_repo_clone_dir(nested_checkout, "plans")).resolve()
+
     configured = os.environ.get("SASE_SDD_PLANS_DIR")
     if configured:
         return Path(configured).expanduser().resolve()
 
     from sase.sdd.store import resolve_sdd_kind_dir
 
-    workspace = Path.cwd() if cwd is None else cwd
     return resolve_sdd_kind_dir(workspace, 1, "plans").resolve()
 
 
-def _sweep_committed_plans(plans_root: Path) -> _CommittedPlanSweep:
+def _missing_plans_root_issue(
+    plans_root: Path,
+    *,
+    cwd: Path | None = None,
+) -> CommittedPlanIssue:
+    """Describe a missing plans root and explain how nested clones are provisioned."""
+    from sase.sdd._link_files import nested_repo_open_plans_remedy
+
+    message = "plans root does not exist or is not a directory"
+    remedy = nested_repo_open_plans_remedy(cwd)
+    if remedy is not None:
+        message = f"{message}. {remedy}"
+    return CommittedPlanIssue(
+        path=str(plans_root),
+        severity="error",
+        code="invalid-plans-root",
+        message=message,
+    )
+
+
+def _sweep_committed_plans(
+    plans_root: Path,
+    *,
+    cwd: Path | None = None,
+) -> _CommittedPlanSweep:
     """Validate every direct ``YYYYMM/*.md`` plan under ``plans_root``."""
     root = plans_root.expanduser().resolve()
-    if not root.is_dir():
+    workspace = Path.cwd() if cwd is None else cwd
+    from sase.sdd._link_files import (
+        nested_repo_open_checkout_root,
+        nested_repo_open_plans_root,
+    )
+
+    nested_checkout = nested_repo_open_checkout_root(workspace)
+    nested_plans_root = nested_repo_open_plans_root(workspace)
+    if (nested_checkout is not None and nested_plans_root is None) or not root.is_dir():
         return _CommittedPlanSweep(
             plans_root=root,
             checked_files=0,
             strict_files=0,
             legacy_files=0,
-            issues=(
-                CommittedPlanIssue(
-                    path=str(root),
-                    severity="error",
-                    code="invalid-plans-root",
-                    message="plans root does not exist or is not a directory",
-                ),
-            ),
+            issues=(_missing_plans_root_issue(root, cwd=workspace),),
         )
 
     checked_files = 0
@@ -135,7 +179,11 @@ def _render_committed_plan_sweep(
 
 def main() -> int:
     """Run the committed-plan sweep against the resolved plans root."""
-    sweep = _sweep_committed_plans(_resolve_committed_plans_root())
+    workspace = Path.cwd()
+    sweep = _sweep_committed_plans(
+        _resolve_committed_plans_root(),
+        cwd=workspace,
+    )
     _render_committed_plan_sweep(sweep)
     return 0 if sweep.ok else 1
 
