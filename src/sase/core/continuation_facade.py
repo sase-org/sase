@@ -25,6 +25,8 @@ from sase.core.continuation_wire import (
     JsonMapping,
     JsonObject,
     MonitorResultWire,
+    PreparedReservationAccessDecisionWire,
+    PreparedReservationAccessRequestWire,
     PreparedStarterCoverageDecisionWire,
     PreparedStarterCoverageRequestWire,
     continuation_wire_to_json_dict,
@@ -327,6 +329,23 @@ def evaluate_prepared_starter_coverage(
     )
 
 
+def evaluate_prepared_reservation_access(
+    request: PreparedReservationAccessRequestWire | JsonMapping,
+) -> PreparedReservationAccessDecisionWire:
+    """Check whether a stage may reserve, bind, or release a prepared intent."""
+
+    binding = require_rust_binding("continuation_evaluate_prepared_reservation_access")
+    payload = _json_object(
+        binding(continuation_wire_to_json_dict(request)),
+        "continuation_evaluate_prepared_reservation_access",
+    )
+    return PreparedReservationAccessDecisionWire(
+        schema_version=int(payload["schema_version"]),
+        allowed=bool(payload["allowed"]),
+        reason=payload.get("reason"),
+    )
+
+
 def _json_object(value: Any, operation: str) -> JsonObject:
     if not isinstance(value, Mapping):
         raise TypeError(f"{operation} returned a non-mapping payload")
@@ -339,6 +358,7 @@ __all__ = [
     "consume_conditional_completion",
     "decide_resume_adoption",
     "evaluate_conditional_completion",
+    "evaluate_prepared_reservation_access",
     "evaluate_prepared_starter_coverage",
     "freeze_continuation_policy",
     "invalidate_conditional_completion",

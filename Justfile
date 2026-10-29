@@ -490,6 +490,17 @@ _lint-symvision *args: _setup
     SASE_SYMVISION_BEAD_STATUS_ONLY=1 BD_COMMAND=tools/sase_bead {{ venv_bin }}/symvision src/sase \
         --exclude-decorator gate_command_entrypoint \
         --exclude-decorator builtin_chop \
+        --epic-symbol 'sase-1pj.5.1.2(staged_monitor_launch_payload_schema_version)' \
+        --epic-symbol 'sase-1pj.5.1.2(validate_staged_monitor_launch_payload)' \
+        --epic-symbol 'sase-1pj.5.1.2(evaluate_staged_monitor_membership)' \
+        --epic-symbol 'sase-1pj.5.1.2(evaluate_staged_owner_liveness)' \
+        --epic-symbol 'sase-1pj.5.1.2(tool_run_reserve_staged_join)' \
+        --epic-symbol 'sase-1pj.5.1.2(tool_run_activate_staged_join)' \
+        --epic-symbol 'sase-1pj.5.1.2(tool_run_release_staged_join)' \
+        --epic-symbol 'sase-1pj.5.1.3(reserve_prepared_intent)' \
+        --epic-symbol 'sase-1pj.5.1.3(release_prepared_intent)' \
+        --epic-symbol 'sase-1pj.5.1.3(load_prepared_intent_reservations)' \
+        --epic-symbol 'sase-1pj.5.1.4(evaluate_staged_self_wait)' \
         {{ args }}
 
 # Check Python file line counts (private, extracted for per-stage wrapping)

@@ -95,3 +95,61 @@ def build_gate_staged_payload(payload: dict[str, Any]) -> dict[str, Any]:
         raise
     except ValueError as exc:
         raise StagedHandoffContractError(str(exc)) from exc
+
+
+#: Mirrors Rust ``STAGED_MONITOR_LAUNCH_PAYLOAD_SCHEMA_VERSION``.
+STAGED_MONITOR_LAUNCH_PAYLOAD_SCHEMA_VERSION = 1
+
+
+def staged_monitor_launch_payload_schema_version() -> int:
+    """Return the Rust staged-monitor launch payload wire schema version."""
+    binding = require_rust_binding("staged_monitor_launch_payload_schema_version")
+    return int(binding())
+
+
+def validate_staged_monitor_launch_payload(
+    payload: dict[str, Any],
+) -> dict[str, Any]:
+    """Validate a staged-monitor launch payload dict via Rust."""
+    binding = require_rust_binding("validate_staged_monitor_launch_payload")
+    try:
+        return dict(binding(payload))
+    except StagedHandoffContractError:
+        raise
+    except ValueError as exc:
+        raise StagedHandoffContractError(str(exc)) from exc
+
+
+def evaluate_staged_monitor_membership(
+    request: dict[str, Any],
+) -> dict[str, Any]:
+    """Decide staged-monitor membership facts from durable monitor state."""
+    binding = require_rust_binding("evaluate_staged_monitor_membership")
+    try:
+        return dict(binding(request))
+    except StagedHandoffContractError:
+        raise
+    except ValueError as exc:
+        raise StagedHandoffContractError(str(exc)) from exc
+
+
+def evaluate_staged_owner_liveness(request: dict[str, Any]) -> dict[str, Any]:
+    """Decide whether a staged monitor remains a pending owner."""
+    binding = require_rust_binding("evaluate_staged_owner_liveness")
+    try:
+        return dict(binding(request))
+    except StagedHandoffContractError:
+        raise
+    except ValueError as exc:
+        raise StagedHandoffContractError(str(exc)) from exc
+
+
+def evaluate_staged_self_wait(request: dict[str, Any]) -> dict[str, Any]:
+    """Decide whether a wait is a self-wait on the caller's staged run."""
+    binding = require_rust_binding("evaluate_staged_self_wait")
+    try:
+        return dict(binding(request))
+    except StagedHandoffContractError:
+        raise
+    except ValueError as exc:
+        raise StagedHandoffContractError(str(exc)) from exc

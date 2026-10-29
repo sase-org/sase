@@ -423,6 +423,29 @@ class PreparedStarterCoverageDecisionWire(TypedDict):
     reasons: NotRequired[list[str]]
 
 
+PreparedReservationAction = str
+
+
+class StoredPreparedReservationWire(TypedDict):
+    intent_ref: str
+    reservation: PreparedReservationWire
+
+
+class PreparedReservationAccessRequestWire(TypedDict):
+    schema_version: int
+    intent_ref: str
+    staged_id: str
+    monitor_id: str
+    action: PreparedReservationAction
+    existing: NotRequired[list[StoredPreparedReservationWire]]
+
+
+class PreparedReservationAccessDecisionWire(TypedDict):
+    schema_version: int
+    allowed: bool
+    reason: NotRequired[str | None]
+
+
 def continuation_wire_to_json_dict(value: Any) -> Any:
     """Project continuation wire values to plain dict/list primitives."""
 
@@ -475,8 +498,12 @@ __all__ = [
     "MonitorTimeoutKind",
     "ObservedPathKind",
     "PreparedReservationWire",
+    "PreparedReservationAction",
+    "PreparedReservationAccessDecisionWire",
+    "PreparedReservationAccessRequestWire",
     "PreparedStarterCoverageDecisionWire",
     "PreparedStarterCoverageRequestWire",
+    "StoredPreparedReservationWire",
     "RetainedLogMetadataWire",
     "VerificationLevel",
     "continuation_wire_to_json_dict",

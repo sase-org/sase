@@ -341,6 +341,61 @@ def tool_run_release_join(
     )
 
 
+def tool_run_reserve_staged_join(
+    request: Mapping[str, Any],
+    *,
+    store_path: str | None = None,
+    busy_timeout_ms: int = 0,
+) -> dict[str, Any]:
+    """Reserve a detached run for one staged monitor.
+
+    The reservation is identified by staged ID plus monitor ID, validates
+    the starter agent, and prevents another joiner from taking the run.
+    """
+
+    return dict(
+        require_rust_binding("tool_run_reserve_staged_join")(
+            store_path or str(tool_run_store_path()),
+            dict(request),
+            busy_timeout_ms,
+        )
+    )
+
+
+def tool_run_activate_staged_join(
+    request: Mapping[str, Any],
+    *,
+    store_path: str | None = None,
+    busy_timeout_ms: int = 0,
+) -> dict[str, Any]:
+    """Activate a staged-join reservation into the ordinary monitor join."""
+
+    return dict(
+        require_rust_binding("tool_run_activate_staged_join")(
+            store_path or str(tool_run_store_path()),
+            dict(request),
+            busy_timeout_ms,
+        )
+    )
+
+
+def tool_run_release_staged_join(
+    request: Mapping[str, Any],
+    *,
+    store_path: str | None = None,
+    busy_timeout_ms: int = 0,
+) -> dict[str, Any]:
+    """Release one stage's join reservation; safe to repeat after settling."""
+
+    return dict(
+        require_rust_binding("tool_run_release_staged_join")(
+            store_path or str(tool_run_store_path()),
+            dict(request),
+            busy_timeout_ms,
+        )
+    )
+
+
 def tool_run_sync_wait_budget(request: Mapping[str, Any]) -> dict[str, Any]:
     """Budget a synchronous wait against hard and soft kill ceilings.
 
@@ -663,6 +718,9 @@ __all__ = [
     "tool_run_failures",
     "tool_run_join",
     "tool_run_release_join",
+    "tool_run_activate_staged_join",
+    "tool_run_release_staged_join",
+    "tool_run_reserve_staged_join",
     "tool_run_show",
     "tool_run_sync_wait_budget",
     "tool_run_store_path",

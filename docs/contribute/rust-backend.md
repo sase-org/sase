@@ -122,10 +122,24 @@ The shipped Rust-backed operations are grouped by the Python facade that calls t
   owns bundle composition and manifest assembly. Readers continue to accept v1.
 - Staged-handoff records (`staged_handoff_wire_schema_version`,
   `validate_staged_handoff`, `validate_staged_handoff_receipt`,
-  `evaluate_stage_admission`, `staged_handoff_receipt_authorizes`), called through
+  `evaluate_stage_admission`, `staged_handoff_receipt_authorizes`,
+  `staged_monitor_launch_payload_schema_version`,
+  `validate_staged_monitor_launch_payload`, `evaluate_staged_monitor_membership`,
+  `evaluate_staged_owner_liveness`, `evaluate_staged_self_wait`), called through
   `sase.core.staged_handoff`. Rust owns schema validation, kind/workspace/carry
-  invariants, receipt identity, and admission policy. Python owns artifact-path
+  invariants, receipt identity, admission policy, the frozen staged-monitor launch
+  payload, and staged membership/liveness/self-wait decisions. Python owns artifact-path
   plumbing, reservations, locking, and host observations.
+- ToolRun staged-join reservations (`tool_run_reserve_staged_join`,
+  `tool_run_activate_staged_join`, `tool_run_release_staged_join`), called through
+  `sase.core.tool_run`. Rust owns the atomic SQLite reservation, activation into the
+  ordinary monitor join, and identity-scoped release; Python gathers the staged identity
+  and routes the calls.
+- Prepared-intent reservation ownership
+  (`continuation_evaluate_prepared_reservation_access`), called through
+  `sase.core.continuation_facade` with persistence in
+  `sase.finalizers._prepare_reservations`. Rust owns identity and transition legality;
+  Python owns the file/lock operations under the existing completion-intents store lock.
 - Footprint usage-census ledger (`footprint_catalog_status`, `footprint_ingest_catalog`,
   `footprint_fold`, `footprint_upsert_derived`, `footprint_status`, `footprint_prune`,
   `footprint_clear`, `footprint_validate_overlay`, `footprint_export`,
