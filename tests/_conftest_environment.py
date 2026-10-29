@@ -23,15 +23,23 @@ _CONSOLE_COLOR_OVERRIDE_ENV_VARS = (
     "FORCE_COLOR",
     "NO_COLOR",
 )
+_DEFAULT_TEST_TERM = "xterm-256color"
 
 
-def _clear_ambient_console_color_override_env_vars() -> None:
-    """Scrub color overrides before test modules construct shared consoles."""
+def _pin_ambient_terminal_environment() -> None:
+    """Give rendering tests a capable terminal before modules construct consoles.
+
+    Agent and ToolRun shells export ``TERM=dumb`` (and sometimes ``NO_COLOR``).
+    Rich then disables color and interactivity at import time, so contract
+    tests that assume a capable terminal fail in those shells while CI stays
+    green.
+    """
+    os.environ["TERM"] = _DEFAULT_TEST_TERM
     for key in _CONSOLE_COLOR_OVERRIDE_ENV_VARS:
         os.environ.pop(key, None)
 
 
-_clear_ambient_console_color_override_env_vars()
+_pin_ambient_terminal_environment()
 
 # Variables a ToolRun stage or monitor exports so ``tools/run_silent`` records
 # its stage into the enclosing run. A suite launched under either inherits them,
@@ -103,6 +111,26 @@ def _forbid_real_host_sase_config_layer_writes(
 
     monkeypatch.setattr(Path, "write_text", guarded_write_text)
     monkeypatch.setattr(Path, "write_bytes", guarded_write_bytes)
+
+
+@pytest.fixture(scope="session", autouse=True)
+def _pin_terminal_environment() -> Iterator[None]:
+    """Keep rendering tests hermetic against the ambient terminal.
+
+    Pins ``TERM`` to a capable value and clears color overrides unless a
+    test sets them explicitly. ``TERM`` must stay in ``_ENV_KEYS_TO_IGNORE``:
+    the per-test env snapshot runs before session fixtures on the first
+    test, and restoring that snapshot would otherwise drop the pin and leak
+    ``TERM=dumb`` into later tests.
+    """
+    scoped = pytest.MonkeyPatch()
+    scoped.setenv("TERM", _DEFAULT_TEST_TERM)
+    for key in _CONSOLE_COLOR_OVERRIDE_ENV_VARS:
+        scoped.delenv(key, raising=False)
+    try:
+        yield
+    finally:
+        scoped.undo()
 
 
 @pytest.fixture(scope="session", autouse=True)
@@ -394,7 +422,13 @@ def allow_axe_lifecycle_in_tests(monkeypatch: pytest.MonkeyPatch) -> None:
 
 @pytest.fixture(autouse=True)
 def _clear_console_color_override_env_vars(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Keep captured-output tests independent of the caller's color policy."""
+    """Keep captured-output tests independent of the caller's terminal and color policy.
+
+    Re-pins ``TERM`` each test so a nested ``monkeypatch.setenv("TERM", ...)``
+    still wins, then restores the capable default. Color overrides stay
+    cleared unless the test sets them explicitly.
+    """
+    monkeypatch.setenv("TERM", _DEFAULT_TEST_TERM)
     for key in _CONSOLE_COLOR_OVERRIDE_ENV_VARS:
         monkeypatch.delenv(key, raising=False)
 

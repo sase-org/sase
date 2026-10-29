@@ -17,6 +17,7 @@ from tests._conftest_environment import (
     _clear_console_color_override_env_vars,
     _forbid_bare_git_sdd_init_in_repo_checkout,
     _isolate_sase_home,
+    _pin_terminal_environment,
     _publish_pytest_sandbox,
     _restore_workflow_metadata_derived_caches,
     _restore_working_directory,

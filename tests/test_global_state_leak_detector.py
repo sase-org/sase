@@ -379,6 +379,7 @@ def test_process_snapshot_uses_isolation_env_ignore_list() -> None:
     assert "SASE_DETACH_SCOPE_DISABLE" in snapshot_keys
     assert "HOME" in snapshot_keys
     assert "SASE_HOME" in snapshot_keys
+    assert "TERM" in snapshot_keys
 
 
 def test_sys_path_append_is_warming_but_rewrite_is_poisoning() -> None:
