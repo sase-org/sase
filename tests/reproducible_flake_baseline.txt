@@ -124,9 +124,8 @@ tests/test_provider_disable.py::test_facade_try_disable_one_winner_under_process
 # sase-oe: retired by f1914962c "feat(ace): retire Admin Center auto-update
 # plumbing" (committed 2026-08-19T21:03:49Z); the node no longer exists on this
 # tree.
-# sase-p9: probe_zsh_comps' 5s interactive-zsh timeout returns None so
-# registered is None instead of True; isolated re-run passes. Ready task, +4.
-tests/completion/test_install_zsh.py::test_real_zsh_zcompile_and_registration
+# sase-p9: fixed by abb80f44ac on 2026-08-21.
+# fixed-at: 2026-08-21T11:14:47Z tests/completion/test_install_zsh.py::test_real_zsh_zcompile_and_registration
 # sase-lk: retired by sase-rm.11 after the subprocess-driven supervisor rows
 # moved the liveness verdict into the child boundary and added a wedged-driver
 # proof that still fails through that child-owned deadline.
@@ -374,9 +373,6 @@ tests/monitor/test_monitor_resume.py::test_checkpoint_resume_preserves_concurren
 tests/monitor/test_monitor_supervise_timeout.py::test_run_supervisor_escalates_term_ignoring_chatty_child
 tests/monitor/test_monitor_supervise_timeout.py::test_run_supervisor_times_out_after_child_closes_stdio
 tests/monitor/test_monitor_supervise_timeout.py::test_run_supervisor_times_out_after_partial_line
-# sase-n1: post-fix dirty-record artifact-audit historical debt.
-tests/test_agent_artifact_directory_operation_audit.py::test_artifact_directory_operation_sites_are_reviewed
-tests/test_agent_artifact_directory_operation_audit.py::test_reviewed_dir_operation_sites_declare_coverage
 # sase-u1: config-schema public-schema full-lane flake debt.
 tests/test_config_schema.py::test_default_config_matches_public_schema
 # sase-10f: scratch tmpdir inner-pytest timeout under saturated full lane.

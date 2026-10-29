@@ -312,6 +312,43 @@ _REVIEWED_DIR_OPERATION_CONTEXTS: dict[str, DirOpReview] = {
             "or local agent artifact directories outside the lease."
         ),
     ),
+    "src/sase/workspace_provider/_snapshot_restore.py:_clear_worktree": DirOpReview(
+        exemption=(
+            "Clears the disposable destination checkout before snapshot restore, "
+            "preserving its .git entry and unlinking symlinks instead of following "
+            "them. The destination is not the source checkout or an agent artifact "
+            "directory."
+        ),
+    ),
+    "src/sase/workspace_provider/_snapshot_restore.py:_restore_operation_markers": DirOpReview(
+        exemption=(
+            "Replaces only the allowlisted Git operation-state directories under "
+            "the disposable destination's resolved git dir, then copies captured "
+            "operation state there. These are Git metadata, not agent artifact "
+            "directories."
+        ),
+    ),
+    "src/sase/workspace_provider/_snapshot_capture_payload.py:_cleanup_capture_temps": DirOpReview(
+        exemption=(
+            "Removes only the snapshot's private object staging directory and "
+            "unlinks its .tmp-* payload files; the rescue directory is uniquely "
+            "allocated for this capture and is not an agent artifact directory."
+        ),
+    ),
+    "src/sase/workspace_provider/_snapshot_capture_payload_objects.py:verify_pack": DirOpReview(
+        exemption=(
+            "Creates a throwaway bare Git repository inside this capture's unique "
+            "rescue directory, verifies the pack there, and removes only that "
+            "verification repository in finally; it never touches agent artifacts."
+        ),
+    ),
+    "src/sase/workspace_provider/_snapshot_capture_source.py:_discard_incomplete": DirOpReview(
+        exemption=(
+            "Removes only rescue directories recorded as allocated by the current "
+            "snapshot attempt after capture failed; successful snapshots clear the "
+            "allocation list and are retained."
+        ),
+    ),
 }
 
 
