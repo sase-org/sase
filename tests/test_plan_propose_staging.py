@@ -70,6 +70,9 @@ def test_flag_enabled_proposal_stages_after_reserving_before_archive(
             side_effect=lambda raw: raw,
         ),
         patch("sase.main.plan_propose_handler.kill_agent_runner_group") as kill,
+        patch(
+            "sase.main.plan_propose_handler._derive_links_for_archived_plan"
+        ) as derive_links,
     ):
         with pytest.raises(SystemExit) as staged_exit:
             plan_command_handler.handle_plan_propose_command(str(plan_file))
@@ -79,10 +82,12 @@ def test_flag_enabled_proposal_stages_after_reserving_before_archive(
     assert not plan_file.exists()
     assert not (artifacts_dir / PLAN_PENDING_MARKER).exists()
     assert not (artifacts_dir / STAGING_RESERVATION_FILENAME).exists()
+    derive_links.assert_called_once()
 
     record = json.loads(
         (artifacts_dir / STAGED_HANDOFF_FILENAME).read_text(encoding="utf-8")
     )
+    assert record["dirty_obligations_at_stage"] == []
     assert record["kind"] == "plan"
     assert record["successor_workspace"] == "none"
     assert record["carry_allowed"] is False

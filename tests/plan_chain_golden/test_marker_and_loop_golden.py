@@ -172,6 +172,55 @@ def test_killed_followup_runs_kill_handoff_again(tmp_path: Path) -> None:
     assert handoff_count == 2
 
 
+@pytest.mark.parametrize("has_staged", [True, False])
+def test_completing_iteration_consults_staged_dispatch(
+    tmp_path: Path,
+    has_staged: bool,
+) -> None:
+    ctx = make_exec_ctx(tmp_path, is_home_mode=False)
+    executed_prompts: list[str] = []
+    dispatch_result = (
+        MagicMock(adopted=True, outcome="gated", already_adopted=False)
+        if has_staged
+        else None
+    )
+
+    def execute_workflow(
+        _name: str,
+        _args: list[object],
+        _kwargs: dict[str, object],
+        *,
+        workflow_obj: object,
+        **_extra: object,
+    ) -> MagicMock:
+        executed_prompts.append(workflow_obj.steps[0].agent)
+        return MagicMock(name="workflow-result")
+
+    with (
+        patch(
+            "sase.macro.workflow_runner.execute_workflow",
+            side_effect=execute_workflow,
+        ),
+        patch("sase.axe.run_agent_exec.reset_killed"),
+        patch("sase.axe.run_agent_exec.was_killed", return_value=False),
+        patch(
+            "sase.axe.run_agent_exec.dispatch_completed_staged_handoff",
+            return_value=dispatch_result,
+        ) as dispatch,
+        patch(
+            "sase.axe.run_agent_exec._finalize_loop", return_value="final"
+        ) as finalize,
+    ):
+        result = run_execution_loop(ctx, "planner prompt")
+
+    assert result == "final"
+    assert executed_prompts == ["planner prompt"]
+    dispatch.assert_called_once()
+    finalize.assert_called_once()
+    if has_staged:
+        assert dispatch_result.adopted is True
+
+
 @pytest.mark.parametrize("auto_action", ["commit"])
 def test_auto_plan_action_rejects_commit_value(
     tmp_path: Path,

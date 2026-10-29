@@ -27,8 +27,15 @@ def handle_gate_marker(
     gate_data: dict[str, Any],
     ctx: AgentExecContext,
     state: LoopState,
+    *,
+    persist_chat: bool = True,
 ) -> str:
-    """Adopt a ``.sase_gate_pending`` marker after runner SIGTERM."""
+    """Adopt a ``.sase_gate_pending`` marker after runner SIGTERM.
+
+    ``persist_chat`` is true for the legacy kill path. Staged plan adoption
+    already saved the planner's real final response and passes false so this
+    handoff cannot overwrite it with a synthetic gate summary.
+    """
     normalize_handoff_interruption_state(state.current_artifacts_dir)
     finalize_handoff_artifacts_as_completed(state.current_artifacts_dir)
 
@@ -51,31 +58,32 @@ def handle_gate_marker(
     starter_agent = _text(starter_meta.get("name")) or ctx.agent_name
     bundle_path = _text(gate_meta.get("gate_bundle_path"))
 
-    response = _format_gate_response(
-        gate_id=gate_id,
-        member_agent_name=member_agent_name,
-        kind=_text(gate_meta.get("gate_kind")),
-        title=_gate_title(bundle_path, gate_meta),
-    )
-    extra = format_extra_sections(state.current_artifacts_dir)
-    chat_path = save_chat_history(
-        prompt=state.current_prompt,
-        response=response,
-        workflow="ace-run",
-        agent=starter_agent,
-        timestamp=ctx.timestamp,
-        extra_sections=extra,
-        branch_or_workspace=ctx.cl_name,
-        metadata_agent=starter_agent,
-        metadata_model=ctx.agent_model,
-        metadata_llm_provider=ctx.agent_llm_provider,
-        metadata_multi_agent_prompt=ctx.multi_agent_prompt_file,
-    )
-
-    state.saved_chat_paths.append(
-        (starter_suffix or state.current_role_suffix, chat_path)
-    )
-    update_meta_field(state.current_artifacts_dir, "chat_path", chat_path)
+    if persist_chat:
+        response = _format_gate_response(
+            gate_id=gate_id,
+            member_agent_name=member_agent_name,
+            kind=_text(gate_meta.get("gate_kind")),
+            title=_gate_title(bundle_path, gate_meta),
+        )
+        extra = format_extra_sections(state.current_artifacts_dir)
+        chat_path = save_chat_history(
+            prompt=state.current_prompt,
+            response=response,
+            workflow="ace-run",
+            agent=starter_agent,
+            timestamp=ctx.timestamp,
+            extra_sections=extra,
+            branch_or_workspace=ctx.cl_name,
+            metadata_agent=starter_agent,
+            metadata_model=ctx.agent_model,
+            metadata_llm_provider=ctx.agent_llm_provider,
+            metadata_multi_agent_prompt=ctx.multi_agent_prompt_file,
+        )
+        state.saved_chat_paths.append(
+            (starter_suffix or state.current_role_suffix, chat_path)
+        )
+        update_meta_field(state.current_artifacts_dir, "chat_path", chat_path)
+        update_step_marker_chat_path(state.current_artifacts_dir, chat_path)
     if gate_id:
         update_meta_field(state.current_artifacts_dir, "gate_id", gate_id)
     if member_agent_name:
@@ -84,7 +92,6 @@ def handle_gate_marker(
             "gate_member_agent_name",
             member_agent_name,
         )
-    update_step_marker_chat_path(state.current_artifacts_dir, chat_path)
 
     if member_artifacts_dir and starter_agent:
         update_meta_field(member_artifacts_dir, "gate_creator_agent", starter_agent)

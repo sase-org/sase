@@ -204,41 +204,45 @@ def _handle_plan_via_gate_turn(
 
     from sase.axe.run_agent_exec_gate import handle_gate_marker
 
+    if planner_response is not None:
+        _write_plan_path_artifact(state.current_artifacts_dir, plan_file)
+        record_workflow_metadata(
+            state.current_artifacts_dir,
+            {
+                "plan_path": plan_file,
+                "patch_name": ctx.cl_name,
+                "changespec_name": ctx.cl_name,
+            },
+        )
+        _save_planner_chat(plan_file, ctx, state, planner_response=planner_response)
+
     gate_data = {
         "gate_id": creation.record.gate_id,
         "member_artifacts_dir": creation.record.artifacts_dir,
         "member_agent_name": creation.record.member_agent_name,
         "kind": creation.record.kind,
     }
-    return handle_gate_marker(gate_data, ctx, state)
+    return handle_gate_marker(
+        gate_data,
+        ctx,
+        state,
+        persist_chat=planner_response is None,
+    )
 
 
-def _continue_after_plan_result(
-    plan_result: Any,
+def _save_planner_chat(
+    plan_file: str,
     ctx: AgentExecContext,
     state: LoopState,
     *,
-    planner_response: str | None = None,
-) -> str | None:
-    # Write plan_path.json so the TUI can show the plan
-    # in the file panel for the .plan agent entry.
-    _write_plan_path_artifact(state.current_artifacts_dir, plan_result.plan_file)
-    record_workflow_metadata(
-        state.current_artifacts_dir,
-        {
-            "plan_path": plan_result.plan_file,
-            "patch_name": ctx.cl_name,
-            "changespec_name": ctx.cl_name,
-        },
-    )
-
-    # Save a chat file for the planner step (the LLM response was lost
-    # to SIGTERM, so we use a plan-file preview as the synthetic response).
+    planner_response: str | None,
+) -> None:
+    """Persist the planner chat: real staged response, else a plan preview."""
     from sase.history.chat import save_chat_history
     from sase.history.chat_extras import format_extra_sections
     from sase.history.chat_links import format_plan_as_response
 
-    plan_response = format_plan_as_response(plan_result.plan_file)
+    plan_response = format_plan_as_response(plan_file)
     _planner_suffix = state.current_role_suffix or PLAN_CHAIN_PLAN_SUFFIX
     planner_agent = agent_name_for_suffix(ctx, _planner_suffix)
     _planner_extra = format_extra_sections(state.current_artifacts_dir)
@@ -274,6 +278,32 @@ def _continue_after_plan_result(
     update_meta_field(state.current_artifacts_dir, "chat_path", _planner_chat)
     update_step_marker_chat_path(state.current_artifacts_dir, _planner_chat)
 
+
+def _continue_after_plan_result(
+    plan_result: Any,
+    ctx: AgentExecContext,
+    state: LoopState,
+    *,
+    planner_response: str | None = None,
+) -> str | None:
+    # Write plan_path.json so the TUI can show the plan
+    # in the file panel for the .plan agent entry.
+    _write_plan_path_artifact(state.current_artifacts_dir, plan_result.plan_file)
+    record_workflow_metadata(
+        state.current_artifacts_dir,
+        {
+            "plan_path": plan_result.plan_file,
+            "patch_name": ctx.cl_name,
+            "changespec_name": ctx.cl_name,
+        },
+    )
+    _save_planner_chat(
+        plan_result.plan_file,
+        ctx,
+        state,
+        planner_response=planner_response,
+    )
+
     # Feedback: spawn a new agent with the original prompt +
     # accumulated "Additional Requirements" section.
     if plan_result.action == "feedback":
@@ -306,6 +336,9 @@ def _continue_after_plan_result(
         # reaches the successor.
         feedback_seeded_meta = live_plan_successor_meta(
             state.current_artifacts_dir, ctx.agent_meta
+        )
+        planner_agent = agent_name_for_suffix(
+            ctx, state.current_role_suffix or PLAN_CHAIN_PLAN_SUFFIX
         )
         continue_as_successor(
             ctx,

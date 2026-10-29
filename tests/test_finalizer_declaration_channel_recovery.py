@@ -10,6 +10,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
+from sase.agent.staged_handoff import build_plan_staged_record, write_staged_handoff
 from sase.finalizers.controller_context import declaration_recovery_spent
 from sase.finalizers.declaration import (
     FINAL_DECLARATION_RECOVERY_EVIDENCE_FILENAME,
@@ -300,23 +301,47 @@ def test_incident_shaped_recovery_prompt_attributes_paths_to_this_run(
         assert f"- `{path}` — new since run start" in prompt
 
 
+@pytest.mark.parametrize("protocol", ["legacy", "staged"])
 def test_handoff_skips_declaration_recovery(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
+    protocol: str,
 ) -> None:
     prepare_dirty_declaration(monkeypatch, tmp_path)
-    (tmp_path / ".sase_plan_pending").write_text("1\n", encoding="utf-8")
     provider = MagicMock()
     original = InvokeResult(content="planning")
+    if protocol == "legacy":
+        (tmp_path / ".sase_plan_pending").write_text("1\n", encoding="utf-8")
+        result = ensure_final_declaration_or_recover(
+            provider=provider,
+            invoke_result=original,
+            model_tier="large",
+            suppress_output=True,
+            model_override=None,
+            artifacts_dir=str(tmp_path),
+        )
+        assert result is original
+        provider.invoke.assert_not_called()
+        return
 
-    result = ensure_final_declaration_or_recover(
-        provider=provider,
-        invoke_result=original,
-        model_tier="large",
-        suppress_output=True,
-        model_override=None,
+    monkeypatch.setenv("SASE_AGENT", "1")
+    write_staged_handoff(
+        build_plan_staged_record(
+            plan_file=str(tmp_path / "plan.md"),
+            original_file=str(tmp_path / "plan.md"),
+            dirty_obligations_at_stage=[],
+            created_at="2020-01-01T00:00:00Z",
+        ),
         artifacts_dir=str(tmp_path),
     )
-
-    assert result is original
-    provider.invoke.assert_not_called()
+    provider.invoke.return_value = InvokeResult(content="no declaration")
+    with pytest.raises(RuntimeError, match="declaration"):
+        ensure_final_declaration_or_recover(
+            provider=provider,
+            invoke_result=original,
+            model_tier="large",
+            suppress_output=True,
+            model_override=None,
+            artifacts_dir=str(tmp_path),
+        )
+    provider.invoke.assert_called()

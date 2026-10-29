@@ -9,6 +9,7 @@ from unittest.mock import MagicMock
 import pytest
 
 from sase.agent.pending_handoff import PLAN_PENDING_MARKER
+from sase.agent.staged_handoff import build_plan_staged_record, write_staged_handoff
 from sase.finalizers.controller import run_finalizers
 from sase.finalizers.plan import resolve_and_persist_finalizer_plan
 from sase.llm_provider.types import InvokeResult
@@ -59,17 +60,32 @@ def test_missing_artifacts_dir_is_a_safe_noop(monkeypatch: pytest.MonkeyPatch) -
     assert result.content == "no-artifacts"
 
 
+@pytest.mark.parametrize("protocol", ["legacy", "staged"])
 def test_handoff_skips_generic_controller(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
+    protocol: str,
 ) -> None:
     repo = tmp_path / "repo"
     repo.mkdir()
     artifacts = tmp_path / "artifacts"
     artifacts.mkdir()
     prepare_agent_env(monkeypatch, artifacts, repo)
-    (artifacts / PLAN_PENDING_MARKER).write_text("1\n", encoding="utf-8")
-    dirty = {"repos": (dirty_repo(repo),)}
+    if protocol == "legacy":
+        (artifacts / PLAN_PENDING_MARKER).write_text("1\n", encoding="utf-8")
+        dirty = {"repos": (dirty_repo(repo),)}
+    else:
+        monkeypatch.setenv("SASE_AGENT", "1")
+        write_staged_handoff(
+            build_plan_staged_record(
+                plan_file=str(tmp_path / "plan.md"),
+                original_file=str(tmp_path / "plan.md"),
+                dirty_obligations_at_stage=[],
+                created_at="2020-01-01T00:00:00Z",
+            ),
+            artifacts_dir=str(artifacts),
+        )
+        dirty = {"repos": ()}
     patch_dirty(monkeypatch, repo, dirty)
     provider = MagicMock()
 
@@ -80,8 +96,12 @@ def test_handoff_skips_generic_controller(
     result = run_controller(artifacts, provider)
 
     assert result.content == "done"
-    provider.invoke.assert_not_called()
-    assert not (artifacts / "finalizer_result.json").exists()
+    if protocol == "legacy":
+        provider.invoke.assert_not_called()
+        assert not (artifacts / "finalizer_result.json").exists()
+        return
+    payload = json.loads((artifacts / "finalizer_result.json").read_text())
+    assert payload["status"] == "success"
 
 
 def test_final_none_writes_empty_success_result(

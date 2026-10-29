@@ -21,6 +21,7 @@ from sase.agent.pending_handoff import (
     has_pending_handoff,
     pending_handoff_kind,
 )
+from sase.agent.staged_handoff import build_plan_staged_record, write_staged_handoff
 from sase.finalizers.config import FinalizerConfig
 from sase.finalizers.controller import FinalizerControllerError, run_finalizers
 from sase.finalizers.plan import (
@@ -449,34 +450,54 @@ def test_controller_integrity_failure_still_journals_finished(
     assert "phase_started" not in kinds
 
 
+@pytest.mark.parametrize("protocol", ["legacy", "staged"])
 def test_controller_handoff_skip_journals_phase_skipped(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, protocol: str
 ) -> None:
     artifacts = tmp_path / "artifacts"
     artifacts.mkdir(parents=True)
-    (artifacts / PLAN_PENDING_MARKER).write_text("pending", encoding="utf-8")
     (artifacts / "agent_meta.json").write_text("{}", encoding="utf-8")
     monkeypatch.setenv("SASE_AGENT_TIMESTAMP", "run-1")
     sentinel = InvokeResult(content="untouched")
+    if protocol == "legacy":
+        (artifacts / PLAN_PENDING_MARKER).write_text("pending", encoding="utf-8")
+        result = run_finalizers(
+            provider=MagicMock(),
+            original_prompt="do work",
+            invoke_result=sentinel,
+            model_tier="small",
+            suppress_output=True,
+            model_override=None,
+            artifacts_dir=str(artifacts),
+        )
+        assert result is sentinel
+        events = _journal_events(artifacts)
+        assert len(events) == 1
+        assert events[0]["event"] == "phase_skipped"
+        assert events[0]["reason"] == "handoff:plan"
+        summary = _read_meta(artifacts)["finalizer_status"]
+        assert summary["phase"] == "skipped"
+        assert summary["reason"] == "handoff:plan"
+        return
 
-    result = run_finalizers(
-        provider=MagicMock(),
-        original_prompt="do work",
-        invoke_result=sentinel,
-        model_tier="small",
-        suppress_output=True,
-        model_override=None,
+    monkeypatch.setenv("SASE_AGENT", "1")
+    write_staged_handoff(
+        build_plan_staged_record(
+            plan_file=str(tmp_path / "plan.md"),
+            original_file=str(tmp_path / "plan.md"),
+            dirty_obligations_at_stage=[],
+            created_at="2020-01-01T00:00:00Z",
+        ),
         artifacts_dir=str(artifacts),
     )
-
-    assert result is sentinel
-    events = _journal_events(artifacts)
-    assert len(events) == 1
-    assert events[0]["event"] == "phase_skipped"
-    assert events[0]["reason"] == "handoff:plan"
+    _prepare_command_run(monkeypatch, artifacts)
+    result = _run(artifacts)
+    assert result.content == "done"
+    kinds = [item["event"] for item in _journal_events(artifacts)]
+    assert "phase_skipped" not in kinds
+    assert "phase_started" in kinds
     summary = _read_meta(artifacts)["finalizer_status"]
-    assert summary["phase"] == "skipped"
-    assert summary["reason"] == "handoff:plan"
+    assert summary["phase"] == "settled"
 
 
 def test_controller_handoff_skip_writes_nothing_without_timestamp(

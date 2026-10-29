@@ -84,7 +84,10 @@ def test_non_auto_creates_gate_turn_and_ends_gated(
     gate_marker_calls: list[dict[str, Any]] = []
 
     def fake_handle_gate_marker(
-        gate_data: dict[str, Any], _ctx: Any, _state: Any
+        gate_data: dict[str, Any],
+        _ctx: Any,
+        _state: Any,
+        **_kwargs: Any,
     ) -> str:
         gate_marker_calls.append(gate_data)
         return "gated"

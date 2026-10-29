@@ -15,6 +15,12 @@ from sase.agent.pending_handoff_write import (
     handoff_guard,
     write_pending_handoff_marker,
 )
+from sase.agent.staged_handoff import (
+    StagedHandoffError,
+    build_plan_staged_record,
+    write_staged_handoff,
+)
+from sase.feature_flags import override_flags
 from sase.axe.run_agent_exec_finalize import _finalizer_reports_failure
 from sase.finalizers.controller_run import _controller_failure_for_handoff
 from sase.finalizers.owned_turn import (
@@ -137,26 +143,49 @@ def test_handle_monitor_start_refuses_finalizer_owned_turn(
     assert not (tmp_path / HANDOFF_INFLIGHT_MARKER).exists()
 
 
+@pytest.mark.parametrize("staged_enabled", [False, True])
 def test_handoff_guard_refuses_finalizer_owned_turn(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, staged_enabled: bool
 ) -> None:
     monkeypatch.setenv("SASE_AGENT", "1")
     monkeypatch.setenv("SASE_ARTIFACTS_DIR", str(tmp_path))
-    assert handoff_guard(command="sase pipe") == str(tmp_path)
-    monkeypatch.setenv(SASE_FINALIZER_OWNED_TURN_ENV, "1")
-    with pytest.raises(PendingHandoffError, match="sase pipe.*host finalizer turn"):
-        handoff_guard(command="sase pipe")
+    with override_flags(staged_handoffs=staged_enabled):
+        assert handoff_guard(command="sase pipe") == str(tmp_path)
+        monkeypatch.setenv(SASE_FINALIZER_OWNED_TURN_ENV, "1")
+        with pytest.raises(PendingHandoffError, match="sase pipe.*host finalizer turn"):
+            handoff_guard(command="sase pipe")
 
 
+@pytest.mark.parametrize("staged_enabled", [False, True])
 def test_write_pending_handoff_marker_refuses_finalizer_owned_turn(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, staged_enabled: bool
 ) -> None:
     monkeypatch.setenv(SASE_FINALIZER_OWNED_TURN_ENV, "1")
-    with pytest.raises(PendingHandoffError, match="host finalizer turn"):
-        write_pending_handoff_marker(
-            PIPE_PENDING_MARKER, {"prompt": "x"}, artifacts_dir=str(tmp_path)
-        )
+    with override_flags(staged_handoffs=staged_enabled):
+        with pytest.raises(PendingHandoffError, match="host finalizer turn"):
+            write_pending_handoff_marker(
+                PIPE_PENDING_MARKER, {"prompt": "x"}, artifacts_dir=str(tmp_path)
+            )
     assert not (tmp_path / PIPE_PENDING_MARKER).exists()
+
+
+@pytest.mark.parametrize("staged_enabled", [False, True])
+def test_write_staged_handoff_refuses_finalizer_owned_turn(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, staged_enabled: bool
+) -> None:
+    monkeypatch.setenv("SASE_AGENT", "1")
+    monkeypatch.setenv("SASE_ARTIFACTS_DIR", str(tmp_path))
+    monkeypatch.setenv(SASE_FINALIZER_OWNED_TURN_ENV, "1")
+    record = build_plan_staged_record(
+        plan_file=str(tmp_path / "plan.md"),
+        original_file=str(tmp_path / "plan.md"),
+        dirty_obligations_at_stage=[],
+        created_at="2020-01-01T00:00:00Z",
+    )
+    with override_flags(staged_handoffs=staged_enabled):
+        with pytest.raises(StagedHandoffError, match="host finalizer turn"):
+            write_staged_handoff(record, artifacts_dir=str(tmp_path))
+    assert not (tmp_path / ".sase_handoff_staged.json").exists()
 
 
 def test_is_joinable_refuses_finalizer_owned_turn() -> None:
