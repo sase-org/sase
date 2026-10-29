@@ -49,6 +49,14 @@ def test_setup_notes_the_core_version_ahead_bit_as_normal() -> None:
     assert "no action is needed here" in output
 
 
+def test_format_tool_setup_reinstalls_a_stale_ruff_version() -> None:
+    output = dry_run("_setup-format-tools")
+
+    assert 'ruff" --version 2>/dev/null)' in output
+    assert '!= "ruff 0.17.3"' in output
+    assert "--group format-tools" in output
+
+
 def test_setup_propagates_the_post_rebuild_bindings_check_exit_status() -> None:
     """Without this, `_setup` silently swallows a still-stale rebuilt extension.
 

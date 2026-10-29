@@ -12,6 +12,7 @@ demo_venv_dir := ".venv-demos"
 demo_venv_bin := demo_venv_dir / "bin"
 demo_venv_dir_abs := justfile_directory() / demo_venv_dir
 keep_sorted_version := "v0.8.0"
+format_tools_ruff_version := "0.17.3"
 keep_sorted_bin := format_venv_bin / "keep-sorted"
 prettier_bin := "node_modules/.bin/prettier"
 
@@ -71,7 +72,7 @@ _format-venv:
     @[ -x {{ format_venv_bin }}/python ] || uv venv {{ format_venv_dir }}
 
 _setup-format-tools: _format-venv
-    @if [ ! -x "{{ format_venv_bin }}/ruff" ] || ! "{{ format_venv_bin }}/python" -c "import yaml" >/dev/null 2>&1; then \
+    @if [ ! -x "{{ format_venv_bin }}/ruff" ] || ! "{{ format_venv_bin }}/python" -c "import yaml" >/dev/null 2>&1 || [ "$("{{ format_venv_bin }}/ruff" --version 2>/dev/null)" != "ruff {{ format_tools_ruff_version }}" ]; then \
         printf "[setup-format] Installing formatter tools into {{ format_venv_dir }}.\n"; \
         uv pip install --python "{{ format_venv_bin }}/python" --project "{{ justfile_directory_abs }}" --group format-tools; \
     fi
