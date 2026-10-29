@@ -6134,6 +6134,11 @@
           "description": "Deliver Muse instruction bundles as a prompt prefix",
           "default": true,
           "deprecated": true
+        },
+        "staged_handoffs": {
+          "type": "boolean",
+          "description": "Stage plan handoffs for host completion instead of killing the runner.",
+          "default": false
         }
       }
     },

@@ -483,6 +483,11 @@ REQUIRED_BINDINGS = (
     "footprint_report",
     "footprint_card",
     "footprint_decide",
+    "staged_handoff_wire_schema_version",
+    "validate_staged_handoff",
+    "validate_staged_handoff_receipt",
+    "evaluate_stage_admission",
+    "staged_handoff_receipt_authorizes",
 )
 
 # Public Python compatibility symbols intentionally retained alongside the

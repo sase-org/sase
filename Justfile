@@ -476,6 +476,8 @@ _lint-patch-stitch-terminology: _setup
 # sase-1no.2 exported STRANDED_LEAF_STYLE / STRANDED_BREADCRUMB_STYLE as
 # module constants (not public defs, so they cannot be --epic-symbol rows)
 # for sase-1no.3; sase-1no.4 consumed blocked_sentence, so its row is dropped.
+# sase-1pj.1.1.1 exported staged-handoff storage/receipt helpers; later
+# phases consume them (adoption 1.1.2, proposal-command 1.1.4).
 # Never put a comment
 # line inside the continued command below: just joins the lines, so the comment
 # would swallow every later argument.
@@ -483,6 +485,15 @@ _lint-symvision *args: _setup
     SASE_SYMVISION_BEAD_STATUS_ONLY=1 BD_COMMAND=tools/sase_bead {{ venv_bin }}/symvision src/sase \
         --exclude-decorator gate_command_entrypoint \
         --exclude-decorator builtin_chop \
+        --epic-symbol 'sase-1pj.1.1.2(discard_staged_handoff)' \
+        --epic-symbol 'sase-1pj.1.1.2(read_adoption_receipt)' \
+        --epic-symbol 'sase-1pj.1.1.2(read_staged_handoff)' \
+        --epic-symbol 'sase-1pj.1.1.2(write_adoption_receipt)' \
+        --epic-symbol 'sase-1pj.1.1.4(acquire_staging_reservation)' \
+        --epic-symbol 'sase-1pj.1.1.4(build_plan_staged_record)' \
+        --epic-symbol 'sase-1pj.1.1.4(release_staging_reservation)' \
+        --epic-symbol 'sase-1pj.1.1.4(staged_handoffs_enabled)' \
+        --epic-symbol 'sase-1pj.1.1.4(write_staged_handoff)' \
         {{ args }}
 
 # Check Python file line counts (private, extracted for per-stage wrapping)

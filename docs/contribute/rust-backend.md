@@ -120,6 +120,12 @@ The shipped Rust-backed operations are grouped by the Python facade that calls t
   The Rust core owns the closed vocabulary, the wire types, the validation invariants,
   delivery-channel and fallback invariants, and the `common_digest` definition; Python
   owns bundle composition and manifest assembly. Readers continue to accept v1.
+- Staged-handoff records (`staged_handoff_wire_schema_version`,
+  `validate_staged_handoff`, `validate_staged_handoff_receipt`,
+  `evaluate_stage_admission`, `staged_handoff_receipt_authorizes`), called through
+  `sase.core.staged_handoff`. Rust owns schema validation, kind/workspace/carry
+  invariants, receipt identity, and admission policy. Python owns artifact-path
+  plumbing, reservations, locking, and host observations.
 - Footprint usage-census ledger (`footprint_catalog_status`, `footprint_ingest_catalog`,
   `footprint_fold`, `footprint_upsert_derived`, `footprint_status`, `footprint_prune`,
   `footprint_clear`, `footprint_validate_overlay`, `footprint_export`,

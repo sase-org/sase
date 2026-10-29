@@ -23,7 +23,7 @@ Exact configuration keys generated from the schema and bundled defaults.
 | [Prompts and tools](prompts.md)                     | Macros, named tools, plugins, hooks, and mentor selection.                               | 108          |
 | [Automation and work tracking](automation.md)       | Beads, goals, gates, SDD, and related automation policy.                                 | 71           |
 | [Runtime and stored data](runtime.md)               | Process history, service hosting, artifacts, disk use, and reading surfaces.             | 105          |
-| [Integrations and telemetry](integrations.md)       | Chat, mobile access, and local telemetry settings.                                       | 52           |
+| [Integrations and telemetry](integrations.md)       | Chat, mobile access, and local telemetry settings.                                       | 53           |
 
 ## Top-level keys
 
