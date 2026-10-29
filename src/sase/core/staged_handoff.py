@@ -67,3 +67,31 @@ def receipt_authorizes(receipt: dict[str, Any], staged_id: str) -> bool:
         raise
     except ValueError as exc:
         raise StagedHandoffContractError(str(exc)) from exc
+
+
+def gate_staged_payload_schema_version() -> int:
+    """Return the Rust staged gate payload schema version."""
+    binding = require_rust_binding("gate_staged_payload_schema_version")
+    return int(binding())
+
+
+def validate_gate_staged_payload(payload: dict[str, Any]) -> dict[str, Any]:
+    """Validate a staged gate payload dict via Rust."""
+    binding = require_rust_binding("validate_gate_staged_payload")
+    try:
+        return dict(binding(payload))
+    except StagedHandoffContractError:
+        raise
+    except ValueError as exc:
+        raise StagedHandoffContractError(str(exc)) from exc
+
+
+def build_gate_staged_payload(payload: dict[str, Any]) -> dict[str, Any]:
+    """Assemble a staged gate payload from parts, defaulting then validating."""
+    binding = require_rust_binding("build_gate_staged_payload")
+    try:
+        return dict(binding(payload))
+    except StagedHandoffContractError:
+        raise
+    except ValueError as exc:
+        raise StagedHandoffContractError(str(exc)) from exc

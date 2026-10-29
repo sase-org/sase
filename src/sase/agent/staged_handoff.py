@@ -424,6 +424,39 @@ def build_pipe_staged_record(
     )
 
 
+def build_gate_staged_record(
+    *,
+    payload: Mapping[str, Any],
+    successor_workspace: str,
+    carry_allowed: bool,
+    dirty_obligations_at_stage: list[str] | None = None,
+    staged_id: str | None = None,
+    created_at: str | None = None,
+) -> dict[str, Any]:
+    """Build a gate staged-handoff record from a validated gate payload.
+
+    The payload must already satisfy the Rust gate contract
+    (``validate_gate_staged_payload``); this only wraps it in the outer
+    record. The workspace disposition comes from the payload's
+    ``workspace_mode`` via the gate staged-contract mapping.
+    """
+    obligations = (
+        list(dirty_obligations_at_stage)
+        if dirty_obligations_at_stage is not None
+        else _measure_dirty_obligations_at_stage()
+    )
+    return {
+        "schema_version": STAGED_HANDOFF_WIRE_SCHEMA_VERSION,
+        "staged_id": staged_id or str(uuid.uuid4()),
+        "kind": "gate",
+        "created_at": created_at or _now_rfc3339(),
+        "payload": dict(payload),
+        "successor_workspace": successor_workspace,
+        "carry_allowed": carry_allowed,
+        "dirty_obligations_at_stage": obligations,
+    }
+
+
 def _measure_dirty_obligations_at_stage(
     artifacts_dir: str | None = None,
 ) -> list[str]:
@@ -580,6 +613,7 @@ __all__ = [
     "acquire_handoff_locks",
     "acquire_staging_reservation",
     "admit_stage",
+    "build_gate_staged_record",
     "build_pipe_staged_record",
     "build_plan_staged_record",
     "build_questions_staged_record",

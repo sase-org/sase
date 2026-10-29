@@ -8,8 +8,11 @@ from sase.core.rust import require_rust_binding
 from sase.core.staged_handoff import (
     STAGED_HANDOFF_WIRE_SCHEMA_VERSION,
     StagedHandoffContractError,
+    build_gate_staged_payload,
     evaluate_stage_admission,
+    gate_staged_payload_schema_version,
     receipt_authorizes,
+    validate_gate_staged_payload,
     validate_staged_handoff,
     validate_staged_handoff_receipt,
     wire_schema_version,
@@ -79,3 +82,92 @@ def test_admission_refuses_legacy_marker() -> None:
                 "has_accepted_current_submission": False,
             }
         )
+
+
+def _gate_payload() -> dict[str, object]:
+    return {
+        "gate_schema_version": 1,
+        "request_id": "custom-stage-1",
+        "spec": {
+            "request_id": "custom-stage-1",
+            "resources": [
+                {
+                    "path": "notes.md",
+                    "role": "editable",
+                    "executable": False,
+                    "source": "/tmp/work/notes.md",
+                }
+            ],
+        },
+        "auto": {
+            "decision": {"profile": "manual"},
+            "policy_block": {},
+            "auto_execute": False,
+        },
+        "resources": [
+            {
+                "path": "notes.md",
+                "role": "editable",
+                "executable": False,
+                "sha256": "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08",
+                "size_bytes": 3,
+                "origin": "/tmp/work/notes.md",
+                "staged_relpath": "snapshots/notes.md",
+            }
+        ],
+        "creator": {
+            "project": "sase",
+            "project_file": "/tmp/sase.sase",
+            "artifacts_dir": "/tmp/artifacts/20261029T000000Z",
+            "timestamp": "20261029T000000Z",
+            "agent": "agent-1",
+            "meta": {},
+        },
+        "workspace_mode": "inherit",
+    }
+
+
+def test_gate_payload_schema_version_matches_binding() -> None:
+    assert gate_staged_payload_schema_version() == 1
+    binding = require_rust_binding("gate_staged_payload_schema_version")
+    assert int(binding()) == 1
+
+
+def test_gate_payload_round_trips_through_binding() -> None:
+    payload = _gate_payload()
+    assert validate_gate_staged_payload(dict(payload)) == payload
+
+
+def test_gate_payload_build_defaults_schema_version() -> None:
+    payload = _gate_payload()
+    del payload["gate_schema_version"]
+    built = build_gate_staged_payload(dict(payload))
+    assert built["gate_schema_version"] == 1
+    assert validate_gate_staged_payload(dict(built)) == built
+
+
+def test_gate_payload_binding_rejects_mismatch() -> None:
+    payload = _gate_payload()
+    payload["request_id"] = "custom-other"
+    with pytest.raises(StagedHandoffContractError, match="payload.spec.request_id"):
+        build_gate_staged_payload(payload)
+
+
+def test_gate_record_validates_disposition_through_binding() -> None:
+    record = {
+        "schema_version": 1,
+        "staged_id": STAGED_ID,
+        "kind": "gate",
+        "created_at": "2026-10-28T12:00:00Z",
+        "payload": _gate_payload(),
+        "successor_workspace": "inherit",
+        "carry_allowed": True,
+        "dirty_obligations_at_stage": [],
+    }
+    assert validate_staged_handoff(dict(record)) == record
+
+    mismatched = dict(record)
+    mismatched["successor_workspace"] = "none"
+    mismatched["carry_allowed"] = False
+    with pytest.raises(StagedHandoffContractError, match="successor_workspace"):
+        validate_staged_handoff(mismatched)

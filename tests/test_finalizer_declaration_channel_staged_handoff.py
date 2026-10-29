@@ -38,6 +38,32 @@ from .finalizer_declaration_channel_test_helpers import (
 _STAGED_ID = "123e4567-e89b-12d3-a456-426614174000"
 
 
+def _gate_payload() -> dict[str, Any]:
+    """Minimal valid staged gate payload for declaration-channel tests.
+
+    The Rust gate contract requires a typed payload; these tests only need a
+    stageable gate record to exercise declaration recovery, so an empty spec
+    resource list with release disposition suffices.
+    """
+    request_id = "test-gate-1"
+    return {
+        "gate_schema_version": 1,
+        "request_id": request_id,
+        "spec": {"request_id": request_id, "resources": []},
+        "auto": {"decision": {}, "policy_block": {}, "auto_execute": False},
+        "resources": [],
+        "creator": {
+            "project": "p",
+            "project_file": "/tmp/p.sase",
+            "artifacts_dir": "/tmp/artifacts/20261029T000000Z",
+            "timestamp": "20261029T000000Z",
+            "agent": "agent-1",
+            "meta": {},
+        },
+        "workspace_mode": "release",
+    }
+
+
 def _stage(
     monkeypatch: pytest.MonkeyPatch,
     artifacts: Path,
@@ -57,6 +83,8 @@ def _stage(
             plan_file=str(artifacts / "archived.md"),
             original_file=str(artifacts / "draft.md"),
         )
+    if kind == "gate":
+        payload.update(_gate_payload())
     if prepared_intent_ref is not None:
         payload["prepared_intent_ref"] = prepared_intent_ref
     record = {

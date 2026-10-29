@@ -356,6 +356,14 @@ _REVIEWED_DIR_OPERATION_CONTEXTS: dict[str, DirOpReview] = {
             "not an agent artifact directory."
         ),
     ),
+    "src/sase/gate_turn/staged_contract.py:_remove_snapshot_dir": DirOpReview(
+        exemption=(
+            "Removes only one staged gate snapshot directory under "
+            "artifacts_dir/.sase_gate_staged_resources/<staged_id>, created "
+            "by prepare_staged_gate for that stage; it never removes the "
+            "agent artifact directory itself or tracked marker files."
+        ),
+    ),
 }
 
 

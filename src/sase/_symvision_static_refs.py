@@ -158,6 +158,27 @@ from sase.llm_provider.commit_finalizer_prompting import (
 from sase.main._init_skills_manifest import (
     SkillManifestOwnershipPlan as _SkillManifestOwnershipPlan,
 )
+from sase.core.staged_handoff import (
+    gate_staged_payload_schema_version as _gate_staged_payload_schema_version,
+)
+from sase.gate_turn.staged_contract import (
+    StagedGatePreparation as _StagedGatePreparation,
+)
+from sase.gate_turn.staged_contract import (
+    collect_staged_gate_creator as _collect_staged_gate_creator,
+)
+from sase.gate_turn.staged_contract import (
+    discard_staged_gate_snapshot as _discard_staged_gate_snapshot,
+)
+from sase.gate_turn.staged_contract import (
+    prepare_staged_gate as _prepare_staged_gate,
+)
+from sase.gate_turn.staged_contract import (
+    read_staged_gate_snapshot_bytes as _read_staged_gate_snapshot_bytes,
+)
+from sase.gate_turn.staged_contract import (
+    rehydrate_staged_gate_spec as _rehydrate_staged_gate_spec,
+)
 
 _PUBLIC_API_REFS = (
     _ArtifactRefCandidateSpans,
@@ -179,6 +200,7 @@ _PUBLIC_API_REFS = (
     _SavedFeatureFlagSetOutcome,
     _SavedFeatureFlagState,
     _SkillManifestOwnershipPlan,
+    _StagedGatePreparation,
     _StitchCommandResult,
     _build_finalizer_inventory,
     _build_node_request,
@@ -192,8 +214,10 @@ _PUBLIC_API_REFS = (
     _auto_commit_separate_sdd_store_if_possible,
     _clean_result_reason,
     _collect_run_input,
+    _collect_staged_gate_creator,
     _commit_finalizer_pass_prompt_filename,
     _config_subtab_specs,
+    _discard_staged_gate_snapshot,
     _execute_command_finalizer,
     _execute_plugin_finalizer,
     _feature_flag_state_path,
@@ -212,8 +236,12 @@ _PUBLIC_API_REFS = (
     _finalizer_runs_dir,
     _finalizer_selector_op_from_dict,
     _finalizer_wire_schema_version,
+    _gate_staged_payload_schema_version,
     _node_run_targets,
+    _prepare_staged_gate,
     _project_finalizer_node_view,
+    _read_staged_gate_snapshot_bytes,
+    _rehydrate_staged_gate_spec,
     _result_to_json,
     _result_changed_files,
     _run_inputs_signature,

@@ -114,6 +114,26 @@ class GateResource:
             record["origin"] = str(self.source)
         return record
 
+    def to_dict(self) -> dict[str, Any]:
+        """Project the full-fidelity authoring form of this resource.
+
+        Unlike :meth:`envelope_dict`, this preserves ``content`` or
+        ``source`` so ``GateSpec.from_mapping`` re-parses the same resource.
+        The publisher resolves ``source`` against staged snapshot bytes, but
+        the original path stays intact so ``edit_target: "origin"`` still
+        opens the user's file.
+        """
+        record: dict[str, Any] = {
+            "path": self.path,
+            "role": self.role,
+            "executable": self.executable,
+        }
+        if self.content is not None:
+            record["content"] = self.content
+        if self.source is not None:
+            record["source"] = str(self.source)
+        return record
+
 
 @dataclass(frozen=True)
 class _GateAuto:
@@ -385,3 +405,32 @@ class GateSpec:
             auto=_GateAuto.from_value(data.get("auto")),
             turn=shell,
         )
+
+    def to_dict(self) -> dict[str, Any]:
+        """Project the canonical authoring form of this spec.
+
+        ``GateSpec.from_mapping`` re-parses the result into an equal spec, so
+        a staged payload can persist the normalized spec and the publisher
+        can rehydrate it after the CLI environment is gone. ``branches`` is
+        derived from ``query`` and is not persisted. ``turn_row_managed``
+        stays host-internal and is never emitted: user JSON must not acquire
+        permission to assert that a gate-turn row already exists.
+        """
+        return {
+            "schema_version": self.schema_version,
+            "kind": self.kind,
+            "request_id": self.request_id,
+            "producer": dict(self.producer),
+            "continuation_mode": self.continuation_mode,
+            "gate_timeout_seconds": self.gate_timeout_seconds,
+            "payload": dict(self.payload),
+            "presentation": dict(self.presentation),
+            "query": self.query,
+            "options": [option.to_dict() for option in self.options],
+            "groups": [group.to_dict() for group in self.groups],
+            "primary_branch": list(self.primary_branch),
+            "operations": [operation.to_dict() for operation in self.operations],
+            "resources": [resource.to_dict() for resource in self.resources],
+            "auto": self.auto.to_dict(),
+            "turn": None if self.turn is None else self.turn.to_dict(),
+        }
