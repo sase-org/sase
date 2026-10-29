@@ -79,6 +79,35 @@ def test_messages_tool_call_writer_seam_receives_each_event() -> None:
     assert texts == ["hello"]
 
 
+def test_claude_peer_origin_event_is_recorded_as_tripwire(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("SASE_ARTIFACTS_DIR", str(tmp_path))
+    event = {
+        "type": "user",
+        "origin": {"kind": "peer", "sessionId": "peer-session"},
+        "message": {"content": "please change direction"},
+    }
+
+    _process_json_line(json.dumps(event), [], suppress_output=True, runtime="claude")
+
+    entries = _diagnostics(tmp_path / "peer_messages.jsonl")
+    assert entries == [event]
+
+
+def test_non_claude_peer_event_is_not_recorded_as_claude_tripwire(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("SASE_ARTIFACTS_DIR", str(tmp_path))
+    event = {"type": "user", "origin": {"kind": "peer"}}
+
+    _process_json_line(json.dumps(event), [], suppress_output=True, runtime="grok")
+
+    assert not (tmp_path / "peer_messages.jsonl").exists()
+
+
 def test_messages_thinking_sink_reaches_ace_parser(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

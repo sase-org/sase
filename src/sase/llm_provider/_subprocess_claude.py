@@ -1,6 +1,8 @@
 """Claude Code stream-json subprocess parsing."""
 
 import json
+import logging
+import os
 import re
 import subprocess
 from collections.abc import Callable, Mapping
@@ -20,6 +22,8 @@ from ._subprocess_diagnostics import record_stdout_json_decode_diagnostic
 from ._subprocess_stream import append_error_events, stream_json_lines
 from ._tool_calls import append_claude_tool_call_event
 from .usage.types import UsageProbeContext
+
+log = logging.getLogger(__name__)
 
 ToolCallWriter = Callable[[Mapping[str, Any]], None]
 ThinkingSink = Callable[[Mapping[str, Any], Mapping[str, Any], IO[str]], None]
@@ -194,6 +198,9 @@ def _process_json_line(
     if not isinstance(event, Mapping):
         return
 
+    if runtime == "claude":
+        _record_peer_origin_message(event)
+
     event_type = event.get("type")
     if event_type == "rate_limit_event" and runtime == "claude":
         from .usage.claude import submit_claude_passive_usage_event
@@ -235,6 +242,25 @@ def _process_json_line(
             if isinstance(usage, dict):
                 for key in usage_totals:
                     usage_totals[key] += usage.get(key, 0)
+
+
+def _record_peer_origin_message(event: Mapping[str, Any]) -> None:
+    """Keep a tripwire artifact for stream events sourced from another session."""
+    origin = event.get("origin")
+    if not isinstance(origin, Mapping) or origin.get("kind") != "peer":
+        return
+    artifacts_dir = os.environ.get("SASE_ARTIFACTS_DIR")
+    if not artifacts_dir:
+        return
+    try:
+        with open(
+            os.path.join(artifacts_dir, "peer_messages.jsonl"), "a", encoding="utf-8"
+        ) as stream:
+            stream.write(json.dumps(dict(event), ensure_ascii=False) + "\n")
+    except OSError:
+        log.warning(
+            "Could not record Claude peer-origin message artifact", exc_info=True
+        )
 
 
 def _record_wait_state(

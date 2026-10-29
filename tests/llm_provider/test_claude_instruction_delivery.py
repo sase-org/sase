@@ -134,6 +134,7 @@ def test_explicit_files_excludes_and_cleanup(harness: _Harness) -> None:
     assert "--append-system-prompt" not in argv
     settings = json.loads(argv[argv.index("--settings") + 1])
     assert settings["hooks"] == json.loads(helper_channel_settings_json())["hooks"]
+    assert settings["crossSessionInbound"] == "refuse"
     assert settings["autoMemoryEnabled"] is False
     assert settings["claudeMdExcludes"] == [
         str(project / "AGENTS.md"),
@@ -166,6 +167,8 @@ def test_legacy_argv_golden(harness: _Harness, enabled: bool, artifacts: bool) -
     harness.invoke(enabled=enabled, artifacts=artifacts)
     argv = harness.calls[0]["argv"]
     session = argv[argv.index("--session-id") + 1]
+    expected_settings = json.loads(helper_channel_settings_json())
+    expected_settings["crossSessionInbound"] = "refuse"
     assert argv == [
         "claude",
         "-p",
@@ -178,11 +181,11 @@ def test_legacy_argv_golden(harness: _Harness, enabled: bool, artifacts: bool) -
         "--append-system-prompt",
         _SINGLE_TURN_DIRECTIVE,
         "--disallowedTools",
-        "ScheduleWakeup",
+        "ScheduleWakeup,ListAgents,Workflow,Monitor,CronCreate,CronDelete,RemoteTrigger",
         "--session-id",
         session,
         "--settings",
-        helper_channel_settings_json(),
+        json.dumps(expected_settings),
         "--append-subagent-system-prompt-file",
         str(helper_template_path()),
     ]
@@ -227,7 +230,9 @@ def test_materialization_failure_is_slot_local(
     if slot == "root":
         assert "--append-system-prompt-file" not in argv
         assert argv[argv.index("--append-system-prompt") + 1] == _SINGLE_TURN_DIRECTIVE
-        assert settings == json.loads(helper_channel_settings_json())
+        expected_settings = json.loads(helper_channel_settings_json())
+        expected_settings["crossSessionInbound"] = "refuse"
+        assert settings == expected_settings
         assert delivery["subagent"]["status"] == "explicit"
     else:
         assert delivery["status"] == "explicit"

@@ -480,7 +480,7 @@ class ClaudeCodeProvider(LLMProvider):
                 if root_prompt_path is not None
                 else _SINGLE_TURN_DIRECTIVE,
                 "--disallowedTools",
-                "ScheduleWakeup",
+                "ScheduleWakeup,ListAgents,Workflow,Monitor,CronCreate,CronDelete,RemoteTrigger",
                 session_mode_arg,
                 active_session_uuid,
             ]

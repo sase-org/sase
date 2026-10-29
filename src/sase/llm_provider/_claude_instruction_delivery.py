@@ -23,6 +23,9 @@ def claude_instruction_files() -> Iterator[tuple[Path | None, Path | None, str]]
     """
     delivery = current_instruction_delivery()
     settings_json = helper_channel_settings_json()
+    settings = json.loads(settings_json)
+    settings["crossSessionInbound"] = "refuse"
+    settings_json = json.dumps(settings)
     root_path = helper_path = None
     with ExitStack() as stack:
         if delivery is not None:

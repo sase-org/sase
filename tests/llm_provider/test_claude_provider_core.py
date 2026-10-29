@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import os
 import subprocess
 from unittest.mock import MagicMock, patch
@@ -61,7 +62,20 @@ def test_claude_provider_extra_args_from_env_small(
     assert "stream-json" in cmd
     assert "--include-hook-events" not in cmd
     assert cmd[cmd.index("--append-system-prompt") + 1] == _SINGLE_TURN_DIRECTIVE
-    assert cmd[cmd.index("--disallowedTools") + 1] == "ScheduleWakeup"
+    denied_tools = set(cmd[cmd.index("--disallowedTools") + 1].split(","))
+    assert denied_tools == {
+        "ScheduleWakeup",
+        "ListAgents",
+        "Workflow",
+        "Monitor",
+        "CronCreate",
+        "CronDelete",
+        "RemoteTrigger",
+    }
+    assert "SendMessage" not in denied_tools
+    settings = json.loads(cmd[cmd.index("--settings") + 1])
+    assert settings["crossSessionInbound"] == "refuse"
+    assert settings["hooks"]["PreToolUse"]
 
 
 def test_base_provider_resolve_model_name_returns_unknown() -> None:
