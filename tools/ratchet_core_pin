@@ -5,6 +5,11 @@ The pin is chosen by the shared core-ensure rule in ``tools/_release_core.py``:
 the newest complete published ``sase-core-rs`` whose tag contains
 ``sase-core-revision.txt``. ``CORE_LAG`` changes nothing.
 
+Read-only ``--ref GIT-REF`` (with ``--check`` or ``--report-only``) reads
+``pyproject.toml``, ``uv.lock``, and ``sase-core-revision.txt`` from that git
+ref instead of the working tree. ``--fetch`` runs ``git fetch origin`` first;
+a fetch failure exits 3. ``--ref`` is refused when applying.
+
 Exit codes:
   0: declared pin already matches the core-ensure pick
   2: a ratchet is pending, report-only, or was applied
@@ -403,9 +408,7 @@ def rewrite_pyproject_requirement(text: str, new_specifier: str) -> str:
         if match is None:
             continue
         matches += 1
-        lines[index] = (
-            f"{match.group('prefix')}{new_specifier}{match.group('suffix')}"
-        )
+        lines[index] = f"{match.group('prefix')}{new_specifier}{match.group('suffix')}"
     if matches != 1:
         raise RatchetError(
             f"expected exactly one line-form {DEPENDENCY_NAME} dependency in "
@@ -444,7 +447,10 @@ def _validate_pyproject_diff(
         )
     before_line = before.splitlines(keepends=True)[changed[0]]
     after_line = after.splitlines(keepends=True)[changed[0]]
-    if DEPENDENCY_NAME not in before_line or f"{DEPENDENCY_NAME}{new_specifier}" not in after_line:
+    if (
+        DEPENDENCY_NAME not in before_line
+        or f"{DEPENDENCY_NAME}{new_specifier}" not in after_line
+    ):
         raise LockRefreshError(
             f"pyproject.toml changed line is not the {DEPENDENCY_NAME} requirement"
         )
@@ -519,7 +525,9 @@ def _find_package(
 
 def _metadata_requires_dist(package: dict[str, Any]) -> list[dict[str, Any]]:
     metadata = package.get("metadata")
-    requires_dist = metadata.get("requires-dist") if isinstance(metadata, dict) else None
+    requires_dist = (
+        metadata.get("requires-dist") if isinstance(metadata, dict) else None
+    )
     if not isinstance(requires_dist, list):
         raise LockRefreshError(
             f"uv.lock package {_package_name(package)} has no metadata requires-dist"
@@ -735,7 +743,9 @@ def _validate_transitive_lock_refresh(
     package_name = _package_name(before_package)
     normalized_name = _normalize_name(package_name)
     if normalized_name in direct_dependency_names:
-        raise LockRefreshError(f"uv.lock changed direct dependency package {package_name}")
+        raise LockRefreshError(
+            f"uv.lock changed direct dependency package {package_name}"
+        )
 
     changed_fields = _changed_static_field_names(
         before_package,
@@ -773,8 +783,16 @@ def _validate_uv_lock_diff(
     # (revision 3 -> 5 since uv 0.12.22). It carries no dependency metadata,
     # so ignore it while keeping version/requires-python/manifest/options strict.
     ignored_top_level_keys = {"package", "revision"}
-    before_top = {key: value for key, value in before_data.items() if key not in ignored_top_level_keys}
-    after_top = {key: value for key, value in after_data.items() if key not in ignored_top_level_keys}
+    before_top = {
+        key: value
+        for key, value in before_data.items()
+        if key not in ignored_top_level_keys
+    }
+    after_top = {
+        key: value
+        for key, value in after_data.items()
+        if key not in ignored_top_level_keys
+    }
     if before_top != after_top:
         raise LockRefreshError("uv.lock top-level metadata changed unexpectedly")
 
@@ -838,7 +856,9 @@ def _validate_uv_lock_diff(
             f"uv.lock has no [[package]] stanza for {PROJECT_PACKAGE_NAME}"
         )
     if not seen_core_package:
-        raise LockRefreshError(f"uv.lock has no [[package]] stanza for {DEPENDENCY_NAME}")
+        raise LockRefreshError(
+            f"uv.lock has no [[package]] stanza for {DEPENDENCY_NAME}"
+        )
     return tuple(allowed_transitive_refreshes)
 
 
@@ -897,10 +917,9 @@ def _combined_diff(
     before_uv_lock: str,
     after_uv_lock: str,
 ) -> str:
-    return (
-        _unified_diff(before_pyproject, after_pyproject, "pyproject.toml")
-        + _unified_diff(before_uv_lock, after_uv_lock, "uv.lock")
-    )
+    return _unified_diff(
+        before_pyproject, after_pyproject, "pyproject.toml"
+    ) + _unified_diff(before_uv_lock, after_uv_lock, "uv.lock")
 
 
 def _run_uv_lock(
@@ -1046,6 +1065,76 @@ def _revision_file(pyproject: Path, explicit: Path | None) -> Path:
     return DEFAULT_REVISION_FILE
 
 
+def _run_git(
+    args: list[str],
+    *,
+    timeout: float = 60.0,
+) -> subprocess.CompletedProcess[str]:
+    try:
+        return subprocess.run(
+            ["git", *args],
+            cwd=REPO_ROOT,
+            check=False,
+            capture_output=True,
+            text=True,
+            timeout=timeout,
+        )
+    except subprocess.TimeoutExpired as exc:
+        raise RatchetError(f"git {' '.join(args)} timed out") from exc
+    except OSError as exc:
+        raise RatchetError(f"git {' '.join(args)} failed: {exc}") from exc
+
+
+def _fetch_origin() -> None:
+    result = _run_git(["fetch", "origin"])
+    if result.returncode != 0:
+        detail = (result.stderr or result.stdout).strip()
+        raise RatchetError(
+            "git fetch origin failed" + (f": {detail}" if detail else "")
+        )
+
+
+def _repo_relative(path: Path) -> str:
+    try:
+        return path.resolve().relative_to(REPO_ROOT.resolve()).as_posix()
+    except ValueError as exc:
+        raise RatchetError(
+            f"{path} is not inside the sase repository at {REPO_ROOT}"
+        ) from exc
+
+
+def _git_show(ref: str, relative_path: str) -> str:
+    result = _run_git(["show", f"{ref}:{relative_path}"])
+    if result.returncode != 0:
+        detail = (result.stderr or result.stdout).strip()
+        raise RatchetError(
+            f"git show {ref}:{relative_path} failed" + (f": {detail}" if detail else "")
+        )
+    return result.stdout
+
+
+def _materialize_ref_files(
+    *,
+    ref: str,
+    pyproject: Path,
+    uv_lock: Path,
+    revision_file: Path | None,
+    dest: Path,
+) -> tuple[Path, Path, Path]:
+    dest_pyproject = dest / "pyproject.toml"
+    dest_uv_lock = dest / "uv.lock"
+    dest_revision = dest / "sase-core-revision.txt"
+    dest_pyproject.write_text(
+        _git_show(ref, _repo_relative(pyproject)), encoding="utf-8"
+    )
+    dest_uv_lock.write_text(_git_show(ref, _repo_relative(uv_lock)), encoding="utf-8")
+    dest_revision.write_text(
+        _git_show(ref, _repo_relative(_revision_file(pyproject, revision_file))),
+        encoding="utf-8",
+    )
+    return dest_pyproject, dest_uv_lock, dest_revision
+
+
 def ratchet_core_pin(
     *,
     pyproject: Path = DEFAULT_PYPROJECT,
@@ -1095,9 +1184,7 @@ def ratchet_core_pin(
         return EXIT_OK
 
     after_pyproject = rewrite_pyproject_requirement(before_pyproject, new_specifier)
-    summary = (
-        f"{DEPENDENCY_NAME} ratchet {requirement.specifier} -> {new_specifier}"
-    )
+    summary = f"{DEPENDENCY_NAME} ratchet {requirement.specifier} -> {new_specifier}"
     if check:
         print(f"{summary} pending")
         return EXIT_RATCHET
@@ -1168,11 +1255,28 @@ def main(argv: list[str] | None = None) -> int:
         help="write nothing and print the exact diff that would be applied.",
     )
     parser.add_argument(
+        "-f",
+        "--fetch",
+        action="store_true",
+        help="run git fetch origin before reading pins.",
+    )
+    parser.add_argument(
         "-p",
         "--pyproject",
         type=Path,
         default=DEFAULT_PYPROJECT,
         help="Path to sase's pyproject.toml.",
+    )
+    parser.add_argument(
+        "-R",
+        "--ref",
+        metavar="GIT-REF",
+        default=None,
+        help=(
+            "read pyproject.toml, uv.lock, and sase-core-revision.txt from this "
+            "git ref instead of the working tree. Requires --check or "
+            "--report-only."
+        ),
     )
     parser.add_argument(
         "-u",
@@ -1188,8 +1292,32 @@ def main(argv: list[str] | None = None) -> int:
         help="Path to sase-core-revision.txt (default: next to pyproject.toml).",
     )
     namespace = parser.parse_args(argv)
+    if namespace.ref and not (namespace.check or namespace.report_only):
+        _error("--ref is read-only; pass --check or --report-only")
+        return EXIT_COULD_NOT_DETERMINE
 
     try:
+        if namespace.fetch:
+            _fetch_origin()
+        if namespace.ref:
+            with tempfile.TemporaryDirectory(prefix="sase-core-pin-ref-") as raw_tmp:
+                dest_pyproject, dest_uv_lock, dest_revision = _materialize_ref_files(
+                    ref=namespace.ref,
+                    pyproject=namespace.pyproject,
+                    uv_lock=namespace.uv_lock,
+                    revision_file=namespace.revision_file,
+                    dest=Path(raw_tmp),
+                )
+                return ratchet_core_pin(
+                    pyproject=dest_pyproject,
+                    uv_lock=dest_uv_lock,
+                    revision_file=dest_revision,
+                    check=namespace.check,
+                    report_only=namespace.report_only,
+                    allow_transitive_lock_refresh=(
+                        namespace.allow_transitive_lock_refresh
+                    ),
+                )
         return ratchet_core_pin(
             pyproject=namespace.pyproject,
             uv_lock=namespace.uv_lock,
