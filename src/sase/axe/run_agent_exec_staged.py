@@ -2,13 +2,12 @@
 
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass, replace
 from datetime import UTC, datetime
 import json
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
-from collections.abc import Callable
 
 from sase.agent.staged_handoff import (
     StagedHandoffError,
@@ -42,7 +41,7 @@ class _StagedHandoffDispatch:
 
 
 @dataclass(frozen=True)
-class StagedAdoptionOutcome:
+class _StagedAdoptionOutcome:
     """Narrow adopter result carrying an explicit custodian identity.
 
     ``outcome`` preserves the legacy ``str | None`` loop-outcome semantics
@@ -58,7 +57,7 @@ class StagedAdoptionOutcome:
 
 StagedAdopter = Callable[
     [Mapping[str, Any], Mapping[str, Any], StagedInlineContinuation, str],
-    str | None | StagedAdoptionOutcome,
+    str | None | _StagedAdoptionOutcome,
 ]
 
 #: Agent-meta key holding carried-repository custody records. Each record is
@@ -304,10 +303,10 @@ def _mark_custody_transferred(
 
 
 def _normalize_adopter_result(
-    raw: str | None | StagedAdoptionOutcome,
+    raw: str | None | _StagedAdoptionOutcome,
 ) -> tuple[str | None, str | None]:
     """Split a legacy or narrow adopter return into outcome and custodian."""
-    if isinstance(raw, StagedAdoptionOutcome):
+    if isinstance(raw, _StagedAdoptionOutcome):
         return raw.outcome, raw.custodian
     return raw, None
 
@@ -331,6 +330,9 @@ def _resolve_adoption_custodian(
     gate_dir = getattr(state, "plan_gate_artifacts_dir", None)
     if isinstance(gate_dir, str) and gate_dir.strip():
         return gate_dir.strip()
+    question_gate_dir = getattr(state, "question_gate_artifacts_dir", None)
+    if isinstance(question_gate_dir, str) and question_gate_dir.strip():
+        return question_gate_dir.strip()
     if isinstance(successor, str) and successor.strip():
         return successor.strip()
     return str(original_artifacts_dir)
@@ -522,17 +524,17 @@ def _finalizer_settlement_refusal(
             proven = _proven_ids_for_settlement(
                 result, current_final_context, staged_ref
             )
+        allowed = deferred_repos | (proven if descriptor_matches else frozenset())
+        if dirty_ids.issubset(allowed):
+            return None
         if not final_submission_is_current(artifacts_dir=str(root)):
             return "remaining repository work is not covered by a current declaration"
-        allowed = deferred_repos | (proven if descriptor_matches else frozenset())
-        if not dirty_ids.issubset(allowed):
-            if descriptor_matches and proven:
-                return (
-                    "remaining repository work is neither committed, carried, "
-                    "prepared, nor an accepted deferral"
-                )
-            return "remaining repository work is neither committed nor an accepted deferral"
-        return None
+        if descriptor_matches and proven:
+            return (
+                "remaining repository work is neither committed, carried, "
+                "prepared, nor an accepted deferral"
+            )
+        return "remaining repository work is neither committed nor an accepted deferral"
 
     if not has_submission and not deferred_commit_ids:
         return None
@@ -543,27 +545,18 @@ def _finalizer_settlement_refusal(
     return None
 
 
-def _adopt_plan(
-    staged_record: Mapping[str, Any],
-    run_metadata: Mapping[str, Any],
+def _runner_ctx_from_metadata(
     continuation: StagedInlineContinuation,
-    response: str,
-) -> str | None | StagedAdoptionOutcome:
-    payload = staged_record.get("payload")
-    if not isinstance(payload, Mapping):
-        raise StagedHandoffError("staged plan payload is malformed")
-    plan_file = payload.get("plan_file")
-    if not isinstance(plan_file, str) or not plan_file:
-        raise StagedHandoffError("staged plan payload has no plan_file")
-
+    run_metadata: Mapping[str, Any],
+) -> AgentExecContext:
+    """Rebind the live runner context to persisted agent identity."""
     ctx = continuation.ctx
-    state = continuation.state
     persisted_name = run_metadata.get("name")
     if isinstance(persisted_name, str) and persisted_name != ctx.agent_name:
         raise StagedHandoffError(
-            "persisted planner identity differs from the active runner identity"
+            "persisted agent identity differs from the active runner identity"
         )
-    persisted_ctx = replace(
+    return replace(
         ctx,
         agent_name=persisted_name
         if isinstance(persisted_name, str)
@@ -573,17 +566,93 @@ def _adopt_plan(
         agent_vcs_provider=run_metadata.get("vcs_provider", ctx.agent_vcs_provider),
         agent_meta=dict(run_metadata),
     )
+
+
+def _adopt_plan(
+    staged_record: Mapping[str, Any],
+    run_metadata: Mapping[str, Any],
+    continuation: StagedInlineContinuation,
+    response: str,
+) -> str | None | _StagedAdoptionOutcome:
+    payload = staged_record.get("payload")
+    if not isinstance(payload, Mapping):
+        raise StagedHandoffError("staged plan payload is malformed")
+    plan_file = payload.get("plan_file")
+    if not isinstance(plan_file, str) or not plan_file:
+        raise StagedHandoffError("staged plan payload has no plan_file")
+
     from sase.axe.run_agent_exec_plan import handle_staged_plan_marker
 
     return handle_staged_plan_marker(
         {**dict(payload), "plan_file": plan_file},
-        persisted_ctx,
-        state,
+        _runner_ctx_from_metadata(continuation, run_metadata),
+        continuation.state,
         planner_response=response,
     )
 
 
-STAGED_HANDOFF_ADOPTERS: dict[str, StagedAdopter] = {"plan": _adopt_plan}
+def _adopt_questions(
+    staged_record: Mapping[str, Any],
+    run_metadata: Mapping[str, Any],
+    continuation: StagedInlineContinuation,
+    response: str,
+) -> _StagedAdoptionOutcome:
+    payload = staged_record.get("payload")
+    if not isinstance(payload, Mapping):
+        raise StagedHandoffError("staged questions payload is malformed")
+    questions = payload.get("questions")
+    if not isinstance(questions, list):
+        raise StagedHandoffError("staged questions payload has no questions")
+
+    origin = continuation.state.current_artifacts_dir
+    from sase.axe.run_agent_exec_questions import handle_staged_questions_marker
+
+    outcome = handle_staged_questions_marker(
+        dict(payload),
+        _runner_ctx_from_metadata(continuation, run_metadata),
+        continuation.state,
+        provider_response=response,
+    )
+    custodian = continuation.state.current_artifacts_dir
+    if custodian == origin:
+        gate = continuation.state.question_gate_artifacts_dir
+        if isinstance(gate, str) and gate.strip():
+            custodian = gate
+    return _StagedAdoptionOutcome(outcome=outcome, custodian=custodian)
+
+
+def _adopt_pipe(
+    staged_record: Mapping[str, Any],
+    run_metadata: Mapping[str, Any],
+    continuation: StagedInlineContinuation,
+    response: str,
+) -> _StagedAdoptionOutcome:
+    payload = staged_record.get("payload")
+    if not isinstance(payload, Mapping):
+        raise StagedHandoffError("staged pipe payload is malformed")
+    prompt = payload.get("prompt")
+    if not isinstance(prompt, str) or not prompt:
+        raise StagedHandoffError("staged pipe payload has no prompt")
+
+    from sase.axe.run_agent_exec_pipe import handle_staged_pipe_marker
+
+    outcome = handle_staged_pipe_marker(
+        dict(payload),
+        _runner_ctx_from_metadata(continuation, run_metadata),
+        continuation.state,
+        provider_response=response,
+    )
+    return _StagedAdoptionOutcome(
+        outcome=outcome,
+        custodian=continuation.state.current_artifacts_dir,
+    )
+
+
+STAGED_HANDOFF_ADOPTERS: dict[str, StagedAdopter] = {
+    "plan": _adopt_plan,
+    "pipe": _adopt_pipe,
+    "questions": _adopt_questions,
+}
 
 
 def _write_held_receipt(
@@ -670,7 +739,10 @@ def dispatch_completed_staged_handoff(
     except Exception as exc:
         _write_held_receipt(
             staged_id,
-            f"staged plan adoption failed: {type(exc).__name__}: {exc}",
+            (
+                f"staged {staged_record.get('kind') or 'handoff'} adoption "
+                f"failed: {type(exc).__name__}: {exc}"
+            ),
             artifacts_dir=original_artifacts_dir,
         )
         raise
@@ -711,7 +783,6 @@ def dispatch_completed_staged_handoff(
 __all__ = [
     "CARRIED_CUSTODY_META_KEY",
     "STAGED_HANDOFF_ADOPTERS",
-    "StagedAdoptionOutcome",
     "StagedInlineContinuation",
     "dispatch_completed_staged_handoff",
 ]

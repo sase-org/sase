@@ -331,6 +331,34 @@ def receipt_authorizes(receipt: Mapping[str, Any], staged_id: str) -> bool:
         raise StagedHandoffError(str(exc)) from exc
 
 
+def _build_staged_record(
+    *,
+    kind: str,
+    payload: Mapping[str, Any],
+    successor_workspace: str,
+    carry_allowed: bool,
+    dirty_obligations_at_stage: list[str] | None = None,
+    staged_id: str | None = None,
+    created_at: str | None = None,
+) -> dict[str, Any]:
+    """Build a staged-handoff record from host observations."""
+    obligations = (
+        list(dirty_obligations_at_stage)
+        if dirty_obligations_at_stage is not None
+        else _measure_dirty_obligations_at_stage()
+    )
+    return {
+        "schema_version": STAGED_HANDOFF_WIRE_SCHEMA_VERSION,
+        "staged_id": staged_id or str(uuid.uuid4()),
+        "kind": kind,
+        "created_at": created_at or _now_rfc3339(),
+        "payload": dict(payload),
+        "successor_workspace": successor_workspace,
+        "carry_allowed": carry_allowed,
+        "dirty_obligations_at_stage": obligations,
+    }
+
+
 def build_plan_staged_record(
     *,
     plan_file: str,
@@ -347,21 +375,53 @@ def build_plan_staged_record(
     }
     if extra_payload:
         payload.update(dict(extra_payload))
-    obligations = (
-        list(dirty_obligations_at_stage)
-        if dirty_obligations_at_stage is not None
-        else _measure_dirty_obligations_at_stage()
+    return _build_staged_record(
+        kind="plan",
+        payload=payload,
+        successor_workspace="none",
+        carry_allowed=False,
+        dirty_obligations_at_stage=dirty_obligations_at_stage,
+        staged_id=staged_id,
+        created_at=created_at,
     )
-    return {
-        "schema_version": STAGED_HANDOFF_WIRE_SCHEMA_VERSION,
-        "staged_id": staged_id or str(uuid.uuid4()),
-        "kind": "plan",
-        "created_at": created_at or _now_rfc3339(),
-        "payload": payload,
-        "successor_workspace": "none",
-        "carry_allowed": False,
-        "dirty_obligations_at_stage": obligations,
-    }
+
+
+def build_questions_staged_record(
+    *,
+    questions: list[Any],
+    dirty_obligations_at_stage: list[str] | None = None,
+    staged_id: str | None = None,
+    created_at: str | None = None,
+) -> dict[str, Any]:
+    """Build a questions staged-handoff record (inherit, carry allowed)."""
+    return _build_staged_record(
+        kind="questions",
+        payload={"questions": questions},
+        successor_workspace="inherit",
+        carry_allowed=True,
+        dirty_obligations_at_stage=dirty_obligations_at_stage,
+        staged_id=staged_id,
+        created_at=created_at,
+    )
+
+
+def build_pipe_staged_record(
+    *,
+    payload: Mapping[str, Any],
+    dirty_obligations_at_stage: list[str] | None = None,
+    staged_id: str | None = None,
+    created_at: str | None = None,
+) -> dict[str, Any]:
+    """Build a pipe staged-handoff record (inherit, carry allowed)."""
+    return _build_staged_record(
+        kind="pipe",
+        payload=payload,
+        successor_workspace="inherit",
+        carry_allowed=True,
+        dirty_obligations_at_stage=dirty_obligations_at_stage,
+        staged_id=staged_id,
+        created_at=created_at,
+    )
 
 
 def _measure_dirty_obligations_at_stage(
@@ -520,7 +580,9 @@ __all__ = [
     "acquire_handoff_locks",
     "acquire_staging_reservation",
     "admit_stage",
+    "build_pipe_staged_record",
     "build_plan_staged_record",
+    "build_questions_staged_record",
     "discard_staged_handoff",
     "occupying_handoff_names",
     "read_adoption_receipt",

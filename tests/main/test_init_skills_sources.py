@@ -119,6 +119,8 @@ def _disable_prettier_for_skill_generation(
                 "The handoff prompt is re-parsed by the successor",
                 "max_agent_pipe_chain",
                 "After a successful handoff, do not keep working, poll, or wait",
+                "reports **Staged**",
+                "finish through `/sase_final`",
             ),
         ),
         (
@@ -253,6 +255,8 @@ def _disable_prettier_for_skill_generation(
                 "Your turn ends as `DONE`",
                 "launches a follow-up agent",
                 "The runner recognizes the marker as an intentional question handoff",
+                "reports **Staged**",
+                "finish through `/sase_final`",
             ),
         ),
         (

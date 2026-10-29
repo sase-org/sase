@@ -103,7 +103,7 @@ def test_non_auto_creates_a_gate_turn_and_ends_gated(
     gate_marker_calls: list[dict[str, Any]] = []
 
     def fake_handle_gate_marker(
-        gate_data: dict[str, Any], _ctx: Any, _state: Any
+        gate_data: dict[str, Any], _ctx: Any, _state: Any, **_kwargs: Any
     ) -> str:
         gate_marker_calls.append(gate_data)
         return "gated"
@@ -221,3 +221,50 @@ def test_auto_continues_in_process_with_no_second_agent(
     (_args, kwargs) = successor_calls[0]
     successor_request = _args[2]
     assert "Which database?" in successor_request.prompt
+
+
+def test_staged_questions_gated_keeps_real_response_and_skips_synthetic_chat(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    ctx = make_ctx(tmp_path)
+    state = make_state(tmp_path)
+    creation = _fake_creation(
+        gate_state="pending", artifacts_dir=str(tmp_path / "gate-member")
+    )
+    (tmp_path / "gate-member").mkdir()
+    monkeypatch.setattr(
+        "sase.question_gate_turn.resolve_question_chain_parent", lambda *a, **k: None
+    )
+    monkeypatch.setattr(
+        "sase.question_gate_turn.create_question_gate_turn", lambda *a, **k: creation
+    )
+    monkeypatch.setattr(
+        "sase.main.plan_approve_handler.is_auto_approve_active", lambda: False
+    )
+    captured: dict[str, Any] = {}
+    monkeypatch.setattr(
+        "sase.history.chat.save_chat_history",
+        lambda **kw: captured.update(kw) or "/fake/chat",
+    )
+    gate_calls: list[dict[str, Any]] = []
+
+    def fake_handle_gate_marker(
+        gate_data: dict[str, Any], _ctx: Any, _state: Any, **kwargs: Any
+    ) -> str:
+        gate_calls.append({"data": gate_data, **kwargs})
+        return "gated"
+
+    monkeypatch.setattr(
+        "sase.axe.run_agent_exec_gate.handle_gate_marker", fake_handle_gate_marker
+    )
+
+    outcome = questions_mod.handle_staged_questions_marker(
+        {"questions": _questions()},
+        ctx,
+        state,
+        provider_response="The model's actual final response.",
+    )
+
+    assert outcome == "gated"
+    assert captured["response"] == "The model's actual final response."
+    assert gate_calls[0]["persist_chat"] is False

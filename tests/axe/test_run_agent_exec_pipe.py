@@ -73,6 +73,49 @@ def test_handle_pipe_marker_default_suffix_and_fork(tmp_path: Path) -> None:
     allocate.assert_called_once()
 
 
+def test_handle_staged_pipe_marker_keeps_real_response(tmp_path: Path) -> None:
+    from sase.axe.run_agent_exec_pipe import handle_staged_pipe_marker
+
+    ctx = make_ctx(tmp_path)
+    state = make_state(tmp_path)
+    save_chat = Mock(return_value="/tmp/parent.md")
+
+    with (
+        patch(
+            "sase.axe.run_agent_exec_pipe.normalize_handoff_interruption_state"
+        ) as norm,
+        patch("sase.axe.run_agent_exec_pipe.finalize_handoff_artifacts_as_completed"),
+        patch("sase.axe.run_agent_exec_pipe.save_chat_history", save_chat),
+        patch("sase.axe.run_agent_exec_pipe.update_meta_field"),
+        patch("sase.axe.run_agent_exec_pipe.update_step_marker_chat_path"),
+        patch(
+            "sase.axe.run_agent_exec_pipe.allocate_agent_session_child_suffix",
+            return_value="--1",
+        ),
+        patch(
+            "sase.axe.run_agent_exec_pipe.create_followup_artifacts",
+            return_value="/tmp/pipe-followup",
+        ),
+        patch("sase.axe.run_agent_exec_pipe.promote_to_workflow"),
+        patch("sase.axe.run_agent_exec_pipe._store_followup_prompt_artifact"),
+        patch("sase.axe.run_agent_exec_pipe.reset_killed") as reset,
+    ):
+        outcome = handle_staged_pipe_marker(
+            _pipe_data(),
+            ctx,
+            state,
+            provider_response="The model's actual final response.",
+        )
+
+    assert outcome is None
+    assert save_chat.call_args.kwargs["response"] == (
+        "The model's actual final response."
+    )
+    assert "## Pipe Hand-off" in (save_chat.call_args.kwargs["extra_sections"] or "")
+    norm.assert_not_called()
+    reset.assert_not_called()
+
+
 def test_handle_pipe_marker_saves_parent_chat_before_successor(
     tmp_path: Path,
 ) -> None:

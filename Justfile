@@ -481,6 +481,8 @@ _lint-patch-stitch-terminology: _setup
 # phases consume them (adoption 1.1.2, proposal-command 1.1.4).
 # Proposal-command now consumes the remaining helpers in plan_propose_handler.py;
 # its --epic-symbol rows are removed.
+# sase-1pj.3 (questions-pipe) made StagedAdoptionOutcome private after the
+# questions and pipe adopters used it in-file as _StagedAdoptionOutcome.
 # Never put a comment
 # line inside the continued command below: just joins the lines, so the comment
 # would swallow every later argument.
@@ -488,7 +490,6 @@ _lint-symvision *args: _setup
     SASE_SYMVISION_BEAD_STATUS_ONLY=1 BD_COMMAND=tools/sase_bead {{ venv_bin }}/symvision src/sase \
         --exclude-decorator gate_command_entrypoint \
         --exclude-decorator builtin_chop \
-        --epic-symbol 'sase-1pj.3(StagedAdoptionOutcome)' \
         {{ args }}
 
 # Check Python file line counts (private, extracted for per-stage wrapping)

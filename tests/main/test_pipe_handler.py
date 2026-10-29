@@ -9,6 +9,11 @@ from typing import Any
 import pytest
 
 from sase.agent.pending_handoff import PIPE_PENDING_MARKER
+from sase.agent.staged_handoff import (
+    STAGED_HANDOFF_FILENAME,
+    STAGING_RESERVATION_FILENAME,
+)
+from sase.feature_flags import override_flags
 from sase.main.parser import create_parser
 from sase.main.pipe_handler import handle_pipe_command
 from tests.main.parser_help_helpers import (
@@ -246,3 +251,69 @@ def test_pipe_rich_summary_prints_before_kill(
     assert "context is spent" in out
     assert "last output before the agent runner is killed" in out
     assert (tmp_path / PIPE_PENDING_MARKER).is_file()
+
+
+def test_flag_enabled_pipe_stages_without_kill(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    _write_meta(tmp_path)
+    killed: list[str] = []
+    monkeypatch.setenv("SASE_AGENT", "1")
+    monkeypatch.setenv("SASE_ARTIFACTS_DIR", str(tmp_path))
+    monkeypatch.setattr(
+        "sase.main.pipe_handler.kill_agent_runner_group",
+        lambda target: killed.append(target),
+    )
+    with override_flags(staged_handoffs=True), pytest.raises(SystemExit) as exit_info:
+        handle_pipe_command("finish the review", reason="hand off")
+    assert exit_info.value.code == 0
+    assert killed == []
+    assert not (tmp_path / PIPE_PENDING_MARKER).exists()
+    assert not (tmp_path / STAGING_RESERVATION_FILENAME).exists()
+    record = json.loads(
+        (tmp_path / STAGED_HANDOFF_FILENAME).read_text(encoding="utf-8")
+    )
+    assert record["kind"] == "pipe"
+    assert record["successor_workspace"] == "inherit"
+    assert record["carry_allowed"] is True
+    assert record["payload"]["prompt"] == "finish the review"
+    assert record["payload"]["reason"] == "hand off"
+    out = capsys.readouterr().out
+    assert "Staged pipe handoff" in out
+    assert "`/sase_final`" in out
+    assert "last output before the agent runner is killed" not in out
+
+
+def test_flag_enabled_pipe_json_prints_staged_on_stderr(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    _write_meta(tmp_path)
+    monkeypatch.setenv("SASE_AGENT", "1")
+    monkeypatch.setenv("SASE_ARTIFACTS_DIR", str(tmp_path))
+    with override_flags(staged_handoffs=True), pytest.raises(SystemExit) as exit_info:
+        handle_pipe_command("finish the review", json_output=True)
+    assert exit_info.value.code == 0
+    captured = capsys.readouterr()
+    payload = json.loads(captured.out)
+    assert payload["command"] == "pipe"
+    assert payload["prompt"] == "finish the review"
+    assert "Staged pipe handoff" in captured.err
+    assert (tmp_path / STAGED_HANDOFF_FILENAME).is_file()
+
+
+def test_empty_prompt_releases_pipe_reservation(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _write_meta(tmp_path)
+    monkeypatch.setenv("SASE_AGENT", "1")
+    monkeypatch.setenv("SASE_ARTIFACTS_DIR", str(tmp_path))
+    with override_flags(staged_handoffs=True), pytest.raises(SystemExit) as exit_info:
+        handle_pipe_command("   \n")
+    assert exit_info.value.code == 1
+    assert not (tmp_path / STAGING_RESERVATION_FILENAME).exists()
+    assert not (tmp_path / STAGED_HANDOFF_FILENAME).exists()

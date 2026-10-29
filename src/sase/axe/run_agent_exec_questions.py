@@ -26,6 +26,7 @@ from sase.axe.run_agent_helpers import (
     update_step_marker_chat_path,
 )
 from sase.axe.run_agent_successor import SuccessorRequest, continue_as_successor
+from sase.axe.runner_lifecycle_phase import mark_lifecycle_phase
 from sase.axe.runner_signals import reset_killed
 from sase.plan_chain import (
     AGENT_SESSION_SEPARATOR,
@@ -121,9 +122,45 @@ def handle_questions_marker(
     where the gate already settled synchronously inside creation -- it
     continues in-process at the cost of exactly one agent.
     """
-    normalize_handoff_interruption_state(state.current_artifacts_dir)
+    return _handle_questions_handoff(
+        q_data,
+        ctx,
+        state,
+        provider_response=None,
+        interrupted=True,
+    )
+
+
+def handle_staged_questions_marker(
+    q_data: dict[str, Any],
+    ctx: AgentExecContext,
+    state: LoopState,
+    *,
+    provider_response: str,
+) -> str | None:
+    """Adopt a settled staged questions handoff without the legacy kill."""
+    return _handle_questions_handoff(
+        q_data,
+        ctx,
+        state,
+        provider_response=provider_response,
+        interrupted=False,
+    )
+
+
+def _handle_questions_handoff(
+    q_data: dict[str, Any],
+    ctx: AgentExecContext,
+    state: LoopState,
+    *,
+    provider_response: str | None,
+    interrupted: bool,
+) -> str | None:
+    mark_lifecycle_phase(state.current_artifacts_dir, "handoff")
+    if interrupted:
+        normalize_handoff_interruption_state(state.current_artifacts_dir)
+        reset_killed()
     finalize_handoff_artifacts_as_completed(state.current_artifacts_dir)
-    reset_killed()
 
     from sase.main.plan_approve_handler import is_auto_approve_active
     from sase.question_gate_turn import (
@@ -215,10 +252,19 @@ def handle_questions_marker(
             base_meta=base_meta,
             base_prompt=base_prompt,
             question_relationships=question_relationships,
+            provider_response=provider_response,
         )
         return None
 
     from sase.axe.run_agent_exec_gate import handle_gate_marker
+
+    if provider_response is not None:
+        _save_questions_chat(
+            ctx,
+            state,
+            base_meta=base_meta,
+            provider_response=provider_response,
+        )
 
     gate_data = {
         "gate_id": creation.record.gate_id,
@@ -226,7 +272,52 @@ def handle_questions_marker(
         "member_agent_name": creation.record.member_agent_name,
         "kind": "question",
     }
-    return handle_gate_marker(gate_data, ctx, state)
+    return handle_gate_marker(
+        gate_data,
+        ctx,
+        state,
+        persist_chat=provider_response is None,
+    )
+
+
+def _save_questions_chat(
+    ctx: AgentExecContext,
+    state: LoopState,
+    *,
+    base_meta: dict[str, Any],
+    provider_response: str,
+    extra_body: str | None = None,
+) -> None:
+    """Persist the asker's chat: the real staged response, plus optional Q&A."""
+    from sase.history.chat import save_chat_history
+    from sase.history.chat_extras import format_extra_sections
+
+    interrupted_suffix, _interrupted_role = _question_interrupted_suffix_and_role(
+        state,
+        base_meta,
+    )
+    agent = agent_name_for_suffix(ctx, interrupted_suffix)
+    extras = format_extra_sections(state.current_artifacts_dir)
+    sections = [
+        section
+        for section in (extras, extra_body)
+        if isinstance(section, str) and section.strip()
+    ]
+    extra_sections = "\n\n".join(sections) or None
+    chat_path = save_chat_history(
+        prompt=state.current_prompt,
+        response=provider_response,
+        workflow="ace-run",
+        agent=agent,
+        timestamp=ctx.timestamp,
+        extra_sections=extra_sections,
+        branch_or_workspace=ctx.cl_name,
+        metadata_agent=agent,
+        metadata_multi_agent_prompt=ctx.multi_agent_prompt_file,
+    )
+    state.saved_chat_paths.append((interrupted_suffix, chat_path))
+    update_meta_field(state.current_artifacts_dir, "chat_path", chat_path)
+    update_step_marker_chat_path(state.current_artifacts_dir, chat_path)
 
 
 def _continue_after_auto_answered_question(
@@ -237,6 +328,7 @@ def _continue_after_auto_answered_question(
     base_meta: dict[str, Any],
     base_prompt: str,
     question_relationships: dict[str, Any],
+    provider_response: str | None = None,
 ) -> None:
     """Continue in-process after the ``%auto`` short-circuit answered a question.
 
@@ -262,14 +354,28 @@ def _continue_after_auto_answered_question(
     _q_suffix = interrupted_suffix
     _q_agent = agent_name_for_suffix(ctx, _q_suffix)
     _q_extra = format_extra_sections(state.current_artifacts_dir)
+    if provider_response is None:
+        response_content = merged_qa_text
+        extra_sections = _q_extra
+    else:
+        response_content = provider_response
+        sections = [
+            section
+            for section in (
+                _q_extra,
+                f"## Question Answers\n\n{merged_qa_text.strip()}",
+            )
+            if isinstance(section, str) and section.strip()
+        ]
+        extra_sections = "\n\n".join(sections) or None
 
     _q_chat = save_chat_history(
         prompt=state.current_prompt,
-        response=merged_qa_text,
+        response=response_content,
         workflow="ace-run",
         agent=_q_agent,
         timestamp=ctx.timestamp,
-        extra_sections=_q_extra,
+        extra_sections=extra_sections,
         branch_or_workspace=ctx.cl_name,
         metadata_agent=_q_agent,
         metadata_multi_agent_prompt=ctx.multi_agent_prompt_file,
@@ -308,3 +414,9 @@ def _continue_after_auto_answered_question(
         store_prompt=_store_followup_prompt_artifact,
     )
     return None  # continue loop
+
+
+__all__ = [
+    "handle_questions_marker",
+    "handle_staged_questions_marker",
+]

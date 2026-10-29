@@ -11,7 +11,7 @@ from typing import Any
 from sase.axe.run_agent_exec_staged import (
     CARRIED_CUSTODY_META_KEY,
     STAGED_HANDOFF_ADOPTERS,
-    StagedAdoptionOutcome,
+    _StagedAdoptionOutcome,
     StagedInlineContinuation,
     _finalizer_settlement_refusal,
     dispatch_completed_staged_handoff,
@@ -419,7 +419,7 @@ def test_controlled_adopter_proves_generic_seam_and_records_custody(
     def controlled(staged, _meta, cont, response):
         seen.append(response)
         assert staged["staged_id"] == record["staged_id"]
-        return StagedAdoptionOutcome(
+        return _StagedAdoptionOutcome(
             outcome="test-done", custodian=str(artifacts / "successor")
         )
 

@@ -29,6 +29,11 @@ from sase.plan_chain import (
     canonical_plan_chain_suffix,
 )
 
+_STAGED_MESSAGE = (
+    "Staged pipe handoff. Nothing starts until this turn ends; "
+    "finish with `/sase_final`."
+)
+
 _PIPE_JSON_SCHEMA_VERSION = 1
 _PIPE_NAME_TOKEN_RE = re.compile(r"^[A-Za-z0-9_]+$")
 _RESERVED_PIPE_NAME_TOKENS = frozenset(
@@ -180,6 +185,7 @@ def _print_summary(
     json_output: bool,
     agent_name: str | None,
     max_chain: int,
+    staged: bool,
 ) -> None:
     if json_output:
         json.dump(
@@ -198,10 +204,11 @@ def _print_summary(
                 border_style=_BORDER_STYLE,
             )
         )
-        console.print(
-            "This is the last output before the agent runner is killed.",
-            style="dim",
-        )
+        if not staged:
+            console.print(
+                "This is the last output before the agent runner is killed.",
+                style="dim",
+            )
     sys.stdout.flush()
 
 
@@ -224,7 +231,8 @@ def handle_pipe_command(
     1. Guard: only inside a sase agent, and only one hand-off per turn
     2. Reject an empty prompt, a reserved ``--name``, or a chain past the bound
     3. Print the summary
-    4. Write ``.sase_pipe_pending`` and SIGTERM the runner group
+    4. With ``staged_handoffs`` on, write the staged record and exit 0.
+       Otherwise write ``.sase_pipe_pending`` and SIGTERM the runner group
     """
     try:
         artifacts_dir = handoff_guard(command="sase pipe")
@@ -234,6 +242,57 @@ def handle_pipe_command(
             _fail(_OUTSIDE_AGENT_MESSAGE)
         _fail(message)
 
+    from sase.agent.staged_handoff import (
+        StagedHandoffError,
+        acquire_staging_reservation,
+        release_staging_reservation,
+        staged_handoffs_enabled,
+    )
+
+    use_staged_handoffs = staged_handoffs_enabled()
+    reservation_id: str | None = None
+    if use_staged_handoffs:
+        try:
+            reservation_id = acquire_staging_reservation(
+                artifacts_dir=artifacts_dir,
+                command="sase pipe",
+            )
+        except StagedHandoffError as exc:
+            _fail(str(exc))
+
+    try:
+        _handle_pipe_after_guard(
+            prompt,
+            artifacts_dir=artifacts_dir,
+            fresh=fresh,
+            json_output=json_output,
+            model=model,
+            name=name,
+            reason=reason,
+            use_staged_handoffs=use_staged_handoffs,
+            reservation_id=reservation_id,
+        )
+    finally:
+        if reservation_id is not None:
+            release_staging_reservation(
+                reservation_id,
+                artifacts_dir=artifacts_dir,
+            )
+
+
+def _handle_pipe_after_guard(
+    prompt: str,
+    *,
+    artifacts_dir: str,
+    fresh: bool,
+    json_output: bool,
+    model: str | None,
+    name: str | None,
+    reason: str | None,
+    use_staged_handoffs: bool,
+    reservation_id: str | None,
+) -> NoReturn:
+    """Validate, print, and stage or kill after the one-handoff reservation."""
     if not prompt.strip():
         _fail("prompt must not be empty")
 
@@ -273,7 +332,30 @@ def handle_pipe_command(
         json_output=json_output,
         agent_name=agent_name,
         max_chain=max_chain,
+        staged=use_staged_handoffs,
     )
+
+    if use_staged_handoffs:
+        from sase.agent.staged_handoff import (
+            StagedHandoffError,
+            build_pipe_staged_record,
+            write_staged_handoff,
+        )
+
+        try:
+            write_staged_handoff(
+                build_pipe_staged_record(payload=payload),
+                artifacts_dir=artifacts_dir,
+                command="sase pipe",
+                reservation_id=reservation_id,
+            )
+        except StagedHandoffError as exc:
+            _fail(str(exc))
+        if json_output:
+            print(_STAGED_MESSAGE, file=sys.stderr)
+        else:
+            console.print(_STAGED_MESSAGE)
+        sys.exit(0)
 
     try:
         write_pending_handoff_marker(

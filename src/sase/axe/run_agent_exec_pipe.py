@@ -52,9 +52,44 @@ def handle_pipe_marker(
 
     Returns ``None`` so the execution loop runs the successor.
     """
+    return _handle_pipe_handoff(
+        pipe_data,
+        ctx,
+        state,
+        provider_response=None,
+        interrupted=True,
+    )
+
+
+def handle_staged_pipe_marker(
+    pipe_data: dict[str, Any],
+    ctx: AgentExecContext,
+    state: LoopState,
+    *,
+    provider_response: str,
+) -> str | None:
+    """Adopt a settled staged pipe handoff without the legacy kill."""
+    return _handle_pipe_handoff(
+        pipe_data,
+        ctx,
+        state,
+        provider_response=provider_response,
+        interrupted=False,
+    )
+
+
+def _handle_pipe_handoff(
+    pipe_data: dict[str, Any],
+    ctx: AgentExecContext,
+    state: LoopState,
+    *,
+    provider_response: str | None,
+    interrupted: bool,
+) -> str | None:
     mark_lifecycle_phase(state.current_artifacts_dir, "handoff")
     parent_dir = state.current_artifacts_dir
-    normalize_handoff_interruption_state(parent_dir)
+    if interrupted:
+        normalize_handoff_interruption_state(parent_dir)
     finalize_handoff_artifacts_as_completed(parent_dir)
     base_meta = _interrupted_phase_meta(parent_dir, ctx.agent_meta)
     parent_name = _text(base_meta.get("name")) or ctx.agent_name
@@ -92,13 +127,24 @@ def handle_pipe_marker(
     )
 
     extra = format_extra_sections(parent_dir)
+    pipe_summary = _format_pipe_response(
+        successor_name=successor_name,
+        reason=reason,
+        piped_prompt=piped_prompt,
+    )
+    if provider_response is None:
+        response_content = pipe_summary
+    else:
+        response_content = provider_response
+        sections = [
+            section
+            for section in (extra, f"## Pipe Hand-off\n\n{pipe_summary.strip()}")
+            if isinstance(section, str) and section.strip()
+        ]
+        extra = "\n\n".join(sections) or None
     chat_path = save_chat_history(
         prompt=state.current_prompt,
-        response=_format_pipe_response(
-            successor_name=successor_name,
-            reason=reason,
-            piped_prompt=piped_prompt,
-        ),
+        response=response_content,
         workflow="ace-run",
         agent=parent_name,
         timestamp=ctx.timestamp,
@@ -148,7 +194,8 @@ def handle_pipe_marker(
         store_prompt=_store_followup_prompt_artifact,
     )
     state.question_base_prompt = state.current_prompt
-    reset_killed()
+    if interrupted:
+        reset_killed()
     return None
 
 
@@ -228,4 +275,5 @@ def _text(value: Any) -> str | None:
 
 __all__ = [
     "handle_pipe_marker",
+    "handle_staged_pipe_marker",
 ]

@@ -407,7 +407,7 @@ def test_flag_flip_after_stage_does_not_switch_runner(
     assert meta.get("handoff_protocol") == "staged"
 
 
-def test_flag_enabled_questions_still_write_pending_marker(
+def test_flag_enabled_questions_stages_instead_of_pending_marker(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -423,11 +423,16 @@ def test_flag_enabled_questions_still_write_pending_marker(
     with override_flags(staged_handoffs=True), pytest.raises(SystemExit) as exc:
         handle_questions_command(payload)
     assert exc.value.code == 0
-    assert (tmp_path / QUESTIONS_PENDING_MARKER).is_file()
-    assert not (tmp_path / STAGED_HANDOFF_FILENAME).exists()
+    assert not (tmp_path / QUESTIONS_PENDING_MARKER).exists()
+    record = json.loads(
+        (tmp_path / STAGED_HANDOFF_FILENAME).read_text(encoding="utf-8")
+    )
+    assert record["kind"] == "questions"
+    assert record["successor_workspace"] == "inherit"
+    assert record["carry_allowed"] is True
 
 
-def test_flag_enabled_pipe_still_writes_pending_marker(
+def test_flag_enabled_pipe_stages_instead_of_pending_marker(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -445,8 +450,14 @@ def test_flag_enabled_pipe_still_writes_pending_marker(
     with override_flags(staged_handoffs=True), pytest.raises(SystemExit) as exc:
         handle_pipe_command("finish the review")
     assert exc.value.code == 0
-    assert (tmp_path / PIPE_PENDING_MARKER).is_file()
-    assert not (tmp_path / STAGED_HANDOFF_FILENAME).exists()
+    assert not (tmp_path / PIPE_PENDING_MARKER).exists()
+    record = json.loads(
+        (tmp_path / STAGED_HANDOFF_FILENAME).read_text(encoding="utf-8")
+    )
+    assert record["kind"] == "pipe"
+    assert record["successor_workspace"] == "inherit"
+    assert record["carry_allowed"] is True
+    assert record["payload"]["prompt"] == "finish the review"
 
 
 @pytest.mark.parametrize("protocol", ["staged", "legacy"])
