@@ -11,6 +11,12 @@ from sase.core.finalizer_wire import (
     FinalizerOutcomeEvidenceWire,
 )
 from sase.finalizers.commit_bead import ensure_no_residual_dirt
+from sase.finalizers.commit_carry import (
+    carry_evidence_for_context,
+    carry_repo_ids,
+    check_carry_action,
+    repos_with_action,
+)
 from sase.finalizers.commit_declaration import (
     accepted_deferrals_for_instance,
     accepted_repos_from_host,
@@ -177,6 +183,20 @@ def execute_commit_finalizer(
     accepted_deferrals = accepted_deferrals_for_instance(
         accepted_deferrals_raw, instance.instance_id
     )
+    carried_ids = carry_repo_ids(decisions)
+    if carried_ids:
+        try:
+            check_carry_action(accepted_context)
+        except ValueError as exc:
+            raise BuiltinCommitFinalizerError(
+                str(exc),
+                result=failed_result(
+                    instance.instance_id,
+                    "invalid_commit_declaration",
+                    str(exc),
+                ),
+                invoke_result=invoke_result,
+            ) from exc
     current_result = invoke_result
     (
         state,
@@ -255,7 +275,12 @@ def execute_commit_finalizer(
             invoke_result=invoke_result,
         )
     checkpoint_recovery = resume_owned_pending_checkpoint(
-        accepted_repos,
+        repos_with_action(
+            accepted_repos,
+            decisions,
+            "commit",
+            repo_id_of=repository_decision_id,
+        ),
         decisions=decisions,
         artifacts=artifacts,
         context=stitch_context,
@@ -334,7 +359,12 @@ def execute_commit_finalizer(
             resume_attempts,
             resume_evidence,
         ) = resume_unpushed_already_clean_repos(
-            already_clean,
+            repos_with_action(
+                already_clean,
+                decisions,
+                "commit",
+                repo_id_of=repository_decision_id,
+            ),
             decisions=decisions,
             artifacts=artifacts,
             context=stitch_context,
@@ -384,8 +414,13 @@ def execute_commit_finalizer(
             ),
         )
 
+    if carried_ids:
+        evidence.extend(carry_evidence_for_context(decisions, accepted_context))
+    commit_ordered = [
+        repo for repo in ordered if repository_decision_id(repo) not in carried_ids
+    ]
     dispatched = dispatch_commit_decisions(
-        ordered,
+        commit_ordered,
         decisions,
         state=state,
         context=stitch_context,
@@ -443,6 +478,7 @@ def execute_commit_finalizer(
         evidence=evidence,
         auto_bead_sync=auto_commit_separate_sdd_store_if_possible,
         prepare_dirty_state=prepare_commit_dirty_state,
+        carried_repo_ids=tuple(sorted(carried_ids)),
     )
 
     raise_if_unpublished_machine_state(

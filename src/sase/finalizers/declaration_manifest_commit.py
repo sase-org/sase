@@ -20,6 +20,10 @@ from sase.core.finalizer_wire import (
     finalizer_deferral_from_dict,
     finalizer_wire_to_json_dict,
 )
+from sase.finalizers.commit_carry import (
+    carry_decision_allowed_keys,
+    check_carry_action,
+)
 from sase.finalizers.declaration_store import (
     FinalizerDeclarationError,
     HostRepositoryRecord,
@@ -182,10 +186,13 @@ def _validate_commit_payload(
             _validate_commit_decision(
                 context, repo_id, decision, host_records=host_records
             )
+        elif action == "carry":
+            _validate_carry_decision(context, repo_id, decision)
         else:
             raise FinalizerDeclarationError(
                 f"commit repository decision for {repo_id} has invalid action; "
-                "the only legal action is 'commit'",
+                "legal actions are 'commit' and, when the host context allows "
+                "it, 'carry'",
                 code="commit_action_invalid",
             )
     missing = set(expected) - seen
@@ -195,7 +202,18 @@ def _validate_commit_payload(
             + ", ".join(sorted(missing)),
             code="commit_repo_decision_missing",
         )
-    commit_deferral_decisions_for_payload(context, payload)
+    deferrals = commit_deferral_decisions_for_payload(context, payload)
+    carried = {
+        str(decision.get("repo_id"))
+        for decision in raw_repositories
+        if isinstance(decision, Mapping) and decision.get("action") == "carry"
+    }
+    for item in deferrals:
+        if item.repo_id in carried:
+            raise FinalizerDeclarationError(
+                f"repository {item.repo_id} cannot be carried and deferred",
+                code="commit_carry_deferral_conflict",
+            )
 
 
 def commit_deferral_decisions_for_payload(
@@ -355,6 +373,21 @@ def reject_placeholder_commit_messages(declaration: Mapping[str, Any]) -> None:
                     "done in that repository",
                     code="commit_message_placeholder",
                 )
+
+
+def _validate_carry_decision(
+    context: FinalizerContextWire,
+    repo_id: str,
+    decision: Mapping[str, Any],
+) -> None:
+    _reject_extra_keys(decision, set(carry_decision_allowed_keys()), "carry")
+    try:
+        check_carry_action(context)
+    except ValueError as exc:
+        raise FinalizerDeclarationError(
+            f"carry decision for {repo_id} is not allowed: {exc}",
+            code="commit_action_invalid",
+        ) from exc
 
 
 def _validate_commit_decision(

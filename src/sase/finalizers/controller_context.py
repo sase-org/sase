@@ -14,6 +14,7 @@ from sase.core.finalizer_wire import (
     FinalizerPlanWire,
     finalizer_wire_to_json_dict,
 )
+from sase.finalizers.commit_carry import current_commit_obligations_satisfied
 from sase.finalizers.declaration import (
     FINAL_CONTEXT_FILENAME,
     FINAL_DECLARATION_RECOVERY_PROMPT_FILENAME,
@@ -192,6 +193,9 @@ def pending_instance_ids(
                 # A deferred repository stays dirty by design; its trigger
                 # persists but the instance is already resolved for this run.
                 continue
+            if previous is not None and previous.status == "success":
+                if current_commit_obligations_satisfied(payload, previous):
+                    continue
             requirement = requirements.get(instance_id, {})
             triggered = bool(
                 requirement.get("submission_required")

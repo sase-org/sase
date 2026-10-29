@@ -36,6 +36,7 @@ class _ObligatedRepository:
     obligation_id: str
     name: str
     path: str
+    digest: str = ""
 
 
 @dataclass(frozen=True)
@@ -153,6 +154,7 @@ def _context_obligations(
                         obligation_id=obligation_id,
                         name=repo.name,
                         path=repo.path,
+                        digest=str(getattr(obligation, "digest", "") or ""),
                     )
                 )
         return tuple(obligated), deferred, markers
@@ -183,6 +185,7 @@ def _context_obligations(
                     obligation_id=obligation.obligation_id,
                     name=name or obligation.obligation_id,
                     path=path,
+                    digest=str(getattr(obligation, "digest", "") or ""),
                 )
             )
         return tuple(fallback), set(), markers
@@ -235,6 +238,46 @@ def _landing_marker_fact(marker: Mapping[str, Any]) -> LandingMarkerFactWire | N
         head=_optional_text(marker.get("head")),
         dirty_fingerprint=_optional_text(marker.get("dirty_fingerprint")),
         message_digest=_optional_text(marker.get("message_digest")),
+    )
+
+
+def _proven_coverage_ids(
+    artifacts_dir: str,
+    obligations: tuple[_ObligatedRepository, ...],
+) -> frozenset[str]:
+    """Return obligation ids with current proven carry or prepared coverage."""
+
+    from sase.finalizers.artifacts import FINALIZER_RESULT_FILENAME
+    from sase.finalizers.commit_carry import proven_coverage_ids_from_result_payload
+
+    digest_by_id = {repo.obligation_id: repo.digest for repo in obligations}
+    staged_ref = ""
+    try:
+        from sase.finalizers.commit_declaration import load_accepted_commit_declaration
+
+        _envelope, accepted_context, _host, _deferrals = (
+            load_accepted_commit_declaration(artifacts_dir)
+        )
+        if accepted_context.handoff is not None:
+            staged_ref = accepted_context.handoff.staged_ref
+        for obligation in accepted_context.obligations:
+            if obligation.kind != "repository":
+                continue
+            if obligation.digest:
+                digest_by_id[obligation.obligation_id] = obligation.digest
+    except Exception:
+        pass
+    path = Path(artifacts_dir) / FINALIZER_RESULT_FILENAME
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError, UnicodeDecodeError):
+        return frozenset()
+    if not isinstance(payload, dict):
+        return frozenset()
+    return proven_coverage_ids_from_result_payload(
+        payload,
+        digest_by_id=digest_by_id,
+        staged_ref=staged_ref,
     )
 
 
@@ -403,12 +446,22 @@ def assess_terminal_failure(
             failure_code=failure_code,
             failure_message=failure_message,
         )
+    covered_ids = _proven_coverage_ids(artifacts_dir, obligations)
     settlements: list[_RepositorySettlement] = []
     for repo in obligations:
         if repo.obligation_id in deferred_ids:
             settlements.append(
                 _RepositorySettlement(
                     repo=repo, landed=True, detail="accepted deferral", deferred=True
+                )
+            )
+            continue
+        if repo.obligation_id in covered_ids:
+            settlements.append(
+                _RepositorySettlement(
+                    repo=repo,
+                    landed=True,
+                    detail="accepted carry",
                 )
             )
             continue

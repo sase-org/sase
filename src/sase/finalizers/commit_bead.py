@@ -151,6 +151,7 @@ def ensure_no_residual_dirt(
     evidence: Sequence[Any],
     auto_bead_sync: Callable[[str, Path | None], Any],
     prepare_dirty_state: Callable[[str, Path | None], Any],
+    carried_repo_ids: Sequence[str] | None = None,
 ) -> Any:
     """Fail when stitch left residual dirt, with one bounded late bead pass.
 
@@ -163,10 +164,11 @@ def ensure_no_residual_dirt(
     deferred_repo_ids = {
         repository_decision_id(item.repo) for item in deferred_outcomes
     }
+    exempt_repo_ids = deferred_repo_ids | set(carried_repo_ids or ())
     residual_repos = tuple(
         repo
         for repo in state.dirty_state.repos
-        if repository_decision_id(repo) not in deferred_repo_ids
+        if repository_decision_id(repo) not in exempt_repo_ids
     )
     late_bead_sync = None
     if not residual_repos:
@@ -201,7 +203,7 @@ def ensure_no_residual_dirt(
         residual_repos = tuple(
             repo
             for repo in state.dirty_state.repos
-            if repository_decision_id(repo) not in deferred_repo_ids
+            if repository_decision_id(repo) not in exempt_repo_ids
         )
         if (
             not residual_repos
