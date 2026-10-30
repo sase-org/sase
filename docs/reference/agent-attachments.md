@@ -509,13 +509,16 @@ drop at apply time. `reclaim --apply` says this outright in its summary.
 ### Ongoing enforcement
 
 `artifacts.retention` is disabled by default and removes nothing until enabled. Once
-enabled, one bounded pass runs after automatic capture at each agent finalization: it
+enabled, the hourly `artifact_retention` housekeeping job runs one bounded pass: it
 plans with the configured policy plus the protection scan, trashes what it selects, and
 purges trash entries past the grace period, printing one `[artifacts] retention:` line
-with rows trashed, bytes reclaimed, and entries purged. The pass is wrapped defensively
-and never fails a run; when a protection source is unavailable it prints
-`[artifacts] retention skipped:` and touches nothing. See
-[configuration](config/artifacts.md#artifacts) for the fields.
+with rows trashed, bytes reclaimed, and entries purged. Every completed pass, including
+a skip because retention is disabled or a protection source is unavailable, writes
+`~/.sase/artifact_retention.json`. The runner's exec-finalize tail only runs the same
+pass when that stamp is missing or older than 24 hours, and skips immediately when the
+lock is busy. The pass is wrapped defensively and never fails a run; when a protection
+source is unavailable it prints `[artifacts] retention skipped:` and touches nothing.
+See [configuration](config/artifacts.md#artifacts) for the fields.
 
 Sources:
 
@@ -524,6 +527,7 @@ Sources:
 - `src/sase/artifact_cli/reclaim.py`
 - `src/sase/artifact_cli/trash.py`
 - `src/sase/core/artifact_file_retention.py`
+- `src/sase/core/artifact_file_retention_pass.py`
 - `src/sase/core/artifact_file_reclaim.py`
 - `src/sase/core/artifact_file_trash.py`
 - `src/sase/core/artifact_file_protection.py`

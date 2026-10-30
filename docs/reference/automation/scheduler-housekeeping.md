@@ -22,6 +22,7 @@ Periodic maintenance:
 | `bead_stale_cleanup`         | Sweep stale sub-threshold ready task beads into one `BeadStaleCleanup` gate      |
 | `gate_turn_reclaim`          | Settle pending gate turns whose gates answered, canceled, expired, or vanished   |
 | `artifact_link_backfill`     | Derive and reconcile artifact links, drain reads, and repair refs after a rename |
+| `artifact_retention`         | Enforce indexed artifact-file retention and purge expired trash                  |
 | `artifact_run_prune`         | Preview old ace-run directories and empty shard cleanup                          |
 
 The `error_digest` job summarizes recent errors into a digest file stored at
@@ -233,6 +234,19 @@ error. A large derivation backlog converges over several hourly ticks instead of
 rescanning the full corpus each time. Run `sase axe job run artifact_link_backfill` for
 an immediate pass. The link model and doctor counters are documented in
 [Artifact Links](../artifact-links.md).
+
+The `artifact_retention` job owns indexed artifact-file retention. It runs the same
+bounded pass that used to sit on every agent finalization: plan with
+[`artifacts.retention`](../config/artifacts.md#artifacts) plus the protection scan,
+trash selected automatic captures, and purge trash past the grace period. Every
+completed pass writes `~/.sase/artifact_retention.json` with the time and outcome,
+including a skip because retention is disabled or a protection source is unavailable. A
+non-blocking exclusive lock excludes overlapping passes. Agent finalization only runs
+the same pass when that stamp is missing or older than 24 hours, so a machine without a
+scheduler still enforces retention at least daily, and it skips immediately when the
+lock is busy. Run `sase axe job run artifact_retention` for an immediate pass. See
+[SASE disk cleanup](../disk-cleanup.md) and
+[Store Lifecycle](../agent-attachments.md#store-lifecycle).
 
 The `artifact_run_prune` job is a read-only preview for old `artifacts/ace-run/`
 directories. Protection facts are gathered in Python, while the preview classification,

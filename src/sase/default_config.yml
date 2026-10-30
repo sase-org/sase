@@ -284,10 +284,15 @@ artifacts:
     # Opportunistic GC removes already-published terminal-run artifacts after
     # the workspace-local prompt-artifact pool grows beyond this budget.
     pool_max_bytes: 1073741824
+  # Policy for pruning and trashing captured artifact data from the hourly
+  # housekeeping job, with a throttled runner fallback.
   retention:
     # Retention removes nothing until this is true. Explicit artifacts, artifacts
     # referenced by a bead, plan, or Patch, and the newest capture of every
-    # label are kept regardless of the settings below.
+    # label are kept regardless of the settings below. When enabled, the hourly
+    # artifact_retention housekeeping job owns the pass; agent finalization only
+    # runs a throttled fallback when the last stamp is missing or older than 24
+    # hours.
     enabled: false
     # Maximum number of empty ace-run month/day/run shard directories removed
     # in one retention apply pass.
@@ -1647,12 +1652,12 @@ axe:
             polling throttle; pending_checks_poll later consumes each background result.
     housekeeping:
       description: |-
-        Run hourly error digests, notification compaction, artifact previews, and cleanup
+        Run hourly error digests, notification compaction, artifact retention, previews, and cleanup
 
         Runs once an hour because notification batching, live-inbox bounding, bounded scratch reclamation,
-        artifact/run-retention previews, and stale-backlog cleanup are useful but not latency-sensitive. Put
-        durable maintenance that may scan substantial local state here, not lifecycle, dependency, or remote polling
-        work.
+        indexed artifact-file retention, artifact/run-retention previews, and stale-backlog cleanup are useful
+        but not latency-sensitive. Put durable maintenance that may scan substantial local state here, not
+        lifecycle, dependency, or remote polling work.
       interval: 3600
       jobs:
         - name: error_digest
@@ -1761,6 +1766,19 @@ axe:
             over several ticks instead of rescanning every document every hour; a document is swept once
             each candidate is durable or parked. A hard bead projection failure this tick is
             check_error with reason bead_projection_failed; parked operations alone are not an error.
+        - name: artifact_retention
+          script: sase_job_artifact_retention
+          timeout: "5m"
+          description: |-
+            Enforce indexed artifact-file retention and purge expired trash
+
+            Runs the bounded store pass that used to sit on every agent finalization: plan with the
+            configured policy plus protection scan, trash selected automatic captures, and purge trash
+            past the grace period. Writes ~/.sase/artifact_retention.json with the time and outcome of
+            every completed pass, including a skip because artifacts.retention.enabled is false or a
+            protection source is unavailable. A non-blocking exclusive lock excludes overlapping
+            passes. Agent finalization only runs the same pass when that stamp is missing or older
+            than 24 hours, and skips immediately when the lock is busy.
         - name: artifact_run_prune
           script: sase_job_artifact_run_prune
           timeout: "5m"

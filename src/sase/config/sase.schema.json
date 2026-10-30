@@ -5834,13 +5834,13 @@
         },
         "retention": {
           "type": "object",
-          "description": "Policy for pruning and trashing captured artifact data after agent finalization.",
+          "description": "Policy for pruning and trashing captured artifact data from the hourly housekeeping job, with a throttled runner fallback.",
           "additionalProperties": false,
           "properties": {
             "enabled": {
               "type": "boolean",
               "default": false,
-              "description": "Enable automatic artifact retention after agent finalization. When disabled, retention removes nothing."
+              "description": "Enable automatic artifact retention. The hourly housekeeping job owns the pass; agent finalization only runs a throttled fallback when the last stamp is missing or older than 24 hours. When disabled, retention removes nothing."
             },
             "empty_shard_removal_budget": {
               "type": "integer",

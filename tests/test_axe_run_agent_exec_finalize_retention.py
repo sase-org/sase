@@ -1,6 +1,10 @@
 from __future__ import annotations
 
+from datetime import UTC, datetime, timedelta
+import json
 from pathlib import Path
+import subprocess
+import sys
 
 import pytest
 
@@ -10,6 +14,13 @@ from sase.core.artifact_file_explicit import (
     write_artifact_file_index_unlocked,
 )
 from sase.core.artifact_file_protection import ProtectedArtifactIds
+from sase.core.artifact_file_retention_pass import (
+    _artifact_retention_lock_path,
+    _artifact_retention_stamp_path,
+    _read_artifact_retention_stamp,
+    enforce_artifact_retention,
+    maybe_enforce_artifact_retention,
+)
 from sase.core.artifact_file_trash import (
     list_trashed_artifact_files,
     trash_artifact_files,
@@ -233,3 +244,189 @@ def test_finalization_retention_excludes_consumed_only_row(
     }
     assert list_trashed_artifact_files().entries == ()
     assert "retention: trashed 0 rows" in capsys.readouterr().out
+
+
+def _write_stamp(completed_at: datetime, *, outcome: str = "enforced") -> Path:
+    path = _artifact_retention_stamp_path()
+    path.write_text(
+        json.dumps(
+            {
+                "completed_at": completed_at.isoformat(),
+                "outcome": outcome,
+                "rows_trashed": 0,
+                "bytes_reclaimed": 0,
+                "purged_entries": 0,
+                "missing_rows": 0,
+            },
+            indent=2,
+            sort_keys=True,
+        ),
+        encoding="utf-8",
+    )
+    return path
+
+
+def test_runner_skips_retention_when_stamp_is_fresh(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    index, _old, _new, _explicit, _expired = _seed_store(tmp_path, monkeypatch)
+    _patch_retention_config(monkeypatch, enabled=True)
+    _patch_protections(
+        monkeypatch,
+        ProtectedArtifactIds(
+            referenced_ids=frozenset(),
+            consumed_ids=frozenset(),
+            sources_scanned=(),
+            sources_unavailable=(),
+        ),
+    )
+    _write_stamp(datetime.now(UTC) - timedelta(hours=1))
+    before = index.read_bytes()
+
+    result = maybe_enforce_artifact_retention()
+
+    assert result.outcome == "stamp_fresh"
+    assert result.stamped is False
+    assert index.read_bytes() == before
+    assert list_trashed_artifact_files().entries == ()
+
+
+def test_runner_runs_retention_when_stamp_is_stale(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    index, old, new, explicit, _expired = _seed_store(tmp_path, monkeypatch)
+    _patch_retention_config(monkeypatch, enabled=True)
+    _patch_protections(
+        monkeypatch,
+        ProtectedArtifactIds(
+            referenced_ids=frozenset(),
+            consumed_ids=frozenset(),
+            sources_scanned=(),
+            sources_unavailable=(),
+        ),
+    )
+    _write_stamp(datetime.now(UTC) - timedelta(hours=25))
+
+    result = maybe_enforce_artifact_retention()
+
+    assert result.outcome == "enforced"
+    assert result.stamped is True
+    remaining = {row.id for row in read_artifact_file_index(index)}
+    assert old.id not in remaining
+    assert {new.id, explicit.id} <= remaining
+    assert {entry.artifact_id for entry in list_trashed_artifact_files().entries} == {
+        old.id
+    }
+    stamp = _read_artifact_retention_stamp()
+    assert stamp is not None
+    assert stamp["outcome"] == "enforced"
+
+
+def test_runner_runs_retention_when_stamp_is_missing(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _seed_store(tmp_path, monkeypatch)
+    _patch_retention_config(monkeypatch, enabled=False)
+
+    result = maybe_enforce_artifact_retention()
+
+    assert result.outcome == "disabled"
+    assert result.stamped is True
+    stamp = _read_artifact_retention_stamp()
+    assert stamp is not None
+    assert stamp["outcome"] == "disabled"
+
+
+def test_concurrent_retention_passes_are_excluded(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    index, _old, _new, _explicit, _expired = _seed_store(tmp_path, monkeypatch)
+    _patch_retention_config(monkeypatch, enabled=True)
+    _patch_protections(
+        monkeypatch,
+        ProtectedArtifactIds(
+            referenced_ids=frozenset(),
+            consumed_ids=frozenset(),
+            sources_scanned=(),
+            sources_unavailable=(),
+        ),
+    )
+    before = index.read_bytes()
+    lock_path = _artifact_retention_lock_path()
+    lock_path.parent.mkdir(parents=True, exist_ok=True)
+    holder = subprocess.Popen(
+        [
+            sys.executable,
+            "-c",
+            (
+                "import fcntl, sys, time\n"
+                "handle = open(sys.argv[1], 'a', encoding='utf-8')\n"
+                "fcntl.flock(handle.fileno(), fcntl.LOCK_EX)\n"
+                "sys.stdout.write('locked\\n')\n"
+                "sys.stdout.flush()\n"
+                "time.sleep(30)\n"
+            ),
+            str(lock_path),
+        ],
+        stdout=subprocess.PIPE,
+        text=True,
+    )
+    try:
+        assert holder.stdout is not None
+        assert holder.stdout.readline() == "locked\n"
+        result = enforce_artifact_retention()
+    finally:
+        holder.terminate()
+        holder.wait(timeout=5)
+
+    assert result.outcome == "lock_busy"
+    assert result.stamped is False
+    assert index.read_bytes() == before
+    assert not _artifact_retention_stamp_path().exists()
+
+
+def test_disabled_retention_stamps_and_never_trashes(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    index, _old, _new, _explicit, _expired = _seed_store(tmp_path, monkeypatch)
+    _patch_retention_config(monkeypatch, enabled=False)
+    before = index.read_bytes()
+
+    result = enforce_artifact_retention()
+
+    assert result.outcome == "disabled"
+    assert result.stamped is True
+    assert index.read_bytes() == before
+    assert list_trashed_artifact_files().entries == ()
+    stamp = _read_artifact_retention_stamp()
+    assert stamp is not None
+    assert stamp["outcome"] == "disabled"
+
+
+def test_finalize_wrapper_skips_when_stamp_is_fresh(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    index, _old, _new, _explicit, _expired = _seed_store(tmp_path, monkeypatch)
+    _patch_retention_config(monkeypatch, enabled=True)
+    _patch_protections(
+        monkeypatch,
+        ProtectedArtifactIds(
+            referenced_ids=frozenset(),
+            consumed_ids=frozenset(),
+            sources_scanned=(),
+            sources_unavailable=(),
+        ),
+    )
+    _write_stamp(datetime.now(UTC))
+    before = index.read_bytes()
+
+    _enforce_artifact_retention()
+
+    assert index.read_bytes() == before
+    assert list_trashed_artifact_files().entries == ()

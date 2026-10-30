@@ -424,6 +424,7 @@ def test_hook_builtin_uses_shared_runner_and_emits_noop_result(tmp_path: Path) -
 
 def test_all_builtin_chop_modules_use_the_registry() -> None:
     modules = {
+        "artifact_retention",
         "artifact_run_prune",
         "bead_stale_cleanup",
         "comment_checks",

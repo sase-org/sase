@@ -391,10 +391,10 @@ fragment-free `file:` IDs recorded in the consumption ledger, then passes the
 deduplicated set to the applicable planner. Stats keeps referenced, consumed, overlap,
 and total protection counts distinct. Prune and reclaim are dry runs unless `--apply` is
 passed and never select explicit or protected rows; automatic retention enforces the
-same union after agent finalization when `artifacts.retention.enabled` is true. A
-missing consumption ledger contributes no IDs; a present ledger that cannot be queried
-appears in protection-source evidence and blocks destructive apply or skips automatic
-enforcement.
+same union from the hourly housekeeping job (with a throttled runner fallback) when
+`artifacts.retention.enabled` is true. A missing consumption ledger contributes no IDs;
+a present ledger that cannot be queried appears in protection-source evidence and blocks
+destructive apply or skips automatic enforcement.
 
 Every removal `prune`, `reclaim`, and automatic retention perform routes through the
 restorable trash under `~/.sase/artifacts/trash/`: one directory per entry holding

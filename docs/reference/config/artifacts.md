@@ -42,9 +42,11 @@ oversized files, but SASE does not copy their bytes into `.sase/artifacts/pool/`
 [Prompt Artifact Staging and Archive](../agent-attachments.md#prompt-artifact-staging-and-archive)
 for the layout and garbage-collection rules.
 
-`artifacts.retention` is the opt-in policy that runs once after each agent finalization,
-immediately after automatic capture. It ships disabled with generous values pre-filled,
-so enabling it later is a flag flip rather than a policy design exercise.
+`artifacts.retention` is the opt-in policy the hourly `artifact_retention` housekeeping
+job enforces against the indexed store. Agent finalization only runs a throttled
+fallback when the last stamp is missing or older than 24 hours. It ships disabled with
+generous values pre-filled, so enabling it later is a flag flip rather than a policy
+design exercise.
 
 ```yaml
 artifacts:
@@ -64,10 +66,11 @@ and defensive: it never fails a run, and it removes nothing that retention's pro
 contract keeps — explicit artifacts, artifacts referenced by a ProjectSpec, plan, bead,
 or research document, artifacts recorded in the consumption ledger, and the newest
 capture of every label. If any required protection source cannot be read, the whole pass
-is skipped rather than under-protecting, and finalization prints
+is skipped rather than under-protecting, and it prints
 `[artifacts] retention skipped: protection sources unavailable: <sources>`. Otherwise it
 prints one `[artifacts] retention:` line with rows trashed, bytes reclaimed, and trash
-entries purged.
+entries purged. A disabled or unavailable skip still stamps
+`~/.sase/artifact_retention.json` so the runner fallback can stay quiet.
 
 The same values drive the manual surfaces, so a dry run previews exactly what enabling
 retention would do: `keep_per_label` is what `sase artifact prune` plans with when `-g`

@@ -206,77 +206,18 @@ def collect_default_artifacts(
 
 
 def enforce_artifact_retention() -> None:
-    try:
-        from datetime import UTC, datetime, timedelta
+    """Throttled runner fallback for indexed artifact-file retention.
 
-        from sase.config import (
-            get_artifact_retention_enabled,
-            get_artifact_retention_keep_per_label,
-            get_artifact_retention_max_age_days,
-            get_artifact_retention_trash_grace_days,
-        )
-        from sase.core.artifact_file_explicit import read_artifact_file_index
-        from sase.core.artifact_file_protection import collect_protected_artifact_ids
-        from sase.core.artifact_file_retention import (
-            RetentionPolicy,
-            plan_artifact_file_retention,
-        )
-        from sase.core.artifact_file_trash import (
-            purge_trashed_artifact_files,
-            trash_artifact_files,
-        )
+    The hourly ``artifact_retention`` job owns the pass. Finalization only
+    runs it when the last completed stamp is missing or older than 24 hours,
+    and skips immediately when another pass holds the lock.
+    """
 
-        if not get_artifact_retention_enabled():
-            return
+    from sase.core.artifact_file_retention_pass import (
+        maybe_enforce_artifact_retention,
+    )
 
-        now = datetime.now(UTC)
-        protections = collect_protected_artifact_ids()
-        if protections.sources_unavailable:
-            sources = ", ".join(protections.sources_unavailable)
-            print(
-                "[artifacts] retention skipped: "
-                f"protection sources unavailable: {sources}"
-            )
-            return
-
-        max_age_days = get_artifact_retention_max_age_days()
-        policy = RetentionPolicy(
-            now=now.isoformat(),
-            keep_per_label=get_artifact_retention_keep_per_label(),
-            before=None if max_age_days == 0 else f"{max_age_days}d",
-            protected_ids=protections.ids,
-        )
-        plan = plan_artifact_file_retention(policy)
-        rows_by_id = {row.id: row for row in read_artifact_file_index()}
-        selected_rows = []
-        missing_rows = 0
-        for item in plan.selected:
-            row = rows_by_id.get(item.id)
-            if row is None:
-                missing_rows += 1
-            else:
-                selected_rows.append(row)
-        trashed = trash_artifact_files(
-            selected_rows,
-            reason="retention",
-            now=policy.now,
-        )
-        purge_cutoff = (
-            now - timedelta(days=get_artifact_retention_trash_grace_days())
-        ).isoformat()
-        purged = purge_trashed_artifact_files(before=purge_cutoff)
-        missing_note = (
-            f", skipped {missing_rows} disappeared rows" if missing_rows else ""
-        )
-        print(
-            "[artifacts] retention: "
-            f"trashed {trashed.rows_trashed} rows, "
-            f"reclaimed {trashed.bytes_reclaimed} bytes, "
-            f"purged {len(purged.purged_entry_ids)} trash entries"
-            f"{missing_note}"
-        )
-    except Exception as exc:  # noqa: BLE001
-        print(f"[artifacts] retention failed: {exc}")
+    maybe_enforce_artifact_retention()
 
 
 def commit_records_from_step_output(
