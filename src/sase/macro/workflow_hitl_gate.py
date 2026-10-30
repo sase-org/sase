@@ -71,8 +71,51 @@ def create_workflow_hitl_shell_gate(
     has_output: bool,
     output_types: Mapping[str, str] | None,
     timeout_seconds: float,
+    workflow_identity: Any | None = None,
+    provider_evidence: Any | None = None,
+    provider_content: str | None = None,
+    original_prompt: str = "",
 ) -> Any:
-    """Create a shell-backed HITL gate whose follow-up continues the workflow."""
+    """Create or stage a shell-backed HITL gate for workflow continuation.
+
+    Agent-context staged reviews use the shared staged-gate contract and
+    host-preparation admission. The executor settles their finalizers after
+    required workflow cleanup. Flag-off callers retain immediate legacy gate
+    creation and handoff behavior.
+    """
+    if workflow_hitl_should_stage_from_agent():
+        from sase.macro.workflow_completion import (
+            WorkflowReviewIdentity,
+            prepare_workflow_review,
+            stage_workflow_review,
+        )
+        from sase.macro.workflow_executor_types import WorkflowSuspended
+
+        identity = workflow_identity or WorkflowReviewIdentity(
+            workflow=workflow_name,
+            step=step_name,
+            step_type=step_type,
+        )
+        review = prepare_workflow_review(
+            identity=identity,
+            output=output,
+            artifacts_dir=artifacts_dir,
+            has_output=has_output,
+            output_types=output_types,
+            timeout_seconds=timeout_seconds,
+            provider_evidence=provider_evidence,
+        )
+        stage_workflow_review(
+            review,
+            artifacts_dir=artifacts_dir,
+            provider_content=provider_content,
+        )
+        return WorkflowSuspended(
+            review,
+            provider_content=provider_content,
+            original_prompt=original_prompt,
+        )
+
     spec = _workflow_hitl_gate_spec(
         step_name=step_name,
         step_type=step_type,
@@ -206,6 +249,15 @@ def _failed_workflow_hitl_message(
 def workflow_hitl_should_handoff_from_agent() -> bool:
     """Return whether workflow HITL should be represented as a gate turn."""
     return bool(os.environ.get("SASE_AGENT"))
+
+
+def workflow_hitl_should_stage_from_agent() -> bool:
+    """Return whether this agent workflow review uses staged handoff."""
+    if not workflow_hitl_should_handoff_from_agent():
+        return False
+    from sase.agent.staged_handoff import staged_handoffs_enabled
+
+    return staged_handoffs_enabled()
 
 
 def _workflow_hitl_shell_spec(
@@ -474,6 +526,29 @@ def workflow_hitl_shell_spec_for_staging(
         output_types=output_types,
         timeout_seconds=timeout_seconds,
     )
+    resources = spec["resources"]
+    assert isinstance(resources, list)
+    if isinstance(output, Mapping):
+        for field_name, field_type in (output_types or {}).items():
+            if field_type != "path" or field_name not in output:
+                continue
+            source = Path(str(output[field_name])).expanduser()
+            if not source.is_file():
+                continue
+            safe_field = (
+                "".join(
+                    char if char.isalnum() or char in "._-" else "_"
+                    for char in field_name
+                )
+                or "output"
+            )
+            resources.append(
+                {
+                    "path": f"workflow-output/{safe_field}/{source.name}",
+                    "role": "preview",
+                    "source": str(source.resolve()),
+                }
+            )
     spec["shell"] = _workflow_hitl_shell_spec(
         step_name=step_name,
         step_type=step_type,
@@ -491,5 +566,6 @@ __all__ = [
     "maybe_handoff_workflow_hitl_from_agent",
     "wait_for_workflow_hitl_gate",
     "workflow_hitl_should_handoff_from_agent",
+    "workflow_hitl_should_stage_from_agent",
     "workflow_hitl_shell_spec_for_staging",
 ]

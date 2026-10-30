@@ -105,7 +105,12 @@ from .workflow_runner import (
     expand_workflow_for_embedding,
     is_workflow_reference,
 )
-from .workflow_executor import HITLHandler, HITLResult, WorkflowExecutor
+from .workflow_executor import (
+    HITLHandler,
+    HITLResult,
+    WorkflowExecutor,
+    WorkflowSuspended,
+)
 from .workflow_hitl import CLIHITLHandler
 from .workflow_models import (
     StepState,
@@ -224,6 +229,7 @@ __all__ = [
     "WorkflowError",
     "WorkflowExecutionError",
     "WorkflowExecutor",
+    "WorkflowSuspended",
     "WorkflowKind",
     "WorkflowState",
     "WorkflowStep",

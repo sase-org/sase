@@ -42,7 +42,11 @@ class HITLHandler(Protocol):
         *,
         has_output: bool = False,
         output_types: dict[str, str] | None = None,
-    ) -> HITLResult:
+        workflow_identity: Any | None = None,
+        provider_evidence: Any | None = None,
+        provider_content: str | None = None,
+        original_prompt: str = "",
+    ) -> HITLResult | WorkflowSuspended:
         """Prompt the user for action on step output.
 
         Args:
@@ -53,7 +57,8 @@ class HITLHandler(Protocol):
             output_types: Mapping of field names to their types (e.g. "path").
 
         Returns:
-            HITLResult indicating the user's decision.
+            HITLResult for a synchronous decision, or WorkflowSuspended after
+            a staged review has been persisted.
         """
         ...
 
@@ -80,3 +85,31 @@ class HITLResult:
         self.feedback = feedback
         self.approved = approved
         self.edited_output = edited_output
+
+
+class WorkflowSuspended(Exception):
+    """Control signal that a staged review suspended workflow execution.
+
+    Unlike a rejection, suspension preserves the waiting step and its output.
+    The workflow executor catches this signal outside nested execution paths,
+    runs required cleanup, then settles the prepared review before returning
+    the suspension to its caller.
+    """
+
+    def __init__(
+        self,
+        review: Any,
+        *,
+        provider_content: str | None = None,
+        original_prompt: str = "",
+    ) -> None:
+        super().__init__("workflow suspended for staged HITL review")
+        self.review = review
+        self.provider_content = provider_content
+        self.original_prompt = original_prompt
+        self.step_index: int | None = None
+        self.cleanup_errors: list[str] = []
+
+    def record_cleanup_failure(self, error: BaseException) -> None:
+        """Record required cleanup that must block finalizer settlement."""
+        self.cleanup_errors.append(f"{type(error).__qualname__}: {error}")

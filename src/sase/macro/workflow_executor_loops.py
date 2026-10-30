@@ -7,6 +7,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import TYPE_CHECKING, Any
 
 from sase.macro.workflow_executor_utils import create_jinja_env
+from sase.macro.workflow_executor_types import WorkflowSuspended
 from sase.macro.workflow_models import (
     LoopConfig,
     ParallelConfig,
@@ -222,6 +223,9 @@ class LoopMixin:
                     success = self._execute_python_step(step, step_state)
                 else:
                     success = self._execute_bash_step(step, step_state)
+            except WorkflowSuspended:
+                self.context = original_context
+                raise
             except Exception as exc:
                 success = False
                 iteration_error = {

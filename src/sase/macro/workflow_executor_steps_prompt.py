@@ -20,7 +20,11 @@ from sase.macro.workflow_executor_steps_prompt_outputs import (
     resolve_embedded_path_fields,
 )
 from sase.macro.workflow_executor_steps_prompt_prepare import PromptStepPrepareMixin
-from sase.macro.workflow_executor_types import HITLHandler, output_types_from_step
+from sase.macro.workflow_executor_types import (
+    HITLHandler,
+    WorkflowSuspended,
+    output_types_from_step,
+)
 from sase.macro.workflow_models import (
     StepState,
     StepStatus,
@@ -93,7 +97,6 @@ class PromptStepMixin(PromptStepPrepareMixin):
             True if step succeeded, False if rejected by user.
         """
         from sase.content import ensure_str_content
-        from sase.llm_provider import invoke_agent
         from sase.macro import extract_structured_content
 
         prepared = self._prepare_prompt_step(step)
@@ -182,18 +185,43 @@ class PromptStepMixin(PromptStepPrepareMixin):
 
         try:
             self._agents_launched += 1
-            response = invoke_agent(
-                expanded_prompt,
-                agent_type=f"workflow-{base_name}-{step.name}",
-                artifacts_dir=self.artifacts_dir,
-                workflow=self.workflow.name,
-                branch_or_workspace=branch_or_workspace,
-                skip_preprocessing=True,
-                directives=effective_directives,
-                launch_selection=launch_selection,
-                authored_local_request=prepared.authored_local_request,
-                continuation_segments=prepared.continuation_segments,
-            )
+            staged_provider_evidence: Any | None = None
+            use_staged_review = False
+            if self._should_hitl(step) and self.hitl_handler is not None:
+                from sase.macro.workflow_hitl import TUIHITLHandler
+                from sase.macro.workflow_hitl_gate import (
+                    workflow_hitl_should_stage_from_agent,
+                )
+
+                use_staged_review = isinstance(self.hitl_handler, TUIHITLHandler) and (
+                    workflow_hitl_should_stage_from_agent()
+                )
+
+            invocation_kwargs: dict[str, Any] = {
+                "agent_type": f"workflow-{base_name}-{step.name}",
+                "artifacts_dir": self.artifacts_dir,
+                "workflow": self.workflow.name,
+                "branch_or_workspace": branch_or_workspace,
+                "directives": effective_directives,
+                "launch_selection": launch_selection,
+                "authored_local_request": prepared.authored_local_request,
+                "continuation_segments": prepared.continuation_segments,
+            }
+            if use_staged_review:
+                from sase.macro.workflow_completion import invoke_provider_for_review
+
+                response, staged_provider_evidence = invoke_provider_for_review(
+                    expanded_prompt,
+                    **invocation_kwargs,
+                )
+            else:
+                from sase.llm_provider import invoke_agent
+
+                response = invoke_agent(
+                    expanded_prompt,
+                    skip_preprocessing=True,
+                    **invocation_kwargs,
+                )
             response_text = ensure_str_content(response.content)
 
             # Save chat history for TUI display
@@ -246,14 +274,40 @@ class PromptStepMixin(PromptStepPrepareMixin):
                     response_path=response_path,
                 )
 
+                hitl_kwargs: dict[str, Any] = {}
+                if use_staged_review:
+                    from sase.macro.workflow_completion import WorkflowReviewIdentity
+
+                    embedded_name = getattr(
+                        self, "_current_embedded_workflow_name", None
+                    )
+                    hitl_kwargs = {
+                        "workflow_identity": WorkflowReviewIdentity(
+                            workflow=embedded_name or self.workflow.name,
+                            step=step.name,
+                            step_type="agent",
+                        ),
+                        "provider_evidence": staged_provider_evidence,
+                        "provider_content": response_text,
+                        "original_prompt": expanded_prompt,
+                    }
                 result = self.hitl_handler.prompt(
                     step.name,
                     "agent",
                     output,
                     has_output=step.output is not None,
                     output_types=output_types_from_step(step),
+                    **hitl_kwargs,
                 )
 
+                if isinstance(result, WorkflowSuspended):
+                    result.step_index = self.state.current_step_index
+                    step_state.output = output
+                    self.context[step.name] = output
+                    self.state.context = dict(self.context)
+                    self.state.status = "waiting_hitl"
+                    self._save_state()
+                    raise result
                 if result.action == "reject":
                     _deferred_reject = True
                 elif result.action == "edit":
@@ -350,7 +404,7 @@ class PromptStepMixin(PromptStepPrepareMixin):
                     )
                     # Best-effort cleanup; ignore failures in finally steps
                     try:
-                        self._execute_embedded_workflow_steps(
+                        cleanup_succeeded = self._execute_embedded_workflow_steps(
                             finally_steps,
                             info.context,
                             f"embedded:finally:{step.name}",
@@ -358,8 +412,20 @@ class PromptStepMixin(PromptStepPrepareMixin):
                             step_index_offset=cumulative_post_offset,
                             embedded_workflow_name=info.workflow_name,
                         )
-                    except Exception:
-                        pass  # Don't mask the original error
+                        if not cleanup_succeeded and isinstance(
+                            _deferred_error, WorkflowSuspended
+                        ):
+                            _deferred_error.record_cleanup_failure(
+                                WorkflowExecutionError(
+                                    f"embedded finally cleanup failed after staged "
+                                    f"review '{_deferred_error.review.identity.step}'"
+                                )
+                            )
+                    except WorkflowSuspended:
+                        raise
+                    except Exception as cleanup_error:
+                        if isinstance(_deferred_error, WorkflowSuspended):
+                            _deferred_error.record_cleanup_failure(cleanup_error)
                 cumulative_post_offset += len(info.post_steps)
 
         # Propagate deferred failures now that cleanup has run

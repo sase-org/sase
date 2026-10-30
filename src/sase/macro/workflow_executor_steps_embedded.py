@@ -9,7 +9,11 @@ from sase.macro.workflow_executor_steps_embedded_types import (
     EmbeddedWorkflowInfo,
     map_output_by_type,
 )
-from sase.macro.workflow_executor_types import HITLHandler, output_types_from_step
+from sase.macro.workflow_executor_types import (
+    HITLHandler,
+    WorkflowSuspended,
+    output_types_from_step,
+)
 from sase.macro.workflow_executor_utils import render_template
 from sase.macro.workflow_models import (
     StepState,
@@ -110,9 +114,12 @@ class EmbeddedWorkflowMixin(EmbeddedWorkflowExpandMixin):
         total_steps = len(steps)
         has_finally_steps = any(s.finally_ for s in steps)
         hit_failure = False
+        suspension: WorkflowSuspended | None = None
 
         for i, step in enumerate(steps):
             # After a failure, skip non-finally steps
+            if suspension is not None and not step.finally_:
+                continue
             if hit_failure and not step.finally_:
                 embedded_context[step.name] = {}
                 continue
@@ -213,6 +220,8 @@ class EmbeddedWorkflowMixin(EmbeddedWorkflowExpandMixin):
                 if self.output_handler:
                     self.output_handler.on_step_complete(step.name, temp_state.output)
 
+            except WorkflowSuspended as suspended:
+                suspension = suspended
             finally:
                 # Restore original context
                 self.context = original_context
@@ -225,6 +234,15 @@ class EmbeddedWorkflowMixin(EmbeddedWorkflowExpandMixin):
                 self.state.context = dict(self.context)
                 self._current_embedded_workflow_name = None
 
+        if suspension is not None:
+            if hit_failure:
+                suspension.record_cleanup_failure(
+                    WorkflowExecutionError(
+                        f"embedded workflow cleanup failed after staged review "
+                        f"'{suspension.review.identity.step}'"
+                    )
+                )
+            raise suspension
         return not hit_failure
 
     def _resolve_tagged_workflow_content(

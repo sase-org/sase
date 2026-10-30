@@ -8,6 +8,7 @@ from sase.macro.workflow_executor_steps_embedded import (
     EmbeddedWorkflowInfo,
     map_output_by_type,
 )
+from sase.macro.workflow_executor_types import WorkflowSuspended
 from sase.macro.workflow_models import (
     ParallelConfig,
     StepState,
@@ -59,7 +60,7 @@ class ParallelMixin:
         self,
         nested_step: WorkflowStep,
         context_copy: dict[str, Any],
-    ) -> tuple[str, dict[str, Any] | None, str | None]:
+    ) -> tuple[str, dict[str, Any] | None, str | WorkflowSuspended | None]:
         """Execute a single nested step within a parallel block.
 
         Args:
@@ -94,6 +95,8 @@ class ParallelMixin:
 
             return (nested_step.name, temp_step_state.output, None)
 
+        except WorkflowSuspended as suspended:
+            return (nested_step.name, None, suspended)
         except Exception as e:
             return (nested_step.name, None, str(e))
         finally:
@@ -208,6 +211,7 @@ class ParallelMixin:
         # Execute all nested steps in parallel
         results: dict[str, dict[str, Any]] = {}
         errors: list[str] = []
+        suspensions: list[WorkflowSuspended] = []
 
         with ThreadPoolExecutor(max_workers=len(nested_steps)) as executor:
             # Create deep copies of context for each parallel step
@@ -222,6 +226,10 @@ class ParallelMixin:
 
             for future in as_completed(futures):
                 step_name, output, error = future.result()
+
+                if isinstance(error, WorkflowSuspended):
+                    suspensions.append(error)
+                    continue
 
                 if error:
                     errors.append(error)
@@ -238,6 +246,12 @@ class ParallelMixin:
                     self.output_handler.on_parallel_step_complete(
                         step.name, step_name, output, error
                     )
+
+        if suspensions:
+            suspended = suspensions[0]
+            for error in errors:
+                suspended.record_cleanup_failure(WorkflowExecutionError(error))
+            raise suspended
 
         # Check for failures
         if errors:

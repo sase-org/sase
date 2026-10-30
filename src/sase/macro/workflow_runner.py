@@ -24,6 +24,7 @@ from .workflow_models import (
     WorkflowStep,
     WorkflowValidationError,
 )
+from .workflow_executor_types import WorkflowSuspended
 
 logger = logging.getLogger(__name__)
 
@@ -365,12 +366,14 @@ class WorkflowResult:
         response_text: Newest raw response text from a completed prompt step, if any.
         artifacts_dir: Path to the artifacts directory.
         continuation_prepared_ref: Ref for the last prepared local prompt capture.
+        suspension: Staged review that paused the workflow, when present.
     """
 
     output: str
     response_text: str | None
     artifacts_dir: str
     continuation_prepared_ref: str | None = None
+    suspension: WorkflowSuspended | None = None
 
 
 def execute_workflow(
@@ -557,9 +560,18 @@ def execute_workflow(
         workspace_rebind_callback=workspace_rebind_callback,
     )
 
-    success = executor.execute()
+    execution = executor.execute()
 
-    if not success:
+    if isinstance(execution, WorkflowSuspended):
+        return WorkflowResult(
+            output="",
+            response_text=execution.provider_content,
+            artifacts_dir=artifacts_dir,
+            continuation_prepared_ref=None,
+            suspension=execution,
+        )
+
+    if not execution:
         raise WorkflowExecutionError(f"Workflow '{name}' was rejected or failed")
 
     # Extract output and response text

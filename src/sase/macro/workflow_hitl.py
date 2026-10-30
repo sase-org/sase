@@ -11,7 +11,7 @@ from rich.markup import escape as _esc
 from rich.syntax import Syntax
 from sase.content import dump_yaml
 
-from sase.macro.workflow_executor_types import HITLResult
+from sase.macro.workflow_executor_types import HITLResult, WorkflowSuspended
 
 _EXTENSION_TO_LEXER: dict[str, str] = {
     ".diff": "diff",
@@ -60,8 +60,12 @@ class TUIHITLHandler:
         *,
         has_output: bool = False,
         output_types: dict[str, str] | None = None,
-    ) -> HITLResult:
-        """Create a HITL gate and block mechanically for its response.
+        workflow_identity: Any | None = None,
+        provider_evidence: Any | None = None,
+        provider_content: str | None = None,
+        original_prompt: str = "",
+    ) -> HITLResult | WorkflowSuspended:
+        """Create a HITL gate, wait for it, or return staged suspension.
 
         Args:
             step_name: Name of the step being reviewed.
@@ -81,12 +85,26 @@ class TUIHITLHandler:
             workflow_hitl_should_handoff_from_agent,
         )
 
-        create = (
-            create_workflow_hitl_shell_gate
-            if workflow_hitl_should_handoff_from_agent()
-            else create_workflow_hitl_gate
-        )
-        gate = create(
+        if workflow_hitl_should_handoff_from_agent():
+            gate = create_workflow_hitl_shell_gate(
+                step_name=step_name,
+                step_type=step_type,
+                output=output,
+                workflow_name=self.workflow_name,
+                artifacts_dir=self.artifacts_dir,
+                has_output=has_output,
+                output_types=output_types,
+                timeout_seconds=_TUI_HITL_TIMEOUT,
+                workflow_identity=workflow_identity,
+                provider_evidence=provider_evidence,
+                provider_content=provider_content,
+                original_prompt=original_prompt,
+            )
+            if isinstance(gate, WorkflowSuspended):
+                return gate
+            maybe_handoff_workflow_hitl_from_agent(gate)
+            return HITLResult(action="reject", approved=False)
+        gate = create_workflow_hitl_gate(
             step_name=step_name,
             step_type=step_type,
             output=output,
@@ -96,9 +114,6 @@ class TUIHITLHandler:
             output_types=output_types,
             timeout_seconds=_TUI_HITL_TIMEOUT,
         )
-        if workflow_hitl_should_handoff_from_agent():
-            maybe_handoff_workflow_hitl_from_agent(gate)
-            return HITLResult(action="reject", approved=False)
         return wait_for_workflow_hitl_gate(gate.bundle_path)
 
 
@@ -121,6 +136,10 @@ class CLIHITLHandler:
         *,
         has_output: bool = False,
         output_types: dict[str, str] | None = None,
+        workflow_identity: Any | None = None,
+        provider_evidence: Any | None = None,
+        provider_content: str | None = None,
+        original_prompt: str = "",
     ) -> HITLResult:
         """Prompt the user for action on step output.
 
@@ -134,6 +153,8 @@ class CLIHITLHandler:
         Returns:
             HITLResult indicating the user's decision.
         """
+        del workflow_identity, provider_evidence, provider_content, original_prompt
+
         # Display step info and output
         self.console.print()
         self.console.print(

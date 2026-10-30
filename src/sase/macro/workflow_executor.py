@@ -16,6 +16,7 @@ from sase.macro.workflow_executor_steps import StepMixin
 from sase.macro.workflow_executor_types import (
     HITLHandler,
     HITLResult,
+    WorkflowSuspended,
     output_types_from_step,
 )
 from sase.macro.workflow_executor_utils import create_jinja_env
@@ -36,7 +37,7 @@ if TYPE_CHECKING:
 from sase.macro.workflow_output import LoopInfo
 
 # Re-export for backward compatibility
-__all__ = ["WorkflowExecutor", "HITLHandler", "HITLResult"]
+__all__ = ["WorkflowExecutor", "HITLHandler", "HITLResult", "WorkflowSuspended"]
 
 
 class WorkflowExecutor(StepMixin, LoopMixin, ParallelMixin):
@@ -198,7 +199,7 @@ class WorkflowExecutor(StepMixin, LoopMixin, ParallelMixin):
         """
         return output_types_from_step(self.workflow.steps[step_index])
 
-    def execute(self) -> bool:
+    def execute(self) -> bool | WorkflowSuspended:
         """Execute all workflow steps sequentially.
 
         Steps marked with ``finally_=True`` run even when a prior step has
@@ -206,7 +207,8 @@ class WorkflowExecutor(StepMixin, LoopMixin, ParallelMixin):
         ``finally`` steps exist the behavior is identical to before.
 
         Returns:
-            True if workflow completed successfully, False otherwise.
+            True/False for completed workflows, or a suspension signal for
+            a staged review that is waiting for host adoption.
         """
         self._save_state()
 
@@ -228,6 +230,7 @@ class WorkflowExecutor(StepMixin, LoopMixin, ParallelMixin):
         # Track failure info so finally steps can still run
         failure_exception: WorkflowExecutionError | None = None
         failure_returned_false: bool = False
+        suspension: WorkflowSuspended | None = None
 
         for i, step in enumerate(self.workflow.steps):
             self.state.current_step_index = i
@@ -238,7 +241,15 @@ class WorkflowExecutor(StepMixin, LoopMixin, ParallelMixin):
             step_type = self._get_step_type(step)
 
             # After a failure, skip non-finally steps
-            hit_failure = failure_exception is not None or failure_returned_false
+            hit_failure = (
+                failure_exception is not None
+                or failure_returned_false
+                or suspension is not None
+            )
+            if suspension is not None and not step.finally_:
+                # Keep subsequent ordinary steps pending so the durable
+                # workflow checkpoint resumes at the staged review.
+                continue
             if hit_failure and not step.finally_:
                 step_state.status = StepStatus.SKIPPED
                 self.context[step.name] = {}
@@ -383,6 +394,19 @@ class WorkflowExecutor(StepMixin, LoopMixin, ParallelMixin):
                         duration=duration,
                     )
 
+            except WorkflowSuspended as suspended:
+                if suspension is not None:
+                    failure_exception = WorkflowExecutionError(
+                        "workflow attempted more than one staged HITL suspension"
+                    )
+                    continue
+                suspension = suspended
+                if suspended.step_index is None:
+                    suspended.step_index = i
+                step_state.status = StepStatus.WAITING_HITL
+                self.state.status = "waiting_hitl"
+                self._save_state()
+                continue
             except Exception as e:
                 import traceback
 
@@ -402,6 +426,29 @@ class WorkflowExecutor(StepMixin, LoopMixin, ParallelMixin):
                 )
                 failure_exception.__cause__ = e
                 continue
+
+        if suspension is not None:
+            # The staged review remains the workflow's checkpoint even when
+            # cleanup output was recorded after it. Cleanup failures keep the
+            # stage held and prevent finalizer settlement.
+            if suspension.step_index is not None:
+                self.state.current_step_index = suspension.step_index
+            self.state.status = "waiting_hitl"
+            self._save_state()
+            if (
+                failure_exception is None
+                and not failure_returned_false
+                and not suspension.cleanup_errors
+            ):
+                from sase.macro.workflow_completion import settle_workflow_review
+
+                settle_workflow_review(
+                    suspension.review,
+                    artifacts_dir=self.artifacts_dir,
+                    provider_content=suspension.provider_content,
+                    original_prompt=suspension.original_prompt,
+                )
+            return suspension
 
         # If a step failed but we continued for finally steps, propagate now
         if failure_exception is not None:

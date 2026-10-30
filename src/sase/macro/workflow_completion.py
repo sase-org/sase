@@ -1,13 +1,12 @@
 """Host-owned workflow completion seam for staged HITL reviews.
 
-A workflow prompt step currently invokes the provider (which settles
-finalizers inside :func:`sase.llm_provider.invoke_agent`) and only afterward
-calls its HITL handler. Staging the review at that point hits the
-accepted-current-submission guard, and the settled finalizer evidence is
-bound to a context that never knew about the handoff. Script steps have the
-mirror problem: they can request HITL without any provider invocation at
-that step, so a prior step's finalizer result is not evidence for their
-edits.
+A non-staged workflow prompt step invokes the provider (which settles
+finalizers inside :func:`sase.llm_provider.invoke_agent`) before calling its
+HITL handler. Staging after that point hits the accepted-current-submission
+guard, and the settled finalizer evidence is bound to a context that never
+knew about the handoff. Script steps have the mirror problem: they can
+request HITL without any provider invocation at that step, so a prior step's
+finalizer result is not evidence for their edits.
 
 This module is the narrow host-owned boundary that fixes the ordering
 without relaxing CLI admission:
@@ -20,12 +19,10 @@ without relaxing CLI admission:
    review specification the agent-context HITL handler publishes today,
    frozen through the shared staged-gate preparation (validation,
    auto-policy freeze, resource snapshots).
-3. :func:`complete_workflow_review` stages through host-preparation
-   admission — explicit originating workflow/step identity plus
-   completed-provider evidence for agent steps, keeping the existing
-   one-handoff and finalizer-owned restrictions — then binds the staged
-   handoff to a refreshed finalizer context by running the ordinary
-   finalizer controller before the runner's adoption epilogue.
+3. :func:`stage_workflow_review` persists the admitted handoff before
+   workflow cleanup. After cleanup, :func:`settle_workflow_review` binds the
+   staged handoff to a refreshed finalizer context through the ordinary
+   finalizer controller, before the runner's adoption epilogue.
 
 The seam never clears a valid submission, never accepts a stale
 declaration as proof for the changed context, and adds no
@@ -36,8 +33,9 @@ host-synthesized carry. A finalizer failure leaves the stage held so the
 runner's adoption epilogue holds publication instead of publishing
 past an unsettled turn.
 
-This phase only provides the seam; it does not reroute the live workflow
-HITL handler onto it. That activation belongs to the workflow-hitl phase.
+Agent-context HITL reviews now use this staged path and suspend workflow
+execution while preserving the waiting step and pending continuation. Legacy
+non-agent gate callers keep their immediate publication path.
 """
 
 from __future__ import annotations
@@ -87,6 +85,7 @@ class PreparedWorkflowReview:
     staged_id: str
     successor_workspace: str
     carry_allowed: bool
+    reservation_id: str
     preparation: Any
     evidence_wire: str | None
 
@@ -255,6 +254,7 @@ def prepare_workflow_review(
     """
     from sase.gate_turn.staged_contract import (
         collect_staged_gate_creator,
+        discard_staged_gate_snapshot,
         prepare_staged_gate,
     )
     from sase.macro.workflow_hitl_gate import workflow_hitl_shell_spec_for_staging
@@ -278,42 +278,118 @@ def prepare_workflow_review(
             raise WorkflowCompletionError(
                 "agent workflow reviews require completed-provider evidence"
             )
-    spec = workflow_hitl_shell_spec_for_staging(
-        step_name=identity.step,
-        step_type=identity.step_type,
-        output=output,
-        workflow_name=identity.workflow,
+    admission = HostStageAdmission(
+        identity=HostStageIdentity(
+            workflow=identity.workflow,
+            step=identity.step,
+            step_type=identity.step_type,
+        ),
+        provider_evidence=evidence_wire,
+    )
+    reservation_id = acquire_staging_reservation(
         artifacts_dir=artifacts_dir,
-        has_output=has_output,
-        output_types=output_types,
-        timeout_seconds=timeout_seconds,
+        command=WORKFLOW_REVIEW_COMMAND,
+        host=admission,
     )
-    creator = collect_staged_gate_creator(artifacts_dir=artifacts_dir)
-    preparation = prepare_staged_gate(
-        spec,
-        creator=creator,
-        artifacts_dir=artifacts_dir,
-    )
-    if preparation.auto_execute:
-        raise WorkflowCompletionError(
-            "workflow reviews cannot resolve to synchronous auto execution"
+    preparation = None
+    try:
+        spec = workflow_hitl_shell_spec_for_staging(
+            step_name=identity.step,
+            step_type=identity.step_type,
+            output=output,
+            workflow_name=identity.workflow,
+            artifacts_dir=artifacts_dir,
+            has_output=has_output,
+            output_types=output_types,
+            timeout_seconds=timeout_seconds,
         )
-    if preparation.record is None:
-        raise WorkflowCompletionError(
-            "workflow review preparation produced no staged record"
+        creator = collect_staged_gate_creator(artifacts_dir=artifacts_dir)
+        preparation = prepare_staged_gate(
+            spec,
+            creator=creator,
+            artifacts_dir=artifacts_dir,
         )
-    return PreparedWorkflowReview(
-        identity=identity,
-        request_id=preparation.request_id,
-        staged_id=preparation.staged_id,
-        successor_workspace=preparation.successor_workspace,
-        carry_allowed=preparation.carry_allowed,
-        preparation=preparation,
-        evidence_wire=evidence_wire,
-    )
+        if preparation.auto_execute:
+            raise WorkflowCompletionError(
+                "workflow reviews cannot resolve to synchronous auto execution"
+            )
+        if preparation.record is None:
+            raise WorkflowCompletionError(
+                "workflow review preparation produced no staged record"
+            )
+        return PreparedWorkflowReview(
+            identity=identity,
+            request_id=preparation.request_id,
+            staged_id=preparation.staged_id,
+            successor_workspace=preparation.successor_workspace,
+            carry_allowed=preparation.carry_allowed,
+            reservation_id=reservation_id,
+            preparation=preparation,
+            evidence_wire=evidence_wire,
+        )
+    except BaseException:
+        if preparation is not None:
+            discard_staged_gate_snapshot(artifacts_dir, preparation.staged_id)
+        try:
+            release_staging_reservation(
+                reservation_id,
+                artifacts_dir=artifacts_dir,
+            )
+        except StagedHandoffError:
+            pass
+        raise
 
 
-def complete_workflow_review(
+def stage_workflow_review(
+    review: PreparedWorkflowReview,
+    *,
+    artifacts_dir: str,
+    provider_content: str | None = None,
+) -> None:
+    """Persist an admitted review before workflow cleanup runs.
+
+    Frozen gate resources and the real provider response are durable before
+    finally/post-step cleanup can change their source files. Finalizers run
+    later through :func:`settle_workflow_review`.
+    """
+    from sase.gate_turn.staged_contract import discard_staged_gate_snapshot
+
+    # A write failure discards the prepared snapshots and releases the
+    # reservation. Once the staged record commits, later failures keep it held.
+    try:
+        write_staged_handoff(
+            review.preparation.record,
+            artifacts_dir=artifacts_dir,
+            command=WORKFLOW_REVIEW_COMMAND,
+            reservation_id=review.reservation_id,
+            host=HostStageAdmission(
+                identity=HostStageIdentity(
+                    workflow=review.identity.workflow,
+                    step=review.identity.step,
+                    step_type=review.identity.step_type,
+                ),
+                provider_evidence=review.evidence_wire,
+            ),
+        )
+    except BaseException:
+        discard_staged_gate_snapshot(artifacts_dir, review.staged_id)
+        try:
+            release_staging_reservation(
+                review.reservation_id,
+                artifacts_dir=artifacts_dir,
+            )
+        except StagedHandoffError:
+            pass
+        raise
+    if review.identity.step_type == "agent" and provider_content is not None:
+        write_staged_handoff_response(
+            review.staged_id,
+            provider_content,
+            artifacts_dir=artifacts_dir,
+        )
+
+
+def settle_workflow_review(
     review: PreparedWorkflowReview,
     *,
     artifacts_dir: str,
@@ -323,62 +399,18 @@ def complete_workflow_review(
     suppress_output: bool = True,
     model_override: str | None = None,
 ) -> Any:
-    """Stage a prepared review and settle finalizers with the stage bound.
+    """Run ordinary finalizers after cleanup with the staged review bound.
 
-    Reserves and writes through host-preparation admission, persists the
-    real provider response for agent steps, marks the ``finalizing``
-    lifecycle phase under a refreshed finalizer-turn nonce, and runs the
-    ordinary finalizer controller. A finalizer failure leaves the stage
-    held: the runner's adoption epilogue must hold publication, never
-    publish past the unsettled turn. On success the refreshed finalizer
-    context must name the staged review; otherwise the completion is
-    refused.
+    A finalizer failure leaves the stage held: the runner's adoption epilogue
+    must hold publication, never publish past an unsettled turn. On success
+    the refreshed finalizer context must name the staged review.
     """
     from sase.axe.runner_lifecycle_phase import mark_lifecycle_phase
     from sase.finalizers.controller import run_finalizers
     from sase.finalizers.declaration import mint_finalizer_turn_nonce
-    from sase.finalizers.declaration_manifest_io import (
-        load_latest_finalizer_context,
-    )
-    from sase.gate_turn.staged_contract import discard_staged_gate_snapshot
+    from sase.finalizers.declaration_manifest_io import load_latest_finalizer_context
     from sase.llm_provider.types import InvokeResult
 
-    admission = HostStageAdmission(
-        identity=HostStageIdentity(
-            workflow=review.identity.workflow,
-            step=review.identity.step,
-            step_type=review.identity.step_type,
-        ),
-        provider_evidence=review.evidence_wire,
-    )
-    # Staging failures (admission, reservation, write) discard the prepared
-    # snapshots and release the reservation. Finalizer failures below never
-    # reach this handler: the stage stays held.
-    reservation_id: str | None = None
-    try:
-        reservation_id = acquire_staging_reservation(
-            artifacts_dir=artifacts_dir,
-            command=WORKFLOW_REVIEW_COMMAND,
-            host=admission,
-        )
-        write_staged_handoff(
-            review.preparation.record,
-            artifacts_dir=artifacts_dir,
-            command=WORKFLOW_REVIEW_COMMAND,
-            reservation_id=reservation_id,
-            host=admission,
-        )
-    except BaseException:
-        discard_staged_gate_snapshot(artifacts_dir, review.staged_id)
-        if reservation_id is not None:
-            try:
-                release_staging_reservation(
-                    reservation_id,
-                    artifacts_dir=artifacts_dir,
-                )
-            except StagedHandoffError:
-                pass
-        raise
     # A submission accepted for an earlier step cannot cover new ground
     # dirtied by a later step. When carry is legal, drop the uncoverable
     # stale file so the controller installs host-synthesized carry naming
@@ -388,12 +420,6 @@ def complete_workflow_review(
         artifacts_dir=artifacts_dir,
         staged_id=review.staged_id,
     )
-    if review.identity.step_type == "agent" and provider_content:
-        write_staged_handoff_response(
-            review.staged_id,
-            provider_content,
-            artifacts_dir=artifacts_dir,
-        )
     mark_lifecycle_phase(artifacts_dir, "finalizing")
     mint_finalizer_turn_nonce()
     try:
@@ -420,6 +446,33 @@ def complete_workflow_review(
     return result
 
 
+def complete_workflow_review(
+    review: PreparedWorkflowReview,
+    *,
+    artifacts_dir: str,
+    provider_content: str | None = None,
+    original_prompt: str = "",
+    model_tier: Any = "large",
+    suppress_output: bool = True,
+    model_override: str | None = None,
+) -> Any:
+    """Stage a review and immediately settle it for compatibility callers."""
+    stage_workflow_review(
+        review,
+        artifacts_dir=artifacts_dir,
+        provider_content=provider_content,
+    )
+    return settle_workflow_review(
+        review,
+        artifacts_dir=artifacts_dir,
+        provider_content=provider_content,
+        original_prompt=original_prompt,
+        model_tier=model_tier,
+        suppress_output=suppress_output,
+        model_override=model_override,
+    )
+
+
 __all__ = [
     "PreparedWorkflowReview",
     "WORKFLOW_REVIEW_COMMAND",
@@ -429,4 +482,6 @@ __all__ = [
     "complete_workflow_review",
     "invoke_provider_for_review",
     "prepare_workflow_review",
+    "settle_workflow_review",
+    "stage_workflow_review",
 ]

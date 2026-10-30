@@ -7,7 +7,11 @@ import threading
 from collections.abc import Callable
 from typing import TYPE_CHECKING, Any
 
-from sase.macro.workflow_executor_types import HITLHandler, output_types_from_step
+from sase.macro.workflow_executor_types import (
+    HITLHandler,
+    WorkflowSuspended,
+    output_types_from_step,
+)
 from sase.macro.workflow_executor_utils import (
     apply_chdir_output,
     coerce_output_types,
@@ -22,7 +26,19 @@ from sase.macro.workflow_models import (
     WorkflowState,
 )
 
+
+def _should_stage_workflow_review(handler: HITLHandler) -> bool:
+    """Return whether this TUI handler will stage an agent review."""
+    from sase.macro.workflow_hitl import TUIHITLHandler
+    from sase.macro.workflow_hitl_gate import workflow_hitl_should_stage_from_agent
+
+    return (
+        isinstance(handler, TUIHITLHandler) and workflow_hitl_should_stage_from_agent()
+    )
+
+
 if TYPE_CHECKING:
+    from sase.macro.workflow_models import Workflow
     from sase.macro.workflow_models import WorkflowStep
     from sase.macro.workflow_output import WorkflowOutputHandler
 
@@ -45,6 +61,7 @@ class ScriptStepMixin:
     context: dict[str, Any]
     artifacts_dir: str
     hitl_handler: HITLHandler | None
+    workflow: "Workflow"
     output_handler: "WorkflowOutputHandler | None"
     state: WorkflowState
     workspace_rebind_callback: Callable[[dict[str, Any], str], None] | None
@@ -182,6 +199,9 @@ class ScriptStepMixin:
                         path_val = os.path.abspath(path_val)
                     output[field_name] = path_val
 
+        if artifact_path is not None:
+            output["_artifact"] = artifact_path
+
         # HITL review if required
         if self._should_hitl(step) and self.hitl_handler:
             step_state.status = StepStatus.WAITING_HITL
@@ -198,14 +218,33 @@ class ScriptStepMixin:
                 ),
             )
 
+            hitl_kwargs: dict[str, Any] = {}
+            if _should_stage_workflow_review(self.hitl_handler):
+                from sase.macro.workflow_completion import WorkflowReviewIdentity
+
+                hitl_kwargs["workflow_identity"] = WorkflowReviewIdentity(
+                    workflow=getattr(self, "_current_embedded_workflow_name", None)
+                    or self.workflow.name,
+                    step=step.name,
+                    step_type="bash",
+                )
             result_hitl = self.hitl_handler.prompt(
                 step.name,
                 "bash",
                 output,
                 has_output=step.output is not None,
                 output_types=output_types_from_step(step),
+                **hitl_kwargs,
             )
 
+            if isinstance(result_hitl, WorkflowSuspended):
+                result_hitl.step_index = self.state.current_step_index
+                step_state.output = output
+                self.context[step.name] = output
+                self.state.context = dict(self.context)
+                self.state.status = "waiting_hitl"
+                self._save_state()
+                raise result_hitl
             if result_hitl.action == "reject":
                 return False
             elif result_hitl.action == "accept":
@@ -233,10 +272,6 @@ class ScriptStepMixin:
                 self, "_current_embedded_workflow_name", None
             ),
         )
-
-        # Add artifact path to output if created
-        if artifact_path is not None:
-            output["_artifact"] = artifact_path
 
         # Store output in context under step name
         step_state.output = output
@@ -361,6 +396,9 @@ class ScriptStepMixin:
                         path_val = os.path.abspath(path_val)
                     output[field_name] = path_val
 
+        if artifact_path is not None:
+            output["_artifact"] = artifact_path
+
         # HITL review if required
         if self._should_hitl(step) and self.hitl_handler:
             step_state.status = StepStatus.WAITING_HITL
@@ -377,14 +415,33 @@ class ScriptStepMixin:
                 ),
             )
 
+            hitl_kwargs: dict[str, Any] = {}
+            if _should_stage_workflow_review(self.hitl_handler):
+                from sase.macro.workflow_completion import WorkflowReviewIdentity
+
+                hitl_kwargs["workflow_identity"] = WorkflowReviewIdentity(
+                    workflow=getattr(self, "_current_embedded_workflow_name", None)
+                    or self.workflow.name,
+                    step=step.name,
+                    step_type="python",
+                )
             result_hitl = self.hitl_handler.prompt(
                 step.name,
                 "python",
                 output,
                 has_output=step.output is not None,
                 output_types=output_types_from_step(step),
+                **hitl_kwargs,
             )
 
+            if isinstance(result_hitl, WorkflowSuspended):
+                result_hitl.step_index = self.state.current_step_index
+                step_state.output = output
+                self.context[step.name] = output
+                self.state.context = dict(self.context)
+                self.state.status = "waiting_hitl"
+                self._save_state()
+                raise result_hitl
             if result_hitl.action == "reject":
                 return False
             elif result_hitl.action == "accept":
@@ -412,10 +469,6 @@ class ScriptStepMixin:
                 self, "_current_embedded_workflow_name", None
             ),
         )
-
-        # Add artifact path to output if created
-        if artifact_path is not None:
-            output["_artifact"] = artifact_path
 
         # Store output in context under step name
         step_state.output = output
