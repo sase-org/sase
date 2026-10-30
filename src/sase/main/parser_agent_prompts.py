@@ -80,7 +80,10 @@ def register_agent_prompts_parser(agents_sub: argparse._SubParsersAction) -> Non
         help="Migrate historical prompts from the plans sidecar",
         description=(
             "Report historical plans-sidecar prompts by default; use --write to "
-            "move them into the canonical agents-sidecar archive."
+            "move them into the canonical agents-sidecar archive. Migrated "
+            "prompt text is scanned through publication protection before "
+            "staging; withheld files stay in the plans sidecar, and a secret-"
+            "scan push rejection never recommends replaying the rejected commit."
         ),
     )
     _add_prompt_archive_common_options(prompts_migrate, include_month=True)

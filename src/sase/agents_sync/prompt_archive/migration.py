@@ -109,7 +109,10 @@ def _migrate_prompt_archive_repositories(
     agents_repo = target.sidecar_path
     _require_repository(plans_repo, "plans")
     _require_repository(agents_repo, "agents")
-    items = _plan_items(plans_repo, agents_repo, month=month)
+    planned = _plan_items(plans_repo, agents_repo, month=month)
+    items, protection_skips = _filter_publishable_migration_items(
+        target, plans_repo, planned
+    )
     if write:
         _require_clean(plans_repo, "plans")
         _require_clean(agents_repo, "agents")
@@ -117,7 +120,7 @@ def _migrate_prompt_archive_repositories(
     relinked = 0
     months_committed = 0
     active_repos: set[Path] = set()
-    skips: list[_PromptMigrationSkip] = []
+    skips: list[_PromptMigrationSkip] = list(protection_skips)
     for prompt_month in sorted({item.month for item in items}):
         month_items = tuple(item for item in items if item.month == prompt_month)
         movable = month_items
@@ -127,8 +130,8 @@ def _migrate_prompt_archive_repositories(
         if write and movable:
             active_repos.update((agents_repo, plans_repo))
             _apply_month(
+                target,
                 plans_repo,
-                agents_repo,
                 prompt_month,
                 movable,
             )
@@ -224,6 +227,44 @@ def _plan_items(
     return tuple(items)
 
 
+def _filter_publishable_migration_items(
+    target: ProjectTarget,
+    plans_repo: Path,
+    items: tuple[_MigrationItem, ...],
+) -> tuple[tuple[_MigrationItem, ...], tuple[_PromptMigrationSkip, ...]]:
+    """Withhold secret-bearing prompt text before any agents-sidecar write."""
+
+    from sase.agents_sync.prompt_archive.protection import (
+        protection_scope_for_target,
+        protection_skip_reason,
+        scan_archive_text_bytes,
+    )
+
+    if not items:
+        return items, ()
+    scope = protection_scope_for_target(target)
+    publishable: list[_MigrationItem] = []
+    skips: list[_PromptMigrationSkip] = []
+    for item in items:
+        relative = _relpath(target.sidecar_path, item.destination)
+        verdict = scan_archive_text_bytes(
+            item.prompt_content.encode("utf-8"),
+            scope=scope,
+            relative_destination=relative,
+            affected_requests=(f"migrate:{relative}",),
+        )
+        if verdict.publishable:
+            publishable.append(item)
+            continue
+        skips.append(
+            _PromptMigrationSkip(
+                _relpath(plans_repo, item.source),
+                protection_skip_reason(verdict.status),
+            )
+        )
+    return tuple(publishable), tuple(skips)
+
+
 def _rewrite_prompt_link(
     content: str,
     *,
@@ -298,11 +339,12 @@ def _rewrite_plan_link(
 
 
 def _apply_month(
+    target: ProjectTarget,
     plans_repo: Path,
-    agents_repo: Path,
     month: str,
     items: tuple[_MigrationItem, ...],
 ) -> None:
+    agents_repo = target.sidecar_path
     lock_path = git_sync.agents_git_dir(agents_repo, run_git) / (
         "sase-agents-sync.lock"
     )
@@ -319,6 +361,11 @@ def _apply_month(
         ) as agents_locked:
             if not agents_locked:
                 raise RuntimeError("agents-sidecar write lock is busy")
+            from sase.agents_sync.prompt_archive.protection import (
+                protection_scope_for_target,
+                scan_archive_text_bytes,
+            )
+
             plan_paths: list[Path] = []
             agent_paths: list[Path] = []
             for item in items:
@@ -343,8 +390,16 @@ def _apply_month(
                 item.source.unlink()
                 plan_paths.append(item.source)
             index_path = agents_repo / "prompts" / month / "README.md"
-            _atomic_write(index_path, render_prompt_month_index(index_path.parent))
-            agent_paths.append(index_path)
+            index_content = render_prompt_month_index(index_path.parent)
+            index_verdict = scan_archive_text_bytes(
+                index_content.encode("utf-8"),
+                scope=protection_scope_for_target(target),
+                relative_destination=_relpath(agents_repo, index_path),
+                affected_requests=(f"migrate:{month}/README.md",),
+            )
+            if index_verdict.publishable:
+                _atomic_write(index_path, index_content)
+                agent_paths.append(index_path)
             _commit_paths(
                 agents_repo,
                 agent_paths,
@@ -430,6 +485,23 @@ def _publish_migration_sidecars(
         )
         if pushed.returncode == 0:
             continue
+        recovered = (
+            _recover_failed_agents_migration_push(target, repo, git_runner, pushed)
+            if label == "agents"
+            else None
+        )
+        if recovered is not None:
+            remaining = tuple(path for _name, path in pending[index + 1 :])
+            raise RuntimeError(
+                _publication_recovery_message(
+                    target,
+                    month=month,
+                    failed_label=label,
+                    detail=recovered,
+                    repositories=remaining,
+                    replay_push=False,
+                )
+            )
         detail = _sanitized_migration_push_detail(pushed)
         remaining = tuple(path for _name, path in pending[index:])
         raise RuntimeError(
@@ -441,6 +513,50 @@ def _publish_migration_sidecars(
                 repositories=remaining,
             )
         )
+
+
+def _recover_failed_agents_migration_push(
+    target: ProjectTarget,
+    repo: Path,
+    git_runner: GitRunner,
+    pushed: object,
+) -> str | None:
+    """Recover a content-security agents push rejection without replaying it.
+
+    Secret-scanning and repository-rule rejections go through the shared
+    recovery path (ledger block, private preserve, managed-clone reset).
+    Transport and divergence failures return ``None`` so the caller keeps
+    the legacy operator recovery that names an explicit re-push.
+    """
+
+    from sase.agents_sync.publication_recovery import (
+        REJECTED_REPOSITORY_RULE,
+        REJECTED_SECRET_SCAN,
+        recover_publication_push,
+        sanitized_push_error,
+    )
+
+    recovery = recover_publication_push(
+        repo,
+        git_runner,
+        project_key=target.project_key,
+        repository_identity=target.remote_url,
+        returncode=int(getattr(pushed, "returncode", 1)),
+        stdout=str(getattr(pushed, "stdout", None) or ""),
+        stderr=str(getattr(pushed, "stderr", None) or ""),
+    )
+    if recovery.rejection.classification not in (
+        REJECTED_SECRET_SCAN,
+        REJECTED_REPOSITORY_RULE,
+    ):
+        return None
+    if recovery.error:
+        return recovery.error
+    return sanitized_push_error(
+        "migration push",
+        recovery.rejection,
+        blocked_paths=recovery.blocked_paths,
+    )
 
 
 def _sanitized_migration_push_detail(pushed: object) -> str:
@@ -512,10 +628,13 @@ def _publication_recovery_message(
     failed_label: str,
     detail: str,
     repositories: tuple[Path, ...],
+    replay_push: bool = True,
 ) -> str:
-    commands = [
-        f"git -C {shlex.quote(str(repo))} push origin HEAD" for repo in repositories
-    ]
+    commands: list[str] = []
+    if replay_push:
+        commands.extend(
+            f"git -C {shlex.quote(str(repo))} push origin HEAD" for repo in repositories
+        )
     rerun = (
         f"sase agent prompts migrate --write --project {shlex.quote(target.project)}"
     )
@@ -523,9 +642,15 @@ def _publication_recovery_message(
         rerun += f" --month {month}"
     commands.append(rerun)
     rendered = "\n  ".join(commands)
+    if replay_push:
+        return (
+            f"{failed_label} sidecar migration push failed: {detail}\n"
+            "Migration commits remain durable locally. Recover with exactly:\n"
+            f"  {rendered}"
+        )
     return (
         f"{failed_label} sidecar migration push failed: {detail}\n"
-        "Migration commits remain durable locally. Recover with exactly:\n"
+        "The rejected commit was not replayed. Continue with:\n"
         f"  {rendered}"
     )
 

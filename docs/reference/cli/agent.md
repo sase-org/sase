@@ -769,7 +769,7 @@ Options:
 usage: sase agent prompts migrate [-h] [-j] [-m YYYYMM] [-p PROJECT] [-w]
 ```
 
-Report historical plans-sidecar prompts by default; use --write to move them into the canonical agents-sidecar archive.
+Report historical plans-sidecar prompts by default; use --write to move them into the canonical agents-sidecar archive. Migrated prompt text is scanned through publication protection before staging; withheld files stay in the plans sidecar, and a secret-scan push rejection never recommends replaying the rejected commit.
 
 Options:
 

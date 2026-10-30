@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 import subprocess
 
@@ -12,8 +13,16 @@ from sase.agents_sync.prompt_archive.migration import (
     _migrate_prompt_archive_repositories,
 )
 from sase.agents_sync.git import run_git
+from sase.agents_sync.prompt_archive.protection import PROMPT_PROTECTION_BLOCKED
 from sase.agents_sync.prompt_archive.validation import validate_prompt_archive
 from sase.sdd.links import validate_sdd_tree
+from tests.agents_sync.test_publication_recovery._helpers import (
+    TOKEN,
+    gh013_stderr,
+    isolate_protection,
+)
+
+MARKER = b"SYNTHETIC-PROMPT-SECRET-1os"
 
 
 def _git(repo: Path, *args: str) -> None:
@@ -61,6 +70,59 @@ def _commit_fixtures(*repos: Path) -> None:
     for repo in repos:
         _git(repo, "add", "--all")
         _git(repo, "commit", "-m", "fixtures")
+
+
+def _install_scan_binding(
+    monkeypatch: pytest.MonkeyPatch,
+    *,
+    blocked: bytes | None = None,
+) -> None:
+    import sase.core.rust as rust
+
+    real_require = rust.require_rust_binding
+
+    def require_binding(name: str):
+        if name == "attachment_scan_file":
+
+            def scan(
+                path: str,
+                max_bytes: int,
+                _env: dict[str, str],
+                _home: str,
+                _sase_home: str,
+            ) -> dict[str, object]:
+                data = Path(path).read_bytes()
+                if blocked is not None and blocked in data:
+                    return {
+                        "outcome": "hit",
+                        "hit": {
+                            "kind": "credential_pattern",
+                            "rule_id": "synthetic-marker",
+                            "line": 1,
+                            "rules_version": 1,
+                        },
+                        "bytes_scanned": len(data),
+                        "rules_version": 1,
+                    }
+                return {
+                    "outcome": "clean",
+                    "hit": None,
+                    "bytes_scanned": len(data),
+                    "rules_version": 1,
+                }
+
+            return scan
+        return real_require(name)
+
+    monkeypatch.setattr(rust, "require_rust_binding", require_binding)
+
+
+@pytest.fixture(autouse=True)
+def _isolate_migration_protection(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    isolate_protection(monkeypatch, tmp_path)
+    _install_scan_binding(monkeypatch)
 
 
 def test_migration_is_dry_run_complete_and_idempotent(tmp_path: Path) -> None:
@@ -235,6 +297,117 @@ def test_migration_recovers_when_only_plans_push_remains(
     assert restarted.months_committed == 0
     assert _ahead(plans) == 0
     assert _ahead(agents) == 0
+
+
+def test_migration_withholds_secret_prompt_and_publishes_clean_sibling(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _install_scan_binding(monkeypatch, blocked=MARKER)
+    plans = tmp_path / "plans"
+    agents = tmp_path / "agents"
+    _init_repo(plans, "https://github.com/example/project--plans.git")
+    _init_repo(agents, "https://github.com/example/project--agents.git")
+    secret_text = f"# Secret prompt {MARKER.decode()}\n"
+    clean = plans / "202608/prompts/clean.md"
+    secret = plans / "202608/prompts/secret.md"
+    plan = plans / "202608/clean.md"
+    clean.parent.mkdir(parents=True)
+    clean.write_text(
+        "- **PLAN:** [../202608/clean.md](../clean.md)\n\n# Clean prompt\n",
+        encoding="utf-8",
+    )
+    plan.write_text(
+        "---\ntier: tale\n---\n\n"
+        "- **PROMPT:** [202608/prompts/clean.md](prompts/clean.md)\n\n"
+        "# Clean plan\n",
+        encoding="utf-8",
+    )
+    secret.write_text(secret_text, encoding="utf-8")
+    _commit_fixtures(plans)
+    target = _target(agents, tmp_path / "workspace")
+
+    report = _migrate_prompt_archive_repositories(target, plans, write=True)
+
+    assert report.prompts_moved == 1
+    assert report.plans_relinked == 1
+    assert report.months_committed == 1
+    assert len(report.skipped) == 1
+    assert report.skipped[0].path == "202608/prompts/secret.md"
+    assert report.skipped[0].reason == PROMPT_PROTECTION_BLOCKED
+    assert secret.is_file()
+    assert secret.read_text(encoding="utf-8") == secret_text
+    assert not clean.exists()
+    archived = agents / "prompts/202608/clean.md"
+    assert archived.is_file()
+    assert MARKER not in archived.read_bytes()
+    assert not (agents / "prompts/202608/secret.md").exists()
+    for path in agents.rglob("*"):
+        if path.is_file() and ".git" not in path.parts:
+            assert MARKER not in path.read_bytes()
+    dumped = json.dumps(report.to_json_dict())
+    assert MARKER.decode() not in dumped
+    assert TOKEN not in dumped
+    assert _ahead(agents) == 0
+    assert _ahead(plans) == 0
+
+
+def test_migration_gh013_does_not_advise_or_execute_raw_repush(
+    tmp_path: Path,
+) -> None:
+    plans = tmp_path / "plans"
+    agents = tmp_path / "agents"
+    _init_repo(plans, "https://github.com/example/project--plans.git")
+    _init_repo(agents, "https://github.com/example/project--agents.git")
+    source = plans / "202608/prompts/ordinary.md"
+    source.parent.mkdir(parents=True)
+    source.write_text("# Ordinary prompt\n", encoding="utf-8")
+    _commit_fixtures(plans)
+    push_remote = (agents.parent / "agents-remote.git").resolve()
+    _git(agents, "remote", "set-url", "origin", str(push_remote))
+    target = ProjectTarget(
+        project_key="project-key",
+        project="Project",
+        primary_checkout=tmp_path / "workspace",
+        primary_roots=(tmp_path / "workspace",),
+        sidecar_path=agents,
+        remote_url=str(push_remote),
+    )
+    base_tip = _head(agents)
+    relative = "prompts/202608/ordinary.md"
+    pushes: list[Path] = []
+
+    def fail_agents_gh013(
+        cwd: Path,
+        args: list[str],
+        *,
+        network: bool = False,
+        op: str = "",
+    ) -> subprocess.CompletedProcess[str]:
+        if args == ["push", "origin", "HEAD"]:
+            pushes.append(cwd)
+            if cwd == agents:
+                return subprocess.CompletedProcess(args, 1, "", gh013_stderr(relative))
+        return run_git(cwd, args, network=network, op=op)
+
+    with pytest.raises(RuntimeError) as excinfo:
+        _migrate_prompt_archive_repositories(
+            target,
+            plans,
+            month="202608",
+            write=True,
+            git_runner=fail_agents_gh013,
+        )
+
+    message = str(excinfo.value)
+    assert TOKEN not in message
+    assert "push origin HEAD" not in message
+    assert "secret scanning" in message
+    assert (
+        "sase agent prompts migrate --write --project Project --month 202608" in message
+    )
+    assert pushes == [agents]
+    assert _head(agents) == base_tip
+    assert not (agents / relative).exists()
 
 
 def _ahead(repo: Path) -> int:
