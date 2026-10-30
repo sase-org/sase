@@ -9,7 +9,7 @@ import subprocess
 import pytest
 
 from sase.agents_sync.models import ProjectTarget
-from sase.agents_sync.prompt_archive.migration import (
+from sase.agents_sync.prompt_archive.migration.orchestration import (
     _migrate_prompt_archive_repositories,
 )
 from sase.agents_sync.git import run_git

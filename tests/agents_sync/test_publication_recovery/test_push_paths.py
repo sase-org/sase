@@ -344,7 +344,7 @@ def test_prompt_publish_gh013_resets_and_sanitizes(
 
 
 def test_migration_push_detail_sanitizes_secret_rejections() -> None:
-    from sase.agents_sync.prompt_archive.migration import (
+    from sase.agents_sync.prompt_archive.migration.publishing import (
         _sanitized_migration_push_detail,
     )
 
