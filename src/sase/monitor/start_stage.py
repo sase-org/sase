@@ -433,7 +433,9 @@ def _launch_from_persisted_payload_locked(
         context = _bind_staged_prepared_completion(context, payload)
         return launch_monitor(context, timer)
     except Exception:
-        cleanup_staged_monitor(artifacts_dir)
+        # Adoption failure holds the published handoff for recovery. Only an
+        # explicit discard may remove that outer record.
+        cleanup_staged_monitor(artifacts_dir, held=True)
         raise
 
 

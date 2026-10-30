@@ -27,6 +27,7 @@ from sase.axe.run_agent_exec_staged_custody import (
     persist_origin_custody,
 )
 from sase.axe.run_agent_exec_staged_settlement import finalizer_settlement_refusal
+from sase.axe.run_agent_exec_staged_monitor import cleanup_staged_monitor_handoff
 
 
 @dataclass(frozen=True)
@@ -96,6 +97,7 @@ def _write_held_receipt(
         },
         artifacts_dir=artifacts_dir,
     )
+    cleanup_staged_monitor_handoff(artifacts_dir, held=True)
 
 
 def dispatch_completed_staged_handoff(

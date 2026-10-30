@@ -438,6 +438,94 @@ def test_prepared_stage_ack_failure_rolls_back_binding_and_reservation(
     assert load_prepared_intent_reservations(artifacts_dir=dirs[0]) == {}
 
 
+@pytest.mark.parametrize("resource", ["owned", "joined", "prepared"])
+def test_failed_finalization_releases_monitor_resources_and_keeps_stage(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, resource: str
+) -> None:
+    from unittest.mock import Mock
+
+    from sase.axe.run_agent_exec_staged import (
+        StagedInlineContinuation,
+        dispatch_completed_staged_handoff,
+    )
+    from sase.monitor.staged_owner import read_staged_owner_index
+    from tests.staged_handoff_acceptance_helpers import make_continuation
+
+    root = _sandbox_project(tmp_path)
+    if resource == "prepared":
+        (root / "sase" / "sase.yml").write_text(
+            SANDBOX_CATALOG.replace('["true"]', '["just", "check"]'),
+            encoding="utf-8",
+        )
+    monkeypatch.setattr(
+        "sase.monitor.start_prepare.get_monitor_tool_wrap", lambda: "verify"
+    )
+    dirs = _stage_env(tmp_path, monkeypatch, cwd=str(root), workspace_dir=str(root))
+    joined_run = (
+        reserve_detached_run("--", "true", agent="acme")
+        if resource == "joined"
+        else None
+    )
+    prepared = (
+        persist_prepared_completion(
+            _sealed_intent(["just", "check"]), artifacts_dir=dirs[0]
+        )
+        if resource == "prepared"
+        else None
+    )
+    staged = stage_monitor(
+        _request(
+            tmp_path,
+            cwd=str(root),
+            command="just check" if prepared else "true",
+            join_run_id=joined_run,
+            profile="verify" if resource != "joined" else None,
+            completion_ref=prepared.intent_ref if prepared else None,
+        )
+    )
+    dirs.append(staged.record.artifacts_dir)
+    starter = Path(dirs[0])
+    before = read_staged_handoff(dirs[0])
+    (starter / "finalizer_result.json").write_text(
+        json.dumps({"status": "failed", "instances": []}), encoding="utf-8"
+    )
+    submit = Mock(side_effect=AssertionError("held monitor must not launch"))
+    monkeypatch.setattr("sase.monitor.start_launch.submit_proc_request", submit)
+    continuation = StagedInlineContinuation(*make_continuation(tmp_path, starter))
+
+    result = dispatch_completed_staged_handoff(dirs[0], continuation)
+
+    assert result is not None and not result.adopted
+    submit.assert_not_called()
+    assert read_staged_handoff(dirs[0]) == before
+    meta = json.loads(
+        (Path(staged.record.artifacts_dir) / "agent_meta.json").read_text()
+    )
+    assert meta.get("monitor_stage_held") is True
+    assert read_staged_owner_index(staged.record.monitor_id) is None
+    shown = tool_run_show(staged.record.tool_run_id)["run"]
+    if resource == "joined":
+        assert shown["state"] == "created"
+        assert "staged_join_reservation" not in shown
+        assert "join" not in shown
+    else:
+        assert shown["state"] != "created"
+        assert shown.get("proc") is None
+    if prepared:
+        assert load_prepared_intent_reservations(artifacts_dir=dirs[0]) == {}
+        assert (
+            load_prepared_completion(prepared.intent_ref, artifacts_dir=dirs[0])[
+                "status"
+            ]
+            == "prepared"
+        )
+
+    # Repeated failure processing must retain the recovery evidence too.
+    again = dispatch_completed_staged_handoff(dirs[0], continuation)
+    assert again is not None and not again.adopted
+    assert read_staged_handoff(dirs[0]) == before
+
+
 def test_reserved_join_that_settles_before_adoption_is_consumed(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -505,6 +593,8 @@ def test_ack_failure_rolls_back_staged_launch(
         (Path(staged.record.artifacts_dir) / "agent_meta.json").read_text()
     )
     assert meta["monitor_state"] == "failed"
+    assert meta.get("monitor_stage_held") is True
+    assert read_staged_handoff(dirs[0]) is not None
     assert (Path(staged.record.artifacts_dir) / "done.json").is_file()
 
 

@@ -22,6 +22,7 @@ from sase.axe.run_agent_exec_staged import (
     StagedInlineContinuation,
     dispatch_completed_staged_handoff,
 )
+from sase.axe.run_agent_exec_staged_monitor import cleanup_staged_monitor_handoff
 from sase.axe.run_agent_exec_plan_artifacts import (
     get_embedded_workflow_refs as _get_embedded_workflow_refs,
 )
@@ -157,54 +158,6 @@ def _build_wait_namespace(ctx: AgentExecContext) -> Any:
     return WaitRuntimeNamespace(resolution)
 
 
-def _cleanup_staged_monitor_on_discard(artifacts_dir: str) -> None:
-    """Unwind an unstarted staged monitor when its starter turn is discarded.
-
-    Best effort: a missing or adopted stage, or a member that already runs,
-    leaves nothing to clean. Never stops an already-running joined run. Held
-    finalization keeps the outer record for the reconciler and never calls
-    this path.
-    """
-    try:
-        from sase.agent.staged_handoff import read_staged_handoff
-    except Exception:  # noqa: BLE001 - discard must not fail on imports.
-        return
-    try:
-        staged = read_staged_handoff(artifacts_dir)
-    except Exception:  # noqa: BLE001 - malformed stage is not cleanup proof.
-        return
-    if not isinstance(staged, dict) or staged.get("kind") != "monitor":
-        return
-    staged_id = staged.get("staged_id")
-    payload = staged.get("payload")
-    if not isinstance(staged_id, str) or not staged_id:
-        return
-    if not isinstance(payload, dict):
-        return
-    monitor_id = payload.get("monitor_id")
-    if not isinstance(monitor_id, str) or not monitor_id:
-        return
-    member_dir: str | None = None
-    try:
-        from sase.monitor.staged_owner import read_staged_owner_index
-
-        index = read_staged_owner_index(monitor_id)
-    except Exception:  # noqa: BLE001 - missing index means nothing to clean.
-        index = None
-    if isinstance(index, dict) and index.get("staged_id") == staged_id:
-        candidate = index.get("artifacts_dir")
-        if isinstance(candidate, str) and candidate.strip():
-            member_dir = candidate.strip()
-    if member_dir is None:
-        return
-    try:
-        from sase.monitor.start_stage import cleanup_staged_monitor
-
-        cleanup_staged_monitor(member_dir, held=False)
-    except Exception:  # noqa: BLE001 - discard cleanup is best effort.
-        return
-
-
 def _handle_killed_iteration(
     ctx: AgentExecContext,
     state: LoopState,
@@ -217,7 +170,7 @@ def _handle_killed_iteration(
     discard_gate_intents(state.current_artifacts_dir)
 
     if has_user_kill_intent(state.current_artifacts_dir):
-        _cleanup_staged_monitor_on_discard(state.current_artifacts_dir)
+        cleanup_staged_monitor_handoff(state.current_artifacts_dir, held=False)
         discard_staged_handoff(state.current_artifacts_dir)
         read_and_delete_marker(state.current_artifacts_dir, ".sase_plan_pending")
         read_and_delete_marker(state.current_artifacts_dir, ".sase_questions_pending")
