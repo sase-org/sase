@@ -4,7 +4,10 @@ One scheduler tick selects a single enabled project with a configured agents
 sidecar, then runs one default bounded repair window for the current owner.
 Scheduling policy (fair rotation plus bounded exponential backoff) lives in
 ``sase_core``; this module supplies time, project enumeration, durable
-checkpoints, and calls into the bounded repair service.
+checkpoints, and calls into the bounded repair service. A tick killed by the
+job timeout counts as a failed attempt (the project backs off, keeps its
+cursor, and rotation continues), and a window that cannot advance retries
+with backoff.
 """
 
 from __future__ import annotations
@@ -151,6 +154,33 @@ def _write_state(path: Path, state: _PersistedState) -> None:
         except OSError:
             pass
         raise
+
+
+def _apply_schedule_transition(
+    state: _PersistedState,
+    transition: Any,
+    fallback_identity: Any,
+) -> None:
+    if transition.updated_checkpoint is not None:
+        state.checkpoints[
+            _state_key(
+                transition.updated_checkpoint.identity.project,
+                transition.updated_checkpoint.identity.owner,
+            )
+        ] = _Checkpoint(
+            cursor=transition.updated_checkpoint.cursor,
+            failure_count=transition.updated_checkpoint.failure_count,
+            retry_after_ms=transition.updated_checkpoint.retry_after_ms,
+        )
+        state.last_selected = {
+            "project": transition.updated_checkpoint.identity.project,
+            "owner": transition.updated_checkpoint.identity.owner,
+        }
+    else:
+        state.last_selected = {
+            "project": fallback_identity.project,
+            "owner": fallback_identity.owner,
+        }
 
 
 def _now_ms() -> int:
@@ -363,6 +393,43 @@ def _run_locked(
     checkpoint = persisted.checkpoints.get(
         _state_key(target.project_key, token), _Checkpoint()
     )
+    outcome_identity = AgentRunStateProjectIdentityWire(
+        project=target.project_key,
+        owner=token,
+    )
+    try:
+        pre_transition = advance_agent_run_state_schedule(
+            AgentRunStateScheduleRequestWire(
+                schema_version=AGENT_RUN_STATE_WIRE_SCHEMA_VERSION,
+                now_ms=moment,
+                last_selected=outcome_identity,
+                projects=wires,
+                outcome=AgentRunStateScheduleOutcomeWire(
+                    identity=outcome_identity,
+                    result=AGENT_RUN_STATE_OUTCOME_FAILURE,
+                    next_cursor=None,
+                    pass_complete=False,
+                ),
+            )
+        )
+    except (ValueError, RuntimeError) as exc:
+        return AgentStateRefreshSummary(
+            projects=len(targets),
+            errors=errors + 1,
+            diagnostics=(*diagnostics, f"scheduling policy failed: {exc}"),
+            reason="scheduling_failed",
+        )
+    pre_persisted = _PersistedState(
+        last_selected=(
+            dict(persisted.last_selected) if persisted.last_selected else None
+        ),
+        checkpoints=dict(persisted.checkpoints),
+    )
+    _apply_schedule_transition(pre_persisted, pre_transition, outcome_identity)
+    try:
+        _write_state(state_path, pre_persisted)
+    except Exception as exc:  # noqa: BLE001 - persistence retries next tick
+        diagnostics.append(f"failed to persist refresh pre-charge: {exc}")
     repair = repair_one or _repair_one
     try:
         report = repair(
@@ -380,21 +447,31 @@ def _run_locked(
             error=f"agents state refresh failed: {exc}",
         )
 
+    window_not_advanced = (
+        report.error is None
+        and report.skip_reason is None
+        and report.next_cursor is None
+        and not report.pass_complete
+    )
     if report.error is not None or report.skip_reason is not None:
         outcome_result = AGENT_RUN_STATE_OUTCOME_FAILURE
         outcome_cursor = None
         outcome_complete = False
         detail = report.error or report.skip_reason or "unknown failure"
         diagnostics.append(f"{target.project_key}: {detail}")
+    elif window_not_advanced:
+        outcome_result = AGENT_RUN_STATE_OUTCOME_FAILURE
+        outcome_cursor = None
+        outcome_complete = False
+        diagnostics.append(
+            f"{target.project_key}: repair window did not advance; "
+            "retrying with backoff"
+        )
     else:
         outcome_result = AGENT_RUN_STATE_OUTCOME_SUCCESS
         outcome_cursor = report.next_cursor
         outcome_complete = report.pass_complete
 
-    outcome_identity = AgentRunStateProjectIdentityWire(
-        project=target.project_key,
-        owner=token,
-    )
     try:
         transition = advance_agent_run_state_schedule(
             AgentRunStateScheduleRequestWire(
@@ -418,21 +495,7 @@ def _run_locked(
             reason="scheduling_failed",
         )
 
-    if transition.updated_checkpoint is not None:
-        persisted.checkpoints[_state_key(target.project_key, token)] = _Checkpoint(
-            cursor=transition.updated_checkpoint.cursor,
-            failure_count=transition.updated_checkpoint.failure_count,
-            retry_after_ms=transition.updated_checkpoint.retry_after_ms,
-        )
-        persisted.last_selected = {
-            "project": transition.updated_checkpoint.identity.project,
-            "owner": transition.updated_checkpoint.identity.owner,
-        }
-    else:
-        persisted.last_selected = {
-            "project": outcome_identity.project,
-            "owner": outcome_identity.owner,
-        }
+    _apply_schedule_transition(persisted, transition, outcome_identity)
     try:
         _write_state(state_path, persisted)
     except Exception as exc:  # noqa: BLE001 - persistence retries next tick
@@ -458,6 +521,8 @@ def _run_locked(
     reason: str | None = None
     if report.error or report.skip_reason:
         reason = "project_failed"
+    elif window_not_advanced:
+        reason = "window_not_advanced"
     return AgentStateRefreshSummary(
         projects=len(targets),
         examined=report.examined,

@@ -772,3 +772,63 @@ def test_window_hood_cap(tmp_path: Path) -> None:
     assert len({row.local_hood for row in report.window}) == STATE_REPAIR_MAX_HOODS
     assert report.pass_complete is False
     assert report.next_cursor is not None
+
+
+def test_collect_reads_owner_manifest_constant_times(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import sase.agents_sync.publication_state_repair as repair_module
+    import sase.agents_sync.v2_io as v2_io
+
+    def seed(count: int, name: str) -> ProjectTarget:
+        workdir = tmp_path / name
+        workdir.mkdir()
+        remote, _seed, sidecar = setup_repo(workdir)
+        builder = _SeedBuilder(sidecar)
+        for index in range(count):
+            hood = f"hood-{index}"
+            builder.add_run(hood, f"{hood}.job", f"run-{index}", "active")
+        builder.write_manifest()
+        _commit_push(sidecar)
+        return target(workdir, remote, sidecar)
+
+    small_target = seed(2, "small")
+    large_target = seed(6, "large")
+
+    original = v2_io.read_owner_manifest
+    reads = 0
+
+    def counting(*args, **kwargs):
+        nonlocal reads
+        reads += 1
+        return original(*args, **kwargs)
+
+    monkeypatch.setattr(v2_io, "read_owner_manifest", counting)
+
+    small_loader = _loader(
+        [
+            _inv_run(f"run-{index}", f"hood-{index}.job", "completed")
+            for index in range(2)
+        ],
+        [],
+    )
+    repair_module.repair_project_run_states(
+        small_target, OWNER, apply=False, inventory_loader=small_loader
+    )
+    small_reads = reads
+
+    reads = 0
+    large_loader = _loader(
+        [
+            _inv_run(f"run-{index}", f"hood-{index}.job", "completed")
+            for index in range(6)
+        ],
+        [],
+    )
+    repair_module.repair_project_run_states(
+        large_target, OWNER, apply=False, inventory_loader=large_loader
+    )
+    large_reads = reads
+
+    assert small_reads == large_reads
+    assert small_reads <= 2

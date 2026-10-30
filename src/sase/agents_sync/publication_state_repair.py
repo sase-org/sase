@@ -451,21 +451,24 @@ def _collect_published_rows(
     still progress; their names are returned for degraded page rendering.
     """
 
-    from sase.agents_sync.v2_io import owner_manifest_path, read_owner_manifest
+    from sase.agents_sync.v2_io import read_owner_manifest
 
     project = V2ProjectIdentity(target.project_key, target.project)
     try:
         manifest = read_owner_manifest(repo_root, owner, project)
     except AgentsSyncFormatError as exc:
         return [], {}, 0, frozenset(), [f"owner manifest is not readable: {exc}"]
+    entries = manifest.by_hood()
     rows: list[tuple[str, str]] = []
     snapshots: dict[tuple[str, str], tuple[str, V2RunRecord]] = {}
     failed = 0
     bad_hoods: set[str] = set()
     diagnostics: list[str] = []
-    for hood, _entry in sorted(manifest.hoods):
+    for hood in sorted(entries):
         try:
-            snapshot = _read_validated_snapshot(repo_root, owner, hood, project)
+            snapshot = _validated_snapshot_for_entry(
+                repo_root, owner, hood, entries.get(hood)
+            )
         except (AgentsSyncFormatError, OSError, RuntimeError, ValueError) as exc:
             failed += 1
             bad_hoods.add(hood)
@@ -478,17 +481,14 @@ def _collect_published_rows(
     return rows, snapshots, failed, frozenset(bad_hoods), diagnostics
 
 
-def _read_validated_snapshot(
+def _validated_snapshot_for_entry(
     repo_root: Path,
     owner: AgentOwnerIdentity,
     hood: str,
-    project: V2ProjectIdentity,
+    entry: V2OwnerHoodEntry | None,
 ) -> V2HoodSnapshot:
     from sase.agents_sync.publication_validation import previous_snapshot
-    from sase.agents_sync.v2_io import read_owner_manifest
 
-    manifest = read_owner_manifest(repo_root, owner, project)
-    entry = manifest.by_hood().get(hood)
     snapshot = previous_snapshot(repo_root, owner, hood, entry)
     if snapshot is None:
         raise AgentsSyncFormatError(f"hood {hood!r} has no published snapshot")
@@ -1371,6 +1371,7 @@ def _plan_state_payload(
     tuple[str, ...],
 ]:
     from sase.agents_sync.publication_protection import PublicationProtectionScope
+    from sase.agents_sync.v2_io import read_owner_manifest
 
     scope = PublicationProtectionScope(
         project_key=target.project_key,
@@ -1386,6 +1387,12 @@ def _plan_state_payload(
     failed = 0
     diagnostics: list[str] = []
     changed_snapshots: dict[tuple[str, str, str], V2HoodSnapshot] = {}
+    manifest = read_owner_manifest(
+        target.sidecar_path,
+        owner,
+        V2ProjectIdentity(target.project_key, target.project),
+    )
+    entries = manifest.by_hood()
     for hood in sorted(by_hood):
         if time.monotonic() > deadline:
             failed += len(by_hood[hood])
@@ -1395,11 +1402,8 @@ def _plan_state_payload(
             )
             continue
         try:
-            snapshot = _read_validated_snapshot(
-                target.sidecar_path,
-                owner,
-                hood,
-                V2ProjectIdentity(target.project_key, target.project),
+            snapshot = _validated_snapshot_for_entry(
+                target.sidecar_path, owner, hood, entries.get(hood)
             )
         except (AgentsSyncFormatError, OSError, RuntimeError, ValueError) as exc:
             failed += len(by_hood[hood])
@@ -1697,6 +1701,7 @@ def _plan_manifest_and_pages_degraded(
     from sase.agents_sync.v2_io import (
         owner_manifest_from_bytes,
         read_all_owner_manifests_lenient,
+        read_owner_manifest,
         v2_json_bytes,
     )
 
@@ -1707,13 +1712,14 @@ def _plan_manifest_and_pages_degraded(
         for run in snapshot.runs:
             verify_run_files(target.sidecar_path, run, payload)
     owner_manifest_from_bytes(v2_json_bytes(manifest.to_json_dict()))
+    on_disk_entries = read_owner_manifest(target.sidecar_path, owner, project).by_hood()
     healthy: dict[tuple[str, str, str], V2HoodSnapshot] = dict(changed_snapshots)
     for hood, _entry in manifest.hoods:
         key = (owner.username, owner.machine_name, hood)
         if key in healthy or hood in skip_hoods:
             continue
-        healthy[key] = _read_validated_snapshot(
-            target.sidecar_path, owner, hood, project
+        healthy[key] = _validated_snapshot_for_entry(
+            target.sidecar_path, owner, hood, on_disk_entries.get(hood)
         )
     render_manifest = V2OwnerManifest(
         owner,

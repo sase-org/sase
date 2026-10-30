@@ -1547,9 +1547,11 @@ axe:
             budget. Persists a versioned per-project cursor and bounded retry
             backoff under the job-state lock, so live, missing, or contradictory
             rows never starve later rows and a crash after push but before cursor
-            persistence safely repeats the window. A successful end-of-pass resets
-            for a future pass so newly finished runs are revisited. This is bounded
-            work per tick, not a guaranteed five-minute fleet-wide completion time.
+            persistence safely repeats the window. A tick killed by the job timeout
+            counts as a failed attempt, and a window that cannot advance retries
+            with backoff. A successful end-of-pass resets for a future pass so
+            newly finished runs are revisited. This is bounded work per tick, not a
+            guaranteed five-minute fleet-wide completion time.
         - name: bead_task_triage
           script: sase_job_bead_task_triage
           timeout: "2m"

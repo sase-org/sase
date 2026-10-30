@@ -3642,7 +3642,7 @@
           {
             "aliases": [],
             "default_child": null,
-            "description_digest": "56e24acca283b3f7",
+            "description_digest": "e9cb34ca03c88faf",
             "hidden": false,
             "mutex_groups": [],
             "name": "sync",
@@ -3808,6 +3808,22 @@
                 "value_hint": null
               },
               {
+                "choices": null,
+                "default": "False",
+                "dest": "repair_states",
+                "hidden": false,
+                "kind": null,
+                "metavar": null,
+                "repeatable": false,
+                "required": false,
+                "strings": [
+                  "-s",
+                  "--repair-states"
+                ],
+                "takes_value": false,
+                "value_hint": null
+              },
+              {
                 "choices": [
                   "index_lock",
                   "lock_busy",
@@ -3895,6 +3911,38 @@
                 ],
                 "takes_value": false,
                 "value_hint": null
+              },
+              {
+                "choices": null,
+                "default": null,
+                "dest": "state_after",
+                "hidden": false,
+                "kind": null,
+                "metavar": "CURSOR",
+                "repeatable": false,
+                "required": false,
+                "strings": [
+                  "-A",
+                  "--state-after"
+                ],
+                "takes_value": true,
+                "value_hint": "text"
+              },
+              {
+                "choices": null,
+                "default": null,
+                "dest": "state_limit",
+                "hidden": false,
+                "kind": null,
+                "metavar": "N",
+                "repeatable": false,
+                "required": false,
+                "strings": [
+                  "-L",
+                  "--state-limit"
+                ],
+                "takes_value": true,
+                "value_hint": "int"
               }
             ],
             "path": [
@@ -25804,7 +25852,7 @@
           {
             "aliases": [],
             "default_child": null,
-            "description_digest": "7dca8ac416284f8a",
+            "description_digest": "68b994583fc8f9af",
             "hidden": false,
             "mutex_groups": [],
             "name": "list",
@@ -25942,6 +25990,7 @@
               },
               {
                 "choices": [
+                  "staged",
                   "running",
                   "completed",
                   "failed",

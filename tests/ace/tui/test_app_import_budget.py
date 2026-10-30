@@ -13,8 +13,7 @@ import pytest
 _MAX_ELAPSED_SECONDS = 5.0
 # Ratchet policy: the cap only moves down. The guard counts first-party
 # modules (``sase`` and ``sase.*``) after ``import sase.ace.tui.app`` in a
-# fresh interpreter. Measured 2846 on 2026-10-29 (origin/master and this
-# tree; workspace slot-refusal adds 0 TUI modules), so the cap is measured
+# fresh interpreter. Measured 2856 on 2026-10-30, so the cap is measured
 # plus 5 with a strict ``<``. Raising the cap requires a named first-party
 # module that is genuinely needed on the first-paint path with deferral
 # impossible: the comment must name that module and its commit, and the
@@ -25,9 +24,24 @@ _MAX_ELAPSED_SECONDS = 5.0
 # ``tools/tui_import_closure --diff $(git merge-base HEAD origin/master)``
 # and defer the new edges with use-site or ``TYPE_CHECKING`` imports.
 #
+# 2026-10-29 measured 2846 (cap 2851). 2026-10-30 measures 2856 (+10):
+# toobig splits whose facades must import at load and whose callers are
+# first-paint TUI (``tools/tui_import_closure --diff 01dcc2e5f5`` lists 14,
+# 4 of which are env variance already covered): ``sase.core.tool_run_*``
+# (+5: definitions, lifecycle, paths, queries, triage; facade must import
+# them, TUI needs tool_run summaries on first paint; ffff2b81a8),
+# ``sase.ace.tui.widgets._agent_list_render_rail_*`` (+3: cells, chrome,
+# vocab; rail facade must import them, rail is first paint; c927c40860),
+# ``sase.finalizers._declaration_carry`` + ``_declaration_context`` (+2;
+# 302f58e9ad), plus ``sase.monitor.start_prepare`` (8f982c8ae9),
+# ``sase.llm_provider.deferred`` (20dc76bd09),
+# ``sase.workflows.commit._workflow_tracking`` (7e562f58f8), and
+# ``sase.core.agent_run_state_wire`` (1d1c46262a). Deferral is impossible
+# without deferring the first-paint parents themselves, so the cap is 2861.
+#
 # The previous total-module cap (sys.modules length, last 3550) re-broke
 # about weekly on dependency/stdlib drift with no sase.* growth (sase-1ic).
-_MAX_SASE_MODULE_COUNT = 2851
+_MAX_SASE_MODULE_COUNT = 2861
 # Loose total-module bound: measured 3549 on 2026-10-29 plus 10%, strict
 # ``<``. Only a large dependency regression trips this.
 _MAX_TOTAL_MODULE_COUNT = 3904

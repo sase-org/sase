@@ -62,6 +62,7 @@ def _build_scoped_repo(root: Path) -> None:
 
     shutil.copy(_RUNNER, root / "tools" / "run_pytest")
     for module in (
+        "_agent_artifact_marker_audit_helpers.py",
         "_contention.py",
         "_suite_gate.py",
         "_suite_gate_budget.py",

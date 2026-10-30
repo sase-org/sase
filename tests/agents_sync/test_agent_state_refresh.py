@@ -6,6 +6,8 @@ import json
 import subprocess
 from pathlib import Path
 
+import pytest
+
 from sase.agents_sync.agent_state_refresh import run_agent_state_refresh
 from sase.agents_sync.inventory_models import InventoryRun, ProjectHoodInventory
 from sase.agents_sync.models import ProjectTarget
@@ -434,3 +436,135 @@ def test_scheduled_convergence_without_another_commit(tmp_path: Path) -> None:
     )
     assert final.changed == 0
     assert final.pass_complete is True
+
+
+class _KilledTick(BaseException):
+    pass
+
+
+def test_killed_tick_backs_off_and_rotates(tmp_path: Path) -> None:
+    import dataclasses
+
+    dir_a = tmp_path / "a"
+    dir_b = tmp_path / "b"
+    dir_a.mkdir()
+    dir_b.mkdir()
+    _remote_a, base_a = _setup(dir_a, runs=[("foo", "foo.job", "run-1", "active")])
+    _remote_b, base_b = _setup(dir_b, runs=[("foo", "foo.job", "run-1", "active")])
+    target_a = dataclasses.replace(base_a, project_key="proj-a", project="Project A")
+    target_b = dataclasses.replace(base_b, project_key="proj-b", project="Project B")
+    targets = [target_a, target_b]
+    state_dir = tmp_path / "state"
+
+    def killing(target: object, owner: object, **kwargs: object) -> StateRepairReport:
+        raise _KilledTick("sigkill")
+
+    with pytest.raises(_KilledTick):
+        run_agent_state_refresh(
+            state_dir=state_dir,
+            now_ms=1_000,
+            list_targets=_targets_for(targets),
+            require_owner=_owner,
+            repair_one=killing,  # type: ignore[arg-type]
+        )
+
+    payload = json.loads(
+        (state_dir / "agent_state_refresh.json").read_text(encoding="utf-8")
+    )
+    key = f"{targets[0].project_key}:alice@athena"
+    assert payload["projects"][key]["failure_count"] == 1
+    assert payload["projects"][key]["retry_after_ms"] > 1_000
+    assert payload["projects"][key]["cursor"] is None
+    assert payload["last_selected"]["project"] == targets[0].project_key
+
+    selected: list[str] = []
+
+    def ok(target: object, owner: object, **kwargs: object) -> StateRepairReport:
+        selected.append(target.project_key)
+        return StateRepairReport(
+            target.project_key,
+            target.project,
+            "apply",
+            examined=1,
+            already_current=1,
+            next_cursor="cursor-1",
+            pass_complete=True,
+        )
+
+    second = run_agent_state_refresh(
+        state_dir=state_dir,
+        now_ms=2_000,
+        list_targets=_targets_for(targets),
+        require_owner=_owner,
+        repair_one=ok,  # type: ignore[arg-type]
+    )
+    assert second.selected_project != targets[0].project_key
+    assert selected == [second.selected_project]
+
+
+def test_frozen_window_retries_with_backoff(tmp_path: Path) -> None:
+    import dataclasses
+
+    dir_a = tmp_path / "a"
+    dir_b = tmp_path / "b"
+    dir_a.mkdir()
+    dir_b.mkdir()
+    _remote_a, base_a = _setup(dir_a, runs=[("foo", "foo.job", "run-1", "active")])
+    _remote_b, base_b = _setup(dir_b, runs=[("foo", "foo.job", "run-1", "active")])
+    target_a = dataclasses.replace(base_a, project_key="proj-a", project="Project A")
+    target_b = dataclasses.replace(base_b, project_key="proj-b", project="Project B")
+    targets = [target_a, target_b]
+    state_dir = tmp_path / "state"
+
+    def frozen(target: object, owner: object, **kwargs: object) -> StateRepairReport:
+        return StateRepairReport(
+            target.project_key,
+            target.project,
+            "apply",
+            examined=1,
+            next_cursor=None,
+            pass_complete=False,
+        )
+
+    first = run_agent_state_refresh(
+        state_dir=state_dir,
+        now_ms=1_000,
+        list_targets=_targets_for(targets),
+        require_owner=_owner,
+        repair_one=frozen,  # type: ignore[arg-type]
+    )
+    assert first.reason == "window_not_advanced"
+    assert first.errors == 0
+    assert any("did not advance" in item for item in first.diagnostics)
+
+    payload = json.loads(
+        (state_dir / "agent_state_refresh.json").read_text(encoding="utf-8")
+    )
+    key = f"{first.selected_project}:alice@athena"
+    assert payload["projects"][key]["failure_count"] == 1
+    assert payload["projects"][key]["retry_after_ms"] > 1_000
+    assert payload["projects"][key]["cursor"] is None
+
+    selected: list[str] = []
+
+    def ok(target: object, owner: object, **kwargs: object) -> StateRepairReport:
+        selected.append(target.project_key)
+        return StateRepairReport(
+            target.project_key,
+            target.project,
+            "apply",
+            examined=1,
+            already_current=1,
+            next_cursor="cursor-1",
+            pass_complete=True,
+        )
+
+    second = run_agent_state_refresh(
+        state_dir=state_dir,
+        now_ms=2_000,
+        list_targets=_targets_for(targets),
+        require_owner=_owner,
+        repair_one=ok,  # type: ignore[arg-type]
+    )
+    assert second.selected_project != first.selected_project
+    assert selected == [second.selected_project]

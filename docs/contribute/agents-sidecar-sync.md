@@ -139,10 +139,13 @@ Each tick persists a versioned per-project/per-owner cursor and bounded retry ba
 atomically under the local job-state lock. On a successful end-of-pass the cursor resets
 for a future pass so newly finished runs are revisited. Live, missing, or contradictory
 rows never starve later rows. A transient project failure backs off that project and
-allows other projects on subsequent ticks without discarding its retry position. A crash
-after push but before cursor persistence safely repeats the window. Unsupported or
-corrupt checkpoint state resets safely without inferring any run outcome. This is
-bounded work per tick, not a guaranteed five-minute fleet-wide completion time.
+allows other projects on subsequent ticks without discarding its retry position. A tick
+killed by the job timeout counts as a failed attempt (the project backs off, keeps its
+cursor, and rotation continues). A window that cannot advance (byte limit, every changed
+row withheld or failed) retries with backoff. A crash after push but before cursor
+persistence safely repeats the window. Unsupported or corrupt checkpoint state resets
+safely without inferring any run outcome. This is bounded work per tick, not a
+guaranteed five-minute fleet-wide completion time.
 
 Run the bounded owner-local backfill procedure on each machine that owns affected runs.
 This runbook provides the procedure; it does not run an unbounded fleet backfill or

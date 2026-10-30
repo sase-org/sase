@@ -5,7 +5,10 @@ One tick selects a single enabled project with a configured agents sidecar
 and runs one default bounded repair window for the current owner. The
 per-project cursor and bounded retry backoff persist under the job-state
 lock, so live, missing, or contradictory rows never starve later rows and a
-crash after push but before cursor persistence safely repeats the window.
+crash after push but before cursor persistence safely repeats the window. A
+tick killed by the job timeout counts as a failed attempt (the project backs
+off, keeps its cursor, and rotation continues), and a window that cannot
+advance retries with backoff.
 """
 
 from __future__ import annotations
