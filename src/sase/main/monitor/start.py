@@ -69,6 +69,15 @@ def handle_monitor_start(args: argparse.Namespace) -> int:
     except MonitorError as exc:
         print(f"sase monitor start: {exc}", file=sys.stderr)
         return 1
+    in_agent = bool(os.environ.get("SASE_AGENT"))
+    use_staged = False
+    if in_agent:
+        try:
+            from sase.agent.staged_handoff import staged_handoffs_enabled
+
+            use_staged = staged_handoffs_enabled()
+        except Exception:  # noqa: BLE001 - flag read never blocks a start.
+            use_staged = False
     raw_weight = getattr(args, "weight", None)
     queue_weight_override: float | None = None
     if raw_weight is not None:
@@ -230,7 +239,11 @@ def handle_monitor_start(args: argparse.Namespace) -> int:
         )
         return 2
 
-    if will_handoff_monitor_to_agent_runner():
+    if use_staged:
+        # Staged starts never write legacy pending/in-flight kill markers and
+        # never kill the runner: adoption happens after host finalization.
+        pass
+    elif will_handoff_monitor_to_agent_runner():
         # Lane resolution and the launch transaction can take many seconds. A
         # harness whose tool yields before this command exits (Codex's
         # exec_command) must see a running command, not an empty result it
@@ -285,6 +298,16 @@ def handle_monitor_start(args: argparse.Namespace) -> int:
         queue_weight_override=queue_weight_override,
     )
 
+    if use_staged:
+        return _handle_staged_monitor_start(
+            request,
+            args=args,
+            cwd=str(cwd),
+            timeout_label=timeout_label,
+            idle_timeout_label=idle_timeout_label,
+            queue_weight_override=queue_weight_override,
+        )
+
     try:
         record = start_monitor(request)
     except (MonitorAlreadyRunningError, MonitorError) as exc:
@@ -328,6 +351,64 @@ def handle_monitor_start(args: argparse.Namespace) -> int:
     except MonitorError:
         clear_handoff_inflight_marker(os.environ.get("SASE_ARTIFACTS_DIR"))
         raise
+    return 0
+
+
+_STAGED_MONITOR_INSTRUCTION = (
+    "Nothing starts until this turn ends; finish through `/sase_final`. "
+    "Do not wait for your own staged monitor."
+)
+
+
+def _handle_staged_monitor_start(
+    request: StartMonitorRequest,
+    *,
+    args: argparse.Namespace,
+    cwd: str,
+    timeout_label: str,
+    idle_timeout_label: str | None,
+    queue_weight_override: float | None,
+) -> int:
+    """Stage a monitor start for post-finalizer adoption without launching."""
+    from sase.monitor.start_stage import stage_monitor
+
+    try:
+        staged = stage_monitor(request)
+    except (MonitorAlreadyRunningError, MonitorError) as exc:
+        print(f"sase monitor start: {exc}", file=sys.stderr)
+        return 1
+    record = staged.record
+    short_id = short_monitor_id(record.monitor_id)
+    tool_run_id = record.tool_run_id or ""
+    if bool(getattr(args, "json", False)):
+        envelope = monitor_start_json(record, handed_off=False)
+        envelope["staged"] = True
+        envelope["staged_id"] = staged.staged_id
+        envelope["status"] = "staged"
+        envelope["instruction"] = _STAGED_MONITOR_INSTRUCTION
+        json.dump(envelope, sys.stdout, indent=2)
+        sys.stdout.write("\n")
+        sys.stdout.flush()
+        print(
+            f"Staged monitor {short_id} ({record.monitor_id}). "
+            f"{_STAGED_MONITOR_INSTRUCTION}",
+            file=sys.stderr,
+        )
+        return 0
+    print(f"Staged monitor {short_id} ({record.monitor_id})")
+    print(f"  member: {record.member_agent_name}")
+    print(f"  staged id: {staged.staged_id}")
+    print(f"  cwd: {cwd}")
+    if tool_run_id:
+        joined_mark = " (joined)" if record.tool_run_joined else ""
+        print(f"  tool run: {tool_run_id}{joined_mark}")
+    print(f"  timeout: {timeout_label}")
+    if queue_weight_override is not None:
+        print("  queue weight: 0 (holds no runner capacity)")
+    if idle_timeout_label is not None:
+        print(f"  idle timeout: {idle_timeout_label}")
+    print(f"  {_STAGED_MONITOR_INSTRUCTION}")
+    sys.stdout.flush()
     return 0
 
 

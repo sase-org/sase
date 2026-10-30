@@ -301,7 +301,9 @@ def test_unsupported_staged_kind_records_held_receipt(
     monkeypatch,
 ) -> None:
     ctx, state, artifacts = _continuation(tmp_path)
-    record = {**_record(tmp_path), "kind": "monitor"}
+    # "monitor" is a supported staged kind since activation (sase-1pj.5.1.4);
+    # exercise the unsupported path with a kind no adopter handles.
+    record = {**_record(tmp_path), "kind": "bogus"}
     monkeypatch.setattr(
         "sase.axe.run_agent_exec_staged_dispatch.read_staged_handoff",
         lambda _root: record,
@@ -324,7 +326,7 @@ def test_unsupported_staged_kind_records_held_receipt(
     )
 
     assert result is not None and not result.adopted
-    assert result.reason == "unsupported staged handoff kind 'monitor'"
+    assert result.reason == "unsupported staged handoff kind 'bogus'"
     receipt = read_adoption_receipt(str(artifacts))
     assert receipt is not None
     assert receipt["outcome"] == "handoff_not_adopted"

@@ -17,12 +17,28 @@ agent turn, or when you need a timed sleep/wait before more work can happen.
 Never wait for the **monitored command** yourself. Put any continuation work in `--next`
 so a follow-up agent can resume from the same workspace and conversation.
 
-The `sase monitor start` command itself must run to completion. It may take up to a
-minute to create and acknowledge the detached supervisor, then writes its handoff marker
-and kills the current agent. If your command tool yields or backgrounds that start
-command before it exits, keep waiting on the same session until it reports an exit code.
-Never end your turn while `sase monitor start` is still running; an early or empty
-result means only that you stopped observing before the handoff happened.
+The `sase monitor start` command itself must run to completion. On the legacy path it
+may take up to a minute to create and acknowledge the detached supervisor before it
+writes its handoff marker and kills the current agent. If your command tool yields or
+backgrounds that start command before it exits, keep waiting on the same session until
+it reports an exit code. Never end your turn while `sase monitor start` is still
+running; an early or empty result means only that you stopped observing before the
+handoff happened.
+
+`sase monitor start` has two outcomes. When it reports `Staged`, nothing has started
+yet: the request is frozen, any ToolRun or prepared intent is only reserved, and the
+command, bind, claim move, and proc launch all wait until after host finalization.
+Finish through `/sase_final`. When it does not report `Staged`, the legacy command
+starts the supervisor immediately, writes its handoff marker, and kills the current
+agent.
+
+Do not wait for your own staged monitor. `sase tool wait RUN` on the reserved run from
+your own staged start returns promptly with a `/sase_final` message instead of blocking.
+Reservation is not binding: `-f` reserves the prepared intent at stage time and binds it
+once at adoption, while `-J` reserves the existing run at stage time and activates the
+join at adoption. To land your work before a CI wait, submit an explicit commit decision
+for those repositories through `/sase_final`; a staged monitor never synthesizes carry
+for you.
 
 Provider-native monitor, background-execution, and scheduled wake-up tools do not work
 in SASE's single-turn agent model. Use `sase monitor start` instead.

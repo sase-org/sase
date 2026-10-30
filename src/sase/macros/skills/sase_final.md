@@ -97,10 +97,12 @@ Use it for final verification so passing work lands with no further turn.
    sase monitor start -p verify -f <ref> -r 'Verify before host completion' -- just check
    ```
 
-The verification command is monitored, but `sase monitor start` itself is not. Run that
-start command in the foreground until it exits; it can take up to a minute before it
-writes the handoff marker and kills the runner. If your tool yields a live session, keep
-polling that same session rather than ending the turn.
+With staged handoffs on, that start reports `Staged`: it reserves the intent without
+binding it, and the host binds it once at adoption after finalizers settle. The
+verification command, bind, claim move, and proc launch all wait until then. Run that
+start command in the foreground until it exits; if your tool yields a live session, keep
+polling that same session rather than ending the turn. Never wait for the reserved run
+after a `Staged` start; finish through `/sase_final`.
 
 If `sase final prepare` is refused, run the verification command inline, then pass the
 same wrapper file to `sase final submit <wrapper>`; it submits the wrapper's

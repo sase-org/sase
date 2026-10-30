@@ -110,6 +110,96 @@ def _poll_sleep(state: WaitPollState, deadline: float | None) -> None:
     state.delay = min(state.delay * 1.5, _POLL_MAX_SECONDS)
 
 
+def _staged_self_wait_refusal(run_id: str, run: dict[str, Any]) -> str | None:
+    """Return a `/sase_final` refusal when *run_id* is the caller's pending staged run.
+
+    Covers both owned reserved runs and staged joins: the staged payload's
+    reserved ToolRun ID is the same in both cases. Returns ``None`` when the
+    caller has no staged monitor, the run does not match, or the stage has
+    already been adopted.
+    """
+    import os
+    from collections.abc import Mapping
+
+    artifacts_dir = (os.environ.get("SASE_ARTIFACTS_DIR") or "").strip()
+    caller_agent = (
+        os.environ.get("SASE_AGENT_NAME") or os.environ.get("SASE_AGENT") or ""
+    ).strip()
+    if not artifacts_dir or not caller_agent:
+        return None
+    try:
+        from sase.agent.staged_handoff import read_staged_handoff
+    except Exception:  # noqa: BLE001 - no staged record means no self-wait.
+        return None
+    try:
+        staged = read_staged_handoff(artifacts_dir)
+    except Exception:  # noqa: BLE001 - malformed stage is not proof of ownership.
+        return None
+    if not isinstance(staged, Mapping) or staged.get("kind") != "monitor":
+        return None
+    staged_id = staged.get("staged_id")
+    payload = staged.get("payload")
+    if not isinstance(staged_id, str) or not staged_id:
+        return None
+    if not isinstance(payload, Mapping):
+        return None
+    monitor_id = payload.get("monitor_id")
+    if not isinstance(monitor_id, str) or not monitor_id:
+        return None
+    resources = payload.get("resources")
+    reserved_id: str | None = None
+    if isinstance(resources, Mapping):
+        raw = resources.get("tool_run_id")
+        if isinstance(raw, str) and raw.strip():
+            reserved_id = raw.strip()
+    if reserved_id is None or reserved_id != run_id.strip():
+        return None
+    try:
+        from sase.monitor.staged_owner import read_staged_owner_index
+    except Exception:  # noqa: BLE001 - missing index means already adopted.
+        return None
+    try:
+        index = read_staged_owner_index(monitor_id)
+    except Exception:  # noqa: BLE001 - unreadable index is not pending ownership.
+        return None
+    if not isinstance(index, Mapping) or index.get("staged_id") != staged_id:
+        return None
+    starter_name = caller_agent
+    starter_block = payload.get("starter")
+    if isinstance(starter_block, Mapping):
+        raw_agent = starter_block.get("agent_id")
+        if isinstance(raw_agent, str) and raw_agent.strip():
+            starter_name = raw_agent.strip()
+    try:
+        from sase.core.staged_handoff import evaluate_staged_self_wait
+    except Exception:  # noqa: BLE001 - without the decision, allow the wait.
+        return None
+    try:
+        decision = evaluate_staged_self_wait(
+            {
+                "schema_version": 1,
+                "caller_owner_kind": "monitor",
+                "caller_owner_id": monitor_id,
+                "caller_staged_id": staged_id,
+                "caller_agent_name": caller_agent,
+                "run_owner_kind": "monitor",
+                "run_owner_id": monitor_id,
+                "run_staged_id": staged_id,
+                "run_starter_agent_name": starter_name,
+                "run_proc_exists": False,
+            }
+        )
+    except Exception:  # noqa: BLE001 - unknown facts never block a wait.
+        return None
+    if not isinstance(decision, Mapping) or decision.get("is_self_wait") is not True:
+        return None
+    return (
+        f"sase tool wait {run_id.strip()} is your own pending staged monitor "
+        f"({monitor_id}); nothing starts until this turn ends -- finish through "
+        "`/sase_final` instead of waiting."
+    )
+
+
 def handle_wait(request: ToolWaitCliRequest) -> int:
     """Block until the run settles, mirroring its exit code."""
 
@@ -135,6 +225,10 @@ def handle_wait(request: ToolWaitCliRequest) -> int:
     except UnknownRunError as exc:
         print(str(exc), file=sys.stderr)
         return 2
+    refusal = _staged_self_wait_refusal(run_id, run)
+    if refusal is not None:
+        print(refusal, file=sys.stderr)
+        return 1
     if is_settled(run):
         return _report_wait_outcome(request, run_id, run)
     budget = _agent_wait_budget()
