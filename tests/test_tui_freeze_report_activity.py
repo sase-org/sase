@@ -107,3 +107,33 @@ def test_rotation_checkpoint_seeds_state_without_original_initial_row() -> None:
     result = activity.analyze_prompt_states(rows, 100, 500, [])
     assert result["detail"]["idle_s"] == 400
     assert result["detail"]["unknown_s"] == 0
+
+
+def test_delayed_interval_is_grouped_like_on_time() -> None:
+    rows = [
+        _state(0, 0, "prompt_idle", "initial"),
+        _state(700, 1, "prompt_active"),
+    ]
+    beats = [
+        {
+            "event": "tui_memory_heartbeat",
+            "ts": 0,
+            "window_s": 300,
+            "gc_generations": {"2": {"total_s": 5}},
+            "loop_hitch_seconds": 1,
+            "loop_suppressed_seconds": 0,
+        },
+        {
+            "event": "tui_memory_heartbeat",
+            "ts": 304.094,
+            "window_s": 303.696331,
+            "gc_generations": {"2": {"total_s": 7}},
+            "loop_hitch_seconds": 2,
+            "loop_suppressed_seconds": 0,
+        },
+    ]
+    result = activity.analyze_prompt_states(rows, 0, 700, beats)["detail"]
+    observations = result["observations"]["by_state"]
+    assert result["observations"]["invalid_heartbeat_intervals"] == 0
+    assert observations["prompt_idle"]["heartbeat_intervals"] == 1
+    assert observations["prompt_idle"]["gc_total_s"] == 7

@@ -13,6 +13,7 @@ from sase.ace.tui.actions.agents._loading_compute import (
     PreparedApplySnapshot,
     merge_incomplete_load_after_complete_history,
 )
+from sase.ace.tui._proc_observer_models import ProcProjection
 from sase.ace.tui.models.agent import Agent
 from sase.ace.tui.models.agent import AgentType
 from sase.ace.tui.models.agent_loader import AgentLoadState
@@ -24,6 +25,15 @@ _CODE_TS = "20260915090200"
 _STARTED = datetime(2026, 9, 15, 9, 0, 0)
 
 
+def _authoritative_load_state() -> AgentLoadState:
+    return AgentLoadState(
+        tier="tier2",
+        complete_history=True,
+        artifact_source="source_scan",
+        used_artifact_index=False,
+    )
+
+
 def _incomplete_tier1_snapshot(
     cached_agents_with_children: Sequence[Agent],
     *,
@@ -32,6 +42,10 @@ def _incomplete_tier1_snapshot(
     load_state: AgentLoadState | None = None,
     capacity_agents_with_children: Sequence[Agent] = (),
     deleted_artifact_dirs: frozenset[str] = frozenset(),
+    agents_seen_complete_history: bool = True,
+    cache_query_matches: bool = True,
+    proc_projection: ProcProjection | None = None,
+    fleet_rows: Sequence[Agent] = (),
 ) -> PreparedApplySnapshot:
     if load_state is None:
         load_state = AgentLoadState(
@@ -45,7 +59,7 @@ def _incomplete_tier1_snapshot(
     return PreparedApplySnapshot(
         cached_agents_with_children=list(cached_agents_with_children),
         dismissed_agents=set(),
-        agents_seen_complete_history=True,
+        agents_seen_complete_history=agents_seen_complete_history,
         hide_non_run_agents=False,
         load_state=load_state,
         fold_levels=None,
@@ -55,6 +69,9 @@ def _incomplete_tier1_snapshot(
             prior_visual_row=None,
         ),
         capacity_agents_with_children=list(capacity_agents_with_children),
+        proc_projection=proc_projection,
+        cache_query_matches=cache_query_matches,
+        fleet_rows=tuple(fleet_rows),
     )
 
 

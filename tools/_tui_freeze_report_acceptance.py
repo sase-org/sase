@@ -14,7 +14,10 @@ from typing import Any
 
 HEARTBEAT_INTERVAL_S = 300.0
 HEARTBEAT_INTERVAL_TOLERANCE_S = 2.0
-HEARTBEAT_MAX_GAP_S = HEARTBEAT_INTERVAL_S + HEARTBEAT_INTERVAL_TOLERANCE_S
+# A skipped heartbeat yields at least about twice the cadence, so this bound
+# cannot bridge one. Intervals past the on-time tolerance but at or below this
+# bound stay valid when window_s and uptime_s still agree.
+HEARTBEAT_MISSING_GAP_S = 1.5 * HEARTBEAT_INTERVAL_S
 STARTUP_WARMUP_S = 20 * 60.0
 FOUR_HOURS_S = 4 * 60 * 60.0
 RSS_GROWTH_LIMIT_BYTES = 500_000_000
@@ -315,7 +318,7 @@ def analyze_acceptance(
                 f"heartbeat {index}: window_s differs from adjacent wall times by "
                 f"{abs(delta - float(window_s)):.6f}s"
             )
-        if delta > HEARTBEAT_MAX_GAP_S:
+        if delta > HEARTBEAT_MISSING_GAP_S:
             pair_errors.append(
                 f"heartbeat {index}: missing heartbeat interval ({delta:.3f}s)"
             )
@@ -347,6 +350,20 @@ def analyze_acceptance(
             "no adjacent heartbeat intervals inside the requested and warmup bounds"
         )
     issues.extend(pair_issues)
+    delayed_deltas = [
+        pair["delta_s"]
+        for pair in pairs
+        if not pair["errors"]
+        and pair["delta_s"]
+        > HEARTBEAT_INTERVAL_S + HEARTBEAT_INTERVAL_TOLERANCE_S
+    ]
+    delayed_interval_count = len(delayed_deltas)
+    delayed_max_s = max(delayed_deltas) if delayed_deltas else None
+    delayed_max_delay_s = (
+        max(delta - HEARTBEAT_INTERVAL_S for delta in delayed_deltas)
+        if delayed_deltas
+        else None
+    )
     actual_start = pairs[0]["left_ts"] if pairs else None
     actual_end = pairs[-1]["right_ts"] if pairs else None
     actual_span = (
@@ -838,6 +855,9 @@ def analyze_acceptance(
         "interval_counter_policy": "later endpoint counters only; first endpoint counters are outside the selected span",
         "valid_interval_count": sum(not pair["errors"] for pair in pairs),
         "invalid_interval_count": sum(bool(pair["errors"]) for pair in pairs),
+        "delayed_interval_count": delayed_interval_count,
+        "delayed_max_s": delayed_max_s,
+        "delayed_max_delay_s": delayed_max_delay_s,
         "contiguous": contiguous,
         "complete": coverage_complete,
         "four_hour_span": has_four_hours,

@@ -654,7 +654,8 @@ def format_report(
                 f"{coverage.get('actual_end') or 'n/a'} "
                 f"({_format_seconds(coverage.get('actual_span_s'))}, "
                 f"{coverage.get('valid_interval_count', 0)}/"
-                f"{coverage.get('interval_count', 0)} valid intervals)"
+                f"{coverage.get('interval_count', 0)} valid intervals, "
+                f"{coverage.get('delayed_interval_count', 0)} delayed)"
             )
             rss_window = metrics.get("rss_worst_four_hour_window")
             rss_window_growth = (

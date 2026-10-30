@@ -1054,8 +1054,10 @@ of wall, hitches < 0.5% of wall, no automatic or backstop gen-2 within 2 s of in
 growth < 500,000,000 bytes over four contiguous hours, zero sampled VmSwap). Navigation
 samples come from the perf log (next section), loaded from its default/environment path
 or `-p/--perf-path`; prompt states come from the stalls log. Missing evidence yields
-INCOMPLETE. `--acceptance` and `--json` exit 1 for any FAIL or INCOMPLETE target, and
-exit 2 for invalid arguments.
+INCOMPLETE. Late but fully accounted heartbeats (past the on-time tolerance, within 1.5×
+cadence, with matching `window_s` and uptime) stay valid and are counted as delayed.
+`--acceptance` and `--json` exit 1 for any FAIL or INCOMPLETE target, and exit 2 for
+invalid arguments.
 
 ### Attributable perf and prompt-state evidence
 
@@ -1121,7 +1123,11 @@ live in the actual replacement processes:
    PID/start ticks, and capture paths on both hosts.
 2. Launch with `SASE_TUI_PERF=1` (and `SASE_TUI_GC_CENSUS=1` only when attributing
    garbage) and confirm both flags plus the fixed source revision in the replacement
-   processes. Every restart defines a new instance even if exec reuses the PID.
+   processes. Every restart defines a new instance even if exec reuses the PID. An
+   exec-based restart, including the TUI's own re-exec (for example
+   `sase tui --restart-service`), keeps the PID, `/proc` start ticks, and boot ID, so a
+   watcher following a long capture must key on `app_instance_id` from startup and
+   heartbeat rows.
 3. Exercise real j/k on each host, use the usual tabs, and open/close the prompt, then
    verify new samples carry the replacement instance ID, paired `t_wall`/`t_keypress`,
    PID and source revision. Check `prompt_activity` initial/open/close sequences and a

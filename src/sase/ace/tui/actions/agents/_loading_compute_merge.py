@@ -303,10 +303,15 @@ def merge_incomplete_load_after_complete_history(
     if not graphs_owned:
         from ._loading_graph import (
             adopt_prepared_apply_data,
-            own_prepared_apply_snapshot,
+            classify_cached_graph_needs,
+            own_required_apply_snapshot,
         )
 
-        snapshot, memo = own_prepared_apply_snapshot(snapshot)
+        needs = classify_cached_graph_needs(
+            snapshot,
+            incoming_capacity_nonempty=bool(prep.capacity_agents),
+        )
+        snapshot, memo = own_required_apply_snapshot(snapshot, needs)
         prep = adopt_prepared_apply_data(prep, memo)
     load_state = snapshot.load_state
     is_artifact_delta = (

@@ -43,7 +43,13 @@ from ._loading_compute_types import (
     PreparedApplySnapshot,
     PreparedFinalizePlan,
 )
-from ._loading_graph import adopt_prepared_apply_data, own_prepared_apply_snapshot
+from ._loading_graph import (
+    CachedGraphNeeds,
+    adopt_prepared_apply_data,
+    classify_cached_graph_needs,
+    own_prepared_apply_snapshot,
+    own_required_apply_snapshot,
+)
 from ._loading_helpers import (
     DISMISSABLE_STATUSES,
     is_always_visible,
@@ -58,6 +64,7 @@ if TYPE_CHECKING:
 log = logging.getLogger(__name__)
 
 __all__ = [
+    "CachedGraphNeeds",
     "PreparedApplyBoundary",
     "PreparedApplyData",
     "PreparedApplySelectionInputs",
@@ -66,11 +73,13 @@ __all__ = [
     "_CLEANED_ARTIFACT_DIRS",
     "_filter_agents_by_fold_snapshot",
     "attach_finalize_plan_to_boundary",
+    "classify_cached_graph_needs",
     "compute_apply_loaded_agents",
     "compute_loader_cleanup",
     "make_finalize_stale_token",
     "merge_incomplete_load_after_complete_history",
     "own_prepared_apply_snapshot",
+    "own_required_apply_snapshot",
     "prepare_loaded_agents_apply_boundary",
     "prepare_loaded_agents_worker_boundary",
     "project_and_fold_rosters",
@@ -297,7 +306,11 @@ def prepare_loaded_agents_apply_boundary(
 
     fleet_source_rows = snapshot.fleet_rows
     if not graphs_owned:
-        snapshot, memo = own_prepared_apply_snapshot(snapshot)
+        needs = classify_cached_graph_needs(
+            snapshot,
+            incoming_capacity_nonempty=bool(prep.capacity_agents),
+        )
+        snapshot, memo = own_required_apply_snapshot(snapshot, needs)
         prep = adopt_prepared_apply_data(prep, memo)
         graphs_owned = True
 
@@ -609,7 +622,13 @@ def prepare_loaded_agents_worker_boundary(
     from ...models._agent_graph import adopt_agents
 
     fleet_source_rows = snapshot.fleet_rows
-    snapshot, memo = own_prepared_apply_snapshot(snapshot)
+    # Classify before copying: loader rows are fresh disk objects, so an
+    # empty loader roster proves the incoming capacity roster is empty too.
+    needs = classify_cached_graph_needs(
+        snapshot,
+        incoming_capacity_nonempty=bool(all_agents),
+    )
+    snapshot, memo = own_required_apply_snapshot(snapshot, needs)
     all_agents = adopt_agents(all_agents, memo)
     dismissed_from_loader = adopt_agents(dismissed_from_loader, memo)
     prep = _prepare_loaded_agents_worker_prep(

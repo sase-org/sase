@@ -84,8 +84,9 @@ class PreparedApplySnapshot:
 
     ``frozen=True`` only freezes these snapshot fields. Cached ``Agent`` rows
     remain mutable presentation objects shared with the live UI until
-    :func:`own_prepared_apply_snapshot` copies them. Cheap UI capture (stale
-    tokens, selection, folds) must not deep-copy the archive-sized graph.
+    :func:`own_required_apply_snapshot` detaches the required roots. Cheap UI
+    capture (stale tokens, selection, folds) must not deep-copy the
+    archive-sized graph.
     """
 
     cached_agents_with_children: list[Agent]

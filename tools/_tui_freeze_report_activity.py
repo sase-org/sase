@@ -5,6 +5,17 @@ from __future__ import annotations
 import math
 from typing import Any
 
+try:
+    from _tui_freeze_report_acceptance import (
+        HEARTBEAT_INTERVAL_TOLERANCE_S,
+        HEARTBEAT_MISSING_GAP_S,
+    )
+except ImportError:  # loaded via importlib without tools dir on sys.path
+    from tools._tui_freeze_report_acceptance import (
+        HEARTBEAT_INTERVAL_TOLERANCE_S,
+        HEARTBEAT_MISSING_GAP_S,
+    )
+
 STATES = ("prompt_active", "prompt_idle", "modal_active", "modal_open", "unknown")
 
 
@@ -143,8 +154,8 @@ def _observations(
         window = right.get("window_s")
         if (
             not _number(window)
-            or not 0 < hi - lo <= 302
-            or abs(window - (hi - lo)) > 2
+            or not 0 < hi - lo <= HEARTBEAT_MISSING_GAP_S
+            or abs(window - (hi - lo)) > HEARTBEAT_INTERVAL_TOLERANCE_S
             or not isinstance(generations, dict)
             or not generations
             or any(

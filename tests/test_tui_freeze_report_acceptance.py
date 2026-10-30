@@ -115,14 +115,51 @@ def test_missing_heartbeat_gap_is_not_bridged_by_matching_window_s() -> None:
 
 def test_adjacent_window_s_uses_two_second_tolerance() -> None:
     left = _heartbeat(FIRST_HEARTBEAT_TS, FIRST_HEARTBEAT_TS - 300)
-    accepted = _heartbeat(FIRST_HEARTBEAT_TS + 301.9, FIRST_HEARTBEAT_TS)
-    rejected = _heartbeat(FIRST_HEARTBEAT_TS + 302.1, FIRST_HEARTBEAT_TS)
+    accepted = _heartbeat(FIRST_HEARTBEAT_TS + 300, FIRST_HEARTBEAT_TS)
+    rejected = _heartbeat(FIRST_HEARTBEAT_TS + 300, FIRST_HEARTBEAT_TS)
+    rejected["window_s"] = 300 - 2.5
 
     accepted_result = _analyze([left, accepted])
     rejected_result = _analyze([left, rejected])
 
     assert accepted_result["coverage"]["valid_interval_count"] == 1
     assert rejected_result["coverage"]["invalid_interval_count"] == 1
+
+
+def test_delayed_heartbeat_with_matching_window_s_is_valid() -> None:
+    left = _heartbeat(FIRST_HEARTBEAT_TS, FIRST_HEARTBEAT_TS - 300)
+    right = _heartbeat(
+        FIRST_HEARTBEAT_TS + 304.094, FIRST_HEARTBEAT_TS, hitch_seconds=1.0
+    )
+    right["window_s"] = 303.696331
+
+    result = _analyze([left, right])
+
+    assert result["coverage"]["valid_interval_count"] == 1
+    assert result["coverage"]["contiguous"] is True
+    assert result["coverage"]["delayed_interval_count"] == 1
+    assert result["coverage"]["delayed_max_s"] == right["ts"] - left["ts"]
+
+
+def test_slightly_late_heartbeat_with_matching_window_s_is_valid() -> None:
+    left = _heartbeat(FIRST_HEARTBEAT_TS, FIRST_HEARTBEAT_TS - 300)
+    right = _heartbeat(FIRST_HEARTBEAT_TS + 302.1, FIRST_HEARTBEAT_TS)
+
+    result = _analyze([left, right])
+
+    assert result["coverage"]["valid_interval_count"] == 1
+    assert result["coverage"]["delayed_interval_count"] == 1
+
+
+def test_long_gap_with_mismatched_window_s_fails_coverage() -> None:
+    left = _heartbeat(FIRST_HEARTBEAT_TS, FIRST_HEARTBEAT_TS - 300)
+    right = _heartbeat(FIRST_HEARTBEAT_TS + 600, FIRST_HEARTBEAT_TS)
+    right["window_s"] = 300.0
+
+    result = _analyze([left, right])
+
+    assert result["coverage"]["contiguous"] is False
+    assert result["coverage"]["invalid_interval_count"] == 1
 
 
 def test_uptime_reset_is_incomplete_evidence() -> None:

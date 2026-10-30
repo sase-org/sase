@@ -52,7 +52,7 @@ class AgentLoadingApplySnapshotMixin(AgentLoadingStateMixin):
         """Capture UI-owned state for the pure prepared-apply boundary.
 
         This is a cheap identity capture: agent lists are shallow-copied.
-        Worker mutation must go through :func:`own_prepared_apply_snapshot`.
+        Worker mutation must go through :func:`own_required_apply_snapshot`.
         """
         from ...models.agent_groups import GroupingMode
 
