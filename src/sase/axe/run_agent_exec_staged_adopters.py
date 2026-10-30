@@ -28,6 +28,66 @@ def _runner_ctx_from_metadata(
         raise StagedHandoffError(
             "persisted agent identity differs from the active runner identity"
         )
+    return _runner_ctx_with_metadata(continuation, run_metadata, persisted_name)
+
+
+def _runner_ctx_from_monitor_metadata(
+    continuation: StagedInlineContinuation,
+    run_metadata: Mapping[str, Any],
+) -> AgentExecContext:
+    """Accept only the exact root-member promotion made by monitor staging."""
+    from sase.core.agent_identity_facade import normalize_owned_agent_name
+    from sase.plan_chain import (
+        AGENT_SESSION_SEPARATOR,
+        PLAN_CHAIN_PLAN_SUFFIX,
+        agent_session_base,
+        agent_session_role_value,
+        agent_session_value,
+        canonical_plan_chain_suffix,
+    )
+
+    ctx = continuation.ctx
+    persisted_name = run_metadata.get("name")
+    if not isinstance(persisted_name, str) or not persisted_name:
+        raise StagedHandoffError("persisted monitor starter identity is missing")
+    if persisted_name == ctx.agent_name:
+        return _runner_ctx_from_metadata(continuation, run_metadata)
+
+    active_meta_name = ctx.agent_meta.get("name")
+    expected_base = (
+        normalize_owned_agent_name(ctx.agent_name) if ctx.agent_name else None
+    )
+    suffix = (
+        persisted_name[len(expected_base) :]
+        if expected_base
+        and persisted_name.startswith(f"{expected_base}{AGENT_SESSION_SEPARATOR}")
+        else ""
+    )
+    valid_promotion = (
+        isinstance(active_meta_name, str)
+        and active_meta_name == ctx.agent_name
+        and expected_base is not None
+        and suffix in {f"{AGENT_SESSION_SEPARATOR}0", PLAN_CHAIN_PLAN_SUFFIX}
+        and canonical_plan_chain_suffix(suffix) == suffix
+        and agent_session_base(persisted_name) == expected_base
+        and agent_session_value(run_metadata) == expected_base
+        and run_metadata.get("workflow_name") == expected_base
+        and agent_session_role_value(run_metadata) == "root"
+        and run_metadata.get("role_suffix") == suffix
+    )
+    if not valid_promotion:
+        raise StagedHandoffError(
+            "persisted agent identity differs from the active runner identity"
+        )
+    return _runner_ctx_with_metadata(continuation, run_metadata, persisted_name)
+
+
+def _runner_ctx_with_metadata(
+    continuation: StagedInlineContinuation,
+    run_metadata: Mapping[str, Any],
+    persisted_name: Any,
+) -> AgentExecContext:
+    ctx = continuation.ctx
     return replace(
         ctx,
         agent_name=persisted_name
@@ -160,8 +220,7 @@ def _adopt_monitor(
     writes it over with a synthetic monitor summary and never resets kill
     state. Workspace transfer and custody happen inside the staged launch.
     """
-    del response
-    _runner_ctx_from_metadata(continuation, run_metadata)
+    monitor_ctx = _runner_ctx_from_monitor_metadata(continuation, run_metadata)
     payload = staged_record.get("payload")
     if not isinstance(payload, Mapping):
         raise StagedHandoffError("staged monitor payload is malformed")
@@ -187,9 +246,30 @@ def _adopt_monitor(
             "staged monitor member is unknown for "
             f"monitor {monitor_id!r} stage {staged_id!r}"
         )
+    from sase.axe.run_agent_exec_monitor import capture_monitor_handoff
+
+    continuation_result = capture_monitor_handoff(
+        {
+            "monitor_id": monitor_id,
+            "member_artifacts_dir": member_dir,
+        },
+        monitor_ctx,
+        continuation.state,
+        response=response,
+        status="completed",
+        require_capture=True,
+        promotion_base_name=continuation.ctx.agent_name,
+    )
+    if continuation_result is None:
+        raise StagedHandoffError(
+            "starter continuation delta was not persisted before monitor launch"
+        )
     from sase.monitor.start_stage import launch_from_persisted_payload
 
-    record = launch_from_persisted_payload(member_dir)
+    record = launch_from_persisted_payload(
+        member_dir,
+        starter_continuation_node_id=continuation_result.node_id,
+    )
     return StagedAdoptionOutcome(
         outcome="monitored",
         custodian=record.artifacts_dir,

@@ -41,27 +41,6 @@ _MISSING_INTENT_CODE = "missing_completion_intent"
 _CONFLICT_CODE = "prepared_reservation_conflict"
 
 
-def load_prepared_intent_reservations(
-    *,
-    artifacts_dir: str | Path | None = None,
-) -> dict[str, dict[str, Any]]:
-    """Return intent-id-keyed prepared reservations for one artifacts dir."""
-
-    root = require_artifacts_dir(
-        str(artifacts_dir) if artifacts_dir is not None else None,
-        "prepared reservation read",
-    )
-    with _reservations_lock(root):
-        stored = read_prepared_reservations_locked(root)
-    reservations: dict[str, dict[str, Any]] = {}
-    if not isinstance(stored, Mapping):
-        return reservations
-    for intent_id, record in stored.items():
-        if isinstance(intent_id, str) and isinstance(record, dict):
-            reservations[intent_id] = dict(record)
-    return reservations
-
-
 def reserve_prepared_intent(
     reference: str,
     reservation: Mapping[str, Any],

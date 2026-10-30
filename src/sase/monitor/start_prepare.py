@@ -185,7 +185,7 @@ def _reserve_join_or_tool_run(
                 tool_run_id,
                 staged_id=staged_id,
                 monitor_id=monitor_id,
-                agent=lane_start.starter_agent,
+                agent=lane_start.join_starter_agent,
                 artifacts_dir=artifacts_dir,
                 bound_completion_ref=bound_completion_ref,
             )

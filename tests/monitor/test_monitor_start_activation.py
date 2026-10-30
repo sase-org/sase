@@ -282,10 +282,20 @@ def test_monitor_adopter_is_registered_and_returns_real_custodian(
     )
     launched: list[str] = []
 
-    def fake_launch(artifacts_dir: str) -> Any:
-        launched.append(artifacts_dir)
+    def fake_capture(*_args: Any, **_kwargs: Any) -> Any:
+        return SimpleNamespace(node_id="starter-node-1")
+
+    def fake_launch(
+        artifacts_dir: str,
+        *,
+        starter_continuation_node_id: str | None = None,
+    ) -> Any:
+        launched.append(f"{artifacts_dir}:{starter_continuation_node_id}")
         return SimpleNamespace(monitor_id="monitor-1", artifacts_dir=str(member_dir))
 
+    monkeypatch.setattr(
+        "sase.axe.run_agent_exec_monitor.capture_monitor_handoff", fake_capture
+    )
     monkeypatch.setattr(
         "sase.monitor.start_stage.launch_from_persisted_payload", fake_launch
     )
@@ -320,7 +330,7 @@ def test_monitor_adopter_is_registered_and_returns_real_custodian(
 
     continuation = _Cont(ctx=ctx, state=state)
     outcome = adopter(staged_record, run_metadata, continuation, "real response")
-    assert launched == [str(member_dir)]
+    assert launched == [f"{member_dir}:starter-node-1"]
     assert outcome.outcome == "monitored"
     assert outcome.custodian == str(member_dir)
     assert outcome.refs is not None and outcome.refs["monitor_id"] == "monitor-1"
@@ -442,9 +452,14 @@ def test_adoption_waits_for_finalizer_settlement(
             "artifacts_dir": str(tmp_path / "m"),
         },
     )
+
+    monkeypatch.setattr(
+        "sase.axe.run_agent_exec_monitor.capture_monitor_handoff",
+        lambda *_args, **_kwargs: SimpleNamespace(node_id="starter-node-1"),
+    )
     monkeypatch.setattr(
         "sase.monitor.start_stage.launch_from_persisted_payload",
-        lambda member_dir: (
+        lambda member_dir, **_kwargs: (
             launches.append(member_dir)
             or SimpleNamespace(monitor_id="m", artifacts_dir=member_dir)
         ),

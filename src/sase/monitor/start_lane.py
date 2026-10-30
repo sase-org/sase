@@ -36,6 +36,7 @@ class LaneStart:
     workspace_num: int
     transfer_from_pid: int | None
     starter_agent: str | None
+    join_starter_agent: str | None = None
 
 
 @dataclass(frozen=True)
@@ -85,6 +86,9 @@ def resolve_lane_start(
     )
     selected = lane_ctx.record
     raw_meta = read_start_meta(selected.artifact_dir)
+    original_starter_agent = raw_meta.get("name")
+    if not isinstance(original_starter_agent, str) or not original_starter_agent:
+        original_starter_agent = None
 
     durable_lane = str(agent_session_value(raw_meta) or "").strip()
     if not durable_lane:
@@ -142,6 +146,7 @@ def resolve_lane_start(
         workspace_num=resolved_workspace_num,
         transfer_from_pid=transfer_from_pid,
         starter_agent=starter_agent,
+        join_starter_agent=original_starter_agent,
     )
 
 

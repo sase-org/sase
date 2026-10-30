@@ -12,6 +12,7 @@ import json
 import os
 from hashlib import sha256
 from pathlib import Path
+from typing import Any
 
 import pytest
 
@@ -36,7 +37,6 @@ from sase.core.tool_run import (
     tool_run_reserve_staged_join,
 )
 from sase.finalizers._prepare_reservations import (
-    load_prepared_intent_reservations,
     release_prepared_intent,
     reserve_prepared_intent,
 )
@@ -52,6 +52,13 @@ pytestmark = pytest.mark.skipif(
 
 STAGED_A = "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee"
 STAGED_B = "bbbbbbbb-cccc-4ddd-8eee-ffffffffffff"
+
+
+def _read_reservations(artifacts_dir: Path) -> dict[str, Any]:
+    path = artifacts_dir / "continuation" / "completion_intents" / "reservations.json"
+    if not path.is_file():
+        return {}
+    return json.loads(path.read_text(encoding="utf-8"))["reservations"]
 
 
 @pytest.fixture(autouse=True)
@@ -536,7 +543,7 @@ def test_prepared_reservation_persist_round_trip(tmp_path: Path) -> None:
         artifacts_dir=artifacts,
     )
     assert stored["intent_ref"] == intent_id
-    loaded = load_prepared_intent_reservations(artifacts_dir=artifacts)
+    loaded = _read_reservations(artifacts)
     assert loaded[intent_id]["reservation"]["monitor_id"] == "monitor-1"
 
     # Another stage cannot steal the persisted intent.
@@ -574,7 +581,7 @@ def test_prepared_reservation_persist_round_trip(tmp_path: Path) -> None:
         )
         is False
     )
-    assert load_prepared_intent_reservations(artifacts_dir=artifacts) == {}
+    assert _read_reservations(artifacts) == {}
 
 
 def test_corrupt_reservation_store_refuses_new_reservation(tmp_path: Path) -> None:

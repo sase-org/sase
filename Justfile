@@ -489,11 +489,9 @@ _lint-patch-stitch-terminology: _setup
 # sase-1pj.3 (questions-pipe) made StagedAdoptionOutcome private after the
 # questions and pipe adopters used it in-file as _StagedAdoptionOutcome.
 # sase-1pt.6 provides publisher_is_live for the enqueue-only caller in sase-1pt.7.
-# sase-1pj.5.1.2 consumed the staged-monitor payload, membership, liveness,
-# and join reserve/activate/release bindings through start_stage, prepare,
-# launch, store_lane, owner observation, and runner admission. The staging
-# entry points themselves (stage/launch/cleanup), including prepared-intent
-# reservations, await runner adoption in sase-1pj.5.1.4.
+# sase-1pj.5.1.4 consumed the staged-monitor transaction. Its implementation
+# details and payload readers are private; prepared-reservation state is
+# inspected directly by focused tests rather than through a public reader.
 # Never put a comment
 # line inside the continued command below: just joins the lines, so the comment
 # would swallow every later argument.
@@ -501,13 +499,9 @@ _lint-symvision *args: _setup
     SASE_SYMVISION_BEAD_STATUS_ONLY=1 BD_COMMAND=tools/sase_bead {{ venv_bin }}/symvision src/sase \
         --exclude-decorator gate_command_entrypoint \
         --exclude-decorator builtin_chop \
-        --epic-symbol 'sase-1pj.5.1(load_prepared_intent_reservations)' \
         --epic-symbol 'sase-1pu.5.1(AgentRunStateProjectCheckpointWire)' \
         --epic-symbol 'sase-1pu.5.1(StateRepairAffected)' \
         --epic-symbol 'sase-1pu.5.1(StateRepairWindowRow)' \
-        --epic-symbol 'sase-1pj.5.1(load_staged_monitor_launch_payload)' \
-        --epic-symbol 'sase-1pj.5.1(StagedMonitorStart)' \
-        --epic-symbol 'sase-1pj.5.1(StagedMonitorCleanupResult)' \
         {{ args }}
 
 # Check Python file line counts (private, extracted for per-stage wrapping)

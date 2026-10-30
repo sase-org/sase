@@ -57,7 +57,7 @@ _STAGE_COMMAND = "sase monitor start"
 
 
 @dataclass(frozen=True)
-class StagedMonitorStart:
+class _StagedMonitorStart:
     """A reconstructible staged member that has not submitted a proc."""
 
     record: MonitorRecord
@@ -67,7 +67,7 @@ class StagedMonitorStart:
 
 
 @dataclass(frozen=True)
-class StagedMonitorCleanupResult:
+class _StagedMonitorCleanupResult:
     """Outcome of unwinding one unstarted staged monitor."""
 
     monitor_id: str
@@ -80,7 +80,7 @@ class StagedMonitorCleanupResult:
     skipped: bool = False
 
 
-def load_staged_monitor_launch_payload(artifacts_dir: str) -> dict[str, Any]:
+def _load_staged_monitor_launch_payload(artifacts_dir: str) -> dict[str, Any]:
     """Return the validated frozen launch payload for *artifacts_dir*."""
     path = launch_payload_path(artifacts_dir)
     try:
@@ -104,7 +104,7 @@ def stage_monitor(
     *,
     staged_id: str | None = None,
     reservation_id: str | None = None,
-) -> StagedMonitorStart:
+) -> _StagedMonitorStart:
     """Persist a staged monitor member without submitting a proc.
 
     Acquires the one-handoff slot before mutating preparation, then publishes
@@ -112,6 +112,7 @@ def stage_monitor(
     the existing record.
     """
     refuse_finalizer_owned_monitor_start()
+    request = _canonicalize_authored_checkpoint_request(request)
     timer = StartTimer()
     identity = resolve_start_identity(request)
     timer.mark("resolve_identity")
@@ -156,9 +157,13 @@ def stage_monitor(
             release_staging_reservation(owned_reservation, artifacts_dir=starter_dir)
 
 
-def launch_from_persisted_payload(artifacts_dir: str) -> MonitorRecord:
+def launch_from_persisted_payload(
+    artifacts_dir: str,
+    *,
+    starter_continuation_node_id: str | None = None,
+) -> MonitorRecord:
     """Launch a staged monitor from its frozen payload under the lane lock."""
-    payload = load_staged_monitor_launch_payload(artifacts_dir)
+    payload = _load_staged_monitor_launch_payload(artifacts_dir)
     claim = _claim_context(payload)
     project_name = str(claim.get("project_name") or "")
     lane = str(payload.get("lane") or claim.get("durable_lane") or "")
@@ -167,6 +172,20 @@ def launch_from_persisted_payload(artifacts_dir: str) -> MonitorRecord:
     timer = StartTimer()
     with log_file_lock(monitor_lane_lock_path(project_name, lane)):
         timer.mark("lane_lock")
+        if starter_continuation_node_id is not None:
+            if not starter_continuation_node_id.strip():
+                raise MonitorError("starter continuation node id must not be empty")
+            continuation = payload.get("continuation")
+            if not isinstance(continuation, dict):
+                raise MonitorError("staged monitor continuation payload is malformed")
+            continuation["parent_node_ids"] = [starter_continuation_node_id]
+            try:
+                payload = validate_staged_monitor_launch_payload(payload)
+            except StagedHandoffContractError as exc:
+                raise MonitorError(
+                    f"could not bind starter continuation parent: {exc}"
+                ) from exc
+            atomic_write_json(launch_payload_path(artifacts_dir), payload)
         return _launch_from_persisted_payload_locked(
             artifacts_dir, payload, claim, timer
         )
@@ -182,7 +201,7 @@ def cleanup_staged_monitor(
     starter_artifacts_dir: str | None = None,
     prepared_intent_ref: str | None = None,
     tool_run_joined: bool = False,
-) -> StagedMonitorCleanupResult:
+) -> _StagedMonitorCleanupResult:
     """Unwind unstarted staged resources. Safe to repeat.
 
     Settles an owned reserved ToolRun as never executed. Releases only this
@@ -196,7 +215,7 @@ def cleanup_staged_monitor(
     monitor_id = str(meta.get("monitor_id") or "")
     state = str(meta.get("monitor_state") or "")
     if state == "running":
-        return StagedMonitorCleanupResult(
+        return _StagedMonitorCleanupResult(
             monitor_id=monitor_id,
             staged_id=staged_id or str(meta.get("monitor_staged_id") or "") or None,
             held=held,
@@ -265,7 +284,7 @@ def cleanup_staged_monitor(
 
         if monitor_id:
             update_meta_field(artifacts_dir, "monitor_stage_held", True)
-        return StagedMonitorCleanupResult(
+        return _StagedMonitorCleanupResult(
             monitor_id=monitor_id,
             staged_id=staged,
             held=True,
@@ -278,7 +297,7 @@ def cleanup_staged_monitor(
         discard_staged_handoff(starter)
     if monitor_id:
         teardown_failed_member(artifacts_dir, "staged monitor discarded")
-    return StagedMonitorCleanupResult(
+    return _StagedMonitorCleanupResult(
         monitor_id=monitor_id,
         staged_id=staged,
         held=False,
@@ -297,7 +316,7 @@ def _stage_monitor_locked(
     staged_id: str | None,
     reservation_id: str | None,
     starter_dir: str,
-) -> tuple[StagedMonitorStart, bool]:
+) -> tuple[_StagedMonitorStart, bool]:
     stage_id = staged_id or str(uuid.uuid4())
     prepared = prepare_monitor_locked(
         request,
@@ -318,7 +337,7 @@ def _stage_monitor_locked(
         if existing_id:
             replayed_id = existing_id
         return (
-            StagedMonitorStart(
+            _StagedMonitorStart(
                 record=prepared.replayed,
                 staged_id=replayed_id,
                 payload={},
@@ -353,11 +372,13 @@ def _stage_monitor_locked(
                 raise MonitorError(
                     f"could not reserve prepared completion for staged monitor: {exc}"
                 ) from exc
+        checkpoint_content_ref = _persist_staged_authored_checkpoint(context)
         payload = _build_launch_payload(
             prepared,
             context,
             stage_id,
             prepared_reservation=prepared_reservation,
+            checkpoint_content_ref=checkpoint_content_ref,
         )
         try:
             normalized = validate_staged_monitor_launch_payload(payload)
@@ -403,7 +424,7 @@ def _stage_monitor_locked(
     timer.mark("persist_payload")
     timer.write(context.artifacts_dir)
     return (
-        StagedMonitorStart(
+        _StagedMonitorStart(
             record=_staged_record(context),
             staged_id=stage_id,
             payload=normalized,
@@ -453,12 +474,131 @@ def _starter_artifacts_dir(
         return None
 
 
+def _canonicalize_authored_checkpoint_request(
+    request: StartMonitorRequest,
+) -> StartMonitorRequest:
+    document = request.checkpoint_document
+    if document is None:
+        return request
+    from sase.continuation_capture import (
+        AuthoredCheckpointError,
+        canonicalize_authored_checkpoint,
+    )
+
+    try:
+        authored = canonicalize_authored_checkpoint(document)
+    except AuthoredCheckpointError as exc:
+        raise MonitorError(
+            f"invalid authored checkpoint for staged monitor: {exc}"
+        ) from exc
+    if request.checkpoint_ref and request.checkpoint_ref != authored.content_ref:
+        raise MonitorError(
+            "authored checkpoint content does not match its checkpoint reference"
+        )
+    return replace(
+        request,
+        checkpoint_ref=authored.content_ref,
+        checkpoint_document=authored.payload,
+    )
+
+
+def _persist_staged_authored_checkpoint(
+    context: MonitorLaunchContext,
+) -> str | None:
+    document = context.request.checkpoint_document
+    if document is None:
+        return None
+    from sase.continuation_capture import (
+        AuthoredCheckpointError,
+        canonicalize_authored_checkpoint,
+        persist_authored_checkpoint,
+    )
+
+    try:
+        authored = canonicalize_authored_checkpoint(document)
+        if context.request.checkpoint_ref != authored.content_ref:
+            raise MonitorError(
+                "authored checkpoint content does not match its checkpoint reference"
+            )
+        return persist_authored_checkpoint(context.artifacts_dir, authored)
+    except AuthoredCheckpointError as exc:
+        raise MonitorError(
+            f"could not persist authored checkpoint for staged monitor: {exc}"
+        ) from exc
+
+
+def _load_staged_authored_checkpoint(
+    artifacts_dir: str,
+    claim: dict[str, Any],
+) -> dict[str, object] | None:
+    required = claim.get("checkpoint_content_required", False)
+    if not isinstance(required, bool):
+        raise MonitorError("staged authored checkpoint requirement is malformed")
+    raw_ref = claim.get("checkpoint_content_ref")
+    if raw_ref is None:
+        if required:
+            raise MonitorError(
+                "staged authored checkpoint content reference is missing"
+            )
+        return None
+    if not isinstance(raw_ref, str) or not raw_ref.startswith("local:"):
+        raise MonitorError("staged authored checkpoint content reference is invalid")
+
+    relative = Path(raw_ref.removeprefix("local:"))
+    if (
+        relative.is_absolute()
+        or ".." in relative.parts
+        or relative.parts[:2] != ("continuation", "checkpoints")
+    ):
+        raise MonitorError("staged authored checkpoint content reference is unsafe")
+    root = Path(artifacts_dir).resolve(strict=False)
+    path = (root / relative).resolve(strict=False)
+    try:
+        path.relative_to(root)
+    except ValueError as exc:
+        raise MonitorError(
+            "staged authored checkpoint content reference escapes its monitor"
+        ) from exc
+    try:
+        raw_document = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, json.JSONDecodeError) as exc:
+        raise MonitorError(
+            f"staged authored checkpoint content is missing or corrupt: {exc}"
+        ) from exc
+    if not isinstance(raw_document, dict):
+        raise MonitorError("staged authored checkpoint content is not an object")
+
+    from sase.continuation_capture import (
+        AuthoredCheckpointError,
+        canonicalize_authored_checkpoint,
+    )
+
+    try:
+        authored = canonicalize_authored_checkpoint(raw_document)
+    except AuthoredCheckpointError as exc:
+        raise MonitorError(
+            f"staged authored checkpoint content is invalid: {exc}"
+        ) from exc
+    expected_ref = claim.get("checkpoint_ref")
+    if not isinstance(expected_ref, str) or expected_ref != authored.content_ref:
+        raise MonitorError(
+            "staged authored checkpoint content does not match its frozen digest"
+        )
+    expected_filename = f"authored-{authored.digest[:16]}.json"
+    if raw_document != authored.payload or path.name != expected_filename:
+        raise MonitorError(
+            "staged authored checkpoint content does not match its frozen digest"
+        )
+    return authored.payload
+
+
 def _build_launch_payload(
     prepared: PreparedMonitorStart,
     context: MonitorLaunchContext,
     staged_id: str,
     *,
     prepared_reservation: dict[str, Any] | None = None,
+    checkpoint_content_ref: str | None = None,
 ) -> dict[str, Any]:
     request = context.request
     lane_start = context.lane_start
@@ -508,6 +648,11 @@ def _build_launch_payload(
         },
         "resources": resources,
     }
+    claim_context = payload["workspace"]["claim_context"]
+    if request.checkpoint_document is not None:
+        claim_context["checkpoint_content_required"] = True
+    if checkpoint_content_ref is not None:
+        claim_context["checkpoint_content_ref"] = checkpoint_content_ref
     if request.checkpoint_ref:
         payload["continuation"]["checkpoint_ref"] = request.checkpoint_ref
     if prepared.frozen_policy is not None:
@@ -578,6 +723,7 @@ def _claim_context_payload(
         "transfer_from_pid": lane_start.transfer_from_pid,
         "cl_name": lane_start.cl_name,
         "starter_agent": lane_start.starter_agent,
+        "join_starter_agent": lane_start.join_starter_agent,
         "starter_provider": context.starter_provider,
         "starter_artifacts_dir": context.starter_artifacts_dir,
         "suffix": context.suffix,
@@ -640,6 +786,7 @@ def _reconstruct_launch_context(
         if isinstance(execution_raw, list)
         else None
     )
+    checkpoint_document = _load_staged_authored_checkpoint(artifacts_dir, claim)
     request = StartMonitorRequest(
         command=command,
         reason=str(claim.get("reason") or meta.get("monitor_reason") or "run command"),
@@ -673,6 +820,7 @@ def _reconstruct_launch_context(
         profile=_optional_str(claim.get("profile")),
         policy_digest=f"sha256:{payload.get('policy_digest')}",
         checkpoint_ref=_optional_str(claim.get("checkpoint_ref")),
+        checkpoint_document=checkpoint_document,
         parent_node_ids=tuple(
             str(item)
             for item in (
@@ -715,6 +863,7 @@ def _reconstruct_launch_context(
             else None
         ),
         starter_agent=_optional_str(claim.get("starter_agent")),
+        join_starter_agent=_optional_str(claim.get("join_starter_agent")),
     )
     log_path = monitor_log_path(artifacts_dir)
     raw_log = claim.get("log_path")
@@ -929,10 +1078,7 @@ def _optional_str(value: object) -> str | None:
 
 
 __all__ = [
-    "StagedMonitorCleanupResult",
-    "StagedMonitorStart",
     "cleanup_staged_monitor",
     "launch_from_persisted_payload",
-    "load_staged_monitor_launch_payload",
     "stage_monitor",
 ]

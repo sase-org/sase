@@ -104,6 +104,12 @@ start command in the foreground until it exits; if your tool yields a live sessi
 polling that same session rather than ending the turn. Never wait for the reserved run
 after a `Staged` start; finish through `/sase_final`.
 
+Prepared `-f` completion stays explicit: only a successful verification enters the
+host-owned commit and close path, and a failed or ineligible run launches recovery. An
+unprepared inheriting monitor may instead receive host-synthesized carry when the turn
+ends without a declaration; use an explicit commit decision when the monitor must wait
+for CI to verify work that should be committed first.
+
 If `sase final prepare` is refused, run the verification command inline, then pass the
 same wrapper file to `sase final submit <wrapper>`; it submits the wrapper's
 `declaration` unchanged. Never rebuild the manifest from `manifest_template`, which

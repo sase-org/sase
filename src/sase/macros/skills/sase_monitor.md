@@ -36,9 +36,11 @@ Do not wait for your own staged monitor. `sase tool wait RUN` on the reserved ru
 your own staged start returns promptly with a `/sase_final` message instead of blocking.
 Reservation is not binding: `-f` reserves the prepared intent at stage time and binds it
 once at adoption, while `-J` reserves the existing run at stage time and activates the
-join at adoption. To land your work before a CI wait, submit an explicit commit decision
-for those repositories through `/sase_final`; a staged monitor never synthesizes carry
-for you.
+join at adoption. An unprepared staged monitor may use host-synthesized carry when it
+inherits unfinished repository work and you leave without a declaration. When the
+monitor must wait for CI on committed changes, submit an explicit commit decision for
+those repositories through `/sase_final` before starting it. Prepared `-f` completion
+keeps its explicit green/red host-completion path.
 
 Provider-native monitor, background-execution, and scheduled wake-up tools do not work
 in SASE's single-turn agent model. Use `sase monitor start` instead.
