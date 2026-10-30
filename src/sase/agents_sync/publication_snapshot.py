@@ -40,6 +40,12 @@ from sase.agents_sync.v2_run_io import (
     run_metadata_from_json,
     run_state_from_json,
 )
+from sase.core.agent_run_state_wire import (
+    AGENT_RUN_STATE_EVIDENCE_DISMISSED,
+    AGENT_RUN_STATE_EVIDENCE_TERMINAL_MARKER,
+    AGENT_RUN_STATE_EVIDENCE_UNFINISHED,
+    TERMINAL_RUN_STATES,
+)
 from sase.core.agent_archive_facade import capabilities_from_v2_run
 from sase.core.agent_identity_facade import (
     AgentSessionNameKind,
@@ -152,10 +158,21 @@ def build_hood_snapshot(
     previous_by_global = (
         {run.global_name: run for run in previous.runs} if previous is not None else {}
     )
+    resolved_current: list[InventoryRun] = []
+    resolve_notes: list[str] = []
+    for run in current:
+        resolved, note = _resolve_preserved_run_state(
+            run, previous_by_global.get(run.global_name), project, owner
+        )
+        resolved_current.append(resolved)
+        if note is not None:
+            resolve_notes.append(note)
     gated = tuple(
-        _gate_run_files(run, owner, project, payload, scope=scope) for run in current
+        _gate_run_files(run, owner, project, payload, scope=scope)
+        for run in resolved_current
     )
     notes: list[str] = []
+    notes.extend(resolve_notes)
     withheld_globals: set[str] = set()
     withheld_pairs: list[tuple[str, str]] = []
     gated_records: list[_GatedRun] = []
@@ -210,8 +227,8 @@ def build_hood_snapshot(
         if previous is not None
         else ()
     )
-    for run in prior_records:
-        verify_run_files(repo_root, run)
+    for prior_run in prior_records:
+        verify_run_files(repo_root, prior_run)
     combined = tuple(
         sorted((*prior_records, *current_records), key=lambda item: item.source_run_id)
     )
@@ -417,6 +434,105 @@ def _gate_run_files(
     )
 
 
+def _resolve_preserved_run_state(
+    run: InventoryRun,
+    previous: V2RunRecord | None,
+    project: V2ProjectIdentity,
+    owner: AgentOwnerIdentity,
+) -> tuple[InventoryRun, str | None]:
+    """Preserve verified terminal state for the same immutable run.
+
+    A reused name with a different ``source_run_id`` never borrows terminal
+    state. Same-identity active/waiting observations never regress a
+    published terminal outcome; contradictory terminal outcomes are left as
+    previously published with a bounded diagnostic. Resolution happens
+    before file gating so a preserved terminal snapshot cannot point at an
+    active ``state.json`` payload.
+    """
+
+    from sase.core.agent_run_state_facade import resolve_agent_run_state
+    from sase.core.agent_run_state_wire import (
+        AgentRunIdentityWire,
+        AgentRunStateResolveRequestWire,
+    )
+
+    if previous is None:
+        return run, None
+    if previous.source_run_id != run.source_run_id:
+        return run, None
+    if previous.global_name != run.global_name:
+        return run, None
+    if run.state in TERMINAL_RUN_STATES and run.state != "dismissed":
+        evidence_kind = AGENT_RUN_STATE_EVIDENCE_TERMINAL_MARKER
+        evidence_state: str | None = run.state
+    elif run.state == "dismissed":
+        evidence_kind = AGENT_RUN_STATE_EVIDENCE_DISMISSED
+        evidence_state = "dismissed"
+    elif run.state in ("active", "waiting"):
+        evidence_kind = AGENT_RUN_STATE_EVIDENCE_UNFINISHED
+        evidence_state = None
+    else:
+        return (
+            run,
+            f"{run.global_name}: unresolvable state {run.state!r}; "
+            "preserved published state",
+        )
+    owner_token = f"{owner.username}@{owner.machine_name}"
+    identity = AgentRunIdentityWire(
+        project=project.key,
+        owner=owner_token,
+        global_name=run.global_name,
+        source_run_id=run.source_run_id,
+    )
+    request = AgentRunStateResolveRequestWire(
+        identity=identity,
+        published_state=previous.state,
+        published_started_at=previous.started_at,
+        published_finished_at=previous.finished_at,
+        evidence_kind=evidence_kind,
+        evidence_identity=identity,
+        evidence_state=evidence_state,
+        evidence_started_at=run.started_at,
+        evidence_finished_at=run.finished_at,
+    )
+    try:
+        response = resolve_agent_run_state(request)
+    except (ValueError, RuntimeError) as exc:
+        return run, f"{run.global_name}: unresolved state evidence ({exc}); unchanged"
+    new_state = response.selected_state
+    new_started_at = response.selected_started_at
+    new_finished_at = response.selected_finished_at
+    if new_state == "dismissed":
+        new_dismissed_at = run.dismissed_at or previous.dismissed_at
+    else:
+        new_dismissed_at = None
+    if (
+        new_state == run.state
+        and new_started_at == run.started_at
+        and new_finished_at == run.finished_at
+        and new_dismissed_at == run.dismissed_at
+    ):
+        return run, None
+    updated = replace(
+        run,
+        state=new_state,  # type: ignore[arg-type]
+        started_at=new_started_at,
+        finished_at=new_finished_at,
+        dismissed_at=new_dismissed_at,
+    )
+    if response.reason in (
+        "conflicting_terminal_evidence",
+        "identity_conflict",
+        "malformed_evidence",
+        "missing_evidence",
+    ):
+        return (
+            updated,
+            f"{run.global_name}: {response.reason}; preserved {previous.state}",
+        )
+    return updated, None
+
+
 def _merge_richer_run_files(
     current: V2RunRecord,
     previous: V2RunRecord | None,
@@ -430,9 +546,14 @@ def _merge_richer_run_files(
 
     Blocked kinds never merge prior bytes back. Merged prior bytes are
     scanned exactly like fresh candidates because this drain writes them.
+    Only the same immutable run (matching ``source_run_id``) may reuse
+    previously published content; a reused name with a different run
+    identity never borrows prior bytes.
     """
 
     if previous is None:
+        return current, ()
+    if previous.source_run_id != current.source_run_id:
         return current, ()
     notes: list[str] = []
     previous_files = dict(previous.files)

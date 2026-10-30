@@ -400,11 +400,15 @@ def _prompt_bytes_from_dismissed(raw: dict[str, Any], project_key: str) -> bytes
 def _artifact_state(
     record: AgentArtifactRecordWire, done: dict[str, Any] | None
 ) -> str:
+    # Exact-run marker validation: a done marker for this artifact directory
+    # is authoritative for the same immutable run. Stale waiting metadata
+    # (a leftover waiting.json or pending_question.json) must not mask a
+    # verified terminal outcome.
+    if done is not None:
+        outcome = _text(done.get("outcome")) or "failed"
+        if outcome == "completed":
+            return "stopped" if done.get("repeat_stopped") is True else "completed"
+        return "failed"
     if record.waiting is not None or record.pending_question is not None:
         return "waiting"
-    if done is None:
-        return "active"
-    outcome = _text(done.get("outcome")) or "failed"
-    if outcome == "completed":
-        return "stopped" if done.get("repeat_stopped") is True else "completed"
-    return "failed"
+    return "active"
