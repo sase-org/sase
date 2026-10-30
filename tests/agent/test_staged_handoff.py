@@ -94,6 +94,26 @@ def test_flag_disabled_keeps_legacy_protocol(
         assert read_staged_handoff(str(tmp_path)) is None
 
 
+def test_legacy_marker_consumes_its_staging_reservation(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    _agent_env(monkeypatch, tmp_path)
+    reservation_id = acquire_staging_reservation(
+        artifacts_dir=str(tmp_path), command="sase gate create"
+    )
+
+    path = write_pending_handoff_marker(
+        PLAN_PENDING_MARKER,
+        {"plan_file": str(tmp_path / "plan.md")},
+        artifacts_dir=str(tmp_path),
+        reservation_id=reservation_id,
+    )
+
+    assert path.is_file()
+    assert not (tmp_path / STAGING_RESERVATION_FILENAME).exists()
+    assert occupying_handoff_names(str(tmp_path)) == (PLAN_PENDING_MARKER,)
+
+
 def test_flag_enabled_exposes_staging_helper(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:

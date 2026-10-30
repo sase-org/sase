@@ -174,10 +174,14 @@ def _exec(args: argparse.Namespace) -> int:
 
 def _request(args: argparse.Namespace) -> int:
     """Create a sudo gate turn from stdin."""
-    begin_gate_intent("sudo", source="sase sudo request")
-    try:
+    from sase.gate_turn.entry import handle_gate_entry
+
+    def begin_intent() -> None:
+        begin_gate_intent("sudo", source="sase sudo request")
+
+    def build_request() -> dict[str, Any]:
         value = _read_stdin_object()
-        spec = build_sudo_gate_request(
+        return build_sudo_gate_request(
             value,
             producer=(
                 {"agent": str(args.origin_agent)}
@@ -185,25 +189,13 @@ def _request(args: argparse.Namespace) -> int:
                 else None
             ),
         )
-        from sase.gate_turn import (
-            create_gate_turn,
-            maybe_handoff_gate_from_agent,
-            will_handoff_gate_to_agent_runner,
-        )
 
-        creation = create_gate_turn(spec)
-    except Exception:
-        clear_gate_intent()
-        raise
-
-    payload = creation.to_dict()
-    if bool(getattr(args, "json", False)):
-        emit_json(payload)
-    else:
-        print(json.dumps(payload, sort_keys=True))
-    sys.stdout.flush()
-    if creation.should_handoff and will_handoff_gate_to_agent_runner():
-        maybe_handoff_gate_from_agent(creation)
+    handle_gate_entry(
+        build_request,
+        command="sase sudo request",
+        before_legacy_prepare=begin_intent,
+        on_legacy_failure=clear_gate_intent,
+    )
     return 0
 
 

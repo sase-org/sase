@@ -11,6 +11,15 @@ from pathlib import Path
 
 import pytest
 
+from sase.agent.gate_intent import list_gate_intents
+from sase.agent.pending_handoff import PIPE_PENDING_MARKER
+from sase.agent.pending_handoff_write import write_pending_handoff_marker
+from sase.agent.staged_handoff import (
+    STAGED_HANDOFF_FILENAME,
+    STAGING_RESERVATION_FILENAME,
+    read_staged_handoff,
+)
+from sase.feature_flags import override_flags
 from sase.gate_turn.store import find_gate_turn_by_gate_id
 from sase.main.gate_handler import handle_gate_command
 from sase.main.parser_gate import register_gate_parser
@@ -21,7 +30,7 @@ from tests.monitor._fixtures import make_starter_agent, write_project_file
 __all__ = ["sandbox_home"]
 
 
-def _prepare_creator(monkeypatch: pytest.MonkeyPatch, project: str) -> None:
+def _prepare_creator(monkeypatch: pytest.MonkeyPatch, project: str) -> str:
     """Mirror the hermetic creator setup from the direct-transaction test."""
     write_project_file(project)
     creator_dir = make_starter_agent(
@@ -49,6 +58,7 @@ def _prepare_creator(monkeypatch: pytest.MonkeyPatch, project: str) -> None:
         lambda: False,
         raising=False,
     )
+    return creator_dir
 
 
 def _run_create(
@@ -104,6 +114,100 @@ def test_canonical_turn_block_registers_row_via_cli(
     assert record is not None
     assert record.gate_id == request_id
     assert request_id in _list_gate_ids(project)
+
+
+def test_pending_gate_uses_staged_entry_protocol_when_enabled(
+    gate_home: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    del gate_home
+    project = "cli-turn-staged"
+    creator_dir = _prepare_creator(monkeypatch, project)
+    request_id = "cli-turn-staged"
+    spec = custom_gate_spec(request_id=request_id)
+    spec["turn"] = {"workspace": "inherit", "next": {"prompt": "Continue."}}
+
+    with override_flags(staged_handoffs=True):
+        code, out, err = _run_create(monkeypatch, spec, ["gate", "create"])
+
+    descriptor = json.loads(out)
+    assert code == 0
+    assert descriptor["status"] == "staged"
+    assert descriptor["kind"] == "custom"
+    assert descriptor["request_id"] == request_id
+    assert descriptor["staged_id"]
+    assert descriptor["workspace_mode"] == "inherit"
+    assert "notification_id" not in descriptor
+    assert "gate_turn" not in descriptor
+    assert "Staged" in err
+    assert "/sase_final" in err
+    record = read_staged_handoff(creator_dir)
+    assert record is not None
+    assert (Path(creator_dir) / STAGED_HANDOFF_FILENAME).is_file()
+    assert record["kind"] == "gate"
+    assert record["payload"]["request_id"] == request_id
+    assert not (Path(creator_dir) / STAGING_RESERVATION_FILENAME).exists()
+    assert not (Path(creator_dir) / ".sase_gate_pending").exists()
+    assert list_gate_intents(creator_dir) == []
+    assert find_gate_turn_by_gate_id(project, request_id) is None
+    from sase.notification_gates.paths import bundle_paths
+
+    assert not bundle_paths("custom", request_id).root.exists()
+
+
+def test_invalid_pending_gate_releases_reservation_before_publication(
+    gate_home: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    del gate_home
+    project = "cli-turn-invalid-stage"
+    creator_dir = _prepare_creator(monkeypatch, project)
+    request_id = "cli-turn-invalid-stage"
+    spec = custom_gate_spec(request_id=request_id)
+    spec["turn"] = {"next": {"prompt": "Continue."}}
+    presentation = spec["presentation"]
+    assert isinstance(presentation, dict)
+    presentation["icon"] = "not-a-glyph"
+
+    with override_flags(staged_handoffs=True):
+        code, _out, err = _run_create(monkeypatch, spec, ["gate", "create"])
+
+    assert code == 1
+    assert "invalid_icon" in err
+    assert read_staged_handoff(creator_dir) is None
+    assert not (Path(creator_dir) / STAGING_RESERVATION_FILENAME).exists()
+    assert list_gate_intents(creator_dir) == []
+    assert find_gate_turn_by_gate_id(project, request_id) is None
+    from sase.notification_gates.paths import bundle_paths
+
+    assert not bundle_paths("custom", request_id).root.exists()
+
+
+def test_existing_legacy_handoff_refuses_gate_before_publication(
+    gate_home: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    del gate_home
+    project = "cli-turn-existing-handoff"
+    creator_dir = _prepare_creator(monkeypatch, project)
+    write_pending_handoff_marker(
+        PIPE_PENDING_MARKER,
+        {"prompt": "already handed off"},
+        artifacts_dir=creator_dir,
+    )
+    request_id = "cli-turn-existing-handoff"
+    spec = custom_gate_spec(request_id=request_id)
+    spec["turn"] = {"next": {"prompt": "Continue."}}
+
+    with override_flags(staged_handoffs=True):
+        code, _out, err = _run_create(monkeypatch, spec, ["gate", "create"])
+
+    assert code == 1
+    assert "already exists" in err
+    assert find_gate_turn_by_gate_id(project, request_id) is None
+    from sase.notification_gates.paths import bundle_paths
+
+    assert not bundle_paths("custom", request_id).root.exists()
 
 
 def test_turn_less_json_with_turn_next_flags_registers_row(

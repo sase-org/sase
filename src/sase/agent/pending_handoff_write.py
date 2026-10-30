@@ -58,6 +58,7 @@ def write_pending_handoff_marker(
     payload: Mapping[str, Any],
     *,
     artifacts_dir: str | None = None,
+    reservation_id: str | None = None,
 ) -> Path:
     """Stamp ``timestamp``, write ``marker`` atomically, and fsync it.
 
@@ -81,10 +82,16 @@ def write_pending_handoff_marker(
     )
 
     with acquire_handoff_locks(Path(resolved)):
-        existing = occupying_handoff_names(resolved)
+        existing = occupying_handoff_names(
+            resolved, ignore_reservation_id=reservation_id
+        )
         if existing:
             raise PendingHandoffError(_already_exists_message(existing))
         atomic_write_json(path, data)
+        if reservation_id is not None:
+            from sase.agent.staged_handoff import release_staging_reservation_locked
+
+            release_staging_reservation_locked(Path(resolved), reservation_id)
     return path
 
 

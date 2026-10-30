@@ -34,6 +34,7 @@ def maybe_handoff_gate_from_agent(
     creation: GateTurnCreation | GateTurnRecord,
     *,
     artifacts_dir: str | None = None,
+    reservation_id: str | None = None,
 ) -> bool:
     """Write the in-agent gate handoff marker and kill this runner."""
     record = creation.record if isinstance(creation, GateTurnCreation) else creation
@@ -48,6 +49,7 @@ def maybe_handoff_gate_from_agent(
             env=os.environ,
             on_marker_written=lambda: clear_gate_intent(artifacts_dir),
             member="gate turn",
+            reservation_id=reservation_id,
         )
     except TurnHandoffError as exc:
         clear_gate_intent(artifacts_dir)

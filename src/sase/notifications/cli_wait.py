@@ -12,6 +12,7 @@ from typing import NoReturn
 from rich.console import Console
 from rich.text import Text
 
+from sase.agent.staged_handoff import StagedHandoffError, read_staged_handoff
 from sase.notification_gates.journal import executed_operations
 from sase.notification_gates.models import GateError
 from sase.notification_gates.paths import bundle_paths
@@ -36,6 +37,13 @@ def handle_gate_wait(args: argparse.Namespace) -> NoReturn:
     request_id = str(args.id)
     kind = str(args.kind)
     try:
+        if _is_own_staged_gate(kind, request_id):
+            print(
+                "sase gate wait: this gate is staged and starts after your turn "
+                "ends; finish through `/sase_final` instead of waiting for it",
+                file=sys.stderr,
+            )
+            sys.exit(1)
         paths = bundle_paths(kind, request_id)
         if os.environ.get("SASE_AGENT") and _is_shell_gate(paths.root):
             print(
@@ -54,6 +62,9 @@ def handle_gate_wait(args: argparse.Namespace) -> NoReturn:
             f"sase gate wait: error [{exc.code}] {exc.target}: {exc}",
             file=sys.stderr,
         )
+        sys.exit(1)
+    except StagedHandoffError as exc:
+        print(f"sase gate wait: cannot read staged handoff: {exc}", file=sys.stderr)
         sys.exit(1)
     except OSError as exc:
         print(f"sase gate wait: cannot read gate: {exc}", file=sys.stderr)
@@ -77,6 +88,22 @@ def _is_shell_gate(bundle_path: Path) -> bool:
     return isinstance(envelope.get("turn"), dict) or isinstance(
         envelope.get("shell"), dict
     )
+
+
+def _is_own_staged_gate(kind: str, request_id: str) -> bool:
+    artifacts_dir = os.environ.get("SASE_ARTIFACTS_DIR")
+    if not os.environ.get("SASE_AGENT") or not artifacts_dir:
+        return False
+    record = read_staged_handoff(artifacts_dir)
+    if record is None or record.get("kind") != "gate":
+        return False
+    payload = record.get("payload")
+    if not isinstance(payload, dict):
+        return False
+    spec = payload.get("spec")
+    if not isinstance(spec, dict):
+        return False
+    return spec.get("kind") == kind and payload.get("request_id") == request_id
 
 
 def _terminal_payload(

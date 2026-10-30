@@ -90,17 +90,12 @@ def _handle_gate_create(args: argparse.Namespace) -> NoReturn:
 
     try:
         if data.get("turn") is not None:
-            from sase.gate_turn import (
-                create_gate_turn,
-                maybe_handoff_gate_from_agent,
-                will_handoff_gate_to_agent_runner,
-            )
+            from sase.gate_turn.entry import handle_gate_entry
 
-            creation = create_gate_turn(data)
-            print(json.dumps(creation.to_dict(), sort_keys=True))
-            sys.stdout.flush()
-            if creation.should_handoff and will_handoff_gate_to_agent_runner():
-                maybe_handoff_gate_from_agent(creation)
+            handle_gate_entry(
+                lambda: data,
+                command="sase gate create",
+            )
             sys.exit(0)
         from sase.notification_gates.service import create_gate
 

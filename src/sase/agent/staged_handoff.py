@@ -583,6 +583,11 @@ def _release_reservation_locked(root: Path, reservation_id: str) -> None:
             return
 
 
+def release_staging_reservation_locked(root: Path, reservation_id: str) -> None:
+    """Release a reservation while the caller holds ``acquire_handoff_locks``."""
+    _release_reservation_locked(root, reservation_id)
+
+
 def _now_rfc3339() -> str:
     return datetime.now(UTC).isoformat().replace("+00:00", "Z")
 
@@ -623,6 +628,7 @@ __all__ = [
     "read_staged_handoff",
     "read_staged_handoff_response",
     "receipt_authorizes",
+    "release_staging_reservation_locked",
     "release_staging_reservation",
     "staged_handoffs_enabled",
     "write_adoption_receipt",

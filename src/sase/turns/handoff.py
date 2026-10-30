@@ -37,6 +37,7 @@ def maybe_handoff_turn_from_agent(
     env: Mapping[str, str] | None = None,
     on_marker_written: Callable[[], None] | None = None,
     member: str = "turn",
+    reservation_id: str | None = None,
 ) -> bool:
     """Write a pending marker and kill this runner when inside an agent."""
     current_env = env if env is not None else os.environ
@@ -55,6 +56,7 @@ def maybe_handoff_turn_from_agent(
         marker_data,
         resolved_artifacts_dir,
         member=member,
+        reservation_id=reservation_id,
     )
     if on_marker_written is not None:
         on_marker_written()
@@ -72,6 +74,7 @@ def write_turn_pending_marker(
     *,
     timestamp: float | None = None,
     member: str = "turn",
+    reservation_id: str | None = None,
 ) -> Path:
     """Persist a pending turn handoff marker for the runner to adopt."""
     payload = dict(marker_data)
@@ -82,6 +85,7 @@ def write_turn_pending_marker(
             marker_name,
             payload,
             artifacts_dir=artifacts_dir,
+            reservation_id=reservation_id,
         )
     except (OSError, PendingHandoffError) as exc:
         raise TurnHandoffError(

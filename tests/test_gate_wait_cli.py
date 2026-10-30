@@ -12,6 +12,7 @@ import pytest
 
 from sase.main.gate_handler import handle_gate_command
 from sase.main.parser_gate import register_gate_parser
+from sase.notifications import cli_wait
 from sase.notification_gates.executor import cancel_gate, execute_gate_selection
 from sase.notification_gates.models import GateError, GateSpec
 from sase.notification_gates.operations import execute_gate_operation
@@ -89,6 +90,38 @@ def _spec(request_id: str) -> dict[str, Any]:
         ],
         "auto": False,
     }
+
+
+def test_wait_refuses_callers_own_staged_gate_before_loading_bundle(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    monkeypatch.setenv("SASE_AGENT", "1")
+    monkeypatch.setenv("SASE_ARTIFACTS_DIR", "/tmp/agent-artifacts")
+    monkeypatch.setattr(
+        cli_wait,
+        "read_staged_handoff",
+        lambda _artifacts_dir: {
+            "kind": "gate",
+            "payload": {
+                "request_id": "mine",
+                "spec": {"kind": "custom"},
+            },
+        },
+    )
+    monkeypatch.setattr(
+        cli_wait,
+        "bundle_paths",
+        lambda *_args, **_kwargs: pytest.fail("looked for an unpublished bundle"),
+    )
+
+    with pytest.raises(SystemExit) as excinfo:
+        cli_wait.handle_gate_wait(
+            argparse.Namespace(id="mine", kind="custom", json=True)
+        )
+
+    assert excinfo.value.code == 1
+    assert "starts after your turn ends" in capsys.readouterr().err
 
 
 def _wait_json(

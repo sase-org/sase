@@ -96,6 +96,7 @@ def create_gate_turn(
     *,
     before_auto_settle: Callable[[GateTurnRecord, GateCreationResult], None]
     | None = None,
+    frozen_auto: Mapping[str, Any] | None = None,
 ) -> GateTurnCreation:
     """Create a gate-turn member, then create the durable gate.
 
@@ -117,6 +118,7 @@ def create_gate_turn(
             spec,
             creator=creator,
             before_auto_settle=before_auto_settle,
+            frozen_auto=frozen_auto,
         )
     except Exception:
         clear_gate_intent()

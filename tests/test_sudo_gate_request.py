@@ -4,13 +4,18 @@ from __future__ import annotations
 
 import argparse
 import copy
+import io
+import json
 import os
 from pathlib import Path
+import sys
 from typing import Any
 
 import pytest
 
 from sase.agent.gate_intent import list_gate_intents
+from sase.agent.staged_handoff import read_staged_handoff
+from sase.feature_flags import override_flags
 from sase.main.parser import create_parser
 from sase.notification_gates.durability import read_json_object
 from sase.notification_gates.models import GATE_TURN_DEFAULT_TIMEOUT_SECONDS, GateError
@@ -20,6 +25,7 @@ from sase.sudo.gate import APPROVE_OPTION_ID, DENY_OPTION_ID, build_sudo_gate_re
 from sase.sudo.manifest import selected_sudo_manifest
 from sase.sudo.models import normalize_sudo_request
 from tests._sudo_gate_helpers import _multi_command_request, _request
+from tests.monitor._fixtures import make_starter_agent, write_project_file
 
 _DEFAULT_GATE_TIMEOUT_SECONDS = int(GATE_TURN_DEFAULT_TIMEOUT_SECONDS)
 
@@ -32,6 +38,49 @@ def test_sudo_gate_creation_is_unconditional(gate_home: Path) -> None:
 
     assert gate.request_id
     assert gate.bundle_path.exists()
+
+
+def test_sudo_request_stages_before_publishing_or_marking_intent(
+    gate_home: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    project = "sudo-cli-staged"
+    write_project_file(project)
+    creator_dir = make_starter_agent(
+        project,
+        "20260812120001",
+        "lane",
+        agent_session="lane",
+        agent_session_role="root",
+    )
+    monkeypatch.setenv("SASE_AGENT_NAME", "lane")
+    monkeypatch.setenv("SASE_ARTIFACTS_DIR", creator_dir)
+    monkeypatch.setenv("SASE_AGENT", "1")
+    monkeypatch.delenv("SASE_FINALIZER_OWNED_TURN", raising=False)
+    monkeypatch.delenv("SASE_NATIVE_HELPER", raising=False)
+    monkeypatch.setattr(sys, "stdin", io.StringIO(json.dumps(_request())))
+
+    with override_flags(staged_handoffs=True):
+        result = sudo_cli._request(argparse.Namespace(origin_agent=None, json=True))
+
+    out = capsys.readouterr()
+    descriptor = json.loads(out.out)
+    assert result == 0
+    assert descriptor["status"] == "staged"
+    assert descriptor["kind"] == "sudo"
+    assert descriptor["request_id"].startswith("sudo-")
+    assert descriptor["staged_id"]
+    assert "Staged" in out.err
+    staged = read_staged_handoff(creator_dir)
+    assert staged is not None
+    assert staged["kind"] == "gate"
+    assert staged["payload"]["spec"]["payload"]["sudo"]["manifest_sha256"]
+    assert list_gate_intents(creator_dir) == []
+    assert not (Path(creator_dir) / ".sase_gate_pending").exists()
+    from sase.notification_gates.paths import bundle_paths
+
+    assert not bundle_paths("sudo", str(descriptor["request_id"])).root.exists()
 
 
 def test_sudo_gate_contains_tty_approve_and_headless_deny(
