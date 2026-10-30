@@ -16,19 +16,27 @@ from sase.agent.launch_request_types import (
     LaunchRequestCreationResult,
     LaunchRequestError,
     LaunchRequestOutcome,
+    LaunchRequestResult,
     LaunchRequestStatus,
+    StagedLaunchRequestCreationResult,
 )
 from sase.notification_gates.paths import REQUEST_FILENAME
 
 
 def wait_for_launch_approval(
-    request: LaunchRequestCreationResult,
+    request: LaunchRequestResult,
     *,
     poll_interval: float = 0.2,
 ) -> LaunchRequestOutcome:
     """Wait mechanically for a launch gate and translate its neutral response."""
     from sase.notification_gates.models import GateError
 
+    if isinstance(request, StagedLaunchRequestCreationResult):
+        raise LaunchRequestError(
+            "invalid_state",
+            request.request_id,
+            "cannot wait for an unpublished staged launch request",
+        )
     try:
         result = _wait_for_terminal_gate(request.response_dir, poll_interval)
     except GateError as exc:
@@ -124,12 +132,18 @@ def _gate_deadline(envelope: Mapping[str, Any]) -> float | None:
 
 
 def cancel_launch_approval_request(
-    request: LaunchRequestCreationResult,
+    request: LaunchRequestResult,
 ) -> dict[str, Any]:
     """Cancel a request that the requester no longer intends to wait for."""
     from sase.notification_gates.executor import cancel_gate
     from sase.notification_gates.models import GateError
 
+    if isinstance(request, StagedLaunchRequestCreationResult):
+        raise LaunchRequestError(
+            "invalid_state",
+            request.request_id,
+            "cannot cancel an unpublished staged launch request",
+        )
     try:
         return cancel_gate(request.response_dir, source="launch_requester")
     except GateError as exc:

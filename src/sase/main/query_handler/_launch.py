@@ -137,6 +137,7 @@ def launch_query(query: str) -> None:
 
     from sase.agent.launch_request import (
         LaunchRequestError,
+        StagedLaunchRequestCreationResult,
         create_launch_approval_request_from_prompt,
         maybe_handoff_launch_approval_from_agent,
         running_agent_context_requires_launch_approval,
@@ -148,13 +149,24 @@ def launch_query(query: str) -> None:
                 query,
                 reason="Running agent requested a detached launch.",
                 source_surface="agent_skill",
+                command="sase run",
             )
         except LaunchRequestError as exc:
             print(f"Error: {exc}", file=sys.stderr)
             sys.exit(1)
-        print(json.dumps(approval_request.to_dict(), sort_keys=True))
-        sys.stdout.flush()
-        maybe_handoff_launch_approval_from_agent(approval_request)
+        if isinstance(approval_request, StagedLaunchRequestCreationResult):
+            from sase.gate_turn.entry import emit_staged_descriptor
+
+            emit_staged_descriptor(
+                kind=approval_request.kind,
+                request_id=approval_request.request_id,
+                staged_id=approval_request.staged_id,
+                workspace_mode=approval_request.workspace_mode,
+            )
+        else:
+            print(json.dumps(approval_request.to_dict(), sort_keys=True))
+            sys.stdout.flush()
+            maybe_handoff_launch_approval_from_agent(approval_request)
         sys.exit(0)
 
     from sase.dispatch.launch import (

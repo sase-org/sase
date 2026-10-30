@@ -124,6 +124,9 @@ def test_agent_launch_request_uses_shell_gate_outcome_branches(
     monkeypatch.setenv("SASE_AGENT_NAME", "requester--0")
     monkeypatch.setenv("SASE_BEAD_ID", "sase-demo.1")
     monkeypatch.setenv("SASE_ACTIVE_PROJECT_DIR", str(tmp_path))
+    artifacts = tmp_path / "artifacts"
+    artifacts.mkdir()
+    monkeypatch.setenv("SASE_ARTIFACTS_DIR", str(artifacts))
     monkeypatch.chdir(tmp_path)
     captured: dict[str, Any] = {}
 
@@ -269,6 +272,9 @@ def test_neutral_launch_shell_response_settles_gate_turn(
 ) -> None:
     monkeypatch.setenv("SASE_HOME", str(tmp_path / ".sase"))
     monkeypatch.setenv("SASE_AGENT", "1")
+    artifacts = tmp_path / "artifacts"
+    artifacts.mkdir()
+    monkeypatch.setenv("SASE_ARTIFACTS_DIR", str(artifacts))
     monkeypatch.chdir(tmp_path)
 
     class _Creation:

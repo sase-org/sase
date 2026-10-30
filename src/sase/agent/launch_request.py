@@ -46,7 +46,9 @@ from sase.agent.launch_request_types import (
     LAUNCH_REQUEST_SCHEMA_VERSION,
     LaunchRequestCreationResult,
     LaunchRequestError,
+    LaunchRequestResult,
     LaunchRequestStatus,
+    StagedLaunchRequestCreationResult,
 )
 from sase.gate_turn.models import GateTurnError
 from sase.notification_gates.entrypoints import gate_command_entrypoint
@@ -61,7 +63,8 @@ def create_launch_approval_request_from_prompt(
     approval: str = "required",
     max_slots: int = 1,
     source_surface: str | None = None,
-) -> LaunchRequestCreationResult:
+    command: str = "sase launch request",
+) -> LaunchRequestResult:
     """Create a pending LaunchApproval request from a prompt string."""
     return create_launch_approval_request(
         {
@@ -72,6 +75,7 @@ def create_launch_approval_request_from_prompt(
             "max_slots": max_slots,
         },
         source_surface=source_surface,
+        command=command,
     )
 
 
@@ -79,7 +83,8 @@ def create_launch_approval_request(
     payload: Mapping[str, Any],
     *,
     source_surface: str | None = None,
-) -> LaunchRequestCreationResult:
+    command: str = "sase launch request",
+) -> LaunchRequestResult:
     """Build and durably register a neutral LaunchApproval gate."""
     from sase.agent.launch_submission import capture_launch_submitted_at
 
@@ -160,30 +165,130 @@ def create_launch_approval_request(
 
     try:
         if running_agent_context_requires_launch_approval():
-            from sase.gate_turn import create_gate_turn
+            return _create_agent_launch_approval_request(
+                request,
+                gate_spec,
+                command=command,
+            )
+        from sase.notification_gates.service import create_gate
 
-            gate_turn_creation = create_gate_turn(_launch_shell_gate_spec(gate_spec))
-            gate = gate_turn_creation.gate
-        else:
-            from sase.notification_gates.service import create_gate
-
-            gate_turn_creation = None
-            gate = create_gate(gate_spec)
+        gate = create_gate(gate_spec)
     except GateError as exc:
         raise LaunchRequestError(exc.code, exc.target, str(exc)) from exc
     except GateTurnError as exc:
         raise LaunchRequestError("gate_turn_failed", "turn", str(exc)) from exc
-    if gate.notification_id is None:  # Launch auto-resolution is forbidden.
+    return _published_launch_result(request, gate, gate_turn_creation=None)
+
+
+def maybe_handoff_launch_approval_from_agent(
+    request: LaunchRequestResult,
+    *,
+    artifacts_dir: str | None = None,
+) -> bool:
+    """Hand an agent-side LaunchApproval request to its gate turn, if any."""
+    if isinstance(request, StagedLaunchRequestCreationResult):
+        return False
+    creation = request.gate_turn_creation
+    if creation is None or not creation.should_handoff:
+        _release_unused_launch_reservation(request)
+        return False
+    from sase.gate_turn import (
+        maybe_handoff_gate_from_agent,
+        will_handoff_gate_to_agent_runner,
+    )
+
+    if not will_handoff_gate_to_agent_runner():
+        _release_unused_launch_reservation(request)
+        return False
+    try:
+        handed_off = maybe_handoff_gate_from_agent(
+            creation,
+            artifacts_dir=artifacts_dir,
+            reservation_id=request.reservation_id,
+        )
+    except GateTurnError as exc:
+        _release_unused_launch_reservation(request)
+        raise LaunchRequestError("gate_turn_handoff_failed", "turn", str(exc)) from exc
+    if not handed_off:
+        _release_unused_launch_reservation(request)
+    return handed_off
+
+
+def _create_agent_launch_approval_request(
+    request: dict[str, Any],
+    gate_spec: dict[str, Any],
+    *,
+    command: str,
+) -> LaunchRequestResult:
+    from sase.gate_turn.entry import (
+        STAGED_GATE_INSTRUCTION,
+        run_gate_entry,
+    )
+
+    shell_spec = _launch_shell_gate_spec(gate_spec)
+    _reject_automatic_launch_resolution(shell_spec)
+    outcome = run_gate_entry(
+        lambda: shell_spec,
+        command=command,
+        allow_auto=False,
+    )
+    if outcome.is_staged:
+        if outcome.preparation is None:
+            raise LaunchRequestError(
+                "invalid_state",
+                str(request.get("request_id") or "launch"),
+                "staged launch request has no preparation",
+            )
+        return StagedLaunchRequestCreationResult(
+            request_id=str(request["request_id"]),
+            staged_id=outcome.preparation.staged_id,
+            workspace_mode=outcome.preparation.workspace_mode,
+            request=request,
+            instruction=STAGED_GATE_INSTRUCTION,
+        )
+    if outcome.creation is None:
+        raise LaunchRequestError(
+            "invalid_state",
+            str(request.get("request_id") or "launch"),
+            "published launch request has no gate turn",
+        )
+    return _published_launch_result(
+        request,
+        outcome.creation.gate,
+        gate_turn_creation=outcome.creation,
+        reservation_id=outcome.reservation_id,
+    )
+
+
+def _reject_automatic_launch_resolution(spec: Mapping[str, Any]) -> None:
+    """Refuse LaunchApproval auto-resolution before any publication."""
+    auto = spec.get("auto")
+    if auto is True or (isinstance(auto, Mapping) and auto.get("enabled") is True):
+        raise LaunchRequestError(
+            "invalid_auto",
+            "auto",
+            "LaunchApproval cannot auto-execute",
+        )
+
+
+def _published_launch_result(
+    request: dict[str, Any],
+    gate: Any,
+    *,
+    gate_turn_creation: Any | None,
+    reservation_id: str | None = None,
+) -> LaunchRequestCreationResult:
+    if gate.notification_id is None:
         raise LaunchRequestError(
             "invalid_state",
             str(gate.bundle_path),
-            "launch approval gate has no notification id",
+            "published launch approval gate has no notification id",
         )
     if gate.preview_path is None:
         raise LaunchRequestError(
             "invalid_state",
             str(gate.bundle_path),
-            "launch approval gate has no preview",
+            "published launch approval gate has no preview",
         )
     return LaunchRequestCreationResult(
         request_id=str(request["request_id"]),
@@ -194,29 +299,17 @@ def create_launch_approval_request(
         response_path=gate.response_path,
         request=request,
         gate_turn_creation=gate_turn_creation,
+        reservation_id=reservation_id,
     )
 
 
-def maybe_handoff_launch_approval_from_agent(
-    request: LaunchRequestCreationResult,
-    *,
-    artifacts_dir: str | None = None,
-) -> bool:
-    """Hand an agent-side LaunchApproval request to its gate turn, if any."""
-    creation = request.gate_turn_creation
-    if creation is None or not creation.should_handoff:
-        return False
-    from sase.gate_turn import (
-        maybe_handoff_gate_from_agent,
-        will_handoff_gate_to_agent_runner,
-    )
+def _release_unused_launch_reservation(request: LaunchRequestCreationResult) -> None:
+    reservation_id = request.reservation_id
+    if not reservation_id:
+        return
+    from sase.agent.staged_handoff import release_staging_reservation
 
-    if not will_handoff_gate_to_agent_runner():
-        return False
-    try:
-        return maybe_handoff_gate_from_agent(creation, artifacts_dir=artifacts_dir)
-    except GateTurnError as exc:
-        raise LaunchRequestError("gate_turn_handoff_failed", "turn", str(exc)) from exc
+    release_staging_reservation(reservation_id)
 
 
 def _launch_shell_gate_spec(spec: dict[str, Any]) -> dict[str, Any]:
@@ -291,7 +384,9 @@ __all__ = [
     "LAUNCH_REQUEST_SCHEMA_VERSION",
     "LaunchRequestCreationResult",
     "LaunchRequestError",
+    "LaunchRequestResult",
     "LaunchRequestStatus",
+    "StagedLaunchRequestCreationResult",
     "cancel_launch_approval_request",
     "create_launch_approval_request",
     "create_launch_approval_request_from_prompt",

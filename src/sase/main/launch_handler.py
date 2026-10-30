@@ -8,7 +8,12 @@ import sys
 from pathlib import Path
 from typing import Any
 
-from sase.agent.launch_request import LaunchRequestCreationResult, LaunchRequestError
+from sase.agent.launch_request import (
+    LaunchRequestCreationResult,
+    LaunchRequestError,
+    LaunchRequestResult,
+    StagedLaunchRequestCreationResult,
+)
 from sase.launch_approval_actions import (
     LaunchApprovalActionError,
     LaunchApprovalActionResult,
@@ -58,9 +63,14 @@ def handle_launch_command(args: argparse.Namespace) -> None:
             )
 
             if running_agent_context_requires_launch_approval():
-                _print_request_result(launch_request, args.output)
-                sys.stdout.flush()
+                _emit_agent_launch_request(launch_request, args.output)
                 maybe_handoff_launch_approval_from_agent(launch_request)
+            elif isinstance(launch_request, StagedLaunchRequestCreationResult):
+                raise LaunchRequestError(
+                    "invalid_state",
+                    launch_request.request_id,
+                    "human-origin launch requests cannot stage",
+                )
             else:
                 _print_request_result(launch_request, args.output)
             sys.exit(0)
@@ -83,13 +93,14 @@ def handle_launch_command(args: argparse.Namespace) -> None:
     sys.exit(1)
 
 
-def _create_request_from_cli(args: argparse.Namespace) -> LaunchRequestCreationResult:
+def _create_request_from_cli(args: argparse.Namespace) -> LaunchRequestResult:
     from sase.agent.launch_request import create_launch_approval_request
 
     payload = _launch_request_payload_from_args(args)
     return create_launch_approval_request(
         payload,
         source_surface=getattr(args, "source", None),
+        command="sase launch request",
     )
 
 
@@ -233,6 +244,21 @@ def _print_result(result: LaunchApprovalActionResult) -> None:
         f"[green]{result.message}[/green] "
         f"[dim]{result.notification_id[:8]} -> {path}[/dim]"
     )
+
+
+def _emit_agent_launch_request(result: LaunchRequestResult, output: str) -> None:
+    if isinstance(result, StagedLaunchRequestCreationResult):
+        from sase.gate_turn.entry import emit_staged_descriptor
+
+        emit_staged_descriptor(
+            kind=result.kind,
+            request_id=result.request_id,
+            staged_id=result.staged_id,
+            workspace_mode=result.workspace_mode,
+        )
+        return
+    _print_request_result(result, output)
+    sys.stdout.flush()
 
 
 def _print_request_result(result: LaunchRequestCreationResult, output: str) -> None:

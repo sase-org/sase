@@ -226,6 +226,7 @@ def test_launch_query_from_agent_context_requests_approval(
         "%i(reviewer, session=foo)\nDo work",
         reason="Running agent requested a detached launch.",
         source_surface="agent_skill",
+        command="sase run",
     )
     mock_handoff.assert_called_once_with(request)
     mock_launch.assert_not_called()

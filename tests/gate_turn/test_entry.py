@@ -83,3 +83,54 @@ def test_auto_gate_publishes_inline_with_frozen_policy(
         "auto_execute": True,
     }
     assert released == ["reservation"]
+
+
+def test_allow_auto_false_rejects_auto_execute_before_publication(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    monkeypatch.setenv("SASE_AGENT", "1")
+    monkeypatch.setenv("SASE_ARTIFACTS_DIR", str(tmp_path))
+    import sase.agent.staged_handoff as staged_handoff
+    import sase.gate_turn.staged_contract as staged_contract
+    from sase.gate_turn.models import GateTurnError
+
+    released: list[str] = []
+    monkeypatch.setattr(staged_handoff, "staged_handoffs_enabled", lambda: True)
+    monkeypatch.setattr(
+        staged_handoff, "acquire_staging_reservation", lambda **_kwargs: "reservation"
+    )
+    monkeypatch.setattr(
+        staged_contract,
+        "collect_staged_gate_creator",
+        lambda **_kwargs: {"project": "test"},
+    )
+    monkeypatch.setattr(
+        staged_handoff,
+        "release_staging_reservation",
+        lambda reservation_id, **_kwargs: released.append(reservation_id),
+    )
+    monkeypatch.setattr(
+        staged_handoff,
+        "write_staged_handoff",
+        lambda *_args, **_kwargs: pytest.fail("auto launch was staged"),
+    )
+    preparation = SimpleNamespace(
+        auto_execute=True,
+        spec=SimpleNamespace(kind="launch"),
+        request_id="launch-auto",
+        staged_id="auto-stage",
+        workspace_mode="inherit",
+        decision={"outcome": "auto", "selected_options": ["approve"]},
+        policy_block={"profile": "launch"},
+        record=None,
+        snapshot_dir=None,
+    )
+    monkeypatch.setattr(entry, "_prepare_staged_gate", lambda *_a, **_k: preparation)
+    with pytest.raises(GateTurnError, match="cannot auto-execute"):
+        entry.run_gate_entry(
+            lambda: {"kind": "launch"},
+            command="sase launch request",
+            allow_auto=False,
+        )
+    assert released == ["reservation"]

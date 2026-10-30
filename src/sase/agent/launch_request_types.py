@@ -14,10 +14,40 @@ from sase.core.agent_launch_wire import (
 
 LAUNCH_REQUEST_SCHEMA_VERSION = 1
 DIRECT_TYPED_LAUNCH_KIND = "direct_typed_launch"
+STAGED_LAUNCH_KIND = "launch"
+
+
+@dataclass(frozen=True)
+class StagedLaunchRequestCreationResult:
+    """Unpublished LaunchApproval request held until host completion."""
+
+    request_id: str
+    staged_id: str
+    workspace_mode: str
+    request: dict[str, Any]
+    instruction: str
+    kind: str = STAGED_LAUNCH_KIND
+
+    @property
+    def status(self) -> Literal["staged"]:
+        return "staged"
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "schema_version": 1,
+            "status": "staged",
+            "kind": self.kind,
+            "request_id": self.request_id,
+            "staged_id": self.staged_id,
+            "workspace_mode": self.workspace_mode,
+            "instruction": self.instruction,
+        }
 
 
 @dataclass(frozen=True)
 class LaunchRequestCreationResult:
+    """Published LaunchApproval request with a durable bundle and notification."""
+
     request_id: str
     notification_id: str
     response_dir: Path
@@ -26,6 +56,11 @@ class LaunchRequestCreationResult:
     response_path: Path
     request: dict[str, Any]
     gate_turn_creation: Any | None = None
+    reservation_id: str | None = None
+
+    @property
+    def status(self) -> Literal["published"]:
+        return "published"
 
     def to_dict(self) -> dict[str, Any]:
         payload: dict[str, Any] = {
@@ -41,6 +76,9 @@ class LaunchRequestCreationResult:
             if isinstance(gate_turn, dict):
                 payload["gate_turn"] = gate_turn
         return payload
+
+
+LaunchRequestResult = StagedLaunchRequestCreationResult | LaunchRequestCreationResult
 
 
 LaunchRequestStatus = Literal[
