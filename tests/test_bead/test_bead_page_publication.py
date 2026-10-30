@@ -23,6 +23,13 @@ from sase.workflows.commit.checkpoint import CommitCheckpoint
 from sase.workflows.commit.workflow import CommitWorkflow, RunResult
 
 
+@pytest.fixture(autouse=True)
+def _inline_publication_without_live_axe(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr("sase.axe._process_probe.is_axe_running", lambda: False)
+
+
 class _View:
     def __init__(self, issues: tuple[Issue, ...]) -> None:
         self._issues = {issue.id: issue for issue in issues}

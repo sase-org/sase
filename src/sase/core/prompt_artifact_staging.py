@@ -692,7 +692,14 @@ def _run_is_terminal_and_published(
     completed = (
         checkpoint.get("completed_steps") if isinstance(checkpoint, dict) else None
     )
-    if not isinstance(completed, list) or "publish_prompt_archive" not in completed:
+    if not isinstance(completed, list) or not any(
+        step in completed
+        for step in (
+            "publish_prompt_archive",
+            "publish_agent_hood",
+            "enqueue_agent_publication",
+        )
+    ):
         return False
     revision = checkpoint.get("primary_revision") or checkpoint.get("commit_sha")
     return (

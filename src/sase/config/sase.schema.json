@@ -4822,6 +4822,19 @@
       "description": "Configuration for SASE commit enforcement.",
       "additionalProperties": false,
       "properties": {
+        "publication": {
+          "type": "object",
+          "description": "Commit-triggered agent publication behavior.",
+          "additionalProperties": false,
+          "properties": {
+            "mode": {
+              "type": "string",
+              "description": "Use background publication when the host publisher is live, or keep publication inline.",
+              "enum": ["background", "inline"],
+              "default": "background"
+            }
+          }
+        },
         "message": {
           "type": "object",
           "description": "Commit-message subject validation policy.",

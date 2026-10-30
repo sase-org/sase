@@ -287,9 +287,14 @@ def test_concurrent_staging_keeps_manifest_well_formed(tmp_path: Path) -> None:
     assert {row["raw_ref"] for row in rows} == {f"@ref-{index}" for index in range(6)}
 
 
+@pytest.mark.parametrize(
+    "completed_step",
+    ["publish_prompt_archive", "publish_agent_hood", "enqueue_agent_publication"],
+)
 def test_pool_gc_only_removes_terminal_published_runs(
     tmp_path: Path,
     monkeypatch,
+    completed_step: str,
 ) -> None:
     monkeypatch.setenv("SASE_HOME", str(tmp_path / "state"))
     source = tmp_path / "source.txt"
@@ -304,7 +309,7 @@ def test_pool_gc_only_removes_terminal_published_runs(
     (artifacts_dir / "commit_state.json").write_text(
         json.dumps(
             {
-                "completed_steps": ["publish_prompt_archive"],
+                "completed_steps": [completed_step],
                 "primary_revision": "a" * 40,
             }
         ),

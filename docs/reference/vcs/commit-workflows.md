@@ -67,6 +67,18 @@ dot (`.`) placeholder to preserve structure. See
 [change_spec.md](../work-units/patches.md#stitches) for the full entry format including
 drawers.
 
+**Agent-sidecar publication:** The default `commit.publication.mode: background` ends an
+agent commit stage after its durable hood-publication request and publisher hint are
+saved, when axe is running and the host publisher heartbeat is fresh. Bead pages,
+plan-header refresh, and artifact-link release evidence remain synchronous. The run
+finalizer rings the publisher after it writes `done.json`; the publisher then writes the
+prompt archive and hood. If axe or the publisher is unavailable, the workflow uses the
+inline publication path. Set the mode to `inline` to always use it. If the queue cannot
+be written, `sase stitch create --resume` retries the commit stage without making
+another primary commit. Use `sase agent sync --check --json` to inspect queued
+publication work; see [Agent hood publication](../agents/hood-sync.md) for queue
+recovery and failure details.
+
 ### Propose (`#propose`)
 
 Saves the current diff without committing and cleans the workspace. This is useful for

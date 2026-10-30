@@ -34,6 +34,14 @@ from sase.sdd.store import SddStore
 from sase.workflows.commit.checkpoint import CommitCheckpoint
 from sase.workflows.commit.workflow_publication import run_agent_publication_step
 
+
+@pytest.fixture(autouse=True)
+def _inline_publication_without_live_axe(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr("sase.axe._process_probe.is_axe_running", lambda: False)
+
+
 _AGENT = "worker--code"
 _REVISION = "a" * 40
 _MESSAGE = (

@@ -31,6 +31,7 @@ from sase.sdd.artifact_link_outbox import drain_artifact_link_outbox
 from sase.sdd.artifact_link_store import resolve_machine_artifact_link_store
 
 PUBLICATION_JOB_WORK_BUDGET_SECONDS = 240.0
+_DONE_MARKER_GRACE_SECONDS = 10 * 60
 _HOOD_BATCH_LIMIT = 25
 _LOCK_BUSY_TEXT = "agents sync lock is busy"
 
@@ -172,9 +173,10 @@ def _run_publication_job(
         active = _safe_active_items(project_key)
         active_count = len(active)
         summary.active_remaining += active_count
+        publishable_count = sum(_publication_is_ready(item) for item in active)
         refby_count = _safe_referenced_by_count(project_key)
         if (
-            active_count
+            publishable_count
             or refby_count
             or result.lock_busy
             or result.deferred
@@ -223,7 +225,6 @@ def _drain_project(
     git_runner: GitRunner,
 ) -> _ProjectPass:
     from sase.agents_sync._commit_publication_queue import (
-        drain_agent_publications,
         drain_selected_agent_publications,
     )
     from sase.agents_sync.referenced_by_events import legacy_referenced_by_writes_fenced
@@ -234,7 +235,9 @@ def _drain_project(
     result = _ProjectPass()
     try:
         active = active_agent_publications(project_key)
-        active_by_key = {item.logical_key: item for item in active}
+        active_by_key = {
+            item.logical_key: item for item in active if _publication_is_ready(item)
+        }
         hinted_keys = _hinted_keys(claim, active_by_key)
         attempted: set[tuple[str, str]] = set()
 
@@ -268,44 +271,56 @@ def _drain_project(
             if not _made_progress(before, after, outcome):
                 result.outcome = "hood_no_progress"
                 break
-            active_by_key = {item.logical_key: item for item in after}
+            active_by_key = {
+                item.logical_key: item for item in after if _publication_is_ready(item)
+            }
             hinted_keys = tuple(key for key in hinted_keys if key in active_by_key)
 
         if not result.lock_busy and result.error is None:
-            while (
-                active_agent_publications(project_key) and time.monotonic() < deadline
-            ):
-                before = active_agent_publications(project_key)
-                outcome = drain_agent_publications(
+            while time.monotonic() < deadline:
+                before = tuple(
+                    item
+                    for item in active_agent_publications(project_key)
+                    if _publication_is_ready(item)
+                )
+                if not before:
+                    break
+                batch = tuple(item.logical_key for item in before[:_HOOD_BATCH_LIMIT])
+                outcome = drain_selected_agent_publications(
                     project_key,
+                    batch,
                     git_runner=git_runner,
                 )
                 result.hood_drained += outcome.drained
-                after = active_agent_publications(project_key)
+                after = tuple(
+                    item
+                    for item in active_agent_publications(project_key)
+                    if _publication_is_ready(item)
+                )
                 if _is_lock_busy(outcome):
                     result.lock_busy = True
-                    result.preserve_hints = bool(hinted_keys)
+                    result.preserve_hints = bool(
+                        set(batch) & {item.logical_key for item in after}
+                    )
                     result.outcome = "lock_busy"
                     break
                 if outcome.error or outcome.skip_reason:
                     result.error = outcome.error or outcome.skip_reason
                     result.preserve_hints = bool(
-                        hinted_keys
-                        and set(hinted_keys) & {item.logical_key for item in after}
+                        set(batch) & {item.logical_key for item in after}
                     )
                     result.outcome = "hood_error"
                     break
                 if not _made_progress(before, after, outcome):
                     result.outcome = "hood_no_progress"
                     break
-            else:
-                if (
-                    active_agent_publications(project_key)
-                    and time.monotonic() >= deadline
-                ):
-                    result.deferred = True
-                    result.preserve_hints = bool(hinted_keys)
-                    result.outcome = "deferred_budget"
+            if time.monotonic() >= deadline and any(
+                _publication_is_ready(item)
+                for item in active_agent_publications(project_key)
+            ):
+                result.deferred = True
+                result.preserve_hints = result.preserve_hints or bool(hinted_keys)
+                result.outcome = "deferred_budget"
 
         if time.monotonic() >= deadline:
             result.deferred = True
@@ -366,7 +381,12 @@ def _drain_project(
 
         pending_active = active_agent_publications(project_key)
         pending_refby = _safe_referenced_by_items(project_key)
-        if pending_active and result.outcome == "idle":
+        pending_publishable = tuple(
+            item for item in pending_active if _publication_is_ready(item)
+        )
+        if pending_active and not pending_publishable and result.outcome == "idle":
+            result.outcome = "awaiting_done_marker"
+        elif pending_publishable and result.outcome == "idle":
             result.outcome = "active_remaining"
         elif pending_refby and result.outcome == "idle":
             result.outcome = "referenced_by_remaining"
@@ -423,6 +443,21 @@ def _safe_active_items(project_key: str) -> tuple[AgentPublicationOutboxItem, ..
         return active_agent_publications(project_key)
     except Exception:
         return ()
+
+
+def _publication_is_ready(
+    item: AgentPublicationOutboxItem,
+    *,
+    now: float | None = None,
+) -> bool:
+    """Wait briefly for done.json before publishing a newly queued run."""
+
+    if not item.artifacts_dir:
+        return True
+    if (Path(item.artifacts_dir).expanduser() / "done.json").is_file():
+        return True
+    observed = time.time() if now is None else now
+    return observed - item.created_at >= _DONE_MARKER_GRACE_SECONDS
 
 
 def _safe_active_count(project_key: str) -> int:

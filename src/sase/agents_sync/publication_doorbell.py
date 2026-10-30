@@ -69,6 +69,25 @@ def ring_publication_doorbell(
     directory.mkdir(parents=True, exist_ok=True, mode=0o700)
     if hint is not None:
         _append_hint(directory / _HINTS_FILENAME, hint)
+    return _ring_project_directory(directory)
+
+
+def append_publication_hint(
+    project_key: str,
+    hint: Mapping[str, object],
+) -> Path:
+    """Append a durable hint without waking the publisher yet."""
+
+    directory = _project_publication_dir(project_key)
+    directory.mkdir(parents=True, exist_ok=True, mode=0o700)
+    path = directory / _HINTS_FILENAME
+    _append_hint(path, hint)
+    return path
+
+
+def _ring_project_directory(directory: Path) -> Path:
+    """Atomically touch the doorbell under a validated project directory."""
+
     doorbell = directory / "doorbell"
     fd, raw_tmp = tempfile.mkstemp(prefix=".doorbell.", dir=directory)
     temp = Path(raw_tmp)
@@ -212,6 +231,7 @@ def _read_hints(path: Path) -> list[dict[str, Any]]:
 
 __all__ = [
     "PublicationHintClaim",
+    "append_publication_hint",
     "claim_publication_hints",
     "finish_hint_claim",
     "publisher_is_live",

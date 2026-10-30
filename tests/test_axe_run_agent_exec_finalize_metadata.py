@@ -68,6 +68,57 @@ def test_finalize_loop_passes_transcript_metadata_to_chat_history(
     )
 
 
+def test_finalize_rings_publication_only_after_writing_done_marker(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    ctx = make_exec_ctx(tmp_path, is_home_mode=False)
+    state = LoopState(
+        current_prompt="prompt",
+        current_role_suffix="",
+        current_artifacts_dir=ctx.artifacts_dir,
+        loop_outcome="completed",
+        sdd_spec_path=None,
+        original_prompt="prompt",
+    )
+    events: list[str] = []
+    monkeypatch.setattr(
+        "sase.axe.run_agent_exec_finalize.write_done_marker_and_update_index",
+        lambda *_args, **_kwargs: events.append("done") or "done.json",
+    )
+    monkeypatch.setattr(
+        "sase.agents_sync._commit_publication_queue.resolve_publication_project_key",
+        lambda _cwd: "proj",
+    )
+    monkeypatch.setattr(
+        "sase.agents_sync.publication_outbox.list_agent_publications",
+        lambda _key: (SimpleNamespace(run_id=ctx.timestamp),),
+    )
+    monkeypatch.setattr(
+        "sase.agents_sync.publication_doorbell.ring_publication_doorbell",
+        lambda _key: events.append("ring"),
+    )
+
+    with (
+        patch(
+            "sase.axe.run_agent_exec_finalize.save_chat_history",
+            return_value=str(tmp_path / "chat.md"),
+        ),
+        patch(
+            "sase.axe.image_attachments.collect_agent_markdown_paths", return_value=[]
+        ),
+        patch("sase.axe.image_attachments.collect_agent_image_paths", return_value=[]),
+    ):
+        _finalize_loop(
+            ctx,
+            state,
+            RetryTracker(retry_cfg=None),
+            SimpleNamespace(response_text="done"),
+        )
+
+    assert events == ["done", "ring"]
+
+
 def test_finalize_loop_prefers_latest_agent_meta_for_transcript_metadata(
     tmp_path: Path,
 ) -> None:

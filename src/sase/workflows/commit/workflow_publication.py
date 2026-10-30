@@ -11,6 +11,7 @@ from sase.output import print_status
 from sase.workflows.commit.checkpoint import CommitCheckpoint
 
 _ARTIFACT_LINK_OUTBOX_STEP = "drain_artifact_link_outbox"
+_PUBLICATION_HEARTBEAT_MAX_AGE_SECONDS = 15 * 60
 _NO_ARTIFACT_LINK_PROJECT_ERROR = (
     "could not resolve the current project for artifact links"
 )
@@ -181,6 +182,21 @@ def _run_agent_publication_inner(
     if revision is None:
         return False
 
+    background, reason = _background_publication_selected()
+    selected_branch = "background enqueue" if background else "inline"
+    print_status(
+        f"Commit publication selected {selected_branch}: {reason}.",
+        "info",
+    )
+    if background:
+        return _enqueue_agent_publication_background(
+            cp,
+            publication_agent,
+            revision,
+            message,
+            checkpoint_save=checkpoint_save,
+        )
+
     if "publish_prompt_archive" not in cp.completed_steps:
         from sase.agents_sync.prompt_archive import publish_prompt_archive
 
@@ -299,6 +315,143 @@ def _run_agent_publication_inner(
     return True
 
 
+def _background_publication_selected() -> tuple[bool, str]:
+    """Choose the enqueue-only path only when its host-owned publisher is live."""
+
+    from sase.config.core import load_merged_config
+
+    commit_config = load_merged_config().get("commit", {})
+    publication_config = (
+        commit_config.get("publication", {}) if isinstance(commit_config, dict) else {}
+    )
+    mode = (
+        publication_config.get("mode", "background")
+        if isinstance(publication_config, dict)
+        else "background"
+    )
+    if mode != "background":
+        return False, "commit.publication.mode is inline"
+
+    from sase.axe._process_probe import is_axe_running
+
+    axe_running = is_axe_running()
+    if not axe_running:
+        return False, "axe is not running"
+
+    from sase.agents_sync.publication_doorbell import publisher_is_live
+
+    publisher_live = publisher_is_live(_PUBLICATION_HEARTBEAT_MAX_AGE_SECONDS)
+    if not publisher_live:
+        return False, "the publication publisher heartbeat is stale or missing"
+    return True, "background mode is configured and the host publisher is live"
+
+
+def _enqueue_agent_publication_background(
+    cp: CommitCheckpoint,
+    publication_agent: str,
+    revision: str,
+    message: str,
+    *,
+    checkpoint_save: Callable[[CommitCheckpoint], str | None],
+) -> bool:
+    """Persist publication and its hint without touching a sidecar."""
+
+    from sase.sdd.plan_header_refresh import refresh_committed_plan_header
+
+    _timed_publication_substep(
+        "plan_header",
+        lambda: refresh_committed_plan_header(message, primary_root=cp.cwd),
+    )
+    if "publish_agent_hood" in cp.completed_steps:
+        return True
+
+    try:
+        _record_real_change_release_evidence(cp)
+    except Exception as exc:  # noqa: BLE001 - release evidence gates link drains.
+        print_status(
+            "The primary commit succeeded, but release evidence for its artifact "
+            f"links could not be recorded: {exc}. Run `sase stitch create --resume` "
+            "to retry without creating another primary commit.",
+            "error",
+        )
+        return False
+
+    if "enqueue_agent_publication" in cp.completed_steps:
+        return True
+
+    from sase.agents_sync.commit_publication import (
+        enqueue_committed_agent_publication,
+    )
+
+    try:
+        outcome, project_key, item = _timed_publication_substep(
+            "agent_hood_enqueue",
+            lambda: enqueue_committed_agent_publication(
+                publication_agent,
+                revision,
+                commit_cwd=cp.cwd,
+                artifacts_dir=os.environ.get("SASE_ARTIFACTS_DIR"),
+                run_id=cp.run_id,
+            ),
+        )
+    except Exception as exc:  # noqa: BLE001 - queue failures remain resumable.
+        print_status(
+            "The primary commit succeeded, but agent publication could not be "
+            f"queued: {exc}. Run `sase stitch create --resume` to retry without "
+            "creating another primary commit.",
+            "error",
+        )
+        return False
+
+    if outcome.error and not outcome.queued:
+        print_status(
+            "The primary commit succeeded, but agent publication could not be "
+            f"queued: {outcome.error}. Run `sase stitch create --resume` to retry "
+            "without creating another primary commit.",
+            "error",
+        )
+        return False
+    if not outcome.queued or project_key is None or item is None:
+        reason = (
+            outcome.skip_reason or outcome.error or "the project queue is unavailable"
+        )
+        print_status(
+            "The primary commit succeeded, but agent publication could not be "
+            f"queued: {reason}. Run `sase stitch create --resume` to retry without "
+            "creating another primary commit.",
+            "error",
+        )
+        return False
+
+    from sase.agents_sync.publication_doorbell import append_publication_hint
+
+    try:
+        append_publication_hint(
+            project_key,
+            {
+                "local_agent": item.local_agent,
+                "global_agent": item.global_agent,
+                "primary_revision": item.primary_revision,
+                "run_id": item.run_id or "",
+                "link_outbox_agent_name": publication_agent,
+            },
+        )
+    except Exception as exc:  # noqa: BLE001 - the durable row can be re-hinted.
+        print_status(
+            "The primary commit succeeded and its publication row is durable, but "
+            f"the publisher hint could not be written: {exc}. Run `sase stitch "
+            "create --resume` to retry without creating another primary commit.",
+            "error",
+        )
+        return False
+
+    cp.completed_steps.append("enqueue_agent_publication")
+    checkpoint_save(cp)
+    if outcome.error:
+        print_status(_agent_publication_deferred_message(outcome), "warning")
+    return True
+
+
 def _record_real_change_release_evidence(cp: CommitCheckpoint) -> None:
     """Record that this run earned the right to publish its pending links.
 
@@ -312,7 +465,7 @@ def _record_real_change_release_evidence(cp: CommitCheckpoint) -> None:
     own ``SASE_AGENT_TIMESTAMP``/``publication_agent`` identity.
     """
 
-    run_id = os.environ.get("SASE_AGENT_TIMESTAMP", "")
+    run_id = cp.run_id or os.environ.get("SASE_AGENT_TIMESTAMP", "")
     if not run_id or not cp.publication_agent:
         return
     from sase.core.eligibility_facade import (

@@ -138,6 +138,38 @@ def _build_retry_metadata(tracker: RetryTracker) -> dict[str, Any] | None:
     return retry_meta
 
 
+def _ring_enqueued_publication_after_done(
+    ctx: AgentExecContext,
+    *,
+    run_id: str,
+) -> None:
+    """Wake the host publisher after this run's done marker is durable."""
+
+    try:
+        from sase.agents_sync._commit_publication_queue import (
+            resolve_publication_project_key,
+        )
+        from sase.agents_sync.publication_outbox import list_agent_publications
+
+        project_key = resolve_publication_project_key(ctx.workspace_dir)
+        if project_key is None:
+            return
+        if not any(
+            item.run_id == run_id for item in list_agent_publications(project_key)
+        ):
+            return
+
+        from sase.agents_sync.publication_doorbell import ring_publication_doorbell
+
+        ring_publication_doorbell(project_key)
+    except Exception:  # noqa: BLE001 - the publisher's backstop remains available.
+        _LOGGER.warning(
+            "Could not ring agent-publication doorbell for completed run %s",
+            run_id,
+            exc_info=True,
+        )
+
+
 def _restore_execution_env(state: LoopState) -> None:
     os.environ.pop("SASE_ARTIFACTS_DIR", None)
     os.environ.pop("SASE_PLAN", None)
@@ -416,6 +448,11 @@ def finalize_loop(
             ctx.artifacts_dir,
             _root_done_marker(ctx.artifacts_dir, done_marker),
         )
+
+    _ring_enqueued_publication_after_done(
+        ctx,
+        run_id=state.original_agent_timestamp or ctx.timestamp,
+    )
 
     return AgentExecResult(
         success=state.loop_outcome in _SUCCESSFUL_LOOP_OUTCOMES,

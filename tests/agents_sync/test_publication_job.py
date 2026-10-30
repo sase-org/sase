@@ -25,7 +25,12 @@ from tests._conftest_environment import redirect_sase_home
 
 
 def _item(
-    global_agent: str, revision: str, *, created_at: float
+    global_agent: str,
+    revision: str,
+    *,
+    created_at: float,
+    artifacts_dir: Path | str | None = None,
+    run_id: str | None = None,
 ) -> AgentPublicationOutboxItem:
     return AgentPublicationOutboxItem(
         project_key="proj",
@@ -34,6 +39,8 @@ def _item(
         global_agent=global_agent,
         primary_revision=revision,
         local_hood="hood",
+        artifacts_dir=str(artifacts_dir) if artifacts_dir is not None else None,
+        run_id=run_id,
         created_at=created_at,
     )
 
@@ -86,6 +93,23 @@ def test_doorbell_hint_claim_recovers_after_interrupted_pass(
     assert not tuple(claimed_dir.glob("hints.claimed.*"))
 
 
+def test_publication_hint_can_be_persisted_without_ringing_doorbell(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    redirect_sase_home(monkeypatch, tmp_path / ".sase")
+
+    hints = publication_doorbell.append_publication_hint(
+        "proj", _hint("alice.athena.worker", "a" * 40)
+    )
+    directory = tmp_path / ".sase" / "projects" / "proj" / "agent_publication"
+
+    assert hints.is_file()
+    assert not (directory / "doorbell").exists()
+    [claim] = publication_doorbell.claim_publication_hints("proj").hints
+    assert claim["global_agent"] == "alice.athena.worker"
+
+
 def test_heartbeat_round_trip_and_liveness(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -126,22 +150,17 @@ def test_hinted_hood_requests_are_drained_before_the_oldest_backlog(
         publication_job, "list_referenced_by_requests", lambda *_args, **_kwargs: ()
     )
     calls: list[str] = []
+    hinted_key = ("alice.athena.hinted", "b" * 40)
 
     def drain_selected(_key: str, selected: tuple[tuple[str, str], ...], **_kwargs):
-        calls.append("hinted")
+        calls.append("hinted" if hinted_key in selected else "backlog")
         selected_set = set(selected)
         queue[:] = [item for item in queue if item.logical_key not in selected_set]
         return CommitPublicationOutcome(drained=len(selected), published=True)
 
-    def drain_oldest(_key: str, **_kwargs):
-        calls.append("backlog")
-        queue.pop(0)
-        return CommitPublicationOutcome(drained=1, published=True)
-
     monkeypatch.setattr(
         publication_queue, "drain_selected_agent_publications", drain_selected
     )
-    monkeypatch.setattr(publication_queue, "drain_agent_publications", drain_oldest)
     publication_doorbell.ring_publication_doorbell(
         "proj", _hint("alice.athena.hinted", "b" * 40)
     )
@@ -155,6 +174,66 @@ def test_hinted_hood_requests_are_drained_before_the_oldest_backlog(
     assert calls == ["hinted", "backlog"]
     assert outcome.hood_drained == 2
     assert queue == []
+
+
+def test_new_publication_waits_for_done_marker_or_ten_minute_grace(
+    tmp_path: Path,
+) -> None:
+    artifacts_dir = tmp_path / "run"
+    item = _item(
+        "alice.athena.worker",
+        "a" * 40,
+        created_at=1_000,
+        artifacts_dir=artifacts_dir,
+    )
+
+    assert not publication_job._publication_is_ready(item, now=1_599)
+    assert publication_job._publication_is_ready(item, now=1_600)
+
+    artifacts_dir.mkdir()
+    (artifacts_dir / "done.json").write_text("{}", encoding="utf-8")
+    assert publication_job._publication_is_ready(item, now=1_001)
+
+
+def test_publication_job_leaves_young_request_queued_until_done_marker(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    redirect_sase_home(monkeypatch, tmp_path / ".sase")
+    artifacts_dir = tmp_path / "run"
+    artifacts_dir.mkdir()
+    item = _item(
+        "alice.athena.worker",
+        "a" * 40,
+        created_at=time.time(),
+        artifacts_dir=artifacts_dir,
+        run_id="run-1",
+    )
+    queue = [item]
+    monkeypatch.setattr(
+        publication_job, "active_agent_publications", lambda _key: tuple(queue)
+    )
+    monkeypatch.setattr(
+        publication_job,
+        "list_referenced_by_requests",
+        lambda *_args, **_kwargs: (),
+    )
+    monkeypatch.setattr(
+        publication_queue,
+        "drain_selected_agent_publications",
+        lambda *_args, **_kwargs: pytest.fail("young request must stay queued"),
+    )
+
+    outcome = publication_job._drain_project(
+        _target(tmp_path),
+        deadline=time.monotonic() + 10,
+        git_runner=lambda *_a, **_k: None,  # type: ignore[arg-type]
+    )
+
+    assert queue == [item]
+    assert item.attempts == 0
+    assert outcome.hood_drained == 0
+    assert outcome.outcome == "awaiting_done_marker"
 
 
 def test_busy_agents_lock_rings_again_without_charging_requests(

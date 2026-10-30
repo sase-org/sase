@@ -2029,6 +2029,11 @@ llm_provider:
     #     enabled: true             # optional per-provider override
 
 commit:
+  publication:
+    # Background publication ends an agent commit stage after a durable enqueue
+    # only while axe is running and the host publisher has a fresh heartbeat.
+    # Otherwise the commit workflow uses the inline publication path.
+    mode: background
   message:
     # Reject `sase stitch create` messages whose subject line is not a Conventional
     # Commit (`type(scope)!: description`). Merge, revert, and fixup subjects

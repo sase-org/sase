@@ -75,6 +75,28 @@ def publish_committed_agent_hood(
     )
 
 
+def enqueue_committed_agent_publication(
+    local_agent: str,
+    primary_revision: str,
+    *,
+    project: str | None = None,
+    commit_cwd: Path | str | None = None,
+    artifacts_dir: Path | str | None = None,
+    run_id: str | None = None,
+) -> tuple[CommitPublicationOutcome, str | None, AgentPublicationOutboxItem | None]:
+    """Persist a commit publication request without touching a sidecar."""
+
+    outcome, target, item = _enqueue_committed_agent_publication(
+        local_agent,
+        primary_revision,
+        project=project,
+        commit_cwd=commit_cwd,
+        artifacts_dir=artifacts_dir,
+        run_id=run_id,
+    )
+    return outcome, target.project_key if target is not None else None, item
+
+
 def drain_selected_agent_publications(
     project_key: str,
     selected_keys: tuple[tuple[str, str], ...],

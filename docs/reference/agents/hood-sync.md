@@ -153,18 +153,18 @@ identical object that another machine already published rebase cleanly. Any othe
 is moved, never deleted, to `<git-dir>/sase-quarantine/objects/<utc-timestamp>/` and
 logged, so it can never wedge the worktree.
 
-Prompt-archive publication is not a separate durable queue. The commit path publishes
-the archive directly, and the outbox request enqueued for that commit's hood also owns
-its prompt: when the archive cannot be written right away — the agents lock is busy, for
-instance — the next drain or full `sase agent sync` regenerates it from the local
-artifact pool inside the same bounded transaction that publishes the hood. A request is
-acknowledged only once both halves reached the sidecar, so a prompt that could not be
-rebuilt keeps its request queued and retryable rather than retiring it.
+Prompt-archive publication is not a separate durable queue. The outbox request enqueued
+for a commit's hood also owns its prompt. The inline commit path publishes the archive
+directly; when the background path is selected, the publisher regenerates it from the
+local artifact pool inside the same bounded transaction that publishes the hood. A
+request is acknowledged only once both halves reached the sidecar, so a prompt that
+could not be rebuilt keeps its request queued and retryable rather than retiring it.
 
-Document back-references are separate. After publishing a prompt archive that contains a
-provider-document reference, SASE records the citation and tries to publish it before
-the publishing command returns. That attempt cannot delay or roll back the prompt
-publication that already completed.
+Document back-references are separate. After verified prompt-archive publication that
+contains a provider-document reference, SASE records the citation. The inline commit
+path tries to publish it before returning; the background publisher drains it after the
+archive is published. That attempt cannot delay or roll back the prompt publication that
+already completed.
 
 In an unfenced project the citation is a row in
 `~/.sase/projects/<project-key>/referenced-by-outbox.json`. The drain pulls the cited
@@ -309,16 +309,17 @@ publishes eligible locally owned hoods, restores deferred prompt archives, rebui
 deterministic indexes, commits with the full owner identity, pushes, and drains queued
 Referenced By work. Unfenced projects still refresh cited artifact sidecars. Fenced
 projects convert leftover outbox rows into cites link events and never take those
-sidecar locks. The commit workflow has a separate earlier prompt-archive step: it
-publishes that archive and records the resulting citations (legacy outbox or link
-events) before it proceeds to agent-hood publication. In both cases, the prompt's
-agents-sidecar publication completes before its back-reference drain begins.
-`sase agent sync` is the explicit recovery command for queued requests a commit could
-not immediately resolve and the full-reconciliation command for hoods with no recent
-commit. A non-fast-forward rejection triggers one pull/recompute/commit/push retry.
-Conflicted rebases are aborted and reported; a failure in one project does not prevent
-the others from running. The Updates pane's `a` action is sase's TUI equivalent for all
-enabled projects.
+sidecar locks. In inline commit mode, the commit workflow publishes the prompt archive
+and records the resulting citations (legacy outbox or link events) before draining
+agent-hood publication. In background mode, the durable hood request carries the prompt,
+and the publisher records and drains its citations after the run's `done.json` exists or
+the request is ten minutes old. In both modes, the prompt's agents-sidecar publication
+completes before its back-reference drain begins. `sase agent sync` is the explicit
+recovery command for queued requests a commit could not immediately resolve and the
+full-reconciliation command for hoods with no recent commit. A non-fast-forward
+rejection triggers one pull/recompute/commit/push retry. Conflicted rebases are aborted
+and reported; a failure in one project does not prevent the others from running. The
+Updates pane's `a` action is sase's TUI equivalent for all enabled projects.
 
 Use `--json` to audit the complete schema-version-2 result. Each project reports the
 legacy publication counters (`exported`, `export_refreshed`) plus v2 publication counts
@@ -337,21 +338,24 @@ appear in the run's primary `commit_shas`. Each request records its attempt coun
 recent attributable error, and quarantine or retirement state. Rows rekeyed by the
 stale-revision repair keep their original requested revision in `requested_revision`
 while `primary_revision` names the fulfilling commit; rows never repaired omit it, and
-the original stays visible in doctor output and JSON. `publish_committed_agent_hood`
-enqueues the committing hood's request and immediately drains every active request for
-the project under the bounded agents lock, so a healthy commit publishes and pushes
-before it returns. Bead-page rendering and plan-header refresh are separate synchronous
-steps on the commit path. Prompt-archive publication is attempted synchronously too, but
-its retry obligation is covered by the hood request: every drain and full sync rebuilds
-the archives owed by the requests it is about to acknowledge. A prompt archive that
-cannot even be queued fails the commit with a `sase stitch create --resume` hint, the
-same way an unqueueable hood does. A hood-specific preparation failure increments only
-requests for that hood; repository-wide failures such as lock contention, pull failure,
-or push failure remain retryable without consuming unrelated per-item quarantine
-budgets. A repeatable failure that proves the requested hood can never be published
-retires that request after one confirming retry instead of quarantining it. Successful
-requests are acknowledged only after their sidecar work is committed and safely pushed,
-or after the prepared payload is already current.
+the original stays visible in doctor output and JSON. `publish_committed_agent_hood` is
+the inline compatibility path: it enqueues the committing hood's request and immediately
+drains every active request for the project under the bounded agents lock. The default
+`commit.publication.mode: background` instead uses the enqueue-only path when axe is
+running and the publisher heartbeat is no older than 15 minutes. It keeps bead-page
+rendering, plan-header refresh, release evidence, and the durable enqueue on the commit
+path, then the finalizer rings the publisher after writing `done.json`. If axe or the
+publisher is unavailable, the commit uses the inline path. Setting
+`commit.publication.mode` to `inline` always selects it. A failed durable enqueue keeps
+`sase stitch create --resume` available. In either mode, every drain and full sync
+rebuilds the archives owed by the requests it is about to acknowledge. A hood-specific
+preparation failure increments only requests for that hood; repository-wide failures
+such as lock contention, pull failure, or push failure remain retryable without
+consuming unrelated per-item quarantine budgets. A repeatable failure that proves the
+requested hood can never be published retires that request after one confirming retry
+instead of quarantining it. Successful requests are acknowledged only after their
+sidecar work is committed and safely pushed, or after the prepared payload is already
+current.
 
 The host-owned `publication` scheduler routine also drains active outbox requests. A
 project doorbell under `~/.sase/projects/<project-key>/agent_publication/` starts the
