@@ -432,7 +432,9 @@ class FinalDeckView(CardDocumentView):
                 return
             if not self._live_host_visible() or not self._live_subject_active():
                 return
-            self._paint_final_result(result, self._current_preferred)
+            preferred = self.host_preferred_card(self._current_preferred)
+            self._current_preferred = preferred
+            self._paint_final_result(result, preferred)
         except Exception:
             log.debug("final live paint failed", exc_info=True)
         finally:
@@ -545,7 +547,9 @@ class FinalDeckView(CardDocumentView):
                 return
             if self._is_stale_result(result):
                 return
-            self._paint_final_result(result, self._current_preferred)
+            preferred = self.host_preferred_card(self._current_preferred)
+            self._current_preferred = preferred
+            self._paint_final_result(result, preferred)
         elif event.state == WorkerState.ERROR:
             if self._has_displayed_content:
                 return

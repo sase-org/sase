@@ -57,6 +57,30 @@ class CardDocumentView(CardDocumentViewBlocksMixin, SectionViewMixin, Static):
         """Return the current card-document render mode."""
         return self._render_mode
 
+    def host_preferred_card(self, fallback: str | None) -> str | None:
+        """Return the hosting panel's live sticky card for this view's deck.
+
+        A reachable host's ``None`` is authoritative ("no explicit choice");
+        ``fallback`` is returned only when there is no host, no method, or
+        the lookup raises (including ``LookupError``).
+        """
+        try:
+            parent = getattr(self, "parent", None)
+            panel = getattr(parent, "parent", None) if parent is not None else None
+            if panel is None:
+                return fallback
+            method = getattr(panel, "sticky_card_for", None)
+            if not callable(method):
+                return fallback
+            try:
+                return method(self._deck)
+            except LookupError:
+                return fallback
+            except Exception:
+                return fallback
+        except Exception:
+            return fallback
+
     def _scroll_container(self) -> VerticalScroll | None:
         parent = self.parent
         return parent if isinstance(parent, VerticalScroll) else None

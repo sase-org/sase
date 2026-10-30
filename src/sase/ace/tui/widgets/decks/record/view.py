@@ -280,7 +280,9 @@ class RecordDeckView(CardDocumentView):
                 return
             if self._is_stale_result(result):
                 return
-            self._paint_record_result(result, self._current_preferred)
+            preferred = self.host_preferred_card(self._current_preferred)
+            self._current_preferred = preferred
+            self._paint_record_result(result, preferred)
         elif event.state == WorkerState.ERROR:
             if self._has_displayed_content:
                 return

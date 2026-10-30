@@ -381,13 +381,23 @@ class DeckPanelNavigationMixin:
             return
         self._tool_runs_document = document
         try:
-            active = message.active_card
+            stored = self._stored_document_active(DeckId.TOOLS)
         except Exception:
-            active = None
-        try:
-            self._store_document_active(DeckId.TOOLS, active)
-        except Exception:
-            pass
+            stored = None
+        if stored is None:
+            # The message's active_card is the Runs document's internal
+            # card (always "runs"), not a Tools-deck choice. Only record
+            # it when no Tools card is stored yet; the deck-level choice
+            # belongs to _show_tools_card (Ctrl+J/K, reveal) and
+            # _refresh_tools_panel (sticky re-apply on refresh).
+            try:
+                active = message.active_card
+            except Exception:
+                active = None
+            try:
+                self._store_document_active(DeckId.TOOLS, active)
+            except Exception:
+                pass
         try:
             from sase.ace.tui.tool_runs.deck import tools_switcher_segment
 

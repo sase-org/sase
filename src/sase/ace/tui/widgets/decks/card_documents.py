@@ -172,6 +172,36 @@ class DeckPanelCardDocumentsMixin:
         except Exception:
             return None
 
+    def sticky_card_for(self, deck: DeckId) -> str | None:
+        """Return this panel's sticky card for ``deck`` from the deck area.
+
+        The deck area state is the single source of truth; background
+        repaints must re-read it at paint time instead of reusing a cached
+        copy. Raises ``LookupError`` when there is no hosting area or no
+        session for this pane (for example a headless ``DeckPanel(0)`` in
+        unit tests) so callers can tell "no host" apart from "host has no
+        sticky card" (``None``).
+        """
+        try:
+            panel_index = self._panel_index
+        except Exception as exc:
+            raise LookupError("no hosting area for sticky card") from exc
+        try:
+            parent = getattr(self, "parent", None)
+            state = getattr(parent, "state", None) if parent is not None else None
+            panels = getattr(state, "panels", None) if state is not None else None
+            if panels is None:
+                raise LookupError("no hosting area for sticky card")
+            try:
+                panel_state = panels[panel_index]
+            except Exception as exc:
+                raise LookupError(f"no session for pane {panel_index!r}") from exc
+            return panel_state.preferred_card_for(deck)
+        except LookupError:
+            raise
+        except Exception as exc:
+            raise LookupError("no hosting area for sticky card") from exc
+
     def _stored_document_active(self, deck: DeckId) -> str | None:
         """Return the stored (non-view) active card for ``deck``."""
         if deck is DeckId.MAIN:
