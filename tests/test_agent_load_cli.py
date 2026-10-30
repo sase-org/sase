@@ -21,6 +21,7 @@ from sase.agents.cli_load import (
     _zero_weight_text,
 )
 from sase.core.runner_slots import capacity_view
+from sase.core.local_machine import local_machine_label
 from tests._runner_slots_helpers import _live_unless_stopped, _record
 from tests.test_machine_capacity_report import _report_from_records
 
@@ -197,7 +198,7 @@ def test_inactive_records_are_counted_not_listed() -> None:
 def test_json_shape_carries_report_provenance_and_metadata() -> None:
     payload = _report_to_json_dict(_report_from_records(_screenshot_records()))
 
-    assert payload["machine"] == "athena"
+    assert payload["machine"] == local_machine_label()
     assert payload["occupied_capacity"] == 5.0
     assert payload["effective_limit"] == 8.0
     assert payload["limit"]["configured_limit"] == 10
@@ -220,7 +221,7 @@ def test_cli_json_flag_emits_exact_report() -> None:
     payload = json.loads(buffer.getvalue())
 
     assert payload["occupied_capacity"] == 5.0
-    assert payload["machine"] == "athena"
+    assert payload["machine"] == local_machine_label()
     assert len(payload["accounting"]) == 6
 
 

@@ -330,7 +330,9 @@ def test_sync_help_distinguishes_full_cached_and_refresh_modes() -> None:
     assert "--check is local and network-free" in help_text
     assert "computing ahead/behind" in help_text
     assert "-t, --retry-retired" in help_text
-    assert "-k, --retry-key" in help_text
+    # argparse includes the metavar beside each alias on Python 3.12, but
+    # omits it on 3.13+. Assert the stable long option across supported Pythons.
+    assert "--retry-key" in help_text
     assert "GLOBAL_AGENT@REVISION" in help_text
     assert "requires --project" in help_text
 
