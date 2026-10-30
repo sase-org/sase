@@ -33,9 +33,9 @@ from sase.ace.tui.widgets._agent_list_render_rail import (
     rail_overflow_subtitle,
     rail_panel_title,
     rail_tooltip_text,
-    _rail_urgency,
     row_kind_glyph,
 )
+from sase.ace.tui.widgets._agent_list_render_rail_cells import _rail_urgency
 from sase.ace.tui.widgets._agent_list_render_rail_names import (
     rail_middle_elide,
     rail_name_is_dimmed,
