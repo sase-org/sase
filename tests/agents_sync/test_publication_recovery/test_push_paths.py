@@ -59,7 +59,7 @@ def _gated_run(prompt_bytes: bytes):
 def test_snapshot_regeneration_withholds_rejection_blocked_bytes(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    from sase.agents_sync.publication_snapshot import _gate_run_files
+    from sase.agents_sync._publication_snapshot_gating import gate_run_files
 
     isolate_protection(monkeypatch, tmp_path)
     scope = PublicationProtectionScope(
@@ -81,7 +81,7 @@ def test_snapshot_regeneration_withholds_rejection_blocked_bytes(
 
     run, owner, project = _gated_run(prompt_bytes)
     payload: dict[str, bytes] = {}
-    gated = _gate_run_files(run, owner, project, payload, scope=scope)
+    gated = gate_run_files(run, owner, project, payload, scope=scope)
 
     assert gated.record is not None
     assert destination not in payload
@@ -92,7 +92,7 @@ def test_snapshot_regeneration_withholds_rejection_blocked_bytes(
 def test_snapshot_regeneration_publishes_unblocked_bytes(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    from sase.agents_sync.publication_snapshot import _gate_run_files
+    from sase.agents_sync._publication_snapshot_gating import gate_run_files
 
     isolate_protection(monkeypatch, tmp_path)
     scope = PublicationProtectionScope(
@@ -102,7 +102,7 @@ def test_snapshot_regeneration_publishes_unblocked_bytes(
 
     run, owner, project = _gated_run(prompt_bytes)
     payload: dict[str, bytes] = {}
-    gated = _gate_run_files(run, owner, project, payload, scope=scope)
+    gated = gate_run_files(run, owner, project, payload, scope=scope)
 
     assert gated.record is not None
     assert payload["agents/alice.athena.worker/prompt.md"] == prompt_bytes

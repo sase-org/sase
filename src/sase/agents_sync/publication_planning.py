@@ -12,10 +12,6 @@ from sase.agents_sync.inventory import ProjectHoodInventory
 from sase.agents_sync.io import AgentsSyncFormatError
 from sase.agents_sync.links import hosted_provider
 from sase.agents_sync.models import ProjectTarget
-from sase.agents_sync.publication_snapshot import (
-    HoodWithheldError,
-    build_hood_snapshot,
-)
 from sase.agents_sync.publication_validation import (
     load_validated_publication,
     previous_snapshot,
@@ -129,8 +125,12 @@ def plan_hoods(
     withheld_runs: list[tuple[str, str]] = []
     withheld_hoods: list[tuple[str, str]] = []
 
-    # Deferred so the protection modules stay out of the TUI startup closure.
+    # Deferred so the protection and snapshot modules stay out of the TUI startup closure.
     from sase.agents_sync.publication_protection import PublicationProtectionScope
+    from sase.agents_sync.publication_snapshot import (
+        HoodWithheldError,
+        build_hood_snapshot,
+    )
 
     protection_scope = PublicationProtectionScope(
         project_key=target.project_key,
@@ -289,8 +289,12 @@ def plan_targeted_hoods(
     published = refreshed = unchanged = sessions = runs = 0
     withheld_runs: list[tuple[str, str]] = []
     withheld_hoods: list[tuple[str, str]] = []
-    # Deferred so the protection modules stay out of the TUI startup closure.
+    # Deferred so the protection and snapshot modules stay out of the TUI startup closure.
     from sase.agents_sync.publication_protection import PublicationProtectionScope
+    from sase.agents_sync.publication_snapshot import (
+        HoodWithheldError,
+        build_hood_snapshot,
+    )
 
     protection_scope = PublicationProtectionScope(
         project_key=target.project_key,
