@@ -512,9 +512,9 @@ _lint-symvision *args: _setup
         --epic-symbol 'sase-1pu.5.1.4(AgentRunStateProjectWire)' \
         --epic-symbol 'sase-1pu.5.1.4(AgentRunStateScheduleOutcomeWire)' \
         --epic-symbol 'sase-1pu.5.1.4(AgentRunStateProjectCheckpointWire)' \
-        --epic-symbol 'sase-1pj.4.1.6(WorkflowCompletionError)' \
-        --epic-symbol 'sase-1pj.4.1.6(PreparedWorkflowReview)' \
-        --epic-symbol 'sase-1pj.4.1.6(complete_workflow_review)' \
+        --epic-symbol 'sase-1pj.4.1(WorkflowCompletionError)' \
+        --epic-symbol 'sase-1pj.4.1(PreparedWorkflowReview)' \
+        --epic-symbol 'sase-1pj.4.1(complete_workflow_review)' \
         --epic-symbol 'sase-1pu.5.1.4(repair_project_run_states)' \
         --epic-symbol 'sase-1pu.5.1.4(StateRepairAffected)' \
         --epic-symbol 'sase-1pu.5.1.4(StateRepairWindowRow)' \
