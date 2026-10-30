@@ -908,7 +908,8 @@ Arguments:
 
 ```text
 usage: sase agent sync [-h] [-a] [-c] [-d] [-j] [-p PROJECT] [-r] [-g] [-m]
-                       [-R] [-e CLASS] [-k KEY] [-l N] [-q] [-t]
+                       [-R] [-s] [-e CLASS] [-k KEY] [-l N] [-q] [-t]
+                       [-A CURSOR] [-L N]
 ```
 
 Without flags, pull enabled agents sidecars, publish locally commit-eligible hoods, restore deferred prompt archives, push, and drain publication retries. --check is local and network-free; --check --refresh fetches remote refs before computing ahead/behind.
@@ -917,7 +918,7 @@ Options:
 
 | Option                                  | Description                                                                                                                                                                                                                         | Default |
 | --------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------- |
-| `-a`, `--apply`                         | With --repair-revisions, write the reported repair to the outbox and audit it; without it, report only and write nothing                                                                                                            | `false` |
+| `-a`, `--apply`                         | With --repair-revisions, write the reported repair to the outbox and audit it; with --repair-states, publish the reported state window; without either, report only and write nothing                                               | `false` |
 | `-c`, `--check`                         | Read cached sidecar status and publication diagnostics without network, publication, commit, or push                                                                                                                                | `false` |
 | `-d`, `--drop-retired`                  | Drop publication requests that were retired as unpublishable, reporting how many were dropped and why                                                                                                                               | `false` |
 | `-h`, `--help`                          | show this help message and exit                                                                                                                                                                                                     | —       |
@@ -927,11 +928,14 @@ Options:
 | `-g`, `--repair-digests`                | Re-sign locally owned hood-snapshot file references that have drifted from their on-disk payload, instead of running a normal sync                                                                                                  | `false` |
 | `-m`, `--repair-manifest`               | Restore missing owner-manifest hoods and normalize verified stale explicit file lists, instead of running a normal sync                                                                                                             | `false` |
 | `-R`, `--repair-revisions`              | Map stale pre-commit outbox revisions to the agent's committed revision or linked scope, reporting by default and writing only with --apply; runs one project per call                                                              | `false` |
+| `-s`, `--repair-states`                 | Report a bounded window of already-published runs whose terminal state drifted from local evidence, reporting by default and publishing only with --apply; runs one project per call                                                | `false` |
 | `-e CLASS`, `--retry-error-class CLASS` | With --retry-limit, select stopped requests with this error class; repeat to accept several classes (choices: `index_lock`, `lock_busy`, `manifest_mismatch`, `other`, `rebase_conflict`, `timeout`, `unknown`, `unstaged_changes`) | —       |
 | `-k KEY`, `--retry-key KEY`             | Retry exactly one hood request identified as GLOBAL_AGENT@REVISION using the full outbox SHA; requires --retry-limit 1, exactly one --project, and --retry-quarantined or --retry-retired                                           | —       |
 | `-l N`, `--retry-limit N`               | Retry at most N distinct hood requests for exactly one project without full reconciliation; requires --retry-quarantined or --retry-retired                                                                                         | —       |
 | `-q`, `--retry-quarantined`             | Clear quarantined requests for full sync; with --retry-limit, select a bounded hood-request batch                                                                                                                                   | `false` |
 | `-t`, `--retry-retired`                 | Revive this project's retired hood requests for full reconciliation, or select a bounded batch with --retry-limit; requires --project                                                                                               | `false` |
+| `-A CURSOR`, `--state-after CURSOR`     | Resume a state repair pass after this report's opaque cursor; only valid with --repair-states and empty to start a pass                                                                                                             | —       |
+| `-L N`, `--state-limit N`               | Examine at most N published runs per state repair report across at most five hoods (1-500, default 100); only valid with --repair-states                                                                                            | —       |
 
 ## `sase agent tab`
 

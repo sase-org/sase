@@ -671,3 +671,80 @@ def test_names_purge_local_state_cli_dispatches_and_reports_json(
     payload = json.loads(capsys.readouterr().out)
     assert payload["mode"] == "dry-run"
     assert payload["artifact_dirs"] == []
+
+
+def test_parser_accepts_repair_states_flags() -> None:
+    args = create_parser().parse_args(
+        ["agent", "sync", "-s", "-p", "one", "-L", "25", "-A", "cursor-1", "-j"]
+    )
+
+    assert args.repair_states
+    assert args.project == ["one"]
+    assert args.state_limit == 25
+    assert args.state_after == "cursor-1"
+
+
+def test_parser_rejects_repair_states_combinations() -> None:
+    with pytest.raises(SystemExit) as exc_info:
+        create_parser().parse_args(["agent", "sync", "--repair-states"])
+    assert exc_info.value.code == 2
+
+    with pytest.raises(SystemExit) as exc_info:
+        create_parser().parse_args(
+            ["agent", "sync", "--repair-states", "-p", "one", "--check"]
+        )
+    assert exc_info.value.code == 2
+
+    with pytest.raises(SystemExit) as exc_info:
+        create_parser().parse_args(
+            ["agent", "sync", "--repair-states", "-p", "one", "--repair-revisions"]
+        )
+    assert exc_info.value.code == 2
+
+    with pytest.raises(SystemExit) as exc_info:
+        create_parser().parse_args(["agent", "sync", "-L", "5", "-p", "one"])
+    assert exc_info.value.code == 2
+
+    with pytest.raises(SystemExit) as exc_info:
+        create_parser().parse_args(["agent", "sync", "--apply", "-p", "one"])
+    assert exc_info.value.code == 2
+
+
+def test_repair_states_dispatches_and_reports_json(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    from sase.agents_sync.publication_state_repair import StateRepairReport
+
+    reports = (
+        StateRepairReport(
+            "proj",
+            "Project",
+            "preview",
+            examined=2,
+            changed=1,
+            next_cursor="cursor-1",
+        ),
+    )
+    args = argparse.Namespace(
+        project=["proj"],
+        check=False,
+        refresh=False,
+        json=True,
+        repair_states=True,
+        apply=False,
+        state_limit=100,
+        state_after=None,
+    )
+    with patch(
+        "sase.agents.cli_sync.repair_agent_run_states", return_value=reports
+    ) as repair:
+        exit_code = handle_agents_sync(args)
+
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["mode"] == "repair-states"
+    assert payload["projects"][0]["examined"] == 2
+    assert payload["projects"][0]["next_cursor"] == "cursor-1"
+    assert exit_code == 0
+    repair.assert_called_once_with(
+        ("proj",), apply=False, state_limit=100, state_after=None
+    )

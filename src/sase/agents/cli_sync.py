@@ -20,6 +20,10 @@ from sase.agents_sync.publication_repair import (
 from sase.agents_sync.publication_revision_repair import (
     repair_stale_publication_revisions,
 )
+from sase.agents_sync.publication_state_repair import (
+    StateRepairReport,
+    repair_agent_run_states,
+)
 from sase.agents_sync.status import get_agents_sync_status
 from sase.core.time import format_local
 
@@ -44,6 +48,15 @@ def handle_agents_sync(args: argparse.Namespace) -> int:
         )
         _emit_sync_outcomes(outcomes, mode="repair-revisions", as_json=as_json)
         return int(any(outcome.error is not None for outcome in outcomes))
+    if bool(getattr(args, "repair_states", False)):
+        reports = repair_agent_run_states(
+            projects,
+            apply=bool(getattr(args, "apply", False)),
+            state_limit=getattr(args, "state_limit", None),
+            state_after=getattr(args, "state_after", None),
+        )
+        _emit_state_repair(reports, as_json=as_json)
+        return int(any(report.error is not None for report in reports))
     if bool(getattr(args, "check", False)):
         snapshot = get_agents_sync_status(
             projects,
@@ -104,6 +117,82 @@ def _emit_sync_outcomes(
         sys.stdout.write("\n")
     else:
         _render_outcomes(outcomes)
+
+
+def _emit_state_repair(
+    reports: tuple[StateRepairReport, ...], *, as_json: bool
+) -> None:
+    if as_json:
+        json.dump(
+            {
+                "schema_version": 1,
+                "mode": "repair-states",
+                "projects": [report.to_json_dict() for report in reports],
+            },
+            sys.stdout,
+            indent=2,
+            sort_keys=True,
+        )
+        sys.stdout.write("\n")
+    else:
+        _render_state_repair(reports)
+
+
+def _render_state_repair(reports: tuple[StateRepairReport, ...]) -> None:
+    table = Table(title="Agent State Repair", header_style="bold cyan")
+    table.add_column("PROJECT", style="bold")
+    table.add_column("EXAMINED", justify="right")
+    table.add_column("CHANGED", justify="right")
+    table.add_column("CURRENT", justify="right")
+    table.add_column("LIVE", justify="right")
+    table.add_column("UNRESOLVED", justify="right")
+    table.add_column("WITHHELD", justify="right")
+    table.add_column("FAILED", justify="right")
+    table.add_column("RESULT")
+    for report in reports:
+        if report.error:
+            result = Text(report.error, style="red")
+        elif report.skip_reason:
+            result = Text(report.skip_reason, style="yellow")
+        elif report.mode == "apply" and report.committed and report.pushed:
+            result = Text("applied", style="green")
+        elif report.mode == "apply":
+            result = Text("applied (no push)", style="green")
+        else:
+            result = Text("reported", style="green")
+        table.add_row(
+            report.project or report.project_key,
+            str(report.examined),
+            str(report.changed),
+            str(report.already_current),
+            str(report.live),
+            str(report.unresolved),
+            str(report.withheld),
+            str(report.failed),
+            result,
+        )
+    console = Console()
+    console.print(table)
+    for report in reports:
+        name = report.project or report.project_key
+        for affected in report.affected:
+            console.print(
+                Text(
+                    f"{name}: {affected.global_name} "
+                    f"({affected.local_hood}/{affected.source_run_id}) -> "
+                    f"{affected.selected_state}",
+                    style="green",
+                )
+            )
+        if report.next_cursor is not None:
+            console.print(
+                Text(
+                    f"{name}: next cursor {report.next_cursor} "
+                    f"(pass_complete={str(report.pass_complete).lower()})"
+                )
+            )
+        for diagnostic in report.diagnostics:
+            console.print(Text(f"{name}: {diagnostic}", style="yellow"))
 
 
 def _render_outcomes(outcomes: tuple[SyncOutcome, ...]) -> None:

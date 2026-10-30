@@ -505,9 +505,6 @@ _lint-symvision *args: _setup
         --epic-symbol 'sase-1pj.5.1.3(release_prepared_intent)' \
         --epic-symbol 'sase-1pj.5.1.3(load_prepared_intent_reservations)' \
         --epic-symbol 'sase-1pj.5.1.4(evaluate_staged_self_wait)' \
-        --epic-symbol 'sase-1pu.5.1.3(select_agent_run_state_window)' \
-        --epic-symbol 'sase-1pu.5.1.3(AgentRunStateWindowRowWire)' \
-        --epic-symbol 'sase-1pu.5.1.3(agent_run_state_wire_schema_version)' \
         --epic-symbol 'sase-1pu.5.1.4(advance_agent_run_state_schedule)' \
         --epic-symbol 'sase-1pu.5.1.4(AgentRunStateProjectIdentityWire)' \
         --epic-symbol 'sase-1pu.5.1.4(AgentRunStateProjectWire)' \
@@ -519,6 +516,9 @@ _lint-symvision *args: _setup
         --epic-symbol 'sase-1pj.4.1.6(invoke_provider_for_review)' \
         --epic-symbol 'sase-1pj.4.1.6(prepare_workflow_review)' \
         --epic-symbol 'sase-1pj.4.1.6(complete_workflow_review)' \
+        --epic-symbol 'sase-1pu.5.1.4(repair_project_run_states)' \
+        --epic-symbol 'sase-1pu.5.1.4(StateRepairAffected)' \
+        --epic-symbol 'sase-1pu.5.1.4(StateRepairWindowRow)' \
         {{ args }}
 
 # Check Python file line counts (private, extracted for per-stage wrapping)

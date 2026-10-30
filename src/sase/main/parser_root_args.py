@@ -117,12 +117,17 @@ class SaseArgumentParser(argparse.ArgumentParser):
                 ("--repair-digests", "repair_digests"),
                 ("--repair-manifest", "repair_manifest"),
                 ("--repair-revisions", "repair_revisions"),
+                ("--repair-states", "repair_states"),
                 ("--retry-key", "retry_key"),
                 ("--retry-quarantined", "retry_quarantined"),
                 ("--retry-retired", "retry_retired"),
             ):
                 if getattr(parsed, attribute, False):
                     self.error(f"sase agent sync {flag} cannot be used with --check")
+            if getattr(parsed, "state_after", None) is not None:
+                self.error("sase agent sync --state-after cannot be used with --check")
+            if getattr(parsed, "state_limit", None) is not None:
+                self.error("sase agent sync --state-limit cannot be used with --check")
         if (
             getattr(parsed, "command", None) == "agent"
             and getattr(parsed, "agent_subcommand", None) == "sync"
@@ -136,11 +141,20 @@ class SaseArgumentParser(argparse.ArgumentParser):
                 ("--repair-digests", "repair_digests"),
                 ("--repair-manifest", "repair_manifest"),
                 ("--repair-revisions", "repair_revisions"),
+                ("--repair-states", "repair_states"),
             ):
                 if getattr(parsed, attribute, False):
                     self.error(
                         f"sase agent sync --retry-retired cannot be used with {flag}"
                     )
+            if getattr(parsed, "state_after", None) is not None:
+                self.error(
+                    "sase agent sync --retry-retired cannot be used with --state-after"
+                )
+            if getattr(parsed, "state_limit", None) is not None:
+                self.error(
+                    "sase agent sync --retry-retired cannot be used with --state-limit"
+                )
         if (
             getattr(parsed, "command", None) == "agent"
             and getattr(parsed, "agent_subcommand", None) == "sync"
@@ -185,14 +199,31 @@ class SaseArgumentParser(argparse.ArgumentParser):
                     ("--repair-digests", "repair_digests"),
                     ("--repair-manifest", "repair_manifest"),
                     ("--repair-revisions", "repair_revisions"),
+                    ("--repair-states", "repair_states"),
                 ):
                     if getattr(parsed, attribute, False):
                         self.error(
                             f"sase agent sync --retry-limit cannot be used with {flag}"
                         )
+                if getattr(parsed, "state_after", None) is not None:
+                    self.error(
+                        "sase agent sync --retry-limit cannot be used with "
+                        "--state-after"
+                    )
+                if getattr(parsed, "state_limit", None) is not None:
+                    self.error(
+                        "sase agent sync --retry-limit cannot be used with "
+                        "--state-limit"
+                    )
             repair_revisions = getattr(parsed, "repair_revisions", False)
-            if getattr(parsed, "apply", False) and not repair_revisions:
-                self.error("sase agent sync --apply requires --repair-revisions")
+            repair_states = getattr(parsed, "repair_states", False)
+            if getattr(parsed, "apply", False) and not (
+                repair_revisions or repair_states
+            ):
+                self.error(
+                    "sase agent sync --apply requires --repair-revisions or "
+                    "--repair-states"
+                )
             if repair_revisions:
                 projects = getattr(parsed, "project", ())
                 if len(projects) != 1:
@@ -206,6 +237,7 @@ class SaseArgumentParser(argparse.ArgumentParser):
                     ("--drop-retired", "drop_retired"),
                     ("--repair-digests", "repair_digests"),
                     ("--repair-manifest", "repair_manifest"),
+                    ("--repair-states", "repair_states"),
                     ("--retry-error-class", "retry_error_class"),
                     ("--retry-key", "retry_key"),
                     ("--retry-limit", "retry_limit"),
@@ -217,6 +249,45 @@ class SaseArgumentParser(argparse.ArgumentParser):
                             "sase agent sync --repair-revisions cannot be used "
                             f"with {flag}"
                         )
+                if getattr(parsed, "state_after", None) is not None:
+                    self.error(
+                        "sase agent sync --repair-revisions cannot be used "
+                        "with --state-after"
+                    )
+                if getattr(parsed, "state_limit", None) is not None:
+                    self.error(
+                        "sase agent sync --repair-revisions cannot be used "
+                        "with --state-limit"
+                    )
+            if repair_states:
+                projects = getattr(parsed, "project", ())
+                if len(projects) != 1:
+                    self.error(
+                        "sase agent sync --repair-states requires exactly one --project"
+                    )
+                for flag, attribute in (
+                    ("--check", "check"),
+                    ("--refresh", "refresh"),
+                    ("--drop-retired", "drop_retired"),
+                    ("--repair-digests", "repair_digests"),
+                    ("--repair-manifest", "repair_manifest"),
+                    ("--repair-revisions", "repair_revisions"),
+                    ("--retry-error-class", "retry_error_class"),
+                    ("--retry-key", "retry_key"),
+                    ("--retry-limit", "retry_limit"),
+                    ("--retry-quarantined", "retry_quarantined"),
+                    ("--retry-retired", "retry_retired"),
+                ):
+                    if getattr(parsed, attribute, False):
+                        self.error(
+                            "sase agent sync --repair-states cannot be used "
+                            f"with {flag}"
+                        )
+            else:
+                if getattr(parsed, "state_after", None) is not None:
+                    self.error("sase agent sync --state-after requires --repair-states")
+                if getattr(parsed, "state_limit", None) is not None:
+                    self.error("sase agent sync --state-limit requires --repair-states")
         if (
             getattr(parsed, "command", None) == "init"
             and getattr(parsed, "json", False)

@@ -53,6 +53,16 @@ def _publication_retry_key(raw: str) -> tuple[str, str]:
     return global_agent, revision
 
 
+def _state_repair_limit(raw: str) -> int:
+    try:
+        value = int(raw)
+    except ValueError as exc:
+        raise argparse.ArgumentTypeError("must be an integer from 1 to 500") from exc
+    if not 1 <= value <= 500:
+        raise argparse.ArgumentTypeError("must be an integer from 1 to 500")
+    return value
+
+
 def register_agent_sync_parser(agents_sub: argparse._SubParsersAction) -> None:
     """Register the 'sase agent sync' subcommand."""
     sync_parser = agents_sub.add_parser(
@@ -71,7 +81,9 @@ def register_agent_sync_parser(agents_sub: argparse._SubParsersAction) -> None:
         action="store_true",
         help=(
             "With --repair-revisions, write the reported repair to the "
-            "outbox and audit it; without it, report only and write nothing"
+            "outbox and audit it; with --repair-states, publish the "
+            "reported state window; without either, report only and write "
+            "nothing"
         ),
     )
     sync_parser.add_argument(
@@ -143,6 +155,17 @@ def register_agent_sync_parser(agents_sub: argparse._SubParsersAction) -> None:
         ),
     )
     sync_parser.add_argument(
+        "-s",
+        "--repair-states",
+        action="store_true",
+        help=(
+            "Report a bounded window of already-published runs whose "
+            "terminal state drifted from local evidence, reporting by "
+            "default and publishing only with --apply; runs one project "
+            "per call"
+        ),
+    )
+    sync_parser.add_argument(
         "-e",
         "--retry-error-class",
         action="append",
@@ -191,5 +214,25 @@ def register_agent_sync_parser(agents_sub: argparse._SubParsersAction) -> None:
         help=(
             "Revive this project's retired hood requests for full reconciliation, "
             "or select a bounded batch with --retry-limit; requires --project"
+        ),
+    )
+    sync_parser.add_argument(
+        "-A",
+        "--state-after",
+        metavar="CURSOR",
+        help=(
+            "Resume a state repair pass after this report's opaque cursor; "
+            "only valid with --repair-states and empty to start a pass"
+        ),
+    )
+    sync_parser.add_argument(
+        "-L",
+        "--state-limit",
+        type=_state_repair_limit,
+        metavar="N",
+        help=(
+            "Examine at most N published runs per state repair report "
+            "across at most five hoods (1-500, default 100); only valid "
+            "with --repair-states"
         ),
     )

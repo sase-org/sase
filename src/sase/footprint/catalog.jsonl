@@ -1,4 +1,4 @@
-{"count": 3664, "rev": "b06e9b2c9c8b", "schema": "sase.footprint.catalog/1"}
+{"count": 3667, "rev": "f98293969cd2", "schema": "sase.footprint.catalog/1"}
 {"area": "automation", "id": "auto:axe.agent_waits", "kind": "auto", "label": "Resolve agent wait dependencies within seconds of completion", "ns": "auto", "parent": null, "src": "sase/default_config.yml"}
 {"area": "automation", "id": "auto:axe.agent_waits.wait_checks", "kind": "auto", "label": "Resolve agent wait dependencies and write ready.json when satisfied", "ns": "auto", "parent": "auto:axe.agent_waits", "src": "sase/default_config.yml"}
 {"area": "automation", "id": "auto:axe.checks", "kind": "auto", "label": "Poll slower PR-submission and workspace-claim checks on a five-minute cadence", "ns": "auto", "parent": null, "src": "sase/default_config.yml"}
@@ -232,11 +232,14 @@
 {"area": "cli.agent", "id": "cli:agent.sync#repair_digests", "kind": "option", "label": "Option --repair_digests of cli:agent.sync", "ns": "cli", "parent": "cli:agent.sync", "src": "sase/main/parser_agent.py:register_agent_parser"}
 {"area": "cli.agent", "id": "cli:agent.sync#repair_manifest", "kind": "option", "label": "Option --repair_manifest of cli:agent.sync", "ns": "cli", "parent": "cli:agent.sync", "src": "sase/main/parser_agent.py:register_agent_parser"}
 {"area": "cli.agent", "id": "cli:agent.sync#repair_revisions", "kind": "option", "label": "Option --repair_revisions of cli:agent.sync", "ns": "cli", "parent": "cli:agent.sync", "src": "sase/main/parser_agent.py:register_agent_parser"}
+{"area": "cli.agent", "id": "cli:agent.sync#repair_states", "kind": "option", "label": "Option --repair_states of cli:agent.sync", "ns": "cli", "parent": "cli:agent.sync", "src": "sase/main/parser_agent.py:register_agent_parser"}
 {"area": "cli.agent", "id": "cli:agent.sync#retry_error_class", "kind": "option", "label": "Option --retry_error_class of cli:agent.sync", "ns": "cli", "parent": "cli:agent.sync", "src": "sase/main/parser_agent.py:register_agent_parser"}
 {"area": "cli.agent", "id": "cli:agent.sync#retry_key", "kind": "option", "label": "Option --retry_key of cli:agent.sync", "ns": "cli", "parent": "cli:agent.sync", "src": "sase/main/parser_agent.py:register_agent_parser"}
 {"area": "cli.agent", "id": "cli:agent.sync#retry_limit", "kind": "option", "label": "Option --retry_limit of cli:agent.sync", "ns": "cli", "parent": "cli:agent.sync", "src": "sase/main/parser_agent.py:register_agent_parser"}
 {"area": "cli.agent", "id": "cli:agent.sync#retry_quarantined", "kind": "option", "label": "Option --retry_quarantined of cli:agent.sync", "ns": "cli", "parent": "cli:agent.sync", "src": "sase/main/parser_agent.py:register_agent_parser"}
 {"area": "cli.agent", "id": "cli:agent.sync#retry_retired", "kind": "option", "label": "Option --retry_retired of cli:agent.sync", "ns": "cli", "parent": "cli:agent.sync", "src": "sase/main/parser_agent.py:register_agent_parser"}
+{"area": "cli.agent", "id": "cli:agent.sync#state_after", "kind": "option", "label": "Option --state_after of cli:agent.sync", "ns": "cli", "parent": "cli:agent.sync", "src": "sase/main/parser_agent.py:register_agent_parser"}
+{"area": "cli.agent", "id": "cli:agent.sync#state_limit", "kind": "option", "label": "Option --state_limit of cli:agent.sync", "ns": "cli", "parent": "cli:agent.sync", "src": "sase/main/parser_agent.py:register_agent_parser"}
 {"area": "cli.agent", "id": "cli:agent.tab", "kind": "command", "label": "Move agents between Agents-tab placements (used by the Agents tab)", "ns": "cli", "parent": null, "src": "sase/main/parser_agent.py:register_agent_parser"}
 {"area": "cli.agent", "id": "cli:agent.tab.list", "kind": "command", "label": "Print the local agent-tab catalog with root counts", "ns": "cli", "parent": null, "src": "sase/main/parser_agent.py:register_agent_parser"}
 {"area": "cli.agent", "id": "cli:agent.tab.list#json", "kind": "option", "label": "Option --json of cli:agent.tab.list", "ns": "cli", "parent": "cli:agent.tab.list", "src": "sase/main/parser_agent.py:register_agent_parser"}
