@@ -293,7 +293,7 @@ class TestGoalArtifactCli:
 
 class TestGoalStagingAndCompletion:
     def test_goal_is_a_non_file_staged_kind(self) -> None:
-        from sase.core.prompt_artifact_staging import _NON_FILE_REF_KINDS
+        from sase.core.prompt_artifact_staging_stage import _NON_FILE_REF_KINDS
 
         assert "goal" in _NON_FILE_REF_KINDS
 

@@ -20,10 +20,10 @@ from sase.agents_sync.publication_outbox import (
 )
 
 from sase.core.prompt_artifact_staging import (
-    _prune_prompt_artifact_pool,
     capture_prompt_file_ref,
     stage_prompt_artifact,
 )
+from sase.core.prompt_artifact_staging_pool import prune_prompt_artifact_pool
 
 
 def _rows(workspace: Path) -> list[dict[str, object]]:
@@ -122,7 +122,7 @@ def test_clean_tracked_file_is_vcs_backed_but_dirty_file_is_pooled(
     )
     record = SimpleNamespace(name="primary", path=str(repo), clones=())
     monkeypatch.setattr(
-        "sase.core.prompt_artifact_staging.collect_repo_inventory",
+        "sase.core.prompt_artifact_staging_stage.collect_repo_inventory",
         lambda: SimpleNamespace(records=(record,)),
     )
     artifacts_dir = tmp_path / "run"
@@ -208,7 +208,7 @@ def test_clean_markdown_vcs_digest_ignores_managed_blocks_but_dirty_hashes_raw(
     ).stdout.strip()
     record = SimpleNamespace(name="primary", path=str(repo), clones=())
     monkeypatch.setattr(
-        "sase.core.prompt_artifact_staging.collect_repo_inventory",
+        "sase.core.prompt_artifact_staging_stage.collect_repo_inventory",
         lambda: SimpleNamespace(records=(record,)),
     )
     artifacts_dir = tmp_path / "run"
@@ -242,7 +242,7 @@ def test_oversized_file_is_recorded_without_pool_copy(
     source = tmp_path / "large.bin"
     source.write_bytes(b"large")
     monkeypatch.setattr(
-        "sase.core.prompt_artifact_staging.capture_file_exceeds_size_limit",
+        "sase.core.prompt_artifact_staging_stage.capture_file_exceeds_size_limit",
         lambda _size: True,
     )
 
@@ -316,11 +316,11 @@ def test_pool_gc_only_removes_terminal_published_runs(
         encoding="utf-8",
     )
     monkeypatch.setattr(
-        "sase.core.prompt_artifact_staging.get_artifact_capture_pool_max_bytes",
+        "sase.core.prompt_artifact_staging_pool.get_artifact_capture_pool_max_bytes",
         lambda: 1,
     )
 
-    assert _prune_prompt_artifact_pool(tmp_path) == 1
+    assert prune_prompt_artifact_pool(tmp_path) == 1
     assert not pool_path.exists()
     assert len(_rows(tmp_path)) == 1
 
@@ -383,11 +383,11 @@ def test_pool_gc_respects_publication_outbox_until_acknowledged(
         assert retired.terminal
 
     monkeypatch.setattr(
-        "sase.core.prompt_artifact_staging.get_artifact_capture_pool_max_bytes",
+        "sase.core.prompt_artifact_staging_pool.get_artifact_capture_pool_max_bytes",
         lambda: 1,
     )
 
-    removed = _prune_prompt_artifact_pool(tmp_path)
+    removed = prune_prompt_artifact_pool(tmp_path)
     if state == "retired":
         assert removed == 1
         assert not pool_path.exists()
@@ -399,7 +399,7 @@ def test_pool_gc_respects_publication_outbox_until_acknowledged(
         [quarantined] = list_agent_publications("proj")
         assert quarantined.quarantined
     acknowledge_agent_publications("proj", (item.logical_key,))
-    assert _prune_prompt_artifact_pool(tmp_path) == 1
+    assert prune_prompt_artifact_pool(tmp_path) == 1
     assert not pool_path.exists()
 
 
