@@ -12,11 +12,11 @@ from types import ModuleType
 ROOT = Path(__file__).resolve().parents[1]
 SCRIPT = ROOT / "tools" / "release_candidate"
 
-CORE_SUFFIXES = (
-    ".tar.gz",
-    "-cp312-abi3-manylinux_2_28_x86_64.whl",
-    "-cp312-abi3-manylinux_2_28_aarch64.whl",
+CORE_WHEEL_PLATFORMS = (
+    "manylinux_2_28_x86_64",
+    "manylinux_2_28_aarch64",
 )
+CORE_SUFFIXES = (".tar.gz", *(f"{platform}.whl" for platform in CORE_WHEEL_PLATFORMS))
 
 
 def load_tool() -> ModuleType:
@@ -46,14 +46,15 @@ def core_files(
             "url": f"https://files.pythonhosted.org/packages/sase_core_rs-{version}.tar.gz",
         }
     ]
-    for suffix in CORE_SUFFIXES[1:]:
+    for platform in CORE_WHEEL_PLATFORMS:
+        filename = f"sase_core_rs-{version}-cp312-abi3-{platform}.whl"
         files.append(
             {
-                "filename": f"sase_core_rs-{version}{suffix}",
+                "filename": filename,
                 "packagetype": "bdist_wheel",
                 "yanked": yanked,
                 "sha256": "c26d3d23780e261ef0d8b40bf954bb3a61b10197b8d9978184b33b0a966f8a0f",
-                "url": f"https://files.pythonhosted.org/packages/sase_core_rs-{version}{suffix}",
+                "url": f"https://files.pythonhosted.org/packages/{filename}",
             }
         )
     return files

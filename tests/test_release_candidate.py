@@ -84,6 +84,15 @@ from tests.test_release_candidate_seal import test_extra_or_missing_dist_refuses
 from tests.test_release_candidate_seal import (
     test_incomplete_core_file_set_refuses_to_seal,
 )
+from tests.test_release_candidate_seal import (
+    test_seal_accepts_live_compressed_macos_tag_orders,
+)
+from tests.test_release_candidate_seal import (
+    test_seal_refuses_arm64_only_macos_when_universal2_is_required,
+)
+from tests.test_release_candidate_seal import (
+    test_seal_refuses_yanked_compressed_macos_wheel,
+)
 from tests.test_release_candidate_seal import test_missing_file_locator_fails_closed
 from tests.test_release_candidate_seal import test_observe_reappend_is_idempotent
 from tests.test_release_candidate_seal import (
@@ -183,6 +192,9 @@ __all__ = [
     "test_qualification_pass_archives_bound_evidence_and_advisories",
     "test_qualify_cli_persists_red_observation_before_refusal",
     "test_required_job_red_classes_are_typed",
+    "test_seal_accepts_live_compressed_macos_tag_orders",
+    "test_seal_refuses_arm64_only_macos_when_universal2_is_required",
+    "test_seal_refuses_yanked_compressed_macos_wheel",
     "test_second_red_is_not_rerun_eligible",
     "test_second_stash_generation_must_requalify",
     "test_successful_job_cannot_be_rerun_on_a_failed_only_attempt",

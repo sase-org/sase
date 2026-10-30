@@ -125,9 +125,7 @@ def read_source_pin(path: Path = DEFAULT_REVISION_FILE) -> str:
 def parse_expected_suffixes(workflow_text: str) -> tuple[str, ...]:
     match = _SUFFIXES_BLOCK_RE.search(workflow_text)
     if match is None:
-        raise CoreEnsureError(
-            f"cannot find EXPECTED_DIST_SUFFIXES in {WORKFLOW_PATH}"
-        )
+        raise CoreEnsureError(f"cannot find EXPECTED_DIST_SUFFIXES in {WORKFLOW_PATH}")
     suffixes = (match.group(2) or "").split()
     if not suffixes:
         raise CoreEnsureError(f"EXPECTED_DIST_SUFFIXES in {WORKFLOW_PATH} is empty")
@@ -143,7 +141,29 @@ def _stem(version: str) -> str:
 
 
 def matches_suffix(filename: str, version: str, suffix: str) -> bool:
-    return filename.startswith(_stem(version)) and filename.endswith(suffix)
+    """Match a core dist the way sase-core's ``pypi_release_files.matches`` does.
+
+    A wheel entry names one compressed platform tag, not the file's literal
+    tail, so maturin's tag order does not matter. A ``.whl`` file matches a
+    ``.whl`` suffix when one of its dot-separated platform tags plus ``".whl"``
+    ends with the suffix (with an exact match on the distribution name and
+    version). Anything else (the sdist) matches only ``stem(version) + suffix``.
+    """
+    if filename.endswith(".whl"):
+        if not suffix.endswith(".whl"):
+            return False
+        stemmed = filename[: -len(".whl")]
+        parts = stemmed.split("-")
+        if len(parts) == 6:
+            name, file_version, _build, _py, _abi, plat = parts
+        elif len(parts) == 5:
+            name, file_version, _py, _abi, plat = parts
+        else:
+            return False
+        if name != FILENAME_STEM or file_version != version:
+            return False
+        return any((tag + ".whl").endswith(suffix) for tag in plat.split("."))
+    return filename == _stem(version) + suffix
 
 
 def _file_is_yanked(file_info: Mapping[str, object]) -> bool:
@@ -293,13 +313,9 @@ def _github_api_urllib(
             raise CoreEnsureNetworkError(
                 f"unreadable GitHub API {path}: HTTP {exc.code}"
             ) from exc
-        raise CoreEnsureError(
-            f"unreadable GitHub API {path}: HTTP {exc.code}"
-        ) from exc
+        raise CoreEnsureError(f"unreadable GitHub API {path}: HTTP {exc.code}") from exc
     except (OSError, TimeoutError, json.JSONDecodeError) as exc:
-        raise CoreEnsureNetworkError(
-            f"unreadable GitHub API {path}: {exc}"
-        ) from exc
+        raise CoreEnsureNetworkError(f"unreadable GitHub API {path}: {exc}") from exc
     if not isinstance(loaded, dict):
         raise CoreEnsureError(f"unreadable GitHub API {path}: not a JSON object")
     return loaded
@@ -317,9 +333,7 @@ def github_compare_status(
     )
     status = payload.get("status")
     if not isinstance(status, str) or not status.strip():
-        raise CoreEnsureError(
-            f"unreadable compare {pin}...v{version}: missing status"
-        )
+        raise CoreEnsureError(f"unreadable compare {pin}...v{version}: missing status")
     return status.strip().lower()
 
 

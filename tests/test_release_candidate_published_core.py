@@ -175,6 +175,38 @@ def test_published_core_downloads_and_verifies_the_sealed_wheel(
     assert paths["manifest"].read_bytes() == before
 
 
+def test_published_core_counts_compressed_macos_tag_orders_complete(
+    tool: ModuleType,
+    tmp_path: Path,
+) -> None:
+    macos_0431 = (
+        "sase_core_rs-0.42.0-cp312-abi3-"
+        "macosx_10_12_universal2.macosx_10_12_x86_64.macosx_11_0_arm64.whl"
+    )
+
+    def _add_compressed_macos(
+        files: list[dict[str, Any]], manifest: dict[str, Any]
+    ) -> None:
+        del manifest
+        files.append(
+            {
+                "filename": macos_0431,
+                "packagetype": "bdist_wheel",
+                "yanked": False,
+                "sha256": "c" * 64,
+                "size": 100,
+                "url": f"https://files.pythonhosted.org/packages/{macos_0431}",
+            }
+        )
+
+    paths = _write_inputs(tmp_path, tool, mutate_files=_add_compressed_macos)
+    manifest = json.loads(paths["manifest"].read_text(encoding="utf-8"))
+    files = json.loads(paths["files"].read_text(encoding="utf-8"))
+    suffixes = [*CORE_SUFFIXES, "universal2.whl"]
+    plan = tool.published_core_plan(manifest, files, suffixes, expect_version="0.42.0")
+    assert plan["filename"] == WHEEL_FILENAME
+
+
 def test_published_core_refuses_when_expect_version_differs(
     tool: ModuleType,
     tmp_path: Path,
@@ -207,12 +239,11 @@ def test_published_core_refuses_a_missing_platform_wheel(
     paths = _write_inputs(tmp_path, tool)
     manifest = json.loads(paths["manifest"].read_text(encoding="utf-8"))
     files = json.loads(paths["files"].read_text(encoding="utf-8"))
-    # Point the platform wheel at another version: the suffix set stays
-    # complete, but nothing matches this candidate's version stem.
+    # A file for another version does not satisfy this candidate's suffix set.
     for entry in files:
         if entry["filename"] == WHEEL_FILENAME:
             entry["filename"] = entry["filename"].replace("0.42.0", "0.99.0")
-    with pytest.raises(tool.Refusal, match="no live .* wheel"):
+    with pytest.raises(tool.Refusal, match="incomplete core file set"):
         tool.published_core_plan(manifest, files, list(CORE_SUFFIXES))
 
 

@@ -67,6 +67,83 @@ def test_incomplete_core_file_set_refuses_to_seal(tool: ModuleType) -> None:
         tool.seal_manifest(**seal_kwargs(core_files=partial))  # type: ignore[arg-type]
 
 
+_MACOS_0_43_0 = (
+    "sase_core_rs-0.43.0-cp312-abi3-"
+    "macosx_10_12_x86_64.macosx_11_0_arm64.macosx_10_12_universal2.whl"
+)
+_MACOS_0_43_1 = (
+    "sase_core_rs-0.43.1-cp312-abi3-"
+    "macosx_10_12_universal2.macosx_10_12_x86_64.macosx_11_0_arm64.whl"
+)
+_MACOS_ARM64_ONLY = "sase_core_rs-0.43.1-cp312-abi3-macosx_11_0_arm64.whl"
+_COMPRESSED_SUFFIXES = (
+    ".tar.gz",
+    "manylinux_2_28_x86_64.whl",
+    "manylinux_2_28_aarch64.whl",
+    "universal2.whl",
+)
+
+
+def _compressed_core_files(
+    version: str, macos_filename: str, *, yanked_macos: bool = False
+) -> list[dict[str, object]]:
+    files = core_files(version)
+    files.append(
+        {
+            "filename": macos_filename,
+            "packagetype": "bdist_wheel",
+            "yanked": yanked_macos,
+            "sha256": "c26d3d23780e261ef0d8b40bf954bb3a61b10197b8d9978184b33b0a966f8a0f",
+            "url": f"https://files.pythonhosted.org/packages/{macos_filename}",
+        }
+    )
+    return files
+
+
+def test_seal_accepts_live_compressed_macos_tag_orders(tool: ModuleType) -> None:
+    for version, macos_filename in (
+        ("0.43.0", _MACOS_0_43_0),
+        ("0.43.1", _MACOS_0_43_1),
+    ):
+        manifest = tool.seal_manifest(
+            **seal_kwargs(  # type: ignore[arg-type]
+                core_version=version,
+                core_files=_compressed_core_files(version, macos_filename),
+                expected_core_suffixes=list(_COMPRESSED_SUFFIXES),
+            )
+        )
+        assert manifest["core_version"] == version
+        assert any(
+            entry["filename"] == macos_filename for entry in manifest["core_files"]
+        )
+
+
+def test_seal_refuses_arm64_only_macos_when_universal2_is_required(
+    tool: ModuleType,
+) -> None:
+    with pytest.raises(tool.Refusal, match="incomplete core file set"):
+        tool.seal_manifest(
+            **seal_kwargs(  # type: ignore[arg-type]
+                core_version="0.43.1",
+                core_files=_compressed_core_files("0.43.1", _MACOS_ARM64_ONLY),
+                expected_core_suffixes=list(_COMPRESSED_SUFFIXES),
+            )
+        )
+
+
+def test_seal_refuses_yanked_compressed_macos_wheel(tool: ModuleType) -> None:
+    with pytest.raises(tool.Refusal, match="incomplete core file set"):
+        tool.seal_manifest(
+            **seal_kwargs(  # type: ignore[arg-type]
+                core_version="0.43.1",
+                core_files=_compressed_core_files(
+                    "0.43.1", _MACOS_0_43_1, yanked_macos=True
+                ),
+                expected_core_suffixes=list(_COMPRESSED_SUFFIXES),
+            )
+        )
+
+
 def test_yanked_only_core_file_set_refuses_to_seal(tool: ModuleType) -> None:
     yanked = core_files(yanked=True)
     with pytest.raises(tool.Refusal, match="incomplete core file set"):

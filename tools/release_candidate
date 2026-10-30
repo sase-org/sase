@@ -137,7 +137,9 @@ def observation_asset_name(
 
 
 def _core_files_complete(
-    core_files: list[dict[str, Any]], expected_suffixes: Sequence[str]
+    core_files: list[dict[str, Any]],
+    expected_suffixes: Sequence[str],
+    version: str,
 ) -> list[str]:
     """Return the expected suffixes with no live (non-yanked) file."""
     live = [
@@ -149,7 +151,7 @@ def _core_files_complete(
     for suffix in expected_suffixes:
         if not any(
             isinstance(entry.get("filename"), str)
-            and entry["filename"].endswith(suffix)
+            and _core.matches_suffix(str(entry["filename"]), version, suffix)
             for entry in live
         ):
             missing.append(suffix)
@@ -193,7 +195,7 @@ def seal_manifest(
             raise Refusal(
                 f"dist {dist['filename']!r} is not named for version {version!r}"
             )
-    missing = _core_files_complete(core_files, expected_core_suffixes)
+    missing = _core_files_complete(core_files, expected_core_suffixes, core_version)
     if missing:
         raise Refusal(
             f"incomplete core file set for sase-core-rs=={core_version}: "
@@ -254,12 +256,38 @@ def verify_manifest(manifest: dict[str, Any]) -> list[str]:
     return problems
 
 
+def _suffix_covered_by_filename(filename: str) -> str:
+    """Map a live core filename to the suffix it satisfies.
+
+    Verify re-seals with these derived suffixes. Wheels contribute one
+    compressed platform tag (the last tag plus ``.whl``); sdists contribute
+    ``.tar.gz``. Full filenames are not suffixes: ``matches_suffix`` matches
+    tags, not literal tails.
+    """
+    if filename.endswith(".whl"):
+        stemmed = filename[: -len(".whl")]
+        parts = stemmed.split("-")
+        if len(parts) in {5, 6}:
+            last_tag = parts[-1].split(".")[-1]
+            if last_tag:
+                return f"{last_tag}.whl"
+        return filename
+    if filename.endswith(".tar.gz"):
+        return ".tar.gz"
+    return filename
+
+
 def _suffixes_covered_by(core_files: list[dict[str, Any]]) -> list[str]:
     """Derive one satisfied suffix per live file (verify-time self-check)."""
     suffixes = []
     for entry in core_files:
         if isinstance(entry, dict) and not entry.get("yanked", False):
-            suffixes.append(entry.get("filename", ""))
+            filename = entry.get("filename", "")
+            suffixes.append(
+                _suffix_covered_by_filename(filename)
+                if isinstance(filename, str)
+                else ""
+            )
     return suffixes
 
 
@@ -653,7 +681,6 @@ def fetch_pypi_core_files(
     return files
 
 
-CORE_FILENAME_STEM = "sase_core_rs"
 PLATFORM_WHEEL_SUFFIX = "manylinux_2_28_x86_64"
 PROBE_MARKER_FILENAME = "probe-core-version.txt"
 
@@ -689,14 +716,12 @@ def select_published_wheel(
     duplicate (more than one live match) are both refusals: the caller must
     never guess which bytes the sealed candidate binds.
     """
-    stem = f"{CORE_FILENAME_STEM}-{version}-"
     wanted = f"{platform_suffix}.whl"
     matches = [
         entry
         for entry in _live_entries(core_files)
         if isinstance(entry.get("filename"), str)
-        and entry["filename"].startswith(stem)
-        and entry["filename"].endswith(wanted)
+        and _core.matches_suffix(str(entry["filename"]), version, wanted)
         and entry.get("packagetype") == "bdist_wheel"
     ]
     if not matches:
@@ -753,7 +778,7 @@ def published_core_plan(
                 f"probe core {probe_version!r} must be older than "
                 f"the sealed manifest core {manifest_version!r}"
             )
-    missing = _core_files_complete(core_files, expected_suffixes)
+    missing = _core_files_complete(core_files, expected_suffixes, effective)
     if missing:
         raise Refusal(
             f"incomplete core file set for sase-core-rs=={effective}: "

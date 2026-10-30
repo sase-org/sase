@@ -134,6 +134,31 @@ def _complete_files(version: str, *, yanked: bool = False) -> list[dict[str, obj
     ]
 
 
+MACOS_0_43_0 = "macosx_10_12_x86_64.macosx_11_0_arm64.macosx_10_12_universal2"
+MACOS_0_43_1 = "macosx_10_12_universal2.macosx_10_12_x86_64.macosx_11_0_arm64"
+MACOS_ARM64_ONLY = "macosx_11_0_arm64"
+UNIVERSAL2 = "universal2.whl"
+COMPLETE_SUFFIXES = (
+    "manylinux_2_28_x86_64.whl",
+    "manylinux_2_28_aarch64.whl",
+    UNIVERSAL2,
+    "win_amd64.whl",
+    ".tar.gz",
+)
+
+
+def _complete_files_with_macos(
+    version: str, macos_platform: str, *, yanked_macos: bool = False
+) -> list[dict[str, object]]:
+    files = [_sdist(version)]
+    for platform in PLATFORMS:
+        if platform == MACOS_0_43_0:
+            files.append(_wheel(version, macos_platform, yanked=yanked_macos))
+        else:
+            files.append(_wheel(version, platform))
+    return files
+
+
 def _metadata(releases: dict[str, list[dict[str, object]]]) -> dict[str, object]:
     return {"releases": releases}
 
@@ -408,6 +433,68 @@ def test_read_source_pin_rejects_empty_file(tool: ModuleType, tmp_path: Path) ->
     path.write_text("\n", encoding="utf-8")
     with pytest.raises(tool.CoreEnsureError, match="unreadable source pin"):
         tool.read_source_pin(path)
+
+
+def test_matches_suffix_accepts_live_compressed_macos_tag_orders(
+    tool: ModuleType,
+) -> None:
+    name_0430 = _wheel("0.43.0", MACOS_0_43_0)["filename"]
+    name_0431 = _wheel("0.43.1", MACOS_0_43_1)["filename"]
+    assert name_0430.endswith(
+        "macosx_10_12_x86_64.macosx_11_0_arm64.macosx_10_12_universal2.whl"
+    )
+    assert name_0431.endswith(
+        "macosx_10_12_universal2.macosx_10_12_x86_64.macosx_11_0_arm64.whl"
+    )
+    assert tool.matches_suffix(str(name_0430), "0.43.0", UNIVERSAL2)
+    assert tool.matches_suffix(str(name_0431), "0.43.1", UNIVERSAL2)
+
+
+def test_matches_suffix_rejects_arm64_only_wrong_version_and_project(
+    tool: ModuleType,
+) -> None:
+    arm64 = str(_wheel("0.43.1", MACOS_ARM64_ONLY)["filename"])
+    other_version = str(_wheel("0.43.0", MACOS_0_43_1)["filename"])
+    other_project = str(arm64).replace("sase_core_rs", "other_core_rs", 1)
+    assert not tool.matches_suffix(arm64, "0.43.1", UNIVERSAL2)
+    assert not tool.matches_suffix(other_version, "0.43.1", UNIVERSAL2)
+    assert not tool.matches_suffix(other_project, "0.43.1", UNIVERSAL2)
+
+
+def test_matches_suffix_requires_exact_sdist_name(tool: ModuleType) -> None:
+    assert tool.matches_suffix("sase_core_rs-0.43.1.tar.gz", "0.43.1", ".tar.gz")
+    assert not tool.matches_suffix(
+        "sase_core_rs-0.43.1-extra.tar.gz", "0.43.1", ".tar.gz"
+    )
+    assert not tool.matches_suffix("sase_core_rs-0.43.10.tar.gz", "0.43.1", ".tar.gz")
+
+
+def test_complete_files_for_version_accepts_both_macos_tag_orders(
+    tool: ModuleType,
+) -> None:
+    files_0430 = _complete_files_with_macos("0.43.0", MACOS_0_43_0)
+    files_0431 = _complete_files_with_macos("0.43.1", MACOS_0_43_1)
+    matched_0430 = tool.complete_files_for_version(
+        "0.43.0", files_0430, COMPLETE_SUFFIXES
+    )
+    matched_0431 = tool.complete_files_for_version(
+        "0.43.1", files_0431, COMPLETE_SUFFIXES
+    )
+    assert matched_0430 is not None
+    assert matched_0431 is not None
+    assert any(name.endswith(f"{MACOS_0_43_0}.whl") for name in matched_0430)
+    assert any(name.endswith(f"{MACOS_0_43_1}.whl") for name in matched_0431)
+
+
+def test_complete_files_for_version_rejects_arm64_only_and_yanked_compressed_macos(
+    tool: ModuleType,
+) -> None:
+    arm64_only = _complete_files_with_macos("0.43.1", MACOS_ARM64_ONLY)
+    yanked = _complete_files_with_macos("0.43.1", MACOS_0_43_1, yanked_macos=True)
+    assert (
+        tool.complete_files_for_version("0.43.1", arm64_only, COMPLETE_SUFFIXES) is None
+    )
+    assert tool.complete_files_for_version("0.43.1", yanked, COMPLETE_SUFFIXES) is None
 
 
 def test_parse_json_object_strips_ansi_color(tool: ModuleType) -> None:

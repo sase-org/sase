@@ -100,7 +100,9 @@ def pypi_complete(*, pin_tag: str = "0.50.0") -> dict[str, Any]:
                     "yanked": False,
                 },
                 {
-                    "filename": f"sase_core_rs-{pin_tag}-manylinux_2_28_x86_64.whl",
+                    "filename": (
+                        f"sase_core_rs-{pin_tag}-cp312-abi3-manylinux_2_28_x86_64.whl"
+                    ),
                     "digests": {"sha256": "e" * 64},
                     "yanked": False,
                 },
