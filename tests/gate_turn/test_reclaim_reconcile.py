@@ -20,7 +20,7 @@ from typing import Any
 import pytest
 
 import sase.gate_turn.handoff as handoff_mod
-import sase.gate_turn.reclaim as reclaim_mod
+import sase.gate_turn._handoff_reconcile as reclaim_mod
 import sase.gate_turn.store as store_mod
 from sase.core.agent_scan_wire import AgentArtifactRecordWire
 from sase.core.paths import sase_projects_dir

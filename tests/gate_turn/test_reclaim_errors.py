@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import pytest
 
-import sase.gate_turn.reclaim as reclaim_mod
+import sase.gate_turn._reclaim_pending as reclaim_mod
 from sase.gate_turn.models import GateTurnRecord
 from sase.gate_turn.reclaim import (
     GateTurnReclaimSummary,
@@ -59,7 +59,7 @@ def test_reclaim_records_error_details_and_continues(
 
 
 def test_reclaim_error_details_are_capped(monkeypatch: pytest.MonkeyPatch) -> None:
-    max_details = reclaim_mod._MAX_ERROR_DETAILS
+    max_details = reclaim_mod.MAX_ERROR_DETAILS
     records = [
         make_reclaim_record(
             gate_id=f"gate-{index}", member_agent_name=f"lane--gate-{index}"

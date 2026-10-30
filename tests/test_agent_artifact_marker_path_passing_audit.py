@@ -320,7 +320,7 @@ _REVIEWED_PATH_PASSING_CONTEXTS: dict[str, PathPassingReview] = {
             "check by the liveness prober; no marker is written here."
         ),
     ),
-    "src/sase/gate_turn/reclaim.py:_read_reclaim_meta": PathPassingReview(
+    "src/sase/gate_turn/_handoff_reconcile.py:_read_reclaim_meta": PathPassingReview(
         exemption=(
             "Read-only gate-turn recovery lookup: agent_meta.json is loaded to "
             "inspect selected options and attempt markers; later metadata writes "

@@ -492,8 +492,8 @@ _lint-patch-stitch-terminology: _setup
 # sase-1pj.5.1.2 consumed the staged-monitor payload, membership, liveness,
 # and join reserve/activate/release bindings through start_stage, prepare,
 # launch, store_lane, owner observation, and runner admission. The staging
-# entry points themselves (stage/launch/cleanup) await runner adoption in
-# sase-1pj.5.1.4.
+# entry points themselves (stage/launch/cleanup), including prepared-intent
+# reservations, await runner adoption in sase-1pj.5.1.4.
 # Never put a comment
 # line inside the continued command below: just joins the lines, so the comment
 # would swallow every later argument.

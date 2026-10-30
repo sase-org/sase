@@ -9,7 +9,7 @@ from pathlib import Path
 import pytest
 
 import sase.gate_turn.cancel as cancel_mod
-import sase.gate_turn.reclaim as reclaim_mod
+import sase.gate_turn._reclaim_pending as reclaim_mod
 from sase.gate_turn.cancel import cancel_gate_turn
 from sase.gate_turn.lane_lock import gate_lane_lock
 from sase.gate_turn.models import GateTurnRecord

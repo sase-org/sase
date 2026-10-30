@@ -12,7 +12,7 @@ from typing import Any
 
 import pytest
 
-import sase.gate_turn.reclaim as reclaim_mod
+import sase.gate_turn._handoff_reconcile as reclaim_mod
 from sase.gate_turn.models import GateTurnRecord
 from sase.gate_turn.handoff import resume_command_for
 from sase.gate_turn.reclaim import GateHandoffReconcileSummary

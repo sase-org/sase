@@ -18,7 +18,7 @@ from pathlib import Path
 
 import pytest
 
-import sase.gate_turn.reclaim as reclaim_mod
+import sase.gate_turn._reclaim_pending as reclaim_mod
 import sase.gate_turn.store as store_mod
 from sase.gate_turn.lane_lock import gate_lane_lock
 from sase.gate_turn.models import GateTurnRecord
