@@ -336,8 +336,10 @@ def _start(
     from sase.monitor import store as store_module
 
     import sase.monitor.start_launch as start_module
+    import sase.monitor.start_prepare as prepare_module
 
     monkeypatch.setattr(start_module, "get_monitor_tool_wrap", lambda: tool_wrap)
+    monkeypatch.setattr(prepare_module, "get_monitor_tool_wrap", lambda: tool_wrap)
     write_project_file(
         "proj",
         running_claims=[WorkspaceClaim(3, "ace-run", "acme", pid=os.getpid())],

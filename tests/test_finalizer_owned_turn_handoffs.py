@@ -110,7 +110,7 @@ def test_start_monitor_refuses_before_side_effects(
     )
     monkeypatch.setattr(
         start_flow_module,
-        "create_monitor_member",
+        "prepare_monitor_locked",
         lambda *args, **kwargs: pytest.fail("member creation must not run"),
     )
     request = request_module.StartMonitorRequest(

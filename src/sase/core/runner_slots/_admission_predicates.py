@@ -130,10 +130,39 @@ def is_runner_slot_occupying_record(
     monitor_turn = _agent_session_turn_of_kind(meta, "monitor")
     monitor_id = monitor_turn.id if monitor_turn is not None else None
     monitor = is_real_monitor_member(meta.agent_session_role, monitor_id)
+    if monitor and not _staged_monitor_occupies_capacity(monitor_turn, meta.pid):
+        return False
     started = meta.pid is not None if monitor else bool(meta.run_started_at)
     if not started:
         return False
     return is_live(record)
+
+
+def _staged_monitor_occupies_capacity(
+    monitor_turn: AgentSessionTurnWire | None, pid: int | None
+) -> bool:
+    """Return whether a monitor member occupies extra runner capacity.
+
+    Staged members occupy none: capacity stays with the starter until
+    adoption transfers it. Running members keep the historical pid rule.
+    """
+    from sase.core.staged_handoff import (
+        StagedHandoffContractError,
+        evaluate_staged_monitor_membership,
+    )
+
+    state = "" if monitor_turn is None else (monitor_turn.state or "")
+    try:
+        facts = evaluate_staged_monitor_membership(
+            {
+                "schema_version": 1,
+                "monitor_state": state or "running",
+                "supervisor_present": pid is not None,
+            }
+        )
+    except StagedHandoffContractError:
+        return state != "staged"
+    return bool(facts.get("occupies_runner_capacity"))
 
 
 def is_real_gate_member_record(record: AgentArtifactRecordWire) -> bool:

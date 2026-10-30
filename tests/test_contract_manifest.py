@@ -415,10 +415,16 @@ MANIFEST_PATH = ROOT / "tests" / "contract_manifest.txt"
 # measured 154.57 s under the command above on this host (single run;
 # 1097 passed). The next candidate should displace an entry rather than
 # add one.
-_MANIFEST_ENTRY_BUDGET = 90
-_MEASURED_SERIAL_COST = (
-    "154.57 serial seconds across 90 entries (single run; 1097 passed)"
-)
+#
+# Re-curated to 89 on 2026-10-30 to repair a stale manifest:
+# `test_core_finalizer_handoff.py` is kept off the contract set because
+# published sase-core-rs 0.42.7 predates the handoff bindings, but it
+# remained listed after that exclusion. Dropping it restores
+# `collect_contract_files() == committed manifest`. The prior 90-entry
+# set measured 154.57 s; this 89-entry set is that run without the
+# unmarked file.
+_MANIFEST_ENTRY_BUDGET = 89
+_MEASURED_SERIAL_COST = "154.57 serial seconds across the prior 90-entry set; 89 after dropping the unmarked handoff file"
 
 
 def _load_refresh_tool() -> ModuleType:

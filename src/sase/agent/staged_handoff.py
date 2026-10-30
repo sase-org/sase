@@ -509,6 +509,39 @@ def build_pipe_staged_record(
     )
 
 
+def build_monitor_staged_record(
+    *,
+    payload: Mapping[str, Any],
+    dirty_obligations_at_stage: list[str] | None = None,
+    staged_id: str | None = None,
+    created_at: str | None = None,
+    carry_allowed: bool | None = None,
+) -> dict[str, Any]:
+    """Build a monitor staged-handoff record from a launch payload.
+
+    Unprepared monitors inherit the workspace and allow carry. Prepared
+    monitors keep commit-on-green: carry is refused so the starter does
+    not synthesize it. Successor workspace is always inherit.
+    """
+    if carry_allowed is None:
+        resources = payload.get("resources")
+        nested_ref = (
+            resources.get("prepared_intent_ref")
+            if isinstance(resources, Mapping)
+            else None
+        )
+        carry_allowed = not bool(payload.get("prepared_intent_ref") or nested_ref)
+    return _build_staged_record(
+        kind="monitor",
+        payload=payload,
+        successor_workspace="inherit",
+        carry_allowed=carry_allowed,
+        dirty_obligations_at_stage=dirty_obligations_at_stage,
+        staged_id=staged_id,
+        created_at=created_at,
+    )
+
+
 def build_gate_staged_record(
     *,
     payload: Mapping[str, Any],
@@ -706,6 +739,7 @@ __all__ = [
     "acquire_staging_reservation",
     "admit_stage",
     "build_gate_staged_record",
+    "build_monitor_staged_record",
     "build_pipe_staged_record",
     "build_plan_staged_record",
     "build_questions_staged_record",

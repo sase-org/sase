@@ -1,10 +1,9 @@
 """The monitor-start launch: proc submit, claim moves, and the running record.
 
-Split out of :mod:`sase.monitor.start`: once
-:func:`sase.monitor.start_flow.start_monitor` has created the member, this
-module resolves the proc argv (joining an existing ToolRun or reserving a new
-one), submits the supervisor proc, moves the workspace claim, and builds the
-running record -- tearing the member back down when any of those steps fails.
+After shared preparation has created the member and reserved any ToolRun,
+this module submits the supervisor proc, moves the workspace claim, and
+builds the running record -- tearing the member back down when any of those
+steps fails.
 """
 
 from __future__ import annotations
@@ -71,9 +70,22 @@ class MonitorLaunchContext:
     bound_completion_ref: str | None
     artifacts_dir: str
     log_path: Path
+    reserved_tool_run_id: str | None = None
+    tool_run_joined: bool = False
+    proc_argv: tuple[str, ...] | None = None
+    proc_tags: tuple[str, ...] = ()
+    proc_env_overlay: tuple[tuple[str, str], ...] = ()
+    unwrapped_reason: str | None = None
+    join_mode: str = "none"
+    member_state: str = "running"
+    staged_id: str | None = None
+    starter_provider: str | None = None
 
 
-def _tool_run_agent_overlay(starter_agent: str | None) -> dict[str, str]:
+def _tool_run_agent_overlay(
+    starter_agent: str | None,
+    starter_provider: str | None = None,
+) -> dict[str, str]:
     """Return the attribution overlay carrying a monitor's starter agent.
 
     Passed as ``SASE_TOOL_RUN_AGENT`` so a monitor-owned ``sase tool run``
@@ -82,14 +94,19 @@ def _tool_run_agent_overlay(starter_agent: str | None) -> dict[str, str]:
     carries the starter's provider for the same reason, when known; ceilings
     are never forwarded, because a monitor has none. Both are scrubbed at
     agent launch like every other ``SASE_TOOL_*`` variable.
+
+    *starter_provider* is the value frozen at prepare time. Adoption uses it
+    instead of rediscovering the exited CLI's runtime.
     """
     overlay: dict[str, str] = {}
     if starter_agent and starter_agent.strip():
         overlay["SASE_TOOL_RUN_AGENT"] = starter_agent.strip()
-    try:
-        provider = discover_agent_runtime()
-    except Exception:  # noqa: BLE001 - provider attribution is best effort.
-        provider = None
+    provider = starter_provider
+    if not provider:
+        try:
+            provider = discover_agent_runtime()
+        except Exception:  # noqa: BLE001 - provider attribution is best effort.
+            provider = None
     if provider:
         overlay["SASE_TOOL_RUN_PROVIDER"] = provider
     return overlay
@@ -211,6 +228,183 @@ def _release_monitor_join(run_id: str, monitor_id: str) -> None:
         pass
 
 
+def _activate_staged_join(
+    run_id: str,
+    *,
+    staged_id: str,
+    monitor_id: str,
+    artifacts_dir: str,
+    bound_completion_ref: str | None,
+) -> None:
+    """Activate a staged-join reservation into the ordinary monitor join."""
+
+    from sase.core.tool_run import tool_run_activate_staged_join
+
+    from .join import show_pointer
+
+    try:
+        result = tool_run_activate_staged_join(
+            {
+                "schema_version": 1,
+                "run_id": run_id,
+                "staged_id": staged_id,
+                "monitor_id": monitor_id,
+            }
+        )
+    except Exception as exc:  # noqa: BLE001 - a failed activate starts no proc.
+        _teardown_refused_join(
+            artifacts_dir, bound_completion_ref, monitor_id, str(exc)
+        )
+        raise MonitorError(
+            f"could not activate staged join for tool run {run_id} ({exc}); "
+            f"no monitor started ({show_pointer(run_id)})"
+        ) from exc
+    if not isinstance(result, dict) or result.get("outcome") != "activated":
+        refusal = (
+            str(result.get("refusal") or "refused")
+            if isinstance(result, dict)
+            else "refused"
+        )
+        run = result.get("run") if isinstance(result, dict) else None
+        message = _join_refusal_message(run_id, refusal, run)
+        _teardown_refused_join(artifacts_dir, bound_completion_ref, monitor_id, message)
+        raise MonitorError(message)
+
+
+def _resolve_launch_execution(
+    context: MonitorLaunchContext, timer: StartTimer
+) -> tuple[str | None, bool, list[str], list[str], dict[str, str], bool]:
+    """Return ToolRun, argv, tags, env, and whether a join is recorded.
+
+    Prefers the execution frozen at prepare time so adoption never resolves
+    a different command or reserves a duplicate run. Immediate callers that
+    still omit ``proc_argv`` keep the historical in-launch reservation path.
+    """
+    request = context.request
+    lane_start = context.lane_start
+    monitor_id = context.monitor_id
+    bound_completion_ref = context.bound_completion_ref
+    artifacts_dir = context.artifacts_dir
+    log_path = context.log_path
+    proc_tags: list[str] = []
+    proc_env_overlay: dict[str, str] = {}
+    join_recorded = False
+
+    if context.proc_argv is not None:
+        proc_argv = list(context.proc_argv)
+        tool_run_id = context.reserved_tool_run_id
+        tool_run_joined = context.tool_run_joined
+        proc_tags = list(context.proc_tags)
+        proc_env_overlay = dict(context.proc_env_overlay)
+        if context.join_mode == "ordinary" and tool_run_id is not None:
+            _record_monitor_join(
+                tool_run_id,
+                monitor_id,
+                artifacts_dir=artifacts_dir,
+                bound_completion_ref=bound_completion_ref,
+            )
+            join_recorded = True
+        elif (
+            context.join_mode == "staged"
+            and tool_run_id is not None
+            and context.staged_id is not None
+        ):
+            _activate_staged_join(
+                tool_run_id,
+                staged_id=context.staged_id,
+                monitor_id=monitor_id,
+                artifacts_dir=artifacts_dir,
+                bound_completion_ref=bound_completion_ref,
+            )
+            join_recorded = True
+        timer.mark("tool_reservation")
+        return (
+            tool_run_id,
+            tool_run_joined,
+            proc_argv,
+            proc_tags,
+            proc_env_overlay,
+            join_recorded,
+        )
+
+    tool_run_id = None
+    tool_run_joined = False
+    if request.join_run_id is not None:
+        from sase.tool.handoff import join_tags, worker_env_overlay
+        from sase.tool.join_worker import join_worker_argv
+
+        tool_run_id = request.join_run_id
+        tool_run_joined = True
+        proc_argv = join_worker_argv(tool_run_id)
+        proc_tags = list(join_tags(tool_run_id))
+        proc_env_overlay = dict(worker_env_overlay())
+        update_meta_field(artifacts_dir, "monitor_tool_run_id", tool_run_id)
+        update_meta_field(artifacts_dir, "monitor_tool_run_joined", True)
+        _record_monitor_join(
+            tool_run_id,
+            monitor_id,
+            artifacts_dir=artifacts_dir,
+            bound_completion_ref=bound_completion_ref,
+        )
+        join_recorded = True
+    else:
+        proc_argv, unwrapped_reason = resolve_monitor_tool_wrap(
+            request.command,
+            request.execution_argv,
+            request.profile,
+            request.cwd,
+            get_monitor_tool_wrap(),
+        )
+        if unwrapped_reason is not None:
+            append_monitor_log_bytes(
+                log_path, format_unwrapped_log_line(unwrapped_reason).encode("utf-8")
+            )
+        from sase.tool.handoff import owner_tags, worker_argv, worker_env_overlay
+
+        from .tool_handoff import (
+            format_reservation_fallback_line,
+            maybe_reserve_monitor_tool_run,
+        )
+
+        words = monitor_tool_run_words(
+            request.command,
+            request.execution_argv,
+            proc_argv,
+            unwrapped_reason,
+        )
+        handoff = maybe_reserve_monitor_tool_run(
+            words,
+            cwd=request.cwd,
+            monitor_id=monitor_id,
+            starter_agent=lane_start.starter_agent,
+        )
+        if handoff.attempted:
+            reservation = handoff.reservation
+            if reservation is not None and reservation.reserved:
+                tool_run_id = reservation.run_id
+                proc_argv = worker_argv(tool_run_id)
+                proc_tags = list(owner_tags(tool_run_id))
+                proc_env_overlay = dict(worker_env_overlay())
+                update_meta_field(artifacts_dir, "monitor_tool_run_id", tool_run_id)
+            else:
+                reason = (
+                    reservation.error if reservation is not None else None
+                ) or "unknown error"
+                append_monitor_log_bytes(
+                    log_path,
+                    format_reservation_fallback_line(reason).encode("utf-8"),
+                )
+    timer.mark("tool_reservation")
+    return (
+        tool_run_id,
+        tool_run_joined,
+        proc_argv,
+        proc_tags,
+        proc_env_overlay,
+        join_recorded,
+    )
+
+
 def launch_monitor(context: MonitorLaunchContext, timer: StartTimer) -> MonitorRecord:
     """Submit the monitor proc and build the running record for *context*.
 
@@ -269,89 +463,14 @@ def launch_monitor(context: MonitorLaunchContext, timer: StartTimer) -> MonitorR
                 f"could not claim workspace for monitor: {claim_error}"
             )
 
-    tool_run_id: str | None = None
-    tool_run_joined = False
-    proc_tags: list[str] = []
-    proc_env_overlay: dict[str, str] = {}
-    join_recorded = False
-    if request.join_run_id is not None:
-        # Join: no wrapper resolution and no new ToolRun reservation. The
-        # proc follows the existing detached run, and the Rust join is
-        # recorded atomically after the member exists, before proc submit.
-        from sase.tool.handoff import join_tags, worker_env_overlay
-        from sase.tool.join_worker import join_worker_argv
-
-        tool_run_id = request.join_run_id
-        tool_run_joined = True
-        proc_argv = join_worker_argv(tool_run_id)
-        proc_tags = list(join_tags(tool_run_id))
-        proc_env_overlay = dict(worker_env_overlay())
-        update_meta_field(artifacts_dir, "monitor_tool_run_id", tool_run_id)
-        update_meta_field(artifacts_dir, "monitor_tool_run_joined", True)
-        _record_monitor_join(
-            tool_run_id,
-            monitor_id,
-            artifacts_dir=artifacts_dir,
-            bound_completion_ref=bound_completion_ref,
-        )
-        join_recorded = True
-    else:
-        proc_argv, unwrapped_reason = resolve_monitor_tool_wrap(
-            request.command,
-            request.execution_argv,
-            request.profile,
-            request.cwd,
-            get_monitor_tool_wrap(),
-        )
-        if unwrapped_reason is not None:
-            # The proc supervisor appends, so a pre-submit line stays first and
-            # the log explains why this monitor runs raw.
-            append_monitor_log_bytes(
-                log_path, format_unwrapped_log_line(unwrapped_reason).encode("utf-8")
-            )
-        from sase.tool.handoff import (
-            owner_tags,
-            worker_argv,
-            worker_env_overlay,
-        )
-
-        from .tool_handoff import (
-            format_reservation_fallback_line,
-            maybe_reserve_monitor_tool_run,
-        )
-
-        words = monitor_tool_run_words(
-            request.command,
-            request.execution_argv,
-            proc_argv,
-            unwrapped_reason,
-        )
-        handoff = maybe_reserve_monitor_tool_run(
-            words,
-            cwd=request.cwd,
-            monitor_id=monitor_id,
-            starter_agent=lane_start.starter_agent,
-        )
-        if handoff.attempted:
-            reservation = handoff.reservation
-            if reservation is not None and reservation.reserved:
-                # Adopted: the proc runs the claiming worker, never the
-                # E1.5 argv, so one semantic run is never recorded twice.
-                tool_run_id = reservation.run_id
-                proc_argv = worker_argv(tool_run_id)
-                proc_tags = list(owner_tags(tool_run_id))
-                proc_env_overlay = dict(worker_env_overlay())
-                update_meta_field(artifacts_dir, "monitor_tool_run_id", tool_run_id)
-            else:
-                # Fail-open: keep the E1.5 argv and name the fallback.
-                reason = (
-                    reservation.error if reservation is not None else None
-                ) or "unknown error"
-                append_monitor_log_bytes(
-                    log_path,
-                    format_reservation_fallback_line(reason).encode("utf-8"),
-                )
-    timer.mark("tool_reservation")
+    (
+        tool_run_id,
+        tool_run_joined,
+        proc_argv,
+        proc_tags,
+        proc_env_overlay,
+        join_recorded,
+    ) = _resolve_launch_execution(context, timer)
     try:
         proc = submit_proc_request(
             ProcSubmitRequest(
@@ -365,7 +484,9 @@ def launch_monitor(context: MonitorLaunchContext, timer: StartTimer) -> MonitorR
                     "SASE_MONITOR_DIAGNOSTICS_DIR": str(diagnostics_dir(artifacts_dir)),
                     MONITOR_ARTIFACTS_ENV: str(artifacts_dir),
                     "SASE_MONITOR_ID": monitor_id,
-                    **_tool_run_agent_overlay(lane_start.starter_agent),
+                    **_tool_run_agent_overlay(
+                        lane_start.starter_agent, context.starter_provider
+                    ),
                     **proc_env_overlay,
                 },
                 origin=MONITOR_PROC_ORIGIN,
@@ -436,6 +557,11 @@ def launch_monitor(context: MonitorLaunchContext, timer: StartTimer) -> MonitorR
         teardown_failed_member(artifacts_dir, str(exc))
         raise MonitorError(str(exc)) from exc
     timer.mark("spawn_and_ack")
+    if context.member_state == "staged":
+        update_meta_field(artifacts_dir, "monitor_state", "running")
+        from .staged_owner import clear_staged_owner_index
+
+        clear_staged_owner_index(monitor_id)
 
     record = MonitorRecord(
         monitor_id=monitor_id,

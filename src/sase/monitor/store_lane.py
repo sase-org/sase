@@ -131,14 +131,24 @@ def resolve_caller_agent(
     raise MonitorLaneError(_no_caller_artifacts_message(project_name, caller, records))
 
 
-def resolve_lane(project_name: str, lane: str) -> LaneContext:
-    """Resolve *lane* to its newest agent-session member's artifact record."""
+def resolve_lane(
+    project_name: str, lane: str, *, include_monitors: bool = True
+) -> LaneContext:
+    """Resolve *lane* to its newest agent-session member's artifact record.
+
+    Duplicate starts fingerprint against the starter agent. Pass
+    ``include_monitors=False`` so an occupying monitor member cannot change
+    ``starter_run_id`` and break identical-request replay.
+    """
     records = [
         record
         for record in store.project_records(project_name)
         if _record_in_lane(record, lane)
+        and (include_monitors or not is_monitor_member_record(record))
     ]
     if not records:
+        if not include_monitors:
+            return resolve_lane(project_name, lane)
         raise MonitorLaneError(
             f"no agent artifacts found for lane {lane!r} in project {project_name!r}"
         )
@@ -271,7 +281,7 @@ def monitor_blocking_start_for_lane(
             monitor = reconcile_dead_supervisor(
                 monitor, get_monitor=store.read_monitor_marker, snapshot=procs.get()
             )
-        if monitor.monitor_state == "lost" or not monitor.is_terminal:
+        if _blocks_lane_start(monitor):
             candidates.append(monitor)
     if not candidates:
         return None
@@ -291,6 +301,31 @@ def has_any_monitor(
     if reads is not None:
         return bool(reads.records(lane))
     return bool(store.lane_monitor_records(project_name, lane))
+
+
+def _blocks_lane_start(monitor: MonitorRecord) -> bool:
+    """Return whether *monitor* occupies the lane for a new start.
+
+    Staged members block without a supervisor. Unknown membership facts fail
+    closed to the historical non-terminal rule so a corrupt state cannot
+    open the lane.
+    """
+    from sase.core.staged_handoff import (
+        StagedHandoffContractError,
+        evaluate_staged_monitor_membership,
+    )
+
+    try:
+        facts = evaluate_staged_monitor_membership(
+            {
+                "schema_version": 1,
+                "monitor_state": monitor.monitor_state,
+                "supervisor_present": monitor.pid is not None,
+            }
+        )
+    except StagedHandoffContractError:
+        return monitor.monitor_state == "lost" or not monitor.is_terminal
+    return bool(facts.get("blocks_lane_start"))
 
 
 def _record_in_lane(record: AgentArtifactRecordWire, lane: str) -> bool:

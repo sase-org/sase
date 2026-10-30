@@ -39,6 +39,7 @@ def _record(
 @pytest.mark.parametrize(
     ("state", "bucket"),
     [
+        ("staged", "Running"),
         ("running", "Running"),
         ("completed", "Done"),
         ("failed", "Failed"),

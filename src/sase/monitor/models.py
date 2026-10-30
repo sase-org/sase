@@ -25,9 +25,12 @@ if TYPE_CHECKING:
         DoneMarkerWire,
     )
 
-MonitorState = Literal["running", "completed", "failed", "timeout", "stopped", "lost"]
+MonitorState = Literal[
+    "staged", "running", "completed", "failed", "timeout", "stopped", "lost"
+]
 
 MONITOR_STATES: tuple[MonitorState, ...] = (
+    "staged",
     "running",
     "completed",
     "failed",
@@ -36,7 +39,8 @@ MONITOR_STATES: tuple[MonitorState, ...] = (
     "lost",
 )
 
-#: Every state but ``running`` -- the command has stopped producing output.
+#: Settled command states. ``staged`` is nonterminal: the member exists
+#: but has not submitted a proc.
 TERMINAL_MONITOR_STATES: frozenset[str] = frozenset(
     {"completed", "failed", "timeout", "stopped", "lost"}
 )

@@ -69,6 +69,8 @@ def observe_owner_fact(run: Mapping[str, Any]) -> dict[str, Any] | None:
 
         proc = get_proc(owner_id)
         if proc is None:
+            if kind == "monitor" and _pending_staged_monitor_owner(owner_id):
+                return {"kind": kind, "id": owner_id, "state": "pending"}
             return {"kind": kind, "id": owner_id, "state": "missing"}
         if proc.status not in TERMINAL_PROC_STATUSES:
             return {"kind": kind, "id": owner_id, "state": "active"}
@@ -82,6 +84,55 @@ def observe_owner_fact(run: Mapping[str, Any]) -> dict[str, Any] | None:
         )
     except Exception:  # noqa: BLE001 - an unreadable owner is never proof.
         return {"kind": kind, "id": owner_id, "state": "unknown"}
+
+
+def _pending_staged_monitor_owner(monitor_id: str) -> bool:
+    """Return whether *monitor_id* is a positively identified staged owner.
+
+    Unknown or corrupt facts are not pending ownership: a missing index or
+    payload is never proof that a reserved run may be stolen or settled as
+    ``launch_failed``.
+    """
+    from sase.core.staged_handoff import evaluate_staged_owner_liveness
+    from sase.monitor.staged_owner import (
+        launch_payload_path,
+        read_staged_owner_index,
+    )
+
+    index = read_staged_owner_index(monitor_id)
+    staged_id = ""
+    record_present = False
+    if index is not None:
+        staged_id = str(index.get("staged_id") or "")
+        artifacts_dir = str(index.get("artifacts_dir") or "")
+        if artifacts_dir:
+            record_present = launch_payload_path(artifacts_dir).is_file()
+        if not record_present:
+            starter = str(index.get("starter_artifacts_dir") or "")
+            if starter:
+                try:
+                    from sase.agent.staged_handoff import read_staged_handoff
+
+                    record = read_staged_handoff(starter)
+                except Exception:  # noqa: BLE001 - unknown facts are not ownership.
+                    record = None
+                record_present = (
+                    isinstance(record, dict) and record.get("staged_id") == staged_id
+                )
+    try:
+        decision = evaluate_staged_owner_liveness(
+            {
+                "schema_version": 1,
+                "owner_kind": "monitor",
+                "owner_id": monitor_id,
+                "staged_id": staged_id or "00000000-0000-4000-8000-000000000000",
+                "stage_record_present": record_present,
+                "proc_exists": False,
+            }
+        )
+    except Exception:  # noqa: BLE001 - unknown facts are not pending ownership.
+        return False
+    return bool(decision.get("pending_owner"))
 
 
 def owner_fact_from_settlement(

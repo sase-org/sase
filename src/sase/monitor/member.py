@@ -58,6 +58,8 @@ def create_monitor_member(
     parent_node_ids: Sequence[str] = (),
     continuation_protocol: str = MONITOR_CONTINUATION_PROTOCOL_LEGACY,
     queue_weight_override: float | None = None,
+    monitor_state: str = "running",
+    staged_id: str | None = None,
 ) -> str:
     """Create a monitor agent-session member's artifacts directory.
 
@@ -87,7 +89,7 @@ def create_monitor_member(
         "monitor_timeout_seconds": timeout_seconds,
         "monitor_tail_lines": tail_lines,
         "monitor_next_output": next_output,
-        "monitor_state": "running",
+        "monitor_state": monitor_state,
         "monitor_settled": False,
         "monitor_request_fingerprint": request_fingerprint,
         MONITOR_CONTINUATION_PROTOCOL_FIELD: continuation_protocol,
@@ -118,6 +120,8 @@ def create_monitor_member(
         monitor_metadata["continuation_parent_node_ids"] = [
             str(node_id) for node_id in parent_node_ids if str(node_id)
         ]
+    if staged_id:
+        monitor_metadata["monitor_staged_id"] = staged_id
     if queue_weight_override is not None:
         monitor_metadata[MONITOR_QUEUE_WEIGHT_OVERRIDDEN_KEY] = True
         if "queue_weight" in base_meta:

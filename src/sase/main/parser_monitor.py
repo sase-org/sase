@@ -9,6 +9,7 @@ from sase.ops.cli import add_operation_io_flags
 # Mirrors ``sase.monitor.models.MONITOR_STATES``, spelled out here so
 # building the parser never imports the monitor engine package.
 MONITOR_STATE_CHOICES = (
+    "staged",
     "running",
     "completed",
     "failed",

@@ -69,7 +69,9 @@ def peek_continuation_parents(
         lane_ctx = (
             identity.context
             if identity.context is not None
-            else store_lane.resolve_lane(request.project_name, identity.target)
+            else store_lane.resolve_lane(
+                request.project_name, identity.target, include_monitors=False
+            )
         )
     except Exception:
         return [], None, None

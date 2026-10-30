@@ -2,9 +2,10 @@
 
 This module is a facade: it owns no start logic itself and only re-exports
 the names its callers have always imported from here. The flow lives next
-door: :mod:`sase.monitor.start_flow` (lane resolution and the ordered launch
-transaction up to member creation), :mod:`sase.monitor.start_launch` (proc
-submit, claim moves, and the running record), :mod:`sase.monitor.request`
+door: :mod:`sase.monitor.start_flow` (immediate start composed from shared
+preparation and launch), :mod:`sase.monitor.start_stage` (internal staging,
+adoption, and cleanup), :mod:`sase.monitor.start_launch` (proc submit, claim
+moves, and the running record), :mod:`sase.monitor.request`
 (the request and its identity), :mod:`sase.monitor.proc_adapter` (the
 proc-service facade), :mod:`sase.monitor.start_lane` (lane and workspace
 resolution), :mod:`sase.monitor.start_claim` (RUNNING-field claim moves),

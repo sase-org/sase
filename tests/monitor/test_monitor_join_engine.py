@@ -183,7 +183,7 @@ def test_join_duplicate_start_replays_without_resubmitting(
     # fake supervisor pid is dead by construction, so dead-supervisor
     # reconciliation is also held off: it owns ordinary liveness, not joins.
     monkeypatch.setattr(
-        "sase.monitor.start_flow.monitor_request_fingerprint",
+        "sase.monitor.start_prepare.monitor_request_fingerprint",
         lambda request, *, lane, label: "sha256:join-match",
     )
     monkeypatch.setattr(

@@ -437,3 +437,43 @@ def test_inherited_gate_id_without_gate_role_uses_ordinary_started_rule() -> Non
 
     assert not is_real_gate_member_record(gate_followup)
     assert not is_runner_slot_occupying_record(gate_followup, lambda _: True)
+
+
+def test_staged_monitor_does_not_occupy_runner_capacity() -> None:
+    staged = record(
+        agent_meta=AgentMetaWire(
+            agent_session="fam",
+            agent_session_role="monitor",
+            agent_session_turn=AgentSessionTurnWire(
+                kind="monitor", id="mon-1", state="staged"
+            ),
+            pid=None,
+            run_started_at="2026-07-09T12:00:00Z",
+        )
+    )
+    staged_with_pid = record(
+        agent_meta=AgentMetaWire(
+            agent_session="fam",
+            agent_session_role="monitor",
+            agent_session_turn=AgentSessionTurnWire(
+                kind="monitor", id="mon-1", state="staged"
+            ),
+            pid=1234,
+            run_started_at="2026-07-09T12:00:00Z",
+        )
+    )
+    running = record(
+        agent_meta=AgentMetaWire(
+            agent_session="fam",
+            agent_session_role="monitor",
+            agent_session_turn=AgentSessionTurnWire(
+                kind="monitor", id="mon-2", state="running"
+            ),
+            pid=1234,
+            run_started_at="2026-07-09T12:00:00Z",
+        )
+    )
+
+    assert not is_runner_slot_occupying_record(staged, lambda _: True)
+    assert not is_runner_slot_occupying_record(staged_with_pid, lambda _: True)
+    assert is_runner_slot_occupying_record(running, lambda _: True)

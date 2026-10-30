@@ -20,6 +20,7 @@ MONITOR_PROC_ORIGIN = "monitor"
 MONITOR_TIMEOUT_GLYPH = "⧖"
 
 MONITOR_STATE_BUCKETS: dict[str, str] = {
+    "staged": "Running",
     "running": "Running",
     "completed": "Done",
     "failed": "Failed",

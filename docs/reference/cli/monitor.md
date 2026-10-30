@@ -46,16 +46,16 @@ List monitor agent session members, newest first. By default this shows only act
 
 Options:
 
-| Option                         | Description                                                                                                                                                                    | Default |
-| ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------- |
-| `-l NAME`, `--agent NAME`      | Only monitors belonging to this agent                                                                                                                                          | —       |
-| `-a`, `--all`                  | Include finished monitors, not just running ones                                                                                                                               | `false` |
-| `-f FORMAT`, `--format FORMAT` | Output format: 'table' (default), 'markdown', or 'json' (choices: `json`, `markdown`, `table`)                                                                                 | `table` |
-| `-h`, `--help`                 | show this help message and exit                                                                                                                                                | —       |
-| `-j`, `--json`                 | Emit a machine-readable JSON envelope (shorthand for --format json)                                                                                                            | `false` |
-| `-n N`, `--limit N`            | Show at most N monitors                                                                                                                                                        | —       |
-| `-p NAME`, `--project NAME`    | Only monitors from this project (default: every project)                                                                                                                       | —       |
-| `-s STATE`, `--status STATE`   | Only monitors in this state; repeat to add more (running, completed, failed, timeout, stopped, lost) (choices: `completed`, `failed`, `lost`, `running`, `stopped`, `timeout`) | —       |
+| Option                         | Description                                                                                                                                                                                      | Default |
+| ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------- |
+| `-l NAME`, `--agent NAME`      | Only monitors belonging to this agent                                                                                                                                                            | —       |
+| `-a`, `--all`                  | Include finished monitors, not just running ones                                                                                                                                                 | `false` |
+| `-f FORMAT`, `--format FORMAT` | Output format: 'table' (default), 'markdown', or 'json' (choices: `json`, `markdown`, `table`)                                                                                                   | `table` |
+| `-h`, `--help`                 | show this help message and exit                                                                                                                                                                  | —       |
+| `-j`, `--json`                 | Emit a machine-readable JSON envelope (shorthand for --format json)                                                                                                                              | `false` |
+| `-n N`, `--limit N`            | Show at most N monitors                                                                                                                                                                          | —       |
+| `-p NAME`, `--project NAME`    | Only monitors from this project (default: every project)                                                                                                                                         | —       |
+| `-s STATE`, `--status STATE`   | Only monitors in this state; repeat to add more (staged, running, completed, failed, timeout, stopped, lost) (choices: `completed`, `failed`, `lost`, `running`, `staged`, `stopped`, `timeout`) | —       |
 
 ## `sase monitor resume`
 
