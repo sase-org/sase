@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import ast
 import json
 import os
 import shutil
@@ -50,53 +51,89 @@ def pytest_unconfigure(config: pytest.Config) -> None:
 _SCOPED_FILLER_COUNT = 9
 
 
+def _tests_module_file(name: str) -> Path | None:
+    """Resolve a dotted ``tests.*`` name to a file in this checkout."""
+    if name != "tests" and not name.startswith("tests."):
+        return None
+    parts = name.split(".")
+    for end in range(len(parts), 0, -1):
+        relative = Path(*parts[:end])
+        py_file = _ROOT / f"{relative}.py"
+        if py_file.is_file():
+            return py_file
+        init_file = _ROOT / relative / "__init__.py"
+        if init_file.is_file():
+            return init_file
+    return None
+
+
+def _runner_import_closure_files() -> list[Path]:
+    """tests/ modules the real runner imports, including ``-p`` plugin strings."""
+    from tests._test_selection_graph import parse_import_targets
+
+    pending: list[Path] = [_RUNNER]
+    seen: set[Path] = set()
+    files: list[Path] = []
+    tests_root = _ROOT / "tests"
+    while pending:
+        path = pending.pop()
+        if path in seen:
+            continue
+        seen.add(path)
+        if path != _RUNNER:
+            files.append(path)
+        source = path.read_text(encoding="utf-8")
+        parse_path = (
+            "tools/run_pytest.py" if path == _RUNNER else str(path.relative_to(_ROOT))
+        )
+        names = set(parse_import_targets(source, parse_path))
+        try:
+            tree = ast.parse(source)
+        except SyntaxError:
+            tree = None
+        if tree is not None:
+            for node in ast.walk(tree):
+                if isinstance(node, ast.Constant) and isinstance(node.value, str):
+                    names.add(node.value)
+        for name in names:
+            resolved = _tests_module_file(name)
+            if resolved is not None:
+                pending.append(resolved)
+        if path == _RUNNER or tests_root not in path.parents:
+            continue
+        current = path.parent
+        while tests_root in current.parents or current == tests_root:
+            init_file = current / "__init__.py"
+            if init_file.is_file():
+                pending.append(init_file)
+            if current == tests_root:
+                break
+            current = current.parent
+    return sorted(files)
+
+
+def _copy_runner_import_closure(root: Path) -> None:
+    """Copy the runner's real tests.* import closure into a miniature repo."""
+    for source in _runner_import_closure_files():
+        destination = root / source.relative_to(_ROOT)
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy(source, destination)
+
+
 def _build_scoped_repo(root: Path) -> None:
     """Lay out a miniature repository the real runner can select tests in.
 
     The runner resolves its own ``REPO_ROOT`` from ``__file__``, so the runner
-    and the modules it imports are *copied*, never symlinked.
+    and the modules it imports are *copied*, never symlinked. The copied tests
+    modules are derived from the runner's actual import closure so a new helper
+    cannot drop out of the miniature again.
     """
     (root / "tools").mkdir(parents=True)
     (root / "tests").mkdir(parents=True)
     (root / "src" / "pkg").mkdir(parents=True)
 
     shutil.copy(_RUNNER, root / "tools" / "run_pytest")
-    for module in (
-        "_agent_artifact_marker_audit_helpers.py",
-        "_contention.py",
-        "_suite_gate.py",
-        "_suite_gate_budget.py",
-        "_suite_gate_demand.py",
-        "_suite_gate_env.py",
-        "_suite_gate_holders.py",
-        "_suite_gate_lease.py",
-        "_suite_gate_messages.py",
-        "_suite_gate_pool.py",
-        "_suite_gate_progress.py",
-        "_test_cost.py",
-        "_test_cost_budgets.py",
-        "_test_cost_plugin.py",
-        "_test_cost_plugin_patches.py",
-        "_test_cost_records.py",
-        "_test_cost_report.py",
-        "_test_selection.py",
-        "_test_selection_changes.py",
-        "_test_selection_contexts.py",
-        "_test_selection_gear.py",
-        "_test_selection_graph.py",
-        "_test_selection_health.py",
-        "_test_selection_health_correlation.py",
-        "_test_selection_health_records.py",
-        "_test_selection_health_report.py",
-        "_test_selection_health_store.py",
-        "_test_selection_manifest.py",
-        "_test_selection_report.py",
-        "_test_selection_rules.py",
-        "_test_selection_timings.py",
-        "_test_selection_timings_plugin.py",
-        "_test_shards.py",
-    ):
-        shutil.copy(_ROOT / "tests" / module, root / "tests" / module)
+    _copy_runner_import_closure(root)
 
     (root / "tests" / "__init__.py").write_text("", encoding="utf-8")
     (root / "tests" / "conftest.py").write_text(_SCOPED_CONFTEST, encoding="utf-8")
@@ -222,6 +259,13 @@ def _scoped_manifest(root: Path) -> dict[str, Any]:
             encoding="utf-8"
         )
     )
+
+
+def test_runner_import_closure_includes_selection_layer_helpers() -> None:
+    """The miniature copies the selection layer's real imports, not a hand list."""
+    names = {path.name for path in _runner_import_closure_files()}
+    assert "_agent_artifact_marker_audit_helpers.py" in names
+    assert "_test_selection_rules.py" in names
 
 
 def test_scoped_run_takes_no_token_while_the_pool_is_exhausted(

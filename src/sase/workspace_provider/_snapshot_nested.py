@@ -117,26 +117,30 @@ def _collect_git_roots(
 ) -> None:
     if not os.path.lexists(start):
         return
-    if start.is_symlink():
-        return
-    start_key = start.resolve(strict=False)
-    git_marker = start / ".git"
-    if start.is_dir() and (git_marker.exists() or os.path.lexists(git_marker)):
-        if start_key != parent_key:
-            found[start_key] = start
-            return
-    if not start.is_dir():
-        return
     try:
+        if start.is_symlink():
+            return
+        start_key = start.resolve(strict=False)
+        git_marker = start / ".git"
+        # Path.exists() on 3.12/3.13 raises PermissionError when a parent
+        # directory is unreadable; 3.14's os.path.exists returns False. Either
+        # way an inspectability failure must become PreservationError rather
+        # than omitting an unreadable nested checkout.
+        if start.is_dir() and (git_marker.exists() or os.path.lexists(git_marker)):
+            if start_key != parent_key:
+                found[start_key] = start
+                return
+        if not start.is_dir():
+            return
         children = sorted(start.iterdir(), key=lambda path: path.name)
+        for child in children:
+            if child.is_symlink() or not child.is_dir():
+                continue
+            _collect_git_roots(child, parent_key, found)
     except OSError as exc:
         raise PreservationError(
             f"cannot enumerate nested repositories under {start}: {exc}"
         ) from exc
-    for child in children:
-        if child.is_symlink() or not child.is_dir():
-            continue
-        _collect_git_roots(child, parent_key, found)
 
 
 def _dirty_paths_for(root: Path) -> tuple[str, ...]:
