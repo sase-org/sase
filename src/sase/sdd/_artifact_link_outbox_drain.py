@@ -382,7 +382,7 @@ def _entry_is_trusted_machine_event(entry: _ArtifactLinkOutboxEntry) -> bool:
     if event is None:
         return False
     origin = str(event.get("origin") or "")
-    if origin not in {"derived", "migrated"}:
+    if origin not in {"derived", "migrated", "prompt_ref", "prompt_prose"}:
         return False
     return entry.agent_name in {
         "sase",

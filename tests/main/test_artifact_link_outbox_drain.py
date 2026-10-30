@@ -347,6 +347,55 @@ def test_drain_allows_trusted_machine_derived_events_without_evidence(
         assert read_artifact_link_outbox_entries("gh_sase-org__sase") == ()
 
 
+def test_drain_allows_trusted_prompt_ref_cites_without_evidence(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    redirect_sase_home(monkeypatch, tmp_path / ".sase")
+    allow_machine_sidecar_writes(monkeypatch)
+    repo = tmp_path / "plans"
+    _init_plans_repo(repo)
+    store = ArtifactLinkStore(
+        project_key="gh_sase-org__sase",
+        sidecar_roots={"plan": repo},
+    )
+    event = observation_or_put_event_from_row(
+        _row(
+            source="agent:alice.athena.worker",
+            relation="cites",
+            target="plan:doc.md",
+            origin="prompt_ref",
+            created_by="alice.athena.worker",
+            description="prompt reference @plan:doc.md",
+        ),
+        project_key=store.project_key,
+        operation_id=stable_artifact_link_operation_id(
+            "prompt-cites",
+            store.project_key,
+            "agent:alice.athena.worker",
+            "cites",
+            "plan:doc.md",
+            "prompt_ref",
+        ),
+    )
+    append_artifact_link_outbox_event(
+        project_key=store.project_key,
+        agent_name="sase",
+        run_id=artifact_link_machine_run_id(),
+        event=event,
+    )
+
+    report = drain_artifact_link_outbox(
+        store=store,
+        agent_name="sase",
+        drop_stale_terminal=True,
+        push_after_commit=False,
+    )
+
+    assert report.drained == 1
+    assert read_artifact_link_outbox_entries("gh_sase-org__sase") == ()
+
+
 def test_mixed_collision_drain_retries_after_quarantine_commit_before_outbox_rewrite(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

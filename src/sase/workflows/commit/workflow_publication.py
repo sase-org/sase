@@ -191,6 +191,10 @@ def _run_agent_publication_inner(
                     publication_agent,
                     revision,
                     commit_cwd=cp.cwd,
+                    cites_event_run_id=os.environ.get(
+                        "SASE_AGENT_TIMESTAMP", ""
+                    ).strip()
+                    or None,
                 ),
             )
         except Exception as exc:  # noqa: BLE001 - auxiliary publication boundary

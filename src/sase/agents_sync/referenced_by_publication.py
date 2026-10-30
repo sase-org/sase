@@ -8,6 +8,10 @@ from typing import TYPE_CHECKING
 
 from sase.agents_sync.git import GitRunner
 from sase.agents_sync.models import ProjectTarget
+from sase.agents_sync.referenced_by_events import (
+    convert_fenced_referenced_by_backlog,
+    legacy_referenced_by_writes_fenced,
+)
 from sase.agents_sync.referenced_by_outbox import (
     ReferencedByOutboxItem,
     acknowledge_referenced_by_requests,
@@ -29,6 +33,8 @@ def drain_referenced_by_requests(
     """Drain active referenced-by requests for one project target."""
 
     del git_runner  # Store helpers own their git boundary today.
+    if legacy_referenced_by_writes_fenced(target):
+        return convert_fenced_referenced_by_backlog(target)
     requests = list_referenced_by_requests(
         target.project_key,
         include_quarantined=False,
@@ -49,12 +55,18 @@ def drain_referenced_by_requests(
         by_role.items(),
         key=lambda item: (item[0] == "agents", item[0]),
     ):
-        report = refresh_referenced_by(
-            store,
-            role=role,
-            requests=tuple(role_requests),
-            write=True,
-        )
+        try:
+            report = refresh_referenced_by(
+                store,
+                role=role,
+                requests=tuple(role_requests),
+                write=True,
+            )
+        except Exception as exc:  # noqa: BLE001 - charge so a fenced raise quarantines.
+            error = str(exc) or type(exc).__name__
+            _record_failure(target, role_requests, error)
+            diagnostics.append(f"referenced-by {role} refresh failed: {error}")
+            continue
         if report.ok:
             acknowledge_referenced_by_requests(
                 target.project_key,

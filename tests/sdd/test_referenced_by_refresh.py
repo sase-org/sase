@@ -424,6 +424,47 @@ def test_refresh_artifact_links_creates_binary_companion(
     assert "## Referenced By" in content
 
 
+def test_refresh_write_on_fenced_store_skips_lock_and_pull(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from sase.sdd.artifact_link_store import ArtifactLinkStore
+    from tests.sdd._artifact_link_store_helpers import write_imported_cutover_marker
+
+    root = tmp_path / "plans"
+    store = _store(root)
+    document = root / "202608" / "example.md"
+    document.parent.mkdir(parents=True)
+    document.write_text("# Example\n\nBody\n", encoding="utf-8")
+    write_imported_cutover_marker(
+        ArtifactLinkStore(project_key="proj", sidecar_roots={"plan": root})
+    )
+    lock_calls: list[str] = []
+
+    def _lock(*_args: object, **_kwargs: object):
+        lock_calls.append("lock")
+        raise AssertionError("fenced refresh must not take the store lock")
+
+    monkeypatch.setattr("sase.sdd._git_contention.store_git_write_lock", _lock)
+    monkeypatch.setattr(
+        "sase.sdd.referenced_by_refresh._pull_rebase_if_remote",
+        lambda _repo_root: (_ for _ in ()).throw(
+            AssertionError("fenced refresh must not pull")
+        ),
+    )
+
+    report = refresh_referenced_by(
+        store,
+        role="plans",
+        requests=(_request(),),
+        write=True,
+    )
+
+    assert not report.ok
+    assert report.issues[0].code == "legacy-writes-fenced"
+    assert lock_calls == []
+
+
 def test_projection_refresh_commits_index_and_ignore_without_lock_residue(
     tmp_path: Path,
     monkeypatch,

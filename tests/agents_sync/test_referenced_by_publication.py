@@ -125,6 +125,11 @@ class TestDrainRoutesRequestsThroughTheMachineStore:
             "acknowledge_referenced_by_requests",
             lambda project_key, keys: acknowledged.extend(keys),
         )
+        monkeypatch.setattr(
+            referenced_by_publication,
+            "legacy_referenced_by_writes_fenced",
+            lambda _target: False,
+        )
 
         diagnostics = drain_referenced_by_requests(
             target, git_runner=_unused_git_runner
@@ -134,3 +139,84 @@ class TestDrainRoutesRequestsThroughTheMachineStore:
         assert resolve_calls == [("proj", target.primary_checkout)]
         assert refresh_calls == [fake_sdd_store]
         assert acknowledged == [item.logical_key]
+
+    def test_fenced_drain_skips_store_resolve_lock_and_refresh(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        target = _target(tmp_path)
+        convert_calls: list[str] = []
+        monkeypatch.setattr(
+            referenced_by_publication,
+            "legacy_referenced_by_writes_fenced",
+            lambda _target: True,
+        )
+        monkeypatch.setattr(
+            referenced_by_publication,
+            "convert_fenced_referenced_by_backlog",
+            lambda drained: convert_calls.append(drained.project_key) or (),
+        )
+        monkeypatch.setattr(
+            referenced_by_publication,
+            "_resolve_store",
+            lambda _target: (_ for _ in ()).throw(
+                AssertionError("fenced drain must not resolve the machine store")
+            ),
+        )
+        monkeypatch.setattr(
+            referenced_by_publication,
+            "refresh_referenced_by",
+            lambda *_args, **_kwargs: (_ for _ in ()).throw(
+                AssertionError("fenced drain must not refresh")
+            ),
+        )
+
+        diagnostics = drain_referenced_by_requests(
+            target, git_runner=_unused_git_runner
+        )
+
+        assert diagnostics == ()
+        assert convert_calls == ["proj"]
+
+    def test_refresh_exception_charges_attempts_and_quarantines(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        from sase.agents_sync.referenced_by_outbox import (
+            enqueue_referenced_by_request,
+            list_referenced_by_requests,
+        )
+
+        monkeypatch.setenv("SASE_HOME", str(tmp_path / ".sase"))
+        monkeypatch.setenv("SASE_AGENTS_PUBLICATION_MAX_ATTEMPTS", "2")
+        target = _target(tmp_path)
+        item = enqueue_referenced_by_request(_item())
+        monkeypatch.setattr(
+            referenced_by_publication,
+            "legacy_referenced_by_writes_fenced",
+            lambda _target: False,
+        )
+        monkeypatch.setattr(
+            referenced_by_publication,
+            "_resolve_store",
+            lambda _target: object(),
+        )
+
+        def _raise(*_args: object, **_kwargs: object) -> None:
+            raise RuntimeError(
+                "artifact-link legacy index writes are fenced; use link events"
+            )
+
+        monkeypatch.setattr(referenced_by_publication, "refresh_referenced_by", _raise)
+
+        first = drain_referenced_by_requests(target, git_runner=_unused_git_runner)
+        second = drain_referenced_by_requests(target, git_runner=_unused_git_runner)
+
+        assert first and "legacy index writes are fenced" in first[0]
+        assert second and "legacy index writes are fenced" in second[0]
+        active = list_referenced_by_requests(
+            item.project_key, include_quarantined=False
+        )
+        queued = list_referenced_by_requests(item.project_key, include_quarantined=True)
+        assert active == ()
+        assert len(queued) == 1
+        assert queued[0].attempts == 2
+        assert queued[0].quarantined is True

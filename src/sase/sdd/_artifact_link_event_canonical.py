@@ -109,7 +109,7 @@ def observation_or_put_event_from_row(
     canonical_row = validate_artifact_link_row(row)
     origin = str(canonical_row.get("origin") or "")
     edge = edge_from_row(canonical_row)
-    if origin in {"read", "prompt_ref"}:
+    if origin in {"read", "prompt_ref", "prompt_prose"}:
         kind = {
             "type": "observation",
             "edge": edge,

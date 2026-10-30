@@ -161,18 +161,27 @@ artifact pool inside the same bounded transaction that publishes the hood. A req
 acknowledged only once both halves reached the sidecar, so a prompt that could not be
 rebuilt keeps its request queued and retryable rather than retiring it.
 
-Document back-references are separate. Only after publishing a prompt archive that
-contains a provider-document reference does SASE record a request in
-`~/.sase/projects/<project-key>/referenced-by-outbox.json` and try to update the cited
-artifact sidecar's managed `Referenced By` table. This drain attempt runs before the
-publishing command returns, but it cannot delay or roll back the prompt publication that
-already completed. A request stays queued when the artifact-sidecar pull, update, or
-local commit fails. Once the local refresh succeeds, SASE acknowledges the request; if
-it created a commit, SASE starts that commit's push asynchronously. A later push failure
-is recorded in the managed SDD sync log rather than restored to this outbox. Queued
-requests use the same retry, quarantine, and retired-entry operator controls as hood
-publication. See [Artifact Reference Publication](../artifact-references.md#publication)
-for the complete ordering and recovery boundary.
+Document back-references are separate. After publishing a prompt archive that contains a
+provider-document reference, SASE records the citation and tries to publish it before
+the publishing command returns. That attempt cannot delay or roll back the prompt
+publication that already completed.
+
+In an unfenced project the citation is a row in
+`~/.sase/projects/<project-key>/referenced-by-outbox.json`. The drain pulls the cited
+artifact sidecar, updates its managed `Referenced By` table, and acknowledges the
+request after a successful local refresh. A later detached push failure is recorded in
+the managed SDD sync log rather than restored to this outbox. Refresh failures charge
+attempts and quarantine at the publication threshold. Queued requests use the same
+retry, quarantine, and retired-entry operator controls as hood publication.
+
+In a fenced (link-v2) project SASE never takes that sidecar lock or pulls for Referenced
+By, and never enqueues a new outbox row. Planned `cites` rows are appended as
+artifact-link outbox events and published by the existing link-outbox drain. On the
+commit path those events use the committing run's identity so the same pass publishes
+them; the approved-planner archive uses a trusted machine lane. Active legacy outbox
+rows are replayed once as equivalent `migrated` cites events and then acknowledged. See
+[Artifact Reference Publication](../artifact-references.md#publication) for the complete
+ordering and recovery boundary.
 
 Use `sase agent prompts list` to browse the archive. `sase agent prompts show <prompt>`
 prints the archived Markdown document. `sase agent prompts validate` verifies headers,
@@ -298,10 +307,12 @@ sase agent sync -p project-alias -p another-project
 The repository transaction acquires a bounded lock, fetches and pulls with rebase,
 publishes eligible locally owned hoods, restores deferred prompt archives, rebuilds
 deterministic indexes, commits with the full owner identity, pushes, and drains queued
-Referenced By requests into their artifact sidecars. The commit workflow has a separate
-earlier prompt-archive step: it publishes that archive and drains the resulting
-back-reference requests before it proceeds to agent-hood publication. In both cases, the
-prompt's agents-sidecar publication completes before its back-reference drain begins.
+Referenced By work. Unfenced projects still refresh cited artifact sidecars. Fenced
+projects convert leftover outbox rows into cites link events and never take those
+sidecar locks. The commit workflow has a separate earlier prompt-archive step: it
+publishes that archive and records the resulting citations (legacy outbox or link
+events) before it proceeds to agent-hood publication. In both cases, the prompt's
+agents-sidecar publication completes before its back-reference drain begins.
 `sase agent sync` is the explicit recovery command for queued requests a commit could
 not immediately resolve and the full-reconciliation command for hoods with no recent
 commit. A non-fast-forward rejection triggers one pull/recompute/commit/push retry.

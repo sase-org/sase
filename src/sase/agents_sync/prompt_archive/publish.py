@@ -25,7 +25,10 @@ from sase.agents_sync.publication_outbox import (
     AgentPublicationOutboxItem,
     enqueue_agent_publication,
 )
-from sase.agents_sync.referenced_by_outbox import enqueue_referenced_by_request
+from sase.agents_sync.referenced_by_outbox import (
+    ReferencedByOutboxItem,
+    enqueue_referenced_by_request,
+)
 from sase.agents_sync.targets import resolve_sync_targets
 from sase.config import require_agent_owner_identity
 from sase.core.agent_identity_facade import (
@@ -66,6 +69,7 @@ def publish_prompt_archive(
     yyyymm: str | None = None,
     git_runner: GitRunner = run_git,
     lock_timeout_seconds: float | None = None,
+    cites_event_run_id: str | None = None,
 ) -> PromptArchivePublicationOutcome:
     """Publish one run's prompt without crossing the primary commit boundary."""
 
@@ -82,6 +86,7 @@ def publish_prompt_archive(
             yyyymm=yyyymm,
             git_runner=git_runner,
             lock_timeout_seconds=lock_timeout_seconds,
+            cites_event_run_id=cites_event_run_id,
         )
     except Exception as exc:  # noqa: BLE001 - auxiliary publication boundary.
         return PromptArchivePublicationOutcome(error=str(exc) or type(exc).__name__)
@@ -100,6 +105,7 @@ def _publish_prompt_archive(
     yyyymm: str | None,
     git_runner: GitRunner,
     lock_timeout_seconds: float | None,
+    cites_event_run_id: str | None,
 ) -> PromptArchivePublicationOutcome:
     from sase.agents_sync.commit_publication import (
         fulfillment_scope_for_commit_cwd,
@@ -281,12 +287,17 @@ def _publish_prompt_archive(
                     log.debug(
                         "Could not update artifact ref-files index", exc_info=True
                     )
-                for request in prepared.referenced_by_requests:
-                    enqueue_referenced_by_request(request)
+                cites_error = _record_prompt_cites(
+                    target,
+                    prepared.referenced_by_requests,
+                    publication_agent=agent_name,
+                    cites_event_run_id=cites_event_run_id,
+                )
                 prompt_outcome = PromptArchivePublicationOutcome(
                     published=bool(commit_result),
                     queued=True,
                     prompt_path=prepared.prompt_path,
+                    error=cites_error,
                 )
         finally:
             # A failed attempt is regenerated from the immutable local pool.
@@ -310,14 +321,18 @@ def _publish_prompt_archive(
         target,
         git_runner=git_runner,
     )
-    if referenced_by_error is None:
+    combined_error = "\n".join(
+        part for part in (prompt_outcome.error, referenced_by_error) if part
+    )
+    if not combined_error:
         return prompt_outcome
     return PromptArchivePublicationOutcome(
         published=prompt_outcome.published,
         queued=prompt_outcome.queued,
         prompt_path=prompt_outcome.prompt_path,
         skip_reason=prompt_outcome.skip_reason,
-        error=referenced_by_error,
+        error=combined_error,
+        protection_status=prompt_outcome.protection_status,
     )
 
 
@@ -412,6 +427,41 @@ def _classify_prompt_archive_push_error(
     from sase.agents_sync import git_sync
 
     return git_sync.agents_git_error("prompt archive git push failed", pushed)
+
+
+def _record_prompt_cites(
+    target: ProjectTarget,
+    requests: tuple[ReferencedByOutboxItem, ...],
+    *,
+    publication_agent: str,
+    cites_event_run_id: str | None,
+) -> str | None:
+    """Persist planned cites: link events when fenced, else the legacy outbox."""
+
+    from sase.agents_sync.referenced_by_events import (
+        cites_outbox_identity,
+        emit_referenced_by_cites_events,
+        legacy_referenced_by_writes_fenced,
+    )
+
+    try:
+        if legacy_referenced_by_writes_fenced(target):
+            agent_name, run_id = cites_outbox_identity(
+                agent_name=publication_agent,
+                run_id=cites_event_run_id,
+            )
+            errors = emit_referenced_by_cites_events(
+                requests,
+                project_key=target.project_key,
+                agent_name=agent_name,
+                run_id=run_id,
+            )
+            return "\n".join(errors) if errors else None
+        for request in requests:
+            enqueue_referenced_by_request(request)
+    except Exception as exc:  # noqa: BLE001 - prompt publication already succeeded.
+        return f"referenced-by cites persist failed: {exc}"
+    return None
 
 
 def _drain_referenced_by_after_prompt_publish(

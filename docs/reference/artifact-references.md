@@ -259,7 +259,10 @@ use count; the agent name links to its published page when SASE can build that U
 Repeated publication of the same agent revision and document is idempotent, while
 multiple citations of the document in that prompt increase the row's use count.
 
-The write-back workflow runs in this order:
+The write-back workflow depends on whether the project has completed the link-v2 cutover
+(`link-events/STORE.json` is `fenced` or `imported` on its document sidecars).
+
+In an unfenced project the legacy path still runs in this order:
 
 1. SASE finishes prompt-archive publication in the agents sidecar, including its push
    when the sidecar has changes or is ahead of its remote.
@@ -278,8 +281,9 @@ The write-back workflow runs in this order:
    refresh, including an idempotent no-op, acknowledges the request without waiting for
    that push to finish.
 
-A failure before a successful local artifact-sidecar refresh leaves the request queued
-for a later mutating `sase agent sync`. The same `--retry-quarantined` and
+A failure of that unfenced refresh charges attempts and quarantines at the publication
+threshold, so a raise such as a later fence cannot replay forever. The request otherwise
+stays queued for a later mutating `sase agent sync`. The same `--retry-quarantined` and
 `--drop-retired` controls used for agent publication also operate on queued Referenced
 By requests; `--retry-retired` revives retired agent-publication requests only. See
 [Agent Hood Synchronization](agents/hood-sync.md#commands-and-status). Once the local
@@ -287,12 +291,28 @@ refresh succeeds, SASE removes the request from that outbox. A later detached-pu
 failure is recorded in the managed SDD sync log and is not retried from the Referenced
 By outbox.
 
+In a fenced project SASE never takes the artifact-sidecar lock, pulls, or builds a
+legacy link snapshot for Referenced By, and never enqueues a new
+`referenced-by-outbox.json` row:
+
+1. Prompt-archive publication still finishes first.
+2. Each planned `cites` row becomes an artifact-link outbox event (`prompt_ref` or
+   `prompt_prose` origin). On the commit path the event uses the committing run's
+   (`SASE_AGENT_TIMESTAMP`, publication agent) identity so the existing link-outbox
+   drain publishes it in the same pass. Callers without release evidence, such as the
+   approved-planner archive, use a trusted machine lane (`sase` / `machine`).
+3. `drain_artifact_link_outbox` publishes those events into the link-event store. The
+   Referenced By Markdown projection is rebuilt from the events.
+4. Active legacy Referenced By outbox rows created before the fence are replayed once as
+   equivalent `cites` events with `migrated` origin under that trusted machine producer,
+   then acknowledged. The replay is idempotent through the stable operation id.
+
 The write-back attempt can delay the publishing command's return, but it begins only
 after the prompt archive has been pushed and cannot roll that publication back. Because
 the managed block is stripped when SASE hashes a clean Markdown input, adding a
-back-reference does not make the original citation appear to have changed. These commits
-use the non-user file-hook cause `artifact_links`, so ordinary file hooks ignore the
-managed write unless they explicitly opt in with `filters.causes`.
+back-reference does not make the original citation appear to have changed. Unfenced
+refresh commits use the non-user file-hook cause `artifact_links`, so ordinary file
+hooks ignore the managed write unless they explicitly opt in with `filters.causes`.
 
 Deliberate relationships render separately as a top `Links` table, while
 prompt-reference and read rows use the unified link graph behind the same Referenced By

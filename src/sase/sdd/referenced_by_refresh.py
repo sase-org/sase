@@ -36,6 +36,18 @@ def refresh_referenced_by(
             f"artifact repository root does not exist: {repo_root}",
         )
     if write:
+        fenced_issue = _fenced_legacy_write_issue(store, requests, repo_root)
+        if fenced_issue is not None:
+            return ReferencedByRefreshReport(
+                root=repo_root,
+                role=role,
+                write=write,
+                scanned=0,
+                actions=(),
+                issues=(fenced_issue,),
+                changed_files=(),
+                committed=False,
+            )
         skip = _machine_unwritable_refresh_issue(repo_root, role)
         if skip is not None:
             return ReferencedByRefreshReport(
@@ -91,6 +103,33 @@ def refresh_referenced_by(
             requests=requests,
             write=write,
         )
+
+
+def _fenced_legacy_write_issue(
+    store: SddStore,
+    requests: tuple[ReferencedByOutboxItem, ...],
+    repo_root: Path,
+) -> ReferencedByRefreshIssue | None:
+    from sase.agents_sync.referenced_by_events import store_legacy_writes_fenced
+
+    project_key = requests[0].project_key if requests else ""
+    try:
+        fenced = store_legacy_writes_fenced(store, project_key=project_key or "default")
+    except Exception as exc:  # noqa: BLE001 - refuse writes if fence state is unknown.
+        return ReferencedByRefreshIssue(
+            "error",
+            "legacy-writes-fenced",
+            str(repo_root),
+            f"could not probe artifact-link cutover fence: {exc}",
+        )
+    if not fenced:
+        return None
+    return ReferencedByRefreshIssue(
+        "error",
+        "legacy-writes-fenced",
+        str(repo_root),
+        "artifact-link legacy index writes are fenced; use link events",
+    )
 
 
 def _machine_unwritable_refresh_issue(
