@@ -503,14 +503,9 @@ _lint-symvision *args: _setup
         --exclude-decorator builtin_chop \
         --epic-symbol 'sase-1pj.5.1.4(load_prepared_intent_reservations)' \
         --epic-symbol 'sase-1pj.5.1.4(evaluate_staged_self_wait)' \
-        --epic-symbol 'sase-1pu.5.1.4(advance_agent_run_state_schedule)' \
-        --epic-symbol 'sase-1pu.5.1.4(AgentRunStateProjectIdentityWire)' \
-        --epic-symbol 'sase-1pu.5.1.4(AgentRunStateProjectWire)' \
-        --epic-symbol 'sase-1pu.5.1.4(AgentRunStateScheduleOutcomeWire)' \
-        --epic-symbol 'sase-1pu.5.1.4(AgentRunStateProjectCheckpointWire)' \
-        --epic-symbol 'sase-1pu.5.1.4(repair_project_run_states)' \
-        --epic-symbol 'sase-1pu.5.1.4(StateRepairAffected)' \
-        --epic-symbol 'sase-1pu.5.1.4(StateRepairWindowRow)' \
+        --epic-symbol 'sase-1pu.5.1(AgentRunStateProjectCheckpointWire)' \
+        --epic-symbol 'sase-1pu.5.1(StateRepairAffected)' \
+        --epic-symbol 'sase-1pu.5.1(StateRepairWindowRow)' \
         --epic-symbol 'sase-1pj.5.1.4(stage_monitor)' \
         --epic-symbol 'sase-1pj.5.1.4(launch_from_persisted_payload)' \
         --epic-symbol 'sase-1pj.5.1.4(cleanup_staged_monitor)' \

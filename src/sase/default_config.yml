@@ -1534,6 +1534,21 @@ axe:
         maintenance deliberately live elsewhere.
       interval: 300
       jobs:
+        - name: agent_state_refresh
+          script: sase_job_agent_state_refresh
+          timeout: "2m"
+          description: |-
+            Converge already-published agent runs to verified terminal state
+
+            Selects one enabled project with a configured agents sidecar each tick,
+            rotating fairly, and processes one default bounded repair window for the
+            current owner under the existing agents lock with a 90-second internal
+            budget. Persists a versioned per-project cursor and bounded retry
+            backoff under the job-state lock, so live, missing, or contradictory
+            rows never starve later rows and a crash after push but before cursor
+            persistence safely repeats the window. A successful end-of-pass resets
+            for a future pass so newly finished runs are revisited. This is bounded
+            work per tick, not a guaranteed five-minute fleet-wide completion time.
         - name: bead_task_triage
           script: sase_job_bead_task_triage
           timeout: "2m"

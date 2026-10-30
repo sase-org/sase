@@ -460,12 +460,13 @@ then continues the normal full sync for the selected projects. `--drop-retired`,
 `--retry-quarantined`, and `--retry-retired` mutate the outbox and are rejected with
 `--check`.
 
-Three repair modes replace the normal sync. Each reports what it changed:
+Four repair modes replace the normal sync. Each reports what it changed:
 
 ```bash
 sase agent sync --repair-digests -p project-alias   # -g
 sase agent sync --repair-manifest -p project-alias  # -m
 sase agent sync --repair-revisions -p project-alias # -R
+sase agent sync --repair-states -p project-alias --state-limit 100 --json
 ```
 
 Digest and manifest repair run under the same bounded lock and pull/commit/push
@@ -497,6 +498,16 @@ per call, reports by default, and writes only with `--apply`.
   `agents-publication-repair-audit.jsonl` beside the outbox. The
   `state.agent_publication_outbox` check in `sase doctor` counts rows whose requested
   revision is absent from their published run's commits and names this command.
+- `--repair-states` converges already-published runs to verified terminal state without
+  a new commit. Preview reads the cached sidecar snapshot plus local evidence with no
+  network, sidecar writes, audit writes, or checkpoint advancement. Apply refreshes
+  upstream under the existing agents lock, rebuilds one bounded window, and publishes
+  only state changes with regenerated pages. The window defaults to 100 examined runs
+  across at most 5 hoods; `--state-limit` accepts 1 through 500 and `--state-after`
+  resumes from a report's `next_cursor`. Preview is advisory: apply revalidates and may
+  report different counts. The scheduler's `agent_state_refresh` job runs this repair
+  once per tick for one project; see the owner-local backfill runbook in the sidecar
+  internals.
 
 CLI status checks maintain `~/.sase/agents_sync/status_snapshot.json`:
 

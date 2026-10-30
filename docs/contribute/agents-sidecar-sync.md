@@ -125,6 +125,39 @@ JSON object per applied change to
 `~/.sase/projects/<project-key>/agents-publication-repair-audit.jsonl` (old key, new
 revision or scope, evidence commit, and time). A second apply is a no-op.
 
+## Scheduled state convergence and owner-local backfill
+
+The `agent_state_refresh` scheduler job converges already-published runs without another
+commit or manual full sync. It runs on the five-minute `checks` cadence with a
+two-minute timeout and calls the bounded state-repair service with the 90-second
+internal budget. Each tick selects one enabled project with a configured agents sidecar,
+rotating fairly through projects, and processes one default window for the current
+owner. Scheduling policy lives in `sase-core`; Python supplies time, project
+enumeration, storage, and calls to the service.
+
+Each tick persists a versioned per-project/per-owner cursor and bounded retry backoff
+atomically under the local job-state lock. On a successful end-of-pass the cursor resets
+for a future pass so newly finished runs are revisited. Live, missing, or contradictory
+rows never starve later rows. A transient project failure backs off that project and
+allows other projects on subsequent ticks without discarding its retry position. A crash
+after push but before cursor persistence safely repeats the window. Unsupported or
+corrupt checkpoint state resets safely without inferring any run outcome. This is
+bounded work per tick, not a guaranteed five-minute fleet-wide completion time.
+
+Run the bounded owner-local backfill procedure on each machine that owns affected runs.
+This runbook provides the procedure; it does not run an unbounded fleet backfill or
+dispatch work to other machines.
+
+1. On each machine that owns affected runs, preview one project with
+   `sase agent sync --repair-states -p PROJECT --state-limit 100 --json`.
+2. Apply the same starting window with `--apply`; inspect counts and diagnostics.
+   Continue from the successful apply response's `next_cursor` via `--state-after`.
+3. Stop when `pass_complete` is true, then allow scheduled passes to catch later
+   completions. Stop on publication failure and retry that window after remediation.
+4. Repeat owner-locally on other machines. Rows whose original evidence is unavailable
+   remain explicitly unresolved. Never impersonate another owner or mark historical rows
+   terminal based solely on their age.
+
 ## Stale-replay recovery
 
 This is a finite recovery helper for a sidecar that is one unpublished commit ahead of a

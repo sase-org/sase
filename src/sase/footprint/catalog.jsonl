@@ -1,7 +1,8 @@
-{"count": 3667, "rev": "f98293969cd2", "schema": "sase.footprint.catalog/1"}
+{"count": 3668, "rev": "b41bf41f104f", "schema": "sase.footprint.catalog/1"}
 {"area": "automation", "id": "auto:axe.agent_waits", "kind": "auto", "label": "Resolve agent wait dependencies within seconds of completion", "ns": "auto", "parent": null, "src": "sase/default_config.yml"}
 {"area": "automation", "id": "auto:axe.agent_waits.wait_checks", "kind": "auto", "label": "Resolve agent wait dependencies and write ready.json when satisfied", "ns": "auto", "parent": "auto:axe.agent_waits", "src": "sase/default_config.yml"}
 {"area": "automation", "id": "auto:axe.checks", "kind": "auto", "label": "Poll slower PR-submission and workspace-claim checks on a five-minute cadence", "ns": "auto", "parent": null, "src": "sase/default_config.yml"}
+{"area": "automation", "id": "auto:axe.checks.agent_state_refresh", "kind": "auto", "label": "Converge already-published agent runs to verified terminal state", "ns": "auto", "parent": "auto:axe.checks", "src": "sase/default_config.yml"}
 {"area": "automation", "id": "auto:axe.checks.bead_task_triage", "kind": "auto", "label": "Raise one human gate for each ready or snoozed task bead, and for each due flag-typed task bead", "ns": "auto", "parent": "auto:axe.checks", "src": "sase/default_config.yml"}
 {"area": "automation", "id": "auto:axe.checks.orphan_agent_scope_reap", "kind": "auto", "label": "Reap orphaned agent scopes whose runner died without cleaning up", "ns": "auto", "parent": "auto:axe.checks", "src": "sase/default_config.yml"}
 {"area": "automation", "id": "auto:axe.checks.plugins_required", "kind": "auto", "label": "Raise one human gate per project whose required plugins are missing", "ns": "auto", "parent": "auto:axe.checks", "src": "sase/default_config.yml"}
