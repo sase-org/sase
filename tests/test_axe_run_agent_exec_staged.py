@@ -13,8 +13,8 @@ from sase.axe.run_agent_exec_staged import (
     STAGED_HANDOFF_ADOPTERS,
     StagedInlineContinuation,
     dispatch_completed_staged_handoff,
-    _finalizer_settlement_refusal,
 )
+from sase.axe.run_agent_exec_staged_settlement import finalizer_settlement_refusal
 from sase.agent.staged_handoff import (
     build_plan_staged_record,
     read_adoption_receipt,
@@ -101,7 +101,7 @@ def test_empty_finalizer_plan_settles_clean_turn_without_context(
     )
 
     assert (
-        _finalizer_settlement_refusal(
+        finalizer_settlement_refusal(
             record,
             artifacts_dir=str(artifacts),
             run_metadata=json.loads((artifacts / "agent_meta.json").read_text()),
@@ -134,7 +134,7 @@ def test_empty_finalizer_plan_holds_remaining_dirty_work(
         lambda _repo: "repo-1",
     )
 
-    reason = _finalizer_settlement_refusal(
+    reason = finalizer_settlement_refusal(
         record,
         artifacts_dir=str(artifacts),
         run_metadata=json.loads((artifacts / "agent_meta.json").read_text()),
@@ -220,7 +220,7 @@ def test_current_dirty_repositories_are_allowed_only_with_accepted_deferrals(
     )
 
     assert (
-        _finalizer_settlement_refusal(
+        finalizer_settlement_refusal(
             record,
             artifacts_dir=str(artifacts),
             run_metadata=meta,
@@ -249,7 +249,7 @@ def test_success_receipt_prevents_repeat_dispatch_and_keeps_none_inline(
 
     monkeypatch.setitem(STAGED_HANDOFF_ADOPTERS, "plan", adopter)
     monkeypatch.setattr(
-        "sase.axe.run_agent_exec_staged._finalizer_settlement_refusal",
+        "sase.axe.run_agent_exec_staged_dispatch.finalizer_settlement_refusal",
         lambda *_args, **_kwargs: None,
     )
     with patch("sase.axe.run_agent_helpers.update_meta_field"):
@@ -303,15 +303,15 @@ def test_unsupported_staged_kind_records_held_receipt(
     ctx, state, artifacts = _continuation(tmp_path)
     record = {**_record(tmp_path), "kind": "monitor"}
     monkeypatch.setattr(
-        "sase.axe.run_agent_exec_staged.read_staged_handoff",
+        "sase.axe.run_agent_exec_staged_dispatch.read_staged_handoff",
         lambda _root: record,
     )
     monkeypatch.setattr(
-        "sase.axe.run_agent_exec_staged.read_staged_handoff_response",
+        "sase.axe.run_agent_exec_staged_dispatch.read_staged_handoff_response",
         lambda *_args, **_kwargs: "planner response",
     )
     monkeypatch.setattr(
-        "sase.axe.run_agent_exec_staged._finalizer_settlement_refusal",
+        "sase.axe.run_agent_exec_staged_dispatch.finalizer_settlement_refusal",
         lambda *_args, **_kwargs: None,
     )
     (artifacts / "agent_meta.json").write_text(

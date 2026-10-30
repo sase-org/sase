@@ -118,7 +118,7 @@ def test_unsatisfied_finalizers_do_not_publish_gate(
     artifacts, _staged = _settled_gate_artifacts(tmp_path, monkeypatch)
     del _staged
     monkeypatch.setattr(
-        "sase.axe.run_agent_exec_staged._finalizer_settlement_refusal",
+        "sase.axe.run_agent_exec_staged_dispatch.finalizer_settlement_refusal",
         lambda *_args, **_kwargs: "finalizer controller did not settle successfully",
     )
     published: list[str] = []

@@ -11,11 +11,11 @@ from typing import Any
 from sase.axe.run_agent_exec_staged import (
     CARRIED_CUSTODY_META_KEY,
     STAGED_HANDOFF_ADOPTERS,
-    _StagedAdoptionOutcome,
     StagedInlineContinuation,
-    _finalizer_settlement_refusal,
     dispatch_completed_staged_handoff,
 )
+from sase.axe._run_agent_exec_staged_shared import StagedAdoptionOutcome
+from sase.axe.run_agent_exec_staged_settlement import finalizer_settlement_refusal
 from sase.agent.staged_handoff import (
     read_adoption_receipt,
     write_staged_handoff,
@@ -213,7 +213,7 @@ def test_all_carry_settles_with_current_declaration(
         submission={"accepted_deferrals": []},
     )
     assert (
-        _finalizer_settlement_refusal(
+        finalizer_settlement_refusal(
             record,
             artifacts_dir=str(artifacts),
             run_metadata=json.loads((artifacts / "agent_meta.json").read_text()),
@@ -243,7 +243,7 @@ def test_mixed_carry_and_deferral_settles(tmp_path: Path, monkeypatch) -> None:
         },
     )
     assert (
-        _finalizer_settlement_refusal(
+        finalizer_settlement_refusal(
             record,
             artifacts_dir=str(artifacts),
             run_metadata=json.loads((artifacts / "agent_meta.json").read_text()),
@@ -274,7 +274,7 @@ def test_prepared_starter_without_submission_settles(
         lambda _root: (_ for _ in ()).throw(AssertionError("no submission expected")),
     )
     assert (
-        _finalizer_settlement_refusal(
+        finalizer_settlement_refusal(
             record,
             artifacts_dir=str(artifacts),
             run_metadata=json.loads((artifacts / "agent_meta.json").read_text()),
@@ -302,7 +302,7 @@ def test_mismatched_staged_ref_does_not_authorize_carry(
         dirty_ids=["repo-1"],
         submission={"accepted_deferrals": []},
     )
-    reason = _finalizer_settlement_refusal(
+    reason = finalizer_settlement_refusal(
         record,
         artifacts_dir=str(artifacts),
         run_metadata=json.loads((artifacts / "agent_meta.json").read_text()),
@@ -327,7 +327,7 @@ def test_malformed_evidence_does_not_authorize_carry(
         submission={"accepted_deferrals": []},
     )
     assert (
-        _finalizer_settlement_refusal(
+        finalizer_settlement_refusal(
             record,
             artifacts_dir=str(artifacts),
             run_metadata=json.loads((artifacts / "agent_meta.json").read_text()),
@@ -352,7 +352,7 @@ def test_dirt_added_after_settlement_holds(tmp_path: Path, monkeypatch) -> None:
         submission={"accepted_deferrals": []},
     )
     assert (
-        _finalizer_settlement_refusal(
+        finalizer_settlement_refusal(
             record,
             artifacts_dir=str(artifacts),
             run_metadata=json.loads((artifacts / "agent_meta.json").read_text()),
@@ -419,7 +419,7 @@ def test_controlled_adopter_proves_generic_seam_and_records_custody(
     def controlled(staged, _meta, cont, response):
         seen.append(response)
         assert staged["staged_id"] == record["staged_id"]
-        return _StagedAdoptionOutcome(
+        return StagedAdoptionOutcome(
             outcome="test-done", custodian=str(artifacts / "successor")
         )
 
