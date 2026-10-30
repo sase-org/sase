@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any, Protocol
 
 if TYPE_CHECKING:
+    from sase.macro.workflow_completion import PreparedWorkflowReview
     from sase.macro.workflow_models import WorkflowStep
 
 
@@ -98,7 +99,7 @@ class WorkflowSuspended(Exception):
 
     def __init__(
         self,
-        review: Any,
+        review: PreparedWorkflowReview,
         *,
         provider_content: str | None = None,
         original_prompt: str = "",

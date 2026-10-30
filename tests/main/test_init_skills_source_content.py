@@ -152,8 +152,14 @@ def test_sase_sudo_skill_teaches_reviewed_request_contract() -> None:
     assert "Do not fall back to raw sudo" in flat
     assert "Run `sase sudo request` in the foreground" in flat
     assert "Never invoke it with a yield window, a background flag" in flat
-    assert "ends your current turn by killing this process" in flat
-    assert "your turn has NOT ended" in flat
+    assert (
+        'When the descriptor says `"status": "staged"`, nothing starts until this '
+        "turn ends" in flat
+    )
+    assert "Finish through `/sase_final`" in flat
+    assert "Do not wait for your own staged gate" in flat
+    assert "the runner hands off and kills this process" in flat
+    assert "does not mean the gate was created. Read and report it." in flat
 
 
 @pytest.mark.parametrize("skill_name", ["sase_git_commit"])

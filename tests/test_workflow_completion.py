@@ -6,6 +6,7 @@ import json
 import os
 from pathlib import Path
 from types import SimpleNamespace
+from typing import Any
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -37,10 +38,9 @@ from sase.llm_provider.preprocessing import _PreprocessResult
 from sase.llm_provider.types import InvokeResult
 from sase.macro.directives import PromptDirectives
 from sase.macro.workflow_completion import (
-    WorkflowCompletionError,
     PreparedWorkflowReview,
     WorkflowReviewIdentity,
-    complete_workflow_review,
+    _WorkflowCompletionError,
     invoke_provider_for_review,
     prepare_workflow_review,
     settle_workflow_review,
@@ -68,6 +68,27 @@ from tests.finalizers_protocol_harness_test_helpers import (
 
 RUN_ID = "20261030120000"
 PROVIDER_RESPONSE = "ordinary final response"
+
+
+def _stage_and_settle(
+    review: PreparedWorkflowReview,
+    *,
+    artifacts_dir: str,
+    provider_content: str | None = None,
+    original_prompt: str = "",
+) -> Any:
+    """Stage a prepared review, then settle it, as the workflow executor does."""
+    stage_workflow_review(
+        review,
+        artifacts_dir=artifacts_dir,
+        provider_content=provider_content,
+    )
+    return settle_workflow_review(
+        review,
+        artifacts_dir=artifacts_dir,
+        provider_content=provider_content,
+        original_prompt=original_prompt,
+    )
 
 
 def _workflow_env(
@@ -235,7 +256,7 @@ def test_invoke_provider_for_review_refuses_missing_evidence(
 
     monkeypatch.setattr("sase.llm_provider.invoke_agent", fake_no_evidence)
     with pytest.raises(
-        WorkflowCompletionError,
+        _WorkflowCompletionError,
         match="no completed-provider evidence",
     ):
         invoke_provider_for_review(
@@ -251,7 +272,7 @@ def test_prepare_agent_review_requires_provider_evidence(
 ) -> None:
     _repo, _artifacts = _workflow_env(tmp_path, monkeypatch)
     with pytest.raises(
-        WorkflowCompletionError,
+        _WorkflowCompletionError,
         match="completed-provider evidence",
     ):
         prepare_workflow_review(
@@ -292,7 +313,7 @@ def test_prepare_review_rejects_unknown_step_type(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     _repo, artifacts = _workflow_env(tmp_path, monkeypatch)
-    with pytest.raises(WorkflowCompletionError, match="step type"):
+    with pytest.raises(_WorkflowCompletionError, match="step type"):
         prepare_workflow_review(
             identity=WorkflowReviewIdentity(
                 workflow="review-doc",
@@ -319,7 +340,7 @@ def test_complete_clean_prompt_with_no_submission(
         has_output=True,
         provider_evidence=evidence,
     )
-    result = complete_workflow_review(
+    result = _stage_and_settle(
         review,
         artifacts_dir=str(artifacts),
         provider_content=PROVIDER_RESPONSE,
@@ -695,7 +716,7 @@ def test_complete_prompt_review_with_accepted_submission(
         has_output=True,
         provider_evidence=evidence,
     )
-    result = complete_workflow_review(
+    result = _stage_and_settle(
         review,
         artifacts_dir=str(artifacts),
         provider_content=PROVIDER_RESPONSE,
@@ -721,7 +742,7 @@ def test_complete_script_review_that_dirties_repo_carries(
         output={"exit_code": 0},
         artifacts_dir=str(artifacts),
     )
-    result = complete_workflow_review(
+    result = _stage_and_settle(
         review,
         artifacts_dir=str(artifacts),
         original_prompt="make build",
@@ -785,7 +806,7 @@ def test_complete_script_review_after_finalized_prompt(
         output={"exit_code": 0},
         artifacts_dir=str(artifacts),
     )
-    result = complete_workflow_review(
+    result = _stage_and_settle(
         review,
         artifacts_dir=str(artifacts),
         original_prompt="make build",
@@ -808,7 +829,7 @@ def test_finalizer_failure_leaves_stage_held(
         artifacts_dir=str(artifacts),
     )
     with pytest.raises(FinalizerControllerError):
-        complete_workflow_review(
+        _stage_and_settle(
             review,
             artifacts_dir=str(artifacts),
             original_prompt="make build",
@@ -834,7 +855,7 @@ def test_host_second_handoff_is_refused(
         has_output=True,
         provider_evidence=evidence,
     )
-    complete_workflow_review(
+    _stage_and_settle(
         first,
         artifacts_dir=str(artifacts),
         provider_content=PROVIDER_RESPONSE,

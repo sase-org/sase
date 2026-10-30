@@ -63,7 +63,7 @@ WORKFLOW_REVIEW_COMMAND = "workflow review"
 WORKFLOW_REVIEW_STEP_TYPES = ("agent", "bash", "python")
 
 
-class WorkflowCompletionError(RuntimeError):
+class _WorkflowCompletionError(RuntimeError):
     """Raised when a host-owned workflow completion cannot proceed."""
 
 
@@ -229,7 +229,7 @@ def invoke_provider_for_review(
     )
     evidence = take_deferred_provider_evidence(token)
     if evidence is None:
-        raise WorkflowCompletionError(
+        raise _WorkflowCompletionError(
             "deferred provider turn recorded no completed-provider evidence"
         )
     return response, evidence
@@ -260,22 +260,22 @@ def prepare_workflow_review(
     from sase.macro.workflow_hitl_gate import workflow_hitl_shell_spec_for_staging
 
     if identity.step_type not in WORKFLOW_REVIEW_STEP_TYPES:
-        raise WorkflowCompletionError(
+        raise _WorkflowCompletionError(
             f"unknown workflow review step type: {identity.step_type!r}"
         )
     if not identity.workflow.strip() or not identity.step.strip():
-        raise WorkflowCompletionError(
+        raise _WorkflowCompletionError(
             "workflow review must name its originating workflow and step"
         )
     evidence_wire: str | None = None
     if identity.step_type == "agent":
         if provider_evidence is None:
-            raise WorkflowCompletionError(
+            raise _WorkflowCompletionError(
                 "agent workflow reviews require completed-provider evidence"
             )
         evidence_wire = provider_evidence.to_wire()
         if not evidence_wire.strip():
-            raise WorkflowCompletionError(
+            raise _WorkflowCompletionError(
                 "agent workflow reviews require completed-provider evidence"
             )
     admission = HostStageAdmission(
@@ -310,11 +310,11 @@ def prepare_workflow_review(
             artifacts_dir=artifacts_dir,
         )
         if preparation.auto_execute:
-            raise WorkflowCompletionError(
+            raise _WorkflowCompletionError(
                 "workflow reviews cannot resolve to synchronous auto execution"
             )
         if preparation.record is None:
-            raise WorkflowCompletionError(
+            raise _WorkflowCompletionError(
                 "workflow review preparation produced no staged record"
             )
         return PreparedWorkflowReview(
@@ -440,46 +440,17 @@ def settle_workflow_review(
     if handoff is None or handoff.staged_ref != review.staged_id:
         # Leave the stage held: something removed or replaced the staged
         # record mid-flight, so the adoption epilogue must hold it.
-        raise WorkflowCompletionError(
+        raise _WorkflowCompletionError(
             "refreshed finalizer context does not name the staged review"
         )
     return result
-
-
-def complete_workflow_review(
-    review: PreparedWorkflowReview,
-    *,
-    artifacts_dir: str,
-    provider_content: str | None = None,
-    original_prompt: str = "",
-    model_tier: Any = "large",
-    suppress_output: bool = True,
-    model_override: str | None = None,
-) -> Any:
-    """Stage a review and immediately settle it for compatibility callers."""
-    stage_workflow_review(
-        review,
-        artifacts_dir=artifacts_dir,
-        provider_content=provider_content,
-    )
-    return settle_workflow_review(
-        review,
-        artifacts_dir=artifacts_dir,
-        provider_content=provider_content,
-        original_prompt=original_prompt,
-        model_tier=model_tier,
-        suppress_output=suppress_output,
-        model_override=model_override,
-    )
 
 
 __all__ = [
     "PreparedWorkflowReview",
     "WORKFLOW_REVIEW_COMMAND",
     "WORKFLOW_REVIEW_STEP_TYPES",
-    "WorkflowCompletionError",
     "WorkflowReviewIdentity",
-    "complete_workflow_review",
     "invoke_provider_for_review",
     "prepare_workflow_review",
     "settle_workflow_review",
