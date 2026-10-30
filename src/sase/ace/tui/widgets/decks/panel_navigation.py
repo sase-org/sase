@@ -30,6 +30,46 @@ class DeckPanelNavigationMixin:
 
         def __getattr__(self, name: str) -> Any: ...
 
+    def _show_main_card(self, card_id: str) -> str | None:
+        """Show one Main card and synchronize its card-navigation chrome."""
+        try:
+            block_mode = self._block_mode_for_card(self._main_document, card_id)
+        except Exception:
+            block_mode = None
+        try:
+            try:
+                shown = self.main_view.show_card(card_id, block_mode=block_mode)
+            except TypeError:
+                shown = self.main_view.show_card(card_id)
+        except Exception:
+            return None
+        if shown is None:
+            return None
+        self._main_active_card = shown
+        self.refresh_chrome()
+        try:
+            self._sync_block_navigable()
+        except Exception:
+            pass
+        try:
+            self._sync_block_rail()  # type: ignore[attr-defined]
+        except Exception:
+            pass
+        return shown
+
+    def land_main_card_top(self, card_id: str) -> str | None:
+        """Show ``card_id`` on a complete Main document from its top."""
+        if self._deck is not DeckId.MAIN:
+            return None
+        document = self._main_document
+        if document.partial or document.card(card_id) is None:
+            return None
+        try:
+            self.main_view.release_bottom_pin()
+        except Exception:
+            pass
+        return self._show_main_card(card_id)
+
     def cycle_card(self, direction: int) -> str | None:
         """Cycle cards in the active deck; return the new Main card id."""
         if self._deck is DeckId.MAIN:
@@ -43,30 +83,7 @@ class DeckPanelNavigationMixin:
             next_id = cycle_card_id(ids, active, direction)
             if next_id is None:
                 return None
-            try:
-                block_mode = self._block_mode_for_card(self._main_document, next_id)
-            except Exception:
-                block_mode = None
-            try:
-                try:
-                    shown = self.main_view.show_card(next_id, block_mode=block_mode)
-                except TypeError:
-                    shown = self.main_view.show_card(next_id)
-            except Exception:
-                return None
-            if shown is None:
-                return None
-            self._main_active_card = shown
-            self.refresh_chrome()
-            try:
-                self._sync_block_navigable()
-            except Exception:
-                pass
-            try:
-                self._sync_block_rail()  # type: ignore[attr-defined]
-            except Exception:
-                pass
-            return shown
+            return self._show_main_card(next_id)
         if self._deck is DeckId.FILES:
             if self.is_spread(DeckId.FILES):
                 self._cycle_files_spread(direction)

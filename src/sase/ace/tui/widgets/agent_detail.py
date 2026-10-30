@@ -9,6 +9,7 @@ from textual.containers import Vertical
 from textual.message import Message
 from textual.widgets import Static
 
+from ._agent_detail_context_landing import AgentDetailContextLandingMixin
 from ._agent_detail_deck_layout import AgentDetailDeckLayoutMixin
 from ._agent_detail_deck_targets import AgentDetailDeckTargetsMixin
 from ._agent_detail_deck_view import AgentDetailDeckViewMixin
@@ -32,6 +33,7 @@ class AgentMetadataIdentityChanged(Message):
 
 
 class AgentDetail(
+    AgentDetailContextLandingMixin,
     AgentDetailDeckLayoutMixin,
     AgentDetailDeckTargetsMixin,
     AgentDetailDeckViewMixin,
@@ -60,6 +62,7 @@ class AgentDetail(
         from .decks.main_document import EMPTY_MAIN_DOCUMENT
 
         self._main_deck_document = EMPTY_MAIN_DOCUMENT
+        self._main_context_landing: Any | None = None
 
     def compose(self) -> ComposeResult:
         """Compose the deck layout."""

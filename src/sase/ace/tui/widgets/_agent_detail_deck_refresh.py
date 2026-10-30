@@ -272,6 +272,9 @@ class AgentDetailDeckRefreshMixin:
         Agent. RECORD stays available; other decks are left on their
         titled cards.
         """
+        clear_landing = getattr(self, "_clear_main_context_landing", None)
+        if callable(clear_landing):
+            clear_landing()
         self._current_record_subject = subject
         try:
             area = self.deck_area  # type: ignore[attr-defined]
@@ -437,6 +440,9 @@ class AgentDetailDeckRefreshMixin:
     def _deck_update_display_impl(
         self, agent: Agent, stale_threshold_seconds: int, attempt_number: int | None
     ) -> None:
+        request = getattr(self, "_main_context_landing", None)
+        if request is not None and request.identity != agent.identity:
+            self._clear_main_context_landing()  # type: ignore[attr-defined]
         prev_agent = self._current_agent
         self._current_agent = agent
         self._current_record_subject = None
@@ -451,6 +457,9 @@ class AgentDetailDeckRefreshMixin:
     def _deck_show_empty(self) -> None:
         from ._agent_detail_helpers import agent_prompt_panel_type  # noqa: F401
 
+        clear_landing = getattr(self, "_clear_main_context_landing", None)
+        if callable(clear_landing):
+            clear_landing()
         self._agent_detail_generation += 1
         self._current_agent = None
         self._current_record_subject = None
@@ -514,6 +523,9 @@ class AgentDetailDeckRefreshMixin:
             pass
 
     def _deck_show_tribe_summary(self, snapshot: Any, *, cheap: bool = False) -> None:
+        clear_landing = getattr(self, "_clear_main_context_landing", None)
+        if callable(clear_landing):
+            clear_landing()
         self._agent_detail_generation += 1
         self._current_agent = None
         self._current_record_subject = None

@@ -64,25 +64,33 @@ class AgentDetailDeckSourceMixin:
             try:
                 area = self.deck_area
             except Exception:
-                return
+                area = None
+            if area is not None:
+                try:
+                    panels = area.panels_showing(DeckId.MAIN)
+                except Exception:
+                    panels = ()
+                for panel in panels:
+                    try:
+                        index = panel.panel_index
+                        preferred = area.state.panels[index].preferred_card_for(
+                            DeckId.MAIN
+                        )
+                    except Exception:
+                        preferred = None
+                    try:
+                        panel.show_main_document(document, preferred_card=preferred)
+                    except Exception:
+                        pass
+                    try:
+                        panel.refresh_chrome()
+                    except Exception:
+                        pass
+        if show_panels:
             try:
-                panels = area.panels_showing(DeckId.MAIN)
+                self._maybe_apply_main_context_landing()  # type: ignore[attr-defined]
             except Exception:
-                panels = ()
-            for panel in panels:
-                try:
-                    index = panel.panel_index
-                    preferred = area.state.panels[index].preferred_card_for(DeckId.MAIN)
-                except Exception:
-                    preferred = None
-                try:
-                    panel.show_main_document(document, preferred_card=preferred)
-                except Exception:
-                    pass
-                try:
-                    panel.refresh_chrome()
-                except Exception:
-                    pass
+                pass
         try:
             cards_changed = tuple(document.card_ids) != prev_card_ids
         except Exception:

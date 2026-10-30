@@ -19,6 +19,7 @@ from ._unread_jump_candidates import (
 )
 from ._unread_state import AgentUnreadStateMixin
 from ._panel_fold_intent import panel_is_collapsed
+from ._stopped_jump_landing import land_stopped_jump_on_main_context
 
 if TYPE_CHECKING:
     from ...models import Agent
@@ -144,12 +145,15 @@ class AgentUnreadNavigationMixin(
 
     def _jump_to_next_stopped_agent(self) -> bool:
         """Move focus to the next stopped row, including rows hidden by a collapsed clan."""
-        return self._jump_to_next_matching_agent_by_time(
+        hit = self._jump_to_next_matching_agent_by_time(
             predicate=is_stopped_agent,
             after_select=None,
             time_for_agent=_stopped_agent_jump_time,
             include_collapsed_clan_members=True,
         )
+        if hit:
+            land_stopped_jump_on_main_context(self)
+        return hit
 
     def _jump_to_next_matching_agent_by_time(
         self,

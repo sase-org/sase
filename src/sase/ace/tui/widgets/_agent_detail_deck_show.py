@@ -77,6 +77,10 @@ class AgentDetailDeckShowMixin:
                 )
             except Exception:
                 pass
+            try:
+                self._maybe_apply_main_context_landing()  # type: ignore[attr-defined]
+            except Exception:
+                pass
         elif deck is DeckId.FILES:
             if is_duplicate:
                 try:
@@ -193,6 +197,7 @@ class AgentDetailDeckShowMixin:
 
     def cycle_focused_deck_card(self, direction: int) -> str | None:
         """Cycle cards in the focused panel; the shown deck's choice sticks."""
+        self._clear_main_context_landing()  # type: ignore[attr-defined]
         try:
             area = self.deck_area  # type: ignore[attr-defined]
             panel = area.focused_panel()
@@ -276,6 +281,7 @@ class AgentDetailDeckShowMixin:
 
     def cycle_focused_card_block(self, direction: int) -> bool:
         """Cycle card blocks in the focused panel; the owning card sticks."""
+        self._clear_main_context_landing()  # type: ignore[attr-defined]
         try:
             area = self.deck_area  # type: ignore[attr-defined]
             panel = area.focused_panel()
@@ -303,6 +309,7 @@ class AgentDetailDeckShowMixin:
 
     def select_focused_card_block(self, block_id: str | None) -> bool:
         """Select a card block in the focused panel; the owning card sticks."""
+        self._clear_main_context_landing()  # type: ignore[attr-defined]
         try:
             area = self.deck_area  # type: ignore[attr-defined]
             panel = area.focused_panel()

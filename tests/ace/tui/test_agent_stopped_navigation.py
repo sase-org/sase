@@ -44,6 +44,28 @@ def test_has_stopped_agent_honors_status_bucket_override() -> None:
     assert UnreadJumpApp([settling, running])._jump_to_next_stopped_agent() is False
 
 
+def test_stopped_jump_lands_on_hit_only(monkeypatch: pytest.MonkeyPatch) -> None:
+    running = make_agent(name="running", status="RUNNING", raw_suffix="running")
+    stopped = make_agent(name="stopped", status="PLAN", raw_suffix="stopped")
+    calls: list[tuple[object, object]] = []
+
+    def land(app: object) -> None:
+        calls.append((app, app._agents[app.current_idx]))  # type: ignore[attr-defined]
+
+    monkeypatch.setattr(
+        "sase.ace.tui.actions.agents._unread_navigation.land_stopped_jump_on_main_context",
+        land,
+    )
+    app = UnreadJumpApp([running, stopped])
+
+    assert app._jump_to_next_stopped_agent()
+    assert calls == [(app, stopped)]
+
+    miss = UnreadJumpApp([running])
+    assert miss._jump_to_next_stopped_agent() is False
+    assert calls == [(app, stopped)]
+
+
 def test_jump_to_next_stopped_agent_visits_custom_gate_and_plan(
     notification_dismiss: Mock,
 ) -> None:

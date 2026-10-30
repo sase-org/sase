@@ -87,7 +87,10 @@ within a session container's `SASE CONTEXT` region, its lane sub-headings (`BEAD
 cards — `za`/`zA` still reach them when they own the viewport's top row. Roster rows are
 also not `za`/`zA` targets and are not covered by `,/` search. The shortcuts act on the
 focused deck panel, and changing agents or entering/leaving a pinned attempt view keeps
-the preferred card.
+the preferred card. On the Agents tab, `,J` focuses an already-visible Main panel when
+one exists; otherwise it switches the focused panel to Main. It opens the stopped agent
+at the top of its Context card and makes Context that panel's preferred card for later
+selections.
 
 - **Agent details**: Name, status, model, provider, Patch association, and
   chronologically sorted timestamps:
