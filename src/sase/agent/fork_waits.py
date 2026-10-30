@@ -5,7 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from sase.core.agent_artifact_paths import parse_agent_artifact_path
-from sase.agent.names._lookup_artifacts import read_json_dict
+from sase.agent.names._lookup_artifacts import meta_parent_timestamp, read_json_dict
 from sase.monitor_state import is_real_monitor_member
 from sase.plan_chain import agent_session_role_value
 
@@ -47,6 +47,12 @@ def fork_wait_dependency(name: str) -> dict[str, str]:
                 "name": agent.name,
                 "proc_id": monitor_id,
             }
+        if _is_plain_bare_root(name, agent, meta):
+            return {
+                "kind": "session",
+                "name": agent.name,
+                **_artifact_identity(Path(agent.artifacts_dir)),
+            }
         return {
             "kind": "agent",
             "name": agent.name,
@@ -62,6 +68,40 @@ def fork_wait_dependency(name: str) -> dict[str, str]:
         }
 
     return {"kind": "name", "name": name}
+
+
+def _is_plain_bare_root(
+    name: str,
+    agent: object,
+    meta: dict[str, object],
+) -> bool:
+    """Return whether *name* is a bare name over a never-promoted plain agent.
+
+    A bare name that resolves to a plain root agent is recorded as a session
+    seed (``kind: "session"``) so a later promotion of that agent into a
+    session keeps the fork waiting through review and coding. Exact members,
+    monitors/procs, clans, and fallbacks keep their current records.
+    """
+    agent_name = getattr(agent, "name", None)
+    if agent_name != name:
+        return False
+    # Monitor-associated starters keep their agent record: they are not plain
+    # root agents even when they lack a session role.
+    if _json_string(meta, "monitor_id") is not None:
+        return False
+    try:
+        from sase.core.agent_identity_facade import (
+            AgentSessionNameKind,
+            parse_agent_session_name,
+        )
+
+        if parse_agent_session_name(name).kind is AgentSessionNameKind.MEMBER:
+            return False
+    except (RuntimeError, ValueError):
+        return False
+    if meta_parent_timestamp(meta) is not None:
+        return False
+    return not _json_session_role(meta)
 
 
 def _artifact_identity(artifact_dir: Path) -> dict[str, str]:

@@ -96,9 +96,12 @@ If the parent is missing, ambiguous, or dismissed, or the composed member name a
 exists, launch preparation fails before spawning the member. Collision errors suggest
 `%i(@, session=parent)`. `%wait:<session>` and `#fork` references to the bare session
 name resolve through the session container; `sase agent wait <session>` uses the same
-session target and waits for successors that appear after the wait begins. An exact
-`--<suffix>` name targets one member. A member attached to an agent already inside a
-clan inherits that clan membership.
+session target and waits for successors that appear after the wait begins. A bare name
+also covers an agent that becomes a session after the fork or wait was bound: a fork
+bound while the parent is still a plain agent stays waiting through review and coding
+once that parent is promoted into a session. An exact `--<suffix>` name targets one
+member. A member attached to an agent already inside a clan inherits that clan
+membership.
 
 A monitor or gate turn that ended unsuccessfully without handing off to a follow-up
 member normally keeps a bare-session wait blocked. Retries are the exception: when the

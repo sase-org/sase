@@ -82,6 +82,17 @@ class WaitDependencyForkQueries:
         if kind == "agent":
             candidate = index._identity_candidate(dependency)
             if candidate is not None:
+                if fork_source_follows_promotion(dependency, candidate):
+                    session = index.agent_session_candidate_for_root(
+                        candidate,
+                        exclude_artifact_dir=exclude_artifact_dir,
+                    )
+                    if session is not None:
+                        return _fork_status(
+                            (session.is_resolved and session.is_done)
+                            or session.is_failed
+                        )
+                    return _fork_status(_candidate_terminal_for_fork(candidate))
                 return _fork_status(_candidate_terminal_for_fork(candidate))
             return self._fork_name_fallback_status(
                 name,
@@ -99,6 +110,10 @@ class WaitDependencyForkQueries:
                     return _fork_status(
                         (session.is_resolved and session.is_done) or session.is_failed
                     )
+                # Session of one: a session seed over a never-promoted agent
+                # evaluates its pinned candidate alone and never falls back to
+                # name lookup, which could pick up a later namesake.
+                return _fork_status(_candidate_terminal_for_fork(candidate))
             return self._fork_agent_session_name_status(
                 name,
                 exclude_artifact_dir=exclude_artifact_dir,
@@ -180,6 +195,37 @@ class WaitDependencyForkQueries:
         ):
             return WaitDependencyStatus("resolved")
         return WaitDependencyStatus("waiting")
+
+
+def fork_source_follows_promotion(
+    dependency: Mapping[str, Any],
+    candidate: ArtifactCandidate | None,
+) -> bool:
+    """Return whether a legacy ``kind: "agent"`` record follows a promotion.
+
+    A bare-name fork bound before its parent was promoted into a session is
+    stored as ``kind: "agent"`` with the parent's identity. Once the parent is
+    a session root (no ``parent_timestamp``, ``agent_session_name`` set) and
+    the recorded name equals that session's bare owner name, the record is
+    evaluated exactly like ``kind: "session"``. Exact-member records never
+    match the name test, so they stay single-turn. Records carrying a v2
+    ``target`` field are never healed here; ``fork_binding`` owns them.
+    """
+    if candidate is None:
+        return False
+    if not isinstance(dependency, Mapping):
+        return False
+    if dependency.get("kind") != "agent":
+        return False
+    if dependency.get("target") is not None:
+        return False
+    if candidate.parent_timestamp is not None:
+        return False
+    session_name = candidate.agent_session_name
+    if not session_name:
+        return False
+    name = dependency.get("name")
+    return isinstance(name, str) and bool(name) and name == session_name
 
 
 def _mapping_string(data: Mapping[str, Any], key: str) -> str | None:

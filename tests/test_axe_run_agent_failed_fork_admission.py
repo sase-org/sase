@@ -87,7 +87,7 @@ class TestFailedForkParentAdmission:
         assert info.wait_names == ["parent-agent"]
         assert info.wait_fork_sources == [
             {
-                "kind": "agent",
+                "kind": "session",
                 "name": "parent-agent",
                 "artifact_dir": str(parent_dir),
                 "timestamp": "run1",

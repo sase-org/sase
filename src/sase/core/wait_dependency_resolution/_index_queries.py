@@ -14,7 +14,10 @@ from sase.plan_chain import planner_row_name
 
 from ._artifact_state import artifact_dir_key
 from ._index_entities import WaitDependencyEntityQueries
-from ._index_fork_queries import WaitDependencyForkQueries
+from ._index_fork_queries import (
+    WaitDependencyForkQueries,
+    fork_source_follows_promotion,
+)
 from ._index_identity_queries import WaitDependencyIdentityQueries
 from ._tribe_binding import TribeMemberRow, resolve_tribe_wait_binding
 from ._types import (
@@ -601,6 +604,13 @@ class WaitDependencyIndexQueries(
             candidate = self._identity_candidate(dependency)
             if candidate is not None:
                 add_candidate_members(candidate)
+                if fork_source_follows_promotion(dependency, candidate):
+                    # A healed bare-name record releases on the whole session,
+                    # so confirmation must see every session member even when
+                    # the resolving view predates the promotion.
+                    session_name = candidate.agent_session_name
+                    if session_name:
+                        add_candidates(self.agent_sessions.get(session_name))
             kind = dependency.get("kind")
             if kind == "clan" and isinstance(name, str) and name:
                 generations = self.clans.get(name, {})

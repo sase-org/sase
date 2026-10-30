@@ -72,6 +72,11 @@ against the fork target's completeness. The implied wait still holds for any oth
 session member, because that member's transcript or execution record is not ready to
 inject yet.
 
+A bare-name `#fork` bound while the parent is still a plain agent is recorded as a
+session wait, so a later promotion of that parent into a session keeps the fork waiting
+through review and coding. A fork bound to an exact `--<suffix>` member name keeps
+waiting on that one member only.
+
 `#fork` also resolves a stand-alone named proc (by its reusable proc name or its exact
 proc ID) and a monitor session member (by its `--mon`/`--mon-N` proc name or exact proc
 ID). Both are execution records, never a prior conversation: the injected block states

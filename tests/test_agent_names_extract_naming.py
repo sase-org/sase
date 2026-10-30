@@ -283,7 +283,7 @@ class TestExtractDirectivesImplicitForkWait:
             )
 
         expected_source = {
-            "kind": "agent",
+            "kind": "session",
             "name": "failed-parent",
             "artifact_dir": str(parent_dir),
             "timestamp": parent_dir.name,
