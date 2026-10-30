@@ -10,12 +10,14 @@ from __future__ import annotations
 
 import json
 import os
+from hashlib import sha256
 from pathlib import Path
 
 import pytest
 
 from sase.config.core import clear_config_cache
 from sase.core.continuation_facade import evaluate_prepared_reservation_access
+from sase.core.continuation_facade import seal_conditional_completion
 from sase.core.continuation_wire import CONTINUATION_WIRE_SCHEMA_VERSION
 from sase.core.staged_handoff import (
     STAGED_MONITOR_LAUNCH_PAYLOAD_SCHEMA_VERSION,
@@ -425,12 +427,11 @@ def test_prepared_reservation_ownership_matrix() -> None:
     assert _access("intent-1", STAGED_A, "monitor-1", "release", [])["allowed"] is True
 
 
-def _write_intent_index(artifacts: Path, intent_id: str) -> None:
+def _write_intent_index(artifacts: Path, intent: dict[str, object]) -> str:
     intents = artifacts / "continuation" / "completion_intents"
     intents.mkdir(parents=True, exist_ok=True)
-    (intents / f"{intent_id}.json").write_text(
-        json.dumps({"intent_id": intent_id}), encoding="utf-8"
-    )
+    intent_id = str(intent["intent_id"])
+    (intents / f"{intent_id}.json").write_text(json.dumps(intent), encoding="utf-8")
     (intents / "index.json").write_text(
         json.dumps(
             {
@@ -445,34 +446,119 @@ def _write_intent_index(artifacts: Path, intent_id: str) -> None:
         ),
         encoding="utf-8",
     )
+    return intent_id
+
+
+def _prepared_intent() -> dict[str, object]:
+    def digest(label: str) -> str:
+        return sha256(label.encode()).hexdigest()
+
+    context_digest = digest("context")
+    plan_digest = digest("plan")
+    return seal_conditional_completion(
+        {
+            "schema_version": CONTINUATION_WIRE_SCHEMA_VERSION,
+            "creator": {
+                "project": "sase",
+                "run_id": "run-1",
+                "agent_name": "agent-1",
+            },
+            "context": {
+                "run_id": "run-1",
+                "agent_id": "agent-1",
+                "turn_nonce": "nonce-1",
+                "plan_digest": plan_digest,
+                "context_digest": context_digest,
+                "obligation_ids": ["repo-main"],
+            },
+            "success_message": "Required checks passed.",
+            "verification_command": ["just", "check"],
+            "declaration": {
+                "schema_version": 2,
+                "context_digest": context_digest,
+                "plan_digest": plan_digest,
+                "payloads": [
+                    {
+                        "instance_id": "commit",
+                        "payload": {
+                            "repositories": [
+                                {
+                                    "repo_id": "repo-main",
+                                    "action": "commit",
+                                    "message": "fix: preserve prepared work",
+                                }
+                            ],
+                            "deferrals": [],
+                        },
+                    }
+                ],
+            },
+            "observations": [
+                {
+                    "repo_id": "repo-main",
+                    "kind": "main",
+                    "name": "main",
+                    "head": digest("head"),
+                    "head_tree": digest("head-tree"),
+                    "index_tree": digest("index-tree"),
+                    "complete": True,
+                    "paths": [
+                        {
+                            "path": "src/app.py",
+                            "kind": "file",
+                            "protected": False,
+                            "foreign": False,
+                        }
+                    ],
+                }
+            ],
+            "executors": [
+                {
+                    "instance_id": "commit",
+                    "provider_ref": "builtin@commit",
+                    "headless": True,
+                    "durable_replay": True,
+                    "requires_model": False,
+                }
+            ],
+        }
+    )
 
 
 def test_prepared_reservation_persist_round_trip(tmp_path: Path) -> None:
     artifacts = tmp_path / "artifacts"
     artifacts.mkdir()
-    _write_intent_index(artifacts, "intent-1")
+    intent_id = _write_intent_index(artifacts, _prepared_intent())
 
     stored = reserve_prepared_intent(
-        "intent-1",
+        intent_id,
         _reservation(STAGED_A, "monitor-1"),
         artifacts_dir=artifacts,
     )
-    assert stored["intent_ref"] == "intent-1"
+    assert stored["intent_ref"] == intent_id
     loaded = load_prepared_intent_reservations(artifacts_dir=artifacts)
-    assert loaded["intent-1"]["reservation"]["monitor_id"] == "monitor-1"
+    assert loaded[intent_id]["reservation"]["monitor_id"] == "monitor-1"
 
     # Another stage cannot steal the persisted intent.
     with pytest.raises(FinalizerDeclarationError):
         reserve_prepared_intent(
-            "intent-1",
+            intent_id,
             _reservation(STAGED_B, "monitor-9"),
+            artifacts_dir=artifacts,
+        )
+
+    with pytest.raises(FinalizerDeclarationError):
+        release_prepared_intent(
+            intent_id,
+            staged_id=STAGED_A,
+            monitor_id="monitor-foreign",
             artifacts_dir=artifacts,
         )
 
     # Matching cleanup releases; repeats are idempotent.
     assert (
         release_prepared_intent(
-            "intent-1",
+            intent_id,
             staged_id=STAGED_A,
             monitor_id="monitor-1",
             artifacts_dir=artifacts,
@@ -481,7 +567,7 @@ def test_prepared_reservation_persist_round_trip(tmp_path: Path) -> None:
     )
     assert (
         release_prepared_intent(
-            "intent-1",
+            intent_id,
             staged_id=STAGED_A,
             monitor_id="monitor-1",
             artifacts_dir=artifacts,
@@ -489,3 +575,20 @@ def test_prepared_reservation_persist_round_trip(tmp_path: Path) -> None:
         is False
     )
     assert load_prepared_intent_reservations(artifacts_dir=artifacts) == {}
+
+
+def test_corrupt_reservation_store_refuses_new_reservation(tmp_path: Path) -> None:
+    artifacts = tmp_path / "artifacts"
+    artifacts.mkdir()
+    intent_id = _write_intent_index(artifacts, _prepared_intent())
+    reservations = (
+        artifacts / "continuation" / "completion_intents" / "reservations.json"
+    )
+    reservations.write_text("{truncated", encoding="utf-8")
+
+    with pytest.raises(FinalizerDeclarationError, match="unreadable"):
+        reserve_prepared_intent(
+            intent_id,
+            _reservation(STAGED_A, "monitor-1"),
+            artifacts_dir=artifacts,
+        )

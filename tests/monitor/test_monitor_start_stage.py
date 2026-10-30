@@ -7,8 +7,10 @@ entries directly and keep existing ``start_monitor`` behavior unchanged.
 from __future__ import annotations
 
 import json
+from hashlib import sha256
 import os
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any
 
 import pytest
@@ -16,6 +18,15 @@ import pytest
 from sase.agent.staged_handoff import STAGED_HANDOFF_FILENAME, read_staged_handoff
 from sase.core.staged_handoff import staged_monitor_launch_payload_schema_version
 from sase.core.tool_run import tool_run_show
+from sase.core.continuation_facade import seal_conditional_completion
+from sase.core.continuation_wire import CONTINUATION_WIRE_SCHEMA_VERSION
+from sase.finalizers.prepare import (
+    bind_prepared_completion,
+    load_prepared_completion,
+    persist_prepared_completion,
+)
+from sase.finalizers._prepare_reservations import load_prepared_intent_reservations
+from sase.finalizers.declaration import FinalizerDeclarationError
 from sase.monitor.models import MonitorAlreadyRunningError, MonitorError
 from sase.monitor.start import StartMonitorRequest, start_monitor
 from sase.monitor.start_stage import (
@@ -80,6 +91,7 @@ def _request(
     cwd: str | None = None,
     join_run_id: str | None = None,
     profile: str | None = None,
+    completion_ref: str | None = None,
 ) -> StartMonitorRequest:
     return StartMonitorRequest(
         command=command,
@@ -92,6 +104,83 @@ def _request(
         lane="acme",
         join_run_id=join_run_id,
         profile=profile,
+        completion_ref=completion_ref,
+    )
+
+
+def _sealed_intent(command: list[str]) -> dict[str, Any]:
+    def digest(label: str) -> str:
+        return sha256(label.encode()).hexdigest()
+
+    context_digest = digest("context")
+    plan_digest = digest("plan")
+    return seal_conditional_completion(
+        {
+            "schema_version": CONTINUATION_WIRE_SCHEMA_VERSION,
+            "creator": {
+                "project": "sase",
+                "run_id": "run-1",
+                "agent_name": "acme",
+            },
+            "context": {
+                "run_id": "run-1",
+                "agent_id": "acme",
+                "turn_nonce": "nonce-1",
+                "plan_digest": plan_digest,
+                "context_digest": context_digest,
+                "obligation_ids": ["repo-main"],
+            },
+            "success_message": "Required checks passed.",
+            "verification_command": command,
+            "declaration": {
+                "schema_version": 2,
+                "context_digest": context_digest,
+                "plan_digest": plan_digest,
+                "payloads": [
+                    {
+                        "instance_id": "commit",
+                        "payload": {
+                            "repositories": [
+                                {
+                                    "repo_id": "repo-main",
+                                    "action": "commit",
+                                    "message": "fix: finish the change",
+                                }
+                            ],
+                            "deferrals": [],
+                        },
+                    }
+                ],
+            },
+            "observations": [
+                {
+                    "repo_id": "repo-main",
+                    "kind": "main",
+                    "name": "main",
+                    "head": digest("head"),
+                    "head_tree": digest("head-tree"),
+                    "index_tree": digest("index-tree"),
+                    "complete": True,
+                    "paths": [
+                        {
+                            "path": "src/app.py",
+                            "kind": "file",
+                            "protected": False,
+                            "foreign": False,
+                        }
+                    ],
+                }
+            ],
+            "executors": [
+                {
+                    "instance_id": "commit",
+                    "provider_ref": "builtin@commit",
+                    "headless": True,
+                    "durable_replay": True,
+                    "requires_model": False,
+                }
+            ],
+        }
     )
 
 
@@ -227,6 +316,148 @@ def test_tool_run_id_is_stable_from_stage_to_launch(
         assert record.monitor_id == staged.record.monitor_id
     finally:
         wait_for_done(record.artifacts_dir, timeout=30.0)
+
+
+def test_prepared_stage_reserves_without_binding_then_binds_at_spawn(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    dirs = _stage_env(tmp_path, monkeypatch)
+    prepared = persist_prepared_completion(
+        _sealed_intent(["just", "check"]), artifacts_dir=dirs[0]
+    )
+
+    staged = stage_monitor(
+        _request(tmp_path, command="just check", completion_ref=prepared.intent_ref)
+    )
+    dirs.append(staged.record.artifacts_dir)
+    intent = load_prepared_completion(prepared.intent_ref, artifacts_dir=dirs[0])
+    assert intent["status"] == "prepared"
+
+    payload = load_staged_monitor_launch_payload(staged.record.artifacts_dir)
+    reservation = payload["resources"]["prepared_reservation"]
+    assert reservation == {
+        "staged_id": staged.staged_id,
+        "monitor_id": staged.record.monitor_id,
+        "request_fingerprint": staged.record.request_fingerprint,
+        "command": ["just", "check"],
+    }
+    handoff = read_staged_handoff(dirs[0])
+    assert handoff is not None
+    assert handoff["payload"]["prepared_reservation"] == reservation
+    assert handoff["carry_allowed"] is False
+
+    # A direct/immediate consumer cannot take an intent reserved for this stage.
+    with pytest.raises(
+        FinalizerDeclarationError, match="reserved for a staged monitor"
+    ):
+        bind_prepared_completion(
+            prepared.intent_ref,
+            monitor_id="monitor-competitor",
+            command=["just", "check"],
+            request_fingerprint="competitor-fingerprint",
+            artifacts_dir=dirs[0],
+        )
+
+    fake_pid = os.getpid() + 10000
+
+    def _fake_submit(
+        *args: Any, after_spawn: Any, after_ack: Any, **kwargs: Any
+    ) -> Any:
+        del args, kwargs
+        after_spawn(SimpleNamespace(pid=fake_pid))
+        proc = SimpleNamespace(pid=fake_pid, supervisor_id="supervisor-fake")
+        after_ack(proc)
+        return proc
+
+    monkeypatch.setattr("sase.monitor.start_launch.submit_proc_request", _fake_submit)
+    monkeypatch.setattr(
+        "sase.monitor.start_launch.claim_monitor_workspace",
+        lambda *args, **kwargs: SimpleNamespace(
+            result=SimpleNamespace(success=True), starter_claim=None
+        ),
+    )
+
+    record = launch_from_persisted_payload(staged.record.artifacts_dir)
+    assert record.monitor_state == "running"
+    bound = load_prepared_completion(prepared.intent_ref, artifacts_dir=dirs[0])
+    assert bound["status"] == "bound"
+    assert bound["binding"]["monitor_id"] == staged.record.monitor_id
+    assert bound["binding"]["bound_command"] == ["just", "check"]
+    assert record.monitor_state == "running"
+
+
+def test_prepared_stage_rejects_wrong_command_before_publish(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    dirs = _stage_env(tmp_path, monkeypatch)
+    prepared = persist_prepared_completion(
+        _sealed_intent(["just", "check"]), artifacts_dir=dirs[0]
+    )
+
+    with pytest.raises(MonitorError, match="does not match"):
+        stage_monitor(
+            _request(
+                tmp_path,
+                command="just check-full",
+                completion_ref=prepared.intent_ref,
+            )
+        )
+
+    assert (
+        load_prepared_completion(prepared.intent_ref, artifacts_dir=dirs[0])["status"]
+        == "prepared"
+    )
+    assert load_prepared_intent_reservations(artifacts_dir=dirs[0]) == {}
+    assert read_staged_handoff(dirs[0]) is None
+
+
+def test_prepared_stage_ack_failure_rolls_back_binding_and_reservation(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    dirs = _stage_env(tmp_path, monkeypatch)
+    prepared = persist_prepared_completion(
+        _sealed_intent(["just", "check"]), artifacts_dir=dirs[0]
+    )
+    staged = stage_monitor(
+        _request(tmp_path, command="just check", completion_ref=prepared.intent_ref)
+    )
+    dirs.append(staged.record.artifacts_dir)
+
+    def _fail_submit(*args: Any, **kwargs: Any) -> Any:
+        del args, kwargs
+        raise ProcSubmitError("ack failed")
+
+    monkeypatch.setattr("sase.monitor.start_launch.submit_proc_request", _fail_submit)
+    with pytest.raises(MonitorError, match="ack failed"):
+        launch_from_persisted_payload(staged.record.artifacts_dir)
+
+    assert (
+        load_prepared_completion(prepared.intent_ref, artifacts_dir=dirs[0])["status"]
+        == "prepared"
+    )
+    assert load_prepared_intent_reservations(artifacts_dir=dirs[0]) == {}
+
+
+def test_reserved_join_that_settles_before_adoption_is_consumed(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from tests.monitor._join_helpers import settle_detached_run
+
+    dirs = _stage_env(tmp_path, monkeypatch)
+    run_id = reserve_detached_run("--", "true", agent="acme")
+    staged = stage_monitor(_request(tmp_path, join_run_id=run_id))
+    dirs.append(staged.record.artifacts_dir)
+    settle_detached_run(
+        run_id,
+        state="succeeded",
+        exit_code=0,
+        terminal_cause="exited",
+    )
+
+    record = launch_from_persisted_payload(staged.record.artifacts_dir)
+    assert tool_run_show(run_id)["run"]["join"]["id"] == record.monitor_id
+    done = wait_for_done(record.artifacts_dir, timeout=30.0)
+    assert done["monitor_state"] == "completed"
 
 
 def test_launcher_exit_keeps_pending_owner(

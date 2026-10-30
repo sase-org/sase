@@ -118,6 +118,7 @@ def _record_monitor_join(
     *,
     artifacts_dir: str,
     bound_completion_ref: str | None,
+    completion_artifacts_dir: str | None = None,
 ) -> None:
     """Record the Rust join for a ``-J/--join`` start, or tear down and raise.
 
@@ -146,7 +147,11 @@ def _record_monitor_join(
         result = tool_run_join(join_request)
     except Exception as exc:  # noqa: BLE001 - a failed join starts no monitor.
         _teardown_refused_join(
-            artifacts_dir, bound_completion_ref, monitor_id, str(exc)
+            artifacts_dir,
+            bound_completion_ref,
+            monitor_id,
+            str(exc),
+            completion_artifacts_dir=completion_artifacts_dir,
         )
         raise MonitorError(
             f"could not join tool run {run_id} ({exc}); "
@@ -160,7 +165,13 @@ def _record_monitor_join(
         )
         run = result.get("run") if isinstance(result, dict) else None
         message = _join_refusal_message(run_id, refusal, run)
-        _teardown_refused_join(artifacts_dir, bound_completion_ref, monitor_id, message)
+        _teardown_refused_join(
+            artifacts_dir,
+            bound_completion_ref,
+            monitor_id,
+            message,
+            completion_artifacts_dir=completion_artifacts_dir,
+        )
         raise MonitorError(message)
 
 
@@ -196,6 +207,8 @@ def _teardown_refused_join(
     bound_completion_ref: str | None,
     monitor_id: str,
     message: str,
+    *,
+    completion_artifacts_dir: str | None = None,
 ) -> None:
     """Roll back the member (and any bound completion) for a refused join."""
 
@@ -205,7 +218,9 @@ def _teardown_refused_join(
         rollback_prepared_completion(
             bound_completion_ref,
             monitor_id=monitor_id,
-            artifacts_dir=store_lane.caller_artifacts_dir(),
+            artifacts_dir=(
+                completion_artifacts_dir or store_lane.caller_artifacts_dir()
+            ),
         )
     teardown_failed_member(artifacts_dir, message)
 
@@ -235,6 +250,7 @@ def _activate_staged_join(
     monitor_id: str,
     artifacts_dir: str,
     bound_completion_ref: str | None,
+    completion_artifacts_dir: str | None = None,
 ) -> None:
     """Activate a staged-join reservation into the ordinary monitor join."""
 
@@ -253,7 +269,11 @@ def _activate_staged_join(
         )
     except Exception as exc:  # noqa: BLE001 - a failed activate starts no proc.
         _teardown_refused_join(
-            artifacts_dir, bound_completion_ref, monitor_id, str(exc)
+            artifacts_dir,
+            bound_completion_ref,
+            monitor_id,
+            str(exc),
+            completion_artifacts_dir=completion_artifacts_dir,
         )
         raise MonitorError(
             f"could not activate staged join for tool run {run_id} ({exc}); "
@@ -267,7 +287,13 @@ def _activate_staged_join(
         )
         run = result.get("run") if isinstance(result, dict) else None
         message = _join_refusal_message(run_id, refusal, run)
-        _teardown_refused_join(artifacts_dir, bound_completion_ref, monitor_id, message)
+        _teardown_refused_join(
+            artifacts_dir,
+            bound_completion_ref,
+            monitor_id,
+            message,
+            completion_artifacts_dir=completion_artifacts_dir,
+        )
         raise MonitorError(message)
 
 
@@ -302,6 +328,7 @@ def _resolve_launch_execution(
                 monitor_id,
                 artifacts_dir=artifacts_dir,
                 bound_completion_ref=bound_completion_ref,
+                completion_artifacts_dir=context.starter_artifacts_dir,
             )
             join_recorded = True
         elif (
@@ -315,6 +342,7 @@ def _resolve_launch_execution(
                 monitor_id=monitor_id,
                 artifacts_dir=artifacts_dir,
                 bound_completion_ref=bound_completion_ref,
+                completion_artifacts_dir=context.starter_artifacts_dir,
             )
             join_recorded = True
         timer.mark("tool_reservation")
@@ -552,7 +580,9 @@ def launch_monitor(context: MonitorLaunchContext, timer: StartTimer) -> MonitorR
             rollback_prepared_completion(
                 bound_completion_ref,
                 monitor_id=monitor_id,
-                artifacts_dir=store_lane.caller_artifacts_dir(),
+                artifacts_dir=(
+                    context.starter_artifacts_dir or store_lane.caller_artifacts_dir()
+                ),
             )
         teardown_failed_member(artifacts_dir, str(exc))
         raise MonitorError(str(exc)) from exc

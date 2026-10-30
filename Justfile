@@ -501,9 +501,7 @@ _lint-symvision *args: _setup
     SASE_SYMVISION_BEAD_STATUS_ONLY=1 BD_COMMAND=tools/sase_bead {{ venv_bin }}/symvision src/sase \
         --exclude-decorator gate_command_entrypoint \
         --exclude-decorator builtin_chop \
-        --epic-symbol 'sase-1pj.5.1.3(reserve_prepared_intent)' \
-        --epic-symbol 'sase-1pj.5.1.3(release_prepared_intent)' \
-        --epic-symbol 'sase-1pj.5.1.3(load_prepared_intent_reservations)' \
+        --epic-symbol 'sase-1pj.5.1.4(load_prepared_intent_reservations)' \
         --epic-symbol 'sase-1pj.5.1.4(evaluate_staged_self_wait)' \
         --epic-symbol 'sase-1pu.5.1.4(advance_agent_run_state_schedule)' \
         --epic-symbol 'sase-1pu.5.1.4(AgentRunStateProjectIdentityWire)' \

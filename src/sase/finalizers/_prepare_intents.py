@@ -71,7 +71,7 @@ def load_prepared_completion(
         "conditional completion bind",
     )
     with _intent_lock(root):
-        path = _resolve_intent_path(root, reference)
+        path = resolve_intent_path(root, reference)
         payload = json.loads(path.read_text(encoding="utf-8"))
     if not isinstance(payload, dict):
         raise FinalizerDeclarationError(
@@ -87,9 +87,15 @@ def bind_prepared_completion(
     monitor_id: str,
     command: str | Sequence[str],
     request_fingerprint: str,
+    staged_id: str | None = None,
     artifacts_dir: str | Path | None = None,
 ) -> dict[str, Any]:
-    """Atomically bind a prepared intent to one monitor start."""
+    """Atomically bind a prepared intent to one monitor start.
+
+    Staged starts must present the persisted stage identity and exact frozen
+    request. An ordinary immediate start may bind only when no staged
+    reservation owns the intent.
+    """
 
     root = require_artifacts_dir(
         str(artifacts_dir) if artifacts_dir is not None else None,
@@ -97,8 +103,62 @@ def bind_prepared_completion(
     )
     argv = command_argv(command)
     with _intent_lock(root):
-        path = _resolve_intent_path(root, reference)
+        path = resolve_intent_path(root, reference)
         current = json.loads(path.read_text(encoding="utf-8"))
+        from sase.core.continuation_facade import (
+            evaluate_prepared_reservation_access,
+        )
+        from sase.finalizers._prepare_reservations import (
+            canonical_prepared_intent_id,
+            existing_prepared_reservation_wires,
+            read_prepared_reservations_locked,
+        )
+
+        intent_id = canonical_prepared_intent_id(root, reference)
+        reservations = read_prepared_reservations_locked(root)
+        reservation_record = reservations.get(intent_id)
+        if staged_id is None and reservation_record is not None:
+            raise FinalizerDeclarationError(
+                f"prepared intent {intent_id!r} is reserved for a staged monitor",
+                code="prepared_reservation_conflict",
+            )
+        if staged_id is not None:
+            decision = evaluate_prepared_reservation_access(
+                {
+                    "schema_version": CONTINUATION_WIRE_SCHEMA_VERSION,
+                    "intent_ref": intent_id,
+                    "staged_id": staged_id,
+                    "monitor_id": monitor_id,
+                    "action": "bind",
+                    "existing": existing_prepared_reservation_wires(reservations),
+                }
+            )
+            if not decision.get("allowed"):
+                raise FinalizerDeclarationError(
+                    f"prepared intent {intent_id!r} is not reserved for this "
+                    f"staged monitor ({decision.get('reason') or 'refused'})",
+                    code="prepared_reservation_conflict",
+                )
+            stored_reservation = (
+                reservation_record.get("reservation")
+                if isinstance(reservation_record, Mapping)
+                else None
+            )
+            expected_reservation = {
+                "staged_id": staged_id,
+                "monitor_id": monitor_id,
+                "request_fingerprint": request_fingerprint,
+                "command": argv,
+            }
+            if (
+                not isinstance(stored_reservation, Mapping)
+                or dict(stored_reservation) != expected_reservation
+            ):
+                raise FinalizerDeclarationError(
+                    f"prepared intent {intent_id!r} reservation does not match "
+                    "the staged monitor request",
+                    code="prepared_reservation_conflict",
+                )
         try:
             bound = bind_conditional_completion(
                 {
@@ -135,7 +195,7 @@ def rollback_prepared_completion(
         return None
     with _intent_lock(root):
         try:
-            path = _resolve_intent_path(root, reference)
+            path = resolve_intent_path(root, reference)
             current = json.loads(path.read_text(encoding="utf-8"))
             restored = rollback_conditional_completion_binding(
                 {
@@ -185,7 +245,7 @@ def _index_put(
     write_json_atomic(index_path, index)
 
 
-def _resolve_intent_path(root: Path, reference: str) -> Path:
+def resolve_intent_path(root: Path, reference: str) -> Path:
     directory = _intents_dir(root)
     index_path = directory / COMPLETION_INDEX_FILENAME
     intent_id = reference

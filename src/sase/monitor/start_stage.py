@@ -76,6 +76,7 @@ class StagedMonitorCleanupResult:
     released_join: bool
     settled_tool_run_id: str | None
     member_state: str
+    released_prepared_intent: bool = False
     skipped: bool = False
 
 
@@ -179,6 +180,7 @@ def cleanup_staged_monitor(
     tool_run_id: str | None = None,
     staged_id: str | None = None,
     starter_artifacts_dir: str | None = None,
+    prepared_intent_ref: str | None = None,
     tool_run_joined: bool = False,
 ) -> StagedMonitorCleanupResult:
     """Unwind unstarted staged resources. Safe to repeat.
@@ -201,6 +203,7 @@ def cleanup_staged_monitor(
             released_join=False,
             settled_tool_run_id=None,
             member_state=state,
+            released_prepared_intent=False,
             skipped=True,
         )
     payload = _load_payload_optional(artifacts_dir)
@@ -233,6 +236,30 @@ def cleanup_staged_monitor(
         starter_block = payload.get("starter")
         if isinstance(starter_block, dict):
             starter = str(starter_block.get("artifacts_dir") or "")
+    prepared_ref = prepared_intent_ref or _prepared_intent_ref(payload or {})
+    if prepared_ref is None:
+        prepared_ref = _optional_str(claim.get("completion_ref"))
+    released_prepared = False
+    if prepared_ref and staged and monitor_id and starter:
+        from sase.finalizers.prepare import rollback_prepared_completion
+        from sase.finalizers._prepare_reservations import release_prepared_intent
+
+        # A pre-ack bind is reusable after rollback. Both operations use the
+        # persisted starter store, which is also the reservation's owner.
+        rollback_prepared_completion(
+            prepared_ref,
+            monitor_id=monitor_id,
+            artifacts_dir=starter,
+        )
+        try:
+            released_prepared = release_prepared_intent(
+                prepared_ref,
+                staged_id=staged,
+                monitor_id=monitor_id,
+                artifacts_dir=starter,
+            )
+        except Exception:  # noqa: BLE001 - cleanup remains best effort.
+            released_prepared = False
     if held:
         from sase.axe.run_agent_helpers_artifacts import update_meta_field
 
@@ -245,6 +272,7 @@ def cleanup_staged_monitor(
             released_join=released_join,
             settled_tool_run_id=settled_id,
             member_state=state or "staged",
+            released_prepared_intent=released_prepared,
         )
     if starter:
         discard_staged_handoff(starter)
@@ -257,6 +285,7 @@ def cleanup_staged_monitor(
         released_join=released_join,
         settled_tool_run_id=settled_id,
         member_state="failed",
+        released_prepared_intent=released_prepared,
     )
 
 
@@ -300,8 +329,36 @@ def _stage_monitor_locked(
     context = prepared.context
     if context is None:
         raise MonitorError("monitor preparation produced no launch context")
+    prepared_reservation: dict[str, Any] | None = None
     try:
-        payload = _build_launch_payload(prepared, context, stage_id)
+        if request.completion_ref:
+            from sase.finalizers._prepare_reservations import (
+                reserve_prepared_intent,
+            )
+
+            command_argv, _execution_argv = _command_argv(context.request)
+            prepared_reservation = {
+                "staged_id": stage_id,
+                "monitor_id": context.monitor_id,
+                "request_fingerprint": context.request_fingerprint,
+                "command": command_argv,
+            }
+            try:
+                reserve_prepared_intent(
+                    request.completion_ref,
+                    prepared_reservation,
+                    artifacts_dir=context.starter_artifacts_dir,
+                )
+            except Exception as exc:
+                raise MonitorError(
+                    f"could not reserve prepared completion for staged monitor: {exc}"
+                ) from exc
+        payload = _build_launch_payload(
+            prepared,
+            context,
+            stage_id,
+            prepared_reservation=prepared_reservation,
+        )
         try:
             normalized = validate_staged_monitor_launch_payload(payload)
         except StagedHandoffContractError as exc:
@@ -339,6 +396,7 @@ def _stage_monitor_locked(
             tool_run_id=context.reserved_tool_run_id,
             staged_id=context.staged_id,
             starter_artifacts_dir=starter_dir,
+            prepared_intent_ref=context.request.completion_ref,
             tool_run_joined=context.tool_run_joined,
         )
         raise
@@ -368,10 +426,15 @@ def _launch_from_persisted_payload_locked(
         existing = read_monitor_marker(project_name, artifacts_dir)
         if existing is not None:
             return existing
-    context = _reconstruct_launch_context(artifacts_dir, payload, claim, meta)
-    context = _revalidate_claim(context)
-    _revalidate_reserved_run(context)
-    return launch_monitor(context, timer)
+    try:
+        context = _reconstruct_launch_context(artifacts_dir, payload, claim, meta)
+        context = _revalidate_claim(context)
+        _revalidate_reserved_run(context)
+        context = _bind_staged_prepared_completion(context, payload)
+        return launch_monitor(context, timer)
+    except Exception:
+        cleanup_staged_monitor(artifacts_dir)
+        raise
 
 
 def _starter_artifacts_dir(
@@ -392,6 +455,8 @@ def _build_launch_payload(
     prepared: PreparedMonitorStart,
     context: MonitorLaunchContext,
     staged_id: str,
+    *,
+    prepared_reservation: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     request = context.request
     lane_start = context.lane_start
@@ -409,6 +474,8 @@ def _build_launch_payload(
         resources["tool_run_id"] = context.reserved_tool_run_id
     if request.completion_ref:
         resources["prepared_intent_ref"] = request.completion_ref
+    if prepared_reservation is not None:
+        resources["prepared_reservation"] = dict(prepared_reservation)
     payload: dict[str, Any] = {
         "schema_version": staged_monitor_launch_payload_schema_version(),
         "staged_id": staged_id,
@@ -444,6 +511,55 @@ def _build_launch_payload(
     if prepared.frozen_policy is not None:
         payload["policy"] = dict(prepared.frozen_policy)
     return payload
+
+
+def _bind_staged_prepared_completion(
+    context: MonitorLaunchContext,
+    payload: dict[str, Any],
+) -> MonitorLaunchContext:
+    """Bind the reserved prepared intent immediately before process launch."""
+
+    request = context.request
+    resources = payload.get("resources")
+    resources = resources if isinstance(resources, dict) else {}
+    intent_ref = _optional_str(resources.get("prepared_intent_ref"))
+    reservation = resources.get("prepared_reservation")
+    if request.completion_ref is None and intent_ref is None and reservation is None:
+        return context
+    if (
+        request.completion_ref is None
+        or intent_ref != request.completion_ref
+        or not isinstance(reservation, dict)
+        or context.staged_id is None
+        or context.starter_artifacts_dir is None
+    ):
+        raise MonitorError("staged prepared completion reservation is incomplete")
+    command_argv, _execution_argv = _command_argv(request)
+    expected = {
+        "staged_id": context.staged_id,
+        "monitor_id": context.monitor_id,
+        "request_fingerprint": context.request_fingerprint,
+        "command": command_argv,
+    }
+    if reservation != expected:
+        raise MonitorError(
+            "staged prepared completion reservation does not match the frozen request"
+        )
+    from sase.finalizers.prepare import bind_prepared_completion
+    from sase.finalizers.declaration import FinalizerDeclarationError
+
+    try:
+        bind_prepared_completion(
+            request.completion_ref,
+            monitor_id=context.monitor_id,
+            command=command_argv,
+            request_fingerprint=context.request_fingerprint,
+            staged_id=context.staged_id,
+            artifacts_dir=context.starter_artifacts_dir,
+        )
+    except FinalizerDeclarationError as exc:
+        raise MonitorError(str(exc)) from exc
+    return replace(context, bound_completion_ref=request.completion_ref)
 
 
 def _claim_context_payload(

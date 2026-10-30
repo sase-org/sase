@@ -29,6 +29,7 @@ from sase.core.continuation_wire import (
 from sase.finalizers._prepare_intents import (
     COMPLETION_INTENTS_DIRNAME,
     COMPLETION_LOCK_FILENAME,
+    resolve_intent_path,
 )
 from sase.finalizers.declaration import require_artifacts_dir
 from sase.finalizers.declaration_store import write_json_atomic
@@ -51,7 +52,7 @@ def load_prepared_intent_reservations(
         "prepared reservation read",
     )
     with _reservations_lock(root):
-        stored = _read_reservations(root)
+        stored = read_prepared_reservations_locked(root)
     reservations: dict[str, dict[str, Any]] = {}
     if not isinstance(stored, Mapping):
         return reservations
@@ -84,16 +85,50 @@ def reserve_prepared_intent(
         "reservation": dict(reservation),
     }
     with _reservations_lock(root):
-        intent_id = _canonical_intent_id(root, reference)
+        intent_id = canonical_prepared_intent_id(root, reference)
         record["intent_ref"] = intent_id
-        stored = _read_reservations(root)
-        existing = _existing_wires(stored)
+        stored = read_prepared_reservations_locked(root)
+        existing = existing_prepared_reservation_wires(stored)
+        reservation_wire = _reservation_wire(reservation)
+
+        # Run the same Rust transition validator used at bind time against
+        # the sealed intent and exact argv. This is a pure in-memory
+        # transition check: the file remains in `prepared` state until the
+        # adopter binds it immediately before spawn.
+        from sase.core.continuation_facade import bind_conditional_completion
+        from sase.finalizers._prepare_intents import (
+            validate_conditional_completion_intent,
+        )
+
+        try:
+            intent_path = resolve_intent_path(root, intent_id)
+            raw_intent = json.loads(intent_path.read_text(encoding="utf-8"))
+            intent = validate_conditional_completion_intent(raw_intent)
+            bind_conditional_completion(
+                {
+                    "schema_version": CONTINUATION_WIRE_SCHEMA_VERSION,
+                    "intent": intent,
+                    "monitor_id": reservation_wire["monitor_id"],
+                    "command": reservation_wire["command"],
+                    "request_fingerprint": reservation_wire["request_fingerprint"],
+                }
+            )
+        except (OSError, UnicodeDecodeError, json.JSONDecodeError, TypeError) as exc:
+            raise FinalizerDeclarationError(
+                f"prepared intent {intent_id!r} could not be validated ({exc})",
+                code="invalid_prepared_intent",
+            ) from exc
+        except ValueError as exc:
+            raise FinalizerDeclarationError(
+                str(exc), code="invalid_prepared_intent"
+            ) from exc
+
         decision = evaluate_prepared_reservation_access(
             {
                 "schema_version": CONTINUATION_WIRE_SCHEMA_VERSION,
                 "intent_ref": intent_id,
-                "staged_id": str(reservation.get("staged_id") or ""),
-                "monitor_id": str(reservation.get("monitor_id") or ""),
+                "staged_id": reservation_wire["staged_id"],
+                "monitor_id": reservation_wire["monitor_id"],
                 "action": "reserve",
                 "existing": existing,
             }
@@ -104,6 +139,17 @@ def reserve_prepared_intent(
                 f"({decision.get('reason') or 'reserved'})",
                 code=_CONFLICT_CODE,
             )
+        incumbent = stored.get(intent_id)
+        if isinstance(incumbent, Mapping):
+            incumbent_reservation = incumbent.get("reservation")
+            if not isinstance(incumbent_reservation, Mapping) or dict(
+                incumbent_reservation
+            ) != dict(reservation):
+                raise FinalizerDeclarationError(
+                    f"prepared intent {intent_id!r} is already reserved with "
+                    "different monitor inputs",
+                    code=_CONFLICT_CODE,
+                )
         stored[intent_id] = record
         _write_reservations(root, stored)
     return {str(key): value for key, value in record.items()}
@@ -129,9 +175,9 @@ def release_prepared_intent(
         "prepared reservation release",
     )
     with _reservations_lock(root):
-        intent_id = _canonical_intent_id(root, reference)
-        stored = _read_reservations(root)
-        existing = _existing_wires(stored)
+        intent_id = canonical_prepared_intent_id(root, reference)
+        stored = read_prepared_reservations_locked(root)
+        existing = existing_prepared_reservation_wires(stored)
         decision = evaluate_prepared_reservation_access(
             {
                 "schema_version": CONTINUATION_WIRE_SCHEMA_VERSION,
@@ -148,8 +194,20 @@ def release_prepared_intent(
                 f"({decision.get('reason') or 'reserved'})",
                 code=_CONFLICT_CODE,
             )
-        if intent_id not in stored:
+        incumbent = stored.get(intent_id)
+        if incumbent is None:
             return False
+        reservation = (
+            incumbent.get("reservation") if isinstance(incumbent, Mapping) else None
+        )
+        if not isinstance(reservation, Mapping) or (
+            reservation.get("staged_id") != staged_id
+            or reservation.get("monitor_id") != monitor_id
+        ):
+            raise FinalizerDeclarationError(
+                f"prepared intent {intent_id!r} is held by another stage",
+                code=_CONFLICT_CODE,
+            )
         del stored[intent_id]
         _write_reservations(root, stored)
         return True
@@ -170,63 +228,98 @@ def _reservations_path(root: Path) -> Path:
     return _reservations_dir(root) / RESERVATIONS_FILENAME
 
 
-def _read_reservations(root: Path) -> dict[str, Any]:
+def read_prepared_reservations_locked(root: Path) -> dict[str, Any]:
+    from sase.finalizers.declaration import FinalizerDeclarationError
+
     path = _reservations_path(root)
     if not path.is_file():
         return {}
     try:
         loaded = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, UnicodeDecodeError, json.JSONDecodeError):
-        return {}
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
+        raise FinalizerDeclarationError(
+            f"prepared intent reservations are unreadable at {path}",
+            code="unreadable_prepared_reservations",
+        ) from exc
     wrappers = loaded.get("reservations") if isinstance(loaded, dict) else None
-    return dict(wrappers) if isinstance(wrappers, dict) else {}
+    if not isinstance(wrappers, dict):
+        raise FinalizerDeclarationError(
+            f"prepared intent reservations are malformed at {path}",
+            code="unreadable_prepared_reservations",
+        )
+    for intent_id, record in wrappers.items():
+        if (
+            not isinstance(intent_id, str)
+            or not intent_id.strip()
+            or not isinstance(record, Mapping)
+            or record.get("intent_ref") != intent_id
+            or not isinstance(record.get("reservation"), Mapping)
+        ):
+            raise FinalizerDeclarationError(
+                f"prepared intent reservation entry is malformed at {path}",
+                code="unreadable_prepared_reservations",
+            )
+        try:
+            _reservation_wire(record["reservation"])
+        except (TypeError, ValueError) as exc:
+            raise FinalizerDeclarationError(
+                f"prepared intent reservation entry is malformed at {path}",
+                code="unreadable_prepared_reservations",
+            ) from exc
+    return dict(wrappers)
 
 
 def _write_reservations(root: Path, stored: dict[str, Any]) -> None:
     write_json_atomic(_reservations_path(root), {"reservations": stored})
 
 
-def _existing_wires(
+def existing_prepared_reservation_wires(
     stored: Mapping[str, Any],
 ) -> list[StoredPreparedReservationWire]:
     existing: list[StoredPreparedReservationWire] = []
     for intent_id, record in stored.items():
         if not isinstance(record, dict):
             continue
-        reservation = record.get("reservation")
-        if not isinstance(reservation, Mapping):
-            continue
-        staged_id = reservation.get("staged_id")
-        monitor_id = reservation.get("monitor_id")
-        fingerprint = reservation.get("request_fingerprint")
-        command = reservation.get("command")
-        if not (
-            isinstance(staged_id, str)
-            and staged_id.strip()
-            and isinstance(monitor_id, str)
-            and monitor_id.strip()
-            and isinstance(fingerprint, str)
-            and fingerprint.strip()
-            and isinstance(command, list)
-            and command
-            and all(isinstance(part, str) and part for part in command)
-        ):
-            continue
+        reservation = _reservation_wire(record["reservation"])
         existing.append(
             StoredPreparedReservationWire(
                 intent_ref=str(intent_id),
-                reservation=PreparedReservationWire(
-                    staged_id=staged_id,
-                    monitor_id=monitor_id,
-                    request_fingerprint=fingerprint,
-                    command=[str(part) for part in command],
-                ),
+                reservation=reservation,
             )
         )
     return existing
 
 
-def _canonical_intent_id(root: Path, reference: str) -> str:
+def _reservation_wire(reservation: Mapping[str, Any]) -> PreparedReservationWire:
+    """Parse one persisted reservation without normalizing away corruption."""
+
+    staged_id = reservation.get("staged_id")
+    monitor_id = reservation.get("monitor_id")
+    fingerprint = reservation.get("request_fingerprint")
+    command = reservation.get("command")
+    if not (
+        isinstance(staged_id, str)
+        and staged_id.strip()
+        and isinstance(monitor_id, str)
+        and monitor_id.strip()
+        and isinstance(fingerprint, str)
+        and fingerprint.strip()
+        and isinstance(command, list)
+        and command
+        and all(isinstance(part, str) and part for part in command)
+        and set(reservation)
+        == {"staged_id", "monitor_id", "request_fingerprint", "command"}
+    ):
+        raise ValueError("prepared reservation is malformed")
+    return PreparedReservationWire(
+        staged_id=staged_id,
+        monitor_id=monitor_id,
+        request_fingerprint=fingerprint,
+        command=list(command),
+    )
+
+
+def canonical_prepared_intent_id(root: Path, reference: str) -> str:
     """Resolve *reference* to the indexed intent id; fail closed otherwise."""
 
     from sase.finalizers.declaration import FinalizerDeclarationError

@@ -132,10 +132,19 @@ def _reassert_join(run_id: str, monitor_id: str) -> str | None:
         return f"sase tool _join: could not join tool run {run_id} (no result)"
     if result.get("outcome") == "joined":
         return None
-    if result.get("refusal") == "settled":
-        return None
     refusal = str(result.get("refusal") or "refused")
     run = result.get("run") if isinstance(result.get("run"), dict) else {}
+    if refusal == "settled":
+        join = run.get("join") if isinstance(run, dict) else None
+        if (
+            isinstance(join, dict)
+            and str(join.get("kind") or "") == "monitor"
+            and str(join.get("id") or "") == monitor_id
+        ):
+            # A staged reservation may be activated after its owner settles.
+            # Consume that run only when this monitor already owns the join;
+            # a fresh join on an arbitrary settled run remains refused.
+            return None
     state = str(run.get("state") or "") if isinstance(run, dict) else ""
     detail = f"state {state}; " if state else ""
     return (

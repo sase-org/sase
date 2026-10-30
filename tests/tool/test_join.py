@@ -202,6 +202,23 @@ def test_join_replay_settles_and_mirrors_the_exit(
     assert f"sase tool show {run_id} -l" in captured.err
 
 
+def test_join_worker_refuses_unreserved_settled_run(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    from sase.tool.join_worker import _reassert_join
+
+    _clean_env(monkeypatch, tmp_path)
+    run_id = _reserve_detached("--", "true")
+    _settle(run_id, state="succeeded", exit_code=0, terminal_cause="exited")
+
+    refusal = _reassert_join(run_id, "mon-1")
+
+    assert refusal is not None
+    assert "cannot be joined" in refusal
+    assert "state succeeded" in refusal
+
+
 def test_join_streams_pre_join_output_and_reports_success(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
