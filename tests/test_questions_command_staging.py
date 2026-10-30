@@ -105,7 +105,7 @@ def test_accepted_declaration_refuses_before_questions_mutations(
     with (
         override_flags(staged_handoffs=True),
         patch(
-            "sase.agent.staged_handoff._has_accepted_current_final_submission",
+            "sase.agent._staged_handoff_admission._has_accepted_current_final_submission",
             return_value=True,
         ),
         pytest.raises(SystemExit) as exc,

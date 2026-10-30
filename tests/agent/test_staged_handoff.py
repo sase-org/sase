@@ -8,6 +8,7 @@ import threading
 
 import pytest
 
+import sase.agent._staged_handoff_admission as staged_handoff_admission
 from sase.agent.pending_handoff import PLAN_PENDING_MARKER, has_pending_handoff
 from sase.agent.pending_handoff_write import (
     PendingHandoffError,
@@ -20,7 +21,6 @@ from sase.agent.staged_handoff import (
     STAGED_HANDOFF_RESPONSE_FILENAME,
     STAGING_RESERVATION_FILENAME,
     StagedHandoffError,
-    _has_accepted_current_final_submission,
     acquire_staging_reservation,
     build_plan_staged_record,
     discard_staged_handoff,
@@ -308,7 +308,10 @@ def test_clean_turn_without_submission_can_stage(
     )
     publish_final_context()
     assert final_submission_is_current() is True
-    assert _has_accepted_current_final_submission(str(tmp_path)) is False
+    assert (
+        staged_handoff_admission._has_accepted_current_final_submission(str(tmp_path))
+        is False
+    )
     write_staged_handoff(_plan_record(tmp_path), artifacts_dir=str(tmp_path))
     assert read_staged_handoff(str(tmp_path)) is not None
 
@@ -321,7 +324,10 @@ def test_accepted_current_submission_refuses_staging(
     publication = publish_final_context()
     submit_final_manifest(valid_manifest(publication))
     assert (tmp_path / FINAL_SUBMISSION_FILENAME).is_file()
-    assert _has_accepted_current_final_submission(str(tmp_path)) is True
+    assert (
+        staged_handoff_admission._has_accepted_current_final_submission(str(tmp_path))
+        is True
+    )
     with pytest.raises(StagedHandoffError, match="/sase_final"):
         write_staged_handoff(_plan_record(tmp_path), artifacts_dir=str(tmp_path))
 
