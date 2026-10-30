@@ -321,7 +321,9 @@ class TestCompact:
         capsys: pytest.CaptureFixture[str],
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
-        from sase.main import workspace_handler_maintenance as maintenance
+        from sase.main import (
+            workspace_handler_maintenance_compact as maintenance_compact,
+        )
 
         project_name, _, primary = project_layout
         _init_primary_repo(primary, commits=2)
@@ -336,9 +338,9 @@ class TestCompact:
         )
         checkout = _clone_registered_workspace(primary, store, 10)
         monkeypatch.setattr(
-            maintenance,
+            maintenance_compact,
             "_compact_eligibility",
-            lambda *_args, **_kwargs: maintenance._CompactEligibility(
+            lambda *_args, **_kwargs: maintenance_compact._CompactEligibility(
                 True,
                 "eligible",
                 before_bytes=4096,

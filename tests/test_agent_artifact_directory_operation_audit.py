@@ -161,7 +161,7 @@ _REVIEWED_DIR_OPERATION_CONTEXTS: dict[str, DirOpReview] = {
             "agent artifact directory."
         ),
     ),
-    "src/sase/main/workspace_handler_maintenance.py:remove_checkout": DirOpReview(
+    "src/sase/main/workspace_handler_maintenance_cleanup.py:remove_checkout": DirOpReview(
         exemption=(
             "Removes a workspace checkout directory, not an agent artifact directory."
         ),
