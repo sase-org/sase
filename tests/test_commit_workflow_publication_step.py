@@ -6,6 +6,7 @@ re-exports these tests so its import path keeps working.
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -19,6 +20,7 @@ from sase.sdd.artifact_link_release_evidence import (
 from sase.sdd.artifact_link_store import ArtifactLinkStore
 from sase.workflows.commit.checkpoint import CommitCheckpoint
 from sase.workflows.commit.workflow_publication import run_agent_publication_step
+from sase.finalizers.steps import STEPS_ENV_VAR
 from tests._commit_workflow_fixtures import (
     no_commit_hooks,  # noqa: F401 (imported for fixture discovery, re-used below)
 )
@@ -34,6 +36,8 @@ def test_commit_publishes_every_sidecar_inline_in_order(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
+    steps_path = tmp_path / "publication.steps.jsonl"
+    monkeypatch.setenv(STEPS_ENV_VAR, str(steps_path))
     order: list[str] = []
     # A pre-rename commit trailer: proves the publication step still reads
     # the legacy "plans:" spelling.
@@ -106,6 +110,21 @@ def test_commit_publishes_every_sidecar_inline_in_order(
         "drain_artifact_link_outbox",
         "publish_agent_hood",
     ]
+    timed_steps = [
+        json.loads(line)
+        for line in steps_path.read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    ]
+    for name in (
+        "bead_pages",
+        "prompt_archive",
+        "plan_header",
+        "agent_hood",
+        "artifact_link_outbox",
+    ):
+        rows = [row for row in timed_steps if row["step"] == f"publication: {name}"]
+        assert [row["state"] for row in rows] == ["start", "ok"]
+        assert rows[-1]["detail"].startswith("duration_seconds=")
 
 
 def test_publication_step_records_release_evidence_for_this_run(

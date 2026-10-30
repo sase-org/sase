@@ -142,13 +142,14 @@ def record_stitch_artifacts(
     prefix = f"attempt-{attempt}.{safe_label}"
     human_label = f"stitch {label}"[:120]
     recorder = OperationRecorder.for_context(context, instance_id)
-    if started_at is None:
-        op_started_at = recorder.start(
+    started_at = started_at if started_at is not None else result.started_at
+    op_started_at = (
+        started_at
+        if started_at is not None
+        else recorder.start(
             label, kind="subprocess", label=human_label, attempt=attempt
         )
-    else:
-        op_started_at = started_at
-        recorder.start(label, kind="subprocess", label=human_label, attempt=attempt)
+    )
     try:
         write_text_artifact(
             artifact_dir / f"{prefix}.stdout",
@@ -501,6 +502,13 @@ def _run_stitch_argv(
             subprocess_runner, "live_path"
         ):
             runner_kwargs["live_path"] = live_path
+    recorder = OperationRecorder.for_context(context, instance_id or "commit")
+    started_at = recorder.start(
+        label or repo.name,
+        kind="subprocess",
+        label=f"stitch {label or repo.name}"[:120],
+        attempt=attempt,
+    )
     completed = subprocess_runner(
         argv,
         cwd=repo.path,
@@ -517,6 +525,7 @@ def _run_stitch_argv(
         timed_out=completed.timed_out,
         stdout_truncated=completed.stdout_truncated,
         stderr_truncated=completed.stderr_truncated,
+        started_at=started_at,
     )
 
 

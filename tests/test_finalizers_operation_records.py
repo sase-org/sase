@@ -8,6 +8,8 @@ from types import SimpleNamespace
 from unittest.mock import MagicMock
 
 from sase.finalizers.commit_repair_stitch import record_stitch_artifacts
+from sase.finalizers.commit_repair_stitch import run_stitch_create
+from sase.finalizers.bounded_subprocess import BoundedCompletedProcess
 from sase.finalizers.commit_types import StitchCommandResult
 from sase.finalizers.executor import FinalizerExecutionContext
 from sase.finalizers.operation_records import (
@@ -108,6 +110,46 @@ def test_record_stitch_artifacts_extends_outcome_and_journals(tmp_path: Path) ->
     events = _journal_events(artifacts)
     assert [e["event"] for e in events] == ["op_started", "op_finished"]
     assert events[0]["instance_id"] == "commit"
+
+
+def test_stitch_op_started_is_journaled_before_subprocess(
+    tmp_path: Path,
+) -> None:
+    artifacts = tmp_path / "artifacts"
+    journal = ProgressJournal(str(artifacts))
+    context = FinalizerExecutionContext(
+        artifacts_dir=str(artifacts), plan_digest=None, journal=journal
+    )
+    repo = DirtyRepo(name="main", path=str(tmp_path), changed_files=(), kind="main")
+    events_seen_by_subprocess: list[str] = []
+
+    def subprocess_runner(*_args: object, **_kwargs: object) -> BoundedCompletedProcess:
+        events_seen_by_subprocess.extend(
+            event["event"] for event in _journal_events(artifacts)
+        )
+        return BoundedCompletedProcess(
+            returncode=0,
+            stdout=b"ok",
+            stderr=b"",
+            duration_seconds=0.25,
+        )
+
+    result = run_stitch_create(
+        repo,
+        "fix: timing",
+        (),
+        context,
+        instance_id="commit",
+        attempt=1,
+        label="main",
+        subprocess_runner=subprocess_runner,
+    )
+    assert events_seen_by_subprocess == ["op_started"]
+    assert result.started_at is not None
+
+    record_stitch_artifacts(context, "commit", 1, result, label="main")
+    events = _journal_events(artifacts)
+    assert [event["event"] for event in events] == ["op_started", "op_finished"]
 
 
 def test_conflict_repair_uses_instance_id(tmp_path: Path) -> None:

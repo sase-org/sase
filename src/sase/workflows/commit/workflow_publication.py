@@ -5,6 +5,7 @@ from __future__ import annotations
 from collections.abc import Callable
 import os
 from pathlib import Path
+import time
 
 from sase.output import print_status
 from sase.workflows.commit.checkpoint import CommitCheckpoint
@@ -97,6 +98,39 @@ def _emit_publication_step(*, state: str) -> None:
         pass
 
 
+def _timed_publication_substep[T](step: str, action: Callable[[], T]) -> T:
+    """Run one publication action and report its elapsed time on the step channel."""
+    started = time.perf_counter()
+    _emit_timed_publication_step(step, state="start")
+    try:
+        result = action()
+    except Exception:
+        _emit_timed_publication_step(
+            step,
+            state="fail",
+            detail=f"duration_seconds={time.perf_counter() - started:.3f}",
+        )
+        raise
+    _emit_timed_publication_step(
+        step,
+        state="ok",
+        detail=f"duration_seconds={time.perf_counter() - started:.3f}",
+    )
+    return result
+
+
+def _emit_timed_publication_step(
+    step: str, *, state: str, detail: str | None = None
+) -> None:
+    """Emit a named publication substep on the finalizer step channel."""
+    try:
+        from sase.finalizers.steps import emit_step
+
+        emit_step(f"publication: {step}", state=state, detail=detail)
+    except Exception:  # noqa: BLE001 - observability is best-effort
+        pass
+
+
 def _run_agent_publication_inner(
     cp: CommitCheckpoint,
     method: str,
@@ -113,10 +147,13 @@ def _run_agent_publication_inner(
 
         try:
             anchor = resolve_checkout_anchor(cp.cwd)
-            publish_committed_bead_pages(
-                message,
-                primary_root=anchor.primary_root,
-                project=anchor.project_name,
+            _timed_publication_substep(
+                "bead_pages",
+                lambda: publish_committed_bead_pages(
+                    message,
+                    primary_root=anchor.primary_root,
+                    project=anchor.project_name,
+                ),
             )
         except Exception as exc:  # noqa: BLE001 - best-effort projection.
             print_status(
@@ -129,8 +166,12 @@ def _run_agent_publication_inner(
     from sase.sdd.plan_header_refresh import refresh_committed_plan_header
 
     if not cp.publication_agent:
-        refresh_committed_plan_header(message, primary_root=cp.cwd)
+        _timed_publication_substep(
+            "plan_header",
+            lambda: refresh_committed_plan_header(message, primary_root=cp.cwd),
+        )
         return True
+    publication_agent = cp.publication_agent
 
     revision = _publication_revision(
         cp,
@@ -144,10 +185,13 @@ def _run_agent_publication_inner(
         from sase.agents_sync.prompt_archive import publish_prompt_archive
 
         try:
-            prompt_outcome = publish_prompt_archive(
-                cp.publication_agent,
-                revision,
-                commit_cwd=cp.cwd,
+            prompt_outcome = _timed_publication_substep(
+                "prompt_archive",
+                lambda: publish_prompt_archive(
+                    publication_agent,
+                    revision,
+                    commit_cwd=cp.cwd,
+                ),
             )
         except Exception as exc:  # noqa: BLE001 - auxiliary publication boundary
             # The archive never reached the durable queue, so no later pass
@@ -187,7 +231,10 @@ def _run_agent_publication_inner(
         cp.completed_steps.append("publish_prompt_archive")
         checkpoint_save(cp)
 
-    refresh_committed_plan_header(message, primary_root=cp.cwd)
+    _timed_publication_substep(
+        "plan_header",
+        lambda: refresh_committed_plan_header(message, primary_root=cp.cwd),
+    )
     if "publish_agent_hood" in cp.completed_steps:
         _drain_artifact_link_outbox_for_agent(
             cp,
@@ -198,10 +245,13 @@ def _run_agent_publication_inner(
     from sase.agents_sync.commit_publication import publish_committed_agent_hood
 
     try:
-        outcome = publish_committed_agent_hood(
-            cp.publication_agent,
-            revision,
-            commit_cwd=cp.cwd,
+        outcome = _timed_publication_substep(
+            "agent_hood",
+            lambda: publish_committed_agent_hood(
+                publication_agent,
+                revision,
+                commit_cwd=cp.cwd,
+            ),
         )
     except Exception as exc:  # noqa: BLE001 - auxiliary publication boundary
         print_status(
@@ -302,25 +352,29 @@ def _drain_artifact_link_outbox_for_agent(
     if not cp.publication_agent or _ARTIFACT_LINK_OUTBOX_STEP in cp.completed_steps:
         return
     try:
-        from sase.sdd.artifact_link_outbox import drain_artifact_link_outbox
 
-        _record_real_change_release_evidence(cp)
-        from sase.sdd.artifact_link_store import (
-            resolve_artifact_link_store,
-            resolve_machine_artifact_link_store,
-        )
+        def drain() -> None:
+            from sase.sdd.artifact_link_outbox import drain_artifact_link_outbox
 
-        current_store = resolve_artifact_link_store(cwd=Path(cp.cwd))
-        store = resolve_machine_artifact_link_store(
-            current_store.project_key,
-            Path(cp.cwd),
-        )
-        drain_artifact_link_outbox(
-            store=store,
-            agent_name=cp.publication_agent,
-            drop_stale_terminal=False,
-            push_after_commit="async",
-        )
+            _record_real_change_release_evidence(cp)
+            from sase.sdd.artifact_link_store import (
+                resolve_artifact_link_store,
+                resolve_machine_artifact_link_store,
+            )
+
+            current_store = resolve_artifact_link_store(cwd=Path(cp.cwd))
+            store = resolve_machine_artifact_link_store(
+                current_store.project_key,
+                Path(cp.cwd),
+            )
+            drain_artifact_link_outbox(
+                store=store,
+                agent_name=cp.publication_agent,
+                drop_stale_terminal=False,
+                push_after_commit="async",
+            )
+
+        _timed_publication_substep("artifact_link_outbox", drain)
     except RuntimeError as exc:
         if str(exc) != _NO_ARTIFACT_LINK_PROJECT_ERROR:
             print_status(

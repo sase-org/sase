@@ -59,6 +59,7 @@ class StitchCommandResult:
     stderr_truncated: bool = False
     argv: tuple[str, ...] = ()
     message_file: str | None = None
+    started_at: float | None = None
 
 
 StitchRunner = Callable[

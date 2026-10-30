@@ -380,6 +380,7 @@ def dispatch_commit_decisions(
             stitch,
             label=repo.name,
             inputs={**attempt_fields, "fingerprint": attempt_fingerprint},
+            started_at=stitch.started_at,
         )
         rescued_bounds_failure = _rescue_landed_commit_after_bounds_failure(
             stitch,
