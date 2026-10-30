@@ -57,6 +57,7 @@ class _PublicationJobSummary:
 class _ProjectPass:
     hood_drained: int = 0
     link_drained: int = 0
+    link_retained: int = 0
     referenced_by_drained: int = 0
     lock_busy: bool = False
     deferred: bool = False
@@ -227,7 +228,6 @@ def _drain_project(
     from sase.agents_sync._commit_publication_queue import (
         drain_selected_agent_publications,
     )
-    from sase.agents_sync.referenced_by_events import legacy_referenced_by_writes_fenced
     from sase.agents_sync.referenced_by_publication import drain_referenced_by_requests
 
     project_key = target.project_key
@@ -344,9 +344,8 @@ def _drain_project(
                 )
                 result.link_drained += link_report.drained
                 if link_report.selected_retained:
-                    result.preserve_hints = True
-                    result.outcome = "link_pending"
-                elif link_report.deferred:
+                    result.link_retained += link_report.selected_retained
+                if link_report.deferred:
                     result.preserve_hints = True
                     result.deferred = True
                     result.outcome = "deferred_budget"
@@ -362,18 +361,17 @@ def _drain_project(
         pending_refby = _safe_referenced_by_items(project_key)
         if pending_refby and time.monotonic() < deadline:
             try:
-                if not legacy_referenced_by_writes_fenced(target):
-                    before_count = len(pending_refby)
-                    diagnostics = drain_referenced_by_requests(
-                        target,
-                        git_runner=git_runner,
-                    )
-                    after_count = len(_safe_referenced_by_items(project_key))
-                    result.referenced_by_drained += max(0, before_count - after_count)
-                    if diagnostics:
-                        result.error = "; ".join(diagnostics)
-                        if result.outcome == "idle":
-                            result.outcome = "referenced_by_error"
+                before_count = len(pending_refby)
+                diagnostics = drain_referenced_by_requests(
+                    target,
+                    git_runner=git_runner,
+                )
+                after_count = len(_safe_referenced_by_items(project_key))
+                result.referenced_by_drained += max(0, before_count - after_count)
+                if diagnostics:
+                    result.error = "; ".join(diagnostics)
+                    if result.outcome == "idle":
+                        result.outcome = "referenced_by_error"
             except Exception as exc:  # noqa: BLE001 - retry on the next tick.
                 result.error = f"referenced-by drain failed: {exc}"
                 if result.outcome == "idle":
@@ -394,6 +392,12 @@ def _drain_project(
             result.hood_drained or result.link_drained or result.referenced_by_drained
         ):
             result.outcome = "drained"
+
+        if result.link_retained:
+            detail = f"{result.link_retained} artifact-link rows retained for backfill"
+            result.outcome = (
+                detail if result.outcome == "idle" else f"{result.outcome}; {detail}"
+            )
 
         if not result.preserve_hints:
             finish_hint_claim(claim)

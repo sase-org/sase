@@ -304,21 +304,28 @@ legacy link snapshot for Referenced By, and never enqueues a new
    approved-planner archive, use a trusted machine lane (`sase` / `machine`).
 3. `drain_artifact_link_outbox` publishes those events into the link-event store. The
    Referenced By Markdown projection is rebuilt from the events.
-4. Active legacy Referenced By outbox rows created before the fence are replayed once as
-   equivalent `cites` events with `migrated` origin under that trusted machine producer,
-   then acknowledged. The replay is idempotent through the stable operation id.
+4. The background publication job converts active legacy Referenced By outbox rows
+   created before the fence into equivalent `cites` events with `migrated` origin under
+   that trusted machine producer, then acknowledges them. The replay is idempotent
+   through the stable operation id.
 
-The write-back attempt can delay the publishing command's return, but it begins only
-after the prompt archive has been pushed and cannot roll that publication back. Because
-the managed block is stripped when SASE hashes a clean Markdown input, adding a
+In the synchronous prompt-publish path, an unfenced write-back can delay the command's
+return, but it begins only after the prompt archive has been pushed and cannot roll that
+publication back. Deferred hood acknowledgments record only their own citation side
+effects; the background publication job handles the project-wide Referenced By queue.
+Because the managed block is stripped when SASE hashes a clean Markdown input, adding a
 back-reference does not make the original citation appear to have changed. Unfenced
 refresh commits use the non-user file-hook cause `artifact_links`, so ordinary file
 hooks ignore the managed write unless they explicitly opt in with `filters.causes`.
 
-The `publication` scheduler routine drains unfenced Referenced By requests and hinted
-artifact-link rows in the background. It checks the release evidence on each link row,
-uses the machine-owned sidecar clones, and rings its doorbell again when eligible work
-remains. The five-minute backstop retries work after a lost hint; see
+The `publication` scheduler routine drains active Referenced By requests and hinted
+artifact-link rows in the background. It converts fenced legacy requests to `cites`
+events and refreshes unfenced requests. It checks release evidence on each link row and
+uses the machine-owned sidecar clones. A completed link drain releases its hint even if
+some rows remain; those rows are left for the hourly `artifact_link_backfill` routine.
+The publisher keeps its hint and rings again when a link drain is deferred or fails, and
+also rings while active Referenced By or publishable hood work remains. The five-minute
+backstop retries work after a lost hint; see
 [Scheduler housekeeping](automation/scheduler-housekeeping.md#publication-15-second-interval).
 
 Deliberate relationships render separately as a top `Links` table, while

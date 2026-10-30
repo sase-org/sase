@@ -56,6 +56,28 @@ def _target(tmp_path: Path) -> ProjectTarget:
     )
 
 
+def _configure_single_project_job(
+    monkeypatch: pytest.MonkeyPatch,
+    target: ProjectTarget,
+) -> None:
+    monkeypatch.setattr(
+        publication_job,
+        "list_project_records",
+        lambda *_args, **_kwargs: [
+            SimpleNamespace(
+                project_name="proj",
+                workspace_dir=str(target.primary_checkout),
+                is_project=True,
+            )
+        ],
+    )
+    monkeypatch.setattr(
+        publication_job,
+        "resolve_sync_targets",
+        lambda _keys: SimpleNamespace(targets=(target,), outcomes=()),
+    )
+
+
 def _hint(global_agent: str, revision: str) -> dict[str, str]:
     return {
         "local_agent": "worker",
@@ -174,6 +196,270 @@ def test_hinted_hood_requests_are_drained_before_the_oldest_backlog(
     assert calls == ["hinted", "backlog"]
     assert outcome.hood_drained == 2
     assert queue == []
+
+
+def test_retained_link_rows_finish_the_hint_without_ringing_again(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    redirect_sase_home(monkeypatch, tmp_path / ".sase")
+    target = _target(tmp_path)
+    _configure_single_project_job(monkeypatch, target)
+    monkeypatch.setattr(publication_job, "active_agent_publications", lambda _key: ())
+    monkeypatch.setattr(
+        publication_job,
+        "list_referenced_by_requests",
+        lambda *_args, **_kwargs: (),
+    )
+    link_agent = "alice.athena.worker"
+    hint = _hint(link_agent, "a" * 40)
+    hint["link_outbox_agent_name"] = link_agent
+    publication_doorbell.ring_publication_doorbell("proj", hint)
+    monkeypatch.setattr(
+        publication_job,
+        "ring_publication_doorbell",
+        lambda *_args, **_kwargs: pytest.fail("retained link rows must not re-ring"),
+    )
+    monkeypatch.setattr(
+        publication_job,
+        "resolve_machine_artifact_link_store",
+        lambda *_args, **_kwargs: object(),
+    )
+    monkeypatch.setattr(
+        publication_job,
+        "drain_artifact_link_outbox",
+        lambda **_kwargs: SimpleNamespace(
+            drained=1,
+            selected_retained=1,
+            deferred=False,
+        ),
+    )
+
+    summary = publication_job.run_publication_job(work_budget_seconds=10)
+
+    directory = tmp_path / ".sase" / "projects" / "proj" / "agent_publication"
+    assert not tuple(directory.glob("hints.claimed.*"))
+    assert "1 artifact-link rows retained for backfill" in str(
+        summary.project_stats["proj"]["last_outcome"]
+    )
+
+
+@pytest.mark.parametrize("failure", ["deferred", "raised"])
+def test_deferred_or_raised_link_drain_keeps_hint_and_rings_again(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    failure: str,
+) -> None:
+    redirect_sase_home(monkeypatch, tmp_path / ".sase")
+    target = _target(tmp_path)
+    _configure_single_project_job(monkeypatch, target)
+    monkeypatch.setattr(publication_job, "active_agent_publications", lambda _key: ())
+    monkeypatch.setattr(
+        publication_job,
+        "list_referenced_by_requests",
+        lambda *_args, **_kwargs: (),
+    )
+    link_agent = "alice.athena.worker"
+    hint = _hint(link_agent, "a" * 40)
+    hint["link_outbox_agent_name"] = link_agent
+    publication_doorbell.ring_publication_doorbell("proj", hint)
+    bells: list[str] = []
+    monkeypatch.setattr(
+        publication_job,
+        "ring_publication_doorbell",
+        lambda key, _hint=None: bells.append(key),
+    )
+    monkeypatch.setattr(
+        publication_job,
+        "resolve_machine_artifact_link_store",
+        lambda *_args, **_kwargs: object(),
+    )
+
+    def drain_links(**_kwargs: object) -> SimpleNamespace:
+        if failure == "raised":
+            raise RuntimeError("link store unavailable")
+        return SimpleNamespace(drained=0, selected_retained=0, deferred=True)
+
+    monkeypatch.setattr(publication_job, "drain_artifact_link_outbox", drain_links)
+
+    summary = publication_job.run_publication_job(work_budget_seconds=10)
+
+    directory = tmp_path / ".sase" / "projects" / "proj" / "agent_publication"
+    assert bells == ["proj"]
+    assert tuple(directory.glob("hints.claimed.*"))
+    assert summary.project_stats["proj"]["last_outcome"] in {
+        "deferred_budget",
+        "link_error",
+    }
+
+
+def _referenced_by_item():
+    from sase.agents_sync.referenced_by_outbox import ReferencedByOutboxItem
+
+    return ReferencedByOutboxItem(
+        project_key="proj",
+        project="Project",
+        global_agent="alice.athena.worker",
+        agent_url="https://example.test/agents/worker",
+        primary_revision="a" * 40,
+        sidecar_role="plans",
+        provider="plan",
+        artifact_id="plan:202608/example.md",
+        repo_relpath="202608/example.md",
+        identity_value=None,
+        canonical_ref="plan:202608/example.md",
+        destination="https://example.test/prompts/1",
+        uses=1,
+        published_date="2026-08-12",
+    )
+
+
+def test_publisher_converts_fenced_referenced_by_requests_without_sidecar_refresh(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from sase.agents_sync import referenced_by_events, referenced_by_publication
+    from sase.agents_sync.referenced_by_outbox import (
+        enqueue_referenced_by_request,
+        list_referenced_by_requests,
+    )
+
+    redirect_sase_home(monkeypatch, tmp_path / ".sase")
+    target = _target(tmp_path)
+    _configure_single_project_job(monkeypatch, target)
+    request = enqueue_referenced_by_request(_referenced_by_item())
+    monkeypatch.setattr(
+        referenced_by_publication,
+        "legacy_referenced_by_writes_fenced",
+        lambda _target: True,
+    )
+    emitted: list[object] = []
+    monkeypatch.setattr(
+        referenced_by_events,
+        "emit_referenced_by_cites_events",
+        lambda items, **_kwargs: emitted.extend(items) or (),
+    )
+    monkeypatch.setattr(
+        referenced_by_publication,
+        "_resolve_store",
+        lambda *_args, **_kwargs: pytest.fail(
+            "fenced conversion must not resolve a store"
+        ),
+    )
+    monkeypatch.setattr(
+        referenced_by_publication,
+        "refresh_referenced_by",
+        lambda *_args, **_kwargs: pytest.fail("fenced conversion must not refresh"),
+    )
+    bells: list[str] = []
+    monkeypatch.setattr(
+        publication_job,
+        "ring_publication_doorbell",
+        lambda key, _hint=None: bells.append(key),
+    )
+
+    summary = publication_job.run_publication_job(work_budget_seconds=10)
+
+    assert emitted == [request]
+    assert list_referenced_by_requests("proj", include_quarantined=False) == ()
+    assert summary.referenced_by_drained == 1
+    assert bells == []
+
+
+def test_publisher_keeps_unfenced_referenced_by_refresh_path(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from sase.agents_sync import referenced_by_publication
+    from sase.agents_sync.referenced_by_outbox import (
+        enqueue_referenced_by_request,
+        list_referenced_by_requests,
+    )
+    from sase.sdd._referenced_by_refresh_models import ReferencedByRefreshReport
+
+    redirect_sase_home(monkeypatch, tmp_path / ".sase")
+    target = _target(tmp_path)
+    _configure_single_project_job(monkeypatch, target)
+    request = enqueue_referenced_by_request(_referenced_by_item())
+    monkeypatch.setattr(
+        referenced_by_publication,
+        "legacy_referenced_by_writes_fenced",
+        lambda _target: False,
+    )
+    monkeypatch.setattr(
+        referenced_by_publication, "_resolve_store", lambda _target: object()
+    )
+    refreshes: list[str] = []
+    monkeypatch.setattr(
+        referenced_by_publication,
+        "refresh_referenced_by",
+        lambda _store, *, role, requests, write: (
+            refreshes.append(role)
+            or ReferencedByRefreshReport(
+                root=tmp_path,
+                role=role,
+                write=write,
+                scanned=0,
+                actions=(),
+                issues=(),
+                changed_files=(),
+                committed=False,
+            )
+        ),
+    )
+
+    summary = publication_job.run_publication_job(work_budget_seconds=10)
+
+    assert refreshes == ["plans"]
+    assert list_referenced_by_requests("proj", include_quarantined=False) == ()
+    assert summary.referenced_by_drained == 1
+    assert request.logical_key not in {
+        item.logical_key
+        for item in list_referenced_by_requests("proj", include_quarantined=True)
+    }
+
+
+def test_fenced_conversion_failure_quarantines_without_re_ring(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from sase.agents_sync import referenced_by_events, referenced_by_publication
+    from sase.agents_sync.referenced_by_outbox import (
+        enqueue_referenced_by_request,
+        list_referenced_by_requests,
+    )
+
+    redirect_sase_home(monkeypatch, tmp_path / ".sase")
+    monkeypatch.setenv("SASE_AGENTS_PUBLICATION_MAX_ATTEMPTS", "1")
+    target = _target(tmp_path)
+    _configure_single_project_job(monkeypatch, target)
+    request = enqueue_referenced_by_request(_referenced_by_item())
+    monkeypatch.setattr(
+        referenced_by_publication,
+        "legacy_referenced_by_writes_fenced",
+        lambda _target: True,
+    )
+    monkeypatch.setattr(
+        referenced_by_events,
+        "emit_referenced_by_cites_events",
+        lambda *_args, **_kwargs: ("event append failed",),
+    )
+    bells: list[str] = []
+    monkeypatch.setattr(
+        publication_job,
+        "ring_publication_doorbell",
+        lambda key, _hint=None: bells.append(key),
+    )
+
+    summary = publication_job.run_publication_job(work_budget_seconds=10)
+
+    assert list_referenced_by_requests("proj", include_quarantined=False) == ()
+    [quarantined] = list_referenced_by_requests("proj", include_quarantined=True)
+    assert quarantined.logical_key == request.logical_key
+    assert quarantined.attempts == 1
+    assert quarantined.quarantined
+    assert summary.errors == 1
+    assert bells == []
 
 
 def test_new_publication_waits_for_done_marker_or_ten_minute_grace(

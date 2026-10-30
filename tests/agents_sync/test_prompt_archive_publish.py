@@ -116,6 +116,7 @@ def test_prompt_archive_side_effects_run_after_the_archive_push(
     )
     pushes: list[str] = []
     side_effects: list[tuple[str, str, str | None]] = []
+    order: list[str] = []
 
     def tracking_git(
         cwd: Path,
@@ -127,6 +128,7 @@ def test_prompt_archive_side_effects_run_after_the_archive_push(
         result = run_git(cwd, args, network=network, op=op)
         if args == ["push"]:
             pushes.append("pushed")
+            order.append("push")
         return result
 
     def record_side_effects(
@@ -136,16 +138,20 @@ def test_prompt_archive_side_effects_run_after_the_archive_push(
         global_agent: str,
         publication_agent: str,
         run_id: str | None,
-        git_runner,
     ) -> None:
         assert pushes == ["pushed"]
-        del git_runner
+        order.append("side-effects")
         side_effects.append((global_agent, publication_agent, run_id))
 
     monkeypatch.setattr(
         archive_publish,
         "record_prompt_archive_side_effects",
         record_side_effects,
+    )
+    monkeypatch.setattr(
+        archive_publish,
+        "_drain_referenced_by_after_prompt_publish",
+        lambda *_args, **_kwargs: order.append("referenced-by-drain") or None,
     )
 
     outcome = publish_prompt_archive(
@@ -160,6 +166,7 @@ def test_prompt_archive_side_effects_run_after_the_archive_push(
 
     assert outcome.published
     assert side_effects == [("alice.athena.worker", "worker", "run-1")]
+    assert order == ["push", "side-effects", "referenced-by-drain"]
 
 
 def _publish_environment(

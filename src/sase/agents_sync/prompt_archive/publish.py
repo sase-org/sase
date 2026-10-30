@@ -304,6 +304,7 @@ def _publish_prompt_archive(
             error="prompt archive publication did not produce an outcome",
         )
     side_effect_error = None
+    referenced_by_error = None
     if prepared_archive is not None and prompt_outcome.protection_status is None:
         side_effect_error = record_prompt_archive_side_effects(
             target,
@@ -311,10 +312,15 @@ def _publish_prompt_archive(
             global_agent=global_agent,
             publication_agent=agent_name,
             run_id=_publication_run_id(cites_event_run_id),
+        )
+        referenced_by_error = _drain_referenced_by_after_prompt_publish(
+            target,
             git_runner=git_runner,
         )
     combined_error = "\n".join(
-        part for part in (prompt_outcome.error, side_effect_error) if part
+        part
+        for part in (prompt_outcome.error, side_effect_error, referenced_by_error)
+        if part
     )
     if not combined_error:
         return prompt_outcome
@@ -465,7 +471,6 @@ def record_prompt_archive_side_effects(
     global_agent: str,
     publication_agent: str,
     run_id: str | None,
-    git_runner: GitRunner,
 ) -> str | None:
     """Record prompt-link side effects after its archive has been verified."""
 
@@ -486,14 +491,7 @@ def record_prompt_archive_side_effects(
         publication_agent=publication_agent,
         cites_event_run_id=run_id,
     )
-    referenced_by_error = _drain_referenced_by_after_prompt_publish(
-        target,
-        git_runner=git_runner,
-    )
-    combined_error = "\n".join(
-        part for part in (cites_error, referenced_by_error) if part
-    )
-    return combined_error or None
+    return cites_error
 
 
 def _drain_referenced_by_after_prompt_publish(

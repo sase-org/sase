@@ -331,7 +331,6 @@ def acknowledge_completed(
                 global_agent=item.global_agent,
                 publication_agent=item.local_agent,
                 run_id=item.run_id,
-                git_runner=git_runner,
             )
             if side_effect_error is not None:
                 hooks.update_publications(

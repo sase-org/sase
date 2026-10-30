@@ -1522,9 +1522,10 @@ axe:
             Drain queued agent hood, artifact-link, and Referenced By publication requests
 
             Processes hinted hood requests before the oldest remaining requests under the agents-sidecar lock,
-            drains hinted link-outbox agents in one pass, and refreshes unfenced Referenced By requests. Each pass
-            is bounded to four minutes and rings the project doorbell again when retryable work remains. The job
-            writes ~/.sase/agent_publication/heartbeat.json so commit publication can check publisher liveness.
+            drains hinted link-outbox agents in one pass, and converts fenced or refreshes unfenced Referenced By
+            requests. A completed link drain releases its hint even when rows remain for hourly backfill; deferred
+            or failed drains keep the hint and ring again. Each pass is bounded to four minutes. The job writes
+            ~/.sase/agent_publication/heartbeat.json so commit publication can check publisher liveness.
     checks:
       description: |-
         Poll slower PR-submission and workspace-claim checks on a five-minute cadence

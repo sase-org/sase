@@ -362,9 +362,14 @@ project doorbell under `~/.sase/projects/<project-key>/agent_publication/` start
 fast path; a five-minute backstop catches a lost doorbell or hint. Hints prioritize
 matching hood requests and name agents whose artifact-link rows should be drained in one
 pass, while the durable outboxes remain the source of truth. Each pass has a four-minute
-budget, writes queue counts and oldest request age to
-`~/.sase/agent_publication/heartbeat.json`, and rings the doorbell again when retryable
-work remains. `sase agent sync` remains the explicit full reconciliation path.
+budget and writes queue counts and oldest request age to
+`~/.sase/agent_publication/heartbeat.json`. A completed artifact-link drain releases its
+hint even when rows remain unpublished; those rows stay durable for the hourly
+`artifact_link_backfill` routine, and the retained count appears in the project's last
+heartbeat outcome. The publisher keeps a hint and rings again when a link drain is
+deferred or fails. It also rings for publishable hood work, active Referenced By
+requests, lock contention, and deferred work. `sase agent sync` remains the explicit
+full reconciliation path.
 
 ### Chats provenance versus publication
 

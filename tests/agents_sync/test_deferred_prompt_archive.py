@@ -468,9 +468,7 @@ def test_acknowledged_deferred_archives_record_side_effects_once_per_request(
         global_agent: str,
         publication_agent: str,
         run_id: str | None,
-        git_runner: object,
     ) -> None:
-        del git_runner
         observed.append((global_agent, publication_agent, run_id))
 
     monkeypatch.setattr(
@@ -510,4 +508,177 @@ def test_acknowledged_deferred_archives_record_side_effects_once_per_request(
     assert observed == [
         (request.global_agent, request.local_agent, request.run_id)
         for request in requests
+    ]
+
+
+def test_deferred_acknowledgment_ignores_unrelated_referenced_by_drain_failure(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from sase.agents_sync import referenced_by_publication
+
+    target, _remote = setup_target(tmp_path)
+    request = AgentPublicationOutboxItem(
+        project_key="proj",
+        project="Project",
+        local_agent="worker",
+        global_agent="alice.athena.worker",
+        primary_revision="a" * 40,
+        local_hood="worker",
+        run_id="run-1",
+    )
+    owner = _OWNER
+    inventory = ProjectHoodInventory(owner, "proj", ())
+    archive = SimpleNamespace(
+        rendered=SimpleNamespace(linked_records=()),
+        referenced_by_requests=(),
+    )
+    acknowledged: list[tuple[tuple[str, str], ...]] = []
+    updates: list[tuple[tuple[tuple[str, str], ...], dict[str, object]]] = []
+
+    def restore(*_args: object, prepared_archives=None, **_kwargs: object):
+        assert prepared_archives is not None
+        prepared_archives[request.logical_key] = cast(
+            PreparedPromptArchive,
+            archive,
+        )
+        return {}
+
+    monkeypatch.setattr(
+        "sase.agents_sync.prompt_archive.deferred.restore_deferred_prompt_archives",
+        restore,
+    )
+    monkeypatch.setattr(
+        "sase.agents_sync.publication_completion.publication_request_fulfilled",
+        lambda *_args, **_kwargs: True,
+    )
+    monkeypatch.setattr(
+        "sase.core.artifact_ref_files_index.upsert_ref_file_versions",
+        lambda *_args, **_kwargs: None,
+    )
+    monkeypatch.setattr(archive_publish, "_record_prompt_cites", lambda *_a, **_k: None)
+
+    def fail_unrelated_drain(*_args: object, **_kwargs: object):
+        raise RuntimeError("unrelated Referenced By row failed")
+
+    monkeypatch.setattr(
+        referenced_by_publication,
+        "drain_referenced_by_requests",
+        fail_unrelated_drain,
+    )
+    hooks = PublicationTransactionHooks(
+        build_inventory=lambda *_args, **_kwargs: inventory,
+        publish_hood=lambda *_args, **_kwargs: object(),
+        update_publications=lambda _project, keys, **kwargs: updates.append(
+            (keys, kwargs)
+        ),
+        acknowledge_publications=lambda _project, keys: acknowledged.append(keys),
+        configured_max_attempts=lambda: 3,
+    )
+
+    acked, errors = acknowledge_completed(
+        target,
+        owner,
+        run_git,
+        AgentIdentitySnapshot(owner),
+        inventory,
+        (request,),
+        hooks=hooks,
+    )
+
+    assert acked == (request.logical_key,)
+    assert errors == ()
+    assert acknowledged == [list(acked)]
+    assert updates == []
+
+
+def test_deferred_acknowledgment_charges_its_own_cites_persist_failure(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from sase.agents_sync import referenced_by_publication
+
+    target, _remote = setup_target(tmp_path)
+    request = AgentPublicationOutboxItem(
+        project_key="proj",
+        project="Project",
+        local_agent="worker",
+        global_agent="alice.athena.worker",
+        primary_revision="a" * 40,
+        local_hood="worker",
+        run_id="run-1",
+    )
+    owner = _OWNER
+    inventory = ProjectHoodInventory(owner, "proj", ())
+    archive = SimpleNamespace(
+        rendered=SimpleNamespace(linked_records=()),
+        referenced_by_requests=(),
+    )
+    acknowledged: list[tuple[tuple[str, str], ...]] = []
+    updates: list[tuple[tuple[tuple[str, str], ...], dict[str, object]]] = []
+
+    def restore(*_args: object, prepared_archives=None, **_kwargs: object):
+        assert prepared_archives is not None
+        prepared_archives[request.logical_key] = cast(
+            PreparedPromptArchive,
+            archive,
+        )
+        return {}
+
+    monkeypatch.setattr(
+        "sase.agents_sync.prompt_archive.deferred.restore_deferred_prompt_archives",
+        restore,
+    )
+    monkeypatch.setattr(
+        "sase.agents_sync.publication_completion.publication_request_fulfilled",
+        lambda *_args, **_kwargs: True,
+    )
+    monkeypatch.setattr(
+        "sase.core.artifact_ref_files_index.upsert_ref_file_versions",
+        lambda *_args, **_kwargs: None,
+    )
+    monkeypatch.setattr(
+        archive_publish,
+        "_record_prompt_cites",
+        lambda *_args, **_kwargs: "referenced-by cites persist failed: disk full",
+    )
+    monkeypatch.setattr(
+        referenced_by_publication,
+        "drain_referenced_by_requests",
+        lambda *_args, **_kwargs: pytest.fail(
+            "deferred acknowledgment must not drain unrelated requests"
+        ),
+    )
+    hooks = PublicationTransactionHooks(
+        build_inventory=lambda *_args, **_kwargs: inventory,
+        publish_hood=lambda *_args, **_kwargs: object(),
+        update_publications=lambda _project, keys, **kwargs: updates.append(
+            (keys, kwargs)
+        ),
+        acknowledge_publications=lambda _project, keys: acknowledged.append(keys),
+        configured_max_attempts=lambda: 3,
+    )
+
+    acked, errors = acknowledge_completed(
+        target,
+        owner,
+        run_git,
+        AgentIdentitySnapshot(owner),
+        inventory,
+        (request,),
+        hooks=hooks,
+    )
+
+    assert acked == ()
+    assert acknowledged == []
+    assert errors == ("referenced-by cites persist failed: disk full",)
+    assert updates == [
+        (
+            (request.logical_key,),
+            {
+                "error": "referenced-by cites persist failed: disk full",
+                "increment_attempts": True,
+                "quarantine_threshold": 3,
+            },
+        )
     ]

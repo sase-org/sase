@@ -33,11 +33,15 @@ Periodic maintenance:
 
 The routine watches `~/.sase/projects/*/agent_publication/doorbell` and also runs on a
 five-minute backstop. It handles hinted hood requests first, then drains the oldest
-remaining hood requests, publishes link-outbox rows for all hinted agents in one pass,
-and refreshes active Referenced By requests for unfenced projects. A pass has a
-four-minute work budget; remaining work rings the doorbell again for the next tick. The
-job writes per-project queue counts, oldest request age, and its last outcome to
-`~/.sase/agent_publication/heartbeat.json`.
+remaining hood requests and publishes link-outbox rows for all hinted agents in one
+pass. It converts active legacy Referenced By requests to `cites` events in fenced
+projects and refreshes them in unfenced projects. A pass has a four-minute work budget.
+The publisher rings again for publishable hood work, active Referenced By requests, lock
+contention, or work deferred by the budget; a raised or deferred link drain keeps its
+hint and rings again. Rows retained by a completed link drain stay durable for the
+hourly `artifact_link_backfill` routine and do not keep their hint. The job writes
+per-project queue counts, oldest request age, and its last outcome—including the
+retained link-row count—to `~/.sase/agent_publication/heartbeat.json`.
 
 The `error_digest` job summarizes recent errors into a digest file stored at
 `~/.sase/axe/error_digests/digest_<timestamp>.txt`. The notification includes a
