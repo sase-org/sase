@@ -9,14 +9,26 @@ from pathlib import Path
 import pytest
 
 from sase.core.finalizer_facade import validate_finalizer_context
-from sase.core.finalizer_wire import FinalizerHandoffWire
+from sase.core.finalizer_wire import (
+    FinalizerHandoffWire,
+    finalizer_wire_to_json_dict,
+)
+from sase.finalizers._declaration_context import (
+    LiveFinalizerContext,
+    build_live_context,
+)
+from sase.finalizers.declaration_context_evidence import (
+    build_commit_declaration_context,
+)
 from sase.finalizers.declaration import (
-    _LiveFinalizerContext,
-    _build_live_context,
-    _context_payload,
     load_finalizer_plan,
     publish_final_context,
     submit_final_manifest,
+)
+from sase.finalizers.declaration_manifest import (
+    context_requires_submission,
+    manifest_template,
+    now_iso,
 )
 from sase.finalizers.plan import resolve_and_persist_finalizer_plan
 from sase.macro.directives import PromptDirectives
@@ -33,14 +45,14 @@ def attach_inheriting_handoff(
 ) -> None:
     """Stamp a validated inheriting handoff onto live context publication."""
 
-    original = _build_live_context
+    original = build_live_context
 
     def wrapped(
         root: Path,
         *,
         command: str,
         plan: object | None = None,
-    ) -> _LiveFinalizerContext:
+    ) -> LiveFinalizerContext:
         live = original(root, command=command, plan=plan)  # type: ignore[misc]
         resolved_plan = plan if plan is not None else load_finalizer_plan(root)
         context = replace(
@@ -55,19 +67,27 @@ def attach_inheriting_handoff(
         )
         digest = validate_finalizer_context(resolved_plan, context)  # type: ignore[arg-type]
         context = replace(context, context_digest=digest)
-        payload = _context_payload(
-            resolved_plan,  # type: ignore[arg-type]
-            context,
-            root=root,
-            host_records=live.host_records,
+        payload = dict(live.payload)
+        payload.update(
+            {
+                "issued_at": now_iso(),
+                "context": finalizer_wire_to_json_dict(context),
+                "submission_required": context_requires_submission(context),
+                "commit_declaration": build_commit_declaration_context(
+                    root=root,
+                    context=context,
+                    host_records=live.host_records,
+                ),
+                "manifest_template": manifest_template(context),
+            }
         )
-        return _LiveFinalizerContext(
+        return LiveFinalizerContext(
             payload=payload,
             context=context,
             host_records=live.host_records,
         )
 
-    monkeypatch.setattr("sase.finalizers.declaration._build_live_context", wrapped)
+    monkeypatch.setattr("sase.finalizers.declaration.build_live_context", wrapped)
 
 
 def submit_repository_actions(

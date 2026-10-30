@@ -103,7 +103,7 @@ def test_submit_invokes_external_provider_validate(
         lambda *_args, **_kwargs: (),
     )
     monkeypatch.setattr(
-        "sase.finalizers.declaration._collect_dirty_state",
+        "sase.finalizers._declaration_context._collect_dirty_state",
         lambda _root: clean_state(tmp_path),
     )
     seen: list[object] = []
@@ -182,7 +182,7 @@ def test_submit_validates_against_sealed_config_after_live_drift(
         lambda *_args, **_kwargs: (),
     )
     monkeypatch.setattr(
-        "sase.finalizers.declaration._collect_dirty_state",
+        "sase.finalizers._declaration_context._collect_dirty_state",
         lambda _root: clean_state(tmp_path),
     )
     prepare_agent_env(monkeypatch, tmp_path)

@@ -303,7 +303,7 @@ def test_clean_turn_without_submission_can_stage(
     monkeypatch.setenv("SASE_AGENT", "1")
     persist_default_plan(tmp_path)
     monkeypatch.setattr(
-        "sase.finalizers.declaration._collect_dirty_state",
+        "sase.finalizers._declaration_context._collect_dirty_state",
         lambda _root: clean_state(tmp_path),
     )
     publish_final_context()

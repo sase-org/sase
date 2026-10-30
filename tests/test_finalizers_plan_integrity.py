@@ -110,7 +110,7 @@ def _patch_command_config(
         lambda: [config_layer],
     )
     monkeypatch.setattr(
-        "sase.finalizers.declaration._collect_dirty_state",
+        "sase.finalizers._declaration_context._collect_dirty_state",
         lambda _root: DirtyState(project_dir=".", repos=(), details=""),
     )
 

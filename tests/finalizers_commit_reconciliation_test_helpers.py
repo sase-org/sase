@@ -97,7 +97,7 @@ def patch_commit_state(
         lambda: str(repo),
     )
     monkeypatch.setattr(
-        "sase.finalizers.declaration._collect_dirty_state",
+        "sase.finalizers._declaration_context._collect_dirty_state",
         lambda _root: dirty_state(repo, dirty=dirty["value"]),
     )
     monkeypatch.setattr(
@@ -126,7 +126,7 @@ def patch_multi_repo_state(
         lambda: str(project_dir),
     )
     monkeypatch.setattr(
-        "sase.finalizers.declaration._collect_dirty_state",
+        "sase.finalizers._declaration_context._collect_dirty_state",
         lambda _root: dirty_repos(project_dir, dirty["repos"]),
     )
     monkeypatch.setattr(

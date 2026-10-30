@@ -182,7 +182,7 @@ def test_builtin_command_finalizer_runs_and_records_artifacts(
     monkeypatch.setenv("SASE_FINAL_TURN_NONCE", "nonce-1")
     monkeypatch.setenv("CODEX_PROJECT_DIR", str(tmp_path))
     monkeypatch.setattr(
-        "sase.finalizers.declaration._collect_dirty_state",
+        "sase.finalizers._declaration_context._collect_dirty_state",
         lambda _root: DirtyState(project_dir=str(tmp_path), repos=(), details=""),
     )
 

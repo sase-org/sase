@@ -59,7 +59,7 @@ def _run_controller_fixture(monkeypatch: pytest.MonkeyPatch, artifacts: Path) ->
     monkeypatch.setattr("sase.finalizers.plan.load_finalizer_config", lambda: config)
     monkeypatch.setattr("sase.finalizers.config.load_finalizer_config", lambda: config)
     monkeypatch.setattr(
-        "sase.finalizers.declaration._collect_dirty_state",
+        "sase.finalizers._declaration_context._collect_dirty_state",
         lambda _root: DirtyState(project_dir=str(artifacts), repos=(), details=""),
     )
     monkeypatch.setenv("SASE_ARTIFACTS_DIR", str(artifacts))

@@ -130,7 +130,7 @@ def patch_dirty(
     if fingerprints is None:
         fingerprints = dict(APP_FINGERPRINTS)
     monkeypatch.setattr(
-        "sase.finalizers.declaration._collect_dirty_state",
+        "sase.finalizers._declaration_context._collect_dirty_state",
         collect if collect is not None else (lambda _root: dirty_state(repo)),
     )
     monkeypatch.setattr(

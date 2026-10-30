@@ -123,7 +123,7 @@ def test_slow_retrying_finalizer_projects_active_tail_end_to_end(
         ),
     )
     monkeypatch.setattr(
-        "sase.finalizers.declaration._collect_dirty_state",
+        "sase.finalizers._declaration_context._collect_dirty_state",
         lambda _root: DirtyState(project_dir=str(artifacts), repos=(), details=""),
     )
     monkeypatch.setenv("SASE_ARTIFACTS_DIR", str(artifacts))

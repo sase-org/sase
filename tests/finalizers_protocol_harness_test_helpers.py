@@ -70,7 +70,7 @@ def patch_dirty(
         lambda: str(repo),
     )
     monkeypatch.setattr(
-        "sase.finalizers.declaration._collect_dirty_state",
+        "sase.finalizers._declaration_context._collect_dirty_state",
         lambda _root: collect(str(repo)),
     )
     monkeypatch.setattr(

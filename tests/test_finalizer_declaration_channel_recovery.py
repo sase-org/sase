@@ -85,7 +85,7 @@ def test_clean_commit_context_does_not_spend_recovery_turn(
 ) -> None:
     prepare_agent_env(monkeypatch, tmp_path)
     monkeypatch.setattr(
-        "sase.finalizers.declaration._collect_dirty_state",
+        "sase.finalizers._declaration_context._collect_dirty_state",
         lambda _root: clean_state(tmp_path),
     )
     provider = MagicMock()

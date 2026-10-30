@@ -302,7 +302,7 @@ def _prepare_command_run(monkeypatch: pytest.MonkeyPatch, artifacts: Path) -> No
         lambda: _command_config(command=[sys.executable, "-c", "print('checked')"]),
     )
     monkeypatch.setattr(
-        "sase.finalizers.declaration._collect_dirty_state",
+        "sase.finalizers._declaration_context._collect_dirty_state",
         lambda _root: DirtyState(project_dir=str(artifacts), repos=(), details=""),
     )
     monkeypatch.setenv("SASE_ARTIFACTS_DIR", str(artifacts))
@@ -380,7 +380,7 @@ def test_controller_failure_journals_failed_settlement(
         ),
     )
     monkeypatch.setattr(
-        "sase.finalizers.declaration._collect_dirty_state",
+        "sase.finalizers._declaration_context._collect_dirty_state",
         lambda _root: DirtyState(project_dir=str(artifacts), repos=(), details=""),
     )
     monkeypatch.setenv("SASE_ARTIFACTS_DIR", str(artifacts))
