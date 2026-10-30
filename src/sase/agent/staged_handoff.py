@@ -14,6 +14,7 @@ from __future__ import annotations
 
 from collections.abc import Iterator, Mapping
 from contextlib import contextmanager
+import dataclasses
 from datetime import UTC, datetime
 import fcntl
 import json
@@ -28,6 +29,7 @@ from sase.agent.pending_handoff import PENDING_HANDOFF_MARKERS
 from sase.core.staged_handoff import (
     STAGED_HANDOFF_WIRE_SCHEMA_VERSION,
     StagedHandoffContractError,
+    evaluate_host_stage_admission as rust_evaluate_host_stage_admission,
     evaluate_stage_admission,
     receipt_authorizes as rust_receipt_authorizes,
     validate_staged_handoff,
@@ -48,6 +50,28 @@ _HANDOFF_THREAD_LOCK = threading.Lock()
 
 class StagedHandoffError(RuntimeError):
     """Raised when a staged handoff cannot be admitted, read, or written."""
+
+
+@dataclasses.dataclass(frozen=True)
+class HostStageIdentity:
+    """Explicit originating invocation/step identity for host staging.
+
+    ``step_type`` is one of ``agent``, ``bash``, or ``python``. Host
+    preparation admission requires all three fields; agent steps additionally
+    require completed-provider evidence on the admission itself.
+    """
+
+    workflow: str
+    step: str
+    step_type: str
+
+
+@dataclasses.dataclass(frozen=True)
+class HostStageAdmission:
+    """Host-owned workflow completion admission for one stage."""
+
+    identity: HostStageIdentity
+    provider_evidence: str | None = None
 
 
 def staged_handoffs_enabled() -> bool:
@@ -134,6 +158,45 @@ def admit_stage(
         raise StagedHandoffError(str(exc)) from exc
 
 
+def _admit_host_stage(
+    *,
+    command: str,
+    artifacts_dir: str,
+    admission: HostStageAdmission,
+    ignore_reservation_id: str | None = None,
+) -> None:
+    """Run Rust host-preparation admission for a workflow completion stage.
+
+    Unlike CLI admission, an accepted current submission is not a refusal:
+    the host seam re-runs the ordinary finalizer controller with the staged
+    handoff bound, so the declaration is refreshed rather than reused stale.
+    """
+    request = {
+        "schema_version": STAGED_HANDOFF_WIRE_SCHEMA_VERSION,
+        "command": command,
+        "is_agent": bool(os.environ.get("SASE_AGENT")),
+        "artifacts_dir_present": bool(artifacts_dir),
+        "is_finalizer_owned": _finalizer_owned_turn_is_active(),
+        "is_native_helper": _native_helper_is_active(),
+        "occupying": list(
+            occupying_handoff_names(
+                artifacts_dir, ignore_reservation_id=ignore_reservation_id
+            )
+        ),
+        "has_accepted_current_submission": _has_accepted_current_final_submission(
+            artifacts_dir
+        ),
+        "host_workflow": admission.identity.workflow,
+        "host_step": admission.identity.step,
+        "host_step_type": admission.identity.step_type,
+        "host_provider_evidence": admission.provider_evidence,
+    }
+    try:
+        rust_evaluate_host_stage_admission(request)
+    except StagedHandoffContractError as exc:
+        raise StagedHandoffError(str(exc)) from exc
+
+
 def read_staged_handoff(artifacts_dir: str | None = None) -> dict[str, Any] | None:
     """Return the staged record, or ``None`` when the file is absent.
 
@@ -212,15 +275,28 @@ def write_staged_handoff(
     artifacts_dir: str | None = None,
     command: str = "turn-ending handoffs",
     reservation_id: str | None = None,
+    host: HostStageAdmission | None = None,
 ) -> Path:
-    """Validate and atomically persist a staged-handoff record."""
+    """Validate and atomically persist a staged-handoff record.
+
+    Pass *host* for host-owned workflow completion staging instead of CLI
+    staging.
+    """
     root = _artifacts_root(artifacts_dir)
     with _acquire_stage_write_locks(root):
-        admit_stage(
-            command=command,
-            artifacts_dir=str(root),
-            ignore_reservation_id=reservation_id,
-        )
+        if host is None:
+            admit_stage(
+                command=command,
+                artifacts_dir=str(root),
+                ignore_reservation_id=reservation_id,
+            )
+        else:
+            _admit_host_stage(
+                command=command,
+                artifacts_dir=str(root),
+                admission=host,
+                ignore_reservation_id=reservation_id,
+            )
         try:
             normalized = validate_staged_handoff(dict(record))
         except StagedHandoffContractError as exc:
@@ -254,16 +330,25 @@ def acquire_staging_reservation(
     *,
     artifacts_dir: str | None = None,
     command: str = "turn-ending handoffs",
+    host: HostStageAdmission | None = None,
 ) -> str:
     """Reserve the one-handoff slot before proposal side effects.
 
     The reservation file is not a valid staged record. Release it on
-    pre-stage failure; committing a record replaces it.
+    pre-stage failure; committing a record replaces it. Pass *host* for
+    host-owned workflow completion staging instead of CLI staging.
     """
     root = _artifacts_root(artifacts_dir)
     reservation_id = str(uuid.uuid4())
     with _acquire_stage_write_locks(root):
-        admit_stage(command=command, artifacts_dir=str(root))
+        if host is None:
+            admit_stage(command=command, artifacts_dir=str(root))
+        else:
+            _admit_host_stage(
+                command=command,
+                artifacts_dir=str(root),
+                admission=host,
+            )
         payload = {
             "reservation_id": reservation_id,
             "created_at": _now_rfc3339(),
@@ -614,6 +699,8 @@ __all__ = [
     "STAGED_HANDOFF_RECEIPT_FILENAME",
     "STAGED_HANDOFF_RESPONSE_FILENAME",
     "STAGING_RESERVATION_FILENAME",
+    "HostStageAdmission",
+    "HostStageIdentity",
     "StagedHandoffError",
     "acquire_handoff_locks",
     "acquire_staging_reservation",

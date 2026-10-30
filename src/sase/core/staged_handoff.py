@@ -58,6 +58,23 @@ def evaluate_stage_admission(request: dict[str, Any]) -> None:
         raise StagedHandoffContractError(str(exc)) from exc
 
 
+def evaluate_host_stage_admission(request: dict[str, Any]) -> None:
+    """Refuse host-owned workflow review staging on admission policy.
+
+    Same one-handoff and finalizer-owned restrictions as CLI admission, plus
+    explicit originating invocation/step identity and completed-provider
+    evidence for agent steps. An accepted current submission is not a refusal:
+    the host seam refreshes the declaration through the finalizer controller.
+    """
+    binding = require_rust_binding("evaluate_host_stage_admission")
+    try:
+        binding(request)
+    except StagedHandoffContractError:
+        raise
+    except ValueError as exc:
+        raise StagedHandoffContractError(str(exc)) from exc
+
+
 def receipt_authorizes(receipt: dict[str, Any], staged_id: str) -> bool:
     """Return whether *receipt* authorizes adoption of *staged_id*."""
     binding = require_rust_binding("staged_handoff_receipt_authorizes")

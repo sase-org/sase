@@ -481,6 +481,9 @@ _lint-patch-stitch-terminology: _setup
 # phases consume them (adoption 1.1.2, proposal-command 1.1.4).
 # Proposal-command now consumes the remaining helpers in plan_propose_handler.py;
 # its --epic-symbol rows are removed.
+# sase-1pj.4.1.5 exported the host-owned workflow completion seam
+# (prepare/complete/invoke plus its identity and review types); sase-1pj.4.1.6
+# consumes it by routing agent, bash, and Python HITL reviews through staging.
 # sase-1pj.3 (questions-pipe) made StagedAdoptionOutcome private after the
 # questions and pipe adopters used it in-file as _StagedAdoptionOutcome.
 # sase-1pt.6 provides publisher_is_live for the enqueue-only caller in sase-1pt.7.
@@ -511,6 +514,12 @@ _lint-symvision *args: _setup
         --epic-symbol 'sase-1pu.5.1.4(AgentRunStateScheduleOutcomeWire)' \
         --epic-symbol 'sase-1pu.5.1.4(AgentRunStateProjectCheckpointWire)' \
         --epic-symbol 'sase-1pt.7(publisher_is_live)' \
+        --epic-symbol 'sase-1pj.4.1.6(WorkflowCompletionError)' \
+        --epic-symbol 'sase-1pj.4.1.6(WorkflowReviewIdentity)' \
+        --epic-symbol 'sase-1pj.4.1.6(PreparedWorkflowReview)' \
+        --epic-symbol 'sase-1pj.4.1.6(invoke_provider_for_review)' \
+        --epic-symbol 'sase-1pj.4.1.6(prepare_workflow_review)' \
+        --epic-symbol 'sase-1pj.4.1.6(complete_workflow_review)' \
         {{ args }}
 
 # Check Python file line counts (private, extracted for per-stage wrapping)

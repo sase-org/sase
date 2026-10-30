@@ -19,6 +19,11 @@ from sase.env_contracts import (
 )
 from ._instruction_boundary import invoke_with_instructions
 from ._invoke_errors import finalize_staged_after_provider_error
+from .deferred import (
+    ProviderEvidence,
+    digest_response,
+    record_deferred_provider_evidence,
+)
 from ._invoke_provider_setup import (
     prepare_provider_invocation,
     provider_sync_ceiling_seconds as _provider_sync_ceiling_seconds,
@@ -58,6 +63,35 @@ from .types import (
 )
 
 
+def _record_deferred_evidence(
+    *,
+    agent_type: str,
+    artifacts_dir: str | None,
+    evidence_token: str | None,
+    response_content: str,
+) -> None:
+    """Stash completed-provider evidence for the host completion seam.
+
+    The nonce is read from the live provider-turn environment before the
+    ``finally`` block below restores it, binding the evidence to the turn
+    whose response just completed. Without an artifacts directory there is
+    no finalizer turn to complete later, so no evidence is recorded.
+    """
+    if not artifacts_dir or not evidence_token:
+        return
+    nonce = (os.environ.get("SASE_FINAL_TURN_NONCE") or "").strip()
+    digest, chars = digest_response(response_content)
+    record_deferred_provider_evidence(
+        evidence_token,
+        ProviderEvidence(
+            agent_type=agent_type,
+            turn_nonce=nonce,
+            response_sha256=digest,
+            response_chars=chars,
+        ),
+    )
+
+
 def invoke_agent(
     prompt: str,
     *,
@@ -79,6 +113,8 @@ def invoke_agent(
     launch_selection: LaunchSelection | None = None,
     authored_local_request: str | None = None,
     continuation_segments: Sequence[ContinuationSegmentCapture] = (),
+    defer_finalizers: bool = False,
+    evidence_token: str | None = None,
 ) -> AIMessage:
     """Invoke an LLM agent with standard preprocessing, logging, and postprocessing.
 
@@ -123,6 +159,14 @@ def invoke_agent(
             *prompt* when the caller already preprocessed it.
         continuation_segments: Optional local prompt provenance segments
             collected by preprocessing or workflow expansion.
+        defer_finalizers: When True, return the completed provider result
+            without running the finalizer controller, and stash
+            completed-provider evidence under *evidence_token* for the
+            host-owned workflow completion seam to take. The normal
+            non-HITL path is unchanged.
+        evidence_token: Caller-supplied token identifying one deferred
+            provider turn. Required when *defer_finalizers* is true with an
+            artifacts directory; ignored otherwise.
 
     Returns:
         The AIMessage response from the agent.
@@ -229,32 +273,40 @@ def invoke_agent(
         if artifacts_dir:
             mark_lifecycle_phase(artifacts_dir, "provider_done")
         raise_if_gate_intent_lost(artifacts_dir)
-        if artifacts_dir:
-            mark_lifecycle_phase(artifacts_dir, "finalizing")
-            from sase.agent.staged_handoff import (
-                read_staged_handoff,
-                write_staged_handoff_response,
+        if defer_finalizers:
+            _record_deferred_evidence(
+                agent_type=agent_type,
+                artifacts_dir=artifacts_dir,
+                evidence_token=evidence_token,
+                response_content=invoke_result.content,
             )
-
-            staged_handoff = read_staged_handoff(artifacts_dir)
-            if staged_handoff is not None:
-                write_staged_handoff_response(
-                    str(staged_handoff["staged_id"]),
-                    invoke_result.content,
-                    artifacts_dir=artifacts_dir,
+        else:
+            if artifacts_dir:
+                mark_lifecycle_phase(artifacts_dir, "finalizing")
+                from sase.agent.staged_handoff import (
+                    read_staged_handoff,
+                    write_staged_handoff_response,
                 )
-        from sase.finalizers import run_finalizers
 
-        invoke_result = run_finalizers(
-            provider=provider,
-            original_prompt=query,
-            invoke_result=invoke_result,
-            model_tier=model_tier,
-            suppress_output=suppress_output,
-            model_override=model_override,
-            artifacts_dir=artifacts_dir,
-            options=invocation_options,
-        )
+                staged_handoff = read_staged_handoff(artifacts_dir)
+                if staged_handoff is not None:
+                    write_staged_handoff_response(
+                        str(staged_handoff["staged_id"]),
+                        invoke_result.content,
+                        artifacts_dir=artifacts_dir,
+                    )
+            from sase.finalizers import run_finalizers
+
+            invoke_result = run_finalizers(
+                provider=provider,
+                original_prompt=query,
+                invoke_result=invoke_result,
+                model_tier=model_tier,
+                suppress_output=suppress_output,
+                model_override=model_override,
+                artifacts_dir=artifacts_dir,
+                options=invocation_options,
+            )
         response_content = invoke_result.content
 
         # Record success metrics

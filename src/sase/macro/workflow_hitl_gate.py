@@ -447,6 +447,42 @@ def _json_safe(value: Any) -> Any:
     return json.loads(json.dumps(value, default=str))
 
 
+def workflow_hitl_shell_spec_for_staging(
+    *,
+    step_name: str,
+    step_type: str,
+    output: Any,
+    workflow_name: str,
+    artifacts_dir: str,
+    has_output: bool,
+    output_types: Mapping[str, str] | None,
+    timeout_seconds: float,
+) -> dict[str, Any]:
+    """Build the shell-backed HITL gate spec for staged publication.
+
+    Same durable specification that agent-context HITL publishes today,
+    without creating anything: the host-owned workflow completion seam
+    prepares and stages it so review precedes finalizer settlement.
+    """
+    spec = _workflow_hitl_gate_spec(
+        step_name=step_name,
+        step_type=step_type,
+        output=output,
+        workflow_name=workflow_name,
+        artifacts_dir=artifacts_dir,
+        has_output=has_output,
+        output_types=output_types,
+        timeout_seconds=timeout_seconds,
+    )
+    spec["shell"] = _workflow_hitl_shell_spec(
+        step_name=step_name,
+        step_type=step_type,
+        workflow_name=workflow_name,
+        option_ids=tuple(str(option["id"]) for option in spec["options"]),
+    )
+    return spec
+
+
 __all__ = [
     "HITL_CONTINUATION_MODE",
     "create_workflow_hitl_gate",
@@ -455,4 +491,5 @@ __all__ = [
     "maybe_handoff_workflow_hitl_from_agent",
     "wait_for_workflow_hitl_gate",
     "workflow_hitl_should_handoff_from_agent",
+    "workflow_hitl_shell_spec_for_staging",
 ]
