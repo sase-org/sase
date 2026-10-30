@@ -500,8 +500,6 @@ _lint-symvision *args: _setup
         --exclude-decorator gate_command_entrypoint \
         --exclude-decorator builtin_chop \
         --epic-symbol 'sase-1pu.5.1(AgentRunStateProjectCheckpointWire)' \
-        --epic-symbol 'sase-1pu.5.1(StateRepairAffected)' \
-        --epic-symbol 'sase-1pu.5.1(StateRepairWindowRow)' \
         {{ args }}
 
 # Check Python file line counts (private, extracted for per-stage wrapping)

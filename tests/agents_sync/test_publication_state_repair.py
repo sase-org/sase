@@ -602,9 +602,9 @@ def test_withheld_run_does_not_block_sibling(
             ("foo", "foo.victim", "run-2", "active"),
         ],
     )
-    import sase.agents_sync.publication_state_repair as repair_module
+    import sase.agents_sync._publication_state_repair_payload as repair_payload
 
-    original = repair_module._state_bytes_publishable
+    original = repair_payload._state_bytes_publishable
 
     def scoped_block(
         state_bytes: bytes,
@@ -619,7 +619,7 @@ def test_withheld_run_does_not_block_sibling(
             return False
         return original(state_bytes, destination, scope, t, diags, global_name)
 
-    monkeypatch.setattr(repair_module, "_state_bytes_publishable", scoped_block)
+    monkeypatch.setattr(repair_payload, "_state_bytes_publishable", scoped_block)
     report = repair_project_run_states(
         sync_target,
         OWNER,
