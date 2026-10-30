@@ -508,7 +508,10 @@ def test_fully_unverified_hood_retries_without_charging(
 def test_second_drain_does_not_publish_blocked_bytes(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    from sase.agents_sync import publication_protection as protection
+    from sase.agents_sync import (
+        _publication_protection_ledger as protection_ledger,
+        _publication_protection_scan as protection_scan,
+    )
     from sase.agents_sync.inventory import ProjectHoodInventory
     from sase.agents_sync.publication_snapshot import RUN_WITHHELD_BLOCKED
     from tests.agents_sync.publication_fixtures import _run
@@ -520,9 +523,11 @@ def test_second_drain_does_not_publish_blocked_bytes(
     _install_marker_scanner(monkeypatch)
     owner = AgentOwnerIdentity("alice", "athena")
     target = _configure(monkeypatch, tmp_path, owner)
-    monkeypatch.setattr(protection, "sase_home", lambda: tmp_path / "state")
+    monkeypatch.setattr(protection_scan, "sase_home", lambda: tmp_path / "state")
     monkeypatch.setattr(
-        protection, "sase_projects_dir", lambda: tmp_path / "state" / "projects"
+        protection_ledger,
+        "sase_projects_dir",
+        lambda: tmp_path / "state" / "projects",
     )
     blocked_run = _run(
         "foo.blocked",

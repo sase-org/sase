@@ -66,11 +66,12 @@ def isolate_protection(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> Path:
     state = tmp_path / "state"
     projects_root = state / "projects"
 
-    import sase.agents_sync.publication_protection as protection
+    import sase.agents_sync._publication_protection_ledger as protection_ledger
+    import sase.agents_sync._publication_protection_scan as protection_scan
     import sase.agents_sync.prompt_archive.protection as archive_protection
 
-    monkeypatch.setattr(protection, "sase_home", lambda: state)
-    monkeypatch.setattr(protection, "sase_projects_dir", lambda: projects_root)
+    monkeypatch.setattr(protection_scan, "sase_home", lambda: state)
+    monkeypatch.setattr(protection_ledger, "sase_projects_dir", lambda: projects_root)
     monkeypatch.setattr(archive_protection, "sase_home", lambda: state)
     return state
 

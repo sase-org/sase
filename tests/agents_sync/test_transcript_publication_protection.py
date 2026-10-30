@@ -9,7 +9,11 @@ import subprocess
 
 import pytest
 
-from sase.agents_sync import publication_protection as protection
+from sase.agents_sync import (
+    _publication_protection_ledger as protection_ledger,
+    _publication_protection_scan as protection_scan,
+    publication_protection as protection,
+)
 from sase.agents_sync._git_sync_ops_payload import _verify_agents_payload_protection
 from sase.agents_sync.git import run_git
 from sase.agents_sync.git_sync_ops import commit_agents_payload_if_dirty
@@ -81,8 +85,10 @@ def _install_marker_scanner(monkeypatch: pytest.MonkeyPatch) -> None:
 
 def _isolate_protection_state(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     projects_root = tmp_path / "protection-home" / "projects"
-    monkeypatch.setattr(protection, "sase_home", lambda: tmp_path / "protection-home")
-    monkeypatch.setattr(protection, "sase_projects_dir", lambda: projects_root)
+    monkeypatch.setattr(
+        protection_scan, "sase_home", lambda: tmp_path / "protection-home"
+    )
+    monkeypatch.setattr(protection_ledger, "sase_projects_dir", lambda: projects_root)
     return projects_root
 
 

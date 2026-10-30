@@ -9,7 +9,11 @@ import stat
 
 import pytest
 
-from sase.agents_sync import publication_protection as protection
+from sase.agents_sync import (
+    _publication_protection_ledger as protection_ledger,
+    _publication_protection_scan as protection_scan,
+    publication_protection as protection,
+)
 
 
 def _install_fake_core(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -216,7 +220,7 @@ def test_clean_scan_stages_private_bytes_and_copies_only_the_verified_digest(
 ) -> None:
     _install_fake_core(monkeypatch)
     scanned_paths = _install_fake_scanner(monkeypatch, outcome="clean")
-    monkeypatch.setattr(protection, "sase_home", lambda: tmp_path / ".sase")
+    monkeypatch.setattr(protection_scan, "sase_home", lambda: tmp_path / ".sase")
     source = tmp_path / "source.txt"
     source.write_bytes(b"clean transcript bytes\n")
 
@@ -249,9 +253,9 @@ def test_hit_is_withheld_and_persists_only_metadata_across_restart(
 ) -> None:
     _install_fake_core(monkeypatch)
     _install_fake_scanner(monkeypatch, outcome="hit")
-    monkeypatch.setattr(protection, "sase_home", lambda: tmp_path / ".sase")
+    monkeypatch.setattr(protection_scan, "sase_home", lambda: tmp_path / ".sase")
     projects_root = tmp_path / ".sase" / "projects"
-    monkeypatch.setattr(protection, "sase_projects_dir", lambda: projects_root)
+    monkeypatch.setattr(protection_ledger, "sase_projects_dir", lambda: projects_root)
     source = tmp_path / "source.txt"
     source.write_bytes(b"SYNTHETIC_SECRET_DO_NOT_STORE\n")
 
@@ -276,7 +280,7 @@ def test_hit_is_withheld_and_persists_only_metadata_across_restart(
     assert "SYNTHETIC_SECRET_DO_NOT_STORE" not in persisted
     assert "private-key-header" in persisted
     assert stat.S_IMODE(ledger_path.stat().st_mode) == 0o600
-    reloaded = protection._read_publication_protection_ledger(
+    reloaded = protection_ledger._read_publication_protection_ledger(
         "alpha",
         projects_root=projects_root,
     )
@@ -309,7 +313,7 @@ def test_nonclean_scan_never_authorizes_copy(
 ) -> None:
     _install_fake_core(monkeypatch)
     _install_fake_scanner(monkeypatch, outcome=outcome)
-    monkeypatch.setattr(protection, "sase_home", lambda: tmp_path / ".sase")
+    monkeypatch.setattr(protection_scan, "sase_home", lambda: tmp_path / ".sase")
     source = tmp_path / "source.txt"
     source.write_bytes(b"synthetic candidate bytes")
 
@@ -327,7 +331,7 @@ def test_scanner_exception_is_unverified_and_preserves_source(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     _install_fake_core(monkeypatch)
-    monkeypatch.setattr(protection, "sase_home", lambda: tmp_path / ".sase")
+    monkeypatch.setattr(protection_scan, "sase_home", lambda: tmp_path / ".sase")
 
     def broken_binding(_name: str):
         def fail(*_args: object) -> dict[str, object]:
@@ -355,7 +359,7 @@ def test_missing_scanner_binding_is_unverified_and_value_free(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     _install_fake_core(monkeypatch)
-    monkeypatch.setattr(protection, "sase_home", lambda: tmp_path / ".sase")
+    monkeypatch.setattr(protection_scan, "sase_home", lambda: tmp_path / ".sase")
 
     def missing_binding(name: str) -> None:
         raise AttributeError(f"missing binding {name}")
@@ -378,7 +382,7 @@ def test_oversized_text_is_skipped_without_raising_scanner_limit(
 ) -> None:
     _install_fake_core(monkeypatch)
     scanned_paths = _install_fake_scanner(monkeypatch, outcome="skipped")
-    monkeypatch.setattr(protection, "sase_home", lambda: tmp_path / ".sase")
+    monkeypatch.setattr(protection_scan, "sase_home", lambda: tmp_path / ".sase")
     source = tmp_path / "large.txt"
     source.write_bytes(b"x" * 16)
 
@@ -396,9 +400,9 @@ def test_clean_scan_resolves_transient_unverified_state(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     _install_fake_core(monkeypatch)
-    monkeypatch.setattr(protection, "sase_home", lambda: tmp_path / ".sase")
+    monkeypatch.setattr(protection_scan, "sase_home", lambda: tmp_path / ".sase")
     projects_root = tmp_path / ".sase" / "projects"
-    monkeypatch.setattr(protection, "sase_projects_dir", lambda: projects_root)
+    monkeypatch.setattr(protection_ledger, "sase_projects_dir", lambda: projects_root)
     source = tmp_path / "source.txt"
     source.write_bytes(b"candidate bytes")
     results = iter(("skipped", "clean"))
@@ -420,7 +424,7 @@ def test_clean_scan_resolves_transient_unverified_state(
             None,
         )
 
-    monkeypatch.setattr(protection, "_scan_file", scan_file)
+    monkeypatch.setattr(protection_scan, "_scan_file", scan_file)
     identity = {
         "repository_identity": "sase-org/sase--agents",
         "relative_destination": "agents/a/run/chat.md",
@@ -447,7 +451,7 @@ def test_symlink_candidate_is_withheld(
 ) -> None:
     _install_fake_core(monkeypatch)
     _install_fake_scanner(monkeypatch, outcome="clean")
-    monkeypatch.setattr(protection, "sase_home", lambda: tmp_path / ".sase")
+    monkeypatch.setattr(protection_scan, "sase_home", lambda: tmp_path / ".sase")
     source = tmp_path / "source.txt"
     source.write_text("clean", encoding="utf-8")
     symlink = tmp_path / "link.txt"
