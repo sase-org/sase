@@ -289,6 +289,7 @@ def _prune_prompt_artifact_pool(workspace_root: Path | str) -> int:
         if total_size <= budget or not manifest_path.is_file():
             return 0
         records = _parse_manifest(manifest_path.read_bytes())
+        pending_revisions = _active_publication_revisions()
         rows_by_pool: dict[str, list[PromptArtifactRecord]] = defaultdict(list)
         for record in records:
             pool_relpath = record.get("pool_relpath")
@@ -299,7 +300,14 @@ def _prune_prompt_artifact_pool(workspace_root: Path | str) -> int:
         for path, size in pool_files:
             relpath = path.relative_to(staging_root).as_posix()
             rows = rows_by_pool.get(relpath, [])
-            if rows and all(_run_is_terminal_and_published(row) for row in rows):
+            if (
+                rows
+                and pending_revisions is not None
+                and all(
+                    _run_is_terminal_and_published(row, pending_revisions)
+                    for row in rows
+                )
+            ):
                 candidates.append((path.stat().st_mtime, path, size))
         for _mtime, path, size in sorted(candidates):
             if total_size <= budget:
@@ -641,7 +649,34 @@ def _parse_manifest(data: bytes) -> list[PromptArtifactRecord]:
     return cast(list[PromptArtifactRecord], parse(data))
 
 
-def _run_is_terminal_and_published(record: PromptArtifactRecord) -> bool:
+def _active_publication_revisions() -> frozenset[str] | None:
+    """Return revisions with a queued or quarantined request, failing closed."""
+
+    from sase.agents_sync.publication_outbox import (
+        AGENT_PUBLICATION_OUTBOX_FILENAME,
+        snapshot_agent_publications_from_path,
+    )
+    from sase.core.paths import sase_projects_dir
+
+    pending: set[str] = set()
+    try:
+        projects_root = sase_projects_dir()
+        for path in projects_root.glob(f"*/{AGENT_PUBLICATION_OUTBOX_FILENAME}"):
+            for item in snapshot_agent_publications_from_path(path, path.parent.name):
+                if not item.terminal:
+                    pending.add(item.primary_revision)
+    except Exception:
+        log.debug(
+            "Could not inspect agent-publication outboxes for pool GC", exc_info=True
+        )
+        return None
+    return frozenset(pending)
+
+
+def _run_is_terminal_and_published(
+    record: PromptArtifactRecord,
+    pending_revisions: frozenset[str],
+) -> bool:
     raw_dir = record.get("agent_artifacts_dir")
     if not isinstance(raw_dir, str) or not raw_dir:
         return False
@@ -657,7 +692,14 @@ def _run_is_terminal_and_published(record: PromptArtifactRecord) -> bool:
     completed = (
         checkpoint.get("completed_steps") if isinstance(checkpoint, dict) else None
     )
-    return isinstance(completed, list) and "publish_prompt_archive" in completed
+    if not isinstance(completed, list) or "publish_prompt_archive" not in completed:
+        return False
+    revision = checkpoint.get("primary_revision") or checkpoint.get("commit_sha")
+    return (
+        isinstance(revision, str)
+        and bool(revision)
+        and revision not in pending_revisions
+    )
 
 
 __all__ = [

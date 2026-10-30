@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import threading
+from dataclasses import replace
 
 from sase.agents_sync.publication_outbox import (
     acknowledge_agent_publications,
@@ -52,6 +53,37 @@ def test_outbox_is_idempotent_updates_digest_and_acknowledges(
 
     assert acknowledge_agent_publications("proj", (first.logical_key,)) == ()
     assert list_agent_publications("proj") == ()
+
+
+def test_reenqueue_fills_commit_context_without_resetting_failure_state(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    monkeypatch.setenv("SASE_HOME", str(tmp_path))
+    first = enqueue_agent_publication(make_outbox_item())
+    failed = update_agent_publications(
+        "proj",
+        (first.logical_key,),
+        error="sidecar unavailable",
+        increment_attempts=True,
+        quarantine_threshold=3,
+    )[0]
+
+    refreshed = enqueue_agent_publication(
+        replace(
+            make_outbox_item(),
+            commit_cwd="/work/project",
+            artifacts_dir="/runs/run-1",
+            run_id="run-1",
+        )
+    )
+
+    assert refreshed.commit_cwd == "/work/project"
+    assert refreshed.artifacts_dir == "/runs/run-1"
+    assert refreshed.run_id == "run-1"
+    assert refreshed.attempts == failed.attempts
+    assert refreshed.last_error == failed.last_error
+    assert refreshed.quarantined == failed.quarantined
 
 
 def test_repeated_item_failure_is_quarantined_and_manually_clearable(

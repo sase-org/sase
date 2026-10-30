@@ -153,6 +153,9 @@ def _publish_prompt_archive(
             primary_revision=primary_revision,
             local_hood=agent_local_hood(agent_ref.local_name, identity),
             scope=fulfillment_scope_for_commit_cwd(commit_cwd),
+            commit_cwd=str(commit_cwd),
+            artifacts_dir=str(artifacts_dir),
+            run_id=_publication_run_id(cites_event_run_id),
         )
     )
 
@@ -175,6 +178,7 @@ def _publish_prompt_archive(
         / "sase-agents-sync.lock"
     )
     prompt_outcome: PromptArchivePublicationOutcome | None = None
+    prepared_archive: PreparedPromptArchive | None = None
     with git_sync.bounded_agents_lock(lock_path, timeout) as acquired:
         if not acquired:
             return PromptArchivePublicationOutcome(
@@ -226,6 +230,7 @@ def _publish_prompt_archive(
                 git_runner=git_runner,
                 protection_scope=scope,
             )
+            prepared_archive = prepared
             commit_result = _commit_prompt_archive_if_dirty(
                 target.sidecar_path,
                 global_agent,
@@ -272,32 +277,10 @@ def _publish_prompt_archive(
                     protection_status=prepared.protection_status,
                 )
             else:
-                try:
-                    from sase.core.artifact_ref_files_index import (
-                        upsert_ref_file_versions,
-                    )
-
-                    upsert_ref_file_versions(
-                        prepared.rendered.linked_records,
-                        agent_name=global_agent,
-                        project=target.project,
-                        sidecar_repo=target.sidecar_path.name,
-                    )
-                except Exception:
-                    log.debug(
-                        "Could not update artifact ref-files index", exc_info=True
-                    )
-                cites_error = _record_prompt_cites(
-                    target,
-                    prepared.referenced_by_requests,
-                    publication_agent=agent_name,
-                    cites_event_run_id=cites_event_run_id,
-                )
                 prompt_outcome = PromptArchivePublicationOutcome(
                     published=bool(commit_result),
                     queued=True,
                     prompt_path=prepared.prompt_path,
-                    error=cites_error,
                 )
         finally:
             # A failed attempt is regenerated from the immutable local pool.
@@ -317,12 +300,18 @@ def _publish_prompt_archive(
             queued=True,
             error="prompt archive publication did not produce an outcome",
         )
-    referenced_by_error = _drain_referenced_by_after_prompt_publish(
-        target,
-        git_runner=git_runner,
-    )
+    side_effect_error = None
+    if prepared_archive is not None and prompt_outcome.protection_status is None:
+        side_effect_error = record_prompt_archive_side_effects(
+            target,
+            prepared_archive,
+            global_agent=global_agent,
+            publication_agent=agent_name,
+            run_id=_publication_run_id(cites_event_run_id),
+            git_runner=git_runner,
+        )
     combined_error = "\n".join(
-        part for part in (prompt_outcome.error, referenced_by_error) if part
+        part for part in (prompt_outcome.error, side_effect_error) if part
     )
     if not combined_error:
         return prompt_outcome
@@ -464,6 +453,44 @@ def _record_prompt_cites(
     return None
 
 
+def record_prompt_archive_side_effects(
+    target: ProjectTarget,
+    prepared: PreparedPromptArchive,
+    *,
+    global_agent: str,
+    publication_agent: str,
+    run_id: str | None,
+    git_runner: GitRunner,
+) -> str | None:
+    """Record prompt-link side effects after its archive has been verified."""
+
+    try:
+        from sase.core.artifact_ref_files_index import upsert_ref_file_versions
+
+        upsert_ref_file_versions(
+            prepared.rendered.linked_records,
+            agent_name=global_agent,
+            project=target.project,
+            sidecar_repo=target.sidecar_path.name,
+        )
+    except Exception:
+        log.debug("Could not update artifact ref-files index", exc_info=True)
+    cites_error = _record_prompt_cites(
+        target,
+        prepared.referenced_by_requests,
+        publication_agent=publication_agent,
+        cites_event_run_id=run_id,
+    )
+    referenced_by_error = _drain_referenced_by_after_prompt_publish(
+        target,
+        git_runner=git_runner,
+    )
+    combined_error = "\n".join(
+        part for part in (cites_error, referenced_by_error) if part
+    )
+    return combined_error or None
+
+
 def _drain_referenced_by_after_prompt_publish(
     target: ProjectTarget,
     *,
@@ -489,8 +516,13 @@ def _agent_artifacts_dir(value: Path | str | None) -> Path | None:
     return Path(raw).expanduser().resolve(strict=False)
 
 
+def _publication_run_id(value: str | None) -> str | None:
+    return (value or "").strip() or None
+
+
 __all__ = [
     "PromptArchivePublicationOutcome",
     "prepare_prompt_archive",
     "publish_prompt_archive",
+    "record_prompt_archive_side_effects",
 ]

@@ -314,6 +314,43 @@ def test_schema_v7_requested_revision_round_trip(tmp_path, monkeypatch) -> None:
     assert loaded.original_revision == "a" * 40
 
 
+def test_schema_v7_commit_context_round_trip_and_legacy_defaults(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    monkeypatch.setenv("SASE_HOME", str(tmp_path))
+    path = tmp_path / "projects" / "proj" / "agents-publication-outbox.json"
+    path.parent.mkdir(parents=True)
+    row = {
+        **make_outbox_item().to_json_dict(),
+        "commit_cwd": "/work/project",
+        "artifacts_dir": "/runs/run-1",
+        "run_id": "run-1",
+    }
+    path.write_text(
+        json.dumps({"schema_version": 7, "items": [row]}),
+        encoding="utf-8",
+    )
+
+    [loaded] = list_agent_publications("proj")
+    assert loaded.commit_cwd == "/work/project"
+    assert loaded.artifacts_dir == "/runs/run-1"
+    assert loaded.run_id == "run-1"
+
+    legacy_row = make_outbox_item(revision="b" * 40).to_json_dict()
+    legacy_row.pop("commit_cwd")
+    legacy_row.pop("artifacts_dir")
+    legacy_row.pop("run_id")
+    path.write_text(
+        json.dumps({"schema_version": 7, "items": [legacy_row]}),
+        encoding="utf-8",
+    )
+    [legacy] = list_agent_publications("proj")
+    assert legacy.commit_cwd is None
+    assert legacy.artifacts_dir is None
+    assert legacy.run_id is None
+
+
 def test_schema_v5_row_without_scope_defaults_to_revision(
     tmp_path,
     monkeypatch,

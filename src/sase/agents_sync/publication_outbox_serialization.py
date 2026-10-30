@@ -127,6 +127,9 @@ def _item_from_json(
         scope=_json_text(row, "scope", default=PUBLICATION_SCOPE_REVISION)
         or PUBLICATION_SCOPE_REVISION,
         requested_revision=_json_optional_text(row, "requested_revision"),
+        commit_cwd=_json_optional_text(row, "commit_cwd"),
+        artifacts_dir=_json_optional_text(row, "artifacts_dir"),
+        run_id=_json_optional_text(row, "run_id"),
         attempts=_json_nonnegative_int(row, "attempts", default=0),
         last_error=_json_optional_text(row, "last_error"),
         quarantined=_json_boolean(

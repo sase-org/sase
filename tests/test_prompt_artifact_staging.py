@@ -10,6 +10,14 @@ import threading
 from types import SimpleNamespace
 
 import sase_core_rs
+import pytest
+from sase.agents_sync.publication_outbox import (
+    AgentPublicationOutboxItem,
+    acknowledge_agent_publications,
+    enqueue_agent_publication,
+    list_agent_publications,
+    update_agent_publications,
+)
 
 from sase.core.prompt_artifact_staging import (
     _prune_prompt_artifact_pool,
@@ -283,6 +291,7 @@ def test_pool_gc_only_removes_terminal_published_runs(
     tmp_path: Path,
     monkeypatch,
 ) -> None:
+    monkeypatch.setenv("SASE_HOME", str(tmp_path / "state"))
     source = tmp_path / "source.txt"
     source.write_text("published bytes", encoding="utf-8")
     artifacts_dir = tmp_path / "run"
@@ -293,7 +302,12 @@ def test_pool_gc_only_removes_terminal_published_runs(
         json.dumps({"status": "completed"}), encoding="utf-8"
     )
     (artifacts_dir / "commit_state.json").write_text(
-        json.dumps({"completed_steps": ["publish_prompt_archive"]}),
+        json.dumps(
+            {
+                "completed_steps": ["publish_prompt_archive"],
+                "primary_revision": "a" * 40,
+            }
+        ),
         encoding="utf-8",
     )
     monkeypatch.setattr(
@@ -304,6 +318,84 @@ def test_pool_gc_only_removes_terminal_published_runs(
     assert _prune_prompt_artifact_pool(tmp_path) == 1
     assert not pool_path.exists()
     assert len(_rows(tmp_path)) == 1
+
+
+@pytest.mark.parametrize("state", ["queued", "quarantined", "retired"])
+def test_pool_gc_respects_publication_outbox_until_acknowledged(
+    tmp_path: Path,
+    monkeypatch,
+    state: str,
+) -> None:
+    monkeypatch.setenv("SASE_HOME", str(tmp_path / "state"))
+    source = tmp_path / "source.txt"
+    source.write_text("still needed", encoding="utf-8")
+    artifacts_dir = tmp_path / "run"
+    record = _stage_file(tmp_path, artifacts_dir, source)
+    pool_path = tmp_path / ".sase/artifacts" / str(record["pool_relpath"])
+    artifacts_dir.mkdir()
+    (artifacts_dir / "done.json").write_text(
+        json.dumps({"status": "completed"}), encoding="utf-8"
+    )
+    (artifacts_dir / "commit_state.json").write_text(
+        json.dumps(
+            {
+                "completed_steps": ["publish_prompt_archive"],
+                "primary_revision": "a" * 40,
+            }
+        ),
+        encoding="utf-8",
+    )
+    item = enqueue_agent_publication(
+        AgentPublicationOutboxItem(
+            project_key="proj",
+            project="Project",
+            local_agent="worker",
+            global_agent="alice.athena.worker",
+            primary_revision="a" * 40,
+            local_hood="worker",
+            artifacts_dir=str(artifacts_dir),
+            run_id=artifacts_dir.name,
+        )
+    )
+    if state == "quarantined":
+        update_agent_publications(
+            "proj",
+            (item.logical_key,),
+            error="publication blocked",
+            increment_attempts=True,
+            quarantine_threshold=1,
+        )
+    elif state == "retired":
+        for _ in range(2):
+            update_agent_publications(
+                "proj",
+                (item.logical_key,),
+                error="publication retired",
+                increment_attempts=True,
+                terminal_reason="publication retired",
+            )
+        [retired] = list_agent_publications("proj")
+        assert retired.terminal
+
+    monkeypatch.setattr(
+        "sase.core.prompt_artifact_staging.get_artifact_capture_pool_max_bytes",
+        lambda: 1,
+    )
+
+    removed = _prune_prompt_artifact_pool(tmp_path)
+    if state == "retired":
+        assert removed == 1
+        assert not pool_path.exists()
+        return
+
+    assert removed == 0
+    assert pool_path.exists()
+    if state == "quarantined":
+        [quarantined] = list_agent_publications("proj")
+        assert quarantined.quarantined
+    acknowledge_agent_publications("proj", (item.logical_key,))
+    assert _prune_prompt_artifact_pool(tmp_path) == 1
+    assert not pool_path.exists()
 
 
 def test_non_file_reference_records_locator_without_pooling(tmp_path: Path) -> None:

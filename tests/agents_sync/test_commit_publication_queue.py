@@ -80,6 +80,9 @@ def test_committed_publication_records_a_retryable_request_when_git_fails(
         "worker--code",
         "a" * 40,
         project="Project",
+        commit_cwd=target.primary_checkout,
+        artifacts_dir=tmp_path / "runs" / "run-1",
+        run_id="run-1",
         git_runner=fail_git,
     )
 
@@ -92,6 +95,9 @@ def test_committed_publication_records_a_retryable_request_when_git_fails(
     assert request.global_agent == "alice.athena.worker"
     assert request.primary_revision == "a" * 40
     assert request.scope == PUBLICATION_SCOPE_REVISION
+    assert request.commit_cwd == str(target.primary_checkout.resolve())
+    assert request.artifacts_dir == str((tmp_path / "runs" / "run-1").resolve())
+    assert request.run_id == "run-1"
     assert request.attempts == 0
     assert request.last_error is None
 

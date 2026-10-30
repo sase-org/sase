@@ -164,6 +164,8 @@ def test_resume_publishes_agent_hood_without_redispatching_primary_commit(
         "foo--code",
         "a" * 40,
         commit_cwd=str(tmp_path),
+        artifacts_dir=str(artifacts_dir),
+        run_id=None,
     )
     assert not (artifacts_dir / "commit_state.json").exists()
 

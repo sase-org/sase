@@ -26,6 +26,9 @@ class AgentPublicationOutboxItem:
     hood_digest: str = "pending"
     scope: str = PUBLICATION_SCOPE_REVISION
     requested_revision: str | None = None
+    commit_cwd: str | None = None
+    artifacts_dir: str | None = None
+    run_id: str | None = None
     attempts: int = 0
     last_error: str | None = None
     quarantined: bool = False
@@ -69,6 +72,9 @@ class AgentPublicationOutboxItem:
             "hood_digest": self.hood_digest,
             "scope": self.scope,
             "requested_revision": self.requested_revision,
+            "commit_cwd": self.commit_cwd,
+            "artifacts_dir": self.artifacts_dir,
+            "run_id": self.run_id,
             "attempts": self.attempts,
             "last_error": self.last_error,
             "quarantined": self.quarantined,
@@ -109,6 +115,16 @@ def validate_publication_item(
             "agents publication outbox requested revision must be "
             "a non-empty string or null"
         )
+    for field_name, value in (
+        ("commit_cwd", item.commit_cwd),
+        ("artifacts_dir", item.artifacts_dir),
+        ("run_id", item.run_id),
+    ):
+        if value is not None and not value:
+            raise RuntimeError(
+                f"agents publication outbox {field_name} must be "
+                "a non-empty string or null"
+            )
 
 
 def publication_sort_key(

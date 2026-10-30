@@ -18,6 +18,7 @@ from sase.agents_sync.inventory import ProjectHoodInventory
 from sase.agents_sync.inventory_models import InventoryRun
 from sase.agents_sync.models import ProjectTarget
 from sase.agents_sync.prompt_archive.paths import prompts_month_dir
+from sase.agents_sync.prompt_archive.preparation import PreparedPromptArchive
 from sase.agents_sync.publication_completion import snapshot_prompt_file_present
 from sase.agents_sync.publication_outbox import AgentPublicationOutboxItem
 from sase.core.agent_identity_facade import AgentIdentitySnapshot, AgentOwnerIdentity
@@ -35,6 +36,7 @@ class _DeferredPromptPrepareResult:
 
     wrote: bool
     protection_status: str | None = None
+    prepared_archive: PreparedPromptArchive | None = None
 
 
 def prompt_runs_by_request(
@@ -71,11 +73,14 @@ def prepare_deferred_prompt_archive(
     """
 
     matching = prompt_runs.get((request.local_agent, request.primary_revision))
-    if matching is None or matching.source_label is None:
+    source_label = request.artifacts_dir or (
+        matching.source_label if matching is not None else None
+    )
+    if source_label is None:
         return _DeferredPromptPrepareResult(wrote=False)
     from sase.legacy_xprompt_names import resolve_raw_prompt_path
 
-    artifacts_dir = Path(matching.source_label)
+    artifacts_dir = Path(source_label)
     if resolve_raw_prompt_path(artifacts_dir) is None:
         return _DeferredPromptPrepareResult(wrote=False)
     from sase.agents_sync.prompt_archive.protection import protection_scope_for_target
@@ -84,19 +89,25 @@ def prepare_deferred_prompt_archive(
     prepared = prepare_prompt_archive(
         target=target,
         repo=target.sidecar_path,
-        agent_name=matching.local_name,
-        global_agent=matching.global_name,
+        agent_name=request.local_agent,
+        global_agent=request.global_agent,
         primary_revision=request.primary_revision,
-        commit_cwd=target.primary_checkout,
+        commit_cwd=(
+            Path(request.commit_cwd)
+            if request.commit_cwd is not None
+            else target.primary_checkout
+        ),
         agent_artifacts_dir=artifacts_dir,
         git_runner=git_runner,
         protection_scope=protection_scope_for_target(target),
     )
     if prepared.protection_status is not None:
         return _DeferredPromptPrepareResult(
-            wrote=False, protection_status=prepared.protection_status
+            wrote=False,
+            protection_status=prepared.protection_status,
+            prepared_archive=prepared,
         )
-    return _DeferredPromptPrepareResult(wrote=True)
+    return _DeferredPromptPrepareResult(wrote=True, prepared_archive=prepared)
 
 
 def restore_deferred_prompt_archives(
@@ -106,6 +117,7 @@ def restore_deferred_prompt_archives(
     *,
     identity: AgentIdentitySnapshot,
     inventory: ProjectHoodInventory,
+    prepared_archives: dict[tuple[str, str], PreparedPromptArchive] | None = None,
 ) -> dict[tuple[str, str], str]:
     """Regenerate every queued prompt archive, reporting per-request failures.
 
@@ -125,7 +137,7 @@ def restore_deferred_prompt_archives(
         wrote = False
         protection_status: str | None = None
         matching = prompt_runs.get((request.local_agent, request.primary_revision))
-        local_source_present = _local_prompt_source_present(matching)
+        local_source_present = _local_prompt_source_present(matching, request)
         try:
             prepared = prepare_deferred_prompt_archive(
                 target,
@@ -135,6 +147,12 @@ def restore_deferred_prompt_archives(
             )
             wrote = prepared.wrote
             protection_status = prepared.protection_status
+            if (
+                prepared_archives is not None
+                and prepared.wrote
+                and prepared.prepared_archive is not None
+            ):
+                prepared_archives[request.logical_key] = prepared.prepared_archive
         except PublicationDrainTimedOut:
             raise
         except Exception as exc:  # noqa: BLE001 - durable auxiliary boundary
@@ -179,12 +197,18 @@ def _prompt_restore_failure(
     )
 
 
-def _local_prompt_source_present(matching: InventoryRun | None) -> bool:
-    if matching is None or matching.source_label is None:
+def _local_prompt_source_present(
+    matching: InventoryRun | None,
+    request: AgentPublicationOutboxItem,
+) -> bool:
+    source_label = request.artifacts_dir or (
+        matching.source_label if matching is not None else None
+    )
+    if source_label is None:
         return False
     from sase.legacy_xprompt_names import resolve_raw_prompt_path
 
-    return resolve_raw_prompt_path(Path(matching.source_label)) is not None
+    return resolve_raw_prompt_path(Path(source_label)) is not None
 
 
 def _prompt_archive_present(

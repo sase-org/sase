@@ -234,10 +234,15 @@ def acknowledge_completed(
         restore_deferred_prompt_archives,
     )
     from sase.agents_sync.publication_completion import publication_request_fulfilled
+    from sase.agents_sync.prompt_archive.preparation import PreparedPromptArchive
+    from sase.agents_sync.prompt_archive.publish import (
+        record_prompt_archive_side_effects,
+    )
 
     if not prepared:
         return (), ()
     prepared_tuple = tuple(prepared)
+    prepared_archives: dict[tuple[str, str], PreparedPromptArchive] = {}
     try:
         prompt_failures = restore_deferred_prompt_archives(
             target,
@@ -245,6 +250,7 @@ def acknowledge_completed(
             git_runner,
             identity=identity,
             inventory=inventory,
+            prepared_archives=prepared_archives,
         )
     except PublicationDrainTimedOut:
         raise
@@ -317,6 +323,26 @@ def acknowledge_completed(
             )
             gate_errors.append(error)
             continue
+        prompt_archive = prepared_archives.get(item.logical_key)
+        if prompt_archive is not None:
+            side_effect_error = record_prompt_archive_side_effects(
+                target,
+                prompt_archive,
+                global_agent=item.global_agent,
+                publication_agent=item.local_agent,
+                run_id=item.run_id,
+                git_runner=git_runner,
+            )
+            if side_effect_error is not None:
+                hooks.update_publications(
+                    target.project_key,
+                    (item.logical_key,),
+                    error=side_effect_error,
+                    increment_attempts=True,
+                    quarantine_threshold=hooks.configured_max_attempts(),
+                )
+                gate_errors.append(side_effect_error)
+                continue
         ackable.append(item.logical_key)
     if not ackable:
         return (), tuple(gate_errors)

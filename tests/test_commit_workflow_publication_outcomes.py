@@ -124,6 +124,8 @@ def test_publication_failure_with_durable_outbox_keeps_primary_successful(
         "foo--code",
         "a" * 40,
         commit_cwd=os.getcwd(),
+        artifacts_dir=str(artifacts_dir),
+        run_id=None,
     )
     output = " ".join(capsys.readouterr().out.split())
     assert "agent-hood publication is queued and will retry automatically" in output
@@ -299,6 +301,8 @@ def test_publication_without_target_warns_but_keeps_primary_successful(
         "foo--code",
         "a" * 40,
         commit_cwd=os.getcwd(),
+        artifacts_dir=str(artifacts_dir),
+        run_id=None,
     )
     output = " ".join(capsys.readouterr().out.split())
     assert f"skipped for repository {os.getcwd()!r}" in output
@@ -427,5 +431,7 @@ def test_agent_session_member_commit_uses_metadata_for_footer_and_publication(
         "ms--code",
         "a" * 40,
         commit_cwd=os.getcwd(),
+        artifacts_dir=str(artifacts_dir),
+        run_id=None,
     )
     assert not (artifacts_dir / "commit_state.json").exists()

@@ -105,6 +105,63 @@ def test_publish_prompt_archive_without_artifacts_is_git_idempotent(
     assert not (verify / "artifacts/202608").exists()
 
 
+def test_prompt_archive_side_effects_run_after_the_archive_push(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    target, _remote, artifacts_dir = _publish_environment(
+        tmp_path,
+        monkeypatch,
+        "Archive this prompt.\n",
+    )
+    pushes: list[str] = []
+    side_effects: list[tuple[str, str, str | None]] = []
+
+    def tracking_git(
+        cwd: Path,
+        args: list[str],
+        *,
+        network: bool = False,
+        op: str = "",
+    ) -> subprocess.CompletedProcess[str]:
+        result = run_git(cwd, args, network=network, op=op)
+        if args == ["push"]:
+            pushes.append("pushed")
+        return result
+
+    def record_side_effects(
+        _target: ProjectTarget,
+        _prepared,
+        *,
+        global_agent: str,
+        publication_agent: str,
+        run_id: str | None,
+        git_runner,
+    ) -> None:
+        assert pushes == ["pushed"]
+        del git_runner
+        side_effects.append((global_agent, publication_agent, run_id))
+
+    monkeypatch.setattr(
+        archive_publish,
+        "record_prompt_archive_side_effects",
+        record_side_effects,
+    )
+
+    outcome = publish_prompt_archive(
+        "worker",
+        "a" * 40,
+        project="Project",
+        commit_cwd=target.primary_checkout,
+        agent_artifacts_dir=artifacts_dir,
+        cites_event_run_id="run-1",
+        git_runner=tracking_git,
+    )
+
+    assert outcome.published
+    assert side_effects == [("alice.athena.worker", "worker", "run-1")]
+
+
 def _publish_environment(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

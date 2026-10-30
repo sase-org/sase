@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
 
 from sase.agents_sync._commit_publication_drain import drain_agent_publications
@@ -45,6 +46,8 @@ def publish_committed_agent_hood(
     *,
     project: str | None = None,
     commit_cwd: Path | str | None = None,
+    artifacts_dir: Path | str | None = None,
+    run_id: str | None = None,
     git_runner: GitRunner = run_git,
 ) -> CommitPublicationOutcome:
     """Enqueue one agent-hood request and drain it before returning.
@@ -58,6 +61,8 @@ def publish_committed_agent_hood(
         primary_revision,
         project=project,
         commit_cwd=commit_cwd,
+        artifacts_dir=artifacts_dir,
+        run_id=run_id,
     )
     if outcome.error is not None or outcome.skip_reason is not None:
         return outcome
@@ -93,6 +98,8 @@ def _enqueue_committed_agent_publication(
     *,
     project: str | None,
     commit_cwd: Path | str | None,
+    artifacts_dir: Path | str | None,
+    run_id: str | None,
 ) -> tuple[
     CommitPublicationOutcome,
     ProjectTarget | None,
@@ -135,6 +142,11 @@ def _enqueue_committed_agent_publication(
         primary_revision=primary_revision,
         local_hood=agent_local_hood(agent_ref.local_name, identity),
         scope=fulfillment_scope_for_commit_cwd(commit_cwd),
+        commit_cwd=_recorded_path(commit_cwd),
+        artifacts_dir=_recorded_path(
+            artifacts_dir or os.environ.get("SASE_ARTIFACTS_DIR")
+        ),
+        run_id=(run_id or os.environ.get("SASE_AGENT_TIMESTAMP") or "").strip() or None,
     )
     try:
         enqueue_agent_publication(item)
@@ -299,6 +311,12 @@ def _display_repository(commit_cwd: Path | str | None) -> str:
     if commit_cwd is None:
         return "the current checkout"
     return str(Path(commit_cwd).expanduser().resolve(strict=False))
+
+
+def _recorded_path(value: Path | str | None) -> str | None:
+    if value is None or not str(value).strip():
+        return None
+    return str(Path(value).expanduser().resolve(strict=False))
 
 
 def _current_project() -> str | None:

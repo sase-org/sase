@@ -168,6 +168,21 @@ def enqueue_agent_publication(
                 if existing is not None
                 else item.terminal_reason
             ),
+            commit_cwd=(
+                existing.commit_cwd
+                if existing is not None and existing.commit_cwd is not None
+                else item.commit_cwd
+            ),
+            artifacts_dir=(
+                existing.artifacts_dir
+                if existing is not None and existing.artifacts_dir is not None
+                else item.artifacts_dir
+            ),
+            run_id=(
+                existing.run_id
+                if existing is not None and existing.run_id is not None
+                else item.run_id
+            ),
             hood_digest=(
                 existing.hood_digest
                 if existing is not None and item.hood_digest == "pending"
