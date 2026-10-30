@@ -12,7 +12,9 @@ from __future__ import annotations
 
 from collections.abc import Iterable
 from dataclasses import dataclass
+from pathlib import Path
 
+from tests._agent_artifact_marker_audit_helpers import _TRACKED_MARKER_LITERALS
 from tests._test_selection_graph import ImportGraph
 
 
@@ -64,6 +66,25 @@ RULE_RATIO_EXCEEDED = "selection-ratio-exceeded"
 RULE_SERIAL_BUDGET_EXCEEDED = "serial-budget-exceeded"
 
 RULE_NO_BASELINE_DEPTH_BOOST = "no-baseline-depth-boost"
+
+#: Fires when a changed ``src/`` Python file contains a tracked
+#: agent-artifact marker literal, and selects both marker AST audits (task
+#: sase-1mv). The audits parse ``src/sase`` as text rather than importing the
+#: writer functions they audit, so the import-graph closure never reaches
+#: them; the curated contract set cannot take them either, because their full
+#: AST scan costs ~24 s against a serial budget the manifest already spends.
+#: The trigger is a substring pre-filter over the changed files only — the
+#: same shape the commit-tag contract uses to skip its own full scan — so a
+#: file that cannot contain a tracked literal can never widen the suite.
+RULE_MARKER_AUDIT = "marker-audit"
+
+#: The AST audits :data:`RULE_MARKER_AUDIT` selects. Both parse the working
+#: tree through :mod:`tests._agent_artifact_marker_audit_helpers`; neither
+#: has an import edge to the writers it audits.
+MARKER_AUDIT_PATHS = (
+    "tests/test_agent_artifact_marker_mutation_audit.py",
+    "tests/test_agent_artifact_marker_path_passing_audit.py",
+)
 
 #: Rules whose only sound response is to run everything.
 #:
@@ -152,6 +173,41 @@ def _is_directory_conftest(path: str) -> bool:
         and path.endswith("/conftest.py")
         and path != "tests/conftest.py"
     )
+
+
+def _is_marker_audit_candidate(path: str) -> bool:
+    return path.startswith("src/") and path.endswith(".py")
+
+
+def marker_audit_triggers(root: Path, changed_paths: Iterable[str]) -> dict[str, str]:
+    """Map each marker-audit path to the changed file that triggers it.
+
+    A changed ``src/`` Python file whose working-tree text contains a tracked
+    marker literal can write a marker the audits review, so both
+    :data:`MARKER_AUDIT_PATHS` modules join the selection. Anything else —
+    docs, config, a source file with no marker literal, a path already gone
+    from the working tree (a deletion or rename-away) — triggers nothing.
+
+    The scan reads only the changed files and never parses: one substring
+    pre-filter per file, against the same literal catalog the audits match
+    on, so importing the catalog keeps the trigger from drifting out of sync
+    with what the audits review. The first trigger in sorted order explains
+    both audits, keeping ``--explain`` output deterministic.
+    """
+    trigger: str | None = None
+    for path in sorted(changed_paths):
+        if not _is_marker_audit_candidate(path):
+            continue
+        try:
+            text = (root / path).read_text(encoding="utf-8")
+        except (OSError, UnicodeDecodeError):
+            continue
+        if any(literal in text for literal in _TRACKED_MARKER_LITERALS):
+            trigger = path
+            break
+    if trigger is None:
+        return {}
+    return dict.fromkeys(MARKER_AUDIT_PATHS, trigger)
 
 
 @dataclass(frozen=True)

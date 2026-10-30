@@ -65,10 +65,12 @@ from tests._test_selection_manifest import (
 from tests._test_selection_rules import (
     CONTRACT_MANIFEST_PATH,
     RULE_CONTRACT_SET_ALWAYS,
+    RULE_MARKER_AUDIT,
     RULE_NO_BASELINE_DEPTH_BOOST,
     RULE_RATIO_EXCEEDED,
     RULE_SERIAL_BUDGET_EXCEEDED,
     evaluate_broadening_rules,
+    marker_audit_triggers,
 )
 from tests._test_selection_timings import (
     REASON_ESCALATED,
@@ -429,6 +431,17 @@ def select_tests(
             explanations.setdefault(path, (CONTRACT_MANIFEST_PATH, 0))
         if contract_set:
             rules.append(RULE_CONTRACT_SET_ALWAYS)
+
+        # The marker AST audits read `src/sase` as text, so no import edge
+        # reaches them. A changed source file carrying a tracked marker
+        # literal selects them by content instead; paths that survive only
+        # here still pass through the on-disk filter below with the rest.
+        marker_triggers = marker_audit_triggers(root, change_set.paths)
+        for audit_path, seed in marker_triggers.items():
+            selected.add(audit_path)
+            explanations.setdefault(audit_path, (seed, 0))
+        if any(audit in graph.paths for audit in marker_triggers):
+            rules.append(RULE_MARKER_AUDIT)
 
         for path in contexts.selected:
             selected.add(path)
