@@ -49,11 +49,25 @@ from sase.notification_gates.service_assembly import (
     build_gate_envelope,
     build_gate_notification,
 )
-from sase.notification_gates.service_evaluation import effective_auto_state
+from sase.notification_gates.service_evaluation import (
+    apply_frozen_auto_state,
+    effective_auto_state,
+)
 
 
-def create_gate(spec_value: Mapping[str, Any] | GateSpec) -> GateCreationResult:
-    """Create or repair one durable gate, idempotently by request id."""
+def create_gate(
+    spec_value: Mapping[str, Any] | GateSpec,
+    *,
+    frozen_auto: Mapping[str, Any] | None = None,
+    resource_bytes: Mapping[str, bytes] | None = None,
+) -> GateCreationResult:
+    """Create or repair one durable gate, idempotently by request id.
+
+    ``frozen_auto`` is the preparation-time evaluation snapshot. When
+    provided, creation consumes it instead of evaluating autonomy again.
+    ``resource_bytes`` overlays snapshot bytes onto source-backed resources
+    so publication never reopens mutable relative source paths.
+    """
     spec = (
         spec_value
         if isinstance(spec_value, GateSpec)
@@ -78,15 +92,31 @@ def create_gate(spec_value: Mapping[str, Any] | GateSpec) -> GateCreationResult:
 
         if journal:
             return _resume_gate_creation(spec, adapter, paths, journal)
-        return _start_gate_creation(spec, adapter, paths)
+        return _start_gate_creation(
+            spec,
+            adapter,
+            paths,
+            frozen_auto=frozen_auto,
+            resource_bytes=resource_bytes,
+        )
 
 
 def _start_gate_creation(
-    spec: GateSpec, adapter: GateAdapter, paths: Any
+    spec: GateSpec,
+    adapter: GateAdapter,
+    paths: Any,
+    *,
+    frozen_auto: Mapping[str, Any] | None = None,
+    resource_bytes: Mapping[str, bytes] | None = None,
 ) -> GateCreationResult:
-    effective, decision, policy_block, auto_execute = effective_auto_state(
-        spec, adapter, request_id=paths.root.name
-    )
+    if frozen_auto is not None:
+        effective, decision, policy_block, auto_execute = apply_frozen_auto_state(
+            spec, frozen_auto
+        )
+    else:
+        effective, decision, policy_block, auto_execute = effective_auto_state(
+            spec, adapter, request_id=paths.root.name
+        )
     notification_id = None if auto_execute else str(uuid4())
     paths.root.mkdir(parents=True, exist_ok=False)
     fsync_dir(paths.root.parent)
@@ -100,7 +130,17 @@ def _start_gate_creation(
     published = False
     try:
         for resource in effective.resources:
-            materialize_resource(paths.root, resource)
+            overlay: bytes | None = None
+            if resource_bytes is not None and resource.source is not None:
+                overlay = resource_bytes.get(resource.path)
+                if overlay is None:
+                    raise GateError(
+                        "missing_snapshot",
+                        resource.path,
+                        "staged gate publication cannot reopen a source path; "
+                        f"snapshot missing for {resource.path}",
+                    )
+            materialize_resource(paths.root, resource, content_bytes=overlay)
         resource_hashes = {
             resource.path: sha256_file(owned_resource_path(paths.root, resource.path))
             for resource in effective.resources

@@ -227,6 +227,31 @@ def discard_staged_gate_snapshot(artifacts_dir: str, staged_id: str) -> None:
     )
 
 
+def load_staged_gate_resource_bytes(
+    artifacts_dir: str,
+    staged_id: str,
+    payload: Mapping[str, Any],
+) -> dict[str, bytes]:
+    """Load frozen snapshot bytes keyed by resource path.
+
+    Publication copies these bytes into the public bundle. Missing snapshot
+    entries for source-backed resources are left out so ``create_gate`` can
+    fail closed instead of reopening a mutable source path.
+    """
+    resources = payload.get("resources")
+    if not isinstance(resources, list):
+        return {}
+    loaded: dict[str, bytes] = {}
+    for entry in resources:
+        if not isinstance(entry, Mapping):
+            continue
+        path = entry.get("path")
+        if not isinstance(path, str) or not path:
+            continue
+        loaded[path] = read_staged_gate_snapshot_bytes(artifacts_dir, staged_id, path)
+    return loaded
+
+
 def collect_staged_gate_creator(
     *,
     artifacts_dir: str | None = None,
@@ -441,6 +466,7 @@ __all__ = [
     "StagedGatePreparation",
     "collect_staged_gate_creator",
     "discard_staged_gate_snapshot",
+    "load_staged_gate_resource_bytes",
     "prepare_staged_gate",
     "read_staged_gate_snapshot_bytes",
     "rehydrate_staged_gate_spec",

@@ -48,11 +48,13 @@ class _StagedAdoptionOutcome:
     (``None`` continues inline). ``custodian`` is the actual successor
     artifacts identity that now owns carried work, when the adopter knows
     it. When ``None``, dispatch derives the custodian from continuation
-    state (successor/gate dirs), never from command text.
+    state (successor/gate dirs), never from command text. ``refs`` are
+    merged into the adoption receipt as stable kind-specific identities.
     """
 
     outcome: str | None = None
     custodian: str | None = None
+    refs: Mapping[str, Any] | None = None
 
 
 StagedAdopter = Callable[
@@ -304,11 +306,11 @@ def _mark_custody_transferred(
 
 def _normalize_adopter_result(
     raw: str | None | _StagedAdoptionOutcome,
-) -> tuple[str | None, str | None]:
-    """Split a legacy or narrow adopter return into outcome and custodian."""
+) -> tuple[str | None, str | None, Mapping[str, Any] | None]:
+    """Split a legacy or narrow adopter return into outcome, custodian, refs."""
     if isinstance(raw, _StagedAdoptionOutcome):
-        return raw.outcome, raw.custodian
-    return raw, None
+        return raw.outcome, raw.custodian, raw.refs
+    return raw, None, None
 
 
 def _resolve_adoption_custodian(
@@ -648,10 +650,39 @@ def _adopt_pipe(
     )
 
 
+def _adopt_gate(
+    staged_record: Mapping[str, Any],
+    run_metadata: Mapping[str, Any],
+    continuation: StagedInlineContinuation,
+    response: str,
+) -> _StagedAdoptionOutcome:
+    from sase.axe.run_agent_exec_staged_gate import handle_staged_gate_marker
+
+    adopted = handle_staged_gate_marker(
+        staged_record,
+        _runner_ctx_from_metadata(continuation, run_metadata),
+        continuation,
+        provider_response=response,
+    )
+    refs: dict[str, Any] = {
+        "gate_id": adopted.gate_id,
+        "gate_request_id": adopted.request_id,
+        "member_artifacts_dir": adopted.member_artifacts_dir,
+    }
+    if adopted.notification_id:
+        refs["notification_id"] = adopted.notification_id
+    return _StagedAdoptionOutcome(
+        outcome=adopted.outcome,
+        custodian=adopted.member_artifacts_dir if adopted.retains_workspace else None,
+        refs=refs,
+    )
+
+
 STAGED_HANDOFF_ADOPTERS: dict[str, StagedAdopter] = {
     "plan": _adopt_plan,
     "pipe": _adopt_pipe,
     "questions": _adopt_questions,
+    "gate": _adopt_gate,
 }
 
 
@@ -731,7 +762,7 @@ def dispatch_completed_staged_handoff(
     original_state_artifacts_dir = continuation.state.current_artifacts_dir
     try:
         raw_outcome = adopter(staged_record, run_metadata, continuation, response)
-        outcome, explicit_custodian = _normalize_adopter_result(raw_outcome)
+        outcome, explicit_custodian, extra_refs = _normalize_adopter_result(raw_outcome)
         if outcome == "plan_rejected":
             reason = "staged plan could not be adopted by the plan approval flow"
             _write_held_receipt(staged_id, reason, artifacts_dir=original_artifacts_dir)
@@ -757,6 +788,11 @@ def dispatch_completed_staged_handoff(
     )
 
     adoption_refs: dict[str, Any] = {"loop_outcome": outcome}
+    if extra_refs:
+        for key, value in extra_refs.items():
+            if value is None or key in adoption_refs:
+                continue
+            adoption_refs[key] = value
     if continuation.state.plan_gate_artifacts_dir:
         adoption_refs["plan_gate_artifacts_dir"] = (
             continuation.state.plan_gate_artifacts_dir

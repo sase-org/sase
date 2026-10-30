@@ -115,8 +115,6 @@ def effective_auto_state(
     published as today. The policy block rides along either way, so every
     plan, epic, and question gate carries one.
     """
-    from sase.autonomy.gates import POLICY_BLOCK_KINDS
-
     _record, decision, block = _evaluate_gate_request(
         spec, adapter, request_id=request_id
     )
@@ -136,4 +134,41 @@ def effective_auto_state(
     )
 
 
-__all__ = ["effective_auto_state", "should_auto_execute"]
+def apply_frozen_auto_state(
+    spec: GateSpec,
+    frozen_auto: Mapping[str, Any],
+) -> tuple[GateSpec, dict[str, Any], dict[str, Any], bool]:
+    """Consume a previously evaluated auto snapshot without re-evaluating.
+
+    Publication must not log a second autonomy decision or change policy
+    when the ambient flag or autonomy environment has changed. The frozen
+    ``auto_execute`` bit is authoritative.
+    """
+    policy_raw = frozen_auto.get("policy_block")
+    if not isinstance(policy_raw, Mapping):
+        raise GateError(
+            "invalid_frozen_auto",
+            "auto.policy_block",
+            "frozen gate auto snapshot has no policy_block object",
+        )
+    policy_block = dict(policy_raw)
+    decision_raw = frozen_auto.get("decision")
+    decision = (
+        dict(decision_raw) if isinstance(decision_raw, Mapping) else dict(policy_block)
+    )
+    if frozen_auto.get("auto_execute") is True:
+        return spec, decision, policy_block, True
+    return (
+        dataclasses.replace(
+            spec,
+            auto=dataclasses.replace(
+                spec.auto, enabled=False, argument=None, policy=spec.auto.policy
+            ),
+        ),
+        decision,
+        policy_block,
+        False,
+    )
+
+
+__all__ = ["apply_frozen_auto_state", "effective_auto_state", "should_auto_execute"]

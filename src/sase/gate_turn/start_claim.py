@@ -41,8 +41,15 @@ def move_gate_turn_claim(
     artifacts_timestamp: str,
     cl_name: str | None,
     workspace_policy: str,
+    creator_artifacts_timestamp: str | None = None,
 ) -> GateClaimMove:
-    """Move or release the creator claim for a pending gate turn."""
+    """Move or release the creator claim for a pending gate turn.
+
+    Ownership is revalidated at the actual move. A live claim whose PID
+    matches the recorded creator is still refused when its identity
+    (artifacts timestamp / cl_name) no longer matches, so a reused PID
+    cannot steal the workspace.
+    """
     if workspace_num is None or workspace_num == 0 or creator_pid is None:
         return GateClaimMove(
             result=ClaimResult(True),
@@ -60,6 +67,21 @@ def move_gate_turn_claim(
         return GateClaimMove(
             result=ClaimResult(True),
             creator_claim=None,
+            gate_pid=None,
+            workspace_policy=workspace_policy,
+        )
+    if not _claim_still_owned_by_creator(
+        creator_claim,
+        creator_pid=creator_pid,
+        creator_artifacts_timestamp=creator_artifacts_timestamp,
+        creator_cl_name=cl_name,
+    ):
+        return GateClaimMove(
+            result=ClaimResult(
+                False,
+                "workspace claim is no longer owned by the creating agent",
+            ),
+            creator_claim=creator_claim,
             gate_pid=None,
             workspace_policy=workspace_policy,
         )
@@ -323,6 +345,35 @@ def _append_settle_hold_failure_log(
             f"pid {holder_pid}: {error}\n"
         ),
     )
+
+
+def _claim_still_owned_by_creator(
+    claim: WorkspaceClaim,
+    *,
+    creator_pid: int,
+    creator_artifacts_timestamp: str | None,
+    creator_cl_name: str | None,
+) -> bool:
+    """Return whether *claim* is still the creating agent's workspace.
+
+    A matching PID is not enough: after the original process exits, the
+    kernel may reuse that PID for an unrelated occupant of the same
+    workspace. Conflicting identity fields refuse the move. A dead PID
+    still listed in RUNNING is the original creator and may be moved.
+    """
+    if claim.pid != creator_pid:
+        return False
+    if not _creator_pid_is_live(creator_pid):
+        return True
+    if creator_cl_name and claim.cl_name and claim.cl_name != creator_cl_name:
+        return False
+    if (
+        creator_artifacts_timestamp
+        and claim.artifacts_timestamp
+        and claim.artifacts_timestamp != creator_artifacts_timestamp
+    ):
+        return False
+    return True
 
 
 def _find_claim(

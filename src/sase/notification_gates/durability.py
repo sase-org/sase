@@ -107,14 +107,26 @@ def read_json_object(path: Path) -> dict[str, Any]:
     return value
 
 
-def materialize_resource(bundle_root: Path, resource: GateResource) -> Path:
-    """Create one resource without following source or destination symlinks."""
+def materialize_resource(
+    bundle_root: Path,
+    resource: GateResource,
+    *,
+    content_bytes: bytes | None = None,
+) -> Path:
+    """Create one resource without following source or destination symlinks.
+
+    ``content_bytes`` is the staged-publication overlay: the publisher copies
+    frozen snapshot bytes into the public bundle while the spec keeps its
+    original ``source`` identity for ``edit_target: origin``.
+    """
     target = owned_resource_path(bundle_root, resource.path)
     target.parent.mkdir(parents=True, exist_ok=True)
     _reject_existing_symlink(target)
     if target.exists():
         raise GateError("resource_exists", resource.path, "resource already exists")
-    if resource.content is not None:
+    if content_bytes is not None:
+        content = content_bytes
+    elif resource.content is not None:
         content = resource.content.encode("utf-8")
     else:
         assert resource.source is not None

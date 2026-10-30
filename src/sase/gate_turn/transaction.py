@@ -97,7 +97,13 @@ def create_gate_turn(
     before_auto_settle: Callable[[GateTurnRecord, GateCreationResult], None]
     | None = None,
 ) -> GateTurnCreation:
-    """Create a gate-turn member, then create the durable gate."""
+    """Create a gate-turn member, then create the durable gate.
+
+    This is the immediate compatibility wrapper: it resolves the creator
+    from the live environment, stamps a gate-intent marker, and publishes.
+    Staged adoption calls :func:`publish_gate_turn` with persisted creator
+    context and never writes an intent marker.
+    """
     if finalizer_owned_turn_is_active():
         raise GateTurnError(_FINALIZER_OWNED_TURN_ERROR)
     spec = _spec_from_request(request)
@@ -106,8 +112,10 @@ def create_gate_turn(
     begin_gate_intent(spec.kind, request_id=spec.request_id)
 
     try:
-        creation = _create_gate_turn_transaction(
+        creator = _resolve_creator(_resolve_project_name())
+        creation = publish_gate_turn(
             spec,
+            creator=creator,
             before_auto_settle=before_auto_settle,
         )
     except Exception:
@@ -116,22 +124,31 @@ def create_gate_turn(
 
     if not creation.should_handoff:
         clear_gate_intent()
-    _pulse_after_gate_visible(creation.record.project_name)
     return creation
 
 
-def _create_gate_turn_transaction(
+def publish_gate_turn(
     spec: GateSpec,
     *,
+    creator: _CreatorContext,
     before_auto_settle: Callable[[GateTurnRecord, GateCreationResult], None]
     | None = None,
+    frozen_auto: Mapping[str, Any] | None = None,
+    resource_bytes: Mapping[str, bytes] | None = None,
 ) -> GateTurnCreation:
-    """Create the gate-turn member and durable gate after intent stamping."""
-    assert spec.request_id is not None
-    assert spec.turn is not None
+    """Run the ordered publication transaction with explicit creator context.
 
-    project_name = _resolve_project_name()
-    creator = _resolve_creator(project_name)
+    The publisher alone creates the gate member, transfers or releases its
+    workspace claim, materializes the bundle, publishes the notification,
+    and pulses watchers. Request-id replay finds the original member and
+    gate instead of allocating another suffix or moving the claim twice.
+    """
+    turn = spec.turn
+    if turn is None:
+        raise GateTurnError("gate turn publication requires a shell block")
+    assert spec.request_id is not None
+
+    project_name = creator.project_name
     with gate_lane_lock(project_name, creator.durable_lane):
         replay = find_gate_turn_by_gate_id(project_name, spec.request_id)
         if replay is not None:
@@ -141,17 +158,23 @@ def _create_gate_turn_transaction(
                 member_timestamp=replay.timestamp
                 or os.path.basename(replay.artifacts_dir.rstrip("/")),
             )
-            gate_result = create_gate(spec)
+            gate_result = _create_durable_gate(
+                spec,
+                frozen_auto=frozen_auto,
+                resource_bytes=resource_bytes,
+            )
             record = _record_with_gate_result(project_name, replay, gate_result)
-            return GateTurnCreation(
+            creation = GateTurnCreation(
                 gate=gate_result,
                 record=record,
                 project_file=creator.project_file,
                 claim_move=None,
                 cl_name=creator.cl_name,
             )
+            _pulse_after_gate_visible(creation.record.project_name)
+            return creation
 
-        suffix = spec.turn.suffix or naming.allocate_gate_suffix(
+        suffix = turn.suffix or naming.allocate_gate_suffix(
             creator.durable_lane,
             has_existing_gate=has_any_gate_turn(project_name, creator.durable_lane),
         )
@@ -172,7 +195,7 @@ def _create_gate_turn_transaction(
             else creator.target_name,
             timeout_seconds=spec.gate_timeout_seconds or 0.0,
             request_fingerprint=None,
-            turn=spec.turn,
+            turn=turn,
         )
         member_timestamp = os.path.basename(artifacts_dir.rstrip("/"))
         claim_move = move_gate_turn_claim(
@@ -181,7 +204,8 @@ def _create_gate_turn_transaction(
             creator_pid=creator.runner_pid,
             artifacts_timestamp=member_timestamp,
             cl_name=creator.cl_name,
-            workspace_policy=spec.turn.workspace,
+            workspace_policy=turn.workspace,
+            creator_artifacts_timestamp=creator.timestamp,
         )
         _record_creator_claim(artifacts_dir, claim_move)
         if not claim_move.result.success:
@@ -202,7 +226,11 @@ def _create_gate_turn_transaction(
                 member_artifacts_dir=artifacts_dir,
                 member_timestamp=member_timestamp,
             )
-            gate_result = create_gate(spec)
+            gate_result = _create_durable_gate(
+                spec,
+                frozen_auto=frozen_auto,
+                resource_bytes=resource_bytes,
+            )
         except BaseException:
             record = _read_required_record(project_name, artifacts_dir)
             settle_gate_turn(
@@ -242,13 +270,15 @@ def _create_gate_turn_transaction(
                 move=claim_move,
                 cl_name=creator.cl_name,
             )
-        return GateTurnCreation(
+        creation = GateTurnCreation(
             gate=gate_result,
             record=record,
             project_file=creator.project_file,
             claim_move=claim_move,
             cl_name=creator.cl_name,
         )
+        _pulse_after_gate_visible(creation.record.project_name)
+        return creation
 
 
 def _stamp_pending_shell_on_spec(
@@ -330,6 +360,94 @@ def _resolve_project_name() -> str:
             "could not resolve project for gate turn creation"
         ) from exc
     raise GateTurnLaneError("could not resolve project for gate turn creation")
+
+
+def creator_context_from_persisted(
+    creator: Mapping[str, Any],
+) -> _CreatorContext:
+    """Rebuild publication identity from a staged payload's creator block.
+
+    Re-reads the persisted run's ``agent_meta.json`` and applies session
+    promotion there. The adopter's environment is never consulted, so a
+    later re-adopt cannot publish as the re-adopter.
+    """
+    from sase.agent._agent_session_promotion import promote_agent_to_agent_session
+
+    project_name = creator.get("project")
+    artifacts_dir = creator.get("artifacts_dir")
+    if not isinstance(project_name, str) or not project_name.strip():
+        raise GateTurnLaneError("staged gate creator is missing project")
+    if not isinstance(artifacts_dir, str) or not artifacts_dir.strip():
+        raise GateTurnLaneError("staged gate creator is missing artifacts_dir")
+    project_name = project_name.strip()
+    artifacts_dir = artifacts_dir.strip()
+    raw_meta = _read_meta(artifacts_dir)
+    durable_lane = str(
+        agent_session_value(raw_meta) or creator.get("agent_session") or ""
+    ).strip()
+    recorded_target = creator.get("target") or creator.get("agent")
+    target_name = str(
+        raw_meta.get("name")
+        if isinstance(raw_meta.get("name"), str) and raw_meta.get("name")
+        else recorded_target or ""
+    ).strip()
+    if not target_name:
+        raise GateTurnLaneError("staged gate creator is missing agent identity")
+    if not durable_lane:
+        promoted_name = promote_agent_to_agent_session(artifacts_dir, target_name)
+        durable_lane = agent_session_base(promoted_name) or target_name
+        raw_meta = _read_meta(artifacts_dir)
+        if isinstance(raw_meta.get("name"), str) and raw_meta.get("name"):
+            target_name = str(raw_meta["name"])
+    workspace_num = _optional_int(raw_meta.get("workspace_num"))
+    if workspace_num is None:
+        workspace_num = _optional_int(creator.get("workspace_num"))
+    runner_pid = _optional_int(raw_meta.get("pid"))
+    if runner_pid is None:
+        runner_pid = _optional_int(creator.get("runner_pid"))
+    cl_name = raw_meta.get("cl_name")
+    if not isinstance(cl_name, str) or not cl_name:
+        recorded_cl = creator.get("cl_name")
+        cl_name = recorded_cl if isinstance(recorded_cl, str) else None
+    project_file = creator.get("project_file")
+    if not isinstance(project_file, str) or not project_file.strip():
+        project_file = get_project_file_path(project_name)
+    timestamp = creator.get("timestamp")
+    if not isinstance(timestamp, str) or not timestamp.strip():
+        timestamp = os.path.basename(artifacts_dir.rstrip("/"))
+    return _CreatorContext(
+        project_name=project_name,
+        project_file=project_file.strip(),
+        artifacts_dir=artifacts_dir,
+        timestamp=timestamp.strip(),
+        target_name=target_name,
+        durable_lane=durable_lane,
+        meta=raw_meta,
+        workspace_num=workspace_num,
+        runner_pid=runner_pid,
+        cl_name=cl_name if isinstance(cl_name, str) else None,
+    )
+
+
+def _create_durable_gate(
+    spec: GateSpec,
+    *,
+    frozen_auto: Mapping[str, Any] | None,
+    resource_bytes: Mapping[str, bytes] | None,
+) -> GateCreationResult:
+    """Call ``create_gate`` without extra kwargs when the immediate path is used.
+
+    Existing tests patch ``create_gate`` with a one-argument callable. The
+    staged publication path is the only caller that supplies frozen auto
+    state or snapshot bytes.
+    """
+    if frozen_auto is None and resource_bytes is None:
+        return create_gate(spec)
+    return create_gate(
+        spec,
+        frozen_auto=frozen_auto,
+        resource_bytes=resource_bytes,
+    )
 
 
 def _resolve_creator(project_name: str) -> _CreatorContext:
@@ -456,4 +574,6 @@ def _optional_int(value: object) -> int | None:
 __all__ = [
     "GateTurnCreation",
     "create_gate_turn",
+    "creator_context_from_persisted",
+    "publish_gate_turn",
 ]
