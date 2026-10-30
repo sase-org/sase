@@ -16,6 +16,7 @@ import tempfile
 import time
 from typing import Any
 
+from sase._interruptions import PublicationDrainTimedOut
 from sase.agents_sync.io import atomic_write_json
 from sase.agents_sync.v2_validation import MAX_TEXT_BYTES
 from sase.core.agent_publication_protection import (
@@ -144,6 +145,8 @@ def scan_publication_candidate(
     path = Path(source)
     try:
         staging_root = _private_scan_root()
+    except PublicationDrainTimedOut:
+        raise
     except OSError:
         yield _unverified_candidate(None, None, None, "scan_error")
         return
@@ -156,11 +159,15 @@ def scan_publication_candidate(
                 | getattr(os, "O_NOFOLLOW", 0)
                 | getattr(os, "O_NONBLOCK", 0),
             )
+        except PublicationDrainTimedOut:
+            raise
         except OSError:
             yield _unverified_candidate(None, None, None, "scan_error")
             return
         try:
             source_stat = os.fstat(source_fd)
+        except PublicationDrainTimedOut:
+            raise
         except OSError:
             os.close(source_fd)
             yield _unverified_candidate(None, None, None, "scan_error")
@@ -173,6 +180,8 @@ def scan_publication_candidate(
         if source_stat.st_size > max_bytes:
             try:
                 oversize_digest = _hash_open_file(source_fd)
+            except PublicationDrainTimedOut:
+                raise
             except OSError:
                 os.close(source_fd)
                 yield _unverified_candidate(None, None, None, "scan_error")
@@ -180,6 +189,8 @@ def scan_publication_candidate(
             finally:
                 try:
                     os.close(source_fd)
+                except PublicationDrainTimedOut:
+                    raise
                 except OSError:
                     pass
             scan_result, scan_failure = _scan_file(
@@ -210,6 +221,8 @@ def scan_publication_candidate(
                     byte_count += len(chunk)
                 target.flush()
                 os.fsync(target.fileno())
+        except PublicationDrainTimedOut:
+            raise
         except OSError:
             yield _unverified_candidate(None, None, None, "scan_error")
             return
@@ -222,6 +235,8 @@ def scan_publication_candidate(
         )
         try:
             unchanged = _sha256_file(staged_path) == digest_hex
+        except PublicationDrainTimedOut:
+            raise
         except OSError:
             unchanged = False
         if not unchanged:
@@ -263,6 +278,8 @@ def scan_publication_bytes(
         )
     try:
         staging_root = _private_scan_root()
+    except PublicationDrainTimedOut:
+        raise
     except OSError:
         return PublicationBytesVerdict(
             digest_hex, len(data), _disposition(failure="scan_error")
@@ -275,6 +292,8 @@ def scan_publication_bytes(
                 target.flush()
                 os.fsync(target.fileno())
             os.chmod(staged_path, 0o600)
+        except PublicationDrainTimedOut:
+            raise
         except OSError:
             return PublicationBytesVerdict(
                 digest_hex, len(data), _disposition(failure="scan_error")
@@ -286,6 +305,8 @@ def scan_publication_bytes(
         )
         try:
             unchanged = _sha256_file(staged_path) == digest_hex
+        except PublicationDrainTimedOut:
+            raise
         except OSError:
             unchanged = False
         if not unchanged:
@@ -389,6 +410,8 @@ def lookup_publication_content_record(
     """
     try:
         path = _ledger_path(project_key)
+    except PublicationDrainTimedOut:
+        raise
     except Exception:  # noqa: BLE001 - an invalid key means no decision.
         return None
     if path.is_symlink() or not path.exists():
@@ -402,6 +425,8 @@ def lookup_publication_content_record(
             ledger,
             _identity(repository_identity, relative_destination, sha256),
         )
+    except PublicationDrainTimedOut:
+        raise
     except Exception:  # noqa: BLE001 - a failed lookup never authorizes publish.
         return None
 
@@ -525,12 +550,16 @@ def _read_ledger(path: Path) -> dict[str, object]:
         payload = json.loads(path.read_text(encoding="utf-8"))
     except FileNotFoundError:
         return publication_protection_ledger_empty()
+    except PublicationDrainTimedOut:
+        raise
     except (OSError, json.JSONDecodeError) as exc:
         raise RuntimeError("agent publication protection ledger is unreadable") from exc
     if not isinstance(payload, dict):
         raise RuntimeError("agent publication protection ledger must be an object")
     try:
         return publication_protection_ledger_validate(payload)
+    except PublicationDrainTimedOut:
+        raise
     except Exception as exc:  # noqa: BLE001 - do not echo untrusted persisted values.
         raise RuntimeError("agent publication protection ledger is invalid") from exc
 
@@ -581,6 +610,8 @@ def _scan_file(
         from sase.core.rust import require_rust_binding
 
         binding = require_rust_binding("attachment_scan_file")
+    except PublicationDrainTimedOut:
+        raise
     except Exception:  # noqa: BLE001 - a missing binding never authorizes publish.
         return None, "scanner_unavailable"
     try:
@@ -589,10 +620,14 @@ def _scan_file(
             from sase.core.paths import sase_home as current_sase_home
 
             sase_home_path = str(current_sase_home())
+        except PublicationDrainTimedOut:
+            raise
         except Exception:  # noqa: BLE001 - an unavailable home is no scan context.
             sase_home_path = str(Path.home() / ".sase")
         capture = dict(os.environ) if env is None else dict(env)
         result = binding(str(path), max_bytes, capture, home, sase_home_path)
+    except PublicationDrainTimedOut:
+        raise
     except Exception:  # noqa: BLE001 - scanner failure must withhold content.
         return None, "scan_error"
     if not isinstance(result, dict):
@@ -607,6 +642,8 @@ def _disposition(
 ) -> dict[str, object] | None:
     try:
         return publication_scan_disposition(scan=scan, failure=failure)
+    except PublicationDrainTimedOut:
+        raise
     except Exception:  # noqa: BLE001 - missing policy binding also withholds.
         return None
 

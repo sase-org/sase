@@ -13,6 +13,7 @@ import hashlib
 import os
 from pathlib import Path
 
+from sase._interruptions import PublicationDrainTimedOut
 from sase.agents_sync.git import GitRunner
 from sase.agents_sync.models import ProjectTarget
 from sase.agents_sync.prompt_archive.archive_objects import (
@@ -217,6 +218,8 @@ def scan_archive_text_file(
 
     try:
         digest = hash_file(path)
+    except PublicationDrainTimedOut:
+        raise
     except OSError:
         return _ArchiveProtectionVerdict(None, "unverified", False)
     prior = _prior_block(
@@ -260,6 +263,8 @@ def _copy_publishable_text_object(
             try:
                 if hash_file(destination) == expected_digest:
                     return verdict
+            except PublicationDrainTimedOut:
+                raise
             except OSError:
                 return _ArchiveProtectionVerdict(expected_digest, "unverified", False)
             raise RuntimeError(f"prompt artifact digest collision at {destination}")
@@ -296,6 +301,8 @@ def unstage_unpublishable_archive_paths(
         object_digest = canonical_archive_object_digest(relative)
         try:
             data = path.read_bytes()
+        except PublicationDrainTimedOut:
+            raise
         except OSError:
             return (
                 "prompt archive failed protection verification: "
@@ -304,6 +311,8 @@ def unstage_unpublishable_archive_paths(
         if object_digest is not None:
             try:
                 actual = hash_file(path)
+            except PublicationDrainTimedOut:
+                raise
             except OSError:
                 return (
                     "prompt archive failed protection verification: "
@@ -333,6 +342,8 @@ def unstage_unpublishable_archive_paths(
                     sha256=object_digest,
                     source=path,
                 )
+            except PublicationDrainTimedOut:
+                raise
             except (OSError, ValueError):
                 return (
                     "prompt archive failed protection verification: "
@@ -432,6 +443,8 @@ def _prior_block(
             relative_destination=relative_destination,
             sha256=sha256,
         )
+    except PublicationDrainTimedOut:
+        raise
     except Exception:  # noqa: BLE001 - a failed lookup never authorizes publish.
         return _ArchiveProtectionVerdict(sha256, "unverified", False)
     if record is None:
@@ -446,6 +459,8 @@ def _prior_block(
             sha256=sha256,
         ):
             return _ArchiveProtectionVerdict(sha256, "blocked", False)
+    except PublicationDrainTimedOut:
+        raise
     except Exception:  # noqa: BLE001 - a failed retry decision never publishes.
         return _ArchiveProtectionVerdict(sha256, "unverified", False)
     return None
@@ -465,6 +480,8 @@ def _record_bytes(
             verdict=verdict,
             affected_requests=affected_requests,
         )
+    except PublicationDrainTimedOut:
+        raise
     except Exception:  # noqa: BLE001 - the scan verdict still withholds.
         return
 
@@ -483,6 +500,8 @@ def _record_file(
             candidate=candidate,
             affected_requests=affected_requests,
         )
+    except PublicationDrainTimedOut:
+        raise
     except Exception:  # noqa: BLE001 - the scan verdict still withholds.
         return
 

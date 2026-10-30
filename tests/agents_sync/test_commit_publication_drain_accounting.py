@@ -6,6 +6,7 @@ from pathlib import Path
 
 import pytest
 
+from sase._interruptions import PublicationDrainTimedOut
 from sase.agents_sync import (
     _commit_publication_drain as publication_drain,
     _commit_publication_locked as publication_locked,
@@ -95,6 +96,58 @@ def test_record_failure_repository_preserves_attempts(
     for item in after:
         assert item.attempts == before[item.logical_key]
         assert item.last_error is None
+
+
+def test_lock_busy_does_not_charge_agent_publication_attempts(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    target, _remote = setup_target(tmp_path)
+    monkeypatch.setenv("SASE_HOME", str(tmp_path / "state"))
+    _enqueue("Project", "worker", "a" * 40)
+
+    outcome = publication_drain._record_failure(
+        target,
+        "agents sync lock is busy",
+        scope="repository",
+        stage="acquire_lock",
+    )
+
+    [remaining] = list_agent_publications("proj")
+    assert outcome.queued
+    assert remaining.attempts == 0
+    assert remaining.last_error is None
+
+
+def test_scanner_timeout_unwinds_drain_and_leaves_request_queued(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    owner = AgentOwnerIdentity("alice", "athena")
+    _configure(monkeypatch, tmp_path, owner)
+    _enqueue("Project", "worker", "a" * 40)
+
+    def timeout_binding(*_args, **_kwargs):
+        raise PublicationDrainTimedOut("scanner alarm")
+
+    monkeypatch.setattr(
+        "sase.core.rust.require_rust_binding",
+        lambda name: timeout_binding,
+    )
+
+    def publish_until_scanner(*_args, **_kwargs):
+        from sase.agents_sync.publication_protection import scan_publication_bytes
+
+        scan_publication_bytes(b"prompt text", max_bytes=1024)
+
+    monkeypatch.setattr(
+        publication_drain, "publish_queued_locked", publish_until_scanner
+    )
+
+    outcome = publication_drain.drain_agent_publications("proj")
+
+    [remaining] = list_agent_publications("proj", include_quarantined=False)
+    assert outcome.error == "scanner alarm"
+    assert remaining.attempts == 0
+    assert remaining.logical_key == ("alice.athena.worker--code", "a" * 40)
 
 
 def test_record_failure_hood_charges_only_attempted_keys(

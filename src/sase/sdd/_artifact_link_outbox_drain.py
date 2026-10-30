@@ -50,6 +50,8 @@ class _ArtifactLinkOutboxDrainReport:
     """Result of one outbox drain attempt."""
 
     queued: int
+    selected_queued: int = 0
+    selected_retained: int = 0
     drained: int = 0
     quarantined: int = 0
     retained: int = 0
@@ -74,6 +76,7 @@ def drain_artifact_link_outbox(
     *,
     store: ArtifactLinkStore | None = None,
     agent_name: str | None = None,
+    agent_names: Iterable[str] | None = None,
     drop_stale_terminal: bool = True,
     push_after_commit: bool | str | None = "async",
     deadline: float | None = None,
@@ -81,8 +84,9 @@ def drain_artifact_link_outbox(
 ) -> _ArtifactLinkOutboxDrainReport:
     """Replay publishable read-link rows into sidecar indexes.
 
-    When *agent_name* is provided, only that agent's entries are considered for
-    publication. Other entries remain queued.
+    When *agent_name* or *agent_names* is provided, only those agents' entries
+    are considered for publication. Other entries remain queued. Supplying
+    both selectors is an error.
     """
 
     from sase.sdd._artifact_link_event_project import (
@@ -94,6 +98,9 @@ def drain_artifact_link_outbox(
         parked_entry_from_outbox as _parked_entry_from_outbox,
     )
 
+    if agent_name is not None and agent_names is not None:
+        raise ValueError("specify either agent_name or agent_names, not both")
+    selected_names = frozenset(agent_names) if agent_names is not None else None
     link_store = store or resolve_artifact_link_store()
     observed_at = float(time.time() if now is None else now)
     _requeue_ready_parked_entries(link_store, now=observed_at)
@@ -103,14 +110,23 @@ def drain_artifact_link_outbox(
     if not entries:
         return _ArtifactLinkOutboxDrainReport(
             queued=0,
+            selected_queued=0,
+            selected_retained=0,
             retained_legacy=stats.legacy_queued,
             retained_invalid=stats.invalid_queued,
             parked_total=parked_total,
         )
+    selected, retained = _partition_selected(
+        entries,
+        agent_name=agent_name,
+        agent_names=selected_names,
+    )
     if deadline is not None and time.monotonic() >= deadline:
         return _ArtifactLinkOutboxDrainReport(
             queued=len(entries),
             retained=len(entries),
+            selected_queued=len(selected),
+            selected_retained=len(selected),
             retained_legacy=stats.legacy_queued,
             retained_invalid=stats.invalid_queued,
             parked_total=parked_total,
@@ -118,7 +134,6 @@ def drain_artifact_link_outbox(
             deferred=True,
         )
 
-    selected, retained = _partition_selected(entries, agent_name=agent_name)
     terminal_cutoff = _terminal_cutoff() if drop_stale_terminal else None
     terminal_finished = (
         _terminal_agent_finished_times(selected) if terminal_cutoff is not None else {}
@@ -201,6 +216,15 @@ def drain_artifact_link_outbox(
     parked_total = _inspect_parked(link_store.project_key).parked
     return _ArtifactLinkOutboxDrainReport(
         queued=len(entries),
+        selected_queued=len(selected),
+        selected_retained=max(
+            0,
+            len(selected)
+            - drained_count
+            - len(stale)
+            - parked_count
+            - quarantined_count,
+        ),
         drained=drained_count,
         quarantined=quarantined_count,
         retained=(
@@ -232,12 +256,17 @@ def drain_artifact_link_outbox(
 
 
 def _partition_selected(
-    entries: Iterable[_ArtifactLinkOutboxEntry], *, agent_name: str | None
+    entries: Iterable[_ArtifactLinkOutboxEntry],
+    *,
+    agent_name: str | None,
+    agent_names: frozenset[str] | None,
 ) -> tuple[list[_ArtifactLinkOutboxEntry], list[_ArtifactLinkOutboxEntry]]:
     selected: list[_ArtifactLinkOutboxEntry] = []
     retained: list[_ArtifactLinkOutboxEntry] = []
     for entry in entries:
-        if agent_name is not None and entry.agent_name != agent_name:
+        if (agent_name is not None and entry.agent_name != agent_name) or (
+            agent_names is not None and entry.agent_name not in agent_names
+        ):
             retained.append(entry)
         else:
             selected.append(entry)

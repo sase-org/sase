@@ -483,6 +483,7 @@ _lint-patch-stitch-terminology: _setup
 # its --epic-symbol rows are removed.
 # sase-1pj.3 (questions-pipe) made StagedAdoptionOutcome private after the
 # questions and pipe adopters used it in-file as _StagedAdoptionOutcome.
+# sase-1pt.6 provides publisher_is_live for the enqueue-only caller in sase-1pt.7.
 # Never put a comment
 # line inside the continued command below: just joins the lines, so the comment
 # would swallow every later argument.
@@ -509,6 +510,7 @@ _lint-symvision *args: _setup
         --epic-symbol 'sase-1pu.5.1.4(AgentRunStateProjectWire)' \
         --epic-symbol 'sase-1pu.5.1.4(AgentRunStateScheduleOutcomeWire)' \
         --epic-symbol 'sase-1pu.5.1.4(AgentRunStateProjectCheckpointWire)' \
+        --epic-symbol 'sase-1pt.7(publisher_is_live)' \
         {{ args }}
 
 # Check Python file line counts (private, extracted for per-stage wrapping)

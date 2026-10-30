@@ -1,4 +1,4 @@
-{"count": 3657, "rev": "2ec57883b774", "schema": "sase.footprint.catalog/1"}
+{"count": 3663, "rev": "27ef2b1213c2", "schema": "sase.footprint.catalog/1"}
 {"area": "automation", "id": "auto:axe.agent_waits", "kind": "auto", "label": "Resolve agent wait dependencies within seconds of completion", "ns": "auto", "parent": null, "src": "sase/default_config.yml"}
 {"area": "automation", "id": "auto:axe.agent_waits.wait_checks", "kind": "auto", "label": "Resolve agent wait dependencies and write ready.json when satisfied", "ns": "auto", "parent": "auto:axe.agent_waits", "src": "sase/default_config.yml"}
 {"area": "automation", "id": "auto:axe.checks", "kind": "auto", "label": "Poll slower PR-submission and workspace-claim checks on a five-minute cadence", "ns": "auto", "parent": null, "src": "sase/default_config.yml"}
@@ -33,6 +33,8 @@
 {"area": "automation", "id": "auto:axe.housekeeping.managed_tmp_reap", "kind": "auto", "label": "Prune stale scratch under the managed SASE temp root", "ns": "auto", "parent": "auto:axe.housekeeping", "src": "sase/default_config.yml"}
 {"area": "automation", "id": "auto:axe.housekeeping.notification_store_compact", "kind": "auto", "label": "Archive old dismissed notifications out of the live JSONL store", "ns": "auto", "parent": "auto:axe.housekeeping", "src": "sase/default_config.yml"}
 {"area": "automation", "id": "auto:axe.housekeeping.proc_runtime_sweep", "kind": "auto", "label": "Prune stale rowless proc runtime directories", "ns": "auto", "parent": "auto:axe.housekeeping", "src": "sase/default_config.yml"}
+{"area": "automation", "id": "auto:axe.publication", "kind": "auto", "label": "Drain durable agent publication work in the background", "ns": "auto", "parent": null, "src": "sase/default_config.yml"}
+{"area": "automation", "id": "auto:axe.publication.agent_publication", "kind": "auto", "label": "Drain queued agent hood, artifact-link, and Referenced By publication requests", "ns": "auto", "parent": "auto:axe.publication", "src": "sase/default_config.yml"}
 {"area": "automation", "id": "auto:axe.sidecar_sync", "kind": "auto", "label": "Fetch and fast-forward opted-in primary sidecar clones", "ns": "auto", "parent": null, "src": "sase/default_config.yml"}
 {"area": "automation", "id": "auto:axe.sidecar_sync.sidecar_auto_sync", "kind": "auto", "label": "Fetch and fast-forward opted-in primary sidecar clones (plans, beads, research, custom)", "ns": "auto", "parent": "auto:axe.sidecar_sync", "src": "sase/default_config.yml"}
 {"area": "automation", "id": "auto:axe.usage", "kind": "auto", "label": "Refresh subscription-usage windows every minute", "ns": "auto", "parent": null, "src": "sase/default_config.yml"}
@@ -2678,6 +2680,10 @@
 {"area": "config.axe", "id": "config:axe.routines.housekeeping.description", "kind": "config", "label": "Description", "ns": "config", "parent": null, "src": "sase/default_config.yml"}
 {"area": "config.axe", "id": "config:axe.routines.housekeeping.interval", "kind": "config", "label": "Interval", "ns": "config", "parent": null, "src": "sase/default_config.yml"}
 {"area": "config.axe", "id": "config:axe.routines.housekeeping.jobs", "kind": "config", "label": "Jobs", "ns": "config", "parent": null, "src": "sase/default_config.yml"}
+{"area": "config.axe", "id": "config:axe.routines.publication.description", "kind": "config", "label": "Description", "ns": "config", "parent": null, "src": "sase/default_config.yml"}
+{"area": "config.axe", "id": "config:axe.routines.publication.interval", "kind": "config", "label": "Interval", "ns": "config", "parent": null, "src": "sase/default_config.yml"}
+{"area": "config.axe", "id": "config:axe.routines.publication.job_timeout", "kind": "config", "label": "Job timeout", "ns": "config", "parent": null, "src": "sase/default_config.yml"}
+{"area": "config.axe", "id": "config:axe.routines.publication.jobs", "kind": "config", "label": "Jobs", "ns": "config", "parent": null, "src": "sase/default_config.yml"}
 {"area": "config.axe", "id": "config:axe.routines.sidecar_sync.description", "kind": "config", "label": "Description", "ns": "config", "parent": null, "src": "sase/default_config.yml"}
 {"area": "config.axe", "id": "config:axe.routines.sidecar_sync.interval", "kind": "config", "label": "Interval", "ns": "config", "parent": null, "src": "sase/default_config.yml"}
 {"area": "config.axe", "id": "config:axe.routines.sidecar_sync.jobs", "kind": "config", "label": "Jobs", "ns": "config", "parent": null, "src": "sase/default_config.yml"}

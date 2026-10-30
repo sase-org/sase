@@ -1500,6 +1500,31 @@ axe:
             mismatched, missing, or busy clones are left untouched and reported. Bounded work budget and persistent
             per-role backoff keep one unhealthy clone from stalling the rest. After a beads-role refresh, touches
             the project's completion pulse so agent_waits re-evaluates bead waits on its next 2 s tick.
+    publication:
+      description: |-
+        Drain durable agent publication work in the background
+
+        Publishes queued agent hoods, prompt citation links, and unfenced Referenced By updates from machine-owned
+        clones. A project doorbell starts the fast path; the five-minute max_quiet interval catches lost hints.
+      interval: 15
+      job_timeout: "5m"
+      jobs:
+        - name: agent_publication
+          script: sase_job_agent_publication
+          timeout: "5m"
+          trigger:
+            provider: fs
+            max_quiet: "5m"
+            paths:
+              - path: projects
+                glob: "*/agent_publication/doorbell"
+          description: |-
+            Drain queued agent hood, artifact-link, and Referenced By publication requests
+
+            Processes hinted hood requests before the oldest remaining requests under the agents-sidecar lock,
+            drains hinted link-outbox agents in one pass, and refreshes unfenced Referenced By requests. Each pass
+            is bounded to four minutes and rings the project doorbell again when retryable work remains. The job
+            writes ~/.sase/agent_publication/heartbeat.json so commit publication can check publisher liveness.
     checks:
       description: |-
         Poll slower PR-submission and workspace-claim checks on a five-minute cadence

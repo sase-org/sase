@@ -8,6 +8,7 @@ import os
 from pathlib import Path
 import subprocess
 
+from sase._interruptions import PublicationDrainTimedOut
 from sase.agents_sync.git import GitRunner, run_git
 from sase.agents_sync.models import ProjectTarget
 from sase.agents_sync.prompt_archive.git_ops import (
@@ -88,6 +89,8 @@ def publish_prompt_archive(
             lock_timeout_seconds=lock_timeout_seconds,
             cites_event_run_id=cites_event_run_id,
         )
+    except PublicationDrainTimedOut:
+        raise
     except Exception as exc:  # noqa: BLE001 - auxiliary publication boundary.
         return PromptArchivePublicationOutcome(error=str(exc) or type(exc).__name__)
 
@@ -448,6 +451,8 @@ def _record_prompt_cites(
             return "\n".join(errors) if errors else None
         for request in requests:
             enqueue_referenced_by_request(request)
+    except PublicationDrainTimedOut:
+        raise
     except Exception as exc:  # noqa: BLE001 - prompt publication already succeeded.
         return f"referenced-by cites persist failed: {exc}"
     return None
@@ -502,6 +507,8 @@ def _drain_referenced_by_after_prompt_publish(
         )
 
         diagnostics = drain_referenced_by_requests(target, git_runner=git_runner)
+    except PublicationDrainTimedOut:
+        raise
     except Exception as exc:  # noqa: BLE001 - prompt publication already succeeded.
         return f"referenced-by write-back failed: {exc}"
     if not diagnostics:

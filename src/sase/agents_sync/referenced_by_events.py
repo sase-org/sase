@@ -6,6 +6,7 @@ from collections.abc import Iterable
 from dataclasses import replace
 from pathlib import Path
 
+from sase._interruptions import PublicationDrainTimedOut
 from sase.agents_sync.models import ProjectTarget
 from sase.agents_sync.referenced_by_outbox import (
     ReferencedByOutboxItem,
@@ -38,6 +39,8 @@ def _machine_sidecar_roots_for_fence_probe(
 
     try:
         store = resolve_sdd_store(target.primary_checkout, PRIMARY_WORKSPACE_NUM)
+    except PublicationDrainTimedOut:
+        raise
     except Exception:
         return _existing_hidden_roots(target.project_key, ("plans", "research"))
     roles = document_sidecar_roles(store.split_sidecar_roles(), include_plans=True)
@@ -51,6 +54,8 @@ def _machine_sidecar_roots_for_fence_probe(
             primary_root = (
                 store.repo_root_for_kind(role).expanduser().resolve(strict=False)
             )
+        except PublicationDrainTimedOut:
+            raise
         except Exception:
             continue
         if primary_root.is_dir():
@@ -71,6 +76,8 @@ def legacy_referenced_by_writes_fenced(target: ProjectTarget) -> bool:
             roots,
             project_key=target.project_key,
         )
+    except PublicationDrainTimedOut:
+        raise
     except Exception:
         return False
 
@@ -233,6 +240,8 @@ def store_legacy_writes_fenced(
     for role in roles:
         try:
             roots[role] = repo_root_for_kind(role).expanduser().resolve(strict=False)
+        except PublicationDrainTimedOut:
+            raise
         except Exception:
             continue
     if not roots:

@@ -283,9 +283,10 @@ In an unfenced project the legacy path still runs in this order:
 
 A failure of that unfenced refresh charges attempts and quarantines at the publication
 threshold, so a raise such as a later fence cannot replay forever. The request otherwise
-stays queued for a later mutating `sase agent sync`. The same `--retry-quarantined` and
-`--drop-retired` controls used for agent publication also operate on queued Referenced
-By requests; `--retry-retired` revives retired agent-publication requests only. See
+stays queued for the host-owned publication job or a later mutating `sase agent sync`.
+The same `--retry-quarantined` and `--drop-retired` controls used for agent publication
+also operate on queued Referenced By requests; `--retry-retired` revives retired
+agent-publication requests only. See
 [Agent Hood Synchronization](agents/hood-sync.md#commands-and-status). Once the local
 refresh succeeds, SASE removes the request from that outbox. A later detached-push
 failure is recorded in the managed SDD sync log and is not retried from the Referenced
@@ -313,6 +314,12 @@ the managed block is stripped when SASE hashes a clean Markdown input, adding a
 back-reference does not make the original citation appear to have changed. Unfenced
 refresh commits use the non-user file-hook cause `artifact_links`, so ordinary file
 hooks ignore the managed write unless they explicitly opt in with `filters.causes`.
+
+The `publication` scheduler routine drains unfenced Referenced By requests and hinted
+artifact-link rows in the background. It checks the release evidence on each link row,
+uses the machine-owned sidecar clones, and rings its doorbell again when eligible work
+remains. The five-minute backstop retries work after a lost hint; see
+[Scheduler housekeeping](automation/scheduler-housekeeping.md#publication-15-second-interval).
 
 Deliberate relationships render separately as a top `Links` table, while
 prompt-reference and read rows use the unified link graph behind the same Referenced By

@@ -25,6 +25,20 @@ Periodic maintenance:
 | `artifact_retention`         | Enforce indexed artifact-file retention and purge expired trash                  |
 | `artifact_run_prune`         | Preview old ace-run directories and empty shard cleanup                          |
 
+## publication (15-second interval)
+
+| Job                 | Description                                                  |
+| ------------------- | ------------------------------------------------------------ |
+| `agent_publication` | Drain queued hood, artifact-link, and Referenced By requests |
+
+The routine watches `~/.sase/projects/*/agent_publication/doorbell` and also runs on a
+five-minute backstop. It handles hinted hood requests first, then drains the oldest
+remaining hood requests, publishes link-outbox rows for all hinted agents in one pass,
+and refreshes active Referenced By requests for unfenced projects. A pass has a
+four-minute work budget; remaining work rings the doorbell again for the next tick. The
+job writes per-project queue counts, oldest request age, and its last outcome to
+`~/.sase/agent_publication/heartbeat.json`.
+
 The `error_digest` job summarizes recent errors into a digest file stored at
 `~/.sase/axe/error_digests/digest_<timestamp>.txt`. The notification includes a
 `ViewErrorReport` action that opens the digest in `$EDITOR` when selected in sase's TUI

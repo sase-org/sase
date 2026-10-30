@@ -6,6 +6,7 @@ from collections import defaultdict
 from collections.abc import Iterable
 from typing import TYPE_CHECKING
 
+from sase._interruptions import PublicationDrainTimedOut
 from sase.agents_sync.git import GitRunner
 from sase.agents_sync.models import ProjectTarget
 from sase.agents_sync.referenced_by_events import (
@@ -43,6 +44,8 @@ def drain_referenced_by_requests(
         return ()
     try:
         store = _resolve_store(target)
+    except PublicationDrainTimedOut:
+        raise
     except Exception as exc:
         _record_failure(target, requests, f"could not resolve SDD store: {exc}")
         return (f"referenced-by drain failed: could not resolve SDD store: {exc}",)
@@ -62,6 +65,8 @@ def drain_referenced_by_requests(
                 requests=tuple(role_requests),
                 write=True,
             )
+        except PublicationDrainTimedOut:
+            raise
         except Exception as exc:  # noqa: BLE001 - charge so a fenced raise quarantines.
             error = str(exc) or type(exc).__name__
             _record_failure(target, role_requests, error)

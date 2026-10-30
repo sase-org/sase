@@ -353,6 +353,15 @@ retires that request after one confirming retry instead of quarantining it. Succ
 requests are acknowledged only after their sidecar work is committed and safely pushed,
 or after the prepared payload is already current.
 
+The host-owned `publication` scheduler routine also drains active outbox requests. A
+project doorbell under `~/.sase/projects/<project-key>/agent_publication/` starts the
+fast path; a five-minute backstop catches a lost doorbell or hint. Hints prioritize
+matching hood requests and name agents whose artifact-link rows should be drained in one
+pass, while the durable outboxes remain the source of truth. Each pass has a four-minute
+budget, writes queue counts and oldest request age to
+`~/.sase/agent_publication/heartbeat.json`, and rings the doorbell again when retryable
+work remains. `sase agent sync` remains the explicit full reconciliation path.
+
 ### Chats provenance versus publication
 
 Chats calls a local transcript `shared` only when its `agents/<global-name>/chat.md`

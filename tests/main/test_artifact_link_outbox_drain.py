@@ -11,6 +11,7 @@ from sase.sdd._artifact_link_event_canonical import (
     canonical_artifact_link_event_object,
 )
 from sase.sdd._artifact_link_outbox_io import read_artifact_link_outbox_entries
+from sase.sdd import _artifact_link_outbox_drain as outbox_drain
 from sase.sdd.artifact_link_outbox import (
     append_artifact_link_outbox_entry,
     append_artifact_link_outbox_event,
@@ -95,6 +96,56 @@ def test_drain_publishes_machine_alias_but_retains_unreleased_read(
     assert len(report.event_paths) == 1
     [remaining] = read_artifact_link_outbox_entries(store.project_key)
     assert remaining.agent_name == "reader"
+
+
+def test_agent_names_drain_parses_the_outbox_once_for_all_selected_agents(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    redirect_sase_home(monkeypatch, tmp_path / ".sase")
+    allow_machine_sidecar_writes(monkeypatch)
+    repo = tmp_path / "plans"
+    _init_plans_repo(repo)
+    store = ArtifactLinkStore(
+        project_key="gh_sase-org__sase",
+        sidecar_roots={"plan": repo},
+    )
+    for agent, run_id in (("reader-one", "run-one"), ("reader-two", "run-two")):
+        append_artifact_link_outbox_entry(
+            project_key=store.project_key,
+            agent_name=agent,
+            run_id=run_id,
+            row=_row(source=f"agent:{agent}", target="plan:doc.md", origin="read"),
+        )
+        record_artifact_link_release_evidence(
+            project_key=store.project_key,
+            run_id=run_id,
+            agent_id=agent,
+            qualifying_repo_ids=(str(repo),),
+        )
+
+    original_read = outbox_drain._read_artifact_link_outbox_entries
+    parses = 0
+
+    def counted_read(project_key: str):
+        nonlocal parses
+        parses += 1
+        return original_read(project_key)
+
+    monkeypatch.setattr(
+        outbox_drain, "_read_artifact_link_outbox_entries", counted_read
+    )
+    report = drain_artifact_link_outbox(
+        store=store,
+        agent_names=("reader-one", "reader-two"),
+        drop_stale_terminal=False,
+        push_after_commit=False,
+    )
+
+    assert parses == 1
+    assert report.selected_queued == 2
+    assert report.selected_retained == 0
+    assert report.drained == 2
 
 
 def test_drain_expired_deadline_retains_queued_events(
