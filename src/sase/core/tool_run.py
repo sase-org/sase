@@ -1,24 +1,69 @@
 """Thin ToolRun ledger adapter over ``sase_core_rs``.
 
 Rust owns catalog normalization, fingerprints, the SQLite store, retention
-selection, and queries. This module is a wire-only facade: it resolves
-``sase_home()/tools``, releases the GIL inside the bindings, and never keeps
-a Python store. Typed view rows live in ``sase.core.tool_run_views`` and are
-re-exported here so existing ``sase.core.tool_run`` imports keep working.
+selection, and queries. This module is a wire-only facade: the
+implementations live in sibling ``tool_run_*`` modules (kept under the
+500-line cap) and are re-exported here so existing ``sase.core.tool_run``
+imports keep working. Typed view rows live in ``sase.core.tool_run_views``.
 
-Store calls pass zero by default to select Rust's bounded contention policy.
-An explicit positive ``busy_timeout_ms`` remains the caller's latency budget;
-Python neither retries busy errors nor substitutes its own default.
+``require_rust_binding`` stays a settable module attribute: the sibling
+modules resolve it here at call time, so patching
+``sase.core.tool_run.require_rust_binding`` (or any public name above)
+behaves exactly as it did when this file held the implementation.
 """
 
-from __future__ import annotations
-
-from collections.abc import Mapping
-from pathlib import Path
-from typing import Any
-
-from sase.core.paths import sase_home
 from sase.core.rust import require_rust_binding
+from sase.core.tool_run_definitions import (
+    tool_run_canonicalize_fingerprint,
+    tool_run_duration_calibration,
+    tool_run_duration_fit,
+    tool_run_normalize_definition,
+    tool_run_sync_wait_budget,
+    tool_run_unknown_evidence,
+    tool_run_wire_schema_version,
+)
+from sase.core.tool_run_lifecycle import (
+    tool_run_activate_staged_join,
+    tool_run_append_event,
+    tool_run_begin,
+    tool_run_claim,
+    tool_run_finish,
+    tool_run_join,
+    tool_run_observe,
+    tool_run_reconcile,
+    tool_run_release_join,
+    tool_run_release_staged_join,
+    tool_run_request_stop,
+    tool_run_reserve_staged_join,
+)
+from sase.core.tool_run_paths import tool_run_store_path, tools_dir
+from sase.core.tool_run_queries import (
+    tool_run_briefs,
+    tool_run_detail,
+    tool_run_list,
+    tool_run_live_glance,
+    tool_run_node_summaries,
+    tool_run_receipt_lookup,
+    tool_run_receipt_settle,
+    tool_run_receipts_report,
+    tool_run_record_demand,
+    tool_run_retention_apply,
+    tool_run_retention_preview,
+    tool_run_show,
+    tool_run_stats_report,
+    tool_run_store_stats,
+    tool_run_summary,
+)
+from sase.core.tool_run_triage import (
+    tool_run_failures,
+    tool_run_triage_classify,
+    tool_run_triage_extract,
+    tool_run_triage_record,
+    tool_run_triage_settle,
+    tool_run_triage_show,
+    tool_run_triage_stage,
+    tool_run_triage_verdict,
+)
 from sase.core.tool_run_views import (
     ToolRunBrief,
     ToolRunBriefs,
@@ -35,647 +80,6 @@ from sase.core.tool_run_views import (
     ToolRunNodeSummary,
     ToolRunVerdictSummary,
 )
-
-_STORE_FILENAME = "runs.sqlite"
-
-
-def tools_dir() -> Path:
-    """Return the machine-local ToolRun root ``sase_home()/tools``."""
-
-    return sase_home() / "tools"
-
-
-def tool_run_store_path() -> Path:
-    """Return the SQLite path Rust receives for the ToolRun ledger."""
-
-    return tools_dir() / _STORE_FILENAME
-
-
-def tool_run_wire_schema_version() -> int:
-    return int(require_rust_binding("tool_run_wire_schema_version")())
-
-
-def tool_run_normalize_definition(definition: Mapping[str, Any]) -> dict[str, Any]:
-    return dict(require_rust_binding("tool_run_normalize_definition")(dict(definition)))
-
-
-def tool_run_canonicalize_fingerprint(
-    fingerprint: Mapping[str, Any],
-) -> dict[str, Any]:
-    return dict(
-        require_rust_binding("tool_run_canonicalize_fingerprint")(dict(fingerprint))
-    )
-
-
-def tool_run_unknown_evidence(reason: str) -> dict[str, Any]:
-    return dict(require_rust_binding("tool_run_unknown_evidence")(reason))
-
-
-def _duration_payload(request: Mapping[str, Any]) -> dict[str, Any]:
-    """Build a v1 duration request without owning any duration policy."""
-
-    return {"schema_version": 1, **dict(request)}
-
-
-def tool_run_duration_fit(request: Mapping[str, Any]) -> dict[str, Any]:
-    return dict(
-        require_rust_binding("tool_run_duration_fit")(_duration_payload(request))
-    )
-
-
-def tool_run_duration_calibration(request: Mapping[str, Any]) -> dict[str, Any]:
-    return dict(
-        require_rust_binding("tool_run_duration_calibration")(
-            _duration_payload(request)
-        )
-    )
-
-
-def _triage_payload(request: Mapping[str, Any]) -> dict[str, Any]:
-    """Build a v1 triage request without owning any triage policy."""
-
-    return {"schema_version": 1, **dict(request)}
-
-
-def tool_run_triage_extract(request: Mapping[str, Any]) -> dict[str, Any]:
-    return dict(
-        require_rust_binding("tool_run_triage_extract")(_triage_payload(request))
-    )
-
-
-# symvision: tools/tool_triage_backtest
-def tool_run_triage_classify(request: Mapping[str, Any]) -> dict[str, Any]:
-    return dict(
-        require_rust_binding("tool_run_triage_classify")(_triage_payload(request))
-    )
-
-
-# symvision: tools/tool_triage_backtest
-def tool_run_triage_verdict(request: Mapping[str, Any]) -> dict[str, Any]:
-    return dict(
-        require_rust_binding("tool_run_triage_verdict")(_triage_payload(request))
-    )
-
-
-def tool_run_triage_record(
-    request: Mapping[str, Any],
-    *,
-    store_path: str | None = None,
-    busy_timeout_ms: int = 0,
-) -> dict[str, Any]:
-    return dict(
-        require_rust_binding("tool_run_triage_record")(
-            store_path or str(tool_run_store_path()),
-            _triage_payload(request),
-            busy_timeout_ms,
-        )
-    )
-
-
-def tool_run_triage_show(
-    request: Mapping[str, Any],
-    *,
-    store_path: str | None = None,
-    busy_timeout_ms: int = 0,
-) -> dict[str, Any]:
-    return dict(
-        require_rust_binding("tool_run_triage_show")(
-            store_path or str(tool_run_store_path()),
-            _triage_payload(request),
-            busy_timeout_ms,
-        )
-    )
-
-
-def tool_run_triage_stage(
-    request: Mapping[str, Any],
-    *,
-    store_path: str | None = None,
-    busy_timeout_ms: int = 0,
-) -> dict[str, Any]:
-    return dict(
-        require_rust_binding("tool_run_triage_stage")(
-            store_path or str(tool_run_store_path()),
-            _triage_payload(request),
-            busy_timeout_ms,
-        )
-    )
-
-
-def tool_run_triage_settle(
-    request: Mapping[str, Any],
-    *,
-    store_path: str | None = None,
-    busy_timeout_ms: int = 0,
-) -> dict[str, Any]:
-    return dict(
-        require_rust_binding("tool_run_triage_settle")(
-            store_path or str(tool_run_store_path()),
-            _triage_payload(request),
-            busy_timeout_ms,
-        )
-    )
-
-
-def tool_run_failures(
-    request: Mapping[str, Any],
-    *,
-    store_path: str | None = None,
-    busy_timeout_ms: int = 0,
-) -> dict[str, Any]:
-    return dict(
-        require_rust_binding("tool_run_failures")(
-            store_path or str(tool_run_store_path()),
-            _triage_payload(request),
-            busy_timeout_ms,
-        )
-    )
-
-
-def tool_run_begin(
-    request: Mapping[str, Any],
-    *,
-    store_path: str | None = None,
-    busy_timeout_ms: int = 0,
-) -> dict[str, Any]:
-    return dict(
-        require_rust_binding("tool_run_begin")(
-            store_path or str(tool_run_store_path()),
-            dict(request),
-            busy_timeout_ms,
-        )
-    )
-
-
-def tool_run_append_event(
-    request: Mapping[str, Any],
-    *,
-    store_path: str | None = None,
-    busy_timeout_ms: int = 0,
-) -> dict[str, Any]:
-    return dict(
-        require_rust_binding("tool_run_append_event")(
-            store_path or str(tool_run_store_path()),
-            dict(request),
-            busy_timeout_ms,
-        )
-    )
-
-
-def tool_run_finish(
-    request: Mapping[str, Any],
-    *,
-    store_path: str | None = None,
-    busy_timeout_ms: int = 0,
-) -> dict[str, Any]:
-    return dict(
-        require_rust_binding("tool_run_finish")(
-            store_path or str(tool_run_store_path()),
-            dict(request),
-            busy_timeout_ms,
-        )
-    )
-
-
-def tool_run_observe(
-    request: Mapping[str, Any],
-    *,
-    store_path: str | None = None,
-    busy_timeout_ms: int = 0,
-) -> dict[str, Any]:
-    """Persist a running run's child pid, pgid, and process-start identity.
-
-    Called once after a successful spawn, before the output pumps start, so
-    a run killed seconds later still records a reapable group.
-    """
-
-    return dict(
-        require_rust_binding("tool_run_observe")(
-            store_path or str(tool_run_store_path()),
-            dict(request),
-            busy_timeout_ms,
-        )
-    )
-
-
-def tool_run_reconcile(
-    request: Mapping[str, Any],
-    *,
-    store_path: str | None = None,
-    busy_timeout_ms: int = 0,
-) -> dict[str, Any]:
-    return dict(
-        require_rust_binding("tool_run_reconcile")(
-            store_path or str(tool_run_store_path()),
-            dict(request),
-            busy_timeout_ms,
-        )
-    )
-
-
-def tool_run_claim(
-    request: Mapping[str, Any],
-    *,
-    store_path: str | None = None,
-    busy_timeout_ms: int = 0,
-) -> dict[str, Any]:
-    """Atomically claim a reserved hand-off run for its owner."""
-
-    return dict(
-        require_rust_binding("tool_run_claim")(
-            store_path or str(tool_run_store_path()),
-            dict(request),
-            busy_timeout_ms,
-        )
-    )
-
-
-def tool_run_request_stop(
-    request: Mapping[str, Any],
-    *,
-    store_path: str | None = None,
-    busy_timeout_ms: int = 0,
-) -> dict[str, Any]:
-    """Record a durable stop request for a ToolRun."""
-
-    return dict(
-        require_rust_binding("tool_run_request_stop")(
-            store_path or str(tool_run_store_path()),
-            dict(request),
-            busy_timeout_ms,
-        )
-    )
-
-
-def tool_run_join(
-    request: Mapping[str, Any],
-    *,
-    store_path: str | None = None,
-    busy_timeout_ms: int = 0,
-) -> dict[str, Any]:
-    """Record a monitor join on a starter-scoped detached run."""
-
-    return dict(
-        require_rust_binding("tool_run_join")(
-            store_path or str(tool_run_store_path()),
-            dict(request),
-            busy_timeout_ms,
-        )
-    )
-
-
-def tool_run_release_join(
-    request: Mapping[str, Any],
-    *,
-    store_path: str | None = None,
-    busy_timeout_ms: int = 0,
-) -> dict[str, Any]:
-    """Release a monitor join when kind and id match; allowed in any state."""
-
-    return dict(
-        require_rust_binding("tool_run_release_join")(
-            store_path or str(tool_run_store_path()),
-            dict(request),
-            busy_timeout_ms,
-        )
-    )
-
-
-def tool_run_reserve_staged_join(
-    request: Mapping[str, Any],
-    *,
-    store_path: str | None = None,
-    busy_timeout_ms: int = 0,
-) -> dict[str, Any]:
-    """Reserve a detached run for one staged monitor.
-
-    The reservation is identified by staged ID plus monitor ID, validates
-    the starter agent, and prevents another joiner from taking the run.
-    """
-
-    return dict(
-        require_rust_binding("tool_run_reserve_staged_join")(
-            store_path or str(tool_run_store_path()),
-            dict(request),
-            busy_timeout_ms,
-        )
-    )
-
-
-def tool_run_activate_staged_join(
-    request: Mapping[str, Any],
-    *,
-    store_path: str | None = None,
-    busy_timeout_ms: int = 0,
-) -> dict[str, Any]:
-    """Activate a staged-join reservation into the ordinary monitor join."""
-
-    return dict(
-        require_rust_binding("tool_run_activate_staged_join")(
-            store_path or str(tool_run_store_path()),
-            dict(request),
-            busy_timeout_ms,
-        )
-    )
-
-
-def tool_run_release_staged_join(
-    request: Mapping[str, Any],
-    *,
-    store_path: str | None = None,
-    busy_timeout_ms: int = 0,
-) -> dict[str, Any]:
-    """Release one stage's join reservation; safe to repeat after settling."""
-
-    return dict(
-        require_rust_binding("tool_run_release_staged_join")(
-            store_path or str(tool_run_store_path()),
-            dict(request),
-            busy_timeout_ms,
-        )
-    )
-
-
-def tool_run_sync_wait_budget(request: Mapping[str, Any]) -> dict[str, Any]:
-    """Budget a synchronous wait against hard and soft kill ceilings.
-
-    Rust owns the margin formula and constants; this facade passes the
-    validated positive-integer ceilings through unchanged.
-    """
-
-    return dict(require_rust_binding("tool_run_sync_wait_budget")(dict(request)))
-
-
-def tool_run_list(
-    request: Mapping[str, Any] | None = None,
-    *,
-    store_path: str | None = None,
-    busy_timeout_ms: int = 0,
-) -> dict[str, Any]:
-    payload = {"schema_version": 1, "limit": 50}
-    if request:
-        payload.update(dict(request))
-    return dict(
-        require_rust_binding("tool_run_list")(
-            store_path or str(tool_run_store_path()),
-            payload,
-            busy_timeout_ms,
-        )
-    )
-
-
-def tool_run_show(
-    run_id: str,
-    *,
-    store_path: str | None = None,
-    busy_timeout_ms: int = 0,
-) -> dict[str, Any]:
-    return dict(
-        require_rust_binding("tool_run_show")(
-            store_path or str(tool_run_store_path()),
-            {"schema_version": 1, "run_id": run_id},
-            busy_timeout_ms,
-        )
-    )
-
-
-def tool_run_summary(
-    request: Mapping[str, Any],
-    *,
-    store_path: str | None = None,
-    busy_timeout_ms: int = 0,
-) -> dict[str, Any]:
-    return dict(
-        require_rust_binding("tool_run_summary")(
-            store_path or str(tool_run_store_path()),
-            dict(request),
-            busy_timeout_ms,
-        )
-    )
-
-
-def tool_run_retention_preview(
-    request: Mapping[str, Any] | None = None,
-    *,
-    store_path: str | None = None,
-    busy_timeout_ms: int = 0,
-) -> dict[str, Any]:
-    payload = {"schema_version": 1, "dry_run": True}
-    if request:
-        payload.update(dict(request))
-    payload["dry_run"] = True
-    return dict(
-        require_rust_binding("tool_run_retention_preview")(
-            store_path or str(tool_run_store_path()),
-            payload,
-            busy_timeout_ms,
-        )
-    )
-
-
-def tool_run_retention_apply(
-    request: Mapping[str, Any] | None = None,
-    *,
-    store_path: str | None = None,
-    busy_timeout_ms: int = 0,
-) -> dict[str, Any]:
-    payload = {"schema_version": 1, "dry_run": False}
-    if request:
-        payload.update(dict(request))
-    payload["dry_run"] = False
-    return dict(
-        require_rust_binding("tool_run_retention_apply")(
-            store_path or str(tool_run_store_path()),
-            payload,
-            busy_timeout_ms,
-        )
-    )
-
-
-def tool_run_store_stats(
-    *,
-    store_path: str | None = None,
-    busy_timeout_ms: int = 0,
-) -> dict[str, Any]:
-    return dict(
-        require_rust_binding("tool_run_store_stats")(
-            store_path or str(tool_run_store_path()),
-            busy_timeout_ms,
-        )
-    )
-
-
-def tool_run_receipt_settle(
-    request: Mapping[str, Any],
-    *,
-    store_path: str | None = None,
-    busy_timeout_ms: int = 0,
-) -> dict[str, Any]:
-    return dict(
-        require_rust_binding("tool_run_receipt_settle")(
-            store_path or str(tool_run_store_path()),
-            {"schema_version": 1, **dict(request)},
-            busy_timeout_ms,
-        )
-    )
-
-
-def tool_run_receipt_lookup(
-    request: Mapping[str, Any],
-    *,
-    store_path: str | None = None,
-    busy_timeout_ms: int = 0,
-) -> dict[str, Any]:
-    return dict(
-        require_rust_binding("tool_run_receipt_lookup")(
-            store_path or str(tool_run_store_path()),
-            {"schema_version": 1, **dict(request)},
-            busy_timeout_ms,
-        )
-    )
-
-
-def tool_run_receipts_report(
-    request: Mapping[str, Any],
-    *,
-    store_path: str | None = None,
-    busy_timeout_ms: int = 0,
-) -> dict[str, Any]:
-    return dict(
-        require_rust_binding("tool_run_receipts_report")(
-            store_path or str(tool_run_store_path()),
-            {"schema_version": 1, **dict(request)},
-            busy_timeout_ms,
-        )
-    )
-
-
-def tool_run_stats_report(
-    request: Mapping[str, Any],
-    *,
-    store_path: str | None = None,
-    busy_timeout_ms: int = 0,
-) -> dict[str, Any]:
-    """Return the read-only ToolRun stats report over the runs table."""
-
-    return dict(
-        require_rust_binding("tool_run_stats_report")(
-            store_path or str(tool_run_store_path()),
-            {"schema_version": 1, **dict(request)},
-            busy_timeout_ms,
-        )
-    )
-
-
-def tool_run_record_demand(
-    request: Mapping[str, Any],
-    *,
-    store_path: str | None = None,
-    busy_timeout_ms: int = 0,
-) -> dict[str, Any]:
-    """Merge per-run demand context, usage, and worker grants into a run."""
-
-    return dict(
-        require_rust_binding("tool_run_record_demand")(
-            store_path or str(tool_run_store_path()),
-            {"schema_version": 1, **dict(request)},
-            busy_timeout_ms,
-        )
-    )
-
-
-def tool_run_live_glance(
-    request: Mapping[str, Any] | None = None,
-    *,
-    store_path: str | None = None,
-    busy_timeout_ms: int = 0,
-) -> ToolRunLiveGlance:
-    """Return every unsettled run on the machine as typed glance rows."""
-
-    payload = {"schema_version": 1}
-    if request:
-        payload.update(dict(request))
-    return ToolRunLiveGlance.from_wire(
-        dict(
-            require_rust_binding("tool_run_live_glance")(
-                store_path or str(tool_run_store_path()),
-                payload,
-                busy_timeout_ms,
-            )
-        )
-    )
-
-
-def tool_run_briefs(
-    request: Mapping[str, Any] | None = None,
-    *,
-    store_path: str | None = None,
-    busy_timeout_ms: int = 0,
-) -> ToolRunBriefs:
-    """Return the lean filtered run list as typed brief rows."""
-
-    payload = {"schema_version": 1, "limit": 100}
-    if request:
-        payload.update(dict(request))
-    return ToolRunBriefs.from_wire(
-        dict(
-            require_rust_binding("tool_run_briefs")(
-                store_path or str(tool_run_store_path()),
-                payload,
-                busy_timeout_ms,
-            )
-        )
-    )
-
-
-def tool_run_node_summaries(
-    request: Mapping[str, Any] | None = None,
-    *,
-    store_path: str | None = None,
-    busy_timeout_ms: int = 0,
-) -> ToolRunNodeSummaries:
-    """Return per-node history for the requested selectors as typed rows."""
-
-    payload: dict[str, Any] = {"schema_version": 1, "per_node_limit": 20}
-    if request:
-        payload.update(dict(request))
-    return ToolRunNodeSummaries.from_wire(
-        dict(
-            require_rust_binding("tool_run_node_summaries")(
-                store_path or str(tool_run_store_path()),
-                payload,
-                busy_timeout_ms,
-            )
-        )
-    )
-
-
-def tool_run_detail(
-    run_id: str,
-    request: Mapping[str, Any] | None = None,
-    *,
-    store_path: str | None = None,
-    busy_timeout_ms: int = 0,
-) -> ToolRunDetail:
-    """Return one run's card-block detail as typed rows.
-
-    Only ``display_argv`` reaches the caller; ``private_argv`` never
-    leaves core.
-    """
-
-    payload: dict[str, Any] = {"schema_version": 1, "run_id": run_id}
-    if request:
-        payload.update(dict(request))
-    return ToolRunDetail.from_wire(
-        dict(
-            require_rust_binding("tool_run_detail")(
-                store_path or str(tool_run_store_path()),
-                payload,
-                busy_timeout_ms,
-            )
-        )
-    )
-
 
 __all__ = [
     "ToolRunBrief",
