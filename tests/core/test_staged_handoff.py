@@ -6,13 +6,19 @@ import pytest
 
 from sase.core.rust import require_rust_binding
 from sase.core.staged_handoff import (
+    RECOVERY_CONTEXT_WIRE_SCHEMA_VERSION,
     STAGED_HANDOFF_WIRE_SCHEMA_VERSION,
     StagedHandoffContractError,
     build_gate_staged_payload,
+    evaluate_recovery_decision,
     evaluate_stage_admission,
     gate_staged_payload_schema_version,
     receipt_authorizes,
+    receipt_transition_allowed,
+    recovery_adoption_lock_filename,
+    recovery_context_wire_schema_version,
     validate_gate_staged_payload,
+    validate_recovery_context,
     validate_staged_handoff,
     validate_staged_handoff_receipt,
     wire_schema_version,
@@ -171,3 +177,54 @@ def test_gate_record_validates_disposition_through_binding() -> None:
     mismatched["carry_allowed"] = False
     with pytest.raises(StagedHandoffContractError, match="successor_workspace"):
         validate_staged_handoff(mismatched)
+
+
+def test_recovery_context_schema_version_matches_binding() -> None:
+    assert RECOVERY_CONTEXT_WIRE_SCHEMA_VERSION == 1
+    assert (
+        recovery_context_wire_schema_version() == RECOVERY_CONTEXT_WIRE_SCHEMA_VERSION
+    )
+    assert recovery_adoption_lock_filename() == ".sase_handoff.lock"
+
+
+def test_recovery_context_round_trips_through_binding() -> None:
+    context = {
+        "schema_version": 1,
+        "staged_id": STAGED_ID,
+        "kind": "pipe",
+        "origin_agent": "agent-1",
+        "origin_artifacts_dir": "/tmp/artifacts/20261029T000000Z",
+        "created_at": "2026-10-28T12:00:00Z",
+    }
+    assert validate_recovery_context(dict(context)) == context
+
+
+def test_recovery_decision_and_transition_through_binding() -> None:
+    decision = evaluate_recovery_decision(
+        {
+            "schema_version": 1,
+            "staged_id": STAGED_ID,
+            "receipt": "absent",
+            "runner": "dead",
+            "killed_or_discarded": False,
+            "mode": "automatic",
+            "settlement": "settled",
+            "destination": "absent",
+        }
+    )
+    assert decision["action"] == "adopt"
+    adopted = {
+        "staged_id": STAGED_ID,
+        "adopted_at": "2026-10-28T12:01:00Z",
+        "outcome": "adopted",
+        "refs": {},
+    }
+    held = {
+        "staged_id": STAGED_ID,
+        "adopted_at": "2026-10-28T12:01:00Z",
+        "outcome": "handoff_not_adopted",
+        "reason": "commit failed",
+    }
+    assert receipt_transition_allowed(None, adopted, STAGED_ID) is True
+    assert receipt_transition_allowed(adopted, held, STAGED_ID) is False
+    assert receipt_transition_allowed(held, adopted, STAGED_ID) is True

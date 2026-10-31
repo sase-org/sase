@@ -18,6 +18,7 @@ from sase.agent._staged_handoff_store import (
 from sase.core.staged_handoff import (
     StagedHandoffContractError,
     receipt_authorizes as rust_receipt_authorizes,
+    receipt_transition_allowed as rust_receipt_transition_allowed,
     validate_staged_handoff_receipt,
 )
 
@@ -47,14 +48,34 @@ def write_adoption_receipt(
     *,
     artifacts_dir: str | None = None,
 ) -> Path:
-    """Validate and persist an adoption receipt."""
+    """Validate and persist an adoption receipt.
+
+    Receipt monotonicity is enforced: a racing hold never overwrites a
+    matching adopted receipt, and a mismatched staged ID is a refusal.
+    """
     root = artifacts_root(artifacts_dir)
     try:
         normalized = validate_staged_handoff_receipt(dict(receipt))
     except StagedHandoffContractError as exc:
         raise StagedHandoffError(str(exc)) from exc
+    staged_id = normalized.get("staged_id")
+    if not isinstance(staged_id, str) or not staged_id:
+        raise StagedHandoffError("adoption receipt has no staged_id")
     with acquire_handoff_locks(root):
         path = root / STAGED_HANDOFF_RECEIPT_FILENAME
+        current: dict[str, Any] | None = None
+        if path_exists(path):
+            current = read_json_object(path, label="staged handoff receipt")
+        try:
+            allowed = rust_receipt_transition_allowed(current, normalized, staged_id)
+        except StagedHandoffContractError as exc:
+            raise StagedHandoffError(str(exc)) from exc
+        except ValueError as exc:
+            raise StagedHandoffError(str(exc)) from exc
+        if not allowed:
+            raise StagedHandoffError(
+                "a successful adoption receipt already owns this stage"
+            )
         atomic_write_json(path, normalized)
         return path
 

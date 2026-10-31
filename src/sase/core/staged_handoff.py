@@ -170,3 +170,61 @@ def evaluate_staged_self_wait(request: dict[str, Any]) -> dict[str, Any]:
         raise
     except ValueError as exc:
         raise StagedHandoffContractError(str(exc)) from exc
+
+
+#: Mirrors Rust ``RECOVERY_CONTEXT_WIRE_SCHEMA_VERSION``.
+RECOVERY_CONTEXT_WIRE_SCHEMA_VERSION = 1
+
+
+def recovery_context_wire_schema_version() -> int:
+    """Return the Rust recovery-context wire schema version."""
+    binding = require_rust_binding("recovery_context_wire_schema_version")
+    return int(binding())
+
+
+def recovery_adoption_lock_filename() -> str:
+    """Return the shared adoption-lock filename."""
+    binding = require_rust_binding("recovery_adoption_lock_filename")
+    return str(binding())
+
+
+def validate_recovery_context(context: dict[str, Any]) -> dict[str, Any]:
+    """Validate a recovery-context companion dict via Rust."""
+    binding = require_rust_binding("validate_recovery_context")
+    try:
+        return dict(binding(context))
+    except StagedHandoffContractError:
+        raise
+    except ValueError as exc:
+        raise StagedHandoffContractError(str(exc)) from exc
+
+
+def evaluate_recovery_decision(request: dict[str, Any]) -> dict[str, Any]:
+    """Decide the replay action for observed recovery evidence via Rust."""
+    binding = require_rust_binding("evaluate_recovery_decision")
+    try:
+        return dict(binding(request))
+    except StagedHandoffContractError:
+        raise
+    except ValueError as exc:
+        raise StagedHandoffContractError(str(exc)) from exc
+
+
+def receipt_transition_allowed(
+    current: dict[str, Any] | None,
+    next_receipt: dict[str, Any],
+    staged_id: str,
+) -> bool:
+    """Return whether *next_receipt* may replace *current* for *staged_id*.
+
+    ``None`` stands for an absent receipt. Malformed input raises
+    ``StagedHandoffContractError``; a racing hold over an adopted receipt
+    returns ``False``.
+    """
+    binding = require_rust_binding("staged_handoff_receipt_transition_allowed")
+    try:
+        return bool(binding(current, next_receipt, staged_id))
+    except StagedHandoffContractError:
+        raise
+    except ValueError as exc:
+        raise StagedHandoffContractError(str(exc)) from exc
