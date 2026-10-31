@@ -124,6 +124,19 @@ def test_scan_memory_links_dedupes_by_target_and_inline_flag() -> None:
     ]
 
 
+def test_scan_memory_links_unique_false_returns_every_occurrence() -> None:
+    body = "[[alpha]] and [[alpha]] then ![[alpha]]"
+
+    links = scan_memory_links(body, unique=False)
+
+    assert [(link.raw, link.span) for link in links] == [
+        ("[[alpha]]", (0, 9)),
+        ("[[alpha]]", (14, 23)),
+        ("![[alpha]]", (29, 39)),
+    ]
+    assert len(scan_memory_links(body)) == 2
+
+
 def test_scan_memory_links_skips_fenced_and_inline_code() -> None:
     body = (
         "Keep [[live]].\n"

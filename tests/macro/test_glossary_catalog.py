@@ -266,6 +266,68 @@ def test_catalog_for_project_uses_strand_backed_glossary_web(
     assert entry.source["keyword_range"]["start"] == {"line": 1, "character": 9}
 
 
+def test_catalog_carries_authored_definition_links_but_not_on_the_wire(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    workspace = tmp_path / "sase-workspace"
+    workspace.mkdir()
+    _write_glossary_web(
+        workspace,
+        term="Agent Clan",
+        slug="agent-clan",
+        aliases="",
+        body="See [[other-term]] and [[glossary:nowhere]].\n",
+    )
+    _write_glossary_web(
+        workspace, term="Other Term", slug="other-term", aliases="", body="Other.\n"
+    )
+    record = _record("sase", workspace)
+    monkeypatch.setattr(catalog, "list_project_records", lambda *_a, **_kw: [record])
+
+    result = catalog.editor_glossary_catalog_for_project("sase")
+
+    assert result.ok
+    assert result.catalog is not None
+    clan = next(e for e in result.catalog.entries if e.term == "Agent Clan")
+    other = next(e for e in result.catalog.entries if e.term == "Other Term")
+    assert [
+        (link.target, link.target_index)
+        for link in result.catalog.definition_links[clan.index]
+    ] == [("other-term", other.index), ("glossary:nowhere", None)]
+    assert other.index not in result.catalog.definition_links
+    assert set(result.catalog.to_wire()) == {
+        "schema_version",
+        "project",
+        "config_path",
+        "config_signature",
+        "entries",
+    }
+
+
+def test_catalog_still_loads_when_definition_link_resolution_fails(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    workspace = tmp_path / "sase-workspace"
+    workspace.mkdir()
+    _write_glossary_web(workspace, body="See [[other-term]].\n")
+    record = _record("sase", workspace)
+    monkeypatch.setattr(catalog, "list_project_records", lambda *_a, **_kw: [record])
+
+    def boom(*_args: object, **_kwargs: object) -> object:
+        raise RuntimeError("link resolution exploded")
+
+    monkeypatch.setattr(catalog, "glossary_definition_links", boom)
+
+    result = catalog.editor_glossary_catalog_for_project("sase")
+
+    assert result.ok
+    assert result.catalog is not None
+    assert result.catalog.entries[0].term == "Agent Clan"
+    assert result.catalog.definition_links == {}
+
+
 def test_catalog_without_ref_uses_launch_workspace_and_never_falls_back_from_bad_ref(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

@@ -208,6 +208,76 @@ def strand_link_spans(
     return tuple(spans)
 
 
+@dataclass(frozen=True, slots=True)
+class GlossaryDefinitionLink:
+    """One authored ``[[target]]``/``![[target]]`` link inside a glossary definition.
+
+    Byte offsets index ``entry.definition.strip()`` as UTF-8, the same text the
+    phrase-mention spans of the glossary preview card index. ``target_index`` is
+    the same-web catalog entry the link resolves to, or ``None`` when the link
+    leaves the glossary or does not resolve.
+    """
+
+    raw: str
+    target: str
+    byte_start: int
+    byte_end: int
+    target_index: int | None
+
+
+def glossary_definition_links(
+    web: MemoryWeb,
+    strands: tuple[MemoryStrand, ...],
+    entries: tuple[GlossaryEntry, ...],
+) -> dict[int, tuple[GlossaryDefinitionLink, ...]]:
+    """Return each glossary entry's authored links, keyed by entry index.
+
+    *strands* and *entries* are parallel (the catalog was built from *strands*
+    in order). Every occurrence is reported, including self-links and links
+    that do not resolve to a strand of *web* (``target_index=None``). Strands
+    whose effective ``link_reference`` is ``none`` and entries with no links
+    are omitted.
+    """
+    merged = replace(web, strands=strands)
+    index_by_slug = {
+        strand.slug: entry.index for strand, entry in zip(strands, entries, strict=True)
+    }
+    links_by_index: dict[int, tuple[GlossaryDefinitionLink, ...]] = {}
+    for strand, entry in zip(strands, entries, strict=True):
+        if strand.link_reference == "none":
+            continue
+        text = entry.definition.strip()
+        records: list[GlossaryDefinitionLink] = []
+        for link in scan_memory_links(text, unique=False):
+            target_slug = _definition_link_target(merged, link.target)
+            records.append(
+                GlossaryDefinitionLink(
+                    raw=link.raw,
+                    target=link.target,
+                    byte_start=len(text[: link.span[0]].encode("utf-8")),
+                    byte_end=len(text[: link.span[1]].encode("utf-8")),
+                    target_index=(
+                        None if target_slug is None else index_by_slug.get(target_slug)
+                    ),
+                )
+            )
+        if records:
+            links_by_index[entry.index] = tuple(records)
+    return links_by_index
+
+
+def _definition_link_target(web: MemoryWeb, reference: str) -> str | None:
+    """Resolve a definition link to a same-web strand slug, mirroring memory read.
+
+    A bare ``name.md`` target is always a flat-note link (as in
+    :func:`sase.memory.link_resolve.resolve_memory_link_target`), never a strand.
+    """
+    candidate = reference.strip()
+    if candidate.endswith(".md") and ":" not in candidate and "/" not in candidate:
+        return None
+    return _local_strand_target(web, candidate)
+
+
 def resolve_strand_closure(
     web: MemoryWeb,
     universe: tuple[MemoryStrand, ...],
@@ -268,9 +338,11 @@ def strand_mention_relations(
 
 
 __all__ = [
+    "GlossaryDefinitionLink",
     "StrandLinkSpan",
     "StrandMentionCatalog",
     "build_strand_mention_catalog",
+    "glossary_definition_links",
     "resolve_strand_closure",
     "strand_link_spans",
     "strand_mention_relations",

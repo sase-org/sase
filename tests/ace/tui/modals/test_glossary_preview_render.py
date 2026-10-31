@@ -16,9 +16,11 @@ from sase.ace.tui.modals.glossary_preview_render import (
     glossary_definition_markdown,
     glossary_definition_position,
     glossary_cross_references,
+    glossary_reference_spans,
     glossary_source_display,
 )
 from sase.core.glossary_facade import GlossaryEntry
+from sase.memory.web.closure import GlossaryDefinitionLink
 
 
 def _entry(
@@ -256,6 +258,224 @@ def test_cross_references_cap_at_nine() -> None:
     references = glossary_cross_references(catalog, entries[0])
 
     assert references == entries[1:10]
+
+
+def _link(
+    definition: str,
+    raw: str,
+    target: str,
+    target_index: int | None,
+    *,
+    occurrence: int = 0,
+) -> GlossaryDefinitionLink:
+    start = -1
+    for _ in range(occurrence + 1):
+        start = definition.index(raw, start + 1)
+    return GlossaryDefinitionLink(
+        raw=raw,
+        target=target,
+        byte_start=start,
+        byte_end=start + len(raw),
+        target_index=target_index,
+    )
+
+
+def _linked_catalog(
+    entries: tuple[GlossaryEntry, ...],
+    links: tuple[GlossaryDefinitionLink, ...],
+    mentions: tuple[dict[str, Any], ...] = (),
+) -> SimpleNamespace:
+    return SimpleNamespace(
+        entries=entries,
+        compiled=_CompiledGlossary(mentions),
+        definition_links={entries[0].index: links},
+    )
+
+
+def test_cross_references_include_link_targets_no_phrase_matches() -> None:
+    definition = "Depends on [[project-note]]."
+    entries = (
+        _entry(0, "Task Successor", definition=definition),
+        _entry(1, "Project Note"),
+    )
+    catalog = _linked_catalog(
+        entries, (_link(definition, "[[project-note]]", "project-note", 1),)
+    )
+
+    assert glossary_cross_references(catalog, entries[0]) == (entries[1],)
+
+
+def test_cross_references_put_authored_links_before_mentions() -> None:
+    definition = "Mentions Beta Term, then links [[gamma]] and [[delta]]."
+    entries = (
+        _entry(0, "Alpha", definition=definition),
+        _entry(1, "Beta Term"),
+        _entry(2, "Gamma"),
+        _entry(3, "Delta"),
+    )
+    catalog = _linked_catalog(
+        entries,
+        (
+            _link(definition, "[[gamma]]", "gamma", 2),
+            _link(definition, "[[delta]]", "delta", 3),
+        ),
+        mentions=(_span_at(1, "Beta Term", start=definition.index("Beta Term")),),
+    )
+
+    assert glossary_cross_references(catalog, entries[0]) == (
+        entries[2],
+        entries[3],
+        entries[1],
+    )
+
+
+def test_cross_references_link_order_follows_first_link_and_dedupes() -> None:
+    definition = "[[delta]] [[gamma]] [[delta]]"
+    entries = (
+        _entry(0, "Alpha", definition=definition),
+        _entry(1, "Gamma"),
+        _entry(2, "Delta"),
+    )
+    catalog = _linked_catalog(
+        entries,
+        (
+            _link(definition, "[[delta]]", "delta", 2),
+            _link(definition, "[[gamma]]", "gamma", 1),
+            _link(definition, "[[delta]]", "delta", 2, occurrence=1),
+        ),
+    )
+
+    assert glossary_cross_references(catalog, entries[0]) == (entries[2], entries[1])
+
+
+def test_cross_references_cap_at_nine_keeps_links_over_mentions() -> None:
+    mention_text = " ".join(f"Term {i}" for i in range(1, 10))
+    definition = f"{mention_text} [[Linked]]"
+    entries = (
+        _entry(0, "Alpha", definition=definition),
+        *(_entry(i, f"Term {i}") for i in range(1, 10)),
+        _entry(10, "Linked"),
+    )
+    catalog = _linked_catalog(
+        entries,
+        (_link(definition, "[[Linked]]", "Linked", 10),),
+        mentions=tuple(
+            _span_at(i, f"Term {i}", start=definition.index(f"Term {i}"))
+            for i in range(1, 10)
+        ),
+    )
+
+    references = glossary_cross_references(catalog, entries[0])
+
+    assert len(references) == 9
+    assert references[0] is entries[10]
+    assert references[1:] == entries[1:9]
+
+
+def test_definition_markdown_turns_resolved_links_into_term_links() -> None:
+    definition = "See [[project-note]] and [[glossary:failure-signature]]s."
+    entries = (
+        _entry(0, "Task Successor", definition=definition),
+        _entry(1, "Project Note"),
+        _entry(2, "Failure Signature"),
+    )
+    catalog = _linked_catalog(
+        entries,
+        (
+            _link(definition, "[[project-note]]", "project-note", 1),
+            _link(
+                definition,
+                "[[glossary:failure-signature]]",
+                "glossary:failure-signature",
+                2,
+            ),
+        ),
+    )
+
+    assert glossary_definition_markdown(catalog, entries[0]) == (
+        "See [Project Note](glossary:1) and [Failure Signature](glossary:2)s."
+    )
+
+
+def test_definition_markdown_does_not_hyperlink_mentions_inside_links() -> None:
+    definition = "Goal: [[glossary:Proc]] and [[decisions/goal-ledger]] here."
+    entries = (
+        _entry(0, "Receipt", definition=definition),
+        _entry(1, "Proc"),
+        _entry(2, "goal"),
+    )
+    catalog = _linked_catalog(
+        entries,
+        (
+            _link(definition, "[[glossary:Proc]]", "glossary:Proc", 1),
+            _link(
+                definition, "[[decisions/goal-ledger]]", "decisions/goal-ledger", None
+            ),
+        ),
+        mentions=(
+            _span_at(1, "Proc", start=definition.index("Proc")),
+            _span_at(2, "goal", start=definition.index("goal-ledger")),
+        ),
+    )
+
+    assert glossary_definition_markdown(catalog, entries[0]) == (
+        "Goal: [Proc](glossary:1) and [[decisions/goal-ledger]] here."
+    )
+    assert glossary_cross_references(catalog, entries[0]) == (entries[1],)
+
+
+def test_definition_markdown_renders_self_link_as_plain_term_text() -> None:
+    definition = "I am [[alpha-term]] and see [[beta]]."
+    entries = (
+        _entry(0, "Alpha Term", definition=definition),
+        _entry(1, "Beta"),
+    )
+    catalog = _linked_catalog(
+        entries,
+        (
+            _link(definition, "[[alpha-term]]", "alpha-term", 0),
+            _link(definition, "[[beta]]", "beta", 1),
+        ),
+    )
+
+    assert glossary_definition_markdown(catalog, entries[0]) == (
+        "I am Alpha Term and see [Beta](glossary:1)."
+    )
+    assert glossary_cross_references(catalog, entries[0]) == (entries[1],)
+
+
+def test_foreign_and_unresolved_links_stay_verbatim() -> None:
+    definition = "Read [[decisions/x]], ![[nope]] and [[foo.md]]."
+    entries = (_entry(0, "Alpha", definition=definition),)
+    catalog = _linked_catalog(
+        entries,
+        (
+            _link(definition, "[[decisions/x]]", "decisions/x", None),
+            _link(definition, "![[nope]]", "nope", None),
+            _link(definition, "[[foo.md]]", "foo.md", None),
+        ),
+    )
+
+    assert glossary_reference_spans(catalog, entries[0]) == ()
+    assert glossary_definition_markdown(catalog, entries[0]) == definition
+    assert glossary_cross_references(catalog, entries[0]) == ()
+
+
+def test_catalog_without_definition_links_behaves_as_before() -> None:
+    definition = "See Sase Agent and [[sase-agent]]."
+    entries = (
+        _entry(0, "Agent Hood", definition=definition),
+        _entry(1, "Sase Agent"),
+    )
+    catalog = SimpleNamespace(
+        entries=entries,
+        compiled=_CompiledGlossary((_span_at(1, "Sase Agent", start=4),)),
+    )
+
+    assert glossary_cross_references(catalog, entries[0]) == (entries[1],)
+    assert glossary_definition_markdown(catalog, entries[0]) == (
+        "See [Sase Agent](glossary:1) and [[sase-agent]]."
+    )
 
 
 class _CompiledGlossary:

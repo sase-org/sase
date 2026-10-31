@@ -10,7 +10,8 @@ the catalog source is the ``glossary`` memory web.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from collections.abc import Mapping
+from dataclasses import dataclass, field
 from pathlib import Path
 
 from sase.core.glossary_facade import (
@@ -29,6 +30,8 @@ from sase.memory.web.catalog import (
     memory_web_glossary_entries,
     memory_web_source_signature,
 )
+from sase.memory.web.closure import GlossaryDefinitionLink, glossary_definition_links
+from sase.memory.web.lookup import ordered_web_strands
 from sase.memory.web.models import MemoryWeb
 from sase.macro._glossary_catalog_projects import (
     EditorGlossaryProject,
@@ -67,6 +70,11 @@ class EditorGlossaryCatalog:
     config_signature: _GlossaryConfigSignature
     catalog: GlossaryCatalog
     compiled: CompiledGlossaryCatalog
+    # Authored ``[[target]]`` links per entry index, resolved once at load time
+    # for the preview card. Deliberately absent from :meth:`to_wire`.
+    definition_links: Mapping[int, tuple[GlossaryDefinitionLink, ...]] = field(
+        default_factory=dict
+    )
 
     @property
     def entries(self) -> tuple[GlossaryEntry, ...]:
@@ -149,6 +157,7 @@ def _web_editor_glossary_catalog(
             (f"{web.path}: failed to build glossary catalog: {exc}",),
         )
 
+    definition_links = _safe_definition_links(web, catalog)
     source_signature = memory_web_source_signature(web)
     return EditorGlossaryCatalogResult(
         project,
@@ -163,8 +172,22 @@ def _web_editor_glossary_catalog(
             ),
             catalog=catalog,
             compiled=compiled,
+            definition_links=definition_links,
         ),
     )
+
+
+def _safe_definition_links(
+    web: MemoryWeb, catalog: GlossaryCatalog
+) -> dict[int, tuple[GlossaryDefinitionLink, ...]]:
+    """Resolve authored definition links, degrading to none on any failure.
+
+    A link problem must never cost the user the glossary catalog itself.
+    """
+    try:
+        return glossary_definition_links(web, ordered_web_strands(web), catalog.entries)
+    except Exception:
+        return {}
 
 
 def editor_glossary_lsp_catalog_payload(

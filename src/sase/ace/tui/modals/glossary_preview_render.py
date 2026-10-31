@@ -241,7 +241,15 @@ def glossary_cross_references(
     *,
     spans: tuple[GlossarySpan, ...] | None = None,
 ) -> tuple[GlossaryEntry, ...]:
-    """Return referenced glossary entries in first-mention order, capped at nine."""
+    """Return referenced glossary entries, authored links first, capped at nine.
+
+    Entries the definition targets with an authored ``[[link]]`` come first (in
+    first-link order) so deliberate links are never crowded out of the ``1-9``
+    follow keys by incidental phrase matches; mention-only entries follow in
+    first-mention order.
+    """
+    if spans is None and _definition_links(catalog, entry):
+        spans = glossary_reference_spans(catalog, entry)
     closure = resolve_glossary_closure(
         _as_glossary_catalog(catalog),
         getattr(catalog, "compiled", None),
@@ -250,7 +258,27 @@ def glossary_cross_references(
         precomputed_spans=None if spans is None else {entry.index: spans},
     )
     related = tuple(node.entry for node in closure.nodes if node.origin == "related")
-    return related[:9]
+    return _links_first(related, spans)[:9]
+
+
+def _links_first(
+    related: tuple[GlossaryEntry, ...],
+    spans: tuple[GlossarySpan, ...] | None,
+) -> tuple[GlossaryEntry, ...]:
+    """Stable-partition *related* so link-targeted entries precede mention-only ones."""
+    if not spans:
+        return related
+    by_index = {entry.index: entry for entry in related}
+    linked: list[GlossaryEntry] = []
+    for span in sorted(spans, key=lambda item: (item.byte_start, item.byte_end)):
+        if span.kind != "link":
+            continue
+        target = by_index.get(span.entry_index)
+        if target is not None and target not in linked:
+            linked.append(target)
+    if not linked:
+        return related
+    return (*linked, *(entry for entry in related if entry not in linked))
 
 
 def glossary_definition_markdown(
@@ -259,7 +287,12 @@ def glossary_definition_markdown(
     *,
     spans: tuple[GlossarySpan, ...] | None = None,
 ) -> str:
-    """Return definition Markdown with non-self glossary references linked."""
+    """Return definition Markdown with non-self glossary references linked.
+
+    Authored ``[[target]]`` links that resolve to a glossary term render as
+    followable links labelled with the target's term; a link back to *entry*
+    itself renders as plain term text.
+    """
     definition = entry.definition.strip()
     if not definition:
         return "_No definition provided._"
@@ -271,19 +304,22 @@ def glossary_definition_markdown(
         spans if spans is not None else glossary_reference_spans(catalog, entry)
     )
     for span in reference_spans:
-        if span.entry_index == entry.index or span.entry_index not in entries_by_index:
+        is_link = span.kind == "link"
+        target = entries_by_index.get(span.entry_index)
+        if target is None or (span.entry_index == entry.index and not is_link):
             continue
         start = _char_offset_from_byte(definition, span.byte_start)
         end = _char_offset_from_byte(definition, span.byte_end)
         if start is None or end is None or start < cursor or end <= start:
             continue
         pieces.append(definition[cursor:start])
-        matched = _normalize_matched_text(definition[start:end])
-        target = entries_by_index[span.entry_index]
-        pieces.append(
-            f"[{_escape_markdown_link_text(matched)}]"
-            f"(glossary:{quote(str(target.index))})"
+        label = _escape_markdown_link_text(
+            _normalize_matched_text(target.term if is_link else definition[start:end])
         )
+        if span.entry_index == entry.index:
+            pieces.append(label)
+        else:
+            pieces.append(f"[{label}](glossary:{quote(str(target.index))})")
         cursor = end
     if not pieces:
         return definition
@@ -295,11 +331,60 @@ def glossary_reference_spans(
     catalog: Any,
     entry: GlossaryEntry,
 ) -> tuple[GlossarySpan, ...]:
-    """Scan a definition for glossary spans, degrading to no spans on failure."""
+    """Return a definition's mention and authored-link spans, ordered by position.
+
+    Phrase mentions overlapping any authored ``[[link]]`` are dropped, whether
+    the link resolves, leaves the glossary, or is unresolved: text inside link
+    brackets is never hyperlinked or counted as a mention. Links that resolve to
+    a glossary term become synthetic ``kind="link"`` spans. The mention scan
+    degrades to no spans on failure.
+    """
     try:
-        return scan_glossary_spans(catalog.compiled, entry.definition.strip())
+        mentions = scan_glossary_spans(catalog.compiled, entry.definition.strip())
     except Exception:
-        return ()
+        mentions = ()
+    links = _definition_links(catalog, entry)
+    if not links:
+        return mentions
+
+    term_by_index = {candidate.index: candidate.term for candidate in catalog.entries}
+    kept = tuple(
+        span
+        for span in mentions
+        if not any(
+            span.byte_start < link.byte_end and span.byte_end > link.byte_start
+            for link in links
+        )
+    )
+    link_spans = tuple(
+        GlossarySpan(
+            term=term_by_index[link.target_index],
+            entry_index=link.target_index,
+            alias_index=-1,
+            alias="",
+            matched_text=link.raw,
+            byte_start=link.byte_start,
+            byte_end=link.byte_end,
+            range={},
+            segments=(),
+            kind="link",
+        )
+        for link in links
+        if link.target_index is not None and link.target_index in term_by_index
+    )
+    return tuple(
+        sorted(
+            (*kept, *link_spans),
+            key=lambda span: (span.byte_start, span.byte_end),
+        )
+    )
+
+
+def _definition_links(catalog: Any, entry: GlossaryEntry) -> tuple[Any, ...]:
+    """Return *entry*'s pre-resolved authored links, tolerating bare catalogs."""
+    return tuple(
+        (getattr(catalog, "definition_links", None) or {}).get(entry.index, ())
+    )
 
 
 def _as_glossary_catalog(catalog: Any) -> GlossaryCatalog:

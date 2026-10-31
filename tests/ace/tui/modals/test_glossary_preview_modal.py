@@ -18,6 +18,7 @@ from sase.macro.glossary_catalog import (
     EditorGlossaryProject,
     _GlossaryConfigSignature,
 )
+from sase.memory.web.closure import GlossaryDefinitionLink
 
 
 class _GlossaryModalTestApp(App[None]):
@@ -60,6 +61,54 @@ async def test_glossary_modal_follows_references_and_goes_back(
         await pilot.pause()
         assert app.screen_stack[-1] is modal
         assert modal._entry is entries[0]
+
+
+async def test_glossary_modal_follows_chip_that_exists_only_via_authored_link(
+    tmp_path: Path,
+) -> None:
+    config_path = tmp_path / "sase.yml"
+    definition = "Hands off to [[project-note]] when done."
+    entries = (
+        _entry(0, "Task Successor", definition=definition, config_path=config_path),
+        _entry(1, "Project Note", definition="A note.", config_path=config_path),
+    )
+    start = definition.index("[[project-note]]")
+    catalog = EditorGlossaryCatalog(
+        schema_version=1,
+        project=EditorGlossaryProject(
+            key="sase", name="sase", aliases=(), workspace_dir=tmp_path
+        ),
+        config_path=config_path,
+        config_signature=_GlossaryConfigSignature(
+            path=str(config_path), mtime_ns=1, size=256
+        ),
+        catalog=GlossaryCatalog(schema_version=1, entries=entries),
+        compiled=_CompiledGlossary(entries),
+        definition_links={
+            0: (
+                GlossaryDefinitionLink(
+                    raw="[[project-note]]",
+                    target="project-note",
+                    byte_start=start,
+                    byte_end=start + len("[[project-note]]"),
+                    target_index=1,
+                ),
+            )
+        },
+    )
+    modal = GlossaryPreviewModal(catalog, entries[0], matched_text=None)
+    app = _GlossaryModalTestApp(modal)
+
+    async with app.run_test(size=(100, 30)) as pilot:
+        await pilot.pause()
+        assert modal._references == (entries[1],)
+        assert modal._definition_markdown() == (
+            "Hands off to [Project Note](glossary:1) when done."
+        )
+        assert "1-9 see also" in modal._build_footer()
+
+        await pilot.press("1")
+        await wait_for(pilot, lambda: modal._entry is entries[1])
 
 
 async def test_glossary_modal_source_actions_warn_without_source(

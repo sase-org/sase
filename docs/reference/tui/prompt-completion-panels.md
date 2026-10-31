@@ -24,8 +24,13 @@ changes, and watched memory changes invalidate the cache.
 `K` on a glossary phrase opens a compact definition card. The title shows the canonical
 term and discloses the matched phrase only when you opened an alias. The body renders
 the definition as prose, followed by display-alias chips, numbered `SEE ALSO` chips for
-glossary terms mentioned by the definition, and a property grid for project, source, and
-match count. Press `1`-`9` to follow a `SEE ALSO` term in place and `Backspace` to walk
+glossary terms the definition mentions or links with `[[target]]` / `![[target]]`, and a
+property grid for project, source, and match count. Resolved links render in the prose as
+followable term links labelled with the target's term, and linked terms take the first
+`SEE ALSO` chips ahead of terms that are only mentioned, so a deliberate link is never
+crowded out of the `1`-`9` keys by an incidental phrase match. Links that leave the
+glossary or do not resolve stay as authored text. Press `1`-`9` to follow a `SEE ALSO`
+term in place and `Backspace` to walk
 back through the card history. `y` copies the definition, while `Y`, `o`, and `Z` copy
 the source path, open the owning strand file's definition line in `$EDITOR`, or hand the
 file to the artifact viewer when a source path is available. `Ctrl+]` opens the
@@ -35,9 +40,10 @@ rather than falling through to word lookup or an unrelated jump target.
 
 The card's `SEE ALSO` chips are the depth-1 case of the same closure resolver behind
 `sase memory show`/`read glossary:<keyword>` (see
-[Memory Webs](../memory/memory.md#memory-webs)): both walk outgoing reference
-spans from the shared `sase.memory.web.resolution` module, so the preview card and the
-CLI can never disagree about which terms a definition references.
+[Memory Webs](../memory/memory.md#memory-webs)): both walk a definition's phrase-mention
+spans plus its same-web authored links through the shared `sase.memory.web.resolution`
+module, so the preview card and the CLI can never disagree about which terms a
+definition references.
 
 ## Memory panel {#memory-panel}
 

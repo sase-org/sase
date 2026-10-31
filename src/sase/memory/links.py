@@ -21,8 +21,13 @@ class MemoryLink:
     span: tuple[int, int]
 
 
-def scan_memory_links(body: str) -> tuple[MemoryLink, ...]:
-    """Return authored memory links in *body*, skipping Markdown code zones."""
+def scan_memory_links(body: str, *, unique: bool = True) -> tuple[MemoryLink, ...]:
+    """Return authored memory links in *body*, skipping Markdown code zones.
+
+    By default a link repeated with the same ``(target, inline)`` is reported
+    once. Pass ``unique=False`` to get every occurrence with its own span, for
+    callers that render or suppress text at each link site.
+    """
 
     if "[[" not in body:
         return ()
@@ -35,10 +40,11 @@ def scan_memory_links(body: str) -> tuple[MemoryLink, ...]:
         if not target:
             continue
         inline = match.group(0).startswith("!")
-        key = (target, inline)
-        if key in seen:
-            continue
-        seen.add(key)
+        if unique:
+            key = (target, inline)
+            if key in seen:
+                continue
+            seen.add(key)
         links.append(
             MemoryLink(
                 raw=match.group(0),
