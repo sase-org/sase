@@ -179,8 +179,18 @@ def check_agent_publication_outbox(
     stale_lines = tuple(detail for _, detail in stale_entries)
     stale_commands = tuple(
         dict.fromkeys(
-            f"sase agent sync --repair-revisions -p {project_key}"
+            (command, purpose)
             for project_key, _ in stale_entries
+            for command, purpose in (
+                (
+                    f"sase agent sync --repair-revisions -p {project_key}",
+                    "stale revisions",
+                ),
+                (
+                    f"sase agent sync -P -p {project_key}",
+                    "evidence-proven planner rows",
+                ),
+            )
         )
     )
     data = outbox_data(
@@ -264,9 +274,8 @@ def check_agent_publication_outbox(
             *(_next_step_for_command(command) for command in sorted(commands)),
             *((_MIGRATION_NEXT_STEP,) if migration_notices else ()),
             *(
-                f"Run `{command}` to review that project's stale revisions; "
-                "only rows the report proves repairable can be rewritten with `--apply`."
-                for command in stale_commands
+                f"Run `{command}` to review {purpose}; apply only after checking its report."
+                for command, purpose in stale_commands
             ),
         )
         attention_count = (

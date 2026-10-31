@@ -58,9 +58,10 @@ def stale_requested_revision_rows(
 
     Each returned row names a requested revision that no matching published
     run carries even though the required page exists, so the ack gate will
-    keep refusing it until a `sase agent sync --repair-revisions` report
-    classifies it. Only rows the report proves repairable can be rewritten
-    with `--apply`. Snapshots that cannot be read are skipped, never counted.
+    keep refusing it until a `sase agent sync --repair-revisions` or
+    `sase agent sync --repair-planner-scopes` report classifies it. The latter
+    only changes rows with planner metadata or nearby planner-archive commit
+    evidence. Snapshots that cannot be read are skipped, never counted.
     """
 
     stale: list[AgentPublicationOutboxItem] = []

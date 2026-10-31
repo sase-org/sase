@@ -116,6 +116,7 @@ class SaseArgumentParser(argparse.ArgumentParser):
                 ("--drop-retired", "drop_retired"),
                 ("--repair-digests", "repair_digests"),
                 ("--repair-manifest", "repair_manifest"),
+                ("--repair-planner-scopes", "repair_planner_scopes"),
                 ("--repair-revisions", "repair_revisions"),
                 ("--repair-states", "repair_states"),
                 ("--retry-key", "retry_key"),
@@ -140,6 +141,7 @@ class SaseArgumentParser(argparse.ArgumentParser):
                 ("--drop-retired", "drop_retired"),
                 ("--repair-digests", "repair_digests"),
                 ("--repair-manifest", "repair_manifest"),
+                ("--repair-planner-scopes", "repair_planner_scopes"),
                 ("--repair-revisions", "repair_revisions"),
                 ("--repair-states", "repair_states"),
             ):
@@ -198,6 +200,7 @@ class SaseArgumentParser(argparse.ArgumentParser):
                     ("--drop-retired", "drop_retired"),
                     ("--repair-digests", "repair_digests"),
                     ("--repair-manifest", "repair_manifest"),
+                    ("--repair-planner-scopes", "repair_planner_scopes"),
                     ("--repair-revisions", "repair_revisions"),
                     ("--repair-states", "repair_states"),
                 ):
@@ -217,12 +220,13 @@ class SaseArgumentParser(argparse.ArgumentParser):
                     )
             repair_revisions = getattr(parsed, "repair_revisions", False)
             repair_states = getattr(parsed, "repair_states", False)
+            repair_planner_scopes = getattr(parsed, "repair_planner_scopes", False)
             if getattr(parsed, "apply", False) and not (
-                repair_revisions or repair_states
+                repair_revisions or repair_states or repair_planner_scopes
             ):
                 self.error(
-                    "sase agent sync --apply requires --repair-revisions or "
-                    "--repair-states"
+                    "sase agent sync --apply requires --repair-revisions, "
+                    "--repair-planner-scopes, or --repair-states"
                 )
             if repair_revisions:
                 projects = getattr(parsed, "project", ())
@@ -237,6 +241,7 @@ class SaseArgumentParser(argparse.ArgumentParser):
                     ("--drop-retired", "drop_retired"),
                     ("--repair-digests", "repair_digests"),
                     ("--repair-manifest", "repair_manifest"),
+                    ("--repair-planner-scopes", "repair_planner_scopes"),
                     ("--repair-states", "repair_states"),
                     ("--retry-error-class", "retry_error_class"),
                     ("--retry-key", "retry_key"),
@@ -271,6 +276,7 @@ class SaseArgumentParser(argparse.ArgumentParser):
                     ("--drop-retired", "drop_retired"),
                     ("--repair-digests", "repair_digests"),
                     ("--repair-manifest", "repair_manifest"),
+                    ("--repair-planner-scopes", "repair_planner_scopes"),
                     ("--repair-revisions", "repair_revisions"),
                     ("--retry-error-class", "retry_error_class"),
                     ("--retry-key", "retry_key"),
@@ -288,6 +294,42 @@ class SaseArgumentParser(argparse.ArgumentParser):
                     self.error("sase agent sync --state-after requires --repair-states")
                 if getattr(parsed, "state_limit", None) is not None:
                     self.error("sase agent sync --state-limit requires --repair-states")
+            if repair_planner_scopes:
+                projects = getattr(parsed, "project", ())
+                if len(projects) != 1:
+                    self.error(
+                        "sase agent sync --repair-planner-scopes requires "
+                        "exactly one --project"
+                    )
+                for flag, attribute in (
+                    ("--check", "check"),
+                    ("--refresh", "refresh"),
+                    ("--drop-retired", "drop_retired"),
+                    ("--repair-digests", "repair_digests"),
+                    ("--repair-manifest", "repair_manifest"),
+                    ("--repair-revisions", "repair_revisions"),
+                    ("--repair-states", "repair_states"),
+                    ("--retry-error-class", "retry_error_class"),
+                    ("--retry-key", "retry_key"),
+                    ("--retry-limit", "retry_limit"),
+                    ("--retry-quarantined", "retry_quarantined"),
+                    ("--retry-retired", "retry_retired"),
+                ):
+                    if getattr(parsed, attribute, False):
+                        self.error(
+                            "sase agent sync --repair-planner-scopes cannot be "
+                            f"used with {flag}"
+                        )
+                if getattr(parsed, "state_after", None) is not None:
+                    self.error(
+                        "sase agent sync --repair-planner-scopes cannot be "
+                        "used with --state-after"
+                    )
+                if getattr(parsed, "state_limit", None) is not None:
+                    self.error(
+                        "sase agent sync --repair-planner-scopes cannot be "
+                        "used with --state-limit"
+                    )
         if (
             getattr(parsed, "command", None) == "init"
             and getattr(parsed, "json", False)

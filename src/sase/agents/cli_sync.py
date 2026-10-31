@@ -20,6 +20,9 @@ from sase.agents_sync.publication_repair import (
 from sase.agents_sync.publication_revision_repair import (
     repair_stale_publication_revisions,
 )
+from sase.agents_sync.publication_planner_scope_repair import (
+    repair_planner_publication_scopes,
+)
 from sase.agents_sync.publication_state_repair import (
     StateRepairReport,
     repair_agent_run_states,
@@ -40,6 +43,13 @@ def handle_agents_sync(args: argparse.Namespace) -> int:
     if bool(getattr(args, "repair_manifest", False)):
         outcomes = repair_agent_owner_manifests(projects)
         _emit_sync_outcomes(outcomes, mode="repair-manifest", as_json=as_json)
+        return int(any(outcome.error is not None for outcome in outcomes))
+    if bool(getattr(args, "repair_planner_scopes", False)):
+        outcomes = repair_planner_publication_scopes(
+            projects,
+            apply=bool(getattr(args, "apply", False)),
+        )
+        _emit_sync_outcomes(outcomes, mode="repair-planner-scopes", as_json=as_json)
         return int(any(outcome.error is not None for outcome in outcomes))
     if bool(getattr(args, "repair_revisions", False)):
         outcomes = repair_stale_publication_revisions(

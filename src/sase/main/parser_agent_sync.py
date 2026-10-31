@@ -80,10 +80,9 @@ def register_agent_sync_parser(agents_sub: argparse._SubParsersAction) -> None:
         "--apply",
         action="store_true",
         help=(
-            "With --repair-revisions, write the reported repair to the "
-            "outbox and audit it; with --repair-states, publish the "
-            "reported state window; without either, report only and write "
-            "nothing"
+            "With --repair-revisions or --repair-planner-scopes, apply the "
+            "reported outbox repair and audit it; with --repair-states, "
+            "publish the state window; otherwise, report only and write nothing"
         ),
     )
     sync_parser.add_argument(
@@ -142,6 +141,15 @@ def register_agent_sync_parser(agents_sub: argparse._SubParsersAction) -> None:
         help=(
             "Restore missing owner-manifest hoods and normalize verified stale "
             "explicit file lists, instead of running a normal sync"
+        ),
+    )
+    sync_parser.add_argument(
+        "-P",
+        "--repair-planner-scopes",
+        action="store_true",
+        help=(
+            "Re-scope only evidence-proven planner rows to linked, reporting "
+            "by default and writing only with --apply; runs one project per call"
         ),
     )
     sync_parser.add_argument(

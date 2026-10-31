@@ -3642,7 +3642,7 @@
           {
             "aliases": [],
             "default_child": null,
-            "description_digest": "e9cb34ca03c88faf",
+            "description_digest": "5e218d755adff290",
             "hidden": false,
             "mutex_groups": [],
             "name": "sync",
@@ -3787,6 +3787,22 @@
                 "strings": [
                   "-m",
                   "--repair-manifest"
+                ],
+                "takes_value": false,
+                "value_hint": null
+              },
+              {
+                "choices": null,
+                "default": "False",
+                "dest": "repair_planner_scopes",
+                "hidden": false,
+                "kind": null,
+                "metavar": null,
+                "repeatable": false,
+                "required": false,
+                "strings": [
+                  "-P",
+                  "--repair-planner-scopes"
                 ],
                 "takes_value": false,
                 "value_hint": null

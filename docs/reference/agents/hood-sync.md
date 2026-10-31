@@ -482,19 +482,20 @@ then continues the normal full sync for the selected projects. `--drop-retired`,
 `--retry-quarantined`, and `--retry-retired` mutate the outbox and are rejected with
 `--check`.
 
-Four repair modes replace the normal sync. Each reports what it changed:
+Five repair modes replace the normal sync. Each reports what it changed:
 
 ```bash
 sase agent sync --repair-digests -p project-alias   # -g
 sase agent sync --repair-manifest -p project-alias  # -m
+sase agent sync --repair-planner-scopes -p project-alias # -P
 sase agent sync --repair-revisions -p project-alias # -R
 sase agent sync --repair-states -p project-alias --state-limit 100 --json
 ```
 
 Digest and manifest repair run under the same bounded lock and pull/commit/push
 transaction and touch only the current owner's `users/<username>/machines/<machine>/`
-files. Revision repair runs under the same bounded lock, operates on exactly one project
-per call, reports by default, and writes only with `--apply`.
+files. Revision and planner-scope repairs run under the same bounded lock, operate on
+exactly one project per call, report by default, and write only with `--apply`.
 
 - `--repair-digests` handles a published file that was rewritten out of band, such as a
   hand-edited `chat.md`. It trusts the file on disk and re-signs the stale file
@@ -520,6 +521,14 @@ per call, reports by default, and writes only with `--apply`.
   `agents-publication-repair-audit.jsonl` beside the outbox. The
   `state.agent_publication_outbox` check in `sase doctor` counts rows whose requested
   revision is absent from their published run's commits and names this command.
+- `--repair-planner-scopes` (`-P`) changes only evidence-proven planner rows from
+  `revision` to `linked`. Proof comes from an approved matching `--plan` metadata record
+  whose `workspace_head` is the row revision, or a matching sidecar archive commit
+  within 10 seconds of enqueue. It does not scan hood inventories or test revision
+  ancestry. Rows without proof are reported and left unchanged. Apply preserves each
+  row's key, attempts, errors, and quarantine or retirement state, and appends one entry
+  per change to `agents-publication-planner-scope-repair-audit.jsonl` beside the outbox.
+  The doctor stale-revision hint names `-P` for these planner rows.
 - `--repair-states` converges already-published runs to verified terminal state without
   a new commit. Preview reads the cached sidecar snapshot plus local evidence with no
   network, sidecar writes, audit writes, or checkpoint advancement. Apply refreshes

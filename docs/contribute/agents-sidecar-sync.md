@@ -125,6 +125,28 @@ JSON object per applied change to
 `~/.sase/projects/<project-key>/agents-publication-repair-audit.jsonl` (old key, new
 revision or scope, evidence commit, and time). A second apply is a no-op.
 
+### Planner-scope repair
+
+`sase agent sync --repair-planner-scopes` is a targeted repair for old planner rows that
+still carry `revision` scope. It does not build the hood inventory or run revision
+ancestry checks. A row is eligible only when its `agent_meta.json` names the matching
+approved `--plan` turn and its `workspace_head` matches the row revision, or when the
+agents sidecar has a matching `archive prompt for <agent>--plan` commit within 10
+seconds of the row's enqueue time. Rows without either proof remain unchanged.
+
+Run one project per call, report first, then apply the audited classification:
+
+```bash
+sase agent sync -P -p project-alias         # report only
+sase agent sync -P -p project-alias --apply # re-scope + audit
+```
+
+Apply changes only `scope` from `revision` to `linked` through the outbox mutation API.
+It preserves the row key, attempts, prior error, and quarantine or retirement state.
+Each changed row gets one JSONL audit entry in
+`~/.sase/projects/<project-key>/agents-publication-planner-scope-repair-audit.jsonl`.
+Rows already using linked scope are not candidates, so a repeated apply is a no-op.
+
 ## Scheduled state convergence and owner-local backfill
 
 The `agent_state_refresh` scheduler job converges already-published runs without another

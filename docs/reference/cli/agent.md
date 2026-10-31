@@ -908,7 +908,7 @@ Arguments:
 
 ```text
 usage: sase agent sync [-h] [-a] [-c] [-d] [-j] [-p PROJECT] [-r] [-g] [-m]
-                       [-R] [-s] [-e CLASS] [-k KEY] [-l N] [-q] [-t]
+                       [-P] [-R] [-s] [-e CLASS] [-k KEY] [-l N] [-q] [-t]
                        [-A CURSOR] [-L N]
 ```
 
@@ -918,7 +918,7 @@ Options:
 
 | Option                                  | Description                                                                                                                                                                                                                         | Default |
 | --------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------- |
-| `-a`, `--apply`                         | With --repair-revisions, write the reported repair to the outbox and audit it; with --repair-states, publish the reported state window; without either, report only and write nothing                                               | `false` |
+| `-a`, `--apply`                         | With --repair-revisions or --repair-planner-scopes, apply the reported outbox repair and audit it; with --repair-states, publish the state window; otherwise, report only and write nothing                                         | `false` |
 | `-c`, `--check`                         | Read cached sidecar status and publication diagnostics without network, publication, commit, or push                                                                                                                                | `false` |
 | `-d`, `--drop-retired`                  | Drop publication requests that were retired as unpublishable, reporting how many were dropped and why                                                                                                                               | `false` |
 | `-h`, `--help`                          | show this help message and exit                                                                                                                                                                                                     | —       |
@@ -927,6 +927,7 @@ Options:
 | `-r`, `--refresh`                       | With --check, fetch remote refs before computing sidecar ahead/behind counts                                                                                                                                                        | `false` |
 | `-g`, `--repair-digests`                | Re-sign locally owned hood-snapshot file references that have drifted from their on-disk payload, instead of running a normal sync                                                                                                  | `false` |
 | `-m`, `--repair-manifest`               | Restore missing owner-manifest hoods and normalize verified stale explicit file lists, instead of running a normal sync                                                                                                             | `false` |
+| `-P`, `--repair-planner-scopes`         | Re-scope only evidence-proven planner rows to linked, reporting by default and writing only with --apply; runs one project per call                                                                                                 | `false` |
 | `-R`, `--repair-revisions`              | Map stale pre-commit outbox revisions to the agent's committed revision or linked scope, reporting by default and writing only with --apply; runs one project per call                                                              | `false` |
 | `-s`, `--repair-states`                 | Report a bounded window of already-published runs whose terminal state drifted from local evidence, reporting by default and publishing only with --apply; runs one project per call                                                | `false` |
 | `-e CLASS`, `--retry-error-class CLASS` | With --retry-limit, select stopped requests with this error class; repeat to accept several classes (choices: `index_lock`, `lock_busy`, `manifest_mismatch`, `other`, `rebase_conflict`, `timeout`, `unknown`, `unstaged_changes`) | —       |
