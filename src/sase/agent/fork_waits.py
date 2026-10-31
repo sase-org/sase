@@ -68,7 +68,7 @@ def fork_wait_dependency(name: str) -> dict[str, str]:
             "name": agent_session.base_name,
         }
         if agent_session.root is not None:
-            dependency.update(_artifact_identity(agent_session.root.artifacts_dir))
+            dependency.update(artifact_identity(agent_session.root.artifacts_dir))
         elif agent_session.timestamp:
             dependency["timestamp"] = agent_session.timestamp
         return dependency
@@ -90,15 +90,15 @@ def fork_wait_dependency(name: str) -> dict[str, str]:
             return {
                 "kind": "session",
                 "name": agent.name,
-                **_artifact_identity(Path(agent.artifacts_dir)),
+                **artifact_identity(Path(agent.artifacts_dir)),
             }
         return {
             "kind": "agent",
             "name": agent.name,
-            **_artifact_identity(Path(agent.artifacts_dir)),
+            **artifact_identity(Path(agent.artifacts_dir)),
         }
 
-    proc_id = _resolved_proc_id(name)
+    proc_id = resolved_proc_id(name)
     if proc_id is not None:
         return {
             "kind": "proc",
@@ -143,7 +143,8 @@ def _is_plain_bare_root(
     return not _json_session_role(meta)
 
 
-def _artifact_identity(artifact_dir: Path) -> dict[str, str]:
+def artifact_identity(artifact_dir: Path) -> dict[str, str]:
+    """Return the durable identity fields for one artifact directory."""
     identity = {
         "artifact_dir": str(artifact_dir),
         "timestamp": artifact_dir.name,
@@ -173,7 +174,8 @@ def _json_session_role(data: dict[str, object]) -> str | None:
     return role if isinstance(role, str) and role else None
 
 
-def _resolved_proc_id(name: str) -> str | None:
+def resolved_proc_id(name: str) -> str | None:
+    """Return the proc id for *name*, or None when it is not a proc ref."""
     try:
         from sase.procs import ProcRefError, read_procs, resolve_proc_ref
 
@@ -186,4 +188,4 @@ def _resolved_proc_id(name: str) -> str | None:
         return None
 
 
-__all__ = ["fork_wait_dependency"]
+__all__ = ["artifact_identity", "fork_wait_dependency", "resolved_proc_id"]

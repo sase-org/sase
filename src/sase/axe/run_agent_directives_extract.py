@@ -141,6 +141,9 @@ def extract_directives_and_write_meta(
         fork_reference_prompt=fork_reference_prompt,
         batch_predecessor_binding=batch_predecessor_binding,
         agent_session_attach_plan=agent_session_attach_plan,
+        wait_targets=getattr(directives, "wait_targets", None),
+        waiter_artifact_dir=artifacts_dir,
+        preserved_metadata=preserved_metadata,
     )
     wait_names = wait_state.wait_names
     wait_for_epics_of = wait_state.wait_for_epics_of

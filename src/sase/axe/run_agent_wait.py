@@ -56,6 +56,10 @@ def remaining_until(wait_until: str) -> float:
 
 
 def _identity_dep_label(dep: dict[str, Any]) -> str:
+    if dep.get("target") == "turn":
+        turn_name = dep.get("turn_name")
+        if isinstance(turn_name, str) and turn_name:
+            return turn_name
     name = dep.get("name")
     if isinstance(name, str) and name:
         return name

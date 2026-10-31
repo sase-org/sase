@@ -18,7 +18,11 @@ from ._index_fork_queries import (
     WaitDependencyForkQueries,
     fork_source_follows_promotion,
 )
-from ._index_identity_queries import WaitDependencyIdentityQueries
+from ._index_identity_queries import (
+    WaitDependencyIdentityQueries,
+    identity_record_names,
+    identity_target_is_turn,
+)
 from ._tribe_binding import TribeMemberRow, resolve_tribe_wait_binding
 from ._types import (
     ArtifactCandidate,
@@ -580,12 +584,19 @@ class WaitDependencyIndexQueries(
         for dependency in wait_identity_deps:
             if not isinstance(dependency, Mapping):
                 continue
-            name = dependency.get("name")
-            if isinstance(name, str) and name:
-                identity_names.add(name)
+            identity_names.update(identity_record_names(dependency))
             if _identity_dependency_is_memoized(dependency, resolved_items):
                 continue
             candidate = self._identity_candidate(dependency)
+            if identity_target_is_turn(dependency):
+                if candidate is None:
+                    turn_name = dependency.get("turn_name")
+                    if isinstance(turn_name, str) and turn_name:
+                        add_name_members(turn_name)
+                else:
+                    add_candidates((candidate,))
+                continue
+            name = dependency.get("name")
             if candidate is None:
                 if isinstance(name, str) and name:
                     add_name_members(name)

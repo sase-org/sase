@@ -91,6 +91,14 @@ def preserved_agent_metadata(artifacts_dir: str) -> dict[str, Any]:
     batch_predecessor_context = existing_meta.get("batch_predecessor_context")
     if isinstance(batch_predecessor_context, dict):
         preserved["batch_predecessor_context"] = dict(batch_predecessor_context)
+    # Bound wait records are pinned at first launch. Re-execs must reuse
+    # them so a current-turn pin cannot move after the waiter is queued.
+    for wait_record_key in ("wait_for_artifacts", "wait_for_fork_sources"):
+        wait_records = existing_meta.get(wait_record_key)
+        if isinstance(wait_records, list) and all(
+            isinstance(item, dict) for item in wait_records
+        ):
+            preserved[wait_record_key] = [dict(item) for item in wait_records]
     # Update-skew auto-restart provenance survives a refresh re-exec so the
     # replacement keeps its "Auto-restarted after sase update …" block.
     auto_restart = existing_meta.get("auto_restart")

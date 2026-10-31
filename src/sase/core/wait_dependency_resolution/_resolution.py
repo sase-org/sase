@@ -8,6 +8,7 @@ from typing import Any
 
 from ._artifact_state import same_artifact_dir
 from ._index import WaitDependencyIndex
+from ._index_identity_queries import identity_record_names
 from ._types import WaitDependencyStatus
 
 
@@ -34,9 +35,7 @@ def dependency_resolution_status(
         if not isinstance(dependency, Mapping):
             _append_blocked_dependency(blocked_on, _dependency_label(dependency))
             continue
-        dependency_name = dependency.get("name")
-        if isinstance(dependency_name, str) and dependency_name:
-            identity_names.add(dependency_name)
+        identity_names.update(identity_record_names(dependency))
         if _identity_dependency_is_memoized(dependency, resolved_dep_items):
             continue
         status = index.identity_status(

@@ -7,7 +7,9 @@ the preserved launch selection on runner re-execs.
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any
 
 
@@ -43,20 +45,38 @@ def resolve_wait_state(
     fork_reference_prompt: str,
     batch_predecessor_binding: Any | None,
     agent_session_attach_plan: Any | None,
+    wait_targets: Mapping[str, str] | None = None,
+    waiter_artifact_dir: str | Path | None = None,
+    preserved_metadata: Mapping[str, Any] | None = None,
 ) -> WaitResolution:
-    """Normalize explicit waits plus implicit ``#fork`` parent waits."""
+    """Normalize explicit waits plus implicit ``#fork`` parent waits.
+
+    ``wait_targets`` is the ``{name: session|turn}`` hook for explicit
+    waits. Binding happens once: runner re-execs reuse persisted
+    ``wait_for_artifacts`` / ``wait_for_fork_sources`` and never re-pin a
+    current turn.
+    """
     from sase.agent.names import fork_agent_names
 
     wait_names = list(directives.wait)
-    wait_identity_deps: list[dict[str, Any]] = []
+    preserved_identity = _preserved_record_list(
+        preserved_metadata, "wait_for_artifacts"
+    )
+    preserved_forks = _preserved_record_list(
+        preserved_metadata, "wait_for_fork_sources"
+    )
+    wait_identity_deps: list[dict[str, Any]] = (
+        list(preserved_identity) if preserved_identity is not None else []
+    )
     batch_predecessor_context_payload: dict[str, Any] | None = None
     if batch_predecessor_binding is not None and (
         batch_predecessor_binding.bound_wait_count
     ):
         wait_names.extend(batch_predecessor_binding.wait_names)
-        wait_identity_deps.extend(
-            dict(item) for item in batch_predecessor_binding.wait_for_artifacts
-        )
+        if preserved_identity is None:
+            wait_identity_deps.extend(
+                dict(item) for item in batch_predecessor_binding.wait_for_artifacts
+            )
         if batch_predecessor_binding.wait_for_artifacts:
             batch_predecessor_context_payload = dict(
                 batch_predecessor_binding.wait_for_artifacts[0]
@@ -86,14 +106,15 @@ def resolve_wait_state(
     if agent_session_attach_plan and agent_session_attach_plan.parent_is_running:
         if agent_session_attach_plan.parent_name not in wait_names:
             wait_names.append(agent_session_attach_plan.parent_name)
-        wait_identity_deps.append(
-            {
-                "project_name": agent_session_attach_plan.parent_project_name,
-                "timestamp": agent_session_attach_plan.parent_timestamp,
-                "artifact_dir": agent_session_attach_plan.parent_artifacts_dir,
-                "name": agent_session_attach_plan.parent_name,
-            }
-        )
+        if preserved_identity is None:
+            wait_identity_deps.append(
+                {
+                    "project_name": agent_session_attach_plan.parent_project_name,
+                    "timestamp": agent_session_attach_plan.parent_timestamp,
+                    "artifact_dir": agent_session_attach_plan.parent_artifacts_dir,
+                    "name": agent_session_attach_plan.parent_name,
+                }
+            )
 
     from sase.core.agent_identity_facade import (
         AgentIdentitySnapshot,
@@ -117,7 +138,12 @@ def resolve_wait_state(
     )
     wait_for_epics_of = [name for name in wait_for_epics_of if name in set(wait_names)]
     assert set(wait_for_epics_of) <= set(wait_names)
-    if implicit_fork_wait_targets:
+    if preserved_forks is not None:
+        wait_fork_sources = [
+            {str(key): str(value) for key, value in item.items()}
+            for item in preserved_forks
+        ]
+    elif implicit_fork_wait_targets:
         from sase.agent.fork_waits import fork_wait_dependency
 
         wait_fork_sources = [
@@ -125,6 +151,24 @@ def resolve_wait_state(
             for name in implicit_fork_wait_targets
             if normalized_wait_name(name) not in explicit_wait_names
         ]
+    if preserved_identity is None:
+        targets = wait_targets
+        if targets is None:
+            raw_targets = getattr(directives, "wait_targets", None)
+            targets = raw_targets if isinstance(raw_targets, dict) else None
+        if targets:
+            from sase.agent.wait_target_binding import bind_explicit_wait_targets
+
+            normalized_targets = {
+                normalized_wait_name(str(name)): str(target)
+                for name, target in targets.items()
+            }
+            wait_identity_deps.extend(
+                bind_explicit_wait_targets(
+                    normalized_targets,
+                    waiter_artifact_dir=waiter_artifact_dir,
+                )
+            )
     return WaitResolution(
         wait_names=wait_names,
         wait_for_epics_of=wait_for_epics_of,
@@ -134,6 +178,19 @@ def resolve_wait_state(
         wait_hoods=wait_hoods,
         batch_predecessor_context_payload=batch_predecessor_context_payload,
     )
+
+
+def _preserved_record_list(
+    preserved: Mapping[str, Any] | None,
+    key: str,
+) -> list[dict[str, Any]] | None:
+    """Return a copied list of mapping records, or ``None`` when absent."""
+    if preserved is None:
+        return None
+    value = preserved.get(key)
+    if not isinstance(value, list) or not all(isinstance(item, dict) for item in value):
+        return None
+    return [dict(item) for item in value]
 
 
 def resolve_launch_model_selection(
