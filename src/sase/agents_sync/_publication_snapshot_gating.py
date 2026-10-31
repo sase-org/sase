@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, cast
 
 from sase.agents_sync.inventory import InventoryRun
-from sase.agents_sync.v2_io import file_reference, v2_json_bytes
+from sase.agents_sync.v2_io import content_digest, file_reference, v2_json_bytes
 from sase.agents_sync.v2_models import (
     RunState,
     V2FileReference,
@@ -93,6 +93,7 @@ def gate_run_files(
     payload: dict[str, bytes],
     *,
     scope: PublicationProtectionScope,
+    previous: V2RunRecord | None = None,
 ) -> GatedRun:
     """Scan one run's bytes and withhold unsafe content without its evidence."""
 
@@ -139,6 +140,13 @@ def gate_run_files(
     blocked_kinds: set[str] = set()
     notes: list[str] = []
     withheld_reason: str | None = None
+    previous_files = (
+        dict(previous.files)
+        if previous is not None
+        and previous.source_run_id == run.source_run_id
+        and previous.global_name == run.global_name
+        else {}
+    )
     for kind, name, content in candidates:
         if content is None:
             continue
@@ -157,6 +165,16 @@ def gate_run_files(
                 )
             blocked_kinds.add(kind)
             withheld_reason = withheld_reason or "blocked"
+            continue
+        previous_reference = previous_files.get(kind)
+        if (
+            previous_reference is not None
+            and previous_reference.path == destination
+            and previous_reference.digest == content_digest(content)
+        ):
+            # These exact bytes already live in the published sidecar. This also
+            # accepts pre-protection history without rescanning it on every drain.
+            accepted[kind] = (destination, content)
             continue
         verdict = scan_publication_bytes(content, max_bytes=scope.max_bytes)
         status = verdict.disposition.get("status") if verdict.disposition else None
@@ -330,8 +348,9 @@ def merge_richer_run_files(
 ) -> tuple[V2RunRecord, tuple[str, ...]]:
     """Keep recoverable prompt/chat bytes instead of commit-only placeholders.
 
-    Blocked kinds never merge prior bytes back. Merged prior bytes are
-    scanned exactly like fresh candidates because this drain writes them.
+    Blocked kinds never merge prior bytes back. Previously published prior bytes
+    retain their protection verdict when their digest still matches; changed or
+    unverifiable bytes are scanned before this drain writes them.
     Only the same immutable run (matching ``source_run_id``) may reuse
     previously published content; a reused name with a different run
     identity never borrows prior bytes.
@@ -367,7 +386,12 @@ def merge_richer_run_files(
         if current_bytes is not None and len(current_bytes) >= len(prior_bytes):
             continue
         if not _prior_bytes_releasable(
-            prior_bytes, prior.path, current.global_name, scope, notes
+            prior_bytes,
+            prior.path,
+            current.global_name,
+            scope,
+            notes,
+            expected_digest=prior.digest,
         ):
             continue
         payload[prior.path] = prior_bytes
@@ -393,6 +417,8 @@ def _prior_bytes_releasable(
     global_name: str,
     scope: PublicationProtectionScope,
     notes: list[str],
+    *,
+    expected_digest: str | None = None,
 ) -> bool:
     """Return whether previously published bytes may re-enter this payload."""
 
@@ -403,18 +429,24 @@ def _prior_bytes_releasable(
         scan_publication_bytes,
     )
 
+    digest = content_digest(prior_bytes)
     try:
         record = lookup_publication_content_record(
             scope.project_key,
             repository_identity=scope.repository_identity,
             relative_destination=prior_path,
-            sha256=hashlib.sha256(prior_bytes).hexdigest(),
+            sha256=digest,
         )
     except Exception:  # noqa: BLE001 - a failed lookup never authorizes publish.
         record = None
     if isinstance(record, dict) and record.get("status") == "blocked":
         notes.append(f"withheld richer {prior_path}: blocked")
         return False
+    if expected_digest is not None and digest == expected_digest:
+        # These bytes already live in the published sidecar under this reference.
+        # The earlier scan result is reusable, so another scan and ledger write
+        # would only add drain latency.
+        return True
     verdict = scan_publication_bytes(prior_bytes, max_bytes=scope.max_bytes)
     try:
         record_publication_bytes_scan(

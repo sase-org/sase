@@ -124,7 +124,14 @@ def build_hood_snapshot(
         if note is not None:
             resolve_notes.append(note)
     gated = tuple(
-        gate_run_files(run, owner, project, payload, scope=scope)
+        gate_run_files(
+            run,
+            owner,
+            project,
+            payload,
+            scope=scope,
+            previous=previous_by_global.get(run.global_name),
+        )
         for run in resolved_current
     )
     notes: list[str] = []
