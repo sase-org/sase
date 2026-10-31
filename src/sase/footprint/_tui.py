@@ -29,6 +29,10 @@ _TUI_VIAS = frozenset({"key", "mouse", "palette", "mode"})
 _LOCK = threading.Lock()
 _START_LOCK = threading.Lock()
 _COUNTS: dict[tuple[str, str], int] = {}
+_FEATURE_ID_CACHE_LIMIT = 256
+_FEATURE_ID_CACHE_MISS = object()
+_FEATURE_ID_CACHE: dict[str, str | None] = {}
+_FOOTPRINT_DISABLED: bool | None = None
 _ACTOR: str | None = None
 _PID: int | None = None
 _START_GENERATION: str | None = None
@@ -44,29 +48,32 @@ def bump(feature_id: str, via: str) -> None:
     ``off`` switch simply skip the hit. Starts the daemon flusher lazily
     on the first hit.
     """
-    if os.environ.get("SASE_FOOTPRINT") == "off":
+    global _FOOTPRINT_DISABLED
+    disabled = _FOOTPRINT_DISABLED
+    if disabled is None:
+        disabled = os.environ.get("SASE_FOOTPRINT") == "off"
+        _FOOTPRINT_DISABLED = disabled
+    if disabled:
         return
     if not isinstance(feature_id, str) or not isinstance(via, str):
         return
     if via not in _TUI_VIAS:
         return
-    pid = os.getpid()
-    global _PID
-    if _PID is None:
-        _PID = pid
-    elif _PID != pid:
-        _reset_after_fork()
-    if not ids.is_valid_feature_id(feature_id):
-        collapsed = _collapse(feature_id, via)
-        if collapsed is None:
-            return
-        feature_id = collapsed
-    if feature_id in ids.NAVIGATION_ACTIONS:
-        return
-    _ensure_flusher()
     with _LOCK:
-        key = (feature_id, via)
+        resolved = _FEATURE_ID_CACHE.get(feature_id, _FEATURE_ID_CACHE_MISS)
+        if resolved is _FEATURE_ID_CACHE_MISS:
+            if ids.is_valid_feature_id(feature_id):
+                resolved = None if feature_id in ids.NAVIGATION_ACTIONS else feature_id
+            else:
+                resolved = _collapse(feature_id)
+            if len(_FEATURE_ID_CACHE) >= _FEATURE_ID_CACHE_LIMIT:
+                _FEATURE_ID_CACHE.clear()
+            _FEATURE_ID_CACHE[feature_id] = resolved
+        if not isinstance(resolved, str):
+            return
+        key = (resolved, via)
         _COUNTS[key] = _COUNTS.get(key, 0) + 1
+    _ensure_flusher()
 
 
 def flush_now(timeout: float = 0.2) -> None:
@@ -85,7 +92,7 @@ def flush_now(timeout: float = 0.2) -> None:
         return
 
 
-def _collapse(feature_id: str, via: str) -> str | None:
+def _collapse(feature_id: str) -> str | None:
     """Collapse an invalid ID to its namespace's ``~other`` sentinel."""
     try:
         namespace, _ = feature_id.split(":", 1)
@@ -93,13 +100,12 @@ def _collapse(feature_id: str, via: str) -> str | None:
         return None
     if namespace not in ids.NAMESPACES:
         return None
-    del via
     return ids.other_id(namespace)
 
 
 def _ensure_flusher() -> None:
     """Start the daemon flush thread once per process."""
-    global _THREAD
+    global _PID, _THREAD
     thread = _THREAD
     if thread is not None and thread.is_alive():
         return
@@ -107,13 +113,20 @@ def _ensure_flusher() -> None:
         thread = _THREAD
         if thread is not None and thread.is_alive():
             return
+        if _PID is None:
+            _PID = os.getpid()
         _STOP.clear()
-        _THREAD = threading.Thread(
+        thread = threading.Thread(
             target=_flusher_loop,
             name=FLUSH_THREAD_NAME,
             daemon=True,
         )
-        _THREAD.start()
+        _THREAD = thread
+        try:
+            thread.start()
+        except Exception:
+            _THREAD = None
+            return
 
 
 def _flusher_loop() -> None:
@@ -194,26 +207,38 @@ def _safe_version() -> str:
 
 
 def _reset_after_fork() -> None:
-    """Discard inherited counts after a fork; the parent thread is gone."""
-    global _PID, _STOP
+    """Discard inherited process-local state without touching copied locks."""
+    global _LOCK, _PID, _START_LOCK, _STOP
+    # A lock or event may have been held by a thread that vanished in the
+    # child. Replace every process-local synchronization primitive before the
+    # test reset below, so it only touches fresh objects.
+    _LOCK = threading.Lock()
+    _START_LOCK = threading.Lock()
+    _STOP = threading.Event()
     _reset_for_tests()
     _PID = os.getpid()
-    _STOP = threading.Event()
 
 
 def _reset_for_tests() -> None:
     """Stop the flusher and clear all state. Tests only."""
-    global _ACTOR, _PID, _START_GENERATION, _GENERATION_LOADED, _THREAD
+    global _ACTOR, _FOOTPRINT_DISABLED, _PID, _START_GENERATION
+    global _GENERATION_LOADED, _THREAD
     _STOP.set()
     thread, _THREAD = _THREAD, None
     if thread is not None and thread.is_alive():
         thread.join(timeout=1)
     with _LOCK:
         _COUNTS.clear()
+        _FEATURE_ID_CACHE.clear()
+    _FOOTPRINT_DISABLED = None
     _ACTOR = None
     _PID = None
     _START_GENERATION = None
     _GENERATION_LOADED = False
+
+
+if hasattr(os, "register_at_fork"):
+    os.register_at_fork(after_in_child=_reset_after_fork)
 
 
 __all__ = [

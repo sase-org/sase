@@ -47,7 +47,9 @@ class PromptInputBarStackRenderingMixin(
 
         def _refresh_dispatch_context_line(self) -> None: ...
         def _refresh_title(self, mode_suffix: str = "") -> None: ...
-        def _render_subtitle(self, base: str | Text) -> Text: ...
+        def _render_subtitle(
+            self, base: str | Text, *, width: int | None = None
+        ) -> Text: ...
         def _sync_todo_counts_from_mounted_panes(self) -> None: ...
         def _sync_todo_counts_from_stack(self) -> None: ...
 
@@ -349,14 +351,15 @@ class PromptInputBarStackRenderingMixin(
         self.set_class(mini and state == "safe", "mini-macro-safe")
         self.set_class(mini and state == "dirty", "mini-macro-dirty")
 
-    def refresh_cursor_readouts(self) -> None:
+    def refresh_cursor_readouts(self, *, immediate: bool = False) -> None:
         """Sync the active pane's subtitle readout and each parked separator's rule.
 
         Parked separator positions stay immediate. The border subtitle is
-        coalesced through the shared 150 ms detail-panel debouncer so typing
-        and the caret paint immediately while its Rich restyle settles shortly
-        after input. Every pane lookup is guarded since the bar is routinely
-        asked to refresh while panes are mid-mount or mid-detach.
+        coalesced through the shared 150 ms detail-panel debouncer during
+        typing, while a resize can request an immediate width-correct subtitle
+        before the resized bar is painted. Every pane lookup is guarded since
+        the bar is routinely asked to refresh while panes are mid-mount or
+        mid-detach.
         """
         self._refresh_snippet_frame_classes()
         debouncer = getattr(self, "_cursor_subtitle_debouncer", None)
@@ -366,7 +369,7 @@ class PromptInputBarStackRenderingMixin(
             except Exception:
                 debouncer = None
             self._cursor_subtitle_debouncer = debouncer
-        if debouncer is None:
+        if immediate or debouncer is None:
             self._refresh_cursor_subtitle()
         else:
             debouncer.schedule(self._refresh_cursor_subtitle)
@@ -400,7 +403,7 @@ class PromptInputBarStackRenderingMixin(
             line, column = cursor_readout_position(text_area)
             separator.set_position((line, column), text_area._vim_mode)
 
-    def _refresh_cursor_subtitle(self) -> None:
+    def _refresh_cursor_subtitle(self, *, width: int | None = None) -> None:
         """Rebuild the border subtitle when its displayed value is stale.
 
         Other subtitle writers (soft completions, next-word hints, the mode
@@ -408,7 +411,7 @@ class PromptInputBarStackRenderingMixin(
         the skip also requires the widget to still show the markup written here
         last.
         """
-        rendered = self._render_subtitle(self._subtitle_base)
+        rendered = self._render_subtitle(self._subtitle_base, width=width)
         if rendered == getattr(
             self, "_cursor_subtitle_rendered", None
         ) and self.border_subtitle == getattr(self, "_cursor_subtitle_markup", None):

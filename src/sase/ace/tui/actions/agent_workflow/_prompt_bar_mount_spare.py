@@ -255,6 +255,14 @@ class PromptBarSpareMixin:
                 else:
                     # Fallback: publish without full activation (never expected).
                     self._active_prompt_bar = spare  # type: ignore[attr-defined]
+                refresh_subtitle = getattr(spare, "_refresh_cursor_subtitle", None)
+                if callable(refresh_subtitle):
+                    # The mounted spare still has its hidden-layout width until
+                    # Textual processes the reveal. Render once with the app's
+                    # visible width before this key action returns, so the first
+                    # revealed frame has the same subtitle as a fresh mount.
+                    app_size = getattr(self, "size", None)
+                    refresh_subtitle(width=getattr(app_size, "width", None))
             except Exception:  # noqa: BLE001 - activation failure means fresh-mount.
                 return True
             return True

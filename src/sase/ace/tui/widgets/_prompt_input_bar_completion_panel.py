@@ -366,7 +366,7 @@ class PromptInputBarCompletionMixin(_MixinBase):
         self._subtitle_base = self._mode_subtitle
         self.border_subtitle = self._render_subtitle(self._mode_subtitle)
 
-    def _render_subtitle(self, base: str | Text) -> Text:
+    def _render_subtitle(self, base: str | Text, *, width: int | None = None) -> Text:
         """Compose *base*, search pill, and cursor readout, width-aware.
 
         The readout wins over both prompt hints and the search pill: when all
@@ -391,7 +391,8 @@ class PromptInputBarCompletionMixin(_MixinBase):
         readout = format_cursor_readout(line, column, vim_mode=text_area._vim_mode)
         readout_width = cursor_readout_cell_width(line, column)
         divider_width = cell_len(_CURSOR_READOUT_DIVIDER)
-        usable = max(0, self.size.width - _SUBTITLE_BORDER_RESERVED_CELLS)
+        subtitle_width = self.size.width if width is None else width
+        usable = max(0, subtitle_width - _SUBTITLE_BORDER_RESERVED_CELLS)
         search_pill = self._search_readout_pill(text_area)
 
         if search_pill is not None:

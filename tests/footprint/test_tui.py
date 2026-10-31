@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import json
 import os
+import subprocess
+import sys
 import threading
 import time
 from collections.abc import Iterator
@@ -83,6 +85,42 @@ def test_bump_performs_no_os_write(
     assert _counts() == {("tui:app.dismiss_toasts", "key"): 500}
 
 
+def test_bump_off_switch_is_reloaded_after_reset(
+    footprint_home: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("SASE_FOOTPRINT", "off")
+    _tui.bump("tui:app.dismiss_toasts", "key")
+    assert _counts() == {}
+
+    monkeypatch.setenv("SASE_FOOTPRINT", "test")
+    _tui._reset_for_tests()
+    _tui.bump("tui:app.dismiss_toasts", "key")
+    assert _counts() == {("tui:app.dismiss_toasts", "key"): 1}
+
+
+@pytest.mark.skipif(not hasattr(os, "fork"), reason="requires os.fork")
+def test_bump_resets_cached_state_after_fork(
+    footprint_home: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("SASE_FOOTPRINT", "off")
+    _tui.bump("tui:app.dismiss_toasts", "key")
+    assert _counts() == {}
+
+    monkeypatch.setenv("SASE_FOOTPRINT", "test")
+    child = os.fork()
+    if child == 0:
+        try:
+            _tui.bump("tui:app.dismiss_toasts", "key")
+            success = _counts() == {("tui:app.dismiss_toasts", "key"): 1}
+        except BaseException:
+            success = False
+        os._exit(0 if success else 1)
+
+    _, status = os.waitpid(child, 0)
+    assert os.waitstatus_to_exitcode(status) == 0
+    assert _counts() == {}
+
+
 def test_all_spool_io_happens_off_the_loop_thread(
     footprint_home: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -109,20 +147,46 @@ def test_all_spool_io_happens_off_the_loop_thread(
 def test_bump_microbench_stays_within_two_microseconds(
     footprint_home: Path,
 ) -> None:
-    # Warm the lazy flusher and hot call path before timing the steady-state
-    # bump cost. Keep that state through measurement so every batch measures
-    # the same path the TUI uses after its first action.
-    for _ in range(200):
-        _tui.bump("tui:app.dismiss_toasts", "key")
-    # Min-of-batches: the shared host is noisy, so the quietest batch is
-    # the honest measure of bump's own cost.
-    iterations = 5000
-    best = float("inf")
-    for _ in range(5):
-        start = time.perf_counter()
-        for _ in range(iterations):
-            _tui.bump("tui:app.dismiss_toasts", "key")
-        best = min(best, (time.perf_counter() - start) / iterations)
+    # The Full CI 3.12 leg runs tests under branch coverage. Measure in a child
+    # interpreter without coverage's subprocess hooks so the 2 µs contract
+    # remains about the product's event-loop path, not Python tracing.
+    child_env = os.environ.copy()
+    for name in tuple(child_env):
+        if name.startswith(("COV_CORE_", "COVERAGE_")):
+            child_env.pop(name)
+    child_env["SASE_FOOTPRINT"] = "test"
+    script = """
+import json
+import sys
+import time
+
+if sys.gettrace() is not None:
+    raise RuntimeError("coverage tracing is active in the benchmark child")
+
+from sase.footprint import _tui
+
+feature = "tui:app.dismiss_toasts"
+for _ in range(200):
+    _tui.bump(feature, "key")
+iterations = 5000
+samples = []
+for _ in range(5):
+    start = time.perf_counter()
+    for _ in range(iterations):
+        _tui.bump(feature, "key")
+    samples.append((time.perf_counter() - start) / iterations)
+print(json.dumps({"best": min(samples)}))
+"""
+    result = subprocess.run(
+        [sys.executable, "-c", script],
+        capture_output=True,
+        check=False,
+        env=child_env,
+        text=True,
+        timeout=30,
+    )
+    assert result.returncode == 0, result.stderr
+    best = float(json.loads(result.stdout)["best"])
     assert best <= 2e-6, f"best bump cost {best * 1e6:.3f} µs"
 
 
