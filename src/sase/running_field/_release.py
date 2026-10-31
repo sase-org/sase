@@ -23,6 +23,7 @@ def release_workspace(
     caller_tag: str | None = None,
     *,
     expected_pid: int | None = None,
+    artifacts_timestamp: str | None = None,
 ) -> ClaimResult:
     """Release a workspace by removing it from the RUNNING field.
 
@@ -37,6 +38,8 @@ def release_workspace(
             in the workspace-claim mutation ledger.
         expected_pid: When set, refuse the release (no-op plus a ledger
             record) unless every matching RUNNING row still names this pid.
+        artifacts_timestamp: When set, refuse the release unless the matching
+            RUNNING row still names this artifacts identity.
 
     Returns:
         ClaimResult.  ``success`` is True on a successful release; on
@@ -56,12 +59,17 @@ def release_workspace(
                 content = f.read()
 
             matching = _matching_release_claims(
-                content, workspace_num, workflow, cl_name
+                content,
+                workspace_num,
+                workflow,
+                cl_name,
+                artifacts_timestamp=artifacts_timestamp,
             )
-            if expected_pid is not None:
+            if expected_pid is not None or artifacts_timestamp is not None:
                 refused = _refuse_if_not_owned(
                     matching,
                     expected_pid=expected_pid,
+                    artifacts_timestamp=artifacts_timestamp,
                     project_file=project_file,
                     workspace_num=workspace_num,
                     workflow=workflow,
@@ -72,62 +80,86 @@ def release_workspace(
                 if refused is not None:
                     return refused
 
-            from sase.core.agent_cleanup_execution import (
-                try_release_workspace_from_content,
-            )
+            if expected_pid is not None:
+                from sase.core.agent_launch_claims import (
+                    plan_checked_release_workspace_claim_from_content,
+                )
 
-            rust_result = try_release_workspace_from_content(
-                content, workspace_num, workflow, cl_name
-            )
-            if rust_result is not None:
-                result_content = str(rust_result["content"])
+                owner: dict[str, object] = {
+                    "workspace_num": workspace_num,
+                    "workflow": workflow or "",
+                    "cl_name": cl_name or "",
+                    "pid": expected_pid,
+                }
+                if artifacts_timestamp:
+                    owner["artifacts_timestamp"] = artifacts_timestamp
+                plan = plan_checked_release_workspace_claim_from_content(content, owner)
+                outcome = dict(plan["outcome"])
+                if not bool(outcome["success"]):
+                    reason = outcome.get("error") or (
+                        f"workspace #{workspace_num} claim ownership moved"
+                    )
+                    return _record_refused_release(
+                        project_file=project_file,
+                        workspace_num=workspace_num,
+                        workflow=workflow,
+                        cl_name=cl_name,
+                        caller_tag=caller_tag,
+                        content=content,
+                        error=str(reason),
+                        claim_pid=expected_pid,
+                        artifacts_timestamp=artifacts_timestamp,
+                    )
+                result_content = str(plan["content"])
             else:
-                lines = content.split("\n")
-                new_lines: list[str] = []
-                in_running_field = False
-                running_field_idx = -1
-                has_remaining_claims = False
+                from sase.core.agent_cleanup_execution import (
+                    try_release_workspace_from_content,
+                )
 
-                for line in lines:
-                    if line.startswith("RUNNING:"):
-                        in_running_field = True
-                        running_field_idx = len(new_lines)
-                        new_lines.append(line)
-                        continue
-
-                    if in_running_field and line.startswith("  "):
-                        claim = WorkspaceClaim.from_line(line)
-                        if claim:
-                            # Check if this is the claim to remove
-                            should_remove = claim.workspace_num == workspace_num
-                            if workflow and claim.workflow != workflow:
-                                should_remove = False
-                            if cl_name and claim.cl_name != cl_name:
-                                should_remove = False
-
-                            if should_remove:
-                                # Skip this line (remove the claim)
-                                continue
-                            else:
-                                has_remaining_claims = True
-                    else:
-                        in_running_field = False
-
-                    new_lines.append(line)
-
-                # If RUNNING field is now empty, remove it entirely
-                if running_field_idx >= 0 and not has_remaining_claims:
-                    # Remove the RUNNING: line
-                    del new_lines[running_field_idx]
-
-                # Normalize blank lines (clean up extra blanks after RUNNING field or where it was)
-                result_content = "\n".join(new_lines)
-                if has_remaining_claims:
-                    # Normalize spacing around remaining RUNNING field
-                    result_content = normalize_running_field_spacing(result_content)
+                rust_result = try_release_workspace_from_content(
+                    content, workspace_num, workflow, cl_name
+                )
+                if rust_result is not None:
+                    result_content = str(rust_result["content"])
                 else:
-                    # Clean up orphaned blank lines where RUNNING field was removed
-                    result_content = clean_orphaned_blank_lines(result_content)
+                    lines = content.split("\n")
+                    new_lines: list[str] = []
+                    in_running_field = False
+                    running_field_idx = -1
+                    has_remaining_claims = False
+
+                    for line in lines:
+                        if line.startswith("RUNNING:"):
+                            in_running_field = True
+                            running_field_idx = len(new_lines)
+                            new_lines.append(line)
+                            continue
+
+                        if in_running_field and line.startswith("  "):
+                            claim = WorkspaceClaim.from_line(line)
+                            if claim:
+                                should_remove = claim.workspace_num == workspace_num
+                                if workflow and claim.workflow != workflow:
+                                    should_remove = False
+                                if cl_name and claim.cl_name != cl_name:
+                                    should_remove = False
+
+                                if should_remove:
+                                    continue
+                                has_remaining_claims = True
+                        else:
+                            in_running_field = False
+
+                        new_lines.append(line)
+
+                    if running_field_idx >= 0 and not has_remaining_claims:
+                        del new_lines[running_field_idx]
+
+                    result_content = "\n".join(new_lines)
+                    if has_remaining_claims:
+                        result_content = normalize_running_field_spacing(result_content)
+                    else:
+                        result_content = clean_orphaned_blank_lines(result_content)
 
             # Write atomically
             write_patch_atomic(
@@ -163,6 +195,8 @@ def _matching_release_claims(
     workspace_num: int,
     workflow: str | None,
     cl_name: str | None,
+    *,
+    artifacts_timestamp: str | None = None,
 ) -> list[WorkspaceClaim]:
     matching: list[WorkspaceClaim] = []
     in_running_field = False
@@ -178,6 +212,8 @@ def _matching_release_claims(
                 continue
             if cl_name and claim.cl_name != cl_name:
                 continue
+            if artifacts_timestamp and claim.artifacts_timestamp != artifacts_timestamp:
+                continue
             matching.append(claim)
         elif in_running_field:
             in_running_field = False
@@ -187,7 +223,8 @@ def _matching_release_claims(
 def _refuse_if_not_owned(
     matching: list[WorkspaceClaim],
     *,
-    expected_pid: int,
+    expected_pid: int | None,
+    artifacts_timestamp: str | None,
     project_file: str,
     workspace_num: int,
     workflow: str | None,
@@ -196,10 +233,12 @@ def _refuse_if_not_owned(
     content: str,
 ) -> ClaimResult | None:
     if not matching:
-        error = (
-            f"no RUNNING claim for workspace #{workspace_num} "
-            f"owned by pid {expected_pid}"
+        owner = (
+            f"pid {expected_pid}"
+            if expected_pid is not None
+            else f"artifacts {artifacts_timestamp}"
         )
+        error = f"no RUNNING claim for workspace #{workspace_num} owned by {owner}"
         return _record_refused_release(
             project_file=project_file,
             workspace_num=workspace_num,
@@ -209,25 +248,27 @@ def _refuse_if_not_owned(
             content=content,
             error=error,
             claim_pid=None,
+            artifacts_timestamp=artifacts_timestamp,
         )
-    foreign = next((claim for claim in matching if claim.pid != expected_pid), None)
-    if foreign is None:
-        return None
-    error = (
-        f"RUNNING row pid mismatch: claim pid {foreign.pid} "
-        f"!= runner pid {expected_pid}"
-    )
-    return _record_refused_release(
-        project_file=project_file,
-        workspace_num=workspace_num,
-        workflow=workflow,
-        cl_name=cl_name,
-        caller_tag=caller_tag,
-        content=content,
-        error=error,
-        claim_pid=foreign.pid,
-        artifacts_timestamp=foreign.artifacts_timestamp,
-    )
+    if expected_pid is not None:
+        foreign = next((claim for claim in matching if claim.pid != expected_pid), None)
+        if foreign is not None:
+            error = (
+                f"RUNNING row pid mismatch: claim pid {foreign.pid} "
+                f"!= runner pid {expected_pid}"
+            )
+            return _record_refused_release(
+                project_file=project_file,
+                workspace_num=workspace_num,
+                workflow=workflow,
+                cl_name=cl_name,
+                caller_tag=caller_tag,
+                content=content,
+                error=error,
+                claim_pid=foreign.pid,
+                artifacts_timestamp=foreign.artifacts_timestamp,
+            )
+    return None
 
 
 def _record_refused_release(

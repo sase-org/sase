@@ -3,11 +3,7 @@
 import os
 
 from sase.ace.patch import patch_lock, write_patch_atomic
-from sase.core.agent_launch_claims import (
-    list_workspace_claims_from_content,
-    plan_claim_workspace_from_content,
-)
-from sase.core.agent_launch_wire import WorkspaceClaimRequestWire
+from sase.core.agent_launch_claims import plan_pin_workspace_claim_from_content
 from sase.logs.workspace_claim_ledger import record_running_field_mutation
 from sase.running_field._model import ClaimResult
 
@@ -19,12 +15,15 @@ def hold_workspace_claim(
     cl_name: str,
     artifacts_timestamp: str,
     caller_tag: str | None = None,
+    *,
+    expected_pid: int | None = None,
 ) -> ClaimResult:
     """Atomically pin the existing workspace claim for a failed agent run.
 
-    The claim is removed and re-added in memory under one ProjectSpec lock so
-    readers can never observe the workspace as available.  Existing claim
-    ownership metadata, including the PID, is preserved.
+    The matching RUNNING row is rewritten in place under one ProjectSpec lock
+    so readers can never observe the workspace as available. Existing claim
+    ownership metadata, including the PID, is preserved. When ``expected_pid``
+    is set, a mismatched or replaced claim is a no-op.
     """
     if not os.path.exists(project_file):
         return ClaimResult(
@@ -37,19 +36,20 @@ def hold_workspace_claim(
             with open(project_file, encoding="utf-8") as f:
                 content = f.read()
 
-            claim = next(
-                (
-                    item
-                    for item in list_workspace_claims_from_content(content)
-                    if item.workspace_num == workspace_num
-                    and item.workflow == workflow
-                    and item.cl_name == cl_name
-                    and item.artifacts_timestamp == artifacts_timestamp
-                ),
-                None,
-            )
-            if claim is None:
-                error = (
+            owner: dict[str, object] = {
+                "workspace_num": workspace_num,
+                "workflow": workflow,
+                "cl_name": cl_name or "",
+                "artifacts_timestamp": artifacts_timestamp or "",
+            }
+            if expected_pid is not None:
+                owner["pid"] = expected_pid
+            plan = plan_pin_workspace_claim_from_content(content, owner)
+            outcome = dict(plan["outcome"])
+            claim_pid = outcome.get("pid")
+            claim_pid_int = int(claim_pid) if isinstance(claim_pid, int) else None
+            if not bool(outcome["success"]):
+                reason = outcome.get("error") or (
                     f"workspace #{workspace_num} claim for {workflow}/{cl_name} "
                     f"at {artifacts_timestamp} was not found"
                 )
@@ -62,11 +62,12 @@ def hold_workspace_claim(
                     workflow=workflow,
                     cl_name=cl_name,
                     artifacts_timestamp=artifacts_timestamp,
-                    error=error,
+                    claim_pid=claim_pid_int,
+                    error=str(reason),
                     caller_tag=caller_tag,
                 )
-                return ClaimResult(success=False, error=error)
-            if claim.pinned:
+                return ClaimResult(success=False, error=str(reason))
+            if not bool(plan.get("changed")):
                 record_running_field_mutation(
                     operation="hold",
                     project_file=project_file,
@@ -76,70 +77,11 @@ def hold_workspace_claim(
                     workflow=workflow,
                     cl_name=cl_name,
                     artifacts_timestamp=artifacts_timestamp,
-                    claim_pid=claim.pid,
+                    claim_pid=claim_pid_int,
                     error="already pinned (no-op)",
                     caller_tag=caller_tag,
                 )
                 return ClaimResult(success=True)
-
-            from sase.core.agent_cleanup_execution import (
-                try_release_workspace_from_content,
-            )
-
-            released = try_release_workspace_from_content(
-                content,
-                workspace_num,
-                workflow,
-                cl_name,
-            )
-            if released is None or not bool(released.get("removed")):
-                error = f"workspace #{workspace_num} claim could not be held"
-                record_running_field_mutation(
-                    operation="hold",
-                    project_file=project_file,
-                    workspace_num=workspace_num,
-                    success=False,
-                    before_content=content,
-                    workflow=workflow,
-                    cl_name=cl_name,
-                    artifacts_timestamp=artifacts_timestamp,
-                    claim_pid=claim.pid,
-                    error=error,
-                    caller_tag=caller_tag,
-                )
-                return ClaimResult(success=False, error=error)
-
-            plan = plan_claim_workspace_from_content(
-                str(released["content"]),
-                WorkspaceClaimRequestWire(
-                    project_file=project_file,
-                    workspace_num=workspace_num,
-                    workflow_name=claim.workflow,
-                    pid=claim.pid,
-                    cl_name=claim.cl_name or "",
-                    artifacts_timestamp=claim.artifacts_timestamp or "",
-                    pinned=True,
-                ),
-            )
-            outcome = dict(plan["outcome"])
-            if not bool(outcome["success"]):
-                reason = outcome.get("error") or (
-                    f"workspace #{workspace_num} hold rejected by core"
-                )
-                record_running_field_mutation(
-                    operation="hold",
-                    project_file=project_file,
-                    workspace_num=workspace_num,
-                    success=False,
-                    before_content=content,
-                    workflow=workflow,
-                    cl_name=cl_name,
-                    artifacts_timestamp=artifacts_timestamp,
-                    claim_pid=claim.pid,
-                    error=str(reason),
-                    caller_tag=caller_tag,
-                )
-                return ClaimResult(success=False, error=str(reason))
 
             new_content = str(plan["content"])
             write_patch_atomic(
@@ -157,7 +99,7 @@ def hold_workspace_claim(
                 workflow=workflow,
                 cl_name=cl_name,
                 artifacts_timestamp=artifacts_timestamp,
-                claim_pid=claim.pid,
+                claim_pid=claim_pid_int,
                 caller_tag=caller_tag,
             )
             return ClaimResult(success=True)

@@ -1,9 +1,9 @@
-"""Best-effort worktree snapshots for unlaunchable monitor follow-ups."""
+"""Best-effort worktree snapshots for terminal owner recovery."""
 
 from __future__ import annotations
 
 import subprocess
-from collections.abc import MutableMapping
+from collections.abc import MutableMapping, Sequence
 from pathlib import Path
 from typing import Any
 
@@ -11,6 +11,7 @@ from sase.axe.run_agent_helpers_artifacts import update_meta_field
 
 WORKTREE_RECOVERY_DIFF_FIELD = "monitor_worktree_recovery_diff_path"
 WORKTREE_RECOVERY_DIFF_LOCATOR = "diagnostics/worktree_recovery.diff"
+WORKTREE_RECOVERY_DIR = "diagnostics/worktree_recovery"
 
 _GIT_TIMEOUT_SECONDS = 10
 
@@ -31,28 +32,63 @@ def snapshot_worktree_recovery_diff(
     cwd = _clean_str(meta.get("monitor_cwd"))
     if cwd is None:
         return None
-    workspace = Path(cwd).expanduser()
-    if not workspace.is_dir():
+    paths = snapshot_owner_worktree_diffs(
+        artifacts_dir,
+        (("monitor", cwd),),
+        primary_locator=WORKTREE_RECOVERY_DIFF_LOCATOR,
+    )
+    if not paths:
         return None
-
-    root = _git_root(workspace)
-    if root is None:
-        return None
-    diff_text = _worktree_diff(root)
-    if not diff_text or not diff_text.strip():
-        return None
-
-    snapshot_path = Path(artifacts_dir) / WORKTREE_RECOVERY_DIFF_LOCATOR
-    try:
-        snapshot_path.parent.mkdir(parents=True, exist_ok=True)
-        snapshot_path.write_text(diff_text, encoding="utf-8")
-    except OSError:
-        return None
-
-    value = str(snapshot_path)
+    value = paths[0]
     meta[WORKTREE_RECOVERY_DIFF_FIELD] = value
     update_meta_field(artifacts_dir, WORKTREE_RECOVERY_DIFF_FIELD, value)
     return value
+
+
+def snapshot_owner_worktree_diffs(
+    artifacts_dir: str,
+    checkouts: Sequence[tuple[str, str]],
+    *,
+    primary_locator: str | None = None,
+) -> tuple[str, ...]:
+    """Snapshot dirty state for each named checkout belonging to one owner.
+
+    Capture is best-effort and bounded. A failed or empty probe skips that
+    checkout and does not raise. ``primary_locator`` preserves the historical
+    monitor snapshot path for the first checkout.
+    """
+    written: list[str] = []
+    for index, (repo_id, checkout) in enumerate(checkouts):
+        workspace = Path(checkout).expanduser()
+        if not workspace.is_dir():
+            continue
+        root = _git_root(workspace)
+        if root is None:
+            continue
+        diff_text = _worktree_diff(root)
+        if not diff_text or not diff_text.strip():
+            continue
+        if index == 0 and primary_locator:
+            snapshot_path = Path(artifacts_dir) / primary_locator
+        else:
+            safe_id = _safe_repo_id(repo_id) or f"repo-{index}"
+            snapshot_path = (
+                Path(artifacts_dir) / WORKTREE_RECOVERY_DIR / f"{safe_id}.diff"
+            )
+        try:
+            snapshot_path.parent.mkdir(parents=True, exist_ok=True)
+            snapshot_path.write_text(diff_text, encoding="utf-8")
+        except OSError:
+            continue
+        written.append(str(snapshot_path))
+    return tuple(written)
+
+
+def _safe_repo_id(repo_id: str) -> str:
+    cleaned = "".join(
+        char if char.isalnum() or char in "-._" else "_" for char in repo_id.strip()
+    )
+    return cleaned.strip("._") or ""
 
 
 def append_worktree_recovery_hint(prompt: str, snapshot_path: str | None) -> str:
@@ -124,5 +160,6 @@ __all__ = [
     "WORKTREE_RECOVERY_DIFF_FIELD",
     "WORKTREE_RECOVERY_DIFF_LOCATOR",
     "append_worktree_recovery_hint",
+    "snapshot_owner_worktree_diffs",
     "snapshot_worktree_recovery_diff",
 ]

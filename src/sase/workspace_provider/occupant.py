@@ -140,17 +140,36 @@ def clear_occupant_record(checkout_dir: str) -> None:
         return
 
 
-def clear_owned_occupant_record(checkout_dir: str, expected_pid: int) -> bool:
-    """Clear the occupant marker only when it names *expected_pid*.
+def clear_owned_occupant_record(
+    checkout_dir: str,
+    expected_pid: int,
+    *,
+    artifacts_timestamp: str | None = None,
+    workflow: str | None = None,
+    cl_name: str | None = None,
+    workspace_num: int | None = None,
+) -> bool:
+    """Clear the occupant marker only when it still names this owner.
 
     Returns True when the checkout has no occupant marker after the call
     (cleared or already absent). Returns False when a marker naming a
-    different pid was left in place.
+    different owner was left in place.
     """
     record = read_occupant_record(checkout_dir)
     if record is None:
         return True
     if record.pid != expected_pid:
+        return False
+    if (
+        artifacts_timestamp is not None
+        and record.artifacts_timestamp != artifacts_timestamp
+    ):
+        return False
+    if workflow is not None and record.workflow != workflow:
+        return False
+    if cl_name is not None and (record.cl_name or "") != cl_name:
+        return False
+    if workspace_num is not None and record.workspace_num != workspace_num:
         return False
     clear_occupant_record(checkout_dir)
     return True

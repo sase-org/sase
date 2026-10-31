@@ -50,6 +50,26 @@ def plan_transfer_workspace_claim_from_content(
     return dict(binding(content, agent_launch_wire_to_json_dict(request)))
 
 
+def plan_pin_workspace_claim_from_content(
+    content: str,
+    owner: dict[str, Any],
+) -> dict[str, Any]:
+    """Return planned content for pinning one RUNNING claim in place."""
+
+    binding = require_rust_binding("plan_pin_workspace_claim_from_content")
+    return dict(binding(content, owner))
+
+
+def plan_checked_release_workspace_claim_from_content(
+    content: str,
+    owner: dict[str, Any],
+) -> dict[str, Any]:
+    """Return planned content for an ownership-checked RUNNING claim release."""
+
+    binding = require_rust_binding("plan_checked_release_workspace_claim_from_content")
+    return dict(binding(content, owner))
+
+
 def allocate_and_claim_workspace_from_content(
     content: str,
     min_workspace: int,

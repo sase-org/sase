@@ -127,6 +127,65 @@ class TestClearOwnedOccupantRecord:
         empty.mkdir()
         assert clear_owned_occupant_record(str(empty), 99) is True
 
+    def test_leaves_mismatched_identity_fields_in_place(self, tmp_path: Path) -> None:
+        checkout = tmp_path / "checkout"
+        checkout.mkdir()
+        write_occupant_record(str(checkout), _record(pid=99))
+
+        assert (
+            clear_owned_occupant_record(
+                str(checkout),
+                99,
+                artifacts_timestamp="other-ts",
+            )
+            is False
+        )
+        assert (
+            clear_owned_occupant_record(
+                str(checkout),
+                99,
+                workflow="other-workflow",
+            )
+            is False
+        )
+        assert (
+            clear_owned_occupant_record(
+                str(checkout),
+                99,
+                cl_name="other",
+            )
+            is False
+        )
+        assert (
+            clear_owned_occupant_record(
+                str(checkout),
+                99,
+                workspace_num=1,
+            )
+            is False
+        )
+        occupant = read_occupant_record(str(checkout))
+        assert occupant is not None
+        assert occupant.pid == 99
+
+    def test_clears_when_all_identity_fields_match(self, tmp_path: Path) -> None:
+        checkout = tmp_path / "checkout"
+        checkout.mkdir()
+        write_occupant_record(str(checkout), _record(pid=99))
+
+        assert (
+            clear_owned_occupant_record(
+                str(checkout),
+                99,
+                artifacts_timestamp="20260818T120000",
+                workflow="ace(run)-260818_120000",
+                cl_name="demo",
+                workspace_num=17,
+            )
+            is True
+        )
+        assert read_occupant_record(str(checkout)) is None
+
 
 class TestNewOccupantRecord:
     def test_sets_claimed_at(self) -> None:

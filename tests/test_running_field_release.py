@@ -99,3 +99,59 @@ def test_release_without_expected_pid_still_drops_foreign_row(tmp_path: Path) ->
     result = release_workspace(project_file, 23, "gh-acme/widget")
     assert result.success is True
     assert get_claimed_workspaces(project_file) == []
+
+
+def test_release_workspace_refuses_foreign_artifacts_timestamp(
+    tmp_path: Path,
+) -> None:
+    project_file = create_project_file_with_running(
+        tmp_path,
+        running_claims=[
+            WorkspaceClaim(
+                23,
+                "gh-acme/widget",
+                "feature",
+                pid=222,
+                artifacts_timestamp="20260712120000",
+            )
+        ],
+    )
+    result = release_workspace(
+        project_file,
+        23,
+        "gh-acme/widget",
+        "feature",
+        expected_pid=222,
+        artifacts_timestamp="20260712999999",
+    )
+    assert result.success is False
+    claims = get_claimed_workspaces(project_file)
+    assert len(claims) == 1
+    assert claims[0].artifacts_timestamp == "20260712120000"
+
+
+def test_release_workspace_artifacts_timestamp_match_releases(
+    tmp_path: Path,
+) -> None:
+    project_file = create_project_file_with_running(
+        tmp_path,
+        running_claims=[
+            WorkspaceClaim(
+                23,
+                "gh-acme/widget",
+                "feature",
+                pid=222,
+                artifacts_timestamp="20260712120000",
+            )
+        ],
+    )
+    result = release_workspace(
+        project_file,
+        23,
+        "gh-acme/widget",
+        "feature",
+        expected_pid=222,
+        artifacts_timestamp="20260712120000",
+    )
+    assert result.success is True
+    assert get_claimed_workspaces(project_file) == []
