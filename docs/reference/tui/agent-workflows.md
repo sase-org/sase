@@ -262,9 +262,11 @@ launches bead work directly, so those controls are hidden for Epic:
 
 - **Additional prompt** — Optional extra instructions for the coder follow-up. It is
   used by Approve and Tale.
-- **Wait for** — Optional comma-separated agent names and `bead=<id>` entries. Press `w`
-  to edit it. The dialog validates the same grammar as `sase plan approve --wait` before
-  returning to the approval screen. Approve and Tale hold the coder follow-up; Epic
+- **Wait for** — Optional comma-separated agent names, `turn=<agent>`, `bead=<id>`,
+  and `hood=<name>` entries. Press `w` to edit it. The dialog validates the same grammar
+  as `sase plan approve --wait` before returning to the approval screen. A `turn=<agent>`
+  entry waits for that agent's current turn instead of the whole session; the approval
+  row shows it as `agent (turn)`. Approve and Tale hold the coder follow-up; Epic
   holds the launched bead work.
 - **Capacity** — Epic only. Press `c` to set a per-launch runner-capacity budget for the
   launched bead work; blank keeps the default queue behavior and `1` runs it alone.

@@ -116,3 +116,30 @@ def test_wait_dry_run_renders_extra_waits_on_root_wave_only(
     assert "%w:sase-s7.2" not in land
     assert "%w(bead=sase-64.3)" not in land
     assert f"#bd/land_epic:{epic_id}" in land
+
+
+def test_wait_dry_run_renders_turn_entries_as_target_turn(
+    project_dir: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    epic_id, phase_ids = seed_diamond(project_dir)
+
+    bead_cli.handle_bead_work(
+        make_args(
+            epic_id,
+            dry_run=True,
+            yes=True,
+            wait="sase-s7.2,turn=other",
+        )
+    )
+
+    out = capsys.readouterr().out
+    query = out.split("--- Multi-prompt (dry run) ---\n", 1)[1]
+    segments = query.split("\n---\n")
+    root, *dependents, land = segments
+    assert "%w:sase-s7.2" in root
+    assert "%wait(other, target=turn)" in root
+    for segment in dependents:
+        assert "%wait(other, target=turn)" not in segment
+    assert "%wait(other, target=turn)" not in land
+    assert f"#bd/land_epic:{epic_id}" in land

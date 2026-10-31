@@ -37,10 +37,34 @@ def compose_coder_prompt(
         try:
             from sase.macro.directive_edit import set_prompt_wait
 
-            prompt = set_prompt_wait(prompt, wait)  # type: ignore[arg-type]
+            prompt = set_prompt_wait(
+                prompt,
+                _parsed_wait(wait),  # type: ignore[arg-type]
+            )
         except Exception:
             pass
     return prompt
+
+
+def _parsed_wait(wait: object) -> object:
+    """Return *wait* as a prompt directive, parsing raw spec strings.
+
+    Gateless callers pass the raw ``--wait`` string through; parsing it here
+    keeps one choke point so ``turn=<agent>`` entries (and plain waits) reach
+    the coder prompt instead of being dropped. Unparsable input behaves like
+    no wait, matching the historical silent-drop contract.
+    """
+    if not isinstance(wait, str):
+        return wait
+    text = wait.strip()
+    if not text:
+        return None
+    from sase.wait_spec import WaitSpecError, parse_wait_spec
+
+    try:
+        return parse_wait_spec(text)
+    except WaitSpecError:
+        return None
 
 
 def _needs_quoting(argument: str) -> bool:

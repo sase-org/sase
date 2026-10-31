@@ -113,6 +113,7 @@ def apply_plan_side_effects(
                         result.get("wait_agents"),
                         result.get("wait_beads"),
                         result.get("wait_hoods"),
+                        result.get("wait_turn_agents"),
                     ),
                     capacity=_capacity_from_launch_result(result),
                 )

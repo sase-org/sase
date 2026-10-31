@@ -311,6 +311,8 @@ def _add_optional_wait_fields(
         response["wait_beads"] = list(wait_spec.beads)
     if wait_spec.hoods:
         response["wait_hoods"] = list(wait_spec.hoods)
+    if wait_spec.turn_target_agents:
+        response["wait_turn_agents"] = list(wait_spec.turn_target_agents)
 
 
 def _add_optional_capacity_field(

@@ -78,6 +78,30 @@ def test_format_round_trips_agents_then_beads_then_hoods() -> None:
     assert parse_wait_spec(format_wait_spec(spec)) == spec
 
 
+def test_parse_turn_entries_wait_for_the_current_turn() -> None:
+    assert parse_wait_spec("alice,turn=bob") == PromptWaitDirective(
+        agents=("alice", "bob"),
+        turn_target_agents=("bob",),
+    )
+    assert parse_wait_spec("turn=bob") == PromptWaitDirective(
+        agents=("bob",),
+        turn_target_agents=("bob",),
+    )
+
+
+def test_parse_turn_deduplicates_and_preserves_first_seen_order() -> None:
+    assert parse_wait_spec("turn=bob,turn=bob,alice") == PromptWaitDirective(
+        agents=("alice", "bob"),
+        turn_target_agents=("bob",),
+    )
+
+
+def test_format_round_trips_turn_entries_after_session_agents() -> None:
+    spec = parse_wait_spec("hood=sase-11l,bead=sase-1,turn=bob,alice,turn=zed")
+    assert format_wait_spec(spec) == "alice,turn=bob,turn=zed,bead=sase-1,hood=sase-11l"
+    assert parse_wait_spec(format_wait_spec(spec)) == spec
+
+
 @pytest.mark.parametrize(
     ("text", "match"),
     [
@@ -91,6 +115,10 @@ def test_format_round_trips_agents_then_beads_then_hoods() -> None:
         ("bead=sase 1", "bead="),
         ("hood=", "hood="),
         ("hood=sase 11l", "hood="),
+        ("turn=", "turn="),
+        ("turn=sase 1", "turn="),
+        ("alice,turn=alice", "both as an agent"),
+        ("turn=alice,alice", "both as an agent"),
         ("time=5m", "time="),
         ("runners=0", "runners="),
         ("priority=20", "priority="),
@@ -120,4 +148,28 @@ def test_wait_spec_from_name_lists_rebuilds_and_rejects_malformed() -> None:
     )
     assert wait_spec_from_name_lists(["sase-s7.2"], None) == PromptWaitDirective(
         agents=("sase-s7.2",)
+    )
+
+
+def test_wait_spec_from_name_lists_accepts_turn_agents() -> None:
+    assert wait_spec_from_name_lists(
+        ["alice", "bob"], ["sase-64.3"], ["sase-11l"], ["bob"]
+    ) == PromptWaitDirective(
+        agents=("alice", "bob"),
+        beads=("sase-64.3",),
+        hoods=("sase-11l",),
+        turn_target_agents=("bob",),
+    )
+    assert wait_spec_from_name_lists([], [], [], ["bob"]) == PromptWaitDirective(
+        agents=("bob",),
+        turn_target_agents=("bob",),
+    )
+
+
+def test_wait_spec_from_name_lists_appends_missing_turn_agents() -> None:
+    assert wait_spec_from_name_lists(["alice"], [], [], ["bob"]) == (
+        PromptWaitDirective(
+            agents=("alice", "bob"),
+            turn_target_agents=("bob",),
+        )
     )

@@ -140,8 +140,8 @@ def register_bead_work_parser(
         "--wait",
         metavar="SPEC",
         help=(
-            "Comma-separated agent names and bead=<id> entries the launched "
-            "phases wait for"
+            "Comma-separated agent names, turn=<agent>, bead=<id>, and "
+            "hood=<name> entries the launched phases wait for"
         ),
     )
     parser.add_argument(

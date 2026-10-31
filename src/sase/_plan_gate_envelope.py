@@ -157,6 +157,9 @@ def translate_plan_gate_response(
     wait_hoods = approve_result.get("wait_hoods")
     if isinstance(wait_hoods, list):
         translated["wait_hoods"] = wait_hoods
+    wait_turn_agents = approve_result.get("wait_turn_agents")
+    if isinstance(wait_turn_agents, list):
+        translated["wait_turn_agents"] = wait_turn_agents
     if "capacity" in approve_result:
         capacity = _capacity_from_approve_result(approve_result)
         if capacity is not None:
@@ -190,6 +193,7 @@ def _wait_spec_from_approve_result(
         result.get("wait_agents"),
         result.get("wait_beads"),
         result.get("wait_hoods"),
+        result.get("wait_turn_agents"),
     )
 
 

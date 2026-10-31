@@ -295,6 +295,43 @@ def test_compose_coder_prompt_session_directive_parses() -> None:
     assert directives.agent_session_attach_suffix == "code"
 
 
+def test_compose_coder_prompt_renders_raw_string_wait_spec() -> None:
+    from sase.macro.directives import extract_prompt_directives
+
+    placement = CoderPlacement(mode="standalone", reason="no planner")
+    prompt = compose_coder_prompt(
+        project_tag="+sase",
+        model_directive="@small",
+        plan_argument="plan:202609/foo.md",
+        extra_prompt=None,
+        wait="alice,bead=sase-64.3",
+        bead=None,
+        placement=placement,
+    )
+    _, directives = extract_prompt_directives(prompt)
+    assert directives.wait == ["alice"]
+    assert directives.wait_beads == ["sase-64.3"]
+
+
+def test_compose_coder_prompt_renders_turn_wait_as_target_turn() -> None:
+    from sase.macro.directives import extract_prompt_directives
+
+    placement = CoderPlacement(mode="standalone", reason="no planner")
+    prompt = compose_coder_prompt(
+        project_tag="+sase",
+        model_directive="@small",
+        plan_argument="plan:202609/foo.md",
+        extra_prompt=None,
+        wait="alice,turn=bob",
+        bead=None,
+        placement=placement,
+    )
+    assert "%wait(bob, target=turn)" in prompt
+    _, directives = extract_prompt_directives(prompt)
+    assert directives.wait == ["alice", "bob"]
+    assert dict(directives.wait_targets) == {"bob": "turn"}
+
+
 # --- coder recovery placement --------------------------------------------------
 
 

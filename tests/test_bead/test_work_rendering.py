@@ -584,6 +584,43 @@ class TestExtraWaits:
             "#bd/work_phase_bead:sase-42.1",
         ]
 
+    def test_turn_extra_waits_render_as_target_turn(self) -> None:
+        plan = EpicWorkPlan(
+            epic_id="sase-42",
+            launch_tag_id="sase-42",
+            total_phase_count=1,
+            phase_bead_ids=("sase-42.1",),
+            waves=(
+                (
+                    PhaseAssignment(
+                        bead_id="sase-42.1",
+                        agent_name="sase-42.1",
+                        waits_on=(),
+                        blocker_bead_ids=(),
+                        wave=0,
+                    ),
+                ),
+            ),
+            land_agent_name="sase-42.land",
+            land_waits_on=("sase-42.1",),
+        )
+
+        rendered = _render(
+            plan,
+            PromptWaitDirective(
+                agents=("dep", "other"),
+                beads=("sase-64.3",),
+                turn_target_agents=("other",),
+            ),
+        )
+        root, _ = rendered.split("\n---\n")
+        assert root.splitlines()[-4:] == [
+            "%w:dep",
+            "%wait(other, target=turn)",
+            "%w(bead=sase-64.3)",
+            "#bd/work_phase_bead:sase-42.1",
+        ]
+
     def test_empty_extra_waits_leave_prompt_unchanged(self) -> None:
         plan = EpicWorkPlan(
             epic_id="sase-42",

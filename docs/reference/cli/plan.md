@@ -60,7 +60,7 @@ Options:
 | `-m MODEL`, `--model MODEL`        | Optional model for the follow-up agent                                                                                                                                                                                                                                                             | —       |
 | `-P NAME`, `--project NAME`        | Project for a plan without a live approval gate                                                                                                                                                                                                                                                    | —       |
 | `-p PROMPT`, `--prompt PROMPT`     | Optional extra prompt text for approve/tale coder follow-up                                                                                                                                                                                                                                        | —       |
-| `-w SPEC`, `--wait SPEC`           | Comma-separated agent names and bead=<id> entries the approved work waits for                                                                                                                                                                                                                      | —       |
+| `-w SPEC`, `--wait SPEC`           | Comma-separated agent names, turn=<agent>, bead=<id>, and hood=<name> entries the approved work waits for                                                                                                                                                                                          | —       |
 
 Arguments:
 

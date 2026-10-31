@@ -191,6 +191,60 @@ async def test_wait_spec_editor_rejects_invalid_value() -> None:
         assert "does not accept time=" in str(error.render())
 
 
+async def test_wait_spec_editor_lists_turn_and_hood_entries() -> None:
+    async with ApproveOptionsApp().run_test() as pilot:
+        modal = _WaitSpecInputModal()
+        pilot.app.push_screen(modal)
+        await pilot.pause()
+
+        hint = modal.query_one("#approve-wait-hint", Static)
+        rendered_hint = str(hint.render())
+        assert "turn=<agent>" in rendered_hint
+        assert "hood=<name>" in rendered_hint
+
+        input_widget = modal.query_one("#approve-wait-input", SingleLineVimTextArea)
+        assert "turn=" in input_widget.placeholder
+
+
+async def test_wait_spec_editor_accepts_turn_entries() -> None:
+    result: _WaitSpecInputResult | None = None
+
+    async with ApproveOptionsApp().run_test() as pilot:
+
+        def on_dismiss(r: _WaitSpecInputResult | None) -> None:
+            nonlocal result
+            result = r
+
+        modal = _WaitSpecInputModal()
+        pilot.app.push_screen(modal, callback=on_dismiss)
+        await pilot.pause()
+        input_widget = modal.query_one("#approve-wait-input", SingleLineVimTextArea)
+        input_widget.text = "alice, turn=bob"
+        input_widget.cursor_location = input_widget.document.end
+
+        await pilot.press("enter")
+        await pilot.pause()
+
+        assert result == _WaitSpecInputResult("alice,turn=bob")
+
+
+async def test_wait_for_row_marks_turn_entries() -> None:
+    async with ApproveOptionsApp().run_test() as pilot:
+        modal = ApproveOptionsModal(
+            choice="approve",
+            wait_spec="alice,turn=16h,bead=sase-64.3",
+        )
+        pilot.app.push_screen(modal)
+        await pilot.pause()
+
+        wait_display = modal.query_one("#approval-wait-display", Static)
+        rendered = str(wait_display.render())
+        assert "16h (turn)" in rendered
+        assert "turn=16h" not in rendered
+        assert "alice" in rendered
+        assert "bead=sase-64.3" in rendered
+
+
 async def test_p_key_preserves_choice_in_edit_prompt() -> None:
     result: ApproveOptionsResult | ApproveOptionsEditPrompt | None = None
 

@@ -279,13 +279,23 @@ def _queue_capacity_lines(capacity: int | None) -> list[str]:
 def _extra_wait_lines(extra_waits: PromptWaitDirective | None) -> list[str]:
     """Render approval/CLI extra waits after a segment's intra-epic waits.
 
-    These are user-authored, so they keep the follow default (no keyword).
+    These are user-authored, so session agents keep the follow default (no
+    keyword). Turn-targeted agents render as ``%wait(a, target=turn)``.
     """
     if not extra_waits:
         return []
     lines: list[str] = []
-    if extra_waits.agents:
-        lines.append(f"%w:{','.join(extra_waits.agents)}")
+    turn_set = set(extra_waits.turn_target_agents)
+    agent_set = set(extra_waits.agents)
+    session_agents = [agent for agent in extra_waits.agents if agent not in turn_set]
+    turn_agents = [agent for agent in extra_waits.agents if agent in turn_set]
+    turn_agents.extend(
+        agent for agent in extra_waits.turn_target_agents if agent not in agent_set
+    )
+    if session_agents:
+        lines.append(f"%w:{','.join(session_agents)}")
+    if turn_agents:
+        lines.append(f"%wait({', '.join(turn_agents)}, target=turn)")
     lines.extend(f"%w(bead={bead_id})" for bead_id in extra_waits.beads)
     return lines
 

@@ -395,6 +395,7 @@ def _plan_result_schema(
         "wait_agents": {"type": "array", "items": {"type": "string"}},
         "wait_beads": {"type": "array", "items": {"type": "string"}},
         "wait_hoods": {"type": "array", "items": {"type": "string"}},
+        "wait_turn_agents": {"type": "array", "items": {"type": "string"}},
     }
     if tier == "epic":
         approve_properties["capacity"] = dict(PLAN_GATE_CAPACITY_SCHEMA)

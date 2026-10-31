@@ -611,6 +611,7 @@ def prepare_accepted_plan_successor(
     wait_agents = _wait_name_tuple(getattr(plan_result, "wait_agents", ()))
     wait_beads = _wait_name_tuple(getattr(plan_result, "wait_beads", ()))
     wait_hoods = _wait_name_tuple(getattr(plan_result, "wait_hoods", ()))
+    wait_turn_agents = _wait_name_tuple(getattr(plan_result, "wait_turn_agents", ()))
     if wait_agents or wait_beads or wait_hoods:
         from sase.macro.directive_edit import PromptWaitDirective, set_prompt_wait
 
@@ -620,6 +621,7 @@ def prepare_accepted_plan_successor(
                 agents=wait_agents,
                 beads=wait_beads,
                 hoods=wait_hoods,
+                turn_target_agents=wait_turn_agents,
             ),
         )
     return _AcceptedPlanPreparation(

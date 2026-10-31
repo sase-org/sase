@@ -136,8 +136,8 @@ def register_plan_parser(subparsers: argparse._SubParsersAction) -> None:
         "--wait",
         metavar="SPEC",
         help=(
-            "Comma-separated agent names and bead=<id> entries the approved "
-            "work waits for"
+            "Comma-separated agent names, turn=<agent>, bead=<id>, and "
+            "hood=<name> entries the approved work waits for"
         ),
     )
     links_parser = plan_subparsers.add_parser(

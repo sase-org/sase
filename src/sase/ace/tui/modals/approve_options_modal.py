@@ -177,12 +177,14 @@ class _WaitSpecInputModal(ModalScreen[_WaitSpecInputResult | None]):
         with Container(id="approve-wait-container"):
             yield Static("[bold cyan]Wait For[/bold cyan]", id="approve-wait-title")
             yield Static(
-                "Comma-separated agent names and bead=<id> entries.",
+                "Comma-separated agent names, turn=<agent>, bead=<id>, "
+                "and hood=<name> entries.",
                 id="approve-wait-hint",
             )
             yield _WaitSpecInput(
                 self._initial,
-                placeholder="agent.name, bead=sase-64.3",
+                placeholder="agent.name, turn=other.agent, "
+                "bead=sase-64.3, hood=sase-11l",
                 id="approve-wait-input",
             )
             yield Static("", id="approve-wait-error")
@@ -534,7 +536,7 @@ class ApproveOptionsModal(
         model_display.update(self._model_display_label())
 
     def _wait_display_label(self) -> str:
-        return _short_display(self._wait_spec)
+        return _short_display(_format_wait_display(self._wait_spec))
 
     def _update_wait_display(self) -> None:
         wait_display = self.query_one("#approval-wait-display", Static)
@@ -618,6 +620,30 @@ class ApproveOptionsModal(
                 capacity=self._submitted_capacity(),
             )
         )
+
+
+def _format_wait_display(wait_spec: str | None) -> str | None:
+    """Render the compact Wait-for row, marking turn entries as ``(turn)``."""
+    if not wait_spec:
+        return None
+    try:
+        parsed = parse_wait_spec(wait_spec)
+    except WaitSpecError:
+        return wait_spec
+    if not parsed.turn_target_agents:
+        return wait_spec
+    turn_set = set(parsed.turn_target_agents)
+    agent_set = set(parsed.agents)
+    parts = [agent for agent in parsed.agents if agent not in turn_set]
+    parts.extend(f"{agent} (turn)" for agent in parsed.agents if agent in turn_set)
+    parts.extend(
+        f"{agent} (turn)"
+        for agent in parsed.turn_target_agents
+        if agent not in agent_set
+    )
+    parts.extend(f"bead={bead_id}" for bead_id in parsed.beads)
+    parts.extend(f"hood={hood}" for hood in parsed.hoods)
+    return ",".join(parts)
 
 
 def _choice_from_legacy_flags(

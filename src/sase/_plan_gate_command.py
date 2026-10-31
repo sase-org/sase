@@ -69,6 +69,7 @@ def execute_plan_gate_command(option_id: str) -> int:
         )
         wait_text = plan_gate_optional_text(raw_input.get("wait"))
         wait_spec = parse_wait_spec(wait_text) if wait_text is not None else None
+        _reject_turn_waits_on_pre_upgrade_bundle(envelope, option_id, wait_spec)
         capacity = None
         if protocol_choice == "epic" and "capacity" in raw_input:
             capacity = plan_gate_optional_capacity(raw_input.get("capacity"))
@@ -103,3 +104,36 @@ def execute_plan_gate_command(option_id: str) -> int:
 
     print(json.dumps(result, sort_keys=True))
     return 0
+
+
+def _reject_turn_waits_on_pre_upgrade_bundle(
+    envelope: object,
+    option_id: str,
+    wait_spec: object,
+) -> None:
+    """Fail turn-scoped waits answered on a gate that predates turn waits.
+
+    Bundles embed their result schemas with ``additionalProperties: false``,
+    so a pre-upgrade bundle still rejects ``wait_turn_agents``. Answers that
+    request no turn entries keep working there; only turn entries fail, with
+    a message that names the fix.
+    """
+    turn_agents = getattr(wait_spec, "turn_target_agents", ())
+    if not turn_agents:
+        return
+    properties: dict[str, object] = {}
+    if isinstance(envelope, dict):
+        options = envelope.get("options")
+        if isinstance(options, list):
+            for option in options:
+                if isinstance(option, dict) and option.get("id") == option_id:
+                    schema = option.get("result_schema")
+                    if isinstance(schema, dict):
+                        raw = schema.get("properties")
+                        if isinstance(raw, dict):
+                            properties = raw
+                    break
+    if "wait_turn_agents" not in properties:
+        raise ValueError(
+            "this gate predates turn waits; answer without turn= or re-create the gate"
+        )

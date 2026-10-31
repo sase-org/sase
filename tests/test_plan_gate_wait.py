@@ -46,6 +46,13 @@ _WAIT_DIRECTIVE = PromptWaitDirective(
     beads=("sase-64.3",),
     hoods=("sase-11l",),
 )
+_TURN_WAIT_SPEC = "alice,turn=bob,bead=sase-64.3,hood=sase-11l"
+_TURN_DIRECTIVE = PromptWaitDirective(
+    agents=("alice", "bob"),
+    beads=("sase-64.3",),
+    hoods=("sase-11l",),
+    turn_target_agents=("bob",),
+)
 
 
 def _run_gate(*argv: str) -> int:
@@ -341,6 +348,35 @@ def test_plan_response_json_drops_wait_on_commit_only() -> None:
     assert "wait_hoods" not in result
 
 
+def test_plan_response_json_emits_turn_agents_only_when_non_empty() -> None:
+    result, _message = plan_response_json(
+        "approve",
+        feedback=None,
+        commit_plan=None,
+        run_coder=None,
+        coder_prompt=None,
+        coder_model=None,
+        wait_spec=_TURN_DIRECTIVE,
+    )
+
+    assert result["wait_agents"] == ["alice", "bob"]
+    assert result["wait_turn_agents"] == ["bob"]
+    assert result["wait_beads"] == ["sase-64.3"]
+    assert result["wait_hoods"] == ["sase-11l"]
+
+    plain, _message = plan_response_json(
+        "approve",
+        feedback=None,
+        commit_plan=None,
+        run_coder=None,
+        coder_prompt=None,
+        coder_model=None,
+        wait_spec=_WAIT_DIRECTIVE,
+    )
+
+    assert "wait_turn_agents" not in plain
+
+
 def test_pre_upgrade_plan_gate_rejects_wait_set_with_ordinary_error(
     gate_home: Path,
     capsys: pytest.CaptureFixture[str],
@@ -408,3 +444,227 @@ def test_tale_gate_wait_stamps_coder_successor_prompt(gate_home: Path) -> None:
     assert "%model:@small" in state.current_prompt
     assert "#gh:sase" in state.current_prompt
     assert f"@{approval.plan_file}" in state.current_prompt
+
+
+def test_execute_plan_gate_command_accepts_a_turn_wait_spec(
+    gate_home: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    gate = create_gate(
+        build_plan_approval_gate_spec(
+            write_plan(gate_home, "cmd-turn-wait.md", VALID_TALE_PLAN),
+            "cmd-turn-wait",
+        )
+    )
+
+    code, stdout, stderr = _command_result(
+        monkeypatch, capsys, gate.bundle_path, "approve", {"wait": _TURN_WAIT_SPEC}
+    )
+
+    assert code == 0
+    assert stderr == ""
+    result = json.loads(stdout)
+    assert result["wait_agents"] == ["alice", "bob"]
+    assert result["wait_turn_agents"] == ["bob"]
+    assert result["wait_beads"] == ["sase-64.3"]
+    assert result["wait_hoods"] == ["sase-11l"]
+
+
+def test_turn_wait_translates_into_runner_protocol(
+    gate_home: Path,
+) -> None:
+    gate = create_gate(
+        build_plan_approval_gate_spec(
+            write_plan(gate_home, "turn-wait.md", VALID_TALE_PLAN),
+            "turn-wait",
+        )
+    )
+
+    execution = execute_gate_selection(
+        gate.bundle_path, ["approve"], {"wait": _TURN_WAIT_SPEC}
+    )
+    translated = translate_plan_gate_response(gate.bundle_path, execution.response)
+
+    assert translated["wait_agents"] == ["alice", "bob"]
+    assert translated["wait_turn_agents"] == ["bob"]
+    assert translated["wait_beads"] == ["sase-64.3"]
+    assert translated["wait_hoods"] == ["sase-11l"]
+    primary = execution.response["option_results"][0]["result"]
+    assert primary["wait_turn_agents"] == ["bob"]
+
+
+def test_turn_wait_stamps_coder_successor_prompt_with_target_turn(
+    gate_home: Path,
+) -> None:
+    plan = write_plan(gate_home, "coder-turn-wait.md", VALID_TALE_PLAN)
+    gate = create_gate(build_plan_approval_gate_spec(plan, "coder-turn-wait"))
+    execution = execute_gate_selection(
+        gate.bundle_path, ["approve"], {"wait": _TURN_WAIT_SPEC}
+    )
+    approval = plan_approval_result_from_gate_response(
+        gate.bundle_path, execution.response
+    )
+    assert approval is not None
+    assert approval.wait_agents == ("alice", "bob")
+    assert approval.wait_turn_agents == ("bob",)
+    assert approval.wait_beads == ("sase-64.3",)
+    assert approval.wait_hoods == ("sase-11l",)
+
+    coder_root = gate_home / "coder-turn-workspace"
+    coder_root.mkdir()
+    with patched_plan_deps():
+        _, state, _ = run_plan_approval(
+            coder_root,
+            approval=approval,
+            agent_model="opus",
+            agent_llm_provider="claude",
+        )
+
+    assert "%wait(alice)" in state.current_prompt
+    assert "%wait(bob, target=turn)" in state.current_prompt
+    _, directives = extract_prompt_directives(state.current_prompt)
+    assert dict(directives.wait_targets) == {"bob": "turn"}
+
+
+def test_epic_adapter_forwards_turn_onto_the_launch_argv(gate_home: Path) -> None:
+    from sase.notification_gates.registry import adapter_for_kind
+
+    plan = write_plan(gate_home, "epic-turn-wait.md", VALID_EPIC_PLAN)
+    gate = create_gate(build_plan_approval_gate_spec(plan, "epic-turn-wait"))
+    response = {
+        "selected_option_ids": ["approve"],
+        "input": {"epic_launch_mode": "launch", "wait": _TURN_WAIT_SPEC},
+        "option_results": [
+            {
+                "id": "approve",
+                "result": {
+                    "action": "epic",
+                    "commit_plan": True,
+                    "run_coder": True,
+                    "epic_launch_owner": "host",
+                    "wait_agents": ["alice", "bob"],
+                    "wait_turn_agents": ["bob"],
+                    "wait_beads": ["sase-64.3"],
+                    "wait_hoods": ["sase-11l"],
+                },
+            }
+        ],
+        "source": "tui",
+    }
+
+    with (
+        patch("sase.plan_approval_actions.run_plan_side_effects"),
+        patch(
+            "sase.plan_approval_actions.prepare_epic_launch",
+            return_value=SimpleNamespace(monitor_id="mon-turn-wait"),
+        ) as prepare,
+    ):
+        adapter_for_kind("epic_plan").apply_side_effects(
+            bundle_path=gate.bundle_path,
+            response=response,
+        )
+
+    assert prepare.call_args.kwargs["wait_spec"] == _TURN_DIRECTIVE
+    argv = build_epic_launch_argv(str(plan), wait_spec=_TURN_DIRECTIVE)
+    assert argv[argv.index("--wait") + 1] == _TURN_WAIT_SPEC
+
+
+def _strip_turn_agents_from_result_schemas(spec: dict) -> None:
+    for option in spec.get("options", []):
+        properties = option.get("input_schema", {}).get("properties")
+        if isinstance(properties, dict):
+            assert "wait_turn_agents" not in properties
+        result_schema = option.get("result_schema")
+        if not isinstance(result_schema, dict):
+            continue
+        result_properties = result_schema.get("properties")
+        if isinstance(result_properties, dict):
+            result_properties.pop("wait_turn_agents", None)
+
+
+def test_pre_upgrade_plan_gate_rejects_turn_set_with_a_clear_error(
+    gate_home: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    spec = build_plan_approval_gate_spec(
+        write_plan(gate_home, "pre-upgrade-turn.md", VALID_TALE_PLAN),
+        "pre-upgrade-turn-wait",
+    )
+    _strip_turn_agents_from_result_schemas(spec)
+    gate = create_gate(spec)
+
+    code = _run_gate(
+        "answer",
+        "-i",
+        "pre-upgrade-turn-wait",
+        "-k",
+        "plan",
+        "-o",
+        "approve",
+        "-s",
+        f"wait={_TURN_WAIT_SPEC}",
+    )
+
+    assert code == 1
+    assert "this gate predates turn waits" in capsys.readouterr().err
+    assert not gate.response_path.exists()
+
+
+def test_pre_upgrade_plan_gate_accepts_a_wait_without_turn_entries(
+    gate_home: Path,
+) -> None:
+    spec = build_plan_approval_gate_spec(
+        write_plan(gate_home, "pre-upgrade-plain.md", VALID_TALE_PLAN),
+        "pre-upgrade-plain-wait",
+    )
+    _strip_turn_agents_from_result_schemas(spec)
+    gate = create_gate(spec)
+
+    execution = execute_gate_selection(
+        gate.bundle_path, ["approve"], {"wait": _WAIT_SPEC}
+    )
+    translated = translate_plan_gate_response(gate.bundle_path, execution.response)
+
+    assert translated["wait_agents"] == ["sase-s7.2"]
+    assert "wait_turn_agents" not in translated
+
+
+def test_tui_plan_approval_response_emits_turn_agents() -> None:
+    from sase.ace.tui.actions.agents._notification_plan_response import (
+        build_plan_approval_response,
+    )
+    from sase.ace.tui.modals.plan_approval_results import PlanApprovalResult
+
+    response_data = build_plan_approval_response(
+        PlanApprovalResult(
+            action="approve",
+            commit_plan=False,
+            run_coder=True,
+            wait_spec=_TURN_WAIT_SPEC,
+        )
+    )
+
+    assert response_data["wait_agents"] == ["alice", "bob"]
+    assert response_data["wait_turn_agents"] == ["bob"]
+    assert response_data["wait_beads"] == ["sase-64.3"]
+    assert response_data["wait_hoods"] == ["sase-11l"]
+
+
+def test_tui_plan_approval_response_omits_turn_agents_when_empty() -> None:
+    from sase.ace.tui.actions.agents._notification_plan_response import (
+        build_plan_approval_response,
+    )
+    from sase.ace.tui.modals.plan_approval_results import PlanApprovalResult
+
+    response_data = build_plan_approval_response(
+        PlanApprovalResult(
+            action="approve",
+            commit_plan=False,
+            run_coder=True,
+            wait_spec=_WAIT_SPEC,
+        )
+    )
+
+    assert response_data["wait_agents"] == ["sase-s7.2"]
+    assert "wait_turn_agents" not in response_data
