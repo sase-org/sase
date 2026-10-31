@@ -49,8 +49,51 @@ def fork_source_follows_promotion(
     )
 
 
-def fork_wait_dependency(name: str) -> dict[str, str]:
-    """Return a stable wait identity for one explicit ``#fork`` target."""
+def fork_wait_dependency(
+    name: str,
+    *,
+    target: str | None = None,
+    target_explicit: bool | None = None,
+    requested: str | None = None,
+    waiter_artifact_dir: str | Path | None = None,
+) -> dict[str, Any]:
+    """Return a v2 wait identity for one explicit ``#fork`` target."""
+    from sase.agent.wait_target_binding import bind_wait_target
+
+    explicit = target is not None if target_explicit is None else target_explicit
+    binding = bind_wait_target(
+        name,
+        requested_target=target if explicit else None,
+        waiter_artifact_dir=waiter_artifact_dir,
+    )
+    resolved_request = requested or name
+    legacy_source = _legacy_fork_wait_dependency(name)
+    source: dict[str, Any]
+
+    if legacy_source.get("kind") == "proc":
+        source = legacy_source
+    elif binding.scope in {"current_turn", "member"}:
+        source = dict(binding.identity_record or {})
+        source["kind"] = "agent"
+    elif binding.kind == "exact_member" and binding.scope == "session":
+        source = dict(binding.identity_record or {})
+        source["kind"] = "session"
+    else:
+        source = legacy_source
+
+    source.update(
+        {
+            "record_version": 2,
+            "requested": resolved_request,
+            "target": binding.target,
+            "target_explicit": binding.target_explicit,
+        }
+    )
+    return source
+
+
+def _legacy_fork_wait_dependency(name: str) -> dict[str, Any]:
+    """Return the stable identity payload used before v2 target bindings."""
     from sase.agent.names import find_agent_clan, find_agent_session, find_named_agent
 
     clan = find_agent_clan(name)

@@ -126,7 +126,14 @@ def _rewrite_template_resume_references(
             if colon.startswith("`") and colon.endswith("`"):
                 colon_args = [_unquote_backtick_arg(colon)]
             else:
-                colon_args, _ = parse_args(colon, preserve_empty_args=True)
+                colon_args, colon_named = parse_args(
+                    colon,
+                    preserve_empty_args=True,
+                )
+                if kind == "fork" and colon_named:
+                    # The launch scan reports the targeted syntax error. Do
+                    # not erase named values while rewriting a template name.
+                    continue
             resolved_args = _resolve_template_arg_list(
                 colon_args,
                 resolve_template_name,
@@ -148,19 +155,41 @@ def _rewrite_template_resume_references(
         if paren_end is None:
             continue
         inner = protected[paren_start + 1 : paren_end]
-        positional_args, _ = parse_args(inner, preserve_empty_args=True)
-        if not positional_args:
+        try:
+            positional_args, named_args = parse_args(
+                inner,
+                reject_duplicate_named_args=True,
+                preserve_empty_args=True,
+            )
+        except ValueError:
+            # Keep malformed named arguments intact for the launch validator.
+            continue
+        if not positional_args and not named_args:
             continue
         resolved_args = _resolve_template_arg_list(
             positional_args,
             resolve_template_name,
         )
-        if resolved_args is not None:
+        named_changed = False
+        rewritten_named = dict(named_args)
+        if kind == "fork" and "name" in rewritten_named:
+            resolved_name = _resolve_template_arg(
+                rewritten_named["name"],
+                resolve_template_name,
+            )
+            if resolved_name is not None:
+                rewritten_named["name"] = resolved_name
+                named_changed = True
+        if resolved_args is not None or named_changed:
+            rendered_args = list(resolved_args or positional_args)
+            rendered_args.extend(
+                f"{key}={value}" for key, value in rewritten_named.items()
+            )
             replacements.append(
                 (
                     match.start(),
                     paren_end + 1,
-                    f"#{kind}({','.join(resolved_args)})",
+                    f"#{kind}({','.join(rendered_args)})",
                 )
             )
 

@@ -255,10 +255,19 @@ class TestExtractDirectivesImplicitForkWait:
             )
         assert result["meta"].get("wait_for") == ["foo"]
         assert result["meta"].get("wait_for_fork_sources") == [
-            {"kind": "name", "name": "foo"}
+            {
+                "kind": "name",
+                "name": "foo",
+                "record_version": 2,
+                "requested": "foo",
+                "target": "session",
+                "target_explicit": False,
+            }
         ]
         assert result["info"].wait_names == ["foo"]
-        assert result["info"].wait_fork_sources == [{"kind": "name", "name": "foo"}]
+        assert (
+            result["info"].wait_fork_sources == result["meta"]["wait_for_fork_sources"]
+        )
         # Fork-derived naming still wins over the implicit wait.
         assert result["info"].name == "foo.f0"
         assert result["meta"].get("name") == "foo.f0"
@@ -288,6 +297,10 @@ class TestExtractDirectivesImplicitForkWait:
             "artifact_dir": str(parent_dir),
             "timestamp": parent_dir.name,
             "project_name": "proj",
+            "record_version": 2,
+            "requested": "failed-parent",
+            "target": "session",
+            "target_explicit": False,
         }
         assert result["meta"].get("wait_for") == ["failed-parent"]
         assert result["meta"].get("wait_for_fork_sources") == [expected_source]
@@ -386,7 +399,9 @@ class TestExtractDirectivesImplicitForkWait:
         assert result["info"].name == "foo.f0"
         assert result["meta"].get("name") == "foo.f0"
 
-    def test_explicit_duplicate_wait_is_not_repeated(self, tmp_path: Path) -> None:
+    def test_explicit_duplicate_wait_keeps_history_only_fork_record(
+        self, tmp_path: Path
+    ) -> None:
         with patch.object(Path, "home", return_value=tmp_path):
             result = run_extract(
                 tmp_path,
@@ -395,9 +410,12 @@ class TestExtractDirectivesImplicitForkWait:
                 raw_resolved_prompt="#fork:foo %wait:foo do stuff",
             )
         assert result["meta"].get("wait_for") == ["foo"]
-        assert "wait_for_fork_sources" not in result["meta"]
+        source = result["meta"]["wait_for_fork_sources"][0]
+        assert source["requested"] == "foo"
+        assert source["target"] == "session"
+        assert source["history_only"] is True
         assert result["info"].wait_names == ["foo"]
-        assert result["info"].wait_fork_sources == []
+        assert result["info"].wait_fork_sources == [source]
         assert result["info"].name == "foo.f0"
 
     def test_normalized_explicit_duplicate_wait_is_not_repeated(
@@ -421,9 +439,12 @@ class TestExtractDirectivesImplicitForkWait:
                 raw_resolved_prompt="#fork:foo %wait:athena.foo do stuff",
             )
         assert result["meta"].get("wait_for") == ["foo"]
-        assert "wait_for_fork_sources" not in result["meta"]
+        source = result["meta"]["wait_for_fork_sources"][0]
+        assert source["requested"] == "foo"
+        assert source["name"] == "athena.foo"
+        assert source["history_only"] is True
         assert result["info"].wait_names == ["foo"]
-        assert result["info"].wait_fork_sources == []
+        assert result["info"].wait_fork_sources == [source]
         assert result["info"].name == "foo.f0"
 
     def test_proc_fork_records_exact_proc_identity(
@@ -446,6 +467,10 @@ class TestExtractDirectivesImplicitForkWait:
                 "kind": "proc",
                 "name": "build-docs",
                 "proc_id": "proc0123456789ab",
+                "record_version": 2,
+                "requested": "build-docs",
+                "target": "session",
+                "target_explicit": False,
             }
         ]
         assert result["meta"]["wait_for_fork_sources"] == (
@@ -479,6 +504,10 @@ class TestExtractDirectivesImplicitForkWait:
                 "artifact_dir": str(root),
                 "timestamp": root.name,
                 "project_name": "proj",
+                "record_version": 2,
+                "requested": "cx",
+                "target": "session",
+                "target_explicit": False,
             }
         ]
 
@@ -510,6 +539,10 @@ class TestExtractDirectivesImplicitForkWait:
                 "artifact_dir": str(root),
                 "timestamp": root.name,
                 "project_name": "proj",
+                "record_version": 2,
+                "requested": base_name,
+                "target": "session",
+                "target_explicit": False,
             }
         ]
 
@@ -542,6 +575,10 @@ class TestExtractDirectivesImplicitForkWait:
                 "kind": "proc",
                 "name": "cx--mon",
                 "proc_id": "mon0123456789ab",
+                "record_version": 2,
+                "requested": "cx--mon",
+                "target": "turn",
+                "target_explicit": False,
             }
         ]
 
@@ -566,6 +603,10 @@ class TestExtractDirectivesImplicitForkWait:
             "artifact_dir": str(starter),
             "timestamp": starter.name,
             "project_name": "proj",
+            "record_version": 2,
+            "requested": "starter",
+            "target": "session",
+            "target_explicit": False,
         }
 
     def test_clan_fork_records_generation_identity(
@@ -596,6 +637,10 @@ class TestExtractDirectivesImplicitForkWait:
                 "kind": "clan",
                 "name": "review",
                 "generation": "20260801010000",
+                "record_version": 2,
+                "requested": "review",
+                "target": "session",
+                "target_explicit": False,
             }
         ]
 
@@ -610,6 +655,7 @@ class TestExtractDirectivesImplicitForkWait:
                 raw_resolved_prompt="#fork:planner,coder %wait:coder do stuff",
             )
         assert result["meta"].get("wait_for") == ["coder", "planner"]
+        assert result["meta"]["wait_for_fork_sources"][1]["history_only"] is True
         assert result["info"].wait_names == ["coder", "planner"]
         assert result["info"].name == "0"
 

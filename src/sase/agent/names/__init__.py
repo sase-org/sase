@@ -110,6 +110,7 @@ from sase.agent.names._registry import (
 )
 from sase.agent.names._retry import allocate_retry_name, retry_agent_name_template
 from sase.agent.names._resume import (
+    ForkReference,
     active_resume_reserved_names,
     active_wait_reserved_names,
     agent_name_allocation_lock,
@@ -119,6 +120,7 @@ from sase.agent.names._resume import (
     allocate_wait_names,
     first_fork_agent_name,
     first_resume_agent_name,
+    fork_references,
     fork_agent_names,
     has_fork_reference,
     resume_agent_name_template,
@@ -319,6 +321,8 @@ __all__ = [
     "find_agent_clan",
     "first_fork_agent_name",
     "first_resume_agent_name",
+    "ForkReference",
+    "fork_references",
     "fork_agent_names",
     "has_fork_reference",
     "get_active_agent_name_map",

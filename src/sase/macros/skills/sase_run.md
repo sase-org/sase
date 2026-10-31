@@ -122,7 +122,11 @@ control how the launched agent's changes land. Discover what is available with
 member's sanitized prompts plus reply outcome, model, launch time, size statistics, and
 transcript path; full member replies are intentionally omitted so the child can open
 only the transcripts it needs. `#fork:@<tribe>` implies the matching tribe wait and then
-forks the same next entity, using the lean clan block when that entity is a clan.
+forks the same next entity, using the lean clan block when that entity is a clan. For an
+agent parent, `#fork(parent, target=turn)` pins the current turn, waits for it to
+finish, and limits history to that turn and earlier session turns. Omit `target` for the
+whole session when `parent` is bare, or for that one member when `parent` is an exact
+`--<suffix>` name.
 
 ### Literal Directive Text
 

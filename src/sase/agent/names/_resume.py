@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Iterator
 from contextlib import contextmanager
+from dataclasses import dataclass
 import fcntl
 import os
 from pathlib import Path
@@ -27,6 +28,16 @@ _RESUME_REF_RE = re.compile(
     r"(?P<open_paren>\()"
     r")"
 )
+
+
+@dataclass(frozen=True, slots=True)
+class ForkReference:
+    """One explicit fork parent and its requested wait target."""
+
+    name: str
+    target: str | None = None
+    target_explicit: bool = False
+
 
 _PROCESS_NAME_LOCK = threading.RLock()
 _LOCK_STATE = threading.local()
@@ -103,7 +114,38 @@ def sole_resume_agent_name(prompt: str | None) -> str | None:
 
 def fork_agent_names(prompt: str | None) -> list[str]:
     """Return all explicit fork parents in stable, de-duplicated order."""
-    return _resolved_fork_agent_names(list(_iter_reference_arg_groups(prompt)))
+    names: list[str] = []
+    for reference in fork_references(prompt):
+        if reference.name not in names:
+            names.append(reference.name)
+    return names
+
+
+def fork_references(prompt: str | None) -> list[ForkReference]:
+    """Return structured fork parents, resolving agent-name templates."""
+    if not prompt or "#fork" not in prompt:
+        return []
+
+    references: list[ForkReference] = []
+    for match in _iter_protected_reference_matches(prompt):
+        if match.group("kind") != "fork":
+            continue
+        for reference in _resume_reference_arguments(prompt, match):
+            if not reference.name:
+                continue
+            name = (
+                reference.name
+                if _is_tribe_reference(reference.name)
+                else _resolve_fork_agent_reference(reference.name)
+            )
+            references.append(
+                ForkReference(
+                    name=name,
+                    target=reference.target,
+                    target_explicit=reference.target_explicit,
+                )
+            )
+    return references
 
 
 def first_fork_agent_name(prompt: str | None) -> str | None:
@@ -127,10 +169,21 @@ def has_fork_reference(prompt: str | None) -> bool:
     resolve agent-name templates, touch active-agent state, or raise when a
     template reference such as ``#fork:build-@`` has no concrete match yet.
     """
-    return any(
-        kind == "fork" and bool(args)
-        for kind, args in _iter_reference_arg_groups(prompt)
-    )
+    for match in _iter_protected_reference_matches(prompt):
+        text = match.string or ""
+        if match.group("kind") != "fork":
+            continue
+        if match.group("colon") is not None:
+            if match.group("colon"):
+                return True
+            continue
+        if match.group("open_paren") is None:
+            continue
+        paren_start = match.end("open_paren") - 1
+        paren_end = find_matching_paren_for_args(text, paren_start)
+        if paren_end is not None and text[paren_start + 1 : paren_end].strip():
+            return True
+    return False
 
 
 def allocate_resume_name(
@@ -282,38 +335,90 @@ def wait_agent_name_template(base: str) -> str:
 def _iter_reference_arg_groups(
     prompt: str | None,
 ) -> Iterator[tuple[str, list[str]]]:
-    if not prompt:
-        return
-    if "#fork" not in prompt and "#resume" not in prompt:
-        return
+    for match in _iter_protected_reference_matches(prompt):
+        references = _resume_reference_arguments(prompt or "", match)
+        names = [reference.name for reference in references if reference.name]
+        if names:
+            yield match.group("kind"), names
 
+
+def _iter_protected_reference_matches(
+    prompt: str | None,
+) -> Iterator[re.Match[str]]:
+    if not prompt or ("#fork" not in prompt and "#resume" not in prompt):
+        return
     fenced: list[str] = []
     protected = protect_fenced_blocks(prompt, fenced)
     disabled: list[str] = []
     protected = protect_disabled_regions(protected, disabled)
-
-    for match in _RESUME_REF_RE.finditer(protected):
-        args = _resume_reference_arguments(protected, match)
-        if args:
-            yield match.group("kind"), args
+    yield from _RESUME_REF_RE.finditer(protected)
 
 
-def _resume_reference_arguments(text: str, match: re.Match[str]) -> list[str]:
+def _resume_reference_arguments(
+    text: str,
+    match: re.Match[str],
+) -> list[ForkReference]:
+    # Matches are found in a protected copy with fenced/disabled regions
+    # replaced by placeholders. Parenthesized argument offsets must be read
+    # against that same copy, since its offsets no longer align with *text*.
+    text = match.string or ""
     colon = match.group("colon")
     if colon is not None:
         if colon.startswith("`") and colon.endswith("`"):
             value = colon[1:-1]
-            return [value] if value else []
-        positional, _ = parse_args(colon, preserve_empty_args=True)
-        return [value for value in positional if value]
+            positional = [value] if value else []
+            named: dict[str, str] = {}
+        else:
+            positional, named = parse_args(colon, preserve_empty_args=True)
+        if match.group("kind") == "fork" and named:
+            raise ValueError(
+                "Named #fork inputs require parenthesized syntax; "
+                "write #fork(name=parent, target=turn)."
+            )
+        return [ForkReference(name=value) for value in positional if value]
     if match.group("open_paren") is not None:
         paren_start = match.end("open_paren") - 1
         paren_end = find_matching_paren_for_args(text, paren_start)
         if paren_end is None:
             return []
         inner = text[paren_start + 1 : paren_end]
-        positional, _ = parse_args(inner, preserve_empty_args=True)
-        return [value for value in positional if value]
+        try:
+            positional, named = parse_args(
+                inner,
+                reject_duplicate_named_args=True,
+                preserve_empty_args=True,
+            )
+        except ValueError as exc:
+            raise ValueError(
+                f"Invalid #{match.group('kind')} arguments: {exc}"
+            ) from exc
+        if match.group("kind") != "fork":
+            return [ForkReference(name=value) for value in positional if value]
+
+        unexpected = set(named) - {"name", "target"}
+        if unexpected:
+            unexpected_names = ", ".join(sorted(unexpected))
+            raise ValueError(f"Unsupported named #fork input(s): {unexpected_names}")
+        parsed_names = [value for value in positional if value]
+        named_name = named.get("name")
+        if named_name:
+            parsed_names.append(named_name)
+        target = named.get("target")
+        if target is not None:
+            from sase.core.wait_target_facade import parse_wait_target
+
+            try:
+                target = parse_wait_target(target)
+            except (RuntimeError, ValueError) as exc:
+                raise ValueError(f"Invalid #fork target={target!r}: {exc}") from exc
+        return [
+            ForkReference(
+                name=value,
+                target=target,
+                target_explicit=target is not None,
+            )
+            for value in parsed_names
+        ]
     return []
 
 

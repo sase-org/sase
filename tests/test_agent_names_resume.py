@@ -7,11 +7,13 @@ import pytest
 
 from sase.agent.names import (
     AgentNameTemplateNotFoundError,
+    ForkReference,
     allocate_resume_name,
     allocate_resume_names,
     first_fork_agent_name,
     first_resume_agent_name,
     fork_agent_names,
+    fork_references,
     has_fork_reference,
     resume_agent_name_template,
     resolve_resume_agent_name,
@@ -66,6 +68,41 @@ class TestResumeAgentNames:
             "planner",
             "coder",
         ]
+
+    def test_fork_references_preserve_target_and_named_name(self) -> None:
+        assert fork_references("#fork(name=demo, target=turn)") == [
+            ForkReference("demo", "turn", True)
+        ]
+        assert fork_references("#fork(a, turn)") == [
+            ForkReference("a"),
+            ForkReference("turn"),
+        ]
+
+    def test_fork_references_cover_multiple_live_calls_only(self) -> None:
+        prompt = (
+            "```\n#fork(fenced, target=turn)\n```\n"
+            "%macros_enabled:false\n#fork(disabled, target=turn)\n"
+            "%macros_enabled:true\n#fork(first) #fork(second, target=session)"
+        )
+        assert fork_references(prompt) == [
+            ForkReference("first"),
+            ForkReference("second", "session", True),
+        ]
+
+    def test_fork_target_rejects_invalid_value_and_colon_named_input(self) -> None:
+        with pytest.raises(ValueError, match="Invalid #fork target"):
+            fork_references("#fork(parent, target=nowhere)")
+        with pytest.raises(ValueError, match="parenthesized syntax"):
+            fork_references("#fork:parent,target=turn")
+
+    def test_named_fork_parent_resolves_template(self, tmp_path: Path) -> None:
+        _make_agent(tmp_path, "proj", "run1", "build-1")
+        _make_agent(tmp_path, "proj", "run2", "build-4")
+
+        with patch.object(Path, "home", return_value=tmp_path):
+            assert fork_references("#fork(name=build-@, target=turn)") == [
+                ForkReference("build-4", "turn", True)
+            ]
 
     def test_single_parent_remains_the_sole_naming_parent(self) -> None:
         assert fork_agent_names("#fork:planner") == ["planner"]
@@ -125,6 +162,7 @@ class TestResumeAgentNames:
         assert has_fork_reference("#fork:foo do work") is True
         assert has_fork_reference("#fork(foo) do work") is True
         assert has_fork_reference("#fork:`foo bar` do work") is True
+        assert has_fork_reference("#fork(target=turn)") is True
 
     def test_has_fork_reference_ignores_non_explicit_forks(self) -> None:
         assert has_fork_reference("#resume:foo do work") is False

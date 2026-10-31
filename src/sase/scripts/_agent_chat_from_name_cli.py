@@ -9,12 +9,16 @@ from collections.abc import Sequence
 from sase.scripts._agent_chat_from_name_sources import resolve_agent_chat_sources
 
 
-def main(argv: Sequence[str] | None = None) -> int:
+def main(
+    argv: Sequence[str] | None = None,
+    *,
+    target: str | None = None,
+) -> int:
     """Print resolved fork-source metadata as JSON."""
     parser = argparse.ArgumentParser()
     parser.add_argument("name", nargs="*")
     args = parser.parse_args(argv)
-    sources = resolve_agent_chat_sources(args.name)
+    sources = resolve_agent_chat_sources(args.name, target=target)
     source_data = [source.to_json_data() for source in sources]
     print(
         json.dumps(

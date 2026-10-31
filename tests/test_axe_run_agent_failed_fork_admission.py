@@ -92,6 +92,10 @@ class TestFailedForkParentAdmission:
                 "artifact_dir": str(parent_dir),
                 "timestamp": "run1",
                 "project_name": "proj",
+                "record_version": 2,
+                "requested": "parent-agent",
+                "target": "session",
+                "target_explicit": False,
             }
         ]
         assert info.wait_beads == []
@@ -106,7 +110,7 @@ class TestFailedForkParentAdmission:
     ) -> None:
         """A user-authored `%wait:<name>` survives with success-only
         semantics even though the same name is also an implicit `#fork` wait."""
-        _make_agent(
+        parent_dir = _make_agent(
             tmp_path,
             "proj",
             "run1",
@@ -121,7 +125,20 @@ class TestFailedForkParentAdmission:
             )
 
         assert "parent-agent" in info.wait_names
-        assert info.wait_fork_sources == []
+        assert info.wait_fork_sources == [
+            {
+                "kind": "session",
+                "name": "parent-agent",
+                "artifact_dir": str(parent_dir),
+                "timestamp": "run1",
+                "project_name": "proj",
+                "record_version": 2,
+                "requested": "parent-agent",
+                "target": "session",
+                "target_explicit": False,
+                "history_only": True,
+            }
+        ]
 
     def test_runner_admits_and_claims_real_workspace_for_failed_fork_parent(
         self, tmp_path: Path

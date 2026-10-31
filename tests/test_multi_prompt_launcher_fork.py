@@ -203,6 +203,15 @@ def test_bare_resume_rewrite_ignores_explicit_fenced_and_disabled_regions() -> N
     )
 
 
+def test_target_only_fork_binds_previous_agent_and_keeps_named_target() -> None:
+    prompt = "#fork(target=turn)\nReview"
+
+    assert _has_bare_resume_reference(prompt) is True
+    assert _rewrite_bare_resume_references(prompt, "builder") == (
+        "#fork(builder,target=turn)\nReview"
+    )
+
+
 @patch("sase.agent.launcher.spawn_agent_subprocess")
 @patch("sase.agent.multi_prompt_launcher._wait_for_agent_naming")
 @patch("sase.core.time.generate_timestamp", return_value="260501_120000")

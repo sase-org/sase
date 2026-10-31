@@ -607,15 +607,23 @@ class WaitDependencyIndexQueries(
         for dependency in wait_fork_sources:
             if not isinstance(dependency, Mapping):
                 continue
+            if dependency.get("history_only"):
+                continue
             name = dependency.get("name")
-            if isinstance(name, str) and name:
+            target_is_turn = dependency.get("target") == "turn"
+            if not target_is_turn and isinstance(name, str) and name:
                 fork_source_names.add(name)
             if _dependency_label(dependency) in resolved_items:
                 continue
             candidate = self._identity_candidate(dependency)
             if candidate is not None:
-                add_candidate_members(candidate)
-                if fork_source_follows_promotion(dependency, candidate):
+                if target_is_turn:
+                    add_candidates((candidate,))
+                else:
+                    add_candidate_members(candidate)
+                if not target_is_turn and fork_source_follows_promotion(
+                    dependency, candidate
+                ):
                     # A healed bare-name record releases on the whole session,
                     # so confirmation must see every session member even when
                     # the resolving view predates the promotion.
@@ -631,7 +639,12 @@ class WaitDependencyIndexQueries(
                 else:
                     for members in generations.values():
                         add_candidates(members)
-            elif candidate is None and isinstance(name, str) and name:
+            elif (
+                candidate is None
+                and not target_is_turn
+                and isinstance(name, str)
+                and name
+            ):
                 add_name_members(name)
 
         for name in wait_names:

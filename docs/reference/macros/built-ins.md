@@ -77,6 +77,17 @@ session wait, so a later promotion of that parent into a session keeps the fork 
 through review and coding. A fork bound to an exact `--<suffix>` member name keeps
 waiting on that one member only.
 
+Choose the scope explicitly with `#fork(<parent>, target=session|turn)`. A bare name
+defaults to the whole session, while an exact member name defaults to that member.
+`target=turn` pins the parent's current turn at launch, waits for that turn to finish, and
+limits injected history to that turn and its earlier session turns; later turns appear
+under **Not shown**. For example, `%wait(16h) #fork(16h, target=turn)` keeps the explicit
+session wait while the fork history stops at the captured turn. If `16h` is parked at a
+gate, the turn target waits for the gate decision; use `#fork(16h--plan)` to fork the
+plan immediately. `#fork(name=demo, target=turn)` is the named-input form. Named inputs
+use parentheses; colon syntax remains a list of parent names, so `#fork:a, turn` names
+two parents.
+
 `#fork` also resolves a stand-alone named proc (by its reusable proc name or its exact
 proc ID) and a monitor session member (by its `--mon`/`--mon-N` proc name or exact proc
 ID). Both are execution records, never a prior conversation: the injected block states

@@ -20,7 +20,7 @@ class WaitResolution:
     wait_names: list[str]
     wait_for_epics_of: list[str]
     wait_identity_deps: list[dict[str, Any]]
-    wait_fork_sources: list[dict[str, str]]
+    wait_fork_sources: list[dict[str, Any]]
     wait_beads: list[str]
     wait_hoods: list[str]
     batch_predecessor_context_payload: dict[str, Any] | None
@@ -56,7 +56,7 @@ def resolve_wait_state(
     ``wait_for_artifacts`` / ``wait_for_fork_sources`` and never re-pin a
     current turn.
     """
-    from sase.agent.names import fork_agent_names
+    from sase.agent.names import fork_references
 
     wait_names = list(directives.wait)
     preserved_identity = _preserved_record_list(
@@ -81,7 +81,7 @@ def resolve_wait_state(
             batch_predecessor_context_payload = dict(
                 batch_predecessor_binding.wait_for_artifacts[0]
             )
-    wait_fork_sources: list[dict[str, str]] = []
+    wait_fork_sources: list[dict[str, Any]] = []
     wait_beads = list(directives.wait_beads)
     wait_hoods = list(directives.wait_hoods)
     from sase.core.agent_tribe import (
@@ -90,19 +90,19 @@ def resolve_wait_state(
         reserved_tribe_target_reason,
     )
 
-    implicit_fork_wait_targets: list[str] = []
-    for fork_wait_target in fork_agent_names(fork_reference_prompt):
+    fork_reference_requests = fork_references(fork_reference_prompt)
+    for fork_reference in fork_reference_requests:
+        fork_wait_target = fork_reference.name
         fork_tribe = parse_tribe_reference(fork_wait_target)
         if fork_tribe is not None and is_reserved_tribe_name(fork_tribe):
             raise RuntimeError(
                 f"Invalid '#fork' tribe reference {fork_wait_target!r}: "
                 f"{reserved_tribe_target_reason(fork_tribe)}"
             )
-        if fork_wait_target in wait_names:
-            continue
-        wait_names.append(fork_wait_target)
-        if fork_tribe is None:
-            implicit_fork_wait_targets.append(fork_wait_target)
+        if fork_tribe is not None and fork_reference.target == "turn":
+            from sase.agent.wait_target_binding import bind_wait_target
+
+            bind_wait_target(fork_wait_target, requested_target="turn")
     if agent_session_attach_plan and agent_session_attach_plan.parent_is_running:
         if agent_session_attach_plan.parent_name not in wait_names:
             wait_names.append(agent_session_attach_plan.parent_name)
@@ -128,7 +128,6 @@ def resolve_wait_state(
             return name
         return normalize_owned_agent_name(name, machine_identity)
 
-    explicit_wait_names = {normalized_wait_name(name) for name in directives.wait}
     wait_names = list(dict.fromkeys(normalized_wait_name(name) for name in wait_names))
     # Implicit targets added by fork sources, batch predecessors, and the
     # session parent are never armed for epic-follow.
@@ -139,36 +138,115 @@ def resolve_wait_state(
     wait_for_epics_of = [name for name in wait_for_epics_of if name in set(wait_names)]
     assert set(wait_for_epics_of) <= set(wait_names)
     if preserved_forks is not None:
-        wait_fork_sources = [
-            {str(key): str(value) for key, value in item.items()}
-            for item in preserved_forks
-        ]
-    elif implicit_fork_wait_targets:
-        from sase.agent.fork_waits import fork_wait_dependency
-
-        wait_fork_sources = [
-            fork_wait_dependency(normalized_wait_name(name))
-            for name in implicit_fork_wait_targets
-            if normalized_wait_name(name) not in explicit_wait_names
-        ]
+        wait_fork_sources = [dict(item) for item in preserved_forks]
+        for reference in fork_reference_requests:
+            name = normalized_wait_name(reference.name)
+            if parse_tribe_reference(name) is not None:
+                if name not in wait_names:
+                    wait_names.append(name)
+                continue
+            record = next(
+                (
+                    item
+                    for item in wait_fork_sources
+                    if item.get("requested") == reference.name
+                    or item.get("name") == name
+                ),
+                None,
+            )
+            if record is None or (
+                record.get("target") != "turn" and record.get("name") == name
+            ):
+                if name not in wait_names:
+                    wait_names.append(name)
     if preserved_identity is None:
         targets = wait_targets
         if targets is None:
             raw_targets = getattr(directives, "wait_targets", None)
             targets = dict(raw_targets) if isinstance(raw_targets, Mapping) else None
-        if targets:
-            from sase.agent.wait_target_binding import bind_explicit_wait_targets
+        normalized_targets = {
+            normalized_wait_name(str(name)): str(target)
+            for name, target in (targets or {}).items()
+        }
+        explicit_wait_targets = {
+            normalized_wait_name(name): normalized_targets.get(
+                normalized_wait_name(name)
+            )
+            for name in directives.wait
+        }
+        explicit_wait_names = {
+            normalized_wait_name(name): name for name in directives.wait
+        }
+        explicit_wait_effective_targets: dict[str, str] = {}
+        if explicit_wait_targets:
+            from sase.agent.wait_target_binding import (
+                bind_explicit_wait_targets,
+                bind_wait_target,
+            )
 
-            normalized_targets = {
-                normalized_wait_name(str(name)): str(target)
-                for name, target in targets.items()
-            }
-            wait_identity_deps.extend(
-                bind_explicit_wait_targets(
-                    normalized_targets,
+            for name, requested_target in explicit_wait_targets.items():
+                binding = bind_wait_target(
+                    name,
+                    requested_target=requested_target,
                     waiter_artifact_dir=waiter_artifact_dir,
                 )
-            )
+                explicit_wait_effective_targets[name] = binding.target
+            if normalized_targets:
+                wait_identity_deps.extend(
+                    bind_explicit_wait_targets(
+                        normalized_targets,
+                        waiter_artifact_dir=waiter_artifact_dir,
+                    )
+                )
+        if preserved_forks is None:
+            from sase.agent.fork_waits import fork_wait_dependency
+
+            seen_fork_identities: set[tuple[str, str]] = set()
+            for reference in fork_reference_requests:
+                name = normalized_wait_name(reference.name)
+                if parse_tribe_reference(name) is not None:
+                    continue
+                source = fork_wait_dependency(
+                    name,
+                    target=reference.target,
+                    target_explicit=reference.target_explicit,
+                    requested=reference.name,
+                    waiter_artifact_dir=waiter_artifact_dir,
+                )
+                source_target = str(source.get("target", "session"))
+                source["requested"] = reference.name
+                identity = (
+                    source.get("artifact_dir")
+                    or source.get("proc_id")
+                    or (
+                        source.get("kind"),
+                        source.get("name"),
+                        source.get("generation"),
+                    )
+                )
+                identity_key = (repr(identity), source_target)
+                duplicate_identity = identity_key in seen_fork_identities
+                seen_fork_identities.add(identity_key)
+                explicit_duplicate = (
+                    explicit_wait_effective_targets.get(name) == source_target
+                )
+                if duplicate_identity or explicit_duplicate:
+                    source["history_only"] = True
+                    if explicit_duplicate and source.get("kind") == "name":
+                        source["name"] = explicit_wait_names.get(name, source["name"])
+                wait_fork_sources.append(source)
+                # A turn record carries the complete fork wait by itself. Keep
+                # an explicit same-name session wait separate when one exists.
+                if (
+                    source_target != "turn"
+                    and source.get("name") == name
+                    and name not in wait_names
+                ):
+                    wait_names.append(name)
+            for reference in fork_reference_requests:
+                name = normalized_wait_name(reference.name)
+                if parse_tribe_reference(name) is not None and name not in wait_names:
+                    wait_names.append(name)
     return WaitResolution(
         wait_names=wait_names,
         wait_for_epics_of=wait_for_epics_of,

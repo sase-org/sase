@@ -157,6 +157,10 @@ def test_tribe_wait_is_not_rewritten_as_template(tmp_path: Path) -> None:
     [
         ("#fork:build-@,review-@", "#fork:build-0,review-0"),
         ("#fork(build-@, review-@)", "#fork(build-0,review-0)"),
+        (
+            "#fork(name=build-@, target=turn)",
+            "#fork(name=build-0,target=turn)",
+        ),
     ],
 )
 def test_multi_parent_fork_rewrites_every_planned_template_reference(

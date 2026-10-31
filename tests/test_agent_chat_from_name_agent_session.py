@@ -58,6 +58,46 @@ def test_agent_session_name_and_explicit_children_use_member_owned_transcripts(
     assert _resolve_agent_chat_path("cx--code") == str(coder_chat)
 
 
+def test_explicit_target_is_honored_without_a_bound_launch_record(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(Path, "home", classmethod(lambda cls: tmp_path))
+    monkeypatch.setenv("SASE_HOME", str(tmp_path / ".sase"))
+    monkeypatch.delenv("SASE_ARTIFACTS_DIR", raising=False)
+    planner_chat = tmp_path / "planner.md"
+    coder_chat = tmp_path / "coder.md"
+    write_agent(
+        tmp_path,
+        "20260718010101",
+        "cx--plan",
+        done={"response_path": str(planner_chat), "outcome": "completed"},
+        meta={"workflow_name": "cx", "agent_session": "cx"},
+    )
+    write_agent(
+        tmp_path,
+        "20260718010202",
+        "cx--code",
+        done={"response_path": str(coder_chat), "outcome": "completed"},
+        meta={
+            "workflow_name": "cx",
+            "agent_session": "cx",
+            "parent_timestamp": "20260718010101",
+        },
+    )
+
+    turn_source = _resolve_agent_chat_sources(["cx--plan"], target="turn")[0]
+    session_source = _resolve_agent_chat_sources(["cx--plan"], target="session")[0]
+
+    assert turn_source.kind == "agent"
+    assert turn_source.path == str(planner_chat)
+    assert session_source.kind == "session"
+    assert [member.name for member in session_source.members] == [
+        "cx--plan",
+        "cx--code",
+    ]
+
+
 def test_agent_session_source_reads_dismissed_member_transcript_from_bundle(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

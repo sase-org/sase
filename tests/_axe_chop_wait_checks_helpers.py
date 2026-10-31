@@ -33,7 +33,7 @@ def make_waiting_agent(
     *waiting_for: str,
     suffix: str = "waiter",
     wait_for_artifacts: list[dict[str, str]] | None = None,
-    wait_for_fork_sources: list[dict[str, str]] | None = None,
+    wait_for_fork_sources: list[dict[str, object]] | None = None,
     wait_for_beads: list[str] | None = None,
     wait_for_epics_of: list[str] | None = None,
     wait_epic_follows: list[dict] | None = None,

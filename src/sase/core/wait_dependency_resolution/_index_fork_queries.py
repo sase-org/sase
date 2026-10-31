@@ -96,6 +96,10 @@ class WaitDependencyForkQueries:
                         )
                     return _fork_status(_candidate_terminal_for_fork(candidate))
                 return _fork_status(_candidate_terminal_for_fork(candidate))
+            if dependency.get("target") == "turn":
+                # A pinned turn never falls back to a newer namesake or the
+                # whole session when its artifact is absent from this index.
+                return _fork_status(False)
             return self._fork_name_fallback_status(
                 name,
                 exclude_artifact_dir=exclude_artifact_dir,

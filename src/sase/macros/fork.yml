@@ -6,8 +6,16 @@ input:
     default: null
     repeatable: true
     description: >-
-      Optional agent name, named proc name/ID, or monitor turn to resume; omitted means use
-      the default resolver.
+      Optional agent name, named proc name/ID, or monitor turn to resume; omitted means
+      use the default resolver. A bare name defaults to its whole session, while an
+      exact session-member name keeps that member only.
+  target:
+    type: wait_target
+    keyword_only: true
+    default: null
+    description: >-
+      Choose the whole session or the current turn for each named parent. When omitted,
+      bare names mean session and exact session members keep that member.
 
 steps:
   - name: resolve
@@ -15,7 +23,8 @@ steps:
     python: |
       from sase.scripts.agent_chat_from_name import main
       names = {{ name | tojson }}
-      main(names or [])
+      target = {{ target | tojson }}
+      main(names or [], target=target)
     output: { path: text, sources_json: text }
 
   - name: load_history

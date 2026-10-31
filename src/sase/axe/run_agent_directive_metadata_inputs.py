@@ -34,7 +34,7 @@ class AgentMetadataInputs:
     bead_id: str | None
     wait_names: list[str]
     wait_identity_deps: list[dict[str, Any]]
-    wait_fork_sources: list[dict[str, str]]
+    wait_fork_sources: list[dict[str, Any]]
     wait_beads: list[str]
     wait_hoods: list[str]
     model: str | None

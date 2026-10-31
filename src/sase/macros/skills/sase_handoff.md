@@ -50,6 +50,8 @@ Do not hand off for:
 
 - `-f, --fresh` — successor starts with a clean context window. Default: prefix
   `#fork:<this agent>` so the successor inherits this chat.
+- Use `#fork(<this agent>, target=turn)` when the successor should inherit history only
+  through this agent's current turn.
 - `-j, --json` — print a machine-readable hand-off summary instead of the rich one.
 - `-m, --model MODEL` — model or alias for the successor (`opus`, `opus@high`, `sonnet`,
   `codex/gpt-5`). Default: inherit this agent's model.

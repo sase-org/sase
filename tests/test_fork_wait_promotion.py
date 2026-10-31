@@ -103,17 +103,17 @@ def _identity(name: str, artifact_dir: Path) -> dict[str, str]:
     }
 
 
-def _legacy_agent_source(name: str, artifact_dir: Path) -> dict[str, str]:
+def _legacy_agent_source(name: str, artifact_dir: Path) -> dict[str, object]:
     return {"kind": "agent", **_identity(name, artifact_dir)}
 
 
-def _session_seed(name: str, artifact_dir: Path) -> dict[str, str]:
+def _session_seed(name: str, artifact_dir: Path) -> dict[str, object]:
     return {"kind": "session", **_identity(name, artifact_dir)}
 
 
 def _release(
     waiter_dir: Path,
-    fork_sources: list[dict[str, str]],
+    fork_sources: list[dict[str, object]],
 ) -> bool:
     return resolve_initial_wait_release(
         [],
@@ -135,7 +135,13 @@ def test_bare_name_binds_session_seed(
     _patch_home(monkeypatch, tmp_path)
     plain_dir = _running_agent(tmp_path, "proj", "20260506010101", "solo")
 
-    assert fork_wait_dependency("solo") == _session_seed("solo", plain_dir)
+    assert fork_wait_dependency("solo") == {
+        **_session_seed("solo", plain_dir),
+        "record_version": 2,
+        "requested": "solo",
+        "target": "session",
+        "target_explicit": False,
+    }
 
 
 def test_exact_member_keeps_agent_record(
@@ -154,9 +160,14 @@ def test_exact_member_keeps_agent_record(
         outcome="completed",
     )
 
-    assert fork_wait_dependency("lane--plan") == _legacy_agent_source(
-        "lane--plan", root_dir
-    )
+    assert fork_wait_dependency("lane--plan") == {
+        **_legacy_agent_source("lane--plan", root_dir),
+        "record_version": 2,
+        "requested": "lane--plan",
+        "target": "turn",
+        "target_explicit": False,
+        "turn_name": "lane--plan",
+    }
 
 
 def test_16h_replay_waits_through_gate_and_code(
@@ -168,7 +179,13 @@ def test_16h_replay_waits_through_gate_and_code(
     waiter_dir = make_waiting_agent(tmp_path, "16h")
 
     bound = fork_wait_dependency("16h")
-    assert bound == _session_seed("16h", plain_dir)
+    assert bound == {
+        **_session_seed("16h", plain_dir),
+        "record_version": 2,
+        "requested": "16h",
+        "target": "session",
+        "target_explicit": False,
+    }
 
     # The parent is promoted after the bind: same artifact dir, renamed to the
     # plan member of a new session with a pending gate.

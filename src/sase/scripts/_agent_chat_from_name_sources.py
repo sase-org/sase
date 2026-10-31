@@ -47,7 +47,11 @@ from sase.scripts._agent_chat_from_name_tribe import resolve_tribe_fork_source
 from sase.scripts._fork_proc_sources import proc_info_from_proc
 
 
-def resolve_agent_chat_sources(names: Sequence[str]) -> list[ForkSource]:
+def resolve_agent_chat_sources(
+    names: Sequence[str],
+    *,
+    target: str | None = None,
+) -> list[ForkSource]:
     """Resolve and validate every requested parent as one atomic operation."""
     requested_names: list[str | None] = list(names) or [None]
     bound_records = _bound_fork_records()
@@ -72,9 +76,20 @@ def resolve_agent_chat_sources(names: Sequence[str]) -> list[ForkSource]:
             resolved_name = normalize_name(requested_name)
             if resolved_name is None:
                 resolved_name = resolve_default_agent_name()
+            bound_record = _record_for_requested_name(
+                requested_name or resolved_name,
+                bound_records,
+            )
+            if (
+                bound_record is None
+                and requested_name is not None
+                and requested_name != resolved_name
+            ):
+                bound_record = _record_for_requested_name(resolved_name, bound_records)
             source = _resolve_fork_source(
                 resolved_name,
-                bound_record=_record_for_requested_name(resolved_name, bound_records),
+                bound_record=bound_record,
+                target=target,
             )
         except (OSError, RuntimeError, ValueError) as exc:
             errors.append(f"parent {index} ({label}): {exc}")
@@ -162,6 +177,7 @@ def _resolve_fork_source(
     name: str,
     *,
     bound_record: dict[str, object] | None = None,
+    target: str | None = None,
 ) -> ForkSource:
     """Resolve *name* to an agent, agent session, or complete clan source.
 
@@ -171,6 +187,16 @@ def _resolve_fork_source(
     :func:`resolve_tribe_fork_source` has, so canonicalization must not run
     before that lookup.
     """
+    if bound_record is None and target is not None:
+        from sase.agent.fork_waits import fork_wait_dependency
+
+        bound_record = fork_wait_dependency(
+            name,
+            target=target,
+            target_explicit=target is not None,
+            requested=name,
+            waiter_artifact_dir=os.environ.get("SASE_ARTIFACTS_DIR"),
+        )
     bound_source = _resolve_bound_fork_source(name, bound_record)
     if bound_source is not None:
         return bound_source

@@ -82,7 +82,7 @@ def wait_for_dependencies(
     *,
     project_name: str | None = None,
     wait_identity_deps: list[dict[str, Any]] | None = None,
-    wait_fork_sources: list[dict[str, str]] | None = None,
+    wait_fork_sources: list[dict[str, Any]] | None = None,
     wait_beads: list[str] | None = None,
     wait_hoods: list[str] | None = None,
     duration: float | None = None,

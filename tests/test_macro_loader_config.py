@@ -396,7 +396,7 @@ def test_internal_fork_workflow_name_uses_agent_type() -> None:
     workflow = get_all_workflows()["fork"]
     inputs = [arg for arg in workflow.inputs if not arg.is_step_input]
 
-    assert [arg.name for arg in inputs] == ["name"]
+    assert [arg.name for arg in inputs] == ["name", "target"]
     assert inputs[0].type == InputType.AGENT
     assert inputs[0].default is None
 

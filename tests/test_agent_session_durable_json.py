@@ -113,7 +113,14 @@ def test_fork_wait_writer_emits_session_kind(monkeypatch: Any) -> None:
         "find_agent_session",
         lambda _name: AgentSession(base_name="feat", root=None, members=()),
     )
-    assert fork_wait_dependency("feat") == {"kind": "session", "name": "feat"}
+    assert fork_wait_dependency("feat") == {
+        "kind": "session",
+        "name": "feat",
+        "record_version": 2,
+        "requested": "feat",
+        "target": "session",
+        "target_explicit": False,
+    }
 
 
 def test_continuation_baseline_measures_both_kinds() -> None:

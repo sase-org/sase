@@ -13,7 +13,10 @@ import pytest
 from sase.agent.wait_target_binding import bind_explicit_wait_targets, bind_wait_target
 from sase.axe.run_agent_directives_flow import resolve_wait_state
 from sase.core.process_identity import process_identity_token
-from sase.core.wait_dependency_resolution import WaitDependencyIndex
+from sase.core.wait_dependency_resolution import (
+    WaitDependencyIndex,
+    dependency_resolution_status,
+)
 from tests._agent_names_fixtures import make_agent
 from tests._axe_chop_wait_checks_helpers import make_waiting_agent
 
@@ -374,6 +377,101 @@ def test_resolve_wait_state_appends_turn_records(
     assert record["target"] == "turn"
     assert record["turn_name"] == "16h--gate"
     assert record["artifact_dir"] == str(gate)
+
+
+def test_fork_turn_keeps_an_explicit_session_wait(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _patch_home(monkeypatch, tmp_path)
+    root = _session_root(
+        tmp_path, "20260506010101", "16h", done=True, outcome="completed"
+    )
+    gate = _running_agent(
+        tmp_path,
+        "proj",
+        "20260506010202",
+        "16h--gate",
+        workflow_name="16h",
+        agent_session="16h",
+        role_suffix="--gate",
+        parent_timestamp=root.name,
+        extra_meta={"agent_session_role": "gate", "gate_id": "gate-1"},
+    )
+    waiter = make_waiting_agent(tmp_path, "16h")
+    state = resolve_wait_state(
+        _directives("16h"),
+        fork_reference_prompt="#fork(16h, target=turn)",
+        batch_predecessor_binding=None,
+        agent_session_attach_plan=None,
+        waiter_artifact_dir=waiter,
+    )
+
+    assert state.wait_names == ["16h"]
+    assert state.wait_identity_deps == []
+    assert len(state.wait_fork_sources) == 1
+    source = state.wait_fork_sources[0]
+    assert source["target"] == "turn"
+    assert source["turn_name"] == "16h--gate"
+    assert source["artifact_dir"] == str(gate)
+    assert source.get("history_only") is None
+
+
+def test_fork_session_on_exact_member_pins_owning_root(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _patch_home(monkeypatch, tmp_path)
+    root = _session_root(
+        tmp_path, "20260506010101", "16h", done=True, outcome="completed"
+    )
+    _session_member(tmp_path, "20260506010202", "16h", "gate", root, done=True)
+    waiter = make_waiting_agent(tmp_path, "16h")
+
+    state = resolve_wait_state(
+        _directives(),
+        fork_reference_prompt="#fork(16h--gate, target=session)",
+        batch_predecessor_binding=None,
+        agent_session_attach_plan=None,
+        waiter_artifact_dir=waiter,
+    )
+
+    assert state.wait_names == []
+    source = state.wait_fork_sources[0]
+    assert source["kind"] == "session"
+    assert source["name"] == "16h"
+    assert source["target"] == "session"
+    assert source["artifact_dir"] == str(root)
+
+
+def test_same_target_fork_record_is_history_only_but_session_name_wait_remains(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _patch_home(monkeypatch, tmp_path)
+    _running_agent(tmp_path, "proj", "20260506010101", "solo")
+    state = resolve_wait_state(
+        _directives("solo"),
+        fork_reference_prompt="#fork(solo)",
+        batch_predecessor_binding=None,
+        agent_session_attach_plan=None,
+    )
+    assert state.wait_names == ["solo"]
+    assert len(state.wait_fork_sources) == 1
+    assert state.wait_fork_sources[0]["history_only"] is True
+
+
+def test_history_only_fork_records_do_not_block_or_add_members() -> None:
+    index = WaitDependencyIndex.empty()
+    history_only = {"kind": "name", "name": "missing", "history_only": True}
+
+    status = dependency_resolution_status(
+        index,
+        [],
+        wait_fork_sources=[history_only],
+    )
+    assert status.resolved
+    assert not index.dependency_member_dirs([], wait_fork_sources=[history_only])
+
+    session_wait = dependency_resolution_status(index, ["missing"])
+    assert not session_wait.resolved
 
 
 def test_resolve_wait_state_reuses_preserved_records(

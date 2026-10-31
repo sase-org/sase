@@ -304,9 +304,11 @@ When `--next` is set, the follow-up agent receives the previous conversation thr
 own turn, the same shared turn substrate that gate turns fork through — plus the
 original reason, the requested next action, and a command-run breakdown: outcome, exit
 code, elapsed time, selected output policy, and the path to the retained captured log.
-The reason, next action, table fields, and embedded output are wrapped as literal prompt
-text; only the follow-up's routing prefix remains live. Omit `--model` to inherit the
-starter's model and reasoning effort; pass `--model` to replace that inherited routing.
+Use `#fork(<agent session>, target=turn)` when a follow-up should wait for and include
+only the current turn's bounded session history. The reason, next action, table fields,
+and embedded output are wrapped as literal prompt text; only the follow-up's routing
+prefix remains live. Omit `--model` to inherit the starter's model and reasoning effort;
+pass `--model` to replace that inherited routing.
 
 With `--next-output auto`, completed runs use facts and refs, failed runs prefer
 diagnostic refs, and timeouts include a bounded raw tail. With `--next-output tail`, the

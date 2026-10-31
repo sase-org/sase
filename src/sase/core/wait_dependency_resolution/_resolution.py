@@ -50,8 +50,14 @@ def dependency_resolution_status(
         if not isinstance(dependency, Mapping):
             _append_blocked_dependency(blocked_on, _dependency_label(dependency))
             continue
+        if dependency.get("history_only"):
+            continue
         dependency_name = dependency.get("name")
-        if isinstance(dependency_name, str) and dependency_name:
+        if (
+            dependency.get("target") != "turn"
+            and isinstance(dependency_name, str)
+            and dependency_name
+        ):
             fork_source_names.add(dependency_name)
         label = _dependency_label(dependency)
         if label in resolved_dep_items:

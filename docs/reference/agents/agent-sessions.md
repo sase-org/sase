@@ -143,10 +143,13 @@ Fork history follows the wait record captured when the fork was bound. A session
 selects the generation by its root artifact identity, so a later session with the same
 name cannot replace it. A turn target on a bare session name includes the session
 through the pinned turn; later turns appear under **Not shown** with the reason “after
-the bound turn.” An exact member target includes that member alone. Use
+the bound turn.” An exact member target includes that member alone by default. Use
 `#fork(<session>, target=turn)` to wait for and include the current turn captured at
-launch. If the session is parked at its gate, this waits for the gate decision; use
-`#fork:<session>--plan` to fork the plan immediately.
+launch, or `target=session` on an exact member name to select its whole owning session.
+If the session is parked at its gate, a turn target waits for the gate decision; use
+`#fork:<session>--plan` to fork the plan immediately. An explicit `%wait(<session>)`
+remains session-scoped when combined with a turn-target fork, so the wait can cover the
+whole session while the injected history stops at the captured turn.
 
 ### Session detail folding
 
