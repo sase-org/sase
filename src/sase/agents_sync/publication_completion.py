@@ -21,14 +21,32 @@ from sase.core.agent_publication_recovery import (
 from sase.sase_agent import agent_session_page_path
 
 
-def publication_request_fulfilled(
+def publication_request_completion(
     target: ProjectTarget,
     item: AgentPublicationOutboxItem,
     owner: AgentOwnerIdentity,
-) -> bool:
-    """Return whether *item* has its required page and requested revision."""
+) -> PublicationCompletionDecision:
+    """Return the full completion decision for *item*.
 
-    return _publication_request_completion(target, item, owner).fulfilled
+    Callers that refuse a request should record
+    :func:`publication_refusal_message` so the outbox names the real reason
+    instead of a generic materialization failure.
+    """
+
+    return _publication_request_completion(target, item, owner)
+
+
+def publication_refusal_message(
+    item: AgentPublicationOutboxItem,
+    decision: PublicationCompletionDecision,
+) -> str:
+    """Render the refusal error for a request the completion gate rejected."""
+
+    return (
+        f"agent publication for {item.global_agent!r} not acknowledged: "
+        f"{decision.reason} (page {decision.required_page}, "
+        f"scope {item.scope}, revision {item.primary_revision[:12]})"
+    )
 
 
 def stale_requested_revision_rows(
@@ -40,8 +58,9 @@ def stale_requested_revision_rows(
 
     Each returned row names a requested revision that no matching published
     run carries even though the required page exists, so the ack gate will
-    keep refusing it until `sase agent sync --repair-revisions --apply`
-    rekeys it. Snapshots that cannot be read are skipped, never counted.
+    keep refusing it until a `sase agent sync --repair-revisions` report
+    classifies it. Only rows the report proves repairable can be rewritten
+    with `--apply`. Snapshots that cannot be read are skipped, never counted.
     """
 
     stale: list[AgentPublicationOutboxItem] = []
@@ -212,7 +231,8 @@ def _safe_sidecar_file(repo: Path, relative: str) -> Path:
 
 
 __all__ = [
-    "publication_request_fulfilled",
+    "publication_refusal_message",
+    "publication_request_completion",
     "snapshot_prompt_file_present",
     "stale_requested_revision_rows",
 ]

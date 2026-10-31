@@ -116,7 +116,8 @@ def test_retry_retired_does_not_ack_a_page_without_the_requested_revision(
     assert remaining.logical_key == item.logical_key
     assert remaining.attempts == 1
     assert not remaining.terminal
-    assert "did not materialize" in str(remaining.last_error)
+    assert "did not materialize" not in str(remaining.last_error)
+    assert "not acknowledged:" in str(remaining.last_error)
 
 
 def test_retry_retired_acknowledges_a_session_page_not_an_unrelated_readme(

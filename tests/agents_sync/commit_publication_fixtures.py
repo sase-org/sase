@@ -3,8 +3,15 @@ from __future__ import annotations
 import json
 from pathlib import Path
 import subprocess
+from types import SimpleNamespace
 
 from sase.agents_sync.models import ProjectTarget
+
+
+def fulfilled_completion(*_args: object, **_kwargs: object) -> SimpleNamespace:
+    """Fake a fulfilled completion decision for publication drains."""
+
+    return SimpleNamespace(fulfilled=True, reason="", required_page="")
 
 
 def git(cwd: Path, *args: str) -> subprocess.CompletedProcess[str]:

@@ -27,7 +27,10 @@ from sase.agents_sync.publication_outbox import (
     enqueue_agent_publication,
 )
 from sase.core.agent_identity_facade import AgentIdentitySnapshot, AgentOwnerIdentity
-from tests.agents_sync.commit_publication_fixtures import setup_target
+from tests.agents_sync.commit_publication_fixtures import (
+    fulfilled_completion,
+    setup_target,
+)
 from tests.agents_sync.inventory_fixtures import (
     git_log,
     make_record,
@@ -487,8 +490,8 @@ def test_commit_drain_passes_selected_hoods_to_inventory(
 
     monkeypatch.setattr(publication_locked, "build_project_hood_inventory", build)
     monkeypatch.setattr(
-        "sase.agents_sync.publication_completion.publication_request_fulfilled",
-        lambda *_args, **_kwargs: True,
+        "sase.agents_sync.publication_completion.publication_request_completion",
+        fulfilled_completion,
     )
     monkeypatch.setattr(
         "sase.agents_sync.prompt_archive.deferred.restore_deferred_prompt_archives",

@@ -28,7 +28,11 @@ from sase.agents_sync.v2_models import (
     V2PublicationCounts,
 )
 from sase.core.agent_identity_facade import AgentOwnerIdentity
-from tests.agents_sync.commit_publication_fixtures import git, setup_target
+from tests.agents_sync.commit_publication_fixtures import (
+    fulfilled_completion,
+    git,
+    setup_target,
+)
 
 
 def test_push_failure_is_queued_and_next_commit_drains_idempotently(
@@ -100,8 +104,8 @@ def test_push_failure_is_queued_and_next_commit_drains_idempotently(
     assert queued[0].last_error is None
 
     monkeypatch.setattr(
-        "sase.agents_sync.publication_completion.publication_request_fulfilled",
-        lambda *_args, **_kwargs: True,
+        "sase.agents_sync.publication_completion.publication_request_completion",
+        fulfilled_completion,
     )
     monkeypatch.setattr(
         "sase.agents_sync.prompt_archive.deferred.restore_deferred_prompt_archives",

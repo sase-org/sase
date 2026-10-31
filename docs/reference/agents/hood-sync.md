@@ -340,27 +340,29 @@ and key, the planner does not own that commit, and `acknowledge_completed` alrea
 the archive. Enqueue merges keep `revision` when either the stored row or the incoming
 row has it, so a planner enqueue cannot weaken a commit row that shares the same
 `(global_agent, SHA)` key. Each request records its attempt count, most recent
-attributable error, and quarantine or retirement state. Rows rekeyed by the
-stale-revision repair keep their original requested revision in `requested_revision`
-while `primary_revision` names the fulfilling commit; rows never repaired omit it, and
-the original stays visible in doctor output and JSON. `publish_committed_agent_hood` is
-the inline compatibility path: it enqueues the committing hood's request and immediately
-drains every active request for the project under the bounded agents lock. The default
-`commit.publication.mode: background` instead uses the enqueue-only path when axe is
-running and the publisher heartbeat is no older than 15 minutes. It keeps bead-page
-rendering, plan-header refresh, release evidence, and the durable enqueue on the commit
-path, then the finalizer rings the publisher after writing `done.json`. If axe or the
-publisher is unavailable, the commit uses the inline path. Setting
-`commit.publication.mode` to `inline` always selects it. A failed durable enqueue keeps
-`sase stitch create --resume` available. In either mode, every drain and full sync
-rebuilds the archives owed by the requests it is about to acknowledge. A hood-specific
-preparation failure increments only requests for that hood; repository-wide failures
-such as lock contention, pull failure, or push failure remain retryable without
-consuming unrelated per-item quarantine budgets. A repeatable failure that proves the
-requested hood can never be published retires that request after one confirming retry
-instead of quarantining it. Successful requests are acknowledged only after their
-sidecar work is committed and safely pushed, or after the prepared payload is already
-current.
+attributable error, and quarantine or retirement state. A refused request names the
+completion gate's real reason, for example
+`agent publication for 'X' not acknowledged: <reason> (page <required page>, scope <scope>, revision <sha12>)`.
+Rows rekeyed by the stale-revision repair keep their original requested revision in
+`requested_revision` while `primary_revision` names the fulfilling commit; rows never
+repaired omit it, and the original stays visible in doctor output and JSON.
+`publish_committed_agent_hood` is the inline compatibility path: it enqueues the
+committing hood's request and immediately drains every active request for the project
+under the bounded agents lock. The default `commit.publication.mode: background` instead
+uses the enqueue-only path when axe is running and the publisher heartbeat is no older
+than 15 minutes. It keeps bead-page rendering, plan-header refresh, release evidence,
+and the durable enqueue on the commit path, then the finalizer rings the publisher after
+writing `done.json`. If axe or the publisher is unavailable, the commit uses the inline
+path. Setting `commit.publication.mode` to `inline` always selects it. A failed durable
+enqueue keeps `sase stitch create --resume` available. In either mode, every drain and
+full sync rebuilds the archives owed by the requests it is about to acknowledge. A
+hood-specific preparation failure increments only requests for that hood;
+repository-wide failures such as lock contention, pull failure, or push failure remain
+retryable without consuming unrelated per-item quarantine budgets. A repeatable failure
+that proves the requested hood can never be published retires that request after one
+confirming retry instead of quarantining it. Successful requests are acknowledged only
+after their sidecar work is committed and safely pushed, or after the prepared payload
+is already current.
 
 The host-owned `publication` scheduler routine also drains active outbox requests. A
 project doorbell under `~/.sase/projects/<project-key>/agent_publication/` starts the

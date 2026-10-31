@@ -179,7 +179,7 @@ def check_agent_publication_outbox(
     stale_lines = tuple(detail for _, detail in stale_entries)
     stale_commands = tuple(
         dict.fromkeys(
-            f"sase agent sync --repair-revisions -p {project_key} --apply"
+            f"sase agent sync --repair-revisions -p {project_key}"
             for project_key, _ in stale_entries
         )
     )
@@ -264,7 +264,8 @@ def check_agent_publication_outbox(
             *(_next_step_for_command(command) for command in sorted(commands)),
             *((_MIGRATION_NEXT_STEP,) if migration_notices else ()),
             *(
-                f"Run `{command}` to rekey that project's stale revisions."
+                f"Run `{command}` to review that project's stale revisions; "
+                "only rows the report proves repairable can be rewritten with `--apply`."
                 for command in stale_commands
             ),
         )
@@ -363,7 +364,7 @@ def _stale_requested_revision_entries(
                     f"{publication_request_subject(item)} requests a revision "
                     "absent from its published run's commits; run "
                     f"`sase agent sync --repair-revisions "
-                    f"-p {target.project_key} --apply`.",
+                    f"-p {target.project_key}` to review the repair report.",
                 )
             )
     return tuple(entries)

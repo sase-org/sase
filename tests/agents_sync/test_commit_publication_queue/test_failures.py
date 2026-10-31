@@ -41,7 +41,11 @@ from sase.core.project_lifecycle_wire import (
 )
 from sase.doctor.checks_agent_publication_outbox import check_agent_publication_outbox
 from sase.doctor.runner import DoctorContext
-from tests.agents_sync.commit_publication_fixtures import git, setup_target
+from tests.agents_sync.commit_publication_fixtures import (
+    fulfilled_completion,
+    git,
+    setup_target,
+)
 
 
 def test_mixed_queue_publishes_good_items_and_quarantines_only_bad_item(
@@ -115,8 +119,8 @@ def test_mixed_queue_publishes_good_items_and_quarantines_only_bad_item(
         publish,
     )
     monkeypatch.setattr(
-        "sase.agents_sync.publication_completion.publication_request_fulfilled",
-        lambda *_args, **_kwargs: True,
+        "sase.agents_sync.publication_completion.publication_request_completion",
+        fulfilled_completion,
     )
     monkeypatch.setattr(
         "sase.agents_sync.prompt_archive.deferred.restore_deferred_prompt_archives",

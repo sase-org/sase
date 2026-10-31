@@ -31,7 +31,11 @@ from sase.agents_sync.v2_models import (
     V2PublicationCounts,
 )
 from sase.core.agent_identity_facade import AgentOwnerIdentity
-from tests.agents_sync.commit_publication_fixtures import git, setup_target
+from tests.agents_sync.commit_publication_fixtures import (
+    fulfilled_completion,
+    git,
+    setup_target,
+)
 
 
 def test_bounded_drain_publishes_only_the_supplied_logical_keys(
@@ -203,8 +207,8 @@ def test_large_backlog_builds_one_inventory_and_publishes_each_hood_once(
     monkeypatch.setattr(publication_locked, "build_project_hood_inventory", build)
     monkeypatch.setattr(publication_locked, "publish_agent_hood", publish)
     monkeypatch.setattr(
-        "sase.agents_sync.publication_completion.publication_request_fulfilled",
-        lambda *_args, **_kwargs: True,
+        "sase.agents_sync.publication_completion.publication_request_completion",
+        fulfilled_completion,
     )
     monkeypatch.setattr(
         "sase.agents_sync.prompt_archive.deferred.restore_deferred_prompt_archives",

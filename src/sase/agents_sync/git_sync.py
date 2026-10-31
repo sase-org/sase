@@ -97,9 +97,6 @@ def sync_agents(
     for target in selection.targets:
         pending_publications: tuple[Any, ...] = ()
         try:
-            from sase.agents_sync.publication_completion import (
-                publication_request_fulfilled,
-            )
             from sase.agents_sync.publication_outbox import (
                 acknowledge_agent_publications,
                 configured_publication_max_attempts,
@@ -150,24 +147,38 @@ def sync_agents(
                 deferred_prompts=deferred_prompts,
             )
             if outcome.ok and outcome.skip_reason is None and pending_publications:
+                from sase.agents_sync.publication_completion import (
+                    publication_refusal_message,
+                    publication_request_completion,
+                )
                 from sase.agents_sync.publication_snapshot import (
                     settlement_error_for_withheld_request,
                 )
 
                 prompt_failures = deferred_prompts.failures
-                materialized = tuple(
-                    item
-                    for item in pending_publications
-                    if item.logical_key not in prompt_failures
-                    and settlement_error_for_withheld_request(
-                        global_agent=item.global_agent,
-                        local_hood=item.local_hood,
-                        withheld_runs=outcome.withheld_runs,
-                        withheld_hoods=outcome.withheld_hoods,
-                    )
-                    is None
-                    and publication_request_fulfilled(target, item, owner)
-                )
+                refusals: dict[tuple[str, str], str] = {}
+                materialized_list: list[Any] = []
+                for item in pending_publications:
+                    if item.logical_key in prompt_failures:
+                        continue
+                    if (
+                        settlement_error_for_withheld_request(
+                            global_agent=item.global_agent,
+                            local_hood=item.local_hood,
+                            withheld_runs=outcome.withheld_runs,
+                            withheld_hoods=outcome.withheld_hoods,
+                        )
+                        is not None
+                    ):
+                        continue
+                    decision = publication_request_completion(target, item, owner)
+                    if decision.fulfilled:
+                        materialized_list.append(item)
+                    else:
+                        refusals[item.logical_key] = publication_refusal_message(
+                            item, decision
+                        )
+                materialized = tuple(materialized_list)
                 if materialized:
                     acknowledge_agent_publications(
                         target.project_key,
@@ -197,10 +208,7 @@ def sync_agents(
                         error = prompt_error
                         charge = should_charge_prompt_protection_failure(prompt_error)
                     else:
-                        error = (
-                            f"published agent page for {item.global_agent!r} "
-                            "did not materialize during full sync"
-                        )
+                        error = refusals[item.logical_key]
                         charge = True
                     update_agent_publications(
                         target.project_key,

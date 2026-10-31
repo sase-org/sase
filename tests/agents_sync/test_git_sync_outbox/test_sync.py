@@ -158,9 +158,11 @@ def test_full_sync_keeps_outbox_request_when_agent_page_did_not_materialize(
     assert len(remaining) == 1
     assert remaining[0].logical_key == item.logical_key
     assert remaining[0].attempts == 1
-    assert remaining[0].last_error == (
-        "published agent page for 'alice.athena.missing' did not materialize "
-        "during full sync"
+    assert "did not materialize" not in (remaining[0].last_error or "")
+    assert remaining[0].last_error is not None
+    assert (
+        "agent publication for 'alice.athena.missing' not acknowledged:"
+        in remaining[0].last_error
     )
 
     [second] = git_sync.sync_agents()

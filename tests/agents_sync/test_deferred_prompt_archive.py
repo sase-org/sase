@@ -43,7 +43,11 @@ from sase.core.agent_identity_facade import AgentIdentitySnapshot
 from sase.agents_sync.publication_outbox import list_agent_publications
 from sase.agents_sync.v2_models import V2PublicationCounts
 from sase.core.agent_identity_facade import AgentOwnerIdentity
-from tests.agents_sync.commit_publication_fixtures import git, setup_target
+from tests.agents_sync.commit_publication_fixtures import (
+    fulfilled_completion,
+    git,
+    setup_target,
+)
 from tests.agents_sync.git_sync_fixtures import plant_fulfilled_publication
 from tests.agents_sync._prompt_archive_helpers import make_record, write_manifest
 
@@ -476,8 +480,8 @@ def test_acknowledged_deferred_archives_record_side_effects_once_per_request(
         restore,
     )
     monkeypatch.setattr(
-        "sase.agents_sync.publication_completion.publication_request_fulfilled",
-        lambda *_args, **_kwargs: True,
+        "sase.agents_sync.publication_completion.publication_request_completion",
+        fulfilled_completion,
     )
     monkeypatch.setattr(
         archive_publish,
@@ -549,8 +553,8 @@ def test_deferred_acknowledgment_ignores_unrelated_referenced_by_drain_failure(
         restore,
     )
     monkeypatch.setattr(
-        "sase.agents_sync.publication_completion.publication_request_fulfilled",
-        lambda *_args, **_kwargs: True,
+        "sase.agents_sync.publication_completion.publication_request_completion",
+        fulfilled_completion,
     )
     monkeypatch.setattr(
         "sase.core.artifact_ref_files_index.upsert_ref_file_versions",
@@ -630,8 +634,8 @@ def test_deferred_acknowledgment_charges_its_own_cites_persist_failure(
         restore,
     )
     monkeypatch.setattr(
-        "sase.agents_sync.publication_completion.publication_request_fulfilled",
-        lambda *_args, **_kwargs: True,
+        "sase.agents_sync.publication_completion.publication_request_completion",
+        fulfilled_completion,
     )
     monkeypatch.setattr(
         "sase.core.artifact_ref_files_index.upsert_ref_file_versions",

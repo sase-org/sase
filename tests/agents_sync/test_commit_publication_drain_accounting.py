@@ -28,7 +28,10 @@ from sase.agents_sync.v2_models import (
     V2PublicationCounts,
 )
 from sase.core.agent_identity_facade import AgentOwnerIdentity
-from tests.agents_sync.commit_publication_fixtures import setup_target
+from tests.agents_sync.commit_publication_fixtures import (
+    fulfilled_completion,
+    setup_target,
+)
 from tests.agents_sync.git_sync_fixtures import plant_fulfilled_publication
 
 
@@ -48,8 +51,8 @@ def _configure(
         lambda: owner,
     )
     monkeypatch.setattr(
-        "sase.agents_sync.publication_completion.publication_request_fulfilled",
-        lambda *_args, **_kwargs: True,
+        "sase.agents_sync.publication_completion.publication_request_completion",
+        fulfilled_completion,
     )
     monkeypatch.setattr(
         "sase.agents_sync.prompt_archive.deferred.restore_deferred_prompt_archives",

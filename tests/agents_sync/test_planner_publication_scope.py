@@ -302,7 +302,35 @@ def test_revision_commit_row_with_wrong_sha_is_still_refused(
     assert remaining[0].logical_key == request.logical_key
     assert remaining[0].attempts == 1
     assert remaining[0].last_error is not None
-    assert "did not materialize" in remaining[0].last_error
+    assert "did not materialize" not in remaining[0].last_error
+    assert "not acknowledged:" in remaining[0].last_error
+    assert "without the requested primary revision" in remaining[0].last_error
+
+
+def test_repeated_deterministic_refusal_retires_after_confirming_retry(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    target = _drain_with_planted_hood(monkeypatch, tmp_path, commit_shas=(_CODER_SHA,))
+    request = _enqueue_planner(scope=PUBLICATION_SCOPE_REVISION)
+
+    first = publication_locked.publish_queued_locked(target, _OWNER, run_git)
+    assert first.drained == 0
+    [after_first] = list_agent_publications("proj")
+    assert after_first.attempts == 1
+    assert not after_first.terminal
+    first_error = after_first.last_error
+    assert first_error is not None
+    assert "not acknowledged:" in first_error
+
+    second = publication_locked.publish_queued_locked(target, _OWNER, run_git)
+    assert second.drained == 0
+    [after_second] = list_agent_publications("proj")
+    assert after_second.logical_key == request.logical_key
+    assert after_second.attempts == 2
+    assert after_second.terminal
+    assert after_second.terminal_reason == after_second.last_error
+    assert after_second.last_error == first_error
+    assert not after_second.quarantined
 
 
 def test_missing_session_page_is_still_refused(
@@ -323,7 +351,8 @@ def test_missing_session_page_is_still_refused(
     assert len(remaining) == 1
     assert remaining[0].attempts == 1
     assert remaining[0].last_error is not None
-    assert "did not materialize" in remaining[0].last_error
+    assert "did not materialize" not in remaining[0].last_error
+    assert "not acknowledged:" in remaining[0].last_error
 
 
 def test_missing_prompt_bytes_are_still_refused(

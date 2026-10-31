@@ -172,12 +172,17 @@ def prepare_publications(
             entry = entries.get(hood)
             if entry is None:
                 raise RuntimeError(f"published hood {hood!r} is absent from manifest")
-            hooks.update_publications(
-                target.project_key,
-                (item.logical_key for item in hood_requests),
-                hood_digest=entry.digest,
-                error=None,
-            )
+            # Record the digest without clearing the prior error: a repeat
+            # refusal must still match it on the next drain so an identical
+            # deterministic refusal retires after one confirming retry
+            # instead of quarantining after three attempts.
+            for hood_request in hood_requests:
+                hooks.update_publications(
+                    target.project_key,
+                    (hood_request.logical_key,),
+                    hood_digest=entry.digest,
+                    error=hood_request.last_error,
+                )
             prepared.extend(hood_requests)
         except PublicationDrainTimedOut:
             raise
@@ -233,7 +238,10 @@ def acknowledge_completed(
     from sase.agents_sync.prompt_archive.deferred import (
         restore_deferred_prompt_archives,
     )
-    from sase.agents_sync.publication_completion import publication_request_fulfilled
+    from sase.agents_sync.publication_completion import (
+        publication_refusal_message,
+        publication_request_completion,
+    )
     from sase.agents_sync.prompt_archive.preparation import PreparedPromptArchive
     from sase.agents_sync.prompt_archive.publish import (
         record_prompt_archive_side_effects,
@@ -294,7 +302,7 @@ def acknowledge_completed(
             gate_errors.append(prompt_error)
             continue
         try:
-            fulfilled = publication_request_fulfilled(target, item, owner)
+            decision = publication_request_completion(target, item, owner)
         except PublicationDrainTimedOut:
             raise
         except Exception as exc:  # noqa: BLE001 - durable auxiliary boundary
@@ -308,11 +316,8 @@ def acknowledge_completed(
             )
             gate_errors.append(error)
             continue
-        if not fulfilled:
-            error = (
-                f"published agent page for {item.global_agent!r} "
-                "did not materialize during commit drain"
-            )
+        if not decision.fulfilled:
+            error = publication_refusal_message(item, decision)
             hooks.update_publications(
                 target.project_key,
                 (item.logical_key,),

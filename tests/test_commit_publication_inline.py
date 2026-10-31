@@ -289,8 +289,10 @@ def inline_publication(
     # post-commit SHA. Keep the stubs; the revision fix is covered by
     # tests/test_commit_workflow_publication.py.
     monkeypatch.setattr(
-        "sase.agents_sync.publication_completion.publication_request_fulfilled",
-        lambda *_args, **_kwargs: True,
+        "sase.agents_sync.publication_completion.publication_request_completion",
+        lambda *_args, **_kwargs: SimpleNamespace(
+            fulfilled=True, reason="", required_page=""
+        ),
     )
     monkeypatch.setattr(
         "sase.agents_sync.prompt_archive.deferred.restore_deferred_prompt_archives",
