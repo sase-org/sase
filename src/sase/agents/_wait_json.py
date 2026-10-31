@@ -51,6 +51,7 @@ def _target_row(state: WaitTargetState, duration_seconds: float) -> dict[str, ob
         "status": wait_state_label(state.state),
         "duration_seconds": round(duration_seconds, 1),
         "artifacts_dir": target.artifact_dir,
+        "turn_name": target.turn_name,
     }
     if target.kind is WaitTargetKind.AGENT and state.members:
         member = state.members[0]

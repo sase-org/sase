@@ -313,11 +313,16 @@ from the `-Q/--request-path` sidecar and are not meant for direct use.
 
 `sase agent wait NAME ...` resolves each target the same way `%wait` does: clan, then
 agent session, then workflow, then exact agent name. A session target waits on the whole
-session, including successors that appear after the wait begins. `sase agent wait -a`
-waits for every eligible agent running at command start and deliberately does not absorb
-later unrelated launches; when run from inside an agent it excludes the calling agent's
-own session so `-a` cannot wait on itself. `-p/--project` scopes target resolution and
-the `--all` snapshot to one project.
+session, including successors that appear after the wait begins.
+`-T/--target session|turn` selects that scope: `session` (the default) keeps this
+whole-session behavior; `turn` pins each NAME's current turn at invocation through the
+shared wait binder and then waits on that single member. JSON output includes the bound
+`turn_name`. Clans and workflows reject `turn` with the same core message as
+`%wait(..., target=turn)`. `-a/--all` stays session-scoped and cannot be combined with
+`-T turn`. `sase agent wait -a` waits for every eligible agent running at command start
+and deliberately does not absorb later unrelated launches; when run from inside an agent
+it excludes the calling agent's own session so `-a` cannot wait on itself.
+`-p/--project` scopes target resolution and the `--all` snapshot to one project.
 
 By default the command stops when a target cannot progress without a human: a pending
 question, a submitted plan awaiting review, or a stopped artifact with no completion

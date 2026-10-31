@@ -4390,7 +4390,7 @@
           {
             "aliases": [],
             "default_child": null,
-            "description_digest": "bb3292e0ca560a36",
+            "description_digest": "4b79d0fb567df70d",
             "hidden": false,
             "mutex_groups": [],
             "name": "wait",
@@ -4490,6 +4490,25 @@
                 ],
                 "takes_value": false,
                 "value_hint": null
+              },
+              {
+                "choices": [
+                  "session",
+                  "turn"
+                ],
+                "default": "session",
+                "dest": "target",
+                "hidden": false,
+                "kind": null,
+                "metavar": "{session,turn}",
+                "repeatable": false,
+                "required": false,
+                "strings": [
+                  "-T",
+                  "--target"
+                ],
+                "takes_value": true,
+                "value_hint": "text"
               },
               {
                 "choices": null,

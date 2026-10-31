@@ -1,4 +1,4 @@
-{"count": 3668, "rev": "b41bf41f104f", "schema": "sase.footprint.catalog/1"}
+{"count": 3669, "rev": "acca47791718", "schema": "sase.footprint.catalog/1"}
 {"area": "automation", "id": "auto:axe.agent_waits", "kind": "auto", "label": "Resolve agent wait dependencies within seconds of completion", "ns": "auto", "parent": null, "src": "sase/default_config.yml"}
 {"area": "automation", "id": "auto:axe.agent_waits.wait_checks", "kind": "auto", "label": "Resolve agent wait dependencies and write ready.json when satisfied", "ns": "auto", "parent": "auto:axe.agent_waits", "src": "sase/default_config.yml"}
 {"area": "automation", "id": "auto:axe.checks", "kind": "auto", "label": "Poll slower PR-submission and workspace-claim checks on a five-minute cadence", "ns": "auto", "parent": null, "src": "sase/default_config.yml"}
@@ -264,6 +264,7 @@
 {"area": "cli.agent", "id": "cli:agent.wait#json", "kind": "option", "label": "Option --json of cli:agent.wait", "ns": "cli", "parent": "cli:agent.wait", "src": "sase/main/parser_agent.py:register_agent_parser"}
 {"area": "cli.agent", "id": "cli:agent.wait#project", "kind": "option", "label": "Option --project of cli:agent.wait", "ns": "cli", "parent": "cli:agent.wait", "src": "sase/main/parser_agent.py:register_agent_parser"}
 {"area": "cli.agent", "id": "cli:agent.wait#quiet", "kind": "option", "label": "Option --quiet of cli:agent.wait", "ns": "cli", "parent": "cli:agent.wait", "src": "sase/main/parser_agent.py:register_agent_parser"}
+{"area": "cli.agent", "id": "cli:agent.wait#target", "kind": "option", "label": "Option --target of cli:agent.wait", "ns": "cli", "parent": "cli:agent.wait", "src": "sase/main/parser_agent.py:register_agent_parser"}
 {"area": "cli.agent", "id": "cli:agent.wait#timeout", "kind": "option", "label": "Option --timeout of cli:agent.wait", "ns": "cli", "parent": "cli:agent.wait", "src": "sase/main/parser_agent.py:register_agent_parser"}
 {"area": "cli.agent", "id": "cli:agent.wait#wait_blocked", "kind": "option", "label": "Option --wait_blocked of cli:agent.wait", "ns": "cli", "parent": "cli:agent.wait", "src": "sase/main/parser_agent.py:register_agent_parser"}
 {"area": "cli.artifact", "id": "cli:artifact", "kind": "command", "label": "Create, discover, inspect, resolve, open, and repair artifacts", "ns": "cli", "parent": null, "src": "sase/main/parser_artifact.py:register_artifact_parser"}

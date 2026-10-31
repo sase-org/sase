@@ -75,6 +75,7 @@ class WaitTarget:
     workflow_dir_name: str = "ace-run"
     agent_session_root_timestamp: str | None = None
     clan_generation: str | None = None
+    turn_name: str | None = None
 
     @property
     def key(self) -> tuple[str, str, str | None, str | None]:

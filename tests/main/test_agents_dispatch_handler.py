@@ -117,6 +117,8 @@ def test_parser_registers_wait_options() -> None:
             "5s",
             "-p",
             "proj",
+            "-T",
+            "turn",
             "-t",
             "2h",
             "-w",
@@ -132,9 +134,25 @@ def test_parser_registers_wait_options() -> None:
     assert args.json is False
     assert args.project == "proj"
     assert args.quiet is False
+    assert args.target == "turn"
     assert args.timeout == "2h"
     assert args.wait_blocked is True
     assert args.names == ["foo", "bar"]
+
+
+def test_parser_wait_target_defaults_to_session() -> None:
+    """Omitted ``-T/--target`` is session, matching today's wait scope."""
+    args = create_parser().parse_args(["agent", "wait", "foo"])
+
+    assert args.target == "session"
+
+
+def test_parser_rejects_invalid_wait_target() -> None:
+    """``-T/--target`` only accepts the shared ``session|turn`` values."""
+    parser = create_parser()
+    with pytest.raises(SystemExit) as excinfo:
+        parser.parse_args(["agent", "wait", "-T", "Session", "foo"])
+    assert excinfo.value.code == 2
 
 
 def test_parser_rejects_wait_all_and_name_together_is_a_runtime_check() -> None:

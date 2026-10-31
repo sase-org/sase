@@ -24,6 +24,7 @@ from sase.agent.wait_watch import (
     WaitWatchConfig,
     load_wait_caller_from_env,
     resolve_all_wait_targets,
+    resolve_turn_wait_targets,
     resolve_wait_targets,
     wait_scan_options,
     watch_wait_targets,
@@ -32,6 +33,7 @@ from sase.core.agent_scan_facade import scan_agent_artifacts
 from sase.core.agent_scan_wire import AgentArtifactScanWire
 from sase.core.cli_duration import parse_cli_duration
 from sase.core.paths import sase_projects_dir
+from sase.core.wait_target_facade import parse_wait_target
 
 from ._wait_json import print_wait_json, wait_settlement_envelope
 from ._wait_render_live import (
@@ -129,6 +131,20 @@ def handle_agents_wait(
         )
         return WAIT_EXIT_USAGE
 
+    raw_target = getattr(args, "target", None)
+    try:
+        requested_target = parse_wait_target(raw_target) if raw_target else "session"
+    except RuntimeError as exc:
+        err_console.print(f"sase agent wait: {exc}", style="red", soft_wrap=True)
+        return WAIT_EXIT_USAGE
+    if requested_target == "turn" and include_all:
+        err_console.print(
+            "sase agent wait: -T/--target turn cannot be combined with -a/--all",
+            style="red",
+            soft_wrap=True,
+        )
+        return WAIT_EXIT_USAGE
+
     try:
         interval_seconds = _parse_duration_arg(
             getattr(args, "interval", None), flag="-i/--interval"
@@ -161,6 +177,10 @@ def handle_agents_wait(
         if include_all:
             targets = resolve_all_wait_targets(
                 initial_snapshot, project_name=project, caller=caller
+            )
+        elif requested_target == "turn":
+            targets = resolve_turn_wait_targets(
+                names, initial_snapshot, project_name=project, caller=caller
             )
         else:
             targets = resolve_wait_targets(

@@ -1068,23 +1068,24 @@ Options:
 
 ```text
 usage: sase agent wait [-h] [-a] [-i DURATION] [-j] [-p NAME] [-q]
-                       [-t DURATION] [-w] [NAME ...]
+                       [-T {session,turn}] [-t DURATION] [-w] [NAME ...]
 ```
 
-Block until the agents you name (or every agent running right now, with -a) reach a terminal state, then exit with a status code that says what happened. NAME is resolved the same way %wait resolves it: clan, then agent session, then workflow, then exact agent name. Exit codes: 0 every target succeeded, 1 at least one failed, 2 a usage error, 3 at least one target is blocked on a human (without -w), 4 the timeout expired, 130/143 interrupted by SIGINT/SIGTERM. Precedence when more than one applies: 1 > 3 > 4. Progress goes to stderr; the settle summary and the -j envelope go to stdout.
+Block until the agents you name (or every agent running right now, with -a) reach a terminal state, then exit with a status code that says what happened. NAME is resolved the same way %wait resolves it: clan, then agent session, then workflow, then exact agent name. -T/--target session (the default) waits for that whole session; turn pins each NAME's current turn at invocation and waits on that member (clans and workflows refuse turn). Exit codes: 0 every target succeeded, 1 at least one failed, 2 a usage error, 3 at least one target is blocked on a human (without -w), 4 the timeout expired, 130/143 interrupted by SIGINT/SIGTERM. Precedence when more than one applies: 1 > 3 > 4. Progress goes to stderr; the settle summary and the -j envelope go to stdout.
 
 Options:
 
-| Option                               | Description                                                         | Default |
-| ------------------------------------ | ------------------------------------------------------------------- | ------- |
-| `-a`, `--all`                        | Wait for every agent running when the command starts (rejects NAME) | `false` |
-| `-h`, `--help`                       | show this help message and exit                                     | —       |
-| `-i DURATION`, `--interval DURATION` | Fixed poll interval, e.g. 90, 90s, 45m, 2h (default: adaptive)      | —       |
-| `-j`, `--json`                       | Emit one JSON envelope on settle; suppresses progress output        | `false` |
-| `-p NAME`, `--project NAME`          | Limit --all targets, and scope name resolution, to one project      | —       |
-| `-q`, `--quiet`                      | Suppress progress; print only the final summary line                | `false` |
-| `-t DURATION`, `--timeout DURATION`  | Give up after DURATION, e.g. 90, 90s, 45m, 2h (default: no timeout) | —       |
-| `-w`, `--wait-blocked`               | Keep waiting through pauses that need a human instead of exiting 3  | `false` |
+| Option                                         | Description                                                                                                                                                                                                                                                               | Default   |
+| ---------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------- |
+| `-a`, `--all`                                  | Wait for every agent running when the command starts (rejects NAME)                                                                                                                                                                                                       | `false`   |
+| `-h`, `--help`                                 | show this help message and exit                                                                                                                                                                                                                                           | —         |
+| `-i DURATION`, `--interval DURATION`           | Fixed poll interval, e.g. 90, 90s, 45m, 2h (default: adaptive)                                                                                                                                                                                                            | —         |
+| `-j`, `--json`                                 | Emit one JSON envelope on settle; suppresses progress output                                                                                                                                                                                                              | `false`   |
+| `-p NAME`, `--project NAME`                    | Limit --all targets, and scope name resolution, to one project                                                                                                                                                                                                            | —         |
+| `-q`, `--quiet`                                | Suppress progress; print only the final summary line                                                                                                                                                                                                                      | `false`   |
+| `-T {session,turn}`, `--target {session,turn}` | Wait scope for each NAME: session waits for the whole agent session (the default); turn pins the session's current turn when the command starts and waits on that member. Clans and workflows reject turn. -a/--all keeps session scope only (choices: `session`, `turn`) | `session` |
+| `-t DURATION`, `--timeout DURATION`            | Give up after DURATION, e.g. 90, 90s, 45m, 2h (default: no timeout)                                                                                                                                                                                                       | —         |
+| `-w`, `--wait-blocked`                         | Keep waiting through pauses that need a human instead of exiting 3                                                                                                                                                                                                        | `false`   |
 
 Arguments:
 

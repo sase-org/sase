@@ -5,6 +5,7 @@ from sase.agent.wait_watch._resolve import (
     load_wait_caller_from_env,
     record_is_live,
     resolve_all_wait_targets,
+    resolve_turn_wait_targets,
     resolve_wait_targets,
     wait_scan_options,
 )
@@ -61,6 +62,7 @@ __all__ = [
     "load_wait_caller_from_env",
     "record_is_live",
     "resolve_all_wait_targets",
+    "resolve_turn_wait_targets",
     "resolve_wait_targets",
     "settle_wait_tick",
     "wait_scan_options",

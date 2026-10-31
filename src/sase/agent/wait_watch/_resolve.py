@@ -3,16 +3,20 @@
 from __future__ import annotations
 
 from collections.abc import Callable, Iterable, Mapping, Sequence
+from dataclasses import replace
 import json
 from pathlib import Path
+from typing import NoReturn
 
 from sase.agent.names._common import is_process_alive
 from sase.agent.names._templates import resolve_agent_name_template_reference
+from sase.agent.wait_target_binding import WaitTargetBinding, bind_wait_target
 from sase.core.agent_scan_wire import (
     AgentArtifactRecordWire,
     AgentArtifactScanOptionsWire,
     AgentArtifactScanWire,
 )
+from sase.core.wait_target_facade import WaitReferenceKindName, effective_wait_target
 from sase.plan_chain import (
     AGENT_SESSION_SEPARATOR,
     agent_session_base,
@@ -100,6 +104,63 @@ def resolve_wait_targets(
             or _resolve_agent(name, raw_name, records, liveness_checker)
         )
         if target is None:
+            raise WaitTargetResolutionError(
+                f"no agent wait target found for {raw_name!r}"
+            )
+        if caller is not None and _target_intersects_caller(target, records, caller):
+            raise WaitTargetResolutionError(
+                f"refusing to wait on calling agent session via {raw_name!r}"
+            )
+        if target.key not in seen:
+            seen.add(target.key)
+            targets.append(target)
+    return tuple(targets)
+
+
+def resolve_turn_wait_targets(
+    names: Sequence[str],
+    snapshot: AgentArtifactScanWire,
+    *,
+    project_name: str | None = None,
+    caller: WaitCaller | None = None,
+    liveness_checker: LivenessChecker = is_process_alive,
+) -> tuple[WaitTarget, ...]:
+    """Pin each NAME's current turn and wait on that single member."""
+
+    if not names:
+        raise WaitTargetResolutionError("provide at least one agent name or use --all")
+
+    targets: list[WaitTarget] = []
+    seen: set[tuple[str, str, str | None, str | None]] = set()
+    records = tuple(_ace_run_records(snapshot.records, project_name=project_name))
+    waiter_dir = caller.artifact_dir if caller is not None else None
+    for raw_name in names:
+        name = _resolve_name_template(raw_name)
+        _raise_for_unsupported_reference(name)
+        refusal_kind = _snapshot_turn_refusal_kind(
+            name, records, liveness_checker=liveness_checker
+        )
+        if refusal_kind is not None:
+            _raise_turn_kind_error(refusal_kind, raw_name)
+        try:
+            binding = bind_wait_target(
+                name,
+                requested_target="turn",
+                waiter_artifact_dir=waiter_dir,
+            )
+        except RuntimeError as exc:
+            raise WaitTargetResolutionError(str(exc)) from exc
+        target = _wait_target_from_turn_binding(
+            binding,
+            raw_name=raw_name,
+            records=records,
+            liveness_checker=liveness_checker,
+        )
+        if (
+            project_name is not None
+            and target.project_name is not None
+            and target.project_name != project_name
+        ):
             raise WaitTargetResolutionError(
                 f"no agent wait target found for {raw_name!r}"
             )
@@ -537,6 +598,55 @@ def _raise_for_unsupported_reference(name: str) -> None:
         raise WaitTargetResolutionError(
             f"tribe wait target {name!r} requires %wait and is not supported"
         )
+
+
+def _snapshot_turn_refusal_kind(
+    name: str,
+    records: Sequence[AgentArtifactRecordWire],
+    *,
+    liveness_checker: LivenessChecker,
+) -> WaitReferenceKindName | None:
+    """Return the core kind that should refuse ``target=turn``, if any."""
+
+    if _resolve_clan(name, name, records) is not None:
+        return "clan"
+    if _resolve_agent_session(name, name, records) is not None:
+        return None
+    if _resolve_agent(name, name, records, liveness_checker) is not None:
+        return None
+    if _resolve_workflow(name, name, records) is not None:
+        return "unresolved"
+    return None
+
+
+def _raise_turn_kind_error(kind: WaitReferenceKindName, reference: str) -> NoReturn:
+    try:
+        effective_wait_target(requested="turn", kind=kind, reference=reference)
+    except RuntimeError as exc:
+        raise WaitTargetResolutionError(str(exc)) from exc
+    raise WaitTargetResolutionError(f"target=turn cannot wait on {reference!r}")
+
+
+def _wait_target_from_turn_binding(
+    binding: WaitTargetBinding,
+    *,
+    raw_name: str,
+    records: Sequence[AgentArtifactRecordWire],
+    liveness_checker: LivenessChecker,
+) -> WaitTarget:
+    if binding.artifact_dir:
+        return WaitTarget(
+            raw_name=raw_name,
+            name=binding.turn_name or binding.name,
+            kind=WaitTargetKind.AGENT,
+            artifact_dir=binding.artifact_dir,
+            project_name=binding.project_name,
+            turn_name=binding.turn_name,
+        )
+    fallback = _resolve_agent(binding.name, raw_name, records, liveness_checker)
+    if fallback is None:
+        _raise_turn_kind_error("unresolved", raw_name)
+    return replace(fallback, turn_name=binding.turn_name)
 
 
 def _name_candidates(name: str) -> tuple[str, ...]:

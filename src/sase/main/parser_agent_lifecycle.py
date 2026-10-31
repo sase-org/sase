@@ -240,15 +240,19 @@ def register_agent_wait_parser(agents_sub: argparse._SubParsersAction) -> None:
             "with -a) reach a terminal state, then exit with a status code that "
             "says what happened. NAME is resolved the same way %wait resolves "
             "it: clan, then agent session, then workflow, then exact agent name. "
-            "Exit codes: 0 every target succeeded, 1 at least one failed, 2 a "
-            "usage error, 3 at least one target is blocked on a human (without "
-            "-w), 4 the timeout expired, 130/143 interrupted by SIGINT/SIGTERM. "
-            "Precedence when more than one applies: 1 > 3 > 4. Progress goes to "
-            "stderr; the settle summary and the -j envelope go to stdout."
+            "-T/--target session (the default) waits for that whole session; "
+            "turn pins each NAME's current turn at invocation and waits on that "
+            "member (clans and workflows refuse turn). Exit codes: 0 every "
+            "target succeeded, 1 at least one failed, 2 a usage error, 3 at "
+            "least one target is blocked on a human (without -w), 4 the timeout "
+            "expired, 130/143 interrupted by SIGINT/SIGTERM. Precedence when "
+            "more than one applies: 1 > 3 > 4. Progress goes to stderr; the "
+            "settle summary and the -j envelope go to stdout."
         ),
         epilog=(
             "examples:\n"
             "  sase agent wait sase-s7.2 && just check-full\n"
+            "  sase agent wait -T turn 16h\n"
             "  sase agent wait -a -t 2h\n"
             "  sase monitor start -s WAITING -S WAITED -n 'agents finished; land "
             "the epic' -- sase agent wait -a"
@@ -284,6 +288,19 @@ def register_agent_wait_parser(agents_sub: argparse._SubParsersAction) -> None:
         "--quiet",
         action="store_true",
         help="Suppress progress; print only the final summary line",
+    )
+    wait_parser.add_argument(
+        "-T",
+        "--target",
+        choices=("session", "turn"),
+        default="session",
+        metavar="{session,turn}",
+        help=(
+            "Wait scope for each NAME: session waits for the whole agent "
+            "session (the default); turn pins the session's current turn when "
+            "the command starts and waits on that member. Clans and workflows "
+            "reject turn. -a/--all keeps session scope only"
+        ),
     )
     wait_parser.add_argument(
         "-t",

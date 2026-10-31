@@ -495,7 +495,6 @@ _lint-patch-stitch-terminology: _setup
 # sase-1q4.2 exported the wait_target facade; sase-1q4.4 (wait_runtime) consumes
 # parse/effective/select plus the dataclasses. sase-1q4.5 (wait_directive)
 # consumes wait_targets_with_descriptions for `%wait target=` suggestions.
-# sase-1q4.6 (agent_wait_cli) consumes bind_wait_target / WaitTargetBinding.
 # Never put a comment
 # line inside the continued command below: just joins the lines, so the comment
 # would swallow every later argument.
@@ -505,8 +504,6 @@ _lint-symvision *args: _setup
         --exclude-decorator builtin_chop \
         --epic-symbol 'sase-1pu.5.1(AgentRunStateProjectCheckpointWire)' \
         --epic-symbol 'sase-1q4.5(wait_targets_with_descriptions)' \
-        --epic-symbol 'sase-1q4.6(WaitTargetBinding)' \
-        --epic-symbol 'sase-1q4.6(bind_wait_target)' \
         {{ args }}
 
 # Check Python file line counts (private, extracted for per-stage wrapping)
