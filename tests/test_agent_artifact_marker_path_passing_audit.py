@@ -121,7 +121,7 @@ _REVIEWED_PATH_PASSING_CONTEXTS: dict[str, PathPassingReview] = {
             ),
         )
     ),
-    "src/sase/ace/tui/models/_loaders/_meta_enrichment_filesystem.py:enrich_agent_from_meta": PathPassingReview(
+    "src/sase/ace/tui/models/_loaders/_meta_enrichment_filesystem_impl.py:enrich_agent_from_meta": PathPassingReview(
         exemption=(
             "Read-only model enrichment: plan_path.json and agent_meta.json are "
             "inspected only to populate display fields on an already discovered "
