@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import replace
 import json
 from pathlib import Path
+import subprocess
 from typing import Any
 
 import pytest
@@ -23,6 +24,7 @@ from sase.axe.run_agent_exec_staged import (
 from sase.axe.run_agent_exec_staged_gate import handle_staged_gate_marker
 from sase.gate_turn.staged_contract import prepare_staged_gate
 from sase.gate_turn.transaction import GateTurnCreation
+from sase.running_field import WorkspaceClaim, get_claimed_workspaces
 from tests._axe_run_agent_exec_helpers import make_exec_ctx
 from tests.gate_turn.test_staged_contract import _creator, _request, _write_sources
 from tests.gate_turn.test_transaction_gate_intent import _creation_result, _record
@@ -38,6 +40,7 @@ from tests.test_staged_custody_adoption import (
     _write_meta,
     _write_result,
 )
+from tests.monitor._fixtures import write_project_file
 
 
 PROVIDER_RESPONSE = "provider response that must survive adoption"
@@ -134,6 +137,106 @@ def test_unsatisfied_finalizers_do_not_publish_gate(
     assert published == []
     receipt = read_adoption_receipt(str(artifacts))
     assert receipt is not None and receipt["outcome"] == "handoff_not_adopted"
+
+
+def test_failed_staged_adoption_pins_dirty_origin_before_writing_receipt(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("SASE_AGENT", "1")
+    artifacts, staged = _settled_gate_artifacts(tmp_path, monkeypatch)
+    workspace = tmp_path / "claimed-workspace"
+    workspace.mkdir()
+    subprocess.run(["git", "-C", str(workspace), "init", "-q"], check=True)
+    subprocess.run(
+        ["git", "-C", str(workspace), "config", "user.name", "Test"], check=True
+    )
+    subprocess.run(
+        ["git", "-C", str(workspace), "config", "user.email", "test@example.com"],
+        check=True,
+    )
+    source = workspace / "source.txt"
+    source.write_text("baseline\n", encoding="utf-8")
+    subprocess.run(["git", "-C", str(workspace), "add", "source.txt"], check=True)
+    subprocess.run(
+        ["git", "-C", str(workspace), "commit", "-qm", "baseline"], check=True
+    )
+    from sase.llm_provider.commit_finalizer_baseline import capture_dirty_baseline
+
+    meta = _meta(artifacts)
+    meta.update(
+        {
+            "pid": 99,
+            "workspace_num": 2,
+            "workspace_dir": str(workspace),
+            "cl_name": "feature",
+            "workflow_name": "run",
+            "agent_session": "agent",
+        }
+    )
+    _write_meta(artifacts, meta)
+    capture_dirty_baseline(str(workspace), str(artifacts))
+    source.write_text("carried work must survive\n", encoding="utf-8")
+    linked = tmp_path / "linked-widget"
+    linked.mkdir()
+    subprocess.run(["git", "-C", str(linked), "init", "-q"], check=True)
+    subprocess.run(
+        ["git", "-C", str(linked), "config", "user.name", "Test"], check=True
+    )
+    subprocess.run(
+        ["git", "-C", str(linked), "config", "user.email", "test@example.com"],
+        check=True,
+    )
+    linked_source = linked / "linked.txt"
+    linked_source.write_text("linked baseline\n", encoding="utf-8")
+    subprocess.run(["git", "-C", str(linked), "add", "linked.txt"], check=True)
+    subprocess.run(["git", "-C", str(linked), "commit", "-qm", "baseline"], check=True)
+    monkeypatch.setenv("SASE_ARTIFACTS_DIR", str(artifacts))
+    from sase._linked_repo_markers import record_opened_external_repo
+
+    record_opened_external_repo(
+        "widget",
+        str(linked),
+        reason="staged work touched the linked checkout",
+        opened_at="2026-10-31T12:00:00Z",
+    )
+    linked_source.write_text("linked carried work\n", encoding="utf-8")
+    project_file = write_project_file(
+        "proj",
+        workspace_dir=str(workspace),
+        running_claims=[
+            WorkspaceClaim(
+                2,
+                "run",
+                "feature",
+                pid=99,
+                artifacts_timestamp=artifacts.name,
+            )
+        ],
+    )
+    monkeypatch.setenv("SASE_AGENT_PROJECT_FILE", project_file)
+    monkeypatch.setattr(
+        "sase.axe.run_agent_exec_staged_dispatch.finalizer_settlement_refusal",
+        lambda *_args, **_kwargs: "finalizer controller did not settle successfully",
+    )
+
+    result = dispatch_completed_staged_handoff(
+        str(artifacts), _continuation(tmp_path, artifacts)
+    )
+
+    assert result is not None and not result.adopted
+    assert staged["staged_id"] == read_adoption_receipt(str(artifacts))["staged_id"]
+    assert source.read_text(encoding="utf-8") == "carried work must survive\n"
+    claims = get_claimed_workspaces(project_file)
+    assert len(claims) == 1 and claims[0].pinned
+    retention = json.loads(
+        (artifacts / "diagnostics" / "workspace_retention.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    assert retention["disposition"] == "retain"
+    assert retention["staged_id"] == staged["staged_id"]
+    assert "external:widget" in retention["affected_repo_ids"]
 
 
 def test_successful_settlement_publishes_once_and_records_gate_refs(

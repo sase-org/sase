@@ -4,7 +4,7 @@ import json
 import os
 import sys
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Any
 
 from sase.bead.claims import (
@@ -194,6 +194,169 @@ def _has_staged_handoff(artifacts_dir: str | None) -> bool:
     return False
 
 
+def _settle_failed_staged_workspace(
+    *,
+    context: RunnerShutdownContext,
+    state: RunnerShutdownState,
+    write_error_done_marker: Callable[..., Any],
+) -> tuple[bool, bool, bool]:
+    """Retain failed staged work even when notification policy hides the run.
+
+    The shared Rust policy decides whether work remains. Once a staged failure
+    is in scope, this function always suppresses the ordinary cleanup path:
+    a stale or unavailable decision must never release a possibly replaced
+    claim.
+    """
+    if state.success or state.exec_outcome != "failed":
+        return False, False, False
+    try:
+        from sase.agent.staged_handoff import (
+            StagedHandoffError,
+            read_adoption_receipt,
+            read_staged_handoff,
+        )
+
+        staged_read_failed = False
+        try:
+            staged_record = read_staged_handoff(context.artifacts_dir)
+        except StagedHandoffError:
+            staged_record = None
+            staged_read_failed = True
+        try:
+            receipt = read_adoption_receipt(context.artifacts_dir)
+        except StagedHandoffError:
+            receipt = None
+            staged_read_failed = True
+    except Exception:  # noqa: BLE001 - no staged contract, keep legacy behavior.
+        return False, False, False
+    if staged_record is None and receipt is None and not staged_read_failed:
+        return False, False, False
+
+    marker_state = replace(state, current_artifacts_dir=context.artifacts_dir)
+    _ensure_failed_done_marker(
+        context=context,
+        state=marker_state,
+        write_error_done_marker=write_error_done_marker,
+    )
+    marker_written = os.path.isfile(os.path.join(context.artifacts_dir, "done.json"))
+
+    staged_id = None
+    if isinstance(staged_record, dict):
+        staged_id = staged_record.get("staged_id")
+    if not isinstance(staged_id, str) and isinstance(receipt, dict):
+        staged_id = receipt.get("staged_id")
+    staged_id = staged_id if isinstance(staged_id, str) else None
+    reason = (
+        str(receipt.get("reason"))
+        if isinstance(receipt, dict) and receipt.get("reason")
+        else state.error_summary
+        or (
+            "staged handoff record or receipt was malformed"
+            if staged_read_failed
+            else "staged handoff did not reach a successor"
+        )
+    )
+
+    try:
+        with open(
+            os.path.join(context.artifacts_dir, "agent_meta.json"), encoding="utf-8"
+        ) as f:
+            meta = json.load(f)
+        if not isinstance(meta, dict):
+            meta = {}
+    except (OSError, json.JSONDecodeError):
+        meta = {}
+
+    raw_workspace_num = meta.get("workspace_num", state.workspace_num)
+    try:
+        workspace_num = int(raw_workspace_num or 0)
+    except (TypeError, ValueError):
+        workspace_num = state.workspace_num
+    raw_pid = meta.get("pid")
+    pid = (
+        raw_pid
+        if isinstance(raw_pid, int) and not isinstance(raw_pid, bool)
+        else os.getpid()
+    )
+    raw_cl_name = meta.get("cl_name") or meta.get("patch_name") or context.cl_name
+    cl_name = raw_cl_name if isinstance(raw_cl_name, str) else context.cl_name
+    raw_checkout = meta.get("workspace_dir") or state.workspace_dir
+    checkout_dir = raw_checkout if isinstance(raw_checkout, str) else None
+    workflow = context.workflow_name
+
+    try:
+        from sase.turns.workspace_retention import (
+            WorkspaceRetentionOwner,
+            discover_workspace_retention_repos,
+            settle_stranded_workspace,
+        )
+
+        from sase.running_field import get_claimed_workspaces
+
+        repos, origin_repo_ids = discover_workspace_retention_repos(
+            context.artifacts_dir,
+            checkout_dir,
+        )
+        if not workflow:
+            matching = [
+                claim
+                for claim in get_claimed_workspaces(context.project_file)
+                if claim.workspace_num == workspace_num
+                and claim.pid == pid
+                and (claim.cl_name or "") == cl_name
+                and (claim.artifacts_timestamp or "") == context.artifacts_timestamp
+            ]
+            if len(matching) == 1:
+                workflow = matching[0].workflow
+        owner = WorkspaceRetentionOwner(
+            project_file=context.project_file,
+            workspace_num=workspace_num,
+            workflow=workflow,
+            cl_name=cl_name,
+            artifacts_timestamp=context.artifacts_timestamp,
+            pid=pid,
+            artifacts_dir=context.artifacts_dir,
+            checkout_dir=checkout_dir,
+            repos=repos,
+            origin_repo_ids=origin_repo_ids,
+            staged_id=staged_id,
+            session_id=(
+                str(meta.get("agent_session")) if meta.get("agent_session") else None
+            ),
+            turn_id=str(meta.get("name")) if meta.get("name") else None,
+            terminal_reason=reason,
+        )
+        result = settle_stranded_workspace(owner)
+        if result.disposition == "retain":
+            return True, result.claim_changed, marker_written
+        return True, False, marker_written
+    except Exception as exc:  # noqa: BLE001 - uncertainty must keep the claim.
+        try:
+            from sase.running_field import hold_workspace_claim
+
+            held = hold_workspace_claim(
+                context.project_file,
+                workspace_num,
+                workflow or context.workflow_name,
+                cl_name,
+                context.artifacts_timestamp,
+                caller_tag="staged-retention-fail-closed",
+                expected_pid=pid,
+            )
+            print(
+                f"Workspace retention decision failed; claim hold "
+                f"{'succeeded' if held.success else 'failed'}: {exc}",
+                file=sys.stderr,
+            )
+            return True, held.success, marker_written
+        except Exception as hold_exc:  # noqa: BLE001 - never fall back to release.
+            print(
+                f"Workspace retention and fail-closed hold failed: {hold_exc}",
+                file=sys.stderr,
+            )
+            return True, False, marker_written
+
+
 def _held_bead_claim_for_shutdown(
     context: RunnerShutdownContext,
     state: RunnerShutdownState,
@@ -300,9 +463,26 @@ def finalize_runner_shutdown(
             cl_name=context.cl_name,
         )
     )
+    retention_handled = False
+    retention_marker_written = False
+    workspace_held = False
+    if not context.is_home_mode and not shell_handoff_transferred and not killed:
+        retention_handled, workspace_held, retention_marker_written = (
+            _settle_failed_staged_workspace(
+                context=context,
+                state=state,
+                write_error_done_marker=deps.write_error_done_marker,
+            )
+        )
+    hold_done_marker_ensured = retention_marker_written
     if not context.is_home_mode and not shell_handoff_transferred:
         try:
-            if _should_hold_workspace(
+            if retention_handled:
+                if workspace_held:
+                    print(
+                        f"Workspace #{state.workspace_num} held (stranded staged work)"
+                    )
+            elif _should_hold_workspace(
                 state,
                 was_killed=killed,
                 auto_dismiss=auto_dismiss,

@@ -235,16 +235,112 @@ def release_gate_turn_claim(
         )
         if restored:
             return restore_error
-        result = release_workspace(
-            project_file,
-            workspace_id,
-            GATE_WORKSPACE_CLAIM_WORKFLOW,
-            cl_name=str(cl_name) if isinstance(cl_name, str) else None,
-            caller_tag="gate-turn-settle",
+        if not artifacts_dir:
+            return "gate retention requires its terminal artifacts directory"
+
+        from sase.turns.workspace_retention import (
+            WorkspaceRetentionOwner,
+            discover_workspace_retention_repos,
+            settle_stranded_workspace,
         )
-        if not result.success:
-            return result.error or "workspace release failed"
+
+        gate_timestamp = _settlement_artifacts_timestamp(artifacts_dir) or ""
+        owner_pid = _gate_claim_owner_pid(
+            project_file,
+            meta,
+            workspace_num=workspace_id,
+            cl_name=str(cl_name) if isinstance(cl_name, str) else "",
+            artifacts_timestamp=gate_timestamp,
+        )
+        checkout_dir = _optional_str(meta.get("workspace_dir"))
+        evidence_dir = _gate_evidence_artifacts_dir(artifacts_dir, meta)
+        repos, origin_repo_ids = discover_workspace_retention_repos(
+            evidence_dir,
+            checkout_dir,
+        )
+        owner = WorkspaceRetentionOwner(
+            project_file=project_file,
+            workspace_num=workspace_id,
+            workflow=GATE_WORKSPACE_CLAIM_WORKFLOW,
+            cl_name=str(cl_name) if isinstance(cl_name, str) else "",
+            artifacts_timestamp=gate_timestamp,
+            pid=owner_pid or 0,
+            artifacts_dir=artifacts_dir,
+            checkout_dir=checkout_dir,
+            repos=repos,
+            origin_repo_ids=origin_repo_ids,
+            session_id=_optional_str(meta.get("agent_session")),
+            turn_id=_optional_str(meta.get("gate_id")),
+            terminal_reason=(
+                _optional_str(meta.get("gate_followup_error"))
+                or _optional_str(meta.get("gate_state"))
+                or "terminal gate without a same-workspace successor"
+            ),
+            evidence_artifacts_dir=evidence_dir,
+        )
+        try:
+            retention = settle_stranded_workspace(owner)
+        except Exception as exc:  # noqa: BLE001 - uncertainty must not release.
+            _append_workspace_retention_log(
+                artifacts_dir,
+                f"retention decision failed; claim left untouched: {exc}",
+            )
+            return f"workspace retention decision failed: {exc}"
+        if retention.disposition == "retain":
+            _append_workspace_retention_log(
+                artifacts_dir,
+                f"workspace #{workspace_id} held: {retention.reason}",
+            )
+        elif retention.stale_attempt:
+            _append_workspace_retention_log(
+                artifacts_dir,
+                f"workspace #{workspace_id} claim changed; settlement stood down",
+            )
     return None
+
+
+def _gate_claim_owner_pid(
+    project_file: str,
+    meta: dict[str, object],
+    *,
+    workspace_num: int,
+    cl_name: str,
+    artifacts_timestamp: str,
+) -> int | None:
+    """Return the recorded owner of this gate identity, never a loose row."""
+    recorded = _optional_int(meta.get("gate_claim_holder_pid"))
+    if recorded is not None:
+        return recorded
+    creator_pid = _optional_int(meta.get("gate_creator_claim_pid"))
+    if creator_pid is not None:
+        return creator_pid
+    try:
+        matches = [
+            claim
+            for claim in get_claimed_workspaces(project_file)
+            if claim.workspace_num == workspace_num
+            and claim.workflow == GATE_WORKSPACE_CLAIM_WORKFLOW
+            and (claim.cl_name or "") == cl_name
+            and (claim.artifacts_timestamp or "") == artifacts_timestamp
+        ]
+    except OSError:
+        return None
+    return matches[0].pid if len(matches) == 1 else None
+
+
+def _gate_evidence_artifacts_dir(artifacts_dir: str, meta: dict[str, object]) -> str:
+    """Use the creating session's durable baseline and custody records."""
+    parent_timestamp = _optional_str(meta.get("parent_timestamp"))
+    if parent_timestamp:
+        return str(Path(artifacts_dir).parent / parent_timestamp)
+    return artifacts_dir
+
+
+def _append_workspace_retention_log(artifacts_dir: str, message: str) -> None:
+    append_gate_turn_log_text(
+        artifacts_dir,
+        f"! workspace-retention: {message}\n",
+    )
 
 
 def _restore_live_creator_claim(

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+import subprocess
 from pathlib import Path
 from typing import Any
 from unittest.mock import patch
@@ -15,10 +16,13 @@ from sase.gate_turn.claims import (
     GATE_WORKSPACE_CLAIM_WORKFLOW,
     gate_claim_is_releasable,
 )
+from sase.gate_turn.cancel import cancel_gate_turn
 from sase.gate_turn.settlement import settle_gate_turn
 from sase.gate_turn.store import read_gate_turn_marker
+from sase.gate_turn.member import create_gate_turn_member
 from sase.logs.workspace_claim_ledger import read_ledger_records
 from sase.notification_gates.service import create_gate
+from sase.question_gate_turn.create import _question_gate_turn_spec
 from sase.running_field import WorkspaceClaim, get_claimed_workspaces
 from tests.gate_turn._settlement_followup_helpers import (
     gate_spec,
@@ -222,6 +226,8 @@ def test_settle_releases_gate_claim_when_creator_pid_is_dead(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     from tests.monitor._fixtures import write_project_file
+    from sase.axe.run_agent_helpers_artifacts import update_meta_field
+    from sase.llm_provider.commit_finalizer_baseline import capture_dirty_baseline
 
     creator_pid = 1234
     project_file = write_project_file(
@@ -242,6 +248,26 @@ def test_settle_releases_gate_claim_when_creator_pid_is_dead(
     artifacts_dir = make_gate_turn_member(
         request_id, gate.bundle_path, turn=shell, workspace_num=3
     )
+    checkout = tmp_path / "clean-workspace"
+    checkout.mkdir()
+    subprocess.run(["git", "-C", str(checkout), "init", "-q"], check=True)
+    subprocess.run(
+        ["git", "-C", str(checkout), "config", "user.name", "Test"], check=True
+    )
+    subprocess.run(
+        ["git", "-C", str(checkout), "config", "user.email", "test@example.com"],
+        check=True,
+    )
+    source = checkout / "source.txt"
+    source.write_text("baseline\n", encoding="utf-8")
+    subprocess.run(["git", "-C", str(checkout), "add", "source.txt"], check=True)
+    subprocess.run(
+        ["git", "-C", str(checkout), "commit", "-qm", "baseline"], check=True
+    )
+    update_meta_field(artifacts_dir, "workspace_dir", str(checkout))
+    parent_dir = Path(artifacts_dir).parent / "20260812120000"
+    parent_dir.mkdir(parents=True, exist_ok=True)
+    capture_dirty_baseline(str(checkout), str(parent_dir))
     _record_creator_claim_meta(
         artifacts_dir,
         pid=creator_pid,
@@ -263,6 +289,123 @@ def test_settle_releases_gate_claim_when_creator_pid_is_dead(
 
     assert get_claimed_workspaces(project_file) == []
     assert ledger[-1]["operation"] == "release"
-    assert ledger[-1]["caller_tag"] == "gate-turn-settle"
+    assert ledger[-1]["caller_tag"] == "workspace-retention"
     log_path = Path(artifacts_dir) / "gate.log"
     assert not log_path.exists()
+
+
+def test_cancelled_question_retains_dirty_creator_workspace(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Question cancellation settles through the shared terminal retention path."""
+    from sase.axe.run_agent_helpers_artifacts import update_meta_fields
+    from sase.llm_provider.commit_finalizer_baseline import capture_dirty_baseline
+    from tests.monitor._fixtures import write_project_file
+
+    checkout = tmp_path / "workspace"
+    checkout.mkdir()
+    subprocess.run(["git", "-C", str(checkout), "init", "-q"], check=True)
+    subprocess.run(
+        ["git", "-C", str(checkout), "config", "user.name", "Test"], check=True
+    )
+    subprocess.run(
+        ["git", "-C", str(checkout), "config", "user.email", "test@example.com"],
+        check=True,
+    )
+    source = checkout / "source.txt"
+    source.write_text("baseline\n", encoding="utf-8")
+    subprocess.run(["git", "-C", str(checkout), "add", "source.txt"], check=True)
+    subprocess.run(
+        ["git", "-C", str(checkout), "commit", "-qm", "baseline"], check=True
+    )
+
+    request = _question_gate_turn_spec(
+        [{"question": "Which database?", "options": [{"label": "SQLite"}]}],
+        session_id="cancelled-question-retention",
+        base_prompt="Implement the feature.",
+        prior_rounds=[],
+    )
+    request["request_id"] = "cancelled-question-retention"
+    gate = create_gate(request)
+    from sase.notification_gates.model_turn import GateTurnSpec
+
+    turn = GateTurnSpec.from_mapping(request["turn"], branches=(("submit",),))
+    artifacts_dir = create_gate_turn_member(
+        "proj",
+        {"name": "lane--0", "agent_session": "lane", "workspace_dir": str(checkout)},
+        lane="lane",
+        suffix="--gate",
+        prev_artifacts_timestamp="20260812120000",
+        workspace_num=3,
+        gate_id="cancelled-question-retention",
+        gate_kind="question",
+        label="Question",
+        reason="wait for reviewer",
+        creator_agent="lane--0",
+        timeout_seconds=86400.0,
+        request_fingerprint=None,
+        turn=turn,
+    )
+    update_meta_fields(
+        artifacts_dir,
+        {"gate_bundle_path": str(gate.bundle_path), "workspace_dir": str(checkout)},
+    )
+    gate_meta = json.loads((Path(artifacts_dir) / "agent_meta.json").read_text())
+    creator_pid = 987654
+    gate_timestamp = Path(artifacts_dir).name
+    parent_dir = Path(artifacts_dir).parent / str(gate_meta["parent_timestamp"])
+    parent_dir.mkdir(parents=True, exist_ok=True)
+    (parent_dir / "agent_meta.json").write_text(
+        json.dumps({"workspace_dir": str(checkout), "name": "lane--0"}),
+        encoding="utf-8",
+    )
+    capture_dirty_baseline(str(checkout), str(parent_dir))
+    source.write_text("session-owned change\n", encoding="utf-8")
+    update_meta_fields(
+        artifacts_dir,
+        {
+            "gate_creator_claim_pid": creator_pid,
+            "gate_creator_claim_workflow": "lane",
+            "gate_creator_claim_cl_name": "feature",
+            "gate_creator_claim_artifacts_timestamp": "20260812120000",
+            "gate_claim_holder_pid": creator_pid,
+            "cl_name": "feature",
+        },
+    )
+    project_file = write_project_file(
+        "proj",
+        workspace_dir=str(checkout),
+        running_claims=[
+            WorkspaceClaim(
+                3,
+                GATE_WORKSPACE_CLAIM_WORKFLOW,
+                "feature",
+                pid=creator_pid,
+                artifacts_timestamp=gate_timestamp,
+            )
+        ],
+    )
+    monkeypatch.setattr(
+        "sase.workflows.utils.get_project_file_path",
+        lambda _project_name: project_file,
+    )
+    monkeypatch.setattr(
+        "sase.gate_turn.start_claim.is_process_running", lambda _pid: False
+    )
+    record = read_gate_turn_marker("proj", artifacts_dir)
+    assert record is not None
+
+    cancel_gate_turn(record)
+
+    claims = get_claimed_workspaces(project_file)
+    assert len(claims) == 1 and claims[0].pinned
+    assert source.read_text(encoding="utf-8") == "session-owned change\n"
+    retention = json.loads(
+        (Path(artifacts_dir) / "diagnostics" / "workspace_retention.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    assert retention["disposition"] == "retain"
+    assert retention["affected_repo_ids"]
+    assert retention["snapshot_paths"]

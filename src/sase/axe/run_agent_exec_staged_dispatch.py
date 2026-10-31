@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import os
+import sys
 from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -112,6 +114,234 @@ def _write_held_receipt_locked(
         artifacts_dir=artifacts_dir,
     )
     cleanup_staged_monitor_handoff(artifacts_dir, held=True)
+
+
+def _record_failed_adoption(
+    staged_id: str,
+    reason: str,
+    *,
+    artifacts_dir: str,
+    run_metadata: Mapping[str, Any],
+    continuation: StagedInlineContinuation | None = None,
+) -> None:
+    """Retain unresolved owner work before making the failed receipt visible."""
+    try:
+        _retain_failed_adoption_workspace(
+            staged_id,
+            reason,
+            artifacts_dir=artifacts_dir,
+            run_metadata=run_metadata,
+            continuation=continuation,
+        )
+    except Exception as exc:  # noqa: BLE001 - also pin before receipt publication.
+        try:
+            _hold_failed_adoption_claim(
+                artifacts_dir=artifacts_dir,
+                run_metadata=run_metadata,
+                continuation=continuation,
+                error=exc,
+            )
+        except Exception as hold_exc:  # noqa: BLE001 - receipt remains durable.
+            print(
+                f"Could not pin staged starter after retention error: {hold_exc}",
+                file=sys.stderr,
+            )
+    _write_held_receipt_locked(staged_id, reason, artifacts_dir=artifacts_dir)
+
+
+def _hold_failed_adoption_claim(
+    *,
+    artifacts_dir: str,
+    run_metadata: Mapping[str, Any],
+    continuation: StagedInlineContinuation | None,
+    error: Exception,
+) -> None:
+    """Pin the exact starter claim if policy evidence collection failed."""
+    from sase.running_field import get_claimed_workspaces, hold_workspace_claim
+
+    context = getattr(continuation, "ctx", None)
+    state = getattr(continuation, "state", None)
+    raw_project_file = run_metadata.get("project_file") or os.environ.get(
+        "SASE_AGENT_PROJECT_FILE"
+    )
+    if not raw_project_file:
+        raw_project_file = getattr(context, "project_file", None)
+    if not isinstance(raw_project_file, str) or not raw_project_file:
+        print(
+            f"Could not pin staged starter after retention error; "
+            f"project identity is unavailable: {error}",
+            file=sys.stderr,
+        )
+        return
+    raw_workspace_num = run_metadata.get("workspace_num")
+    try:
+        workspace_num = int(raw_workspace_num or 0)
+    except (TypeError, ValueError):
+        workspace_num = 0
+    if workspace_num <= 0:
+        state_workspace_num = getattr(state, "workspace_num", None)
+        workspace_num = (
+            state_workspace_num
+            if isinstance(state_workspace_num, int)
+            and not isinstance(state_workspace_num, bool)
+            else 0
+        )
+    raw_pid = run_metadata.get("pid")
+    pid = (
+        raw_pid if isinstance(raw_pid, int) and not isinstance(raw_pid, bool) else None
+    )
+    raw_cl_name = run_metadata.get("cl_name") or run_metadata.get("patch_name")
+    cl_name = raw_cl_name if isinstance(raw_cl_name, str) else ""
+    if not cl_name:
+        context_cl_name = getattr(context, "cl_name", None)
+        cl_name = context_cl_name if isinstance(context_cl_name, str) else ""
+    workflow_value = run_metadata.get("workflow_name")
+    workflow = workflow_value if isinstance(workflow_value, str) else ""
+    if not workflow:
+        context_workflow = getattr(context, "workflow_name", None)
+        workflow = context_workflow if isinstance(context_workflow, str) else ""
+    timestamp = Path(artifacts_dir).name
+    try:
+        candidates = [
+            claim
+            for claim in get_claimed_workspaces(raw_project_file)
+            if claim.workspace_num == workspace_num
+            and (claim.cl_name or "") == cl_name
+            and (claim.artifacts_timestamp or "") == timestamp
+            and (pid is None or claim.pid == pid)
+            and (not workflow or claim.workflow == workflow)
+        ]
+    except Exception as claims_exc:  # noqa: BLE001 - log, never release.
+        print(
+            f"Could not inspect staged starter claim after retention error: "
+            f"{claims_exc}",
+            file=sys.stderr,
+        )
+        return
+    if len(candidates) != 1:
+        print(
+            "Could not pin staged starter after retention error; "
+            f"found {len(candidates)} exact claim candidates: {error}",
+            file=sys.stderr,
+        )
+        return
+    claim = candidates[0]
+    held = hold_workspace_claim(
+        raw_project_file,
+        claim.workspace_num,
+        claim.workflow,
+        claim.cl_name or "",
+        claim.artifacts_timestamp or "",
+        caller_tag="staged-retention-fail-closed",
+        expected_pid=claim.pid,
+    )
+    if not held.success:
+        print(
+            f"Could not pin staged starter after retention error: "
+            f"{held.error or error}",
+            file=sys.stderr,
+        )
+
+
+def _retain_failed_adoption_workspace(
+    staged_id: str,
+    reason: str,
+    *,
+    artifacts_dir: str,
+    run_metadata: Mapping[str, Any],
+    continuation: StagedInlineContinuation | None,
+) -> None:
+    """Apply shared policy to the exact staged starter claim and repositories."""
+    from sase.running_field import get_claimed_workspaces
+    from sase.turns.workspace_retention import (
+        WorkspaceRetentionOwner,
+        discover_workspace_retention_repos,
+        settle_stranded_workspace,
+    )
+
+    raw_workspace_num = run_metadata.get("workspace_num")
+    try:
+        workspace_num = int(raw_workspace_num or 0)
+    except (TypeError, ValueError):
+        workspace_num = 0
+    context = getattr(continuation, "ctx", None)
+    state = getattr(continuation, "state", None)
+    if workspace_num <= 0:
+        state_workspace_num = getattr(state, "workspace_num", None)
+        if isinstance(state_workspace_num, int) and not isinstance(
+            state_workspace_num, bool
+        ):
+            workspace_num = state_workspace_num
+    raw_pid = run_metadata.get("pid")
+    pid = (
+        raw_pid
+        if isinstance(raw_pid, int) and not isinstance(raw_pid, bool)
+        else os.getpid()
+    )
+    raw_cl_name = run_metadata.get("cl_name") or run_metadata.get("patch_name")
+    cl_name = raw_cl_name if isinstance(raw_cl_name, str) else ""
+    if not cl_name:
+        context_cl_name = getattr(context, "cl_name", None)
+        cl_name = context_cl_name if isinstance(context_cl_name, str) else ""
+    artifacts_timestamp = Path(artifacts_dir).name
+    raw_project_file = run_metadata.get("project_file") or os.environ.get(
+        "SASE_AGENT_PROJECT_FILE"
+    )
+    if not raw_project_file:
+        raw_project_file = getattr(context, "project_file", None)
+    if not isinstance(raw_project_file, str) or not raw_project_file:
+        raise RuntimeError("staged starter has no project-file identity")
+    project_file = raw_project_file
+    raw_checkout_dir = run_metadata.get("workspace_dir")
+    checkout_dir = raw_checkout_dir if isinstance(raw_checkout_dir, str) else None
+    if not checkout_dir:
+        state_workspace_dir = getattr(state, "workspace_dir", None)
+        checkout_dir = (
+            state_workspace_dir if isinstance(state_workspace_dir, str) else None
+        )
+    raw_workflow = run_metadata.get("workflow_name")
+    workflow = raw_workflow if isinstance(raw_workflow, str) else ""
+    if not workflow:
+        context_workflow = getattr(context, "workflow_name", None)
+        workflow = context_workflow if isinstance(context_workflow, str) else ""
+    if not workflow:
+        claims = get_claimed_workspaces(project_file)
+        matching = [
+            claim
+            for claim in claims
+            if claim.workspace_num == workspace_num
+            and claim.pid == pid
+            and (claim.cl_name or "") == cl_name
+            and (claim.artifacts_timestamp or "") == artifacts_timestamp
+        ]
+        if len(matching) == 1:
+            workflow = matching[0].workflow
+
+    repos, origin_repo_ids = discover_workspace_retention_repos(
+        artifacts_dir,
+        checkout_dir,
+    )
+    owner = WorkspaceRetentionOwner(
+        project_file=project_file,
+        workspace_num=workspace_num,
+        workflow=workflow,
+        cl_name=cl_name,
+        artifacts_timestamp=artifacts_timestamp,
+        pid=pid,
+        artifacts_dir=artifacts_dir,
+        checkout_dir=checkout_dir,
+        repos=repos,
+        origin_repo_ids=origin_repo_ids,
+        staged_id=staged_id,
+        session_id=(
+            str(run_metadata.get("agent_session"))
+            if run_metadata.get("agent_session")
+            else None
+        ),
+        turn_id=(str(run_metadata.get("name")) if run_metadata.get("name") else None),
+        terminal_reason=reason,
+    )
+    settle_stranded_workspace(owner)
 
 
 def _already_adopted_dispatch(
@@ -241,7 +471,13 @@ def dispatch_completed_staged_handoff(
             run_metadata=run_metadata,
         )
         if refusal is not None:
-            _write_held_receipt_locked(staged_id, refusal, artifacts_dir=artifacts_dir)
+            _record_failed_adoption(
+                staged_id,
+                refusal,
+                artifacts_dir=artifacts_dir,
+                run_metadata=run_metadata,
+                continuation=continuation,
+            )
             return _StagedHandoffDispatch(adopted=False, reason=refusal)
 
         # Settlement is proven: persist origin custody before any adopter
@@ -258,13 +494,25 @@ def dispatch_completed_staged_handoff(
             reason = (
                 "ordinary provider response was not persisted for this staged handoff"
             )
-            _write_held_receipt_locked(staged_id, reason, artifacts_dir=artifacts_dir)
+            _record_failed_adoption(
+                staged_id,
+                reason,
+                artifacts_dir=artifacts_dir,
+                run_metadata=run_metadata,
+                continuation=continuation,
+            )
             return _StagedHandoffDispatch(adopted=False, reason=reason)
 
         adopter = STAGED_HANDOFF_ADOPTERS.get(str(staged_record.get("kind")))
         if adopter is None:
             reason = f"unsupported staged handoff kind {staged_record.get('kind')!r}"
-            _write_held_receipt_locked(staged_id, reason, artifacts_dir=artifacts_dir)
+            _record_failed_adoption(
+                staged_id,
+                reason,
+                artifacts_dir=artifacts_dir,
+                run_metadata=run_metadata,
+                continuation=continuation,
+            )
             return _StagedHandoffDispatch(adopted=False, reason=reason)
 
         recovery_context = ensure_recovery_context_locked(
@@ -305,18 +553,24 @@ def dispatch_completed_staged_handoff(
             )
             if outcome == "plan_rejected":
                 reason = "staged plan could not be adopted by the plan approval flow"
-                _write_held_receipt_locked(
-                    staged_id, reason, artifacts_dir=original_artifacts_dir
+                _record_failed_adoption(
+                    staged_id,
+                    reason,
+                    artifacts_dir=original_artifacts_dir,
+                    run_metadata=run_metadata,
+                    continuation=live_continuation,
                 )
                 return _StagedHandoffDispatch(adopted=False, reason=reason)
         except Exception as exc:
-            _write_held_receipt_locked(
+            _record_failed_adoption(
                 staged_id,
                 (
                     f"staged {staged_record.get('kind') or 'handoff'} adoption "
                     f"failed: {type(exc).__name__}: {exc}"
                 ),
                 artifacts_dir=original_artifacts_dir,
+                run_metadata=run_metadata,
+                continuation=live_continuation,
             )
             raise
 

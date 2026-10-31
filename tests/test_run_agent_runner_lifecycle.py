@@ -3,7 +3,10 @@
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
+import subprocess
+from dataclasses import replace
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -17,7 +20,9 @@ from sase.axe.run_agent_runner_lifecycle import (
     _should_hold_workspace,
 )
 from sase.gate_turn.claims import GATE_WORKSPACE_CLAIM_WORKFLOW
-from sase.running_field import ClaimResult, WorkspaceClaim
+from sase.running_field import ClaimResult, WorkspaceClaim, get_claimed_workspaces
+from sase.agent._staged_handoff_receipts import write_adoption_receipt
+from sase.llm_provider.commit_finalizer_baseline import capture_dirty_baseline
 from sase.workspace_provider.occupant import (
     new_occupant_record,
     read_occupant_record,
@@ -28,6 +33,7 @@ from tests._run_agent_runner_lifecycle_helpers import (
     make_deps,
     make_state,
 )
+from tests.monitor._fixtures import write_project_file
 
 
 @pytest.mark.parametrize(
@@ -198,6 +204,85 @@ def test_finalize_hold_writes_failed_done_json_when_missing(
     marker = json.loads(done_path.read_text(encoding="utf-8"))
     assert marker["outcome"] == "failed"
     assert marker["error"] == "RuntimeError: boom"
+
+
+def test_hidden_failed_staged_run_retains_dirty_workspace(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Staged carried work survives shutdown even when normal holds are hidden."""
+    monkeypatch.setenv("SASE_AGENT_AUTO_DISMISS", "1")
+    checkout = tmp_path / "workspace"
+    checkout.mkdir()
+    subprocess.run(["git", "-C", str(checkout), "init", "-q"], check=True)
+    subprocess.run(
+        ["git", "-C", str(checkout), "config", "user.name", "Test"], check=True
+    )
+    subprocess.run(
+        ["git", "-C", str(checkout), "config", "user.email", "test@example.com"],
+        check=True,
+    )
+    source = checkout / "source.txt"
+    source.write_text("baseline\n", encoding="utf-8")
+    subprocess.run(["git", "-C", str(checkout), "add", "source.txt"], check=True)
+    subprocess.run(
+        ["git", "-C", str(checkout), "commit", "-qm", "baseline"], check=True
+    )
+    context = make_context(tmp_path, workflow_name="run")
+    project_file = write_project_file(
+        "proj",
+        workspace_dir=str(checkout),
+        running_claims=[
+            WorkspaceClaim(
+                17,
+                context.workflow_name,
+                context.cl_name,
+                pid=os.getpid(),
+                artifacts_timestamp=context.artifacts_timestamp,
+            )
+        ],
+    )
+    context = replace(context, project_file=project_file)
+    meta = {
+        "name": "worker",
+        "pid": os.getpid(),
+        "workspace_num": 17,
+        "workspace_dir": str(checkout),
+        "cl_name": context.cl_name,
+    }
+    (tmp_path / "agent_meta.json").write_text(json.dumps(meta), encoding="utf-8")
+    capture_dirty_baseline(str(checkout), str(tmp_path))
+    source.write_text("staged work must remain\n", encoding="utf-8")
+    write_adoption_receipt(
+        {
+            "staged_id": "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee",
+            "adopted_at": "2026-10-31T12:00:00Z",
+            "outcome": "handoff_not_adopted",
+            "reason": "adopter failed",
+        },
+        artifacts_dir=str(tmp_path),
+    )
+    state = make_state(
+        current_artifacts_dir=str(tmp_path),
+        workspace_num=17,
+        workspace_dir=str(checkout),
+        exec_outcome="failed",
+        suppress_completion_notification=True,
+    )
+    deps = make_deps(write_error_done_marker=write_error_done_marker)
+
+    finalize_runner_shutdown(context=context, state=state, deps=deps)
+
+    current = get_claimed_workspaces(project_file)
+    assert len(current) == 1 and current[0].pinned
+    assert (tmp_path / "done.json").is_file()
+    assert source.read_text(encoding="utf-8") == "staged work must remain\n"
+    retention = json.loads(
+        (tmp_path / "diagnostics" / "workspace_retention.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    assert retention["disposition"] == "retain"
 
 
 def test_finalize_hold_preserves_existing_done_json(

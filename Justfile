@@ -508,8 +508,6 @@ _lint-symvision *args: _setup
         --exclude-decorator gate_command_entrypoint \
         --exclude-decorator builtin_chop \
         --epic-symbol 'sase-1pu.5.1(AgentRunStateProjectCheckpointWire)' \
-        --epic-symbol 'sase-1pj.7.1.2(settle_stranded_workspace)' \
-        --epic-symbol 'sase-1pj.7.1.2(WorkspaceRetentionOwner)' \
         --epic-symbol 'sase-1pj.7.1.2(WorkspaceRetentionRepo)' \
         --epic-symbol 'sase-1pj.7.1.2(WorkspaceRetentionResult)' \
         --epic-symbol 'sase-1pj.7.1.2(WorkspaceRetentionSuccessor)' \
