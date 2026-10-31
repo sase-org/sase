@@ -7,6 +7,7 @@ import time
 from typing import Any
 
 from sase.ace.tui.models import _agent_loader_artifacts as loader_artifacts
+from sase.ace.tui.models import _agent_loader_artifact_config as loader_artifact_config
 from sase.ace.tui.models.agent_live_query_engine import apply_agents_live_query_filter
 from sase.ace.tui.models.agent_live_query_pushdown import (
     compile_agents_live_query_pushdown,
@@ -32,9 +33,9 @@ from tests.perf._agent_load_tiering_types import (
 )
 from tests.perf.agent_load_tiering_fixture import SyntheticArchiveFixture
 
-_ACTIVE_LIMIT = loader_artifacts._TIER1_ACTIVE_LIMIT
-_RECENT_COMPLETED_LIMIT = loader_artifacts._TIER1_RECENT_COMPLETED_LIMIT
-_TUI_SCAN_OPTIONS = loader_artifacts._TUI_SCAN_OPTIONS
+_ACTIVE_LIMIT = loader_artifact_config.TIER1_ACTIVE_LIMIT
+_RECENT_COMPLETED_LIMIT = loader_artifact_config.TIER1_RECENT_COMPLETED_LIMIT
+_TUI_SCAN_OPTIONS = loader_artifact_config.TUI_SCAN_OPTIONS
 
 
 class AgentLoadTieringOracle:

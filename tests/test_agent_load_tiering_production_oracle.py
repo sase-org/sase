@@ -21,6 +21,7 @@ from pathlib import Path
 import pytest
 
 from sase.ace.tui.models import _agent_loader_artifacts as loader_artifacts
+from sase.ace.tui.models import _agent_loader_artifact_config as loader_artifact_config
 from tests.perf.agent_load_tiering_fixture import (
     build_synthetic_agent_archive,
     delete_artifact,
@@ -296,7 +297,7 @@ def test_production_baseline_includes_rows_past_old_tier1_cap(
     clears ``_TIER1_RECENT_COMPLETED_LIMIT`` by a small margin stays in the
     fast test lane and still settles with zero diff and no truncation.
     """
-    old_cap = loader_artifacts._TIER1_RECENT_COMPLETED_LIMIT
+    old_cap = loader_artifact_config.TIER1_RECENT_COMPLETED_LIMIT
     fixture = build_synthetic_agent_archive(
         tmp_path / "fixture", artifact_count=old_cap + 120
     )
@@ -333,7 +334,7 @@ def test_production_baseline_truncation_settles_via_full_history(
         should_arm_full_history_reconcile,
     )
 
-    monkeypatch.setattr(loader_artifacts, "_TIER1_VISIBLE_COMPLETED_LIMIT", 50)
+    monkeypatch.setattr(loader_artifact_config, "TIER1_VISIBLE_COMPLETED_LIMIT", 50)
     fixture = build_synthetic_agent_archive(tmp_path / "fixture", artifact_count=120)
     oracle = AgentLoadTieringOracle(fixture)
     result = oracle.evaluate("", requested_limit=None)
@@ -377,7 +378,7 @@ def test_cached_full_history_after_production_reconcile_skips_marker_work(
             freshness="cached",
             record_shape="list",
         ),
-        loader_artifacts._TUI_SCAN_OPTIONS,
+        loader_artifact_config.TUI_SCAN_OPTIONS,
     )
     completeness = cached.index_completeness
     assert completeness is not None

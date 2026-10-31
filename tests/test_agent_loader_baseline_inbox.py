@@ -13,6 +13,9 @@ from pathlib import Path
 import pytest
 
 from sase.ace.tui.models import _agent_loader_artifacts as loader_artifacts
+from sase.ace.tui.models import _agent_loader_artifact_cache as loader_artifact_cache
+from sase.ace.tui.models import _agent_loader_artifact_config as loader_artifact_config
+from sase.ace.tui.models import _agent_loader_artifact_index as loader_artifact_index
 from sase.ace.tui.models.agent_loader import AgentLoadState, load_tiered_agents
 from sase.core.agent_scan_wire import (
     AgentArtifactIndexWindowWire,
@@ -25,10 +28,10 @@ def _snapshot(*, has_more: bool) -> AgentArtifactScanWire:
     return AgentArtifactScanWire(
         schema_version=1,
         projects_root="/tmp",
-        options=loader_artifacts._TUI_SCAN_OPTIONS,
+        options=loader_artifact_config.TUI_SCAN_OPTIONS,
         stats=AgentArtifactScanStatsWire(),
         index_window=AgentArtifactIndexWindowWire(
-            requested_limit=loader_artifacts._TIER1_VISIBLE_COMPLETED_LIMIT,
+            requested_limit=loader_artifact_config.TIER1_VISIBLE_COMPLETED_LIMIT,
             selected_candidate_count=3,
             returned_record_count=3,
             completed_candidate_count=3,
@@ -52,9 +55,9 @@ def test_baseline_read_uses_visible_cap_and_reports_no_truncation(
     index_path = tmp_path / "index.sqlite"
     index_path.touch()
     monkeypatch.setattr(
-        loader_artifacts,
-        "_ARTIFACT_SNAPSHOT_CACHE",
-        loader_artifacts._ArtifactSnapshotCache(max_entries=8),
+        loader_artifact_index,
+        "ARTIFACT_SNAPSHOT_CACHE",
+        type(loader_artifact_cache.ARTIFACT_SNAPSHOT_CACHE)(max_entries=8),
     )
 
     _, state = loader_artifacts.query_artifact_index_for_loader(
@@ -71,9 +74,10 @@ def test_baseline_read_uses_visible_cap_and_reports_no_truncation(
     assert state is not None
 
     query = captured["query"]
-    assert query.window_limit == loader_artifacts._TIER1_VISIBLE_COMPLETED_LIMIT
+    assert query.window_limit == loader_artifact_config.TIER1_VISIBLE_COMPLETED_LIMIT
     assert (
-        query.recent_completed_limit == loader_artifacts._TIER1_VISIBLE_COMPLETED_LIMIT
+        query.recent_completed_limit
+        == loader_artifact_config.TIER1_VISIBLE_COMPLETED_LIMIT
     )
     assert state.bounded_prefix is False
     assert state.truncated is False
@@ -98,9 +102,9 @@ def test_baseline_read_reports_truncation_and_arms_reconcile(
     index_path = tmp_path / "index.sqlite"
     index_path.touch()
     monkeypatch.setattr(
-        loader_artifacts,
-        "_ARTIFACT_SNAPSHOT_CACHE",
-        loader_artifacts._ArtifactSnapshotCache(max_entries=8),
+        loader_artifact_index,
+        "ARTIFACT_SNAPSHOT_CACHE",
+        type(loader_artifact_cache.ARTIFACT_SNAPSHOT_CACHE)(max_entries=8),
     )
 
     _, state = loader_artifacts.query_artifact_index_for_loader(
@@ -133,7 +137,7 @@ def test_viewport_read_still_reports_bounded_prefix(
         return AgentArtifactScanWire(
             schema_version=1,
             projects_root="/tmp",
-            options=loader_artifacts._TUI_SCAN_OPTIONS,
+            options=loader_artifact_config.TUI_SCAN_OPTIONS,
             stats=AgentArtifactScanStatsWire(),
             index_window=AgentArtifactIndexWindowWire(
                 requested_limit=100,
@@ -148,9 +152,9 @@ def test_viewport_read_still_reports_bounded_prefix(
     index_path = tmp_path / "index.sqlite"
     index_path.touch()
     monkeypatch.setattr(
-        loader_artifacts,
-        "_ARTIFACT_SNAPSHOT_CACHE",
-        loader_artifacts._ArtifactSnapshotCache(max_entries=8),
+        loader_artifact_index,
+        "ARTIFACT_SNAPSHOT_CACHE",
+        type(loader_artifact_cache.ARTIFACT_SNAPSHOT_CACHE)(max_entries=8),
     )
 
     _, state = loader_artifacts.query_artifact_index_for_loader(
@@ -257,6 +261,6 @@ def test_pushdown_miss_incomplete_on_viewport_read(
 def test_visible_cap_is_safety_valve_not_working_set() -> None:
     """The safety valve dwarfs the old 200-row working-set cap."""
     assert (
-        loader_artifacts._TIER1_VISIBLE_COMPLETED_LIMIT
-        >= 6 * loader_artifacts._TIER1_RECENT_COMPLETED_LIMIT
+        loader_artifact_config.TIER1_VISIBLE_COMPLETED_LIMIT
+        >= 6 * loader_artifact_config.TIER1_RECENT_COMPLETED_LIMIT
     )

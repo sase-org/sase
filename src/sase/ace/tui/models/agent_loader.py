@@ -22,7 +22,7 @@ from sase.core.paths import sase_projects_dir
 from ..util.trace import tui_trace
 from ...patch import Patch, find_all_patches
 from ...hooks.processes import is_process_running
-from . import _agent_loader_artifacts as _artifacts
+from . import _agent_loader_artifact_config as _artifact_config
 from ._agent_loader_artifacts import (
     AgentLoadState,
     artifact_delta_load_state as _artifact_delta_load_state,
@@ -101,7 +101,7 @@ def _scan_artifacts_for_loader(
     """
     return scan_agent_artifacts(
         sase_projects_dir(),
-        options or _artifacts._TUI_SCAN_OPTIONS,
+        options or _artifact_config.TUI_SCAN_OPTIONS,
     )
 
 
@@ -113,7 +113,7 @@ def _scan_artifact_dirs_for_loader(
     return scan_agent_artifact_dirs(
         sase_projects_dir(),
         artifact_dirs,
-        options or _artifacts._TUI_SCAN_OPTIONS,
+        options or _artifact_config.TUI_SCAN_OPTIONS,
     )
 
 
@@ -487,7 +487,7 @@ def load_live_plan_agents_for_timestamps(timestamps: Iterable[str]) -> list[Agen
         return _normalize_live_plan_agents(agents)
     snapshot = _scan_artifact_dirs_for_loader(
         artifact_dirs,
-        _artifacts._PLAN_LIVE_SCAN_OPTIONS,
+        _artifact_config.PLAN_LIVE_SCAN_OPTIONS,
     )
     agents.extend(_load_plan_agents_from_artifact_snapshot(snapshot))
     return _normalize_live_plan_agents(agents)

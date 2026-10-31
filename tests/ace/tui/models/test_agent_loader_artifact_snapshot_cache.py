@@ -4,10 +4,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from sase.ace.tui.models._agent_loader_artifacts import (
-    _ARTIFACT_SNAPSHOT_CACHE,
-    query_artifact_index_for_loader,
-)
+from sase.ace.tui.models._agent_loader_artifact_cache import ARTIFACT_SNAPSHOT_CACHE
+from sase.ace.tui.models._agent_loader_artifacts import query_artifact_index_for_loader
 from sase.core.agent_scan_wire import (
     AgentArtifactIndexQueryWire,
     AgentArtifactIndexWindowWire,
@@ -32,7 +30,7 @@ def _snapshot(root: Path, *, decoded: int = 7) -> AgentArtifactScanWire:
 
 
 def test_cached_bounded_index_read_reuses_snapshot(tmp_path: Path) -> None:
-    _ARTIFACT_SNAPSHOT_CACHE.clear()
+    ARTIFACT_SNAPSHOT_CACHE.clear()
     index = tmp_path / "agent_artifact_index.sqlite"
     index.write_text("db", encoding="utf-8")
     calls = 0
@@ -70,14 +68,14 @@ def test_cached_bounded_index_read_reuses_snapshot(tmp_path: Path) -> None:
     assert first_state.record_json_decoded == 7
     assert second_state.record_json_decoded == 0
     assert calls == 1
-    stats = _ARTIFACT_SNAPSHOT_CACHE.stats()
+    stats = ARTIFACT_SNAPSHOT_CACHE.stats()
     assert stats.misses == 1
     assert stats.hits == 1
     assert stats.stores == 1
 
 
 def test_cache_key_isolates_candidate_filter(tmp_path: Path) -> None:
-    _ARTIFACT_SNAPSHOT_CACHE.clear()
+    ARTIFACT_SNAPSHOT_CACHE.clear()
     index = tmp_path / "agent_artifact_index.sqlite"
     index.write_text("db", encoding="utf-8")
     calls = 0
@@ -114,11 +112,11 @@ def test_cache_key_isolates_candidate_filter(tmp_path: Path) -> None:
     )
 
     assert calls == 2
-    assert _ARTIFACT_SNAPSHOT_CACHE.stats().misses == 2
+    assert ARTIFACT_SNAPSHOT_CACHE.stats().misses == 2
 
 
 def test_cache_refuses_mutation_during_read(tmp_path: Path) -> None:
-    _ARTIFACT_SNAPSHOT_CACHE.clear()
+    ARTIFACT_SNAPSHOT_CACHE.clear()
     index = tmp_path / "agent_artifact_index.sqlite"
     index.write_text("db", encoding="utf-8")
     calls = 0
@@ -154,13 +152,13 @@ def test_cache_refuses_mutation_during_read(tmp_path: Path) -> None:
     query_artifact_index_for_loader(**kwargs)
 
     assert calls == 2
-    stats = _ARTIFACT_SNAPSHOT_CACHE.stats()
+    stats = ARTIFACT_SNAPSHOT_CACHE.stats()
     assert stats.hits == 0
     assert stats.mutation_refusals == 2
 
 
 def test_revalidate_bypasses_snapshot_cache(tmp_path: Path) -> None:
-    _ARTIFACT_SNAPSHOT_CACHE.clear()
+    ARTIFACT_SNAPSHOT_CACHE.clear()
     index = tmp_path / "agent_artifact_index.sqlite"
     index.write_text("db", encoding="utf-8")
     calls = 0
@@ -193,11 +191,11 @@ def test_revalidate_bypasses_snapshot_cache(tmp_path: Path) -> None:
     query_artifact_index_for_loader(**kwargs)
 
     assert calls == 2
-    assert _ARTIFACT_SNAPSHOT_CACHE.stats().bypasses == 2
+    assert ARTIFACT_SNAPSHOT_CACHE.stats().bypasses == 2
 
 
 def test_lock_busy_serves_stale_same_key_snapshot(tmp_path: Path) -> None:
-    _ARTIFACT_SNAPSHOT_CACHE.clear()
+    ARTIFACT_SNAPSHOT_CACHE.clear()
     index = tmp_path / "agent_artifact_index.sqlite"
     index.write_text("db", encoding="utf-8")
     cached = _snapshot(tmp_path, decoded=7)
@@ -249,7 +247,7 @@ def test_lock_busy_serves_stale_same_key_snapshot(tmp_path: Path) -> None:
 
 
 def test_lock_busy_does_not_serve_different_key_snapshot(tmp_path: Path) -> None:
-    _ARTIFACT_SNAPSHOT_CACHE.clear()
+    ARTIFACT_SNAPSHOT_CACHE.clear()
     index = tmp_path / "agent_artifact_index.sqlite"
     index.write_text("db", encoding="utf-8")
     cached = _snapshot(tmp_path, decoded=7)
@@ -306,7 +304,7 @@ def test_lock_busy_does_not_serve_different_key_snapshot(tmp_path: Path) -> None
 def test_lock_busy_without_cache_keeps_roster_when_startup_scan_disabled(
     tmp_path: Path,
 ) -> None:
-    _ARTIFACT_SNAPSHOT_CACHE.clear()
+    ARTIFACT_SNAPSHOT_CACHE.clear()
     index = tmp_path / "agent_artifact_index.sqlite"
     index.write_text("db", encoding="utf-8")
     scan_calls = 0

@@ -7,7 +7,7 @@ from dataclasses import asdict
 import time
 from typing import Any, Literal
 
-from sase.ace.tui.models import _agent_loader_artifacts as loader_artifacts
+from sase.ace.tui.models import _agent_loader_artifact_cache as loader_artifact_cache
 from sase.ace.tui.models.agent_live_query_engine import apply_agents_live_query_filter
 from sase.ace.tui.models.agent_loader import load_tiered_agents
 
@@ -239,7 +239,7 @@ def _benchmark_refresh_session(
         ("full_history_upgrade", True),
         *(("ordinary_refresh", False) for _ in range(refreshes)),
     ]
-    loader_artifacts._ARTIFACT_SNAPSHOT_CACHE.clear()
+    loader_artifact_cache.ARTIFACT_SNAPSHOT_CACHE.clear()
     with _temporary_sase_home(fixture.sase_home):
         for stage, full_history in plan:
             elapsed_ms, state = _timed_production_load(
@@ -263,7 +263,7 @@ def _benchmark_refresh_session(
         },
         "counters": totals,
         "artifact_snapshot_cache": asdict(
-            loader_artifacts._ARTIFACT_SNAPSHOT_CACHE.stats()
+            loader_artifact_cache.ARTIFACT_SNAPSHOT_CACHE.stats()
         ),
         "total_ms": total_ms,
         "modeled_source_scan_session_ms": baseline_ms,
