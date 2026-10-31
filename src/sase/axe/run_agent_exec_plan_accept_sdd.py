@@ -29,6 +29,7 @@ def publish_planner_prompt_archive(
     """Publish the approved planner prompt to the canonical agents sidecar."""
     from sase.agents_sync.git import run_git
     from sase.agents_sync.prompt_archive import publish_prompt_archive
+    from sase.agents_sync.publication_outbox import PUBLICATION_SCOPE_LINKED
 
     revision_result = run_git(
         Path(ctx.workspace_dir),
@@ -41,6 +42,10 @@ def publish_planner_prompt_archive(
             "Planner prompt archive publication skipped: primary revision unavailable"
         )
         return None
+
+    # The pre-plan HEAD is only the row's anchor and key. The planner does
+    # not own that commit. The planner's obligation is the session page plus
+    # the prompt archive, and acknowledge_completed already gates the archive.
     outcome = publish_prompt_archive(
         agent_name,
         primary_revision,
@@ -51,6 +56,7 @@ def publish_planner_prompt_archive(
         plan_ref=f"{PLAN_REFERENCE_PREFIX}{yyyymm}/{plan_name}.md",
         prompt_name=plan_name,
         yyyymm=yyyymm,
+        fulfillment_scope=PUBLICATION_SCOPE_LINKED,
     )
     if outcome.error or outcome.skip_reason:
         logger.warning(

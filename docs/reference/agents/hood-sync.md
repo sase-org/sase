@@ -334,8 +334,13 @@ Commit-triggered agent-hood publication uses a durable outbox at
 (the post-commit HEAD), not the workspace HEAD from before dispatch. A request for a
 linked (non-primary) repository commit also records `scope: linked`; fulfillment then
 requires only the agent's required publication page, because linked-repo SHAs never
-appear in the run's primary `commit_shas`. Each request records its attempt count, most
-recent attributable error, and quarantine or retirement state. Rows rekeyed by the
+appear in the run's primary `commit_shas`. Approved-planner prompt-archive rows also use
+page-only (`linked`) fulfillment: the planner's pre-plan `HEAD` is only the row's anchor
+and key, the planner does not own that commit, and `acknowledge_completed` already gates
+the archive. Enqueue merges keep `revision` when either the stored row or the incoming
+row has it, so a planner enqueue cannot weaken a commit row that shares the same
+`(global_agent, SHA)` key. Each request records its attempt count, most recent
+attributable error, and quarantine or retirement state. Rows rekeyed by the
 stale-revision repair keep their original requested revision in `requested_revision`
 while `primary_revision` names the fulfilling commit; rows never repaired omit it, and
 the original stays visible in doctor output and JSON. `publish_committed_agent_hood` is

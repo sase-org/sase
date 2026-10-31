@@ -6,6 +6,8 @@ import threading
 from dataclasses import replace
 
 from sase.agents_sync.publication_outbox import (
+    PUBLICATION_SCOPE_LINKED,
+    PUBLICATION_SCOPE_REVISION,
     acknowledge_agent_publications,
     clear_quarantined_agent_publications,
     enqueue_agent_publication,
@@ -53,6 +55,41 @@ def test_outbox_is_idempotent_updates_digest_and_acknowledges(
 
     assert acknowledge_agent_publications("proj", (first.logical_key,)) == ()
     assert list_agent_publications("proj") == ()
+
+
+def test_enqueue_keeps_revision_when_either_side_has_it(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    monkeypatch.setenv("SASE_HOME", str(tmp_path))
+    revision = enqueue_agent_publication(
+        make_outbox_item(scope=PUBLICATION_SCOPE_REVISION)
+    )
+    linked_over_revision = enqueue_agent_publication(
+        make_outbox_item(scope=PUBLICATION_SCOPE_LINKED)
+    )
+    assert linked_over_revision.scope == PUBLICATION_SCOPE_REVISION
+    assert linked_over_revision.logical_key == revision.logical_key
+
+    other_key = "b" * 40
+    linked = enqueue_agent_publication(
+        make_outbox_item(revision=other_key, scope=PUBLICATION_SCOPE_LINKED)
+    )
+    revision_over_linked = enqueue_agent_publication(
+        make_outbox_item(revision=other_key, scope=PUBLICATION_SCOPE_REVISION)
+    )
+    assert linked.scope == PUBLICATION_SCOPE_LINKED
+    assert revision_over_linked.scope == PUBLICATION_SCOPE_REVISION
+
+    third_key = "c" * 40
+    first_linked = enqueue_agent_publication(
+        make_outbox_item(revision=third_key, scope=PUBLICATION_SCOPE_LINKED)
+    )
+    second_linked = enqueue_agent_publication(
+        make_outbox_item(revision=third_key, scope=PUBLICATION_SCOPE_LINKED)
+    )
+    assert first_linked.scope == PUBLICATION_SCOPE_LINKED
+    assert second_linked.scope == PUBLICATION_SCOPE_LINKED
 
 
 def test_reenqueue_fills_commit_context_without_resetting_failure_state(

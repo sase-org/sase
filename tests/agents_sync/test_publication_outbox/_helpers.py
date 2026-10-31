@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
-from sase.agents_sync.publication_outbox import AgentPublicationOutboxItem
+from sase.agents_sync.publication_outbox import (
+    PUBLICATION_SCOPE_REVISION,
+    AgentPublicationOutboxItem,
+)
 
 
 def make_outbox_item(
@@ -12,6 +15,7 @@ def make_outbox_item(
     revision: str = "a" * 40,
     project_key: str = "proj",
     local_hood: str = "foo",
+    scope: str = PUBLICATION_SCOPE_REVISION,
 ) -> AgentPublicationOutboxItem:
     return AgentPublicationOutboxItem(
         project_key=project_key,
@@ -20,4 +24,5 @@ def make_outbox_item(
         global_agent=global_agent,
         primary_revision=revision,
         local_hood=local_hood,
+        scope=scope,
     )

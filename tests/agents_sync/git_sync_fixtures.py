@@ -119,6 +119,7 @@ def plant_fulfilled_publication(
     global_agent: str = "alice.athena.foo",
     revision: str = "a" * 40,
     extra_revisions: tuple[str, ...] = (),
+    commit_shas: tuple[str, ...] | None = None,
     local_hood: str = "foo",
     kind: str = "run",
     has_prompt_file: bool = False,
@@ -127,7 +128,7 @@ def plant_fulfilled_publication(
     """Write the canonical page and snapshot identity a request needs."""
 
     resolved_owner = owner or AgentOwnerIdentity("alice", "athena")
-    shas = (revision, *extra_revisions)
+    shas = (revision, *extra_revisions) if commit_shas is None else commit_shas
     commits = tuple(
         CommitRecord(sha, f"publish {local_agent}", index)
         for index, sha in enumerate(shas, start=1)

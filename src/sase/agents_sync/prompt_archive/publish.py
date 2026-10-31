@@ -71,6 +71,7 @@ def publish_prompt_archive(
     git_runner: GitRunner = run_git,
     lock_timeout_seconds: float | None = None,
     cites_event_run_id: str | None = None,
+    fulfillment_scope: str | None = None,
 ) -> PromptArchivePublicationOutcome:
     """Publish one run's prompt without crossing the primary commit boundary."""
 
@@ -88,6 +89,7 @@ def publish_prompt_archive(
             git_runner=git_runner,
             lock_timeout_seconds=lock_timeout_seconds,
             cites_event_run_id=cites_event_run_id,
+            fulfillment_scope=fulfillment_scope,
         )
     except PublicationDrainTimedOut:
         raise
@@ -109,12 +111,11 @@ def _publish_prompt_archive(
     git_runner: GitRunner,
     lock_timeout_seconds: float | None,
     cites_event_run_id: str | None,
+    fulfillment_scope: str | None,
 ) -> PromptArchivePublicationOutcome:
-    from sase.agents_sync.commit_publication import (
-        fulfillment_scope_for_commit_cwd,
-        resolve_publication_project_key,
-    )
+    from sase.agents_sync.commit_publication import resolve_publication_project_key
 
+    publication_scope = _resolved_fulfillment_scope(fulfillment_scope, commit_cwd)
     selector = project or resolve_publication_project_key(
         commit_cwd,
         git_runner=git_runner,
@@ -155,7 +156,7 @@ def _publish_prompt_archive(
             global_agent=agent_ref.global_name,
             primary_revision=primary_revision,
             local_hood=agent_local_hood(agent_ref.local_name, identity),
-            scope=fulfillment_scope_for_commit_cwd(commit_cwd),
+            scope=publication_scope,
             commit_cwd=str(commit_cwd),
             artifacts_dir=str(artifacts_dir),
             run_id=_publication_run_id(cites_event_run_id),
@@ -523,6 +524,26 @@ def _agent_artifacts_dir(value: Path | str | None) -> Path | None:
 
 def _publication_run_id(value: str | None) -> str | None:
     return (value or "").strip() or None
+
+
+def _resolved_fulfillment_scope(
+    fulfillment_scope: str | None,
+    commit_cwd: Path,
+) -> str:
+    from sase.agents_sync.commit_publication import fulfillment_scope_for_commit_cwd
+    from sase.agents_sync.publication_outbox import (
+        PUBLICATION_SCOPE_LINKED,
+        PUBLICATION_SCOPE_REVISION,
+    )
+
+    if fulfillment_scope is None:
+        return fulfillment_scope_for_commit_cwd(commit_cwd)
+    if fulfillment_scope in (PUBLICATION_SCOPE_LINKED, PUBLICATION_SCOPE_REVISION):
+        return fulfillment_scope
+    raise ValueError(
+        "fulfillment_scope must be "
+        f"{PUBLICATION_SCOPE_LINKED!r} or {PUBLICATION_SCOPE_REVISION!r}"
+    )
 
 
 __all__ = [

@@ -420,6 +420,97 @@ def test_linked_scope_fulfills_when_the_required_page_exists_without_revision() 
     assert "linked-scope" in decision.reason
 
 
+def test_linked_scope_session_fulfills_without_run_commits() -> None:
+    decision = decide_publication_request_completion(
+        global_agent="alice.athena.foo.bar",
+        local_agent="foo.bar",
+        primary_revision="a" * 40,
+        pages=(
+            {"path": "agents/alice.athena.foo.bar/README.md", "exists": False},
+            {"path": "sessions/alice.athena.foo.bar.md", "exists": True},
+        ),
+        runs=(
+            {
+                "global_name": "alice.athena.foo.bar--plan",
+                "local_name": "foo.bar--plan",
+                "commit_shas": [],
+                "has_prompt_file": True,
+            },
+        ),
+        containers=(
+            {
+                "kind": "session",
+                "global_name": "alice.athena.foo.bar",
+                "member_global_names": ["alice.athena.foo.bar--plan"],
+                "commit_shas": [],
+            },
+        ),
+        scope=PUBLICATION_SCOPE_LINKED,
+    )
+    assert decision.kind == PUBLICATION_KIND_SESSION
+    assert decision.fulfilled
+    assert "linked-scope" in decision.reason
+
+
+def test_linked_scope_session_fulfills_when_descendant_sha_is_present() -> None:
+    planner_head = "a" * 40
+    coder_sha = "b" * 40
+    decision = decide_publication_request_completion(
+        global_agent="alice.athena.foo.bar",
+        local_agent="foo.bar",
+        primary_revision=planner_head,
+        pages=(
+            {"path": "agents/alice.athena.foo.bar/README.md", "exists": False},
+            {"path": "sessions/alice.athena.foo.bar.md", "exists": True},
+        ),
+        runs=(
+            {
+                "global_name": "alice.athena.foo.bar--code",
+                "local_name": "foo.bar--code",
+                "commit_shas": [coder_sha],
+                "has_prompt_file": True,
+            },
+        ),
+        containers=(
+            {
+                "kind": "session",
+                "global_name": "alice.athena.foo.bar",
+                "member_global_names": ["alice.athena.foo.bar--code"],
+                "commit_shas": [coder_sha],
+            },
+        ),
+        scope=PUBLICATION_SCOPE_LINKED,
+    )
+    assert decision.fulfilled
+    refused = decide_publication_request_completion(
+        global_agent="alice.athena.foo.bar",
+        local_agent="foo.bar",
+        primary_revision=planner_head,
+        pages=(
+            {"path": "agents/alice.athena.foo.bar/README.md", "exists": False},
+            {"path": "sessions/alice.athena.foo.bar.md", "exists": True},
+        ),
+        runs=(
+            {
+                "global_name": "alice.athena.foo.bar--code",
+                "local_name": "foo.bar--code",
+                "commit_shas": [coder_sha],
+                "has_prompt_file": True,
+            },
+        ),
+        containers=(
+            {
+                "kind": "session",
+                "global_name": "alice.athena.foo.bar",
+                "member_global_names": ["alice.athena.foo.bar--code"],
+                "commit_shas": [coder_sha],
+            },
+        ),
+    )
+    assert not refused.fulfilled
+    assert "primary revision" in refused.reason
+
+
 def test_deferred_prompt_missing_source_is_unavailable_without_evidence() -> None:
     unavailable = classify_deferred_prompt_obligation(
         restore_wrote=False,

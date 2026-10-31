@@ -11,6 +11,7 @@ from sase.agents_sync.publication_outbox_diagnostics import (
     publication_stopped_diagnostic,
 )
 from sase.agents_sync.publication_outbox_models import (
+    PUBLICATION_SCOPE_REVISION,
     AgentPublicationOutboxItem,
     publication_sort_key,
     validate_publication_item,
@@ -131,6 +132,22 @@ def _bounded_selection_diagnostic(
     )
 
 
+def _merged_publication_scope(
+    existing: AgentPublicationOutboxItem | None,
+    incoming: AgentPublicationOutboxItem,
+) -> str:
+    """Keep revision scope when either the stored row or the incoming row has it."""
+
+    if existing is None:
+        return incoming.scope
+    if (
+        existing.scope == PUBLICATION_SCOPE_REVISION
+        or incoming.scope == PUBLICATION_SCOPE_REVISION
+    ):
+        return PUBLICATION_SCOPE_REVISION
+    return incoming.scope
+
+
 def enqueue_agent_publication(
     item: AgentPublicationOutboxItem,
 ) -> AgentPublicationOutboxItem:
@@ -188,6 +205,7 @@ def enqueue_agent_publication(
                 if existing is not None and item.hood_digest == "pending"
                 else item.hood_digest
             ),
+            scope=_merged_publication_scope(existing, item),
         )
         return tuple(
             sorted(
