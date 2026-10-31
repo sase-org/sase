@@ -30,7 +30,7 @@ from sase.monitor.start_stage import (
     launch_from_persisted_payload,
     stage_monitor,
 )
-from sase.monitor.start_stage_adopt import _load_staged_monitor_launch_payload
+from sase.monitor._start_stage_adopt_flow import load_staged_monitor_launch_payload
 from sase.monitor.staged_owner import launch_payload_path
 from sase.procs.store import get_proc
 from sase.procs.submission import ProcSubmitError
@@ -303,7 +303,7 @@ def test_held_cleanup_then_retry_reacquires_tool_run_and_prepared_intent(
     assert bound["binding"]["monitor_id"] == staged.record.monitor_id
     reservations = read_reservations(dirs[0])
     assert reservations
-    payload = _load_staged_monitor_launch_payload(staged.record.artifacts_dir)
+    payload = load_staged_monitor_launch_payload(staged.record.artifacts_dir)
     frozen_reservation = payload["resources"]["prepared_reservation"]
     assert frozen_reservation["staged_id"] == payload["staged_id"]
     assert any(

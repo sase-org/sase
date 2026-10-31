@@ -22,7 +22,7 @@ from sase.monitor.start_stage import (
     launch_from_persisted_payload,
     stage_monitor,
 )
-from sase.monitor.start_stage_adopt import _load_staged_monitor_launch_payload
+from sase.monitor._start_stage_adopt_flow import load_staged_monitor_launch_payload
 from sase.procs.submission import ProcSubmitError
 
 from ._start_stage import (
@@ -232,7 +232,7 @@ def test_prepared_stage_reserves_without_binding_then_binds_at_spawn(
     intent = load_prepared_completion(prepared.intent_ref, artifacts_dir=dirs[0])
     assert intent["status"] == "prepared"
 
-    payload = _load_staged_monitor_launch_payload(staged.record.artifacts_dir)
+    payload = load_staged_monitor_launch_payload(staged.record.artifacts_dir)
     reservation = payload["resources"]["prepared_reservation"]
     assert reservation == {
         "staged_id": staged.staged_id,

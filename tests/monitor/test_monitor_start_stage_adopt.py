@@ -16,7 +16,7 @@ from sase.monitor.start_stage import (
     launch_from_persisted_payload,
     stage_monitor,
 )
-from sase.monitor.start_stage_adopt import _load_staged_monitor_launch_payload
+from sase.monitor._start_stage_adopt_flow import load_staged_monitor_launch_payload
 from sase.monitor.staged_owner import launch_payload_path
 from tests.monitor._fixtures import (
     record_from_disk,
@@ -67,7 +67,7 @@ def test_staged_authored_checkpoint_survives_cli_file_removal(
     source.write_text("objective: changed after staging\n", encoding="utf-8")
     source.unlink()
 
-    payload = _load_staged_monitor_launch_payload(staged.record.artifacts_dir)
+    payload = load_staged_monitor_launch_payload(staged.record.artifacts_dir)
     claim = payload["workspace"]["claim_context"]
     frozen_ref = claim["checkpoint_content_ref"]
     frozen_path = Path(staged.record.artifacts_dir) / frozen_ref.removeprefix("local:")
@@ -109,7 +109,7 @@ def test_staged_authored_checkpoint_missing_or_corrupt_refuses_before_launch(
         )
     )
     dirs.append(staged.record.artifacts_dir)
-    payload = _load_staged_monitor_launch_payload(staged.record.artifacts_dir)
+    payload = load_staged_monitor_launch_payload(staged.record.artifacts_dir)
     frozen_ref = payload["workspace"]["claim_context"]["checkpoint_content_ref"]
     frozen_path = Path(staged.record.artifacts_dir) / frozen_ref.removeprefix("local:")
     if damage == "remove":
@@ -314,7 +314,7 @@ def test_stage_persists_payload_and_reconstructs(
     assert staged.record.pid is None
     payload_path = launch_payload_path(staged.record.artifacts_dir)
     assert payload_path.is_file()
-    loaded = _load_staged_monitor_launch_payload(staged.record.artifacts_dir)
+    loaded = load_staged_monitor_launch_payload(staged.record.artifacts_dir)
     assert loaded["schema_version"] == staged_monitor_launch_payload_schema_version()
     assert loaded["staged_id"] == staged.staged_id
     assert loaded["monitor_id"] == staged.record.monitor_id
@@ -369,7 +369,7 @@ def test_nested_cwd_and_explicit_lane_freeze_workspace(
     )
     staged = stage_monitor(stage_request(tmp_path, cwd=str(nested)))
     dirs.append(staged.record.artifacts_dir)
-    payload = _load_staged_monitor_launch_payload(staged.record.artifacts_dir)
+    payload = load_staged_monitor_launch_payload(staged.record.artifacts_dir)
     claim = payload["workspace"]["claim_context"]
     assert payload["cwd"] == str(nested)
     assert payload["lane"] == "acme"
@@ -390,7 +390,7 @@ def test_tool_run_id_is_stable_from_stage_to_launch(
     dirs.append(staged.record.artifacts_dir)
     run_id = staged.record.tool_run_id
     assert run_id
-    payload = _load_staged_monitor_launch_payload(staged.record.artifacts_dir)
+    payload = load_staged_monitor_launch_payload(staged.record.artifacts_dir)
     assert payload["resources"]["tool_run_id"] == run_id
     record = launch_from_persisted_payload(staged.record.artifacts_dir)
     try:
