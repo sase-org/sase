@@ -99,20 +99,6 @@ def select_current_wait_turn(
     return int(raw)
 
 
-def wait_targets_with_descriptions() -> tuple[tuple[str, str], ...]:
-    """Return the shared ``(value, description)`` table."""
-    binding = require_rust_binding("wait_targets_with_descriptions")
-    rows = binding()
-    if not isinstance(rows, list):
-        raise TypeError("wait_targets_with_descriptions returned a non-list")
-    out: list[tuple[str, str]] = []
-    for row in rows:
-        if not isinstance(row, dict):
-            raise TypeError("wait_targets_with_descriptions row is not a dict")
-        out.append((str(row["value"]), str(row["description"])))
-    return tuple(out)
-
-
 def _member_wire(member: WaitTurnFacts | Mapping[str, Any]) -> dict[str, Any]:
     if isinstance(member, WaitTurnFacts):
         return member.to_wire()
@@ -158,5 +144,4 @@ __all__ = [
     "effective_wait_target",
     "parse_wait_target",
     "select_current_wait_turn",
-    "wait_targets_with_descriptions",
 ]

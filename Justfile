@@ -492,13 +492,9 @@ _lint-patch-stitch-terminology: _setup
 # sase-1pj.5.1.4 consumed the staged-monitor transaction. Its implementation
 # details and payload readers are private; prepared-reservation state is
 # inspected directly by focused tests rather than through a public reader.
-# sase-1q4.2 exported the wait_target facade; sase-1q4.4 (wait_runtime) consumes
-# parse/effective/select plus the dataclasses. sase-1q4.5 (wait_directive)
-# consumed WAIT_TARGETS_WITH_DESCRIPTIONS on the Rust editor suggestion path;
-# the Python wait_targets_with_descriptions facade still needs a Python
-# consumer, so its row is re-keyed onto the parent epic.
-# sase-1q4.6 consumed bind_wait_target / WaitTargetBinding in sase agent wait
-# and dropped those rows.
+# sase-1q4 exported the wait_target facade and consumed it from wait runtime,
+# the editor suggestion path, and sase agent wait. The land deleted the unused
+# Python wait_targets_with_descriptions facade, so no sase-1q4 rows remain.
 # Never put a comment
 # line inside the continued command below: just joins the lines, so the comment
 # would swallow every later argument.
@@ -507,7 +503,6 @@ _lint-symvision *args: _setup
         --exclude-decorator gate_command_entrypoint \
         --exclude-decorator builtin_chop \
         --epic-symbol 'sase-1pu.5.1(AgentRunStateProjectCheckpointWire)' \
-        --epic-symbol 'sase-1q4(wait_targets_with_descriptions)' \
         {{ args }}
 
 # Check Python file line counts (private, extracted for per-stage wrapping)

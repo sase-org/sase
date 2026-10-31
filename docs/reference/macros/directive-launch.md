@@ -202,14 +202,21 @@ and `time=` waits have no session or turn. Conflicting `target=` values for one 
 are an error. `target=turn` cannot combine with `for_epic=true`: a turn wait is never
 armed for epic-follow, and `%wait(planner, target=turn)` skips epic-follow even though
 the default is on. `target=turn` on an `@tribe` is a parse-time error because a tribe
-has no single turn; a clan turn wait fails later, when the wait is bound. Typed `%proc`
-and `%if` launches reject `target=turn` (`wait-target-turn-typed-unsupported`) because
-their admission path cannot honor a pinned turn; `target=session` on those units is a
-no-op.
+has no single turn; a clan turn wait fails later, when the wait is bound.
+
+In a typed launch plan (every agent-initiated launch approved through LaunchApproval,
+and user launches containing `%if`/`%proc`), an agent unit's `%wait` with an explicit
+`target=` is not admitted by the coordinator. It stays in that unit's prompt, and the
+launched agent binds it when the unit dispatches. `target=turn` cannot name another
+unit of the same plan. `unit=`/`proc=` cannot share a `%wait` with `target=`. Typed
+`%proc` and `%if` units still reject `target=turn`
+(`wait-target-turn-typed-unsupported`) because their admission path cannot honor a
+pinned turn; `target=session` on those units is a no-op.
 
 The corresponding diagnostics are `wait-target-invalid-value`,
 `wait-target-without-agent`, `wait-target-conflict`, `wait-target-turn-for-epic`,
-`wait-target-turn-tribe`, and `wait-target-turn-typed-unsupported`. A turn wait that
+`wait-target-turn-tribe`, `wait-target-turn-typed-unsupported`,
+`wait-target-typed-mixed-keys`, and `wait-target-turn-planned-unit`. A turn wait that
 parks on a plan-gate turn stays parked until that gate is approved or declined; see
 [Agent sessions](../agents/agent-sessions.md).
 

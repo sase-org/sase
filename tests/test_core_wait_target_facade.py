@@ -101,10 +101,3 @@ def test_select_current_wait_turn_covers_selection_edges() -> None:
         )
         is None
     )
-
-
-def test_wait_targets_with_descriptions_matches_catalog() -> None:
-    rows = facade.wait_targets_with_descriptions()
-    assert [value for value, _description in rows] == ["session", "turn"]
-    assert "session" in rows[0][1]
-    assert "turn" in rows[1][1]

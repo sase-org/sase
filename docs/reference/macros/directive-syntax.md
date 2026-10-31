@@ -424,7 +424,9 @@ versioned JSON context at `SASE_CONDITION_CONTEXT`, but this isolation is not a 
 boundary: the predicate runs with the SASE process's filesystem and network permissions.
 
 `%wait(agent=<name>)` is also an alternate spelling of an ordinary agent wait on direct
-launch paths. Logical-unit and proc-wait admission are active only in the LaunchApproval
+launch paths. An agent unit's `%wait` with an explicit `target=` stays in that unit's
+prompt so the launched agent binds it; see [Wait Directive](directive-launch.md).
+Logical-unit and proc-wait admission are active only in the LaunchApproval
 coordinator. There, bare `%wait` targets the preceding unit, `%wait(unit=unit-N)`
 targets an exact logical unit, and `%wait(agent=<name>)` or `%wait(proc=<name-or-id>)`
 targets a matching unit in the same plan when possible, otherwise an existing agent or
