@@ -1,11 +1,11 @@
 """Gather stranded-work facts for the sase-core reducer.
 
 Python owns process liveness, marker files, and the small JSON reads the
-host already performs. The scan is cheap (one index query per candidate
-session, one JSON read per candidate) and ignores ACE dismissal so flags
-survive hiding a row. Open beads that carry an active completion failure
-are recovery candidates; their failure provenance names the run to load
-without changing the bead assignee.
+host already performs. The scan is cheap (one batched index query per
+hundred candidate sessions, one JSON read per candidate) and ignores ACE
+dismissal so flags survive hiding a row. Open beads that carry an active
+completion failure are recovery candidates; their failure provenance names
+the run to load without changing the bead assignee.
 """
 
 from __future__ import annotations
@@ -171,21 +171,36 @@ def _session_keys_for_issue(issue: Issue) -> tuple[str, ...]:
     return tuple(keys)
 
 
-def _session_record_cache(
-    project: str, assignees: set[str]
-) -> dict[str, tuple[list[AgentArtifactRecordWire], bool]]:
-    cache: dict[str, tuple[list[AgentArtifactRecordWire], bool]] = {}
-    for assignee in sorted(assignees):
-        cache[assignee] = _query_session_records(project, assignee)
+_BATCH_CHUNK_SIZE = 100
+
+_QueryCache = dict[str, tuple[list[AgentArtifactRecordWire], bool]]
+
+
+def _session_record_cache(project: str, assignees: set[str]) -> _QueryCache:
+    keys = sorted(assignees)
+    if not keys:
+        return {}
+    if not default_agent_artifact_index_path().is_file():
+        return {key: ([], False) for key in keys}
+    cache: _QueryCache = {}
+    for start in range(0, len(keys), _BATCH_CHUNK_SIZE):
+        chunk = keys[start : start + _BATCH_CHUNK_SIZE]
+        try:
+            records = _query_session_records_chunk(project, chunk)
+        except (OSError, RuntimeError, ValueError, ImportError, AttributeError):
+            for key in chunk:
+                cache[key] = ([], False)
+            continue
+        grouped = _group_records_by_assignee(records, chunk)
+        for key in chunk:
+            cache[key] = (grouped[key], True)
     return cache
 
 
-def _query_session_records(
-    project: str, agent_session: str
-) -> tuple[list[AgentArtifactRecordWire], bool]:
-    index_path = default_agent_artifact_index_path()
-    if not index_path.is_file():
-        return [], False
+def _query_session_records_chunk(
+    project: str, keys: list[str]
+) -> list[AgentArtifactRecordWire]:
+    """Run one batched session query for *keys*; return the raw records."""
     query = AgentArtifactIndexQueryWire(
         include_active=True,
         include_recent_completed=True,
@@ -194,21 +209,18 @@ def _query_session_records(
         recent_completed_limit=None,
         include_hidden=True,
         # A session's root member keeps agent_session null until it gets a
-        # successor, so also match its agent_name; the recheck below keeps
-        # the match exact.
+        # successor, so also match its agent_name; the grouping recheck
+        # below keeps the match exact.
         candidate_filter={
             "kind": "any",
             "filters": [
                 {
                     "kind": "equals",
-                    "field": "agent_session",
-                    "value": agent_session,
-                },
-                {
-                    "kind": "equals",
-                    "field": "agent_name",
-                    "value": agent_session,
-                },
+                    "field": field,
+                    "value": key,
+                }
+                for key in keys
+                for field in ("agent_session", "agent_name")
             ],
         },
     )
@@ -218,21 +230,31 @@ def _query_session_records(
         include_raw_prompt_snippets=False,
         only_projects=(project,),
     )
-    try:
-        scan = query_agent_artifact_index(
-            index_path, sase_projects_dir(), query, options
-        )
-    except (OSError, RuntimeError, ValueError, ImportError, AttributeError):
-        return [], False
-    records: list[AgentArtifactRecordWire] = []
-    seen_dirs: set[str] = set()
-    for record in scan.records:
-        if record.artifact_dir in seen_dirs:
-            continue
-        if _record_matches_assignee(record, agent_session):
-            seen_dirs.add(record.artifact_dir)
-            records.append(record)
-    return records, True
+    scan = query_agent_artifact_index(
+        default_agent_artifact_index_path(), sase_projects_dir(), query, options
+    )
+    return list(scan.records)
+
+
+def _group_records_by_assignee(
+    records: list[AgentArtifactRecordWire], keys: list[str]
+) -> dict[str, list[AgentArtifactRecordWire]]:
+    """Group index records per requested key with the exact recheck.
+
+    A record can match more than one key (its session is one key and its
+    name another), so it is given to every key it matches. Per-key
+    ``artifact_dir`` dedupe and index-returned order are preserved.
+    """
+    grouped: dict[str, list[AgentArtifactRecordWire]] = {key: [] for key in keys}
+    seen_dirs: dict[str, set[str]] = {key: set() for key in keys}
+    for record in records:
+        for key in keys:
+            if record.artifact_dir in seen_dirs[key]:
+                continue
+            if _record_matches_assignee(record, key):
+                seen_dirs[key].add(record.artifact_dir)
+                grouped[key].append(record)
+    return grouped
 
 
 def _record_matches_assignee(record: AgentArtifactRecordWire, assignee: str) -> bool:

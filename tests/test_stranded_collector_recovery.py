@@ -135,16 +135,16 @@ def test_failure_run_is_queried_once_when_shared(monkeypatch, tmp_path: Path) ->
     )
     from sase.bead import stranded_facts as facts
 
-    calls: list[str] = []
-    original = facts._query_session_records
+    calls: list[list[str]] = []
+    original = facts._query_session_records_chunk
 
-    def wrapped(project: str, agent_session: str) -> object:
-        calls.append(agent_session)
-        return original(project, agent_session)
+    def wrapped(project: str, keys: list[str]) -> object:
+        calls.append(list(keys))
+        return original(project, keys)
 
-    monkeypatch.setattr(facts, "_query_session_records", wrapped)
+    monkeypatch.setattr(facts, "_query_session_records_chunk", wrapped)
     collect_stranded_work_input(PROJECT, now=_NOW)
-    assert calls == ["origin-agent"]
+    assert calls == [["origin-agent"]]
 
 
 def test_distinct_assignee_and_failure_agent_are_both_loaded(
@@ -175,16 +175,16 @@ def test_distinct_assignee_and_failure_agent_are_both_loaded(
     )
     from sase.bead import stranded_facts as facts
 
-    calls: list[str] = []
-    original = facts._query_session_records
+    calls: list[list[str]] = []
+    original = facts._query_session_records_chunk
 
-    def wrapped(project: str, agent_session: str) -> object:
-        calls.append(agent_session)
-        return original(project, agent_session)
+    def wrapped(project: str, keys: list[str]) -> object:
+        calls.append(list(keys))
+        return original(project, keys)
 
-    monkeypatch.setattr(facts, "_query_session_records", wrapped)
+    monkeypatch.setattr(facts, "_query_session_records_chunk", wrapped)
     bead = bead_facts(collect_stranded_work_input(PROJECT, now=_NOW), "sase-1.2")
-    assert sorted(calls) == ["origin-agent", "successor"]
+    assert calls == [["origin-agent", "successor"]]
     names = {member["name"] for member in bead["members"]}
     assert names == {"successor", "origin-agent"}
     assert bead["assignee"] == "successor"
