@@ -6,7 +6,7 @@ from collections.abc import Mapping
 from dataclasses import replace
 from typing import TYPE_CHECKING, Any
 
-from sase.agent.staged_handoff import StagedHandoffError
+from sase.agent.staged_handoff import StagedHandoffError, read_staged_successor
 from sase.axe._run_agent_exec_staged_shared import (
     StagedAdopter,
     StagedAdoptionOutcome,
@@ -168,15 +168,27 @@ def _adopt_pipe(
 
     from sase.axe.run_agent_exec_pipe import handle_staged_pipe_marker
 
+    origin = continuation.state.current_artifacts_dir
     outcome = handle_staged_pipe_marker(
         dict(payload),
         _runner_ctx_from_metadata(continuation, run_metadata),
         continuation.state,
         provider_response=response,
+        staged_id=str(staged_record.get("staged_id") or ""),
     )
+    successor = read_staged_successor(
+        origin,
+        staged_id=str(staged_record.get("staged_id") or ""),
+    )
+    if successor is None:
+        raise StagedHandoffError("pipe adopter did not persist a successor identity")
     return StagedAdoptionOutcome(
         outcome=outcome,
         custodian=continuation.state.current_artifacts_dir,
+        refs={
+            "successor_launch_identity": successor["successor"]["launch_identity"],
+            "successor_prompt_ref": successor["successor"]["prompt_ref"],
+        },
     )
 
 

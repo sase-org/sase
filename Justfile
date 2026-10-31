@@ -495,6 +495,7 @@ _lint-patch-stitch-terminology: _setup
 # sase-1q4 exported the wait_target facade and consumed it from wait runtime,
 # the editor suggestion path, and sase agent wait. The land deleted the unused
 # Python wait_targets_with_descriptions facade, so no sase-1q4 rows remain.
+# Recovery-service phase sase-1pj.6.1.6 consumes the detached successor delivery API.
 # Never put a comment
 # line inside the continued command below: just joins the lines, so the comment
 # would swallow every later argument.
@@ -503,6 +504,8 @@ _lint-symvision *args: _setup
         --exclude-decorator gate_command_entrypoint \
         --exclude-decorator builtin_chop \
         --epic-symbol 'sase-1pu.5.1(AgentRunStateProjectCheckpointWire)' \
+        --epic-symbol 'sase-1pj.6.1.6(SuccessorDeliveryResult)' \
+        --epic-symbol 'sase-1pj.6.1.6(deliver_staged_successor_detached)' \
         {{ args }}
 
 # Check Python file line counts (private, extracted for per-stage wrapping)

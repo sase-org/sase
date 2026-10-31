@@ -270,7 +270,7 @@ class TestSpawnAgentSessionSuccessor:
 
         assert result.cl_name == "explicit-branch"
 
-    def test_forwards_vcs_ref_to_the_detached_child(self) -> None:
+    def test_forwards_saved_launch_metadata_to_the_detached_child(self) -> None:
         plan = _fake_plan()
         captured: dict[str, Any] = {}
 
@@ -281,13 +281,23 @@ class TestSpawnAgentSessionSuccessor:
         spawn_agent_session_successor(
             AgentSessionAttachDirective(parent="acme", suffix="@"),
             project_name="proj",
+            project_file="/tmp/proj.sase",
             prompt="#gh:sase do work",
             workspace_dir="/tmp/ws",
             workspace_num=3,
             transfer_from_pid=None,
+            update_target="trunk",
+            history_sort_key="branch-sort-key",
+            is_home_mode=True,
             vcs_ref=("gh", "sase"),
+            timestamp="20261031010101",
             resolve_plan=lambda *_args, **_kwargs: plan,
             spawn_fn=fake_spawn,
         )
 
         assert captured["vcs_ref"] == ("gh", "sase")
+        assert captured["project_file"] == "/tmp/proj.sase"
+        assert captured["update_target"] == "trunk"
+        assert captured["history_sort_key"] == "branch-sort-key"
+        assert captured["is_home_mode"] is True
+        assert captured["timestamp"] == "20261031010101"

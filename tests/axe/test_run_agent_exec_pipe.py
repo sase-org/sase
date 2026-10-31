@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from dataclasses import replace
 from pathlib import Path
 from unittest.mock import Mock, patch
 
@@ -76,7 +77,7 @@ def test_handle_pipe_marker_default_suffix_and_fork(tmp_path: Path) -> None:
 def test_handle_staged_pipe_marker_keeps_real_response(tmp_path: Path) -> None:
     from sase.axe.run_agent_exec_pipe import handle_staged_pipe_marker
 
-    ctx = make_ctx(tmp_path)
+    ctx = replace(make_ctx(tmp_path), agent_name=None)
     state = make_state(tmp_path)
     save_chat = Mock(return_value="/tmp/parent.md")
 
@@ -93,6 +94,14 @@ def test_handle_staged_pipe_marker_keeps_real_response(tmp_path: Path) -> None:
             return_value="--1",
         ),
         patch(
+            "sase.axe.run_agent_exec_pipe.reserve_launch_timestamp_batch",
+            return_value=["20261031010101"],
+        ),
+        patch(
+            "sase.artifacts.launch_artifacts_dir",
+            return_value="/tmp/pipe-followup",
+        ),
+        patch(
             "sase.axe.run_agent_exec_pipe.create_followup_artifacts",
             return_value="/tmp/pipe-followup",
         ),
@@ -105,6 +114,7 @@ def test_handle_staged_pipe_marker_keeps_real_response(tmp_path: Path) -> None:
             ctx,
             state,
             provider_response="The model's actual final response.",
+            staged_id="test-staged-id",
         )
 
     assert outcome is None

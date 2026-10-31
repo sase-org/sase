@@ -382,6 +382,36 @@ _REVIEWED_PATH_PASSING_CONTEXTS: dict[str, PathPassingReview] = {
             "derive preview facts; no marker is written here."
         ),
     ),
+    "src/sase/axe/run_agent_successor.py:_successor_destination_observation": PathPassingReview(
+        exemption=(
+            "Read-only detached-successor ownership probe: agent_meta.json "
+            "and done.json are inspected only to prove the persisted child "
+            "identity and its live or terminal state; no marker is written."
+        ),
+    ),
+    "src/sase/axe/run_agent_successor.py:deliver_staged_successor_detached": PathPassingReview(
+        lifecycle_coverage=(
+            "Creates a missing child through create_followup_artifacts, which "
+            "refreshes the new artifacts directory index; the spawned runner "
+            "owns subsequent atomic marker writes and index refreshes. Existing "
+            "agent_meta.json and done.json observations are read-only."
+        ),
+    ),
+    "src/sase/axe/run_agent_exec_pipe.py:_prepare_staged_pipe_successor": PathPassingReview(
+        exemption=(
+            "Read-only pipe-successor identity check: agent_meta.json is "
+            "inspected only to validate an already-created destination; the "
+            "other paths written here are staged handoff state and prompt "
+            "files, not tracked artifact markers."
+        ),
+    ),
+    "src/sase/axe/run_agent_exec_pipe.py:_restore_staged_pipe_loop_state": PathPassingReview(
+        exemption=(
+            "Read-only adopted-pipe identity check: agent_meta.json is "
+            "inspected only to prove the saved successor destination before "
+            "restoring loop state; no marker is written."
+        ),
+    ),
 }
 
 

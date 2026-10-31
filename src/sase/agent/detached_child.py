@@ -71,6 +71,7 @@ def spawn_detached_child(
     project_file: str | None = None,
     update_target: str = "",
     history_sort_key: str = "",
+    timestamp: str | None = None,
     is_home_mode: bool = False,
     vcs_ref: tuple[str, str] | None = None,
     spawn_fn: SpawnFn | None = None,
@@ -97,7 +98,7 @@ def spawn_detached_child(
         capture_launch_submitted_at(),
     )
     spawn = spawn_fn or spawn_agent_subprocess
-    timestamp = reserve_launch_timestamp_batch(1)[0]
+    timestamp = timestamp or reserve_launch_timestamp_batch(1)[0]
     return spawn(
         cl_name=cl_name,
         project_file=project_file or get_project_file_path(project_name),
@@ -120,13 +121,18 @@ def spawn_agent_session_successor(
     directive: AgentSessionAttachDirective,
     *,
     project_name: str,
+    project_file: str | None = None,
     prompt: str,
     workspace_dir: str,
     workspace_num: int,
     transfer_from_pid: int | None,
     cl_name: str | None = None,
     agent_session_role: str | None = None,
+    update_target: str = "",
+    history_sort_key: str = "",
+    is_home_mode: bool = False,
     vcs_ref: tuple[str, str] | None = None,
+    timestamp: str | None = None,
     extra_env: dict[str, str] | None = None,
     spawn_fn: SpawnFn | None = None,
     resolve_plan: ResolvePlanFn | None = None,
@@ -155,13 +161,18 @@ def spawn_agent_session_successor(
     )
     result = spawn_detached_child(
         project_name=project_name,
+        project_file=project_file,
         prompt=prompt,
         workspace_dir=workspace_dir,
         workspace_num=workspace_num,
         cl_name=cl_name or launch_plan.agent_name,
         transfer_from_pid=transfer_from_pid,
+        update_target=update_target,
+        history_sort_key=history_sort_key,
+        is_home_mode=is_home_mode,
         extra_env={**agent_session_attach_env(launch_plan), **(extra_env or {})},
         vcs_ref=vcs_ref,
+        timestamp=timestamp,
         spawn_fn=spawn_fn,
     )
     return replace(result, agent_name=result.agent_name or launch_plan.agent_name)

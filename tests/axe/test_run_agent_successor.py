@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import json
+import os
 from dataclasses import replace
 from pathlib import Path
 from unittest.mock import Mock, call, patch
@@ -10,8 +12,20 @@ import pytest
 
 from sase.axe.run_agent_successor import (
     FollowupModel,
+    STAGED_SUCCESSOR_ID_ENV,
+    STAGED_SUCCESSOR_ORIGIN_DIR_ENV,
     SuccessorRequest,
     continue_as_successor,
+    deliver_staged_successor_detached,
+    mark_detached_successor_started_from_environment,
+)
+from sase.agent.launch_types import AgentLaunchResult
+from sase.agent.staged_handoff import (
+    acquire_adoption_lock,
+    read_staged_successor,
+    successor_prompt_digest,
+    write_staged_successor_locked,
+    write_successor_prompt,
 )
 from sase.plan_chain import PLAN_CHAIN_CODER_SUFFIX
 from tests._axe_run_agent_exec_plan_helpers import make_ctx, make_state
@@ -268,6 +282,168 @@ def test_before_create_callback_runs_after_suffix_and_before_artifacts(
     assert events == [("before", "--plan-0", "test_agent--plan-0"), "create"]
     assert state.current_artifacts_dir == "/tmp/followup"
     assert state.current_prompt == "do the next step"
+
+
+def test_before_state_change_persists_identity_before_mutating_runner(
+    tmp_path: Path,
+) -> None:
+    ctx = make_ctx(tmp_path)
+    state = make_state(tmp_path)
+    original_dir = state.current_artifacts_dir
+    events: list[str] = []
+    create = Mock(return_value="/tmp/followup")
+
+    def before_state_change(suffix: str, successor_name: str) -> None:
+        events.append("persist")
+        assert (suffix, successor_name) == ("--next", "test_agent--next")
+        assert state.current_role_suffix == ".plan"
+        assert state.current_artifacts_dir == original_dir
+        assert state.current_prompt == "original prompt"
+
+    with patch(
+        "sase.axe.run_agent_successor.mark_lifecycle_phase",
+        side_effect=lambda *_args: events.append("lifecycle"),
+    ):
+        continue_as_successor(
+            ctx,
+            state,
+            _request(
+                suffix="--next",
+                reserved_timestamp="20261031010101",
+                before_state_change=before_state_change,
+            ),
+            create_artifacts=create,
+            promote=Mock(),
+            store_prompt=Mock(),
+        )
+
+    assert events == ["persist", "lifecycle"]
+    assert create.call_args.kwargs["timestamp"] == "20261031010101"
+
+
+def test_detached_successor_launch_is_reserved_once_with_saved_prompt(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    origin = tmp_path / "origin"
+    origin.mkdir()
+    (origin / "agent_meta.json").write_text(
+        json.dumps({"name": "agent"}), encoding="utf-8"
+    )
+    destination = tmp_path / "successor"
+    staged_id = "stage-1"
+    launch_identity = "stage-1:20261031010101"
+    prompt = "#fork:agent\nfinish this work"
+    launch_prompt = "%model:fakey/model-x\n" + prompt
+    prompt_ref = write_successor_prompt(origin, prompt)
+    launch_prompt_ref = write_successor_prompt(
+        origin, launch_prompt, filename="staged_successor_launch_prompt.md"
+    )
+    relationships = {
+        "staged_handoff_id": staged_id,
+        "staged_successor_launch_id": launch_identity,
+    }
+    successor = {
+        "agent_name": "agent--1",
+        "role_suffix": "--1",
+        "artifacts_dir": str(destination),
+        "artifacts_timestamp": "20261031_010101",
+        "launch_timestamp": "20261031010101",
+        "launch_identity": launch_identity,
+        "prompt_ref": str(prompt_ref),
+        "launch_prompt_ref": str(launch_prompt_ref),
+        "prompt_digest": successor_prompt_digest(prompt),
+        "launch_prompt_digest": successor_prompt_digest(launch_prompt),
+        "project_name": "sase",
+        "project_file": str(tmp_path / "project.sase"),
+        "origin_artifacts_timestamp": "20261028_120000",
+        "cl_name": "test-cl",
+        "workspace_dir": str(tmp_path),
+        "workspace_num": 1,
+        "is_home_mode": False,
+        "model": "model-x",
+        "provider": "fakey",
+        "vcs_ref": None,
+        "relationships": relationships,
+        "continuation_refs": {},
+        "loop_state": {},
+        "followup_model": {
+            "meta": ["fakey", "model-x"],
+            "model_alias": None,
+            "model_alias_trail": [],
+            "model_alias_origin": None,
+        },
+        "attach_plan": None,
+    }
+    record = {
+        "schema_version": 1,
+        "staged_id": staged_id,
+        "kind": "pipe",
+        "origin_artifacts_dir": str(origin),
+        "delivery_state": "prepared",
+        "successor": successor,
+    }
+    with acquire_adoption_lock(origin):
+        write_staged_successor_locked(record, artifacts_dir=origin)
+
+    creation_calls: list[dict[str, object]] = []
+    spawn = Mock(
+        return_value=AgentLaunchResult(
+            pid=123,
+            workspace_num=1,
+            workspace_dir=str(tmp_path),
+            output_path=str(tmp_path / "output.log"),
+        )
+    )
+
+    def create(*_args: object, **kwargs: object) -> str:
+        creation_calls.append({"kwargs": kwargs, "base_meta": _args[1]})
+        destination.mkdir(exist_ok=True)
+        (destination / "agent_meta.json").write_text(
+            json.dumps(
+                {
+                    "name": "agent--1",
+                    "staged_handoff_id": staged_id,
+                    "staged_successor_launch_id": launch_identity,
+                }
+            ),
+            encoding="utf-8",
+        )
+        return str(destination)
+
+    store_prompt = Mock()
+    monkeypatch.setattr("sase.axe.run_agent_helpers.create_followup_artifacts", create)
+    monkeypatch.setattr(
+        "sase.axe.run_agent_exec_plan_artifacts.store_followup_prompt_artifact",
+        store_prompt,
+    )
+    monkeypatch.setattr("sase.agent.detached_child.spawn_detached_child", spawn)
+
+    launched = deliver_staged_successor_detached(str(origin), staged_id)
+    replay = deliver_staged_successor_detached(str(origin), staged_id)
+
+    assert launched.state == "submitted" and launched.pid == 123
+    assert replay.state == "held"
+    assert len(creation_calls) == 1
+    creation_kwargs = creation_calls[0]["kwargs"]
+    assert isinstance(creation_kwargs, dict)
+    assert creation_kwargs["timestamp"] == "20261031010101"
+    creation_meta = creation_calls[0]["base_meta"]
+    assert isinstance(creation_meta, dict)
+    assert creation_meta["model"] == "model-x"
+    store_prompt.assert_called_once_with(
+        str(destination), launch_prompt, label="Piped prompt"
+    )
+    spawn.assert_called_once()
+    assert spawn.call_args.kwargs["timestamp"] == "20261031010101"
+    assert spawn.call_args.kwargs["prompt"] == launch_prompt
+    monkeypatch.setenv(STAGED_SUCCESSOR_ORIGIN_DIR_ENV, str(origin))
+    monkeypatch.setenv(STAGED_SUCCESSOR_ID_ENV, staged_id)
+    assert mark_detached_successor_started_from_environment()
+    assert STAGED_SUCCESSOR_ORIGIN_DIR_ENV not in os.environ
+    assert STAGED_SUCCESSOR_ID_ENV not in os.environ
+    saved = read_staged_successor(str(origin), staged_id=staged_id)
+    assert saved is not None and saved["delivery_state"] == "started"
+    assert saved["successor"]["launch_pid"] == 123
 
 
 @pytest.mark.parametrize(

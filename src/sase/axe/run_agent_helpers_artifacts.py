@@ -231,6 +231,7 @@ def create_followup_artifacts(
     relationships: dict[str, Any] | None = None,
     stamp_creating_process: bool = True,
     prev_artifacts_dir: str | None = None,
+    timestamp: str | None = None,
 ) -> str:
     """Create a new timestamped artifacts directory for a follow-up agent.
 
@@ -241,7 +242,7 @@ def create_followup_artifacts(
     ``agent_meta.json`` and ``workflow_state.json``. Agent-session-turn
     members (gates, monitors) pass ``False``: they are not this process.
     """
-    reserved_timestamp = reserve_launch_timestamp_batch(1)[0]
+    reserved_timestamp = timestamp or reserve_launch_timestamp_batch(1)[0]
     new_artifacts_dir = create_artifacts_directory(
         "ace-run",
         project_name=project_name,

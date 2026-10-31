@@ -317,6 +317,11 @@ def run_execution_loop(
     prompt: str,
 ) -> _AgentExecResult:
     """Run the agent workflow loop with retry, plan approval, and question handling."""
+    from sase.axe.run_agent_successor import (
+        mark_detached_successor_started_from_environment,
+    )
+
+    mark_detached_successor_started_from_environment()
     mark_lifecycle_phase(ctx.artifacts_dir, "provider_running")
     from sase.macro.runtime_context import bind_runtime_template_vars
 
@@ -403,6 +408,17 @@ def _run_execution_loop_bound(
         anon_workflow = create_anonymous_workflow(state.current_prompt)
         if ctx.local_macros:
             anon_workflow.macros = ctx.local_macros
+
+        pending_successor = state.pending_staged_successor
+        if pending_successor is not None:
+            from sase.axe.run_agent_successor import mark_staged_successor_started
+
+            if not mark_staged_successor_started(
+                pending_successor["origin_artifacts_dir"],
+                pending_successor["staged_id"],
+            ):
+                raise RuntimeError("staged pipe successor identity disappeared")
+            state.pending_staged_successor = None
 
         try:
             result = execute_workflow(

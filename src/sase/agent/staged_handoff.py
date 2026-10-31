@@ -58,6 +58,17 @@ from sase.agent._staged_handoff_recovery import (
     write_recovery_context,
     write_recovery_context_locked,
 )
+from sase.agent._staged_handoff_successor import (
+    STAGED_SUCCESSOR_FILENAME,
+    STAGED_SUCCESSOR_ORIGIN_PROMPT_FILENAME,
+    STAGED_SUCCESSOR_PROMPT_FILENAME,
+    read_staged_successor,
+    staged_successor_path,
+    successor_prompt_digest,
+    update_staged_successor_locked,
+    write_staged_successor_locked,
+    write_successor_prompt,
+)
 
 __all__ = [
     "HANDOFF_LOCK_FILENAME",
@@ -65,6 +76,9 @@ __all__ = [
     "STAGED_HANDOFF_FILENAME",
     "STAGED_HANDOFF_RECEIPT_FILENAME",
     "STAGED_HANDOFF_RESPONSE_FILENAME",
+    "STAGED_SUCCESSOR_FILENAME",
+    "STAGED_SUCCESSOR_ORIGIN_PROMPT_FILENAME",
+    "STAGED_SUCCESSOR_PROMPT_FILENAME",
     "STAGING_RESERVATION_FILENAME",
     "HostStageAdmission",
     "HostStageIdentity",
@@ -94,11 +108,17 @@ __all__ = [
     "recovery_context_path",
     "release_staging_reservation_locked",
     "release_staging_reservation",
+    "read_staged_successor",
     "staged_handoffs_enabled",
+    "staged_successor_path",
+    "successor_prompt_digest",
+    "update_staged_successor_locked",
     "write_adoption_receipt",
     "write_adoption_receipt_locked",
     "write_recovery_context",
     "write_recovery_context_locked",
+    "write_staged_successor_locked",
+    "write_successor_prompt",
     "write_staged_handoff",
     "write_staged_handoff_response",
 ]

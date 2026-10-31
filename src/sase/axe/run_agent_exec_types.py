@@ -96,6 +96,9 @@ class LoopState:
     continuation_prepared_ref: str | None = None
     continuation_node_id: str | None = None
     continuation_manifest_ref: str | None = None
+    # Staged pipe successor whose persisted identity must be marked started
+    # immediately before the next provider invocation.
+    pending_staged_successor: dict[str, str] | None = None
     # Kill provenance for runs that end in ``outcome: "killed"``: ``"user"``
     # for an explicit user-kill intent, ``"external"`` for a SIGTERM with no
     # user-kill intent or handoff marker, plus optional OOM evidence.

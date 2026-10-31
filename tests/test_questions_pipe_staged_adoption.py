@@ -12,9 +12,11 @@ from sase.agent.staged_handoff import (
     build_pipe_staged_record,
     build_questions_staged_record,
     read_adoption_receipt,
+    read_staged_successor,
     write_staged_handoff,
     write_staged_handoff_response,
 )
+from sase.agent._agent_session_attach_types import AgentSessionAttachLaunchPlan
 from sase.axe.run_agent_exec_staged import (
     CARRIED_CUSTODY_META_KEY,
     StagedInlineContinuation,
@@ -24,6 +26,7 @@ from sase.finalizers.commit import StitchCommandResult
 from sase.finalizers.controller_context import ensure_current_declaration
 from sase.finalizers.plan import resolve_and_persist_finalizer_plan
 from sase.llm_provider.types import InvokeResult
+from sase.main.qa_markdown import QARound
 from sase.macro.directives import PromptDirectives
 from tests.finalizers_carry_test_helpers import submit_repository_actions
 from tests.finalizers_protocol_harness_test_helpers import run_controller
@@ -155,40 +158,13 @@ def test_pipe_adopter_records_successor_custodian_and_real_response(
         },
     )
     continuation = _continuation_from_custody(tmp_path, artifacts)
-    successor = tmp_path / "pipe-followup"
+    successor, _created = _patch_pipe_successor_setup(monkeypatch, tmp_path, artifacts)
     captured: dict[str, Any] = {}
-
-    def create(*_a: object, **_k: object) -> str:
-        successor.mkdir(exist_ok=True)
-        (successor / "agent_meta.json").write_text("{}", encoding="utf-8")
-        return str(successor)
 
     monkeypatch.setattr(
         "sase.axe.run_agent_exec_pipe.save_chat_history",
         lambda **kw: captured.update(kw) or "/fake/chat",
     )
-    monkeypatch.setattr(
-        "sase.axe.run_agent_exec_pipe.create_followup_artifacts", create
-    )
-    monkeypatch.setattr(
-        "sase.axe.run_agent_exec_pipe.promote_to_workflow", lambda *_a, **_k: None
-    )
-    monkeypatch.setattr(
-        "sase.axe.run_agent_exec_pipe._store_followup_prompt_artifact",
-        lambda *_a, **_k: None,
-    )
-    monkeypatch.setattr(
-        "sase.axe.run_agent_exec_pipe.allocate_agent_session_child_suffix",
-        lambda *_a, **_k: "--1",
-    )
-    monkeypatch.setattr(
-        "sase.axe.run_agent_exec_pipe.update_meta_field", lambda *_a, **_k: None
-    )
-    monkeypatch.setattr(
-        "sase.axe.run_agent_exec_pipe.update_step_marker_chat_path",
-        lambda *_a, **_k: None,
-    )
-
     result = dispatch_completed_staged_handoff(str(artifacts), continuation)
 
     assert result is not None and result.adopted
@@ -201,12 +177,191 @@ def test_pipe_adopter_records_successor_custodian_and_real_response(
     assert meta[CARRIED_CUSTODY_META_KEY][0]["carried_to"] == str(successor)
 
 
+def _patch_pipe_successor_setup(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    artifacts: Path,
+    *,
+    parent_name: str = "agent",
+) -> tuple[Path, list[str]]:
+    successor = tmp_path / "pipe-successor"
+    created: list[str] = []
+    plan = AgentSessionAttachLaunchPlan(
+        parent_arg=parent_name,
+        suffix_arg="--1",
+        parent_name=parent_name,
+        parent_base=parent_name,
+        parent_timestamp="20261028120000",
+        parent_artifacts_dir=str(artifacts),
+        role_suffix="--1",
+        agent_name=f"{parent_name}--1",
+        agent_session_role="feedback",
+        parent_agent_session_member_name=parent_name,
+        parent_agent_session_role_suffix="--0",
+        parent_needs_rename=False,
+        parent_project_name="sase",
+        parent_cl_name="test-cl",
+        parent_workspace_dir=str(tmp_path),
+        parent_workspace_num=1,
+    )
+
+    def create(*_args: object, **kwargs: Any) -> str:
+        created.append(str(successor))
+        successor.mkdir(exist_ok=True)
+        relationships = kwargs["relationships"]
+        (successor / "agent_meta.json").write_text(
+            json.dumps(
+                {
+                    "name": kwargs["agent_name_override"],
+                    "staged_handoff_id": relationships["staged_handoff_id"],
+                    "staged_successor_launch_id": relationships[
+                        "staged_successor_launch_id"
+                    ],
+                }
+            ),
+            encoding="utf-8",
+        )
+        return str(successor)
+
+    monkeypatch.setattr(
+        "sase.axe.run_agent_exec_pipe.allocate_agent_session_child_suffix",
+        lambda *_args, **_kwargs: "--1",
+    )
+    monkeypatch.setattr(
+        "sase.axe.run_agent_exec_pipe.reserve_launch_timestamp_batch",
+        lambda _count: ["20261031010101"],
+    )
+    monkeypatch.setattr(
+        "sase.artifacts.launch_artifacts_dir", lambda *_args: str(successor)
+    )
+    monkeypatch.setattr(
+        "sase.agent._agent_session_attach_resolution.resolve_agent_session_attach_plan",
+        lambda *_args, **_kwargs: plan,
+    )
+    monkeypatch.setattr(
+        "sase.axe.run_agent_exec_pipe.create_followup_artifacts", create
+    )
+    monkeypatch.setattr(
+        "sase.axe.run_agent_exec_pipe.promote_to_workflow", lambda *_a, **_k: None
+    )
+    monkeypatch.setattr(
+        "sase.axe.run_agent_exec_pipe._store_followup_prompt_artifact",
+        lambda *_a, **_k: None,
+    )
+    monkeypatch.setattr(
+        "sase.axe.run_agent_exec_pipe.save_chat_history",
+        lambda **_kwargs: "/fake/pipe-chat",
+    )
+    monkeypatch.setattr(
+        "sase.axe.run_agent_exec_pipe.update_meta_field", lambda *_a, **_k: None
+    )
+    monkeypatch.setattr(
+        "sase.axe.run_agent_exec_pipe.update_step_marker_chat_path",
+        lambda *_a, **_k: None,
+    )
+    return successor, created
+
+
+def test_pipe_receipt_replay_restores_same_successor_without_reallocating(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("SASE_AGENT", "1")
+    artifacts, record = _settled_carry_artifacts(tmp_path, monkeypatch, kind="pipe")
+    _overwrite_payload(
+        artifacts,
+        record,
+        {
+            "prompt": "finish the review",
+            "reason": "hand off",
+            "model": None,
+            "name_token": None,
+            "fresh": False,
+            "pipe_depth": 0,
+        },
+    )
+    successor, created = _patch_pipe_successor_setup(monkeypatch, tmp_path, artifacts)
+    continuation = _continuation_from_custody(tmp_path, artifacts)
+
+    first = dispatch_completed_staged_handoff(str(artifacts), continuation)
+    replay = dispatch_completed_staged_handoff(
+        str(artifacts), _continuation_from_custody(tmp_path, artifacts)
+    )
+
+    assert first is not None and first.adopted
+    assert replay is not None and replay.adopted and replay.already_adopted
+    assert created == [str(successor)]
+    assert continuation.state.current_artifacts_dir == str(successor)
+    assert read_adoption_receipt(str(artifacts))["refs"][
+        "successor_artifacts_dir"
+    ] == str(successor)
+
+
+def test_pipe_replay_after_created_child_and_missing_receipt_reuses_identity(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("SASE_AGENT", "1")
+    artifacts, record = _settled_carry_artifacts(tmp_path, monkeypatch, kind="pipe")
+    _overwrite_payload(
+        artifacts,
+        record,
+        {
+            "prompt": "finish the review",
+            "reason": "hand off",
+            "model": None,
+            "name_token": None,
+            "fresh": False,
+            "pipe_depth": 0,
+        },
+    )
+    successor, created = _patch_pipe_successor_setup(monkeypatch, tmp_path, artifacts)
+    first_continuation = _continuation_from_custody(tmp_path, artifacts)
+    first_continuation.state.sdd_spec_path = "/tmp/current-plan.md"
+    first_continuation.state.original_agent_timestamp = "20261028120000"
+    first_continuation.state.qa_rounds = [
+        QARound(questions=[{"question": "continue?"}], answers=[{"selected": ["Yes"]}])
+    ]
+    first_continuation.state.feedback_bullets = ["keep the review focused"]
+    first_continuation.state.feedback_round = 2
+    first_continuation.state.continuation_workspace_ref = "/tmp/workspace-facts.json"
+
+    with monkeypatch.context() as context:
+        context.setattr(
+            "sase.axe.run_agent_exec_staged_dispatch.write_adoption_receipt_locked",
+            lambda *_args, **_kwargs: (_ for _ in ()).throw(
+                OSError("simulated crash before receipt")
+            ),
+        )
+        with pytest.raises(OSError, match="simulated crash"):
+            dispatch_completed_staged_handoff(str(artifacts), first_continuation)
+
+    assert read_adoption_receipt(str(artifacts)) is None
+    manifest = read_staged_successor(str(artifacts), staged_id=record["staged_id"])
+    assert manifest is not None and manifest["delivery_state"] == "created"
+    replay_continuation = _continuation_from_custody(tmp_path, artifacts)
+    replay = dispatch_completed_staged_handoff(str(artifacts), replay_continuation)
+
+    assert replay is not None and replay.adopted
+    assert created == [str(successor)]
+    assert replay_continuation.state.current_artifacts_dir == str(successor)
+    assert replay_continuation.state.sdd_spec_path == "/tmp/current-plan.md"
+    assert replay_continuation.state.original_agent_timestamp == "20261028120000"
+    assert replay_continuation.state.qa_rounds == first_continuation.state.qa_rounds
+    assert replay_continuation.state.feedback_bullets == ["keep the review focused"]
+    assert replay_continuation.state.feedback_round == 2
+    assert replay_continuation.state.continuation_workspace_ref == (
+        "/tmp/workspace-facts.json"
+    )
+
+
 def _continuation_from_custody(
     tmp_path: Path, artifacts: Path
 ) -> StagedInlineContinuation:
     from tests.test_staged_custody_adoption import _continuation
 
-    return _continuation(tmp_path, artifacts)
+    contexts = list(tmp_path.glob("runner-context-*"))
+    context_root = tmp_path / f"runner-context-{len(contexts)}"
+    context_root.mkdir()
+    return _continuation(context_root, artifacts)
 
 
 def test_dirty_questions_without_declaration_carries_then_followup_commits(
@@ -346,12 +501,30 @@ def test_pipe_successor_inherits_carried_work(
     )
     run_controller(artifacts)
 
-    successor = tmp_path / "pipe-followup"
+    successor, _created = _patch_pipe_successor_setup(
+        monkeypatch, tmp_path, artifacts, parent_name="agent-1"
+    )
     inherit_calls: list[tuple[str, str]] = []
 
-    def create(*_a: object, prev_artifacts_dir: str | None = None, **_k: object) -> str:
+    def create(
+        *_a: object,
+        prev_artifacts_dir: str | None = None,
+        **kwargs: Any,
+    ) -> str:
         successor.mkdir(exist_ok=True)
-        (successor / "agent_meta.json").write_text("{}", encoding="utf-8")
+        relationships = kwargs["relationships"]
+        (successor / "agent_meta.json").write_text(
+            json.dumps(
+                {
+                    "name": kwargs["agent_name_override"],
+                    "staged_handoff_id": relationships["staged_handoff_id"],
+                    "staged_successor_launch_id": relationships[
+                        "staged_successor_launch_id"
+                    ],
+                }
+            ),
+            encoding="utf-8",
+        )
         if prev_artifacts_dir:
             inherit_calls.append((prev_artifacts_dir, str(successor)))
             from sase.llm_provider.commit_finalizer_inheritance import (
@@ -371,29 +544,7 @@ def test_pipe_successor_inherits_carried_work(
         return str(successor)
 
     monkeypatch.setattr(
-        "sase.axe.run_agent_exec_pipe.save_chat_history",
-        lambda **_kw: "/fake/chat",
-    )
-    monkeypatch.setattr(
         "sase.axe.run_agent_exec_pipe.create_followup_artifacts", create
-    )
-    monkeypatch.setattr(
-        "sase.axe.run_agent_exec_pipe.promote_to_workflow", lambda *_a, **_k: None
-    )
-    monkeypatch.setattr(
-        "sase.axe.run_agent_exec_pipe._store_followup_prompt_artifact",
-        lambda *_a, **_k: None,
-    )
-    monkeypatch.setattr(
-        "sase.axe.run_agent_exec_pipe.allocate_agent_session_child_suffix",
-        lambda *_a, **_k: "--1",
-    )
-    monkeypatch.setattr(
-        "sase.axe.run_agent_exec_pipe.update_meta_field", lambda *_a, **_k: None
-    )
-    monkeypatch.setattr(
-        "sase.axe.run_agent_exec_pipe.update_step_marker_chat_path",
-        lambda *_a, **_k: None,
     )
 
     ctx, state = make_continuation(tmp_path, artifacts)

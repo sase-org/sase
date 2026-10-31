@@ -14,6 +14,7 @@ from sase.agent.staged_handoff import (
     acquire_adoption_lock,
     ensure_recovery_context_locked,
     read_adoption_receipt,
+    read_staged_successor,
     read_staged_handoff,
     read_staged_handoff_response,
     receipt_authorizes,
@@ -113,7 +114,13 @@ def _write_held_receipt_locked(
     cleanup_staged_monitor_handoff(artifacts_dir, held=True)
 
 
-def _already_adopted_dispatch(receipt: Mapping[str, Any]) -> _StagedHandoffDispatch:
+def _already_adopted_dispatch(
+    receipt: Mapping[str, Any],
+    staged_record: Mapping[str, Any],
+    *,
+    artifacts_dir: str,
+    continuation: StagedInlineContinuation,
+) -> _StagedHandoffDispatch:
     receipt_refs = receipt.get("refs")
     receipt_refs = receipt_refs if isinstance(receipt_refs, Mapping) else {}
     outcome = receipt_refs.get("loop_outcome")
@@ -121,6 +128,38 @@ def _already_adopted_dispatch(receipt: Mapping[str, Any]) -> _StagedHandoffDispa
         raise StagedHandoffError("staged adoption receipt has an invalid loop outcome")
     if "loop_outcome" not in receipt_refs:
         outcome = "completed"
+    if staged_record.get("kind") == "pipe" and outcome is None:
+        staged_id = str(staged_record.get("staged_id") or "")
+        successor = read_staged_successor(artifacts_dir, staged_id=staged_id)
+        if successor is None:
+            return _StagedHandoffDispatch(
+                adopted=False,
+                reason="adopted pipe receipt has no persisted successor identity",
+                already_adopted=True,
+            )
+        successor_dir = str(successor["successor"]["artifacts_dir"])
+        if receipt_refs.get("successor_artifacts_dir") != successor_dir:
+            return _StagedHandoffDispatch(
+                adopted=False,
+                reason="adopted pipe receipt does not match the persisted successor",
+                already_adopted=True,
+            )
+        if successor["delivery_state"] in {"submitted", "started", "terminal"}:
+            return _StagedHandoffDispatch(
+                adopted=True,
+                outcome="completed",
+                already_adopted=True,
+            )
+        try:
+            from sase.axe.run_agent_exec_pipe import restore_staged_pipe_successor
+
+            restore_staged_pipe_successor(continuation.state, successor)
+        except Exception as exc:  # noqa: BLE001 - refuse malformed replay state.
+            return _StagedHandoffDispatch(
+                adopted=False,
+                reason=f"adopted pipe successor cannot be restored: {exc}",
+                already_adopted=True,
+            )
     return _StagedHandoffDispatch(
         adopted=True,
         outcome=outcome,
@@ -156,7 +195,12 @@ def dispatch_completed_staged_handoff(
         receipt = read_adoption_receipt(artifacts_dir)
         if receipt is not None:
             if receipt_authorizes(receipt, staged_id):
-                return _already_adopted_dispatch(receipt)
+                return _already_adopted_dispatch(
+                    receipt,
+                    staged_record,
+                    artifacts_dir=artifacts_dir,
+                    continuation=continuation,
+                )
             if str(receipt.get("staged_id")) != staged_id:
                 return _StagedHandoffDispatch(
                     adopted=False,
