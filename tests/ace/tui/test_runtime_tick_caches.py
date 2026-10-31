@@ -33,6 +33,12 @@ def _stub_app(roster: list) -> SimpleNamespace:
     return app
 
 
+def _clear_aggregate_caches() -> None:
+    aggregate_mod._aggregate_wires_cache.clear()
+    aggregate_mod._aggregate_result_cache.clear()
+    aggregate_mod._aggregate_fast_cache.clear()
+
+
 def test_wait_maps_cached_per_generation(monkeypatch: pytest.MonkeyPatch) -> None:
     import sase.ace.tui._agent_completion_wait as wait_mod
 
@@ -78,8 +84,7 @@ def test_wait_maps_invalidate_on_roster_and_tribe_bump() -> None:
 
 
 def test_aggregate_wires_cached_across_ticks() -> None:
-    aggregate_mod._aggregate_wires_cache.clear()
-    aggregate_mod._aggregate_result_cache.clear()
+    _clear_aggregate_caches()
     parent = agent(status="RUNNING", start=datetime(2026, 4, 25, 14, 0, 0))
     child = agent(
         status="RUNNING",
@@ -101,8 +106,7 @@ def test_aggregate_wires_cached_across_ticks() -> None:
 
 
 def test_aggregate_wires_rebuild_when_member_inputs_change() -> None:
-    aggregate_mod._aggregate_wires_cache.clear()
-    aggregate_mod._aggregate_result_cache.clear()
+    _clear_aggregate_caches()
     parent = agent(status="RUNNING", start=datetime(2026, 4, 25, 14, 0, 0))
     child = agent(
         status="RUNNING",
@@ -121,6 +125,7 @@ def test_aggregate_wires_rebuild_when_member_inputs_change() -> None:
         cl_name="demo.newcomer",
     )
     parent.runtime_children = [child, newcomer]
+    aggregate_mod.bump_runtime_input_revision()
     aggregate_mod._aggregate_runtime(parent, now, {id(parent)})
     assert len(aggregate_mod._aggregate_wires_cache) == size_before + 1
 
@@ -196,6 +201,7 @@ def _running_container() -> tuple[object, object]:
     from .widgets.agent_list_runtime_helpers import agent
 
     parent = agent(status="RUNNING", start=datetime(2026, 4, 25, 14, 0, 0))
+    parent.is_clan_container = True
     child = agent(
         status="RUNNING",
         start=datetime(2026, 4, 25, 14, 0, 0),
@@ -210,8 +216,7 @@ def test_aggregate_result_skips_rust_within_same_second(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Two ticks in one wall-clock second share one Rust aggregation."""
-    aggregate_mod._aggregate_wires_cache.clear()
-    aggregate_mod._aggregate_result_cache.clear()
+    _clear_aggregate_caches()
     calls = _counting_rust(monkeypatch)
     parent, _child = _running_container()
     first = aggregate_mod._aggregate_runtime(
@@ -231,8 +236,7 @@ def test_aggregate_result_settled_reused_across_seconds(
     """A settled aggregate never re-runs the Rust aggregation."""
     from .widgets.agent_list_runtime_helpers import agent
 
-    aggregate_mod._aggregate_wires_cache.clear()
-    aggregate_mod._aggregate_result_cache.clear()
+    _clear_aggregate_caches()
     calls = _counting_rust(monkeypatch)
     parent = agent(status="DONE", start=datetime(2026, 4, 25, 14, 0, 0))
     child = agent(
@@ -260,8 +264,7 @@ def test_aggregate_result_hour_rows_skip_within_minute(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Hour-plus rows re-aggregate at most once per displayed minute."""
-    aggregate_mod._aggregate_wires_cache.clear()
-    aggregate_mod._aggregate_result_cache.clear()
+    _clear_aggregate_caches()
     calls = _counting_rust(monkeypatch)
     parent, _child = _running_container()
     parent.start_time = datetime(2026, 4, 25, 12, 0, 0)
@@ -293,8 +296,7 @@ def test_aggregate_result_recomputes_on_membership_change(
     """A new member row misses the result cache (union semantics kept)."""
     from .widgets.agent_list_runtime_helpers import agent
 
-    aggregate_mod._aggregate_wires_cache.clear()
-    aggregate_mod._aggregate_result_cache.clear()
+    _clear_aggregate_caches()
     calls = _counting_rust(monkeypatch)
     parent, _child = _running_container()
     now = datetime(2026, 4, 25, 14, 1, 0)
@@ -307,5 +309,126 @@ def test_aggregate_result_recomputes_on_membership_change(
         cl_name="demo.newcomer",
     )
     parent.runtime_children = [*parent.runtime_children, newcomer]
+    aggregate_mod.bump_runtime_input_revision()
     aggregate_mod._aggregate_runtime(parent, now, {id(parent)})
     assert len(calls) == 2
+
+
+def test_aggregate_revision_skips_member_fingerprints_until_inputs_change(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _clear_aggregate_caches()
+    parent, child = _running_container()
+    now = datetime(2026, 4, 25, 14, 1, 0)
+    fingerprints: list[int] = []
+    real_fingerprint = aggregate_mod._member_fingerprint
+
+    def _counting_fingerprint(member):  # type: ignore[no-untyped-def]
+        fingerprints.append(1)
+        return real_fingerprint(member)
+
+    monkeypatch.setattr(aggregate_mod, "_member_fingerprint", _counting_fingerprint)
+    first = aggregate_mod._aggregate_runtime(parent, now, {id(parent)})
+    assert first is not None
+    assert fingerprints == [1]
+
+    same_bucket = aggregate_mod._aggregate_runtime(
+        parent, now.replace(microsecond=500_000), {id(parent)}
+    )
+    assert same_bucket is first
+    assert fingerprints == [1]
+
+    child.run_start_time = datetime(2026, 4, 25, 14, 0, 30)
+    aggregate_mod.bump_runtime_input_revision()
+    updated = aggregate_mod._aggregate_runtime(parent, now, {id(parent)})
+    assert updated is not None
+    assert updated.elapsed_seconds == first.elapsed_seconds - 30
+    assert len(fingerprints) == 2
+
+
+def test_aggregate_fast_hit_preserves_seen_member_rows() -> None:
+    _clear_aggregate_caches()
+    parent, child = _running_container()
+    nested = agent(
+        status="DONE",
+        start=datetime(2026, 4, 25, 14, 0, 0),
+        stop=datetime(2026, 4, 25, 14, 0, 30),
+        raw_suffix="20260425140130",
+        cl_name="demo.nested",
+    )
+    child.runtime_children = [nested]
+    now = datetime(2026, 4, 25, 14, 1, 0)
+
+    first_seen = {id(parent)}
+    aggregate_mod._aggregate_runtime(parent, now, first_seen)
+    second_seen = {id(parent)}
+    aggregate_mod._aggregate_runtime(parent, now, second_seen)
+
+    assert second_seen == first_seen
+
+
+def _uncached_aggregate_interval(parent, now):  # type: ignore[no-untyped-def]
+    """Compute one aggregate interval directly for parity assertions."""
+    if not getattr(parent, "runtime_children", ()):
+        return None
+    members = aggregate_mod._collect_aggregate_member_rows(
+        parent,
+        aggregate_mod.aggregates_agent_session_turns(parent),
+        {id(parent)},
+    )
+    if not members:
+        return None
+    wires, terminal_times, _saw_non_monitor = aggregate_mod._build_member_wires(members)
+    runtime = aggregate_mod.aggregate_clan_runtime(list(wires), now=now)
+    from sase.ace.tui.models._agent_time_intervals import RuntimeInterval
+
+    return RuntimeInterval(
+        elapsed_seconds=runtime.wall_clock_seconds,
+        terminal_time=None if runtime.active else max(terminal_times, default=None),
+        active=runtime.active,
+    )
+
+
+def test_runtime_revision_cache_keeps_display_parity_through_member_events() -> None:
+    from sase.ace.tui.models.agent_time import compute_row_runtime
+    from sase.ace.tui.models._agent_time_intervals import format_finish_timestamp
+    from sase.ace.tui.models.agent_time import format_compact_duration
+
+    _clear_aggregate_caches()
+    parent, child = _running_container()
+    other_parent, _other_child = _running_container()
+    parent.runtime_children = []
+    other_parent.runtime_children = []
+
+    events = [
+        (parent, datetime(2026, 4, 25, 14, 1, 0), "start"),
+        (parent, datetime(2026, 4, 25, 14, 1, 1), "tick"),
+        (parent, datetime(2026, 4, 25, 14, 1, 2), "finish"),
+        (other_parent, datetime(2026, 4, 25, 14, 1, 3), "reparent"),
+    ]
+    for row, now, event in events:
+        if event == "start":
+            row.runtime_children = [child]
+            aggregate_mod.bump_runtime_input_revision()
+        elif event == "finish":
+            child.status = "DONE"
+            child.stop_time = now
+            aggregate_mod.bump_runtime_input_revision()
+        elif event == "reparent":
+            parent.runtime_children = []
+            row.runtime_children = [child]
+            aggregate_mod.bump_runtime_input_revision()
+
+        expected = _uncached_aggregate_interval(row, now)
+        actual = aggregate_mod.runtime_interval(row, now, set())
+        assert actual == expected
+        assert compute_row_runtime(row, now)[1] == (
+            None
+            if expected is None
+            else format_compact_duration(expected.elapsed_seconds)
+        )
+        if expected is not None and expected.terminal_time is not None:
+            assert compute_row_runtime(row, now)[0] == format_finish_timestamp(
+                expected.terminal_time,
+                now=now,
+            )

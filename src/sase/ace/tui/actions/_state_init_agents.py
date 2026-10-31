@@ -120,6 +120,7 @@ def init_agent_state(self: Any) -> None:
     self._machine_capacity_report = None
     self._machine_capacity_report_generation = 0
     self._machine_capacity_report_mono = 0.0
+    self._agents_capacity_last_applied_inputs = None
     self._machine_capacity_observed_token = None
     self._machine_capacity_refresh_generation = 0
     self._machine_capacity_refresh_scheduled = False

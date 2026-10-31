@@ -160,6 +160,27 @@ class PanelPatchMixin:
         """
         raise NotImplementedError
 
+    def _refresh_agent_panel_title_for_key(self, key: PanelKey) -> None:
+        """Rebuild one panel title after a title-count input changes."""
+        from textual.css.query import NoMatches
+
+        from ...widgets import AgentList
+
+        try:
+            widget = self.query_one(  # type: ignore[attr-defined]
+                f"#{panel_widget_id_for_key(key)}", AgentList
+            )
+        except NoMatches:
+            return
+        if panel_widget_is_retiring(widget):
+            return
+        panel_index = self._agent_panel_index()  # type: ignore[attr-defined]
+        title = self._agent_panel_title_for_key(  # type: ignore[attr-defined]
+            key,
+            panel_index.slice_for(key).agents,
+        )
+        self._set_agent_panel_title(widget, title)
+
     def _record_display_patch_trace(
         self,
         *,
@@ -519,6 +540,10 @@ class PanelPatchMixin:
             return False
 
         widget._agents[local_idx] = agent
+
+        from ...models._agent_time_aggregate import bump_runtime_input_revision
+
+        bump_runtime_input_revision()
 
         is_selected = (
             agent_idx == self.current_idx

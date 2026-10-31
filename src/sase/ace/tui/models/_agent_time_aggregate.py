@@ -3,6 +3,7 @@
 from collections import OrderedDict
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
+import weakref
 
 from sase.agent.status_buckets import APPROVED_PLAN_STATUSES
 from sase.core.agent_runtime_facade import aggregate_clan_runtime
@@ -28,8 +29,32 @@ _aggregate_result_cache: OrderedDict[
     tuple[Any, ...], tuple[int, int, RuntimeInterval]
 ] = OrderedDict()
 
+# Roster applies and in-place row patches advance this cheap invalidation
+# token. A stable tick can then reuse the last displayed interval without
+# walking every clan member to rebuild a content fingerprint.
+_runtime_input_revision = 0
+_AGGREGATE_FAST_CACHE_MAX = 512
+_aggregate_fast_cache: OrderedDict[
+    tuple[Any, ...],
+    tuple[
+        weakref.ReferenceType[Any],
+        int,
+        int,
+        int,
+        RuntimeInterval,
+        tuple[int, ...],
+    ],
+] = OrderedDict()
+
 if TYPE_CHECKING:
     from sase.ace.tui.models.agent import Agent
+
+
+def bump_runtime_input_revision() -> int:
+    """Invalidate cheap clan-runtime hits after Agent rows change."""
+    global _runtime_input_revision
+    _runtime_input_revision += 1
+    return _runtime_input_revision
 
 
 def aggregates_agent_session_turns(agent: "Agent") -> bool:
@@ -136,6 +161,7 @@ def _collect_aggregate_member_rows(
     agent: "Agent",
     include_monitor_turns: bool,
     seen: set[int],
+    visited_ids: list[int] | None = None,
 ) -> list["Agent"]:
     """Collect member rows in the same order ``_aggregate_runtime`` wires them."""
     members: list[Agent] = []
@@ -145,6 +171,8 @@ def _collect_aggregate_member_rows(
         if child_id in seen:
             return
         seen.add(child_id)
+        if visited_ids is not None:
+            visited_ids.append(child_id)
         eligible = runtime_child_rows(
             child, include_monitor_turns=include_monitor_turns
         )
@@ -187,6 +215,45 @@ def _aggregate_cache_key(
         bool(getattr(agent, "is_agent_session_container_row", False)),
         tuple(_member_fingerprint(row) for row in members),
     )
+
+
+def _aggregate_fast_cache_key(agent: "Agent") -> tuple[Any, ...]:
+    """Return the cheap identity key checked before walking runtime members."""
+    try:
+        identity: Any = agent.identity
+    except Exception:  # noqa: BLE001 - defensive cache key only.
+        identity = id(agent)
+    return (
+        identity,
+        id(agent),
+        bool(getattr(agent, "is_clan_container", False)),
+        bool(getattr(agent, "is_agent_session_container_row", False)),
+    )
+
+
+def _remember_fast_aggregate(
+    key: tuple[Any, ...],
+    agent: "Agent",
+    revision: int,
+    interval: RuntimeInterval,
+    now_epoch: float,
+    covered_member_ids: tuple[int, ...],
+) -> None:
+    quantum, bucket = _display_bucket(now_epoch, interval.elapsed_seconds)
+    _aggregate_fast_cache[key] = (
+        weakref.ref(agent),
+        revision,
+        quantum,
+        bucket,
+        interval,
+        covered_member_ids,
+    )
+    _aggregate_fast_cache.move_to_end(key)
+    while len(_aggregate_fast_cache) > _AGGREGATE_FAST_CACHE_MAX:
+        try:
+            _aggregate_fast_cache.popitem(last=False)
+        except KeyError:
+            break
 
 
 def _build_member_wires(
@@ -275,15 +342,47 @@ def _aggregate_runtime(
     if not children:
         return None
 
-    include_monitor_turns = aggregates_agent_session_turns(agent)
-    members = _collect_aggregate_member_rows(agent, include_monitor_turns, seen)
-    if not members:
-        return None
-    key = _aggregate_cache_key(agent, members)
     try:
         now_epoch = now.timestamp()
     except Exception:  # noqa: BLE001 - defensive clock read only.
         now_epoch = -1.0
+
+    fast_key = (
+        _aggregate_fast_cache_key(agent)
+        if bool(getattr(agent, "is_clan_container", False))
+        else None
+    )
+    revision = _runtime_input_revision
+    fast_hit = _aggregate_fast_cache.get(fast_key) if fast_key is not None else None
+    if (
+        fast_key is not None
+        and fast_hit is not None
+        and fast_hit[0]() is agent
+        and fast_hit[1] == revision
+    ):
+        try:
+            _aggregate_fast_cache.move_to_end(fast_key)
+        except Exception:  # noqa: BLE001 - LRU touch is best-effort.
+            pass
+        _, _, quantum, bucket, interval, covered_member_ids = fast_hit
+        if not interval.active:
+            seen.update(covered_member_ids)
+            return interval
+        if _display_bucket(now_epoch, interval.elapsed_seconds) == (quantum, bucket):
+            seen.update(covered_member_ids)
+            return interval
+
+    include_monitor_turns = aggregates_agent_session_turns(agent)
+    visited_ids: list[int] | None = [] if fast_key is not None else None
+    members = _collect_aggregate_member_rows(
+        agent,
+        include_monitor_turns,
+        seen,
+        visited_ids=visited_ids,
+    )
+    if not members:
+        return None
+    key = _aggregate_cache_key(agent, members)
     result_hit = _aggregate_result_cache.get(key)
     if result_hit is not None:
         try:
@@ -292,8 +391,26 @@ def _aggregate_runtime(
             pass
         quantum, bucket, interval = result_hit
         if not interval.active:
+            if fast_key is not None:
+                _remember_fast_aggregate(
+                    fast_key,
+                    agent,
+                    revision,
+                    interval,
+                    now_epoch,
+                    tuple(visited_ids or ()),
+                )
             return interval
         if _display_bucket(now_epoch, interval.elapsed_seconds) == (quantum, bucket):
+            if fast_key is not None:
+                _remember_fast_aggregate(
+                    fast_key,
+                    agent,
+                    revision,
+                    interval,
+                    now_epoch,
+                    tuple(visited_ids or ()),
+                )
             return interval
     hit = _aggregate_wires_cache.get(key)
     if hit is not None:
@@ -325,6 +442,15 @@ def _aggregate_runtime(
             _aggregate_result_cache.popitem(last=False)
         except KeyError:
             break
+    if fast_key is not None:
+        _remember_fast_aggregate(
+            fast_key,
+            agent,
+            revision,
+            interval,
+            now_epoch,
+            tuple(visited_ids or ()),
+        )
     return interval
 
 

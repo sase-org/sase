@@ -342,7 +342,7 @@ async def test_stale_capacity_refresh_same_generation_cannot_overwrite_newer_sna
         entered.set()
         await release.wait()
         snapshot = RunnerCapacitySnapshot(effective_limit=8, slots_in_use=1)
-        return snapshot, snapshot, []
+        return snapshot, snapshot, [], ("stale-test-inputs",)
 
     monkeypatch.setattr(
         "sase.ace.tui.actions.agents._loading_filter.asyncio.to_thread",

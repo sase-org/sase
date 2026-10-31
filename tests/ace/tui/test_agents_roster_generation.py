@@ -18,6 +18,7 @@ from sase.ace.tui.actions.agents._unread_state import AgentUnreadStateMixin
 from sase.ace.tui.actions.agents._notification_unread_projection import (
     AgentNotificationUnreadMixin,
 )
+import sase.ace.tui.models._agent_time_aggregate as aggregate_mod
 from tests.ace.tui._agent_unread_helpers import make_agent
 
 _ACTIONS_ROOT = (
@@ -97,6 +98,15 @@ def test_notify_roster_status_mutation_bumps_generation() -> None:
     app = _stub_app([])
     assert notify_roster_status_mutation(app) == 1
     assert bump_roster_generation(app) == 2
+
+
+def test_roster_apply_and_status_mutation_bump_runtime_revision() -> None:
+    app = _stub_app([])
+    revision = aggregate_mod._runtime_input_revision
+    set_agents_roster(app, agents=[1])
+    assert aggregate_mod._runtime_input_revision == revision + 1
+    notify_roster_status_mutation(app)
+    assert aggregate_mod._runtime_input_revision == revision + 2
 
 
 def test_cached_index_reuses_build_within_generation(

@@ -21,6 +21,51 @@ if TYPE_CHECKING:
 log = logging.getLogger(__name__)
 
 
+def _freeze_capacity_input(value: Any) -> Any:
+    """Convert capacity input data to value-based, immutable cache material."""
+    if isinstance(value, dict):
+        return tuple(
+            sorted(
+                (str(key), _freeze_capacity_input(item)) for key, item in value.items()
+            )
+        )
+    if isinstance(value, (tuple, list)):
+        return tuple(_freeze_capacity_input(item) for item in value)
+    if isinstance(value, (set, frozenset)):
+        return tuple(sorted((_freeze_capacity_input(item) for item in value), key=repr))
+    if value is None or isinstance(value, (bool, int, float, str, bytes)):
+        return value
+    return repr(value)
+
+
+def _agents_capacity_refresh_input_key(
+    *,
+    report: Any,
+    roster: list[Any],
+    roster_generation: int,
+    active_holds: list[dict[str, Any]],
+    effective_limit: float,
+) -> tuple[Any, ...]:
+    """Return the value inputs that determine a cached-roster capacity apply."""
+    report_token = getattr(report, "token", None)
+    report_records = getattr(report, "record_inputs", ()) if report is not None else ()
+    if report_token is None:
+        report_token = _freeze_capacity_input(
+            report_records or getattr(report, "raw_snapshot", None)
+        )
+    return (
+        report_token,
+        getattr(report, "effective_limit", None),
+        getattr(report, "occupied_capacity", None),
+        getattr(report, "occupied_lanes", None),
+        _freeze_capacity_input(report_records),
+        _freeze_capacity_input(active_holds),
+        effective_limit,
+        roster_generation,
+        tuple(id(agent) for agent in roster),
+    )
+
+
 class AgentLoadingFilterMixin(AgentLoadingStateMixin):
     """Methods that re-run in-memory filtering without a disk reload."""
 
@@ -76,27 +121,47 @@ class AgentLoadingFilterMixin(AgentLoadingStateMixin):
                 roster = list(getattr(self, "_agents_with_children", ()) or ())
 
             report = getattr(self, "_machine_capacity_report", None)
+            roster_generation = int(getattr(self, "_agents_roster_generation", 0))
+            last_applied_inputs = getattr(
+                self, "_agents_capacity_last_applied_inputs", None
+            )
 
-            def _compute() -> tuple[
-                RunnerCapacitySnapshot,
-                RunnerCapacitySnapshot,
-                list[Agent],
-            ]:
+            def _compute() -> (
+                tuple[
+                    RunnerCapacitySnapshot,
+                    RunnerCapacitySnapshot,
+                    list[Agent],
+                    tuple[Any, ...],
+                ]
+                | None
+            ):
                 from sase.config.core import get_max_running_agents
                 from sase.core.agent_hold_facade import active_agent_hold_records
 
                 from ...models._agent_graph import copy_agent_rows_relinked
                 from ...models.agent_runner_slots import refresh_runner_slot_context
 
+                active_holds = active_agent_hold_records()
+                effective_limit = get_max_running_agents()
+                input_key = _agents_capacity_refresh_input_key(
+                    report=report,
+                    roster=roster,
+                    roster_generation=roster_generation,
+                    active_holds=active_holds,
+                    effective_limit=effective_limit,
+                )
+                if input_key == last_applied_inputs:
+                    return None
+
                 estimate_agents = copy_agent_rows_relinked(roster)
                 estimate = refresh_runner_slot_context(
                     estimate_agents,
-                    effective_limit=get_max_running_agents(),
+                    effective_limit=effective_limit,
                     capacity_agents=estimate_agents,
-                    active_holds=tuple(active_agent_hold_records()),
+                    active_holds=tuple(active_holds),
                 )
                 if report is None:
-                    return estimate, estimate, estimate_agents
+                    return estimate, estimate, estimate_agents, input_key
                 report_agents = copy_agent_rows_relinked(roster)
                 authoritative = refresh_runner_slot_context(
                     report_agents,
@@ -104,17 +169,23 @@ class AgentLoadingFilterMixin(AgentLoadingStateMixin):
                     raw_snapshot=report.raw_snapshot,
                     report=report,
                 )
-                return authoritative, estimate, report_agents
+                return authoritative, estimate, report_agents, input_key
 
-            snapshot, estimate, row_updates = await asyncio.to_thread(_compute)
+            computed = await asyncio.to_thread(_compute)
             if generation != int(getattr(self, "_agents_capacity_generation", 0)):
                 return
-            self._apply_agents_capacity_snapshot(
+            if computed is None:
+                self._agents_capacity_applied_generation = generation  # type: ignore[attr-defined]
+                return
+            snapshot, estimate, row_updates, input_key = computed
+            applied = self._apply_agents_capacity_snapshot(
                 snapshot,
                 estimate=estimate,
                 row_updates=row_updates,
                 generation=generation,
             )
+            if applied:
+                self._agents_capacity_last_applied_inputs = input_key  # type: ignore[attr-defined]
         finally:
             self._agents_capacity_refresh_running = False  # type: ignore[attr-defined]
             if getattr(self, "_agents_capacity_refresh_pending", False):
@@ -197,6 +268,7 @@ class AgentLoadingFilterMixin(AgentLoadingStateMixin):
 
         changed_rows: dict[int, Agent] = {}
         status_changed = False
+        title_changed_identities: set[tuple[Any, ...]] = set()
         for source in row_updates:
             for target in live_by_identity.get(source.identity, ()):
                 changed = False
@@ -208,18 +280,42 @@ class AgentLoadingFilterMixin(AgentLoadingStateMixin):
                     changed = True
                     if field_name == "status":
                         status_changed = True
+                        title_changed_identities.add(target.identity)
                 if changed:
                     changed_rows[id(target)] = target
 
         if status_changed:
             notify_roster_status_mutation(self)
+        elif changed_rows:
+            from ...models._agent_time_aggregate import bump_runtime_input_revision
+
+            bump_runtime_input_revision()
         try_patch = getattr(self, "_try_patch_agent_row", None)
         if getattr(self, "current_tab", None) == "agents" and callable(try_patch):
+            patched_identities: set[tuple[Any, ...]] = set()
             for row in changed_rows.values():
                 try:
-                    try_patch(row, refresh_info=False)
+                    if try_patch(row, refresh_info=False, refresh_title=False):
+                        patched_identities.add(row.identity)
                 except Exception:
                     log.debug("capacity row patch failed", exc_info=True)
+            patched_title_identities = title_changed_identities & patched_identities
+            if patched_title_identities:
+                index_factory = getattr(self, "_agent_panel_index", None)
+                refresh_title = getattr(
+                    self, "_refresh_agent_panel_title_for_key", None
+                )
+                if callable(index_factory) and callable(refresh_title):
+                    panel_index = index_factory()
+                    keys = panel_index.keys_per_agent
+                    title_keys = {
+                        keys[index]
+                        for index, row in enumerate(getattr(self, "_agents", ()))
+                        if row.identity in patched_title_identities
+                        and index < len(keys)
+                    }
+                    for key in title_keys:
+                        refresh_title(key)
         self._agent_info_metrics_cache = None  # type: ignore[attr-defined]
 
     def _snapshot_agents_for_local_display(self) -> list[Agent]:

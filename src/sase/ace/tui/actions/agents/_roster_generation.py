@@ -31,6 +31,9 @@ def bump_roster_generation(app: Any) -> int:
     """Bump the roster generation and drop cached projection indexes."""
     generation = get_roster_generation(app) + 1
     app._agents_roster_generation = generation
+    from ...models._agent_time_aggregate import bump_runtime_input_revision
+
+    bump_runtime_input_revision()
     cache = getattr(app, "_agent_node_projection_index_cache", None)
     if isinstance(cache, dict):
         cache.clear()

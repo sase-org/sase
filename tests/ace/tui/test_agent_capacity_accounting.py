@@ -10,6 +10,10 @@ to the chip total for the screenshot shape.
 
 from __future__ import annotations
 
+from types import SimpleNamespace
+
+import pytest
+
 from sase.ace.tui.models.agent import AgentType
 from sase.ace.tui.models.agent_runner_slots import refresh_runner_slot_context
 
@@ -223,19 +227,43 @@ def test_capacity_fields_propagate_to_live_rows_and_patch() -> None:
     source.capacity_claim_holder_dir = None
     source.capacity_claim_holder_name = None
     source.capacity_accounting_available = True
-    patched: list[tuple[object, bool]] = []
+    unchanged = _running("unchanged")
+    unchanged_source = _running("unchanged")
+    source.status = "WAITING"
+    live_second = _running("worker-second")
+    source_second = _running("worker-second")
+    source_second.capacity_state = "holding"
+    source_second.capacity_charged = 1.0
+    source_second.capacity_weight_source = "default"
+    source_second.capacity_claim_owner_key = "owner-a"
+    source_second.capacity_accounting_available = True
+    source_second.status = "WAITING"
+    patched: list[tuple[object, bool, bool]] = []
+    refreshed_titles: list[str | None] = []
+    info_refreshes: list[bool] = []
+
+    def _patch_row(
+        row: object,
+        *,
+        refresh_info: bool,
+        refresh_title: bool,
+    ) -> bool:
+        patched.append((row, refresh_info, refresh_title))
+        return True
+
     stub = SimpleNamespace(
         _agents_capacity_generation=7,
         _agents_capacity_applied_generation=6,
-        _agents_with_children=[live],
+        _agents_with_children=[live, unchanged, live_second],
         _agents_capacity_with_children=(),
         _agents_query_result=(),
-        _agents=(),
+        _agents=[live, unchanged, live_second],
         _agent_info_metrics_cache=None,
         current_tab="agents",
-        _try_patch_agent_row=lambda row, refresh_info=False: patched.append(
-            (row, refresh_info)
-        ),
+        _try_patch_agent_row=_patch_row,
+        _agent_panel_index=lambda: SimpleNamespace(keys_per_agent=[None, None, None]),
+        _refresh_agent_panel_title_for_key=refreshed_titles.append,
+        _update_agents_info_panel=lambda: info_refreshes.append(True),
     )
     stub._apply_agents_capacity_row_updates = MethodType(
         AgentLoadingFilterMixin._apply_agents_capacity_row_updates, stub
@@ -244,7 +272,7 @@ def test_capacity_fields_propagate_to_live_rows_and_patch() -> None:
     installed = AgentLoadingFilterMixin._apply_agents_capacity_snapshot(
         stub,
         object(),
-        row_updates=[source],
+        row_updates=[source, unchanged_source, source_second],
         generation=7,
     )
 
@@ -253,7 +281,76 @@ def test_capacity_fields_propagate_to_live_rows_and_patch() -> None:
     assert live.capacity_charged == 1.0
     assert live.capacity_claim_owner_key == "owner-a"
     assert live.capacity_accounting_available is True
-    assert patched == [(live, False)]
+    assert live.status == "WAITING"
+    assert live_second.capacity_state == "holding"
+    assert patched == [(live, False, False), (live_second, False, False)]
+    assert refreshed_titles == [None]
+    assert info_refreshes == [True]
+
+
+@pytest.mark.asyncio
+async def test_unchanged_capacity_refresh_skips_row_copy(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from sase.ace.tui.actions.agents import _loading_filter as loading_filter
+    from sase.ace.tui.actions.agents._loading_filter import AgentLoadingFilterMixin
+
+    import sase.config.core as config_core
+    import sase.core.agent_hold_facade as hold_facade
+    import sase.ace.tui.models._agent_graph as agent_graph
+
+    row = _running("worker")
+    roster = [row]
+    report = SimpleNamespace(
+        token="same-occupancy",
+        effective_limit=8.0,
+        occupied_capacity=1.0,
+        occupied_lanes=1,
+        record_inputs=(),
+    )
+    active_holds: list[dict[str, object]] = []
+    monkeypatch.setattr(hold_facade, "active_agent_hold_records", lambda: active_holds)
+    monkeypatch.setattr(config_core, "get_max_running_agents", lambda: 8.0)
+
+    def _unexpected_copy(_rows):  # type: ignore[no-untyped-def]
+        pytest.fail("unchanged occupancy must skip graph row copies")
+
+    monkeypatch.setattr(agent_graph, "copy_agent_rows_relinked", _unexpected_copy)
+    last_inputs = loading_filter._agents_capacity_refresh_input_key(
+        report=report,
+        roster=roster,
+        roster_generation=4,
+        active_holds=active_holds,
+        effective_limit=8.0,
+    )
+    stub = SimpleNamespace(
+        _agents_first_load_done=True,
+        _agents_capacity_generation=5,
+        _agents_capacity_with_children=roster,
+        _agents_roster_generation=4,
+        _machine_capacity_report=report,
+        _agents_capacity_last_applied_inputs=last_inputs,
+        _agents_capacity_refresh_pending=False,
+    )
+
+    await AgentLoadingFilterMixin._run_agents_capacity_refresh_from_roster(
+        stub,
+        generation=5,
+        source="test",
+    )
+
+    assert stub._agents_capacity_applied_generation == 5
+    changed_report = SimpleNamespace(**{**vars(report), "token": "new-occupancy"})
+    assert (
+        loading_filter._agents_capacity_refresh_input_key(
+            report=changed_report,
+            roster=roster,
+            roster_generation=4,
+            active_holds=active_holds,
+            effective_limit=8.0,
+        )
+        != last_inputs
+    )
 
 
 def test_snapshot_without_accounting_marks_everything_unknown() -> None:

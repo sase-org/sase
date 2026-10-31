@@ -230,8 +230,14 @@ def test_report_refresh_copies_queue_context_to_live_rows_and_patches_them() -> 
         _agents_query_result = [live]
         patched: list[object] = []
 
-        def _try_patch_agent_row(self, row: object, *, refresh_info: bool) -> bool:
-            del refresh_info
+        def _try_patch_agent_row(
+            self,
+            row: object,
+            *,
+            refresh_info: bool,
+            refresh_title: bool,
+        ) -> bool:
+            del refresh_info, refresh_title
             self.patched.append(row)
             return True
 
