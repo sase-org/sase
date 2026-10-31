@@ -35,22 +35,26 @@ def test_handle_pipe_marker_default_suffix_and_fork(tmp_path: Path) -> None:
     allocate = Mock(return_value="--1")
 
     with (
-        patch("sase.axe.run_agent_exec_pipe.normalize_handoff_interruption_state"),
-        patch("sase.axe.run_agent_exec_pipe.finalize_handoff_artifacts_as_completed"),
-        patch("sase.axe.run_agent_exec_pipe.save_chat_history", save_chat),
-        patch("sase.axe.run_agent_exec_pipe.update_meta_field"),
-        patch("sase.axe.run_agent_exec_pipe.update_step_marker_chat_path"),
         patch(
-            "sase.axe.run_agent_exec_pipe.allocate_agent_session_child_suffix",
+            "sase.axe.run_agent_exec_pipe_handoff.normalize_handoff_interruption_state"
+        ),
+        patch(
+            "sase.axe.run_agent_exec_pipe_handoff.finalize_handoff_artifacts_as_completed"
+        ),
+        patch("sase.axe.run_agent_exec_pipe_handoff.save_chat_history", save_chat),
+        patch("sase.axe.run_agent_exec_pipe_handoff.update_meta_field"),
+        patch("sase.axe.run_agent_exec_pipe_handoff.update_step_marker_chat_path"),
+        patch(
+            "sase.axe.run_agent_exec_pipe_handoff.allocate_agent_session_child_suffix",
             allocate,
         ),
-        patch("sase.axe.run_agent_exec_pipe.create_followup_artifacts", create),
-        patch("sase.axe.run_agent_exec_pipe.promote_to_workflow"),
+        patch("sase.axe.run_agent_exec_pipe_handoff.create_followup_artifacts", create),
+        patch("sase.axe.run_agent_exec_pipe_handoff.promote_to_workflow"),
         patch(
-            "sase.axe.run_agent_exec_pipe._store_followup_prompt_artifact",
+            "sase.axe.run_agent_exec_pipe_handoff._store_followup_prompt_artifact",
             store,
         ),
-        patch("sase.axe.run_agent_exec_pipe.reset_killed") as reset,
+        patch("sase.axe.run_agent_exec_pipe_handoff.reset_killed") as reset,
     ):
         outcome = handle_pipe_marker(_pipe_data(), ctx, state)
 
@@ -83,18 +87,20 @@ def test_handle_staged_pipe_marker_keeps_real_response(tmp_path: Path) -> None:
 
     with (
         patch(
-            "sase.axe.run_agent_exec_pipe.normalize_handoff_interruption_state"
+            "sase.axe.run_agent_exec_pipe_handoff.normalize_handoff_interruption_state"
         ) as norm,
-        patch("sase.axe.run_agent_exec_pipe.finalize_handoff_artifacts_as_completed"),
-        patch("sase.axe.run_agent_exec_pipe.save_chat_history", save_chat),
-        patch("sase.axe.run_agent_exec_pipe.update_meta_field"),
-        patch("sase.axe.run_agent_exec_pipe.update_step_marker_chat_path"),
         patch(
-            "sase.axe.run_agent_exec_pipe.allocate_agent_session_child_suffix",
+            "sase.axe.run_agent_exec_pipe_handoff.finalize_handoff_artifacts_as_completed"
+        ),
+        patch("sase.axe.run_agent_exec_pipe_handoff.save_chat_history", save_chat),
+        patch("sase.axe.run_agent_exec_pipe_handoff.update_meta_field"),
+        patch("sase.axe.run_agent_exec_pipe_handoff.update_step_marker_chat_path"),
+        patch(
+            "sase.axe.run_agent_exec_pipe_staged.allocate_agent_session_child_suffix",
             return_value="--1",
         ),
         patch(
-            "sase.axe.run_agent_exec_pipe.reserve_launch_timestamp_batch",
+            "sase.axe.run_agent_exec_pipe_staged.reserve_launch_timestamp_batch",
             return_value=["20261031010101"],
         ),
         patch(
@@ -102,12 +108,12 @@ def test_handle_staged_pipe_marker_keeps_real_response(tmp_path: Path) -> None:
             return_value="/tmp/pipe-followup",
         ),
         patch(
-            "sase.axe.run_agent_exec_pipe.create_followup_artifacts",
+            "sase.axe.run_agent_exec_pipe_handoff.create_followup_artifacts",
             return_value="/tmp/pipe-followup",
         ),
-        patch("sase.axe.run_agent_exec_pipe.promote_to_workflow"),
-        patch("sase.axe.run_agent_exec_pipe._store_followup_prompt_artifact"),
-        patch("sase.axe.run_agent_exec_pipe.reset_killed") as reset,
+        patch("sase.axe.run_agent_exec_pipe_handoff.promote_to_workflow"),
+        patch("sase.axe.run_agent_exec_pipe_handoff._store_followup_prompt_artifact"),
+        patch("sase.axe.run_agent_exec_pipe_handoff.reset_killed") as reset,
     ):
         outcome = handle_staged_pipe_marker(
             _pipe_data(),
@@ -142,19 +148,26 @@ def test_handle_pipe_marker_saves_parent_chat_before_successor(
         return "/tmp/pipe-followup"
 
     with (
-        patch("sase.axe.run_agent_exec_pipe.normalize_handoff_interruption_state"),
-        patch("sase.axe.run_agent_exec_pipe.finalize_handoff_artifacts_as_completed"),
-        patch("sase.axe.run_agent_exec_pipe.save_chat_history", side_effect=save_chat),
-        patch("sase.axe.run_agent_exec_pipe.update_meta_field"),
-        patch("sase.axe.run_agent_exec_pipe.update_step_marker_chat_path"),
         patch(
-            "sase.axe.run_agent_exec_pipe.allocate_agent_session_child_suffix",
+            "sase.axe.run_agent_exec_pipe_handoff.normalize_handoff_interruption_state"
+        ),
+        patch(
+            "sase.axe.run_agent_exec_pipe_handoff.finalize_handoff_artifacts_as_completed"
+        ),
+        patch(
+            "sase.axe.run_agent_exec_pipe_handoff.save_chat_history",
+            side_effect=save_chat,
+        ),
+        patch("sase.axe.run_agent_exec_pipe_handoff.update_meta_field"),
+        patch("sase.axe.run_agent_exec_pipe_handoff.update_step_marker_chat_path"),
+        patch(
+            "sase.axe.run_agent_exec_pipe_handoff.allocate_agent_session_child_suffix",
             return_value="--1",
         ),
-        patch("sase.axe.run_agent_exec_pipe.create_followup_artifacts", create),
-        patch("sase.axe.run_agent_exec_pipe.promote_to_workflow"),
-        patch("sase.axe.run_agent_exec_pipe._store_followup_prompt_artifact"),
-        patch("sase.axe.run_agent_exec_pipe.reset_killed"),
+        patch("sase.axe.run_agent_exec_pipe_handoff.create_followup_artifacts", create),
+        patch("sase.axe.run_agent_exec_pipe_handoff.promote_to_workflow"),
+        patch("sase.axe.run_agent_exec_pipe_handoff._store_followup_prompt_artifact"),
+        patch("sase.axe.run_agent_exec_pipe_handoff.reset_killed"),
     ):
         handle_pipe_marker(_pipe_data(), ctx, state)
 
@@ -194,14 +207,18 @@ def test_repeated_default_pipe_transitions_reserve_unique_artifacts(
     )
 
     with (
-        patch("sase.axe.run_agent_exec_pipe.normalize_handoff_interruption_state"),
-        patch("sase.axe.run_agent_exec_pipe.finalize_handoff_artifacts_as_completed"),
         patch(
-            "sase.axe.run_agent_exec_pipe.save_chat_history",
+            "sase.axe.run_agent_exec_pipe_handoff.normalize_handoff_interruption_state"
+        ),
+        patch(
+            "sase.axe.run_agent_exec_pipe_handoff.finalize_handoff_artifacts_as_completed"
+        ),
+        patch(
+            "sase.axe.run_agent_exec_pipe_handoff.save_chat_history",
             side_effect=["/tmp/parent.md", "/tmp/first.md"],
         ),
-        patch("sase.axe.run_agent_exec_pipe.update_step_marker_chat_path"),
-        patch("sase.axe.run_agent_exec_pipe.reset_killed"),
+        patch("sase.axe.run_agent_exec_pipe_handoff.update_step_marker_chat_path"),
+        patch("sase.axe.run_agent_exec_pipe_handoff.reset_killed"),
     ):
         assert (
             handle_pipe_marker(_pipe_data(prompt="first handoff"), ctx, state) is None
@@ -259,26 +276,30 @@ def test_handle_pipe_marker_explicit_name_fresh_and_model(tmp_path: Path) -> Non
     write_model = Mock()
 
     with (
-        patch("sase.axe.run_agent_exec_pipe.normalize_handoff_interruption_state"),
-        patch("sase.axe.run_agent_exec_pipe.finalize_handoff_artifacts_as_completed"),
         patch(
-            "sase.axe.run_agent_exec_pipe.save_chat_history",
+            "sase.axe.run_agent_exec_pipe_handoff.normalize_handoff_interruption_state"
+        ),
+        patch(
+            "sase.axe.run_agent_exec_pipe_handoff.finalize_handoff_artifacts_as_completed"
+        ),
+        patch(
+            "sase.axe.run_agent_exec_pipe_handoff.save_chat_history",
             return_value="/tmp/parent.md",
         ),
-        patch("sase.axe.run_agent_exec_pipe.update_meta_field"),
-        patch("sase.axe.run_agent_exec_pipe.update_step_marker_chat_path"),
+        patch("sase.axe.run_agent_exec_pipe_handoff.update_meta_field"),
+        patch("sase.axe.run_agent_exec_pipe_handoff.update_step_marker_chat_path"),
         patch(
-            "sase.axe.run_agent_exec_pipe._resolve_pipe_model",
+            "sase.axe.run_agent_exec_pipe_handoff.resolve_pipe_model",
             return_value=followup,
         ),
-        patch("sase.axe.run_agent_exec_pipe.create_followup_artifacts", create),
-        patch("sase.axe.run_agent_exec_pipe.promote_to_workflow"),
-        patch("sase.axe.run_agent_exec_pipe._store_followup_prompt_artifact"),
+        patch("sase.axe.run_agent_exec_pipe_handoff.create_followup_artifacts", create),
+        patch("sase.axe.run_agent_exec_pipe_handoff.promote_to_workflow"),
+        patch("sase.axe.run_agent_exec_pipe_handoff._store_followup_prompt_artifact"),
         patch(
             "sase.axe.run_agent_successor.write_followup_model_meta",
             write_model,
         ),
-        patch("sase.axe.run_agent_exec_pipe.reset_killed"),
+        patch("sase.axe.run_agent_exec_pipe_handoff.reset_killed"),
     ):
         handle_pipe_marker(
             _pipe_data(name_token="review", fresh=True, model="opus", pipe_depth=2),

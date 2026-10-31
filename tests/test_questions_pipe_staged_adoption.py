@@ -162,7 +162,7 @@ def test_pipe_adopter_records_successor_custodian_and_real_response(
     captured: dict[str, Any] = {}
 
     monkeypatch.setattr(
-        "sase.axe.run_agent_exec_pipe.save_chat_history",
+        "sase.axe.run_agent_exec_pipe_handoff.save_chat_history",
         lambda **kw: captured.update(kw) or "/fake/chat",
     )
     result = dispatch_completed_staged_handoff(str(artifacts), continuation)
@@ -224,11 +224,11 @@ def _patch_pipe_successor_setup(
         return str(successor)
 
     monkeypatch.setattr(
-        "sase.axe.run_agent_exec_pipe.allocate_agent_session_child_suffix",
+        "sase.axe.run_agent_exec_pipe_staged.allocate_agent_session_child_suffix",
         lambda *_args, **_kwargs: "--1",
     )
     monkeypatch.setattr(
-        "sase.axe.run_agent_exec_pipe.reserve_launch_timestamp_batch",
+        "sase.axe.run_agent_exec_pipe_staged.reserve_launch_timestamp_batch",
         lambda _count: ["20261031010101"],
     )
     monkeypatch.setattr(
@@ -239,24 +239,25 @@ def _patch_pipe_successor_setup(
         lambda *_args, **_kwargs: plan,
     )
     monkeypatch.setattr(
-        "sase.axe.run_agent_exec_pipe.create_followup_artifacts", create
+        "sase.axe.run_agent_exec_pipe_handoff.create_followup_artifacts", create
     )
     monkeypatch.setattr(
-        "sase.axe.run_agent_exec_pipe.promote_to_workflow", lambda *_a, **_k: None
-    )
-    monkeypatch.setattr(
-        "sase.axe.run_agent_exec_pipe._store_followup_prompt_artifact",
+        "sase.axe.run_agent_exec_pipe_handoff.promote_to_workflow",
         lambda *_a, **_k: None,
     )
     monkeypatch.setattr(
-        "sase.axe.run_agent_exec_pipe.save_chat_history",
+        "sase.axe.run_agent_exec_pipe_handoff._store_followup_prompt_artifact",
+        lambda *_a, **_k: None,
+    )
+    monkeypatch.setattr(
+        "sase.axe.run_agent_exec_pipe_handoff.save_chat_history",
         lambda **_kwargs: "/fake/pipe-chat",
     )
     monkeypatch.setattr(
-        "sase.axe.run_agent_exec_pipe.update_meta_field", lambda *_a, **_k: None
+        "sase.axe.run_agent_exec_pipe_handoff.update_meta_field", lambda *_a, **_k: None
     )
     monkeypatch.setattr(
-        "sase.axe.run_agent_exec_pipe.update_step_marker_chat_path",
+        "sase.axe.run_agent_exec_pipe_handoff.update_step_marker_chat_path",
         lambda *_a, **_k: None,
     )
     return successor, created
@@ -544,7 +545,7 @@ def test_pipe_successor_inherits_carried_work(
         return str(successor)
 
     monkeypatch.setattr(
-        "sase.axe.run_agent_exec_pipe.create_followup_artifacts", create
+        "sase.axe.run_agent_exec_pipe_handoff.create_followup_artifacts", create
     )
 
     ctx, state = make_continuation(tmp_path, artifacts)

@@ -412,7 +412,7 @@ _REVIEWED_PATH_PASSING_CONTEXTS: dict[str, PathPassingReview] = {
             "agent_meta.json and done.json observations are read-only."
         ),
     ),
-    "src/sase/axe/run_agent_exec_pipe.py:_prepare_staged_pipe_successor": PathPassingReview(
+    "src/sase/axe/run_agent_exec_pipe_staged.py:prepare_staged_pipe_successor": PathPassingReview(
         exemption=(
             "Read-only pipe-successor identity check: agent_meta.json is "
             "inspected only to validate an already-created destination; the "
@@ -420,7 +420,7 @@ _REVIEWED_PATH_PASSING_CONTEXTS: dict[str, PathPassingReview] = {
             "files, not tracked artifact markers."
         ),
     ),
-    "src/sase/axe/run_agent_exec_pipe.py:_restore_staged_pipe_loop_state": PathPassingReview(
+    "src/sase/axe/run_agent_exec_pipe_handoff.py:_restore_staged_pipe_loop_state": PathPassingReview(
         exemption=(
             "Read-only adopted-pipe identity check: agent_meta.json is "
             "inspected only to prove the saved successor destination before "
