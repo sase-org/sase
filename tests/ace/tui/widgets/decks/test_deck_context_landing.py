@@ -16,9 +16,9 @@ from sase.ace.tui.widgets.decks.main_document import MainDeckDocument
 from sase.ace.tui.widgets.decks.model import DeckId, DeckLayout, DeckView, RenderMode
 from tests.ace.tui.widgets._agent_display_helpers import make_agent
 from tests.ace.tui.widgets.decks.test_deck_action_targets import _DetailApp
-from tests.ace.tui.widgets.decks.test_deck_view_main_pilot import (
-    _document,
-    _reply_card,
+from tests.ace.tui.widgets.decks._deck_view_main_support import (
+    make_document,
+    make_reply_card,
 )
 
 
@@ -31,9 +31,9 @@ def _agent(label: str) -> Any:
 
 
 def _main_doc(detail: AgentDetail, agent: Any) -> MainDeckDocument:
-    return _document(
+    return make_document(
         detail.metadata_identity,
-        _reply_card(6, lines_per_block=40),
+        make_reply_card(6, lines_per_block=40),
         digest=f"context-landing-{agent.cl_name}",
     )
 
