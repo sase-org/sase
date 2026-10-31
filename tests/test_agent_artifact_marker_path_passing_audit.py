@@ -286,7 +286,7 @@ _REVIEWED_PATH_PASSING_CONTEXTS: dict[str, PathPassingReview] = {
             "and done-marker helpers."
         ),
     ),
-    "src/sase/gate_turn/transaction.py:_read_meta": PathPassingReview(
+    "src/sase/gate_turn/_transaction_creator.py:_read_meta": PathPassingReview(
         exemption=(
             "Read-only gate-shell creation lookup: agent_meta.json is read only "
             "to recover the creator lane, workspace claim, and replay metadata "

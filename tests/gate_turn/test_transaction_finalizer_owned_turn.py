@@ -44,7 +44,7 @@ def test_finalizer_owned_turn_refuses_before_side_effects(
     monkeypatch.setenv(SASE_FINALIZER_OWNED_TURN_ENV, "1")
     monkeypatch.setattr(
         transaction_module,
-        "_resolve_project_name",
+        "resolve_project_name",
         lambda: pytest.fail("project resolution must not run"),
     )
     monkeypatch.setattr(
@@ -73,7 +73,7 @@ def test_non_finalizer_turn_continues_to_normal_creation_path(
         raise GateTurnLaneError("creation continued")
 
     monkeypatch.setattr(
-        transaction_module, "_resolve_project_name", _resolve_project_name
+        transaction_module, "resolve_project_name", _resolve_project_name
     )
 
     with pytest.raises(GateTurnLaneError, match="creation continued"):

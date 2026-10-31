@@ -11,16 +11,15 @@ from typing import Any
 import pytest
 
 from sase.gate_turn import transaction as transaction_module
+from sase.gate_turn._transaction_creator import CreatorContext
+from sase.gate_turn._transaction_spec import spec_from_request
 from sase.gate_turn.member import create_gate_turn_member
 from sase.gate_turn.models import GateTurnError
 from sase.gate_turn.publisher import publish_staged_gate
 from sase.gate_turn.staged_contract import prepare_staged_gate
 from sase.gate_turn.start_claim import GateClaimMove
 from sase.gate_turn.store import read_gate_turn_marker
-from sase.gate_turn.transaction import (
-    _spec_from_request,
-    publish_gate_turn,
-)
+from sase.gate_turn.transaction import publish_gate_turn
 from sase.notification_gates.durability import atomic_write_json, read_json_object
 from sase.notification_gates.models import GateError
 from sase.notification_gates.paths import bundle_paths
@@ -107,7 +106,7 @@ def _install_real_replay(
     *,
     workspace_num: int | None = None,
     runner_pid: int | None = None,
-) -> transaction_module._CreatorContext:
+) -> CreatorContext:
     monkeypatch.setenv("SASE_HOME", str(tmp_path / ".sase"))
     creator_dir = tmp_path / "creator"
     creator_dir.mkdir()
@@ -123,7 +122,7 @@ def _install_real_replay(
         ),
         encoding="utf-8",
     )
-    creator = transaction_module._CreatorContext(
+    creator = CreatorContext(
         project_name="proj",
         project_file=str(tmp_path / "proj.sase"),
         artifacts_dir=str(creator_dir),
@@ -199,7 +198,7 @@ def test_shared_kinds_replay_reuse_request_id_and_notification(
     del gate_home
     creator = _install_real_replay(tmp_path, monkeypatch)
     request_id = f"{kind}-replay-1"
-    spec = _spec_from_request(_kind_spec(kind, request_id, creator.artifacts_dir))
+    spec = spec_from_request(_kind_spec(kind, request_id, creator.artifacts_dir))
     first = publish_gate_turn(spec, creator=creator, frozen_auto=FROZEN_MANUAL)
     second = publish_gate_turn(spec, creator=creator, frozen_auto=FROZEN_MANUAL)
     assert first.record.gate_id == second.record.gate_id == request_id
@@ -216,7 +215,7 @@ def test_partial_member_finishes_missing_bundle_and_notification(
 ) -> None:
     del gate_home
     creator = _install_real_replay(tmp_path, monkeypatch)
-    spec = _spec_from_request(_custom_spec("partial-member-1"))
+    spec = spec_from_request(_custom_spec("partial-member-1"))
     member_dir = create_gate_turn_member(
         "proj",
         creator.meta,
@@ -258,7 +257,7 @@ def test_notification_retry_reuses_journal_notification_id(
 ) -> None:
     del gate_home
     creator = _install_real_replay(tmp_path, monkeypatch)
-    spec = _spec_from_request(_custom_spec("notify-retry-1"))
+    spec = spec_from_request(_custom_spec("notify-retry-1"))
     first = publish_gate_turn(spec, creator=creator, frozen_auto=FROZEN_MANUAL)
     paths = bundle_paths("custom", "notify-retry-1")
     journal = read_json_object(paths.journal)
@@ -281,7 +280,7 @@ def test_terminal_gate_before_receipt_does_not_republish(
 ) -> None:
     del gate_home
     creator = _install_real_replay(tmp_path, monkeypatch)
-    spec = _spec_from_request(_custom_spec("terminal-replay-1"))
+    spec = spec_from_request(_custom_spec("terminal-replay-1"))
     first = publish_gate_turn(spec, creator=creator, frozen_auto=FROZEN_MANUAL)
     from sase.axe.run_agent_helpers import update_meta_field
 
@@ -324,7 +323,7 @@ def test_failed_claim_transfer_does_not_duplicate_on_replay(
         return read_gate_turn_marker("proj", record.artifacts_dir) or record
 
     monkeypatch.setattr(transaction_module, "settle_gate_turn", persist_failed)
-    spec = _spec_from_request(_custom_spec("claim-fail-1"))
+    spec = spec_from_request(_custom_spec("claim-fail-1"))
     with pytest.raises(GateTurnError, match="workspace claim move failed"):
         publish_gate_turn(spec, creator=creator, frozen_auto=FROZEN_MANUAL)
     with pytest.raises(GateTurnError, match="never published"):
@@ -341,13 +340,13 @@ def test_payload_mismatch_refuses_replay_of_existing_member(
 ) -> None:
     del gate_home
     creator = _install_real_replay(tmp_path, monkeypatch)
-    spec = _spec_from_request(_custom_spec("member-mismatch-1"))
+    spec = spec_from_request(_custom_spec("member-mismatch-1"))
     first = publish_gate_turn(spec, creator=creator, frozen_auto=FROZEN_MANUAL)
     other = _custom_spec("member-mismatch-1")
     other["presentation"] = {**other["presentation"], "title": "Different payload"}
     with pytest.raises(GateError, match="already belongs to a different gate"):
         publish_gate_turn(
-            _spec_from_request(other), creator=creator, frozen_auto=FROZEN_MANUAL
+            spec_from_request(other), creator=creator, frozen_auto=FROZEN_MANUAL
         )
     assert _notification_ids() == [first.gate.notification_id]
 
@@ -359,12 +358,12 @@ def test_kind_mismatch_refuses_without_a_second_member(
 ) -> None:
     del gate_home
     creator = _install_real_replay(tmp_path, monkeypatch)
-    first_spec = _spec_from_request(_custom_spec("kind-mismatch-1"))
+    first_spec = spec_from_request(_custom_spec("kind-mismatch-1"))
     publish_gate_turn(first_spec, creator=creator, frozen_auto=FROZEN_MANUAL)
     other = _kind_spec("hitl", "kind-mismatch-1", creator.artifacts_dir)
     with pytest.raises(GateTurnError, match="already belongs to a custom gate"):
         publish_gate_turn(
-            _spec_from_request(other), creator=creator, frozen_auto=FROZEN_MANUAL
+            spec_from_request(other), creator=creator, frozen_auto=FROZEN_MANUAL
         )
 
 
@@ -375,9 +374,9 @@ def test_workspace_mode_mismatch_is_refused(
 ) -> None:
     del gate_home
     creator = _install_real_replay(tmp_path, monkeypatch)
-    inherit = _spec_from_request(_custom_spec("ws-mismatch-1", workspace="inherit"))
+    inherit = spec_from_request(_custom_spec("ws-mismatch-1", workspace="inherit"))
     publish_gate_turn(inherit, creator=creator, frozen_auto=FROZEN_MANUAL)
-    released = _spec_from_request(_custom_spec("ws-mismatch-1", workspace="release"))
+    released = spec_from_request(_custom_spec("ws-mismatch-1", workspace="release"))
     with pytest.raises(GateTurnError, match="workspace policy"):
         publish_gate_turn(released, creator=creator, frozen_auto=FROZEN_MANUAL)
 
@@ -391,7 +390,7 @@ def test_claim_repair_runs_when_member_exists_but_claim_was_not_moved(
     creator = _install_real_replay(
         tmp_path, monkeypatch, workspace_num=3, runner_pid=111
     )
-    spec = _spec_from_request(_custom_spec("claim-repair-1"))
+    spec = spec_from_request(_custom_spec("claim-repair-1"))
     member_dir = create_gate_turn_member(
         "proj",
         creator.meta,
@@ -415,7 +414,7 @@ def test_claim_repair_runs_when_member_exists_but_claim_was_not_moved(
     )
     monkeypatch.setattr(
         transaction_module,
-        "_replay_claim_already_applied",
+        "replay_claim_already_applied",
         lambda *_a, **_k: False,
     )
     moved: list[str] = []
@@ -441,7 +440,7 @@ def test_concurrent_publication_creates_one_member_and_one_notification(
     monkeypatch.setattr(
         transaction_module, "gate_lane_lock", transaction_module.gate_lane_lock
     )
-    spec = _spec_from_request(_custom_spec("concurrent-1"))
+    spec = spec_from_request(_custom_spec("concurrent-1"))
     results: list[object] = []
     errors: list[BaseException] = []
     barrier = threading.Barrier(2)
@@ -536,7 +535,7 @@ def test_mocked_replay_still_skips_a_second_claim_move(
         "create_gate",
         lambda _spec, **_k: _creation_result(tmp_path),
     )
-    creator = transaction_module._CreatorContext(
+    creator = CreatorContext(
         project_name="proj",
         project_file=str(tmp_path / "proj.sase"),
         artifacts_dir=str(tmp_path / "creator"),
@@ -548,7 +547,7 @@ def test_mocked_replay_still_skips_a_second_claim_move(
         runner_pid=None,
         cl_name=None,
     )
-    spec = _spec_from_request(_custom_spec("intent-one"))
+    spec = spec_from_request(_custom_spec("intent-one"))
     first = publish_gate_turn(spec, creator=creator)
     monkeypatch.setattr(
         transaction_module, "find_gate_turn_by_gate_id", lambda *_: record

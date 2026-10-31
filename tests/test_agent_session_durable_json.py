@@ -24,7 +24,7 @@ from sase.core.agent_group_archive_wire import (
     saved_agent_group_wire_to_json_dict,
 )
 from sase.dispatch.follow_store import load_follow_snapshot
-from sase.gate_turn.transaction import _stamp_pending_shell_on_spec
+from sase.gate_turn._transaction_spec import stamp_pending_shell_on_spec
 from sase.history.chat_fork.common import (
     LEGACY_FORK_SOURCE_KIND,
     fork_source_has_failure,
@@ -167,7 +167,7 @@ def test_gate_turn_stamp_writes_session_suffix() -> None:
         kind="custom",
         presentation={"action_data": {"raw_suffix": "ts-1", "agent_timestamp": "ts-1"}},
     )
-    _stamp_pending_shell_on_spec(
+    stamp_pending_shell_on_spec(
         spec, member_artifacts_dir="/tmp/dir", member_timestamp="ts-1"
     )
     action_data = spec.presentation["action_data"]
@@ -180,7 +180,7 @@ def test_gate_turn_stamp_reads_legacy_suffix() -> None:
         kind="custom",
         presentation={"action_data": {"family_root_suffix": "ts-9"}},
     )
-    _stamp_pending_shell_on_spec(
+    stamp_pending_shell_on_spec(
         spec, member_artifacts_dir="/tmp/dir", member_timestamp="ts-1"
     )
     assert spec.presentation["action_data"]["agent_session_root_suffix"] == "ts-9"

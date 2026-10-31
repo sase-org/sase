@@ -1,24 +1,41 @@
-"""Ordered creation transaction for gate-turn backed gates."""
+"""Ordered creation transaction for gate-turn backed gates.
+
+This module is the public entry point and owns the ordered publication and
+replay steps. Creator identity, request normalization, and replay
+preconditions live in the ``_transaction_*`` sibling modules.
+"""
 
 from __future__ import annotations
 
-import json
 import os
 from collections.abc import Callable, Mapping
-from dataclasses import dataclass, replace
-from pathlib import Path
+from dataclasses import dataclass
 from typing import Any
-from uuid import uuid4
 
 from sase.agent.gate_intent import begin_gate_intent, clear_gate_intent
 from sase.axe.run_agent_helpers_artifacts import update_meta_fields
 from sase.finalizers.owned_turn import finalizer_owned_turn_is_active
 from sase.gate_turn import naming
+from sase.gate_turn._transaction_creator import (
+    CreatorContext,
+    creator_context_from_persisted,
+    resolve_creator,
+    resolve_project_name,
+)
+from sase.gate_turn._transaction_replay import (
+    replay_claim_already_applied,
+    validate_replay_identity,
+)
+from sase.gate_turn._transaction_spec import (
+    gate_label,
+    gate_reason,
+    spec_from_request,
+    stamp_pending_shell_on_spec,
+)
 from sase.gate_turn.lane_lock import gate_lane_lock
 from sase.gate_turn.member import create_gate_turn_member
 from sase.gate_turn.models import (
     GateTurnError,
-    GateTurnLaneError,
     GateTurnRecord,
 )
 from sase.gate_turn.settlement import settle_gate_turn
@@ -35,11 +52,6 @@ from sase.gate_turn.store import (
 from sase.notification_gates.model_request import GateSpec
 from sase.notification_gates.model_results import GateCreationResult
 from sase.notification_gates.service import create_gate
-from sase.plan_chain import (
-    agent_session_base,
-    agent_session_value,
-)
-from sase.workflows.utils import get_project_file_path
 
 _FINALIZER_OWNED_TURN_ERROR = (
     "gate turns cannot be created from a host finalizer turn: this turn cannot "
@@ -77,20 +89,6 @@ class GateTurnCreation:
         return payload
 
 
-@dataclass(frozen=True)
-class _CreatorContext:
-    project_name: str
-    project_file: str
-    artifacts_dir: str
-    timestamp: str
-    target_name: str
-    durable_lane: str
-    meta: dict[str, Any]
-    workspace_num: int | None
-    runner_pid: int | None
-    cl_name: str | None
-
-
 def create_gate_turn(
     request: Mapping[str, Any] | GateSpec,
     *,
@@ -107,13 +105,13 @@ def create_gate_turn(
     """
     if finalizer_owned_turn_is_active():
         raise GateTurnError(_FINALIZER_OWNED_TURN_ERROR)
-    spec = _spec_from_request(request)
+    spec = spec_from_request(request)
     if spec.turn is None:
         raise GateTurnError("gate turn creation requires a shell block")
     begin_gate_intent(spec.kind, request_id=spec.request_id)
 
     try:
-        creator = _resolve_creator(_resolve_project_name())
+        creator = resolve_creator(resolve_project_name())
         creation = publish_gate_turn(
             spec,
             creator=creator,
@@ -132,7 +130,7 @@ def create_gate_turn(
 def publish_gate_turn(
     spec: GateSpec,
     *,
-    creator: _CreatorContext,
+    creator: CreatorContext,
     before_auto_settle: Callable[[GateTurnRecord, GateCreationResult], None]
     | None = None,
     frozen_auto: Mapping[str, Any] | None = None,
@@ -169,7 +167,7 @@ def publish_gate_turn(
             creator.durable_lane,
             has_existing_gate=has_any_gate_turn(project_name, creator.durable_lane),
         )
-        label = _gate_label(spec, spec.request_id)
+        label = gate_label(spec, spec.request_id)
         artifacts_dir = create_gate_turn_member(
             project_name,
             creator.meta,
@@ -180,7 +178,7 @@ def publish_gate_turn(
             gate_id=spec.request_id,
             gate_kind=spec.kind,
             label=label,
-            reason=_gate_reason(spec),
+            reason=gate_reason(spec),
             creator_agent=creator.meta.get("name")
             if isinstance(creator.meta.get("name"), str)
             else creator.target_name,
@@ -212,7 +210,7 @@ def publish_gate_turn(
             )
 
         try:
-            _stamp_pending_shell_on_spec(
+            stamp_pending_shell_on_spec(
                 spec,
                 member_artifacts_dir=artifacts_dir,
                 member_timestamp=member_timestamp,
@@ -275,14 +273,14 @@ def publish_gate_turn(
 def _finish_existing_gate_turn(
     spec: GateSpec,
     *,
-    creator: _CreatorContext,
+    creator: CreatorContext,
     replay: GateTurnRecord,
     before_auto_settle: Callable[[GateTurnRecord, GateCreationResult], None] | None,
     frozen_auto: Mapping[str, Any] | None,
     resource_bytes: Mapping[str, bytes] | None,
 ) -> GateTurnCreation:
     """Resume a partially published member under its original request id."""
-    _validate_replay_identity(spec, creator, replay)
+    validate_replay_identity(spec, creator, replay)
     if (
         replay.gate_state == "failed"
         and not replay.bundle_path
@@ -295,7 +293,7 @@ def _finish_existing_gate_turn(
     member_timestamp = replay.timestamp or os.path.basename(
         replay.artifacts_dir.rstrip("/")
     )
-    _stamp_pending_shell_on_spec(
+    stamp_pending_shell_on_spec(
         spec,
         member_artifacts_dir=replay.artifacts_dir,
         member_timestamp=member_timestamp,
@@ -353,47 +351,14 @@ def _finish_existing_gate_turn(
     return creation
 
 
-def _validate_replay_identity(
-    spec: GateSpec, creator: _CreatorContext, replay: GateTurnRecord
-) -> None:
-    """Refuse a replay whose member identity does not match this request."""
-    request_id = spec.request_id or replay.gate_id
-    if replay.kind and replay.kind != spec.kind:
-        raise GateTurnError(
-            f"request id {request_id} already belongs to a {replay.kind} gate, "
-            f"not {spec.kind}"
-        )
-    turn = spec.turn
-    if (
-        turn is not None
-        and replay.workspace_policy
-        and replay.workspace_policy != turn.workspace
-    ):
-        raise GateTurnError(
-            f"request id {request_id} was published with workspace policy "
-            f"{replay.workspace_policy!r}, not {turn.workspace!r}"
-        )
-    recorded_creator = replay.creator_agent
-    expected_creator = (
-        creator.meta.get("name")
-        if isinstance(creator.meta.get("name"), str) and creator.meta.get("name")
-        else creator.target_name
-    )
-    if recorded_creator and expected_creator and recorded_creator != expected_creator:
-        raise GateTurnError(
-            f"request id {request_id} was created by {recorded_creator}, "
-            f"not {expected_creator}"
-        )
-
-
 def _repair_replay_claim(
-    spec: GateSpec, creator: _CreatorContext, replay: GateTurnRecord
+    spec: GateSpec, creator: CreatorContext, replay: GateTurnRecord
 ) -> GateClaimMove | None:
     """Finish a pending claim transfer or release without moving twice."""
     turn = spec.turn
     if turn is None or replay.is_terminal:
         return None
-    if _replay_claim_already_applied(creator, replay, turn.workspace):
+    if replay_claim_already_applied(creator, replay, turn.workspace):
         return None
     claim_move = move_gate_turn_claim(
         creator.project_file,
@@ -420,193 +385,11 @@ def _repair_replay_claim(
     return claim_move
 
 
-def _replay_claim_already_applied(
-    creator: _CreatorContext, replay: GateTurnRecord, workspace_policy: str
-) -> bool:
-    """Return whether inherit/release claim work already landed for *replay*."""
-    if creator.workspace_num is None or creator.workspace_num == 0:
-        return True
-    if creator.runner_pid is None:
-        return True
-    from sase.running_field import get_claimed_workspaces
-
-    claims = get_claimed_workspaces(creator.project_file)
-    member_timestamp = replay.timestamp or os.path.basename(
-        replay.artifacts_dir.rstrip("/")
-    )
-    held = False
-    for claim in claims:
-        if claim.workspace_num != creator.workspace_num:
-            continue
-        held = True
-        if (
-            workspace_policy == "inherit"
-            and claim.artifacts_timestamp == member_timestamp
-        ):
-            return True
-    if workspace_policy == "release":
-        return not held
-    return False
-
-
-def _stamp_pending_shell_on_spec(
-    spec: GateSpec,
-    *,
-    member_artifacts_dir: str,
-    member_timestamp: str,
-) -> None:
-    """Attach the pending turn member identity before the notification is published.
-
-    Settlement-style ``raw_suffix`` names the new gate member so ACE can load an
-    unloaded dir. Planner ``artifacts_dir`` / timestamps stay in place when the
-    producer already recorded them.
-    """
-    action_data = dict(spec.presentation.get("action_data") or {})
-    if member_timestamp:
-        action_data.setdefault("raw_suffix", member_timestamp)
-    if member_artifacts_dir and "artifacts_dir" not in action_data:
-        kind = getattr(spec, "kind", None)
-        stamp_member_dir = True
-        if isinstance(kind, str) and kind:
-            from sase.notification_gates.registry import adapter_for_kind
-
-            # HITL (and any kind whose bundle path is ``artifacts_dir``)
-            # reserves that action_data key for the durable bundle, so the
-            # member identity rides on ``raw_suffix`` instead.
-            stamp_member_dir = (
-                adapter_for_kind(kind).legacy_directory_key != "artifacts_dir"
-            )
-        if stamp_member_dir:
-            action_data["artifacts_dir"] = member_artifacts_dir
-    # legacy agent-family spelling: pre-rename notifications carry
-    # ``family_root_suffix``; new writers emit only
-    # ``agent_session_root_suffix``.
-    root = (
-        action_data.get("agent_session_root_suffix")
-        or action_data.get("family_root_suffix")
-        or action_data.get("agent_root_timestamp")
-        or action_data.get("agent_timestamp")
-    )
-    if isinstance(root, str) and root.strip():
-        action_data.setdefault("agent_session_root_suffix", root.strip())
-    action_data.pop("family_root_suffix", None)
-    spec.presentation["action_data"] = action_data
-
-
 def _pulse_after_gate_visible(project_name: str | None) -> None:
     """Nudge artifact watchers after the gate member and notification exist."""
     from sase.turns.settlement import touch_turn_refresh_pulse
 
     touch_turn_refresh_pulse(project_name)
-
-
-def _spec_from_request(request: Mapping[str, Any] | GateSpec) -> GateSpec:
-    if isinstance(request, GateSpec):
-        if request.request_id:
-            return replace(request, turn_row_managed=True)
-        return replace(
-            request,
-            request_id=f"{request.kind}-{uuid4()}",
-            turn_row_managed=True,
-        )
-    data = dict(request)
-    if not data.get("request_id"):
-        data["request_id"] = _default_request_id(data)
-    return replace(GateSpec.from_mapping(data), turn_row_managed=True)
-
-
-def _default_request_id(data: Mapping[str, Any]) -> str:
-    kind = data.get("kind")
-    prefix = kind if isinstance(kind, str) and kind else "gate"
-    return f"{prefix}-{uuid4()}"
-
-
-def _resolve_project_name() -> str:
-    artifacts_dir = os.environ.get("SASE_ARTIFACTS_DIR")
-    if artifacts_dir:
-        from sase.turns.settlement import project_name_from_artifacts_dir
-
-        project_name = project_name_from_artifacts_dir(artifacts_dir)
-        if project_name:
-            return project_name
-    try:
-        from sase.workspace_provider import get_workspace_name
-
-        project_name = get_workspace_name(os.getcwd())
-        if project_name:
-            return project_name
-    except Exception as exc:
-        raise GateTurnLaneError(
-            "could not resolve project for gate turn creation"
-        ) from exc
-    raise GateTurnLaneError("could not resolve project for gate turn creation")
-
-
-def creator_context_from_persisted(
-    creator: Mapping[str, Any],
-) -> _CreatorContext:
-    """Rebuild publication identity from a staged payload's creator block.
-
-    Re-reads the persisted run's ``agent_meta.json`` and applies session
-    promotion there. The adopter's environment is never consulted, so a
-    later re-adopt cannot publish as the re-adopter.
-    """
-    from sase.agent._agent_session_promotion import promote_agent_to_agent_session
-
-    project_name = creator.get("project")
-    artifacts_dir = creator.get("artifacts_dir")
-    if not isinstance(project_name, str) or not project_name.strip():
-        raise GateTurnLaneError("staged gate creator is missing project")
-    if not isinstance(artifacts_dir, str) or not artifacts_dir.strip():
-        raise GateTurnLaneError("staged gate creator is missing artifacts_dir")
-    project_name = project_name.strip()
-    artifacts_dir = artifacts_dir.strip()
-    raw_meta = _read_meta(artifacts_dir)
-    durable_lane = str(
-        agent_session_value(raw_meta) or creator.get("agent_session") or ""
-    ).strip()
-    recorded_target = creator.get("target") or creator.get("agent")
-    target_name = str(
-        raw_meta.get("name")
-        if isinstance(raw_meta.get("name"), str) and raw_meta.get("name")
-        else recorded_target or ""
-    ).strip()
-    if not target_name:
-        raise GateTurnLaneError("staged gate creator is missing agent identity")
-    if not durable_lane:
-        promoted_name = promote_agent_to_agent_session(artifacts_dir, target_name)
-        durable_lane = agent_session_base(promoted_name) or target_name
-        raw_meta = _read_meta(artifacts_dir)
-        if isinstance(raw_meta.get("name"), str) and raw_meta.get("name"):
-            target_name = str(raw_meta["name"])
-    workspace_num = _optional_int(raw_meta.get("workspace_num"))
-    if workspace_num is None:
-        workspace_num = _optional_int(creator.get("workspace_num"))
-    runner_pid = _optional_int(raw_meta.get("pid"))
-    if runner_pid is None:
-        runner_pid = _optional_int(creator.get("runner_pid"))
-    cl_name = raw_meta.get("cl_name")
-    if not isinstance(cl_name, str) or not cl_name:
-        recorded_cl = creator.get("cl_name")
-        cl_name = recorded_cl if isinstance(recorded_cl, str) else None
-    project_file = creator.get("project_file")
-    if not isinstance(project_file, str) or not project_file.strip():
-        project_file = get_project_file_path(project_name)
-    timestamp = creator.get("timestamp")
-    if not isinstance(timestamp, str) or not timestamp.strip():
-        timestamp = os.path.basename(artifacts_dir.rstrip("/"))
-    return _CreatorContext(
-        project_name=project_name,
-        project_file=project_file.strip(),
-        artifacts_dir=artifacts_dir,
-        timestamp=timestamp.strip(),
-        target_name=target_name,
-        durable_lane=durable_lane,
-        meta=raw_meta,
-        workspace_num=workspace_num,
-        runner_pid=runner_pid,
-        cl_name=cl_name if isinstance(cl_name, str) else None,
-    )
 
 
 def _create_durable_gate(
@@ -628,77 +411,6 @@ def _create_durable_gate(
         frozen_auto=frozen_auto,
         resource_bytes=resource_bytes,
     )
-
-
-def _resolve_creator(project_name: str) -> _CreatorContext:
-    from sase.agent._agent_session_promotion import promote_agent_to_agent_session
-    import sase.monitor.store_lane as monitor_store
-
-    caller = monitor_store.default_caller() or os.environ.get("SASE_AGENT_NAME")
-    artifacts_dir = monitor_store.caller_artifacts_dir()
-    if not caller and artifacts_dir:
-        caller = _read_meta(artifacts_dir).get("name")
-    if not isinstance(caller, str) or not caller:
-        raise GateTurnLaneError(
-            "no calling agent found; SASE_AGENT_NAME or SASE_ARTIFACTS_DIR is required"
-        )
-    try:
-        ctx = monitor_store.resolve_caller_agent(
-            project_name,
-            caller,
-            artifacts_dir=artifacts_dir,
-        )
-    except Exception as exc:
-        raise GateTurnLaneError(str(exc)) from exc
-
-    raw_meta = _read_meta(ctx.record.artifact_dir)
-    durable_lane = str(agent_session_value(raw_meta) or "").strip()
-    target_name = str(raw_meta.get("name") or caller)
-    if not durable_lane:
-        promoted_name = promote_agent_to_agent_session(
-            ctx.record.artifact_dir, target_name
-        )
-        durable_lane = agent_session_base(promoted_name) or target_name
-        raw_meta = _read_meta(ctx.record.artifact_dir)
-    workspace_num = _optional_int(raw_meta.get("workspace_num"))
-    runner_pid = _optional_int(raw_meta.get("pid"))
-    cl_name = raw_meta.get("cl_name")
-    return _CreatorContext(
-        project_name=project_name,
-        project_file=ctx.record.project_file or get_project_file_path(project_name),
-        artifacts_dir=ctx.record.artifact_dir,
-        timestamp=ctx.record.timestamp,
-        target_name=target_name,
-        durable_lane=durable_lane,
-        meta=raw_meta,
-        workspace_num=workspace_num,
-        runner_pid=runner_pid,
-        cl_name=cl_name if isinstance(cl_name, str) else None,
-    )
-
-
-def _read_meta(artifacts_dir: str) -> dict[str, Any]:
-    path = Path(artifacts_dir) / "agent_meta.json"
-    with path.open(encoding="utf-8") as f:
-        data = json.load(f)
-    if not isinstance(data, dict):
-        raise GateTurnLaneError(f"agent_meta.json at {artifacts_dir!r} is invalid")
-    return data
-
-
-def _gate_label(spec: GateSpec, gate_id: str) -> str:
-    title = spec.presentation.get("title")
-    if isinstance(title, str) and title.strip():
-        return title.strip()
-    notes = spec.presentation.get("notes")
-    if isinstance(notes, list) and notes and isinstance(notes[0], str):
-        return notes[0][:80]
-    return f"{spec.kind}/{gate_id}"
-
-
-def _gate_reason(spec: GateSpec) -> str:
-    producer = spec.producer.get("agent") or spec.producer.get("chop")
-    return f"wait for {producer}" if producer else "wait for gate decision"
 
 
 def _record_with_gate_result(
@@ -738,17 +450,6 @@ def _read_required_record(project_name: str, artifacts_dir: str) -> GateTurnReco
     if record is None:
         raise GateTurnError(f"gate turn member missing at {artifacts_dir}")
     return record
-
-
-def _optional_int(value: object) -> int | None:
-    if value is None:
-        return None
-    if not isinstance(value, int | str):
-        return None
-    try:
-        return int(value)
-    except ValueError:
-        return None
 
 
 __all__ = [

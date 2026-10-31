@@ -9,10 +9,11 @@ from typing import Any
 import pytest
 
 from sase.gate_turn import transaction as transaction_module
+from sase.gate_turn._transaction_creator import CreatorContext
+from sase.gate_turn._transaction_spec import spec_from_request
 from sase.gate_turn.publisher import publish_staged_gate
 from sase.gate_turn.staged_contract import prepare_staged_gate
 from sase.gate_turn.transaction import (
-    _spec_from_request,
     creator_context_from_persisted,
     publish_gate_turn,
 )
@@ -84,8 +85,8 @@ def test_publish_gate_turn_replay_does_not_move_claim_twice(
     monkeypatch.setattr(transaction_module, "create_gate_turn_member", counting_member)
     monkeypatch.setattr(transaction_module, "move_gate_turn_claim", counting_move)
 
-    spec = _spec_from_request(_shell_gate_spec())
-    creator = transaction_module._CreatorContext(
+    spec = spec_from_request(_shell_gate_spec())
+    creator = CreatorContext(
         project_name="proj",
         project_file=str(tmp_path / "proj.sase"),
         artifacts_dir=str(tmp_path / "creator"),

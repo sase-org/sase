@@ -12,6 +12,7 @@ import pytest
 from sase.agent.gate_intent import list_gate_intents
 from sase.finalizers.owned_turn import SASE_FINALIZER_OWNED_TURN_ENV
 from sase.gate_turn import transaction as transaction_module
+from sase.gate_turn._transaction_creator import CreatorContext
 from sase.gate_turn.models import GateTurnLaneError, GateTurnRecord
 from sase.gate_turn.start_claim import GateClaimMove
 from sase.gate_turn.transaction import create_gate_turn
@@ -96,7 +97,7 @@ def _install_transaction_fakes(
     gate_result: GateCreationResult | None = None,
 ) -> GateTurnRecord:
     record = _record(tmp_path)
-    creator = transaction_module._CreatorContext(
+    creator = CreatorContext(
         project_name="proj",
         project_file=str(tmp_path / "proj.sase"),
         artifacts_dir=str(tmp_path / "creator"),
@@ -108,10 +109,8 @@ def _install_transaction_fakes(
         runner_pid=None,
         cl_name=None,
     )
-    monkeypatch.setattr(transaction_module, "_resolve_project_name", lambda: "proj")
-    monkeypatch.setattr(
-        transaction_module, "_resolve_creator", lambda _project: creator
-    )
+    monkeypatch.setattr(transaction_module, "resolve_project_name", lambda: "proj")
+    monkeypatch.setattr(transaction_module, "resolve_creator", lambda _project: creator)
     monkeypatch.setattr(transaction_module, "gate_lane_lock", lambda *_: nullcontext())
     monkeypatch.setattr(
         transaction_module, "find_gate_turn_by_gate_id", lambda *_: None
@@ -167,10 +166,10 @@ def test_keyboard_interrupt_leaves_intent_marker(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     artifacts_dir = _set_agent_env(tmp_path, monkeypatch)
-    monkeypatch.setattr(transaction_module, "_resolve_project_name", lambda: "proj")
+    monkeypatch.setattr(transaction_module, "resolve_project_name", lambda: "proj")
     monkeypatch.setattr(
         transaction_module,
-        "_resolve_creator",
+        "resolve_creator",
         lambda _project: (_ for _ in ()).throw(KeyboardInterrupt()),
     )
     monkeypatch.setattr(
@@ -193,10 +192,10 @@ def test_clean_lane_error_clears_intent_marker(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     artifacts_dir = _set_agent_env(tmp_path, monkeypatch)
-    monkeypatch.setattr(transaction_module, "_resolve_project_name", lambda: "proj")
+    monkeypatch.setattr(transaction_module, "resolve_project_name", lambda: "proj")
     monkeypatch.setattr(
         transaction_module,
-        "_resolve_creator",
+        "resolve_creator",
         lambda _project: (_ for _ in ()).throw(GateTurnLaneError("clean failure")),
     )
 
