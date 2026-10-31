@@ -10,6 +10,7 @@ from __future__ import annotations
 import json
 import os
 import tempfile
+import threading
 import time
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -26,6 +27,29 @@ from sase.core.runner_slots._signal import runner_slot_state_token
 
 _CACHE_NAME = "runner_slots.scan.json"
 _STALE_TEMP_SECONDS = 60 * 60
+
+
+@dataclass(frozen=True)
+class _ParsedScanCacheEntry:
+    """In-process reuse of the last parsed slot-scan payload.
+
+    The feed tick reads the scan cache every 10 s. Re-parsing the JSON on
+    every tick is wasteful while the file is unchanged, so a parsed entry is
+    reused while the file's ``(mtime_ns, size)`` still matches. Identical
+    file bytes imply an identical token, so no separate token comparison is
+    needed on the hit path.
+    """
+
+    path: str
+    mtime_ns: int
+    size: int
+    token: str
+    scanned_at: float
+    records: tuple[AgentArtifactRecordWire, ...]
+
+
+_parsed_scan_cache: _ParsedScanCacheEntry | None = None
+_parsed_scan_cache_lock = threading.Lock()
 
 
 @dataclass(frozen=True)
@@ -85,29 +109,87 @@ def load_or_refresh_runner_slot_scan(
     return records
 
 
+def _parsed_scan_cache_hit(
+    path: Path,
+    stat: os.stat_result,
+) -> dict[str, Any] | None:
+    """Return the memoized parse when the file bytes cannot have changed."""
+    with _parsed_scan_cache_lock:
+        entry = _parsed_scan_cache
+    if (
+        entry is None
+        or entry.path != str(path)
+        or entry.mtime_ns != stat.st_mtime_ns
+        or entry.size != stat.st_size
+    ):
+        return None
+    return {
+        "token": entry.token,
+        "scanned_at": entry.scanned_at,
+        "records": list(entry.records),
+    }
+
+
+def _store_parsed_scan_cache(entry: _ParsedScanCacheEntry) -> None:
+    global _parsed_scan_cache
+    with _parsed_scan_cache_lock:
+        _parsed_scan_cache = entry
+
+
+def _invalidate_parsed_scan_cache(path: Path) -> None:
+    global _parsed_scan_cache
+    with _parsed_scan_cache_lock:
+        if _parsed_scan_cache is not None and _parsed_scan_cache.path == str(path):
+            _parsed_scan_cache = None
+
+
 def _read_scan_cache() -> dict[str, Any] | None:
     path = _runner_slot_scan_cache_path()
     try:
+        stat = path.stat()
+    except OSError:
+        _invalidate_parsed_scan_cache(path)
+        return None
+    hit = _parsed_scan_cache_hit(path, stat)
+    if hit is not None:
+        return hit
+    try:
         payload = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError, UnicodeError):
+        _invalidate_parsed_scan_cache(path)
         return None
     if not isinstance(payload, dict):
+        _invalidate_parsed_scan_cache(path)
         return None
     token = payload.get("token")
     scanned_at = payload.get("scanned_at")
     raw_records = payload.get("records")
     if not isinstance(token, str) or not isinstance(scanned_at, (int, float)):
+        _invalidate_parsed_scan_cache(path)
         return None
     if isinstance(scanned_at, bool) or not isinstance(raw_records, list):
+        _invalidate_parsed_scan_cache(path)
         return None
     try:
         records = agent_artifact_records_from_dicts(
             [record for record in raw_records if isinstance(record, dict)]
         )
     except (KeyError, TypeError, ValueError):
+        _invalidate_parsed_scan_cache(path)
         return None
     if len(records) != len(raw_records):
+        _invalidate_parsed_scan_cache(path)
         return None
+    _store_parsed_scan_cache(
+        _ParsedScanCacheEntry(
+            path=str(path),
+            mtime_ns=stat.st_mtime_ns,
+            size=stat.st_size,
+            token=token,
+            scanned_at=float(scanned_at),
+            records=tuple(records),
+        )
+    )
     return {"token": token, "scanned_at": float(scanned_at), "records": records}
 
 
@@ -147,6 +229,20 @@ def _write_scan_cache(
                 tmp_path.unlink()
             except OSError:
                 pass
+    try:
+        stat = path.stat()
+    except OSError:
+        return
+    _store_parsed_scan_cache(
+        _ParsedScanCacheEntry(
+            path=str(path),
+            mtime_ns=stat.st_mtime_ns,
+            size=stat.st_size,
+            token=token,
+            scanned_at=scanned_at,
+            records=tuple(records),
+        )
+    )
 
 
 def _prune_stale_scan_cache_temps(path: Path, now: float) -> None:

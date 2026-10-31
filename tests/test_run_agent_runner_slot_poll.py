@@ -5,7 +5,9 @@ from __future__ import annotations
 import json
 import os
 import random
+from collections.abc import Mapping, Sequence
 from pathlib import Path
+from typing import Any
 from unittest.mock import patch
 
 import pytest
@@ -24,6 +26,7 @@ from sase.core.agent_scan_wire import AgentArtifactRecordWire
 from sase.core.runner_slots import (
     load_or_refresh_runner_slot_scan,
     notify_runner_slot_state_changed,
+    read_runner_slot_scan_cache,
     runner_slot_state_token,
 )
 
@@ -193,6 +196,80 @@ def test_capacity_scan_write_prunes_only_stale_temp_files(
 
     assert not stale.exists()
     assert fresh.exists()
+
+
+def test_scan_cache_reuses_parse_while_file_is_unchanged(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from sase.core.runner_slots import _scan_cache as scan_cache_mod
+
+    parses: list[int] = []
+    real = scan_cache_mod.agent_artifact_records_from_dicts
+
+    def counting(
+        raw: Sequence[Mapping[str, Any]],
+    ) -> list[AgentArtifactRecordWire]:
+        parses.append(1)
+        return real(raw)
+
+    monkeypatch.setattr(scan_cache_mod, "agent_artifact_records_from_dicts", counting)
+    load_or_refresh_runner_slot_scan(lambda: [], max_age=0.0, now=10000.0, token="a")
+    monkeypatch.setattr(scan_cache_mod, "_parsed_scan_cache", None)
+    first = read_runner_slot_scan_cache()
+    second = read_runner_slot_scan_cache()
+
+    assert first is not None
+    assert second is not None
+    assert first.token == second.token == "a"
+    assert len(parses) == 1
+
+
+def test_scan_cache_reparses_after_external_file_change() -> None:
+    from sase.core.runner_slots import _scan_cache as scan_cache_mod
+
+    load_or_refresh_runner_slot_scan(lambda: [], max_age=0.0, now=10000.0, token="a")
+    assert read_runner_slot_scan_cache() is not None
+
+    path = scan_cache_mod._runner_slot_scan_cache_path()
+    path.write_text(
+        json.dumps(
+            {
+                "token": "externally-rewritten-token",
+                "scanned_at": 10001.0,
+                "records": [],
+            }
+        ),
+        encoding="utf-8",
+    )
+    reread = read_runner_slot_scan_cache()
+
+    assert reread is not None
+    assert reread.token == "externally-rewritten-token"
+
+
+def test_scan_cache_write_through_serves_new_token_without_reparse(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from sase.core.runner_slots import _scan_cache as scan_cache_mod
+
+    parses: list[int] = []
+    real = scan_cache_mod.agent_artifact_records_from_dicts
+
+    def counting(
+        raw: Sequence[Mapping[str, Any]],
+    ) -> list[AgentArtifactRecordWire]:
+        parses.append(1)
+        return real(raw)
+
+    monkeypatch.setattr(scan_cache_mod, "agent_artifact_records_from_dicts", counting)
+    load_or_refresh_runner_slot_scan(lambda: [], max_age=0.0, now=10000.0, token="a")
+    load_or_refresh_runner_slot_scan(lambda: [], max_age=0.0, now=10001.0, token="b")
+
+    reread = read_runner_slot_scan_cache()
+
+    assert reread is not None
+    assert reread.token == "b"
+    assert len(parses) == 0
 
 
 def test_wait_slot_scan_uses_capacity_only_and_shares_host_cache() -> None:

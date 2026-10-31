@@ -352,6 +352,72 @@ async def test_feed_tasks_cancel_at_teardown() -> None:
     assert timer.stopped
 
 
+def test_feed_tick_stats_nothing_on_the_ui_thread() -> None:
+    probes: list[int] = []
+
+    def probe() -> str:
+        probes.append(1)
+        return "token"
+
+    app = _FeedApp(lambda: _report())
+    app._machine_capacity_token_probe = probe  # type: ignore[assignment]
+    app._on_machine_capacity_feed_tick()
+
+    assert probes == []
+    assert app._machine_capacity_refresh_scheduled is False
+
+
+@pytest.mark.asyncio
+async def test_refresh_task_skips_build_when_token_unchanged() -> None:
+    builds: list[int] = []
+    probes: list[int] = []
+
+    def probe() -> str:
+        probes.append(1)
+        return "token"
+
+    def source() -> MachineCapacityReport:
+        builds.append(1)
+        return _report()
+
+    app = _FeedApp(source)
+    app._machine_capacity_token_probe = probe  # type: ignore[assignment]
+    app._machine_capacity_observed_token = "token"
+    app._install_machine_capacity_report(_report())
+    assert app._capacity_reports_installed.get_nowait() is not None
+
+    generation = int(app._machine_capacity_refresh_generation) + 1
+    app._machine_capacity_refresh_generation = generation
+    await app._run_machine_capacity_report_refresh(generation=generation)
+
+    assert probes == [1]
+    assert builds == []
+    assert app._capacity_reports_installed.empty()
+    assert app._machine_capacity_refresh_running is False
+
+
+@pytest.mark.asyncio
+async def test_refresh_task_rebuilds_when_token_changes() -> None:
+    builds: list[int] = []
+
+    def source() -> MachineCapacityReport:
+        builds.append(1)
+        return _report()
+
+    app = _FeedApp(source)
+    app._machine_capacity_token_probe = lambda: "new-token"  # type: ignore[assignment]
+    app._machine_capacity_observed_token = "old-token"
+    app._machine_capacity_report_mono = time.monotonic()
+
+    generation = int(app._machine_capacity_refresh_generation) + 1
+    app._machine_capacity_refresh_generation = generation
+    await app._run_machine_capacity_report_refresh(generation=generation)
+
+    assert builds == [1]
+    assert app._machine_capacity_observed_token == "new-token"
+    assert app._capacity_reports_installed.get_nowait() is not None
+
+
 def test_drift_telemetry_waits_for_two_distinct_comparisons() -> None:
     app = _FeedApp(lambda: _report(occupied=5.0))
     app._agent_runner_capacity_estimate = RunnerCapacitySnapshot(

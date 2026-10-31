@@ -65,22 +65,23 @@ class _CapacityReportFeedMixin:
         )
 
     def _on_machine_capacity_feed_tick(self) -> None:
-        """Thin timer callback: probe token metadata, then spawn report work."""
+        """Thin timer callback: hand work to the pump-free task (no I/O)."""
+        self._request_machine_capacity_report_refresh(source="capacity_tick")
+
+    async def _probe_machine_capacity_refresh_due(self) -> bool:
+        """Probe the capacity token off the UI thread; True when due."""
         try:
-            token = self._probe_machine_capacity_surface_token()
+            token = await asyncio.to_thread(self._probe_machine_capacity_surface_token)
         except Exception:
             log.debug("Capacity token probe failed", exc_info=True)
             token = None
         previous = getattr(self, "_machine_capacity_observed_token", None)
         self._machine_capacity_observed_token = token
-        token_changed = previous is None or token != previous
+        if previous is None or token != previous:
+            return True
         now = time.monotonic()
         last_report = float(getattr(self, "_machine_capacity_report_mono", 0.0))
-        liveness_due = now - last_report >= _CAPACITY_REPORT_POLL_SECONDS
-        if token_changed or liveness_due:
-            self._request_machine_capacity_report_refresh(
-                source="token_change" if token_changed else "liveness_poll"
-            )
+        return now - last_report >= _CAPACITY_REPORT_POLL_SECONDS
 
     def _request_machine_capacity_report_refresh(self, *, source: str) -> None:
         """Coalesce report requests and retain one trailing refresh."""
@@ -110,6 +111,8 @@ class _CapacityReportFeedMixin:
             return
         self._machine_capacity_refresh_running = True
         try:
+            if not await self._probe_machine_capacity_refresh_due():
+                return
             report = await asyncio.to_thread(self._build_machine_capacity_report)
             if generation != int(
                 getattr(self, "_machine_capacity_refresh_generation", 0)

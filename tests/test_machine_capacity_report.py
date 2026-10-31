@@ -138,6 +138,10 @@ def _report_from_records(
     )
 
 
+def test_display_rescan_interval_is_two_minutes() -> None:
+    assert DISPLAY_RESCAN_INTERVAL_SECONDS == 120.0
+
+
 def test_screenshot_shape_report_is_five_of_eight_with_override_provenance() -> None:
     report = _report_from_records(_screenshot_records())
 

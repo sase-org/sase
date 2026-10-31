@@ -29,7 +29,7 @@ from ._scan_cache import (
 )
 from ._signal import runner_slot_state_token
 
-DISPLAY_RESCAN_INTERVAL_SECONDS = 30.0
+DISPLAY_RESCAN_INTERVAL_SECONDS = 120.0
 _OVER_LIMIT_ABS_TOL = 1e-9
 
 _display_rescan_lock = threading.Lock()
@@ -136,7 +136,7 @@ def machine_capacity_report(
 ) -> MachineCapacityReport:
     """Build this machine's capacity report without taking the admission lock.
 
-    Display-initiated cache rescans are rate-limited to one per 30 s with at
+    Display-initiated cache rescans are rate-limited to one per 120 s with at
     most one in flight. Matching the live token reuses the cached records at
     any age. *force_rescan* is the CLI ``-r`` path.
     """
