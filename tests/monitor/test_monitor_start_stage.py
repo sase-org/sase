@@ -29,11 +29,11 @@ from sase.finalizers.declaration import FinalizerDeclarationError
 from sase.monitor.models import MonitorAlreadyRunningError, MonitorError
 from sase.monitor.start import StartMonitorRequest, start_monitor
 from sase.monitor.start_stage import (
-    _load_staged_monitor_launch_payload,
     cleanup_staged_monitor,
     launch_from_persisted_payload,
     stage_monitor,
 )
+from sase.monitor.start_stage_adopt import _load_staged_monitor_launch_payload
 from sase.monitor.staged_owner import launch_payload_path
 from sase.procs.submission import ProcSubmitError
 from sase.running_field import WorkspaceClaim
@@ -281,7 +281,7 @@ def test_staged_authored_checkpoint_survives_cli_file_removal(
         captured["request"] = context.request
         return staged.record
 
-    monkeypatch.setattr("sase.monitor.start_stage.launch_monitor", fake_launch)
+    monkeypatch.setattr("sase.monitor.start_stage_adopt.launch_monitor", fake_launch)
     launched = launch_from_persisted_payload(staged.record.artifacts_dir)
 
     assert launched.monitor_id == staged.record.monitor_id
@@ -319,7 +319,7 @@ def test_staged_authored_checkpoint_missing_or_corrupt_refuses_before_launch(
 
     launched: list[bool] = []
     monkeypatch.setattr(
-        "sase.monitor.start_stage.launch_monitor",
+        "sase.monitor.start_stage_adopt.launch_monitor",
         lambda *_args, **_kwargs: launched.append(True),
     )
     with pytest.raises(MonitorError, match="staged authored checkpoint"):
@@ -397,7 +397,7 @@ def test_staged_monitor_adoption_saves_real_response_and_exact_starter_parent(
         assert not (starter_dir / "done.json").exists()
         return staged.record
 
-    monkeypatch.setattr("sase.monitor.start_stage.launch_monitor", fake_launch)
+    monkeypatch.setattr("sase.monitor.start_stage_adopt.launch_monitor", fake_launch)
     outcome = STAGED_HANDOFF_ADOPTERS["monitor"](
         handoff,
         json.loads((starter_dir / "agent_meta.json").read_text()),
@@ -639,7 +639,7 @@ def test_staged_monitor_waits_for_real_finalizer_controller(
         launches.append("launch")
         return staged.record
 
-    monkeypatch.setattr("sase.monitor.start_stage.launch_monitor", fake_launch)
+    monkeypatch.setattr("sase.monitor.start_stage_adopt.launch_monitor", fake_launch)
 
     if fail_fix:
         with pytest.raises(RuntimeError, match="failed on attempt"):
