@@ -492,6 +492,7 @@ def _macro_input_hint_to_wire(input_hint: object) -> dict[str, object]:
         default_display=_field(input_hint, "default_display", None),
         position=_field(input_hint, "position", 0),
         repeatable=_field(input_hint, "repeatable", False),
+        keyword_only=_field(input_hint, "keyword_only", False),
         choices=_field(input_hint, "choices", ()),
         named_type=_field(input_hint, "named_type", None),
         value_role=_field(input_hint, "value_role", None),

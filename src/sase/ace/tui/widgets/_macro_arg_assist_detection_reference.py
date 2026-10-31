@@ -104,6 +104,15 @@ def trimmed_value_end(text: str, start: int, end: int) -> int:
     return end
 
 
+def positional_input_indexes(entry: MacroAssistEntry) -> list[int]:
+    """Return entry indexes that may bind positionally, in declaration order.
+
+    Keyword-only inputs never bind positionally, so they are skipped, mirroring
+    the shared Rust ``positional_input_for`` mapping (and the Python binder).
+    """
+    return [index for index, inp in enumerate(entry.inputs) if not inp.keyword_only]
+
+
 def colon_active_input_index(
     suffix: str,
     entry: MacroAssistEntry,
@@ -121,7 +130,10 @@ def colon_active_input_index(
     # Structural commas respect quotes and text blocks; a quoted comma is
     # one value, not a separator.
     count = sum(1 for comma in call.commas_py if comma < cursor_py)
-    return min(count, len(entry.inputs) - 1)
+    positional = positional_input_indexes(entry)
+    if not positional:
+        return None
+    return positional[min(count, len(positional) - 1)]
 
 
 def paren_active_input_index(
@@ -159,11 +171,13 @@ def paren_active_input_index(
         for index in range(active)
         if not structural_clause_has_assign(call, *clauses[index])
     )
-    if positional_index < len(entry.inputs):
-        candidate = entry.inputs[positional_index]
-        return positional_index if candidate.repeatable else None
-    if entry.inputs and entry.inputs[-1].repeatable:
-        return len(entry.inputs) - 1
+    positional = positional_input_indexes(entry)
+    if positional_index < len(positional):
+        candidate_index = positional[positional_index]
+        candidate = entry.inputs[candidate_index]
+        return candidate_index if candidate.repeatable else None
+    if positional and entry.inputs[positional[-1]].repeatable:
+        return positional[-1]
     return None
 
 
@@ -176,14 +190,20 @@ def active_input_index_for_suffix(
 ) -> int | None:
     """Dispatch a ``:``/``(`` suffix to its active-input resolver."""
     if suffix == ":":
-        return 0
+        return _first_positional_index(entry)
     if suffix.startswith(":"):
         return colon_active_input_index(suffix, entry, cursor_py, call)
     if suffix == "(":
-        return 0
+        return _first_positional_index(entry)
     if suffix.startswith("("):
         return paren_active_input_index(suffix, entry, text, cursor_py, call)
     return None
+
+
+def _first_positional_index(entry: MacroAssistEntry) -> int | None:
+    """Return the first positional input index, if the entry has one."""
+    positional = positional_input_indexes(entry)
+    return positional[0] if positional else None
 
 
 def input_by_name(

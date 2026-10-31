@@ -33,6 +33,7 @@ def _hint_to_wire(hint: MacroInputHint) -> dict:
         default_display=hint.default_display,
         position=hint.position,
         repeatable=hint.repeatable,
+        keyword_only=hint.keyword_only,
         choices=hint.choices,
         named_type=hint.named_type,
         value_role=hint.value_role,

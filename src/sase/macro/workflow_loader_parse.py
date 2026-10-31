@@ -55,6 +55,7 @@ def parse_workflow_inputs(
         description_value = item.get("description")
         description = None if description_value is None else str(description_value)
         repeatable = item.get("repeatable", False) is True
+        keyword_only = item.get("keyword_only", False) is True
         choices_value = item.get("choices")
         inputs.append(
             parse_input_definition(
@@ -63,6 +64,7 @@ def parse_workflow_inputs(
                 default=default,
                 description=description,
                 repeatable=repeatable,
+                keyword_only=keyword_only,
                 choices_raw=choices_value,
                 source_path=source_path,
             )

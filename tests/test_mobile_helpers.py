@@ -133,6 +133,7 @@ def test_macro_catalog_bridge_returns_structured_projection(
                     "default_display": None,
                     "position": 0,
                     "repeatable": False,
+                    "keyword_only": False,
                     "description": "Hook log to repair.",
                     "choices": [
                         {

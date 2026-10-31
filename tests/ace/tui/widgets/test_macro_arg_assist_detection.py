@@ -371,6 +371,121 @@ def test_quoted_comma_stays_one_positional_value() -> None:
     assert quoted.selected_values == frozenset({"a,b"})
 
 
+def _fork_kwonly_entry() -> MacroAssistEntry:
+    """``#fork`` with a positional ``name`` and keyword-only ``target``."""
+    return _entry(
+        "fork",
+        MacroInputHint(
+            name="name",
+            type="agent",
+            required=True,
+            default_display=None,
+            position=0,
+        ),
+        MacroInputHint(
+            name="target",
+            type="word",
+            required=False,
+            default_display=None,
+            position=1,
+            keyword_only=True,
+        ),
+    )
+
+
+def _merge_kwonly_entry() -> MacroAssistEntry:
+    """``#merge`` with a repeatable ``names`` and keyword-only ``target``."""
+    return _entry(
+        "merge",
+        MacroInputHint(
+            name="names",
+            type="agent",
+            required=True,
+            default_display=None,
+            position=0,
+            repeatable=True,
+        ),
+        MacroInputHint(
+            name="target",
+            type="word",
+            required=False,
+            default_display=None,
+            position=1,
+            keyword_only=True,
+        ),
+    )
+
+
+def test_colon_mapping_skips_keyword_only_inputs() -> None:
+    entries = [_fork_kwonly_entry()]
+
+    hint = detect_macro_arg_hint_at_cursor("#fork:", len("#fork:"), entries)
+    assert hint is not None
+    assert hint.active_input_index == 0
+
+    second = detect_macro_arg_completion_at_cursor(
+        "#fork:planner,", len("#fork:planner,"), entries
+    )
+    assert second is not None
+    assert second.completion_kind == "macro_arg_agent"
+    assert second.active_input is not None
+    assert second.active_input.name == "name"
+
+
+def test_named_keyword_only_argument_resolves_by_name() -> None:
+    entries = [_fork_kwonly_entry()]
+
+    hint = detect_macro_arg_hint_at_cursor(
+        "#fork(target=", len("#fork(target="), entries
+    )
+    assert hint is not None
+    assert hint.active_input_index == 1
+
+    ctx = detect_macro_arg_completion_at_cursor(
+        "#fork(planner, target=", len("#fork(planner, target="), entries
+    )
+    assert ctx is not None
+    assert ctx.completion_kind == "macro_arg_type_hint"
+    assert ctx.active_input is not None
+    assert ctx.active_input.name == "target"
+
+
+def test_single_positional_agent_completion_survives_trailing_keyword_only() -> None:
+    entries = [_fork_kwonly_entry()]
+
+    ctx = detect_macro_arg_completion_at_cursor("#fork(", len("#fork("), entries)
+    assert ctx is not None
+    assert ctx.completion_kind == "macro_arg_agent"
+    assert ctx.active_input is not None
+    assert ctx.active_input.name == "name"
+
+
+def test_repeatable_tail_catches_overflow_past_keyword_only() -> None:
+    entries = [_merge_kwonly_entry()]
+
+    hint = detect_macro_arg_hint_at_cursor("#merge(a,", len("#merge(a,"), entries)
+    assert hint is not None
+    assert hint.active_input_index == 0
+
+    ctx = detect_macro_arg_completion_at_cursor(
+        "#merge(a, b,", len("#merge(a, b,"), entries
+    )
+    assert ctx is not None
+    assert ctx.completion_kind == "macro_arg_agent"
+    assert ctx.active_input is not None
+    assert ctx.active_input.name == "names"
+
+
+def test_non_repeatable_positional_opens_name_menu_before_keyword_only() -> None:
+    entries = [_fork_kwonly_entry()]
+
+    ctx = detect_macro_arg_completion_at_cursor(
+        "#fork(planner,", len("#fork(planner,"), entries
+    )
+    assert ctx is not None
+    assert ctx.completion_kind == "macro_arg_name"
+
+
 def test_quoted_paren_does_not_close_the_call() -> None:
     """A quoted paren does not end detection (sase-1h1)."""
     entries = [_quoted_value_entry()]

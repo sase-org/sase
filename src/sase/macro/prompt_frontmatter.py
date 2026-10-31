@@ -420,6 +420,7 @@ def _input_to_yaml(arg: InputArg) -> str | dict[str, Any]:
         not has_default
         and not has_description
         and not arg.repeatable
+        and not arg.keyword_only
         and not has_choices
         and arg.named_type is None
     ):
@@ -432,6 +433,8 @@ def _input_to_yaml(arg: InputArg) -> str | dict[str, Any]:
         value["description"] = arg.description
     if arg.repeatable:
         value["repeatable"] = True
+    if arg.keyword_only:
+        value["keyword_only"] = True
     if has_choices:
         if any(
             choice.label is not None or choice.description is not None

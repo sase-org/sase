@@ -70,6 +70,11 @@
                 "description": "Whether this final positional input consumes all remaining values",
                 "default": false
               },
+              "keyword_only": {
+                "type": "boolean",
+                "description": "Whether this input binds only by name (name=value) and never positionally",
+                "default": false
+              },
               "choices": {
                 "type": "array",
                 "description": "Closed set of allowed values for an enum input. Each item is a string or a {value, label, description} object.",
@@ -194,6 +199,11 @@
                   "repeatable": {
                     "type": "boolean",
                     "description": "Whether this final positional input consumes all remaining values",
+                    "default": false
+                  },
+                  "keyword_only": {
+                    "type": "boolean",
+                    "description": "Whether this input binds only by name (name=value) and never positionally",
                     "default": false
                   },
                   "choices": {

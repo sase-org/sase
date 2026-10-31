@@ -44,7 +44,11 @@ def format_inputs(inputs: list[InputArg]) -> str:
         required = inp.default is UNSET
         suffix = "" if required else "?"
         repeatable = "…" if inp.repeatable else ""
-        parts.append(f"{inp.name}{repeatable}{suffix}: {macro_input_type_label(inp)}")
+        keyword_only = "=" if inp.keyword_only else ""
+        parts.append(
+            f"{inp.name}{repeatable}{keyword_only}{suffix}: "
+            f"{macro_input_type_label(inp)}"
+        )
     if not parts:
         return ""
     return "(" + ", ".join(parts) + ")"
@@ -62,6 +66,7 @@ def macro_input_type_label(input_arg: InputArg, *, position: int = 0) -> str:
         default_display=None,
         position=position,
         repeatable=input_arg.repeatable,
+        keyword_only=input_arg.keyword_only,
         choices=input_arg.choices,
         named_type=input_arg.named_type,
         value_role=input_arg.value_role,

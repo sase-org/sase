@@ -213,6 +213,7 @@ def structured_inputs(
                 ),
                 position=len(rows),
                 repeatable=inp.repeatable,
+                keyword_only=inp.keyword_only,
                 description=inp.description,
                 choices=inp.choices,
                 named_type=inp.named_type,

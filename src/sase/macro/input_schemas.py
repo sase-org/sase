@@ -127,6 +127,16 @@ def _repeatable_schema() -> dict[str, Any]:
     }
 
 
+def _keyword_only_schema() -> dict[str, Any]:
+    return {
+        "type": "boolean",
+        "description": (
+            "Whether this input binds only by name (name=value) and never positionally"
+        ),
+        "default": False,
+    }
+
+
 # symvision: tools/sync_macro_input_schemas
 def workflow_input_definitions_block(
     catalog: Sequence[Mapping[str, Any]] | None = None,
@@ -171,6 +181,7 @@ def workflow_input_definitions_block(
                             "description": "Human-readable input description",
                         },
                         "repeatable": _repeatable_schema(),
+                        "keyword_only": _keyword_only_schema(),
                         "choices": choices,
                     },
                 },
@@ -201,6 +212,7 @@ def workflow_input_definitions_block(
                                     "description": "Human-readable input description",
                                 },
                                 "repeatable": _repeatable_schema(),
+                                "keyword_only": _keyword_only_schema(),
                                 "choices": choices,
                             },
                         },
@@ -251,6 +263,7 @@ def config_macro_input_definitions_block(
                             "description": "Human-readable input description",
                         },
                         "repeatable": _repeatable_schema(),
+                        "keyword_only": _keyword_only_schema(),
                         "choices": choices,
                     },
                 },
@@ -281,6 +294,7 @@ def config_macro_input_definitions_block(
                                     "description": "Human-readable input description",
                                 },
                                 "repeatable": _repeatable_schema(),
+                                "keyword_only": _keyword_only_schema(),
                                 "choices": choices,
                             },
                         },

@@ -329,6 +329,30 @@ input:
 An explicitly supplied repeatable value is always a list, even when only one value is
 given. A `null` value cannot be combined with other values for the same input.
 
+### Keyword-Only Inputs
+
+Set `keyword_only: true` on an input to bind it only by `name=value`, in the paren
+form or the line form `#name(args): text`. A keyword-only input never binds
+positionally: `#fork(a, b)` maps both values to `name`, while `#fork(a, target=x)`
+maps `x` to `target`. The colon form `#name: value` cannot set a keyword-only input.
+`keyword_only` combined with `repeatable` is an error; at most one repeatable input is
+allowed, and it must be the last positional input. Keyword-only inputs may follow it:
+
+```yaml
+input:
+  name:
+    type: agent
+    default: null
+    repeatable: true
+  target:
+    type: wait_target
+    default: null
+    keyword_only: true
+```
+
+Signatures render keyword-only inputs with a trailing `=` on the name, for example
+`fork(name…?: agent, target=?: session | turn)`.
+
 ### Defaults
 
 - An input with no `default` is required. Omitting it causes a template error if the

@@ -52,6 +52,7 @@ def macro_input_hint_to_wire(
     choices: object,
     named_type: object,
     value_role: object,
+    keyword_only: object = False,
 ) -> dict[str, Any]:
     """Serialize hint fields to the Rust ``MacroInputHint`` wire shape."""
     raw_choices = (
@@ -68,6 +69,7 @@ def macro_input_hint_to_wire(
         "default_display": default_display,
         "position": _position_value(position),
         "repeatable": bool(repeatable),
+        "keyword_only": bool(keyword_only),
         "choices": [
             wire_choice
             for choice in raw_choices

@@ -54,6 +54,30 @@ def _entry(
     )
 
 
+def test_named_args_skeleton_renders_required_keyword_only_as_named() -> None:
+    entry = _entry(
+        "fork",
+        MacroInputHint(
+            name="names",
+            type="agent",
+            required=True,
+            default_display=None,
+            position=0,
+            repeatable=True,
+        ),
+        MacroInputHint(
+            name="target",
+            type="word",
+            required=True,
+            default_display=None,
+            position=1,
+            keyword_only=True,
+        ),
+    )
+
+    assert named_args_skeleton(entry) == "#fork(names=$1, target=$2)$0"
+
+
 def test_skeletons_use_required_inputs_only() -> None:
     xp = Macro(
         name="mixed",

@@ -40,6 +40,7 @@ def build_macro_assist_entries(
                     default_display=inp.default_display,
                     position=inp.position,
                     repeatable=inp.repeatable,
+                    keyword_only=inp.keyword_only,
                     description=inp.description,
                     choices=inp.choices,
                     named_type=inp.named_type,

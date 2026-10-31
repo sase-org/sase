@@ -21,21 +21,44 @@ class _BoundInputs:
     explicit_values: dict[str, Any]
 
 
+def positional_inputs(inputs: list[InputArg]) -> list[InputArg]:
+    """Return the inputs that may bind positionally, in declaration order.
+
+    Keyword-only inputs never bind positionally. Step inputs stay in the
+    mapping, preserving the binder's historical index behavior for
+    workflow input lists that carry them.
+    """
+    return [input_arg for input_arg in inputs if not input_arg.keyword_only]
+
+
 def validate_repeatable_input_order(inputs: list[InputArg]) -> None:
-    """Require a repeatable user-facing input to be the final positional input."""
+    """Require a repeatable user-facing input to be the final positional input.
+
+    Keyword-only inputs never bind positionally, so they may follow the
+    repeatable input.
+    """
     visible = [input_arg for input_arg in inputs if not input_arg.is_step_input]
     repeatable = [input_arg for input_arg in visible if input_arg.repeatable]
     if not repeatable:
         return
-    if len(repeatable) > 1 or repeatable[0] is not visible[-1]:
+    positional = positional_inputs(visible)
+    if len(repeatable) > 1 or repeatable[0] is not positional[-1]:
         raise MacroValidationError(
             "A repeatable input must be the final user-facing positional input"
         )
 
 
 def input_for_position(inputs: list[InputArg], position: int) -> InputArg | None:
-    """Return the input that owns *position*, honoring a repeatable tail."""
-    for index, input_arg in enumerate(inputs):
+    """Return the input that owns *position*, honoring a repeatable tail.
+
+    Keyword-only inputs never bind positionally: they are skipped when
+    mapping positions, and a repeatable tail still catches overflow past
+    trailing keyword-only inputs. A repeatable input keeps its historical
+    catch-all priority over later positional slots (including step inputs
+    carried in workflow input lists).
+    """
+    positional = positional_inputs(inputs)
+    for index, input_arg in enumerate(positional):
         if input_arg.repeatable and position >= index:
             return input_arg
         if position == index:
@@ -148,7 +171,7 @@ def _surplus_positional_prefix(
     """Describe an overflowing positional, or None when the failure is not surplus."""
     if any(input_arg.repeatable for input_arg in inputs):
         return None
-    declared = len(inputs)
+    declared = len(positional_inputs(inputs))
     received = len(positional_args)
     if landed_on is not None and (received <= declared or position == 0):
         return None
@@ -190,5 +213,6 @@ __all__ = [
     "InputBindingError",
     "bind_input_args",
     "input_for_position",
+    "positional_inputs",
     "validate_repeatable_input_order",
 ]

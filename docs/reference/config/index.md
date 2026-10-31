@@ -20,7 +20,7 @@ Exact configuration keys generated from the schema and bundled defaults.
 | [LLM provider](llm-provider.md)                     | Provider selection, model defaults, and model execution policy.                          | 103          |
 | [Agents and runners](agents.md)                     | Agent launch, completion, capacity, restart, and process-scope settings.                 | 55           |
 | [Repositories and version control](repositories.md) | Repository relationships, VCS providers, dispatch, commits, and workspace configuration. | 242          |
-| [Prompts and tools](prompts.md)                     | Macros, named tools, plugins, hooks, and mentor selection.                               | 108          |
+| [Prompts and tools](prompts.md)                     | Macros, named tools, plugins, hooks, and mentor selection.                               | 110          |
 | [Automation and work tracking](automation.md)       | Beads, goals, gates, SDD, and related automation policy.                                 | 71           |
 | [Runtime and stored data](runtime.md)               | Process history, service hosting, artifacts, disk use, and reading surfaces.             | 105          |
 | [Integrations and telemetry](integrations.md)       | Chat, mobile access, and local telemetry settings.                                       | 53           |

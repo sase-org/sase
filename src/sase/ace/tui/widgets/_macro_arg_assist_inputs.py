@@ -45,9 +45,10 @@ def input_label(input_hint: MacroInputHint) -> str:
     """Format a compact input label for non-Rich assist surfaces."""
     required_marker = "" if input_hint.required else "?"
     repeatable_marker = "…" if input_hint.repeatable else ""
+    keyword_only_marker = "=" if input_hint.keyword_only else ""
     return (
-        f"{input_hint.name}{repeatable_marker}{required_marker}: "
-        f"{_type_label_for_hint(input_hint)}"
+        f"{input_hint.name}{repeatable_marker}{keyword_only_marker}"
+        f"{required_marker}: {_type_label_for_hint(input_hint)}"
     )
 
 
@@ -111,6 +112,7 @@ def input_hint_from_input_arg(inp: InputArg, position: int) -> MacroInputHint | 
         default_display=_default_display_from_input_arg(inp),
         position=position,
         repeatable=inp.repeatable,
+        keyword_only=inp.keyword_only,
         description=inp.description,
         choices=inp.choices,
         named_type=inp.named_type,

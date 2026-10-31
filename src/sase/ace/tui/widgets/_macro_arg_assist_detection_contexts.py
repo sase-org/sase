@@ -22,6 +22,7 @@ from ._macro_arg_assist_detection_reference import (
     entry_by_name,
     input_by_name,
     paren_active_input_index,
+    positional_input_indexes,
     reference_base_end,
     trimmed_value_end,
 )
@@ -403,7 +404,7 @@ def _paren_completion_context(
         if active_index is not None:
             active_input = entry.inputs[active_index]
             completion_kind = completion_kind_for_input(active_input)
-            if active_input.repeatable or len(entry.inputs) == 1:
+            if active_input.repeatable or len(positional_input_indexes(entry)) == 1:
                 return MacroArgCompletionContext(
                     entry=entry,
                     completion_kind=completion_kind,

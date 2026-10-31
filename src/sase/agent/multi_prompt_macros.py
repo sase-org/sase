@@ -130,6 +130,7 @@ def serialize_local_macros(macros: dict[str, Macro]) -> str:
                     "is_step_input": inp.is_step_input,
                     "description": inp.description,
                     "repeatable": inp.repeatable,
+                    "keyword_only": inp.keyword_only,
                     "named_type": inp.named_type,
                     "value_role": inp.value_role,
                     "choices": [
@@ -216,6 +217,7 @@ def deserialize_local_macros(path: str) -> dict[str, Macro]:
                     is_step_input=inp.get("is_step_input", False),
                     description=inp.get("description"),
                     repeatable=inp.get("repeatable", False),
+                    keyword_only=inp.get("keyword_only", False) is True,
                     choices=choices,
                     named_type=inp.get("named_type"),
                     value_role=inp.get("value_role"),

@@ -247,7 +247,8 @@ def _build_inputs_table(inputs: list[InputArg]) -> Table:
             default_val = "null"
         else:
             default_val = repr(inp.default)
-        row = [inp.name, inp.type.value, required, default_val]
+        name = inp.name + ("=" if inp.keyword_only else "")
+        row = [name, inp.type.value, required, default_val]
         if include_descriptions:
             row.append(inp.description or "")
         table.add_row(*row)

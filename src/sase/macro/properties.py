@@ -137,6 +137,7 @@ def show_inputs(inputs: list[InputArg]) -> list[ShowInput]:
                 ),
                 named_type=input_arg.named_type,
                 value_role=input_arg.value_role,
+                keyword_only=input_arg.keyword_only,
             )
         )
     return rows

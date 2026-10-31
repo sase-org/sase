@@ -97,6 +97,8 @@ class InputArg:
         description: Optional human-readable description of the input.
         repeatable: Whether this final positional input consumes all remaining
             positional values as an ordered list.
+        keyword_only: Whether this input binds only by ``name=value`` and never
+            positionally. Keyword-only inputs may follow the repeatable input.
         choices: Declared values for an ``InputType.ENUM`` input. Required and
             non-empty for ``ENUM``; must be empty for every other type.
         named_type: Optional catalog name that resolved to ``type``.
@@ -110,11 +112,16 @@ class InputArg:
     output_schema: OutputSpec | None = None
     description: str | None = None
     repeatable: bool = False
+    keyword_only: bool = False
     choices: tuple[InputChoice, ...] = ()
     named_type: str | None = None
     value_role: str | None = None
 
     def __post_init__(self) -> None:
+        if self.repeatable and self.keyword_only:
+            raise MacroValidationError(
+                f"Argument '{self.name}' cannot be both keyword-only and repeatable"
+            )
         if self.type is InputType.ENUM and not self.choices:
             raise MacroValidationError(
                 f"Argument '{self.name}' has type 'enum' but declares no choices"

@@ -51,6 +51,7 @@ class StructuredCatalogInput:
     default_display: str | None
     position: int
     repeatable: bool = False
+    keyword_only: bool = False
     description: str | None = None
     choices: tuple[InputChoice, ...] = ()
     named_type: str | None = None

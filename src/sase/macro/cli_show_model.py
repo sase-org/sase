@@ -31,6 +31,7 @@ class ShowInput:
     choice_details: tuple[ShowChoiceDetail, ...] = ()
     named_type: str | None = None
     value_role: str | None = None
+    keyword_only: bool = False
 
 
 @dataclass(frozen=True, slots=True)

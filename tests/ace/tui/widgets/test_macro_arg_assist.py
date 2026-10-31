@@ -239,6 +239,38 @@ def test_input_label_formatting_and_rich_rendering() -> None:
     )
 
 
+def test_input_label_marks_keyword_only_inputs() -> None:
+    xp = _make_macro(
+        "forked",
+        inputs=[
+            InputArg(
+                name="names",
+                type=InputType.AGENT,
+                default=None,
+                repeatable=True,
+            ),
+            InputArg(
+                name="target",
+                type=InputType.WORD,
+                default=None,
+                keyword_only=True,
+            ),
+        ],
+    )
+    with (
+        patch("sase.macro.catalog.get_all_macros", return_value={"forked": xp}),
+        patch("sase.macro.catalog.get_all_workflows", return_value={}),
+        patch("sase.macro.catalog.get_known_project_workspaces", return_value={}),
+    ):
+        entry = build_macro_assist_entries()[0]
+
+    assert [input_label(inp) for inp in entry.inputs] == [
+        "names…?: agent",
+        "target=?: word",
+    ]
+    assert entry.inputs[1].keyword_only is True
+
+
 def test_append_input_hints_can_render_descriptions() -> None:
     text = Text("rendered")
     append_input_hints(

@@ -123,6 +123,7 @@ def macro_catalog_response(request: dict[str, Any]) -> dict[str, Any]:
                         "default_display": inp.default_display,
                         "position": inp.position,
                         "repeatable": inp.repeatable,
+                        "keyword_only": inp.keyword_only,
                         "description": inp.description,
                         "choices": [
                             {

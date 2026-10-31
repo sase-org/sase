@@ -143,8 +143,9 @@ def parse_input_definition(
     default: Any,
     description: str | None,
     repeatable: bool,
+    keyword_only: bool = False,
     choices_raw: Any,
-    source_path: str | None,
+    source_path: str | None = None,
 ) -> InputArg:
     """Build one input definition from raw frontmatter values."""
     resolved = parse_input_type(
@@ -171,6 +172,7 @@ def parse_input_definition(
         default=default,
         description=description,
         repeatable=repeatable,
+        keyword_only=keyword_only,
         choices=choices,
         named_type=resolved.named_type,
         value_role=resolved.value_role,
@@ -213,7 +215,7 @@ def _validate_enum_default(
 def _parse_shortform_input_metadata(
     name: str,
     value: Any,
-) -> tuple[Any, Any, str | None, bool, Any]:
+) -> tuple[Any, Any, str | None, bool, bool, Any]:
     """Parse raw shortform metadata without coercing YAML input-type scalars."""
     if isinstance(value, dict):
         type_str = value.get("type", "line")
@@ -221,10 +223,11 @@ def _parse_shortform_input_metadata(
         description_value = value.get("description")
         description = None if description_value is None else str(description_value)
         repeatable = value.get("repeatable", False) is True
+        keyword_only = value.get("keyword_only", False) is True
         choices_value = value.get("choices")
-        return type_str, default, description, repeatable, choices_value
+        return type_str, default, description, repeatable, keyword_only, choices_value
 
-    return value, UNSET, None, False, None
+    return value, UNSET, None, False, False, None
 
 
 def parse_shortform_inputs(
@@ -243,7 +246,7 @@ def parse_shortform_inputs(
     """
     inputs: list[InputArg] = []
     for name, value in input_dict.items():
-        type_raw, default, description, repeatable, choices_raw = (
+        type_raw, default, description, repeatable, keyword_only, choices_raw = (
             _parse_shortform_input_metadata(name, value)
         )
         inputs.append(
@@ -253,6 +256,7 @@ def parse_shortform_inputs(
                 default=default,
                 description=description,
                 repeatable=repeatable,
+                keyword_only=keyword_only,
                 choices_raw=choices_raw,
                 source_path=source_path,
             )
@@ -299,6 +303,7 @@ def parse_inputs_from_front_matter(
         description_value = item.get("description")
         description = None if description_value is None else str(description_value)
         repeatable = item.get("repeatable", False) is True
+        keyword_only = item.get("keyword_only", False) is True
         choices_value = item.get("choices")
         inputs.append(
             parse_input_definition(
@@ -307,6 +312,7 @@ def parse_inputs_from_front_matter(
                 default=default,
                 description=description,
                 repeatable=repeatable,
+                keyword_only=keyword_only,
                 choices_raw=choices_value,
                 source_path=source_path,
             )

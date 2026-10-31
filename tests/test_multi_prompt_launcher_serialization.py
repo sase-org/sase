@@ -162,9 +162,42 @@ def test_old_local_macro_json_without_new_input_fields_still_loads(
     assert arg.type is InputType.INT
     assert arg.description is None
     assert arg.repeatable is False
+    assert arg.keyword_only is False
     assert arg.choices == ()
     assert arg.named_type is None
     assert arg.value_role is None
+
+
+def test_keyword_only_input_field_survives_local_macro_handoff() -> None:
+    macros = {
+        "_fork": Macro(
+            name="_fork",
+            content="{{ names }}",
+            inputs=[
+                InputArg(
+                    name="names",
+                    type=InputType.AGENT,
+                    repeatable=True,
+                ),
+                InputArg(
+                    name="target",
+                    type=InputType.WORD,
+                    default=None,
+                    keyword_only=True,
+                ),
+            ],
+        )
+    }
+    path = _serialize_local_macros(macros)
+    try:
+        inputs = deserialize_local_macros(path)["_fork"].inputs
+    finally:
+        os.unlink(path)
+
+    assert inputs[0].repeatable is True
+    assert inputs[0].keyword_only is False
+    assert inputs[1].repeatable is False
+    assert inputs[1].keyword_only is True
 
 
 def test_serialize_deserialize_multiple_macros() -> None:

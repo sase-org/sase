@@ -9,7 +9,11 @@ from sase.macro._catalog_format import format_inputs
 from sase.macro._catalog_structured import structured_inputs
 from sase.macro._jinja import validate_and_convert_args
 from sase.macro._parsing import parse_workflow_reference
-from sase.macro.input_binding import InputBindingError, bind_input_args
+from sase.macro.input_binding import (
+    InputBindingError,
+    bind_input_args,
+    input_for_position,
+)
 from sase.macro.loader_parsing import (
     parse_inputs_from_front_matter,
     parse_shortform_inputs,
@@ -174,3 +178,162 @@ def test_catalog_projection_carries_repeatable_and_signature_hint() -> None:
 
     assert structured_inputs(inputs)[0].repeatable is True
     assert format_inputs(inputs) == "(names…?: agent)"
+
+
+def _fork_inputs() -> list[InputArg]:
+    return parse_shortform_inputs(
+        {
+            "name": {"type": "agent", "default": None, "repeatable": True},
+            "target": {"type": "word", "default": None, "keyword_only": True},
+        }
+    )
+
+
+def test_shortform_and_longform_load_keyword_only_metadata() -> None:
+    short = parse_shortform_inputs(
+        {"target": {"type": "word", "default": None, "keyword_only": True}}
+    )
+    long = parse_inputs_from_front_matter(
+        [
+            {
+                "name": "target",
+                "type": "word",
+                "default": None,
+                "keyword_only": True,
+            }
+        ]
+    )
+
+    assert short[0].keyword_only is True
+    assert long[0].keyword_only is True
+
+
+def test_keyword_only_loads_only_when_exactly_true() -> None:
+    assert (
+        parse_shortform_inputs({"target": {"type": "word", "keyword_only": 1}})[
+            0
+        ].keyword_only
+        is False
+    )
+    assert (
+        parse_shortform_inputs({"target": {"type": "word", "keyword_only": "yes"}})[
+            0
+        ].keyword_only
+        is False
+    )
+    assert parse_shortform_inputs({"target": "word"})[0].keyword_only is False
+
+
+def test_keyword_only_and_repeatable_combination_is_rejected() -> None:
+    with pytest.raises(MacroValidationError, match="keyword-only"):
+        InputArg(name="target", type=InputType.WORD, repeatable=True, keyword_only=True)
+    with pytest.raises(MacroValidationError, match="keyword-only"):
+        parse_shortform_inputs(
+            {
+                "target": {
+                    "type": "word",
+                    "repeatable": True,
+                    "keyword_only": True,
+                }
+            }
+        )
+
+
+def test_repeatable_may_precede_trailing_keyword_only() -> None:
+    inputs = _fork_inputs()
+
+    assert inputs[0].repeatable is True
+    assert inputs[1].keyword_only is True
+
+
+def test_repeatable_must_be_last_positional_input() -> None:
+    with pytest.raises(MacroValidationError, match="final"):
+        parse_shortform_inputs(
+            {
+                "names": {"type": "agent", "repeatable": True},
+                "mode": "word",
+            }
+        )
+
+
+def test_positional_binding_skips_keyword_only_inputs() -> None:
+    inputs = _fork_inputs()
+
+    bound = bind_input_args(inputs, ["planner", "coder"], {"target": "turn"})
+
+    assert bound.positional == ["planner", "coder"]
+    assert bound.values == {"name": ["planner", "coder"], "target": "turn"}
+    assert input_for_position(inputs, 0) is inputs[0]
+    assert input_for_position(inputs, 1) is inputs[0]
+    assert input_for_position(inputs, 5) is inputs[0]
+
+
+def test_named_keyword_only_value_binds_without_positionals() -> None:
+    inputs = _fork_inputs()
+
+    bound = bind_input_args(inputs, [], {"target": "session"})
+
+    assert bound.values == {"name": None, "target": "session"}
+
+
+def test_surplus_positional_message_counts_positional_inputs() -> None:
+    inputs = _fork_inputs()
+    repeatable_free = [
+        InputArg(name="mode", type=InputType.WORD),
+        InputArg(name="target", type=InputType.WORD, keyword_only=True),
+    ]
+
+    with pytest.raises(InputBindingError) as exc_info:
+        bind_input_args(repeatable_free, ["fast", "extra"], {})
+
+    message = str(exc_info.value)
+    assert "declares 1 input" in message
+    assert "surplus positional 2 has no declaration" in message
+
+    bound = bind_input_args(inputs, ["a", "b", "c"], {})
+    assert bound.values["name"] == ["a", "b", "c"]
+
+
+def test_workflow_call_validation_counts_positional_inputs() -> None:
+    from sase.macro.models import Macro
+    from sase.macro.workflow_validator_extract import _MacroCall, validate_macro_call
+
+    macro_def = Macro(
+        name="fork",
+        content="{{ name }}",
+        inputs=_fork_inputs(),
+    )
+
+    errors = validate_macro_call(
+        _MacroCall(
+            name="fork",
+            positional_args=["a", "b"],
+            named_args={"target": "turn"},
+            raw_match="#fork(a, b, target=turn)",
+        ),
+        macro_def,
+        "step",
+    )
+
+    assert errors == []
+
+
+def test_keyword_only_frontmatter_yaml_round_trip() -> None:
+    from sase.macro.prompt_frontmatter import _input_to_yaml
+
+    assert _input_to_yaml(_fork_inputs()[1]) == {
+        "type": "word",
+        "default": None,
+        "keyword_only": True,
+    }
+    assert _input_to_yaml(InputArg(name="mode", type=InputType.WORD)) == "word"
+
+
+def test_catalog_projection_carries_keyword_only() -> None:
+    from sase.macro.properties import show_inputs
+
+    inputs = _fork_inputs()
+
+    assert structured_inputs(inputs)[1].keyword_only is True
+    assert format_inputs(inputs) == "(name…?: agent, target=?: word)"
+    assert show_inputs(inputs)[1].keyword_only is True

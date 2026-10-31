@@ -10,7 +10,7 @@ from dataclasses import dataclass
 from sase.macro._disabled_regions import strip_disabled_regions
 from sase.macro._parsing import iter_macro_references
 from sase.macro._parsing_args import decode_macro_args
-from sase.macro.input_binding import input_for_position
+from sase.macro.input_binding import input_for_position, positional_inputs
 from sase.macro.models import UNSET, Macro
 from sase.macro.workflow_models import Workflow, WorkflowStep
 
@@ -155,9 +155,11 @@ def validate_macro_call(
     """
     errors: list[str] = []
 
-    # Check positional arg count
-    repeatable_tail = bool(macro_def.inputs and macro_def.inputs[-1].repeatable)
-    if len(call.positional_args) > len(macro_def.inputs) and not repeatable_tail:
+    # Check positional arg count. Keyword-only inputs never bind
+    # positionally, so only positional inputs count toward the limit.
+    positional_defs = positional_inputs(macro_def.inputs)
+    repeatable_tail = bool(positional_defs and positional_defs[-1].repeatable)
+    if len(call.positional_args) > len(positional_defs) and not repeatable_tail:
         errors.append(
             f"Step '{step_name}': {call.display_name} has {len(call.positional_args)} "
             f"positional args but only {len(macro_def.inputs)} inputs defined"
