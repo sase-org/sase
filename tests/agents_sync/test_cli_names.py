@@ -6,6 +6,7 @@ from unittest.mock import patch
 
 import pytest
 
+from sase.agents.cli_sync import handle_agents_sync
 from sase.agents.cli_names import handle_agents_names
 from sase.agents_sync.purge_local_state import PurgeLocalStateOutcome
 from sase.main.parser import create_parser

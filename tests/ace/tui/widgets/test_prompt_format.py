@@ -275,7 +275,7 @@ async def test_newer_format_request_wins(monkeypatch: pytest.MonkeyPatch) -> Non
             call_number = calls
         if call_number == 1:
             first_started.set()
-            release_first.wait(timeout=2)
+            release_first.wait()
             first_finished.set()
             return "old result"
         return f"new {text}"
@@ -286,18 +286,21 @@ async def test_newer_format_request_wins(monkeypatch: pytest.MonkeyPatch) -> Non
     )
     app = _PromptFormatApp("draft")
 
-    async with app.run_test(size=(80, 24)) as pilot:
-        text_area = app.query_one(PromptTextArea)
-        await pilot.press("ctrl+g", "f")
-        assert await asyncio.to_thread(first_started.wait, 1.0)
+    try:
+        async with app.run_test(size=(80, 24)) as pilot:
+            text_area = app.query_one(PromptTextArea)
+            await pilot.press("ctrl+g", "f")
+            assert await asyncio.to_thread(first_started.wait, 1.0)
 
-        await pilot.press("ctrl+g", "f")
-        await wait_for(pilot, lambda: text_area.text == "new draft", timeout=1.0)
+            await pilot.press("ctrl+g", "f")
+            await wait_for(pilot, lambda: text_area.text == "new draft", timeout=1.0)
 
+            release_first.set()
+            assert await asyncio.to_thread(first_finished.wait, 1.0)
+            await pilot.pause(0.05)
+            assert text_area.text == "new draft"
+    finally:
         release_first.set()
-        assert await asyncio.to_thread(first_finished.wait, 1.0)
-        await pilot.pause(0.05)
-        assert text_area.text == "new draft"
 
 
 async def test_rebuilt_pane_discards_old_widget_result(
