@@ -32,7 +32,7 @@ dash means the schema has no finite allowed-value list.
 | <a id="feature_flags-codex_explicit_instructions"></a>`feature_flags.codex_explicit_instructions`   | boolean | `true`  | —              | Deliver the Codex root bundle through developer_instructions and suppress SASE native instruction duplicates. |
 | <a id="feature_flags-grok_explicit_instructions"></a>`feature_flags.grok_explicit_instructions`     | boolean | `true`  | —              | Deliver Grok instruction bundles through --rules                                                              |
 | <a id="feature_flags-muse_explicit_instructions"></a>`feature_flags.muse_explicit_instructions`     | boolean | `true`  | —              | Deliver Muse instruction bundles as a prompt prefix                                                           |
-| <a id="feature_flags-staged_handoffs"></a>`feature_flags.staged_handoffs`                           | boolean | `false` | —              | Stage plan handoffs for host completion instead of killing the runner.                                        |
+| <a id="feature_flags-staged_handoffs"></a>`feature_flags.staged_handoffs`                           | boolean | `false` | —              | Stage plan, question, pipe, gate, and monitor handoffs for host completion instead of killing the runner.     |
 | <a id="feature_flags-key"></a>`feature_flags.<key>`                                                 | boolean | not set | —              | —                                                                                                             |
 
 ## `mobile_gateway`

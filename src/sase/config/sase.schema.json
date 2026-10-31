@@ -6175,7 +6175,7 @@
         },
         "staged_handoffs": {
           "type": "boolean",
-          "description": "Stage plan handoffs for host completion instead of killing the runner.",
+          "description": "Stage plan, question, pipe, gate, and monitor handoffs for host completion instead of killing the runner.",
           "default": false
         }
       }

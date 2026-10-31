@@ -118,7 +118,7 @@ usage: sase monitor start [-h] [-a NAME] [-f REF] [-C DIR] [-i DURATION]
                           [-s TEXT] [-S TEXT] [-T N] [-t DURATION] [-w W] ...
 ```
 
-Start a command under a detached supervisor and return. The supervisor owns the command's process group and streams its combined output, so the command outlives this process. When run inside an agent, this is the last output the agent produces before it is killed — the runner adopts the handoff and the monitor keeps running in the same agent and workspace.
+Start a command under a detached supervisor and return. The supervisor owns the command's process group and streams its combined output, so the command outlives this process. When run inside an agent with the staged_handoffs flag on, the start is staged instead: it reports Staged, the agent finishes its turn, and the command launches only after host finalization. Otherwise this is the last output the agent produces before it is killed — the runner adopts the handoff and the monitor keeps running in the same agent and workspace.
 
 Options:
 

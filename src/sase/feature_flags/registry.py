@@ -83,7 +83,8 @@ _FEATURE_FLAG_DEFINITIONS: dict[FeatureFlag, FeatureFlagDefinition] = {
         key=FeatureFlag.staged_handoffs,
         kind="beta",
         description=(
-            "Stage plan handoffs for host completion instead of killing the runner."
+            "Stage plan, question, pipe, gate, and monitor handoffs for host "
+            "completion instead of killing the runner."
         ),
         bead="sase-1pk",
     ),
