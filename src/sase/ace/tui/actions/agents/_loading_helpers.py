@@ -260,6 +260,7 @@ def load_agents_from_disk_with_state(
     viewport: AgentsViewport | None = None,
     data_provider: AgentsDataProvider | None = None,
     source: str = "unknown",
+    allow_lock_busy_source_scan: bool = True,
 ) -> _AgentDiskLoadResult:
     """Load agents from disk and include the tiered load state."""
 
@@ -290,6 +291,7 @@ def load_agents_from_disk_with_state(
                 index_freshness=index_freshness,
                 search_query=search_query,
                 viewport=viewport,
+                allow_lock_busy_source_scan=allow_lock_busy_source_scan,
             )
         projections_start = time.perf_counter()
         with tui_trace("agents.load_from_disk.projections"):

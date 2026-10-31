@@ -22,6 +22,39 @@ from tests._agents_tab_query_helpers import FakeAgentApp, _make_agent
 from tests.ace.tui._lazy_tier2_reconcile_helpers import apply_load
 
 
+def _assert_lock_busy_retries_baseline(reason: str) -> None:
+    extra_scheduled: list[dict[str, Any]] = []
+
+    def record_extra(**kwargs: Any) -> None:
+        extra_scheduled.append(kwargs)
+
+    extra = FakeAgentApp()
+    extra._schedule_agents_async_refresh = record_extra  # type: ignore[method-assign]
+    extra._agents_refresh_scheduled = False
+    extra._agents_artifact_delta_scheduled = None
+    apply_load(
+        extra,
+        AgentLoadState(
+            tier="tier1",
+            complete_history=False,
+            complete_visible_inbox=False,
+            artifact_source="artifact_index",
+            used_artifact_index=True,
+            repair_reason=reason,
+        ),
+    )
+    assert extra._agents_history_reconcile_pending is True
+    extra._last_input_mono = 100.0
+    extra._agents_history_reconcile_armed_mono = 100.0
+    assert (
+        extra._maybe_trigger_input_quiet_tier2_reconcile(
+            now_mono=100.0 + ROSTER_COMPLETION_INPUT_QUIET_THRESHOLD_S + 0.5
+        )
+        is True
+    )
+    assert extra_scheduled and extra_scheduled[-1].get("full_history", False) is False
+
+
 def _baseline_state(**overrides: Any) -> AgentLoadState:
     kwargs: dict[str, Any] = {
         "tier": "tier1",
@@ -184,6 +217,12 @@ def test_lock_busy_trigger_retries_baseline_while_missing_runs_tier2() -> None:
         is True
     )
     assert scheduled and scheduled[-1].get("full_history", False) is False
+
+    for reason in (
+        "artifact_index_lock_busy_served_cached",
+        "artifact_index_lock_busy_keep_roster",
+    ):
+        _assert_lock_busy_retries_baseline(reason)
 
     tier2_scheduled: list[dict[str, Any]] = []
 

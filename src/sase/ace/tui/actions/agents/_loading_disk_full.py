@@ -7,6 +7,11 @@ import time
 from dataclasses import replace
 from typing import TYPE_CHECKING, Literal
 
+from ...models._agent_loader_artifacts import (
+    AgentLoadState,
+    load_state_keeps_displayed_roster,
+    slow_loader_load_state_fields,
+)
 from ...util.trace import tui_trace
 from ._loading_compute import (
     attach_finalize_plan_to_boundary,
@@ -20,6 +25,7 @@ from ._loading_disk_viewport import (
     agents_viewport_request_key,
     reschedule_stale_agent_query_load,
 )
+from ._loading_refresh_polling import ROSTER_COMPLETION_INPUT_QUIET_THRESHOLD_S
 from ._refresh_trace import (
     classify_agents_data_cost,
     normalize_refresh_source,
@@ -34,6 +40,31 @@ log = logging.getLogger(__name__)
 
 class AgentLoadingDiskFullMixin(AgentLoadingDiskViewportMixin):
     """Synchronous and asynchronous full-history agent disk loads."""
+
+    def _defer_lock_busy_keep_roster(
+        self,
+        load_state: AgentLoadState,
+        *,
+        source: str,
+        disk_elapsed: float,
+        disk_substages: dict[str, float] | None = None,
+    ) -> bool:
+        """Keep the displayed roster and retry through the existing quiet-time flags."""
+
+        self._agent_load_state = load_state
+        arm_reconcile = getattr(self, "_arm_agents_history_reconcile", None)
+        if callable(arm_reconcile):
+            arm_reconcile(quiet_s=ROSTER_COMPLETION_INPUT_QUIET_THRESHOLD_S)
+        elif not getattr(self, "_agents_history_reconcile_pending", False):
+            self._agents_history_reconcile_pending = True
+        self._record_slow_loader_stages(
+            source=source,
+            load_kind="full",
+            stages={"disk": disk_elapsed},
+            disk_substages=disk_substages,
+            **slow_loader_load_state_fields(load_state),
+        )
+        return True
 
     def _load_agents(
         self,
@@ -90,7 +121,18 @@ class AgentLoadingDiskFullMixin(AgentLoadingDiskViewportMixin):
             search_query=search_query,
             viewport=viewport,
             source=source,
+            allow_lock_busy_source_scan=not bool(
+                getattr(self, "_agents_first_load_done", False)
+            ),
         )
+        if load_state_keeps_displayed_roster(load_result.load_state):
+            self._defer_lock_busy_keep_roster(
+                load_result.load_state,
+                source=source,
+                disk_elapsed=0.0,
+                disk_substages=getattr(load_result, "disk_substages", None),
+            )
+            return
         self._agents_provider_snapshot = getattr(load_result, "provider_snapshot", None)
         self._agents_viewport_last_requested_limit = (
             load_result.load_state.requested_limit or 0
@@ -206,6 +248,9 @@ class AgentLoadingDiskFullMixin(AgentLoadingDiskViewportMixin):
             search_query=search_query,
             viewport=viewport,
             source=source,
+            allow_lock_busy_source_scan=not bool(
+                getattr(self, "_agents_first_load_done", False)
+            ),
         )
         if agent_load_query_is_stale(self, load_result.load_state):
             reschedule_stale_agent_query_load(
@@ -229,6 +274,14 @@ class AgentLoadingDiskFullMixin(AgentLoadingDiskViewportMixin):
                     index_freshness=index_freshness,
                 )
                 return False
+        disk_elapsed = time.perf_counter() - disk_start
+        if load_state_keeps_displayed_roster(load_result.load_state):
+            return self._defer_lock_busy_keep_roster(
+                load_result.load_state,
+                source=source,
+                disk_elapsed=disk_elapsed,
+                disk_substages=getattr(load_result, "disk_substages", None),
+            )
         self._agents_provider_snapshot = getattr(load_result, "provider_snapshot", None)
         self._agents_viewport_last_requested_limit = (
             load_result.load_state.requested_limit or 0
@@ -238,7 +291,6 @@ class AgentLoadingDiskFullMixin(AgentLoadingDiskViewportMixin):
         )
         all_agents = load_result.all_agents
         dismissed_from_loader = load_result.dismissed_from_loader
-        disk_elapsed = time.perf_counter() - disk_start
         log.debug(
             "agents async load: disk=%.3fs agents=%d dismissed=%d tier=%s source=%s complete=%s",
             disk_elapsed,
@@ -381,5 +433,6 @@ class AgentLoadingDiskFullMixin(AgentLoadingDiskViewportMixin):
             disk_substages=getattr(load_result, "disk_substages", None),
             agents=len(all_agents),
             dismissed=len(dismissed_from_loader),
+            **slow_loader_load_state_fields(load_result.load_state),
         )
         return True

@@ -63,6 +63,7 @@ def test_load_tiered_agents_live_query_uses_bounded_pushdown(
                 "field": "cl",
                 "value": "target",
             },
+            "allow_lock_busy_source_scan": True,
         }
     ]
 
@@ -120,6 +121,7 @@ def test_load_tiered_machine_filter_stays_on_bounded_window(
                     "value": "apollo",
                 },
             },
+            "allow_lock_busy_source_scan": True,
         }
     ]
 
@@ -167,6 +169,7 @@ def test_load_tiered_agents_unsupported_query_defers_full_history(
             "index_freshness": "cached",
             "requested_limit": 25,
             "candidate_filter": None,
+            "allow_lock_busy_source_scan": True,
         }
     ]
 
@@ -222,6 +225,7 @@ def test_load_tiered_unsupported_live_query_uses_bounded_history(
             "index_freshness": "cached",
             "requested_limit": 25,
             "candidate_filter": None,
+            "allow_lock_busy_source_scan": True,
         }
     ]
 
@@ -272,5 +276,6 @@ def test_load_tiered_agents_full_history_preserves_safe_candidate_filter(
                 "field": "cl",
                 "value": "target",
             },
+            "allow_lock_busy_source_scan": True,
         }
     ]

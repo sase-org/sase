@@ -251,6 +251,33 @@ async def test_slow_loader_stage_writes_durable_telemetry(
 
 
 @pytest.mark.asyncio
+async def test_slow_loader_stage_records_load_state_fields(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    path = tmp_path / "tui_agent_loads.jsonl"
+    monkeypatch.setattr(tui_telemetry, "TUI_AGENT_LOADS_JSONL", str(path))
+    app = _CleanupApp()
+
+    app._record_slow_loader_stages(
+        source="test",
+        load_kind="full",
+        stages={"disk": 2.25},
+        artifact_source="artifact_index",
+        repair_reason="artifact_index_lock_busy_served_cached",
+        tier="tier1",
+        complete_history=False,
+    )
+    await _drain_cleanup_procs(app)
+
+    record = json.loads(path.read_text().strip())
+    assert record["artifact_source"] == "artifact_index"
+    assert record["repair_reason"] == "artifact_index_lock_busy_served_cached"
+    assert record["tier"] == "tier1"
+    assert record["complete_history"] is False
+
+
+@pytest.mark.asyncio
 async def test_slow_loader_stage_threshold_is_env_overridable(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

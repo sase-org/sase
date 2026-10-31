@@ -23,6 +23,7 @@ class DirectAgentsDataProvider:
         index_freshness: Literal["revalidate", "cached"] = "cached",
         search_query: str | None = None,
         viewport: AgentsViewport | None = None,
+        allow_lock_busy_source_scan: bool = True,
     ) -> AgentsProviderSnapshot:
         from ..models.agent_loader import load_tiered_agents
 
@@ -38,6 +39,7 @@ class DirectAgentsDataProvider:
             search_query=search_query,
             requested_limit=requested_limit,
             substages=substages,
+            allow_lock_busy_source_scan=allow_lock_busy_source_scan,
         )
         shared_snapshot = agent_snapshot(
             agents,

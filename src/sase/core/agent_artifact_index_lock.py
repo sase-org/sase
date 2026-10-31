@@ -1,4 +1,10 @@
-"""Process-local serialization for artifact-index SQLite operations."""
+"""Process-local serialization for artifact-index SQLite operations.
+
+The lock serializes in-process index readers, writers, and repair work. It
+is process-local: SQLite WAL already allows concurrent readers across
+processes. Bounded readers must degrade to cached data, never to a source
+scan.
+"""
 
 from __future__ import annotations
 

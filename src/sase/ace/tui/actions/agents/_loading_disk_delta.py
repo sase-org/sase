@@ -7,6 +7,7 @@ import time
 from dataclasses import replace
 from pathlib import Path
 
+from ...models._agent_loader_artifacts import slow_loader_load_state_fields
 from . import _loading_helpers
 from ._loading_compute import (
     attach_finalize_plan_to_boundary,
@@ -184,7 +185,9 @@ class AgentLoadingDiskDeltaMixin(AgentLoadingStateMixin):
                 "prep": prep_elapsed,
                 "apply": apply_elapsed,
             },
+            disk_substages=None,
             agents=len(all_agents),
             dismissed=len(dismissed_from_loader),
+            **slow_loader_load_state_fields(load_result.load_state),
         )
         return True

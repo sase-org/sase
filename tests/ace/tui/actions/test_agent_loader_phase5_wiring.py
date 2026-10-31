@@ -405,6 +405,7 @@ def test_load_agents_from_disk_uses_data_provider() -> None:
             "index_freshness": "cached",
             "search_query": "project:sase",
             "viewport": viewport,
+            "allow_lock_busy_source_scan": True,
         }
     ]
 
@@ -452,6 +453,7 @@ def test_direct_agents_provider_forwards_viewport_query(
             "search_query": "model:opus",
             "requested_limit": 15,
             "substages": {},
+            "allow_lock_busy_source_scan": True,
         }
     ]
     assert snapshot.load_state is load_state

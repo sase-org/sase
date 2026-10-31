@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, cast
 
+from ...models._agent_loader_artifacts import artifact_index_lock_busy_reason
+
 if TYPE_CHECKING:
     from ...models.agent_live_query_engine import AgentsHistoryQueryKey
     from ...models.agent_loader import AgentLoadState
@@ -75,7 +77,11 @@ def should_arm_full_history_reconcile(
     history_complete_for_query: bool = False,
 ) -> bool:
     """Return whether this load state should arm a deferred Tier 2 reconcile."""
-    if load_state is None or not load_state.needs_full_history_reconcile:
+    if load_state is None:
+        return False
+    if artifact_index_lock_busy_reason(load_state.repair_reason):
+        return True
+    if not load_state.needs_full_history_reconcile:
         return False
     if load_state.repair_recommended:
         return True

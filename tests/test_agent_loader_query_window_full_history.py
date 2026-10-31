@@ -18,6 +18,7 @@ def test_full_history_uses_revalidated_artifact_index() -> None:
     mock_scan = Mock()
 
     def load_index(**kwargs: object) -> tuple[object, AgentLoadState]:
+        kwargs.pop("allow_lock_busy_source_scan", None)
         assert kwargs == {
             "full_history": True,
             "freshness": "cached",
@@ -226,13 +227,12 @@ def test_full_history_bad_index_falls_back_to_source_scan(
     mock_scan.assert_called_once_with(None)
 
 
-def test_full_history_busy_index_lock_falls_back_to_source_scan(
+def test_full_history_busy_index_lock_keeps_roster_without_source_scan(
     tmp_path: Path,
 ) -> None:
     index_path = tmp_path / "agent_artifact_index.sqlite"
     index_path.touch()
-    snapshot = _empty_artifact_snapshot()
-    mock_scan = Mock(return_value=snapshot)
+    mock_scan = Mock(side_effect=AssertionError("lock busy must not scan"))
 
     indexed = query_artifact_index_for_loader(
         full_history=True,
@@ -243,13 +243,43 @@ def test_full_history_busy_index_lock_falls_back_to_source_scan(
     )
 
     assert indexed is not None
-    loaded_snapshot, state = indexed
-    assert loaded_snapshot is snapshot
+    _loaded_snapshot, state = indexed
     assert state.tier == "tier2"
-    assert state.complete_history is True
-    assert state.artifact_source == "source_scan"
+    assert state.complete_history is False
+    assert state.complete_visible_inbox is False
+    assert state.artifact_source == "artifact_index"
     assert state.used_artifact_index is False
     assert state.index_error == "artifact index operation lock busy"
     assert state.repair_recommended is False
-    assert state.repair_reason == "artifact_index_lock_busy_full_history_fallback"
-    mock_scan.assert_called_once_with(None)
+    assert state.repair_reason == "artifact_index_lock_busy_keep_roster"
+    mock_scan.assert_not_called()
+
+
+def test_full_history_facade_lock_busy_does_not_source_scan() -> None:
+    indexed_snapshot = _empty_artifact_snapshot()
+    mock_scan = Mock(side_effect=AssertionError("lock busy must not scan"))
+    mock_load_index = Mock(
+        return_value=(
+            indexed_snapshot,
+            AgentLoadState(
+                tier="tier2",
+                complete_history=False,
+                complete_visible_inbox=False,
+                artifact_source="artifact_index",
+                used_artifact_index=False,
+                repair_reason="artifact_index_lock_busy_keep_roster",
+            ),
+        )
+    )
+
+    loaded_snapshot, state = artifact_snapshot_for_tui_load(
+        full_history=True,
+        use_artifact_index=True,
+        scan_artifacts=mock_scan,
+        load_tier1_index=mock_load_index,
+    )
+
+    assert loaded_snapshot is indexed_snapshot
+    assert state.repair_reason == "artifact_index_lock_busy_keep_roster"
+    assert state.complete_history is False
+    mock_scan.assert_not_called()

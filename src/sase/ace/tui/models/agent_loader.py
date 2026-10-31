@@ -29,6 +29,7 @@ from ._agent_loader_artifacts import (
     artifact_dirs_for_normalized_timestamps as _artifact_dirs_for_timestamps,
     artifact_snapshot_for_live_plan_load as _live_plan_artifact_snapshot,
     artifact_snapshot_for_tui_load as _tui_artifact_snapshot,
+    load_state_keeps_displayed_roster,
     normalize_timestamps as _normalize_artifact_timestamps,
     prepare_artifact_delta_paths as _prepare_artifact_delta_paths,
     query_artifact_index_for_loader as _query_artifact_index,
@@ -126,6 +127,7 @@ def _query_artifact_index_for_loader(
     freshness: Literal["revalidate", "cached"] = "cached",
     requested_limit: int | None = None,
     candidate_filter: dict[str, object] | None = None,
+    allow_lock_busy_source_scan: bool = True,
 ) -> tuple[AgentArtifactScanWire, AgentLoadState] | None:
     """Return an index-backed snapshot when the persistent index exists."""
     return _query_artifact_index(
@@ -137,6 +139,7 @@ def _query_artifact_index_for_loader(
         projects_root=_projects_root_for_loader,
         query_index=query_agent_artifact_index,
         scan_artifacts=_scan_artifacts_for_loader,
+        allow_lock_busy_source_scan=allow_lock_busy_source_scan,
     )
 
 
@@ -147,11 +150,13 @@ def _artifact_snapshot_for_tui_load(
     index_freshness: Literal["revalidate", "cached"] = "cached",
     requested_limit: int | None = None,
     candidate_filter: dict[str, object] | None = None,
+    allow_lock_busy_source_scan: bool = True,
 ) -> tuple[AgentArtifactScanWire, AgentLoadState]:
     """Return the artifact snapshot for a TUI refresh.
 
     Tier 1 uses the persistent artifact index when available. Missing or bad
     indexes fall back to a bounded source scan so first paint remains capped.
+    A busy index lock serves the last same-key snapshot or keeps the roster.
     Tier 2 uses a revalidated index query and falls back to source artifacts when the
     index path is unavailable.
     """
@@ -164,6 +169,7 @@ def _artifact_snapshot_for_tui_load(
         candidate_filter=candidate_filter,
         scan_artifacts=_scan_artifacts_for_loader,
         load_tier1_index=_query_artifact_index_for_loader,
+        allow_lock_busy_source_scan=allow_lock_busy_source_scan,
     )
 
 
@@ -372,6 +378,7 @@ def _load_agents_with_load_state(
     index_freshness: Literal["revalidate", "cached"] = "cached",
     requested_limit: int | None = None,
     candidate_filter: dict[str, object] | None = None,
+    allow_lock_busy_source_scan: bool = True,
 ) -> _AgentLoadResult:
     """Load agents for the TUI and report whether history is complete."""
 
@@ -386,11 +393,19 @@ def _load_agents_with_load_state(
             index_freshness=index_freshness,
             requested_limit=requested_limit,
             candidate_filter=candidate_filter,
+            allow_lock_busy_source_scan=allow_lock_busy_source_scan,
         )
         extra["artifact_source"] = state.artifact_source
         extra["record_count"] = state.record_count
         extra["used_artifact_index"] = state.used_artifact_index
     index_elapsed = time.perf_counter() - index_start
+    if load_state_keeps_displayed_roster(state):
+        return _AgentLoadResult(
+            agents=[],
+            workflow_agent_steps=[],
+            state=state,
+            substages={"index": index_elapsed, "decode": 0.0},
+        )
     decode_start = time.perf_counter()
     with tui_trace("agents.load_from_disk.decode") as extra:
         agents, workflow_agent_steps = _load_agents_from_all_sources(
@@ -517,6 +532,7 @@ def load_tiered_agents(
     search_query: str | None = None,
     requested_limit: int | None = None,
     substages: dict[str, float] | None = None,
+    allow_lock_busy_source_scan: bool = True,
 ) -> tuple[list[Agent], AgentLoadState]:
     """Load agents through the TUI tiered artifact path.
 
@@ -554,6 +570,7 @@ def load_tiered_agents(
             if window_safe and (effective_limit is not None or effective_full_history)
             else None
         ),
+        allow_lock_busy_source_scan=allow_lock_busy_source_scan,
     )
     provider_start = time.perf_counter()
     agents = _normalize_loaded_agents(result.agents, result.workflow_agent_steps)

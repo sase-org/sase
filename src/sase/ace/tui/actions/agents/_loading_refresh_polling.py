@@ -12,6 +12,7 @@ from sase.agent.status_buckets import QUEUED_STATUS
 from ._live_watch_coverage import MAX_LIVE_AGENT_WATCHES
 from ._loading_state import AgentLoadingStateMixin
 from ..event_refresh._constants import _LIVE_FILE_REFRESH_STATUSES
+from ...models._agent_loader_artifacts import artifact_index_lock_busy_reason
 from ...models.agent_session_members import agent_row_is_in_flight
 from ...util.pump_tasks import spawn_pump_free_task
 
@@ -216,10 +217,7 @@ class AgentRefreshPollingMixin(AgentLoadingStateMixin):
         self._agents_history_reconcile_pending = False
         self._agents_history_reconcile_quiet_s = TIER2_RECONCILE_INPUT_QUIET_THRESHOLD_S
         load_state = getattr(self, "_agent_load_state", None)
-        if (
-            getattr(load_state, "repair_reason", None)
-            == "artifact_index_lock_busy_bounded_fallback"
-        ):
+        if artifact_index_lock_busy_reason(getattr(load_state, "repair_reason", None)):
             # Transient lock contention: retry as a normal refresh, which
             # reads the baseline while the roster is partial.
             self._schedule_agents_async_refresh(  # type: ignore[attr-defined]

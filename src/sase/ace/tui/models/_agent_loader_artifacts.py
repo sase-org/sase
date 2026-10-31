@@ -10,8 +10,10 @@ from typing import Literal, Protocol
 
 from sase.core.agent_artifact_paths import resolve_agent_artifact_timestamp_path
 from sase.core.agent_scan_wire import (
+    AGENT_SCAN_WIRE_SCHEMA_VERSION,
     AgentArtifactIndexQueryWire,
     AgentArtifactScanOptionsWire,
+    AgentArtifactScanStatsWire,
     AgentArtifactScanWire,
 )
 from sase.core.paths import sase_projects_dir
@@ -48,6 +50,10 @@ _PLAN_LIVE_FALLBACK_SCAN_OPTIONS = replace(
     newest_first=True,
 )
 _ARTIFACT_SNAPSHOT_CACHE_MAX_ENTRIES = 8
+_INDEX_LOCK_BUSY_ERROR = "artifact index operation lock busy"
+LOCK_BUSY_SERVED_CACHED_REASON = "artifact_index_lock_busy_served_cached"
+LOCK_BUSY_KEEP_ROSTER_REASON = "artifact_index_lock_busy_keep_roster"
+LOCK_BUSY_BOUNDED_FALLBACK_REASON = "artifact_index_lock_busy_bounded_fallback"
 
 _IndexFileStat = tuple[str, int | None, int | None]
 _IndexSignature = tuple[_IndexFileStat, _IndexFileStat]
@@ -106,6 +112,31 @@ class AgentLoadState:
         )
 
 
+def artifact_index_lock_busy_reason(reason: str | None) -> bool:
+    """Return whether *reason* is an artifact-index lock-busy repair reason."""
+
+    return isinstance(reason, str) and reason.startswith("artifact_index_lock_busy_")
+
+
+def load_state_keeps_displayed_roster(state: AgentLoadState) -> bool:
+    """Return whether this load must leave the displayed roster unchanged."""
+
+    return state.repair_reason == LOCK_BUSY_KEEP_ROSTER_REASON
+
+
+def slow_loader_load_state_fields(state: AgentLoadState | None) -> dict[str, object]:
+    """Return slow-load telemetry fields when a load state is known."""
+
+    if state is None:
+        return {}
+    return {
+        "artifact_source": state.artifact_source,
+        "repair_reason": state.repair_reason,
+        "tier": state.tier,
+        "complete_history": state.complete_history,
+    }
+
+
 class _ArtifactScanner(Protocol):
     def __call__(
         self,
@@ -132,6 +163,7 @@ class _Tier1IndexLoader(Protocol):
         freshness: Literal["revalidate", "cached"] = "cached",
         requested_limit: int | None = None,
         candidate_filter: dict[str, object] | None = None,
+        allow_lock_busy_source_scan: bool = True,
     ) -> tuple[AgentArtifactScanWire, AgentLoadState] | None: ...
 
 
@@ -159,9 +191,25 @@ class _ArtifactSnapshotCache:
                 return None
             cached_signature, snapshot, state = entry
             if cached_signature != signature:
-                del self._entries[key]
+                # Keep the last good snapshot for lock-busy stale reads.
+                self._entries.move_to_end(key)
                 self._stats = replace(self._stats, misses=self._stats.misses + 1)
                 return None
+            self._entries.move_to_end(key)
+            self._stats = replace(self._stats, hits=self._stats.hits + 1)
+            return snapshot, _cache_hit_load_state(state)
+
+    def get_stale(
+        self,
+        key: _ArtifactSnapshotCacheKey,
+    ) -> tuple[AgentArtifactScanWire, AgentLoadState] | None:
+        """Return the last good snapshot for *key*, ignoring index signature."""
+
+        with self._lock:
+            entry = self._entries.get(key)
+            if entry is None:
+                return None
+            _cached_signature, snapshot, state = entry
             self._entries.move_to_end(key)
             self._stats = replace(self._stats, hits=self._stats.hits + 1)
             return snapshot, _cache_hit_load_state(state)
@@ -258,6 +306,86 @@ def _cache_hit_load_state(state: AgentLoadState) -> AgentLoadState:
     )
 
 
+def _empty_loader_snapshot(projects_root: Path) -> AgentArtifactScanWire:
+    return AgentArtifactScanWire(
+        schema_version=AGENT_SCAN_WIRE_SCHEMA_VERSION,
+        projects_root=str(projects_root),
+        options=_TUI_SCAN_OPTIONS,
+        stats=AgentArtifactScanStatsWire(),
+        records=[],
+    )
+
+
+def _lock_busy_keep_roster_result(
+    *,
+    full_history: bool,
+    projects_root: Path,
+) -> tuple[AgentArtifactScanWire, AgentLoadState]:
+    return (
+        _empty_loader_snapshot(projects_root),
+        AgentLoadState(
+            tier="tier2" if full_history else "tier1",
+            complete_history=False,
+            complete_visible_inbox=False,
+            artifact_source="artifact_index",
+            used_artifact_index=False,
+            index_error=_INDEX_LOCK_BUSY_ERROR,
+            repair_recommended=False,
+            repair_reason=LOCK_BUSY_KEEP_ROSTER_REASON,
+            record_count=0,
+        ),
+    )
+
+
+def _lock_busy_loader_result(
+    *,
+    full_history: bool,
+    cache_key: _ArtifactSnapshotCacheKey | None,
+    scan_artifacts: _ArtifactScanner,
+    allow_lock_busy_source_scan: bool,
+    projects_root: Path,
+) -> tuple[AgentArtifactScanWire, AgentLoadState]:
+    """Answer a busy index lock from cache or by keeping the current roster."""
+
+    if not full_history and cache_key is not None:
+        stale = _ARTIFACT_SNAPSHOT_CACHE.get_stale(cache_key)
+        if stale is not None:
+            snapshot, cached_state = stale
+            return (
+                snapshot,
+                replace(
+                    cached_state,
+                    complete_history=False,
+                    complete_visible_inbox=False,
+                    artifact_source="artifact_index",
+                    used_artifact_index=True,
+                    index_error=_INDEX_LOCK_BUSY_ERROR,
+                    repair_recommended=False,
+                    repair_reason=LOCK_BUSY_SERVED_CACHED_REASON,
+                ),
+            )
+    if full_history or not allow_lock_busy_source_scan:
+        return _lock_busy_keep_roster_result(
+            full_history=full_history,
+            projects_root=projects_root,
+        )
+    fallback_snapshot = scan_artifacts(_TIER1_FALLBACK_SCAN_OPTIONS)
+    return (
+        fallback_snapshot,
+        AgentLoadState(
+            tier="tier1",
+            complete_history=False,
+            complete_visible_inbox=False,
+            artifact_source="source_scan",
+            used_artifact_index=False,
+            index_error=_INDEX_LOCK_BUSY_ERROR,
+            repair_recommended=False,
+            repair_reason=LOCK_BUSY_BOUNDED_FALLBACK_REASON,
+            record_count=len(fallback_snapshot.records),
+        ),
+    )
+
+
 def query_artifact_index_for_loader(
     *,
     full_history: bool,
@@ -268,6 +396,7 @@ def query_artifact_index_for_loader(
     projects_root: Callable[[], Path],
     query_index: _ArtifactIndexQuery,
     scan_artifacts: _ArtifactScanner,
+    allow_lock_busy_source_scan: bool = True,
 ) -> tuple[AgentArtifactScanWire, AgentLoadState] | None:
     """Return an index-backed snapshot when the persistent index exists."""
 
@@ -359,27 +488,12 @@ def query_artifact_index_for_loader(
             options=_TUI_SCAN_OPTIONS,
         )
         if snapshot is None:
-            fallback_snapshot = scan_artifacts(
-                None if full_history else _TIER1_FALLBACK_SCAN_OPTIONS
-            )
-            return (
-                fallback_snapshot,
-                AgentLoadState(
-                    tier="tier2" if full_history else "tier1",
-                    # Source scan is authoritative for the dirs it visited.
-                    complete_history=full_history,
-                    complete_visible_inbox=full_history,
-                    artifact_source="source_scan",
-                    used_artifact_index=False,
-                    index_error="artifact index operation lock busy",
-                    repair_recommended=False,
-                    repair_reason=(
-                        "artifact_index_lock_busy_full_history_fallback"
-                        if full_history
-                        else "artifact_index_lock_busy_bounded_fallback"
-                    ),
-                    record_count=len(fallback_snapshot.records),
-                ),
+            return _lock_busy_loader_result(
+                full_history=full_history,
+                cache_key=cache_key,
+                scan_artifacts=scan_artifacts,
+                allow_lock_busy_source_scan=allow_lock_busy_source_scan,
+                projects_root=root,
             )
     except (ImportError, AttributeError, OSError, ValueError, RuntimeError) as exc:
         fallback_snapshot = scan_artifacts(
@@ -488,6 +602,7 @@ def artifact_snapshot_for_tui_load(
     candidate_filter: dict[str, object] | None = None,
     scan_artifacts: _ArtifactScanner,
     load_tier1_index: _Tier1IndexLoader,
+    allow_lock_busy_source_scan: bool = True,
 ) -> tuple[AgentArtifactScanWire, AgentLoadState]:
     """Return the artifact snapshot for a TUI refresh."""
 
@@ -498,8 +613,12 @@ def artifact_snapshot_for_tui_load(
                 freshness=index_freshness,
                 requested_limit=None,
                 candidate_filter=candidate_filter,
+                allow_lock_busy_source_scan=allow_lock_busy_source_scan,
             )
-            if indexed is not None and indexed[1].complete_history:
+            if indexed is not None and (
+                indexed[1].complete_history
+                or artifact_index_lock_busy_reason(indexed[1].repair_reason)
+            ):
                 return indexed
 
         full_snapshot = scan_artifacts()
@@ -534,6 +653,7 @@ def artifact_snapshot_for_tui_load(
         freshness=index_freshness,
         requested_limit=requested_limit,
         candidate_filter=candidate_filter,
+        allow_lock_busy_source_scan=allow_lock_busy_source_scan,
     )
     if indexed is not None:
         return indexed

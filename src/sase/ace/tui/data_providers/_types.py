@@ -63,6 +63,7 @@ class AgentsDataProvider(Protocol):
         index_freshness: Literal["revalidate", "cached"] = "cached",
         search_query: str | None = None,
         viewport: AgentsViewport | None = None,
+        allow_lock_busy_source_scan: bool = True,
     ) -> AgentsProviderSnapshot:
         """Load an Agents-tab snapshot without touching Textual widgets."""
 

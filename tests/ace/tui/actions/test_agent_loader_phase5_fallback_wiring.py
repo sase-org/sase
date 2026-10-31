@@ -265,6 +265,74 @@ def test_load_agents_from_disk_busy_index_lock_uses_bounded_tier1_source_scan(
     assert options.newest_first is True
 
 
+def test_load_agents_from_disk_busy_index_lock_keeps_roster_after_first_paint(
+    tmp_path: Path,
+) -> None:
+    """After first paint a busy lock must not source-scan."""
+
+    index_path = tmp_path / "agent_artifact_index.sqlite"
+    index_path.touch()
+    snapshot = _empty_artifact_snapshot()
+
+    with (
+        patch(
+            "sase.ace.tui.models.agent_loader.default_agent_artifact_index_path",
+            return_value=index_path,
+        ),
+        patch(
+            "sase.ace.tui.models.agent_loader.query_agent_artifact_index",
+            return_value=None,
+        ),
+        patch(
+            "sase.ace.tui.models.agent_loader._scan_artifacts_for_loader",
+            return_value=snapshot,
+        ) as mock_scan,
+        patch(
+            "sase.ace.tui.models.agent_loader.find_all_patches",
+            return_value=[],
+        ),
+        patch(
+            "sase.ace.tui.models.agent_loader.get_all_project_files",
+            return_value=[],
+        ),
+        patch(
+            "sase.ace.tui.models.agent_loader.load_done_agents_from_snapshot",
+            return_value=[],
+        ),
+        patch(
+            "sase.ace.tui.models.agent_loader.load_running_home_agents_from_snapshot",
+            return_value=[],
+        ),
+        patch(
+            "sase.ace.tui.models.agent_loader.load_agents_from_running_field",
+            return_value=[],
+        ),
+        patch(
+            "sase.ace.tui.models.agent_loader.load_workflow_agent_steps_from_snapshot",
+            return_value=([], {}),
+        ),
+        patch(
+            "sase.ace.tui.models.agent_loader.load_workflow_agents_from_snapshot",
+            return_value=[],
+        ),
+        patch("sase.ace.agent_tribes.load_agent_tribes", return_value={}),
+    ):
+        result = load_agents_from_disk_with_state(
+            set(),
+            allow_lock_busy_source_scan=False,
+        )
+
+    assert result.load_state.tier == "tier1"
+    assert result.load_state.complete_history is False
+    assert result.load_state.complete_visible_inbox is False
+    assert result.load_state.artifact_source == "artifact_index"
+    assert result.load_state.used_artifact_index is False
+    assert result.load_state.index_error == "artifact index operation lock busy"
+    assert result.load_state.repair_recommended is False
+    assert result.load_state.repair_reason == "artifact_index_lock_busy_keep_roster"
+    mock_scan.assert_not_called()
+
+
 def test_explicit_index_bypass_uses_bounded_scan_without_repair_reaction() -> None:
     snapshot = _empty_artifact_snapshot()
 
