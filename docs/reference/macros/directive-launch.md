@@ -186,9 +186,11 @@ new prompt uses the new default. The policy is independent of tribe `@epic`.
 Parenthesized `%wait` also accepts `target=session|turn`. The value is case-sensitive
 and applies to every agent target in that occurrence. `session` waits for the whole
 agent session (the default for a bare name). `turn` captures the session's current turn
-when the wait is bound and releases when that turn settles; later turns of the same
-session do not extend the wait. Omitting `target=` is a session wait, not an explicit
-value.
+when the wait is bound and releases when that turn completes or hands off successfully;
+later turns of the same session do not extend the wait. A failed pinned turn keeps the
+wait blocked. Omitting `target=` preserves implicit targeting: a bare name follows its
+session, while an exact `--<suffix>` name selects that member. Explicit `target=session`
+on a member name selects its owning session.
 
 ```text
 %wait(16h, target=turn)     # Pin the current turn (a pending gate, for example)

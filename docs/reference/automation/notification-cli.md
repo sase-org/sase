@@ -218,13 +218,19 @@ failure is recorded in the bundle error log and leaves the gate answerable. The
 write-once response records `selected_option_ids`, `option_results`, and normalized
 top-level `feedback` consistently for every transport.
 
-On success, creation prints a stable JSON descriptor containing `schema_version`,
+On publication, creation prints a stable JSON descriptor containing `schema_version`,
 `notification_id`, `request_id`, `kind`, bundle/request/response/preview paths,
 `continuation_mode`, `auto_resolution`, and hashes. The descriptor's `request_id` and
 `kind` are the exact values accepted by `sase gate wait`. Typed front doors such as
 `sase plan propose`, `sase questions`, and agent-initiated launch requests call the same
 in-process gate service directly; they do not spawn this CLI. Agents should normally use
 the generated `/sase_gate` skill to author this JSON.
+
+An agent-side turn-backed gate may instead return a
+[staged handoff](../agents/agent-sessions.md#handoff-completion) descriptor with
+`status: "staged"`, `request_id`, `kind`, `staged_id`, and `instruction`. This saves the
+request for publication after host completion; it is not yet an answerable gate. The
+requesting agent finishes through `/sase_final` instead of calling `sase gate wait`.
 
 Wait mechanically for a gate without reading or polling bundle files directly:
 

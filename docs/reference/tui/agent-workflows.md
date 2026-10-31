@@ -304,8 +304,10 @@ cancel. sase's TUI resolves the same hash-verified command bundle used by mobile
 remote callbacks, while retaining the older launch-request fallback (see
 [TUI migration notes](../upgrading/tui.md#hitl-and-launch-request-fallbacks)). The CLI equivalents
 are `sase launch approve <selector>` and `sase launch reject <selector>`. From inside an
-agent, `sase launch request` creates a `LAUNCH` gate turn and ends the requesting turn;
-the process does not wait for the response. By default, approval, rejection, timeout, or
+agent, `sase launch request` hands work to a `LAUNCH` gate turn; with
+[staged handoffs](../agents/agent-sessions.md#handoff-completion), publication waits for
+host completion. The requesting process does not wait for the response. By default,
+approval, rejection, timeout, or
 gate/dispatch failure settles the turn and resumes the original requester as one session
 successor. That successor receives the decision, reviewer feedback, typed dispatch
 result, requester/workspace/session identity, and checkpoint; a stopped gate does not

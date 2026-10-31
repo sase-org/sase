@@ -343,11 +343,20 @@ Agents. Time, Capacity, Priority, and Beads render a live preview of how the typ
 will be interpreted; an invalid Time, Capacity, or Priority value blocks apply and
 focuses the offending field.
 
+Agents accepts comma-separated names and `turn=<agent>` entries. For example,
+`planner, turn=reviewer` waits for the planner session and the reviewer's current turn.
+The turn is pinned when the edit is applied; later turns do not extend that dependency.
+An existing turn target prefills as `turn=<agent>`, and completion preserves the prefix.
+Invalid keyed entries keep the modal open and focus Agents; enter bead IDs in Beads.
+Wait summaries show the captured identity as `reviewer → turn reviewer--gate`, so a
+pending gate can be distinguished from its whole session.
+
 The **Follow epics** row is a tri-state toggle: `on` (teal `↪`), `off` (dim), or `mixed`
 (each listed target keeps its own policy; newly added agents get the default). It joins
-the `Ctrl+J` / `Ctrl+K` field cycle and `Space` toggles it when focused. When every
-listed target is a `--plan` row the toggle is disabled with a reason, because `--plan`
-rows release when the plan is submitted and never follow epics. Beads prefills with
+the `Ctrl+J` / `Ctrl+K` field cycle and `Space` toggles it when focused. Turn targets
+never follow epics. When every listed target is a turn target or a `--plan` row, the
+toggle is disabled with a reason; `--plan` rows release at plan submission. For mixed
+lists, the toggle applies only to eligible targets. Beads prefills with
 authored beads only — beads a follow promotion derived are excluded. Applying the modal
 writes the follow selection into the wait directive; removing a target, or turning its
 follow off, drops its follow stage and its derived bead IDs while keeping the

@@ -256,6 +256,15 @@ from the on-disk tombstone when a remote edit fails.
 
 ### Gate turns and continuation
 
+With the `staged_handoffs` beta flag enabled, agent-side plan, question, launch, sudo,
+custom turn-backed gate, and workflow HITL requests that await a human are saved before
+publication. The gate becomes answerable only after the requesting turn's host
+finalizers settle. A command that reports `Staged` returns control to the root agent,
+which must finish through `/sase_final`; it must not wait for a decision on its own
+staged request. With the flag off, creation uses the immediate handoff path. Gates
+eligible for synchronous auto-execution continue inline without staging. See
+[Handoff completion](../agents/agent-sessions.md#handoff-completion).
+
 A gate turn is a named, non-LLM member of an agent session, normally `--gate` or
 `--gate-N`. It makes a user decision durable without keeping the asking provider process
 or a runner slot alive. The turn can retain the session's workspace claim while pending,
@@ -279,12 +288,12 @@ still running (its session's gate-creation lock is held), so an `%auto` gate tha
 still executing its selected commands is never marked lost; a turn whose creator died
 before recording a bundle is still settled lost on a later pass.
 
-Agent-side gate creation also writes a per-process intent marker before slow setup work
-starts. A clean creation error or the normal runner handoff clears it. If the provider
-turn ends while a marker remains, the host waits up to 60 seconds for a creator that is
-still running to hand off. Otherwise it writes `gate_intent_lost.json` evidence to the
-agent's artifacts and fails the run with a `gate intent lost:` error. The error names
-the gate kind and request ID and points at `sase gate list --all`
+Immediate agent-side gate creation also writes a per-process intent marker before slow
+setup work starts. A clean creation error or the normal runner handoff clears it. If the
+provider turn ends while a marker remains, the host waits up to 60 seconds for a creator
+that is still running to hand off. Otherwise it writes `gate_intent_lost.json` evidence
+to the agent's artifacts and fails the run with a `gate intent lost:` error. The error
+names the gate kind and request ID and points at `sase gate list --all`
 (`sase sudo list --all` for a sudo gate). That failed run is never retried.
 
 The built-in front doors choose statuses and continuation policy for their domain:

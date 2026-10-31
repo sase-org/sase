@@ -77,13 +77,14 @@ agent-initiated launch flows use this model, as can custom `sase gate create --t
 requests. See
 [Command-backed interaction gates](../automation/notification-gates.md#command-backed-interaction-gates-1).
 
-`sase pipe '<prompt>'` creates a session member the same way a plan approval or a
-question follow-up does: it ends the calling agent's turn in-process and continues the
-run as the next member, in the same workspace and claim. The successor gets the next
-free numeric suffix (role `feedback`) by default, or an explicit `--name TOKEN` suffix
-(role: the token itself), per the suffix table above. Every host-composed successor
-inherits autonomy structurally from its predecessor's live record; an explicit `%auto`
-in agent-authored follow-up text can only narrow. See
+`sase pipe '<prompt>'` hands work to the next session member in the same workspace and
+claim, after the calling turn ends. The [handoff mode](#handoff-completion) determines
+whether the command ends that turn immediately or stages the request for host
+completion. The successor gets the next free numeric suffix (role `feedback`) by
+default, or an explicit `--name TOKEN` suffix (role: the token itself), per the suffix
+table above. Every host-composed successor inherits autonomy structurally from its
+predecessor's live record; an explicit `%auto` in agent-authored follow-up text can only
+narrow. See
 [Monitors: Pipe vs. monitor](../automation/monitor-operations.md#pipe-vs-monitor).
 
 SASE resolves `parent` to the newest visible matching agent or session member in the
@@ -122,7 +123,8 @@ wait while that follow-up is still pending.
 `%wait` uses the same session and turn vocabulary. `%wait:<session>` and
 `%wait(session)` wait for the whole generation. `%wait(session, target=turn)` captures
 the current turn when the wait is bound — a pending gate if the session is parked there
-— and releases when that turn settles. See
+— and releases when that turn completes or hands off successfully. A failed pinned turn
+does not release the wait merely because another session member succeeds. See
 [Launch directives](../macros/directive-launch.md) for the `%wait` keyword contract,
 including the epic-follow interaction.
 
@@ -150,6 +152,35 @@ If the session is parked at its gate, a turn target waits for the gate decision;
 `#fork:<session>--plan` to fork the plan immediately. An explicit `%wait(<session>)`
 remains session-scoped when combined with a turn-target fork, so the wait can cover the
 whole session while the injected history stops at the captured turn.
+
+### Handoff completion
+
+Agent-side handoffs have two modes, selected by the `staged_handoffs` beta
+[feature flag](../config/feature-flags.md#featureflags), which defaults off:
+
+| Mode                       | Command result                                                               | When the next work starts                                       |
+| -------------------------- | ---------------------------------------------------------------------------- | --------------------------------------------------------------- |
+| Default, immediate handoff | The command hands off and ends the requesting provider turn                  | The handoff machinery activates the monitor, gate, or successor |
+| Staged handoff             | The command prints `Staged` and returns successfully without ending the turn | After the turn ends and host finalizers settle                  |
+
+The staged path covers `sase plan propose`, `sase questions`, `sase pipe`,
+`sase monitor start`, agent launch requests (including agent-origin `sase run`),
+turn-backed custom and sudo gates, and agent-side workflow HITL reviews. A custom gate
+that can auto-execute synchronously keeps executing inline without a staged record.
+Host-side commands keep their own creation and return behavior.
+
+After a `Staged` result, the root agent finishes through `/sase_final`: it reads
+`sase final context -f json` and submits the required declaration before returning. The
+request must be staged before the declaration is submitted. Only one handoff may occupy
+a turn; staging after an accepted final declaration is refused. Native helpers return to
+their parent instead of declaring or starting a turn-ending handoff.
+
+A staged result acknowledges a saved request, not a running command or an answerable
+gate. The agent must not wait for its own staged work. Host completion checks the
+request and repository disposition before activating it; a failed or held finalizer
+prevents activation. A monitor may already have a reserved ID or ToolRun ID at this
+point, but its command has not started. A joined ToolRun remains the existing execution;
+staging its monitor does not start a second command.
 
 ### Session detail folding
 

@@ -23,8 +23,11 @@ sase launch request -f launch_request.json -o json
 
 The request may contain `%i(suffix, session=parent)` in its prompt, so the approved
 launch joins an existing session with any valid suffix. `launch_preview.md` shows the
-resolved launch plan before approval. Inside an agent, the request creates a pending
-`LAUNCH` gate turn, hands off the session lane, and ends the requesting turn. Its
+resolved launch plan before approval. Inside an agent, the default immediate path
+creates a pending `LAUNCH` gate turn, hands off the session lane, and ends the
+requesting turn. With `staged_handoffs` enabled, the request returns `Staged` and the
+gate is published after host completion; the root agent must finish through
+`/sase_final`. See [Handoff completion](agent-sessions.md#handoff-completion). Its
 default `requester_continuation.mode` is `resume_requester`: after approval, rejection,
 timeout, or gate/dispatch failure, one successor resumes the original assignment with
 the gate decision, feedback, typed launch results, requester identity, workspace/session
@@ -80,8 +83,8 @@ From an interactive terminal outside an agent or durable proc, a prompt whose
 `pending` capture also asks when the preview can resolve project context; typed launch
 plans can do so, while a plain project-scoped `sase run` prompt currently cannot and
 skips this confirmation. Declining prints `Hold not armed; launch cancelled.` and exits
-`1`. Despite that prompt text, accepting only permits the launch during the current
-beta; it does not arm the hold.
+`1`. Accepting pre-arms the hold before launch admission, then transfers ownership to
+the launched runner.
 
 ## Daily Operation
 

@@ -24,7 +24,14 @@ epic handoff uses the bead command group:
 | `sase plan search`                   | Search or browse tale, epic, prompt, and document-sidecar (for example research) artifacts                        |
 | `sase plan show [TARGET]`            | Resolve any plan reference form and render it; `-f/--format` picks full/compact/json/raw                          |
 | `sase plan validate`                 | Validate by authored tier; `-e/--explain`, `-j/--json`, and `-q/--quiet` tune output                              |
+| `sase plan propose PLAN_FILE`        | Submit an agent-authored Markdown plan for approval                                                               |
 | `sase bead work TARGET [TARGET ...]` | Validate, archive, link, and launch epic plans or bead targets in order; `-n/--dry-run` previews without mutation |
+
+`sase plan propose` runs inside a SASE agent. With `staged_handoffs` enabled, it saves
+the proposal and returns `Staged`; the approval gate is published after host completion.
+The root agent finishes through `/sase_final`. With the flag off, the command ends the
+turn through the immediate handoff path. See
+[Handoff completion](../agents/agent-sessions.md#handoff-completion).
 
 The link subcommands accept `-p/--path`, which may point at an SDD root or a project
 root. Bare `sase plan links` defaults to `sase plan links list`. Validation does not

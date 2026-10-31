@@ -19,7 +19,10 @@ A sudo request moves through four steps:
    `sase sudo request`. SASE validates it, snapshots the SHA-256 of every executable,
    seals the reviewed command manifest, and creates a `sudo` gate backed by a
    [gate turn](notification-gates.md#gate-turns-and-continuation). The turn shows the
-   `SUDO` status, and the agent's turn ends.
+   `SUDO` status. With
+   [staged handoffs](../agents/agent-sessions.md#handoff-completion), the command
+   returns `Staged` and the root agent finishes through `/sase_final` before gate
+   publication; the default immediate path ends the agent's turn directly.
 2. A reviewer opens the request in sase's TUI, checks the commands, and chooses which
    ones to run.
 3. `sase sudo answer` authenticates through the real `sudo` prompt in a terminal. The

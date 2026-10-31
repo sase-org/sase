@@ -19,10 +19,10 @@ launch one ordinary follow-up, complete through the host, or do nothing. `stoppe
 `lost` always do nothing:
 
 ```
-sase-agent "acme"    before                     right after `sase monitor start`
+sase-agent "acme"    before                     after monitor activation
 ────────────────────────────────────────────────────────────────────────────────
 acme                 (one-turn agent, RUNNING) acme            (agent session)
-                                                ├─ acme--0      DONE       ← starter turn, killed
+                                                ├─ acme--0      DONE       ← starter turn ended
                                                 └─ acme--mon    TESTING    ← monitor named proc
 ```
 
@@ -42,12 +42,20 @@ acme
 | supervisor   | The detached process that runs the command and streams its output               |
 | follow-up    | The agent turn launched under the session after the command finishes            |
 
-`sase monitor start`, run from inside an agent, is the last thing that agent does: it
-kills the calling agent's turn (the same handoff mechanism `sase plan propose` and
-`sase questions` use), while the supervisor keeps the command running under the same
-workspace claim. The workspace is never released and re-claimed between the starter and
-the follow-up — the follow-up sees exactly the tree the monitor started with, plus
-whatever the command itself changed.
+With the default immediate handoff, agent-side `sase monitor start` starts the
+supervisor and ends the calling provider turn. With the `staged_handoffs` beta flag
+enabled, it prints `Staged monitor` and returns without starting the command. The root
+agent then finishes through `/sase_final`; the host activates the monitor after
+finalizers settle. Never wait for your own staged monitor. See
+[Handoff completion](../agents/agent-sessions.md#handoff-completion).
+
+Staged JSON output includes `staged: true`, `status: "staged"`, `staged_id`, and the
+completion instruction. A reserved monitor or ToolRun ID does not prove the command has
+started.
+
+On activation, the monitor retains the workspace claim. The follow-up normally inherits
+that claim and sees the tree the monitor started with, plus the command's changes; see
+[The follow-up agent](#the-follow-up-agent) for recovery when the claim is unavailable.
 
 A monitor turn has an ordinary artifacts directory, just like an agent turn, so
 everything that already understands agent sessions — the Agents tab, session roster,
@@ -420,14 +428,14 @@ its own.
 
 ### Surviving the starter's teardown
 
-`sase monitor start`, run from inside an agent, hands the command to a supervisor and
-then kills the calling agent's runner group as part of the same handoff. The supervisor
-must not be a casualty of that kill: it is spawned through a double-fork bootstrap that
-reparents it to PID 1 _before_ `start_monitor` returns, so a process-tree teardown
-launched after the call cannot reach it by walking PPIDs. The supervisor also sets
-`SIGHUP` to ignored and installs its `SIGTERM`/`SIGINT` handling in the first statements
-it runs, before any expensive import, closing the startup window in which a stray signal
-could kill it silently.
+On the immediate handoff path, `sase monitor start` hands the command to a supervisor
+and then kills the calling agent's runner group as part of the same handoff. The
+supervisor must not be a casualty of that kill: it is spawned through a double-fork
+bootstrap that reparents it to PID 1 _before_ `start_monitor` returns, so a process-tree
+teardown launched after the call cannot reach it by walking PPIDs. The supervisor also
+sets `SIGHUP` to ignored and installs its `SIGTERM`/`SIGINT` handling in the first
+statements it runs, before any expensive import, closing the startup window in which a
+stray signal could kill it silently.
 
 On Linux, when the starter runs inside a SASE-owned systemd unit or scope such as
 `sase.service` or under a reachable user systemd manager, the supervisor also moves into
@@ -462,6 +470,10 @@ On a host with about 12,000 artifact records this took an in-agent start from ro
 
 ### Startup acknowledgement
 
+For a staged start, these guarantees apply when the host activates the saved request,
+after finalization; the initial `Staged monitor` response is not a startup
+acknowledgement.
+
 The monitored command runs under the durable proc service's detached supervisor, and
 `start_monitor` never hands back a `running` record for a supervisor that is not
 provably alive, because its caller's very next act — inside an agent — is to kill
@@ -472,8 +484,9 @@ the supervisor's liveness too so a supervisor that is already dead fails fast in
 waiting out the full budget. A failed start hands the workspace claim back to the
 still-live starter exactly as it held it (never releasing it into the free pool),
 returns any bound completion intent to the prepared state, tears the member down as
-terminal `failed`, and raises `MonitorError` — so the starter agent stays alive,
-`sase monitor start` exits non-zero, and nothing downstream ever hands off to a phantom.
+terminal `failed`, and raises `MonitorError`. On the immediate path the starter stays
+alive and `sase monitor start` exits non-zero. On the staged path this is an activation
+failure after the starter ended; it never counts as a running command.
 
 ### A monitor owns its workspace until it is reconciled
 
@@ -495,6 +508,7 @@ counting) is tracked separately from the label, from `monitor_state`:
 
 | `monitor_state` | Bucket  | Displayed status                                   |
 | --------------- | ------- | -------------------------------------------------- |
+| `staged`        | Running | start status; command has not started              |
 | `running`       | Running | start status                                       |
 | `completed`     | Done    | stop status                                        |
 | `failed`        | Failed  | stop status (+ exit code or supervisor error)      |
