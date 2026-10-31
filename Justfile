@@ -498,8 +498,10 @@ _lint-patch-stitch-terminology: _setup
 # Recovery-service phase sase-1pj.6.1.6 consumed the detached successor delivery
 # API through the host recovery service, so its rows are dropped.
 # sase-1pj.7.1.1 exported the shared workspace-retention adapter; sase-1pj.7.1.2
-# (monitor-retention) is the first consumer of settle_stranded_workspace and
-# its request/result types.
+# (monitor-retention) consumed settle_stranded_workspace and its request
+# types by routing every monitor terminal claim disposal through the adapter,
+# so those rows are dropped. WorkspaceRetentionResult stays allow-listed for
+# sase-1pj.7.1.4 (recovery-surfaces), which projects retention outcomes.
 # Never put a comment
 # line inside the continued command below: just joins the lines, so the comment
 # would swallow every later argument.
@@ -508,9 +510,7 @@ _lint-symvision *args: _setup
         --exclude-decorator gate_command_entrypoint \
         --exclude-decorator builtin_chop \
         --epic-symbol 'sase-1pu.5.1(AgentRunStateProjectCheckpointWire)' \
-        --epic-symbol 'sase-1pj.7.1.2(WorkspaceRetentionRepo)' \
-        --epic-symbol 'sase-1pj.7.1.2(WorkspaceRetentionResult)' \
-        --epic-symbol 'sase-1pj.7.1.2(WorkspaceRetentionSuccessor)' \
+        --epic-symbol 'sase-1pj.7.1.4(WorkspaceRetentionResult)' \
         {{ args }}
 
 # Check Python file line counts (private, extracted for per-stage wrapping)

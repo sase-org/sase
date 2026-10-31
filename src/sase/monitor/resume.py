@@ -187,6 +187,7 @@ def resume_monitor(
         )
     )
     _record_successful_resume(record, meta, agent_name)
+    _settle_retention_after_resume(record.artifacts_dir, launch, agent_name)
     current = load_delivery_record(
         record.artifacts_dir,
         {"monitor_id": monitor_id, "result_id": result_id, "branch": branch},
@@ -298,6 +299,56 @@ def _launch_resume(
 
 def _suggested_command(record: MonitorRecord) -> str:
     return f"sase monitor resume {short_monitor_id(record.monitor_id)}"
+
+
+def _settle_retention_after_resume(
+    artifacts_dir: str,
+    launch: FollowupLaunchResult,
+    agent_name: str | None,
+) -> None:
+    """Mark a retained claim as transferred after a same-workspace resume.
+
+    Only a successful same-workspace launch (no degraded reason) settles the
+    retention record: the follow-up inherits the original workspace and its
+    obligations, so the stranded hold is discharged. A degraded launch into
+    another checkout, or a failed resume, leaves the original hold and its
+    recovery evidence untouched.
+    """
+    if not launch.launched or launch.degraded_reason:
+        return
+    try:
+        from pathlib import Path
+
+        from sase.turns.workspace_retention import RETENTION_RECORD_LOCATOR
+    except Exception:  # noqa: BLE001 - retention settling is best effort
+        return
+    record_path = Path(artifacts_dir) / RETENTION_RECORD_LOCATOR
+    try:
+        raw = record_path.read_bytes()
+    except OSError:
+        return
+    try:
+        import json
+
+        payload = json.loads(raw.decode("utf-8"))
+    except (ValueError, UnicodeDecodeError):
+        return
+    if not isinstance(payload, dict):
+        return
+    if payload.get("settled") is True:
+        return
+    if payload.get("disposition") != "retain":
+        return
+    payload["settled"] = True
+    payload["settled_via"] = "resume_transfer"
+    if agent_name:
+        payload["resumed_to"] = agent_name
+    try:
+        from sase.core.atomic_json import write_json_marker_atomic
+
+        write_json_marker_atomic(record_path, payload)
+    except OSError:
+        return
 
 
 __all__ = [

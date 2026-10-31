@@ -10,7 +10,6 @@ from sase.axe.run_agent_helpers_artifacts import update_meta_field
 from sase.continuation_capture.rollout import (
     monitor_continuation_records_enabled_for_meta,
 )
-from sase.running_field import release_workspace
 from sase.turns.settlement import (
     TurnSettlementConfig,
     finalize_turn_workflow_state,
@@ -89,7 +88,7 @@ def settle_claim_and_followup(
             shell_state=monitor_state,
             project_name=project_name,
             config=_MONITOR_SETTLEMENT_CONFIG,
-            release_claim=_release_monitor_claim_positional,
+            release_claim=_make_retention_release_claim(artifacts_dir),
             launch_followup=launch_and_capture,
             launch_kwargs={
                 "monitor_state": monitor_state,
@@ -126,7 +125,9 @@ def settle_claim_and_followup(
             _MONITOR_SETTLEMENT_CONFIG.error_field,
             followup_error,
         )
-        release_error = _release_monitor_claim_positional(meta, project_name)
+        release_error = _release_monitor_claim(
+            meta, project_name=project_name, artifacts_dir=artifacts_dir
+        )
         return _MonitorFollowupSettlementResult(
             error=release_error or followup_error,
             launch_result=FollowupLaunchResult(
@@ -155,7 +156,7 @@ def settle_claim_and_followup(
             elapsed_seconds=elapsed_seconds,
             project_name=project_name,
             launch_recovery=launch_and_capture,
-            release_claim=_release_monitor_claim_positional,
+            release_claim=_make_retention_release_claim(artifacts_dir),
             capture=capture,
             selected_action="complete",
             timeout_kind=timeout_kind,
@@ -212,7 +213,7 @@ def settle_claim_and_followup(
         shell_state=monitor_state,
         project_name=project_name,
         config=_MONITOR_SETTLEMENT_CONFIG,
-        release_claim=_release_monitor_claim_positional,
+        release_claim=_make_retention_release_claim(artifacts_dir),
         launch_followup=launch_and_capture,
         launch_kwargs={
             "monitor_state": monitor_state,
@@ -305,34 +306,291 @@ def _coerce_monitor_followup_result(
     )
 
 
-def _release_monitor_claim_positional(
-    meta: dict[str, Any],
-    project_name: str | None,
-) -> str | None:
-    return _release_monitor_claim(meta, project_name=project_name)
+def _make_retention_release_claim(artifacts_dir: str) -> Any:
+    """Return a ``ClaimReleaser`` that settles through the retention adapter."""
+
+    def _release(
+        meta: dict[str, Any],
+        project_name: str | None,
+    ) -> str | None:
+        return _release_monitor_claim(
+            meta, project_name=project_name, artifacts_dir=artifacts_dir
+        )
+
+    return _release
 
 
 def _release_monitor_claim(
     meta: dict[str, Any],
     *,
     project_name: str | None,
+    artifacts_dir: str,
 ) -> str | None:
-    """Release this monitor member's workspace claim, if it can be resolved."""
+    """Settle this monitor member's workspace claim through guarded retention.
+
+    Routes every terminal monitor claim disposal — stopped/lost states,
+    no-follow-up outcomes, launch failures, blocked continuation capture,
+    frozen-policy branches, and degraded follow-ups — through
+    :func:`sase.turns.workspace_retention.settle_stranded_workspace`. A
+    confirmed same-workspace successor keeps custody (no hold); a degraded
+    follow-up in another checkout retains the original dirty workspace; a
+    missing or moved claim is a no-op. Returns ``None`` when settlement
+    succeeded (retained, released, or stale); returns an error string only
+    when the owner cannot be resolved and the legacy release fails, or when
+    the adapter itself errors before applying an effect.
+    """
     workspace_num = meta.get("workspace_num")
-    cl_name = meta.get("cl_name")
-    if project_name and workspace_num is not None:
-        from sase.monitor.start import MONITOR_WORKSPACE_CLAIM_WORKFLOW
+    if not project_name or not isinstance(workspace_num, int):
+        return None
+    try:
         from sase.workflows.utils import get_project_file_path
 
-        result = release_workspace(
-            get_project_file_path(project_name),
-            int(workspace_num),
-            MONITOR_WORKSPACE_CLAIM_WORKFLOW,
-            cl_name=cl_name,
+        project_file = get_project_file_path(project_name)
+    except Exception:
+        return None
+
+    pid = meta.get("pid")
+    if not isinstance(pid, int):
+        return _legacy_release_monitor_claim(
+            project_file, workspace_num, meta.get("cl_name")
         )
-        if not result.success:
-            return result.error or "workspace release failed"
+
+    owner = _build_retention_owner(
+        artifacts_dir, meta, project_name, project_file, workspace_num, pid
+    )
+    if owner is None:
+        return _legacy_release_monitor_claim(
+            project_file, workspace_num, meta.get("cl_name")
+        )
+    successor = _retention_successor_from_meta(meta)
+    try:
+        from sase.turns.workspace_retention import settle_stranded_workspace
+
+        result = settle_stranded_workspace(owner, successor=successor)
+    except Exception as exc:  # noqa: BLE001 - never drop a claim on error
+        return f"workspace retention settlement failed: {exc}"
+    if result.disposition == "release" and not result.claim_changed:
+        return result.reason or "workspace release failed"
     return None
+
+
+def _legacy_release_monitor_claim(
+    project_file: str,
+    workspace_num: int,
+    cl_name: object,
+) -> str | None:
+    """Release a pid-less monitor claim without ownership checks."""
+    from sase.monitor.claims import MONITOR_WORKSPACE_CLAIM_WORKFLOW
+    from sase.running_field import release_workspace
+
+    result = release_workspace(
+        project_file,
+        workspace_num,
+        MONITOR_WORKSPACE_CLAIM_WORKFLOW,
+        cl_name=cl_name if isinstance(cl_name, str) else None,
+    )
+    if not result.success:
+        return result.error or "workspace release failed"
+    return None
+
+
+def _build_retention_owner(
+    artifacts_dir: str,
+    meta: dict[str, Any],
+    project_name: str,
+    project_file: str,
+    workspace_num: int,
+    pid: int,
+) -> Any | None:
+    """Build a concrete retention owner from monitor metadata."""
+    import os
+
+    from sase.turns.workspace_retention import (
+        WorkspaceRetentionOwner,
+    )
+
+    from .staged_owner import read_staged_owner_index
+
+    cl_name = meta.get("cl_name")
+    artifacts_timestamp = os.path.basename(artifacts_dir.rstrip("/"))
+    checkout_dir = _retention_checkout_dir(meta)
+    repos = _discover_retention_repos(artifacts_dir, meta, checkout_dir)
+    monitor_id = meta.get("monitor_id")
+    staged_id = meta.get("monitor_staged_id")
+    if not isinstance(staged_id, str) or not staged_id:
+        staged_id = None
+        if isinstance(monitor_id, str) and monitor_id:
+            try:
+                staged = read_staged_owner_index(monitor_id)
+            except Exception:  # noqa: BLE001 - staged index is best effort
+                staged = None
+            if isinstance(staged, dict):
+                candidate = staged.get("staged_id")
+                if isinstance(candidate, str) and candidate:
+                    staged_id = candidate
+    session_id = meta.get("agent_session")
+    if not isinstance(session_id, str) or not session_id:
+        session_id = None
+    turn_id = monitor_id if isinstance(monitor_id, str) and monitor_id else None
+    terminal_reason = meta.get("monitor_state")
+    if not isinstance(terminal_reason, str) or not terminal_reason:
+        terminal_reason = "terminal"
+    try:
+        return WorkspaceRetentionOwner(
+            project_file=project_file,
+            workspace_num=workspace_num,
+            workflow=_monitor_claim_workflow(),
+            cl_name=cl_name if isinstance(cl_name, str) else "",
+            artifacts_timestamp=artifacts_timestamp,
+            pid=pid,
+            artifacts_dir=artifacts_dir,
+            checkout_dir=checkout_dir,
+            repos=repos,
+            origin_repo_ids=(),
+            staged_id=staged_id,
+            session_id=session_id,
+            turn_id=turn_id,
+            terminal_reason=terminal_reason,
+        )
+    except Exception:  # noqa: BLE001 - malformed metadata falls back
+        return None
+
+
+def _monitor_claim_workflow() -> str:
+    from sase.monitor.claims import MONITOR_WORKSPACE_CLAIM_WORKFLOW
+
+    return MONITOR_WORKSPACE_CLAIM_WORKFLOW
+
+
+def _retention_checkout_dir(meta: dict[str, Any]) -> str | None:
+    """Return the workspace checkout the settling monitor ran in.
+
+    Only an existing git-backed directory can carry retainable worktree
+    evidence; a missing checkout (reboot-lost records, removed lanes) or a
+    plain non-repo directory contributes no dirt and must not turn into a
+    probe failure. The adapter probes ``checkout_dir`` when no explicit
+    repos survive discovery, so this gate decides release-vs-retain for
+    repo-less monitors.
+    """
+    import os
+
+    for key in ("workspace_dir", "monitor_cwd"):
+        candidate = meta.get(key)
+        if (
+            isinstance(candidate, str)
+            and candidate.strip()
+            and os.path.isdir(candidate)
+            and _retention_git_toplevel(candidate) is not None
+        ):
+            return candidate
+    return None
+
+
+def _discover_retention_repos(
+    artifacts_dir: str,
+    meta: dict[str, Any],
+    checkout_dir: str | None,
+) -> tuple[Any, ...]:
+    """Collect relevant repositories for the settling monitor owner."""
+    from sase.turns.workspace_retention import WorkspaceRetentionRepo
+
+    ordered: list[str] = []
+    seen: set[str] = set()
+
+    def _add(path: object) -> None:
+        if not isinstance(path, str) or not path.strip():
+            return
+        normalized = path.strip()
+        if normalized in seen:
+            return
+        seen.add(normalized)
+        ordered.append(normalized)
+
+    _add(checkout_dir)
+    _add(meta.get("monitor_cwd"))
+    _add(meta.get("workspace_dir"))
+    continuation_ref = meta.get("continuation_workspace_ref")
+    _add(continuation_ref)
+    for baseline_dir in (artifacts_dir, meta.get("monitor_starter_artifacts_dir")):
+        if not isinstance(baseline_dir, str) or not baseline_dir.strip():
+            continue
+        try:
+            from pathlib import Path
+
+            from sase.llm_provider.commit_finalizer_baseline import (
+                load_finalizer_baseline_records,
+            )
+
+            records = load_finalizer_baseline_records(Path(baseline_dir)) or ()
+            for record in records:
+                _add(getattr(record, "path", None))
+        except Exception:  # noqa: BLE001 - baseline discovery is best effort
+            continue
+    repos: list[Any] = []
+    for index, path in enumerate(ordered):
+        import os
+
+        if not os.path.isdir(path) or _retention_git_toplevel(path) is None:
+            continue
+        repos.append(
+            WorkspaceRetentionRepo(
+                repo_id="primary" if index == 0 else f"linked-{index}",
+                path=path,
+                is_primary=index == 0,
+                positive_custody=True,
+            )
+        )
+        if len(repos) >= 8:
+            break
+    return tuple(repos)
+
+
+def _retention_git_toplevel(path: str) -> str | None:
+    """Return the enclosing git work-tree root for *path*, if any.
+
+    A directory outside any git repository cannot carry session-owned
+    uncommitted work in the sense the retention policy protects, so it
+    contributes no dirt evidence instead of a probe failure.
+    """
+    import subprocess
+
+    try:
+        result = subprocess.run(
+            ["git", "rev-parse", "--show-toplevel"],
+            cwd=path,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=10,
+            check=False,
+        )
+    except Exception:  # noqa: BLE001 - evidence probes never block settlement
+        return None
+    if result.returncode != 0:
+        return None
+    root = result.stdout.strip()
+    return root or None
+
+
+def _retention_successor_from_meta(meta: dict[str, Any]) -> Any:
+    """Derive successor custody from the recorded follow-up outcome."""
+    from sase.turns.workspace_retention import WorkspaceRetentionSuccessor
+
+    outcome = meta.get("monitor_followup_outcome")
+    if outcome == MONITOR_FOLLOWUP_DEGRADED_OUTCOME:
+        return WorkspaceRetentionSuccessor(
+            confirmed_active=True,
+            same_workspace=False,
+            inherited_obligations=True,
+        )
+    if outcome == "launched":
+        return WorkspaceRetentionSuccessor(
+            confirmed_active=True,
+            same_workspace=True,
+            inherited_obligations=True,
+        )
+    return WorkspaceRetentionSuccessor()
 
 
 def touch_monitor_refresh_pulse(project_name: str | None) -> None:
