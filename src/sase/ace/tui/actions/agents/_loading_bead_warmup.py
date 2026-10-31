@@ -61,6 +61,7 @@ class _AgentBeadWarmupCandidates:
     follow_progress_agents: tuple[Agent, ...] = field(default_factory=tuple)
     stranded_projects: tuple[str, ...] = ()
     force_stranded: bool = False
+    force_stranded_immediate: bool = False
 
     def __bool__(self) -> bool:
         return bool(
@@ -127,6 +128,7 @@ def _warm_agent_bead_caches(
     stranded_changed = warm_stranded_work_reports(
         candidates.stranded_projects,
         force=candidates.force_stranded,
+        force_immediate=candidates.force_stranded_immediate,
     )
     return _AgentBeadWarmupResults(
         bead_display_results=bead_display_results,
@@ -163,7 +165,7 @@ class AgentBeadWarmupMixin(AgentLoadingStateMixin):
         """
         if not self._agents_first_load_done:
             return
-        force_stranded = source in {"beads_watcher", "stranded_resolve"}
+        force_stranded = source == "stranded_resolve"
         if not self._bead_warmup_candidates(force_stranded=force_stranded):
             return
         if self._bead_warmup_scan_running:
@@ -203,8 +205,9 @@ class AgentBeadWarmupMixin(AgentLoadingStateMixin):
             return
         self._bead_warmup_scan_scheduled = False
         candidates = self._bead_warmup_candidates(
-            force_stranded=self._bead_warmup_scan_source
-            in {"beads_watcher", "stranded_resolve"}
+            force_stranded=self._bead_warmup_scan_source == "stranded_resolve",
+            force_stranded_immediate=self._bead_warmup_scan_source
+            == "stranded_resolve",
         )
         if not candidates:
             return
@@ -232,6 +235,7 @@ class AgentBeadWarmupMixin(AgentLoadingStateMixin):
         self,
         *,
         force_stranded: bool = False,
+        force_stranded_immediate: bool = False,
     ) -> _AgentBeadWarmupCandidates:
         """Snapshot visible rows with bead cache work that needs resolution.
 
@@ -268,6 +272,7 @@ class AgentBeadWarmupMixin(AgentLoadingStateMixin):
             follow_progress_agents=tuple(follow_progress_agents),
             stranded_projects=stranded_projects,
             force_stranded=force_stranded,
+            force_stranded_immediate=force_stranded_immediate,
         )
 
     def _apply_bead_warmup_results(

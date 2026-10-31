@@ -140,9 +140,9 @@ _PATH_LABEL_EXEMPTIONS = (
     ),
     _PathLabelExemption(
         "src/sase/ace/tui/models/agent_stranded.py",
-        "stranded_project_key_for_agent",
-        "Path(str(project_file)).parent.name",
-        "Stranded report cache is keyed by canonical project identity.",
+        "_stranded_project_key_for_project_file",
+        "Path(project_file).parent.name",
+        "Stranded report cache uses the canonical project identity as an internal key.",
     ),
     _PathLabelExemption(
         "src/sase/ace/tui/actions/artifacts_files.py",

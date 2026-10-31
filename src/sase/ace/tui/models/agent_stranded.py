@@ -10,6 +10,7 @@ from __future__ import annotations
 from collections import OrderedDict
 from collections.abc import Iterable
 from dataclasses import dataclass
+from functools import lru_cache
 from pathlib import Path
 from threading import RLock
 from time import monotonic
@@ -24,7 +25,8 @@ if TYPE_CHECKING:
     from .agent import Agent
 
 STRANDED_REPORT_CACHE_MISS: Final = object()
-_CACHE_TTL_SECONDS: Final = 15.0
+_CACHE_TTL_SECONDS: Final = 60.0
+_FORCED_RECOMPUTE_MIN_INTERVAL_SECONDS: Final = 30.0
 _CACHE_MAX_ENTRIES: Final = 64
 
 
@@ -63,8 +65,10 @@ class _AgentStrandedView:
 @dataclass(frozen=True, slots=True)
 class _CachedProjectReport:
     expires_at: float
+    computed_at: float
     fingerprint: str | None
     snapshot: StrandedReport
+    verdict_index: dict[str, StrandedWorkVerdict]
 
 
 class _StrandedReportCache:
@@ -74,6 +78,9 @@ class _StrandedReportCache:
         self._entries: OrderedDict[str, _CachedProjectReport] = OrderedDict()
         self._max_entries = max_entries
         self._lock = RLock()
+        self._count_project_keys: tuple[str, ...] | None = None
+        self._count_reports: tuple[StrandedReport | None, ...] = ()
+        self._count_value = 0
 
     def get(self, project_key: str) -> StrandedReport | object:
         with self._lock:
@@ -95,17 +102,69 @@ class _StrandedReportCache:
                 self._entries.move_to_end(project_key)
             return entry
 
+    def verdict_index(self, project_key: str) -> dict[str, StrandedWorkVerdict] | None:
+        """Return the index built when the project's report was stored."""
+        with self._lock:
+            entry = self._entries.get(project_key)
+            if entry is not None:
+                self._entries.move_to_end(project_key)
+                return entry.verdict_index
+            return None
+
+    def stranded_count(self, project_keys: tuple[str, ...]) -> int:
+        """Memoize the count until a represented report or project set changes."""
+        with self._lock:
+            reports = tuple(
+                entry.snapshot
+                if (entry := self._entries.get(key)) is not None
+                else None
+                for key in project_keys
+            )
+            if (
+                project_keys == self._count_project_keys
+                and len(reports) == len(self._count_reports)
+                and all(
+                    current is cached
+                    for current, cached in zip(
+                        reports, self._count_reports, strict=True
+                    )
+                )
+            ):
+                for key in project_keys:
+                    if key in self._entries:
+                        self._entries.move_to_end(key)
+                return self._count_value
+
+            self._count_project_keys = project_keys
+            self._count_reports = reports
+            self._count_value = sum(
+                len(snapshot.report.stranded_ids)
+                for snapshot in reports
+                if snapshot is not None
+            )
+            for key in project_keys:
+                if key in self._entries:
+                    self._entries.move_to_end(key)
+            return self._count_value
+
     def set(
         self,
         project_key: str,
         snapshot: StrandedReport,
         fingerprint: str | None,
+        *,
+        computed_at: float | None = None,
     ) -> None:
+        computed_at = monotonic() if computed_at is None else computed_at
         with self._lock:
             self._entries[project_key] = _CachedProjectReport(
-                expires_at=monotonic() + _CACHE_TTL_SECONDS,
+                expires_at=computed_at + _CACHE_TTL_SECONDS,
+                computed_at=computed_at,
                 fingerprint=fingerprint,
                 snapshot=snapshot,
+                verdict_index={
+                    verdict.bead_id: verdict for verdict in snapshot.report.verdicts
+                },
             )
             self._entries.move_to_end(project_key)
             while len(self._entries) > self._max_entries:
@@ -118,14 +177,19 @@ class _StrandedReportCache:
                 return
             self._entries[project_key] = _CachedProjectReport(
                 expires_at=0.0,
+                computed_at=entry.computed_at,
                 fingerprint=entry.fingerprint,
                 snapshot=entry.snapshot,
+                verdict_index=entry.verdict_index,
             )
             self._entries.move_to_end(project_key)
 
     def clear(self) -> None:
         with self._lock:
             self._entries.clear()
+            self._count_project_keys = None
+            self._count_reports = ()
+            self._count_value = 0
 
 
 _STRANDED_REPORT_CACHE = _StrandedReportCache(max_entries=_CACHE_MAX_ENTRIES)
@@ -136,7 +200,13 @@ def stranded_project_key_for_agent(agent: Agent) -> str | None:
     project_file = getattr(agent, "project_file", None)
     if not project_file:
         return None
-    project_key = Path(str(project_file)).parent.name
+    return _stranded_project_key_for_project_file(str(project_file))
+
+
+@lru_cache(maxsize=1024)
+def _stranded_project_key_for_project_file(project_file: str) -> str | None:
+    """Boundedly memoize project-key derivation shared by rendered rows."""
+    project_key = Path(project_file).parent.name
     return project_key or None
 
 
@@ -234,6 +304,7 @@ def warm_stranded_work_reports(
     project_keys: Iterable[str],
     *,
     force: bool = False,
+    force_immediate: bool = False,
 ) -> dict[str, frozenset[str]]:
     """Refresh stale reports off the event loop and return changed bead IDs.
 
@@ -248,6 +319,18 @@ def warm_stranded_work_reports(
     for project_key in dict.fromkeys(project_keys):
         previous = _STRANDED_REPORT_CACHE.entry(project_key)
         fingerprint = _project_fingerprint(project_key)
+        now = monotonic()
+        fingerprint_changed = (
+            previous is not None and previous.fingerprint != fingerprint
+        )
+        if (
+            force
+            and not force_immediate
+            and previous is not None
+            and not fingerprint_changed
+            and now - previous.computed_at < _FORCED_RECOMPUTE_MIN_INTERVAL_SECONDS
+        ):
+            continue
         if (
             not force
             and previous is not None
@@ -283,10 +366,7 @@ def warm_stranded_work_reports(
 def _verdict_index(project_key: str | None) -> dict[str, StrandedWorkVerdict]:
     if project_key is None:
         return {}
-    snapshot = _cached_stranded_report(project_key)
-    if snapshot is None:
-        return {}
-    return {verdict.bead_id: verdict for verdict in snapshot.report.verdicts}
+    return _STRANDED_REPORT_CACHE.verdict_index(project_key) or {}
 
 
 def _stranded_verdict_for_agent(agent: Agent) -> StrandedWorkVerdict | None:
@@ -401,11 +481,8 @@ def agent_stranded_view(agent: Agent) -> _AgentStrandedView:
 
 def stranded_count_for_agents(agents: Iterable[Agent]) -> int:
     """Count unique stranded beads in reports for the represented projects."""
-    return sum(
-        len(snapshot.report.stranded_ids)
-        for project_key in stranded_project_keys(agents)
-        if (snapshot := _cached_stranded_report(project_key)) is not None
-    )
+    project_keys = tuple(sorted(set(stranded_project_keys(agents))))
+    return _STRANDED_REPORT_CACHE.stranded_count(project_keys)
 
 
 __all__ = [

@@ -164,7 +164,7 @@ def test_schedule_marks_pending_while_running() -> None:
     app._agents = [_agent()]
     app._bead_warmup_scan_running = True
 
-    app._schedule_bead_confirmation_warmup(source="beads_watcher")
+    app._schedule_bead_confirmation_warmup(source="stranded_resolve")
 
     assert app._bead_warmup_scan_pending is True
     assert app._scheduled == []
