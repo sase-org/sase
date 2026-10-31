@@ -577,6 +577,7 @@ def _prompt_mutator_from_spec(spec: object) -> Any:
                 if wait.get("epic_follow_agents") is not None
                 else None
             ),
+            turn_target_agents=tuple(wait.get("turn_target_agents") or ()),
         )
         return lambda prompt: set_prompt_wait_and_queue(prompt, directive)
     if kind == "set_queue":

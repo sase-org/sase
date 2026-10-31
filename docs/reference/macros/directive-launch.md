@@ -183,6 +183,34 @@ Existing persisted waits without `wait_for_epics_of` retain their older completi
 behavior. This compatibility rule concerns saved wait state; omitting `for_epic=` in a
 new prompt uses the new default. The policy is independent of tribe `@epic`.
 
+Parenthesized `%wait` also accepts `target=session|turn`. The value is case-sensitive
+and applies to every agent target in that occurrence. `session` waits for the whole
+agent session (the default for a bare name). `turn` captures the session's current turn
+when the wait is bound and releases when that turn settles; later turns of the same
+session do not extend the wait. Omitting `target=` is a session wait, not an explicit
+value.
+
+```text
+%wait(16h, target=turn)     # Pin the current turn (a pending gate, for example)
+%wait(planner, target=session)  # Whole session; same as omitting target=
+```
+
+`target=` needs an agent target in the same `%wait`. `bead=`, `hood=`, `proc=`, `unit=`,
+and `time=` waits have no session or turn. Conflicting `target=` values for one agent
+are an error. `target=turn` cannot combine with `for_epic=true`: a turn wait is never
+armed for epic-follow, and `%wait(planner, target=turn)` skips epic-follow even though
+the default is on. `target=turn` on an `@tribe` is a parse-time error because a tribe
+has no single turn; a clan turn wait fails later, when the wait is bound. Typed `%proc`
+and `%if` launches reject `target=turn` (`wait-target-turn-typed-unsupported`) because
+their admission path cannot honor a pinned turn; `target=session` on those units is a
+no-op.
+
+The corresponding diagnostics are `wait-target-invalid-value`,
+`wait-target-without-agent`, `wait-target-conflict`, `wait-target-turn-for-epic`,
+`wait-target-turn-tribe`, and `wait-target-turn-typed-unsupported`. A turn wait that
+parks on a plan-gate turn stays parked until that gate is approved or declined; see
+[Agent sessions](../agents/agent-sessions.md).
+
 An `@<tribe>` dependency has next-entity semantics. `%wait:@review` ignores older tribe
 members and selects the earliest successfully completed eligible entity launched after
 the waiting agent: one standalone agent or one whole clan generation. A tribe-assigned

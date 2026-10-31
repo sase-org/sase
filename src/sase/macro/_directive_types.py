@@ -228,6 +228,9 @@ class PromptDirectives:
     tribe: str | None = None
     wait: list[str] = field(default_factory=list)
     wait_for_epics_of: list[str] = field(default_factory=list)
+    wait_targets: Mapping[str, str] = field(
+        default_factory=lambda: MappingProxyType({})
+    )
     wait_units: list[str] = field(default_factory=list)
     wait_procs: list[str] = field(default_factory=list)
     wait_beads: list[str] = field(default_factory=list)
@@ -254,6 +257,7 @@ class PromptDirectives:
     def __post_init__(self) -> None:
         self.model_alias_overrides = MappingProxyType(dict(self.model_alias_overrides))
         self.proc_options = MappingProxyType(dict(self.proc_options))
+        self.wait_targets = MappingProxyType(dict(self.wait_targets))
         if self.hold is not None:
             self.hold = MappingProxyType(dict(self.hold))
         if self.queue_capacity is None:

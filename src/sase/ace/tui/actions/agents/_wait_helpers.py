@@ -144,6 +144,62 @@ def authored_result_beads(
     return tuple(bead for bead in result.beads if bead not in derived)
 
 
+def preserved_turn_target_agents(
+    agent: object | None,
+    wait_names: Sequence[str],
+) -> tuple[str, ...]:
+    """Return wait names that already use ``target=turn`` and should stay pinned.
+
+    The Wait modal cannot yet author turn targets, so an edit must keep
+    unchanged turn-target agents (and their bound identity records) rather
+    than rebinding them as session waits. Names come from the authored
+    prompt first, then from persisted ``wait_for_artifacts`` records whose
+    ``requested`` or ``name`` is still in *wait_names*.
+    """
+    if agent is None or not wait_names:
+        return ()
+    wait_set = set(wait_names)
+    found: dict[str, None] = {}
+    prompt: str | None = None
+    getter = getattr(agent, "get_raw_prompt_content", None)
+    if callable(getter):
+        try:
+            raw = getter()
+        except Exception:  # noqa: BLE001 - best-effort prompt read.
+            raw = None
+        if isinstance(raw, str) and raw:
+            prompt = raw
+    if prompt is None:
+        for attr in ("raw_prompt", "prompt"):
+            value = getattr(agent, attr, None)
+            if isinstance(value, str) and value:
+                prompt = value
+                break
+    if prompt:
+        try:
+            from sase.macro.directives import extract_prompt_directives
+
+            _, directives = extract_prompt_directives(prompt)
+        except Exception:  # noqa: BLE001 - skip unparseable prompts.
+            directives = None
+        if directives is not None:
+            for name, target in dict(directives.wait_targets).items():
+                if target == "turn" and name in wait_set:
+                    found.setdefault(name, None)
+    records = getattr(agent, "wait_for_artifacts", None)
+    if isinstance(records, list):
+        for record in records:
+            if not isinstance(record, dict) or record.get("target") != "turn":
+                continue
+            requested = record.get("requested")
+            record_name = record.get("name")
+            if isinstance(requested, str) and requested in wait_set:
+                found.setdefault(requested, None)
+            elif isinstance(record_name, str) and record_name in wait_set:
+                found.setdefault(record_name, None)
+    return tuple(name for name in wait_names if name in found)
+
+
 def prompt_wait_spec(
     result: WaitModalResult,
     agent: object | None = None,
@@ -151,6 +207,11 @@ def prompt_wait_spec(
     """Convert a modal result to a prompt directive edit payload."""
     if not result_has_wait_spec(result):
         return None
+    turn_target_agents = preserved_turn_target_agents(agent, result.agents)
+    turn_set = set(turn_target_agents)
+    follow = result.epic_follow_agents
+    if follow is not None:
+        follow = tuple(name for name in follow if name not in turn_set)
     return PromptWaitDirective(
         agents=tuple(result.agents),
         time_token=result.time_token,
@@ -159,11 +220,8 @@ def prompt_wait_spec(
         beads=authored_result_beads(result, agent),
         hoods=tuple(result.hoods),
         capacity_multiplier=result.capacity_multiplier,
-        epic_follow_agents=(
-            tuple(result.epic_follow_agents)
-            if result.epic_follow_agents is not None
-            else None
-        ),
+        epic_follow_agents=follow,
+        turn_target_agents=turn_target_agents,
     )
 
 

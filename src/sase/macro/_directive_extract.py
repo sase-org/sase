@@ -111,6 +111,11 @@ def extract_prompt_directives(
     _wait_for_epic_explicit = _resolve_wait_for_epic_explicit(
         collected.wait_occurrences, process_references=process_references
     )
+    _wait_targets_explicit = _resolve_wait_targets(
+        collected.wait_occurrences,
+        process_references=process_references,
+        for_epic_explicit=_wait_for_epic_explicit,
+    )
     wait_units = resolve_wait_identifier_args(
         "unit", [process_references(arg) for arg in collected.wait_unit_args]
     )
@@ -205,7 +210,9 @@ def extract_prompt_directives(
     )
     resolve_wait_templates(expanded_multi)
     wait_for_epics_of = _effective_wait_for_epics_of(
-        expanded_multi.get("wait", []), _wait_for_epic_explicit
+        expanded_multi.get("wait", []),
+        _wait_for_epic_explicit,
+        wait_targets_by_name=_wait_targets_explicit,
     )
 
     repeat_count = parse_repeat_count(expanded_args)
@@ -300,6 +307,7 @@ def extract_prompt_directives(
         tribe=tribe,
         wait=expanded_multi.get("wait", []),
         wait_for_epics_of=wait_for_epics_of,
+        wait_targets=_wait_targets_explicit,
         wait_units=wait_units,
         wait_procs=wait_procs,
         wait_beads=wait_beads,
@@ -448,20 +456,109 @@ def _resolve_wait_for_epic_explicit(
     return explicit
 
 
+def _occurrence_agent_targets(
+    occurrence: dict[str, object],
+    *,
+    process_references: Callable[[str], str],
+) -> list[str]:
+    """Return expanded agent names from one collected ``%wait`` occurrence."""
+    agents = occurrence.get("agents")
+    raw_agents = list(agents) if isinstance(agents, list) else []
+    targets: list[str] = []
+    for raw_arg in raw_agents:
+        if not isinstance(raw_arg, str) or not raw_arg:
+            continue
+        expanded = process_references(raw_arg).strip() if "#" in raw_arg else raw_arg
+        if expanded:
+            targets.append(expanded)
+    return targets
+
+
+def _resolve_wait_targets(
+    occurrences: list[dict[str, object]],
+    *,
+    process_references: Callable[[str], str],
+    for_epic_explicit: dict[str, bool],
+) -> dict[str, str]:
+    """Validate per-occurrence ``target=`` and return explicit values.
+
+    Mirrors the Rust ``typed_units`` and editor diagnostics with identical
+    messages. Per-occurrence ``target=`` applies to every agent target in
+    its own occurrence. ``target=turn`` never arms epic-follow; combining
+    it with explicit ``for_epic=true`` is an error.
+    """
+    from sase.core.agent_tribe import parse_tribe_reference
+    from sase.core.wait_target_facade import effective_wait_target, parse_wait_target
+
+    explicit: dict[str, str] = {}
+    for occurrence in occurrences:
+        has_target = occurrence.get("has_target") is True
+        if not has_target:
+            continue
+        raw_value = occurrence.get("target_raw")
+        raw_text = str(raw_value) if raw_value is not None else ""
+        targets = _occurrence_agent_targets(
+            occurrence, process_references=process_references
+        )
+        if not targets:
+            raise DirectiveError(
+                "%wait(target=...) needs an agent target in the same %wait, "
+                "e.g. %wait(planner, target=turn). bead=, hood=, proc=, "
+                "unit=, and time= waits have no session/turn."
+            )
+        try:
+            parsed = parse_wait_target(raw_text)
+        except RuntimeError as exc:
+            raise DirectiveError(str(exc)) from exc
+        for target in targets:
+            if parsed == "turn" and for_epic_explicit.get(target) is True:
+                raise DirectiveError(
+                    "`target=turn` cannot combine with for_epic=true. "
+                    "A turn wait is never armed for epic-follow."
+                )
+            tribe = parse_tribe_reference(target)
+            if tribe is not None and parsed == "turn":
+                try:
+                    effective_wait_target(
+                        requested="turn",
+                        kind="tribe",
+                        reference=target,
+                    )
+                except RuntimeError as exc:
+                    raise DirectiveError(str(exc)) from exc
+            if target in explicit:
+                if explicit[target] != parsed:
+                    raise DirectiveError(
+                        f"Conflicting target= values for %wait target '{target}'."
+                    )
+                continue
+            explicit[target] = parsed
+    return explicit
+
+
 def _effective_wait_for_epics_of(
-    wait_targets: list[str], explicit: dict[str, bool]
+    wait_targets: list[str],
+    explicit: dict[str, bool],
+    *,
+    wait_targets_by_name: dict[str, str] | None = None,
 ) -> list[str]:
     """Compute the effective positive armed-target list.
 
-    An explicit value overrides the default; ``--plan`` targets are never
-    armed. With the current default (true) every user-authored agent target
-    is armed unless explicitly opted out.
+    An explicit value overrides the default; ``--plan`` targets and
+    ``target=turn`` agents are never armed. With the current default
+    (true) every user-authored agent target is armed unless explicitly
+    opted out.
     """
     from ._directive_types import WAIT_FOR_EPIC_DEFAULT
 
+    turn_names = {
+        name
+        for name, target in (wait_targets_by_name or {}).items()
+        if target == "turn"
+    }
     armed: list[str] = []
     for target in wait_targets:
-        if target.endswith("--plan"):
+        if target.endswith("--plan") or target in turn_names:
             continue
         value = explicit.get(target, WAIT_FOR_EPIC_DEFAULT)
         if value and target not in armed:

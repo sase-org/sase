@@ -45,7 +45,7 @@ class AgentWaitApplyMixin:
             self._apply_wait_relaunch(agent, result)  # type: ignore[attr-defined]
             return
 
-        from ._wait_helpers import authored_result_beads
+        from ._wait_helpers import authored_result_beads, preserved_turn_target_agents
 
         wait_names = list(result.agents)
         wait_beads = list(authored_result_beads(result, agent))
@@ -59,11 +59,19 @@ class AgentWaitApplyMixin:
                 if agent.wait_priority_explicit
                 else None
             )
+            turn_target_agents = preserved_turn_target_agents(agent, wait_names)
+            turn_set = set(turn_target_agents)
             if result.epic_follow_agents is not None:
-                follow_names = [n for n in result.epic_follow_agents if n in wait_names]
+                follow_names = [
+                    n
+                    for n in result.epic_follow_agents
+                    if n in wait_names and n not in turn_set
+                ]
             else:
                 current_follow = list(getattr(agent, "wait_for_epics_of", None) or [])
-                follow_names = [n for n in current_follow if n in wait_names]
+                follow_names = [
+                    n for n in current_follow if n in wait_names and n not in turn_set
+                ]
             wait_spec = PromptWaitDirective(
                 agents=tuple(wait_names),
                 priority=effective_priority,
@@ -77,6 +85,7 @@ class AgentWaitApplyMixin:
                     if result.epic_follow_agents is not None
                     else (tuple(follow_names) or None)
                 ),
+                turn_target_agents=turn_target_agents,
             )
             prior_waiting_for = list(agent.waiting_for)
             prior_waiting_for_beads = list(agent.waiting_for_beads)
@@ -143,6 +152,7 @@ class AgentWaitApplyMixin:
                                 if wait_spec.epic_follow_agents is not None
                                 else None
                             ),
+                            "turn_target_agents": list(wait_spec.turn_target_agents),
                         },
                     },
                     "wait": {

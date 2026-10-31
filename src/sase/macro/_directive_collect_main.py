@@ -102,6 +102,7 @@ def collect_prompt_directive_matches(prompt: str) -> CollectedDirectives:
                         "for_epic",
                         "hood",
                         "proc",
+                        "target",
                         "time",
                         "unit",
                     }
@@ -114,7 +115,8 @@ def collect_prompt_directive_matches(prompt: str) -> CollectedDirectives:
                         keys = ", ".join(f"{key}=" for key in unknown_keys)
                         raise DirectiveError(
                             f"Unsupported keyword on %wait: {keys}. "
-                            "Use unit=, agent=, proc=, bead=, hood=, time=, or for_epic=. "
+                            "Use unit=, agent=, proc=, bead=, hood=, time=, "
+                            "for_epic=, or target=. "
                             "Queue controls belong on %queue."
                         )
                     if "agent" in named_args:
@@ -134,6 +136,8 @@ def collect_prompt_directive_matches(prompt: str) -> CollectedDirectives:
                             "agents": list(positional_args),
                             "has_for_epic": "for_epic" in named_args,
                             "for_epic_raw": named_args.get("for_epic", ""),
+                            "has_target": "target" in named_args,
+                            "target_raw": named_args.get("target", ""),
                         }
                     )
                 if name == "final" and named_args:
@@ -222,7 +226,13 @@ def collect_prompt_directive_matches(prompt: str) -> CollectedDirectives:
 
         if name == "wait" and not has_open_paren:
             collected.wait_occurrences.append(
-                {"agents": list(raw_args), "has_for_epic": False, "for_epic_raw": ""}
+                {
+                    "agents": list(raw_args),
+                    "has_for_epic": False,
+                    "for_epic_raw": "",
+                    "has_target": False,
+                    "target_raw": "",
+                }
             )
         if is_multi:
             collected.seen_multi.setdefault(name, []).extend(raw_args)

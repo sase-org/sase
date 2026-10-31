@@ -53,13 +53,14 @@ class AgentWaitRunnerMixin:
         wait_spec = prompt_wait_spec(result, agent)
         if wait_spec is not None and effective_priority is not None:
             wait_spec = replace(wait_spec, priority=effective_priority)
+        turn_set = set(wait_spec.turn_target_agents) if wait_spec is not None else set()
         runner_follow = (
             list(wait_spec.epic_follow_agents)
             if wait_spec is not None and wait_spec.epic_follow_agents is not None
             else [
                 n
                 for n in (getattr(agent, "wait_for_epics_of", None) or [])
-                if n in list(result.agents)
+                if n in list(result.agents) and n not in turn_set
             ]
         )
         runner_beads = list(authored_result_beads(result, agent))
@@ -126,6 +127,7 @@ class AgentWaitRunnerMixin:
                     if wait_spec.epic_follow_agents is not None
                     else None
                 ),
+                "turn_target_agents": list(wait_spec.turn_target_agents),
             }
         submitted = submit_agent_directive(
             self,

@@ -117,6 +117,7 @@ async def test_wait_arg_completion_excludes_selected_agent_and_groups() -> None:
             "for_epic=",
             "hood=",
             "proc=",
+            "target=",
             "time=",
             "unit=",
             "ship",
@@ -151,6 +152,7 @@ async def test_wait_arg_completion_excludes_selected_keyword_in_paren_form() -> 
             "for_epic=",
             "hood=",
             "proc=",
+            "target=",
             "unit=",
             "planner",
             "coder",
@@ -281,12 +283,13 @@ async def test_wait_paren_empty_clause_offers_documented_bead_keyword() -> None:
         insertions = [
             candidate.insertion for candidate in ta._file_completion_candidates
         ]
-        assert insertions[:6] == [
+        assert insertions[:7] == [
             "agent=",
             "bead=",
             "for_epic=",
             "hood=",
             "proc=",
+            "target=",
             "unit=",
         ]
         bead = ta._file_completion_candidates[1]

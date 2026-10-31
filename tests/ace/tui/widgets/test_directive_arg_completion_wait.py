@@ -134,6 +134,7 @@ def test_wait_arg_completion_orders_kinds_and_matches_bare_tribe() -> None:
         "for_epic=",
         "hood=",
         "proc=",
+        "target=",
         "time=",
         "unit=",
         "@builders",
@@ -167,6 +168,7 @@ def test_wait_arg_completion_excludes_groups_and_deduplicates_insertions() -> No
         "for_epic=",
         "hood=",
         "proc=",
+        "target=",
         "time=",
         "unit=",
         "@builders",
@@ -226,6 +228,7 @@ def test_wait_arg_completion_excludes_selected_keywords_case_insensitively() -> 
         "for_epic=",
         "hood=",
         "proc=",
+        "target=",
         "unit=",
         "coder",
     ]

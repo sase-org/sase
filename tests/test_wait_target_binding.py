@@ -430,6 +430,45 @@ def test_resolve_wait_state_reuses_preserved_records(
     assert reused.wait_identity_deps == [pinned]
 
 
+def test_extract_wait_target_turn_binds_pending_gate(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from sase.macro.directives import extract_prompt_directives
+
+    _patch_home(monkeypatch, tmp_path)
+    root = _session_root(
+        tmp_path, "20260506010101", "16h", done=True, outcome="completed"
+    )
+    gate = _running_agent(
+        tmp_path,
+        "proj",
+        "20260506010202",
+        "16h--gate",
+        workflow_name="16h",
+        agent_session="16h",
+        role_suffix="--gate",
+        parent_timestamp=root.name,
+        extra_meta={"agent_session_role": "gate", "gate_id": "gate-1"},
+    )
+    waiter = make_waiting_agent(tmp_path, "16h")
+    _, directives = extract_prompt_directives("%wait(16h, target=turn)\nDo work")
+    assert dict(directives.wait_targets) == {"16h": "turn"}
+    assert directives.wait_for_epics_of == []
+    state = resolve_wait_state(
+        directives,
+        fork_reference_prompt="",
+        batch_predecessor_binding=None,
+        agent_session_attach_plan=None,
+        waiter_artifact_dir=waiter,
+    )
+    assert len(state.wait_identity_deps) == 1
+    record = state.wait_identity_deps[0]
+    assert record["target"] == "turn"
+    assert record["turn_name"] == "16h--gate"
+    assert record["artifact_dir"] == str(gate)
+    assert state.wait_for_epics_of == []
+
+
 def test_index_can_be_injected_for_current_turn(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

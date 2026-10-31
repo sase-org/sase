@@ -30,6 +30,7 @@ class PromptWaitDirective:
     hoods: tuple[str, ...] = ()
     capacity_multiplier: float | None = None
     epic_follow_agents: tuple[str, ...] | None = None
+    turn_target_agents: tuple[str, ...] = ()
 
     def __bool__(self) -> bool:
         return bool(
@@ -42,6 +43,7 @@ class PromptWaitDirective:
             or self.beads
             or self.hoods
             or self.epic_follow_agents
+            or self.turn_target_agents
         )
 
 
@@ -143,34 +145,47 @@ def _format_wait_directive(
         return None
     from ._directive_types import WAIT_FOR_EPIC_DEFAULT
 
+    turn_set = set(wait_spec.turn_target_agents)
+    session_agents = [agent for agent in wait_spec.agents if agent not in turn_set]
+    turn_agents = [agent for agent in wait_spec.agents if agent in turn_set]
     follow = set(wait_spec.epic_follow_agents or ())
     if wait_spec.epic_follow_agents is None:
-        # Every agent uses the default: one plain occurrence, no keyword.
-        main_agents = list(wait_spec.agents)
+        # Every session agent uses the default: one plain occurrence, no keyword.
+        main_agents = list(session_agents)
         off_agents: list[str] = []
         follow_agents: list[str] = []
     elif WAIT_FOR_EPIC_DEFAULT:
         # The positive list stays in the main occurrence and explicit-false
-        # agents split out instead.
-        main_agents = [a for a in wait_spec.agents if a in follow]
-        off_agents = [a for a in wait_spec.agents if a not in follow]
+        # agents split out instead. Turn-target agents never follow.
+        main_agents = [a for a in session_agents if a in follow]
+        off_agents = [a for a in session_agents if a not in follow]
         follow_agents = []
     else:
-        main_agents = [a for a in wait_spec.agents if a not in follow]
+        main_agents = [a for a in session_agents if a not in follow]
         off_agents = []
-        follow_agents = [a for a in wait_spec.agents if a in follow]
-    parts = [format_directive_arg(agent) for agent in main_agents]
-    if wait_spec.time_token:
-        parts.append(f"time={wait_spec.time_token}")
-    directives = [f"%wait({', '.join(parts)})"] if parts else []
+        follow_agents = [a for a in session_agents if a in follow]
+    groups: list[list[str]] = []
+    if main_agents:
+        groups.append([format_directive_arg(agent) for agent in main_agents])
     if off_agents:
         off_parts = [format_directive_arg(agent) for agent in off_agents]
         off_parts.append("for_epic=false")
-        directives.append(f"%wait({', '.join(off_parts)})")
+        groups.append(off_parts)
     if follow_agents:
         follow_parts = [format_directive_arg(agent) for agent in follow_agents]
         follow_parts.append("for_epic=true")
-        directives.append(f"%wait({', '.join(follow_parts)})")
+        groups.append(follow_parts)
+    if turn_agents:
+        turn_parts = [format_directive_arg(agent) for agent in turn_agents]
+        turn_parts.append("target=turn")
+        groups.append(turn_parts)
+    if wait_spec.time_token:
+        time_part = f"time={wait_spec.time_token}"
+        if groups:
+            groups[0].append(time_part)
+        else:
+            groups.append([time_part])
+    directives = [f"%wait({', '.join(parts)})" for parts in groups if parts]
     directives.extend(
         f"%wait(bead={format_directive_arg(bead)})" for bead in wait_spec.beads
     )

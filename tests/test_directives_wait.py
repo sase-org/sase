@@ -406,7 +406,8 @@ def test_wait_unknown_keyword_raises() -> None:
         DirectiveError,
         match=(
             r"Unsupported keyword on %wait: foo=\. "
-            r"Use unit=, agent=, proc=, bead=, hood=, time=, or for_epic=\. "
+            r"Use unit=, agent=, proc=, bead=, hood=, time=, "
+            r"for_epic=, or target=\. "
             r"Queue controls belong on %queue\."
         ),
     ):

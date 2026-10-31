@@ -119,6 +119,13 @@ parked on their own dependency waits stay out of the session aggregate so siblin
 cannot deadlock. A failed turn that handed off to a follow-up does not release a `#fork`
 wait while that follow-up is still pending.
 
+`%wait` uses the same session and turn vocabulary. `%wait:<session>` and
+`%wait(session)` wait for the whole generation. `%wait(session, target=turn)` captures
+the current turn when the wait is bound — a pending gate if the session is parked there
+— and releases when that turn settles. See
+[Launch directives](../macros/directive-launch.md) for the `%wait` keyword contract,
+including the epic-follow interaction.
+
 `#fork:<session>` contributes every known concrete turn — agent, monitor, and gate turns
 alike — in chain order, oldest first, including turns that ended unsuccessfully with
 their recorded failure context. Only a turn that is still running, or whose transcript

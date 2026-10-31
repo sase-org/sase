@@ -105,6 +105,35 @@ def _prune_follow_entries(
         marker.pop("wait_epic_follows", None)
 
 
+def _prune_wait_identity_records(
+    marker: dict[str, object],
+    wait_names: list[str],
+) -> None:
+    """Keep bound wait identity records that still match remaining wait names.
+
+    Turn pins store ``name`` as the captured member (``16h--gate``) while
+    ``requested`` is the authored wait name (``16h``). Match ``requested``
+    first, then ``name``, so a still-selected turn wait keeps its record.
+    """
+    records = marker.get("wait_for_artifacts")
+    if not isinstance(records, list):
+        return
+    names = set(wait_names)
+    pruned = [
+        record
+        for record in records
+        if isinstance(record, dict)
+        and (
+            (isinstance(record.get("requested"), str) and record["requested"] in names)
+            or (isinstance(record.get("name"), str) and record["name"] in names)
+        )
+    ]
+    if pruned:
+        marker["wait_for_artifacts"] = pruned
+    else:
+        marker.pop("wait_for_artifacts", None)
+
+
 def _patch_agent_meta(artifacts_path: Path, patch: AgentMetaPatch) -> bool:
     meta_path = artifacts_path / "agent_meta.json"
     meta = read_json_object(meta_path)
@@ -133,6 +162,18 @@ def _patch_agent_meta(artifacts_path: Path, patch: AgentMetaPatch) -> bool:
         _prune_follow_entries(meta, armed)
     elif "wait_for_epics_of" in patch.remove_keys:
         _prune_follow_entries(meta, set())
+    remaining_wait_names: list[str] | None = None
+    if "wait_for" in patch.set_values:
+        raw_names = patch.set_values["wait_for"]
+        remaining_wait_names = (
+            [str(n) for n in raw_names if isinstance(n, str)]
+            if isinstance(raw_names, (list, tuple))
+            else []
+        )
+    elif "wait_for" in patch.remove_keys:
+        remaining_wait_names = []
+    if remaining_wait_names is not None:
+        _prune_wait_identity_records(meta, remaining_wait_names)
     if meta == original:
         return False
     write_json_file(meta_path, meta)
@@ -174,6 +215,7 @@ def _write_waiting_marker(artifacts_path: Path, patch: WaitingMarkerPatch) -> No
         else:
             existing.pop("wait_for_epics_of", None)
         _prune_follow_entries(existing, set(patch.wait_for_epics_of))
+        _prune_wait_identity_records(existing, list(patch.waiting_for))
         if patch.wait_for_beads:
             existing["wait_for_beads"] = list(patch.wait_for_beads)
         if patch.wait_for_hoods:

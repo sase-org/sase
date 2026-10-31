@@ -155,7 +155,7 @@ def resolve_wait_state(
         targets = wait_targets
         if targets is None:
             raw_targets = getattr(directives, "wait_targets", None)
-            targets = raw_targets if isinstance(raw_targets, dict) else None
+            targets = dict(raw_targets) if isinstance(raw_targets, Mapping) else None
         if targets:
             from sase.agent.wait_target_binding import bind_explicit_wait_targets
 

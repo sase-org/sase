@@ -16,7 +16,7 @@ The TUI, macro language server, and launch parser share this Rust-owned contract
 | `%final` | — | :value, (...) | :instance\|!instance\|none or (instance, ...) | Select configured finalizer instances for this launch |
 | `%id` | `%i` | :value, (...), bare | :agent-id or :name.{@key}; ([id], bead=, clan=/session=/tribe=) | Assign an agent ID with optional bead, clan, session, or user-managed tribe |
 | `%clan` | `%c` | :value, (...) | :name or :name.{@key}, (name, tribe=/summary=/summary_script=), or :name:: summary | Declare a new parallel agent clan |
-| `%wait` | `%w` | :value, (...), bare | :agent or (agent, bead=, hood=, time=, for_epic=) | Wait for another agent/workflow and/or a time floor |
+| `%wait` | `%w` | :value, (...), bare | :agent or (agent, bead=, hood=, time=, for_epic=, target=) | Wait for another agent/workflow and/or a time floor |
 | `%queue` | `%q` | :value, (...) | :N or <M>x or (N, <M>x, capacity=, priority=, p=, weight=, w=) | Set this launch's capacity budget, <M>x multiplier of this machine's max_running_agents budget, priority, and capacity weight |
 | `%hold` | — | :value, (...) | :agent or (agent, pending, future, hood=, tribe=, ttl=, scope=) | Hold selected pre-run agents until this launch settles |
 | `%dispatch` | — | :value, (...) | :machine or (machine) | Send this launch to an enrolled remote machine |
@@ -80,6 +80,7 @@ Wait for another agent/workflow and/or a time floor
 | `for_epic` | Also wait for any epic these agents launch | `true`, `false` |
 | `hood` | Wait for current members of this agent hood | — |
 | `proc` | Wait for a proc ID or proc name | — |
+| `target` | Wait for a whole session or the session's current turn | `session`, `turn` |
 | `time` | Start after a duration or absolute wall-clock time | `5m`, `1430` |
 | `unit` | Wait for a logical launch unit ID | — |
 
