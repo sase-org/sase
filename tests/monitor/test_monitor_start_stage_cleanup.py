@@ -283,8 +283,15 @@ def test_held_cleanup_keeps_outer_record(
     assert meta.get("monitor_stage_held") is True
     shown = tool_run_show(run_id)["run"]
     assert shown["state"] != "created"
-    with pytest.raises(MonitorError, match="canceled run"):
-        launch_from_persisted_payload(staged.record.artifacts_dir)
+    # Monitor-replay recovery reacquires the same logical reservation on
+    # retry: the canceled run is never reused, and the frozen command
+    # launches exactly once.
+    record = launch_from_persisted_payload(staged.record.artifacts_dir)
+    assert record.monitor_state == "running"
+    assert record.tool_run_id
+    assert record.tool_run_id != run_id
+    done = wait_for_done(record.artifacts_dir, timeout=30.0)
+    assert done["monitor_state"] == "completed"
 
 
 def test_launch_from_persisted_payload_runs(

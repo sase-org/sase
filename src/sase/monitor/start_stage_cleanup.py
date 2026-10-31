@@ -4,6 +4,12 @@ Cleanup path of the internal staged-monitor transaction split from
 :mod:`sase.monitor.start_stage`. Settles an owned reserved ToolRun as never
 executed, releases only this stage's join reservation, and never stops an
 already-running joined run.
+
+When a proc was already submitted for the monitor, a held cleanup
+preserves the submitted effect: it settles nothing, rolls back no
+prepared binding, and releases no prepared reservation, so the retry can
+adopt the existing proc and reacquire the same logical reservation. An
+explicit discard keeps the historical unwind-everything behavior.
 """
 
 from __future__ import annotations
@@ -88,9 +94,14 @@ def cleanup_staged_monitor(
     joined = tool_run_joined or bool(claim.get("tool_run_joined"))
     released_join = False
     settled_id: str | None = None
+    # A held cleanup preserves a submitted effect for recovery: settling
+    # its run or rolling back its prepared binding would destroy the
+    # evidence the retry adopts. An explicit discard keeps the historical
+    # destroy-everything behavior.
+    submitted = held and _submitted_proc_exists(monitor_id)
     if mode == "staged" and run_id and staged:
         released_join = _release_staged_join(run_id, staged, monitor_id)
-    elif run_id and not joined and mode != "ordinary":
+    elif run_id and not joined and mode != "ordinary" and not submitted:
         if _settle_unstarted_run(run_id, held=held):
             settled_id = run_id
     if monitor_id:
@@ -104,7 +115,7 @@ def cleanup_staged_monitor(
     if prepared_ref is None:
         prepared_ref = optional_str(claim.get("completion_ref"))
     released_prepared = False
-    if prepared_ref and staged and monitor_id and starter:
+    if prepared_ref and staged and monitor_id and starter and not submitted:
         from sase.finalizers.prepare import rollback_prepared_completion
         from sase.finalizers._prepare_reservations import release_prepared_intent
 
@@ -151,6 +162,26 @@ def cleanup_staged_monitor(
         member_state="failed",
         released_prepared_intent=released_prepared,
     )
+
+
+def _submitted_proc_exists(monitor_id: str) -> bool:
+    """Return whether a proc was already submitted for *monitor_id*.
+
+    A stored row means the command effect exists (or existed) outside
+    the member state: held cleanup must preserve its run and prepared
+    evidence for the retry instead of unwinding them. An unreadable
+    store keeps the historical best-effort behavior.
+    """
+    if not monitor_id:
+        return False
+    try:
+        from sase.procs.store import get_proc
+    except Exception:  # noqa: BLE001 - cleanup stays best effort.
+        return False
+    try:
+        return get_proc(monitor_id) is not None
+    except Exception:  # noqa: BLE001 - cleanup stays best effort.
+        return False
 
 
 def _load_payload_optional(artifacts_dir: str) -> dict[str, Any] | None:
