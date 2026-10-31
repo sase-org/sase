@@ -60,18 +60,21 @@ _ACCEPTED = {
     "env": "staging",
     "model": "opus",
     "effort": "high",
+    "target": "turn",
     "edition": "brief",
 }
 _REJECTED = {
     "env": "staing",
     "model": "opsu",
     "effort": "hig",
+    "target": "tur",
     "edition": "breif",
 }
 _SUGGESTIONS = {
     "env": "staging",
     "model": "opus",
     "effort": "high",
+    "target": "turn",
     "edition": "brief",
 }
 
@@ -212,7 +215,7 @@ def test_fixture_declares_enum_effort_model_and_plugin_type(
     parity_macro: Macro,
 ) -> None:
     by_name = {inp.name: inp for inp in parity_macro.inputs}
-    assert set(by_name) == {"env", "model", "effort", "edition"}
+    assert set(by_name) == {"env", "model", "effort", "target", "edition"}
 
     assert by_name["env"].type.value == "enum"
     assert [choice.value for choice in by_name["env"].choices] == ["staging", "prod"]
@@ -225,6 +228,13 @@ def test_fixture_declares_enum_effort_model_and_plugin_type(
     assert [choice.value for choice in by_name["effort"].choices] == list(
         _MODEL_SNAPSHOT["effort_levels"]
     )
+
+    assert by_name["target"].named_type == "wait_target"
+    assert by_name["target"].type.value == "enum"
+    assert [choice.value for choice in by_name["target"].choices] == [
+        "session",
+        "turn",
+    ]
 
     assert by_name["edition"].named_type == "sase-research-artifacts@audio_edition"
     assert by_name["edition"].type.value == "enum"
@@ -242,11 +252,12 @@ def test_runtime_binder_accepts_and_rejects_the_same_values(
     assert "env=staging" in rendered
     assert "model=opus" in rendered
     assert "effort=high" in rendered
+    assert "target=turn" in rendered
     assert "edition=brief" in rendered
 
     catalog = {parity_macro.name: parity_macro}
     process_macro_references_with_catalog(
-        "#parity(env=prod, model=@large, effort=max, edition=full)",
+        "#parity(env=prod, model=@large, effort=max, target=turn, edition=full)",
         catalog,
         raise_on_error=True,
     )
@@ -292,7 +303,7 @@ def test_lsp_diagnostics_accept_and_reject_the_same_values(
 ) -> None:
     entry = _assist_entry(parity_macro)
     catalog = [highlight._macro_arg_assist_entry_to_wire(entry)]
-    valid = "#parity(env=staging, model=opus, effort=high, edition=brief)"
+    valid = "#parity(env=staging, model=opus, effort=high, target=turn, edition=brief)"
     with LspSession(
         tmp_path,
         macro_catalog=catalog,

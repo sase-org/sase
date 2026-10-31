@@ -63,3 +63,26 @@ def test_rust_and_python_scalar_value_rules_agree(
     assert python_ok is expected
     assert rust_ok is expected
     assert python_ok is rust_ok
+
+
+def test_wait_target_named_enum_frontmatter_agrees() -> None:
+    dumped = json.dumps("session")
+    text = (
+        "---\n"
+        "input:\n"
+        "  - name: target\n"
+        "    type: wait_target\n"
+        f"    default: {dumped}\n"
+        "---\n"
+    )
+    assert not any(diagnostic.is_error for diagnostic in validate_frontmatter(text))
+    dumped = json.dumps("Session")
+    text = (
+        "---\n"
+        "input:\n"
+        "  - name: target\n"
+        "    type: wait_target\n"
+        f"    default: {dumped}\n"
+        "---\n"
+    )
+    assert any(diagnostic.is_error for diagnostic in validate_frontmatter(text))

@@ -42,6 +42,7 @@
                       "enum",
                       "agent",
                       "effort",
+                      "wait_target",
                       "model"
                     ]
                   },
@@ -130,6 +131,7 @@
                       "enum",
                       "agent",
                       "effort",
+                      "wait_target",
                       "model"
                     ]
                   },
@@ -167,6 +169,7 @@
                           "enum",
                           "agent",
                           "effort",
+                          "wait_target",
                           "model"
                         ]
                       },

@@ -1,6 +1,7 @@
 ---
 name: parity
-description: End-to-end named-input-type fixture (inline enum, effort, model, plugin).
+description:
+  End-to-end named-input-type fixture (inline enum, effort, wait_target, model, plugin).
 input:
   env:
     type: enum
@@ -14,9 +15,13 @@ input:
   effort:
     type: effort
     default: medium
+  target:
+    type: wait_target
+    default: session
   edition:
     type: sase-research-artifacts@audio_edition
     default: brief
 ---
 
-env={{ env }} model={{ model }} effort={{ effort }} edition={{ edition }}
+env={{ env }} model={{ model }} effort={{ effort }} target={{ target }}
+edition={{ edition }}

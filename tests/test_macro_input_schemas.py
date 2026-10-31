@@ -46,6 +46,7 @@ def test_advertised_catalog_names_include_enum_code_agent_and_aliases() -> None:
         "enum",
         "agent",
         "effort",
+        "wait_target",
         "model",
     ]
     assert type_schema["anyOf"][1]["const"] == "string"
@@ -82,6 +83,7 @@ def test_generated_type_field_accepts_plugin_pattern_and_deprecated_string() -> 
         "enum",
         "agent",
         "effort",
+        "wait_target",
         "model",
     ]
     assert branches[1]["const"] == "string"

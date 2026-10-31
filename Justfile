@@ -492,6 +492,9 @@ _lint-patch-stitch-terminology: _setup
 # sase-1pj.5.1.4 consumed the staged-monitor transaction. Its implementation
 # details and payload readers are private; prepared-reservation state is
 # inspected directly by focused tests rather than through a public reader.
+# sase-1q4.2 exported the wait_target facade; sase-1q4.4 (wait_runtime) consumes
+# parse/effective/select plus the dataclasses, and sase-1q4.5 (wait_directive)
+# consumes wait_targets_with_descriptions for `%wait target=` suggestions.
 # Never put a comment
 # line inside the continued command below: just joins the lines, so the comment
 # would swallow every later argument.
@@ -500,6 +503,12 @@ _lint-symvision *args: _setup
         --exclude-decorator gate_command_entrypoint \
         --exclude-decorator builtin_chop \
         --epic-symbol 'sase-1pu.5.1(AgentRunStateProjectCheckpointWire)' \
+        --epic-symbol 'sase-1q4.4(EffectiveWaitTarget)' \
+        --epic-symbol 'sase-1q4.4(WaitTurnFacts)' \
+        --epic-symbol 'sase-1q4.4(effective_wait_target)' \
+        --epic-symbol 'sase-1q4.4(parse_wait_target)' \
+        --epic-symbol 'sase-1q4.4(select_current_wait_turn)' \
+        --epic-symbol 'sase-1q4.5(wait_targets_with_descriptions)' \
         {{ args }}
 
 # Check Python file line counts (private, extracted for per-stage wrapping)

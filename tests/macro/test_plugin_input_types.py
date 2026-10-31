@@ -198,7 +198,7 @@ def test_cli_types_json_lists_builtin(tmp_path, capsys):
     payload = json.loads(out)
     assert isinstance(payload, list)
     names = [entry["name"] for entry in payload]
-    assert "effort" in names and "model" in names
+    assert "effort" in names and "model" in names and "wait_target" in names
 
 
 def test_cli_types_detail_has_no_markup_or_ansi(capsys):

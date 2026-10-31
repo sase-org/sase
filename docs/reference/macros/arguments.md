@@ -153,7 +153,7 @@ the parentheses.
 
 `type` names what the value is: a scalar keyword (`word`, `line`, `text`, `path`, `int`,
 `float`, `bool`, `code`), `enum` with inline `choices`, a builtin type (`agent`,
-`model`, `effort`), or a plugin's shared enum (`<dist>@<id>`). Bare names belong to
+`model`, `effort`, `wait_target`), or a plugin's shared enum (`<dist>@<id>`). Bare names belong to
 sase; qualified names belong to plugins.
 
 The same catalog drives every surface: the runtime binder,
@@ -215,23 +215,24 @@ save-time conversion, and literal-zone rules.
 
 ### Supported Types
 
-Resolution is scalar → inline `enum` → builtin (`agent`, `model`, `effort`) → plugin
+Resolution is scalar → inline `enum` → builtin (`agent`, `model`, `effort`, `wait_target`) → plugin
 `<dist>@<id>`. `sase macro types` prints the installed catalog in that grouping.
 
-| Type     | Kind    | Aliases   | Validation                                                                |
-| -------- | ------- | --------- | ------------------------------------------------------------------------- |
-| `word`   | scalar  | --        | No whitespace allowed                                                     |
-| `line`   | scalar  | --        | No newlines allowed (default type)                                        |
-| `text`   | scalar  | --        | Any content, no restrictions                                              |
-| `path`   | scalar  | --        | A single line; spaces are allowed, newlines are not                       |
-| `int`    | scalar  | `integer` | Must parse as an integer                                                  |
-| `bool`   | scalar  | `boolean` | Accepts `true`/`false`, `yes`/`no`, `1`/`0`, `on`/`off`                   |
-| `float`  | scalar  | --        | Must parse as a float                                                     |
-| `code`   | scalar  | --        | Structured source plus language (default language bash)                   |
-| `enum`   | inline  | --        | One of the input's declared `choices`                                     |
-| `agent`  | builtin | --        | Non-empty, no whitespace; completes agent names                           |
-| `effort` | builtin | --        | One of the seven `%effort` levels, matched exactly                        |
-| `model`  | builtin | --        | A model token `%model` would accept without the default-provider fallback |
+| Type          | Kind    | Aliases   | Validation                                                                |
+| ------------- | ------- | --------- | ------------------------------------------------------------------------- |
+| `word`        | scalar  | --        | No whitespace allowed                                                     |
+| `line`        | scalar  | --        | No newlines allowed (default type)                                        |
+| `text`        | scalar  | --        | Any content, no restrictions                                              |
+| `path`        | scalar  | --        | A single line; spaces are allowed, newlines are not                       |
+| `int`         | scalar  | `integer` | Must parse as an integer                                                  |
+| `bool`        | scalar  | `boolean` | Accepts `true`/`false`, `yes`/`no`, `1`/`0`, `on`/`off`                   |
+| `float`       | scalar  | --        | Must parse as a float                                                     |
+| `code`        | scalar  | --        | Structured source plus language (default language bash)                   |
+| `enum`        | inline  | --        | One of the input's declared `choices`                                     |
+| `agent`       | builtin | --        | Non-empty, no whitespace; completes agent names                           |
+| `effort`      | builtin | --        | One of the seven `%effort` levels, matched exactly                        |
+| `wait_target` | builtin | --        | One of `session` or `turn`, matched exactly                               |
+| `model`       | builtin | --        | A model token `%model` would accept without the default-provider fallback |
 
 Plugin types use `<distribution>@<id>` (for example
 `sase-research-artifacts@audio_edition`) and resolve to closed enums. See
@@ -250,7 +251,10 @@ sase's TUI and the macro LSP treat the field as code rather than a scalar.
 
 An `effort` input accepts exactly one of the seven `%effort` levels (`none`, `minimal`,
 `low`, `medium`, `high`, `xhigh`, `max`); anything else is rejected the same way a
-non-member `enum` value is. A `model` input accepts exactly the tokens the `%model`
+non-member `enum` value is. A `wait_target` input accepts exactly `session` or `turn`,
+matched case-sensitively: `session` waits for the whole agent session (the default for
+bare names) and `turn` waits for the session's current turn, captured when the wait is
+bound. A `model` input accepts exactly the tokens the `%model`
 directive would accept _and_ route to a provider without the silent default-provider
 fallback: aliases need `@` (`@large` routes; bare `large` does not), `provider/model` is
 open for unknown model ids and closed for unknown providers, and a trailing `@<level>`
