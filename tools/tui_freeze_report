@@ -24,7 +24,10 @@ acceptance numbers for the freeze epic, split per ``app_instance_id``:
 - ``-b/--busy-since`` and ``-e/--busy-until``, which select the observed
   busy hour inside the covered interval for per-tab j/k verdicts;
 - ``-t/--tab``, which declares a required navigation tab for the busy hour
-  (repeatable; Agents is always required).
+  (repeatable; Agents is always required);
+- a slow-agent-load section from ``tui_agent_loads.jsonl`` (and its ``.1``
+  rotation): full-load rate, ``index`` sub-stage buckets, counts by
+  ``artifact_source`` / ``repair_reason``, and top ``source`` values.
 
 Rows that predate instance IDs are bucketed into ``tui_startup`` record
 windows (``startup-<n>``) instead of being dropped; rows outside every
@@ -59,6 +62,11 @@ from _tui_freeze_report_acceptance import (  # noqa: E402
     analyze_acceptance,
     empty_acceptance,
 )
+from _tui_freeze_report_loads import (  # noqa: E402
+    empty_slow_agent_loads,
+    format_slow_agent_loads,
+    summarize_slow_agent_loads,
+)
 from _tui_freeze_report_perf import (  # noqa: E402
     analyze_instance_perf,
     default_perf_path,
@@ -68,6 +76,7 @@ from _tui_freeze_report_perf import (  # noqa: E402
 
 STALLS_ENV_VAR = "SASE_TUI_STALL_PATH"
 STARTUP_ENV_VAR = "SASE_TUI_STARTUP_PATH"
+LOADS_ENV_VAR = "SASE_TUI_AGENT_LOADS_PATH"
 
 NEAR_INPUT_MAX_S = 2.0
 NEAR_INPUT_TRIGGERS = frozenset({"automatic", "backstop", "rss_backstop"})
@@ -93,6 +102,13 @@ def _default_startup_path() -> Path:
     if override:
         return Path(override)
     return Path.home() / ".sase" / "logs" / "tui_startup.jsonl"
+
+
+def _default_loads_path() -> Path:
+    override = os.environ.get(LOADS_ENV_VAR)
+    if override:
+        return Path(override)
+    return Path.home() / ".sase" / "logs" / "tui_agent_loads.jsonl"
 
 
 def parse_time(value: str) -> float:
@@ -564,16 +580,20 @@ def format_report(
     *,
     acceptance: bool = False,
     acceptance_results: dict[str, dict[str, Any]] | None = None,
+    load_summaries: dict[str, dict[str, Any]] | None = None,
     overall_status: str | None = None,
 ) -> str:
     """Render per-instance summaries as human-readable text."""
     acceptance_results = acceptance_results or {}
-    if not summaries and not acceptance_results:
+    load_summaries = load_summaries or {}
+    if not summaries and not acceptance_results and not load_summaries:
         return "tui_freeze_report: no rows in window\n"
     lines: list[str] = []
-    if not summaries:
+    if not summaries and not load_summaries:
         lines.append("tui_freeze_report: no diagnostic rows in window")
-    for instance in sorted(set(summaries) | set(acceptance_results)):
+    for instance in sorted(
+        set(summaries) | set(acceptance_results) | set(load_summaries)
+    ):
         summary = summaries.get(instance)
         if summary is None:
             lines.append(f"instance {instance}")
@@ -636,6 +656,9 @@ def format_report(
             perf = (acceptance_results.get(instance) or {}).get("perf")
             if perf is not None:
                 lines.append(_format_perf_line(perf))
+        load_summary = load_summaries.get(instance)
+        if load_summary is not None:
+            lines.append(format_slow_agent_loads(load_summary))
         if acceptance and instance in acceptance_results:
             result = acceptance_results[instance]
             coverage = result["coverage"]
@@ -730,9 +753,18 @@ def main(argv: Sequence[str] | None = None) -> int:
         help="Write a structured acceptance summary (implies --acceptance).",
     )
     parser.add_argument(
+        "--loads-path",
+        type=Path,
+        default=None,
+        help=(
+            "Slow Agents-load JSONL path. Defaults to "
+            "$SASE_TUI_AGENT_LOADS_PATH or ~/.sase/logs/tui_agent_loads.jsonl."
+        ),
+    )
+    parser.add_argument(
         "--no-rotated",
         action="store_true",
-        help="Do not read the rotated tui_stalls.jsonl.1 generation.",
+        help="Do not read rotated .1 generations beside stalls, perf, or loads.",
     )
     parser.add_argument(
         "--path",
@@ -774,8 +806,10 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     stalls_path = args.path or _default_stalls_path()
     startup_path = args.startup_path or _default_startup_path()
+    loads_path = args.loads_path or _default_loads_path()
     rows = load_stall_rows(stalls_path, include_rotated=not args.no_rotated)
     startups = load_rows(startup_path)
+    load_rows_data = load_stall_rows(loads_path, include_rotated=not args.no_rotated)
     try:
         since = parse_time(args.since) if args.since is not None else None
         until = parse_time(args.until) if args.until is not None else None
@@ -789,10 +823,16 @@ def main(argv: Sequence[str] | None = None) -> int:
         return 2
 
     buckets = bucket_by_instance(rows, startups)
+    load_buckets = bucket_by_instance(load_rows_data, startups)
     summaries = {}
     selected_buckets = {
         instance: bucket
         for instance, bucket in buckets.items()
+        if args.instance is None or instance in args.instance
+    }
+    selected_load_buckets = {
+        instance: bucket
+        for instance, bucket in load_buckets.items()
         if args.instance is None or instance in args.instance
     }
     for instance, bucket in selected_buckets.items():
@@ -800,6 +840,21 @@ def main(argv: Sequence[str] | None = None) -> int:
         if summary["row_count"] == 0:
             continue
         summaries[instance] = summary
+    load_summaries: dict[str, dict[str, Any]] = {}
+    reported_instances = set(summaries) | set(selected_load_buckets)
+    window_s = (
+        max(0.0, (until or 0.0) - (since or 0.0))
+        if since is not None and until is not None
+        else 0.0
+    )
+    for instance in reported_instances:
+        bucket = selected_load_buckets.get(instance, [])
+        if bucket:
+            load_summaries[instance] = summarize_slow_agent_loads(
+                bucket, since=since, until=until
+            )
+        elif instance in summaries:
+            load_summaries[instance] = empty_slow_agent_loads(window_s=window_s)
     acceptance_mode = args.acceptance or args.json
     acceptance_results: dict[str, dict[str, Any]] = {}
     if acceptance_mode:
@@ -865,13 +920,16 @@ def main(argv: Sequence[str] | None = None) -> int:
             result["overall_status"] = aggregate_status({instance: result})
     overall_status = aggregate_status(acceptance_results) if acceptance_mode else None
     if args.json:
-        instance_names = sorted(set(summaries) | set(acceptance_results))
+        instance_names = sorted(
+            set(summaries) | set(acceptance_results) | set(load_summaries)
+        )
         payload = {
             "schema_version": 1,
             "tool": "tui_freeze_report",
             "inputs": {
                 "stalls_path": str(stalls_path),
                 "startup_path": str(startup_path),
+                "loads_path": str(loads_path),
                 "perf_path": str(perf_path),
                 "busy_since": args.busy_since,
                 "busy_until": args.busy_until,
@@ -885,6 +943,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             "instances": {
                 instance: {
                     "diagnostic": summaries.get(instance),
+                    "slow_agent_loads": load_summaries.get(instance),
                     "acceptance": acceptance_results.get(instance),
                 }
                 for instance in instance_names
@@ -897,6 +956,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 summaries,
                 acceptance=acceptance_mode,
                 acceptance_results=acceptance_results,
+                load_summaries=load_summaries,
                 overall_status=overall_status,
             ),
             end="",

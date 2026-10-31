@@ -1033,7 +1033,12 @@ Default is off.
 reports per `app_instance_id` (rows that predate instance IDs are bucketed into
 `tui_startup` windows instead of being dropped) over a `--since` / `--until` window.
 Real startup rows carry an ISO `timestamp` field, not `ts`. The rotated
-`tui_stalls.jsonl.1` generation is read by default; pass `--no-rotated` to skip it.
+`tui_stalls.jsonl.1` generation is read by default; pass `--no-rotated` to skip it. The
+same window and instance filter also summarize slow Agents loads from
+`tui_agent_loads.jsonl` (override with `--loads-path` or `SASE_TUI_AGENT_LOADS_PATH`):
+full-load rate, `index` sub-stage buckets (`<1s`, `1-5s`, `5-15s`, `15-30s`, `>=30s`),
+counts by `artifact_source` and `repair_reason` (missing fields count as `unrecorded`),
+and the top `source` values. `--no-rotated` skips the loads `.1` file too.
 
 ```bash
 tools/tui_freeze_report --since 2026-10-01T12:00 --until 2026-10-01T13:00
@@ -1138,6 +1143,54 @@ live in the actual replacement processes:
    coverage, and select a busy hour inside them with `-b`/`-e`. Declare every normally
    used tab with `-t` (Agents is always required), check the sample/bin floors early,
    and retain the JSON report with the raw logs. Do not pool restarts or host instances.
+
+### Re-measure after the index-lock fix
+
+Use this recipe after epic `sase-1q5` lands, on a **restarted** TUI. A running TUI keeps
+the code it imported at start (tui_perf rule 15); restart so the measured process is
+running the landed code.
+
+1. Restart the TUI (quit and launch, or `sase tui --restart-service`). Confirm the new
+   `app_instance_id` on startup and heartbeat rows.
+2. Launch with `SASE_TUI_PERF=1`. Follow [Capture preflight](#capture-preflight) on that
+   instance before any long window. Leave `SASE_TUI_GC_CENSUS=1` off until the census
+   step below.
+3. After a representative soak, run:
+
+   ```bash
+   tools/tui_freeze_report --acceptance --instance <id> \
+     --since <coverage-start> --until <coverage-end> \
+     -b <busy-start> -e <busy-end> -t agents
+   ```
+
+   Read the slow-agent-load section in the same report (text or `--json`). That section
+   is computed from `tui_agent_loads.jsonl` (plus `.1`) in
+   `tools/_tui_freeze_report_loads.py`.
+
+**Leading indicators** (the load fix, before GC policy):
+
+- the `>=15s` index-stage share (`15-30s` plus `>=30s`) of slow full loads falls from
+  about 84% to about 0%;
+- RSS stays under about 5 GB;
+- swap stays near zero.
+
+**Acceptance targets** (same gates as [Frozen-share report](#frozen-share-report)):
+
+- Agents j/k p95 < 16 ms;
+- idle full-GC p95 ≤ 0.5 s;
+- GC < 3% of wall and hitches < 0.5% of wall;
+- RSS growth < 0.5 GB over 4 h;
+- zero sampled swap.
+
+**GC decision rule.** Only if idle gen-2 p95 still exceeds 0.5 s on this restarted
+instance, adopt the long-quiet, cost-gated gen-2 policy on the existing GC track
+(`sase-1nc`). Do not lower `threshold2`, call `gc.disable`, or run `gc.collect()` on a
+worker: the research rejected those three.
+
+**Census.** If the load indicators are green and you still need to attribute residual
+block growth (about 8 M → 19 M), run one `SASE_TUI_GC_CENSUS=1` soak on a restarted
+instance _before_ any retention work. The census lengthens idle pauses; leave it off for
+the acceptance window itself.
 
 ## Startup telemetry capture
 

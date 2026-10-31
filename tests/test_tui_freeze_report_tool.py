@@ -5,6 +5,7 @@ rows (no ``app_instance_id``, no additive fields) with current rows, so old
 logs keep reporting instead of breaking the acceptance tool.
 
 Acceptance calculations live in ``tools/_tui_freeze_report_acceptance.py``.
+Slow-agent-load summaries live in ``tools/_tui_freeze_report_loads.py``.
 """
 
 from __future__ import annotations
@@ -38,6 +39,14 @@ def _load_tool() -> ModuleType:
 @pytest.fixture
 def tool() -> ModuleType:
     return _load_tool()
+
+
+@pytest.fixture(autouse=True)
+def _isolate_agent_loads_path(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Keep CLI tests off the live ``tui_agent_loads.jsonl`` log."""
+    path = tmp_path / "tui_agent_loads.jsonl"
+    path.write_text("", encoding="utf-8")
+    monkeypatch.setenv("SASE_TUI_AGENT_LOADS_PATH", str(path))
 
 
 def _write_jsonl(path: Path, rows: list[dict]) -> Path:
@@ -242,6 +251,7 @@ def test_main_reports_selected_instance(
     assert "instance aaa" in out
     assert "startup-0" not in out
     assert "6.67%" in out  # 2 s frozen of a 30 s window
+    assert "slow agent loads: 0 full (0.00/h)" in out
 
 
 def test_main_empty_window_reports_no_rows(
