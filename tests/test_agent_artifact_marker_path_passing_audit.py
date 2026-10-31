@@ -382,14 +382,14 @@ _REVIEWED_PATH_PASSING_CONTEXTS: dict[str, PathPassingReview] = {
             "derive preview facts; no marker is written here."
         ),
     ),
-    "src/sase/axe/run_agent_successor.py:_successor_destination_observation": PathPassingReview(
+    "src/sase/axe/run_agent_successor_delivery.py:_successor_destination_observation": PathPassingReview(
         exemption=(
             "Read-only detached-successor ownership probe: agent_meta.json "
             "and done.json are inspected only to prove the persisted child "
             "identity and its live or terminal state; no marker is written."
         ),
     ),
-    "src/sase/axe/run_agent_successor.py:_continue_as_staged_successor": PathPassingReview(
+    "src/sase/axe/run_agent_successor_staged.py:_continue_as_staged_successor": PathPassingReview(
         exemption=(
             "Read-only staged-successor replay check: agent_meta.json is inspected "
             "only to validate an existing child identity. New child metadata is "
@@ -397,14 +397,14 @@ _REVIEWED_PATH_PASSING_CONTEXTS: dict[str, PathPassingReview] = {
             "artifact-index-aware metadata writer."
         ),
     ),
-    "src/sase/axe/run_agent_successor.py:restore_staged_successor_in_loop": PathPassingReview(
+    "src/sase/axe/run_agent_successor_staged_identity.py:restore_staged_successor_in_loop": PathPassingReview(
         exemption=(
             "Read-only staged-successor restore check: agent_meta.json is inspected "
             "only to validate an already-created child before restoring in-memory "
             "loop state; no marker is written."
         ),
     ),
-    "src/sase/axe/run_agent_successor.py:deliver_staged_successor_detached": PathPassingReview(
+    "src/sase/axe/run_agent_successor_delivery.py:deliver_staged_successor_detached": PathPassingReview(
         lifecycle_coverage=(
             "Creates a missing child through create_followup_artifacts, which "
             "refreshes the new artifacts directory index; the spawned runner "

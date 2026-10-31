@@ -183,7 +183,7 @@ def test_allocated_suffix_forwards_template_and_reservations(tmp_path: Path) -> 
     reserved = ("--plan", "--1")
 
     with patch(
-        "sase.axe.run_agent_successor.allocate_agent_session_child_suffix",
+        "sase.axe._run_agent_successor_shared.allocate_agent_session_child_suffix",
         return_value="--plan-0",
     ) as allocate:
         name = continue_as_successor(
@@ -399,7 +399,7 @@ def test_before_state_change_persists_identity_before_mutating_runner(
         assert state.current_prompt == "original prompt"
 
     with patch(
-        "sase.axe.run_agent_successor.mark_lifecycle_phase",
+        "sase.axe.run_agent_successor_inprocess.mark_lifecycle_phase",
         side_effect=lambda *_args: events.append("lifecycle"),
     ):
         continue_as_successor(

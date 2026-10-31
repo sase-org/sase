@@ -296,7 +296,7 @@ def test_handle_pipe_marker_explicit_name_fresh_and_model(tmp_path: Path) -> Non
         patch("sase.axe.run_agent_exec_pipe_handoff.promote_to_workflow"),
         patch("sase.axe.run_agent_exec_pipe_handoff._store_followup_prompt_artifact"),
         patch(
-            "sase.axe.run_agent_successor.write_followup_model_meta",
+            "sase.axe.run_agent_successor_inprocess.write_followup_model_meta",
             write_model,
         ),
         patch("sase.axe.run_agent_exec_pipe_handoff.reset_killed"),

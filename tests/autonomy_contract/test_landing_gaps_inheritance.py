@@ -352,7 +352,9 @@ def test_in_process_widening_refused_via_real_helper(tmp_path: Path) -> None:
 
 def test_successor_prompt_extraction_covers_manual(tmp_path: Path) -> None:
     """The in-process entry point extracts explicit manual/off as narrowing."""
-    from sase.axe.run_agent_successor import _explicit_autonomy_selection
+    from sase.axe.run_agent_successor_inprocess import (
+        _explicit_autonomy_selection,
+    )
 
     assert _explicit_autonomy_selection("%auto:manual\nwork") == "manual"
     assert _explicit_autonomy_selection("%auto:off\nwork") == "manual"
