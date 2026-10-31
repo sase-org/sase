@@ -83,9 +83,16 @@ def prepare_deferred_prompt_archive(
     artifacts_dir = Path(source_label)
     if resolve_raw_prompt_path(artifacts_dir) is None:
         return _DeferredPromptPrepareResult(wrote=False)
+    from sase.agents_sync.prompt_archive.inputs import read_prompt_archive_inputs
     from sase.agents_sync.prompt_archive.protection import protection_scope_for_target
     from sase.agents_sync.prompt_archive.publish import prepare_prompt_archive
 
+    # A planner archive is named after its plan, links to it, and carries the
+    # plan snapshot as its body. Its approval recorded those inputs beside the
+    # artifacts; rows without a record keep the default agent-derived archive.
+    inputs = read_prompt_archive_inputs(
+        artifacts_dir, primary_revision=request.primary_revision
+    )
     prepared = prepare_prompt_archive(
         target=target,
         repo=target.sidecar_path,
@@ -98,6 +105,10 @@ def prepare_deferred_prompt_archive(
             else target.primary_checkout
         ),
         agent_artifacts_dir=artifacts_dir,
+        prompt_content=None if inputs is None else inputs.prompt_content,
+        plan_ref=None if inputs is None else inputs.plan_ref,
+        prompt_name=None if inputs is None else inputs.prompt_name,
+        yyyymm=None if inputs is None else inputs.yyyymm,
         git_runner=git_runner,
         protection_scope=protection_scope_for_target(target),
     )

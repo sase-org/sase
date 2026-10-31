@@ -160,6 +160,16 @@ local artifact pool inside the same bounded transaction that publishes the hood.
 request is acknowledged only once both halves reached the sidecar, so a prompt that
 could not be rebuilt keeps its request queued and retryable rather than retiring it.
 
+An approved planner's archive is plan-named and carries the plan snapshot, which the
+outbox row does not. Before enqueueing, plan approval writes
+`prompt_archive_inputs.json` into the planner's artifacts directory (the directory the
+row already names). It is a versioned, local-only record of the plan reference, archive
+name, month, and exact plan snapshot, keyed to the row's `primary_revision`. A deferred
+restore reads it back, so an archive restored after lock contention lands at the same
+`prompts/<YYYYMM>/<plan>.md` with its `PLAN` link and snapshot body. A row without a
+matching, readable record keeps the default restore under the agent's name from the
+run's recorded prompt.
+
 Document back-references are separate. After verified prompt-archive publication that
 contains a provider-document reference, SASE records the citation. The inline commit
 path tries to publish it before returning; the background publisher drains it after the

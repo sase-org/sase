@@ -12,6 +12,7 @@ from sase.bead.epic_launch import build_epic_launch_argv
 from sase.sdd.plan_refs import PLAN_REFERENCE_PREFIX
 
 if TYPE_CHECKING:
+    from sase.agents_sync.prompt_archive.inputs import PromptArchiveInputs
     from sase.axe.run_agent_exec import AgentExecContext, LoopState
 
 logger = logging.getLogger(__name__)
@@ -29,6 +30,7 @@ def publish_planner_prompt_archive(
     """Publish the approved planner prompt to the canonical agents sidecar."""
     from sase.agents_sync.git import run_git
     from sase.agents_sync.prompt_archive import publish_prompt_archive
+    from sase.agents_sync.prompt_archive.inputs import PromptArchiveInputs
     from sase.agents_sync.publication_outbox import PUBLICATION_SCOPE_LINKED
 
     revision_result = run_git(
@@ -43,6 +45,21 @@ def publish_planner_prompt_archive(
         )
         return None
 
+    plan_ref = f"{PLAN_REFERENCE_PREFIX}{yyyymm}/{plan_name}.md"
+    # The outbox row carries none of the archive inputs, and widening it would
+    # make the outbox unreadable to older readers. Persist them beside the
+    # planner's artifacts, where the row's artifacts_dir already points, so a
+    # deferred restore rebuilds the same plan-named archive with its PLAN link.
+    _persist_planner_archive_inputs(
+        state.current_artifacts_dir,
+        PromptArchiveInputs(
+            primary_revision=primary_revision,
+            prompt_content=prompt_content,
+            plan_ref=plan_ref,
+            prompt_name=plan_name,
+            yyyymm=yyyymm,
+        ),
+    )
     # The pre-plan HEAD is only the row's anchor and key. The planner does
     # not own that commit. The planner's obligation is the session page plus
     # the prompt archive, and acknowledge_completed already gates the archive.
@@ -53,7 +70,7 @@ def publish_planner_prompt_archive(
         commit_cwd=ctx.workspace_dir,
         agent_artifacts_dir=state.current_artifacts_dir,
         prompt_content=prompt_content,
-        plan_ref=f"{PLAN_REFERENCE_PREFIX}{yyyymm}/{plan_name}.md",
+        plan_ref=plan_ref,
         prompt_name=plan_name,
         yyyymm=yyyymm,
         fulfillment_scope=PUBLICATION_SCOPE_LINKED,
@@ -64,6 +81,30 @@ def publish_planner_prompt_archive(
             outcome.error or outcome.skip_reason,
         )
     return outcome.prompt_path
+
+
+def _persist_planner_archive_inputs(
+    artifacts_dir: str | None,
+    inputs: PromptArchiveInputs,
+) -> None:
+    """Record the archive inputs for a deferred restore, never failing the plan.
+
+    The inline publish below still carries the same inputs, so a failed write
+    only costs the faithful restore, not the publication itself.
+    """
+    if not artifacts_dir:
+        return
+    from sase.agents_sync.prompt_archive.inputs import write_prompt_archive_inputs
+
+    try:
+        write_prompt_archive_inputs(artifacts_dir, inputs)
+    except OSError:
+        logger.warning(
+            "Could not persist planner prompt archive inputs in %s; a deferred "
+            "restore will use the default archive name",
+            artifacts_dir,
+            exc_info=True,
+        )
 
 
 def accepted_plan_action_for_meta(plan_result: Any) -> str:
