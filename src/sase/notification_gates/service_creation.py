@@ -20,7 +20,6 @@ from sase.notification_gates._service_shared import (
     find_notification,
     notification_exists,
     optional_json,
-    source_hashes,
     spec_fingerprint,
     write_journal,
 )
@@ -30,6 +29,7 @@ from sase.notification_gates.durability import (
     fsync_dir,
     materialize_resource,
     read_json_object,
+    sha256_bytes,
     sha256_file,
 )
 from sase.notification_gates.executor import execute_gate_selection
@@ -81,17 +81,32 @@ def create_gate(
         interaction_requests_dir() / ".locks" / adapter.kind / f"{request_id}.lock"
     )
     with file_lock(lock_path):
+        journal = optional_json(paths.journal)
         if paths.creation_result.is_file():
+            _refuse_request_id_conflict(
+                spec,
+                adapter,
+                paths,
+                journal,
+                frozen_auto=frozen_auto,
+                resource_bytes=resource_bytes,
+            )
             return GateCreationResult.from_mapping(
                 read_json_object(paths.creation_result)
             )
-        journal = optional_json(paths.journal)
         if journal.get("state") in {"initializing", "failed"}:
             shutil.rmtree(paths.root, ignore_errors=True)
             journal = {}
 
         if journal:
-            return _resume_gate_creation(spec, adapter, paths, journal)
+            return _resume_gate_creation(
+                spec,
+                adapter,
+                paths,
+                journal,
+                frozen_auto=frozen_auto,
+                resource_bytes=resource_bytes,
+            )
         return _start_gate_creation(
             spec,
             adapter,
@@ -253,8 +268,85 @@ def _effective_from_persisted_policy(
     )
 
 
+def _resource_hashes_for_replay(
+    spec: GateSpec,
+    paths: Any,
+    resource_bytes: Mapping[str, bytes] | None,
+) -> dict[str, str]:
+    """Hash replay resources from overlays, owned files, then the spec."""
+    hashes: dict[str, str] = {}
+    for resource in spec.resources:
+        overlay = None if resource_bytes is None else resource_bytes.get(resource.path)
+        if overlay is not None:
+            hashes[resource.path] = sha256_bytes(overlay)
+            continue
+        owned = owned_resource_path(paths.root, resource.path)
+        if owned.is_file():
+            hashes[resource.path] = sha256_file(owned)
+            continue
+        if resource.content is not None:
+            hashes[resource.path] = sha256_bytes(resource.content.encode("utf-8"))
+        elif resource.source is not None:
+            hashes[resource.path] = sha256_file(resource.source)
+    return hashes
+
+
+def _effective_spec_for_replay(
+    spec: GateSpec,
+    adapter: GateAdapter,
+    paths: Any,
+    *,
+    frozen_auto: Mapping[str, Any] | None,
+) -> tuple[GateSpec, dict[str, Any], dict[str, Any], bool]:
+    """Rebuild the effective spec used to fingerprint a replayed request."""
+    envelope: dict[str, Any] = {}
+    if paths.request.is_file():
+        envelope = read_json_object(paths.request)
+    persisted = _persisted_policy_block(envelope)
+    if persisted is not None:
+        return _effective_from_persisted_policy(spec, adapter, persisted)
+    if frozen_auto is not None:
+        return apply_frozen_auto_state(spec, frozen_auto)
+    return effective_auto_state(spec, adapter, request_id=paths.root.name)
+
+
+def _refuse_request_id_conflict(
+    spec: GateSpec,
+    adapter: GateAdapter,
+    paths: Any,
+    journal: Mapping[str, Any],
+    *,
+    frozen_auto: Mapping[str, Any] | None,
+    resource_bytes: Mapping[str, bytes] | None,
+) -> None:
+    """Refuse a replay whose payload does not match the stored specification."""
+    stored = journal.get("spec_sha256")
+    if not isinstance(stored, str) or not stored:
+        return
+    effective, _decision, _policy, _auto = _effective_spec_for_replay(
+        spec, adapter, paths, frozen_auto=frozen_auto
+    )
+    candidate = spec_fingerprint(
+        effective,
+        adapter,
+        _resource_hashes_for_replay(effective, paths, resource_bytes),
+    )
+    if candidate != stored:
+        raise GateError(
+            "request_id_conflict",
+            paths.root.name,
+            "request id already belongs to a different gate specification",
+        )
+
+
 def _resume_gate_creation(
-    spec: GateSpec, adapter: GateAdapter, paths: Any, journal: dict[str, Any]
+    spec: GateSpec,
+    adapter: GateAdapter,
+    paths: Any,
+    journal: dict[str, Any],
+    *,
+    frozen_auto: Mapping[str, Any] | None = None,
+    resource_bytes: Mapping[str, bytes] | None = None,
 ) -> GateCreationResult:
     state = journal.get("state")
     if state not in {"bundle_written", "notification_prepared"}:
@@ -267,19 +359,27 @@ def _resume_gate_creation(
         effective, decision, policy_block, auto_execute = (
             _effective_from_persisted_policy(spec, adapter, persisted)
         )
+    elif frozen_auto is not None:
+        effective, decision, policy_block, auto_execute = apply_frozen_auto_state(
+            spec, frozen_auto
+        )
     else:
         effective, decision, policy_block, auto_execute = effective_auto_state(
             spec, adapter, request_id=paths.root.name
         )
-    candidate_fingerprint = spec_fingerprint(
-        effective, adapter, source_hashes(effective)
+    _refuse_request_id_conflict(
+        spec,
+        adapter,
+        paths,
+        journal,
+        frozen_auto=frozen_auto,
+        resource_bytes=resource_bytes,
     )
-    if candidate_fingerprint != journal.get("spec_sha256"):
-        raise GateError(
-            "request_id_conflict",
-            paths.root.name,
-            "request id already belongs to a different gate specification",
-        )
+    candidate_fingerprint = spec_fingerprint(
+        effective,
+        adapter,
+        _resource_hashes_for_replay(effective, paths, resource_bytes),
+    )
     if auto_execute:
         return _resolve_auto_gate(
             effective,

@@ -34,7 +34,8 @@ def publish_staged_gate(
 
     The original agent environment is not consulted. Snapshot bytes replace
     source-backed resources so publication does not reopen the CLI working
-    directory. Frozen auto state is consumed as-is.
+    directory. Frozen auto state is consumed as-is. Request-id replay
+    finishes missing claim and notification work under the original member.
     """
     try:
         normalized = validate_gate_staged_payload(dict(payload))

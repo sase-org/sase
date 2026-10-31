@@ -164,7 +164,8 @@ def test_gate_next_fork_writer_emits_no_legacy() -> None:
 
 def test_gate_turn_stamp_writes_session_suffix() -> None:
     spec = SimpleNamespace(
-        presentation={"action_data": {"raw_suffix": "ts-1", "agent_timestamp": "ts-1"}}
+        kind="custom",
+        presentation={"action_data": {"raw_suffix": "ts-1", "agent_timestamp": "ts-1"}},
     )
     _stamp_pending_shell_on_spec(
         spec, member_artifacts_dir="/tmp/dir", member_timestamp="ts-1"
@@ -175,7 +176,10 @@ def test_gate_turn_stamp_writes_session_suffix() -> None:
 
 
 def test_gate_turn_stamp_reads_legacy_suffix() -> None:
-    spec = SimpleNamespace(presentation={"action_data": {"family_root_suffix": "ts-9"}})
+    spec = SimpleNamespace(
+        kind="custom",
+        presentation={"action_data": {"family_root_suffix": "ts-9"}},
+    )
     _stamp_pending_shell_on_spec(
         spec, member_artifacts_dir="/tmp/dir", member_timestamp="ts-1"
     )

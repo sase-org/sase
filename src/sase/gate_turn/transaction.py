@@ -142,8 +142,10 @@ def publish_gate_turn(
 
     The publisher alone creates the gate member, transfers or releases its
     workspace claim, materializes the bundle, publishes the notification,
-    and pulses watchers. Request-id replay finds the original member and
-    gate instead of allocating another suffix or moving the claim twice.
+    and pulses watchers. Request-id replay validates identity and payload,
+    then finishes any missing claim, bundle, or notification work under the
+    original member instead of allocating another suffix or moving the
+    claim twice.
     """
     turn = spec.turn
     if turn is None:
@@ -154,27 +156,14 @@ def publish_gate_turn(
     with gate_lane_lock(project_name, creator.durable_lane):
         replay = find_gate_turn_by_gate_id(project_name, spec.request_id)
         if replay is not None:
-            _stamp_pending_shell_on_spec(
+            return _finish_existing_gate_turn(
                 spec,
-                member_artifacts_dir=replay.artifacts_dir,
-                member_timestamp=replay.timestamp
-                or os.path.basename(replay.artifacts_dir.rstrip("/")),
-            )
-            gate_result = _create_durable_gate(
-                spec,
+                creator=creator,
+                replay=replay,
+                before_auto_settle=before_auto_settle,
                 frozen_auto=frozen_auto,
                 resource_bytes=resource_bytes,
             )
-            record = _record_with_gate_result(project_name, replay, gate_result)
-            creation = GateTurnCreation(
-                gate=gate_result,
-                record=record,
-                project_file=creator.project_file,
-                claim_move=None,
-                cl_name=creator.cl_name,
-            )
-            _pulse_after_gate_visible(creation.record.project_name)
-            return creation
 
         suffix = turn.suffix or naming.allocate_gate_suffix(
             creator.durable_lane,
@@ -283,6 +272,183 @@ def publish_gate_turn(
         return creation
 
 
+def _finish_existing_gate_turn(
+    spec: GateSpec,
+    *,
+    creator: _CreatorContext,
+    replay: GateTurnRecord,
+    before_auto_settle: Callable[[GateTurnRecord, GateCreationResult], None] | None,
+    frozen_auto: Mapping[str, Any] | None,
+    resource_bytes: Mapping[str, bytes] | None,
+) -> GateTurnCreation:
+    """Resume a partially published member under its original request id."""
+    _validate_replay_identity(spec, creator, replay)
+    if (
+        replay.gate_state == "failed"
+        and not replay.bundle_path
+        and not replay.notification_id
+    ):
+        raise GateTurnError(
+            "request id already belongs to a failed gate turn that never published"
+        )
+    claim_move = _repair_replay_claim(spec, creator, replay)
+    member_timestamp = replay.timestamp or os.path.basename(
+        replay.artifacts_dir.rstrip("/")
+    )
+    _stamp_pending_shell_on_spec(
+        spec,
+        member_artifacts_dir=replay.artifacts_dir,
+        member_timestamp=member_timestamp,
+    )
+    try:
+        gate_result = _create_durable_gate(
+            spec,
+            frozen_auto=frozen_auto,
+            resource_bytes=resource_bytes,
+        )
+    except BaseException:
+        if claim_move is not None and not replay.is_terminal:
+            record = _read_required_record(creator.project_name, replay.artifacts_dir)
+            settle_gate_turn(
+                record,
+                gate_state="failed",
+                reason="gate creation failed",
+                creator_live=True,
+            )
+            restore_gate_turn_claim(
+                creator.project_file,
+                move=claim_move,
+                cl_name=creator.cl_name,
+            )
+        raise
+
+    record = _record_with_gate_result(creator.project_name, replay, gate_result)
+    if (
+        not record.is_terminal
+        and gate_result.auto_resolution.get("state") == "resolved"
+    ):
+        if before_auto_settle is not None:
+            before_auto_settle(record, gate_result)
+            record = _read_required_record(creator.project_name, replay.artifacts_dir)
+        record = settle_gate_turn(
+            record,
+            gate_state="answered",
+            reason="auto-resolved",
+            creator_live=True,
+        )
+        if claim_move is not None:
+            restore_gate_turn_claim(
+                creator.project_file,
+                move=claim_move,
+                cl_name=creator.cl_name,
+            )
+    creation = GateTurnCreation(
+        gate=gate_result,
+        record=record,
+        project_file=creator.project_file,
+        claim_move=claim_move,
+        cl_name=creator.cl_name,
+    )
+    _pulse_after_gate_visible(creation.record.project_name)
+    return creation
+
+
+def _validate_replay_identity(
+    spec: GateSpec, creator: _CreatorContext, replay: GateTurnRecord
+) -> None:
+    """Refuse a replay whose member identity does not match this request."""
+    request_id = spec.request_id or replay.gate_id
+    if replay.kind and replay.kind != spec.kind:
+        raise GateTurnError(
+            f"request id {request_id} already belongs to a {replay.kind} gate, "
+            f"not {spec.kind}"
+        )
+    turn = spec.turn
+    if (
+        turn is not None
+        and replay.workspace_policy
+        and replay.workspace_policy != turn.workspace
+    ):
+        raise GateTurnError(
+            f"request id {request_id} was published with workspace policy "
+            f"{replay.workspace_policy!r}, not {turn.workspace!r}"
+        )
+    recorded_creator = replay.creator_agent
+    expected_creator = (
+        creator.meta.get("name")
+        if isinstance(creator.meta.get("name"), str) and creator.meta.get("name")
+        else creator.target_name
+    )
+    if recorded_creator and expected_creator and recorded_creator != expected_creator:
+        raise GateTurnError(
+            f"request id {request_id} was created by {recorded_creator}, "
+            f"not {expected_creator}"
+        )
+
+
+def _repair_replay_claim(
+    spec: GateSpec, creator: _CreatorContext, replay: GateTurnRecord
+) -> GateClaimMove | None:
+    """Finish a pending claim transfer or release without moving twice."""
+    turn = spec.turn
+    if turn is None or replay.is_terminal:
+        return None
+    if _replay_claim_already_applied(creator, replay, turn.workspace):
+        return None
+    claim_move = move_gate_turn_claim(
+        creator.project_file,
+        creator.workspace_num,
+        creator_pid=creator.runner_pid,
+        artifacts_timestamp=replay.timestamp
+        or os.path.basename(replay.artifacts_dir.rstrip("/")),
+        cl_name=creator.cl_name,
+        workspace_policy=turn.workspace,
+        creator_artifacts_timestamp=creator.timestamp,
+    )
+    if not claim_move.result.success:
+        record = _read_required_record(creator.project_name, replay.artifacts_dir)
+        settle_gate_turn(
+            record,
+            gate_state="failed",
+            reason=claim_move.result.error or "workspace claim move failed",
+            creator_live=True,
+        )
+        raise GateTurnError(claim_move.result.error or "workspace claim move failed")
+    if claim_move.creator_claim is None:
+        return None
+    _record_creator_claim(replay.artifacts_dir, claim_move)
+    return claim_move
+
+
+def _replay_claim_already_applied(
+    creator: _CreatorContext, replay: GateTurnRecord, workspace_policy: str
+) -> bool:
+    """Return whether inherit/release claim work already landed for *replay*."""
+    if creator.workspace_num is None or creator.workspace_num == 0:
+        return True
+    if creator.runner_pid is None:
+        return True
+    from sase.running_field import get_claimed_workspaces
+
+    claims = get_claimed_workspaces(creator.project_file)
+    member_timestamp = replay.timestamp or os.path.basename(
+        replay.artifacts_dir.rstrip("/")
+    )
+    held = False
+    for claim in claims:
+        if claim.workspace_num != creator.workspace_num:
+            continue
+        held = True
+        if (
+            workspace_policy == "inherit"
+            and claim.artifacts_timestamp == member_timestamp
+        ):
+            return True
+    if workspace_policy == "release":
+        return not held
+    return False
+
+
 def _stamp_pending_shell_on_spec(
     spec: GateSpec,
     *,
@@ -299,7 +465,19 @@ def _stamp_pending_shell_on_spec(
     if member_timestamp:
         action_data.setdefault("raw_suffix", member_timestamp)
     if member_artifacts_dir and "artifacts_dir" not in action_data:
-        action_data["artifacts_dir"] = member_artifacts_dir
+        kind = getattr(spec, "kind", None)
+        stamp_member_dir = True
+        if isinstance(kind, str) and kind:
+            from sase.notification_gates.registry import adapter_for_kind
+
+            # HITL (and any kind whose bundle path is ``artifacts_dir``)
+            # reserves that action_data key for the durable bundle, so the
+            # member identity rides on ``raw_suffix`` instead.
+            stamp_member_dir = (
+                adapter_for_kind(kind).legacy_directory_key != "artifacts_dir"
+            )
+        if stamp_member_dir:
+            action_data["artifacts_dir"] = member_artifacts_dir
     # legacy agent-family spelling: pre-rename notifications carry
     # ``family_root_suffix``; new writers emit only
     # ``agent_session_root_suffix``.

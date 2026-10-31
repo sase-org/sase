@@ -17,7 +17,6 @@ from sase.notification_gates.durability import (
     canonical_json_bytes,
     read_json_object,
     sha256_bytes,
-    sha256_file,
 )
 from sase.notification_gates.models import GateError, GateSpec
 from sase.notification_gates.registry import GateAdapter
@@ -61,17 +60,6 @@ def optional_json(path: Path) -> dict[str, Any]:
         if exc.code == "missing_file":
             return {}
         raise
-
-
-def source_hashes(spec: GateSpec) -> dict[str, str]:
-    hashes: dict[str, str] = {}
-    for resource in spec.resources:
-        if resource.content is not None:
-            hashes[resource.path] = sha256_bytes(resource.content.encode("utf-8"))
-        else:
-            assert resource.source is not None
-            hashes[resource.path] = sha256_file(resource.source)
-    return hashes
 
 
 def spec_fingerprint(
@@ -121,7 +109,6 @@ __all__ = [
     "notification_exists",
     "optional_json",
     "preview_relative_path",
-    "source_hashes",
     "spec_fingerprint",
     "string_values",
     "write_journal",
