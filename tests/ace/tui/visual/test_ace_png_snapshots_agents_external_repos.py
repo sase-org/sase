@@ -101,10 +101,11 @@ async def test_agents_external_repo_diff_file_panel_png_snapshot(
         await wait_for_visual_idle(page)
         await reveal_agent_file_view(page)
         await wait_for_svg_contains(page, "external repo")
+        await wait_for_svg_contains(page, "src/core.py")
 
         assert_page_svg_contains(page, "gh:pallets/click")
         assert_page_svg_contains(page, "external repo")
-        assert_page_svg_contains(page, "sase/repos/external")
+        assert_page_svg_contains(page, "src/core.py")
         await wait_for_visual_idle(page)
         ace_png_visual.assert_page_png(
             page,

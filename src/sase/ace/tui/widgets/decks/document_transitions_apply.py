@@ -49,6 +49,7 @@ class DeckPanelDocumentApplyMixin:
         same = stored is not None and stored == document.subject
         new_mode = self._decide_document_mode(deck, document, same_subject=same)  # type: ignore[attr-defined]
         old_mode = self._render_mode.get(deck, RenderMode.PAGED)  # type: ignore[attr-defined]
+        preferred = self._preferred_document_card(deck)
         if new_mode is old_mode:
             # Deck mode is stable, but the block mode may be stale
             # (unmeasured first paint, resize, split or header toggles).
@@ -61,10 +62,13 @@ class DeckPanelDocumentApplyMixin:
                     anchor = self._capture_document_reading_anchor(
                         deck, document, old_mode=old_mode
                     )
+                    active = self._stored_document_active(deck)  # type: ignore[attr-defined]
+                    if preferred is not None and document.card(preferred) is not None:
+                        active = preferred
                     active = self.show_document_paged(  # type: ignore[attr-defined]
                         deck,
                         document,
-                        self._stored_document_active(deck),  # type: ignore[attr-defined]
+                        active,
                         new_mode,  # type: ignore[attr-defined]
                     )
                     self._store_document_active(deck, active)  # type: ignore[attr-defined]
@@ -79,7 +83,6 @@ class DeckPanelDocumentApplyMixin:
             except Exception:
                 pass
             return
-        preferred = self._preferred_document_card(deck)
         # Avoid recursion via set_deck: apply directly.
         self._render_mode[deck] = new_mode  # type: ignore[attr-defined]
         self._mode_subject[deck] = document.subject  # type: ignore[attr-defined]
@@ -126,8 +129,11 @@ class DeckPanelDocumentApplyMixin:
                         spread_active = transition_anchor.card_id or spread_active
                 except Exception:
                     transition_anchor = None
+                active = spread_active
+                if preferred is not None and document.card(preferred) is not None:
+                    active = preferred
                 active = self.show_document_paged(  # type: ignore[attr-defined]
-                    deck, document, spread_active or preferred, new_mode
+                    deck, document, active or preferred, new_mode
                 )
                 self._store_document_active(deck, active)  # type: ignore[attr-defined]
                 if (

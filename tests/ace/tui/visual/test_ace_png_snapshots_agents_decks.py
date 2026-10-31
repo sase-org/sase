@@ -19,7 +19,10 @@ from sase.ace.tui.widgets.decks.model import DeckId, RenderMode
 from tests.ace.tui.visual._ace_agents_png_snapshot_zoom_fixtures import (
     zoom_multi_file_agent,
 )
-from tests.ace.tui.visual._ace_agents_png_snapshot_helpers import show_reply_card
+from tests.ace.tui.visual._ace_agents_png_snapshot_helpers import (
+    _wait_main_card_visibly_applied,
+    show_reply_card,
+)
 from tests.ace.tui.visual._ace_png_snapshot_helpers import (
     patches,
     patch_startup_loaders,
@@ -217,6 +220,13 @@ async def test_agents_decks_live_reply_partial_and_growth_png_snapshots(
             lambda: "more detail remains" in _reply_card_text(detail),
             description="grown live Reply content is visible",
         )
+        await _wait_main_card_visibly_applied(
+            page,
+            detail,
+            0,
+            "reply",
+            description="grown Reply selection is visibly applied",
+        )
         assert single_panel.main_view.active_card_id == "reply"
         await wait_for_visual_idle(page)
         ace_png_visual.assert_page_png(
@@ -231,6 +241,7 @@ async def test_agents_decks_live_reply_partial_and_growth_png_snapshots(
             DeckId.TOOLS: DeckAvailability(False, 0),
         }
         await page.press("vertical_line")
+        await wait_for_visual_idle(page)
         await page.press("ctrl+f")
         await wait_for_state(
             page,

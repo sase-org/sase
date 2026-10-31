@@ -13,7 +13,6 @@ from textual.markup import MarkupError
 from textual.reactive import reactive
 
 from sase.ace.tui.util.session_registration import register_ace_session
-from sase.footprint._tui_seams import FootprintTuiMixin
 from sase.logs import current_toast_session, record_toast
 
 if TYPE_CHECKING:
@@ -85,7 +84,7 @@ from ._app_layout import (
     MIN_LIST_WIDTH as _MIN_LIST_WIDTH,
 )
 from ._app_layout import AppLayoutMixin
-from ._app_watchers import AppWatchersMixin
+from ._app_watchers import AppWatchersMixin, FootprintTuiMixin
 from .artifact_tabs import (
     DEFAULT_ARTIFACTS_RELATIONS_COLLAPSED,
     DEFAULT_ARTIFACTS_SUBTAB,

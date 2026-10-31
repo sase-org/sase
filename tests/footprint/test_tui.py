@@ -14,7 +14,7 @@ from typing import Any
 import pytest
 
 from sase.footprint import _tui, ids
-from sase.footprint._tui_seams import _BUILTIN_MODES
+from sase.ace.tui._app_watchers import _BUILTIN_MODES
 from sase.footprint.catalog import load_catalog
 from sase.footprint.paths import generation_path, spool_dir
 
@@ -109,19 +109,21 @@ def test_all_spool_io_happens_off_the_loop_thread(
 def test_bump_microbench_stays_within_two_microseconds(
     footprint_home: Path,
 ) -> None:
+    # Warm the lazy flusher and hot call path before timing the steady-state
+    # bump cost. Keep that state through measurement so every batch measures
+    # the same path the TUI uses after its first action.
     for _ in range(200):
         _tui.bump("tui:app.dismiss_toasts", "key")
-    _tui._reset_for_tests()
     # Min-of-batches: the shared host is noisy, so the quietest batch is
     # the honest measure of bump's own cost.
-    iterations = 3000
+    iterations = 5000
     best = float("inf")
-    for _ in range(3):
+    for _ in range(5):
         start = time.perf_counter()
         for _ in range(iterations):
             _tui.bump("tui:app.dismiss_toasts", "key")
         best = min(best, (time.perf_counter() - start) / iterations)
-    assert best <= 2e-6, f"mean bump cost {best * 1e6:.3f} µs"
+    assert best <= 2e-6, f"best bump cost {best * 1e6:.3f} µs"
 
 
 def test_mode_off_discards_counts(
@@ -215,7 +217,7 @@ def _scope_dataclass(scope: str) -> Any:
 
 def test_builtin_mode_keys_are_catalogued() -> None:
     from sase.ace.tui.keymaps.mode_keymaps import _BUILTIN_MODE_CLASSES
-    from sase.footprint._tui_seams import _flatten
+    from sase.ace.tui._app_watchers import _flatten
 
     _, entries = load_catalog()
     catalogued = {entry.id for entry in entries}

@@ -178,7 +178,7 @@ class PagerGotoMixin:
             end = min(end_line, line_count)
         if past_eof:
             title = self.document.title
-            self.notify(
+            self.app.notify(
                 f"{title} has {line_count} lines — showing line {line_count}.",
                 severity="information",
             )

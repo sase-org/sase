@@ -19,6 +19,7 @@ from sase.core.bead_touch_index_facade import (
 )
 from tests.ace.tui.visual._ace_agents_png_snapshot_helpers import (
     assert_page_svg_contains,
+    assert_page_svg_styled_text_contains,
     main_deck_scroll,
     page_svg_text,
 )
@@ -105,13 +106,14 @@ async def test_agents_bead_note_preview_png_snapshot(
         )
 
 
-def _closed_bead_touches() -> tuple[_BeadTouchDisplayEvent, ...]:
+def _closed_bead_touches(
+    *, actor: str = "visual.bead-closed"
+) -> tuple[_BeadTouchDisplayEvent, ...]:
     """Return touches covering standing-done, canceled, plain, stale closes.
 
     Bead ids stay short so the CLOSED pill fits the 90x32 split-card
     viewport as well as the wide card.
     """
-    actor = "visual.bead-closed"
     return (
         _BeadTouchDisplayEvent(
             touch=BeadTouch(
@@ -174,15 +176,15 @@ def _closed_bead_touches() -> tuple[_BeadTouchDisplayEvent, ...]:
     )
 
 
-def _closed_bead_agent(tmp_path: Path) -> Agent:
+def _closed_bead_agent(tmp_path: Path, *, short_identity: bool = False) -> Agent:
     return Agent(
         agent_type=AgentType.RUNNING,
-        cl_name="visual-bead-closed",
+        cl_name="closed" if short_identity else "visual-bead-closed",
         project_file="/workspace/sase/visual_project.sase",
         status="RUNNING",
         start_time=datetime(2026, 9, 25, 14, 0, 0),
         raw_suffix="20260925140000",
-        agent_name="visual.bead-closed",
+        agent_name="closed" if short_identity else "visual.bead-closed",
         workspace_dir=str(tmp_path),
         llm_provider="codex",
         model="gpt-5",
@@ -231,19 +233,27 @@ async def test_agents_bead_closed_by_agent_narrow_png_snapshot(
     tmp_path: Path,
 ) -> None:
     """The CLOSED pill stays contiguous in a narrow split card."""
-    agent = _closed_bead_agent(tmp_path)
-    touches = _closed_bead_touches()
+    agent = _closed_bead_agent(tmp_path, short_identity=True)
+    touches = _closed_bead_touches(actor=agent.agent_name)
     monkeypatch.setattr(
         "sase.ace.tui.bead_touches.load_bead_touches_for_agent_context",
         lambda _agent: touches,
     )
     patch_startup_loaders(monkeypatch, agents=[agent])
-
     async with AcePage(query='"visual"', patches=patches(), size=(90, 32)) as page:
         await wait_for_startup(page)
         await page.press("shift+tab")
         await page.expect_state("tab", "agents")
         await page.expect_state("agent_count", 1)
+        # The bead details begin below the narrow viewport. Scroll the Main
+        # card until both the lane label and the CLOSED pill are on screen.
+        scroll = main_deck_scroll(page)
+        for y in range(int(scroll.max_scroll_y) + 1):
+            visible = page_svg_text(page)
+            if "Beads:" in visible and "CLOSED" in visible:
+                break
+            scroll.scroll_to(y=y, animate=False, immediate=True)
+            await wait_for_visual_idle(page)
         await wait_for_svg_contains(page, "Beads:")
         await wait_for_svg_contains(page, "CLOSED")
         await wait_for_visual_idle(page)
@@ -259,13 +269,14 @@ async def test_agents_bead_closed_by_agent_narrow_png_snapshot(
         )
 
 
-def _created_bead_touches() -> tuple[_BeadTouchDisplayEvent, ...]:
+def _created_bead_touches(
+    *, actor: str = "visual.bead-created"
+) -> tuple[_BeadTouchDisplayEvent, ...]:
     """Return touches covering created, created-plus-closed, and legacy rows.
 
     Bead ids stay short so the CREATED pill fits the 90x32 split-card
     viewport as well as the wide card.
     """
-    actor = "visual.bead-created"
     return (
         _BeadTouchDisplayEvent(
             touch=BeadTouch(
@@ -299,16 +310,19 @@ def _created_bead_touches() -> tuple[_BeadTouchDisplayEvent, ...]:
 
 
 def _created_bead_agent(
-    tmp_path: Path, *, phase_bead_id: str | None = "sase-1e"
+    tmp_path: Path,
+    *,
+    phase_bead_id: str | None = "sase-1e",
+    short_identity: bool = False,
 ) -> Agent:
     return Agent(
         agent_type=AgentType.RUNNING,
-        cl_name="visual-bead-created",
+        cl_name="created" if short_identity else "visual-bead-created",
         project_file="/workspace/sase/visual_project.sase",
         status="RUNNING",
         start_time=datetime(2026, 9, 26, 14, 0, 0),
         raw_suffix="20260926140000",
-        agent_name="visual.bead-created",
+        agent_name="created" if short_identity else "visual.bead-created",
         workspace_dir=str(tmp_path),
         llm_provider="codex",
         model="gpt-5",
@@ -363,38 +377,34 @@ async def test_agents_bead_created_by_agent_narrow_png_snapshot(
     # card to ~6 cells, shredding "Beads:"/"CREATED" mid-token so the SVG
     # sentinels below can never match. The wide golden covers the phase-bead
     # card, including the assigned row this variant omits.
-    agent = _created_bead_agent(tmp_path, phase_bead_id=None)
-    touches = _created_bead_touches()
+    agent = _created_bead_agent(tmp_path, phase_bead_id=None, short_identity=True)
+    touches = _created_bead_touches(actor=agent.agent_name)
     monkeypatch.setattr(
         "sase.ace.tui.bead_touches.load_bead_touches_for_agent_context",
         lambda _agent: touches,
     )
     patch_startup_loaders(monkeypatch, agents=[agent])
-
     async with AcePage(query='"visual"', patches=patches(), size=(90, 32)) as page:
         await wait_for_startup(page)
         await page.press("shift+tab")
         await page.expect_state("tab", "agents")
         await page.expect_state("agent_count", 1)
-        await wait_for_svg_contains(page, "Beads:")
-        # The first bead row starts at the bottom edge, so nudge the deck
-        # until its CREATED pill scrolls into view.
+        await wait_for_visual_idle(page)
+        # The bead details begin below the narrow viewport. Scroll the Main
+        # card until the CREATED pill is on screen.
         scroll = main_deck_scroll(page)
-        for _ in range(10):
-            if "CREATED" in page_svg_text(page):
-                break
-            scroll.scroll_to(
-                y=min(int(scroll.max_scroll_y), int(scroll.scroll_y) + 2),
-                animate=False,
-            )
+        max_scroll_y = int(scroll.max_scroll_y)
+        for y in range(max_scroll_y + 1):
+            scroll.scroll_to(y=y, animate=False, immediate=True)
             await wait_for_visual_idle(page)
-        await wait_for_svg_contains(page, "CREATED")
+            visible = page_svg_text(page)
+            if "CREATED" in "".join(visible.split()):
+                break
+        assert_page_svg_styled_text_contains(page, "CREATED")
         await wait_for_visual_idle(page)
 
         # The narrow card wraps the "SASE CONTEXT" heading itself, so assert
         # the lane and pill tokens that prove the created rendering instead.
-        assert_page_svg_contains(page, "Beads:")
-        assert_page_svg_contains(page, "CREATED")
         ace_png_visual.assert_page_png(
             page,
             "agents_bead_created_by_agent_90x32",

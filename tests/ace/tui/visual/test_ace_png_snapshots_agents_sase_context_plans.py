@@ -15,6 +15,7 @@ from sase.ace.tui.widgets.renderable_text import renderable_to_text
 from sase.bead.model import Issue, IssueType
 from tests.ace.tui.visual._ace_agents_png_snapshot_helpers import (
     assert_page_svg_contains,
+    assert_page_svg_styled_text_contains,
 )
 from tests.ace.tui.visual._ace_png_snapshot_helpers import (
     patches,
@@ -213,12 +214,12 @@ async def test_agents_phase_bead_context_png_snapshot(
     )
     agent = Agent(
         agent_type=AgentType.RUNNING,
-        cl_name="visual-phase-bead",
+        cl_name="phase",
         project_file="/workspace/sase/visual_project.sase",
         status="RUNNING",
         start_time=datetime(2026, 7, 17, 9, 30, 0),
         raw_suffix="20260717093000",
-        agent_name="sase-visual.2",
+        agent_name="phase",
         agent_session_role="phase",
         epic_bead_id="sase-visual",
         phase_bead_id="sase-visual.2",
@@ -251,6 +252,7 @@ async def test_agents_phase_bead_context_png_snapshot(
         await page.expect_state("tab", "agents")
         await page.expect_state("agent_count", 1)
         await wait_for_svg_contains(page, "Phase Title:")
+        await wait_for_svg_contains(page, "Phase bead SASE context")
         await wait_for_visual_idle(page)
 
         assert_page_svg_contains(page, "SASE CONTEXT")
@@ -269,7 +271,7 @@ async def test_agents_phase_bead_context_png_snapshot(
         assert_page_svg_contains(page, "Epic Title:")
         assert_page_svg_contains(page, "Created:")
         assert_page_svg_contains(page, "2026-07-03")
-        assert_page_svg_contains(page, "Phase bead SASE context lane")
+        assert_page_svg_styled_text_contains(page, "Phase bead SASE context lane")
         assert "Bead:" not in svg
         assert "ID:" not in svg
         assert "▸ PLAN" not in svg

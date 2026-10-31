@@ -6,6 +6,7 @@ from dataclasses import replace
 from datetime import UTC, datetime
 
 import pytest
+from rich.text import Text
 
 from sase.ace.testing import AcePage
 from sase.ace.tui.models.agent import Agent, AgentType
@@ -20,6 +21,7 @@ from tests.ace.tui.visual._ace_png_snapshot_helpers import (
     patches,
     patch_startup_loaders,
     wait_for_startup,
+    wait_for_state,
     wait_for_svg_contains,
     wait_for_visual_idle,
 )
@@ -392,6 +394,8 @@ async def test_agents_stranded_resolve_modal_png_snapshot(
         from sase.ace.tui.modals.stranded_resolve_modal import StrandedResolveModal
         from sase.ace.tui.models import agent_stranded
         from sase.ace.tui.models.stranded_resolve import build_stranded_resolve_view
+        from sase.ace.tui.widgets._agent_jump_legend import jump_legend_title
+        from sase.ace.tui.widgets import AgentJumpPanel
 
         monkeypatch.setattr(
             page.app, "_schedule_bead_confirmation_warmup", lambda **_: None
@@ -425,6 +429,46 @@ async def test_agents_stranded_resolve_modal_png_snapshot(
         )
         agent_stranded._STRANDED_REPORT_CACHE.set("visual", report, "visual-store")
         page.app._refresh_agents_display(list_changed=True)
+        await wait_for_visual_idle(page)
+        # The modal leaves the Agents screen visible underneath it. Its clan
+        # jump map is populated asynchronously, so wait for its complete
+        # three-member map before covering the screen or the capture can keep
+        # a partial panel frame.
+        jump_panel = page.app.query_one("#agent-jump-panel", AgentJumpPanel)
+
+        def has_complete_jump_map() -> bool:
+            jump_map = jump_panel._jump_map  # noqa: SLF001
+            return jump_map is not None and len(jump_map.targets) == 3
+
+        await wait_for_state(
+            page,
+            has_complete_jump_map,
+            description="three-member clan jump map",
+        )
+
+        # The border title shortens its optional wave-count suffix after the
+        # panel learns its mounted width. A complete map can arrive before the
+        # first resize event, so wait for the title to reflect that geometry.
+        def has_layout_fitted_jump_title() -> bool:
+            jump_map = jump_panel._jump_map  # noqa: SLF001
+            width = int(jump_panel.size.width)
+            if jump_map is None or width <= 0:
+                return False
+            current = jump_panel.border_title
+            current_text = (
+                current.plain
+                if isinstance(current, Text)
+                else Text.from_markup(str(current)).plain
+            )
+            expected = jump_legend_title(jump_map, width=max(0, width - 4))
+            return current_text == expected.plain
+
+        await wait_for_state(
+            page,
+            has_layout_fitted_jump_title,
+            description="clan jump title fitted to its mounted width",
+        )
+        await wait_for_svg_contains(page, "WAVES")
         await wait_for_visual_idle(page)
         monkeypatch.setattr(
             page.app, "_refresh_agents_display_debounced", lambda **_: None

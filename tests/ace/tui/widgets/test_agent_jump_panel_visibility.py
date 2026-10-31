@@ -205,7 +205,7 @@ class _BareJumpApp(App[None]):
         yield AgentJumpPanel()
 
 
-def _suffixed_map() -> MemberJumpMap:
+def _suffixed_map(*, title_suffix: str = "4 WAVES + LAND") -> MemberJumpMap:
     identity = (AgentType.RUNNING, "lane", None)
     entries = tuple(
         MemberRosterEntry(
@@ -227,7 +227,7 @@ def _suffixed_map() -> MemberJumpMap:
         accent="#00D7AF",
         panel_level=FoldLevel.COLLAPSED,
         numbering=MemberJumpNumbering(total=len(entries)),
-        title_suffix="4 WAVES + LAND",
+        title_suffix=title_suffix,
     )
 
 
@@ -264,3 +264,15 @@ async def test_border_title_drops_suffix_first_when_genuinely_tight() -> None:
         title = str(panel.border_title)
         assert "4 WAVES + LAND" not in title
         assert "CLAN MEMBERS" in title
+
+
+async def test_border_title_updates_when_only_section_suffix_changes() -> None:
+    app = _BareJumpApp()
+    async with app.run_test(size=(80, 24)):
+        panel = app.query_one(AgentJumpPanel)
+        panel.show_jump_map(_suffixed_map())
+        assert "4 WAVES + LAND" in str(panel.border_title)
+
+        panel.show_jump_map(_suffixed_map(title_suffix="3 WAVES + LAND"))
+
+        assert "3 WAVES + LAND" in str(panel.border_title)

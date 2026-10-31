@@ -251,7 +251,7 @@ async def test_past_eof_line_clamps_with_information_toast(
     target = _named_file("resolve.py")
     async with app.run_test(size=(80, 10)) as pilot:
         screen = pager_screen(app)
-        monkeypatch.setattr(screen, "notify", notify)
+        monkeypatch.setattr(app, "notify", notify)
         await pilot.pause()
         screen._apply_resolution(
             "resolve.py:9999",
@@ -283,7 +283,7 @@ async def test_past_eof_end_line_clamps_silently(
     target = _named_file("resolve.py")
     async with app.run_test(size=(80, 10)) as pilot:
         screen = pager_screen(app)
-        monkeypatch.setattr(screen, "notify", notify)
+        monkeypatch.setattr(app, "notify", notify)
         await pilot.pause()
         screen._apply_resolution(
             "resolve.py:10-9999",

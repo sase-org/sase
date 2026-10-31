@@ -218,6 +218,11 @@ async def test_renamed_generic_agent_session_root_png_snapshot(
         await page.expect_state("agent_count", 3)
         await wait_for_visual_idle(page)
         await select_navigable_main_card(page, "reply")
+        # Pin the unrelated footer status shown in this frame. The fast
+        # startup stub can publish it before or after the footer mounts.
+        footer = page.app.query_one("#keybinding-footer", KeybindingFooter)
+        footer.set_axe_running(False)
+        await wait_for_visual_idle(page)
 
         assert page.app._agents[0].agent_name == "cx--0"
         assert page.app._agents[0].presented_agent_name == "cx"

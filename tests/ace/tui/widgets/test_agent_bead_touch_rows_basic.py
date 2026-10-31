@@ -39,6 +39,7 @@ __all__ = [
     "test_created_row_without_reason_falls_back_to_title",
     "test_creation_reason_sanitizes_controls_and_bounds_lines",
     "test_empty_entries_appends_nothing",
+    "test_narrow_created_row_moves_pill_to_its_own_line",
     "test_read_reason_keeps_title_with_explicit_label",
     "test_row_order_palette_and_title",
     "test_truncated_creation_reason_links_to_bead_detail",
@@ -187,6 +188,23 @@ def test_created_row_without_reason_falls_back_to_title() -> None:
     assert "▐CREATED▌" in plain
     assert "↳ Fix retry race" in plain
     assert "why:" not in plain
+
+
+def test_narrow_created_row_moves_pill_to_its_own_line() -> None:
+    text = Text()
+    append_agent_bead_touch_rows(
+        text,
+        entries=(
+            make_bead_touch_entry(
+                "sase-1c",
+                "2026-05-24T16:41:02+00:00",
+                verbs={"created": 1},
+                title="Created",
+            ),
+        ),
+        line_cell_limit=15,
+    )
+    assert "\n  ▐CREATED▌\n" in text.plain
 
 
 def test_created_plus_closed_keeps_closed_pill_and_created_chip() -> None:

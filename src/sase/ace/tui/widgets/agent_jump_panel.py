@@ -170,6 +170,10 @@ class AgentJumpPanel(VerticalScroll):
         except Exception:
             digest = None
         if digest is not None and digest == self._last_digest:
+            # The collapsed legend body can remain identical while section
+            # metadata changes its border title or accent. Keep chrome current
+            # even when the body digest lets us skip a repaint.
+            self._apply_chrome(jump_map, subtitle)
             return
         self._last_digest = digest
         self._apply_chrome(jump_map, subtitle)

@@ -343,9 +343,12 @@ def test_visual_idle_waits_for_short_timers_but_not_surface_lifetimes() -> None:
         )
     )
 
-    _debouncers, _workers, timers, _animations = _pending_visual_work(cast(Any, page))
+    _debouncers, _workers, timers, _animations, _transitions = _pending_visual_work(
+        cast(Any, page)
+    )
 
     assert timers == ["input-validation"]
+    assert _transitions == []
 
 
 def test_pending_visual_work_reports_running_and_scheduled_animations() -> None:
@@ -356,12 +359,15 @@ def test_pending_visual_work_reports_running_and_scheduled_animations() -> None:
     page = _ChangingPage()
     page.app = _App(animator=animator)
 
-    _debouncers, _workers, _timers, animations = _pending_visual_work(cast(Any, page))
+    _debouncers, _workers, _timers, animations, _transitions = _pending_visual_work(
+        cast(Any, page)
+    )
 
     assert animations == [
         "running:(17, 'scroll_y')",
         "scheduled:(23, 'opacity')",
     ]
+    assert _transitions == []
 
 
 class _CursorCacheApp(App[None]):

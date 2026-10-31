@@ -305,14 +305,17 @@ async def test_agent_session_panel_turns_monitor_metadata_png_snapshot(
 
         await page.press(".")
         await wait_for_visual_idle(page)
+        assert_page_svg_contains(page, "SESSION TURNS")
+        # The root turn is at the top of the expanded roster; the monitor
+        # lane is below it and needs a separate scroll before its metadata
+        # can be asserted.
+        assert_page_svg_contains(page, "--plan")
         # The expanded roster wraps past the jump panel's rows; scroll it to the
         # end so the monitor lane's command is on screen.
         page.app.query_one("#agent-jump-panel", AgentJumpPanel).scroll_end(
             animate=False, immediate=True
         )
         await wait_for_visual_idle(page)
-        assert_page_svg_contains(page, "SESSION TURNS")
-        assert_page_svg_contains(page, "--plan")
         assert_page_svg_contains(page, "--mon")
         assert_page_svg_contains(page, "⚙ MONITOR")
         # The longer MONITOR TURN label wraps the lane's command descriptor

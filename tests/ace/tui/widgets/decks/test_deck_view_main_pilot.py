@@ -380,6 +380,70 @@ async def test_resize_under_fixed_policy_never_transitions() -> None:
         assert panel._view_generation == generation
 
 
+async def test_resize_block_refresh_keeps_preferred_main_card(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A resize repaint prefers the sticky card over a stale active card."""
+    app = _DetailApp()
+    async with app.run_test(size=(100, 30)) as pilot:
+        await pilot.pause()
+        _pin(app)
+        detail = app.query_one("#agent-detail-panel", AgentDetail)
+        panel = detail.deck_area.panel(0)
+        document = _document("resize-subject", _reply_card(3), digest="resize-sticky")
+        panel.show_main_document(document, "reply")
+        detail.set_deck_preferred_card(0, "reply")
+        await pilot.pause()
+        assert panel.main_view.active_card_id == "reply"
+
+        # Resize/repaint can leave the view's active card behind the sticky
+        # choice. A block refresh must restore the pane's preferred card.
+        panel.main_view.show_card("context")
+        panel._main_active_card = "context"
+        assert detail.deck_area.state.panels[0].preferred_card == "reply"
+        monkeypatch.setattr(panel, "needs_document_block_refresh", lambda _deck: True)
+        panel._refresh_main_mode_for_shown()
+        await pilot.pause()
+
+        assert panel.main_view.active_card_id == "reply"
+        assert panel._main_active_card == "reply"
+
+
+async def test_spread_to_paged_resize_keeps_preferred_main_card(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A mode change does not let stale spread focus outrank sticky Main."""
+    app = _DetailApp()
+    async with app.run_test(size=(100, 30)) as pilot:
+        await pilot.pause()
+        _pin(app)
+        detail = app.query_one("#agent-detail-panel", AgentDetail)
+        panel = detail.deck_area.panel(0)
+        document = _document(
+            "resize-transition", _reply_card(3), digest="resize-transition"
+        )
+        panel.show_main_document(document, "reply")
+        detail.set_deck_preferred_card(0, "reply")
+        await pilot.pause()
+
+        panel.main_view.show_card("context")
+        panel._main_active_card = "context"
+        assert detail.deck_area.state.panels[0].preferred_card == "reply"
+        panel._render_mode[DeckId.MAIN] = RenderMode.SPREAD
+        panel._mode_subject[DeckId.MAIN] = document.subject
+        monkeypatch.setattr(
+            panel,
+            "_decide_document_mode",
+            lambda *_args, **_kwargs: RenderMode.PAGED,
+        )
+
+        panel._refresh_main_mode_for_shown()
+        await pilot.pause()
+
+        assert panel.main_view.active_card_id == "reply"
+        assert panel._main_active_card == "reply"
+
+
 async def test_reset_to_auto_matches_fresh_decision() -> None:
     """Resetting to AUTO re-decides exactly like a fresh AUTO subject."""
     app = _DetailApp()

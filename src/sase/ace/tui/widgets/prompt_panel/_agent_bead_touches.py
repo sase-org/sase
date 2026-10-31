@@ -422,12 +422,18 @@ def append_agent_bead_touch_rows(
         )
         if _standing_close(item) is not None:
             cap_style, pill_style = _closed_pill_styles(item)
-            text.append(" ", style=COLOR_SUMMARY)
+            if line_cell_limit < 28:
+                text.append("\n" + _SUBSECTION_ROW_PREFIX, style=COLOR_SUMMARY)
+            else:
+                text.append(" ", style=COLOR_SUMMARY)
             text.append(CLOSED_PILL_LEFT, style=cap_style)
             text.append(CLOSED_PILL_TEXT, style=pill_style)
             text.append(CLOSED_PILL_RIGHT, style=cap_style)
         elif _is_created(item):
-            text.append(" ", style=COLOR_SUMMARY)
+            if line_cell_limit < 28:
+                text.append("\n" + _SUBSECTION_ROW_PREFIX, style=COLOR_SUMMARY)
+            else:
+                text.append(" ", style=COLOR_SUMMARY)
             text.append(CREATED_PILL_LEFT, style=COLOR_BEAD_CREATED_CAP)
             text.append(CREATED_PILL_TEXT, style=COLOR_BEAD_CREATED_PILL)
             text.append(CREATED_PILL_RIGHT, style=COLOR_BEAD_CREATED_CAP)

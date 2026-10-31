@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Iterable
+from threading import RLock
 from typing import TYPE_CHECKING
 
 from sase.ace.tui._agent_completion_candidates import (
@@ -38,6 +39,11 @@ _WAIT_DEPENDENCY_BUCKET_RANK = {
     bucket: index for index, bucket in enumerate(_WAIT_DEPENDENCY_BUCKET_PRECEDENCE)
 }
 
+# The app's background bead warmup and the first Agents-tab paint can both
+# reach this lazy import on different threads. Serialize the package import:
+# its multi-module import chain can deadlock when those first imports cross.
+_WAIT_RESOLUTION_IMPORT_LOCK = RLock()
+
 
 def _preferred_wait_dependency_bucket(current: str | None, candidate: str) -> str:
     if current is None:
@@ -65,7 +71,8 @@ def collect_agent_wait_status_maps(
     from sase.ace.tui.models.agent_time import wait_display_agent
 
     # Imported lazily to keep the TUI startup closure lean.
-    from sase.core.wait_dependency_resolution import resolve_tribe_wait_binding
+    with _WAIT_RESOLUTION_IMPORT_LOCK:
+        from sase.core.wait_dependency_resolution import resolve_tribe_wait_binding
 
     all_agents = list(agents)
     buckets: dict[str, str] = {}

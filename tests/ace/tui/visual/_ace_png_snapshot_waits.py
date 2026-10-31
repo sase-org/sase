@@ -203,18 +203,35 @@ def _disable_cursor_blink(page: AcePage) -> bool:
 
 def _pending_visual_work(
     page: AcePage,
-) -> tuple[list[str], list[str], list[str], list[str]]:
+) -> tuple[list[str], list[str], list[str], list[str], list[str]]:
     """Describe finite work that can still change an ACE screenshot."""
     debouncers = [
         name
         for name in _VISUAL_DEBOUNCERS
         if bool(getattr(getattr(page.app, name, None), "is_pending", False))
     ]
-    workers = [
-        str(getattr(worker, "name", None) or getattr(worker, "description", worker))
-        for worker in page.app.workers
-        if bool(getattr(worker, "is_running", False))
-    ]
+    # Widgets own their own Textual worker groups. In particular, the Agents
+    # detail panel enriches clan and tribe summaries from child-owned workers;
+    # those can repaint the background beneath a modal after the app-level
+    # group has gone idle. Include mounted descendants so convergence cannot
+    # accept that intermediate frame.
+    nodes: list[Any] = [page.app]
+    for screen in page.app.screen_stack:
+        nodes.extend(screen.walk_children(with_self=True))
+    workers: list[str] = []
+    seen_workers: set[int] = set()
+    for node in nodes:
+        for worker in getattr(node, "workers", ()):
+            if id(worker) in seen_workers:
+                continue
+            seen_workers.add(id(worker))
+            if bool(getattr(worker, "is_running", False)):
+                workers.append(
+                    str(
+                        getattr(worker, "name", None)
+                        or getattr(worker, "description", worker)
+                    )
+                )
 
     # Animator state is deliberately checked even though visual tests disable
     # animations by default. This keeps convergence safe if an individual test
@@ -225,6 +242,17 @@ def _pending_visual_work(
     animations.extend(
         f"scheduled:{key!r}" for key in getattr(animator, "_scheduled", {})
     )
+
+    # CardDocumentView schedules spread-card scrolls through call_after_refresh.
+    # Those callbacks are not Textual workers or timers, so a stable frame can
+    # precede the requested landing while the deferred scroll is still pending.
+    transitions: list[str] = []
+    for node in nodes:
+        pending_card = getattr(node, "_spread_pending_card", None)
+        if pending_card is not None:
+            transitions.append(f"spread card {pending_card!r}")
+        if getattr(node, "_pending_view_anchor", None) is not None:
+            transitions.append("deck view anchor")
 
     # Textual does not expose a public timer registry. In this test helper it
     # is safe to inspect the message pumps' weak timer sets. Wait for one-shot
@@ -249,7 +277,7 @@ def _pending_visual_work(
                 and not task.done()
             ):
                 timers.append(str(getattr(timer, "name", timer)))
-    return debouncers, workers, timers, animations
+    return debouncers, workers, timers, animations, transitions
 
 
 async def wait_for_visual_idle(page: AcePage, *, timeout: float = 30.0) -> None:
@@ -260,7 +288,13 @@ async def wait_for_visual_idle(page: AcePage, *, timeout: float = 30.0) -> None:
     previous_svg: str | None = None
     stable_frames = 0
     frame_digests: list[str] = []
-    pending: tuple[list[str], list[str], list[str], list[str]] = ([], [], [], [])
+    pending: tuple[list[str], list[str], list[str], list[str], list[str]] = (
+        [],
+        [],
+        [],
+        [],
+        [],
+    )
 
     while True:
         # A zero-delay queue drain may return the same frame repeatedly simply
@@ -302,12 +336,13 @@ async def wait_for_visual_idle(page: AcePage, *, timeout: float = 30.0) -> None:
                 return
 
         if loop.time() >= deadline:
-            debouncers, workers, timers, animations = pending
+            debouncers, workers, timers, animations, transitions = pending
             raise AssertionError(
                 "Timed out waiting for ACE visual render convergence "
                 f"after {timeout:.2f}s; stable_frames={stable_frames}/"
                 f"{_VISUAL_STABLE_FRAME_COUNT}; frame_digests={frame_digests}; "
                 f"pending_debouncers={debouncers}; pending_workers={workers}; "
                 f"pending_one_shot_timers={timers}; "
-                f"pending_animations={animations}"
+                f"pending_animations={animations}; "
+                f"pending_deck_transitions={transitions}"
             )
