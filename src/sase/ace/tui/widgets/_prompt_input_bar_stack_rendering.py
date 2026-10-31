@@ -401,12 +401,21 @@ class PromptInputBarStackRenderingMixin(
             separator.set_position((line, column), text_area._vim_mode)
 
     def _refresh_cursor_subtitle(self) -> None:
-        """Rebuild the border subtitle only when its rendered value changes."""
+        """Rebuild the border subtitle when its displayed value is stale.
+
+        Other subtitle writers (soft completions, next-word hints, the mode
+        subtitle, the search readout) assign ``border_subtitle`` directly, so
+        the skip also requires the widget to still show the markup written here
+        last.
+        """
         rendered = self._render_subtitle(self._subtitle_base)
-        if rendered == getattr(self, "_cursor_subtitle_rendered", None):
+        if rendered == getattr(
+            self, "_cursor_subtitle_rendered", None
+        ) and self.border_subtitle == getattr(self, "_cursor_subtitle_markup", None):
             return
-        self._cursor_subtitle_rendered = rendered
         self.border_subtitle = rendered
+        self._cursor_subtitle_rendered = rendered
+        self._cursor_subtitle_markup = self.border_subtitle
 
     # -- stack-aware public API ----------------------------------------------
 
