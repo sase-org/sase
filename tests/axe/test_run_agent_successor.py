@@ -78,6 +78,104 @@ def test_explicit_suffix_creates_named_successor(tmp_path: Path) -> None:
     promote.assert_called_once_with(ctx.artifacts_dir, "test_agent")
 
 
+def test_staged_successor_replay_reuses_persisted_identity(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    ctx = replace(make_ctx(tmp_path), agent_name=None)
+    state = make_state(tmp_path)
+    origin_dir = state.current_artifacts_dir
+    staged_id = "stage-questions-1"
+    destination = tmp_path / "successor-artifacts"
+    monkeypatch.setattr(
+        "sase.artifacts.launch_artifacts_dir",
+        lambda _project, _timestamp: str(destination),
+    )
+    monkeypatch.setattr(
+        "sase.core.agent_launch_facade.reserve_launch_timestamp_batch",
+        lambda count: ["20261031010101"] * count,
+    )
+    create_calls: list[dict[str, object]] = []
+
+    def create_artifacts(
+        _project: str,
+        base_meta: dict[str, object],
+        suffix: str,
+        _origin_timestamp: str,
+        **kwargs: object,
+    ) -> str:
+        create_calls.append(kwargs)
+        destination.mkdir(parents=True, exist_ok=True)
+        relationships = kwargs["relationships"]
+        assert isinstance(relationships, dict)
+        (destination / "agent_meta.json").write_text(
+            json.dumps(
+                {
+                    **base_meta,
+                    "name": suffix,
+                    "staged_handoff_id": relationships["staged_handoff_id"],
+                    "staged_successor_launch_id": relationships[
+                        "staged_successor_launch_id"
+                    ],
+                }
+            ),
+            encoding="utf-8",
+        )
+        return str(destination)
+
+    request = _request(suffix="--questions-0", suffix_template=None)
+    first_store = Mock(side_effect=RuntimeError("interrupted after child creation"))
+    with acquire_adoption_lock(Path(state.current_artifacts_dir)):
+        with pytest.raises(RuntimeError, match="interrupted"):
+            continue_as_successor(
+                ctx,
+                state,
+                request,
+                create_artifacts=create_artifacts,
+                promote=Mock(),
+                store_prompt=first_store,
+                write_model_meta=Mock(),
+                staged_id=staged_id,
+                staged_kind="questions",
+            )
+
+    first = read_staged_successor(origin_dir, staged_id=staged_id)
+    assert first is not None
+    assert first["delivery_state"] == "prepared"
+    assert first["successor"]["prompt_digest"] == successor_prompt_digest(
+        request.prompt
+    )
+
+    retry_state = make_state(tmp_path)
+    retry_store = Mock()
+    with acquire_adoption_lock(Path(retry_state.current_artifacts_dir)):
+        replay_name = continue_as_successor(
+            ctx,
+            retry_state,
+            request,
+            create_artifacts=create_artifacts,
+            promote=Mock(),
+            store_prompt=retry_store,
+            write_model_meta=Mock(),
+            staged_id=staged_id,
+            staged_kind="questions",
+        )
+
+    replay = read_staged_successor(origin_dir, staged_id=staged_id)
+    assert replay is not None
+    assert replay["delivery_state"] == "created"
+    assert replay["successor"] == first["successor"]
+    assert replay_name == "--questions-0"
+    assert len(create_calls) == 1
+    assert retry_state.current_artifacts_dir == str(destination)
+    retry_store.assert_called_once_with(
+        str(destination), request.prompt, label="Full coder prompt"
+    )
+    assert retry_state.pending_staged_successor == {
+        "origin_artifacts_dir": origin_dir,
+        "staged_id": staged_id,
+    }
+
+
 def test_allocated_suffix_forwards_template_and_reservations(tmp_path: Path) -> None:
     ctx = make_ctx(tmp_path)
     state = make_state(tmp_path)

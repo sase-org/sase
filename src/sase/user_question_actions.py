@@ -20,6 +20,7 @@ QUESTION_OPTION_ID = "submit"
 QUESTION_CONTINUATION_MODE = "agent_question"
 QUESTION_REQUEST_FILE = "question_request.json"
 QUESTION_RESPONSE_FILE = "question_response.json"
+LIVE_AUTO_POLICY = object()
 
 
 @dataclass(frozen=True)
@@ -79,6 +80,8 @@ def user_question_gate_spec(
     producer: Mapping[str, Any] | None = None,
     action_data: Mapping[str, str] | None = None,
     auto: bool = False,
+    auto_policy_snapshot: Mapping[str, Any] | None | object = LIVE_AUTO_POLICY,
+    request_timestamp: float | None = None,
 ) -> dict[str, Any]:
     """Build the shared v3 UserQuestion gate request body.
 
@@ -95,14 +98,21 @@ def user_question_gate_spec(
     # bare-``%auto`` translation. A manual snapshot rides along disabled
     # so the parked gate carries its deciding revision (rule ``manual``),
     # exactly like a manual plan gate.
-    try:
-        import os as _os
+    if auto_policy_snapshot is LIVE_AUTO_POLICY:
+        try:
+            import os as _os
 
-        from sase.autonomy.record import live_record as _live_record
+            from sase.autonomy.record import live_record as _live_record
 
-        _record = _live_record(_os.environ.get("SASE_ARTIFACTS_DIR") or "")
-    except Exception:
-        _record = None
+            _record = _live_record(_os.environ.get("SASE_ARTIFACTS_DIR") or "")
+        except Exception:
+            _record = None
+    else:
+        _record = (
+            dict(auto_policy_snapshot)
+            if isinstance(auto_policy_snapshot, Mapping)
+            else None
+        )
     auto_block: dict[str, Any] | bool = auto
     if _record is not None and _record.get("profile") == "manual":
         auto_block = {
@@ -128,7 +138,9 @@ def user_question_gate_spec(
         "payload": {
             "questions": normalized_questions,
             "session_id": session_id,
-            "timestamp": time.time(),
+            "timestamp": (
+                request_timestamp if request_timestamp is not None else time.time()
+            ),
         },
         "presentation": {
             "notes": [summary] if summary else ["Agent is asking a question"],

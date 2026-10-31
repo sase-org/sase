@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import uuid
+from collections.abc import Mapping
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
 
@@ -105,6 +106,8 @@ def handle_staged_plan_marker(
     state: LoopState,
     *,
     planner_response: str,
+    staged_id: str | None = None,
+    approval_context: Mapping[str, Any] | None = None,
 ) -> str | None:
     """Adopt a settled staged plan without the legacy kill interruption."""
     return _handle_plan_handoff(
@@ -113,6 +116,8 @@ def handle_staged_plan_marker(
         state,
         planner_response=planner_response,
         interrupted=False,
+        staged_id=staged_id,
+        approval_context=approval_context,
     )
 
 
@@ -123,7 +128,15 @@ def _handle_plan_handoff(
     *,
     planner_response: str | None,
     interrupted: bool,
+    staged_id: str | None = None,
+    approval_context: Mapping[str, Any] | None = None,
 ) -> str | None:
+    if approval_context is not None:
+        from sase.agent._staged_handoff_approval import (
+            restore_staged_approval_loop_state,
+        )
+
+        restore_staged_approval_loop_state(state, approval_context)
     mark_lifecycle_phase(state.current_artifacts_dir, "handoff")
     if interrupted:
         normalize_handoff_interruption_state(state.current_artifacts_dir)
@@ -143,6 +156,13 @@ def _handle_plan_handoff(
         run_started_at=run_started_at,
         completion_time=plan_submitted_at_dt,
     )
+    if isinstance(approval_context, Mapping):
+        creator = approval_context.get("creator")
+        frozen_runtime = (
+            creator.get("agent_runtime") if isinstance(creator, Mapping) else None
+        )
+        if isinstance(frozen_runtime, str):
+            agent_runtime = frozen_runtime
     record_workflow_metadata(
         state.current_artifacts_dir,
         {
@@ -163,6 +183,8 @@ def _handle_plan_handoff(
         state,
         agent_runtime=agent_runtime,
         planner_response=planner_response,
+        staged_id=staged_id,
+        approval_context=approval_context,
     )
 
 
@@ -173,6 +195,8 @@ def _handle_plan_via_gate_turn(
     *,
     agent_runtime: str | None,
     planner_response: str | None = None,
+    staged_id: str | None = None,
+    approval_context: Mapping[str, Any] | None = None,
 ) -> str | None:
     plan_file = plan_data.get("plan_file")
     if not isinstance(plan_file, str) or not plan_file:
@@ -183,12 +207,20 @@ def _handle_plan_via_gate_turn(
         plan_result_from_gate_creation,
     )
 
+    session_id = str(uuid.uuid4())
+    if isinstance(approval_context, Mapping):
+        frozen_session_id = approval_context.get("session_id")
+        if isinstance(frozen_session_id, str) and frozen_session_id:
+            session_id = frozen_session_id
+        elif staged_id:
+            session_id = staged_id
     creation = create_plan_gate_turn(
         plan_file,
-        session_id=str(uuid.uuid4()),
+        session_id=session_id,
         ctx=ctx,
         state=state,
         agent_runtime=agent_runtime,
+        approval_context=approval_context,
     )
     state.plan_gate_artifacts_dir = creation.record.artifacts_dir
     if not creation.should_handoff:
@@ -200,6 +232,7 @@ def _handle_plan_via_gate_turn(
             ctx,
             state,
             planner_response=planner_response,
+            staged_id=staged_id,
         )
 
     from sase.axe.run_agent_exec_gate import handle_gate_marker
@@ -285,6 +318,7 @@ def _continue_after_plan_result(
     state: LoopState,
     *,
     planner_response: str | None = None,
+    staged_id: str | None = None,
 ) -> str | None:
     # Write plan_path.json so the TUI can show the plan
     # in the file panel for the .plan agent entry.
@@ -340,7 +374,7 @@ def _continue_after_plan_result(
         planner_agent = agent_name_for_suffix(
             ctx, state.current_role_suffix or PLAN_CHAIN_PLAN_SUFFIX
         )
-        continue_as_successor(
+        successor_name = continue_as_successor(
             ctx,
             state,
             SuccessorRequest(
@@ -372,7 +406,11 @@ def _continue_after_plan_result(
             create_artifacts=create_followup_artifacts,
             promote=promote_to_workflow,
             store_prompt=_store_followup_prompt_artifact,
+            staged_id=staged_id,
+            staged_kind="plan" if staged_id else None,
         )
+        if staged_id is not None and successor_name is None:
+            return "completed"
         # A ``/sase_questions`` interruption from the replan phase rebuilds from
         # this feedback prompt rather than the bare planner prompt.
         state.question_base_prompt = state.current_prompt
@@ -380,4 +418,4 @@ def _continue_after_plan_result(
 
     from sase.axe.run_agent_exec_plan_accept import handle_accepted_plan
 
-    return handle_accepted_plan(plan_result, ctx, state)
+    return handle_accepted_plan(plan_result, ctx, state, staged_id=staged_id)

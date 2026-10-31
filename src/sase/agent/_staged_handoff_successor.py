@@ -1,4 +1,4 @@
-"""Durable identity and delivery state for staged pipe successors."""
+"""Durable identity and delivery state for staged handoff successors."""
 
 from __future__ import annotations
 
@@ -98,8 +98,10 @@ def _validate_successor_record(value: dict[str, Any]) -> dict[str, Any]:
     if value.get("schema_version") != 1:
         raise StagedHandoffError("unsupported staged successor schema version")
     staged_id = _text(value.get("staged_id"), "staged_id")
-    if value.get("kind") != "pipe":
-        raise StagedHandoffError("staged successor record kind must be 'pipe'")
+    if value.get("kind") not in {"pipe", "plan", "questions"}:
+        raise StagedHandoffError(
+            "staged successor record kind must be pipe, plan, or questions"
+        )
     origin = _text(value.get("origin_artifacts_dir"), "origin_artifacts_dir")
     delivery_state = value.get("delivery_state")
     if delivery_state not in _DELIVERY_STATES:
@@ -205,6 +207,8 @@ def write_staged_successor_locked(
         current = read_staged_successor(str(root), staged_id=normalized["staged_id"])
         if current is None:
             raise StagedHandoffError("staged successor manifest disappeared")
+        if current.get("kind") != normalized.get("kind"):
+            raise StagedHandoffError("staged successor kind changed after persistence")
         for field in _IMMUTABLE_SUCCESSOR_FIELDS:
             if current["successor"].get(field) != normalized["successor"].get(field):
                 raise StagedHandoffError(

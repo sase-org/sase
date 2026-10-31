@@ -31,6 +31,50 @@ def _runner_ctx_from_metadata(
     return _runner_ctx_with_metadata(continuation, run_metadata, persisted_name)
 
 
+def _runner_ctx_from_approval_context(
+    continuation: StagedInlineContinuation,
+    run_metadata: Mapping[str, Any],
+    approval_context: Mapping[str, Any],
+) -> AgentExecContext:
+    """Bind approval continuations to the persisted origin execution facts."""
+    from dataclasses import replace
+
+    execution = approval_context.get("execution")
+    if not isinstance(execution, Mapping):
+        raise StagedHandoffError("staged approval execution context is malformed")
+    ctx = _runner_ctx_from_metadata(continuation, run_metadata)
+    text_fields = (
+        "cl_name",
+        "project_file",
+        "workspace_dir",
+        "output_path",
+        "timestamp",
+        "update_target",
+        "project_name",
+        "artifacts_dir",
+        "artifacts_timestamp",
+        "vcs_tag",
+        "agent_name",
+        "agent_model",
+        "agent_llm_provider",
+        "agent_vcs_provider",
+        "multi_agent_prompt_file",
+        "workflow_name",
+    )
+    values = {
+        key: execution[key]
+        for key in text_fields
+        if isinstance(execution.get(key), str)
+    }
+    if type(execution.get("workspace_num")) is int:
+        values["workspace_num"] = execution["workspace_num"]
+    if isinstance(execution.get("is_home_mode"), bool):
+        values["is_home_mode"] = execution["is_home_mode"]
+    if isinstance(execution.get("agent_hidden"), bool):
+        values["agent_hidden"] = execution["agent_hidden"]
+    return replace(ctx, **values, agent_meta=dict(run_metadata))
+
+
 def _runner_ctx_from_monitor_metadata(
     continuation: StagedInlineContinuation,
     run_metadata: Mapping[str, Any],
@@ -115,11 +159,33 @@ def _adopt_plan(
 
     from sase.axe.run_agent_exec_plan import handle_staged_plan_marker
 
-    return handle_staged_plan_marker(
+    staged_id = staged_record.get("staged_id")
+    if not isinstance(staged_id, str) or not staged_id:
+        raise StagedHandoffError("staged plan record has no staged_id")
+    origin = continuation.state.current_artifacts_dir
+    approval_context = staged_record.get("approval_context")
+    if not isinstance(approval_context, Mapping):
+        raise StagedHandoffError("staged plan approval context is missing")
+    outcome = handle_staged_plan_marker(
         {**dict(payload), "plan_file": plan_file},
-        _runner_ctx_from_metadata(continuation, run_metadata),
+        _runner_ctx_from_approval_context(continuation, run_metadata, approval_context),
         continuation.state,
         planner_response=response,
+        staged_id=staged_id,
+        approval_context=approval_context,
+    )
+    successor = read_staged_successor(origin, staged_id=staged_id)
+    if successor is None:
+        return outcome
+    child = successor["successor"]
+    return StagedAdoptionOutcome(
+        outcome=outcome,
+        custodian=str(child["artifacts_dir"]),
+        refs={
+            "successor_artifacts_dir": child["artifacts_dir"],
+            "successor_launch_identity": child["launch_identity"],
+            "successor_prompt_ref": child["prompt_ref"],
+        },
     )
 
 
@@ -135,22 +201,42 @@ def _adopt_questions(
     questions = payload.get("questions")
     if not isinstance(questions, list):
         raise StagedHandoffError("staged questions payload has no questions")
+    staged_id = staged_record.get("staged_id")
+    if not isinstance(staged_id, str) or not staged_id:
+        raise StagedHandoffError("staged questions record has no staged_id")
+    approval_context = staged_record.get("approval_context")
+    if not isinstance(approval_context, Mapping):
+        raise StagedHandoffError("staged question approval context is missing")
 
     origin = continuation.state.current_artifacts_dir
     from sase.axe.run_agent_exec_questions import handle_staged_questions_marker
 
     outcome = handle_staged_questions_marker(
         dict(payload),
-        _runner_ctx_from_metadata(continuation, run_metadata),
+        _runner_ctx_from_approval_context(continuation, run_metadata, approval_context),
         continuation.state,
         provider_response=response,
+        staged_id=staged_id,
+        approval_context=approval_context,
     )
     custodian = continuation.state.current_artifacts_dir
     if custodian == origin:
         gate = continuation.state.question_gate_artifacts_dir
         if isinstance(gate, str) and gate.strip():
             custodian = gate
-    return StagedAdoptionOutcome(outcome=outcome, custodian=custodian)
+    refs: dict[str, Any] = {}
+    staged_id = staged_record.get("staged_id")
+    if isinstance(staged_id, str):
+        successor = read_staged_successor(origin, staged_id=staged_id)
+        if successor is not None:
+            child = successor["successor"]
+            custodian = str(child["artifacts_dir"])
+            refs = {
+                "successor_artifacts_dir": child["artifacts_dir"],
+                "successor_launch_identity": child["launch_identity"],
+                "successor_prompt_ref": child["prompt_ref"],
+            }
+    return StagedAdoptionOutcome(outcome=outcome, custodian=custodian, refs=refs)
 
 
 def _adopt_pipe(

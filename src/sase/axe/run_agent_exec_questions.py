@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import os
 import uuid
+from collections.abc import Mapping
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
@@ -137,6 +138,8 @@ def handle_staged_questions_marker(
     state: LoopState,
     *,
     provider_response: str,
+    staged_id: str | None = None,
+    approval_context: Mapping[str, Any] | None = None,
 ) -> str | None:
     """Adopt a settled staged questions handoff without the legacy kill."""
     return _handle_questions_handoff(
@@ -145,6 +148,8 @@ def handle_staged_questions_marker(
         state,
         provider_response=provider_response,
         interrupted=False,
+        staged_id=staged_id,
+        approval_context=approval_context,
     )
 
 
@@ -155,7 +160,15 @@ def _handle_questions_handoff(
     *,
     provider_response: str | None,
     interrupted: bool,
+    staged_id: str | None = None,
+    approval_context: Mapping[str, Any] | None = None,
 ) -> str | None:
+    if approval_context is not None:
+        from sase.agent._staged_handoff_approval import (
+            restore_staged_approval_loop_state,
+        )
+
+        restore_staged_approval_loop_state(state, approval_context)
     mark_lifecycle_phase(state.current_artifacts_dir, "handoff")
     if interrupted:
         normalize_handoff_interruption_state(state.current_artifacts_dir)
@@ -184,52 +197,126 @@ def _handle_questions_handoff(
         else agent_session_base(creator_agent) or creator_agent
     )
 
-    parent_artifacts_dir = resolve_question_chain_parent(
-        ctx.project_name,
-        lane,
-        creator_agent,
-        hint=state.question_gate_artifacts_dir,
+    staged_questions_value = (
+        approval_context.get("questions")
+        if isinstance(approval_context, Mapping)
+        else None
     )
-    if parent_artifacts_dir is not None:
-        base_prompt = (
-            question_base_prompt(parent_artifacts_dir) or state.question_base_prompt
+    staged_questions = (
+        staged_questions_value if isinstance(staged_questions_value, Mapping) else None
+    )
+    if staged_questions is not None:
+        parent = staged_questions.get("parent_artifacts_dir")
+        parent_artifacts_dir = parent if isinstance(parent, str) else None
+        base_value = staged_questions.get("base_prompt")
+        base_prompt = base_value if isinstance(base_value, str) else ""
+        prior_rounds = _question_rounds_from_snapshot(
+            staged_questions.get("prior_rounds")
         )
-        prior_rounds = question_rounds(parent_artifacts_dir)
     else:
-        base_prompt = state.question_base_prompt
-        prior_rounds = []
+        parent_artifacts_dir = resolve_question_chain_parent(
+            ctx.project_name,
+            lane,
+            creator_agent,
+            hint=state.question_gate_artifacts_dir,
+        )
+        if parent_artifacts_dir is not None:
+            base_prompt = (
+                question_base_prompt(parent_artifacts_dir) or state.question_base_prompt
+            )
+            prior_rounds = question_rounds(parent_artifacts_dir)
+        else:
+            base_prompt = state.question_base_prompt
+            prior_rounds = []
 
-    session_id = str(uuid.uuid4())
-    agent_cl_name = os.environ.get("SASE_AGENT_CL_NAME")
-    agent_project_file = os.environ.get("SASE_AGENT_PROJECT_FILE")
-    agent_timestamp = os.environ.get("SASE_AGENT_TIMESTAMP")
-    agent_root_timestamp = os.environ.get("SASE_AGENT_ROOT_TIMESTAMP")
-    action_data = {
-        key: value
-        for key, value in {
-            "session_id": session_id,
-            "agent_cl_name": agent_cl_name,
-            "agent_project_file": agent_project_file,
-            "agent_timestamp": agent_timestamp,
-            "agent_root_timestamp": agent_root_timestamp,
-        }.items()
-        if value
-    }
+    creator_context = (
+        approval_context.get("creator")
+        if isinstance(approval_context, Mapping)
+        else None
+    )
+    if isinstance(approval_context, Mapping):
+        frozen_session_id = approval_context.get("session_id")
+        session_id = (
+            frozen_session_id
+            if isinstance(frozen_session_id, str) and frozen_session_id
+            else staged_id
+        )
+    else:
+        session_id = None
+    session_id = session_id or str(uuid.uuid4())
+    if isinstance(creator_context, Mapping):
+        action_keys = {
+            "agent_cl_name": "agent_cl_name",
+            "agent_project_file": "agent_project_file",
+            "agent_timestamp": "agent_timestamp",
+            "agent_root_timestamp": "agent_root_timestamp",
+        }
+        action_data = {"session_id": session_id}
+        for key, source in action_keys.items():
+            value = creator_context.get(source)
+            if isinstance(value, str) and value:
+                action_data[key] = value
+        producer: dict[str, Any] = {
+            "agent": creator_context.get("agent") or creator_agent,
+            "artifacts_dir": creator_context.get("artifacts_dir")
+            or state.current_artifacts_dir,
+            **action_data,
+        }
+    else:
+        agent_cl_name = os.environ.get("SASE_AGENT_CL_NAME")
+        agent_project_file = os.environ.get("SASE_AGENT_PROJECT_FILE")
+        agent_timestamp = os.environ.get("SASE_AGENT_TIMESTAMP")
+        agent_root_timestamp = os.environ.get("SASE_AGENT_ROOT_TIMESTAMP")
+        action_data = {
+            key: value
+            for key, value in {
+                "session_id": session_id,
+                "agent_cl_name": agent_cl_name,
+                "agent_project_file": agent_project_file,
+                "agent_timestamp": agent_timestamp,
+                "agent_root_timestamp": agent_root_timestamp,
+            }.items()
+            if value
+        }
+        producer = {
+            "agent": os.environ.get("SASE_AGENT"),
+            "artifacts_dir": state.current_artifacts_dir,
+            **action_data,
+        }
+
+    question_options: dict[str, Any] = {}
+    if staged_questions is not None:
+        request_timestamp = (
+            approval_context.get("request_timestamp")
+            if isinstance(approval_context, Mapping)
+            else None
+        )
+        question_options = {
+            "auto": bool(staged_questions.get("auto_enabled")),
+            "auto_policy_snapshot": staged_questions.get("auto_policy"),
+            "request_timestamp": (
+                float(request_timestamp)
+                if isinstance(request_timestamp, (int, float))
+                else None
+            ),
+        }
+    else:
+        question_options["auto"] = is_auto_approve_active()
 
     creation = create_question_gate_turn(
         q_data.get("questions", []),
         session_id=session_id,
-        producer={
-            "agent": os.environ.get("SASE_AGENT"),
-            "artifacts_dir": state.current_artifacts_dir,
-            **action_data,
-        },
+        producer=producer,
         action_data=action_data,
-        auto=is_auto_approve_active(),
         base_prompt=base_prompt,
         prior_rounds=prior_rounds,
         parent_artifacts_dir=parent_artifacts_dir,
-        sdd_spec_path=state.sdd_spec_path,
+        sdd_spec_path=(
+            staged_questions.get("sdd_spec_path")
+            if staged_questions is not None
+            else state.sdd_spec_path
+        ),
+        **question_options,
     )
 
     question_relationships = {
@@ -245,7 +332,7 @@ def _handle_questions_handoff(
     state.question_gate_artifacts_dir = creation.record.artifacts_dir
 
     if not creation.should_handoff:
-        _continue_after_auto_answered_question(
+        return _continue_after_auto_answered_question(
             ctx,
             state,
             creation,
@@ -253,8 +340,8 @@ def _handle_questions_handoff(
             base_prompt=base_prompt,
             question_relationships=question_relationships,
             provider_response=provider_response,
+            staged_id=staged_id,
         )
-        return None
 
     from sase.axe.run_agent_exec_gate import handle_gate_marker
 
@@ -278,6 +365,30 @@ def _handle_questions_handoff(
         state,
         persist_chat=provider_response is None,
     )
+
+
+def _question_rounds_from_snapshot(value: Any) -> list[Any]:
+    if not isinstance(value, list):
+        return []
+    from sase.main.qa_markdown import QARound
+
+    rounds: list[QARound] = []
+    for item in value:
+        if not isinstance(item, Mapping):
+            continue
+        questions = item.get("questions")
+        answers = item.get("answers")
+        if not isinstance(questions, list) or not isinstance(answers, list):
+            continue
+        note = item.get("global_note")
+        rounds.append(
+            QARound(
+                questions=questions,
+                answers=answers,
+                global_note=note if isinstance(note, str) else None,
+            )
+        )
+    return rounds
 
 
 def _save_questions_chat(
@@ -329,7 +440,8 @@ def _continue_after_auto_answered_question(
     base_prompt: str,
     question_relationships: dict[str, Any],
     provider_response: str | None = None,
-) -> None:
+    staged_id: str | None = None,
+) -> str | None:
     """Continue in-process after the ``%auto`` short-circuit answered a question.
 
     Mirrors the Off branch's ordinary successor launch -- suffix allocation,
@@ -392,7 +504,7 @@ def _continue_after_auto_answered_question(
     followup_role = interrupted_role
     fallback_token = _question_successor_fallback_token(reserved_suffixes)
     followup_prompt = assemble_question_followup_prompt(base_prompt, rounds)
-    continue_as_successor(
+    successor_name = continue_as_successor(
         ctx,
         state,
         SuccessorRequest(
@@ -412,7 +524,11 @@ def _continue_after_auto_answered_question(
         create_artifacts=create_followup_artifacts,
         promote=promote_to_workflow,
         store_prompt=_store_followup_prompt_artifact,
+        staged_id=staged_id,
+        staged_kind="questions" if staged_id else None,
     )
+    if staged_id is not None and successor_name is None:
+        return "completed"
     return None  # continue loop
 
 

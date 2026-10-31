@@ -389,6 +389,21 @@ _REVIEWED_PATH_PASSING_CONTEXTS: dict[str, PathPassingReview] = {
             "identity and its live or terminal state; no marker is written."
         ),
     ),
+    "src/sase/axe/run_agent_successor.py:_continue_as_staged_successor": PathPassingReview(
+        exemption=(
+            "Read-only staged-successor replay check: agent_meta.json is inspected "
+            "only to validate an existing child identity. New child metadata is "
+            "created through create_followup_artifacts, and model updates use the "
+            "artifact-index-aware metadata writer."
+        ),
+    ),
+    "src/sase/axe/run_agent_successor.py:restore_staged_successor_in_loop": PathPassingReview(
+        exemption=(
+            "Read-only staged-successor restore check: agent_meta.json is inspected "
+            "only to validate an already-created child before restoring in-memory "
+            "loop state; no marker is written."
+        ),
+    ),
     "src/sase/axe/run_agent_successor.py:deliver_staged_successor_detached": PathPassingReview(
         lifecycle_coverage=(
             "Creates a missing child through create_followup_artifacts, which "

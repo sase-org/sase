@@ -80,31 +80,63 @@ def create_plan_gate_turn(
     ctx: AgentExecContext,
     state: LoopState,
     agent_runtime: str | None,
+    approval_context: Mapping[str, Any] | None = None,
 ) -> GateTurnCreation:
     """Create a shell-backed plan gate and persist settlement context."""
-    from sase.main.plan_approve_handler import (
-        get_auto_plan_approval_action,
-        get_auto_plan_approval_argument,
-    )
+    if approval_context is not None:
+        plan_context = approval_context.get("plan")
+        creator_context = approval_context.get("creator")
+        if not isinstance(plan_context, Mapping) or not isinstance(
+            creator_context, Mapping
+        ):
+            raise ValueError("staged plan approval context is malformed")
+        auto_action = plan_context.get("auto_action")
+        auto_action = auto_action if isinstance(auto_action, str) else None
+        auto_argument = plan_context.get("auto_argument")
+        auto_argument = auto_argument if isinstance(auto_argument, str) else None
+        auto_policy_snapshot = plan_context.get("auto_policy")
+        request_timestamp = approval_context.get("request_timestamp")
+        request_timestamp = (
+            float(request_timestamp)
+            if isinstance(request_timestamp, (int, float))
+            else None
+        )
+    else:
+        from sase.main.plan_approve_handler import (
+            get_auto_plan_approval_action,
+            get_auto_plan_approval_argument,
+        )
 
-    auto_action = get_auto_plan_approval_action()
+        auto_action = get_auto_plan_approval_action()
+        auto_argument = get_auto_plan_approval_argument()
+        auto_policy_snapshot = None
+        request_timestamp = None
+        creator_context = None
     auto_enabled = auto_action is not None
-    auto_argument = get_auto_plan_approval_argument()
     if auto_argument is None and auto_action in {"tale", "epic"}:
         auto_argument = auto_action
 
     from sase.plan_gate import build_plan_approval_gate_spec
 
+    spec_kwargs: dict[str, Any] = {
+        "auto_enabled": auto_enabled,
+        "auto_argument": auto_argument,
+        "agent_name": ctx.agent_name,
+        "agent_model": ctx.agent_model,
+        "agent_llm_provider": ctx.agent_llm_provider,
+        "agent_runtime": agent_runtime,
+        "agent_vcs_tag": ctx.vcs_tag,
+    }
+    if approval_context is not None:
+        spec_kwargs.update(
+            auto_policy_snapshot=auto_policy_snapshot,
+            creator_context=creator_context,
+            request_timestamp=request_timestamp,
+        )
     spec = build_plan_approval_gate_spec(
         plan_file,
         session_id,
-        auto_enabled=auto_enabled,
-        auto_argument=auto_argument,
-        agent_name=ctx.agent_name,
-        agent_model=ctx.agent_model,
-        agent_llm_provider=ctx.agent_llm_provider,
-        agent_runtime=agent_runtime,
-        agent_vcs_tag=ctx.vcs_tag,
+        **spec_kwargs,
     )
     tier: PlanGateTier = "epic" if spec["kind"] == "epic_plan" else "tale"
     spec["turn"] = plan_gate_turn_block(tier)

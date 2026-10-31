@@ -654,6 +654,8 @@ def handle_accepted_plan(
     plan_result: Any,
     ctx: AgentExecContext,
     state: LoopState,
+    *,
+    staged_id: str | None = None,
 ) -> str | None:
     """Persist SDD files for an accepted plan and spawn its follow-up agent.
 
@@ -663,7 +665,7 @@ def handle_accepted_plan(
     if prepared.outcome is not None:
         return prepared.outcome
     assert prepared.successor is not None
-    continue_as_successor(
+    successor_name = continue_as_successor(
         ctx,
         state,
         prepared.successor,
@@ -671,7 +673,11 @@ def handle_accepted_plan(
         promote=promote_to_workflow,
         store_prompt=_store_followup_prompt_artifact,
         write_model_meta=_write_followup_model_meta,
+        staged_id=staged_id,
+        staged_kind="plan" if staged_id else None,
     )
+    if staged_id is not None and successor_name is None:
+        return "completed"
     _write_followup_effort_meta(state, state.current_prompt)
 
     # A ``/sase_questions`` interruption from this follow-up phase must rebuild

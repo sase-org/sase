@@ -15,7 +15,7 @@ from typing import Any
 from sase.axe.run_agent_helpers_artifacts import update_meta_fields
 from sase.gate_turn import GateTurnCreation, create_gate_turn, list_gate_turns
 from sase.main.qa_markdown import QARound, build_merged_qa_markdown
-from sase.user_question_actions import user_question_gate_spec
+from sase.user_question_actions import LIVE_AUTO_POLICY, user_question_gate_spec
 
 _QUESTION_BASE_PROMPT_FILENAME = "question_base_prompt.md"
 
@@ -27,6 +27,8 @@ def _question_gate_turn_spec(
     producer: Mapping[str, Any] | None = None,
     action_data: Mapping[str, str] | None = None,
     auto: bool = False,
+    auto_policy_snapshot: Mapping[str, Any] | None | object = LIVE_AUTO_POLICY,
+    request_timestamp: float | None = None,
     base_prompt: str,
     prior_rounds: list[QARound],
 ) -> dict[str, Any]:
@@ -44,6 +46,8 @@ def _question_gate_turn_spec(
         producer=producer,
         action_data=action_data,
         auto=auto,
+        auto_policy_snapshot=auto_policy_snapshot,
+        request_timestamp=request_timestamp,
     )
     declared_prompt = base_prompt + "\n\n" + build_merged_qa_markdown(prior_rounds)
     request["turn"] = {
@@ -87,6 +91,8 @@ def create_question_gate_turn(
     producer: Mapping[str, Any] | None = None,
     action_data: Mapping[str, str] | None = None,
     auto: bool = False,
+    auto_policy_snapshot: Mapping[str, Any] | None | object = LIVE_AUTO_POLICY,
+    request_timestamp: float | None = None,
     base_prompt: str,
     prior_rounds: list[QARound],
     parent_artifacts_dir: str | None,
@@ -104,6 +110,8 @@ def create_question_gate_turn(
         producer=producer,
         action_data=action_data,
         auto=auto,
+        auto_policy_snapshot=auto_policy_snapshot,
+        request_timestamp=request_timestamp,
         base_prompt=base_prompt,
         prior_rounds=prior_rounds,
     )

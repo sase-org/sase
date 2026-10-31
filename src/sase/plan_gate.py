@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import os
 import time
+from collections.abc import Mapping
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, cast, get_args
 
@@ -47,6 +48,8 @@ from ._plan_gate_shared import (
     TALE_PLAN_SUBMIT_GROUP,
 )
 
+_LIVE_AUTO_POLICY = object()
+
 if TYPE_CHECKING:
     from sase.sdd.plan_validate import PlanValidationResult
 
@@ -62,6 +65,9 @@ def build_plan_approval_gate_spec(
     agent_llm_provider: str | None = None,
     agent_runtime: str | None = None,
     agent_vcs_tag: str | None = None,
+    auto_policy_snapshot: Mapping[str, Any] | None | object = _LIVE_AUTO_POLICY,
+    creator_context: Mapping[str, Any] | None = None,
+    request_timestamp: float | None = None,
 ) -> dict[str, Any]:
     """Return the validated neutral plan gate request before creation."""
     plan_path = Path(plan_file).expanduser()
@@ -94,6 +100,9 @@ def build_plan_approval_gate_spec(
         agent_llm_provider=agent_llm_provider,
         agent_runtime=agent_runtime,
         agent_vcs_tag=agent_vcs_tag,
+        auto_policy_snapshot=auto_policy_snapshot,
+        creator_context=creator_context,
+        request_timestamp=request_timestamp,
     )
 
 
@@ -110,6 +119,9 @@ def _build_plan_gate_spec(
     agent_llm_provider: str | None,
     agent_runtime: str | None,
     agent_vcs_tag: str | None,
+    auto_policy_snapshot: Mapping[str, Any] | None | object = _LIVE_AUTO_POLICY,
+    creator_context: Mapping[str, Any] | None = None,
+    request_timestamp: float | None = None,
 ) -> dict[str, Any]:
     """Build the only request shape accepted by the plan adapters."""
     action_data = _plan_action_data(
@@ -120,6 +132,7 @@ def _build_plan_gate_spec(
         agent_llm_provider=agent_llm_provider,
         agent_runtime=agent_runtime,
         agent_vcs_tag=agent_vcs_tag,
+        creator_context=creator_context,
     )
     from sase.sdd.plan_summary import encode_plan_counts, plan_counts_summary
 
@@ -138,7 +151,14 @@ def _build_plan_gate_spec(
     definitions: list[dict[str, Any]] = []
     decision_properties: dict[str, dict[str, Any]] = {}
     if has_decisions:
-        artifacts_dir = str(os.environ.get("SASE_ARTIFACTS_DIR") or "")
+        raw_artifacts_dir = (
+            creator_context.get("artifacts_dir")
+            if creator_context is not None
+            else os.environ.get("SASE_ARTIFACTS_DIR")
+        )
+        artifacts_dir = (
+            str(raw_artifacts_dir) if isinstance(raw_artifacts_dir, str) else ""
+        )
         try:
             definitions = build_definitions(validation, artifacts_dir)
         except GateError:
@@ -164,7 +184,9 @@ def _build_plan_gate_spec(
         "original_plan_file": str(plan_file),
         "plan_resource": PLAN_RESOURCE_PATH,
         "session_id": session_id,
-        "timestamp": time.time(),
+        "timestamp": request_timestamp
+        if request_timestamp is not None
+        else time.time(),
     }
     if definitions:
         payload["decisions"] = definitions
@@ -180,7 +202,11 @@ def _build_plan_gate_spec(
                 "agent_llm_provider": agent_llm_provider,
                 "agent_runtime": agent_runtime,
                 "agent_vcs_tag": agent_vcs_tag,
-                "artifacts_dir": os.environ.get("SASE_ARTIFACTS_DIR"),
+                "artifacts_dir": (
+                    creator_context.get("artifacts_dir")
+                    if creator_context is not None
+                    else os.environ.get("SASE_ARTIFACTS_DIR")
+                ),
             }.items()
             if value
         },
@@ -224,6 +250,7 @@ def _build_plan_gate_spec(
         "auto": _plan_gate_auto_block(
             auto_enabled=auto_enabled,
             auto_argument=auto_argument,
+            auto_policy_snapshot=auto_policy_snapshot,
         ),
     }
 
@@ -232,6 +259,7 @@ def _plan_gate_auto_block(
     *,
     auto_enabled: bool,
     auto_argument: str | None,
+    auto_policy_snapshot: Mapping[str, Any] | None | object = _LIVE_AUTO_POLICY,
 ) -> dict[str, Any]:
     """Return the plan gate ``auto`` block with the creator's record.
 
@@ -241,13 +269,20 @@ def _plan_gate_auto_block(
     non-manual profile: a manual live record normalizes the block to
     manual here so the parked gate reads exactly as today.
     """
-    from sase.autonomy.record import live_record
-
     block: dict[str, Any] = {"enabled": auto_enabled, "argument": auto_argument}
-    try:
-        record = live_record(os.environ.get("SASE_ARTIFACTS_DIR") or "")
-    except Exception:
-        record = None
+    if auto_policy_snapshot is _LIVE_AUTO_POLICY:
+        from sase.autonomy.record import live_record
+
+        try:
+            record = live_record(os.environ.get("SASE_ARTIFACTS_DIR") or "")
+        except Exception:
+            record = None
+    else:
+        record = (
+            dict(auto_policy_snapshot)
+            if isinstance(auto_policy_snapshot, Mapping)
+            else None
+        )
     if record is not None:
         block["policy"] = record
         if record.get("profile") == "manual":
@@ -265,11 +300,16 @@ def _plan_action_data(
     agent_llm_provider: str | None,
     agent_runtime: str | None,
     agent_vcs_tag: str | None,
+    creator_context: Mapping[str, Any] | None = None,
 ) -> dict[str, str]:
-    values = {
+    values: dict[str, Any] = {
         "original_plan_file": original_plan_file,
         "session_id": session_id,
-        "project_dir": provider_project_dir_from_env(),
+        "project_dir": (
+            creator_context.get("project_dir")
+            if creator_context is not None
+            else provider_project_dir_from_env()
+        ),
         "artifacts_dir": os.environ.get("SASE_ARTIFACTS_DIR"),
         "agent_cl_name": os.environ.get("SASE_AGENT_CL_NAME"),
         "agent_project_file": os.environ.get("SASE_AGENT_PROJECT_FILE"),
@@ -281,7 +321,18 @@ def _plan_action_data(
         "runtime": agent_runtime,
         "agent_vcs_tag": agent_vcs_tag,
     }
-    return {key: value for key, value in values.items() if value}
+    if creator_context is not None:
+        for key in (
+            "artifacts_dir",
+            "agent_cl_name",
+            "agent_project_file",
+            "agent_timestamp",
+            "agent_root_timestamp",
+        ):
+            values[key] = creator_context.get(key)
+    return {
+        key: value for key, value in values.items() if isinstance(value, str) and value
+    }
 
 
 def _plan_gate_option(
