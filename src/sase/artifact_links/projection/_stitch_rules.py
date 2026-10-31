@@ -18,6 +18,12 @@ from sase.core.commit_footer_facade import LinkedCommitTagValue, parse_commit_fo
 
 _STITCH_BEAD_RULE_ID = "stitch-bead"
 _STITCH_AGENT_RULE_ID = "stitch-agent"
+# Rule-level cache version: bump to rebuild both stitch rows once without
+# forcing unrelated rules to recompute (the document-wide
+# `_CACHE_SCHEMA_VERSION` stays untouched). Bumped to 2 when the
+# commit-footer parser started unwrapping bracketed values with no link
+# definition, which changed the rows these rules project.
+_STITCH_RULES_CACHE_VERSION = 2
 _LOG_FORMAT = "--format=%H%x00%ct%x00%B%x00"
 
 
@@ -26,15 +32,21 @@ def project_stitch_rules(inputs: ProjectionInputs) -> tuple[ProjectedEdge, ...]:
 
     if inputs.primary_repo_root is None or inputs.primary_repo_name is None:
         return ()
-    cached_bead_sha, cached_bead_rows = read_rule_cache(
+    cached_bead_signature, cached_bead_rows = read_rule_cache(
         inputs.project_key, _STITCH_BEAD_RULE_ID
     )
-    cached_agent_sha, cached_agent_rows = read_rule_cache(
+    cached_agent_signature, cached_agent_rows = read_rule_cache(
         inputs.project_key, _STITCH_AGENT_RULE_ID
     )
     # Both rules share one walk, so a mismatched pair (a partial prior write)
-    # is treated as no cache at all rather than trusted half-way.
-    cached_sha = cached_bead_sha if cached_bead_sha == cached_agent_sha else None
+    # is treated as no cache at all rather than trusted half-way. A signature
+    # from an older rule version (for example a bare HEAD sha written before
+    # rule-level versions existed) also rebuilds from scratch once.
+    cached_sha = (
+        _sha_from_stitch_signature(cached_bead_signature)
+        if cached_bead_signature == cached_agent_signature
+        else None
+    )
 
     try:
         bead_rows, agent_rows, head_sha, changed = _current_rows(
@@ -51,13 +63,17 @@ def project_stitch_rules(inputs: ProjectionInputs) -> tuple[ProjectedEdge, ...]:
         )
 
     if changed:
+        signature = _stitch_cache_signature(head_sha)
         write_rule_cache(
-            inputs.project_key, _STITCH_BEAD_RULE_ID, signature=head_sha, rows=bead_rows
+            inputs.project_key,
+            _STITCH_BEAD_RULE_ID,
+            signature=signature,
+            rows=bead_rows,
         )
         write_rule_cache(
             inputs.project_key,
             _STITCH_AGENT_RULE_ID,
-            signature=head_sha,
+            signature=signature,
             rows=agent_rows,
         )
     return (
@@ -189,6 +205,19 @@ def _parse_log_output(
                 }
             )
     return bead_rows, agent_rows
+
+
+def _stitch_cache_signature(head_sha: str) -> str:
+    """Versioned cache signature for the stitch rules' shared walk."""
+    return f"stitch-rules/v{_STITCH_RULES_CACHE_VERSION}/{head_sha}"
+
+
+def _sha_from_stitch_signature(signature: object) -> str | None:
+    """Return the HEAD sha from a current-version signature, else None."""
+    prefix = f"stitch-rules/v{_STITCH_RULES_CACHE_VERSION}/"
+    if not isinstance(signature, str) or not signature.startswith(prefix):
+        return None
+    return signature.removeprefix(prefix) or None
 
 
 def _tag_label(value: object) -> str | None:

@@ -192,10 +192,15 @@ def test_unreachable_cached_sha_falls_back_to_a_full_walk(tmp_path: Path) -> Non
     assert targets == {"bead:sase-bb"}
 
 
-def test_bare_bracket_bead_trailer_projects_nothing_but_keeps_valid_sibling(
+def test_bracketed_bead_trailer_without_a_definition_projects_its_label(
     tmp_path: Path,
 ) -> None:
-    """A `SASE_BEAD=[sase-xx]` trailer (bare brackets, no reference) emits no row."""
+    """A `SASE_BEAD=[sase-xx]` trailer (bare brackets, no reference) names `sase-xx`.
+
+    The footer parser unwraps bracketed values that resolve to no link
+    definition, so the historical trailer shape projects the bead the
+    author meant instead of an invalid `bead:[...]` ref.
+    """
 
     from sase.artifact_links.projection import project_link_rows
 
@@ -203,7 +208,7 @@ def test_bare_bracket_bead_trailer_projects_nothing_but_keeps_valid_sibling(
     _init_git_repo(repo)
     _commit(
         repo,
-        "feat: bad trailer\n\nSASE_BEAD=[sase-xx]",
+        "feat: bracketed trailer\n\nSASE_BEAD=[sase-xx]",
         when="2026-08-20T00:00:00+00:00",
     )
     _commit(
@@ -212,17 +217,72 @@ def test_bare_bracket_bead_trailer_projects_nothing_but_keeps_valid_sibling(
         when="2026-08-21T00:00:00+00:00",
     )
 
-    # The stitch rule still parses the historical trailer shape, so this
-    # pins the malformed edge the entry-point guard must drop.
-    assert any(
-        edge.target_ref == "bead:[sase-xx]"
+    targets = {
+        edge.target_ref
         for edge in project_stitch_rules(_inputs(repo))
+        if edge.relation == "implements"
+    }
+    assert targets == {"bead:sase-xx", "bead:sase-yy"}
+
+    row_targets = {row["target_ref"] for row in project_link_rows(_inputs(repo))}
+    assert "bead:sase-xx" in row_targets
+    assert "bead:sase-yy" in row_targets
+
+
+def test_stale_rule_version_cache_rebuilds_once_then_hits(
+    tmp_path: Path,
+) -> None:
+    """A pre-version (bare-sha) stitch cache signature rebuilds exactly once."""
+
+    from sase.artifact_links.projection import _stitch_rules
+    from sase.artifact_links.projection._cache import (
+        read_rule_cache,
+        write_rule_cache,
+    )
+    from sase.artifact_links.projection._stitch_rules import (
+        _sha_from_stitch_signature,
+        _stitch_cache_signature,
     )
 
-    targets = {row["target_ref"] for row in project_link_rows(_inputs(repo))}
+    repo = tmp_path / "repo"
+    _init_git_repo(repo)
+    head_sha = _commit(
+        repo,
+        "feat: work\n\nSASE_BEAD=sase-xx",
+        when="2026-08-20T00:00:00+00:00",
+    )
 
-    assert "bead:[sase-xx]" not in targets
-    assert "bead:sase-yy" in targets
+    assert _sha_from_stitch_signature(_stitch_cache_signature(head_sha)) == head_sha
+    assert _sha_from_stitch_signature(head_sha) is None
+    assert _sha_from_stitch_signature(None) is None
+    assert _sha_from_stitch_signature("stitch-rules/v1/" + head_sha) is None
+
+    # Seed a pre-version cache: bare-sha signatures with the old malformed
+    # row the previous parser projected. The rules must ignore it, walk the
+    # full history once, and rewrite both entries versioned.
+    assert _stitch_rules._STITCH_RULES_CACHE_VERSION >= 2
+    stale_row = {
+        "source_ref": f"stitch:sase@{head_sha}",
+        "relation": "implements",
+        "target_ref": "bead:[sase-xx]",
+        "description": "stale",
+        "created_at": "2026-08-20T00:00:00Z",
+    }
+    write_rule_cache(
+        "stale_sig_key", "stitch-bead", signature=head_sha, rows=[stale_row]
+    )
+    write_rule_cache("stale_sig_key", "stitch-agent", signature=head_sha, rows=[])
+
+    # (The commit carries no AGENT trailer, so only the bead row exists.)
+    first = project_stitch_rules(_inputs(repo, "stale_sig_key"))
+    assert {edge.target_ref for edge in first} == {"bead:sase-xx"}
+
+    bead_sig, _ = read_rule_cache("stale_sig_key", "stitch-bead")
+    agent_sig, _ = read_rule_cache("stale_sig_key", "stitch-agent")
+    assert bead_sig == agent_sig == _stitch_cache_signature(head_sha)
+
+    second = project_stitch_rules(_inputs(repo, "stale_sig_key"))
+    assert first == second
 
 
 def test_a_git_log_failure_degrades_to_the_cached_rows(
