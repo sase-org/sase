@@ -168,20 +168,32 @@ def test_trim_runs_at_most_every_ten_minutes(
 
 def test_trim_dispatch_runs_off_thread(
     monkeypatch: pytest.MonkeyPatch,
+    active_guard: None,
 ) -> None:
     seen: list[str] = []
-    done = threading.Event()
+    first_done = threading.Event()
+    second_done = threading.Event()
 
     def _recording_trim() -> bool:
         seen.append(threading.current_thread().name)
-        done.set()
+        (first_done if len(seen) == 1 else second_done).set()
         return True
 
     monkeypatch.setattr(gc_policy, "trim_allocator", _recording_trim)
+    handle = install_gc_policy(app=None, tick_interval_s=0)
+    assert handle is not None
+    worker = gc_policy._trim_worker
+    assert worker is not None and worker.is_alive()
     gc_policy._spawn_trim_thread()
-    assert done.wait(timeout=5.0)
-    assert seen == [gc_policy.TRIM_THREAD_NAME]
-    assert seen[0] != threading.current_thread().name
+    assert first_done.wait(timeout=5.0)
+    gc_policy._spawn_trim_thread()
+    assert second_done.wait(timeout=5.0)
+    assert seen == [gc_policy.TRIM_THREAD_NAME, gc_policy.TRIM_THREAD_NAME]
+    assert all(name != threading.current_thread().name for name in seen)
+    assert gc_policy._trim_worker is worker
+    uninstall_gc_policy(handle)
+    assert not worker.is_alive()
+    assert gc_policy._trim_worker is None
 
 
 def test_combined_last_full_covers_recorder_and_own(

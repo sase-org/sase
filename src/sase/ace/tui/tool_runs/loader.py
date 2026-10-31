@@ -169,10 +169,11 @@ class ToolRunGlanceLoaderMixin:
                 self._schedule_tool_runs_refresh(source="tool_runs_followup")  # type: ignore[attr-defined]
 
     def _maybe_probe_tool_runs_drift(self, *, source: str = "unknown") -> None:
-        """Stat-only drift probe for the 1 s countdown tick (at most /2 s).
+        """Queue the stat-only drift probe away from the countdown tick.
 
         Runs on every tab, piggybacking on the existing countdown tick.
-        Adds no new timer or loop. A quiet tick opens no ToolRun file.
+        The file stats run in a pump-free task so Textual can keep handling
+        input while the filesystem responds.
         """
         if tool_runs_disabled_reason() is not None:
             return
@@ -183,28 +184,47 @@ class ToolRunGlanceLoaderMixin:
             pass
         state = _tool_runs_state(self)
         now_mono = time.monotonic()
-        if not should_probe_drift(now_mono, state):
+        if state.probe_running or not should_probe_drift(now_mono, state):
             return
         state.last_probe_mono = now_mono
-        current = self._tool_runs_probe_token()  # type: ignore[attr-defined]
-        if current is None:
-            return
-        last = state.last_token
-        if last is None:
-            last_snapshot = get_snapshot()
-            last = (
-                getattr(last_snapshot, "store_token", None) if last_snapshot else None
-            )
-        drifted = surface_token_drifted(current, last)
-        if drifted or (snapshot is None):
-            self._schedule_tool_runs_refresh(source=source)  # type: ignore[attr-defined]
-        # Silence can begin without a store write (a dead executor), so
-        # re-evaluate the top-bar model on the same cadence; the repaint
-        # only lands when the model changed.
+        state.probe_running = True
+        task = spawn_pump_free_task(
+            self,
+            self._run_tool_runs_drift_probe(source=source),
+            name="sase-tool-runs-drift-probe",
+            registry_attr="_tool_runs_async_tasks",
+        )
+        if task is None:
+            state.probe_running = False
+
+    async def _run_tool_runs_drift_probe(self, *, source: str) -> None:
+        """Probe ToolRun file metadata off-pump and preserve drift handling."""
+        state = _tool_runs_state(self)
         try:
-            self._update_proc_indicator()  # type: ignore[attr-defined]
-        except Exception:
-            pass
+            current = await asyncio.to_thread(self._tool_runs_probe_token)  # type: ignore[attr-defined]
+            if current is None:
+                return
+            last = state.last_token
+            if last is None:
+                last_snapshot = get_snapshot()
+                last = (
+                    getattr(last_snapshot, "store_token", None)
+                    if last_snapshot
+                    else None
+                )
+            drifted = surface_token_drifted(current, last)
+            snapshot = get_snapshot()
+            if drifted or (snapshot is None):
+                self._schedule_tool_runs_refresh(source=source)  # type: ignore[attr-defined]
+            # Silence can begin without a store write (a dead executor), so
+            # re-evaluate the top-bar model on the same cadence; the repaint
+            # only lands when the model changed.
+            try:
+                self._update_proc_indicator()  # type: ignore[attr-defined]
+            except Exception:
+                pass
+        finally:
+            state.probe_running = False
 
     def _reconcile_tool_runs_on_agents_entry(self) -> None:
         """Apply a newer glance once when returning to the Agents tab."""

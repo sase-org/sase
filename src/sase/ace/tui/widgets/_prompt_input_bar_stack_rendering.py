@@ -29,6 +29,7 @@ from sase.ace.tui.widgets.prompt_stack import (
     split_prompt_text,
 )
 from sase.ace.tui.widgets.prompt_text_area import PromptTextArea
+from sase.ace.tui.util.debounce import DetailPanelDebouncer
 
 
 class PromptInputBarStackRenderingMixin(
@@ -351,13 +352,24 @@ class PromptInputBarStackRenderingMixin(
     def refresh_cursor_readouts(self) -> None:
         """Sync the active pane's subtitle readout and each parked separator's rule.
 
-        A cursor readout paints immediately on the UI thread, like a
-        highlight move -- never debounced.  Every pane lookup is guarded
-        since the bar is routinely asked to refresh while panes are
-        mid-mount or mid-detach.
+        Parked separator positions stay immediate. The border subtitle is
+        coalesced through the shared 150 ms detail-panel debouncer so typing
+        and the caret paint immediately while its Rich restyle settles shortly
+        after input. Every pane lookup is guarded since the bar is routinely
+        asked to refresh while panes are mid-mount or mid-detach.
         """
         self._refresh_snippet_frame_classes()
-        self.border_subtitle = self._render_subtitle(self._subtitle_base)
+        debouncer = getattr(self, "_cursor_subtitle_debouncer", None)
+        if debouncer is None:
+            try:
+                debouncer = DetailPanelDebouncer(self.app)
+            except Exception:
+                debouncer = None
+            self._cursor_subtitle_debouncer = debouncer
+        if debouncer is None:
+            self._refresh_cursor_subtitle()
+        else:
+            debouncer.schedule(self._refresh_cursor_subtitle)
         if len(self._stack) <= 1:
             return
         for index, item in enumerate(self._stack.items):
@@ -387,6 +399,14 @@ class PromptInputBarStackRenderingMixin(
                 continue
             line, column = cursor_readout_position(text_area)
             separator.set_position((line, column), text_area._vim_mode)
+
+    def _refresh_cursor_subtitle(self) -> None:
+        """Rebuild the border subtitle only when its rendered value changes."""
+        rendered = self._render_subtitle(self._subtitle_base)
+        if rendered == getattr(self, "_cursor_subtitle_rendered", None):
+            return
+        self._cursor_subtitle_rendered = rendered
+        self.border_subtitle = rendered
 
     # -- stack-aware public API ----------------------------------------------
 

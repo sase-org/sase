@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import asyncio
+
 from sase.ace.tui._proc_observer_models import ProcGearLanes
 from sase.ace.tui.tool_runs import snapshot as _snapshot_module
 from sase.ace.tui.tool_runs.loader import ToolRunGlanceLoaderMixin
@@ -231,12 +233,13 @@ class _OffTabHost(ToolRunGlanceLoaderMixin):
         self.indicator_updates += 1
 
 
-def test_probe_and_schedule_run_off_the_agents_tab() -> None:
+async def test_probe_and_schedule_run_off_the_agents_tab() -> None:
     apply_loaded_snapshot(_build_snapshot((_glance("a"),)))
     host = _OffTabHost()
     host._schedule_tool_runs_refresh(source="countdown_tick")
     assert host.refreshed == 1
     host._maybe_probe_tool_runs_drift(source="countdown_tick")
+    await asyncio.gather(*tuple(host._tool_runs_async_tasks))
     # Drifted token (no last token) reschedules; the top bar re-evaluates
     # on the same cadence even without a store write.
     assert host.refreshed == 2

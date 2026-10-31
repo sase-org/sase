@@ -273,6 +273,9 @@ class PromptInputBarLifecycleMixin(_MixinBase):
 
     def on_unmount(self) -> None:
         """Withdraw the explicit prompt-active reference for this bar."""
+        debouncer = getattr(self, "_cursor_subtitle_debouncer", None)
+        if debouncer is not None:
+            debouncer.cancel()
         try:
             app = self.app
         except Exception:  # noqa: BLE001 - teardown has no active app.

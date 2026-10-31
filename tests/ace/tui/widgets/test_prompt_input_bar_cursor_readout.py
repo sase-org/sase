@@ -75,6 +75,29 @@ async def test_solo_pane_readout_tracks_typing() -> None:
         assert _subtitle_text(bar).plain.endswith("Ln 1, Col 3")
 
 
+async def test_border_subtitle_debounces_and_skips_unchanged_render() -> None:
+    app = _PromptBarApp("hello")
+
+    async with app.run_test(size=(80, 24)) as pilot:
+        await pilot.pause(0.2)
+        bar = app.query_one(PromptInputBar)
+        text_area = bar.active_text_area()
+        original = bar._cursor_subtitle_rendered
+        assert original.plain.endswith("Ln 1, Col 6")
+
+        text_area.cursor_location = (0, 1)
+        bar.refresh_cursor_readouts()
+        assert bar._cursor_subtitle_rendered is original
+        await pilot.pause(0.2)
+        changed = bar._cursor_subtitle_rendered
+        assert changed is not original
+        assert changed.plain.endswith("Ln 1, Col 2")
+
+        bar.refresh_cursor_readouts()
+        await pilot.pause(0.2)
+        assert bar._cursor_subtitle_rendered is changed
+
+
 async def test_solo_pane_feedback_mode_shows_readout() -> None:
     """The readout is not prompt-mode-only: feedback mode carries it too."""
     app = _PromptBarApp("note", mode="feedback")
