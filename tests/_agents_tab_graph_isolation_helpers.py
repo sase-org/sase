@@ -11,7 +11,7 @@ from sase.ace.tui.models.agent_loader import AgentLoadState
 from sase.ace.tui.widgets._agent_list_helpers import ordered_row_providers
 from sase.ace.tui.widgets._agent_list_render_agent_prefix import append_agent_row_prefix
 
-from tests._agents_tab_query_helpers import _make_agent
+from tests._agents_tab_query_helpers import make_agent
 
 
 def row_prefix(agent: Agent) -> str:
@@ -49,7 +49,7 @@ def normalize_agent_graph(agents: list[Agent]) -> list[Agent]:
 
 
 def clan_graph() -> list[Agent]:
-    claude = _make_agent(
+    claude = make_agent(
         cl_name="epic-claude",
         raw_suffix="20260918090100",
         status="RUNNING",
@@ -60,7 +60,7 @@ def clan_graph() -> list[Agent]:
         start_time=datetime(2026, 9, 18, 9, 1, 0),
         run_start_time=datetime(2026, 9, 18, 9, 1, 0),
     )
-    codex = _make_agent(
+    codex = make_agent(
         cl_name="epic-codex",
         raw_suffix="20260918090200",
         status="RUNNING",
@@ -75,7 +75,7 @@ def clan_graph() -> list[Agent]:
 
 
 def agent_session_graph() -> list[Agent]:
-    root = _make_agent(
+    root = make_agent(
         agent_type=AgentType.WORKFLOW,
         cl_name="fam-root",
         raw_suffix="20260918080000",
@@ -91,7 +91,7 @@ def agent_session_graph() -> list[Agent]:
         run_start_time=datetime(2026, 9, 18, 8, 0, 0),
         tribe="epic",
     )
-    coder = _make_agent(
+    coder = make_agent(
         cl_name="fam-code",
         raw_suffix="20260918080100",
         status="RUNNING",
@@ -109,7 +109,7 @@ def agent_session_graph() -> list[Agent]:
 
 
 def unrelated_delta() -> Agent:
-    return _make_agent(
+    return make_agent(
         cl_name="unrelated",
         raw_suffix="20260918100000",
         status="DONE",

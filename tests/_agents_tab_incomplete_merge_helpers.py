@@ -88,6 +88,11 @@ def _bounded_prefix_load_state() -> AgentLoadState:
     )
 
 
+authoritative_load_state = _authoritative_load_state
+incomplete_tier1_snapshot = _incomplete_tier1_snapshot
+bounded_prefix_load_state = _bounded_prefix_load_state
+
+
 def _artifact_delta_load_state() -> AgentLoadState:
     return AgentLoadState(
         tier="tier1",

@@ -33,6 +33,9 @@ def _make_agent(**overrides: Any) -> Agent:
     return Agent(**defaults)
 
 
+make_agent = _make_agent
+
+
 class _FakeContentCache:
     """Empty content cache stub — metadata-only matching."""
 
