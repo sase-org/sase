@@ -37,9 +37,9 @@ def wait_meta_patch_for_token(
         "wait_until",
     ]
     if wait_names:
-        set_values["wait_for"] = list(_durable_wait_names(wait_names))
+        set_values["wait_for"] = list(durable_wait_names(wait_names))
     if wait_for_epics_of:
-        set_values["wait_for_epics_of"] = list(_durable_wait_names(wait_for_epics_of))
+        set_values["wait_for_epics_of"] = list(durable_wait_names(wait_for_epics_of))
     if wait_beads:
         set_values["wait_for_beads"] = list(wait_beads)
     if wait_hoods:
@@ -94,6 +94,7 @@ def waiting_marker_patch_for_token(
     update_queue_weight: bool = False,
     queue_weight: float | None = None,
     queue_weight_explicit: bool = False,
+    turn_target_agents: tuple[str, ...] | None = None,
 ) -> WaitingMarkerPatch:
     """Build a ``waiting.json`` replacement for a wait directive payload."""
     wait_duration: float | None = None
@@ -103,8 +104,8 @@ def waiting_marker_patch_for_token(
         if wait_duration is None:
             wait_until = parse_absolute_time(time_token)
     return WaitingMarkerPatch(
-        waiting_for=_durable_wait_names(wait_names),
-        wait_for_epics_of=_durable_wait_names(wait_for_epics_of),
+        waiting_for=durable_wait_names(wait_names),
+        wait_for_epics_of=durable_wait_names(wait_for_epics_of),
         wait_for_beads=wait_beads,
         wait_for_hoods=wait_hoods,
         wait_duration=wait_duration,
@@ -117,10 +118,15 @@ def waiting_marker_patch_for_token(
         update_queue_weight=update_queue_weight,
         queue_weight=queue_weight,
         queue_weight_explicit=queue_weight_explicit,
+        turn_target_agents=(
+            durable_wait_names(turn_target_agents)
+            if turn_target_agents is not None
+            else None
+        ),
     )
 
 
-def _durable_wait_names(wait_names: tuple[str, ...]) -> tuple[str, ...]:
+def durable_wait_names(wait_names: tuple[str, ...]) -> tuple[str, ...]:
     """Qualify agent dependencies while leaving tribe references unchanged."""
     from sase.core.agent_identity_facade import (
         AgentIdentitySnapshot,
@@ -135,6 +141,7 @@ def _durable_wait_names(wait_names: tuple[str, ...]) -> tuple[str, ...]:
 
 
 __all__ = [
+    "durable_wait_names",
     "wait_meta_patch_for_token",
     "waiting_marker_patch_for_token",
 ]

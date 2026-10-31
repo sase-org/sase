@@ -136,6 +136,8 @@ def enrich_agent_from_meta_wire(
         agent.wait_for_epics_of = list(meta.wait_for_epics_of)
     if meta.wait_epic_follows:
         agent.wait_epic_follows = list(epic_follow_views(meta.wait_epic_follows))
+    if meta.wait_turn_bindings:
+        agent.wait_turn_bindings = list(meta.wait_turn_bindings)
     agent.queue_weight = meta.queue_weight
     agent.queue_weight_explicit = meta.queue_weight_explicit
     agent.queue_weight_invalid = meta.queue_weight_invalid
@@ -275,6 +277,8 @@ def enrich_agent_from_meta_wire(
             agent.wait_for_epics_of = list(waiting.wait_for_epics_of)
         if waiting.wait_epic_follows:
             agent.wait_epic_follows = list(epic_follow_views(waiting.wait_epic_follows))
+        if waiting.wait_turn_bindings:
+            agent.wait_turn_bindings = list(waiting.wait_turn_bindings)
         if waiting.wait_duration is not None:
             agent.wait_duration = waiting.wait_duration
         if waiting.wait_until:

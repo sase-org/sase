@@ -249,6 +249,10 @@ FOLLOW_EPICS_MODES = ("on", "off", "mixed")
 _FOLLOW_PLAN_ROW_REASON = (
     "--plan rows release when the plan is submitted and never follow epics"
 )
+_FOLLOW_TURN_REASON = (
+    "turn targets release when the bound turn ends and never follow epics"
+)
+_FOLLOW_PLAN_OR_TURN_REASON = "--plan rows and turn targets never follow epics"
 
 
 def _is_follow_plan_row(name: object) -> bool:
@@ -284,12 +288,28 @@ def follow_epics_mode(
     return "mixed"
 
 
-def follow_toggle_disabled_reason(waiting_for: Iterable[str] | None) -> str | None:
-    """Return why the Follow epics toggle is disabled, if it is."""
+def follow_toggle_disabled_reason(
+    waiting_for: Iterable[str] | None,
+    turn_agents: Iterable[str] | None = None,
+) -> str | None:
+    """Return why the Follow epics toggle is disabled, if it is.
+
+    Disabled when every remaining target is a ``--plan`` row and/or a turn
+    target. Mixed session+turn waits stay enabled.
+    """
     targets = [t for t in (waiting_for or ()) if isinstance(t, str) and t.strip()]
-    if targets and all(_is_follow_plan_row(target) for target in targets):
+    if not targets:
+        return None
+    turn_set = {
+        t.strip() for t in (turn_agents or ()) if isinstance(t, str) and t.strip()
+    }
+    if not all(_is_follow_plan_row(target) or target in turn_set for target in targets):
+        return None
+    if all(target in turn_set for target in targets):
+        return _FOLLOW_TURN_REASON
+    if all(_is_follow_plan_row(target) for target in targets):
         return _FOLLOW_PLAN_ROW_REASON
-    return None
+    return _FOLLOW_PLAN_OR_TURN_REASON
 
 
 def resolve_epic_follow_agents(

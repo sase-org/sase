@@ -10,7 +10,9 @@ This module is the stable import path for the marker wires. The
 finalizer-status summary lives in
 :mod:`sase.core.agent_scan_wire_markers_finalizer` and the created-epic /
 epic-follow wires live in :mod:`sase.core.agent_scan_wire_markers_epic`;
-both are re-exported here.
+both are re-exported here. Bound-turn wait wires live in
+:mod:`sase.core.agent_scan_wire_markers_wait_turn` and are re-exported
+lazily so that module stays off the TUI first-paint import path.
 
 See :mod:`sase.core.agent_scan_wire` for the schema-version contract and the
 overall scope of the snapshot scan boundary.
@@ -40,6 +42,11 @@ from sase.core.agent_scan_wire_markers_finalizer import (
 
 if TYPE_CHECKING:
     from sase.core.agent_auto_restart_wire import AgentRecoveryWire
+    from sase.core.agent_scan_wire_markers_wait_turn import (
+        WaitTurnBindingWire,
+        wait_turn_bindings_from_payload,
+        wait_turn_bindings_from_value,
+    )
 
 
 @dataclass(frozen=True)
@@ -298,6 +305,9 @@ class AgentMetaWire:
     # needed. Tolerant pass-through dict for the Agents-tab provenance
     # block and the preserved error-report `v` file hint.
     auto_restart: dict[str, Any] | None = None
+    # Compact projection of bound turn waits (`wait_tui`). Trailing additive
+    # field; empty by default so existing payloads keep their key order.
+    wait_turn_bindings: list[WaitTurnBindingWire] = field(default_factory=list)
 
     @property
     def agent_session_shell(self) -> AgentSessionTurnWire | None:
@@ -366,6 +376,8 @@ class WaitingMarkerWire:
     # Persisted epic-follow stages (`release` phase). Trailing for the same
     # key-order stability as the sibling meta field; additive serde-default.
     wait_epic_follows: list[WaitEpicFollowEntryWire] = field(default_factory=list)
+    # Compact projection of bound turn waits (`wait_tui`). Trailing additive.
+    wait_turn_bindings: list[WaitTurnBindingWire] = field(default_factory=list)
 
 
 @dataclass(frozen=True)
@@ -479,6 +491,38 @@ class UsedMacroWire:
     references: int = 0
 
 
+_WAIT_TURN_LAZY_EXPORTS = frozenset(
+    {
+        "WaitTurnBindingWire",
+        "wait_turn_bindings_from_payload",
+        "wait_turn_bindings_from_value",
+    }
+)
+
+
+def __getattr__(name: str) -> Any:
+    """Load bound-turn wait wires only when a caller names them."""
+    if name in _WAIT_TURN_LAZY_EXPORTS:
+        from sase.core.agent_scan_wire_markers_wait_turn import (
+            WaitTurnBindingWire,
+            wait_turn_bindings_from_payload,
+            wait_turn_bindings_from_value,
+        )
+
+        exports: dict[str, Any] = {
+            "WaitTurnBindingWire": WaitTurnBindingWire,
+            "wait_turn_bindings_from_payload": wait_turn_bindings_from_payload,
+            "wait_turn_bindings_from_value": wait_turn_bindings_from_value,
+        }
+        globals().update(exports)
+        return exports[name]
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
+
+# Symvision cannot see Python's module-level lazy lookup hook.
+_PACKAGE_GETATTR = __getattr__
+
+
 __all__ = [
     "AgentMetaWire",
     "CreatedEpicWire",
@@ -492,6 +536,7 @@ __all__ = [
     "RunningMarkerWire",
     "UsedMacroWire",
     "WaitEpicFollowEntryWire",
+    "WaitTurnBindingWire",
     "WaitingMarkerWire",
     "WorkflowStateWire",
     "WorkflowStepStateWire",
@@ -499,4 +544,6 @@ __all__ = [
     "finalizer_status_from_mapping",
     "wait_epic_follows_from_value",
     "wait_for_epics_of_from_value",
+    "wait_turn_bindings_from_payload",
+    "wait_turn_bindings_from_value",
 ]

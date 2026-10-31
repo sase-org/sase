@@ -118,6 +118,8 @@ def _merge_agent_fields(target: Agent, source: Agent) -> None:
         target.wait_for_epics_of = source.wait_for_epics_of
     if not target.wait_epic_follows and source.wait_epic_follows:
         target.wait_epic_follows = source.wait_epic_follows
+    if not target.wait_turn_bindings and source.wait_turn_bindings:
+        target.wait_turn_bindings = source.wait_turn_bindings
     if target.queue_capacity is None and target.queue_capacity_multiplier is None:
         if source.queue_capacity is not None or source.wait_runners is not None:
             target.set_queue_capacity(

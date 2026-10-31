@@ -129,6 +129,17 @@ _REVIEWED_PATH_PASSING_CONTEXTS: dict[str, PathPassingReview] = {
         ),
     ),
     (
+        "src/sase/ace/tui/actions/agents/_directive_persistence_update.py:"
+        "_bind_new_turn_wait_records"
+    ): PathPassingReview(
+        exemption=(
+            "Read-only bind-new-at-apply skip: agent_meta.json and waiting.json "
+            "are read only to collect turn names that already have identity "
+            "records; bind_wait_target builds in-memory records and live writes "
+            "go through _patch_agent_meta / _write_waiting_marker."
+        ),
+    ),
+    (
         "src/sase/ace/tui/models/_loaders/_workflow_loaders.py:"
         "_has_monitored_done_marker"
     ): PathPassingReview(

@@ -477,6 +477,14 @@ def _agent_meta_from_dict(data: dict[str, Any]) -> AgentMetaWire:
     kwargs["auto_restart"] = (
         dict(raw_auto_restart) if isinstance(raw_auto_restart, dict) else None
     )
+    # Imported lazily to keep sase.core.agent_scan_wire_markers_wait_turn
+    # out of the TUI startup import closure
+    # (tests/ace/tui/test_app_import_budget.py).
+    from sase.core.agent_scan_wire_markers_wait_turn import (
+        wait_turn_bindings_from_payload,
+    )
+
+    kwargs["wait_turn_bindings"] = wait_turn_bindings_from_payload(payload)
     return AgentMetaWire(**kwargs)
 
 
@@ -513,6 +521,11 @@ def _waiting_marker_from_dict(data: dict[str, Any]) -> WaitingMarkerWire:
     kwargs["wait_epic_follows"] = wait_epic_follows_from_value(
         payload.get("wait_epic_follows")
     )
+    from sase.core.agent_scan_wire_markers_wait_turn import (
+        wait_turn_bindings_from_payload,
+    )
+
+    kwargs["wait_turn_bindings"] = wait_turn_bindings_from_payload(payload)
     return WaitingMarkerWire(**kwargs)
 
 

@@ -136,6 +136,7 @@ def _spec_from_payload(payload: Mapping[str, Any], *, artifacts_dir: str) -> Any
     )
 
     payload = _resolve_tribe_payload(payload, artifacts_dir=artifacts_dir)
+    turn_target_agents: tuple[str, ...] | None = None
     meta_set = payload.get("meta_set")
     meta_remove = payload.get("meta_remove")
     meta_patch = None
@@ -167,6 +168,12 @@ def _spec_from_payload(payload: Mapping[str, Any], *, artifacts_dir: str) -> Any
             update_wait_priority=bool(wait.get("update_wait_priority", False)),
             wait_priority=wait.get("wait_priority"),
         )
+        if "turn_target_agents" in wait:
+            turn_target_agents = tuple(
+                str(name)
+                for name in (wait.get("turn_target_agents") or ())
+                if isinstance(name, str)
+            )
     waiting = None
     if isinstance(payload.get("waiting"), dict):
         waiting_payload = payload["waiting"]
@@ -193,7 +200,18 @@ def _spec_from_payload(payload: Mapping[str, Any], *, artifacts_dir: str) -> Any
                 waiting_payload.get("update_wait_priority", False)
             ),
             wait_priority=waiting_payload.get("wait_priority"),
+            turn_target_agents=(
+                tuple(
+                    str(name)
+                    for name in (waiting_payload.get("turn_target_agents") or ())
+                    if isinstance(name, str)
+                )
+                if "turn_target_agents" in waiting_payload
+                else None
+            ),
         )
+        if waiting.turn_target_agents is not None:
+            turn_target_agents = waiting.turn_target_agents
     ready = None
     if isinstance(payload.get("ready"), dict):
         ready = ReadyMarkerPatch(
@@ -214,6 +232,7 @@ def _spec_from_payload(payload: Mapping[str, Any], *, artifacts_dir: str) -> Any
         tribe_patch=tribe,
         waiting_marker=waiting,
         ready_marker=ready,
+        turn_target_agents=turn_target_agents,
     )
 
 

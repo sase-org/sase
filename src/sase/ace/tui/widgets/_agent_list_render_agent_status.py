@@ -233,6 +233,24 @@ def append_agent_row_status(
         if count_text.cell_len:
             text.append(" ")
             text.append_text(count_text)
+        turn_bindings = [
+            binding
+            for binding in getattr(wait_agent, "wait_turn_bindings", ()) or ()
+            if getattr(binding, "name", None) and getattr(binding, "turn_name", None)
+        ]
+        if turn_bindings:
+            from sase.core.agent_scan_wire_markers_wait_turn import (
+                format_wait_turn_binding,
+            )
+
+            text.append(" ")
+            text.append(
+                ", ".join(
+                    format_wait_turn_binding(binding.name, binding.turn_name)
+                    for binding in turn_bindings
+                ),
+                style="#AF87FF",
+            )
         append_epic_follow_tokens(
             text,
             views=wait_agent,

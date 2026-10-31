@@ -44,6 +44,15 @@ def test_plan_rows_never_follow_and_disable_toggle() -> None:
     assert reason is not None and "never follow" in reason
     assert follow_toggle_disabled_reason(["planner"]) is None
     assert follow_toggle_disabled_reason(["planner", "planner--plan"]) is None
+    turn_reason = follow_toggle_disabled_reason(["16h"], turn_agents=["16h"])
+    assert turn_reason is not None and "turn targets" in turn_reason
+    assert (
+        follow_toggle_disabled_reason(["16h", "planner"], turn_agents=["16h"]) is None
+    )
+    mixed_reason = follow_toggle_disabled_reason(
+        ["planner--plan", "16h"], turn_agents=["16h"]
+    )
+    assert mixed_reason is not None and "never follow" in mixed_reason
     assert "never follow" in follow_toggle_label("off", disabled_reason=reason)
     assert "↪" in follow_toggle_label("on")
     assert follow_toggle_label("mixed") == "Follow epics: mixed"

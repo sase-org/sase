@@ -134,6 +134,8 @@ def agent_state_to_bundle_dict(agent: Agent) -> dict[str, Any]:
             value = []
         elif item.name == "wait_epic_follows" and isinstance(value, (list, tuple)):
             value = [_encode_wait_epic_follow(entry) for entry in value]
+        elif item.name == "wait_turn_bindings" and isinstance(value, (list, tuple)):
+            value = [_encode_wait_epic_follow(entry) for entry in value]
         elif isinstance(value, list) and value and isinstance(value[0], datetime):
             value = [entry.isoformat() for entry in value]
         elif isinstance(value, dict) and value:
@@ -275,6 +277,12 @@ def from_bundle_dict(
             from sase.core.wait_epic_follow_view import epic_follow_views
 
             value = list(epic_follow_views(value))
+        elif f.name == "wait_turn_bindings":
+            from sase.core.agent_scan_wire_markers_wait_turn import (
+                wait_turn_bindings_from_value,
+            )
+
+            value = wait_turn_bindings_from_value(value)
         elif f.name == "feedback_plan_paths" and isinstance(value, dict):
             parsed_paths: dict[datetime, str] = {}
             for k, v in value.items():

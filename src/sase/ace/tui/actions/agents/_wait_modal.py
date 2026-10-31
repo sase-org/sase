@@ -85,6 +85,11 @@ class AgentWaitModalMixin:
         self.push_screen(  # type: ignore[attr-defined]
             WaitModal(
                 current_waiting_for=agent.waiting_for,
+                current_turn_target_agents=[
+                    binding.name
+                    for binding in getattr(agent, "wait_turn_bindings", None) or []
+                    if getattr(binding, "name", None)
+                ],
                 current_waiting_for_beads=authored_beads,
                 current_waiting_for_hoods=agent.waiting_for_hoods,
                 current_wait_for_epics_of=list(

@@ -445,7 +445,14 @@ def build_agent_member_digest(
 def _waiting_digest(row: Agent) -> tuple[str, ...]:
     parts: list[str] = []
     if row.waiting_for:
-        parts.append("for " + ", ".join(row.waiting_for))
+        from sase.core.agent_scan_wire_markers_wait_turn import format_wait_targets
+
+        parts.append(
+            "for "
+            + format_wait_targets(
+                row.waiting_for, getattr(row, "wait_turn_bindings", None)
+            )
+        )
     if row.waiting_for_beads:
         parts.append("for beads " + ", ".join(row.waiting_for_beads))
     if row.waiting_for_hoods:

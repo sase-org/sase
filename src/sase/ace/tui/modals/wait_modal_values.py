@@ -37,8 +37,66 @@ class PriorityValidation:
 
 
 def parse_agents_value(value: str) -> list[str]:
-    """Parse comma-separated wait targets."""
-    return [part.strip() for part in value.split(",") if part.strip()]
+    """Parse comma-separated wait targets, including ``turn=<agent>`` names.
+
+    Unknown ``key=`` fragments and incomplete ``turn=`` values are skipped
+    so live typing does not fail the follow-epics preview.
+    """
+    session, turn_agents = parse_agents_field_lenient(value)
+    merged = list(session)
+    merged.extend(name for name in turn_agents if name not in session)
+    return merged
+
+
+def parse_agents_field(value: str) -> tuple[list[str], list[str]]:
+    """Parse the Agents field into ``(session_agents, turn_agents)``.
+
+    Empty comma entries are skipped. ``turn=<agent>`` is accepted. Other
+    ``key=`` forms raise :class:`sase.wait_spec.WaitSpecError`. An empty
+    field yields two empty lists.
+    """
+    from sase.wait_spec import WaitSpecError, parse_wait_spec
+
+    parts = [part.strip() for part in value.split(",") if part.strip()]
+    if not parts:
+        return [], []
+    spec = parse_wait_spec(",".join(parts))
+    if spec.beads or spec.hoods:
+        raise WaitSpecError(
+            "Agents field does not accept bead= or hood= "
+            "(only agent names and turn=<agent> are allowed)"
+        )
+    turn_agents = list(spec.turn_target_agents)
+    turn_set = set(turn_agents)
+    session = [name for name in spec.agents if name not in turn_set]
+    return session, turn_agents
+
+
+def parse_agents_field_lenient(value: str) -> tuple[list[str], list[str]]:
+    """Parse Agents live, skipping unknown or incomplete keyed fragments."""
+    session: list[str] = []
+    turn_agents: list[str] = []
+    seen_session: set[str] = set()
+    seen_turn: set[str] = set()
+    for raw in value.split(","):
+        entry = raw.strip()
+        if not entry:
+            continue
+        if "=" in entry:
+            key, _, rest = entry.partition("=")
+            if key != "turn":
+                continue
+            name = rest.strip()
+            if not name or any(ch.isspace() for ch in name):
+                continue
+            if name not in seen_turn:
+                seen_turn.add(name)
+                turn_agents.append(name)
+            continue
+        if entry not in seen_session:
+            seen_session.add(entry)
+            session.append(entry)
+    return session, turn_agents
 
 
 def parse_beads_value(value: str) -> list[str]:

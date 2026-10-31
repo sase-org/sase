@@ -148,8 +148,19 @@ def test_preserved_turn_target_agents_keeps_prompt_and_records() -> None:
         agents=["16h", "planner"],
         time_token=None,
         epic_follow_agents=("16h", "planner"),
+        turn_agents=["16h"],
     )
     spec = prompt_wait_spec(result, _Agent())
     assert spec is not None
     assert spec.turn_target_agents == ("16h",)
     assert spec.epic_follow_agents == ("planner",)
+    session_only = prompt_wait_spec(
+        WaitModalResult(
+            agents=["16h", "planner"],
+            time_token=None,
+            turn_agents=[],
+        ),
+        _Agent(),
+    )
+    assert session_only is not None
+    assert session_only.turn_target_agents == ()

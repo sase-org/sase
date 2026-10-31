@@ -59,7 +59,14 @@ class AgentWaitApplyMixin:
                 if agent.wait_priority_explicit
                 else None
             )
-            turn_target_agents = preserved_turn_target_agents(agent, wait_names)
+            authored_turns = getattr(result, "turn_agents", None)
+            if authored_turns is not None:
+                wait_set = set(wait_names)
+                turn_target_agents = tuple(
+                    name for name in authored_turns if name in wait_set
+                )
+            else:
+                turn_target_agents = preserved_turn_target_agents(agent, wait_names)
             turn_set = set(turn_target_agents)
             if result.epic_follow_agents is not None:
                 follow_names = [
@@ -96,6 +103,9 @@ class AgentWaitApplyMixin:
             prior_wait_epic_follows = list(
                 getattr(agent, "wait_epic_follows", None) or []
             )
+            prior_wait_turn_bindings = list(
+                getattr(agent, "wait_turn_bindings", None) or []
+            )
             prior_wait_duration = agent.wait_duration
             prior_wait_until = agent.wait_until
             prior_priority = agent.wait_priority
@@ -118,6 +128,8 @@ class AgentWaitApplyMixin:
                     agent.wait_for_epics_of = prior_wait_for_epics_of
                 if hasattr(agent, "wait_epic_follows"):
                     agent.wait_epic_follows = prior_wait_epic_follows
+                if hasattr(agent, "wait_turn_bindings"):
+                    agent.wait_turn_bindings = prior_wait_turn_bindings
                 agent.wait_duration = prior_wait_duration
                 agent.wait_until = prior_wait_until
                 agent.wait_priority = prior_priority
@@ -160,6 +172,7 @@ class AgentWaitApplyMixin:
                         "hoods": wait_hoods,
                         "names": wait_names,
                         "wait_for_epics_of": list(follow_names),
+                        "turn_target_agents": list(wait_spec.turn_target_agents),
                         "update_wait_priority": update_wait_priority,
                         "wait_priority": result.priority,
                     },
@@ -168,6 +181,7 @@ class AgentWaitApplyMixin:
                         "hoods": wait_hoods,
                         "names": wait_names,
                         "wait_for_epics_of": list(follow_names),
+                        "turn_target_agents": list(wait_spec.turn_target_agents),
                         "update_wait_priority": update_wait_priority,
                         "wait_priority": result.priority,
                     },
@@ -188,6 +202,13 @@ class AgentWaitApplyMixin:
                     view
                     for view in (agent.wait_epic_follows or [])
                     if getattr(view, "target", None) in set(follow_names)
+                ]
+            if hasattr(agent, "wait_turn_bindings"):
+                keep_turns = set(turn_target_agents)
+                agent.wait_turn_bindings = [
+                    binding
+                    for binding in (agent.wait_turn_bindings or [])
+                    if getattr(binding, "name", None) in keep_turns
                 ]
             agent.wait_duration = None
             agent.wait_until = None
@@ -260,6 +281,8 @@ class AgentWaitApplyMixin:
                 agent.wait_for_epics_of = []
             if hasattr(agent, "wait_epic_follows"):
                 agent.wait_epic_follows = []
+            if hasattr(agent, "wait_turn_bindings"):
+                agent.wait_turn_bindings = []
             agent.wait_duration = None
             agent.wait_until = None
             agent.set_queue_capacity(None, explicit=False)

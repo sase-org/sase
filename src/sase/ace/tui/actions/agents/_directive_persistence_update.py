@@ -50,6 +50,12 @@ def persist_agent_directive_update(
     )
     with lock:
         result = AgentDirectivePersistenceResult()
+        extra_turn_records = (
+            _bind_new_turn_wait_records(artifacts_path, spec)
+            if artifacts_path is not None
+            else []
+        )
+        selected_turn_names = _turn_target_agents_from_spec(spec)
         if spec.prompt_mutator is not None:
             if artifacts_path is None:
                 raise ValueError("artifacts_dir is required for prompt rewrites")
@@ -57,7 +63,12 @@ def persist_agent_directive_update(
         if spec.meta_patch is not None:
             if artifacts_path is None:
                 raise ValueError("artifacts_dir is required for agent_meta updates")
-            meta_updated = _patch_agent_meta(artifacts_path, spec.meta_patch)
+            meta_updated = _patch_agent_meta(
+                artifacts_path,
+                spec.meta_patch,
+                extra_turn_records=extra_turn_records,
+                selected_turn_names=selected_turn_names,
+            )
             result = replace(result, meta_updated=meta_updated)
         if spec.tribe_patch is not None:
             tribe_updated = _patch_agent_tribe_store(spec.tribe_patch)
@@ -65,7 +76,12 @@ def persist_agent_directive_update(
         if spec.waiting_marker is not None:
             if artifacts_path is None:
                 raise ValueError("artifacts_dir is required for waiting marker updates")
-            _write_waiting_marker(artifacts_path, spec.waiting_marker)
+            _write_waiting_marker(
+                artifacts_path,
+                spec.waiting_marker,
+                extra_turn_records=extra_turn_records,
+                selected_turn_names=selected_turn_names,
+            )
             result = replace(result, waiting_updated=True)
         if spec.ready_marker is not None:
             if artifacts_path is None:
@@ -134,7 +150,136 @@ def _prune_wait_identity_records(
         marker.pop("wait_for_artifacts", None)
 
 
-def _patch_agent_meta(artifacts_path: Path, patch: AgentMetaPatch) -> bool:
+def _drop_unselected_turn_records(
+    marker: dict[str, object],
+    turn_names: tuple[str, ...],
+) -> None:
+    """Drop turn identity records no longer authored as turn waits."""
+    records = marker.get("wait_for_artifacts")
+    if not isinstance(records, list):
+        return
+    names = set(turn_names)
+    pruned = [
+        record
+        for record in records
+        if not (
+            isinstance(record, dict)
+            and record.get("target") == "turn"
+            and not (
+                (
+                    isinstance(record.get("requested"), str)
+                    and record["requested"] in names
+                )
+                or (isinstance(record.get("name"), str) and record["name"] in names)
+            )
+        )
+    ]
+    if len(pruned) == len(records):
+        return
+    if pruned:
+        marker["wait_for_artifacts"] = pruned
+    else:
+        marker.pop("wait_for_artifacts", None)
+
+
+def _merge_wait_identity_records(
+    marker: dict[str, object],
+    extra_records: list[dict[str, object]],
+) -> None:
+    """Append newly bound turn records that prune did not already keep."""
+    if not extra_records:
+        return
+    records = marker.get("wait_for_artifacts")
+    if not isinstance(records, list):
+        records = []
+    existing: set[str] = set()
+    for record in records:
+        if not isinstance(record, dict):
+            continue
+        requested = record.get("requested")
+        name = record.get("name")
+        if isinstance(requested, str) and requested:
+            existing.add(requested)
+        if isinstance(name, str) and name:
+            existing.add(name)
+    for record in extra_records:
+        requested = record.get("requested")
+        name = record.get("name")
+        keys = {key for key in (requested, name) if isinstance(key, str) and key}
+        if keys & existing:
+            continue
+        records.append(record)
+        existing.update(keys)
+    if records:
+        marker["wait_for_artifacts"] = records
+
+
+def _turn_record_names(marker: dict[str, object]) -> set[str]:
+    records = marker.get("wait_for_artifacts")
+    if not isinstance(records, list):
+        return set()
+    names: set[str] = set()
+    for record in records:
+        if not isinstance(record, dict) or record.get("target") != "turn":
+            continue
+        for key in ("requested", "name"):
+            value = record.get(key)
+            if isinstance(value, str) and value:
+                names.add(value)
+    return names
+
+
+def _turn_target_agents_from_spec(
+    spec: AgentDirectivePersistenceSpec,
+) -> tuple[str, ...] | None:
+    if (
+        spec.waiting_marker is not None
+        and spec.waiting_marker.turn_target_agents is not None
+    ):
+        return spec.waiting_marker.turn_target_agents
+    if spec.turn_target_agents is not None:
+        from ._directive_persistence_wait import durable_wait_names
+
+        return durable_wait_names(spec.turn_target_agents)
+    return None
+
+
+def _bind_new_turn_wait_records(
+    artifacts_path: Path,
+    spec: AgentDirectivePersistenceSpec,
+) -> list[dict[str, object]]:
+    """Bind newly authored turn waits once; skip names that already have records."""
+    turn_names = _turn_target_agents_from_spec(spec)
+    if not turn_names:
+        return []
+    existing = _turn_record_names(read_json_object(artifacts_path / "agent_meta.json"))
+    existing.update(
+        _turn_record_names(read_json_object(artifacts_path / "waiting.json"))
+    )
+    missing = [name for name in turn_names if name not in existing]
+    if not missing:
+        return []
+    from sase.agent.wait_target_binding import bind_wait_target
+
+    records: list[dict[str, object]] = []
+    for name in missing:
+        binding = bind_wait_target(
+            name,
+            requested_target="turn",
+            waiter_artifact_dir=artifacts_path,
+        )
+        if binding.identity_record is None:
+            raise RuntimeError(f"Cannot bind turn wait {name!r}")
+        records.append(dict(binding.identity_record))
+    return records
+
+
+def _patch_agent_meta(
+    artifacts_path: Path,
+    patch: AgentMetaPatch,
+    extra_turn_records: list[dict[str, object]] | None = None,
+    selected_turn_names: tuple[str, ...] | None = None,
+) -> bool:
     meta_path = artifacts_path / "agent_meta.json"
     meta = read_json_object(meta_path)
     original = dict(meta)
@@ -174,6 +319,9 @@ def _patch_agent_meta(artifacts_path: Path, patch: AgentMetaPatch) -> bool:
         remaining_wait_names = []
     if remaining_wait_names is not None:
         _prune_wait_identity_records(meta, remaining_wait_names)
+    if selected_turn_names is not None:
+        _drop_unselected_turn_records(meta, selected_turn_names)
+    _merge_wait_identity_records(meta, extra_turn_records or [])
     if meta == original:
         return False
     write_json_file(meta_path, meta)
@@ -193,7 +341,12 @@ def _patch_agent_tribe_store(patch: AgentTribeStorePatch) -> bool:
     )
 
 
-def _write_waiting_marker(artifacts_path: Path, patch: WaitingMarkerPatch) -> None:
+def _write_waiting_marker(
+    artifacts_path: Path,
+    patch: WaitingMarkerPatch,
+    extra_turn_records: list[dict[str, object]] | None = None,
+    selected_turn_names: tuple[str, ...] | None = None,
+) -> None:
     # Serialize with the admission poller's check/refresh critical section so
     # a parked agent cannot overwrite a just-saved threshold with the value it
     # read immediately before the TUI edit.
@@ -216,6 +369,9 @@ def _write_waiting_marker(artifacts_path: Path, patch: WaitingMarkerPatch) -> No
             existing.pop("wait_for_epics_of", None)
         _prune_follow_entries(existing, set(patch.wait_for_epics_of))
         _prune_wait_identity_records(existing, list(patch.waiting_for))
+        if selected_turn_names is not None:
+            _drop_unselected_turn_records(existing, selected_turn_names)
+        _merge_wait_identity_records(existing, extra_turn_records or [])
         if patch.wait_for_beads:
             existing["wait_for_beads"] = list(patch.wait_for_beads)
         if patch.wait_for_hoods:

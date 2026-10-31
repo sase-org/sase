@@ -464,7 +464,11 @@ def _attention_preview(rows: Sequence[Agent], status: str) -> str:
             return preview
     for row in rows:
         if row.waiting_for:
-            return "waiting for " + ", ".join(row.waiting_for)
+            from sase.core.agent_scan_wire_markers_wait_turn import format_wait_targets
+
+            return "waiting for " + format_wait_targets(
+                row.waiting_for, getattr(row, "wait_turn_bindings", None)
+            )
         if row.waiting_for_beads:
             return "waiting for beads " + ", ".join(row.waiting_for_beads)
         if row.waiting_for_hoods:

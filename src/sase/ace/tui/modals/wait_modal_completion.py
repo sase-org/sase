@@ -65,12 +65,15 @@ class WaitModalCompletionScreen(ModalScreen[WaitModalResult | None]):
         own_bead_ids: frozenset[str] = frozenset(),
         bead_catalog_loader: Callable[..., WaitBeadCatalog] = load_wait_bead_catalog,
         current_wait_for_epics_of: list[str] | None = None,
+        current_turn_target_agents: list[str] | None = None,
     ) -> None:
         """Initialize wait fields and completion state."""
         super().__init__()
         from sase.core.wait_epic_follow_view import follow_epics_mode
 
         self._current_waiting_for = current_waiting_for or []
+        self._current_turn_target_agents = current_turn_target_agents or []
+        self._agents_fragment_is_turn = False
         self._current_waiting_for_beads = current_waiting_for_beads or []
         self._current_waiting_for_hoods = current_waiting_for_hoods or []
         self._current_wait_for_epics_of = current_wait_for_epics_of or []
@@ -140,7 +143,11 @@ class WaitModalCompletionScreen(ModalScreen[WaitModalResult | None]):
     def _refresh_completion(self) -> None:
         """Filter the dropdown on the active comma fragment."""
         agents_input = self.query_one("#agents-input", WaitInput)
-        fragment = active_fragment(agents_input.value).lower()
+        raw_fragment = active_fragment(agents_input.value)
+        self._agents_fragment_is_turn = raw_fragment.lower().startswith("turn=")
+        fragment = (
+            raw_fragment[5:] if self._agents_fragment_is_turn else raw_fragment
+        ).lower()
         if fragment:
             self._filtered_candidates = [
                 candidate
@@ -218,9 +225,14 @@ class WaitModalCompletionScreen(ModalScreen[WaitModalResult | None]):
             return False
         candidate = self._filtered_candidates[index]
         agents_input = self.query_one("#agents-input", WaitInput)
+        accepted = (
+            f"turn={candidate.wait_name}"
+            if getattr(self, "_agents_fragment_is_turn", False)
+            else candidate.wait_name
+        )
         agents_input.value = replace_active_fragment(
             agents_input.value,
-            candidate.wait_name,
+            accepted,
         )
         agents_input.cursor_position = len(agents_input.value)
         agents_input.focus()
@@ -289,10 +301,19 @@ class WaitModalCompletionScreen(ModalScreen[WaitModalResult | None]):
         try:
             agents_value = self.query_one("#agents-input", WaitInput).value
         except Exception:  # noqa: BLE001 - preview before compose in tests.
-            agents_value = ", ".join(self._current_waiting_for)
-        from .wait_modal_values import parse_agents_value
+            from sase.wait_spec import format_wait_spec, wait_spec_from_name_lists
 
-        return follow_toggle_disabled_reason(parse_agents_value(agents_value))
+            spec = wait_spec_from_name_lists(
+                agents=list(self._current_waiting_for),
+                turn_agents=list(self._current_turn_target_agents),
+            )
+            agents_value = format_wait_spec(spec) if spec is not None else ""
+        from .wait_modal_values import parse_agents_field_lenient, parse_agents_value
+
+        _session, turn_agents = parse_agents_field_lenient(agents_value)
+        return follow_toggle_disabled_reason(
+            parse_agents_value(agents_value), turn_agents=turn_agents
+        )
 
     def _cycle_follow_mode(self) -> str:
         """Advance the Follow epics tri-state and refresh its row."""

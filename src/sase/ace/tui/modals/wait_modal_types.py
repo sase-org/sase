@@ -43,6 +43,7 @@ class WaitModalResult:
     capacity_multiplier: float | None = None
     follow_mode: str = "mixed"
     epic_follow_agents: tuple[str, ...] | None = None
+    turn_agents: list[str] = field(default_factory=list)
 
 
 __all__ = ["WaitAgentCandidate", "WaitModalResult"]

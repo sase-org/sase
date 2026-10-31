@@ -150,11 +150,10 @@ def preserved_turn_target_agents(
 ) -> tuple[str, ...]:
     """Return wait names that already use ``target=turn`` and should stay pinned.
 
-    The Wait modal cannot yet author turn targets, so an edit must keep
-    unchanged turn-target agents (and their bound identity records) rather
-    than rebinding them as session waits. Names come from the authored
-    prompt first, then from persisted ``wait_for_artifacts`` records whose
-    ``requested`` or ``name`` is still in *wait_names*.
+    Used as a backup when a modal result has no authored ``turn_agents``.
+    Names come from the authored prompt first, then from persisted
+    ``wait_for_artifacts`` records whose ``requested`` or ``name`` is still
+    in *wait_names*.
     """
     if agent is None or not wait_names:
         return ()
@@ -207,7 +206,12 @@ def prompt_wait_spec(
     """Convert a modal result to a prompt directive edit payload."""
     if not result_has_wait_spec(result):
         return None
-    turn_target_agents = preserved_turn_target_agents(agent, result.agents)
+    authored_turns = getattr(result, "turn_agents", None)
+    if authored_turns is not None:
+        wait_set = set(result.agents)
+        turn_target_agents = tuple(name for name in authored_turns if name in wait_set)
+    else:
+        turn_target_agents = preserved_turn_target_agents(agent, result.agents)
     turn_set = set(turn_target_agents)
     follow = result.epic_follow_agents
     if follow is not None:

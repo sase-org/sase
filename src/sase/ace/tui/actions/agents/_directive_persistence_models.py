@@ -42,6 +42,7 @@ class WaitingMarkerPatch:
     update_queue_weight: bool = False
     queue_weight: float | None = None
     queue_weight_explicit: bool = False
+    turn_target_agents: tuple[str, ...] | None = None
 
 
 @dataclass(frozen=True)
@@ -62,6 +63,7 @@ class AgentDirectivePersistenceSpec:
     tribe_patch: AgentTribeStorePatch | None = None
     waiting_marker: WaitingMarkerPatch | None = None
     ready_marker: ReadyMarkerPatch | None = None
+    turn_target_agents: tuple[str, ...] | None = None
 
 
 @dataclass(frozen=True)

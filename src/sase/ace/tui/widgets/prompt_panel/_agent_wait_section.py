@@ -279,6 +279,16 @@ def build_wait_lanes(
             if index:
                 value.append(", ", style=_WAITING_VALUE_STYLE)
             value.append(name, style=_WAITING_VALUE_STYLE)
+            turn_name = next(
+                (
+                    binding.turn_name
+                    for binding in getattr(wait_agent, "wait_turn_bindings", ()) or ()
+                    if binding.name == name and binding.turn_name
+                ),
+                None,
+            )
+            if turn_name:
+                value.append(f" → turn {turn_name}", style="dim #AF87FF")
             clan_members = (
                 clan_wait_member_statuses.get(name)
                 if clan_wait_member_statuses is not None

@@ -8,6 +8,7 @@ from typing import Any, TYPE_CHECKING
 from .agent_types import LinkedRepoMetadata
 
 if TYPE_CHECKING:
+    from sase.core.agent_scan_wire_markers_wait_turn import WaitTurnBindingWire
     from sase.core.wait_epic_follow_view import EpicFollowView
 
 
@@ -83,6 +84,10 @@ class AgentStateQueueFields:
     # Persisted per-target epic-follow stages (`launching` / `following` /
     # `blocked`), with `waiting.json` overriding `agent_meta.json` at load.
     wait_epic_follows: list[EpicFollowView] = field(default_factory=list)
+
+    # Compact bound-turn projection (`name` → pinned `turn_name`), with
+    # `waiting.json` overriding `agent_meta.json` at load.
+    wait_turn_bindings: list[WaitTurnBindingWire] = field(default_factory=list)
 
     # Duration wait in seconds (from %wait(time=5m) directive)
     wait_duration: float | None = None

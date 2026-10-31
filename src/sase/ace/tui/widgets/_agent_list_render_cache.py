@@ -227,6 +227,10 @@ def _runtime_signature(
         tuple(getattr(wait_agent, "waiting_for", ())),
         tuple(getattr(wait_agent, "waiting_for_beads", ())),
         tuple(getattr(wait_agent, "waiting_for_hoods", ())),
+        tuple(
+            (binding.name, binding.turn_name)
+            for binding in getattr(wait_agent, "wait_turn_bindings", ()) or ()
+        ),
         getattr(agent, "retry_next_at_epoch", None),
         agent.retry_count,
         agent.using_fallback,
@@ -379,6 +383,10 @@ def agent_render_key(
         tuple(wait_agent.waiting_for),
         tuple(wait_agent.waiting_for_beads),
         tuple(wait_agent.waiting_for_hoods),
+        tuple(
+            (binding.name, binding.turn_name)
+            for binding in getattr(wait_agent, "wait_turn_bindings", ()) or ()
+        ),
         tuple(wait_agent.wait_for_epics_of),
         epic_follow_state_token(wait_agent),
         wait_deps_satisfied,

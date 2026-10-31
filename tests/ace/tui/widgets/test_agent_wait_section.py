@@ -52,6 +52,21 @@ def _styles_covering(text: Text, substring: str) -> set[str]:
     }
 
 
+def test_ordinary_wait_lane_annotates_bound_turns() -> None:
+    from sase.core.agent_scan_wire_markers_wait_turn import WaitTurnBindingWire
+
+    lanes = _lanes(
+        make_agent(
+            status="WAITING",
+            waiting_for=["16h"],
+            wait_turn_bindings=[WaitTurnBindingWire(name="16h", turn_name="16h--gate")],
+        )
+    )
+
+    agents = next(value for tag, value in lanes if tag == "agents")
+    assert "16h → turn 16h--gate" in agents.plain
+
+
 def test_agents_and_beads_share_one_aligned_value_column() -> None:
     lanes = _lanes(
         make_agent(

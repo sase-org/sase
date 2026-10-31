@@ -16,7 +16,7 @@ from .wait_modal_values import (
     PriorityValidation,
     TimeValidation,
     active_fragment as _active_fragment,
-    parse_agents_value,
+    parse_agents_field,
     parse_beads_value,
     prefill_time_token as _prefill_time_token,
     replace_active_fragment as _replace_active_fragment,
@@ -64,8 +64,19 @@ class WaitModal(WaitModalCompletionScreen):
     def compose(self) -> ComposeResult:
         """Compose the modal layout."""
         from sase.core.wait_epic_follow_view import follow_toggle_label
+        from sase.wait_spec import format_wait_spec, wait_spec_from_name_lists
 
-        agent_prefill = ", ".join(self._current_waiting_for)
+        turn_set = set(self._current_turn_target_agents)
+        session_names = [
+            name for name in self._current_waiting_for if name not in turn_set
+        ]
+        spec = wait_spec_from_name_lists(
+            agents=list(session_names),
+            turn_agents=list(self._current_turn_target_agents),
+        )
+        agent_prefill = (
+            format_wait_spec(spec).replace(",", ", ") if spec is not None else ""
+        )
         with Container(id="wait-modal-body"):
             yield Label("Wait", id="modal-title")
             yield Static(
@@ -75,7 +86,7 @@ class WaitModal(WaitModalCompletionScreen):
             yield Label("Agents", classes="wait-field-label")
             yield WaitInput(
                 value=agent_prefill,
-                placeholder="agent name, agent.two",
+                placeholder="agent, turn=other",
                 id="agents-input",
             )
             yield AgentCompletionList(id="agent-completion")
@@ -398,7 +409,18 @@ class WaitModal(WaitModalCompletionScreen):
             self._update_footer()
             return
 
-        agents = parse_agents_value(self.query_one("#agents-input", WaitInput).value)
+        from sase.wait_spec import WaitSpecError
+
+        try:
+            session_agents, turn_agents = parse_agents_field(
+                self.query_one("#agents-input", WaitInput).value
+            )
+        except WaitSpecError as exc:
+            self.notify(str(exc), severity="error")
+            self.query_one("#agents-input", WaitInput).focus()
+            return
+        agents = list(session_agents)
+        agents.extend(name for name in turn_agents if name not in session_agents)
         beads = beads_validation.bead_ids
         hoods = list(self._current_waiting_for_hoods)
         from sase.core.wait_epic_follow_view import resolve_epic_follow_agents
@@ -408,7 +430,9 @@ class WaitModal(WaitModalCompletionScreen):
         else:
             follow_mode = self._follow_mode
         epic_follow = resolve_epic_follow_agents(
-            agents, follow_mode, self._current_wait_for_epics_of
+            [name for name in agents if name not in set(turn_agents)],
+            follow_mode,
+            self._current_wait_for_epics_of,
         )
         run_now = (
             not agents
@@ -434,6 +458,7 @@ class WaitModal(WaitModalCompletionScreen):
                 capacity_multiplier=capacity_validation.multiplier,
                 follow_mode=follow_mode,
                 epic_follow_agents=tuple(epic_follow),
+                turn_agents=list(turn_agents),
             )
         )
 

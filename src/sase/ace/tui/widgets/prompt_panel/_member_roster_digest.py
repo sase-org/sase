@@ -60,7 +60,14 @@ def agent_roster_duration(agent: Agent, *, now: datetime | None = None) -> str:
 def _waiting_digest(agent: Agent) -> tuple[str, ...]:
     parts: list[str] = []
     if agent.waiting_for:
-        parts.append("for " + ", ".join(agent.waiting_for))
+        from sase.core.agent_scan_wire_markers_wait_turn import format_wait_targets
+
+        parts.append(
+            "for "
+            + format_wait_targets(
+                agent.waiting_for, getattr(agent, "wait_turn_bindings", None)
+            )
+        )
     if agent.waiting_for_beads:
         parts.append("for beads " + ", ".join(agent.waiting_for_beads))
     if agent.waiting_for_hoods:

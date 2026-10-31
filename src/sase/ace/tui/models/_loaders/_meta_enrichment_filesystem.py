@@ -216,6 +216,11 @@ def enrich_agent_from_meta(
         ]
     if data.get("wait_epic_follows"):
         agent.wait_epic_follows = list(epic_follow_views(data["wait_epic_follows"]))
+    from sase.core.agent_scan_wire_markers_wait_turn import (
+        wait_turn_bindings_from_payload,
+    )
+
+    agent.wait_turn_bindings = wait_turn_bindings_from_payload(data)
     _apply_queue_weight_fields(agent, data)
     # Record-only launches persist no legacy ``%auto`` keys: project them
     # from the stored record into a loader-local view (never written back)
@@ -420,6 +425,18 @@ def enrich_agent_from_meta(
                     agent.wait_epic_follows = list(
                         epic_follow_views(waiting_data["wait_epic_follows"])
                     )
+                from sase.core.agent_scan_wire_markers_wait_turn import (
+                    wait_turn_bindings_from_payload,
+                )
+
+                waiting_bindings = wait_turn_bindings_from_payload(waiting_data)
+                if (
+                    waiting_bindings
+                    or "wait_turn_bindings" in waiting_data
+                    or waiting_data.get("wait_for_artifacts")
+                    or waiting_data.get("wait_for_fork_sources")
+                ):
+                    agent.wait_turn_bindings = waiting_bindings
                 # Read wait_duration from waiting.json (preferred source)
                 raw_dur = waiting_data.get("wait_duration")
                 if raw_dur is not None:

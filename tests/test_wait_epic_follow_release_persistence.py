@@ -160,4 +160,5 @@ def test_wait_epic_follows_wire_round_trip() -> None:
 
     from sase.core.agent_scan_wire_markers import WaitingMarkerWire
 
-    assert fields(WaitingMarkerWire)[-1].name == "wait_epic_follows"
+    assert fields(WaitingMarkerWire)[-1].name == "wait_turn_bindings"
+    assert fields(WaitingMarkerWire)[-2].name == "wait_epic_follows"

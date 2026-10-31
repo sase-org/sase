@@ -342,6 +342,68 @@ def test_waiting_marker_and_meta_queue_weight_can_be_set_and_unset(
     assert waiting["queue_weight_explicit"] is False
 
 
+def test_persist_binds_new_turn_targets_once(tmp_path: Path) -> None:
+    artifacts = tmp_path / "artifacts"
+    artifacts.mkdir()
+    existing = {
+        "requested": "kept",
+        "name": "kept--gate",
+        "target": "turn",
+        "turn_name": "kept--gate",
+    }
+    (artifacts / "agent_meta.json").write_text(
+        json.dumps({"wait_for": ["kept"], "wait_for_artifacts": [existing]}),
+        encoding="utf-8",
+    )
+    (artifacts / "waiting.json").write_text(
+        json.dumps({"waiting_for": ["kept"], "wait_for_artifacts": [existing]}),
+        encoding="utf-8",
+    )
+    bound = {
+        "requested": "16h",
+        "name": "16h--gate",
+        "target": "turn",
+        "turn_name": "16h--gate",
+    }
+
+    class _Binding:
+        identity_record = bound
+
+    def _bind(
+        reference: str,
+        *,
+        requested_target: str | None = None,
+        waiter_artifact_dir: Any = None,
+        index: Any = None,
+    ) -> _Binding:
+        assert requested_target == "turn"
+        assert "16h" in reference
+        return _Binding()
+
+    with patch(
+        "sase.agent.wait_target_binding.bind_wait_target",
+        side_effect=_bind,
+    ) as mocked:
+        persist_agent_directive_update(
+            AgentDirectivePersistenceSpec(
+                artifacts_dir=artifacts,
+                meta_patch=wait_meta_patch_for_token(wait_names=("kept", "16h")),
+                waiting_marker=waiting_marker_patch_for_token(
+                    wait_names=("kept", "16h"),
+                    turn_target_agents=("kept", "16h"),
+                ),
+            )
+        )
+        assert mocked.call_count == 1
+
+    meta = json.loads((artifacts / "agent_meta.json").read_text())
+    waiting = json.loads((artifacts / "waiting.json").read_text())
+    assert existing in meta["wait_for_artifacts"]
+    assert bound in meta["wait_for_artifacts"]
+    assert existing in waiting["wait_for_artifacts"]
+    assert bound in waiting["wait_for_artifacts"]
+
+
 def test_persist_agent_directive_update_sets_and_unsets_tribe_store(
     tmp_path: Path,
 ) -> None:
