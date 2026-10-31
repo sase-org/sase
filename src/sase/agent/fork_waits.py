@@ -2,12 +2,51 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from pathlib import Path
+from typing import Any
 
 from sase.core.agent_artifact_paths import parse_agent_artifact_path
 from sase.agent.names._lookup_artifacts import meta_parent_timestamp, read_json_dict
 from sase.monitor_state import is_real_monitor_member
 from sase.plan_chain import agent_session_role_value
+
+
+def fork_source_follows_promotion(
+    dependency: Mapping[str, Any],
+    candidate: object | None,
+    *,
+    session_name: str | None = None,
+) -> bool:
+    """Return whether a legacy bare-name fork now follows its promoted session.
+
+    Wait-index candidates expose ``agent_session_name``; history resolution can
+    supply the same session name alongside the exact root member it found by
+    artifact identity.
+    """
+    if candidate is None or dependency.get("kind") != "agent":
+        return False
+    if dependency.get("target") is not None:
+        return False
+
+    if isinstance(candidate, Mapping):
+        parent_timestamp = candidate.get("parent_timestamp")
+        candidate_session_name = candidate.get("agent_session_name")
+    else:
+        parent_timestamp = getattr(candidate, "parent_timestamp", None)
+        candidate_session_name = getattr(candidate, "agent_session_name", None)
+    if parent_timestamp is not None:
+        return False
+
+    effective_session_name = session_name or candidate_session_name
+    name = dependency.get("name")
+    return (
+        isinstance(effective_session_name, str)
+        and bool(effective_session_name)
+        and isinstance(name, str)
+        and bool(name)
+        and name == effective_session_name
+    )
 
 
 def fork_wait_dependency(name: str) -> dict[str, str]:

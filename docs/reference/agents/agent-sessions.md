@@ -132,6 +132,15 @@ the unambiguous choice if its reusable proc name is ever reused. A session conta
 also be combined with independent agent, proc/monitor, session, clan, or tribe parents
 in one multi-parent fork.
 
+Fork history follows the wait record captured when the fork was bound. A session target
+selects the generation by its root artifact identity, so a later session with the same
+name cannot replace it. A turn target on a bare session name includes the session
+through the pinned turn; later turns appear under **Not shown** with the reason “after
+the bound turn.” An exact member target includes that member alone. Use
+`#fork(<session>, target=turn)` to wait for and include the current turn captured at
+launch. If the session is parked at its gate, this waits for the gate decision; use
+`#fork:<session>--plan` to fork the plan immediately.
+
 ### Session detail folding
 
 Selecting a real multi-member session root in sase's TUI opens the Main deck with

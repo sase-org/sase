@@ -343,24 +343,7 @@ def _find_agent_session_exact(base_name: str) -> AgentSession | None:
     roots = [member for member in members if member.parent_timestamp is None]
     if roots:
         root = max(roots, key=lambda member: member.timestamp)
-        generation_members = [root]
-        generation_timestamps = {root.timestamp}
-        remaining = [member for member in members if member is not root]
-        while remaining:
-            attached = [
-                member
-                for member in remaining
-                if member.parent_timestamp in generation_timestamps
-            ]
-            if not attached:
-                break
-            generation_members.extend(attached)
-            generation_timestamps.update(member.timestamp for member in attached)
-            remaining = [member for member in remaining if member not in attached]
-        generation = tuple(
-            sorted(generation_members, key=lambda member: member.timestamp)
-        )
-        return AgentSession(base_name=base_name, root=root, members=generation)
+        return _agent_session_for_root(base_name, root, members)
 
     # Legacy recovery path: if only child artifacts remain, treat all known
     # agent-session members as one generation and let timestamp ordering choose
@@ -369,6 +352,93 @@ def _find_agent_session_exact(base_name: str) -> AgentSession | None:
         base_name=base_name,
         root=None,
         members=tuple(sorted(members, key=lambda member: member.timestamp)),
+    )
+
+
+def find_agent_session_by_root_artifact_dir(
+    root_artifact_dir: str | Path,
+) -> AgentSession | None:
+    """Return the session generation owned by this exact root artifact."""
+    target = Path(root_artifact_dir).expanduser().resolve(strict=False)
+    meta = read_json_dict(target / "agent_meta.json")
+    base_name = None if meta is None else _agent_session_base_from_meta(meta)
+    if base_name is None:
+        return None
+
+    members = _iter_agent_session_members(base_name)
+    root = next(
+        (
+            member
+            for member in members
+            if member.parent_timestamp is None
+            and member.artifacts_dir.expanduser().resolve(strict=False) == target
+        ),
+        None,
+    )
+    if root is None:
+        return None
+    return _agent_session_for_root(base_name, root, members)
+
+
+def find_agent_session_by_member_artifact_dir(
+    member_artifact_dir: str | Path,
+) -> tuple[AgentSession, AgentSessionMember] | None:
+    """Find the generation and exact member containing this artifact."""
+    target = Path(member_artifact_dir).expanduser().resolve(strict=False)
+    meta = read_json_dict(target / "agent_meta.json")
+    base_name = None if meta is None else _agent_session_base_from_meta(meta)
+    if base_name is None:
+        return None
+
+    members = _iter_agent_session_members(base_name)
+    member = next(
+        (
+            item
+            for item in members
+            if item.artifacts_dir.expanduser().resolve(strict=False) == target
+        ),
+        None,
+    )
+    if member is None:
+        return None
+
+    by_timestamp = {item.timestamp: item for item in members}
+    root = member
+    seen_timestamps = {root.timestamp}
+    while (
+        root.parent_timestamp in by_timestamp
+        and root.parent_timestamp not in seen_timestamps
+    ):
+        root = by_timestamp[root.parent_timestamp]
+        seen_timestamps.add(root.timestamp)
+    generation = _agent_session_for_root(base_name, root, members)
+    return generation, member
+
+
+def _agent_session_for_root(
+    base_name: str,
+    root: AgentSessionMember,
+    members: list[AgentSessionMember],
+) -> AgentSession:
+    generation_members = [root]
+    generation_timestamps = {root.timestamp}
+    remaining = [member for member in members if member is not root]
+    while remaining:
+        attached = [
+            member
+            for member in remaining
+            if member.parent_timestamp in generation_timestamps
+        ]
+        if not attached:
+            break
+        generation_members.extend(attached)
+        generation_timestamps.update(member.timestamp for member in attached)
+        remaining = [member for member in remaining if member not in attached]
+    generation = tuple(sorted(generation_members, key=lambda member: member.timestamp))
+    return AgentSession(
+        base_name=base_name,
+        root=root if root.parent_timestamp is None else None,
+        members=generation,
     )
 
 

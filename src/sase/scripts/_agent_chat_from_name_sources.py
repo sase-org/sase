@@ -8,11 +8,16 @@ import os
 from pathlib import Path
 
 from sase.agent.names import (
+    AgentSession,
+    AgentSessionMember,
     find_agent_clan,
     find_agent_session,
+    find_agent_session_by_member_artifact_dir,
+    find_agent_session_by_root_artifact_dir,
     resolve_resume_agent_name,
 )
-from sase.agent.names._lookup_artifacts import is_success_outcome
+from sase.agent.fork_waits import fork_source_follows_promotion
+from sase.agent.names._lookup_artifacts import is_success_outcome, meta_parent_timestamp
 from sase.core.dismissed_agent_completion import FAILURE_OUTCOMES
 from sase.monitor_state import is_real_monitor_member
 from sase.procs import ProcRefError, read_procs, resolve_proc_ref
@@ -45,6 +50,7 @@ from sase.scripts._fork_proc_sources import proc_info_from_proc
 def resolve_agent_chat_sources(names: Sequence[str]) -> list[ForkSource]:
     """Resolve and validate every requested parent as one atomic operation."""
     requested_names: list[str | None] = list(names) or [None]
+    bound_records = _bound_fork_records()
     sources: list[ForkSource] = []
     errors: list[str] = []
     first_parent_by_text: dict[str, int] = {}
@@ -66,7 +72,10 @@ def resolve_agent_chat_sources(names: Sequence[str]) -> list[ForkSource]:
             resolved_name = normalize_name(requested_name)
             if resolved_name is None:
                 resolved_name = resolve_default_agent_name()
-            source = _resolve_fork_source(resolved_name)
+            source = _resolve_fork_source(
+                resolved_name,
+                bound_record=_record_for_requested_name(resolved_name, bound_records),
+            )
         except (OSError, RuntimeError, ValueError) as exc:
             errors.append(f"parent {index} ({label}): {exc}")
         else:
@@ -149,7 +158,11 @@ def _canonical_transcript_path(path: str) -> Path:
     return Path(path).expanduser().resolve(strict=False)
 
 
-def _resolve_fork_source(name: str) -> ForkSource:
+def _resolve_fork_source(
+    name: str,
+    *,
+    bound_record: dict[str, object] | None = None,
+) -> ForkSource:
     """Resolve *name* to an agent, agent session, or complete clan source.
 
     Tribe-reference recognition stays syntactic here (``@`` prefix only): the
@@ -158,6 +171,10 @@ def _resolve_fork_source(name: str) -> ForkSource:
     :func:`resolve_tribe_fork_source` has, so canonicalization must not run
     before that lookup.
     """
+    bound_source = _resolve_bound_fork_source(name, bound_record)
+    if bound_source is not None:
+        return bound_source
+
     if name.startswith("@"):
         return resolve_tribe_fork_source(name)
 
@@ -212,30 +229,181 @@ def _resolve_fork_source(name: str) -> ForkSource:
 
     agent_session = find_agent_session(name)
     if agent_session is not None:
-        current = _current_artifacts_dir()
-        agent_session_members: list[ForkAgentSessionMemberSource] = []
-        excluded: list[ForkExcludedAgentSessionMember] = []
-        for agent_session_member in agent_session.members:
-            if _same_artifacts_dir(agent_session_member.artifacts_dir, current):
-                continue
-            resolved = resolve_agent_session_member_shell(agent_session_member)
-            if isinstance(resolved, ForkExcludedAgentSessionMember):
-                excluded.append(resolved)
-            else:
-                agent_session_members.append(resolved)
-
-        if not agent_session_members:
-            raise RuntimeError(f"No agent with chat history found for: {name}")
-
-        return ForkSource(
-            kind="session",
-            name=agent_session.base_name,
-            path=agent_session_members[-1].path,
-            members=tuple(agent_session_members),
-            excluded=tuple(excluded),
-        )
+        return _resolve_agent_session_source(agent_session)
 
     return _resolve_agent_or_proc_fork_source(name)
+
+
+def _bound_fork_records() -> tuple[dict[str, object], ...]:
+    """Read fork bindings captured in the launching agent's metadata."""
+    artifacts_dir = os.environ.get("SASE_ARTIFACTS_DIR")
+    if not artifacts_dir:
+        return ()
+    meta = read_json_dict(Path(artifacts_dir).expanduser() / "agent_meta.json")
+    if meta is None:
+        return ()
+    records = meta.get("wait_for_fork_sources")
+    if not isinstance(records, list):
+        return ()
+    return tuple(record for record in records if isinstance(record, dict))
+
+
+def _record_for_requested_name(
+    requested_name: str,
+    records: Sequence[dict[str, object]],
+) -> dict[str, object] | None:
+    for record in records:
+        if record.get("requested") == requested_name:
+            return record
+    for record in records:
+        if (
+            not isinstance(record.get("requested"), str)
+            and record.get("name") == requested_name
+        ):
+            return record
+    return None
+
+
+def _resolve_bound_fork_source(
+    name: str,
+    record: dict[str, object] | None,
+) -> ForkSource | None:
+    if record is None:
+        return None
+    kind = record.get("kind")
+    artifact_dir_value = record.get("artifact_dir")
+    artifact_dir = (
+        Path(artifact_dir_value).expanduser()
+        if isinstance(artifact_dir_value, str) and artifact_dir_value
+        else None
+    )
+    target = record.get("target")
+
+    if target == "turn" and artifact_dir is not None:
+        found = find_agent_session_by_member_artifact_dir(artifact_dir)
+        if found is not None:
+            turn_session, member = found
+            turn_name = record.get("turn_name")
+            if not isinstance(turn_name, str) or not turn_name:
+                turn_name = member.name
+            requested = record.get("requested")
+            if requested == turn_name or name == turn_name:
+                return _resolve_bound_agent_artifact(name, member.artifacts_dir, member)
+            pinned_timestamp = record.get("timestamp")
+            if not isinstance(pinned_timestamp, str) or not pinned_timestamp:
+                pinned_timestamp = member.timestamp
+            return _resolve_agent_session_source(
+                turn_session,
+                through_timestamp=pinned_timestamp,
+            )
+        return _resolve_bound_agent_artifact(name, artifact_dir)
+
+    if kind == "session" and artifact_dir is not None:
+        root_session = find_agent_session_by_root_artifact_dir(artifact_dir)
+        if root_session is not None:
+            return _resolve_agent_session_source(root_session)
+        # A session seed can still be a plain, never-promoted agent. Resolve
+        # that exact artifact instead of looking up a later namesake.
+        return _resolve_bound_agent_artifact(name, artifact_dir)
+
+    if kind == "agent" and artifact_dir is not None:
+        root_session = find_agent_session_by_root_artifact_dir(artifact_dir)
+        if (
+            root_session is not None
+            and root_session.root is not None
+            and fork_source_follows_promotion(
+                record,
+                root_session.root,
+                session_name=root_session.base_name,
+            )
+        ):
+            return _resolve_agent_session_source(root_session)
+        return _resolve_bound_agent_artifact(name, artifact_dir)
+
+    # Proc, clan, tribe, unresolved-name, and pre-record launches retain their
+    # existing name-based handling.
+    return None
+
+
+def _resolve_agent_session_source(
+    agent_session: AgentSession,
+    *,
+    through_timestamp: str | None = None,
+) -> ForkSource:
+    current = _current_artifacts_dir()
+    agent_session_members: list[ForkAgentSessionMemberSource] = []
+    excluded: list[ForkExcludedAgentSessionMember] = []
+    for member in agent_session.members:
+        if _same_artifacts_dir(member.artifacts_dir, current):
+            continue
+        if through_timestamp is not None and member.timestamp > through_timestamp:
+            excluded.append(
+                ForkExcludedAgentSessionMember(
+                    name=member.name,
+                    status="after the bound turn",
+                )
+            )
+            continue
+        resolved = resolve_agent_session_member_shell(member)
+        if isinstance(resolved, ForkExcludedAgentSessionMember):
+            excluded.append(resolved)
+        else:
+            agent_session_members.append(resolved)
+
+    if not agent_session_members:
+        raise RuntimeError(
+            f"No agent with chat history found for: {agent_session.base_name}"
+        )
+
+    return ForkSource(
+        kind="session",
+        name=agent_session.base_name,
+        path=agent_session_members[-1].path,
+        members=tuple(agent_session_members),
+        excluded=tuple(excluded),
+    )
+
+
+def _resolve_bound_agent_artifact(
+    name: str,
+    artifact_dir: Path,
+    member: AgentSessionMember | None = None,
+) -> ForkSource:
+    if member is None:
+        meta = read_json_dict(artifact_dir / "agent_meta.json") or {}
+        done = read_json_dict(artifact_dir / "done.json") or {}
+        member = AgentSessionMember(
+            name=name,
+            artifacts_dir=artifact_dir,
+            timestamp=artifact_dir.name,
+            outcome=json_string(done, "outcome"),
+            parent_timestamp=meta_parent_timestamp(meta),
+        )
+    resolved = resolve_agent_session_member_shell(member)
+    if isinstance(resolved, ForkExcludedAgentSessionMember):
+        raise RuntimeError(f"No agent with chat history found for: {name}")
+    if resolved.failure is not None:
+        done = read_json_dict(artifact_dir / "done.json") or {}
+        return failed_agent_fork_source(
+            name,
+            artifact_dir,
+            done,
+            resolved.failure.outcome,
+        )
+    if resolved.kind == "proc":
+        return ForkSource(
+            kind="proc",
+            name=name,
+            path="",
+            artifact_dir=str(artifact_dir),
+            proc=resolved.proc,
+        )
+    return ForkSource(
+        kind="agent",
+        name=name,
+        path=resolved.path,
+        artifact_dir=str(artifact_dir),
+    )
 
 
 def _current_artifacts_dir() -> Path | None:

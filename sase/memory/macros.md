@@ -57,10 +57,12 @@ description:
 
 `%model` is single-value; fan out models with `%{%m:opus | %m:sonnet}`.
 
-`%wait` covers dependencies and time floors only; `runners=`/`priority=` permanently
-moved to `%queue`/`%q` and raise a migration error on `%wait`. Authored `runners=` on
-`%queue` is also a migration error naming `capacity=`. `%queue`/`%q` accept a positive
-`capacity` (positional, colon or parenthesized) plus parenthesized
+`%wait` supports a `target=session|turn` keyword in parenthesized syntax. `session`
+waits for the whole agent session; `turn` binds the session's current turn when the wait
+is created. `%wait` also covers time floors; `runners=`/`priority=` permanently moved to
+`%queue`/`%q` and raise a migration error on `%wait`. Authored `runners=` on `%queue` is
+also a migration error naming `capacity=`. `%queue`/`%q` accept a positive `capacity`
+(positional, colon or parenthesized) plus parenthesized
 `capacity=`/`priority=`/`p=`/`weight=`/`w=`; `p` canonicalizes to `priority` and `w` to
 `weight`. Capacity is either a positive integer `N` or an `<M>x` multiplier of the live
 effective `max_running_agents` budget: `M` must be finite and greater than zero with at
@@ -118,7 +120,10 @@ Assign a tribe with `%id(tribe=<tribe>)` or `#tribe:<tribe>` for an auto-named a
   or `{0}`; `@{{ file }}` inlines a file.
 - **Inputs:** `type` names the value — scalars
   (word/line/text/path/int/float/bool/code), `enum` + `choices`, builtin
-  `agent`/`model`/`effort`, plugin `<dist>@<id>`; defaultless means required.
+  `agent`/`model`/`effort`/`wait_target` (`session` or `turn`), plugin `<dist>@<id>`;
+  defaultless means required. `keyword_only: true` requires `name=value` in
+  parenthesized or line-form arguments; it does not bind positionally or through colon
+  shorthand and cannot be repeatable.
 - **`.yml`:** workflow `steps`: `prompt_part/python/bash/agent/use: shared/...`;
   supports `input/output/environment/if/repeat/finally/hidden/tags`.
 - **Discovery, first wins:** project `sase/macros/` -> legacy project `.xprompts/`,

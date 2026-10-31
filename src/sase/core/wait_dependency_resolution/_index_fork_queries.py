@@ -6,6 +6,8 @@ from collections.abc import Mapping
 from pathlib import Path
 from typing import Any, Protocol, cast
 
+from sase.agent.fork_waits import fork_source_follows_promotion
+
 from ._index_entities import WaitEntity
 from ._types import ArtifactCandidate, AgentSessionCandidate, WaitDependencyStatus
 
@@ -195,37 +197,6 @@ class WaitDependencyForkQueries:
         ):
             return WaitDependencyStatus("resolved")
         return WaitDependencyStatus("waiting")
-
-
-def fork_source_follows_promotion(
-    dependency: Mapping[str, Any],
-    candidate: ArtifactCandidate | None,
-) -> bool:
-    """Return whether a legacy ``kind: "agent"`` record follows a promotion.
-
-    A bare-name fork bound before its parent was promoted into a session is
-    stored as ``kind: "agent"`` with the parent's identity. Once the parent is
-    a session root (no ``parent_timestamp``, ``agent_session_name`` set) and
-    the recorded name equals that session's bare owner name, the record is
-    evaluated exactly like ``kind: "session"``. Exact-member records never
-    match the name test, so they stay single-turn. Records carrying a v2
-    ``target`` field are never healed here; ``fork_binding`` owns them.
-    """
-    if candidate is None:
-        return False
-    if not isinstance(dependency, Mapping):
-        return False
-    if dependency.get("kind") != "agent":
-        return False
-    if dependency.get("target") is not None:
-        return False
-    if candidate.parent_timestamp is not None:
-        return False
-    session_name = candidate.agent_session_name
-    if not session_name:
-        return False
-    name = dependency.get("name")
-    return isinstance(name, str) and bool(name) and name == session_name
 
 
 def _mapping_string(data: Mapping[str, Any], key: str) -> str | None:
