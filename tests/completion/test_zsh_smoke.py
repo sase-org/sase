@@ -258,6 +258,44 @@ def test_alias_sbd_completes_static_bead_tree(
     assert "\u276f" not in captured.screen
 
 
+def test_pty_capture_without_bin_dir_ignores_inherited_sase(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Static PTY probes must not fork an inherited ``sase`` on PATH.
+
+    Completing ``sbd show --for`` asks ``__sase_candidates bead`` even
+    though the inserted ``--format`` token is static. A logged sentinel
+    on the inherited PATH that returns immediately is enough to catch
+    the old helper, which would reach that executable.
+    """
+    fpath_dir = tmp_path / "fpath"
+    fpath_dir.mkdir()
+    _write_live_script(fpath_dir)
+
+    inherited = tmp_path / "inherited-bin"
+    inherited.mkdir()
+    sentinel_log = tmp_path / "inherited-sase-calls"
+    sentinel = inherited / "sase"
+    sentinel.write_text(
+        "#!/usr/bin/env bash\n"
+        f"printf '<%s>' \"$@\" >> {shlex.quote(str(sentinel_log))}\n"
+        f"printf '\\n' >> {shlex.quote(str(sentinel_log))}\n",
+        encoding="utf-8",
+    )
+    sentinel.chmod(0o755)
+    monkeypatch.setenv("PATH", f"{inherited}:{os.environ['PATH']}")
+
+    captured = _pty_capture_completion(
+        tmp_path,
+        fpath_dir,
+        "sbd show --for",
+        zshrc_extra="alias sbd='sase -p bead'\n",
+    )
+
+    assert captured.buffer == "sbd show --format "
+    assert not sentinel_log.exists()
+
+
 def test_alias_sbd_completes_dynamic_bead_id_without_running_bead(
     tmp_path: Path,
 ) -> None:
@@ -518,6 +556,10 @@ def _pty_capture_completion(
     capture_path = tmp_path / f"zle-buffer-{nonce}"
     marker = f"__SASE_CAPTURE_{nonce}__"
     cache_value = "on" if use_cache else "off"
+    if bin_dir is None:
+        default_root = tmp_path / f"pty-sase-{nonce}"
+        default_root.mkdir()
+        bin_dir, _calls = _write_logged_fixture_sase(default_root)
     (zdot / ".zshrc").write_text(
         "unsetopt zle_bracketed_paste beep extendedglob\n"
         "PS1='READY>'\n"
@@ -548,9 +590,8 @@ def _pty_capture_completion(
         "ZDOTDIR": str(zdot),
         "TERM": "dumb",
         "NO_COLOR": "1",
+        "PATH": f"{bin_dir}:{os.environ['PATH']}",
     }
-    if bin_dir is not None:
-        env["PATH"] = f"{bin_dir}:{os.environ['PATH']}"
     pid, fd = pty.fork()
     if pid == 0:
         os.execvpe("zsh", ["zsh", "-i"], env)
