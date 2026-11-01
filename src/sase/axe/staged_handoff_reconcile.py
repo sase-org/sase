@@ -16,6 +16,9 @@ from pathlib import Path
 
 from sase.agent.gate_intent import atomic_write_json
 from sase.axe.run_agent_exec_staged_recovery import recover_staged_handoff
+from sase.axe.staged_handoff_notifications import (
+    held_staged_handoff_notification,
+)
 from sase.core.agent_scan_facade import default_agent_artifact_index_path
 from sase.core.paths import sase_projects_dir
 from sase.core.staged_handoff import staged_reconcile_page
@@ -71,6 +74,10 @@ def reconcile_staged_handoffs(
                 or not isinstance(state.get("pending"), list)
                 or not all(isinstance(path, str) for path in state["pending"])
                 or state.get("projects_root") != str(root)
+                or (
+                    "notified_holds" in state
+                    and not isinstance(state.get("notified_holds"), dict)
+                )
             ):
                 raise ValueError("invalid reconciliation checkpoint")
         except FileNotFoundError:
@@ -78,6 +85,7 @@ def reconcile_staged_handoffs(
         except (ValueError, OSError) as exc:
             summary.errors.append(f"reset unreadable reconciliation checkpoint: {exc}")
             state = {"cursor": {}, "pending": [], "projects_root": str(root)}
+        state.setdefault("notified_holds", {})
         if not state["pending"] and time.monotonic() < deadline:
             try:
                 page = staged_reconcile_page(
@@ -104,8 +112,10 @@ def reconcile_staged_handoffs(
                 # Reject checkpoint paths that escaped the selected artifact
                 # tree (including symlink changes since discovery).
                 Path(origin).resolve().relative_to(root.resolve())
+                receipt_before = _adoption_receipt_snapshot(origin)
                 result = recover_staged_handoff(origin, mode="automatic")
                 if result.adopted:
+                    state["notified_holds"].pop(origin, None)
                     if result.action == "deliver_only":
                         summary.delivered += 1
                     if result.already_adopted:
@@ -117,9 +127,57 @@ def reconcile_staged_handoffs(
                     summary.held_details.append(
                         f"{result.origin_agent or origin}: {result.reason or result.action}"
                     )
+                    try:
+                        _notify_recovery_hold(origin, receipt_before, state)
+                    except Exception as exc:  # noqa: BLE001 - isolate notification IO.
+                        summary.errors.append(
+                            f"{origin}: failed to send staged-handoff readopt "
+                            f"notification: {exc}"
+                        )
             except Exception as exc:  # noqa: BLE001 - isolate each damaged origin.
                 summary.errors.append(f"{origin}: {exc}")
             state["pending"].pop(0)
             atomic_write_json(state_file, state)
         summary.deferred = len(state["pending"])
     return summary
+
+
+def _adoption_receipt_snapshot(origin: str) -> dict | None:
+    """Read a receipt snapshot without making an ineligible origin an error."""
+    from sase.agent.staged_handoff import read_adoption_receipt
+
+    try:
+        return read_adoption_receipt(origin)
+    except Exception:
+        return None
+
+
+def _notify_recovery_hold(
+    origin: str,
+    receipt_before: dict | None,
+    state: dict,
+) -> None:
+    """Notify once for each new (origin, stage, reason) hold receipt."""
+    notice = held_staged_handoff_notification(origin, require_current_stage=True)
+    if notice is None:
+        return
+    receipt_after = _adoption_receipt_snapshot(origin)
+    if receipt_after is None or receipt_after == receipt_before:
+        return
+
+    key = {"staged_id": notice.staged_id, "reason": notice.reason}
+    notified_holds = state["notified_holds"]
+    if notified_holds.get(origin) == key:
+        return
+
+    # The notification store appends rows even for a repeated notification ID,
+    # so the scheduler's locked checkpoint is the deduplication authority.
+    from sase.notifications.senders import notify_workflow_complete
+
+    notify_workflow_complete(
+        sender="axe",
+        cl_name=None,
+        success=False,
+        notes=[notice.note],
+    )
+    notified_holds[origin] = key

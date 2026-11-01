@@ -236,85 +236,14 @@ def _held_staged_handoff_note(current_artifacts_dir: str | None) -> str | None:
     """
     if not current_artifacts_dir:
         return None
-    origin_name = None
-    try:
-        with open(
-            os.path.join(current_artifacts_dir, "agent_meta.json"), encoding="utf-8"
-        ) as f:
-            origin_meta = json.load(f)
-        if isinstance(origin_meta, dict):
-            raw_name = origin_meta.get("name") or origin_meta.get("agent_name")
-            if isinstance(raw_name, str) and raw_name:
-                origin_name = raw_name
-    except (json.JSONDecodeError, OSError):
-        pass
-    re_adopt = (
-        f"Run `sase agent readopt {origin_name}` to retry after repairing the cause."
-        if origin_name
-        else "Run `sase agent readopt <origin-agent>` to retry after repairing the cause."
+    from sase.axe.staged_handoff_notifications import (
+        held_staged_handoff_notification,
     )
-    try:
-        from sase.agent.staged_handoff import (
-            StagedHandoffError,
-            read_adoption_receipt,
-            read_staged_handoff,
-        )
 
-        try:
-            receipt = read_adoption_receipt(current_artifacts_dir)
-        except StagedHandoffError:
-            return f"Staged handoff state is malformed and held. {re_adopt}"
-        except Exception:
-            return None
-        if receipt is None:
-            return None
-        if receipt.get("outcome") == "adopted":
-            return None
-        if receipt.get("outcome") != "handoff_not_adopted":
-            return None
-        record_malformed = False
-        try:
-            record = read_staged_handoff(current_artifacts_dir)
-        except StagedHandoffError:
-            record = None
-            record_malformed = True
-        except Exception:
-            return None
-        if record_malformed:
-            kind = "malformed"
-            record_id: str | None = None
-        elif record is None:
-            kind = "unknown"
-            record_id = None
-        else:
-            raw_kind = record.get("kind")
-            kind = raw_kind if isinstance(raw_kind, str) and raw_kind else "unknown"
-            raw_record_id = record.get("staged_id")
-            record_id = (
-                raw_record_id
-                if isinstance(raw_record_id, str) and raw_record_id
-                else None
-            )
-        raw_staged_id = receipt.get("staged_id")
-        if isinstance(raw_staged_id, str) and raw_staged_id:
-            staged_id = raw_staged_id
-        elif record_id is not None:
-            staged_id = record_id
-        else:
-            staged_id = "unknown"
-        raw_reason = receipt.get("reason")
-        reason = (
-            raw_reason
-            if isinstance(raw_reason, str) and raw_reason.strip()
-            else "unknown reason"
-        )
-        return (
-            f"Staged {kind} handoff {staged_id} for "
-            f"{origin_name or 'the originating agent'} was not adopted: {reason}. "
-            f"Its staged record and archived proposal are kept. {re_adopt}"
-        )
-    except Exception:
-        return None
+    notice = held_staged_handoff_notification(
+        current_artifacts_dir, include_malformed_receipt=True
+    )
+    return notice.note if notice is not None else None
 
 
 def _sdd_publication_error(current_artifacts_dir: str | None) -> str | None:

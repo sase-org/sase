@@ -37,6 +37,8 @@ def test_sweep_delivers_the_same_recorded_child_once(
     monkeypatch.setenv("SASE_AGENT", "1")
     origin = tmp_path / ".sase/projects/proj/artifacts/ace-run/20261028120000"
     origin.mkdir(parents=True)
+    project_file = tmp_path / "proj.sase"
+    project_file.write_text("RUNNING:\n\nNAME: proj\nSTATUS: Ready\n", encoding="utf-8")
     stage = (
         build_questions_staged_record(
             questions=[{"question": "Continue?"}], staged_id=STAGED_ID
@@ -76,7 +78,7 @@ def test_sweep_delivers_the_same_recorded_child_once(
         "prompt_ref": str(prompt),
         "prompt_digest": successor_prompt_digest(prompt.read_text()),
         "project_name": "proj",
-        "project_file": str(tmp_path / "proj.sase"),
+        "project_file": str(project_file),
         "origin_artifacts_timestamp": origin.name,
         "cl_name": "agent",
         "workspace_dir": str(origin.parent),

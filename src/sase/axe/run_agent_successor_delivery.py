@@ -91,6 +91,77 @@ def _successor_destination_observation(
     return "dead", pid, None
 
 
+def _successor_workspace_transfer_from_pid(
+    origin: Path,
+    source_meta: dict[str, Any],
+    successor: dict[str, Any],
+) -> tuple[int | None, str | None]:
+    """Choose fresh claim versus transfer after checking the recorded owner."""
+    workspace_num = successor.get("workspace_num")
+    if (
+        successor.get("is_home_mode")
+        or type(workspace_num) is not int
+        or workspace_num <= 0
+    ):
+        return None, None
+
+    project_file = successor.get("project_file")
+    if (
+        not isinstance(project_file, str)
+        or not project_file
+        or not os.path.isfile(project_file)
+    ):
+        return None, (
+            f"workspace #{workspace_num} claim cannot be checked because its "
+            "project file is unavailable"
+        )
+
+    from sase.running_field import get_claimed_workspaces
+
+    claims = [
+        claim
+        for claim in get_claimed_workspaces(project_file)
+        if claim.workspace_num == workspace_num
+    ]
+    if not claims:
+        return None, None
+
+    origin_pid = source_meta.get("pid")
+    origin_cl_name = source_meta.get("cl_name") or source_meta.get("patch_name")
+    origin_owns = [
+        claim
+        for claim in claims
+        if type(origin_pid) is int
+        and origin_pid > 0
+        and claim.pid == origin_pid
+        and claim.artifacts_timestamp == origin.name
+        and (
+            not claim.cl_name
+            or (isinstance(origin_cl_name, str) and claim.cl_name == origin_cl_name)
+        )
+    ]
+    if len(claims) == 1 and len(origin_owns) == 1:
+        # transfer_workspace_claim deliberately carries PINNED forward. There is
+        # no clear-pin API; retaining it keeps workspace data fail-closed if the
+        # successor dies, until normal completion or explicit dismissal releases it.
+        return origin_pid, None
+
+    owners = []
+    for claim in claims:
+        parts = [f"pid {claim.pid}", f"workflow {claim.workflow}"]
+        if claim.artifacts_timestamp:
+            parts.append(f"artifacts {claim.artifacts_timestamp}")
+        if claim.cl_name:
+            parts.append(f"cl_name {claim.cl_name}")
+        if claim.pinned:
+            parts.append("pinned")
+        owners.append(", ".join(parts))
+    owner_text = "; ".join(owners) or "unknown owner"
+    return None, (
+        f"workspace #{workspace_num} is held by a conflicting owner ({owner_text})"
+    )
+
+
 def deliver_staged_successor_detached(
     origin_artifacts_dir: str,
     staged_id: str,
@@ -296,6 +367,14 @@ def deliver_staged_successor_detached(
                     reason="originating runner is still live and may own the continuation",
                 )
 
+        transfer_from_pid, claim_conflict = _successor_workspace_transfer_from_pid(
+            origin, source_meta, successor
+        )
+        if claim_conflict:
+            return SuccessorDeliveryResult(
+                "held", agent_name, artifacts_dir, reason=claim_conflict
+            )
+
         record = update_staged_successor_locked(
             str(origin), staged_id, delivery_state="submitted"
         )
@@ -330,7 +409,7 @@ def deliver_staged_successor_detached(
                     prompt=prompt,
                     workspace_dir=successor["workspace_dir"],
                     workspace_num=successor.get("workspace_num") or 0,
-                    transfer_from_pid=None,
+                    transfer_from_pid=transfer_from_pid,
                     cl_name=successor["cl_name"],
                     agent_session_role=successor.get("agent_session_role"),
                     update_target=successor.get("update_target") or "",
@@ -351,7 +430,7 @@ def deliver_staged_successor_detached(
                     workspace_dir=successor["workspace_dir"],
                     workspace_num=successor.get("workspace_num") or 0,
                     cl_name=successor["cl_name"],
-                    transfer_from_pid=None,
+                    transfer_from_pid=transfer_from_pid,
                     update_target=successor.get("update_target") or "",
                     history_sort_key=successor.get("history_sort_key") or "",
                     is_home_mode=bool(successor.get("is_home_mode")),

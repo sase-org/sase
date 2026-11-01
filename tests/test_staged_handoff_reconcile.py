@@ -229,6 +229,159 @@ def test_deadline_keeps_pending_candidates(tmp_path, monkeypatch):
     assert calls == [str(artifacts)]
 
 
+def test_recovery_hold_notification_dedupes_reason_across_passes(tmp_path, monkeypatch):
+    artifacts = _origin(tmp_path, monkeypatch)
+    reasons = iter(
+        ("workspace is occupied", "workspace is occupied", "workspace moved")
+    )
+    notifications: list[list[str]] = []
+
+    def recover(origin, **_kwargs):
+        reason = next(reasons)
+        write_adoption_receipt(
+            {
+                "staged_id": STAGED_ID,
+                "adopted_at": "2026-10-28T12:01:00Z",
+                "outcome": "handoff_not_adopted",
+                "reason": reason,
+            },
+            artifacts_dir=origin,
+        )
+        return SimpleNamespace(
+            adopted=False,
+            already_adopted=False,
+            action="hold",
+            reason=reason,
+            origin_agent="agent",
+        )
+
+    def page(_index, _root, cursor, _limit):
+        return {
+            "cursor": {"pass": cursor.get("pass", 0) + 1},
+            "candidates": [str(artifacts)],
+            "scanned": 1,
+            "errors": [],
+        }
+
+    monkeypatch.setattr(
+        "sase.axe.staged_handoff_reconcile.recover_staged_handoff", recover
+    )
+    monkeypatch.setattr("sase.axe.staged_handoff_reconcile.staged_reconcile_page", page)
+    monkeypatch.setattr(
+        "sase.notifications.senders.notify_workflow_complete",
+        lambda **kwargs: notifications.append(kwargs["notes"]),
+    )
+    root = tmp_path / ".sase" / "projects"
+    state_path = tmp_path / ".sase" / "axe" / "staged_handoff_reconcile.json"
+
+    for _ in range(3):
+        result = reconcile_staged_handoffs(
+            projects_root=root,
+            index_path=tmp_path / "agent-index.jsonl",
+            state_path=state_path,
+        )
+        assert result.held == 1 and not result.errors
+
+    assert len(notifications) == 2
+    assert "workspace is occupied" in notifications[0][0]
+    assert "workspace moved" in notifications[1][0]
+    assert "sase agent readopt agent" in notifications[0][0]
+
+
+def test_recovery_hold_without_a_new_receipt_does_not_notify(tmp_path, monkeypatch):
+    artifacts = _origin(tmp_path, monkeypatch)
+    monkeypatch.setattr(
+        "sase.axe.staged_handoff_reconcile.recover_staged_handoff",
+        lambda *_args, **_kwargs: SimpleNamespace(
+            adopted=False,
+            already_adopted=False,
+            action="hold",
+            reason="runner is live",
+            origin_agent="agent",
+        ),
+    )
+    monkeypatch.setattr(
+        "sase.axe.staged_handoff_reconcile.staged_reconcile_page",
+        lambda *_args: {
+            "cursor": {},
+            "candidates": [str(artifacts)],
+            "scanned": 1,
+            "errors": [],
+        },
+    )
+    notifications: list[dict] = []
+    monkeypatch.setattr(
+        "sase.notifications.senders.notify_workflow_complete",
+        lambda **kwargs: notifications.append(kwargs),
+    )
+
+    result = reconcile_staged_handoffs(
+        projects_root=tmp_path / ".sase" / "projects",
+        index_path=tmp_path / "agent-index.jsonl",
+        state_path=tmp_path / ".sase" / "axe" / "staged_handoff_reconcile.json",
+    )
+
+    assert result.held == 1 and not result.errors
+    assert notifications == []
+
+
+def test_recovery_notification_failure_is_a_pass_error_and_does_not_stop_sweep(
+    tmp_path, monkeypatch
+):
+    first = _origin(tmp_path, monkeypatch)
+    second = _origin(tmp_path, monkeypatch, "20261028120001")
+
+    def recover(origin, **_kwargs):
+        write_adoption_receipt(
+            {
+                "staged_id": STAGED_ID,
+                "adopted_at": "2026-10-28T12:01:00Z",
+                "outcome": "handoff_not_adopted",
+                "reason": "operator repair required",
+            },
+            artifacts_dir=origin,
+        )
+        return SimpleNamespace(
+            adopted=False,
+            already_adopted=False,
+            action="hold",
+            reason="operator repair required",
+            origin_agent="agent",
+        )
+
+    monkeypatch.setattr(
+        "sase.axe.staged_handoff_reconcile.recover_staged_handoff", recover
+    )
+    monkeypatch.setattr(
+        "sase.axe.staged_handoff_reconcile.staged_reconcile_page",
+        lambda *_args: {
+            "cursor": {},
+            "candidates": [str(first), str(second)],
+            "scanned": 2,
+            "errors": [],
+        },
+    )
+    attempted: list[str] = []
+
+    def notify(**kwargs):
+        attempted.append(kwargs["notes"][0])
+        if len(attempted) == 1:
+            raise OSError("notification store unavailable")
+
+    monkeypatch.setattr("sase.notifications.senders.notify_workflow_complete", notify)
+
+    result = reconcile_staged_handoffs(
+        projects_root=tmp_path / ".sase" / "projects",
+        index_path=tmp_path / "agent-index.jsonl",
+        state_path=tmp_path / ".sase" / "axe" / "staged_handoff_reconcile.json",
+    )
+
+    assert result.held == 2
+    assert len(result.errors) == 1
+    assert "notification store unavailable" in result.errors[0]
+    assert len(attempted) == 2
+
+
 @pytest.mark.parametrize("owner", ["thread", "process"])
 def test_busy_adoption_lock_does_not_block_the_sweep(tmp_path, monkeypatch, owner):
     artifacts = _origin(tmp_path, monkeypatch)

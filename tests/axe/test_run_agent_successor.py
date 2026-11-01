@@ -432,6 +432,10 @@ def test_detached_successor_launch_is_reserved_once_with_saved_prompt(
     launch_identity = "stage-1:20261031010101"
     prompt = "#fork:agent\nfinish this work"
     launch_prompt = "%model:fakey/model-x\n" + prompt
+    project_file = tmp_path / "project.sase"
+    project_file.write_text(
+        "RUNNING:\n\nNAME: project\nSTATUS: Ready\n", encoding="utf-8"
+    )
     prompt_ref = write_successor_prompt(origin, prompt)
     launch_prompt_ref = write_successor_prompt(
         origin, launch_prompt, filename="staged_successor_launch_prompt.md"
@@ -452,7 +456,7 @@ def test_detached_successor_launch_is_reserved_once_with_saved_prompt(
         "prompt_digest": successor_prompt_digest(prompt),
         "launch_prompt_digest": successor_prompt_digest(launch_prompt),
         "project_name": "sase",
-        "project_file": str(tmp_path / "project.sase"),
+        "project_file": str(project_file),
         "origin_artifacts_timestamp": "20261028_120000",
         "cl_name": "test-cl",
         "workspace_dir": str(tmp_path),
