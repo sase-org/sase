@@ -531,7 +531,7 @@ def _capacity_holders(
     claims: object,
     source_agent_by_artifact_dir: dict[str, Agent],
 ) -> tuple[RunnerCapacityHolder, ...]:
-    """Build ordered claim-holder entries for the load gauge tooltip."""
+    """Build ordered claim-holder entries for the cap chip tooltip."""
     if not isinstance(claims, list | tuple):
         return ()
     holders: list[RunnerCapacityHolder] = []

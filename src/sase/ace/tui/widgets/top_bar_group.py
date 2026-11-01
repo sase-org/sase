@@ -2,7 +2,7 @@
 
 The TUI top bar (the row with the ``Agents | Artifacts | Services`` tabs)
 speaks the same visual language as the status-row cluster beneath it
-(``load: 5/8 · model: opus@high · project: +sase``): every indicator group
+(``model: opus@high · project: +sase``): every indicator group
 renders as a ``<type>: <body>`` group where only the label is dim, and
 visible groups are joined by a dim ``·`` separator. A group's body keeps
 its own styles at both full and compact density. Count chips carry their
