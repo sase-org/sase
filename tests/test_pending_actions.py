@@ -385,10 +385,13 @@ def test_transport_adapter_preserves_handled_state_and_original_lifecycle(
             pending_actions, "LEGACY_TELEGRAM_PENDING_ACTIONS_PATH", tmp_path / "legacy"
         ),
     ):
+        # Keep the epoch timestamp integral so the Rust/Python binding round trip
+        # preserves it exactly while exercising realistic retention cutoffs.
+        now = float(int(time.time()))
         notification = _notification(
             "abcd1234-full", "PlanApproval", {"response_dir": "x"}
         )
-        pending_actions.register_notification(notification, now=10.0)
+        pending_actions.register_notification(notification, now=now)
         pending_actions.upsert_transport_action(
             "abcd1234",
             {
@@ -399,17 +402,19 @@ def test_transport_adapter_preserves_handled_state_and_original_lifecycle(
                 "extension": {"keep": True},
             },
             transport="telegram",
-            now=20.0,
+            now=now + 10.0,
         )
-        pending_actions.mark_already_handled(notification.id, source="test", now=30.0)
-        pending_actions.register_notification(notification, now=100.0)
+        pending_actions.mark_already_handled(
+            notification.id, source="test", now=now + 20.0
+        )
+        pending_actions.register_notification(notification, now=now + 30.0)
         entry = pending_actions.read_pending_action_store()["actions"]["abcd1234"]
         assert entry["state"] == "already_handled"
         assert entry["handled_source"] == "test"
-        assert entry["created_at_unix"] == 10.0
+        assert entry["created_at_unix"] == now
         assert (
             entry["stale_deadline_unix"]
-            == 10.0 + pending_actions.STALE_THRESHOLD_SECONDS
+            == now + pending_actions.STALE_THRESHOLD_SECONDS
         )
         record = pending_actions.get_transport_action("abcd1234", transport="telegram")
         assert record is not None
