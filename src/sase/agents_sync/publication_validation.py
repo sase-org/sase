@@ -6,11 +6,14 @@ from pathlib import Path
 
 from sase.agents_sync.io import AgentsSyncFormatError
 from sase.agents_sync.v2_io import (
+    MAX_JSON_BYTES,
     content_digest,
     read_all_owner_manifests_lenient,
     read_hood_snapshot,
     v2_json_bytes,
 )
+from sase.agents_sync.v2_snapshot_io import decode_hood_snapshot
+from sase.agents_sync.v2_validation import json_from_bytes
 from sase.agents_sync.v2_models import (
     V2HoodSnapshot,
     V2OwnerHoodEntry,
@@ -34,12 +37,31 @@ def previous_snapshot(
     if entry is None:
         return None
     path = repo_root / snapshot_path(owner, hood)
-    payload = path.read_bytes()
+    try:
+        size = path.stat().st_size
+    except OSError as exc:
+        raise AgentsSyncFormatError(
+            f"could not read existing snapshot for hood {hood!r}: {exc}"
+        ) from exc
+    if size > MAX_JSON_BYTES:
+        raise AgentsSyncFormatError(
+            f"existing snapshot for hood {hood!r} exceeds the JSON byte limit"
+        )
+    try:
+        payload = path.read_bytes()
+    except OSError as exc:
+        raise AgentsSyncFormatError(
+            f"could not read existing snapshot for hood {hood!r}: {exc}"
+        ) from exc
+    if len(payload) > MAX_JSON_BYTES:
+        raise AgentsSyncFormatError(
+            f"existing snapshot for hood {hood!r} exceeds the JSON byte limit"
+        )
     if content_digest(payload) != entry.digest:
         raise AgentsSyncFormatError(
             f"existing snapshot digest mismatch for hood {hood!r}"
         )
-    snapshot = read_hood_snapshot(path)
+    snapshot = decode_hood_snapshot(json_from_bytes(payload, "hood snapshot"))
     if snapshot.owner != owner or snapshot.local_hood != hood:
         raise AgentsSyncFormatError(
             f"existing snapshot identity mismatch for hood {hood!r}"

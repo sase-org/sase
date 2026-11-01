@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import time
+
 from sase.agents_sync.io import AgentsSyncFormatError
 from sase.agents_sync.v2_io import apply_payload_batched_atomic
 from sase.agents_sync.git import GitRunner
@@ -17,6 +19,10 @@ from sase.agents_sync._publication_state_repair_types import (
     InventoryLoader,
     StateRepairReport,
     StateRepairWindowRow,
+)
+
+_BUDGET_MESSAGE = (
+    "state repair work budget exceeded; retry the window with a smaller limit"
 )
 
 
@@ -117,12 +123,16 @@ def plan_and_push_repair(
     bad_hoods = planned.bad_hoods
     collect_diagnostics = tuple(planned.diagnostics)
     window = tuple(StateRepairWindowRow(hood, run_id) for hood, run_id in selected)
-    if planned.error is not None and not planned.resolved.changed:
+    if planned.error is not None:
         return StateRepairReport(
             target.project_key,
             target.project,
             mode,
             examined=len(selected),
+            changed=0,
+            already_current=planned.resolved.already_current,
+            live=planned.resolved.live,
+            unresolved=planned.resolved.unresolved,
             failed=collect_failed,
             window=window,
             next_cursor=None,
@@ -142,9 +152,23 @@ def plan_and_push_repair(
             diagnostics=collect_diagnostics,
         )
     resolved = planned.resolved
-    if planned.error is not None:
-        next_cursor = None
-        pass_complete = False
+    if time.monotonic() >= deadline:
+        return StateRepairReport(
+            target.project_key,
+            target.project,
+            mode,
+            examined=len(selected),
+            changed=0,
+            already_current=resolved.already_current,
+            live=resolved.live,
+            unresolved=resolved.unresolved,
+            failed=collect_failed + 1,
+            window=window,
+            next_cursor=None,
+            pass_complete=False,
+            error=_BUDGET_MESSAGE,
+            diagnostics=(*collect_diagnostics, _BUDGET_MESSAGE),
+        )
     if not resolved.changed:
         # Verified no-write window: the published snapshot already matches
         # local evidence. A previous attempt's unpushed repair commit still
@@ -191,17 +215,43 @@ def plan_and_push_repair(
             push_attempts=push_attempts,
             diagnostics=collect_diagnostics,
         )
-    payload, updated, withheld, withheld_diags, plan_failed, plan_diags = (
-        plan_state_payload(
-            target,
-            owner,
-            resolved,
-            deadline,
-            bad_hoods=bad_hoods,
-        )
+    (
+        payload,
+        updated,
+        withheld,
+        withheld_diags,
+        plan_failed,
+        plan_diags,
+        budget_exhausted,
+    ) = plan_state_payload(
+        target,
+        owner,
+        resolved,
+        deadline,
+        bad_hoods=bad_hoods,
+        hood_snapshots=planned.hood_snapshots,
     )
     failed = collect_failed + plan_failed
     diagnostics = (*collect_diagnostics, *plan_diags)
+    if budget_exhausted:
+        return StateRepairReport(
+            target.project_key,
+            target.project,
+            mode,
+            examined=len(selected),
+            changed=0,
+            already_current=resolved.already_current,
+            live=resolved.live,
+            unresolved=resolved.unresolved,
+            withheld=withheld,
+            failed=failed,
+            affected=(),
+            window=window,
+            next_cursor=None,
+            pass_complete=False,
+            error=_BUDGET_MESSAGE,
+            diagnostics=(*diagnostics, *withheld_diags),
+        )
     if not payload and not updated:
         # Every changed row was withheld or failed: nothing to publish, and
         # the cursor must not advance past unrepaired rows.

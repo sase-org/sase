@@ -78,6 +78,7 @@ def plan_repair_window(
             selected=discovery.selected,
             snapshots=discovery.snapshots,
             resolved=ResolvedWindow(changed={}, pending={}),
+            hood_snapshots=discovery.hood_snapshots,
             failed=discovery.failed,
             bad_hoods=discovery.bad_hoods,
             diagnostics=list(discovery.diagnostics),
@@ -91,6 +92,7 @@ def plan_repair_window(
             selected=[],
             snapshots=discovery.snapshots,
             resolved=ResolvedWindow(changed={}, pending={}),
+            hood_snapshots=discovery.hood_snapshots,
             failed=discovery.failed,
             bad_hoods=discovery.bad_hoods,
             diagnostics=list(discovery.diagnostics),
@@ -102,6 +104,7 @@ def plan_repair_window(
             selected=selected,
             snapshots=discovery.snapshots,
             resolved=ResolvedWindow(changed={}, pending={}, budget_exhausted=True),
+            hood_snapshots=discovery.hood_snapshots,
             failed=discovery.failed + 1,
             bad_hoods=discovery.bad_hoods,
             diagnostics=[
@@ -126,6 +129,7 @@ def plan_repair_window(
             selected=selected,
             snapshots=discovery.snapshots,
             resolved=ResolvedWindow(changed={}, pending={}),
+            hood_snapshots=discovery.hood_snapshots,
             failed=discovery.failed + len(selected),
             bad_hoods=discovery.bad_hoods,
             diagnostics=[
@@ -158,6 +162,7 @@ def plan_repair_window(
         selected=selected,
         snapshots=discovery.snapshots,
         resolved=resolved,
+        hood_snapshots=discovery.hood_snapshots,
         failed=discovery.failed + resolved.failed,
         bad_hoods=discovery.bad_hoods,
         diagnostics=[*discovery.diagnostics, *resolved.diagnostics],
@@ -204,15 +209,15 @@ def _resolve_selected(
             if run.source_run_id not in inventory_by_source:
                 inventory_by_source[run.source_run_id] = run
     resolved = ResolvedWindow(changed={}, pending={})
+    budget_message = (
+        "state repair work budget exceeded; retry the window with a smaller limit"
+    )
     for hood, run_id in selected:
         if time.monotonic() >= deadline:
             resolved.failed += 1
             resolved.budget_exhausted = True
-            resolved.diagnostics.append(
-                f"{hood}/{run_id}: state repair work budget exceeded; "
-                "retry the window with a smaller limit"
-            )
-            continue
+            resolved.diagnostics.append(f"{hood}/{run_id}: {budget_message}")
+            break
         published = snapshots.get((hood, run_id))
         if published is None:  # pragma: no cover - rows came from snapshots
             resolved.failed += 1
@@ -252,11 +257,17 @@ def _resolve_selected(
             observations, lookup_error = filesystem_observations_for_run(
                 target, owner, record
             )
+        if time.monotonic() >= deadline:
+            resolved.failed += 1
+            resolved.budget_exhausted = True
+            resolved.diagnostics.append(f"{hood}/{run_id}: {budget_message}")
+            break
         if lookup_error is not None:
             resolved.unresolved += 1
             resolved.diagnostics.append(
                 f"{global_name}: {lookup_error}; preserved {record.state}"
             )
+            continue
         try:
             response = resolve_observations(
                 project=target.project_key,
@@ -275,6 +286,11 @@ def _resolve_selected(
                 f"{global_name}: unresolved state evidence ({exc}); unchanged"
             )
             continue
+        if time.monotonic() >= deadline:
+            resolved.failed += 1
+            resolved.budget_exhausted = True
+            resolved.diagnostics.append(f"{hood}/{run_id}: {budget_message}")
+            break
         if is_live_reason(response.reason):
             resolved.live += 1
         elif is_unresolved_reason(response.reason):

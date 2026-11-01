@@ -8,40 +8,35 @@ from pathlib import Path
 import pytest
 
 from sase.agents_sync.agent_state_refresh import run_agent_state_refresh
-from sase.agents_sync.inventory_io import source_run_id
 from sase.agents_sync.inventory_models import InventoryRun, ProjectHoodInventory
 from sase.agents_sync.publication import publish_agent_hood
 from sase.agents_sync.publication_state_repair import repair_project_run_states
 from sase.agents_sync.publication_validation import read_hood_snapshot
 from sase.core.agent_identity_facade import AgentIdentitySnapshot
-from sase.core.agent_scan_facade import (
-    default_agent_artifact_index_path,
-    rebuild_agent_artifact_index,
-)
 from tests.agents_sync.test_publication_state_repair._helpers import (
     FINISHED,
     OWNER,
     STARTED,
     SeedBuilder,
     commit_push,
+    install_repair_home,
+    rebuild_repair_artifact_index,
     remote_head,
     remote_state,
+    repair_run_id,
     setup_repair,
+    write_repair_artifact,
 )
 
 from tests.agents_sync.git_sync_fixtures import setup_repo, target
 
 
 def _run_id(timestamp: str) -> str:
-    return source_run_id("proj", "ace-run", timestamp)
+    return repair_run_id(timestamp)
 
 
 def _install_home(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
-    home = tmp_path / ".sase"
-    home.mkdir(parents=True, exist_ok=True)
-    monkeypatch.setenv("SASE_HOME", str(home))
-    monkeypatch.setattr(Path, "home", lambda: tmp_path)
-    return home
+    return install_repair_home(tmp_path, monkeypatch)
 
 
 def _write_artifact(
@@ -53,40 +48,18 @@ def _write_artifact(
     extra_done: dict[str, object] | None = None,
     extra_files: dict[str, str] | None = None,
 ) -> Path:
-    artifact = home / "projects" / "proj" / "artifacts" / "ace-run" / timestamp
-    artifact.mkdir(parents=True, exist_ok=True)
-    (home / "projects" / "proj" / "proj.sase").write_text("name: Project\n")
-    (artifact / "agent_meta.json").write_text(
-        json.dumps(
-            {
-                "name": name,
-                "artifact_agent_id": timestamp,
-                "run_started_at": STARTED,
-                "project": "proj",
-            }
-        ),
-        encoding="utf-8",
+    return write_repair_artifact(
+        home,
+        timestamp=timestamp,
+        name=name,
+        outcome=outcome,
+        extra_done=extra_done,
+        extra_files=extra_files,
     )
-    if outcome is not None:
-        payload: dict[str, object] = {
-            "name": name,
-            "outcome": outcome,
-            "finished_at": FINISHED,
-        }
-        if extra_done:
-            payload.update(extra_done)
-        (artifact / "done.json").write_text(json.dumps(payload), encoding="utf-8")
-    for relative, content in (extra_files or {}).items():
-        path = artifact / relative
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(content, encoding="utf-8")
-    return artifact
 
 
 def _rebuild_index(home: Path) -> Path:
-    index = default_agent_artifact_index_path()
-    rebuild_agent_artifact_index(index, home / "projects")
-    return index
+    return rebuild_repair_artifact_index(home)
 
 
 def _work(tmp_path: Path) -> Path:

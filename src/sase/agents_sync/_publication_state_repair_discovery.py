@@ -8,7 +8,7 @@ from pathlib import Path
 
 from sase.agents_sync.io import AgentsSyncFormatError
 from sase.agents_sync.models import ProjectTarget
-from sase.agents_sync.v2_models import V2RunRecord
+from sase.agents_sync.v2_models import V2HoodSnapshot, V2RunRecord
 from sase.core.agent_identity_facade import AgentOwnerIdentity
 from sase.core.agent_run_state_wire import (
     AGENT_RUN_STATE_HOOD_AVAILABLE,
@@ -35,6 +35,7 @@ class DiscoveryResult:
     snapshots: dict[tuple[str, str], tuple[str, V2RunRecord]] = field(
         default_factory=dict
     )
+    hood_snapshots: dict[str, V2HoodSnapshot] = field(default_factory=dict)
     failed: int = 0
     bad_hoods: frozenset[str] = field(default_factory=frozenset)
     diagnostics: list[str] = field(default_factory=list)
@@ -121,6 +122,7 @@ def discover_repair_window(
 
     discovered: list[AgentRunStateDiscoveredHoodWire] = []
     snapshots: dict[tuple[str, str], tuple[str, V2RunRecord]] = {}
+    hood_snapshots: dict[str, V2HoodSnapshot] = {}
     failed = 0
     bad_hoods: set[str] = set()
     diagnostics: list[str] = []
@@ -170,6 +172,7 @@ def discover_repair_window(
                 source_run_ids=run_ids,
             )
         )
+        hood_snapshots[hood] = snapshot
         for run in snapshot.runs:
             snapshots[(hood, run.source_run_id)] = (run.global_name, run)
 
@@ -189,6 +192,7 @@ def discover_repair_window(
     except (ValueError, RuntimeError) as exc:
         return DiscoveryResult(
             snapshots=snapshots,
+            hood_snapshots=hood_snapshots,
             failed=failed,
             bad_hoods=frozenset(bad_hoods),
             diagnostics=[*diagnostics, f"invalid state window: {exc}"],
@@ -197,6 +201,12 @@ def discover_repair_window(
 
     selected = [(row.local_hood, row.source_run_id) for row in window.selected]
     selected_snapshots = {key: snapshots[key] for key in selected if key in snapshots}
+    selected_hoods = {hood for hood, _run_id in selected}
+    selected_hood_snapshots = {
+        hood: snapshot
+        for hood, snapshot in hood_snapshots.items()
+        if hood in selected_hoods
+    }
     for item in window.diagnostics:
         if item.kind == "corrupt_hood" and item.local_hood not in bad_hoods:
             failed += 1
@@ -207,6 +217,7 @@ def discover_repair_window(
     return DiscoveryResult(
         selected=selected,
         snapshots=selected_snapshots,
+        hood_snapshots=selected_hood_snapshots,
         failed=failed,
         bad_hoods=frozenset(bad_hoods),
         diagnostics=diagnostics,

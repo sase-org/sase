@@ -90,6 +90,7 @@ def render_targeted_browsing_payload(
     commit_url_base: str | None = None,
     commit_repo_name: str | None = None,
     bead_links: Mapping[str, BeadPageLink] | None = None,
+    include_index_pages: bool = True,
 ) -> dict[str, bytes]:
     """Render indexes plus only the selected hoods' derived pages.
 
@@ -97,7 +98,9 @@ def render_targeted_browsing_payload(
     only. Machine pages cover affected machines with their complete hood
     rosters (states preserved from full snapshots). Hood, agent, session, and
     legacy redirect pages cover selected hoods only; unrelated pages are
-    omitted so targeted payloads scale with the selection.
+    omitted so targeted payloads scale with the selection. State-only repair
+    sets ``include_index_pages=False`` so previously rendered root, user, and
+    machine pages stay on disk without hydrating unselected snapshots.
     """
 
     selected = set(selected_keys)
@@ -108,35 +111,40 @@ def render_targeted_browsing_payload(
             key=lambda item: (item.owner.username, item.owner.machine_name),
         )
     )
-    payload["README.md"] = page_bytes(render_root_page(ordered))
+    if include_index_pages:
+        payload["README.md"] = page_bytes(render_root_page(ordered))
 
-    affected_users = {username for username, _machine, _hood in selected}
-    affected_machines = {(username, machine) for username, machine, _hood in selected}
-    by_user: dict[str, list[V2OwnerManifest]] = defaultdict(list)
-    for manifest in ordered:
-        by_user[manifest.owner.username].append(manifest)
-    for username in sorted(affected_users):
-        user_manifests = by_user.get(username, [])
-        if not user_manifests:
-            continue
-        payload[f"users/{username}/README.md"] = page_bytes(
-            render_user_page(username, tuple(user_manifests))
-        )
-        for manifest in sorted(
-            user_manifests, key=lambda item: item.owner.machine_name
-        ):
-            if (username, manifest.owner.machine_name) not in affected_machines:
+        affected_users = {username for username, _machine, _hood in selected}
+        affected_machines = {
+            (username, machine) for username, machine, _hood in selected
+        }
+        by_user: dict[str, list[V2OwnerManifest]] = defaultdict(list)
+        for manifest in ordered:
+            by_user[manifest.owner.username].append(manifest)
+        for username in sorted(affected_users):
+            user_manifests = by_user.get(username, [])
+            if not user_manifests:
                 continue
-            machine_root = f"users/{username}/machines/{manifest.owner.machine_name}"
-            # Complete roster: every hood in the manifest must resolve, so a
-            # missing snapshot fails loudly instead of silently truncating.
-            machine_snapshots = tuple(
-                snapshots[(username, manifest.owner.machine_name, hood)]
-                for hood, _entry in manifest.hoods
+            payload[f"users/{username}/README.md"] = page_bytes(
+                render_user_page(username, tuple(user_manifests))
             )
-            payload[f"{machine_root}/README.md"] = page_bytes(
-                render_machine_page(manifest, machine_snapshots)
-            )
+            for manifest in sorted(
+                user_manifests, key=lambda item: item.owner.machine_name
+            ):
+                if (username, manifest.owner.machine_name) not in affected_machines:
+                    continue
+                machine_root = (
+                    f"users/{username}/machines/{manifest.owner.machine_name}"
+                )
+                # Complete roster: every hood in the manifest must resolve, so a
+                # missing snapshot fails loudly instead of silently truncating.
+                machine_snapshots = tuple(
+                    snapshots[(username, manifest.owner.machine_name, hood)]
+                    for hood, _entry in manifest.hoods
+                )
+                payload[f"{machine_root}/README.md"] = page_bytes(
+                    render_machine_page(manifest, machine_snapshots)
+                )
     links = bead_links or {}
     for key in sorted(selected):
         snapshot = snapshots[key]

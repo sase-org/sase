@@ -11,10 +11,13 @@ import json
 import subprocess
 from pathlib import Path
 
+import pytest
+
 from sase.agents_sync.inventory_models import InventoryRun, ProjectHoodInventory
 from sase.agents_sync.models import ProjectTarget
 from sase.agents_sync.v2_io import content_digest, file_reference, v2_json_bytes
 from sase.agents_sync.v2_models import (
+    V2FileReference,
     V2HoodSnapshot,
     V2OwnerHoodEntry,
     V2OwnerManifest,
@@ -86,6 +89,7 @@ class SeedBuilder:
         state: str,
         *,
         finished: str | None = None,
+        extra_files: dict[str, bytes] | None = None,
     ) -> V2RunRecord:
         finished_at = finished or (None if state in ("active", "waiting") else FINISHED)
         payload = V2RunStatePayload(
@@ -96,12 +100,23 @@ class SeedBuilder:
             finished_at if state == "dismissed" else None,
         )
         blob = v2_json_bytes(payload.to_json_dict())
-        (self.sidecar / "agents" / global_name(local, self.owner)).mkdir(
-            parents=True, exist_ok=True
-        )
-        (
-            self.sidecar / "agents" / global_name(local, self.owner) / "state.json"
-        ).write_bytes(blob)
+        agent_dir = self.sidecar / "agents" / global_name(local, self.owner)
+        agent_dir.mkdir(parents=True, exist_ok=True)
+        (agent_dir / "state.json").write_bytes(blob)
+        files: list[tuple[str, V2FileReference]] = [
+            (
+                "state",
+                file_reference(
+                    f"agents/{global_name(local, self.owner)}/state.json", blob
+                ),
+            )
+        ]
+        for kind, content in (extra_files or {}).items():
+            relative = f"agents/{global_name(local, self.owner)}/{kind}.md"
+            path = self.sidecar / relative
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_bytes(content)
+            files.append((kind, file_reference(relative, content)))
         run = V2RunRecord(
             source_run_id,
             local,
@@ -112,14 +127,7 @@ class SeedBuilder:
             finished_at if state == "dismissed" else None,
             (),
             (),
-            (
-                (
-                    "state",
-                    file_reference(
-                        f"agents/{global_name(local, self.owner)}/state.json", blob
-                    ),
-                ),
-            ),
+            tuple(files),
         )
         self.hoods.setdefault(hood, []).append(run)
         return run
@@ -223,14 +231,111 @@ def make_loader(runs: list[InventoryRun], seen: list[frozenset[str]]):
 
 
 def setup_repair(
-    tmp_path: Path, *, runs: list[tuple[str, str, str, str]]
+    tmp_path: Path,
+    *,
+    runs: list[tuple[str, str, str, str]],
+    extra_files: dict[str, dict[str, bytes]] | None = None,
 ) -> tuple[Path, ProjectTarget]:
     """Seed one owner hood per ``(hood, local, source_run_id, state)`` row."""
 
     remote, _seed, sidecar = setup_repo(tmp_path)
     builder = SeedBuilder(sidecar)
+    extras = extra_files or {}
     for hood, local, source_run_id, state in runs:
-        builder.add_run(hood, local, source_run_id, state)
+        builder.add_run(
+            hood,
+            local,
+            source_run_id,
+            state,
+            extra_files=extras.get(local),
+        )
     builder.write_manifest()
     commit_push(sidecar)
     return remote, target(tmp_path, remote, sidecar)
+
+
+def install_repair_home(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+    home = tmp_path / ".sase"
+    home.mkdir(parents=True, exist_ok=True)
+    monkeypatch.setenv("SASE_HOME", str(home))
+    monkeypatch.setattr(Path, "home", lambda: tmp_path)
+    return home
+
+
+def repair_run_id(timestamp: str, project_key: str = "proj") -> str:
+    from sase.agents_sync.inventory_io import source_run_id
+
+    return source_run_id(project_key, "ace-run", timestamp)
+
+
+def write_repair_artifact(
+    home: Path,
+    *,
+    timestamp: str,
+    name: str,
+    outcome: str | None,
+    extra_done: dict[str, object] | None = None,
+    extra_meta: dict[str, object] | None = None,
+    extra_files: dict[str, str] | None = None,
+    project_key: str = "proj",
+) -> Path:
+    artifact = home / "projects" / project_key / "artifacts" / "ace-run" / timestamp
+    artifact.mkdir(parents=True, exist_ok=True)
+    (home / "projects" / project_key / f"{project_key}.sase").write_text(
+        "name: Project\n"
+    )
+    meta: dict[str, object] = {
+        "name": name,
+        "artifact_agent_id": timestamp,
+        "run_started_at": STARTED,
+        "project": project_key,
+    }
+    if extra_meta:
+        meta.update(extra_meta)
+    (artifact / "agent_meta.json").write_text(
+        json.dumps(meta),
+        encoding="utf-8",
+    )
+    if outcome is not None:
+        payload: dict[str, object] = {
+            "name": name,
+            "outcome": outcome,
+            "finished_at": FINISHED,
+        }
+        if extra_done:
+            payload.update(extra_done)
+        (artifact / "done.json").write_text(json.dumps(payload), encoding="utf-8")
+    for relative, content in (extra_files or {}).items():
+        path = artifact / relative
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(content, encoding="utf-8")
+    return artifact
+
+
+def rebuild_repair_artifact_index(home: Path) -> Path:
+    from sase.core.agent_scan_facade import (
+        default_agent_artifact_index_path,
+        rebuild_agent_artifact_index,
+    )
+
+    index = default_agent_artifact_index_path()
+    rebuild_agent_artifact_index(index, home / "projects")
+    return index
+
+
+def track_path_reads(monkeypatch: pytest.MonkeyPatch) -> list[Path]:
+    reads: list[Path] = []
+    original_bytes = Path.read_bytes
+    original_text = Path.read_text
+
+    def read_bytes(self: Path, *args: object, **kwargs: object) -> bytes:
+        reads.append(Path(self))
+        return original_bytes(self, *args, **kwargs)
+
+    def read_text(self: Path, *args: object, **kwargs: object) -> str:
+        reads.append(Path(self))
+        return original_text(self, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "read_bytes", read_bytes)
+    monkeypatch.setattr(Path, "read_text", read_text)
+    return reads

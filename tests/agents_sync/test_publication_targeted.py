@@ -271,6 +271,7 @@ def test_targeted_shares_validation_within_transaction(
     import sase.agents_sync.publication_validation as validation
 
     real_read = validation.read_hood_snapshot
+    real_decode = validation.decode_hood_snapshot
     calls: list[tuple[str, str, str]] = []
 
     def counting(path: Path):  # type: ignore[no-untyped-def]
@@ -280,8 +281,15 @@ def test_targeted_shares_validation_within_transaction(
         )
         return snapshot
 
+    def counting_decode(value: object):  # type: ignore[no-untyped-def]
+        snapshot = real_decode(value)
+        calls.append(
+            (snapshot.owner.username, snapshot.owner.machine_name, snapshot.local_hood)
+        )
+        return snapshot
+
     monkeypatch.setattr(validation, "read_hood_snapshot", counting)
-    # previous_snapshot resolves through the same module-global read.
+    monkeypatch.setattr(validation, "decode_hood_snapshot", counting_decode)
     import sase.agents_sync.publication_planning as planning
 
     monkeypatch.setattr(planning, "read_hood_snapshot", counting, raising=False)

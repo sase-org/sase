@@ -41,10 +41,26 @@ from sase.core.agent_run_state_wire import (
 from sase.core.agent_scan_wire import AgentArtifactRecordWire
 
 _READ_HOOK: Callable[[Path], None] | None = None
+_ARTIFACT_CANDIDATE_LIMIT = 32
+_DISMISSED_CANDIDATE_LIMIT = 64
+_ACE_RUN_WORKFLOW = "ace-run"
 
 
 def _owner_token(owner: AgentOwnerIdentity) -> str:
     return f"{owner.username}@{owner.machine_name}"
+
+
+def _canonical_child(path: Path, root: Path) -> Path | None:
+    """Return *path* when it resolves under *root*, including symlinked ancestors."""
+
+    try:
+        resolved = path.resolve(strict=False)
+        root_resolved = root.resolve(strict=False)
+    except (OSError, RuntimeError, ValueError):
+        return None
+    if not resolved.is_relative_to(root_resolved):
+        return None
+    return resolved
 
 
 def _read_bounded_json(path: Path) -> tuple[str, dict[str, Any] | None]:
@@ -73,20 +89,31 @@ def _read_bounded_json(path: Path) -> tuple[str, dict[str, Any] | None]:
     return AGENT_RUN_STATE_OBSERVATION_PRESENT, payload
 
 
-def _claims_from_payloads(
-    *payloads: dict[str, Any] | None,
-    source_run_id: str | None = None,
+def _derived_run_id(
+    project_key: str, durable: str, workflow: str = _ACE_RUN_WORKFLOW
+) -> str:
+    return _source_run_id(project_key, workflow, durable)
+
+
+def _claims_from_marker_payload(
+    payload: dict[str, Any] | None,
+    *,
+    project_key: str,
+    workflow: str = _ACE_RUN_WORKFLOW,
 ) -> AgentRunStateIdentityClaimsWire | None:
-    merged: dict[str, Any] = {}
-    for payload in payloads:
-        if payload:
-            merged.update(payload)
-    project = _text(merged.get("project")) or _text(merged.get("project_name"))
-    owner = _text(merged.get("owner"))
-    global_name = _text(merged.get("global_name"))
-    local_name = _text(merged.get("local_name"))
-    name = _text(merged.get("name"))
-    claimed_run = _text(merged.get("source_run_id")) or source_run_id
+    """Copy identity fields from one current marker/metadata object."""
+
+    if not payload:
+        return None
+    project = _text(payload.get("project")) or _text(payload.get("project_name"))
+    owner = _text(payload.get("owner"))
+    global_name = _text(payload.get("global_name"))
+    local_name = _text(payload.get("local_name"))
+    name = _text(payload.get("name"))
+    durable = _text(payload.get("artifact_agent_id"))
+    claimed_run = _text(payload.get("source_run_id"))
+    if durable:
+        claimed_run = claimed_run or _derived_run_id(project_key, durable, workflow)
     if not any((project, owner, global_name, local_name, name, claimed_run)):
         return None
     return AgentRunStateIdentityClaimsWire(
@@ -95,7 +122,43 @@ def _claims_from_payloads(
         global_name=global_name,
         local_name=local_name,
         name=name,
-        source_run_id=claimed_run if claimed_run != source_run_id else None,
+        source_run_id=claimed_run,
+    )
+
+
+def _claims_from_archive_payload(
+    payload: dict[str, Any] | None,
+    *,
+    project_key: str,
+) -> AgentRunStateIdentityClaimsWire | None:
+    """Copy identity fields from a dismissed-bundle payload's archive keys."""
+
+    if not payload:
+        return None
+    project = _text(payload.get("project_name")) or _text(payload.get("project"))
+    username = _text(payload.get("source_username"))
+    machine = _text(payload.get("source_machine"))
+    owner = None
+    if username and machine:
+        owner = f"{username}@{machine}"
+    elif _text(payload.get("owner")):
+        owner = _text(payload.get("owner"))
+    name = _text(payload.get("agent_name"))
+    local_name = name or _text(payload.get("local_name"))
+    global_name = _text(payload.get("global_name"))
+    durable = _text(payload.get("raw_suffix"))
+    claimed_run = _text(payload.get("source_run_id"))
+    if durable:
+        claimed_run = claimed_run or _derived_run_id(project_key, durable)
+    if not any((project, owner, global_name, local_name, name, claimed_run)):
+        return None
+    return AgentRunStateIdentityClaimsWire(
+        project=project,
+        owner=owner,
+        global_name=global_name,
+        local_name=local_name,
+        name=name,
+        source_run_id=claimed_run,
     )
 
 
@@ -113,23 +176,25 @@ def _observation_from_done_payload(
     payload: dict[str, Any] | None,
     read_status: str,
     *,
-    meta: dict[str, Any] | None = None,
-    source_run_id: str | None = None,
+    project_key: str,
+    workflow: str = _ACE_RUN_WORKFLOW,
+    imported_meta: dict[str, Any] | None = None,
 ) -> AgentRunStateRawObservationWire:
     """Build a terminal-marker observation from a done.json read."""
 
-    claims = _claims_from_payloads(meta, payload, source_run_id=source_run_id)
+    claims = _claims_from_marker_payload(
+        payload, project_key=project_key, workflow=workflow
+    )
+    imported = _is_imported(imported_meta or {}, payload)
     if read_status != AGENT_RUN_STATE_OBSERVATION_PRESENT or payload is None:
         return AgentRunStateRawObservationWire(
             source=AGENT_RUN_STATE_EVIDENCE_TERMINAL_MARKER,
             read_status=read_status,
             identity_claims=claims,
-            imported=_is_imported(meta or {}, payload),
+            imported=imported,
         )
     outcome = _text(payload.get("outcome"))
-    started = _time_text((meta or {}).get("run_started_at")) or _time_text(
-        payload.get("started_at")
-    )
+    started = _time_text(payload.get("started_at"))
     finished = _time_text(payload.get("finished_at"))
     return AgentRunStateRawObservationWire(
         source=AGENT_RUN_STATE_EVIDENCE_TERMINAL_MARKER,
@@ -141,48 +206,74 @@ def _observation_from_done_payload(
         gate_state=_session_child_state(payload, "gate"),
         started_at=started,
         finished_at=finished,
-        imported=_is_imported(meta or {}, payload),
+        imported=imported,
     )
 
 
 def _unfinished_observation(
     *,
     meta: dict[str, Any] | None = None,
-    source_run_id: str | None = None,
-    read_status: str = AGENT_RUN_STATE_OBSERVATION_PRESENT,
+    meta_status: str = AGENT_RUN_STATE_OBSERVATION_PRESENT,
+    project_key: str,
+    workflow: str = _ACE_RUN_WORKFLOW,
 ) -> AgentRunStateRawObservationWire:
     """Build an unfinished observation from live metadata."""
 
     return AgentRunStateRawObservationWire(
         source=AGENT_RUN_STATE_EVIDENCE_UNFINISHED,
-        read_status=read_status,
-        identity_claims=_claims_from_payloads(meta, source_run_id=source_run_id),
+        read_status=meta_status,
+        identity_claims=_claims_from_marker_payload(
+            meta, project_key=project_key, workflow=workflow
+        ),
         started_at=_time_text((meta or {}).get("run_started_at")),
         imported=_is_imported(meta or {}, None),
     )
 
 
-def _observations_from_artifact_files(
-    artifact: Path,
+def _observations_from_marker_payloads(
     *,
-    source_run_id: str | None = None,
+    meta_status: str,
+    meta: dict[str, Any] | None,
+    done_status: str,
+    done: dict[str, Any] | None,
+    waiting_exists: bool,
+    pending_exists: bool,
+    project_key: str,
+    workflow: str = _ACE_RUN_WORKFLOW,
+    done_path_exists: bool = False,
 ) -> tuple[AgentRunStateRawObservationWire, ...]:
-    """Read current marker/metadata files for one artifact directory."""
+    """Project current marker/metadata payloads into raw observations.
 
-    meta_status, meta = _read_bounded_json(artifact / "agent_meta.json")
-    done_path = artifact / "done.json"
-    done_status, done = _read_bounded_json(done_path)
-    if done_status == AGENT_RUN_STATE_OBSERVATION_PRESENT and not done:
-        done_status = AGENT_RUN_STATE_OBSERVATION_MALFORMED
+    Each current source keeps its own identity claims so contradictory
+    names or durable IDs reach the Rust resolver instead of being merged.
+    Malformed or unreadable metadata is emitted even when a terminal
+    marker exists, so an anonymous marker cannot be accepted.
+    """
+
     observations: list[AgentRunStateRawObservationWire] = []
-    if done_status != AGENT_RUN_STATE_OBSERVATION_MISSING or done_path.is_file():
+    meta_unusable = meta_status in (
+        AGENT_RUN_STATE_OBSERVATION_UNREADABLE,
+        AGENT_RUN_STATE_OBSERVATION_MALFORMED,
+    )
+    if meta_unusable:
         observations.append(
-            _observation_from_done_payload(
-                done, done_status, meta=meta, source_run_id=source_run_id
+            _unfinished_observation(
+                meta=meta,
+                meta_status=meta_status,
+                project_key=project_key,
+                workflow=workflow,
             )
         )
-    waiting_exists = (artifact / "waiting.json").is_file()
-    pending_exists = (artifact / "pending_question.json").is_file()
+    if done_status != AGENT_RUN_STATE_OBSERVATION_MISSING or done_path_exists:
+        observations.append(
+            _observation_from_done_payload(
+                done,
+                done_status,
+                project_key=project_key,
+                workflow=workflow,
+                imported_meta=meta,
+            )
+        )
     if done_status == AGENT_RUN_STATE_OBSERVATION_MISSING and (
         waiting_exists
         or pending_exists
@@ -195,7 +286,26 @@ def _observations_from_artifact_files(
         )
         observations.append(
             _unfinished_observation(
-                meta=meta, source_run_id=source_run_id, read_status=live_status
+                meta=meta,
+                meta_status=live_status,
+                project_key=project_key,
+                workflow=workflow,
+            )
+        )
+    elif (
+        meta_status == AGENT_RUN_STATE_OBSERVATION_PRESENT
+        and done_status != AGENT_RUN_STATE_OBSERVATION_MISSING
+        and not meta_unusable
+    ):
+        # Current metadata identity stays visible beside the terminal marker
+        # so a changed durable ID or name reaches Rust. Matching claims are
+        # ignored once a terminal observation exists.
+        observations.append(
+            _unfinished_observation(
+                meta=meta,
+                meta_status=meta_status,
+                project_key=project_key,
+                workflow=workflow,
             )
         )
     if not observations:
@@ -206,6 +316,34 @@ def _observations_from_artifact_files(
             )
         )
     return tuple(observations)
+
+
+def _observations_from_artifact_files(
+    artifact: Path,
+    *,
+    project_key: str,
+    workflow: str = _ACE_RUN_WORKFLOW,
+) -> tuple[AgentRunStateRawObservationWire, ...]:
+    """Read current marker/metadata files for one artifact directory."""
+
+    meta_status, meta = _read_bounded_json(artifact / "agent_meta.json")
+    done_path = artifact / "done.json"
+    done_status, done = _read_bounded_json(done_path)
+    if done_status == AGENT_RUN_STATE_OBSERVATION_PRESENT and not done:
+        done_status = AGENT_RUN_STATE_OBSERVATION_MALFORMED
+    waiting_exists = (artifact / "waiting.json").is_file()
+    pending_exists = (artifact / "pending_question.json").is_file()
+    return _observations_from_marker_payloads(
+        meta_status=meta_status,
+        meta=meta,
+        done_status=done_status,
+        done=done,
+        waiting_exists=waiting_exists,
+        pending_exists=pending_exists,
+        project_key=project_key,
+        workflow=workflow,
+        done_path_exists=done_path.is_file(),
+    )
 
 
 def observations_from_inventory_run(
@@ -271,14 +409,14 @@ def observations_from_inventory_run(
 def _observations_from_dismissed_bundle(
     raw: dict[str, Any],
     *,
-    source_run_id: str | None = None,
+    project_key: str,
 ) -> AgentRunStateRawObservationWire:
     """Build a dismissed observation from one selected bundle payload."""
 
     return AgentRunStateRawObservationWire(
         source=AGENT_RUN_STATE_EVIDENCE_DISMISSED,
         read_status=AGENT_RUN_STATE_OBSERVATION_PRESENT,
-        identity_claims=_claims_from_payloads(raw, source_run_id=source_run_id),
+        identity_claims=_claims_from_archive_payload(raw, project_key=project_key),
         state="dismissed",
         repeat_stopped=raw.get("repeat_stopped") is True,
         started_at=_time_text(raw.get("run_start_time") or raw.get("start_time")),
@@ -348,6 +486,16 @@ def _artifact_source_run_id(
     return _source_run_id(target.project_key, record.workflow_dir_name, durable)
 
 
+def _index_lookup_overflow(snapshot: Any) -> bool:
+    window = getattr(snapshot, "index_window", None)
+    if window is not None and (
+        getattr(window, "truncated", False) or getattr(window, "has_more", False)
+    ):
+        return True
+    records = getattr(snapshot, "records", ())
+    return len(records) > _ARTIFACT_CANDIDATE_LIMIT
+
+
 def _locate_artifact_dirs_for_run(
     target: ProjectTarget,
     local_name: str,
@@ -376,9 +524,9 @@ def _locate_artifact_dirs_for_run(
     query = AgentArtifactIndexQueryWire(
         include_active=True,
         include_recent_completed=True,
-        include_full_history=True,
-        active_limit=None,
-        recent_completed_limit=None,
+        include_full_history=False,
+        active_limit=_ARTIFACT_CANDIDATE_LIMIT + 1,
+        recent_completed_limit=_ARTIFACT_CANDIDATE_LIMIT + 1,
         include_hidden=True,
         freshness="cached",
         candidate_filter={
@@ -396,7 +544,7 @@ def _locate_artifact_dirs_for_run(
     options = AgentArtifactScanOptionsWire(
         include_prompt_step_markers=False,
         include_raw_prompt_snippets=False,
-        only_workflow_dirs=("ace-run",),
+        only_workflow_dirs=(_ACE_RUN_WORKFLOW,),
         include_done_markers=True,
         include_workflow_state=False,
         include_waiting=True,
@@ -411,18 +559,70 @@ def _locate_artifact_dirs_for_run(
         return (), f"artifact index is not readable: {exc}"
     if snapshot is None:
         return (), "artifact index lock is busy"
+    if _index_lookup_overflow(snapshot):
+        return (), "artifact index lookup is incomplete"
     dirs: list[Path] = []
     seen: set[str] = set()
     for record in snapshot.records:
         if _artifact_source_run_id(target, record) != source_run_id:
             continue
         path = Path(record.artifact_dir)
-        key = str(path)
+        canonical = _canonical_child(path, projects_root)
+        if canonical is None:
+            continue
+        key = str(canonical)
         if key in seen:
             continue
         seen.add(key)
-        dirs.append(path)
+        dirs.append(canonical)
     return tuple(dirs), None
+
+
+def _summary_is_candidate(
+    summary: Any,
+    target: ProjectTarget,
+    source_run_id: str,
+    local_name: str,
+) -> bool:
+    """Match an index row without treating ``agent_name`` as ``cl_name``."""
+
+    project_name = getattr(summary, "project_name", None)
+    if (
+        isinstance(project_name, str)
+        and project_name
+        and project_name != target.project_key
+    ):
+        return False
+    agent_name = getattr(summary, "agent_name", None)
+    if isinstance(agent_name, str) and agent_name == local_name:
+        return True
+    summary_run_id = getattr(summary, "source_run_id", None)
+    if summary_run_id == source_run_id:
+        return True
+    raw_suffix = getattr(summary, "raw_suffix", None)
+    if isinstance(raw_suffix, str) and raw_suffix:
+        return _derived_run_id(target.project_key, raw_suffix) == source_run_id
+    return False
+
+
+def _archive_bundle_is_current_for_run(
+    payload: dict[str, Any],
+    target: ProjectTarget,
+    source_run_id: str,
+    local_name: str,
+) -> bool:
+    """Accept a current bundle only when its archive identity matches the run."""
+
+    agent_name = _text(payload.get("agent_name"))
+    claimed_run = _text(payload.get("source_run_id"))
+    raw_suffix = _text(payload.get("raw_suffix"))
+    if raw_suffix:
+        claimed_run = claimed_run or _derived_run_id(target.project_key, raw_suffix)
+    if claimed_run is not None and claimed_run != source_run_id:
+        return False
+    if agent_name is not None and agent_name != local_name:
+        return False
+    return True
 
 
 def _locate_dismissed_bundles_for_run(
@@ -430,35 +630,37 @@ def _locate_dismissed_bundles_for_run(
     source_run_id: str,
     local_name: str,
 ) -> tuple[tuple[Path, ...], str | None]:
-    """Locate dismissed bundles for one selected run without a full archive scan."""
+    """Locate dismissed bundles for one selected run without a rebuild."""
 
-    from sase.core.dismissed_agents_facade import load_dismissed_bundle_summaries
+    from sase.ace.dismissed_bundle_index import query_summaries
+    from sase.core.dismissed_agents_facade import dismissed_bundles_dir
 
+    root = dismissed_bundles_dir()
     try:
-        summaries = load_dismissed_bundle_summaries(
-            project_name=target.project_key,
-            cl_name=local_name,
-            limit=None,
+        summaries = query_summaries(
+            root,
+            limit=_DISMISSED_CANDIDATE_LIMIT + 1,
         )
     except (OSError, RuntimeError, ValueError, ImportError):
         return (), None
+    if summaries is None:
+        return (), None
+    if len(summaries) > _DISMISSED_CANDIDATE_LIMIT:
+        return (), "dismissed index lookup is incomplete"
     matches: list[Path] = []
+    seen: set[str] = set()
     for summary in summaries:
-        summary_run_id = getattr(summary, "source_run_id", None)
-        raw_suffix = getattr(summary, "raw_suffix", None)
-        computed = None
-        if isinstance(raw_suffix, str) and raw_suffix:
-            computed = _source_run_id(target.project_key, "ace-run", raw_suffix)
-        if (
-            summary_run_id not in (None, "", source_run_id)
-            and computed != source_run_id
-        ):
-            continue
-        if summary_run_id != source_run_id and computed != source_run_id:
+        if not _summary_is_candidate(summary, target, source_run_id, local_name):
             continue
         path = Path(str(getattr(summary, "bundle_path", "")))
-        if path.is_file():
-            matches.append(path)
+        canonical = _canonical_child(path, root)
+        if canonical is None or not canonical.is_file():
+            continue
+        key = str(canonical)
+        if key in seen:
+            continue
+        seen.add(key)
+        matches.append(canonical)
     return tuple(matches), None
 
 
@@ -485,12 +687,21 @@ def filesystem_observations_for_run(
     for artifact in dirs:
         observations.extend(
             _observations_from_artifact_files(
-                artifact, source_run_id=record.source_run_id
+                artifact,
+                project_key=target.project_key,
             )
         )
-    bundles, _bundle_error = _locate_dismissed_bundles_for_run(
+    bundles, bundle_error = _locate_dismissed_bundles_for_run(
         target, record.source_run_id, record.local_name
     )
+    if bundle_error is not None and not observations:
+        observations.append(
+            AgentRunStateRawObservationWire(
+                source=AGENT_RUN_STATE_EVIDENCE_DISMISSED,
+                read_status=AGENT_RUN_STATE_OBSERVATION_UNREADABLE,
+            )
+        )
+        return tuple(observations), bundle_error
     for bundle_path in bundles:
         status, payload = _read_bounded_json(bundle_path)
         if status != AGENT_RUN_STATE_OBSERVATION_PRESENT or payload is None:
@@ -501,10 +712,12 @@ def filesystem_observations_for_run(
                 )
             )
             continue
+        if not _archive_bundle_is_current_for_run(
+            payload, target, record.source_run_id, record.local_name
+        ):
+            continue
         observations.append(
-            _observations_from_dismissed_bundle(
-                payload, source_run_id=record.source_run_id
-            )
+            _observations_from_dismissed_bundle(payload, project_key=target.project_key)
         )
     if not observations:
         observations.append(
@@ -520,6 +733,7 @@ def classify_artifact_state(
     record: AgentArtifactRecordWire,
     done: dict[str, Any] | None,
     *,
+    meta: dict[str, Any] | None = None,
     identity: AgentIdentitySnapshot | None = None,
     local_name: str | None = None,
     global_name: str | None = None,
@@ -537,32 +751,36 @@ def classify_artifact_state(
         if identity is not None and identity.owner is not None
         else AgentOwnerIdentity("owner", "machine")
     )
-    observations: list[AgentRunStateRawObservationWire]
+    project_key = record.project_name or "project"
+    workflow = record.workflow_dir_name or _ACE_RUN_WORKFLOW
     if done is None:
-        observations = [
-            _unfinished_observation(
-                source_run_id=source_run_id,
-            )
-        ]
+        done_status = AGENT_RUN_STATE_OBSERVATION_MISSING
+        done_payload = None
     elif not done:
-        observations = [
-            _observation_from_done_payload(
-                done,
-                AGENT_RUN_STATE_OBSERVATION_MALFORMED,
-                source_run_id=source_run_id,
-            )
-        ]
+        done_status = AGENT_RUN_STATE_OBSERVATION_MALFORMED
+        done_payload = done
     else:
-        observations = [
-            _observation_from_done_payload(
-                done,
-                AGENT_RUN_STATE_OBSERVATION_PRESENT,
-                source_run_id=source_run_id,
-            )
-        ]
+        done_status = AGENT_RUN_STATE_OBSERVATION_PRESENT
+        done_payload = done
+    meta_status = (
+        AGENT_RUN_STATE_OBSERVATION_PRESENT
+        if meta
+        else AGENT_RUN_STATE_OBSERVATION_MISSING
+    )
+    observations = _observations_from_marker_payloads(
+        meta_status=meta_status,
+        meta=meta,
+        done_status=done_status,
+        done=done_payload,
+        waiting_exists=record.waiting is not None,
+        pending_exists=record.pending_question is not None,
+        project_key=project_key,
+        workflow=workflow,
+        done_path_exists=done is not None,
+    )
     try:
         response = resolve_observations(
-            project=record.project_name or "project",
+            project=project_key,
             owner=owner,
             global_name=global_name or local_name or "agent",
             source_run_id=source_run_id or record.timestamp or "run",
@@ -570,7 +788,7 @@ def classify_artifact_state(
             published_state=published,
             published_started_at=None,
             published_finished_at=None,
-            observations=tuple(observations),
+            observations=observations,
         )
     except (ValueError, RuntimeError):
         return published

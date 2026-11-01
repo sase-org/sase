@@ -178,6 +178,7 @@ def run_from_artifact(
     state = _artifact_state(
         record,
         done,
+        meta=meta,
         identity=identity,
         local_name=local_name,
         global_name=globalize_agent_name(local_name, owner),
@@ -408,6 +409,7 @@ def _artifact_state(
     record: AgentArtifactRecordWire,
     done: dict[str, Any] | None,
     *,
+    meta: dict[str, Any] | None = None,
     identity: AgentIdentitySnapshot | None = None,
     local_name: str | None = None,
     global_name: str | None = None,
@@ -427,6 +429,7 @@ def _artifact_state(
     return classify_artifact_state(
         record,
         done,
+        meta=meta,
         identity=identity,
         local_name=local_name,
         global_name=global_name,

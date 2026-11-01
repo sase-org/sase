@@ -7,7 +7,7 @@ from dataclasses import dataclass, field
 
 from sase.agents_sync.inventory import ProjectHoodInventory
 from sase.agents_sync.models import ProjectTarget
-from sase.agents_sync.v2_models import V2RunRecord
+from sase.agents_sync.v2_models import V2HoodSnapshot, V2RunRecord
 from sase.core.agent_identity_facade import AgentIdentitySnapshot
 
 STATE_REPAIR_DEFAULT_LIMIT = 100
@@ -126,6 +126,7 @@ class PlannedRepair:
     selected: list[tuple[str, str]]
     snapshots: dict[tuple[str, str], tuple[str, V2RunRecord]]
     resolved: ResolvedWindow
+    hood_snapshots: dict[str, V2HoodSnapshot] = field(default_factory=dict)
     failed: int = 0
     bad_hoods: frozenset[str] = field(default_factory=frozenset)
     diagnostics: list[str] = field(default_factory=list)
