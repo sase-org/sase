@@ -110,6 +110,8 @@ def create_gate_turn(
         raise GateTurnError("gate turn creation requires a shell block")
     begin_gate_intent(spec.kind, request_id=spec.request_id)
 
+    from sase.gate_turn._signal_guard import GateEntrySignal
+
     try:
         creator = resolve_creator(resolve_project_name())
         creation = publish_gate_turn(
@@ -118,6 +120,13 @@ def create_gate_turn(
             before_auto_settle=before_auto_settle,
             frozen_auto=frozen_auto,
         )
+    except GateEntrySignal:
+        # Termination during gate entry (SIGTERM/SIGHUP/SIGINT converted by
+        # gate_entry_signal_guard) must clear the intent so host adjudication
+        # does not see a stale marker. Other BaseExceptions keep the existing
+        # contract (KeyboardInterrupt outside the guard still leaves it).
+        clear_gate_intent()
+        raise
     except Exception:
         clear_gate_intent()
         raise

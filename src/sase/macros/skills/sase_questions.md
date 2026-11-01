@@ -62,8 +62,9 @@ QUESTIONS section on the Agents tab.
 Run `sase questions` in the foreground and wait for the process to exit on its own.
 Never invoke it with a yield window, a background flag, or any early-return timeout: an
 early return means you stopped watching before the CLI finished, not that the handoff
-happened. If a tool yields a live session anyway, keep polling that same session until
-it reports an exit code; never end your turn while it is still running.
+happened. Never wrap the command in `timeout`, a pipe, or a background job. If a tool
+yields a live session anyway, keep polling that same session until it reports an exit
+code; never end your turn while it is still running.
 
 If the command reports **Staged**, it validated the questions and staged a question gate
 for host completion. Nothing starts until your turn ends: finish through `/sase_final`,

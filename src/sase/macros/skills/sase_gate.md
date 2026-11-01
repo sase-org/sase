@@ -351,8 +351,9 @@ everything is also expressible in the JSON request body, which is what keeps thi
 declarative.
 
 Run this command in the foreground and wait for it to exit on its own. Never invoke it
-with a yield window, a background flag, or an early-return timeout. Read the descriptor
-and check its `status` before deciding what happens next.
+with a yield window, a background flag, or an early-return timeout. Never wrap the
+command in `timeout`, a pipe, or a background job. Read the descriptor and check its
+`status` before deciding what happens next.
 
 When the descriptor says `"status": "staged"`, the gate has not been published yet.
 Nothing starts until this turn ends: finish through `/sase_final` so host finalizers can

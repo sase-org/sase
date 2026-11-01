@@ -53,8 +53,10 @@ def register_launch_parser(subparsers: argparse._SubParsersAction) -> None:
         help="Create a pending launch approval request",
         description=(
             "Create a LaunchApproval request from a structured JSON payload or "
-            "prompt flags. Agent-side callers wait for the response; no agent "
-            "is spawned unless host dispatch is approved and succeeds."
+            "prompt flags. From an agent, the command creates the gate and ends "
+            "the turn, so run it bare in the foreground with no timeout, pipe, "
+            "or background job; no agent is spawned unless host dispatch is "
+            "approved and succeeds."
         ),
     )
     request_parser.add_argument(

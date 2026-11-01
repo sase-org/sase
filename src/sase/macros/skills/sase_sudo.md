@@ -72,8 +72,9 @@ JSON
 ```
 
 Run `sase sudo request` in the foreground and wait for it to exit on its own. Never
-invoke it with a yield window, a background flag, or an early-return timeout. Read the
-JSON descriptor and check its `status` before deciding what happens next.
+invoke it with a yield window, a background flag, or an early-return timeout. Never wrap
+the command in `timeout`, a pipe, or a background job. Read the JSON descriptor and
+check its `status` before deciding what happens next.
 
 When the descriptor says `"status": "staged"`, nothing starts until this turn ends.
 Finish through `/sase_final` so host finalizers settle before the sudo gate is

@@ -25,6 +25,7 @@ from sase.gate_turn.lifecycle import (
     resolve_already_answered_race,
 )
 from sase.gate_turn.models import GateTurnRecord
+from sase.gate_turn._lost_withdraw import withdraw_lost_gate
 from sase.gate_turn._reclaim_shared import MAX_ERROR_DETAILS
 from sase.gate_turn.settlement import settle_gate_turn
 from sase.gate_turn.store import (
@@ -181,12 +182,18 @@ def _reclaim_one(
     bundle = Path(record.bundle_path) if record.bundle_path else None
     if bundle is None or not bundle.is_dir():
         outcome = settle_lost_unless_creating(record, "gate bundle unreachable")
-        return "lost" if outcome == "settled" else None
+        if outcome == "settled":
+            withdraw_lost_gate(record)
+            return "lost"
+        return None
     try:
         envelope, _adapter = load_and_verify_bundle(bundle)
     except Exception:
         outcome = settle_lost_unless_creating(record, "gate bundle unreadable")
-        return "lost" if outcome == "settled" else None
+        if outcome == "settled":
+            withdraw_lost_gate(record)
+            return "lost"
+        return None
 
     deadline = _deadline(envelope)
     facts = collect_gate_lifecycle_facts(
@@ -202,6 +209,7 @@ def _reclaim_one(
         return "timeout"
     if disposition == DISPOSITION_CANCELLED_LOST:
         settle_gate_turn(record, gate_state="lost", reason="gate deadline grace passed")
+        withdraw_lost_gate(record)
         return "lost"
     if disposition == DISPOSITION_CANCELLED_STOPPED:
         settle_gate_turn(
@@ -276,6 +284,8 @@ def _settle_expired_gate(
             return "answered"
         return "accepted_unfinished"
     settle_gate_turn(record, gate_state=settle_state, reason=settle_reason)
+    if settle_state == "lost":
+        withdraw_lost_gate(record)
     return settle_state
 
 

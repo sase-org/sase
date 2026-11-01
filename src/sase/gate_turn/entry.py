@@ -9,6 +9,7 @@ from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Literal
 
+from sase.gate_turn._signal_guard import gate_entry_signal_guard
 from sase.gate_turn.models import GateTurnError, GateTurnRecord
 from sase.gate_turn.transaction import GateTurnCreation
 from sase.notification_gates.model_request import GateSpec
@@ -99,51 +100,63 @@ def run_gate_entry(
     staged_record_written = False
     success = False
 
-    try:
-        if in_agent:
-            use_staged = staged_handoffs_enabled()
-            reservation_id = acquire_staging_reservation(
-                artifacts_dir=artifacts_dir,
-                command=command,
-            )
-            if use_staged:
-                from sase.gate_turn.staged_contract import collect_staged_gate_creator
-
-                creator = collect_staged_gate_creator(artifacts_dir=artifacts_dir)
-                preparation = _prepare_staged_gate(
-                    request_factory(), creator=creator, artifacts_dir=artifacts_dir
+    with gate_entry_signal_guard():
+        try:
+            if in_agent:
+                use_staged = staged_handoffs_enabled()
+                reservation_id = acquire_staging_reservation(
+                    artifacts_dir=artifacts_dir,
+                    command=command,
                 )
-                if preparation.auto_execute and not allow_auto:
-                    raise GateTurnError("LaunchApproval cannot auto-execute")
-                if not preparation.auto_execute:
-                    if preparation.record is None:
-                        raise GateTurnError(
-                            "pending gate preparation did not produce a staged record"
-                        )
-                    write_staged_handoff(
-                        preparation.record,
-                        artifacts_dir=artifacts_dir,
-                        command=command,
-                        reservation_id=reservation_id,
-                    )
-                    staged_record_written = True
-                    reservation_id = None
-                    success = True
-                    return _GateEntryOutcome(
-                        status="staged",
-                        preparation=preparation,
+                if use_staged:
+                    from sase.gate_turn.staged_contract import (
+                        collect_staged_gate_creator,
                     )
 
-                creation_kwargs: dict[str, Any] = {
-                    "frozen_auto": {
-                        "decision": preparation.decision,
-                        "policy_block": preparation.policy_block,
-                        "auto_execute": True,
+                    creator = collect_staged_gate_creator(artifacts_dir=artifacts_dir)
+                    preparation = _prepare_staged_gate(
+                        request_factory(), creator=creator, artifacts_dir=artifacts_dir
+                    )
+                    if preparation.auto_execute and not allow_auto:
+                        raise GateTurnError("LaunchApproval cannot auto-execute")
+                    if not preparation.auto_execute:
+                        if preparation.record is None:
+                            raise GateTurnError(
+                                "pending gate preparation did not produce a staged "
+                                "record"
+                            )
+                        write_staged_handoff(
+                            preparation.record,
+                            artifacts_dir=artifacts_dir,
+                            command=command,
+                            reservation_id=reservation_id,
+                        )
+                        staged_record_written = True
+                        reservation_id = None
+                        success = True
+                        return _GateEntryOutcome(
+                            status="staged",
+                            preparation=preparation,
+                        )
+
+                    creation_kwargs: dict[str, Any] = {
+                        "frozen_auto": {
+                            "decision": preparation.decision,
+                            "policy_block": preparation.policy_block,
+                            "auto_execute": True,
+                        }
                     }
-                }
-                if before_auto_settle is not None:
-                    creation_kwargs["before_auto_settle"] = before_auto_settle
-                creation = create_gate_turn(preparation.spec, **creation_kwargs)
+                    if before_auto_settle is not None:
+                        creation_kwargs["before_auto_settle"] = before_auto_settle
+                    creation = create_gate_turn(preparation.spec, **creation_kwargs)
+                else:
+                    creation = _run_legacy_creation(
+                        request_factory,
+                        before_legacy_prepare=before_legacy_prepare,
+                        on_legacy_failure=on_legacy_failure,
+                        before_auto_settle=before_auto_settle,
+                        allow_auto=allow_auto,
+                    )
             else:
                 creation = _run_legacy_creation(
                     request_factory,
@@ -152,32 +165,24 @@ def run_gate_entry(
                     before_auto_settle=before_auto_settle,
                     allow_auto=allow_auto,
                 )
-        else:
-            creation = _run_legacy_creation(
-                request_factory,
-                before_legacy_prepare=before_legacy_prepare,
-                on_legacy_failure=on_legacy_failure,
-                before_auto_settle=before_auto_settle,
-                allow_auto=allow_auto,
-            )
 
-        success = True
-        return _GateEntryOutcome(
-            status="published",
-            preparation=preparation,
-            creation=creation,
-            reservation_id=reservation_id,
-        )
-    except StagedHandoffError as exc:
-        raise GateTurnError(str(exc)) from exc
-    finally:
-        if preparation is not None and not staged_record_written:
-            _discard_prepared_snapshot(preparation, artifacts_dir)
-        if not success and reservation_id is not None:
-            release_staging_reservation(
-                reservation_id,
-                artifacts_dir=artifacts_dir,
+            success = True
+            return _GateEntryOutcome(
+                status="published",
+                preparation=preparation,
+                creation=creation,
+                reservation_id=reservation_id,
             )
+        except StagedHandoffError as exc:
+            raise GateTurnError(str(exc)) from exc
+        finally:
+            if preparation is not None and not staged_record_written:
+                _discard_prepared_snapshot(preparation, artifacts_dir)
+            if not success and reservation_id is not None:
+                release_staging_reservation(
+                    reservation_id,
+                    artifacts_dir=artifacts_dir,
+                )
 
 
 def _complete_gate_entry(outcome: _GateEntryOutcome) -> None:
@@ -315,6 +320,7 @@ def _discard_prepared_snapshot(
 __all__ = [
     "STAGED_GATE_INSTRUCTION",
     "emit_staged_descriptor",
+    "gate_entry_signal_guard",
     "handle_gate_entry",
     "run_gate_entry",
 ]

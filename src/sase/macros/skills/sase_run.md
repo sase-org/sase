@@ -39,7 +39,8 @@ sase launch request -f launch_request.json -o json
 Run this command in the foreground and wait for the process to exit on its own. Never
 invoke it with a yield window, a background flag, or any early-return timeout: an early
 return with no descriptor does not mean the request was created, it means you stopped
-watching before the CLI made its first durable write, and nothing was created.
+watching before the CLI made its first durable write, and nothing was created. Never
+wrap the command in `timeout`, a pipe, or a background job.
 
 Read the descriptor and check its `status` before deciding what happens next.
 

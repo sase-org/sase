@@ -8,6 +8,7 @@ from sase.gate_turn.lifecycle import (
     DISPOSITION_ANSWERED,
     resolve_already_answered_race,
 )
+from sase.gate_turn._lost_withdraw import withdraw_lost_gate
 from sase.gate_turn.models import GateTurnRecord
 from sase.gate_turn.reclaim import settle_lost_unless_creating
 from sase.gate_turn.settlement import settle_gate_turn
@@ -53,6 +54,8 @@ def cancel_gate_turn(
         if fresh is None:
             return record
         if outcome == "settled" or fresh.is_terminal:
+            if fresh.gate_state == "lost":
+                withdraw_lost_gate(fresh)
             return fresh
         record = fresh
         bundle = Path(record.bundle_path) if record.bundle_path else None
