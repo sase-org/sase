@@ -22,7 +22,7 @@ from contextlib import contextmanager
 import os
 from pathlib import Path
 import secrets
-from typing import Any
+from typing import Any, NamedTuple
 
 from sase.core.finalizer_facade import (
     validate_finalizer_submission,
@@ -397,6 +397,49 @@ def final_submission_is_current(*, artifacts_dir: str | None = None) -> bool:
         return True
 
 
+class AcceptedFinalSubmission(NamedTuple):
+    """An accepted final declaration that still satisfies the latest context."""
+
+    accepted_at: str | None
+    submission_digest: str
+    payload: Mapping[str, Any]
+
+
+def load_accepted_current_final_submission(
+    root: Path,
+) -> AcceptedFinalSubmission | None:
+    """Return the accepted submission when it satisfies the latest context.
+
+    Lock-free read for host adjudication after the agent has stopped writing.
+    ``None`` means no accepted submission exists, or the one on disk no longer
+    validates against the latest context, so callers fail closed.
+    """
+
+    try:
+        plan = load_finalizer_plan(root)
+        context = load_latest_finalizer_context(root)
+        submission = load_latest_finalizer_submission(root)
+        envelope = normalize_submission_envelope(submission["submission"])
+        validation = validate_finalizer_submission(plan, context, envelope)
+        host_records = load_accepted_host_repositories(root)
+        validate_provider_payloads(plan, context, envelope, host_records=host_records)
+        adjudicate_commit_deferrals(
+            plan,
+            context,
+            envelope,
+            root=root,
+            host_records=host_records,
+        )
+    except Exception:
+        return None
+    accepted_at = submission.get("accepted_at")
+    return AcceptedFinalSubmission(
+        accepted_at=accepted_at if isinstance(accepted_at, str) else None,
+        submission_digest=validation.submission_digest,
+        payload=submission,
+    )
+
+
 def require_artifacts_dir(value: str | None, command: str) -> Path:
     raw = value or os.environ.get("SASE_ARTIFACTS_DIR")
     if not raw:
@@ -428,11 +471,13 @@ __all__ = [
     "FinalizerDeclarationError",
     "HostRepositoryRecord",
     "SASE_FINAL_TURN_NONCE_ENV",
+    "AcceptedFinalSubmission",
     "accepted_context_from_submission",
     "ensure_final_declaration_or_recover",
     "final_submission_is_current",
     "format_context_pretty",
     "hold_finalizer_declaration_lock",
+    "load_accepted_current_final_submission",
     "load_accepted_host_repositories",
     "load_finalizer_plan",
     "load_latest_finalizer_context",

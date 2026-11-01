@@ -7,7 +7,9 @@ import os
 import signal
 import subprocess
 import sys
+from datetime import UTC, datetime
 from pathlib import Path
+from typing import Any
 
 import pytest
 
@@ -18,6 +20,7 @@ from sase.agent.gate_intent import (
     list_gate_intents,
 )
 from sase.agent.pending_handoff import GATE_PENDING_MARKER
+from sase.finalizers.declaration import AcceptedFinalSubmission
 from sase.llm_provider import gate_intent_guard as guard_module
 from sase.llm_provider.gate_intent_guard import (
     GateIntentLostError,
@@ -31,6 +34,7 @@ def _write_intent(
     *,
     pid: int = 999_999_999,
     request_id: str | None = "sudo-one",
+    timestamp: float = 1.0,
 ) -> Path:
     path = artifacts_dir / f"{GATE_INTENT_PREFIX}{pid}.json"
     atomic_write_json(
@@ -41,7 +45,7 @@ def _write_intent(
             "source": "sase sudo request",
             "pid": pid,
             "process_identity": "",
-            "timestamp": 1.0,
+            "timestamp": timestamp,
         },
     )
     return path
@@ -164,3 +168,197 @@ def test_agent_written_marker_from_current_process_can_be_adjudicated(
 
     with pytest.raises(GateIntentLostError, match="sudo-live"):
         raise_if_gate_intent_lost(str(tmp_path))
+
+
+_INTENT_AT = datetime(2026, 11, 1, 16, 21, 0, tzinfo=UTC).timestamp()
+
+
+def _accepted(accepted_at: str | None) -> AcceptedFinalSubmission:
+    return AcceptedFinalSubmission(
+        accepted_at=accepted_at,
+        submission_digest="digest-1",
+        payload={"accepted_at": accepted_at},
+    )
+
+
+@pytest.fixture
+def superseding_effects(monkeypatch: pytest.MonkeyPatch) -> dict[str, list[Any]]:
+    """Capture the gate-turn settlements and warnings a supersede performs."""
+    effects: dict[str, list[Any]] = {"settled": [], "notified": []}
+
+    def _settle(request_id: str | None) -> bool:
+        effects["settled"].append(request_id)
+        return True
+
+    monkeypatch.setattr("sase.gate_turn.reclaim.settle_superseded_gate_turn", _settle)
+    monkeypatch.setattr(
+        "sase.notifications.senders.notify_workflow_complete",
+        lambda **kwargs: effects["notified"].append(kwargs),
+    )
+    return effects
+
+
+def _declare(monkeypatch: pytest.MonkeyPatch, accepted: Any) -> None:
+    monkeypatch.setattr(
+        "sase.finalizers.declaration.load_accepted_current_final_submission",
+        lambda _root: accepted,
+    )
+
+
+def test_later_accepted_declaration_supersedes_lost_intent(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    superseding_effects: dict[str, list[Any]],
+) -> None:
+    marker = _write_intent(tmp_path, timestamp=_INTENT_AT)
+    _declare(monkeypatch, _accepted("2026-11-01T16:21:13Z"))
+
+    raise_if_gate_intent_lost(str(tmp_path))
+
+    assert not marker.exists()
+    assert list_gate_intents(tmp_path) == []
+    evidence = json.loads((tmp_path / "gate_intent_lost.json").read_text())
+    assert evidence["superseded_by_final_submission"] is True
+    assert evidence["submission_digest"] == "digest-1"
+    assert evidence["intents"][0]["request_id"] == "sudo-one"
+    assert superseding_effects["settled"] == ["sudo-one"]
+    [notice] = superseding_effects["notified"]
+    assert notice["success"] is False
+    assert "sudo gate request sudo-one" in notice["notes"][0]
+    assert "warning" in notice["tags"]
+
+
+@pytest.mark.parametrize(
+    "accepted_at",
+    [
+        "2026-11-01T16:20:59Z",  # earlier than the intent
+        "2026-11-01T16:21:00Z",  # same second: truncation cannot prove order
+        "not-a-timestamp",
+        None,
+    ],
+)
+def test_declaration_not_later_than_intent_still_raises(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    superseding_effects: dict[str, list[Any]],
+    accepted_at: str | None,
+) -> None:
+    _write_intent(tmp_path, timestamp=_INTENT_AT)
+    _declare(monkeypatch, _accepted(accepted_at))
+
+    with pytest.raises(GateIntentLostError, match="sudo-one"):
+        raise_if_gate_intent_lost(str(tmp_path))
+
+    evidence = json.loads((tmp_path / "gate_intent_lost.json").read_text())
+    assert "superseded_by_final_submission" not in evidence
+    assert superseding_effects == {"settled": [], "notified": []}
+
+
+def test_missing_declaration_still_raises(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    superseding_effects: dict[str, list[Any]],
+) -> None:
+    _write_intent(tmp_path, timestamp=_INTENT_AT)
+    _declare(monkeypatch, None)
+
+    with pytest.raises(GateIntentLostError, match="sudo-one"):
+        raise_if_gate_intent_lost(str(tmp_path))
+
+    assert superseding_effects == {"settled": [], "notified": []}
+
+
+def test_declaration_must_postdate_every_intent(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    superseding_effects: dict[str, list[Any]],
+) -> None:
+    _write_intent(tmp_path, pid=999_999_998, request_id="early", timestamp=_INTENT_AT)
+    _write_intent(
+        tmp_path, pid=999_999_999, request_id="late", timestamp=_INTENT_AT + 120
+    )
+    _declare(monkeypatch, _accepted("2026-11-01T16:21:13Z"))
+
+    with pytest.raises(GateIntentLostError):
+        raise_if_gate_intent_lost(str(tmp_path))
+
+    assert superseding_effects == {"settled": [], "notified": []}
+
+
+def test_exception_path_ignores_later_declaration(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    superseding_effects: dict[str, list[Any]],
+) -> None:
+    cause = RuntimeError("provider failed")
+    _write_intent(tmp_path, timestamp=_INTENT_AT)
+    _declare(monkeypatch, _accepted("2026-11-01T16:21:13Z"))
+
+    converted = gate_intent_lost_error_for(cause, str(tmp_path))
+
+    assert isinstance(converted, GateIntentLostError)
+    assert converted.__cause__ is cause
+    assert superseding_effects == {"settled": [], "notified": []}
+
+
+def test_supersede_survives_settlement_and_notification_failures(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def _boom(*_args: Any, **_kwargs: Any) -> Any:
+        raise RuntimeError("store unavailable")
+
+    monkeypatch.setattr("sase.gate_turn.reclaim.settle_superseded_gate_turn", _boom)
+    monkeypatch.setattr("sase.notifications.senders.notify_workflow_complete", _boom)
+    _write_intent(tmp_path, timestamp=_INTENT_AT)
+    _declare(monkeypatch, _accepted("2026-11-01T16:21:13Z"))
+
+    raise_if_gate_intent_lost(str(tmp_path))
+
+    assert list_gate_intents(tmp_path) == []
+    assert (tmp_path / "gate_intent_lost.json").is_file()
+
+
+def _real_accepted_declaration(
+    monkeypatch: pytest.MonkeyPatch, artifacts_dir: Path
+) -> None:
+    from sase.finalizers.declaration import publish_final_context, submit_final_manifest
+    from tests.finalizer_declaration_channel_test_helpers import (
+        prepare_dirty_declaration,
+        valid_manifest,
+    )
+
+    prepare_dirty_declaration(monkeypatch, artifacts_dir)
+    submit_final_manifest(valid_manifest(publish_final_context()))
+
+
+def test_real_accepted_declaration_after_intent_supersedes(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    superseding_effects: dict[str, list[Any]],
+) -> None:
+    _write_intent(tmp_path, timestamp=1.0)
+    _real_accepted_declaration(monkeypatch, tmp_path)
+
+    raise_if_gate_intent_lost(str(tmp_path))
+
+    evidence = json.loads((tmp_path / "gate_intent_lost.json").read_text())
+    assert evidence["superseded_by_final_submission"] is True
+    assert evidence["submission_digest"]
+    assert superseding_effects["settled"] == ["sudo-one"]
+
+
+def test_real_accepted_declaration_before_intent_still_raises(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    superseding_effects: dict[str, list[Any]],
+) -> None:
+    import time
+
+    _write_intent(tmp_path, timestamp=time.time() + 3600)
+    _real_accepted_declaration(monkeypatch, tmp_path)
+
+    with pytest.raises(GateIntentLostError, match="sudo-one"):
+        raise_if_gate_intent_lost(str(tmp_path))
+
+    assert superseding_effects == {"settled": [], "notified": []}

@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
+import logging
 import os
 import time
+from datetime import datetime
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from sase.agent.gate_intent import (
     GateIntent,
@@ -17,6 +19,11 @@ from sase.agent.gate_intent import (
 from sase.agent.pending_handoff import has_pending_handoff
 from sase.core.process_identity import process_identity_matches
 from sase.llm_provider.types import LLMInvocationError
+
+if TYPE_CHECKING:
+    from sase.finalizers.declaration import AcceptedFinalSubmission
+
+logger = logging.getLogger(__name__)
 
 GATE_INTENT_GRACE_SECONDS = 60.0
 GATE_INTENT_LOST_EVIDENCE = "gate_intent_lost.json"
@@ -83,6 +90,12 @@ def raise_if_gate_intent_lost(
     if not intents:
         return
 
+    if cause is None:
+        accepted = _accepted_declaration_after(artifacts_dir, intents)
+        if accepted is not None:
+            _supersede_lost_intents(artifacts_dir, intents, accepted)
+            return
+
     evidence_path = _write_lost_evidence(artifacts_dir, intents)
     first = intents[0]
     lost = GateIntentLostError(
@@ -136,16 +149,122 @@ def _wait_for_intent_resolution(artifacts_dir: str, intent: GateIntent) -> None:
         time.sleep(0.2)
 
 
+def _accepted_declaration_after(
+    artifacts_dir: str,
+    intents: list[GateIntent],
+) -> AcceptedFinalSubmission | None:
+    """Return the accepted declaration that postdates every lost intent.
+
+    The comparison fails closed: a missing or unreadable ``accepted_at``, an
+    intent with no timestamp, or an ``accepted_at`` that is not strictly
+    later than every intent keeps the intent lost. ``accepted_at`` has
+    one-second precision and truncates down, so a same-second tie also stays
+    lost.
+    """
+    stamps = [intent.timestamp for intent in intents]
+    if any(stamp is None for stamp in stamps):
+        return None
+    try:
+        from sase.finalizers.declaration import load_accepted_current_final_submission
+
+        accepted = load_accepted_current_final_submission(Path(artifacts_dir))
+    except Exception:
+        logger.debug("could not load accepted final submission", exc_info=True)
+        return None
+    if accepted is None:
+        return None
+    accepted_epoch = _iso_epoch(accepted.accepted_at)
+    if accepted_epoch is None:
+        return None
+    if any(stamp is None or accepted_epoch <= stamp for stamp in stamps):
+        return None
+    return accepted
+
+
+def _iso_epoch(value: str | None) -> float | None:
+    if not value:
+        return None
+    try:
+        return datetime.fromisoformat(value.replace("Z", "+00:00")).timestamp()
+    except ValueError:
+        return None
+
+
+def _supersede_lost_intents(
+    artifacts_dir: str,
+    intents: list[GateIntent],
+    accepted: AcceptedFinalSubmission,
+) -> None:
+    """Honor ``accepted`` over lost ``intents`` so finalizers still run."""
+    evidence_path = _write_lost_evidence(
+        artifacts_dir,
+        intents,
+        extra={
+            "superseded_by_final_submission": True,
+            "submission_digest": accepted.submission_digest,
+            "submission_accepted_at": accepted.accepted_at,
+        },
+    )
+    for intent in intents:
+        _settle_superseded_gate_turn(intent)
+    _notify_superseded_intents(intents, evidence_path)
+
+
+def _settle_superseded_gate_turn(intent: GateIntent) -> None:
+    try:
+        from sase.gate_turn.reclaim import settle_superseded_gate_turn
+
+        settle_superseded_gate_turn(intent.request_id)
+    except Exception:
+        logger.warning(
+            "could not settle gate turn for superseded intent %s",
+            intent.request_id,
+            exc_info=True,
+        )
+
+
+def _notify_superseded_intents(
+    intents: list[GateIntent],
+    evidence_path: Path,
+) -> None:
+    labels = ", ".join(
+        f"{intent.kind or 'unknown'} gate request {intent.request_id or '(unassigned)'}"
+        for intent in intents
+    )
+    try:
+        from sase.notifications.senders import notify_workflow_complete
+
+        notify_workflow_complete(
+            sender="gate",
+            cl_name=None,
+            success=False,
+            notes=[
+                f"Gate intent lost, but the run completed: {labels}.",
+                "A later accepted final declaration superseded the lost gate, "
+                "so finalizers ran. Re-run the request if the gate is still needed.",
+                f"Evidence: {evidence_path}",
+            ],
+            extra_files=[str(evidence_path)],
+            tags=["gate", "intent_lost", "warning"],
+        )
+    except Exception:
+        logger.warning("could not send superseded gate intent warning", exc_info=True)
+
+
 def _write_lost_evidence(
     artifacts_dir: str,
     intents: list[GateIntent],
+    *,
+    extra: dict[str, Any] | None = None,
 ) -> Path:
     evidence_path = Path(artifacts_dir) / GATE_INTENT_LOST_EVIDENCE
-    payload = {
+    payload: dict[str, Any] = {
         "schema_version": 1,
         "adjudicated_at": time.time(),
         "intents": [_evidence_payload(intent) for intent in intents],
     }
+    if extra:
+        payload.update(extra)
     evidence_path.parent.mkdir(parents=True, exist_ok=True)
     atomic_write_json(evidence_path, payload)
     for intent in intents:

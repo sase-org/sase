@@ -296,6 +296,15 @@ to the agent's artifacts and fails the run with a `gate intent lost:` error. The
 names the gate kind and request ID and points at `sase gate list --all`
 (`sase sudo list --all` for a sudo gate). That failed run is never retried.
 
+The exception is a lost intent that the agent outlived: if the agent's latest accepted
+final declaration was accepted strictly after the intent was written, the host honors
+the declaration instead of failing the run. It writes the same evidence file with
+`superseded_by_final_submission: true` and the submission digest, discards the intent,
+settles the gate's turn `lost` (withdrawing its notification and pending action), posts
+a warning notification naming the request, and runs finalizers, so the turn ends `DONE`.
+An intent written after the declaration, or with no accepted declaration, still fails
+the run.
+
 The built-in front doors choose statuses and continuation policy for their domain:
 
 - `/sase_questions` creates `QUESTION` / `ANSWERED`; an answer launches the next session

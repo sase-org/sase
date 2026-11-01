@@ -11,6 +11,7 @@ from sase.gate_turn._reclaim_pending import (
     reclaim_pending_gate_turns,
     settle_lost_unless_creating,
 )
+from sase.gate_turn._superseded import settle_superseded_gate_turn
 
 __all__ = [
     "GateHandoffReconcileSummary",
@@ -18,4 +19,5 @@ __all__ = [
     "reclaim_pending_gate_turns",
     "reconcile_incomplete_gate_handoffs",
     "settle_lost_unless_creating",
+    "settle_superseded_gate_turn",
 ]

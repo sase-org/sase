@@ -201,39 +201,14 @@ def _has_accepted_current_final_submission(artifacts_dir: str | None = None) -> 
     if not raw:
         return False
     root = Path(raw)
-    from sase.finalizers.declaration import FINAL_SUBMISSION_FILENAME
+    from sase.finalizers.declaration import (
+        FINAL_SUBMISSION_FILENAME,
+        load_accepted_current_final_submission,
+    )
 
     if not (root / FINAL_SUBMISSION_FILENAME).is_file():
         return False
-    try:
-        from sase.finalizers.declaration import (
-            adjudicate_commit_deferrals,
-            load_accepted_host_repositories,
-            load_finalizer_plan,
-            load_latest_finalizer_context,
-            load_latest_finalizer_submission,
-            normalize_submission_envelope,
-            validate_provider_payloads,
-        )
-        from sase.core.finalizer_facade import validate_finalizer_submission
-
-        plan = load_finalizer_plan(root)
-        context = load_latest_finalizer_context(root)
-        submission = load_latest_finalizer_submission(root)
-        envelope = normalize_submission_envelope(submission["submission"])
-        validate_finalizer_submission(plan, context, envelope)
-        host_records = load_accepted_host_repositories(root)
-        validate_provider_payloads(plan, context, envelope, host_records=host_records)
-        adjudicate_commit_deferrals(
-            plan,
-            context,
-            envelope,
-            root=root,
-            host_records=host_records,
-        )
-    except Exception:
-        return False
-    return True
+    return load_accepted_current_final_submission(root) is not None
 
 
 def _finalizer_owned_turn_is_active() -> bool:
