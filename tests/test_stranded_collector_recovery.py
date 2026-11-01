@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import json
 from pathlib import Path
 
 from sase.bead.model import BeadCompletionFailure, Status
@@ -72,6 +73,55 @@ def test_unassigned_recovery_candidate_loads_failure_run(
     assert bead["completion_failure"]["agent_name"] == "origin-agent"
     assert bead["members"][0]["name"] == "origin-agent"
     assert bead["members"][0]["lifecycle"] == "failed"
+
+
+def test_terminal_workspace_retention_marks_member_as_stranded_owner(
+    monkeypatch, tmp_path: Path
+) -> None:
+    artifact = _dir(tmp_path, "origin-run")
+    wire_collector(
+        monkeypatch,
+        tmp_path,
+        [
+            phase(
+                "sase-yo",
+                status=Status.OPEN,
+                completion_failure=_failure(),
+            )
+        ],
+        [
+            record(
+                artifact,
+                name="origin-agent",
+                session="origin-session",
+                done=DoneMarkerWire(outcome="failed", finished_at=_NOW - 3600),
+            )
+        ],
+    )
+    retention_path = artifact / "diagnostics" / "workspace_retention.json"
+    retention_path.parent.mkdir()
+    retention_path.write_text(
+        json.dumps(
+            {
+                "kind": "terminal_workspace_retention",
+                "disposition": "retain",
+                "workspace_num": 17,
+                "settled_at": None,
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    facts = collect_stranded_work_input(PROJECT, now=_NOW)
+    member = bead_facts(facts, "sase-yo")["members"][0]
+    assert member["workspace_retention"] is True
+
+    retention = json.loads(retention_path.read_text(encoding="utf-8"))
+    retention["settled_at"] = "2026-01-01T00:00:00+00:00"
+    retention_path.write_text(json.dumps(retention), encoding="utf-8")
+    facts = collect_stranded_work_input(PROJECT, now=_NOW)
+    member = bead_facts(facts, "sase-yo")["members"][0]
+    assert member["workspace_retention"] is False
 
 
 def test_ordinary_open_draft_is_not_a_candidate(monkeypatch, tmp_path: Path) -> None:

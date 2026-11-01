@@ -79,11 +79,21 @@ def enrich_agent_from_meta_wire(
         agent.plan_path = plan_path_marker
 
     if meta is None:
+        from ..agent_workspace_retention import load_agent_workspace_retention
+
+        agent.workspace_retention = load_agent_workspace_retention(
+            agent.get_artifacts_dir()
+        )
         refresh_agent_plan_path(agent)
         agent.refresh_raw_presented_agent_name()
         return
 
     agent.runner_slot_yielded = pending_question is not None
+    from ..agent_workspace_retention import load_agent_workspace_retention
+
+    agent.workspace_retention = load_agent_workspace_retention(
+        agent.get_artifacts_dir()
+    )
     agent.process_identity = meta.process_identity
     agent.runner_claim_owner_key = meta.runner_claim_owner_key
 

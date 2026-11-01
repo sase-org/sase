@@ -109,6 +109,12 @@ _PATH_LABEL_EXEMPTIONS = (
         "Patch-tab navigation targets canonical identity.",
     ),
     _PathLabelExemption(
+        "src/sase/ace/tui/actions/agents/_dismiss_persistence.py",
+        "_release_held_workspace_claims",
+        "project_file_parent_name(project_file)",
+        "Workspace-retention artifact resolution uses the canonical storage key.",
+    ),
+    _PathLabelExemption(
         "src/sase/ace/tui/actions/agents/_panel_tmux.py",
         "_resolve_agent_tmux_target",
         "Path(agent.project_file).parent.name",

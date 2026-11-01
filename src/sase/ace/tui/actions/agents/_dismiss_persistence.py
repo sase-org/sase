@@ -54,6 +54,9 @@ def _release_held_workspace_claims(
 
     from sase.ace.hooks.processes import is_process_running
     from sase.running_field import get_claimed_workspaces, release_workspace
+    from sase.turns.workspace_retention_surface import (
+        dismiss_terminal_workspace_retention,
+    )
 
     expected_cl_name = cl_name if cl_name and cl_name != "unknown" else None
     released = 0
@@ -62,6 +65,36 @@ def _release_held_workspace_claims(
             continue
         if expected_cl_name is not None and claim.cl_name != expected_cl_name:
             continue
+        if claim.artifacts_timestamp:
+            try:
+                from sase.core.agent_artifact_paths import (
+                    ACE_RUN_WORKFLOW_DIR,
+                    resolve_agent_artifact_timestamp_path,
+                )
+
+                from ...models.agent import project_file_parent_name
+
+                project_name = project_file_parent_name(project_file)
+                artifacts_dir = resolve_agent_artifact_timestamp_path(
+                    project_name,
+                    ACE_RUN_WORKFLOW_DIR,
+                    claim.artifacts_timestamp,
+                )
+                retained_release = dismiss_terminal_workspace_retention(
+                    project_file,
+                    artifacts_dir,
+                )
+            except Exception:
+                log.warning(
+                    "Could not resolve terminal workspace-retention record for "
+                    "dismissal",
+                    exc_info=True,
+                )
+                retained_release = False
+            if retained_release is not None:
+                if retained_release:
+                    released += 1
+                continue
         if is_process_running(claim.pid):
             continue
         result = release_workspace(
@@ -106,11 +139,6 @@ def persist_cleanup_side_effect_intents(
         agent_wire_identity(agent): agent for agent in agents_with_children_snapshot
     }
 
-    for intent in getattr(side_effects, "bundle_save_candidates", ()):
-        agent = by_identity.get(wire_identity_key(intent.identity))
-        if agent is not None and not agent._from_patch:
-            save_dismissed_bundle(agent)
-
     for intent in getattr(side_effects, "workspace_release_requests", ()):
         workspace = intent.workspace
         workflow = intent.workflow
@@ -149,6 +177,13 @@ def persist_cleanup_side_effect_intents(
                 intent.cl_name if agent is None else agent.cl_name,
                 caller_tag="dismiss",
             )
+
+    # Save after any terminal retention record has been marked settled, while
+    # the artifacts still exist and before the deletion pass below.
+    for intent in getattr(side_effects, "bundle_save_candidates", ()):
+        agent = by_identity.get(wire_identity_key(intent.identity))
+        if agent is not None and not agent._from_patch:
+            save_dismissed_bundle(agent)
 
     artifact_delete_paths = [
         intent.artifacts_dir

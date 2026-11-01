@@ -122,7 +122,7 @@ def test_reduce_stranded_work_round_trips_through_real_binding() -> None:
         )
     except (RuntimeError, AttributeError) as exc:
         pytest.skip(f"stranded_work_reduce binding unavailable: {exc}")
-    assert report.schema_version == 1
+    assert report.schema_version == 2
     assert report.stranded_ids == ("sase-1.2",)
     assert report.verdicts[0].reason == "kept"
 

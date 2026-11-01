@@ -73,6 +73,44 @@ def test_failed_notification_includes_held_workspace_recovery(base_kwargs):
     assert any("dismiss this agent to release it" in note for note in notes)
 
 
+def test_completion_notification_surfaces_terminal_retention_record(base_kwargs):
+    artifacts_dir = Path(base_kwargs["current_artifacts_dir"])
+    artifacts_dir.mkdir()
+    record_path = artifacts_dir / "diagnostics" / "workspace_retention.json"
+    record_path.parent.mkdir()
+    snapshot_path = artifacts_dir / "diagnostics" / "workspace.diff"
+    snapshot_path.write_text("diff", encoding="utf-8")
+    record_path.write_text(
+        json.dumps(
+            {
+                "kind": "terminal_workspace_retention",
+                "disposition": "retain",
+                "workspace_num": 17,
+                "workspace_dir": "/tmp/workspace-17",
+                "workflow": "run",
+                "cl_name": "feature",
+                "artifacts_timestamp": "20260101120000",
+                "terminal_reason": "stopped with uncommitted edits",
+                "affected_repo_ids": ["primary", "linked:sase-core"],
+                "snapshot_paths": [str(snapshot_path)],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    with patch("sase.notifications.senders.notify_workflow_complete") as mock_notify:
+        send_completion_notification(**base_kwargs)
+
+    notes = mock_notify.call_args.kwargs["notes"]
+    assert "Workspace held: stranded work" in notes
+    assert "Workspace #17 at /tmp/workspace-17" in notes
+    assert "Cause: stopped with uncommitted edits" in notes
+    assert any("primary, linked:sase-core" in note for note in notes)
+    assert str(snapshot_path) in " ".join(notes)
+    assert str(record_path) in mock_notify.call_args.kwargs["extra_files"]
+    assert str(snapshot_path) in mock_notify.call_args.kwargs["extra_files"]
+
+
 def test_success_completion_notification_includes_runtime(base_kwargs):
     base_kwargs["runtime"] = "4m32s"
 

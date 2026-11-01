@@ -4,7 +4,9 @@ from __future__ import annotations
 
 import json
 import subprocess
+from dataclasses import replace
 from pathlib import Path
+from unittest.mock import patch
 
 from sase.llm_provider.commit_finalizer_baseline import FINALIZER_BASELINE_FILENAME
 from sase.llm_provider.commit_finalizer_git import normalize_path
@@ -16,6 +18,9 @@ from sase.turns.workspace_retention import (
     WorkspaceRetentionRepo,
     WorkspaceRetentionSuccessor,
     settle_stranded_workspace,
+)
+from sase.turns.workspace_retention_surface import (
+    dismiss_terminal_workspace_retention,
 )
 from sase.workspace_provider.occupant import (
     OccupantRecord,
@@ -190,6 +195,86 @@ def test_session_owned_dirt_pins_and_persists_record(tmp_path: Path) -> None:
     assert result.snapshot_paths
     assert Path(result.snapshot_paths[0]).is_file()
     assert (checkout / "tracked.txt").read_text(encoding="utf-8") == "session owned\n"
+
+
+def test_explicit_dismissal_releases_exact_retained_claim_and_settles_record(
+    tmp_path: Path,
+) -> None:
+    checkout = _init_repo(tmp_path / "ws", tracked_dirty=True)
+    artifacts = tmp_path / "artifacts"
+    _write_empty_baseline(artifacts, "primary", checkout)
+    project_file = create_project_file_with_running(tmp_path, [_claim()])
+    _occupant(checkout)
+    held = settle_stranded_workspace(_owner(project_file, checkout, artifacts))
+    assert held.disposition == "retain"
+
+    assert dismiss_terminal_workspace_retention(project_file, artifacts) is True
+
+    assert get_claimed_workspaces(project_file) == []
+    assert read_occupant_record(str(checkout)) is None
+    record = json.loads(
+        (artifacts / RETENTION_RECORD_LOCATOR).read_text(encoding="utf-8")
+    )
+    assert record["settled_reason"] == "dismissed"
+    assert record["settled_at"]
+    assert dismiss_terminal_workspace_retention(project_file, artifacts) is False
+
+
+def test_explicit_dismissal_preserves_reused_claim_and_unresolved_record(
+    tmp_path: Path,
+) -> None:
+    checkout = _init_repo(tmp_path / "ws", tracked_dirty=True)
+    artifacts = tmp_path / "artifacts"
+    _write_empty_baseline(artifacts, "primary", checkout)
+    project_file = create_project_file_with_running(tmp_path, [_claim()])
+    held = settle_stranded_workspace(_owner(project_file, checkout, artifacts))
+    assert held.disposition == "retain"
+
+    reused = WorkspaceClaim(
+        _WORKSPACE,
+        _WORKFLOW,
+        _CL_NAME,
+        pid=999,
+        artifacts_timestamp="20260101999999",
+    )
+    project_path = Path(project_file)
+    project_path.write_text(
+        "# Test Project\n\nRUNNING:\n"
+        + reused.to_line()
+        + "\nNAME: Test Feature\nDESCRIPTION:\n  Test description\n"
+        "PARENT: None\nPR: None\nSTATUS: Ready\n",
+        encoding="utf-8",
+    )
+    assert dismiss_terminal_workspace_retention(project_file, artifacts) is False
+
+    claims = get_claimed_workspaces(project_file)
+    assert len(claims) == 1
+    assert claims[0].pid == 999
+    record = json.loads(
+        (artifacts / RETENTION_RECORD_LOCATOR).read_text(encoding="utf-8")
+    )
+    assert "settled_at" not in record
+
+
+def test_late_retention_publishes_recovery_notification(
+    tmp_path: Path,
+) -> None:
+    checkout = _init_repo(tmp_path / "ws", tracked_dirty=True)
+    artifacts = tmp_path / "artifacts"
+    _write_empty_baseline(artifacts, "primary", checkout)
+    project_file = create_project_file_with_running(tmp_path, [_claim()])
+    owner = _owner(project_file, checkout, artifacts)
+    owner = replace(owner, notify_on_retain=True)
+
+    with patch("sase.notifications.store.upsert_notification") as upsert:
+        result = settle_stranded_workspace(owner)
+
+    assert result.disposition == "retain"
+    upsert.assert_called_once()
+    notification = upsert.call_args.args[0]
+    assert "Workspace held: stranded work" in notification.notes
+    assert notification.action == "JumpToAgent"
+    assert notification.action_data["raw_suffix"] == _TIMESTAMP
 
 
 def test_proven_clean_releases_claim(tmp_path: Path) -> None:

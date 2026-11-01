@@ -83,6 +83,20 @@ def test_cleanup_keeps_held_workspace_while_artifacts_and_done_marker_exist() ->
     release.assert_not_called()
 
 
+def test_cleanup_keeps_terminal_hold_until_configured_ttl_expires() -> None:
+    now = datetime(2026, 9, 7, 12, 0, 0)
+    recent_stamp = (now - timedelta(days=13)).strftime("%Y%m%d%H%M%S")
+    released, release = _run_pinned_cleanup(
+        artifacts_exist=True,
+        done_marker_exists=True,
+        ttl_days=14,
+        claim=_pinned_dead_claim(artifacts_timestamp=recent_stamp),
+        now=now,
+    )
+    assert released == 0
+    release.assert_not_called()
+
+
 def test_cleanup_releases_held_workspace_without_done_marker() -> None:
     released, release = _run_pinned_cleanup(
         artifacts_exist=True,

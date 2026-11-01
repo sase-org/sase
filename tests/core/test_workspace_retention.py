@@ -12,6 +12,7 @@ from sase.core.workspace_retention import (
     DISPOSITION_RELEASE,
     DISPOSITION_RETAIN,
     WORKSPACE_RETENTION_WIRE_SCHEMA_VERSION,
+    decide_workspace_retention_dismissal,
     decide_workspace_retention,
     wire_schema_version,
 )
@@ -93,3 +94,26 @@ def test_unknown_field_is_rejected() -> None:
     request["display_visible"] = False
     with pytest.raises(ValueError, match="WorkspaceRetentionRequestWire"):
         decide_workspace_retention(request)
+
+
+def test_explicit_dismissal_releases_only_the_same_terminal_claim() -> None:
+    request = {
+        "schema_version": WORKSPACE_RETENTION_WIRE_SCHEMA_VERSION,
+        "expected_claim": _claim(),
+        "observed_claim": _claim(),
+        "terminal_record": True,
+        "unresolved": True,
+    }
+    decision = decide_workspace_retention_dismissal(request)
+    assert decision["disposition"] == DISPOSITION_RELEASE
+    assert decision["reason"] == "explicit_dismissal"
+
+    moved = decide_workspace_retention_dismissal(
+        {**request, "observed_claim": _claim(pid=222)}
+    )
+    assert moved["disposition"] == DISPOSITION_OWNERSHIP_MOVED
+    assert moved["reason"] == "claim_ownership_moved"
+
+    settled = decide_workspace_retention_dismissal({**request, "unresolved": False})
+    assert settled["disposition"] == DISPOSITION_OWNERSHIP_MOVED
+    assert settled["reason"] == "already_settled"

@@ -386,11 +386,23 @@ def build_agent_compact_lines(
 
     second_row = chips_row(second) if second else _fallback_context_line(agent)
     compact = compact_text(chips_row(first), second_row)
+    retention_callout = _workspace_retention_header_callout(agent)
+    if retention_callout is not None:
+        compact.append("\n")
+        compact.append_text(retention_callout)
     callout = _stranded_header_callout(agent)
     if callout is not None:
         compact.append("\n")
         compact.append_text(callout)
     return compact
+
+
+def _workspace_retention_header_callout(agent: Agent) -> Text | None:
+    """Render a compact terminal workspace hold marker in the agent header."""
+    retention = getattr(agent, "workspace_retention", None)
+    if retention is None:
+        return None
+    return Text("Workspace held: stranded work", style="bold #FFAF00")
 
 
 def _stranded_header_callout(agent: Agent) -> Text | None:

@@ -4,8 +4,12 @@ from __future__ import annotations
 
 from dataclasses import InitVar, dataclass, field
 from datetime import datetime
+from typing import TYPE_CHECKING
 
 from .agent_types import AgentType
+
+if TYPE_CHECKING:
+    from .agent_workspace_retention import AgentWorkspaceRetention
 
 
 @dataclass
@@ -76,6 +80,11 @@ class AgentStateCoreFields:
 
     # Additional file paths (plans, etc.) for multi-file panel display
     extra_files: list[str] = field(default_factory=list)
+
+    # Loaded terminal retention details for the selected agent's workspace.
+    workspace_retention: AgentWorkspaceRetention | None = field(
+        default=None, compare=False, repr=False
+    )
 
     # Recorded instruction-bundle paths for the Files deck (root then helper).
     # Done loaders fill this; running agents use the worker-filled cache.

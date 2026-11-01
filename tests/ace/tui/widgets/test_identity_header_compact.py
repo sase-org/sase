@@ -105,6 +105,20 @@ def test_stranded_agent_header_includes_callout() -> None:
     )
 
 
+def test_workspace_retention_header_shows_compact_hold_marker() -> None:
+    agent = make_agent(agent_name="held-agent")
+    agent.workspace_retention = type(
+        "RetentionView",
+        (),
+        {"lines": ("Workspace held: stranded work", "Cause: stopped")},
+    )()
+
+    rendered = build_agent_compact_lines(agent=agent)
+
+    assert "Workspace held: stranded work" in rendered.plain
+    assert "Cause: stopped" not in rendered.plain
+
+
 def test_blocked_agent_header_uses_blocked_sentence_tail() -> None:
     agent = make_agent(
         agent_name="sase-demo.2",

@@ -277,6 +277,7 @@ def release_gate_turn_claim(
                 or "terminal gate without a same-workspace successor"
             ),
             evidence_artifacts_dir=evidence_dir,
+            notify_on_retain=True,
         )
         try:
             retention = settle_stranded_workspace(owner)

@@ -231,6 +231,12 @@ def build_header_text(
                 level=resolved_lane_fold_level,
                 scale=AGENT_SESSION_FOLD_SCALE,
             )
+        retention = getattr(agent, "workspace_retention", None)
+        if retention is not None:
+            append_major_section_divider(identity_text)
+            append_section_heading(identity_text, "WORKSPACE RECOVERY")
+            for line in retention.lines:
+                identity_text.append(f"{line}\n", style="#D7AF5F")
     else:
         if agent.is_agent_session_container_row:
             append_kind_header(header_text, "SESSION", SESSION_IDENTITY_COLOR)

@@ -10,9 +10,9 @@ the run to load without changing the bead assignee.
 
 from __future__ import annotations
 
+from collections.abc import Iterable
 from dataclasses import asdict
 from pathlib import Path
-from collections.abc import Iterable
 from typing import Any
 
 from sase.agent._running_listing_common import (
@@ -55,6 +55,7 @@ from sase.finalizers.declaration_manifest import (
     commit_bead_actions,
     load_latest_finalizer_submission,
 )
+from sase.workspace_provider.retention_record import read_workspace_retention_record
 
 _SETTLE_GRACE_SECONDS = 120.0
 _FINALIZER_ACTIVE_PHASES = frozenset({"declaring", "executing"})
@@ -398,6 +399,7 @@ def _member_facts(record: AgentArtifactRecordWire) -> dict[str, Any]:
         "staged_receipt_outcome": staged_outcome,
         "handoff_inflight": _handoff_inflight(record.artifact_dir),
         "recovery_in_flight": recovery_in_flight(record.artifact_dir),
+        "workspace_retention": _workspace_retention_unresolved(record.artifact_dir),
         "turn_state": turn_state,
         "followup_pending": followup_pending,
         "followup_outcome": followup_outcome,
@@ -407,6 +409,11 @@ def _member_facts(record: AgentArtifactRecordWire) -> dict[str, Any]:
         "ended_at": _ended_at(record),
     }
     return facts
+
+
+def _workspace_retention_unresolved(artifact_dir: str) -> bool:
+    retention = read_workspace_retention_record(artifact_dir)
+    return bool(retention is not None and retention.terminal and retention.unresolved)
 
 
 def _turn_kind(record: AgentArtifactRecordWire) -> str:

@@ -16,7 +16,7 @@ from sase.core.rust import require_rust_binding
 if TYPE_CHECKING:
     from sase.bead.model import BeadCompletionFailure
 
-STRANDED_WORK_WIRE_SCHEMA_VERSION = 1
+STRANDED_WORK_WIRE_SCHEMA_VERSION = 2
 
 _REDUCE_BINDING: Any = None
 

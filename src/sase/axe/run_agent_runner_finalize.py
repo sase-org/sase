@@ -382,6 +382,20 @@ def send_completion_notification(
     )
     extra_files.extend(append_unique_paths(explicit_artifact_paths, extra_files))
 
+    retention_record = None
+    if current_artifacts_dir:
+        from sase.workspace_provider.retention_record import (
+            read_workspace_retention_record,
+        )
+
+        retention_record = read_workspace_retention_record(current_artifacts_dir)
+    if retention_record is not None and retention_record.unresolved:
+        extra_files.extend(
+            append_unique_paths(
+                [retention_record.path, *retention_record.snapshot_paths], extra_files
+            )
+        )
+
     agent_label = format_provider_model_label(agent_llm_provider, agent_model)
     display_agent_name = _completion_notification_agent_name(
         agent_name, current_artifacts_dir
@@ -392,6 +406,18 @@ def send_completion_notification(
     notes = [
         f"{agent_label}{name_part} {'completed' if success else 'failed'}: {workflow_name}"
     ]
+    if retention_record is not None and retention_record.unresolved:
+        from sase.workspace_provider.retention_record import (
+            configured_held_claim_ttl_days,
+            workspace_retention_lines,
+        )
+
+        notes.extend(
+            workspace_retention_lines(
+                retention_record,
+                held_claim_ttl_days=configured_held_claim_ttl_days(),
+            )
+        )
     if not success and error_summary:
         notes.append(error_summary)
     if not success:
@@ -409,10 +435,11 @@ def send_completion_notification(
         notes.extend(_deferred_commit_notes(current_artifacts_dir))
     if held_workspace_num is not None:
         location = held_workspace_dir or f"workspace #{held_workspace_num}"
-        notes.append(
-            f"Workspace #{held_workspace_num} is held at {location}. Inspect or "
-            "commit its changes, then dismiss this agent to release it."
-        )
+        if retention_record is None or not retention_record.unresolved:
+            notes.append(
+                f"Workspace #{held_workspace_num} is held at {location}. Inspect or "
+                "commit its changes, then dismiss this agent to release it."
+            )
     if (
         markdown_source_count is not None
         and markdown_source_count > MAX_MARKDOWN_PDF_ATTACHMENTS

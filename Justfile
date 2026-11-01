@@ -500,8 +500,8 @@ _lint-patch-stitch-terminology: _setup
 # sase-1pj.7.1.1 exported the shared workspace-retention adapter; sase-1pj.7.1.2
 # (monitor-retention) consumed settle_stranded_workspace and its request
 # types by routing every monitor terminal claim disposal through the adapter,
-# so those rows are dropped. WorkspaceRetentionResult stays allow-listed for
-# sase-1pj.7.1.4 (recovery-surfaces), which projects retention outcomes.
+# so those rows are dropped. WorkspaceRetentionResult stays allow-listed at the
+# parent epic scope for any later consumer of the public settlement result.
 # Never put a comment
 # line inside the continued command below: just joins the lines, so the comment
 # would swallow every later argument.
@@ -510,7 +510,7 @@ _lint-symvision *args: _setup
     SASE_SYMVISION_BEAD_STATUS_ONLY=1 BD_COMMAND=tools/sase_bead {{ venv_bin }}/symvision src/sase \
         --exclude-decorator gate_command_entrypoint \
         --exclude-decorator builtin_chop \
-        --epic-symbol 'sase-1pj.7.1.4(WorkspaceRetentionResult)' \
+        --epic-symbol 'sase-1pj.7.1(WorkspaceRetentionResult)' \
         {{ args }}
 
 # Check Python file line counts (private, extracted for per-stage wrapping)

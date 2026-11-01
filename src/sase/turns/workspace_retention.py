@@ -68,6 +68,7 @@ class WorkspaceRetentionOwner:
     turn_id: str | None = None
     terminal_reason: str = ""
     evidence_artifacts_dir: str | None = None
+    notify_on_retain: bool = False
 
 
 @dataclass(frozen=True, slots=True)
@@ -436,6 +437,10 @@ def _apply_retain(
             probe_errors=tuple(probe_errors),
             stale_attempt=True,
         )
+    if owner.notify_on_retain and record_path:
+        from .workspace_retention_surface import notify_retained_workspace
+
+        notify_retained_workspace(owner, record_path, snapshot_paths)
     return WorkspaceRetentionResult(
         disposition=DISPOSITION_RETAIN,
         reason=reason,
@@ -532,6 +537,7 @@ def _persist_record(
         "artifacts_timestamp": owner.artifacts_timestamp,
         "pid": owner.pid,
         "artifacts_dir": owner.artifacts_dir,
+        "workspace_dir": owner.checkout_dir,
         "evidence_artifacts_dir": owner.evidence_artifacts_dir,
         "session_id": owner.session_id,
         "turn_id": owner.turn_id,

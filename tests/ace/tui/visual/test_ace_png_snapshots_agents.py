@@ -8,13 +8,18 @@ Session and clan list snapshots live in the sibling ``*_agent_sessions`` and
 from __future__ import annotations
 
 from datetime import datetime
+from importlib import import_module
 
 import pytest
 
 from sase.ace.testing import AcePage
+from sase.ace.tui.models.agent_workspace_retention import AgentWorkspaceRetention
+from sase.ace.tui.widgets.agent_detail import AgentDetail
+from sase.ace.tui.widgets.agent_header_panel import AgentHeaderPanel
 from sase.ace.tui.widgets.agent_info_panel import AgentInfoPanel
 from sase.ace.tui.widgets.agent_load_indicator import AgentLoadIndicator
 from sase.ace.tui.widgets.prompt_panel import AgentPromptPanel
+from sase.workspace_provider.retention_record import WorkspaceRetentionRecord
 from tests.ace.tui.visual._ace_agents_png_snapshot_fixtures import (
     capacity_budget_accent_agents,
     output_variable_agent_session_agents,
@@ -443,4 +448,65 @@ async def test_agents_selected_row_png_snapshot(
             page,
             "agents_selected_row_120x40",
             title="ACE agents selected row",
+        )
+
+
+async def test_agents_workspace_retention_detail_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Prime the resolver before background refresh work can import it concurrently.
+    import_module("sase.core.wait_dependency_resolution")
+    patch_startup_loaders(monkeypatch, agents=agents())
+
+    async with AcePage(query='"visual"', size=(200, 40), patches=patches()) as page:
+        await wait_for_startup(page)
+        await page.press("shift+tab")
+        await page.expect_state("tab", "agents")
+        await page.expect_state("agent_count", 3)
+
+        selected = page.app._agents[0]
+        selected.workspace_retention = AgentWorkspaceRetention(
+            record=WorkspaceRetentionRecord(
+                path="/artifacts/diagnostics/workspace_retention.json",
+                payload={
+                    "kind": "terminal_workspace_retention",
+                    "disposition": "retain",
+                    "workspace_num": 17,
+                    "workspace_dir": "/work/held-workspace",
+                    "workflow": "ace-monitor",
+                    "terminal_reason": "stopped after carrying uncommitted work",
+                    "affected_repo_ids": ["sase", "sase-core"],
+                    "snapshot_paths": ["/artifacts/worktree.diff"],
+                    "turn_id": "turn-123",
+                },
+            ),
+            held_claim_ttl_days=14,
+        )
+        page.app.current_idx = 0
+        page.app._refresh_agents_display(list_changed=True)
+        detail = page.app.query_one("#agent-detail-panel", AgentDetail)
+        detail.update_display(
+            selected,
+            attempt_number=page.app.current_attempt_number,
+        )
+        await wait_for_visual_idle(page)
+
+        # The collapsed header shows the hold marker; expand to show the full
+        # recovery record in the header detail.
+        assert detail.toggle_header_expanded() is True
+        await wait_for_visual_idle(page)
+        header = detail.query_one("#agent-header-panel", AgentHeaderPanel)
+        header.scroll_to(y=header.max_scroll_y, animate=False)
+        await wait_for_visual_idle(page)
+
+        assert_page_svg_contains(page, "Workspace held: stranded work")
+        assert_page_svg_contains(page, "stopped after carrying uncommitted work")
+        assert_page_svg_contains(page, "sase-core")
+        assert_page_svg_contains(page, "Resume with")
+        assert_page_svg_contains(page, "expires after 14 days")
+        ace_png_visual.assert_page_png(
+            page,
+            "agents_workspace_retention_detail_200x40",
+            title="ACE agents held workspace recovery details",
         )

@@ -451,6 +451,7 @@ def _build_retention_owner(
             session_id=session_id,
             turn_id=turn_id,
             terminal_reason=terminal_reason,
+            notify_on_retain=True,
         )
     except Exception:  # noqa: BLE001 - malformed metadata falls back
         return None

@@ -60,8 +60,13 @@ def enrich_agent_from_meta(
     from sase.core.wait_epic_follow_view import epic_follow_views
 
     if not artifacts_dir:
+        agent.workspace_retention = None
         agent.refresh_raw_presented_agent_name()
         return
+
+    from ..agent_workspace_retention import load_agent_workspace_retention
+
+    agent.workspace_retention = load_agent_workspace_retention(artifacts_dir)
 
     # The marker is lower priority than direct agent metadata but higher than
     # a done-marker path already placed on the model by completed loaders.

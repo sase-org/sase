@@ -31,11 +31,20 @@ def decide_workspace_retention(request: Mapping[str, Any]) -> dict[str, Any]:
     return dict(binding(dict(request)))
 
 
+def decide_workspace_retention_dismissal(
+    request: Mapping[str, Any],
+) -> dict[str, Any]:
+    """Classify whether an explicit dismissal may release a retained claim."""
+    binding = require_rust_binding("decide_workspace_retention_dismissal")
+    return dict(binding(dict(request)))
+
+
 __all__ = [
     "DISPOSITION_OWNERSHIP_MOVED",
     "DISPOSITION_RELEASE",
     "DISPOSITION_RETAIN",
     "WORKSPACE_RETENTION_WIRE_SCHEMA_VERSION",
     "decide_workspace_retention",
+    "decide_workspace_retention_dismissal",
     "wire_schema_version",
 ]
