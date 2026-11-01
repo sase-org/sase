@@ -6,23 +6,19 @@ import time
 from collections.abc import Mapping
 from pathlib import Path
 
-from sase.agents_sync.inventory import (
-    InventoryRun,
-    ProjectHoodInventory,
-    build_project_hood_inventory,
-)
+from sase.agents_sync.inventory import InventoryRun, ProjectHoodInventory
 from sase.agents_sync.io import AgentsSyncFormatError
 from sase.agents_sync.models import ProjectTarget
 from sase.agents_sync.v2_models import (
     V2HoodSnapshot,
     V2OwnerHoodEntry,
-    V2ProjectIdentity,
     V2RunRecord,
 )
 from sase.core.agent_identity_facade import AgentIdentitySnapshot, AgentOwnerIdentity
 from sase.agents_sync._publication_state_repair_types import (
+    InventoryLoader,
+    PlannedRepair,
     ResolvedWindow,
-    STATE_REPAIR_MAX_HOODS,
     StateRepairAffected,
 )
 
@@ -32,65 +28,143 @@ def default_inventory_loader(
     identity: AgentIdentitySnapshot,
     hoods: frozenset[str],
 ) -> ProjectHoodInventory:
-    from sase.agent.names._registry import name_registry_load_session
+    """Return an empty inventory so repair reads exact-run observations instead.
 
-    with name_registry_load_session():
-        return build_project_hood_inventory(
-            target,
-            identity,
-            requested_hoods=hoods,
-        )
+    Historical callers passed this loader to hydrate prompts, chats, and
+    commit history for every run in selected hoods. Repair now locates
+    selected runs through the bounded artifact index and reads only their
+    marker files.
+    """
+
+    del hoods
+    from sase.agents_sync.inventory_scope import empty_project_hood_inventory
+
+    return empty_project_hood_inventory(_target_owner(identity), target)
 
 
-def _owner_identity_token(owner: AgentOwnerIdentity) -> str:
-    return f"{owner.username}@{owner.machine_name}"
+def _target_owner(identity: AgentIdentitySnapshot) -> AgentOwnerIdentity:
+    owner = identity.owner
+    if owner is None:
+        raise RuntimeError("owner identity is required for state repair")
+    return owner
 
 
-def collect_published_rows(
+def plan_repair_window(
     repo_root: Path,
     target: ProjectTarget,
     owner: AgentOwnerIdentity,
-) -> tuple[
-    list[tuple[str, str]],
-    dict[tuple[str, str], tuple[str, V2RunRecord]],
-    int,
-    frozenset[str],
-    list[str],
-]:
-    """List current-owner published runs ordered by (hood, run id).
+    *,
+    limit: int,
+    after: str | None,
+    deadline: float,
+    inventory_loader: InventoryLoader,
+) -> PlannedRepair:
+    """Discover a bounded window and resolve only the selected runs."""
 
-    Oversized or corrupt hoods are diagnosed and skipped so other units can
-    still progress; their names are returned for degraded page rendering.
-    """
+    from sase.agents_sync._publication_state_repair_discovery import (
+        discover_repair_window,
+    )
 
-    from sase.agents_sync.v2_io import read_owner_manifest
-
-    project = V2ProjectIdentity(target.project_key, target.project)
+    discovery = discover_repair_window(
+        repo_root,
+        target,
+        owner,
+        limit=limit,
+        after=after,
+        deadline=deadline,
+    )
+    if discovery.error is not None:
+        return PlannedRepair(
+            selected=discovery.selected,
+            snapshots=discovery.snapshots,
+            resolved=ResolvedWindow(changed={}, pending={}),
+            failed=discovery.failed,
+            bad_hoods=discovery.bad_hoods,
+            diagnostics=list(discovery.diagnostics),
+            next_cursor=None,
+            pass_complete=False,
+            error=discovery.error,
+        )
+    selected = discovery.selected
+    if not selected:
+        return PlannedRepair(
+            selected=[],
+            snapshots=discovery.snapshots,
+            resolved=ResolvedWindow(changed={}, pending={}),
+            failed=discovery.failed,
+            bad_hoods=discovery.bad_hoods,
+            diagnostics=list(discovery.diagnostics),
+            next_cursor=discovery.next_cursor,
+            pass_complete=discovery.pass_complete,
+        )
+    if time.monotonic() >= deadline:
+        return PlannedRepair(
+            selected=selected,
+            snapshots=discovery.snapshots,
+            resolved=ResolvedWindow(changed={}, pending={}, budget_exhausted=True),
+            failed=discovery.failed + 1,
+            bad_hoods=discovery.bad_hoods,
+            diagnostics=[
+                *discovery.diagnostics,
+                (
+                    "state repair work budget exceeded before verification; "
+                    "retry the window with a smaller limit"
+                ),
+            ],
+            next_cursor=None,
+            pass_complete=False,
+            error=(
+                "state repair work budget exceeded before verification; "
+                "retry the window with a smaller limit"
+            ),
+        )
+    hoods = frozenset(hood for hood, _run_id in selected)
     try:
-        manifest = read_owner_manifest(repo_root, owner, project)
-    except AgentsSyncFormatError as exc:
-        return [], {}, 0, frozenset(), [f"owner manifest is not readable: {exc}"]
-    entries = manifest.by_hood()
-    rows: list[tuple[str, str]] = []
-    snapshots: dict[tuple[str, str], tuple[str, V2RunRecord]] = {}
-    failed = 0
-    bad_hoods: set[str] = set()
-    diagnostics: list[str] = []
-    for hood in sorted(entries):
-        try:
-            snapshot = validated_snapshot_for_entry(
-                repo_root, owner, hood, entries.get(hood)
-            )
-        except (AgentsSyncFormatError, OSError, RuntimeError, ValueError) as exc:
-            failed += 1
-            bad_hoods.add(hood)
-            diagnostics.append(f"hood {hood!r} is not repairable: {exc}")
-            continue
-        for run in snapshot.runs:
-            rows.append((hood, run.source_run_id))
-            snapshots[(hood, run.source_run_id)] = (run.global_name, run)
-    rows.sort()
-    return rows, snapshots, failed, frozenset(bad_hoods), diagnostics
+        inventory = inventory_loader(target, AgentIdentitySnapshot(owner), hoods)
+    except Exception as exc:  # noqa: BLE001 - evidence failure is a diagnostic
+        return PlannedRepair(
+            selected=selected,
+            snapshots=discovery.snapshots,
+            resolved=ResolvedWindow(changed={}, pending={}),
+            failed=discovery.failed + len(selected),
+            bad_hoods=discovery.bad_hoods,
+            diagnostics=[
+                *discovery.diagnostics,
+                f"could not load local evidence: {exc}",
+            ],
+            next_cursor=None,
+            pass_complete=False,
+        )
+    injected = inventory_loader is not default_inventory_loader
+    resolved = _resolve_selected(
+        target,
+        owner,
+        discovery.snapshots,
+        inventory if injected else None,
+        selected,
+        deadline,
+    )
+    next_cursor = discovery.next_cursor
+    pass_complete = discovery.pass_complete
+    error = None
+    if resolved.budget_exhausted:
+        next_cursor = None
+        pass_complete = False
+        error = (
+            "state repair work budget exceeded before verification; "
+            "retry the window with a smaller limit"
+        )
+    return PlannedRepair(
+        selected=selected,
+        snapshots=discovery.snapshots,
+        resolved=resolved,
+        failed=discovery.failed + resolved.failed,
+        bad_hoods=discovery.bad_hoods,
+        diagnostics=[*discovery.diagnostics, *resolved.diagnostics],
+        next_cursor=next_cursor,
+        pass_complete=pass_complete,
+        error=error,
+    )
 
 
 def validated_snapshot_for_entry(
@@ -107,112 +181,33 @@ def validated_snapshot_for_entry(
     return snapshot
 
 
-def select_window(
-    target: ProjectTarget,
-    owner: AgentOwnerIdentity,
-    limit: int,
-    after: str | None,
-    rows: list[tuple[str, str]],
-) -> tuple[list[tuple[str, str]], str | None, bool, str | None]:
-    from sase.core.agent_run_state_facade import (
-        agent_run_state_wire_schema_version,
-        select_agent_run_state_window,
-    )
-    from sase.core.agent_run_state_wire import (
-        AGENT_RUN_STATE_WIRE_SCHEMA_VERSION,
-        AgentRunStateWindowRequestWire,
-        AgentRunStateWindowRowWire,
-    )
-
-    if agent_run_state_wire_schema_version() != AGENT_RUN_STATE_WIRE_SCHEMA_VERSION:
-        return (
-            [],
-            None,
-            False,
-            (
-                "agent run state wire schema mismatch: "
-                "sase_core_rs is stale; update the core revision pin"
-            ),
-        )
-    wire_rows = tuple(
-        AgentRunStateWindowRowWire(local_hood=hood, source_run_id=run_id)
-        for hood, run_id in rows
-    )
-    try:
-        response = select_agent_run_state_window(
-            AgentRunStateWindowRequestWire(
-                project=target.project_key,
-                owner=_owner_identity_token(owner),
-                limit=limit,
-                after=after,
-                rows=wire_rows,
-            )
-        )
-    except (ValueError, RuntimeError) as exc:
-        return [], None, False, f"invalid state window: {exc}"
-    selected = [(row.local_hood, row.source_run_id) for row in response.selected]
-    hoods = [hood for hood, _run_id in selected]
-    if len(dict.fromkeys(hoods)) <= STATE_REPAIR_MAX_HOODS:
-        return selected, response.next_cursor, response.pass_complete, None
-    capped_hoods = list(dict.fromkeys(hoods))[:STATE_REPAIR_MAX_HOODS]
-    capped = [(hood, run_id) for hood, run_id in selected if hood in set(capped_hoods)]
-    try:
-        capped_response = select_agent_run_state_window(
-            AgentRunStateWindowRequestWire(
-                project=target.project_key,
-                owner=_owner_identity_token(owner),
-                limit=len(capped),
-                after=after,
-                rows=wire_rows,
-            )
-        )
-    except (ValueError, RuntimeError) as exc:  # pragma: no cover - defensive
-        return [], None, False, f"invalid state window: {exc}"
-    capped_selected = [
-        (row.local_hood, row.source_run_id) for row in capped_response.selected
-    ]
-    return capped_selected, capped_response.next_cursor, False, None
-
-
-def resolve_selected(
+def _resolve_selected(
     target: ProjectTarget,
     owner: AgentOwnerIdentity,
     snapshots: Mapping[tuple[str, str], tuple[str, V2RunRecord]],
-    inventory: ProjectHoodInventory,
+    inventory: ProjectHoodInventory | None,
     selected: list[tuple[str, str]],
     deadline: float,
 ) -> ResolvedWindow:
-    from sase.core.agent_run_state_facade import resolve_agent_run_state
-    from sase.core.agent_run_state_wire import (
-        AGENT_RUN_STATE_EVIDENCE_DISMISSED,
-        AGENT_RUN_STATE_EVIDENCE_IDENTITY_CONFLICT,
-        AGENT_RUN_STATE_EVIDENCE_MALFORMED,
-        AGENT_RUN_STATE_EVIDENCE_MISSING,
-        AGENT_RUN_STATE_EVIDENCE_TERMINAL_MARKER,
-        AGENT_RUN_STATE_EVIDENCE_UNFINISHED,
-        AGENT_RUN_STATE_REASON_CONFLICTING_TERMINAL,
-        AGENT_RUN_STATE_REASON_IDENTITY_CONFLICT,
-        AGENT_RUN_STATE_REASON_LIVE_EVIDENCE,
-        AGENT_RUN_STATE_REASON_MALFORMED_EVIDENCE,
-        AGENT_RUN_STATE_REASON_MISSING_EVIDENCE,
-        AGENT_RUN_STATE_REASON_UNCHANGED,
-        AgentRunIdentityWire,
-        AgentRunStateResolveRequestWire,
+    from sase.agents_sync._publication_state_repair_observations import (
+        filesystem_observations_for_run,
+        is_live_reason,
+        is_unresolved_reason,
+        observations_from_inventory_run,
+        resolve_observations,
     )
 
-    by_source: dict[str, list[tuple[str, str]]] = {}
-    for hood, run_id in selected:
-        by_source.setdefault(run_id, []).append((hood, run_id))
     inventory_by_source: dict[str, InventoryRun] = {}
-    for run in inventory.runs:
-        existing = inventory_by_source.get(run.source_run_id)
-        if existing is None:
-            inventory_by_source[run.source_run_id] = run
+    use_inventory = inventory is not None
+    if inventory is not None:
+        for run in inventory.runs:
+            if run.source_run_id not in inventory_by_source:
+                inventory_by_source[run.source_run_id] = run
     resolved = ResolvedWindow(changed={}, pending={})
-    owner_token = _owner_identity_token(owner)
     for hood, run_id in selected:
-        if time.monotonic() > deadline:
+        if time.monotonic() >= deadline:
             resolved.failed += 1
+            resolved.budget_exhausted = True
             resolved.diagnostics.append(
                 f"{hood}/{run_id}: state repair work budget exceeded; "
                 "retry the window with a smaller limit"
@@ -226,106 +221,63 @@ def resolve_selected(
             )
             continue
         global_name, record = published
-        local_run = inventory_by_source.get(run_id)
-        source_label = (
-            str(local_run.source_label or "") if local_run is not None else ""
-        )
-        if source_label.startswith(
-            ("primary commit history", "synthesized publication")
-        ):
-            local_run = None
-        if local_run is None:
-            evidence_kind = AGENT_RUN_STATE_EVIDENCE_MISSING
-            evidence_identity = None
-            evidence_state = None
-            evidence_started = None
-            evidence_finished = None
-        elif local_run.global_name != global_name:
-            evidence_kind = AGENT_RUN_STATE_EVIDENCE_IDENTITY_CONFLICT
-            evidence_identity = AgentRunIdentityWire(
-                project=target.project_key,
-                owner=owner_token,
-                global_name=local_run.global_name,
-                source_run_id=run_id,
+        local_run = inventory_by_source.get(run_id) if use_inventory else None
+        if use_inventory:
+            observations = (
+                observations_from_inventory_run(local_run)
+                if local_run is not None
+                else observations_from_inventory_run(
+                    InventoryRun(
+                        run_id,
+                        record.local_name,
+                        global_name,
+                        "active",
+                        None,
+                        None,
+                        None,
+                        (),
+                        (),
+                        None,
+                        None,
+                        None,
+                        None,
+                        (),
+                        "",
+                        source_label="primary commit history",
+                    )
+                )
             )
-            evidence_state = None
-            evidence_started = None
-            evidence_finished = None
-        elif local_run.state in ("completed", "failed", "stopped"):
-            evidence_kind = AGENT_RUN_STATE_EVIDENCE_TERMINAL_MARKER
-            evidence_identity = AgentRunIdentityWire(
-                project=target.project_key,
-                owner=owner_token,
-                global_name=global_name,
-                source_run_id=run_id,
-            )
-            evidence_state = local_run.state
-            evidence_started = local_run.started_at
-            evidence_finished = local_run.finished_at
-        elif local_run.state == "dismissed":
-            evidence_kind = AGENT_RUN_STATE_EVIDENCE_DISMISSED
-            evidence_identity = AgentRunIdentityWire(
-                project=target.project_key,
-                owner=owner_token,
-                global_name=global_name,
-                source_run_id=run_id,
-            )
-            evidence_state = "dismissed"
-            evidence_started = local_run.started_at
-            evidence_finished = local_run.finished_at
-        elif local_run.state in ("active", "waiting"):
-            evidence_kind = AGENT_RUN_STATE_EVIDENCE_UNFINISHED
-            evidence_identity = AgentRunIdentityWire(
-                project=target.project_key,
-                owner=owner_token,
-                global_name=global_name,
-                source_run_id=run_id,
-            )
-            evidence_state = None
-            evidence_started = local_run.started_at
-            evidence_finished = local_run.finished_at
+            lookup_error = None
         else:
-            evidence_kind = AGENT_RUN_STATE_EVIDENCE_MALFORMED
-            evidence_identity = None
-            evidence_state = None
-            evidence_started = None
-            evidence_finished = None
-        # A reused name with a different run identity never borrows terminal
-        # state: the source_run_id match above is the only borrow path, and a
-        # global-name mismatch is an identity conflict, not evidence.
-        # Commit-only placeholders are already treated as missing evidence.
-        request = AgentRunStateResolveRequestWire(
-            identity=AgentRunIdentityWire(
+            observations, lookup_error = filesystem_observations_for_run(
+                target, owner, record
+            )
+        if lookup_error is not None:
+            resolved.unresolved += 1
+            resolved.diagnostics.append(
+                f"{global_name}: {lookup_error}; preserved {record.state}"
+            )
+        try:
+            response = resolve_observations(
                 project=target.project_key,
-                owner=owner_token,
+                owner=owner,
                 global_name=global_name,
                 source_run_id=run_id,
-            ),
-            published_state=record.state,
-            published_started_at=record.started_at,
-            published_finished_at=record.finished_at,
-            evidence_kind=evidence_kind,
-            evidence_identity=evidence_identity,
-            evidence_state=evidence_state,
-            evidence_started_at=evidence_started,
-            evidence_finished_at=evidence_finished,
-        )
-        try:
-            response = resolve_agent_run_state(request)
+                local_name=record.local_name,
+                published_state=record.state,
+                published_started_at=record.started_at,
+                published_finished_at=record.finished_at,
+                observations=observations,
+            )
         except (ValueError, RuntimeError) as exc:
             resolved.failed += 1
             resolved.diagnostics.append(
                 f"{global_name}: unresolved state evidence ({exc}); unchanged"
             )
             continue
-        if response.reason == AGENT_RUN_STATE_REASON_LIVE_EVIDENCE:
+        if is_live_reason(response.reason):
             resolved.live += 1
-        elif response.reason in (
-            AGENT_RUN_STATE_REASON_MISSING_EVIDENCE,
-            AGENT_RUN_STATE_REASON_MALFORMED_EVIDENCE,
-            AGENT_RUN_STATE_REASON_IDENTITY_CONFLICT,
-            AGENT_RUN_STATE_REASON_CONFLICTING_TERMINAL,
-        ):
+        elif is_unresolved_reason(response.reason):
             resolved.unresolved += 1
             resolved.diagnostics.append(
                 f"{global_name}: {response.reason}; preserved {record.state}"
@@ -341,6 +293,4 @@ def resolve_selected(
                 response.selected_started_at,
                 response.selected_finished_at,
             )
-            if response.reason == AGENT_RUN_STATE_REASON_UNCHANGED:  # pragma: no cover
-                resolved.already_current += 1
     return resolved

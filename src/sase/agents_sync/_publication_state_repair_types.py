@@ -115,4 +115,20 @@ class ResolvedWindow:
     live: int = 0
     unresolved: int = 0
     failed: int = 0
+    budget_exhausted: bool = False
     diagnostics: list[str] = field(default_factory=list)
+
+
+@dataclass
+class PlannedRepair:
+    """Discovery plus per-run resolution for one bounded repair window."""
+
+    selected: list[tuple[str, str]]
+    snapshots: dict[tuple[str, str], tuple[str, V2RunRecord]]
+    resolved: ResolvedWindow
+    failed: int = 0
+    bad_hoods: frozenset[str] = field(default_factory=frozenset)
+    diagnostics: list[str] = field(default_factory=list)
+    next_cursor: str | None = None
+    pass_complete: bool = False
+    error: str | None = None

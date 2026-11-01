@@ -175,7 +175,14 @@ def run_from_artifact(
         artifact / "embedded_workflows.json"
     )
     prompt_steps = _prompt_steps_payload(artifact)
-    state = _artifact_state(record, done)
+    state = _artifact_state(
+        record,
+        done,
+        identity=identity,
+        local_name=local_name,
+        global_name=globalize_agent_name(local_name, owner),
+        source_run_id=source_run_id,
+    )
     metadata = _portable_metadata(meta)
     agent_session = _canonical_optional_name(agent_session_value(meta), identity)
     clan = _canonical_optional_name(meta.get("agent_clan"), identity)
@@ -398,17 +405,30 @@ def _prompt_bytes_from_dismissed(raw: dict[str, Any], project_key: str) -> bytes
 
 
 def _artifact_state(
-    record: AgentArtifactRecordWire, done: dict[str, Any] | None
+    record: AgentArtifactRecordWire,
+    done: dict[str, Any] | None,
+    *,
+    identity: AgentIdentitySnapshot | None = None,
+    local_name: str | None = None,
+    global_name: str | None = None,
+    source_run_id: str | None = None,
 ) -> str:
-    # Exact-run marker validation: a done marker for this artifact directory
-    # is authoritative for the same immutable run. Stale waiting metadata
-    # (a leftover waiting.json or pending_question.json) must not mask a
-    # verified terminal outcome.
-    if done is not None:
-        outcome = _text(done.get("outcome")) or "failed"
-        if outcome == "completed":
-            return "stopped" if done.get("repeat_stopped") is True else "completed"
-        return "failed"
-    if record.waiting is not None or record.pending_question is not None:
-        return "waiting"
-    return "active"
+    """Classify live/done markers through the shared observation adapter.
+
+    An empty object or unknown outcome never means failed. Stale waiting
+    metadata must not mask a verified terminal outcome. Repeated-run stop
+    evidence stays stopped.
+    """
+
+    from sase.agents_sync._publication_state_repair_observations import (
+        classify_artifact_state,
+    )
+
+    return classify_artifact_state(
+        record,
+        done,
+        identity=identity,
+        local_name=local_name,
+        global_name=global_name,
+        source_run_id=source_run_id,
+    )

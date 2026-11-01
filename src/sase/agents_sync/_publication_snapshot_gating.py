@@ -27,6 +27,11 @@ from sase.core.agent_run_state_wire import (
     AGENT_RUN_STATE_EVIDENCE_DISMISSED,
     AGENT_RUN_STATE_EVIDENCE_TERMINAL_MARKER,
     AGENT_RUN_STATE_EVIDENCE_UNFINISHED,
+    AGENT_RUN_STATE_REASON_CONFLICTING_TERMINAL,
+    AGENT_RUN_STATE_REASON_IDENTITY_CONFLICT,
+    AGENT_RUN_STATE_REASON_MALFORMED_EVIDENCE,
+    AGENT_RUN_STATE_REASON_MISSING_EVIDENCE,
+    AGENT_RUN_STATE_REASON_UNREADABLE_EVIDENCE,
     TERMINAL_RUN_STATES,
 )
 from sase.core.agent_archive_facade import capabilities_from_v2_run
@@ -302,7 +307,17 @@ def resolve_preserved_run_state(
     try:
         response = resolve_agent_run_state(request)
     except (ValueError, RuntimeError) as exc:
-        return run, f"{run.global_name}: unresolved state evidence ({exc}); unchanged"
+        preserved = replace(
+            run,
+            state=previous.state,  # type: ignore[arg-type]
+            started_at=previous.started_at,
+            finished_at=previous.finished_at,
+            dismissed_at=previous.dismissed_at,
+        )
+        return (
+            preserved,
+            f"{run.global_name}: unresolved state evidence ({exc}); unchanged",
+        )
     new_state = response.selected_state
     new_started_at = response.selected_started_at
     new_finished_at = response.selected_finished_at
@@ -325,10 +340,11 @@ def resolve_preserved_run_state(
         dismissed_at=new_dismissed_at,
     )
     if response.reason in (
-        "conflicting_terminal_evidence",
-        "identity_conflict",
-        "malformed_evidence",
-        "missing_evidence",
+        AGENT_RUN_STATE_REASON_CONFLICTING_TERMINAL,
+        AGENT_RUN_STATE_REASON_IDENTITY_CONFLICT,
+        AGENT_RUN_STATE_REASON_MALFORMED_EVIDENCE,
+        AGENT_RUN_STATE_REASON_MISSING_EVIDENCE,
+        AGENT_RUN_STATE_REASON_UNREADABLE_EVIDENCE,
     ):
         return (
             updated,

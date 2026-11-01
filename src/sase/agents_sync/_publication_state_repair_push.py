@@ -2,19 +2,12 @@
 
 from __future__ import annotations
 
-import time
-from collections.abc import Callable
-
 from sase.agents_sync.io import AgentsSyncFormatError
 from sase.agents_sync.v2_io import apply_payload_batched_atomic
 from sase.agents_sync.git import GitRunner
 from sase.agents_sync.models import ProjectTarget
-from sase.core.agent_identity_facade import AgentIdentitySnapshot, AgentOwnerIdentity
-from sase.agents_sync._publication_state_repair_evidence import (
-    collect_published_rows,
-    resolve_selected,
-    select_window,
-)
+from sase.core.agent_identity_facade import AgentOwnerIdentity
+from sase.agents_sync._publication_state_repair_evidence import plan_repair_window
 from sase.agents_sync._publication_state_repair_payload import (
     plan_state_payload,
     protection_scope,
@@ -44,8 +37,8 @@ def _push_ahead_convergence(
 
     try:
         ahead = agents_ahead_count(target.sidecar_path, git_runner)
-    except Exception:  # noqa: BLE001 - no push without a readable count.
-        return False, None, 0
+    except Exception as exc:  # noqa: BLE001 - unknown ahead state is a failure.
+        return False, f"ahead count is not readable: {exc}", 0
     if ahead <= 0:
         return False, None, 0
     pushed = git_runner(target.sidecar_path, ["push"], network=True, op=push_op)
@@ -101,8 +94,14 @@ def plan_and_push_repair(
 
     mode = "apply"
     try:
-        rows, snapshots, collect_failed, bad_hoods, collect_diagnostics = (
-            collect_published_rows(target.sidecar_path, target, owner)
+        planned = plan_repair_window(
+            target.sidecar_path,
+            target,
+            owner,
+            limit=state_limit,
+            after=state_after,
+            deadline=deadline,
+            inventory_loader=inventory_loader,
         )
     except Exception as exc:  # noqa: BLE001 - per-project isolation
         return StateRepairReport(
@@ -111,18 +110,25 @@ def plan_and_push_repair(
             mode,
             error=f"state repair failed: {exc}",
         )
-    selected, next_cursor, pass_complete, select_error = select_window(
-        target, owner, state_limit, state_after, rows
-    )
+    selected = planned.selected
+    next_cursor = planned.next_cursor
+    pass_complete = planned.pass_complete
+    collect_failed = planned.failed
+    bad_hoods = planned.bad_hoods
+    collect_diagnostics = tuple(planned.diagnostics)
     window = tuple(StateRepairWindowRow(hood, run_id) for hood, run_id in selected)
-    if select_error is not None:
+    if planned.error is not None and not planned.resolved.changed:
         return StateRepairReport(
             target.project_key,
             target.project,
             mode,
-            failed=len(rows),
-            diagnostics=(*collect_diagnostics, select_error),
-            error=select_error,
+            examined=len(selected),
+            failed=collect_failed,
+            window=window,
+            next_cursor=None,
+            pass_complete=False,
+            error=planned.error,
+            diagnostics=collect_diagnostics,
         )
     if not selected:
         return StateRepairReport(
@@ -130,27 +136,15 @@ def plan_and_push_repair(
             target.project,
             mode,
             examined=0,
+            failed=collect_failed,
             next_cursor=next_cursor,
             pass_complete=pass_complete,
-            diagnostics=tuple(collect_diagnostics),
+            diagnostics=collect_diagnostics,
         )
-    hoods = frozenset(row[0] for row in selected)
-    try:
-        inventory = inventory_loader(target, AgentIdentitySnapshot(owner), hoods)
-    except Exception as exc:  # noqa: BLE001 - evidence failure is a diagnostic
-        return StateRepairReport(
-            target.project_key,
-            target.project,
-            mode,
-            examined=len(selected),
-            failed=len(selected),
-            window=window,
-            diagnostics=(
-                *collect_diagnostics,
-                f"could not load local evidence: {exc}",
-            ),
-        )
-    resolved = resolve_selected(target, owner, snapshots, inventory, selected, deadline)
+    resolved = planned.resolved
+    if planned.error is not None:
+        next_cursor = None
+        pass_complete = False
     if not resolved.changed:
         # Verified no-write window: the published snapshot already matches
         # local evidence. A previous attempt's unpushed repair commit still
@@ -169,14 +163,14 @@ def plan_and_push_repair(
                 live=resolved.live,
                 unresolved=resolved.unresolved,
                 withheld=0,
-                failed=collect_failed + resolved.failed,
+                failed=collect_failed,
                 affected=(),
                 window=window,
                 next_cursor=None,
                 pass_complete=False,
                 push_attempts=push_attempts,
                 error=push_error,
-                diagnostics=(*collect_diagnostics, *resolved.diagnostics),
+                diagnostics=collect_diagnostics,
             )
         return StateRepairReport(
             target.project_key,
@@ -188,14 +182,14 @@ def plan_and_push_repair(
             live=resolved.live,
             unresolved=resolved.unresolved,
             withheld=0,
-            failed=collect_failed + resolved.failed,
+            failed=collect_failed,
             affected=(),
             window=window,
             next_cursor=next_cursor,
             pass_complete=pass_complete,
             pushed=ahead_pushed,
             push_attempts=push_attempts,
-            diagnostics=(*collect_diagnostics, *resolved.diagnostics),
+            diagnostics=collect_diagnostics,
         )
     payload, updated, withheld, withheld_diags, plan_failed, plan_diags = (
         plan_state_payload(
@@ -206,8 +200,8 @@ def plan_and_push_repair(
             bad_hoods=bad_hoods,
         )
     )
-    failed = collect_failed + resolved.failed + plan_failed
-    diagnostics = (*collect_diagnostics, *resolved.diagnostics, *plan_diags)
+    failed = collect_failed + plan_failed
+    diagnostics = (*collect_diagnostics, *plan_diags)
     if not payload and not updated:
         # Every changed row was withheld or failed: nothing to publish, and
         # the cursor must not advance past unrepaired rows.

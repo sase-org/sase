@@ -21,6 +21,7 @@ AGENT_RUN_STATE_EVIDENCE_TERMINAL_MARKER = "terminal_marker"
 AGENT_RUN_STATE_EVIDENCE_DISMISSED = "dismissed"
 AGENT_RUN_STATE_EVIDENCE_UNFINISHED = "unfinished"
 AGENT_RUN_STATE_EVIDENCE_MISSING = "missing"
+AGENT_RUN_STATE_EVIDENCE_UNREADABLE = "unreadable"
 AGENT_RUN_STATE_EVIDENCE_IDENTITY_CONFLICT = "identity_conflict"
 AGENT_RUN_STATE_EVIDENCE_MALFORMED = "malformed"
 
@@ -30,10 +31,24 @@ AGENT_RUN_STATE_REASON_PRESERVED_TERMINAL = "preserved_terminal_state"
 AGENT_RUN_STATE_REASON_UNCHANGED = "unchanged_current"
 AGENT_RUN_STATE_REASON_LIVE_EVIDENCE = "live_evidence"
 AGENT_RUN_STATE_REASON_MISSING_EVIDENCE = "missing_evidence"
+AGENT_RUN_STATE_REASON_UNREADABLE_EVIDENCE = "unreadable_evidence"
 AGENT_RUN_STATE_REASON_MALFORMED_EVIDENCE = "malformed_evidence"
 AGENT_RUN_STATE_REASON_IDENTITY_CONFLICT = "identity_conflict"
 AGENT_RUN_STATE_REASON_CONFLICTING_TERMINAL = "conflicting_terminal_evidence"
 AGENT_RUN_STATE_REASON_LATER_DISMISSAL = "verified_later_dismissal"
+
+AGENT_RUN_STATE_OBSERVATION_PRESENT = "present"
+AGENT_RUN_STATE_OBSERVATION_MISSING = "missing"
+AGENT_RUN_STATE_OBSERVATION_UNREADABLE = "unreadable"
+AGENT_RUN_STATE_OBSERVATION_MALFORMED = "malformed"
+
+AGENT_RUN_STATE_HOOD_AVAILABLE = "available"
+AGENT_RUN_STATE_HOOD_EMPTY = "empty"
+AGENT_RUN_STATE_HOOD_CORRUPT = "corrupt"
+AGENT_RUN_STATE_MANIFEST_VALID = "valid"
+AGENT_RUN_STATE_SCAN_COMPLETE = "complete"
+AGENT_RUN_STATE_MAX_DISCOVERY_HOODS = 5
+AGENT_RUN_STATE_WINDOW_DEFAULT_LIMIT = 100
 
 AGENT_RUN_STATE_OUTCOME_SUCCESS = "success"
 AGENT_RUN_STATE_OUTCOME_FAILURE = "failure"
@@ -101,28 +116,6 @@ class AgentRunStateWindowRowWire:
 
     local_hood: str = ""
     source_run_id: str = ""
-
-
-@dataclass(frozen=True)
-class AgentRunStateWindowRequestWire:
-    """Request to select a deterministic bounded window of published runs."""
-
-    project: str = ""
-    owner: str = ""
-    limit: int = 100
-    after: str | None = None
-    rows: tuple[AgentRunStateWindowRowWire, ...] = ()
-    schema_version: int = AGENT_RUN_STATE_WIRE_SCHEMA_VERSION
-
-
-@dataclass(frozen=True)
-class AgentRunStateWindowResponseWire:
-    """Selected window plus the cursor resuming after the last examined row."""
-
-    selected: tuple[AgentRunStateWindowRowWire, ...] = ()
-    next_cursor: str | None = None
-    pass_complete: bool = False
-    schema_version: int = AGENT_RUN_STATE_WIRE_SCHEMA_VERSION
 
 
 @dataclass(frozen=True)
@@ -238,45 +231,6 @@ def agent_run_state_resolve_response_from_dict(
     )
 
 
-def agent_run_state_window_request_to_dict(
-    request: AgentRunStateWindowRequestWire,
-) -> dict[str, Any]:
-    """Serialize a window request to the ``sase_core_rs`` dict shape."""
-    return {
-        "schema_version": request.schema_version,
-        "project": request.project,
-        "owner": request.owner,
-        "limit": request.limit,
-        "after": request.after,
-        "rows": [
-            {"local_hood": row.local_hood, "source_run_id": row.source_run_id}
-            for row in request.rows
-        ],
-    }
-
-
-def agent_run_state_window_response_from_dict(
-    data: dict[str, Any],
-) -> AgentRunStateWindowResponseWire:
-    """Rehydrate a window response from the PyO3 dict shape."""
-    _check_schema(data, what="AgentRunStateWindowResponseWire")
-    selected: list[AgentRunStateWindowRowWire] = []
-    for entry in data.get("selected") or []:
-        if isinstance(entry, dict):
-            selected.append(
-                AgentRunStateWindowRowWire(
-                    local_hood=str(entry.get("local_hood", "")),
-                    source_run_id=str(entry.get("source_run_id", "")),
-                )
-            )
-    return AgentRunStateWindowResponseWire(
-        schema_version=int(data["schema_version"]),
-        selected=tuple(selected),
-        next_cursor=_opt_str(data.get("next_cursor")),
-        pass_complete=bool(data.get("pass_complete", False)),
-    )
-
-
 def _project_identity_to_dict(
     identity: AgentRunStateProjectIdentityWire,
 ) -> dict[str, Any]:
@@ -353,6 +307,26 @@ def agent_run_state_schedule_response_from_dict(
     )
 
 
+from sase.core.agent_run_state_wire_observations import (  # noqa: E402
+    AgentRunStateDiscoveredHoodWire,
+    AgentRunStateDiscoveryDiagnosticWire,
+    AgentRunStateDiscoveryWindowRequestWire,
+    AgentRunStateDiscoveryWindowResponseWire,
+    AgentRunStateHoodWindowRequestWire,
+    AgentRunStateHoodWindowResponseWire,
+    AgentRunStateIdentityClaimsWire,
+    AgentRunStateObservationClassificationWire,
+    AgentRunStateObservationsResolveRequestWire,
+    AgentRunStateObservationsResolveResponseWire,
+    AgentRunStateRawObservationWire,
+    agent_run_state_discovery_window_request_to_dict,
+    agent_run_state_discovery_window_response_from_dict,
+    agent_run_state_hood_window_request_to_dict,
+    agent_run_state_hood_window_response_from_dict,
+    agent_run_state_observations_resolve_request_to_dict,
+    agent_run_state_observations_resolve_response_from_dict,
+)
+
 __all__ = [
     "ACTIVE_RUN_STATES",
     "AGENT_RUN_STATE_BACKOFF_BASE_MS",
@@ -363,6 +337,16 @@ __all__ = [
     "AGENT_RUN_STATE_EVIDENCE_MISSING",
     "AGENT_RUN_STATE_EVIDENCE_TERMINAL_MARKER",
     "AGENT_RUN_STATE_EVIDENCE_UNFINISHED",
+    "AGENT_RUN_STATE_EVIDENCE_UNREADABLE",
+    "AGENT_RUN_STATE_HOOD_AVAILABLE",
+    "AGENT_RUN_STATE_HOOD_CORRUPT",
+    "AGENT_RUN_STATE_HOOD_EMPTY",
+    "AGENT_RUN_STATE_MANIFEST_VALID",
+    "AGENT_RUN_STATE_MAX_DISCOVERY_HOODS",
+    "AGENT_RUN_STATE_OBSERVATION_MALFORMED",
+    "AGENT_RUN_STATE_OBSERVATION_MISSING",
+    "AGENT_RUN_STATE_OBSERVATION_PRESENT",
+    "AGENT_RUN_STATE_OBSERVATION_UNREADABLE",
     "AGENT_RUN_STATE_OUTCOME_FAILURE",
     "AGENT_RUN_STATE_OUTCOME_SUCCESS",
     "AGENT_RUN_STATE_REASON_CONFLICTING_TERMINAL",
@@ -373,28 +357,44 @@ __all__ = [
     "AGENT_RUN_STATE_REASON_MISSING_EVIDENCE",
     "AGENT_RUN_STATE_REASON_PRESERVED_TERMINAL",
     "AGENT_RUN_STATE_REASON_UNCHANGED",
+    "AGENT_RUN_STATE_REASON_UNREADABLE_EVIDENCE",
     "AGENT_RUN_STATE_REASON_UPDATED_DISMISSED",
     "AGENT_RUN_STATE_REASON_UPDATED_TERMINAL_MARKER",
+    "AGENT_RUN_STATE_SCAN_COMPLETE",
+    "AGENT_RUN_STATE_WINDOW_DEFAULT_LIMIT",
     "AGENT_RUN_STATE_WINDOW_MAX_LIMIT",
     "AGENT_RUN_STATE_WINDOW_MIN_LIMIT",
     "AGENT_RUN_STATE_WIRE_SCHEMA_VERSION",
     "TERMINAL_RUN_STATES",
     "AgentRunIdentityWire",
+    "AgentRunStateDiscoveredHoodWire",
+    "AgentRunStateDiscoveryDiagnosticWire",
+    "AgentRunStateDiscoveryWindowRequestWire",
+    "AgentRunStateDiscoveryWindowResponseWire",
+    "AgentRunStateHoodWindowRequestWire",
+    "AgentRunStateHoodWindowResponseWire",
+    "AgentRunStateIdentityClaimsWire",
+    "AgentRunStateObservationClassificationWire",
+    "AgentRunStateObservationsResolveRequestWire",
+    "AgentRunStateObservationsResolveResponseWire",
     "AgentRunStateProjectCheckpointWire",
     "AgentRunStateProjectIdentityWire",
     "AgentRunStateProjectWire",
+    "AgentRunStateRawObservationWire",
     "AgentRunStateResolveRequestWire",
     "AgentRunStateResolveResponseWire",
     "AgentRunStateScheduleOutcomeWire",
     "AgentRunStateScheduleRequestWire",
     "AgentRunStateScheduleResponseWire",
-    "AgentRunStateWindowRequestWire",
-    "AgentRunStateWindowResponseWire",
     "AgentRunStateWindowRowWire",
+    "agent_run_state_discovery_window_request_to_dict",
+    "agent_run_state_discovery_window_response_from_dict",
+    "agent_run_state_hood_window_request_to_dict",
+    "agent_run_state_hood_window_response_from_dict",
+    "agent_run_state_observations_resolve_request_to_dict",
+    "agent_run_state_observations_resolve_response_from_dict",
     "agent_run_state_resolve_request_to_dict",
     "agent_run_state_resolve_response_from_dict",
     "agent_run_state_schedule_request_to_dict",
     "agent_run_state_schedule_response_from_dict",
-    "agent_run_state_window_request_to_dict",
-    "agent_run_state_window_response_from_dict",
 ]

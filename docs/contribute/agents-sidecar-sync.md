@@ -17,16 +17,15 @@ included when they belong to that hood.
 
 After an agent-backed commit or pull-request operation records its first durable result
 marker, the commit workflow resolves the project's agents target. When that target is
-available, SASE records an outbox request for the exact hood at the created commit SHA
-and immediately drains it under the bounded agents lock, so the commit does not return
-until the hood is published and pushed (or the request is confirmed queued for retry). A
-linked-repo commit uses the same host-project outbox with `scope: linked`, so
-acknowledgment requires the published page rather than a primary-revision match. A
-publication that cannot even be queued fails the commit with a
-`sase stitch create --resume` hint; a request that survives the immediate drain —
-because of a transient, hood-specific, or repository-wide failure — prints a warning
-naming the recovery command and is retried by a later commit's drain or by an explicit
-`sase agent sync`. See
+available, SASE records an outbox request for the exact hood at the created commit SHA.
+Commit publication selects background enqueue when that path is available, and falls
+back to an inline drain under the bounded agents lock when it is not. A linked-repo
+commit uses the same host-project outbox with `scope: linked`, so acknowledgment
+requires the published page rather than a primary-revision match. A publication that
+cannot even be queued fails the commit with a `sase stitch create --resume` hint; a
+request that remains queued after the selected path — because of a transient,
+hood-specific, or repository-wide failure — prints a warning naming the recovery command
+and is retried by a later drain or by an explicit `sase agent sync`. See
 [runtime provenance and publication](commit-workflow-orchestrator.md#cli-inputs-and-internal-payload).
 
 Published runs that are temporarily missing from local inventory are retained. New
@@ -178,7 +177,10 @@ dispatch work to other machines.
 2. Apply the same starting window with `--apply`; inspect counts and diagnostics.
    Continue from the successful apply response's `next_cursor` via `--state-after`.
 3. Stop when `pass_complete` is true, then allow scheduled passes to catch later
-   completions. Stop on publication failure and retry that window after remediation.
+   completions. A failed window (`error` set, or `pass_complete` false with a frozen
+   cursor) retains the starting position: stop, remediate, and retry that same window.
+   Live, missing, or individually corrupt rows can be examined without starving later
+   rows; they do not count as a completed pass by themselves.
 4. Repeat owner-locally on other machines. Rows whose original evidence is unavailable
    remain explicitly unresolved. Never impersonate another owner or mark historical rows
    terminal based solely on their age.

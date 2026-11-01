@@ -9,18 +9,26 @@ and performs publication writes.
 from __future__ import annotations
 
 from sase.core.agent_run_state_wire import (
+    AgentRunStateDiscoveryWindowRequestWire,
+    AgentRunStateDiscoveryWindowResponseWire,
+    AgentRunStateHoodWindowRequestWire,
+    AgentRunStateHoodWindowResponseWire,
+    AgentRunStateObservationsResolveRequestWire,
+    AgentRunStateObservationsResolveResponseWire,
     AgentRunStateResolveRequestWire,
     AgentRunStateResolveResponseWire,
     AgentRunStateScheduleRequestWire,
     AgentRunStateScheduleResponseWire,
-    AgentRunStateWindowRequestWire,
-    AgentRunStateWindowResponseWire,
+    agent_run_state_discovery_window_request_to_dict,
+    agent_run_state_discovery_window_response_from_dict,
+    agent_run_state_hood_window_request_to_dict,
+    agent_run_state_hood_window_response_from_dict,
+    agent_run_state_observations_resolve_request_to_dict,
+    agent_run_state_observations_resolve_response_from_dict,
     agent_run_state_resolve_request_to_dict,
     agent_run_state_resolve_response_from_dict,
     agent_run_state_schedule_request_to_dict,
     agent_run_state_schedule_response_from_dict,
-    agent_run_state_window_request_to_dict,
-    agent_run_state_window_response_from_dict,
 )
 from sase.core.rust import require_rust_binding
 
@@ -42,15 +50,45 @@ def resolve_agent_run_state(
     return agent_run_state_resolve_response_from_dict(raw)
 
 
-def select_agent_run_state_window(
-    request: AgentRunStateWindowRequestWire,
-) -> AgentRunStateWindowResponseWire:
-    """Select a deterministic bounded window through ``sase_core_rs``."""
-    binding = require_rust_binding("select_agent_run_state_window")
-    raw: dict[str, object] = binding(agent_run_state_window_request_to_dict(request))
+def resolve_agent_run_state_observations(
+    request: AgentRunStateObservationsResolveRequestWire,
+) -> AgentRunStateObservationsResolveResponseWire:
+    """Classify raw observations and resolve published state through Rust."""
+    binding = require_rust_binding("resolve_agent_run_state_observations")
+    raw: dict[str, object] = binding(
+        agent_run_state_observations_resolve_request_to_dict(request)
+    )
     if not isinstance(raw, dict):
-        raise RuntimeError("sase_core_rs returned a non-dict run state window")
-    return agent_run_state_window_response_from_dict(raw)
+        raise RuntimeError("sase_core_rs returned a non-dict run state observations")
+    return agent_run_state_observations_resolve_response_from_dict(raw)
+
+
+def select_agent_run_state_hoods(
+    request: AgentRunStateHoodWindowRequestWire,
+) -> AgentRunStateHoodWindowResponseWire:
+    """Select a bounded hood window through ``sase_core_rs``."""
+    binding = require_rust_binding("select_agent_run_state_hoods")
+    raw: dict[str, object] = binding(
+        agent_run_state_hood_window_request_to_dict(request)
+    )
+    if not isinstance(raw, dict):
+        raise RuntimeError("sase_core_rs returned a non-dict run state hood window")
+    return agent_run_state_hood_window_response_from_dict(raw)
+
+
+def select_agent_run_state_discovery_window(
+    request: AgentRunStateDiscoveryWindowRequestWire,
+) -> AgentRunStateDiscoveryWindowResponseWire:
+    """Select a bounded discovery window through ``sase_core_rs``."""
+    binding = require_rust_binding("select_agent_run_state_discovery_window")
+    raw: dict[str, object] = binding(
+        agent_run_state_discovery_window_request_to_dict(request)
+    )
+    if not isinstance(raw, dict):
+        raise RuntimeError(
+            "sase_core_rs returned a non-dict run state discovery window"
+        )
+    return agent_run_state_discovery_window_response_from_dict(raw)
 
 
 def advance_agent_run_state_schedule(
@@ -68,5 +106,7 @@ __all__ = [
     "advance_agent_run_state_schedule",
     "agent_run_state_wire_schema_version",
     "resolve_agent_run_state",
-    "select_agent_run_state_window",
+    "resolve_agent_run_state_observations",
+    "select_agent_run_state_discovery_window",
+    "select_agent_run_state_hoods",
 ]

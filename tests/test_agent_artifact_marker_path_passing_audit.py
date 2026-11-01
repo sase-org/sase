@@ -105,6 +105,13 @@ _REVIEWED_PATH_PASSING_CONTEXTS: dict[str, PathPassingReview] = {
             "the caller writes a new continuation record."
         ),
     ),
+    "src/sase/agents_sync/_publication_state_repair_observations.py:_observations_from_artifact_files": PathPassingReview(
+        exemption=(
+            "Read-only published-state repair: agent_meta.json, done.json, "
+            "waiting.json, and pending_question.json are observed to classify "
+            "one selected run; no marker is written."
+        ),
+    ),
     "src/sase/agent/running.py:_read_cl_name_from_artifacts": PathPassingReview(
         exemption=(
             "Read-only kill attribution fallback: marker paths are used only "

@@ -269,3 +269,71 @@ def test_collect_reads_owner_manifest_constant_times(
 
     assert small_reads == large_reads
     assert small_reads <= 2
+
+
+def test_expired_budget_does_not_complete_pass(tmp_path: Path) -> None:
+    remote, sync_target = setup_repair(
+        tmp_path, runs=[("foo", "foo.job", "run-1", "active")]
+    )
+    before = remote_head(remote)
+    report = repair_project_run_states(
+        sync_target,
+        OWNER,
+        apply=True,
+        inventory_loader=make_loader([inv_run("run-1", "foo.job", "completed")], []),
+        work_budget_seconds=0,
+    )
+
+    assert report.error is not None
+    assert "work budget exceeded" in report.error
+    assert report.pass_complete is False
+    assert report.next_cursor is None
+    assert remote_head(remote) == before
+
+
+def test_unreadable_manifest_is_not_empty_success(tmp_path: Path) -> None:
+    remote, _seed, sidecar = setup_repo(tmp_path)
+    builder = SeedBuilder(sidecar)
+    builder.add_run("foo", "foo.job", "run-1", "active")
+    builder.write_manifest()
+    manifest = sidecar / "users" / "alice" / "machines" / "athena" / "manifest.json"
+    manifest.write_bytes(b"{not json")
+    commit_push(sidecar)
+    sync_target = target(tmp_path, remote, sidecar)
+
+    report = repair_project_run_states(
+        sync_target,
+        OWNER,
+        apply=False,
+        inventory_loader=make_loader([inv_run("run-1", "foo.job", "completed")], []),
+    )
+
+    assert report.error is not None
+    assert "manifest" in report.error
+    assert report.pass_complete is False
+    assert report.next_cursor is None
+
+
+def test_unreadable_ahead_count_is_failure(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    remote, sync_target = setup_repair(
+        tmp_path, runs=[("foo", "foo.job", "run-1", "waiting")]
+    )
+
+    def boom(*_args: object, **_kwargs: object) -> int:
+        raise RuntimeError("git ahead failed")
+
+    monkeypatch.setattr("sase.agents_sync.git_sync_ops.agents_ahead_count", boom)
+    report = repair_project_run_states(
+        sync_target,
+        OWNER,
+        apply=True,
+        inventory_loader=make_loader([inv_run("run-1", "foo.job", "waiting")], []),
+    )
+
+    assert report.error is not None
+    assert "ahead count is not readable" in report.error
+    assert report.pass_complete is False
+    assert report.next_cursor is None
+    assert remote_state(remote, "alice.athena.foo.job") == "waiting"

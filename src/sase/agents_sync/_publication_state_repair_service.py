@@ -12,15 +12,12 @@ from sase.agents_sync.git_sync_ops import (
     bounded_agents_lock,
     configured_agents_lock_timeout,
 )
-from sase.agents_sync.inventory import ProjectHoodInventory
 from sase.agents_sync.models import ProjectTarget
 from sase.agents_sync.v2_io import MAX_PAYLOAD_BYTES
-from sase.core.agent_identity_facade import AgentIdentitySnapshot, AgentOwnerIdentity
+from sase.core.agent_identity_facade import AgentOwnerIdentity
 from sase.agents_sync._publication_state_repair_evidence import (
-    collect_published_rows,
     default_inventory_loader,
-    resolve_selected,
-    select_window,
+    plan_repair_window,
 )
 from sase.agents_sync._publication_state_repair_push import plan_and_push_repair
 from sase.agents_sync._publication_state_repair_types import (
@@ -214,8 +211,14 @@ def _preview_project(
     mode = "preview"
     deadline = time.monotonic() + max(work_budget_seconds, 0.0)
     try:
-        rows, snapshots, failed, bad_hoods, diagnostics = collect_published_rows(
-            target.sidecar_path, target, owner
+        planned = plan_repair_window(
+            target.sidecar_path,
+            target,
+            owner,
+            limit=state_limit,
+            after=state_after,
+            deadline=deadline,
+            inventory_loader=inventory_loader,
         )
     except Exception as exc:  # noqa: BLE001 - preview never raises
         return StateRepairReport(
@@ -224,68 +227,50 @@ def _preview_project(
             mode,
             error=f"state repair failed: {exc}",
         )
-    selected, next_cursor, pass_complete, select_error = select_window(
-        target, owner, state_limit, state_after, rows
+    window = tuple(
+        StateRepairWindowRow(hood, run_id) for hood, run_id in planned.selected
     )
-    if select_error is not None:
+    if planned.error is not None:
         return StateRepairReport(
             target.project_key,
             target.project,
             mode,
-            failed=len(rows),
-            diagnostics=(*diagnostics, select_error),
-            error=select_error,
+            examined=len(planned.selected),
+            failed=planned.failed,
+            window=window,
+            next_cursor=None,
+            pass_complete=False,
+            error=planned.error,
+            diagnostics=tuple(planned.diagnostics),
         )
-    window = tuple(StateRepairWindowRow(hood, run_id) for hood, run_id in selected)
-    if not selected:
+    if not planned.selected:
         return StateRepairReport(
             target.project_key,
             target.project,
             mode,
             examined=0,
-            next_cursor=next_cursor,
-            pass_complete=pass_complete,
-            diagnostics=tuple(diagnostics),
+            failed=planned.failed,
+            next_cursor=planned.next_cursor,
+            pass_complete=planned.pass_complete,
+            diagnostics=tuple(planned.diagnostics),
         )
-    hoods = frozenset(hood for hood, _run_id in selected)
-    try:
-        inventory = inventory_loader(target, AgentIdentitySnapshot(owner), hoods)
-    except Exception as exc:  # noqa: BLE001 - evidence failure is a diagnostic
-        return StateRepairReport(
-            target.project_key,
-            target.project,
-            mode,
-            examined=len(selected),
-            failed=len(selected),
-            window=window,
-            next_cursor=None,
-            pass_complete=False,
-            diagnostics=(*diagnostics, f"could not load local evidence: {exc}"),
-        )
-    resolved = resolve_selected(
-        target,
-        owner,
-        snapshots,
-        inventory,
-        selected,
-        deadline,
-    )
+    resolved = planned.resolved
     return StateRepairReport(
         target.project_key,
         target.project,
         mode,
-        examined=len(selected),
+        examined=len(planned.selected),
         changed=len(resolved.changed),
         already_current=resolved.already_current,
         live=resolved.live,
         unresolved=resolved.unresolved,
         withheld=0,
-        failed=failed + resolved.failed,
+        failed=planned.failed,
         affected=tuple(resolved.changed.values()),
         window=window,
-        next_cursor=next_cursor,
-        pass_complete=pass_complete,
-        diagnostics=(*diagnostics, *resolved.diagnostics),
+        next_cursor=planned.next_cursor,
+        pass_complete=planned.pass_complete,
+        diagnostics=tuple(planned.diagnostics),
     )
 
 

@@ -5,10 +5,13 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import pytest
+
 from sase.agents_sync.inventory import InventoryRun, ProjectHoodInventory
 from sase.agents_sync.inventory_sources import _artifact_state
 from sase.agents_sync.publication import publish_agent_hood, reconcile_agent_hoods
 from sase.agents_sync.publication_validation import read_hood_snapshot
+from sase.agents_sync.v2_models import V2ProjectIdentity, V2RunRecord
 from sase.core.agent_identity_facade import AgentIdentitySnapshot, AgentOwnerIdentity
 from sase.core.agent_scan_wire import (
     AgentArtifactRecordWire,
@@ -63,6 +66,79 @@ def test_live_evidence_stays_live_without_done_marker() -> None:
     assert _artifact_state(_record(waiting=True), None) == "waiting"
     assert _artifact_state(_record(pending_question=True), None) == "waiting"
     assert _artifact_state(_record(), None) == "active"
+
+
+def test_empty_or_unknown_outcome_is_not_failed() -> None:
+    assert _artifact_state(_record(waiting=True), {}) == "waiting"
+    assert _artifact_state(_record(), {"outcome": "mystery"}) == "active"
+
+
+def test_stopped_outcome_stays_stopped() -> None:
+    done = {
+        "outcome": "stopped",
+        "finished_at": "2026-07-23T12:01:00+00:00",
+    }
+    assert _artifact_state(_record(waiting=True), done) == "stopped"
+
+
+def test_conflicting_marker_name_does_not_become_completed() -> None:
+    done = {
+        "outcome": "completed",
+        "name": "other.job",
+        "finished_at": "2026-07-23T12:01:00+00:00",
+    }
+    assert _artifact_state(_record(waiting=True), done) == "waiting"
+
+
+def test_resolve_exception_preserves_published_terminal(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from sase.agents_sync._publication_snapshot_gating import (
+        resolve_preserved_run_state,
+    )
+
+    previous = V2RunRecord(
+        "run-1",
+        "foo.job",
+        "alice.athena.foo.job",
+        "completed",
+        "2026-07-23T12:00:00+00:00",
+        "not-a-timestamp",
+    )
+    candidate = InventoryRun(
+        "run-1",
+        "foo.job",
+        "alice.athena.foo.job",
+        "active",
+        "2026-07-23T12:00:00+00:00",
+        None,
+        None,
+        (),
+        (),
+        None,
+        None,
+        None,
+        None,
+        (),
+        "20260723120000",
+    )
+
+    def boom(*_args: object, **_kwargs: object) -> object:
+        raise RuntimeError("malformed historical timestamp")
+
+    monkeypatch.setattr(
+        "sase.core.agent_run_state_facade.resolve_agent_run_state", boom
+    )
+    resolved, note = resolve_preserved_run_state(
+        candidate,
+        previous,
+        V2ProjectIdentity("proj", "Project"),
+        AgentOwnerIdentity("alice", "athena"),
+    )
+    assert resolved.state == "completed"
+    assert resolved.finished_at == "not-a-timestamp"
+    assert note is not None
+    assert "unchanged" in note
 
 
 def _run_by_global(inventory: ProjectHoodInventory, global_name: str) -> InventoryRun:

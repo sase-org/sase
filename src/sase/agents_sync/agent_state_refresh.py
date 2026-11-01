@@ -161,26 +161,37 @@ def _apply_schedule_transition(
     transition: Any,
     fallback_identity: Any,
 ) -> None:
-    if transition.updated_checkpoint is not None:
-        state.checkpoints[
-            _state_key(
-                transition.updated_checkpoint.identity.project,
-                transition.updated_checkpoint.identity.owner,
-            )
-        ] = _Checkpoint(
-            cursor=transition.updated_checkpoint.cursor,
-            failure_count=transition.updated_checkpoint.failure_count,
-            retry_after_ms=transition.updated_checkpoint.retry_after_ms,
+    from sase.core.agent_run_state_wire import AgentRunStateProjectCheckpointWire
+
+    checkpoint = transition.updated_checkpoint
+    if isinstance(checkpoint, AgentRunStateProjectCheckpointWire):
+        identity = checkpoint.identity
+        state.checkpoints[_state_key(identity.project, identity.owner)] = _Checkpoint(
+            cursor=checkpoint.cursor,
+            failure_count=checkpoint.failure_count,
+            retry_after_ms=checkpoint.retry_after_ms,
         )
         state.last_selected = {
-            "project": transition.updated_checkpoint.identity.project,
-            "owner": transition.updated_checkpoint.identity.owner,
+            "project": identity.project,
+            "owner": identity.owner,
         }
-    else:
+        return
+    if checkpoint is not None:
+        identity = checkpoint.identity
+        state.checkpoints[_state_key(identity.project, identity.owner)] = _Checkpoint(
+            cursor=checkpoint.cursor,
+            failure_count=checkpoint.failure_count,
+            retry_after_ms=checkpoint.retry_after_ms,
+        )
         state.last_selected = {
-            "project": fallback_identity.project,
-            "owner": fallback_identity.owner,
+            "project": identity.project,
+            "owner": identity.owner,
         }
+        return
+    state.last_selected = {
+        "project": fallback_identity.project,
+        "owner": fallback_identity.owner,
+    }
 
 
 def _now_ms() -> int:

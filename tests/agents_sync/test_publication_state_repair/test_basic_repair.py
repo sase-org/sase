@@ -73,7 +73,9 @@ def test_completed_repair_converges_remote_snapshot_manifest_and_pages(
     assert report.error is None
     assert (report.examined, report.changed) == (1, 1)
     assert report.committed and report.pushed
-    assert report.next_cursor is not None and report.pass_complete is True
+    # Discovery reports no remaining cursor once the pass is complete.
+    assert report.pass_complete is True
+    assert report.next_cursor is None
     assert remote_state(remote, "alice.athena.foo.job") == "completed"
     snapshot = json.loads(
         (
@@ -151,7 +153,8 @@ def test_live_runs_stay_live_with_no_write_cursor_advance(tmp_path: Path) -> Non
     assert report.error is None
     assert (report.examined, report.changed, report.live) == (1, 0, 1)
     assert report.committed is False and report.pushed is False
-    assert report.next_cursor is not None and report.pass_complete is True
+    assert report.pass_complete is True
+    assert report.next_cursor is None
     assert remote_head(remote) == before
     assert remote_state(remote, "alice.athena.foo.job") == "waiting"
 
