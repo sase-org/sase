@@ -12,6 +12,7 @@ from tests._justfile_lint_helpers import ROOT, dry_run
 pytestmark = pytest.mark.contract
 
 _CHECK_GATE_LINES = (
+    'tools/run_silent "epic-symbol freshness" .venv/bin/python tools/check_epic_symbol_freshness',
     'tools/run_silent "fmt (python)"       just fmt-py-check',
     'tools/run_silent "fmt (markdown)"     just fmt-md-check',
     'tools/run_silent "lint (keep-sorted)" just lint-keep-sorted',
@@ -111,6 +112,18 @@ def test_check_ends_in_the_scoped_test_lane() -> None:
     assert 'tools/run_silent "test (scoped)"      just test-scoped' in output
     assert 'tools/run_silent "test"               just test' not in output
     assert output.rstrip().endswith("tools/run_silent --finish")
+
+
+def test_epic_symbol_preflight_runs_before_check_stages_and_symvision() -> None:
+    check_output = dry_run("check")
+    symvision_output = dry_run("_lint-symvision")
+
+    check_preflight = 'tools/run_silent "epic-symbol freshness"'
+    symvision_preflight = "tools/check_epic_symbol_freshness"
+    assert check_output.index(check_preflight) < check_output.index('"fmt (python)"')
+    assert symvision_output.index(symvision_preflight) < symvision_output.index(
+        "symvision src/sase"
+    )
 
 
 def test_check_full_ends_in_the_full_test_lane() -> None:

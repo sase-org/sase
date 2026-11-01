@@ -506,6 +506,7 @@ _lint-patch-stitch-terminology: _setup
 # line inside the continued command below: just joins the lines, so the comment
 # would swallow every later argument.
 _lint-symvision *args: _setup
+    @{{ venv_bin }}/python tools/check_epic_symbol_freshness
     SASE_SYMVISION_BEAD_STATUS_ONLY=1 BD_COMMAND=tools/sase_bead {{ venv_bin }}/symvision src/sase \
         --exclude-decorator gate_command_entrypoint \
         --exclude-decorator builtin_chop \
@@ -890,6 +891,7 @@ _require-tool-run name:
     @tools/require_tool_run {{ name }}
 
 check: (_require-tool-run "check") _setup
+    @tools/run_silent "epic-symbol freshness" {{ venv_bin }}/python tools/check_epic_symbol_freshness
     @tools/run_silent "fmt (python)"       just fmt-py-check
     @tools/run_silent "fmt (markdown)"     just fmt-md-check
     @tools/run_silent "fmt (generated docs)" just fmt-docs-check
@@ -928,6 +930,7 @@ check: (_require-tool-run "check") _setup
 # with status `partial` when goldens are left untouched; read its WARNING
 # block — those goldens are not known to be current.
 check-full: (_require-tool-run "check-full") _setup
+    @tools/run_silent "epic-symbol freshness" {{ venv_bin }}/python tools/check_epic_symbol_freshness
     @tools/run_silent "fmt (python)"       just fmt-py-check
     @tools/run_silent "fmt (markdown)"     just fmt-md-check
     @tools/run_silent "fmt (generated docs)" just fmt-docs-check

@@ -10,8 +10,8 @@ from sase.bead.epic_symbols import (
     _EpicSymbolEntry,
     _LeftoverEpicSymbolsError,
     _leftover_epic_symbols_for_close,
-    _parse_epic_symbol_entries,
-    _discover_justfile,
+    parse_epic_symbol_entries,
+    discover_justfile,
     entries_for_beads,
     raise_if_leftover_epic_symbols,
     raise_if_surviving_flag_definition,
@@ -63,7 +63,7 @@ _FEATURE_FLAG_DEFINITIONS = {
 """
 
 
-def test_parse_epic_symbol_entries_accepts_quoted_and_bare_flags() -> None:
+def testparse_epic_symbol_entries_accepts_quoted_and_bare_flags() -> None:
     text = """
         --epic-symbol "sase-nb(encode_feature_flags_env)" \\
         --epic-symbol 'sase-o8.4(PlaceholderRankingMetadata)' \\
@@ -72,7 +72,7 @@ def test_parse_epic_symbol_entries_accepts_quoted_and_bare_flags() -> None:
         --epic-symbol "not-a-body"
     """
 
-    parsed = _parse_epic_symbol_entries(text, source=Path("Justfile"))
+    parsed = parse_epic_symbol_entries(text, source=Path("Justfile"))
 
     assert [entry.raw for entry in parsed] == [
         "sase-nb(encode_feature_flags_env)",
@@ -86,7 +86,7 @@ def test_parse_epic_symbol_entries_accepts_quoted_and_bare_flags() -> None:
 
 
 def test_entries_for_beads_include_descendant_suffixes_only() -> None:
-    entries = _parse_epic_symbol_entries(
+    entries = parse_epic_symbol_entries(
         """
         --epic-symbol "sase-o8(CommonIndex)"
         --epic-symbol "sase-o8.3(RankedPlaceholder)"
@@ -119,7 +119,7 @@ def test_leftover_epic_symbols_skip_already_closed_targets() -> None:
     assert leftovers == []
 
 
-def test_discover_justfile_stops_at_git_root_without_crossing_it(
+def testdiscover_justfile_stops_at_git_root_without_crossing_it(
     tmp_path: Path,
 ) -> None:
     repo = tmp_path / "repo"
@@ -128,12 +128,12 @@ def test_discover_justfile_stops_at_git_root_without_crossing_it(
     nested = repo / "src"
     nested.mkdir()
 
-    assert _discover_justfile(nested) is None
+    assert discover_justfile(nested) is None
 
     justfile = repo / "Justfile"
     justfile.write_text('--epic-symbol "sase-x(Foo)"\n', encoding="utf-8")
 
-    assert _discover_justfile(nested) == justfile
+    assert discover_justfile(nested) == justfile
 
 
 def test_raise_if_leftover_epic_symbols_names_the_justfile_flags(

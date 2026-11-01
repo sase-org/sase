@@ -1,0 +1,6 @@
+#!/usr/bin/env python3
+"""Check whether local closed-bead whitelist rows come from a stale checkout."""
+
+from sase.bead.epic_symbol_freshness import main
+
+raise SystemExit(main())

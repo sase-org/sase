@@ -19,18 +19,14 @@ import ast
 from collections.abc import Iterable
 from dataclasses import dataclass, replace
 from pathlib import Path
-import re
 import subprocess
 import sys
 
 from sase.bead.flag_fields import is_flag_bead
 from sase.bead.model import Issue, Status
+from sase.core.rust import require_rust_binding
 
 _JUSTFILE_NAMES = ("Justfile", "justfile")
-_EPIC_SYMBOL_TOKEN = re.compile(
-    r"""--epic-symbol(?:\s+|=)(?:"([^"]+)"|'([^']+)'|(\S+))"""
-)
-_EPIC_SYMBOL_BODY = re.compile(r"^(?P<bead>[^\s(]+)\((?P<symbol>[^)]+)\)$")
 
 _LOCAL_ORIGIN = "local"
 _UPSTREAM_FETCH_TIMEOUT_S = 30
@@ -77,7 +73,7 @@ class _LeftoverEpicSymbolsError(ValueError):
     """Raised when closing would stale remaining ``--epic-symbol`` entries."""
 
 
-def _discover_justfile(start: Path | None = None) -> Path | None:
+def discover_justfile(start: Path | None = None) -> Path | None:
     """Return the nearest Justfile at or above *start*, stopping at a git root."""
     current = (start or Path.cwd()).resolve()
     if current.is_file():
@@ -92,28 +88,23 @@ def _discover_justfile(start: Path | None = None) -> Path | None:
     return None
 
 
-def _parse_epic_symbol_entries(
+def parse_epic_symbol_entries(
     text: str,
     source: Path | None = None,
     *,
     origins: tuple[str, ...] = (_LOCAL_ORIGIN,),
 ) -> list[_EpicSymbolEntry]:
     """Parse ``--epic-symbol`` flags from Justfile (or equivalent) text."""
-    entries: list[_EpicSymbolEntry] = []
-    for match in _EPIC_SYMBOL_TOKEN.finditer(text):
-        body = next(group for group in match.groups() if group)
-        parsed = _EPIC_SYMBOL_BODY.fullmatch(body)
-        if parsed is None:
-            continue
-        entries.append(
-            _EpicSymbolEntry(
-                bead_id=parsed.group("bead"),
-                symbol=parsed.group("symbol"),
-                source=source,
-                origins=origins,
-            )
+    rows = require_rust_binding("bead_parse_epic_symbol_entries")(text)
+    return [
+        _EpicSymbolEntry(
+            bead_id=str(row["bead_id"]),
+            symbol=str(row["symbol"]),
+            source=source,
+            origins=origins,
         )
-    return entries
+        for row in rows
+    ]
 
 
 def _git_env() -> dict[str, str]:
@@ -130,7 +121,7 @@ def _git_env() -> dict[str, str]:
         return env
 
 
-def _run_git(
+def run_git(
     repo_root: Path, *args: str, timeout: float
 ) -> subprocess.CompletedProcess[str] | None:
     """Run a read-only git command, returning None when git cannot run it."""
@@ -148,7 +139,7 @@ def _run_git(
         return None
 
 
-def _repo_root_for(start: Path | None) -> Path | None:
+def repo_root_for(start: Path | None) -> Path | None:
     """Return the git working-tree root containing *start*, if any."""
     probe = start if start is not None else Path.cwd()
     try:
@@ -156,7 +147,7 @@ def _repo_root_for(start: Path | None) -> Path | None:
             probe = probe.parent
     except OSError:
         return None
-    result = _run_git(
+    result = run_git(
         probe, "rev-parse", "--show-toplevel", timeout=_UPSTREAM_READ_TIMEOUT_S
     )
     if result is None or result.returncode != 0:
@@ -167,7 +158,7 @@ def _repo_root_for(start: Path | None) -> Path | None:
 
 def _has_origin(repo_root: Path) -> bool:
     """Return whether the checkout configures an ``origin`` remote."""
-    result = _run_git(
+    result = run_git(
         repo_root,
         "config",
         "--get",
@@ -177,9 +168,9 @@ def _has_origin(repo_root: Path) -> bool:
     return result is not None and result.returncode == 0 and bool(result.stdout.strip())
 
 
-def _default_branch_ref(repo_root: Path) -> str | None:
+def default_branch_ref(repo_root: Path) -> str | None:
     """Return the default-branch remote-tracking ref, e.g. ``origin/master``."""
-    head = _run_git(
+    head = run_git(
         repo_root,
         "symbolic-ref",
         "refs/remotes/origin/HEAD",
@@ -190,7 +181,7 @@ def _default_branch_ref(repo_root: Path) -> str | None:
         if ref.startswith("refs/remotes/"):
             return ref.removeprefix("refs/remotes/")
     for candidate in ("origin/master", "origin/main"):
-        probe = _run_git(
+        probe = run_git(
             repo_root,
             "show-ref",
             "--verify",
@@ -203,7 +194,7 @@ def _default_branch_ref(repo_root: Path) -> str | None:
     return None
 
 
-def _fetch_default_branch(repo_root: Path, ref: str | None) -> str | None:
+def fetch_default_branch(repo_root: Path, ref: str | None) -> str | None:
     """Fetch the default branch (bounded); return an error summary on failure."""
     branch = ref.rsplit("/", 1)[-1] if ref else None
     args = (
@@ -236,7 +227,7 @@ def _show_upstream_justfile(
 ) -> tuple[str | None, str | None]:
     """Return ``(relname, text)`` for the Justfile at *ref*, if readable."""
     for relname in relnames:
-        result = _run_git(
+        result = run_git(
             repo_root, "show", f"{ref}:{relname}", timeout=_UPSTREAM_READ_TIMEOUT_S
         )
         if result is not None and result.returncode == 0:
@@ -262,10 +253,10 @@ def _read_upstream_rows(
             relnames = _JUSTFILE_NAMES
     else:
         relnames = _JUSTFILE_NAMES
-    ref = _default_branch_ref(repo_root)
-    fetch_error = _fetch_default_branch(repo_root, ref)
+    ref = default_branch_ref(repo_root)
+    fetch_error = fetch_default_branch(repo_root, ref)
     if ref is None:
-        ref = _default_branch_ref(repo_root)
+        ref = default_branch_ref(repo_root)
     if ref is None:
         reason = f" ({fetch_error})" if fetch_error else ""
         return (
@@ -291,7 +282,7 @@ def _read_upstream_rows(
     label = f"{ref}:{relname}"
     if fetch_error is not None:
         return (
-            _parse_epic_symbol_entries(text, source=None, origins=(ref,)),
+            parse_epic_symbol_entries(text, source=None, origins=(ref,)),
             label,
             True,
             f"warning: upstream fetch failed ({fetch_error}); using the "
@@ -299,7 +290,7 @@ def _read_upstream_rows(
             f"miss a sibling phase's newer row",
         )
     return (
-        _parse_epic_symbol_entries(text, source=None, origins=(ref,)),
+        parse_epic_symbol_entries(text, source=None, origins=(ref,)),
         label,
         False,
         None,
@@ -311,17 +302,15 @@ def load_epic_symbol_scan(start: Path | None = None) -> _EpicSymbolScan:
 
     Rows present in both sources appear once, tagged with both origins.
     """
-    justfile = _discover_justfile(start)
+    justfile = discover_justfile(start)
     local_entries = (
-        _parse_epic_symbol_entries(
-            justfile.read_text(encoding="utf-8"), source=justfile
-        )
+        parse_epic_symbol_entries(justfile.read_text(encoding="utf-8"), source=justfile)
         if justfile is not None
         else []
     )
-    repo_root = _repo_root_for(start)
+    repo_root = repo_root_for(start)
     if repo_root is None and justfile is not None:
-        repo_root = _repo_root_for(justfile.parent)
+        repo_root = repo_root_for(justfile.parent)
     upstream_entries, upstream_label, stale, warning = _read_upstream_rows(
         repo_root, justfile
     )
@@ -443,7 +432,7 @@ def _registry_flag_definitions(start: Path | None = None) -> dict[str, list[str]
     Parse the registry statically: the running ``sase`` may be a different
     install than the working tree, so importing it could read the wrong file.
     """
-    justfile = _discover_justfile(start)
+    justfile = discover_justfile(start)
     if justfile is None:
         return {}
     registry = justfile.parent / _FLAG_REGISTRY_RELPATH

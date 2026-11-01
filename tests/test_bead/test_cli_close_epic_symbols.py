@@ -9,6 +9,7 @@ import subprocess
 import pytest
 
 from sase.bead import cli as bead_cli
+from sase.bead.epic_symbol_freshness import _run_preflight
 from sase.bead.model import BeadTier, IssueType, Status
 from sase.bead.project import BeadProject
 from sase.main.parser import create_parser
@@ -514,3 +515,116 @@ def test_update_status_closed_refuses_leftover_epic_symbols(
     assert f'--epic-symbol "{issue.id}(TempSymbol)"' in error
     with BeadProject(project_dir) as project:
         assert project.show(issue.id).status is not Status.CLOSED
+
+
+def test_old_observer_retains_row_after_published_cleanup_and_guarded_close(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    seed = tmp_path / "seed"
+    remote = tmp_path / "remote.git"
+    producer = tmp_path / "producer"
+    observer = tmp_path / "observer"
+    bead_store = tmp_path / "bead-store"
+    _init_git_repo(seed)
+    source = seed / "src" / "example.py"
+    source.parent.mkdir()
+    source.write_text(
+        "def CommonPlaceholderIndex():\n    return None\n",
+        encoding="utf-8",
+    )
+    with BeadProject.init(bead_store) as project:
+        epic = project.create(
+            "Placeholder work",
+            IssueType.PLAN,
+            tier=BeadTier.EPIC,
+        )
+        issue = project.create(
+            "Finish the placeholder",
+            IssueType.PHASE,
+            parent_id=epic.id,
+        )
+
+    symbol = "CommonPlaceholderIndex"
+    _write_justfile(seed, f'--epic-symbol "{issue.id}({symbol})"')
+    _git_run(seed, "add", "Justfile", "src/example.py")
+    _git_run(seed, "commit", "-m", "publish phase whitelist row")
+    _git_run(tmp_path, "clone", "--bare", str(seed), str(remote))
+    _git_run(tmp_path, "clone", str(remote), str(producer))
+    _git_run(tmp_path, "clone", str(remote), str(observer))
+
+    for checkout in (producer, observer):
+        checkout.joinpath("sdd").mkdir()
+        checkout.joinpath("sdd", "beads").symlink_to(bead_store / "sdd" / "beads")
+
+    producer.joinpath("Justfile").write_text("symvision src\n", encoding="utf-8")
+    producer.joinpath("src", "example.py").write_text(
+        "def unrelated_helper():\n    return None\n",
+        encoding="utf-8",
+    )
+    _git_run(producer, "add", "Justfile", "src/example.py")
+    _git_run(producer, "commit", "-m", "publish whitelist cleanup")
+    _git_run(producer, "push", "origin", "master")
+
+    # The published cleanup is already visible, but live bead status is still
+    # open. This is the first check stage; the Symvision boundary must repeat
+    # the preflight after status can change below.
+    assert _run_preflight(observer) == 0
+
+    monkeypatch.chdir(producer)
+    bead_cli.handle_bead_close(
+        create_parser().parse_args(["bead", "close", issue.id, "--note", "landed"])
+    )
+
+    with BeadProject(bead_store) as project:
+        assert project.show(issue.id).status is Status.CLOSED
+    assert f"{issue.id}({symbol})" in observer.joinpath("Justfile").read_text()
+    assert (
+        f"{issue.id}({symbol})"
+        not in subprocess.run(
+            ["git", "-C", str(remote), "show", "master:Justfile"],
+            capture_output=True,
+            text=True,
+            check=True,
+        ).stdout
+    )
+    assert f"def {symbol}" in observer.joinpath("src", "example.py").read_text()
+
+    observer.joinpath("local-work.txt").write_text("keep this staged\n")
+    _git_run(observer, "add", "local-work.txt")
+    local_head = subprocess.run(
+        ["git", "-C", str(observer), "rev-parse", "HEAD"],
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout.strip()
+    index_before = subprocess.run(
+        ["git", "-C", str(observer), "diff", "--cached", "--binary"],
+        capture_output=True,
+        check=True,
+    ).stdout
+    assert _run_preflight(observer) == 1
+    error = capsys.readouterr().err
+    assert "stale_checkout" in error
+    assert issue.id in error
+    assert symbol in error
+    assert f"local HEAD {local_head}" in error
+    assert "observed upstream revision" in error
+    assert "Preserve local work" in error
+    assert (
+        "integrate the upstream cleanup through the normal workspace workflow" in error
+    )
+    assert observer.joinpath("local-work.txt").read_text() == "keep this staged\n"
+    assert (
+        subprocess.run(
+            ["git", "-C", str(observer), "diff", "--cached", "--binary"],
+            capture_output=True,
+            check=True,
+        ).stdout
+        == index_before
+    )
+
+    _git_run(observer, "merge", "--ff-only", "origin/master")
+    assert _run_preflight(observer) == 0
+    assert f"def {symbol}" not in observer.joinpath("src", "example.py").read_text()
