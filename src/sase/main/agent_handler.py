@@ -115,6 +115,11 @@ def handle_agent_command(args: argparse.Namespace) -> None:
 
         sys.exit(handle_agents_restart(args))
 
+    if sub == "readopt":
+        from sase.agents.cli_readopt import handle_agent_readopt
+
+        sys.exit(handle_agent_readopt(args))
+
     if sub == "search":
         from sase.agents.cli_search import handle_agents_search
 

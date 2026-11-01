@@ -7,11 +7,38 @@ from unittest.mock import patch
 import pytest
 
 from sase.axe.run_agent_runner_finalize import (
+    _held_staged_handoff_note,
     classify_exec_success,
     send_completion_notification,
 )
 
 pytest_plugins = ("tests._run_agent_runner_notification_fixtures",)
+
+
+def test_held_staged_handoff_note_names_exact_readopt_command(tmp_path, monkeypatch):
+    (tmp_path / "agent_meta.json").write_text(
+        json.dumps({"name": "review--plan"}), encoding="utf-8"
+    )
+    monkeypatch.setattr(
+        "sase.agent.staged_handoff.read_adoption_receipt",
+        lambda _path: {
+            "outcome": "handoff_not_adopted",
+            "staged_id": "stage-1",
+            "reason": "finalizer settlement is incomplete",
+        },
+    )
+    monkeypatch.setattr(
+        "sase.agent.staged_handoff.read_staged_handoff",
+        lambda _path: {"kind": "pipe", "staged_id": "stage-1"},
+    )
+
+    note = _held_staged_handoff_note(str(tmp_path))
+
+    assert note is not None
+    assert "Staged pipe handoff stage-1" in note
+    assert "review--plan" in note
+    assert "sase agent readopt review--plan" in note
+    assert "finalizer settlement is incomplete" in note
 
 
 def test_hidden_agent_forwards_silent_true(base_kwargs):

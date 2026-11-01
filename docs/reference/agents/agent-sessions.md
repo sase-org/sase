@@ -182,6 +182,13 @@ prevents activation. A monitor may already have a reserved ID or ToolRun ID at t
 point, but its command has not started. A joined ToolRun remains the existing execution;
 staging its monitor does not start a second command.
 
+When completion is held, repair the reported finalizer obligation first. Once its
+completion evidence is recorded, run `sase agent readopt <origin-agent>` to retry the
+handoff from its saved state. Re-adoption rechecks the original turn, workspace owner,
+and settlement evidence; it does not rerun the provider or treat a clean working tree as
+proof that finalization succeeded. If a session selector contains multiple staged turns,
+the command lists their exact member names so one originating turn can be selected.
+
 ### Session detail folding
 
 Selecting a real multi-member session root in sase's TUI opens the Main deck with

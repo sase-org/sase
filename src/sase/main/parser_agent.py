@@ -16,6 +16,7 @@ from sase.main.parser_agent_lifecycle import (
     register_agent_wait_parser,
 )
 from sase.main.parser_agent_prompts import register_agent_prompts_parser
+from sase.main.parser_agent_readopt import register_agent_readopt_parser
 from sase.main.parser_agent_search import register_agent_search_parser
 from sase.main.parser_agent_storage import (
     register_agent_archive_parser,
@@ -43,6 +44,7 @@ _AGENT_SUBCOMMAND_ORDER = (
     "persist-cleanup",
     "persist-directive",
     "prompts",
+    "readopt",
     "restart",
     "revert",
     "search",
@@ -88,6 +90,7 @@ def register_agent_parser(subparsers: argparse._SubParsersAction) -> None:
     register_agent_index_parser(agents_sub)
     register_agent_names_parser(agents_sub)
     register_agent_prompts_parser(agents_sub)
+    register_agent_readopt_parser(agents_sub)
     register_agent_restart_parser(agents_sub)
     register_agent_search_parser(agents_sub)
     register_agent_wait_parser(agents_sub)

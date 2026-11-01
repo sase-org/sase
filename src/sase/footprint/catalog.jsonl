@@ -1,4 +1,4 @@
-{"count": 3670, "rev": "96c652d7cf78", "schema": "sase.footprint.catalog/1"}
+{"count": 3672, "rev": "4d7d14aab57d", "schema": "sase.footprint.catalog/1"}
 {"area": "automation", "id": "auto:axe.agent_waits", "kind": "auto", "label": "Resolve agent wait dependencies within seconds of completion", "ns": "auto", "parent": null, "src": "sase/default_config.yml"}
 {"area": "automation", "id": "auto:axe.agent_waits.wait_checks", "kind": "auto", "label": "Resolve agent wait dependencies and write ready.json when satisfied", "ns": "auto", "parent": "auto:axe.agent_waits", "src": "sase/default_config.yml"}
 {"area": "automation", "id": "auto:axe.checks", "kind": "auto", "label": "Poll slower PR-submission and workspace-claim checks on a five-minute cadence", "ns": "auto", "parent": null, "src": "sase/default_config.yml"}
@@ -210,6 +210,8 @@
 {"area": "cli.agent", "id": "cli:agent.prompts.validate#month", "kind": "option", "label": "Option --month of cli:agent.prompts.validate", "ns": "cli", "parent": "cli:agent.prompts.validate", "src": "sase/main/parser_agent.py:register_agent_parser"}
 {"area": "cli.agent", "id": "cli:agent.prompts.validate#project", "kind": "option", "label": "Option --project of cli:agent.prompts.validate", "ns": "cli", "parent": "cli:agent.prompts.validate", "src": "sase/main/parser_agent.py:register_agent_parser"}
 {"area": "cli.agent", "id": "cli:agent.prompts.validate#show_warnings", "kind": "option", "label": "Option --show_warnings of cli:agent.prompts.validate", "ns": "cli", "parent": "cli:agent.prompts.validate", "src": "sase/main/parser_agent.py:register_agent_parser"}
+{"area": "cli.agent", "id": "cli:agent.readopt", "kind": "command", "label": "Retry a held staged handoff after its obligations are satisfied", "ns": "cli", "parent": null, "src": "sase/main/parser_agent.py:register_agent_parser"}
+{"area": "cli.agent", "id": "cli:agent.readopt#json", "kind": "option", "label": "Option --json of cli:agent.readopt", "ns": "cli", "parent": "cli:agent.readopt", "src": "sase/main/parser_agent.py:register_agent_parser"}
 {"area": "cli.agent", "id": "cli:agent.restart", "kind": "command", "label": "Stop a named agent and immediately relaunch its stored prompt", "ns": "cli", "parent": null, "src": "sase/main/parser_agent.py:register_agent_parser"}
 {"area": "cli.agent", "id": "cli:agent.restart#dry_run", "kind": "option", "label": "Option --dry_run of cli:agent.restart", "ns": "cli", "parent": "cli:agent.restart", "src": "sase/main/parser_agent.py:register_agent_parser"}
 {"area": "cli.agent", "id": "cli:agent.restart#json", "kind": "option", "label": "Option --json of cli:agent.restart", "ns": "cli", "parent": "cli:agent.restart", "src": "sase/main/parser_agent.py:register_agent_parser"}

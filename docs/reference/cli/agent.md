@@ -13,7 +13,7 @@ Reference for `sase agent`. Run `sase agent --help` for the exact output on this
 
 ```text
 usage: sase agent [-h]
-                  {archive,artifacts,auto-restart,drain,hold,index,kill,list,load,names,persist-cleanup,persist-directive,prompts,restart,revert,search,show,sync,tab,tribe,wait} ...
+                  {archive,artifacts,auto-restart,drain,hold,index,kill,list,load,names,persist-cleanup,persist-directive,prompts,readopt,restart,revert,search,show,sync,tab,tribe,wait} ...
 ```
 
 Inspect and manage agents across projects. Running bare `sase agent` delegates to `sase agent list`.
@@ -43,6 +43,7 @@ Subcommands:
 | `sase agent persist-cleanup`   | Persist kill, dismiss, or save cleanup from a private request sidecar                                    |
 | `sase agent persist-directive` | Persist an agent directive update from a private request sidecar                                         |
 | `sase agent prompts`           | Inspect and validate canonical prompt persistence                                                        |
+| `sase agent readopt`           | Retry a held staged handoff after its obligations are satisfied                                          |
 | `sase agent restart`           | Stop a named agent and immediately relaunch its stored prompt                                            |
 | `sase agent revert`            | Execute a previously previewed agent commit revert                                                       |
 | `sase agent search`            | Search the agent catalog or archive                                                                      |
@@ -816,6 +817,27 @@ Options:
 | `-m YYYYMM`, `--month YYYYMM`     | Limit the operation to one archive month                     | —       |
 | `-p PROJECT`, `--project PROJECT` | Select a project by name or alias (default: current project) | —       |
 | `-s`, `--show-warnings`           | Show warning-severity diagnostics (hidden by default)        | `false` |
+
+## `sase agent readopt`
+
+```text
+usage: sase agent readopt [-h] [-j] AGENT
+```
+
+Retry recovery for one originating agent turn. Finalizer repair must be completed separately before re-adoption; this command never skips settlement, ownership, or identity checks.
+
+Options:
+
+| Option         | Description                     | Default |
+| -------------- | ------------------------------- | ------- |
+| `-h`, `--help` | show this help message and exit | —       |
+| `-j`, `--json` | Emit a structured JSON result   | `false` |
+
+Arguments:
+
+| Argument | Description                                               |
+| -------- | --------------------------------------------------------- |
+| `agent`  | Originating agent or session with exactly one staged turn |
 
 ## `sase agent restart`
 

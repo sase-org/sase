@@ -30,6 +30,7 @@ def test_agents_help_renders_sorted_subcommands() -> None:
         "persist-cleanup",
         "persist-directive",
         "prompts",
+        "readopt",
         "restart",
         "revert",
         "search",
@@ -45,7 +46,7 @@ def test_agents_help_renders_sorted_subcommands() -> None:
     assert help_commands == sorted(expected_commands)
     assert (
         "{archive,artifacts,auto-restart,drain,hold,index,kill,list,load,names,persist-cleanup,"
-        "persist-directive,prompts,restart,revert,search,show,sync,tab,"
+        "persist-directive,prompts,readopt,restart,revert,search,show,sync,tab,"
         "tribe,wait}" in agents_parser.format_help()
     )
 

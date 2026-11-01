@@ -3314,6 +3314,68 @@
           {
             "aliases": [],
             "default_child": null,
+            "description_digest": "49fd266dc428e86b",
+            "hidden": false,
+            "mutex_groups": [],
+            "name": "readopt",
+            "options": [
+              {
+                "choices": null,
+                "default": null,
+                "dest": "help",
+                "hidden": false,
+                "kind": null,
+                "metavar": null,
+                "repeatable": false,
+                "required": false,
+                "strings": [
+                  "-h",
+                  "--help"
+                ],
+                "takes_value": false,
+                "value_hint": null
+              },
+              {
+                "choices": null,
+                "default": "False",
+                "dest": "json",
+                "hidden": false,
+                "kind": null,
+                "metavar": null,
+                "repeatable": false,
+                "required": false,
+                "strings": [
+                  "-j",
+                  "--json"
+                ],
+                "takes_value": false,
+                "value_hint": null
+              }
+            ],
+            "path": [
+              "agent",
+              "readopt"
+            ],
+            "positionals": [
+              {
+                "choices": null,
+                "dest": "agent",
+                "is_remainder": false,
+                "kind": "agent",
+                "metavar": "AGENT",
+                "nargs": null,
+                "required": true,
+                "value_hint": null
+              }
+            ],
+            "run_policy": [],
+            "stdin": false,
+            "subcommands": [],
+            "writes": false
+          },
+          {
+            "aliases": [],
+            "default_child": null,
             "description_digest": "54c7e1709f6bb270",
             "hidden": false,
             "mutex_groups": [],
