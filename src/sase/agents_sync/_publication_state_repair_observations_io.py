@@ -7,7 +7,9 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
-from sase.agents_sync.inventory_io import source_run_id as _source_run_id
+from sase.agents_sync.inventory_io import (
+    source_run_id as _source_run_id,
+)
 from sase.agents_sync.v2_io import MAX_JSON_BYTES
 from sase.core.agent_run_state_wire import (
     AGENT_RUN_STATE_OBSERVATION_MALFORMED,
@@ -19,14 +21,6 @@ from sase.core.agent_run_state_wire import (
 ACE_RUN_WORKFLOW = "ace-run"
 
 _READ_HOOK: Callable[[Path], None] | None = None
-
-
-def derived_run_id(
-    project_key: str, durable: str, workflow: str = ACE_RUN_WORKFLOW
-) -> str:
-    """Derive a stable source run id for one durable artifact id."""
-
-    return _source_run_id(project_key, workflow, durable)
 
 
 def read_bounded_json(path: Path) -> tuple[str, dict[str, Any] | None]:
@@ -53,3 +47,9 @@ def read_bounded_json(path: Path) -> tuple[str, dict[str, Any] | None]:
     if not isinstance(payload, dict):
         return AGENT_RUN_STATE_OBSERVATION_MALFORMED, None
     return AGENT_RUN_STATE_OBSERVATION_PRESENT, payload
+
+
+def derived_run_id(
+    project_key: str, durable: str, workflow: str = ACE_RUN_WORKFLOW
+) -> str:
+    return _source_run_id(project_key, workflow, durable)

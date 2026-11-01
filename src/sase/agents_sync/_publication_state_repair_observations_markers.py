@@ -1,11 +1,11 @@
-"""Marker and inventory observations for published-state repair."""
+"""Marker-payload observations for published-state repair."""
 
 from __future__ import annotations
 
 from pathlib import Path
 from typing import Any
 
-from sase.agents_sync._publication_state_repair_observation_support import (
+from sase.agents_sync._publication_state_repair_observations_io import (
     ACE_RUN_WORKFLOW,
     derived_run_id,
     read_bounded_json,
@@ -16,7 +16,6 @@ from sase.agents_sync.inventory_io import (
     time_text as _time_text,
 )
 from sase.agents_sync.inventory_models import InventoryRun
-from sase.core.agent_identity_facade import AgentOwnerIdentity
 from sase.core.agent_run_state_wire import (
     AGENT_RUN_STATE_EVIDENCE_DISMISSED,
     AGENT_RUN_STATE_EVIDENCE_TERMINAL_MARKER,
@@ -25,22 +24,9 @@ from sase.core.agent_run_state_wire import (
     AGENT_RUN_STATE_OBSERVATION_MISSING,
     AGENT_RUN_STATE_OBSERVATION_PRESENT,
     AGENT_RUN_STATE_OBSERVATION_UNREADABLE,
-    AGENT_RUN_STATE_REASON_CONFLICTING_TERMINAL,
-    AGENT_RUN_STATE_REASON_IDENTITY_CONFLICT,
-    AGENT_RUN_STATE_REASON_LIVE_EVIDENCE,
-    AGENT_RUN_STATE_REASON_MALFORMED_EVIDENCE,
-    AGENT_RUN_STATE_REASON_MISSING_EVIDENCE,
-    AGENT_RUN_STATE_REASON_UNREADABLE_EVIDENCE,
-    AgentRunIdentityWire,
     AgentRunStateIdentityClaimsWire,
-    AgentRunStateObservationsResolveRequestWire,
-    AgentRunStateObservationsResolveResponseWire,
     AgentRunStateRawObservationWire,
 )
-
-
-def _owner_token(owner: AgentOwnerIdentity) -> str:
-    return f"{owner.username}@{owner.machine_name}"
 
 
 def _claims_from_marker_payload(
@@ -294,6 +280,25 @@ def observations_from_artifact_files(
     )
 
 
+def observations_from_dismissed_bundle(
+    raw: dict[str, Any],
+    *,
+    project_key: str,
+) -> AgentRunStateRawObservationWire:
+    """Build a dismissed observation from one selected bundle payload."""
+
+    return AgentRunStateRawObservationWire(
+        source=AGENT_RUN_STATE_EVIDENCE_DISMISSED,
+        read_status=AGENT_RUN_STATE_OBSERVATION_PRESENT,
+        identity_claims=_claims_from_archive_payload(raw, project_key=project_key),
+        state="dismissed",
+        repeat_stopped=raw.get("repeat_stopped") is True,
+        started_at=_time_text(raw.get("run_start_time") or raw.get("start_time")),
+        finished_at=_time_text(raw.get("stop_time")),
+        imported=_is_imported(raw, raw),
+    )
+
+
 def observations_from_inventory_run(
     run: InventoryRun,
 ) -> tuple[AgentRunStateRawObservationWire, ...]:
@@ -352,78 +357,3 @@ def observations_from_inventory_run(
             identity_claims=claims,
         ),
     )
-
-
-def observations_from_dismissed_bundle(
-    raw: dict[str, Any],
-    *,
-    project_key: str,
-) -> AgentRunStateRawObservationWire:
-    """Build a dismissed observation from one selected bundle payload."""
-
-    return AgentRunStateRawObservationWire(
-        source=AGENT_RUN_STATE_EVIDENCE_DISMISSED,
-        read_status=AGENT_RUN_STATE_OBSERVATION_PRESENT,
-        identity_claims=_claims_from_archive_payload(raw, project_key=project_key),
-        state="dismissed",
-        repeat_stopped=raw.get("repeat_stopped") is True,
-        started_at=_time_text(raw.get("run_start_time") or raw.get("start_time")),
-        finished_at=_time_text(raw.get("stop_time")),
-        imported=_is_imported(raw, raw),
-    )
-
-
-def resolve_observations(
-    *,
-    project: str,
-    owner: AgentOwnerIdentity,
-    global_name: str,
-    source_run_id: str,
-    local_name: str | None,
-    published_state: str,
-    published_started_at: str | None,
-    published_finished_at: str | None,
-    observations: tuple[AgentRunStateRawObservationWire, ...],
-) -> AgentRunStateObservationsResolveResponseWire:
-    """Resolve published state against raw observations through Rust."""
-
-    from sase.core.agent_run_state_facade import resolve_agent_run_state_observations
-
-    return resolve_agent_run_state_observations(
-        AgentRunStateObservationsResolveRequestWire(
-            identity=AgentRunIdentityWire(
-                project=project,
-                owner=_owner_token(owner),
-                global_name=global_name,
-                source_run_id=source_run_id,
-            ),
-            local_name=local_name,
-            published_state=published_state,
-            published_started_at=published_started_at,
-            published_finished_at=published_finished_at,
-            observations=observations,
-        )
-    )
-
-
-_UNRESOLVED_REASONS = frozenset(
-    {
-        AGENT_RUN_STATE_REASON_MISSING_EVIDENCE,
-        AGENT_RUN_STATE_REASON_MALFORMED_EVIDENCE,
-        AGENT_RUN_STATE_REASON_UNREADABLE_EVIDENCE,
-        AGENT_RUN_STATE_REASON_IDENTITY_CONFLICT,
-        AGENT_RUN_STATE_REASON_CONFLICTING_TERMINAL,
-    }
-)
-
-
-def is_unresolved_reason(reason: str) -> bool:
-    """Return whether a resolver reason leaves the run unresolved."""
-
-    return reason in _UNRESOLVED_REASONS
-
-
-def is_live_reason(reason: str) -> bool:
-    """Return whether a resolver reason reports live evidence."""
-
-    return reason == AGENT_RUN_STATE_REASON_LIVE_EVIDENCE

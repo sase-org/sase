@@ -1,24 +1,23 @@
-"""Filesystem lookup for published-state repair observations."""
+"""Filesystem lookup and resolution for published-state repair observations."""
 
 from __future__ import annotations
 
 from pathlib import Path
 from typing import Any
 
-from sase.agents_sync._publication_state_repair_observation_markers import (
-    observations_from_artifact_files,
-    observations_from_dismissed_bundle,
-    observations_from_marker_payloads,
-    resolve_observations,
-)
-from sase.agents_sync._publication_state_repair_observation_support import (
+from sase.agents_sync._publication_state_repair_observations_io import (
     ACE_RUN_WORKFLOW,
     derived_run_id,
     read_bounded_json,
 )
+from sase.agents_sync._publication_state_repair_observations_markers import (
+    observations_from_artifact_files,
+    observations_from_dismissed_bundle,
+    observations_from_marker_payloads,
+)
 from sase.agents_sync.inventory_io import (
-    text as _text,
     source_run_id as _source_run_id,
+    text as _text,
 )
 from sase.agents_sync.models import ProjectTarget
 from sase.agents_sync.v2_models import V2RunRecord
@@ -30,12 +29,25 @@ from sase.core.agent_run_state_wire import (
     AGENT_RUN_STATE_OBSERVATION_MISSING,
     AGENT_RUN_STATE_OBSERVATION_PRESENT,
     AGENT_RUN_STATE_OBSERVATION_UNREADABLE,
+    AGENT_RUN_STATE_REASON_CONFLICTING_TERMINAL,
+    AGENT_RUN_STATE_REASON_IDENTITY_CONFLICT,
+    AGENT_RUN_STATE_REASON_LIVE_EVIDENCE,
+    AGENT_RUN_STATE_REASON_MALFORMED_EVIDENCE,
+    AGENT_RUN_STATE_REASON_MISSING_EVIDENCE,
+    AGENT_RUN_STATE_REASON_UNREADABLE_EVIDENCE,
+    AgentRunIdentityWire,
+    AgentRunStateObservationsResolveRequestWire,
+    AgentRunStateObservationsResolveResponseWire,
     AgentRunStateRawObservationWire,
 )
 from sase.core.agent_scan_wire import AgentArtifactRecordWire
 
 _ARTIFACT_CANDIDATE_LIMIT = 32
 _DISMISSED_CANDIDATE_LIMIT = 64
+
+
+def _owner_token(owner: AgentOwnerIdentity) -> str:
+    return f"{owner.username}@{owner.machine_name}"
 
 
 def _canonical_child(path: Path, root: Path) -> Path | None:
@@ -236,6 +248,58 @@ def _locate_dismissed_bundles_for_run(
         seen.add(key)
         matches.append(canonical)
     return tuple(matches), None
+
+
+def resolve_observations(
+    *,
+    project: str,
+    owner: AgentOwnerIdentity,
+    global_name: str,
+    source_run_id: str,
+    local_name: str | None,
+    published_state: str,
+    published_started_at: str | None,
+    published_finished_at: str | None,
+    observations: tuple[AgentRunStateRawObservationWire, ...],
+) -> AgentRunStateObservationsResolveResponseWire:
+    """Resolve published state against raw observations through Rust."""
+
+    from sase.core.agent_run_state_facade import resolve_agent_run_state_observations
+
+    return resolve_agent_run_state_observations(
+        AgentRunStateObservationsResolveRequestWire(
+            identity=AgentRunIdentityWire(
+                project=project,
+                owner=_owner_token(owner),
+                global_name=global_name,
+                source_run_id=source_run_id,
+            ),
+            local_name=local_name,
+            published_state=published_state,
+            published_started_at=published_started_at,
+            published_finished_at=published_finished_at,
+            observations=observations,
+        )
+    )
+
+
+_UNRESOLVED_REASONS = frozenset(
+    {
+        AGENT_RUN_STATE_REASON_MISSING_EVIDENCE,
+        AGENT_RUN_STATE_REASON_MALFORMED_EVIDENCE,
+        AGENT_RUN_STATE_REASON_UNREADABLE_EVIDENCE,
+        AGENT_RUN_STATE_REASON_IDENTITY_CONFLICT,
+        AGENT_RUN_STATE_REASON_CONFLICTING_TERMINAL,
+    }
+)
+
+
+def is_unresolved_reason(reason: str) -> bool:
+    return reason in _UNRESOLVED_REASONS
+
+
+def is_live_reason(reason: str) -> bool:
+    return reason == AGENT_RUN_STATE_REASON_LIVE_EVIDENCE
 
 
 def filesystem_observations_for_run(
