@@ -55,6 +55,7 @@ EXTRA_TYPED_HELPERS = (
     "_sase_install_run.py",
     "_sase_install_state.py",
     "_sase_install_ui.py",
+    "_tui_import_footprint.py",
 )
 
 

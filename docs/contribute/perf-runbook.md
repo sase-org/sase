@@ -1352,17 +1352,36 @@ SASE_TUI_LOADER_LOG_THRESHOLD_SECONDS=0.05 sase tui
 
 ### TUI import-budget ratchet (sase-13p)
 
-`tests/ace/tui/test_app_import_budget.py` guards the fresh-interpreter first-party
-module count for `import sase.ace.tui.app`: keys equal to `sase` or starting with
-`sase.`, with a strict `<` against `_MAX_SASE_MODULE_COUNT` (measured plus 5). The cap
-only moves down: raising it requires a named first-party module that is genuinely needed
-on the first-paint path with deferral impossible, recorded in the test comment with its
-commit, and the raise covers only the attributed amount. Never redefine success as `<=`
-and never raise the cap to absorb unattributed drift. Third-party and stdlib growth do
-not fail this cap. A much looser total-module bound (`_MAX_TOTAL_MODULE_COUNT`, measured
-plus 10%) exists only to catch a large dependency regression. New TUI code must not add
-eager imports to the startup closure; use use-site or `TYPE_CHECKING` imports and extend
-the test's `deferred_modules` probe with the deferred heavy modules.
+`tests/ace/tui/test_app_import_budget.py` guards the fresh-interpreter source footprint
+of `import sase.ace.tui.app`. The footprint is the sum of UTF-8 byte lengths of the
+significant Python tokens in the unique source files of the imported first-party modules
+(names equal to `sase` or starting with `sase.`). It leaves out whitespace, comments,
+import statements, docstrings, and plain literal `__all__` lists, so a mechanical module
+split (a facade plus helper files holding the same code) leaves it unchanged while
+additional imported implementation grows it. Everything else counts, including computed
+`__all__` values and executable code that shares a line with an import. The definition
+and its metric version live in `tools/_tui_import_footprint.py`.
+
+The assertion is a strict `<` against a fixed cap: the clean baseline measured when the
+metric was introduced plus a 4,096-byte allowance. The test comment records the exact
+baseline, revision, interpreter, metric version, allowance, and cap, plus the replayed
+splits. The allowance is small and absolute (it is not a percentage of the roughly 23 MB
+raw tree); it covers the small source changes that accompany real splits and, like the
+old module-count headroom, admits small code growth. The cap only moves down: raising it
+requires a named first-party source that is genuinely needed on the first-paint path
+with deferral considered and impossible, recorded in the test comment with its commit,
+and the raise covers only the attributed bytes. Never redefine success as `<=`, never
+recalibrate the baseline automatically from HEAD or the merge-base, never grow the
+allowance to absorb unattributed drift, and never edit the cap to make a failing replay
+pass. Third-party and stdlib growth do not fail this cap, and first-party module counts
+are diagnostics only.
+
+The other guards stay as they were. A much looser total-module bound
+(`_MAX_TOTAL_MODULE_COUNT`, measured plus 10%) exists only to catch a large dependency
+regression, the app import has a CPU budget with a two-attempt retry, and the test's
+deferred-module probe fails on any listed heavy module regardless of size. New TUI code
+must not add eager imports to the startup closure; use use-site or `TYPE_CHECKING`
+imports and extend the probe with the deferred heavy modules.
 
 Measure and attribute with the closure tool (run it with the project venv):
 
@@ -1371,10 +1390,19 @@ Measure and attribute with the closure tool (run it with the project venv):
 .venv/bin/python tools/tui_import_closure --diff $(git merge-base HEAD origin/master)
 ```
 
-The bare form prints the current first-party (`sase` / `sase.*`) count and the total
-module count. `--diff REV` measures the same import at `REV` from a temporary detached
-worktree (removed afterwards), prints the first-party delta, and lists the `sase.*`
-modules added and removed.
+The bare form prints the current first-party (`sase` / `sase.*`) count, the total module
+count, import CPU, and the footprint. `--diff REV` measures the same import at `REV`
+from a temporary detached worktree (removed afterwards) and prints the signed footprint
+and module deltas. Its contributor list names each source whose footprint changed,
+largest first, including edits inside modules present on both sides; when a split only
+moves code, the list says the footprint is unchanged overall. It also lists the `sase.*`
+modules added and removed. The tool reads each source after the import, in the calling
+process, so measuring the footprint never changes the measured interpreter's module
+counts or import CPU. Parsing the roughly 2,860 sources takes 10 to 20 seconds cold
+(depending on host load), so the footprint is memoized by source content: `--diff`
+parses only the files that differ between the two trees, and the test keeps a
+per-checkout cache under `.pytest_cache` that a changed metric or interpreter
+invalidates.
 
 ## Synthetic-data benchmark harness
 

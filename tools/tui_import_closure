@@ -2,95 +2,97 @@
 """Measure the TUI startup import closure and diff it against a revision.
 
 With no arguments, imports ``sase.ace.tui.app`` in a fresh interpreter and
-prints the first-party (``sase`` / ``sase.*``) module count the import-budget
-guard enforces. With ``--diff REV``, the same import is measured at ``REV``
+prints the first-party (``sase`` / ``sase.*``) module count, the normalized
+source footprint the import-budget guard enforces, the total module count, and
+import CPU time. With ``--diff REV``, the same import is measured at ``REV``
 from a temporary detached worktree (using this interpreter with
-``PYTHONPATH`` pointed at the worktree's ``src``), and the first-party
-modules added and removed since ``REV`` are printed. The worktree is
-removed afterwards.
+``PYTHONPATH`` pointed at the worktree's ``src``), and the signed footprint
+change, the sources that contributed to it (including modules present on both
+sides whose contents changed), and the first-party modules added and removed
+since ``REV`` are printed. The worktree is removed afterwards.
+
+The footprint is defined by ``tools/_tui_import_footprint.py``: imported
+first-party source minus import statements, docstrings, literal ``__all__``
+lists, comments, and whitespace. A mechanical module split therefore leaves it
+unchanged while additional imported implementation grows it.
 """
 
 from __future__ import annotations
 
 import argparse
-import json
 import os
 import subprocess
 import sys
 import tempfile
-import textwrap
 from dataclasses import dataclass
 from pathlib import Path
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-MEASURE_SNIPPET = textwrap.dedent(
-    """
-    import importlib
-    import json
-    import sys
-    import time
+sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-    started = time.process_time()
-    importlib.import_module("sase.ace.tui.app")
-    elapsed = time.process_time() - started
+import _tui_import_footprint as footprint  # noqa: E402
 
-    print(json.dumps({
-        "elapsed_seconds": elapsed,
-        "module_count": len(sys.modules),
-        "sase_modules": sorted(
-            name
-            for name in sys.modules
-            if name == "sase" or name.startswith("sase.")
-        ),
-    }))
-    """
-)
+
+ClosureMeasurement = footprint.ImportMeasurement
 
 
 def is_first_party_module(name: str) -> bool:
     """Return True for the ``sase`` package and its submodules."""
-    return name == "sase" or name.startswith("sase.")
+    return footprint.is_first_party_module(name)
 
 
 @dataclass(frozen=True)
-class ClosureMeasurement:
-    elapsed_seconds: float
-    module_count: int
-    sase_modules: tuple[str, ...]
+class FootprintChange:
+    """One imported source whose footprint differs between two closures."""
+
+    name: str
+    base_bytes: int | None
+    current_bytes: int | None
 
     @property
-    def sase_module_count(self) -> int:
-        return len(self.sase_modules)
+    def delta(self) -> int:
+        return (self.current_bytes or 0) - (self.base_bytes or 0)
+
+    @property
+    def detail(self) -> str:
+        if self.base_bytes is None:
+            return "added"
+        if self.current_bytes is None:
+            return "removed"
+        return f"changed: {self.base_bytes:,} -> {self.current_bytes:,}"
 
 
-def _measure(cwd: Path, extra_src: Path | None = None) -> ClosureMeasurement:
+def footprint_changes(
+    current: ClosureMeasurement, base: ClosureMeasurement
+) -> list[FootprintChange]:
+    """Return per-source footprint differences, largest absolute change first."""
+    current_bytes = current.footprint.module_bytes
+    base_bytes = base.footprint.module_bytes
+    changes = [
+        FootprintChange(name, base_bytes.get(name), current_bytes.get(name))
+        for name in sorted(set(current_bytes) | set(base_bytes))
+    ]
+    return sorted(
+        (change for change in changes if change.delta != 0),
+        key=lambda change: (-abs(change.delta), change.name),
+    )
+
+
+def _measure(
+    cwd: Path,
+    extra_src: Path | None = None,
+    cache: footprint.FootprintCache | None = None,
+) -> ClosureMeasurement:
     """Import the TUI app in a fresh interpreter and measure its closure."""
-    env = dict(os.environ)
-    if extra_src is not None:
-        path = str(extra_src)
-        previous = env.get("PYTHONPATH", "")
-        env["PYTHONPATH"] = f"{path}{os.pathsep}{previous}" if previous else path
-    result = subprocess.run(
-        [sys.executable, "-c", MEASURE_SNIPPET],
-        check=False,
-        text=True,
-        capture_output=True,
-        cwd=cwd,
-        env=env,
-    )
-    if result.returncode != 0:
-        detail = (result.stderr + result.stdout).strip().splitlines()
-        tail = "\n".join(detail[-15:])
-        raise SystemExit(f"TUI app import failed:\n{tail}")
-    payload = json.loads(result.stdout)
-    return ClosureMeasurement(
-        elapsed_seconds=float(payload["elapsed_seconds"]),
-        module_count=int(payload["module_count"]),
-        sase_modules=tuple(
-            name for name in payload["sase_modules"] if is_first_party_module(name)
-        ),
-    )
+    try:
+        return footprint.measure_import(
+            cwd=cwd,
+            extra_paths=[] if extra_src is None else [extra_src],
+            cache=cache,
+        )
+    except (footprint.ImportProbeError, footprint.FootprintError) as error:
+        raise SystemExit(f"TUI app measurement failed: {error}") from error
 
 
 def _resolve_rev(rev: str) -> str:
@@ -106,7 +108,9 @@ def _resolve_rev(rev: str) -> str:
     return result.stdout.strip()
 
 
-def _measure_at_rev(rev: str, sha: str) -> ClosureMeasurement:
+def _measure_at_rev(
+    rev: str, sha: str, cache: footprint.FootprintCache | None = None
+) -> ClosureMeasurement:
     """Measure the closure at *sha* from a temporary detached worktree."""
     worktree = Path(tempfile.mkdtemp(prefix="tui-import-closure-"))
     worktree.rmdir()
@@ -122,7 +126,7 @@ def _measure_at_rev(rev: str, sha: str) -> ClosureMeasurement:
             raise SystemExit(
                 f"cannot check out {rev!r}: {(add.stderr or add.stdout).strip()}"
             )
-        return _measure(REPO_ROOT, extra_src=worktree / "src")
+        return _measure(REPO_ROOT, extra_src=worktree / "src", cache=cache)
     finally:
         subprocess.run(
             ["git", "worktree", "remove", "--force", str(worktree)],
@@ -141,25 +145,31 @@ def _colored(text: str, code: str) -> str:
 def format_current_line(measurement: ClosureMeasurement) -> str:
     """Return the bare-form summary line (first-party count first)."""
     return (
-        f"TUI app import closure: {measurement.sase_module_count} sase.* "
+        f"TUI app import closure: {measurement.first_party_count} sase.* "
         f"modules ({measurement.module_count} total, "
-        f"{measurement.elapsed_seconds:.2f}s CPU)"
+        f"{measurement.elapsed_seconds:.2f}s CPU), "
+        f"footprint {measurement.footprint_bytes:,} bytes"
     )
 
 
 def format_base_line(rev: str, sha: str, measurement: ClosureMeasurement) -> str:
     """Return the ``--diff`` baseline summary line."""
     return (
-        f"at {rev} ({sha[:12]}): {measurement.sase_module_count} sase.* "
-        f"modules ({measurement.module_count} total)"
+        f"at {rev} ({sha[:12]}): {measurement.first_party_count} sase.* "
+        f"modules ({measurement.module_count} total), "
+        f"footprint {measurement.footprint_bytes:,} bytes"
     )
 
 
 def format_change_line(current: ClosureMeasurement, base: ClosureMeasurement) -> str:
-    """Return the ``--diff`` first-party delta line."""
-    sase_delta = current.sase_module_count - base.sase_module_count
+    """Return the ``--diff`` first-party and footprint delta line."""
+    sase_delta = current.first_party_count - base.first_party_count
     total_delta = current.module_count - base.module_count
-    return f"change: {sase_delta:+d} sase.* modules ({total_delta:+d} total)"
+    footprint_delta = current.footprint_bytes - base.footprint_bytes
+    return (
+        f"change: {sase_delta:+d} sase.* modules ({total_delta:+d} total), "
+        f"footprint {footprint_delta:+,d} bytes"
+    )
 
 
 def format_diff_lines(
@@ -174,8 +184,25 @@ def format_diff_lines(
         format_base_line(rev, sha, base),
         format_change_line(current, base),
     ]
-    added = sorted(set(current.sase_modules) - set(base.sase_modules))
-    removed = sorted(set(base.sase_modules) - set(current.sase_modules))
+    changes = footprint_changes(current, base)
+    if not changes:
+        lines.append("no source footprint changes")
+    else:
+        if current.footprint_bytes == base.footprint_bytes:
+            lines.append(
+                f"footprint unchanged overall; source moved across {len(changes)} "
+                "modules (largest first):"
+            )
+        else:
+            lines.append(f"footprint contributors ({len(changes)}, largest first):")
+        for change in changes:
+            code = "32" if change.delta > 0 else "31"
+            lines.append(
+                f"  {_colored(f'{change.delta:+,d}', code)} {change.name} "
+                f"({change.detail})"
+            )
+    added = sorted(set(current.first_party_modules) - set(base.first_party_modules))
+    removed = sorted(set(base.first_party_modules) - set(current.first_party_modules))
     if added:
         lines.append(_colored(f"added ({len(added)}):", "32"))
         for name in added:
@@ -193,8 +220,9 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description=(
             "Print the fresh-interpreter first-party (sase / sase.*) "
-            "module count for `import sase.ace.tui.app`, optionally "
-            "diffing that closure against a revision."
+            "module count and normalized source footprint for "
+            "`import sase.ace.tui.app`, optionally diffing that closure "
+            "against a revision."
         ),
     )
     parser.add_argument(
@@ -203,8 +231,9 @@ def build_parser() -> argparse.ArgumentParser:
         metavar="REV",
         default=None,
         help=(
-            "diff the current first-party closure against REV (measured "
-            "from a temporary detached worktree) and list added/removed "
+            "diff the current closure against REV (measured from a "
+            "temporary detached worktree): signed footprint change, the "
+            "sources that contributed to it, and the added/removed "
             "sase.* modules"
         ),
     )
@@ -213,12 +242,13 @@ def build_parser() -> argparse.ArgumentParser:
 
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
-    current = _measure(REPO_ROOT)
+    cache = footprint.FootprintCache()
+    current = _measure(REPO_ROOT, cache=cache)
     print(format_current_line(current))
     if args.diff is None:
         return 0
     sha = _resolve_rev(args.diff)
-    base = _measure_at_rev(args.diff, sha)
+    base = _measure_at_rev(args.diff, sha, cache)
     for line in format_diff_lines(current, base, rev=args.diff, sha=sha):
         print(line)
     return 0
