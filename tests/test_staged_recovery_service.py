@@ -377,7 +377,9 @@ def test_successor_detached_delivery_writes_one_receipt(
 
     from sase.axe.run_agent_successor import SuccessorDeliveryResult
 
-    def fake_deliver(_origin: str, _staged_id: str) -> SuccessorDeliveryResult:
+    def fake_deliver(
+        _origin: str, _staged_id: str, **_kwargs
+    ) -> SuccessorDeliveryResult:
         return SuccessorDeliveryResult("submitted", "agent--1", str(tmp_path / "child"))
 
     monkeypatch.setattr(
@@ -411,13 +413,16 @@ def test_already_adopted_delivery_only_reuses_child(
         },
         artifacts_dir=str(artifacts),
     )
-    _write_meta(artifacts)
+    _write_meta(artifacts, pid=999999)
+    monkeypatch.setattr(
+        "sase.axe.run_agent_exec_staged_recovery.observe_runner", lambda *_: "dead"
+    )
 
     from sase.axe.run_agent_successor import SuccessorDeliveryResult
 
     seen: list[str] = []
 
-    def fake_deliver(origin: str, staged_id: str) -> SuccessorDeliveryResult:
+    def fake_deliver(origin: str, staged_id: str, **_kwargs) -> SuccessorDeliveryResult:
         seen.append(staged_id)
         return SuccessorDeliveryResult("owned", "agent--1", str(child))
 
@@ -531,7 +536,7 @@ def test_two_repo_commit_preserves_first_receipt(tmp_path: Path, monkeypatch) ->
 
     monkeypatch.setattr(
         "sase.axe.run_agent_exec_staged_recovery_deliver.deliver_staged_successor_detached",
-        lambda _origin, _staged: SuccessorDeliveryResult(
+        lambda _origin, _staged, **_kwargs: SuccessorDeliveryResult(
             "submitted", "agent--1", str(tmp_path / "child")
         ),
     )

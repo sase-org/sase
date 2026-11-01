@@ -1794,6 +1794,19 @@ axe:
             resume attempt; reclaim notifies with the resume command if another attempt is needed. A gate that
             changed mid-pass triggers at most one snapshot refresh, and gates still waiting once a pass-wide
             budget measured from job start is spent are deferred to the next tick.
+        - name: staged_handoff_reconcile
+          script: sase_job_staged_handoff_reconcile
+          timeout: "2m"
+          description: |-
+            Recover finalized staged handoffs after their originating runner dies
+
+            Pages through the artifact index and a resumable historical backfill, including terminal origins.
+            Uses the shared adoption lock and persisted destination identity to recover one handoff or deliver
+            its recorded continuation without rerunning the provider or finalizers. Live and unknown runners,
+            explicit holds, killed stages, and incomplete settlement remain untouched. At most 32 candidates
+            run per pass within a 60-second budget; unfinished candidates resume next time. Stale-process
+            claim cleanup retains staged origins independently of job ordering. The default always trigger
+            also catches runner death without a file event.
         - name: artifact_link_backfill
           script: sase_job_artifact_link_backfill
           timeout: "5m"

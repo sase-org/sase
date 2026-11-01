@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Iterator
-from contextlib import contextmanager
+from contextlib import ExitStack, contextmanager
 import dataclasses
 from datetime import UTC, datetime
 import fcntl
@@ -70,14 +70,29 @@ def _handoff_sync_hook(_point: str) -> None:
 
 
 @contextmanager
-def acquire_handoff_locks(root: Path) -> Iterator[None]:
-    """Acquire the in-process mutex and handoff flock for *root*."""
+def acquire_handoff_locks(root: Path, *, blocking: bool = True) -> Iterator[bool]:
+    """Acquire the mutex and flock, or yield false for a busy nonblocking probe."""
     _handoff_sync_hook("before_handoff_lock")
     root.mkdir(parents=True, exist_ok=True)
-    with _HANDOFF_THREAD_LOCK:
-        with locked_file(root / HANDOFF_LOCK_FILENAME, fcntl.LOCK_EX):
+    if not _HANDOFF_THREAD_LOCK.acquire(blocking=blocking):
+        yield False
+        return
+    try:
+        with ExitStack() as stack:
+            try:
+                stack.enter_context(
+                    locked_file(
+                        root / HANDOFF_LOCK_FILENAME,
+                        fcntl.LOCK_EX | (0 if blocking else fcntl.LOCK_NB),
+                    )
+                )
+            except BlockingIOError:
+                yield False
+                return
             _handoff_sync_hook("holding_handoff_lock")
-            yield
+            yield True
+    finally:
+        _HANDOFF_THREAD_LOCK.release()
 
 
 @contextmanager

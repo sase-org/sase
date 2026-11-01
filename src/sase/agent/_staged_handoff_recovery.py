@@ -67,7 +67,7 @@ class StagedRecoveryAttempt:
 
 
 @contextmanager
-def acquire_adoption_lock(root: Path) -> Iterator[None]:
+def acquire_adoption_lock(root: Path, *, blocking: bool = True) -> Iterator[bool]:
     """Hold the shared adoption lock for *root*.
 
     Lock ordering: the adoption lock (the existing handoff flock) is the
@@ -75,6 +75,9 @@ def acquire_adoption_lock(root: Path) -> Iterator[None]:
     or claim lock, and never while already holding the receipt writer's
     lock. Callers that already hold it must use the ``*_locked`` helpers
     below instead of re-acquiring.
+
+    With ``blocking=False``, check the yielded boolean before touching state;
+    a busy lock yields false without waiting or changing the staged evidence.
     """
     try:
         adoption_filename = recovery_adoption_lock_filename()
@@ -86,8 +89,8 @@ def acquire_adoption_lock(root: Path) -> Iterator[None]:
         raise StagedHandoffError(
             f"adoption lock {adoption_filename!r} does not match handoff lock"
         )
-    with acquire_handoff_locks(root):
-        yield
+    with acquire_handoff_locks(root, blocking=blocking) as acquired:
+        yield acquired
 
 
 def recovery_context_path(artifacts_dir: str | Path) -> Path:

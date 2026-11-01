@@ -21,6 +21,7 @@ Periodic maintenance:
 | `disk_pressure`              | Notify on disk pressure and run owner-safe cleanup early                         |
 | `bead_stale_cleanup`         | Sweep stale sub-threshold ready task beads into one `BeadStaleCleanup` gate      |
 | `gate_turn_reclaim`          | Settle pending gate turns whose gates answered, canceled, expired, or vanished   |
+| `staged_handoff_reconcile`   | Recover finalized handoffs and undelivered continuations after runner death      |
 | `artifact_link_backfill`     | Derive and reconcile artifact links, drain reads, and repair refs after a rename |
 | `artifact_retention`         | Enforce indexed artifact-file retention and purge expired trash                  |
 | `artifact_run_prune`         | Preview old ace-run directories and empty shard cleanup                          |

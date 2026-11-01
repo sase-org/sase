@@ -59,6 +59,7 @@ def complete_already_adopted_delivery(
     deferred_already: tuple[dict[str, Any], dict[str, Any] | None],
     *,
     origin_agent: str | None,
+    mode: str = "explicit",
 ) -> StagedRecoveryResult:
     """Finish delivery for a stage whose success receipt already exists."""
     staged_snapshot, receipt_snapshot = deferred_already
@@ -67,14 +68,25 @@ def complete_already_adopted_delivery(
     snapshot_kind = (
         str(snapshot_kind_value) if isinstance(snapshot_kind_value, str) else None
     )
-    with acquire_adoption_lock(Path(origin)):
+    with acquire_adoption_lock(Path(origin), blocking=mode != "automatic") as acquired:
+        if not acquired:
+            return StagedRecoveryResult(
+                adopted=False,
+                already_adopted=True,
+                action="hold",
+                reason="staged adoption lock is busy",
+                kind=snapshot_kind,
+                origin_agent=origin_agent,
+            )
         check_agent_value = read_run_metadata(origin).get("name")
         check_agent = (
             str(check_agent_value)
             if isinstance(check_agent_value, str)
             else origin_agent
         )
-    delivery = deliver_staged_successor_detached(origin, snapshot_id)
+    delivery = deliver_staged_successor_detached(
+        origin, snapshot_id, recovery_mode=mode
+    )
     if delivery.state in {"submitted", "owned", "terminal"}:
         already_destination = adopted_destination_refs(receipt_snapshot) or {}
         already_destination.setdefault(
@@ -83,7 +95,7 @@ def complete_already_adopted_delivery(
         return StagedRecoveryResult(
             adopted=True,
             already_adopted=True,
-            action="adopt",
+            action="deliver_only" if delivery.state == "submitted" else "adopt",
             reason="matching success receipt already owns this adoption",
             kind=snapshot_kind,
             origin_agent=check_agent,
@@ -94,10 +106,14 @@ def complete_already_adopted_delivery(
 
 def complete_pending_delivery(
     pending_delivery: tuple[str, str, str | None, str | None],
+    *,
+    mode: str = "explicit",
 ) -> StagedRecoveryResult:
     """Deliver a recorded successor and write the adoption receipt."""
     pending_origin, pending_staged_id, pending_kind, pending_agent = pending_delivery
-    delivery = deliver_staged_successor_detached(pending_origin, pending_staged_id)
+    delivery = deliver_staged_successor_detached(
+        pending_origin, pending_staged_id, recovery_mode=mode
+    )
     if delivery.state not in {"submitted", "owned", "terminal"}:
         hold_destination: dict[str, Any] = {
             "successor_artifacts_dir": delivery.artifacts_dir,
@@ -115,7 +131,18 @@ def complete_pending_delivery(
             origin_agent=pending_agent,
             destination=hold_destination,
         )
-    with acquire_adoption_lock(Path(pending_origin)):
+    with acquire_adoption_lock(
+        Path(pending_origin), blocking=mode != "automatic"
+    ) as acquired:
+        if not acquired:
+            return StagedRecoveryResult(
+                adopted=False,
+                already_adopted=False,
+                action="hold",
+                reason="successor delivered; adoption lock is busy before receipt",
+                kind=pending_kind,
+                origin_agent=pending_agent,
+            )
         current = read_staged_handoff(pending_origin)
         if current is None or str(current.get("staged_id")) != pending_staged_id:
             return StagedRecoveryResult(

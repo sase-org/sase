@@ -94,6 +94,8 @@ def _successor_destination_observation(
 def deliver_staged_successor_detached(
     origin_artifacts_dir: str,
     staged_id: str,
+    *,
+    recovery_mode: str | None = None,
 ) -> SuccessorDeliveryResult:
     """Launch a recorded successor once through the normal detached runner path.
 
@@ -110,7 +112,13 @@ def deliver_staged_successor_detached(
     )
 
     origin = Path(origin_artifacts_dir)
-    with acquire_adoption_lock(origin):
+    with acquire_adoption_lock(
+        origin, blocking=recovery_mode != "automatic"
+    ) as acquired:
+        if not acquired:
+            return SuccessorDeliveryResult(
+                "held", "", "", reason="staged adoption lock is busy"
+            )
         record = read_staged_successor(str(origin), staged_id=staged_id)
         if record is None:
             return SuccessorDeliveryResult(
@@ -143,6 +151,22 @@ def deliver_staged_successor_detached(
                     "destination can be proven"
                 ),
             )
+
+        if recovery_mode is not None:
+            from sase.axe.run_agent_exec_staged_recovery_facts import (
+                recovery_delivery_refusal,
+            )
+
+            try:
+                refusal = recovery_delivery_refusal(
+                    str(origin), staged_id, recovery_mode
+                )
+            except Exception as exc:  # noqa: BLE001 - unreadable proof cannot launch.
+                refusal = f"successor recovery evidence is unreadable: {exc}"
+            if refusal:
+                return SuccessorDeliveryResult(
+                    "held", agent_name, artifacts_dir, reason=refusal
+                )
 
         if observed == "dead" and record["delivery_state"] in {
             "prepared",

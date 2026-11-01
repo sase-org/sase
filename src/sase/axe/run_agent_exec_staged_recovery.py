@@ -114,7 +114,14 @@ def recover_staged_handoff(
     pending_delivery: tuple[str, str, str | None, str | None] | None = None
     deferred_already: tuple[dict[str, Any], dict[str, Any] | None] | None = None
     origin_agent: str | None = None
-    with acquire_adoption_lock(Path(origin)):
+    with acquire_adoption_lock(Path(origin), blocking=mode != "automatic") as acquired:
+        if not acquired:
+            return StagedRecoveryResult(
+                adopted=False,
+                already_adopted=False,
+                action="hold",
+                reason="another caller owns the staged adoption lock",
+            )
         staged_record = read_staged_handoff(origin)
         if staged_record is None:
             return StagedRecoveryResult(
@@ -140,6 +147,45 @@ def recover_staged_handoff(
             )
         raw_name = run_metadata.get("name") or run_metadata.get("agent_name")
         origin_agent = str(raw_name) if isinstance(raw_name, str) else None
+        if mode == "automatic":
+            # Re-observe under the adoption lock. Ineligible automatic probes
+            # must not write a held receipt: a live runner or an unfinished
+            # finalizer can become eligible on a later housekeeping pass.
+            from sase.agent.staged_handoff import decide_recovery
+
+            destination = observe_destination(staged_record, artifacts_dir=origin)
+            if _already_needs_delivery(receipt, kind) and destination == "absent":
+                destination = "pending"
+            settlement = (
+                "settled"
+                if receipt_state == "adopted"
+                else observe_settlement(
+                    staged_record, artifacts_dir=origin, run_metadata=run_metadata
+                )[0]
+            )
+            automatic = decide_recovery(
+                {
+                    "schema_version": 1,
+                    "staged_id": staged_id,
+                    "receipt": receipt_state,
+                    "runner": observe_runner(run_metadata),
+                    "killed_or_discarded": was_killed_or_discarded(
+                        origin, run_metadata
+                    ),
+                    "mode": mode,
+                    "settlement": settlement,
+                    "destination": destination,
+                }
+            )
+            if automatic["action"] not in {"adopt", "deliver_only"}:
+                return StagedRecoveryResult(
+                    adopted=False,
+                    already_adopted=bool(automatic["already_adopted"]),
+                    action=str(automatic["action"]),
+                    reason=str(automatic["reason"]),
+                    kind=kind,
+                    origin_agent=origin_agent,
+                )
         if receipt_state == "adopted":
             if _already_needs_delivery(receipt, kind):
                 deferred_already = (
@@ -403,10 +449,10 @@ def recover_staged_handoff(
                 )
     if deferred_already is not None:
         return complete_already_adopted_delivery(
-            origin, deferred_already, origin_agent=origin_agent
+            origin, deferred_already, origin_agent=origin_agent, mode=mode
         )
     if pending_delivery is not None:
-        return complete_pending_delivery(pending_delivery)
+        return complete_pending_delivery(pending_delivery, mode=mode)
     return StagedRecoveryResult(
         adopted=False,
         already_adopted=False,

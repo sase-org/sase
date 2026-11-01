@@ -692,3 +692,40 @@ def test_held_claim_exceeds_ttl_boundaries() -> None:
     assert _held_claim_exceeds_ttl(younger, 14, now=now) is False
     assert _held_claim_exceeds_ttl(older, 0, now=now) is False
     assert _held_claim_exceeds_ttl("not-a-timestamp", 14, now=now) is False
+
+
+@pytest.mark.parametrize("pinned", [False, True])
+def test_staged_origin_retains_claim_before_and_after_receipt(
+    tmp_path, monkeypatch, pinned
+):
+    """Even an expired held origin keeps custody until ownership transfers."""
+    import sase.ace.scheduler.stale_running_cleanup as cleanup
+
+    artifacts = tmp_path / "origin"
+    artifacts.mkdir()
+    claim = WorkspaceClaim(
+        workspace_num=2,
+        workflow="ace-run",
+        cl_name="agent",
+        pid=12345,
+        artifacts_timestamp="20200101120000",
+        pinned=pinned,
+    )
+    monkeypatch.setattr(
+        cleanup, "_get_all_project_files", lambda: [str(tmp_path / "proj/proj.sase")]
+    )
+    monkeypatch.setattr(cleanup, "get_claimed_workspaces", lambda _: [claim])
+    monkeypatch.setattr(cleanup, "is_process_running", lambda _: False)
+    monkeypatch.setattr(
+        "sase.core.agent_artifact_paths.resolve_agent_artifact_timestamp_path",
+        lambda *_: artifacts,
+    )
+    release = MagicMock()
+    monkeypatch.setattr(cleanup, "release_workspace", release)
+    (artifacts / ".sase_handoff_staged.json").write_text(
+        "malformed evidence still owns custody"
+    )
+    assert cleanup_stale_running_entries() == 0
+    (artifacts / ".sase_handoff_adopted.json").write_text('{"outcome":"adopted"}')
+    assert cleanup_stale_running_entries() == 0
+    release.assert_not_called()

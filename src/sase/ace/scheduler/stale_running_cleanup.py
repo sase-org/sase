@@ -183,6 +183,11 @@ def cleanup_stale_running_entries(
         claims = get_claimed_workspaces(project_file)
 
         for claim in claims:
+            # This housekeeping lane can race staged reconciliation. Retain
+            # the origin independently of job ordering, including pinned or
+            # terminalized origins; custody transfer changes the claim owner.
+            if _staged_origin_retains_claim(project_file, claim):
+                continue
             is_monitor_claim = claim.workflow == monitor_workflow
             is_gate_claim = claim.workflow == GATE_WORKSPACE_CLAIM_WORKFLOW
             if is_monitor_claim and skip_monitor_claims:
@@ -237,6 +242,26 @@ def cleanup_stale_running_entries(
                 )
 
     return released_count
+
+
+def _staged_origin_retains_claim(project_file: str, claim: WorkspaceClaim) -> bool:
+    if not claim.artifacts_timestamp:
+        return False
+    try:
+        from sase.core.agent_artifact_paths import resolve_agent_artifact_timestamp_path
+        from sase.agent.staged_handoff import STAGED_HANDOFF_FILENAME
+
+        artifacts = resolve_agent_artifact_timestamp_path(
+            Path(project_file).parent.name, "ace-run", claim.artifacts_timestamp
+        )
+        # Presence, including malformed evidence, protects custody. Receipt
+        # success alone cannot release a claim before successor delivery.
+        (artifacts / STAGED_HANDOFF_FILENAME).lstat()
+        return True
+    except FileNotFoundError:
+        return False
+    except Exception:
+        return True
 
 
 def _clear_stale_occupant_record(project_file: str, workspace_num: int) -> None:

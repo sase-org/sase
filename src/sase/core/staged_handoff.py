@@ -228,3 +228,11 @@ def receipt_transition_allowed(
         raise
     except ValueError as exc:
         raise StagedHandoffContractError(str(exc)) from exc
+
+
+def staged_reconcile_page(
+    index_path: str, projects_root: str, cursor: dict[str, Any], limit: int
+) -> dict[str, Any]:
+    """Read a bounded Rust-selected page, including historical staged origins."""
+    binding = require_rust_binding("staged_reconcile_page")
+    return dict(binding(index_path, projects_root, cursor, limit))

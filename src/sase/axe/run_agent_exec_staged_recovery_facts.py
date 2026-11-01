@@ -91,8 +91,8 @@ def observe_destination(staged_record: Mapping[str, Any], *, artifacts_dir: str)
     state = str(successor.get("delivery_state") or "")
     if state == "terminal":
         return "terminal"
-    if state in {"submitted", "started", "created", "prepared", "owned"}:
-        return "pending" if state != "owned" else "owned"
+    if state in {"submitted", "started", "owned"}:
+        return "owned"
     return "pending"
 
 
@@ -143,10 +143,50 @@ def workspace_mismatch(
     return None
 
 
+def recovery_delivery_refusal(
+    artifacts_dir: str, staged_id: str, mode: str
+) -> str | None:
+    """Revalidate after the delivery helper reacquires the adoption lock."""
+    from sase.agent.staged_handoff import decide_recovery, read_staged_handoff
+    from sase.axe._run_agent_exec_staged_recovery_shared import (
+        classify_receipt,
+        read_run_metadata,
+    )
+
+    stage = read_staged_handoff(artifacts_dir)
+    if stage is None or stage["staged_id"] != staged_id:
+        return "the staged handoff changed before successor delivery"
+    metadata = read_run_metadata(artifacts_dir)
+    receipt_state, _ = classify_receipt(artifacts_dir, staged_id)
+    settlement = (
+        "settled"
+        if receipt_state == "adopted"
+        else observe_settlement(
+            stage, artifacts_dir=artifacts_dir, run_metadata=metadata
+        )[0]
+    )
+    decision = decide_recovery(
+        {
+            "schema_version": 1,
+            "staged_id": staged_id,
+            "receipt": receipt_state,
+            "runner": observe_runner(metadata),
+            "killed_or_discarded": was_killed_or_discarded(artifacts_dir, metadata),
+            "mode": mode,
+            "settlement": settlement,
+            "destination": "pending",
+        }
+    )
+    if decision["action"] in {"adopt", "deliver_only"}:
+        return None
+    return str(decision["reason"])
+
+
 __all__ = [
     "observe_destination",
     "observe_runner",
     "observe_settlement",
+    "recovery_delivery_refusal",
     "repair_action_for",
     "was_killed_or_discarded",
     "workspace_mismatch",

@@ -1,4 +1,4 @@
-{"count": 3672, "rev": "4d7d14aab57d", "schema": "sase.footprint.catalog/1"}
+{"count": 3673, "rev": "fdd557c37278", "schema": "sase.footprint.catalog/1"}
 {"area": "automation", "id": "auto:axe.agent_waits", "kind": "auto", "label": "Resolve agent wait dependencies within seconds of completion", "ns": "auto", "parent": null, "src": "sase/default_config.yml"}
 {"area": "automation", "id": "auto:axe.agent_waits.wait_checks", "kind": "auto", "label": "Resolve agent wait dependencies and write ready.json when satisfied", "ns": "auto", "parent": "auto:axe.agent_waits", "src": "sase/default_config.yml"}
 {"area": "automation", "id": "auto:axe.checks", "kind": "auto", "label": "Poll slower PR-submission and workspace-claim checks on a five-minute cadence", "ns": "auto", "parent": null, "src": "sase/default_config.yml"}
@@ -34,6 +34,7 @@
 {"area": "automation", "id": "auto:axe.housekeeping.managed_tmp_reap", "kind": "auto", "label": "Prune stale scratch under the managed SASE temp root", "ns": "auto", "parent": "auto:axe.housekeeping", "src": "sase/default_config.yml"}
 {"area": "automation", "id": "auto:axe.housekeeping.notification_store_compact", "kind": "auto", "label": "Archive old dismissed notifications out of the live JSONL store", "ns": "auto", "parent": "auto:axe.housekeeping", "src": "sase/default_config.yml"}
 {"area": "automation", "id": "auto:axe.housekeeping.proc_runtime_sweep", "kind": "auto", "label": "Prune stale rowless proc runtime directories", "ns": "auto", "parent": "auto:axe.housekeeping", "src": "sase/default_config.yml"}
+{"area": "automation", "id": "auto:axe.housekeeping.staged_handoff_reconcile", "kind": "auto", "label": "Recover finalized staged handoffs after their originating runner dies", "ns": "auto", "parent": "auto:axe.housekeeping", "src": "sase/default_config.yml"}
 {"area": "automation", "id": "auto:axe.publication", "kind": "auto", "label": "Drain durable agent publication work in the background", "ns": "auto", "parent": null, "src": "sase/default_config.yml"}
 {"area": "automation", "id": "auto:axe.publication.agent_publication", "kind": "auto", "label": "Drain queued agent hood, artifact-link, and Referenced By publication requests", "ns": "auto", "parent": "auto:axe.publication", "src": "sase/default_config.yml"}
 {"area": "automation", "id": "auto:axe.sidecar_sync", "kind": "auto", "label": "Fetch and fast-forward opted-in primary sidecar clones", "ns": "auto", "parent": null, "src": "sase/default_config.yml"}
