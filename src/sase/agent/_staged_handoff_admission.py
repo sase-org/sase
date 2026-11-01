@@ -3,6 +3,9 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
+from datetime import UTC, datetime
+import json
+import logging
 import os
 from pathlib import Path
 import uuid
@@ -22,6 +25,10 @@ from sase.agent._staged_handoff_store import (
     release_staging_reservation_locked,
     reservation_matches,
 )
+from sase.core.process_identity import (
+    process_identity_matches,
+    process_identity_token,
+)
 from sase.core.staged_handoff import (
     STAGED_HANDOFF_WIRE_SCHEMA_VERSION,
     StagedHandoffContractError,
@@ -30,13 +37,22 @@ from sase.core.staged_handoff import (
     validate_staged_handoff,
 )
 
+logger = logging.getLogger(__name__)
+
+_STALE_STAGING_RESERVATION_PREFIX = ".sase_handoff_staging.stale-"
+
 
 def occupying_handoff_names(
     artifacts_dir: str,
     *,
     ignore_reservation_id: str | None = None,
 ) -> tuple[str, ...]:
-    """Return occupying legacy markers, staged records, and reservations."""
+    """Return occupying legacy markers, staged records, and reservations.
+
+    Dead-owner staging reservations are reclaimed here so ``admit_stage``,
+    ``acquire_staging_reservation``, and ``write_pending_handoff_marker``
+    share one observation. Callers must hold the handoff lock.
+    """
     root = Path(artifacts_dir)
     found: list[str] = []
     for name in PENDING_HANDOFF_MARKERS:
@@ -44,12 +60,105 @@ def occupying_handoff_names(
             found.append(name)
     if path_exists(root / STAGED_HANDOFF_FILENAME):
         found.append(STAGED_HANDOFF_FILENAME)
-    reservation_path = root / STAGING_RESERVATION_FILENAME
-    if path_exists(reservation_path) and not reservation_matches(
-        reservation_path, ignore_reservation_id
-    ):
-        found.append(STAGING_RESERVATION_FILENAME)
+    occupying_reservation = _occupying_staging_reservation_name(
+        root, ignore_reservation_id=ignore_reservation_id
+    )
+    if occupying_reservation is not None:
+        found.append(occupying_reservation)
     return tuple(found)
+
+
+def _occupying_staging_reservation_name(
+    root: Path,
+    *,
+    ignore_reservation_id: str | None,
+) -> str | None:
+    path = root / STAGING_RESERVATION_FILENAME
+    if not path_exists(path):
+        return None
+    if reservation_matches(path, ignore_reservation_id):
+        return None
+    payload, unreadable = _read_staging_reservation(path)
+    if unreadable or payload is None:
+        return f"{STAGING_RESERVATION_FILENAME} (unreadable)"
+    pid = _reservation_pid(payload)
+    if pid is None:
+        return f"{STAGING_RESERVATION_FILENAME} (no owner pid)"
+    if not _reservation_owner_is_gone(pid, payload.get("process_identity")):
+        return f"{STAGING_RESERVATION_FILENAME} (owner pid {pid}, alive)"
+    if _reclaim_stale_staging_reservation(root, payload):
+        return None
+    return f"{STAGING_RESERVATION_FILENAME} (owner pid {pid}, not alive)"
+
+
+def _read_staging_reservation(
+    path: Path,
+) -> tuple[dict[str, Any] | None, bool]:
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, json.JSONDecodeError):
+        return None, True
+    if not isinstance(payload, dict):
+        return None, True
+    return payload, False
+
+
+def _reservation_pid(payload: Mapping[str, Any]) -> int | None:
+    raw = payload.get("pid")
+    if isinstance(raw, bool) or raw is None:
+        return None
+    try:
+        pid = int(raw)
+    except (TypeError, ValueError):
+        return None
+    if pid <= 0:
+        return None
+    return pid
+
+
+def _reservation_owner_is_gone(pid: int, recorded_identity: object) -> bool:
+    if not _pid_exists(pid):
+        return True
+    return not process_identity_matches(pid, recorded_identity)
+
+
+def _pid_exists(pid: int) -> bool:
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return False
+    except OSError:
+        # PermissionError and other probe failures cannot prove the owner
+        # is gone, so the reservation keeps occupying.
+        return True
+    return True
+
+
+def _reclaim_stale_staging_reservation(root: Path, payload: Mapping[str, Any]) -> bool:
+    path = root / STAGING_RESERVATION_FILENAME
+    stamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%S%fZ")
+    evidence = root / f"{_STALE_STAGING_RESERVATION_PREFIX}{stamp}.json"
+    if path_exists(evidence):
+        evidence = (
+            root
+            / f"{_STALE_STAGING_RESERVATION_PREFIX}{stamp}-{uuid.uuid4().hex[:8]}.json"
+        )
+    try:
+        os.replace(path, evidence)
+    except FileNotFoundError:
+        return True
+    except OSError:
+        logger.warning(
+            "could not reclaim stale staging reservation %s", path, exc_info=True
+        )
+        return False
+    logger.warning(
+        "reclaimed stale staging reservation pid=%s identity=%s as %s",
+        payload.get("pid"),
+        payload.get("process_identity"),
+        evidence.name,
+    )
+    return True
 
 
 def admit_stage(
@@ -182,10 +291,12 @@ def acquire_staging_reservation(
                 artifacts_dir=str(root),
                 admission=host,
             )
+        pid = os.getpid()
         payload = {
             "reservation_id": reservation_id,
             "created_at": now_rfc3339(),
-            "pid": os.getpid(),
+            "pid": pid,
+            "process_identity": process_identity_token(pid),
         }
         atomic_write_json(root / STAGING_RESERVATION_FILENAME, payload)
     return reservation_id

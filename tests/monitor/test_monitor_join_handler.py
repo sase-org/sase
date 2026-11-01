@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from pathlib import Path
 from typing import Any
 
 import pytest
@@ -36,9 +37,15 @@ __all__ = [
 ]
 
 
-def _agent(monkeypatch: pytest.MonkeyPatch, name: str = "agent-1") -> None:
+def _agent(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    name: str = "agent-1",
+) -> None:
     monkeypatch.setenv("SASE_AGENT", "1")
     monkeypatch.setenv("SASE_AGENT_NAME", name)
+    # Legacy start admits the handoff slot, which requires an artifacts dir.
+    monkeypatch.setenv("SASE_ARTIFACTS_DIR", str(tmp_path))
 
 
 # Handler validation: usage refusals exit 2.
@@ -50,9 +57,11 @@ def test_join_requires_an_agent(
 
 
 def test_join_rejects_a_command_remainder(
-    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
 ) -> None:
-    _agent(monkeypatch)
+    _agent(monkeypatch, tmp_path)
     code = dispatch(
         ["monitor", "start", "-J", "abc123", "-p", "verify", "--", "just", "check"]
     )
@@ -61,18 +70,22 @@ def test_join_rejects_a_command_remainder(
 
 
 def test_join_rejects_hidden_command_alias(
-    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
 ) -> None:
-    _agent(monkeypatch)
+    _agent(monkeypatch, tmp_path)
     code = dispatch(["monitor", "start", "-J", "abc123", "-p", "verify", "-c", "true"])
     assert code == 2
     assert "-c/--command" in capsys.readouterr().err
 
 
 def test_join_rejects_completion_and_points_at_next(
-    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
 ) -> None:
-    _agent(monkeypatch)
+    _agent(monkeypatch, tmp_path)
     code = dispatch(["monitor", "start", "-J", "abc123", "-p", "verify", "-f", "ref-1"])
     assert code == 2
     err = capsys.readouterr().err
@@ -81,18 +94,22 @@ def test_join_rejects_completion_and_points_at_next(
 
 
 def test_join_rejects_an_explicit_agent(
-    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
 ) -> None:
-    _agent(monkeypatch)
+    _agent(monkeypatch, tmp_path)
     code = dispatch(["monitor", "start", "-J", "abc123", "-p", "verify", "-a", "other"])
     assert code == 2
     assert "-a/--agent" in capsys.readouterr().err
 
 
 def test_join_unknown_run_is_refused(
-    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
 ) -> None:
-    _agent(monkeypatch)
+    _agent(monkeypatch, tmp_path)
     reserve_detached_run("--", "true")
     code = dispatch(["monitor", "start", "-J", "deadbeef" * 4, "-p", "verify"])
     assert code == 2
@@ -100,12 +117,14 @@ def test_join_unknown_run_is_refused(
 
 
 def test_join_non_detached_run_is_refused(
-    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
 ) -> None:
     from sase.tool.argv import resolve_run_argv
     from sase.tool.handoff import reserve_handoff_run
 
-    _agent(monkeypatch)
+    _agent(monkeypatch, tmp_path)
     resolved = resolve_run_argv(["--", "true"])
     reservation = reserve_handoff_run(
         resolved, owner_kind="proc", owner_id="proc-plain", agent="agent-1"
@@ -117,9 +136,11 @@ def test_join_non_detached_run_is_refused(
 
 
 def test_join_other_agents_run_is_refused(
-    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
 ) -> None:
-    _agent(monkeypatch, "agent-1")
+    _agent(monkeypatch, tmp_path, "agent-1")
     run_id = reserve_detached_run("--", "true", agent="agent-2")
     code = dispatch(["monitor", "start", "-J", run_id, "-p", "verify"])
     assert code == 2
@@ -128,9 +149,11 @@ def test_join_other_agents_run_is_refused(
 
 # Handler validation: state races exit 1 with a show pointer.
 def test_join_settled_run_is_refused_with_state_and_pointer(
-    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
 ) -> None:
-    _agent(monkeypatch)
+    _agent(monkeypatch, tmp_path)
     run_id = reserve_detached_run("--", "true")
     settle_detached_run(run_id, state="succeeded", exit_code=0, terminal_cause="exited")
     code = dispatch(["monitor", "start", "-J", run_id, "-p", "verify"])
@@ -141,9 +164,11 @@ def test_join_settled_run_is_refused_with_state_and_pointer(
 
 
 def test_join_stop_requested_run_is_refused(
-    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
 ) -> None:
-    _agent(monkeypatch)
+    _agent(monkeypatch, tmp_path)
     run_id = reserve_detached_run("--", "sleep", "30")
     tool_run_request_stop(
         {
@@ -161,9 +186,11 @@ def test_join_stop_requested_run_is_refused(
 
 
 def test_join_joined_elsewhere_is_refused(
-    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
 ) -> None:
-    _agent(monkeypatch)
+    _agent(monkeypatch, tmp_path)
     run_id = reserve_detached_run("--", "sleep", "30")
     joined = tool_run_join(
         {
@@ -232,11 +259,13 @@ def _fake_record(**overrides: object) -> MonitorRecord:
 
 
 def test_join_start_builds_a_join_request_and_reports_joined(
-    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
 ) -> None:
     import sase.main.monitor.start as handler
 
-    _agent(monkeypatch)
+    _agent(monkeypatch, tmp_path)
     pin_project(monkeypatch)
     run_id = reserve_detached_run("--", "true")
     captured: dict[str, Any] = {}
@@ -262,11 +291,13 @@ def test_join_start_builds_a_join_request_and_reports_joined(
 
 
 def test_join_start_json_reports_tool_run_joined(
-    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
 ) -> None:
     import sase.main.monitor.start as handler
 
-    _agent(monkeypatch)
+    _agent(monkeypatch, tmp_path)
     pin_project(monkeypatch)
     run_id = reserve_detached_run("--", "true")
     monkeypatch.setattr(handler, "start_monitor", lambda request: _fake_record())

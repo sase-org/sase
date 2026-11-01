@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 import threading
 
@@ -154,6 +155,11 @@ def test_reservation_is_not_a_valid_staged_record(
     reservation_id = acquire_staging_reservation(
         artifacts_dir=str(tmp_path), command="sase plan propose"
     )
+    payload = json.loads(
+        (tmp_path / STAGING_RESERVATION_FILENAME).read_text(encoding="utf-8")
+    )
+    assert payload["pid"] == os.getpid()
+    assert isinstance(payload["process_identity"], str)
     assert (tmp_path / STAGING_RESERVATION_FILENAME).is_file()
     assert read_staged_handoff(str(tmp_path)) is None
     with pytest.raises(PendingHandoffError, match=STAGING_RESERVATION_FILENAME):

@@ -19,11 +19,13 @@ from sase.core.paths import is_valid_sase_project_name, sase_projects_dir
 from sase.monitor import (
     MonitorAlreadyRunningError,
     MonitorError,
+    MonitorRecord,
     StartMonitorRequest,
     default_caller,
     maybe_handoff_monitor_from_agent,
     short_monitor_id,
     start_monitor,
+    stop_monitor,
     will_handoff_monitor_to_agent_runner,
 )
 from sase.monitor.join import JoinRefusal, JoinTarget
@@ -308,6 +310,10 @@ def handle_monitor_start(args: argparse.Namespace) -> int:
             queue_weight_override=queue_weight_override,
         )
 
+    refused = _admit_legacy_agent_monitor_start()
+    if refused is not None:
+        return refused
+
     try:
         record = start_monitor(request)
     except (MonitorAlreadyRunningError, MonitorError) as exc:
@@ -348,10 +354,48 @@ def handle_monitor_start(args: argparse.Namespace) -> int:
 
     try:
         maybe_handoff_monitor_from_agent(record)
-    except MonitorError:
+    except MonitorError as exc:
         clear_handoff_inflight_marker(os.environ.get("SASE_ARTIFACTS_DIR"))
-        raise
+        print(f"sase monitor start: {exc}", file=sys.stderr)
+        _stop_orphaned_monitor_after_failed_handoff(record)
+        return 1
     return 0
+
+
+def _admit_legacy_agent_monitor_start() -> int | None:
+    """Refuse a legacy in-agent start when the handoff slot is occupied.
+
+    Returns an exit code on refusal, or ``None`` when the start may proceed.
+    """
+    if not os.environ.get("SASE_AGENT"):
+        return None
+    from sase.agent.pending_handoff_write import PendingHandoffError, handoff_guard
+
+    try:
+        handoff_guard(command="sase monitor start")
+    except PendingHandoffError as exc:
+        clear_handoff_inflight_marker(os.environ.get("SASE_ARTIFACTS_DIR"))
+        print(f"sase monitor start: {exc}", file=sys.stderr)
+        return 1
+    return None
+
+
+def _stop_orphaned_monitor_after_failed_handoff(record: MonitorRecord) -> None:
+    """Stop a monitor whose post-spawn handoff lost the slot race."""
+    short_id = short_monitor_id(record.monitor_id)
+    try:
+        stop_monitor(record)
+    except Exception as exc:  # noqa: BLE001 - never leave the orphan unmarked
+        print(
+            f"sase monitor start: failed to stop monitor {short_id} "
+            f"after failed handoff: {exc}",
+            file=sys.stderr,
+        )
+        return
+    print(
+        f"sase monitor start: stopped monitor {short_id} after failed handoff",
+        file=sys.stderr,
+    )
 
 
 _STAGED_MONITOR_INSTRUCTION = (
