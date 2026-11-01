@@ -212,6 +212,47 @@ class AgentPanelClanFoldingMixin(AgentStructuralFoldingMixin):
 
     _fold_manager: FoldStateManager
 
+    def _resolve_clan_running_member_jump_target(self) -> Agent | None:
+        """Return the clan's lone running member for an ``l`` jump, if any.
+
+        Applies only to a selected clan-container row on the Agents tab:
+        no whole-panel focus, no grouping-banner focus, and the selected
+        clan must have exactly one running member. The footer reuses this
+        resolver so the chip and the key cannot disagree. The Archive and
+        Tools-card routes stay in the dispatcher before ``_expand_fold``.
+        """
+        if getattr(self, "current_tab", None) != "agents":
+            return None
+        resolve_panel = getattr(self, "_resolve_focused_panel", None)
+        try:
+            panel_focus = resolve_panel() if callable(resolve_panel) else None
+        except Exception:
+            panel_focus = None
+        if panel_focus is not None:
+            return None
+        if getattr(self, "_current_group_key", None) is not None:
+            return None
+        get_selected = getattr(self, "_get_selected_agent", None)
+        selected = get_selected() if callable(get_selected) else None
+        if selected is None or not selected.is_clan_container:
+            return None
+        from ...models._agent_clan import clan_lone_running_member
+
+        try:
+            return clan_lone_running_member(selected)
+        except Exception:
+            return None
+
+    def _jump_to_clan_running_member(self, member: Agent) -> bool:
+        """Reveal a clan's lone running member row without a toast."""
+        reveal = getattr(self, "_try_reveal_agent_row", None)
+        if not callable(reveal):
+            return False
+        try:
+            return reveal(member.identity) is None
+        except Exception:
+            return False
+
     def _resolve_agent_clan_collapse_target(
         self,
     ) -> _AgentGroupClanCollapseTarget | None:

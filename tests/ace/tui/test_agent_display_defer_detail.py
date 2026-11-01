@@ -388,6 +388,55 @@ def test_footer_all_panel_fold_sweep_probe_across_eligible_panels() -> None:
     assert call["all_panel_fold_restore_armed"] is False
 
 
+def test_footer_refresh_includes_running_member_jump_availability() -> None:
+    from datetime import datetime
+
+    from sase.ace.tui.models.agent import Agent, AgentType
+
+    app = _FakeApp()
+    running = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="research.one",
+        project_file="/tmp/test.sase",
+        status="RUNNING",
+        start_time=datetime(2026, 7, 17, 10, 0, 0),
+        raw_suffix="one",
+        agent_name="research.one",
+        agent_clan="research",
+        agent_clan_generation="20260717100000",
+    )
+    app._resolve_clan_running_member_jump_target = lambda: running  # type: ignore[attr-defined]
+
+    app._apply_agent_footer_update(
+        _DetailWidget(), app.footer_widget, app._get_selected_agent()
+    )
+    assert (
+        app.footer_widget.agent_binding_calls[-1]["running_member_jump_available"]
+        is True
+    )
+
+    app._resolve_clan_running_member_jump_target = lambda: None  # type: ignore[attr-defined]
+    app._apply_agent_footer_update(
+        _DetailWidget(), app.footer_widget, app._get_selected_agent()
+    )
+    assert (
+        app.footer_widget.agent_binding_calls[-1]["running_member_jump_available"]
+        is False
+    )
+
+    app._resolve_clan_running_member_jump_target = lambda: running  # type: ignore[attr-defined]
+    app._resolve_focused_panel = lambda: SimpleNamespace(  # type: ignore[attr-defined]
+        panel_key=None, collapsed=False
+    )
+    app._apply_agent_footer_update(
+        _DetailWidget(), app.footer_widget, app._get_selected_agent()
+    )
+    assert (
+        app.footer_widget.agent_binding_calls[-1]["running_member_jump_available"]
+        is False
+    )
+
+
 def test_fold_hint_footer_survives_incidental_agent_footer_refresh() -> None:
     app = _FakeApp()
     app._panel_fold_hint_mode_active = True

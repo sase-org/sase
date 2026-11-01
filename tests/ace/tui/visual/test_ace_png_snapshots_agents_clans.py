@@ -171,6 +171,7 @@ async def test_clan_tree_fold_levels_png_snapshots(
         await page.press("l")
         await page.expect_state("agent_count", 4)
         await wait_for_visual_idle(page)
+        assert page.app._agents[page.app.current_idx].agent_name == "research.family"
         assert_page_svg_contains(page, "research.family")
         assert_page_svg_contains(page, "research.audit")
         assert all(
@@ -264,7 +265,6 @@ async def test_clan_wave_gutter_png_snapshot(
             await page.press("j")
         assert page.app._agents[page.app.current_idx].agent_clan == "wave-epic"
         await page.press("l")
-        await page.press("j")
         assert page.app._agents[page.app.current_idx].agent_name == "wave-epic.family"
         await page.press("l")
         await wait_for_visual_idle(page)
@@ -324,6 +324,7 @@ async def test_clan_unread_count_png_snapshots(
         await page.press("l")
         await page.expect_state("agent_count", 4)
         await wait_for_visual_idle(page)
+        assert page.app._agents[page.app.current_idx].agent_name == "research.family"
         assert_page_svg_styled_text_contains(page, "[R1 W1 U1]")
         ace_png_visual.assert_page_png(
             page,

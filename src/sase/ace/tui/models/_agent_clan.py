@@ -41,6 +41,8 @@ _CLAN_MEMBER_STATUS_PRIORITIES: dict[str, int] = {
     "Done": 5,
 }
 
+_CLAN_RUNNING_BUCKETS: frozenset[str] = frozenset({"Running", "Starting"})
+
 
 @dataclass(frozen=True, slots=True)
 class ClanStatusCounts:
@@ -284,6 +286,34 @@ def clan_lone_stopped_member(agent: Agent) -> Agent | None:
     return stopped[0]
 
 
+def clan_lone_running_member(agent: Agent) -> Agent | None:
+    """Return the clan's single running member, if exactly one is running.
+
+    Matches the clan row's ``R`` count chip: a unique direct clan member
+    counts when ``agent_status_bucket(member)`` is in
+    ``_CLAN_RUNNING_BUCKETS`` (``"Running"`` or ``"Starting"``), so a
+    ``FINALIZING`` or ``RETRYING`` overlay still counts while its bucket
+    stays Running. Returns ``None`` for a non-clan row and when zero or
+    two-or-more unique direct members are running, short-circuiting on the
+    second match.
+    """
+    if not agent.is_clan_container:
+        return None
+    running: list[Agent] = []
+    seen: set[tuple[AgentType, str, str | None]] = set()
+    for member in clan_members(agent):
+        if member.identity in seen:
+            continue
+        seen.add(member.identity)
+        if agent_status_bucket(member) in _CLAN_RUNNING_BUCKETS:
+            running.append(member)
+            if len(running) > 1:
+                return None
+    if len(running) != 1:
+        return None
+    return running[0]
+
+
 def clan_running_lane_rows(agent: Agent) -> tuple[Agent, ...]:
     """Return the clan's own in-flight member rows, one per running lane.
 
@@ -365,7 +395,7 @@ def clan_member_counts(
             awaiting += 1
         elif bucket == "Failed":
             failed += 1
-        elif bucket in {"Running", "Starting"}:
+        elif bucket in _CLAN_RUNNING_BUCKETS:
             running += 1
         elif bucket == QUEUED_STATUS_BUCKET:
             queued += 1
@@ -591,6 +621,7 @@ __all__ = [
     "agent_summary_status_counts",
     "aggregate_clan_status",
     "apply_clan_container_status",
+    "clan_lone_running_member",
     "clan_lone_stopped_member",
     "clan_running_lane_rows",
     "clan_member_status_priority",

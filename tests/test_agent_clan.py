@@ -9,6 +9,7 @@ from sase.ace.tui.models._agent_clan import (
     ClanStatusCounts,
     aggregate_clan_status,
     apply_clan_container_status,
+    clan_lone_running_member,
     clan_lone_stopped_member,
     clan_member_counts,
     clan_members,
@@ -303,6 +304,91 @@ def test_clan_lone_stopped_member_deduplicates_identity() -> None:
     container.runtime_children = [member, member]
 
     assert clan_lone_stopped_member(container) is member
+
+
+def test_clan_lone_running_member_returns_none_for_non_clan_row() -> None:
+    leaf = _agent("solo", "RUNNING", suffix="solo")
+
+    assert clan_lone_running_member(leaf) is None
+
+
+def test_clan_lone_running_member_returns_lone_running() -> None:
+    container = _agent("research", "RUNNING", suffix=None)
+    container.is_clan_container = True
+    running = _agent("research.one", "RUNNING", suffix="one")
+    done = _agent("research.two", "DONE", suffix="two")
+    container.runtime_children = [running, done]
+
+    assert clan_lone_running_member(container) is running
+    assert clan_member_counts(container).running == 1
+
+
+def test_clan_lone_running_member_treats_starting_as_running() -> None:
+    container = _agent("research", "RUNNING", suffix=None)
+    container.is_clan_container = True
+    starting = _agent("research.one", "STARTING", suffix="one")
+    done = _agent("research.two", "DONE", suffix="two")
+    container.runtime_children = [starting, done]
+
+    assert clan_lone_running_member(container) is starting
+    assert clan_member_counts(container).running == 1
+
+
+def test_clan_lone_running_member_returns_none_for_two_running() -> None:
+    container = _agent("research", "RUNNING", suffix=None)
+    container.is_clan_container = True
+    first = _agent("research.one", "RUNNING", suffix="one")
+    second = _agent("research.two", "STARTING", suffix="two")
+    container.runtime_children = [first, second]
+
+    assert clan_lone_running_member(container) is None
+    assert clan_member_counts(container).running == 2
+
+
+def test_clan_lone_running_member_returns_none_for_zero_running() -> None:
+    container = _agent("research", "RUNNING", suffix=None)
+    container.is_clan_container = True
+    done = _agent("research.one", "DONE", suffix="one")
+    waiting = _agent("research.two", "WAITING", suffix="two")
+    failed = _agent("research.three", "FAILED", suffix="three")
+    container.runtime_children = [done, waiting, failed]
+
+    assert clan_lone_running_member(container) is None
+    assert clan_member_counts(container).running == 0
+
+
+def test_clan_lone_running_member_ignores_non_running_alongside_lone_runner() -> None:
+    container = _agent("research", "RUNNING", suffix=None)
+    container.is_clan_container = True
+    running = _agent("research.one", "RUNNING", suffix="one")
+    done = _agent("research.two", "DONE", suffix="two")
+    waiting = _agent("research.three", "WAITING", suffix="three")
+    failed = _agent("research.four", "FAILED", suffix="four")
+    container.runtime_children = [running, done, waiting, failed]
+
+    assert clan_lone_running_member(container) is running
+    assert clan_member_counts(container).running == 1
+
+
+def test_clan_lone_running_member_deduplicates_identity() -> None:
+    container = _agent("research", "RUNNING", suffix=None)
+    container.is_clan_container = True
+    member = _agent("research.one", "RUNNING", suffix="one")
+    container.runtime_children = [member, member]
+
+    assert clan_lone_running_member(container) is member
+    assert clan_member_counts(container).running == 1
+
+
+def test_clan_lone_running_member_respects_bucket_override() -> None:
+    container = _agent("research", "RUNNING", suffix=None)
+    container.is_clan_container = True
+    member = _agent("research.one", "RUNNING", suffix="one")
+    member.status_bucket = "Done"
+    container.runtime_children = [member]
+
+    assert clan_lone_running_member(container) is None
+    assert clan_member_counts(container).running == 0
 
 
 def test_cleanup_cascades_from_container_but_not_from_member() -> None:

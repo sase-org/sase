@@ -26,6 +26,7 @@ def test_agents_help_describes_zoom_and_isolation_and_capital_h_collapsing() -> 
     }
 
     assert ("l", "Expand fold / enter panel (❯)") in agent_pairs
+    assert ("l", "Clan: jump to its lone running member") in agent_pairs
     assert ("h", "Up: workflow/session/clan/tribe") in agent_pairs
     assert ("h", "Collapse selected panel") in agent_pairs
     assert ("H", "Panel: collapse fold by hint key") in agent_pairs

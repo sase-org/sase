@@ -596,3 +596,30 @@ def test_footer_hidden_agent_session_step_advertises_selected_agent_session_then
     )
     assert ("H", "collapse session") not in closed_bindings
     assert ("H", "collapse group") in closed_bindings
+
+
+def test_footer_running_member_jump_chip_follows_availability() -> None:
+    footer = KeybindingFooter()
+
+    shown = _labels(
+        footer._compute_agent_bindings(
+            None,
+            running_member_jump_available=True,
+        )
+    )
+    hidden = _labels(
+        footer._compute_agent_bindings(
+            None,
+        )
+    )
+    suppressed = _labels(
+        footer._compute_agent_bindings(
+            None,
+            running_member_jump_available=True,
+            panel_focused=True,
+        )
+    )
+
+    assert ("l", "running member") in shown
+    assert ("l", "running member") not in hidden
+    assert ("l", "running member") not in suppressed

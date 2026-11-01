@@ -32,6 +32,10 @@ def mode_sections(km: KeymapRegistry) -> Sections:
                     "Expand fold / enter panel (❯)",
                 ),
                 (
+                    d(a.expand_or_layout),
+                    "Clan: jump to its lone running member",
+                ),
+                (
                     d(a.hooks_or_collapse),
                     "Up: workflow/session/clan/tribe",
                 ),

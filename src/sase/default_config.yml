@@ -973,10 +973,11 @@ ace:
       # On whole-panel focus it hints every expanded fold in that panel.
       # ,H opens the same collapse hints from any row (selected tribe) and,
       # from a selected panel, across every tribe panel.
-      # l expands or enters a selected panel; L hints the selected tribe's
-      # folds, and one key toggles one fold. Z toggles in-place deck zoom or
-      # isolates/restores a selected panel. Other tabs retain their fold
-      # behavior.)
+      # l expands or enters a selected panel; on a clan row whose only
+      # running member is unique, l also jumps to that member. L hints the
+      # selected tribe's folds, and one key toggles one fold. Z toggles
+      # in-place deck zoom or isolates/restores a selected panel. Other tabs
+      # retain their fold behavior.)
       hooks_or_collapse: "h"
       hooks_or_collapse_all: "H"
       expand_or_layout: "l"
