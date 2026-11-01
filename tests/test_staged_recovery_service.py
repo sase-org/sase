@@ -119,9 +119,18 @@ def _continuation(tmp_path: Path, artifacts: Path):
 
 def _settle_ok(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
-        "sase.axe.run_agent_exec_staged_recovery.finalizer_settlement_refusal",
+        "sase.axe.run_agent_exec_staged_recovery_facts.finalizer_settlement_refusal",
         lambda *_args, **_kwargs: None,
     )
+
+
+def _patch_read_staged_successor(monkeypatch: pytest.MonkeyPatch, impl) -> None:
+    for target in (
+        "sase.axe.run_agent_exec_staged_recovery.read_staged_successor",
+        "sase.axe.run_agent_exec_staged_recovery_facts.read_staged_successor",
+        "sase.axe.run_agent_exec_staged_recovery_deliver.read_staged_successor",
+    ):
+        monkeypatch.setattr(target, impl)
 
 
 def test_missing_stage_is_refused(tmp_path: Path) -> None:
@@ -191,7 +200,7 @@ def test_killed_stage_is_refused(tmp_path: Path, monkeypatch) -> None:
         json.dumps({"status": "success", "instances": []}), encoding="utf-8"
     )
     monkeypatch.setattr(
-        "sase.axe.run_agent_exec_staged_recovery._was_killed_or_discarded",
+        "sase.axe.run_agent_exec_staged_recovery.was_killed_or_discarded",
         lambda *_a, **_k: True,
     )
     _settle_ok(monkeypatch)
@@ -210,7 +219,7 @@ def test_held_settlement_stays_held_and_names_repair(
     write_staged_handoff_response(STAGED_ID, "response", artifacts_dir=str(artifacts))
     _write_meta(artifacts, pid=999999)
     monkeypatch.setattr(
-        "sase.axe.run_agent_exec_staged_recovery.finalizer_settlement_refusal",
+        "sase.axe.run_agent_exec_staged_recovery_facts.finalizer_settlement_refusal",
         lambda *_a, **_k: "finalizer instance 'commit' did not settle successfully",
     )
     result = recover_staged_handoff(str(artifacts), mode="explicit")
@@ -238,7 +247,7 @@ def test_already_adopted_wins_without_rechecking_dirt(
     )
     _write_meta(artifacts)
     monkeypatch.setattr(
-        "sase.axe.run_agent_exec_staged_recovery.finalizer_settlement_refusal",
+        "sase.axe.run_agent_exec_staged_recovery_facts.finalizer_settlement_refusal",
         lambda *_a, **_k: (_ for _ in ()).throw(
             AssertionError("settlement must not be rechecked after adoption")
         ),
@@ -255,7 +264,7 @@ def test_live_runner_automatic_is_held(tmp_path: Path, monkeypatch) -> None:
     write_staged_handoff_response(STAGED_ID, "response", artifacts_dir=str(artifacts))
     _write_meta(artifacts)
     monkeypatch.setattr(
-        "sase.axe.run_agent_exec_staged_recovery._observe_runner",
+        "sase.axe.run_agent_exec_staged_recovery.observe_runner",
         lambda *_a, **_k: "alive",
     )
     _settle_ok(monkeypatch)
@@ -276,7 +285,7 @@ def test_gate_detached_adoption_reuses_request_id(tmp_path: Path, monkeypatch) -
     _write_meta(artifacts, pid=999999)
     _settle_ok(monkeypatch)
     monkeypatch.setattr(
-        "sase.axe.run_agent_exec_staged_recovery._observe_runner",
+        "sase.axe.run_agent_exec_staged_recovery.observe_runner",
         lambda *_a, **_k: "dead",
     )
 
@@ -317,7 +326,7 @@ def test_monitor_detached_adoption_reuses_member(tmp_path: Path, monkeypatch) ->
     _write_meta(artifacts, pid=999999)
     _settle_ok(monkeypatch)
     monkeypatch.setattr(
-        "sase.axe.run_agent_exec_staged_recovery._observe_runner",
+        "sase.axe.run_agent_exec_staged_recovery.observe_runner",
         lambda *_a, **_k: "dead",
     )
     monkeypatch.setattr(
@@ -350,11 +359,11 @@ def test_successor_detached_delivery_writes_one_receipt(
     _write_meta(artifacts, pid=999999)
     _settle_ok(monkeypatch)
     monkeypatch.setattr(
-        "sase.axe.run_agent_exec_staged_recovery._observe_runner",
+        "sase.axe.run_agent_exec_staged_recovery.observe_runner",
         lambda *_a, **_k: "dead",
     )
-    monkeypatch.setattr(
-        "sase.axe.run_agent_exec_staged_recovery.read_staged_successor",
+    _patch_read_staged_successor(
+        monkeypatch,
         lambda _origin, staged_id=None: {
             "successor": {
                 "agent_name": "agent--1",
@@ -372,7 +381,7 @@ def test_successor_detached_delivery_writes_one_receipt(
         return SuccessorDeliveryResult("submitted", "agent--1", str(tmp_path / "child"))
 
     monkeypatch.setattr(
-        "sase.axe.run_agent_exec_staged_recovery.deliver_staged_successor_detached",
+        "sase.axe.run_agent_exec_staged_recovery_deliver.deliver_staged_successor_detached",
         fake_deliver,
     )
     result = recover_staged_handoff(str(artifacts), mode="explicit")
@@ -413,7 +422,7 @@ def test_already_adopted_delivery_only_reuses_child(
         return SuccessorDeliveryResult("owned", "agent--1", str(child))
 
     monkeypatch.setattr(
-        "sase.axe.run_agent_exec_staged_recovery.deliver_staged_successor_detached",
+        "sase.axe.run_agent_exec_staged_recovery_deliver.deliver_staged_successor_detached",
         fake_deliver,
     )
     result = recover_staged_handoff(str(artifacts), mode="automatic")
@@ -432,7 +441,7 @@ def test_live_continuation_adopts_settled_plan(tmp_path: Path, monkeypatch) -> N
     _write_meta(artifacts)
     _settle_ok(monkeypatch)
     monkeypatch.setattr(
-        "sase.axe.run_agent_exec_staged_recovery._observe_runner",
+        "sase.axe.run_agent_exec_staged_recovery.observe_runner",
         lambda *_a, **_k: "dead",
     )
     calls: list[str] = []
@@ -463,7 +472,7 @@ def test_two_repo_commit_preserves_first_receipt(tmp_path: Path, monkeypatch) ->
     )
     _write_meta(artifacts, pid=999999)
     monkeypatch.setattr(
-        "sase.axe.run_agent_exec_staged_recovery._observe_runner",
+        "sase.axe.run_agent_exec_staged_recovery.observe_runner",
         lambda *_a, **_k: "dead",
     )
     commit_results = artifacts / "commit_results.json"
@@ -481,7 +490,7 @@ def test_two_repo_commit_preserves_first_receipt(tmp_path: Path, monkeypatch) ->
         encoding="utf-8",
     )
     monkeypatch.setattr(
-        "sase.axe.run_agent_exec_staged_recovery.finalizer_settlement_refusal",
+        "sase.axe.run_agent_exec_staged_recovery_facts.finalizer_settlement_refusal",
         lambda *_a, **_k: "finalizer instance 'commit' did not settle successfully",
     )
     held = recover_staged_handoff(str(artifacts), mode="explicit")
@@ -503,11 +512,11 @@ def test_two_repo_commit_preserves_first_receipt(tmp_path: Path, monkeypatch) ->
     )
     commit_results.write_text(json.dumps(payload), encoding="utf-8")
     monkeypatch.setattr(
-        "sase.axe.run_agent_exec_staged_recovery.finalizer_settlement_refusal",
+        "sase.axe.run_agent_exec_staged_recovery_facts.finalizer_settlement_refusal",
         lambda *_a, **_k: None,
     )
-    monkeypatch.setattr(
-        "sase.axe.run_agent_exec_staged_recovery.read_staged_successor",
+    _patch_read_staged_successor(
+        monkeypatch,
         lambda _origin, staged_id=None: {
             "successor": {
                 "agent_name": "agent--1",
@@ -521,7 +530,7 @@ def test_two_repo_commit_preserves_first_receipt(tmp_path: Path, monkeypatch) ->
     from sase.axe.run_agent_successor import SuccessorDeliveryResult
 
     monkeypatch.setattr(
-        "sase.axe.run_agent_exec_staged_recovery.deliver_staged_successor_detached",
+        "sase.axe.run_agent_exec_staged_recovery_deliver.deliver_staged_successor_detached",
         lambda _origin, _staged: SuccessorDeliveryResult(
             "submitted", "agent--1", str(tmp_path / "child")
         ),
