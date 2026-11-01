@@ -15,6 +15,7 @@ from typing import Any
 import pytest
 
 from sase.llm_provider.agy import AgyProvider
+from sase.llm_provider.usage.agy import _USAGE_ARGV
 from sase.llm_provider.usage.probe import default_probe_context, run_usage_probe
 from sase.llm_provider.usage.refresh import eligible_usage_providers
 from tests.llm_provider._provider_config_helpers import mock_provider_config
@@ -58,6 +59,47 @@ def _make_fake_agy(tmp_path: Path) -> Path:
 
 def _epoch(value: str) -> float:
     return datetime.fromisoformat(value.replace("Z", "+00:00")).timestamp()
+
+
+def _wait_for_path(path: Path, *, timeout: float = 5.0) -> None:
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        if path.exists():
+            return
+        time.sleep(0.01)  # sase-test-wait: poll until fake CLI ready file exists
+    raise AssertionError(f"timed out waiting for {path}")
+
+
+def _spawn_agy_usage(
+    fake_agy: Path,
+    tmp_path: Path,
+    *,
+    mode: str,
+    ready: Path | None = None,
+) -> subprocess.Popen[bytes]:
+    env = {
+        **os.environ,
+        "SASE_FAKE_AGY_MODE": mode,
+        "SASE_FAKE_AGY_PIDFILE": str(tmp_path / "agy.pid"),
+        "AGY_CLI_DISABLE_AUTO_UPDATE": "1",
+    }
+    if ready is not None:
+        env["SASE_FAKE_AGY_READY"] = str(ready)
+    return subprocess.Popen(
+        [
+            str(fake_agy),
+            *_USAGE_ARGV,
+            "--log-file",
+            str(tmp_path / "agy-usage.log"),
+        ],
+        stdin=subprocess.DEVNULL,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        cwd=str(tmp_path),
+        env=env,
+        bufsize=0,
+        start_new_session=True,
+    )
 
 
 def _run_agy_probe(
@@ -269,16 +311,80 @@ def test_agy_usage_probe_hang_is_timeout_and_reaps_child(
 
 
 def test_agy_usage_probe_timeout_with_rate_limit_stderr_is_rate_limited(
-    tmp_path: Path,
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    from sase.llm_provider.usage import agy
+    from sase.llm_provider.usage._strategy import detect_rate_limit
+
     fake = _make_fake_agy(tmp_path)
-    result, _, _ = _run_agy_probe(
-        fake, tmp_path, mode="rate_limited_hang", deadline_seconds=3.0
+    ready = tmp_path / "stderr.ready"
+    process = _spawn_agy_usage(fake, tmp_path, mode="rate_limited_hang", ready=ready)
+    _wait_for_path(ready)
+    stdout, saw_auth, stderr_text = agy._wait_for_usage(process, time.time())
+    assert stdout is None
+    assert not saw_auth
+    limited = detect_rate_limit(stderr=stderr_text)
+    assert limited is not None
+    assert limited.retry_after_seconds == pytest.approx(45.0)
+    pid = int((tmp_path / "agy.pid").read_text(encoding="utf-8").strip())
+    assert not _pid_alive(pid)
+
+    monkeypatch.setattr(agy, "_check_cli_version", lambda *args, **kwargs: None)
+    monkeypatch.setattr(agy, "_precreate_private_log", lambda workdir: None)
+    monkeypatch.setattr(agy.subprocess, "Popen", lambda *args, **kwargs: object())
+    monkeypatch.setattr(
+        agy,
+        "_wait_for_usage",
+        lambda process, deadline: (None, False, stderr_text),
     )
+    context = default_probe_context(
+        "agy",
+        deadline_seconds=5.0,
+        executable=str(fake),
+        working_directory=str(tmp_path),
+    )
+    result = agy._collect_agy_usage(context, executable=str(fake))
     assert result["outcome"] == "error"
     assert result["reason_code"] == "rate_limited"
     assert result["diagnostic"] == "agy_usage_rate_limited"
     assert result["retry_after_seconds"] == pytest.approx(45.0)
+
+
+def test_agy_usage_probe_timeout_without_rate_limit_stderr_is_timeout(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from sase.llm_provider.usage import agy
+    from sase.llm_provider.usage._strategy import detect_rate_limit
+
+    fake = _make_fake_agy(tmp_path)
+    ready = tmp_path / "hang.ready"
+    process = _spawn_agy_usage(fake, tmp_path, mode="hang", ready=ready)
+    _wait_for_path(ready)
+    stdout, saw_auth, stderr_text = agy._wait_for_usage(process, time.time())
+    assert stdout is None
+    assert not saw_auth
+    assert detect_rate_limit(stderr=stderr_text) is None
+    pid = int((tmp_path / "agy.pid").read_text(encoding="utf-8").strip())
+    assert not _pid_alive(pid)
+
+    monkeypatch.setattr(agy, "_check_cli_version", lambda *args, **kwargs: None)
+    monkeypatch.setattr(agy, "_precreate_private_log", lambda workdir: None)
+    monkeypatch.setattr(agy.subprocess, "Popen", lambda *args, **kwargs: object())
+    monkeypatch.setattr(
+        agy,
+        "_wait_for_usage",
+        lambda process, deadline: (None, False, stderr_text),
+    )
+    context = default_probe_context(
+        "agy",
+        deadline_seconds=5.0,
+        executable=str(fake),
+        working_directory=str(tmp_path),
+    )
+    result = agy._collect_agy_usage(context, executable=str(fake))
+    assert result["outcome"] == "error"
+    assert result["reason_code"] == "timeout"
+    assert result["diagnostic"] == "agy_usage_probe_timeout"
 
 
 def test_agy_usage_probe_malformed_stdout_is_parse_error(

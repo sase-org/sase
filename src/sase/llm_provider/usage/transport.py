@@ -295,8 +295,48 @@ def bounded_communicate(
                 process.stderr = None
         if process.poll() is not None and not ready:
             break
+    # A child that finished writing as the deadline fired still has those
+    # bytes in the pipe. Drain them before kill so a completed observation
+    # is not discarded as a timeout.
+    _drain_ready_pipes(
+        process, stdout_buf, stderr_buf, max_stdout_bytes, max_stderr_bytes
+    )
     _terminate_process_tree(process)
     return bytes(stdout_buf), bytes(stderr_buf), overflow
+
+
+def _drain_ready_pipes(
+    process: subprocess.Popen[bytes],
+    stdout_buf: bytearray,
+    stderr_buf: bytearray,
+    max_stdout_bytes: int,
+    max_stderr_bytes: int,
+) -> None:
+    """Read bytes already waiting on the child's pipes without blocking."""
+    streams: list[tuple[Any, bytearray, int]] = []
+    if process.stdout is not None:
+        streams.append((process.stdout, stdout_buf, max_stdout_bytes))
+    if process.stderr is not None:
+        streams.append((process.stderr, stderr_buf, max_stderr_bytes))
+    while streams:
+        ready, _, _ = select.select([stream for stream, _, _ in streams], [], [], 0)
+        if not ready:
+            return
+        still: list[tuple[Any, bytearray, int]] = []
+        for stream, buf, limit in streams:
+            if stream not in ready:
+                still.append((stream, buf, limit))
+                continue
+            try:
+                chunk = os.read(stream.fileno(), 4096)
+            except OSError:
+                continue
+            if not chunk:
+                continue
+            buf.extend(chunk)
+            if len(buf) <= limit:
+                still.append((stream, buf, limit))
+        streams = still
 
 
 def _terminate_process_tree(process: subprocess.Popen[bytes]) -> None:

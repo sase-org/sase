@@ -136,6 +136,14 @@ def _write_pidfile() -> None:
         handle.write(str(os.getpid()))
 
 
+def _write_ready() -> None:
+    path = os.environ.get("SASE_FAKE_AGY_READY")
+    if not path:
+        return
+    with open(path, "w", encoding="utf-8") as handle:
+        handle.write("1")
+
+
 def main() -> int:
     _record_argv()
     if sys.argv[1:] == ["--version"]:
@@ -158,6 +166,7 @@ def main() -> int:
         time.sleep(60)  # sase-test-wait: hang until the probe deadline kills us
         return 0
     if mode == "hang":
+        _write_ready()
         time.sleep(60)  # sase-test-wait: hang until the probe deadline kills us
         return 0
     if mode == "rate_limited_hang":
@@ -165,6 +174,7 @@ def main() -> int:
         # produces stdout, but the failure still classifies as rate-limited.
         print("HTTP 429 Too Many Requests", file=sys.stderr, flush=True)
         print("retry-after: 45", file=sys.stderr, flush=True)
+        _write_ready()
         time.sleep(60)  # sase-test-wait: hang until the probe deadline kills us
         return 0
     if mode == "malformed":

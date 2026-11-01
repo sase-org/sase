@@ -94,6 +94,7 @@ def _collect_agy_usage(
             stderr=subprocess.PIPE,
             cwd=context.working_directory,
             env=env,
+            bufsize=0,
             start_new_session=True,
         )
     except FileNotFoundError:
@@ -304,28 +305,56 @@ def _wait_for_usage(
             list(streams), [], [], min(remaining, _POLL_INTERVAL_SECONDS)
         )
         for stream in ready:
-            # ``os.read`` returns whatever is ready; a buffered ``read(n)``
-            # would block until ``n`` bytes or EOF and hide the auth marker.
-            try:
-                chunk = os.read(stream.fileno(), 4096)
-            except OSError:
-                chunk = b""
-            if not chunk:
-                streams.pop(stream, None)
-                continue
-            if streams.get(stream) == "stdout":
-                stdout_buf.extend(chunk)
-            else:
-                room = _STDERR_MAX_BYTES - len(stderr_buf)
-                stderr_buf.extend(chunk[:room] if room > 0 else b"")
+            _consume_stream_chunk(streams, stream, stdout_buf, stderr_buf)
+    # Rate-limit evidence often arrives in the same instant the deadline
+    # fires. Drain bytes already in the pipes before and after the kill so
+    # that evidence still classifies as rate-limited.
+    _drain_available(streams, stdout_buf, stderr_buf)
     exit_code = process.poll()
     _kill_process_group(process)
+    _drain_available(streams, stdout_buf, stderr_buf)
+    _close_process_streams(process)
     stderr_text = _decode(stderr_buf)
     if saw_auth_prompt or _AUTH_PROMPT_MARKER in stderr_text.lower():
         return None, True, stderr_text
     if exit_code is not None:
         return bytes(stdout_buf), False, stderr_text
     return None, False, stderr_text
+
+
+def _consume_stream_chunk(
+    streams: dict[Any, str],
+    stream: Any,
+    stdout_buf: bytearray,
+    stderr_buf: bytearray,
+) -> None:
+    """Read one ready chunk; ``os.read`` returns whatever is available."""
+    try:
+        chunk = os.read(stream.fileno(), 4096)
+    except OSError:
+        chunk = b""
+    if not chunk:
+        streams.pop(stream, None)
+        return
+    if streams.get(stream) == "stdout":
+        stdout_buf.extend(chunk)
+        return
+    room = _STDERR_MAX_BYTES - len(stderr_buf)
+    stderr_buf.extend(chunk[:room] if room > 0 else b"")
+
+
+def _drain_available(
+    streams: dict[Any, str],
+    stdout_buf: bytearray,
+    stderr_buf: bytearray,
+) -> None:
+    """Read whatever is already waiting without blocking."""
+    while streams:
+        ready, _, _ = select.select(list(streams), [], [], 0)
+        if not ready:
+            return
+        for stream in ready:
+            _consume_stream_chunk(streams, stream, stdout_buf, stderr_buf)
 
 
 def _decode(data: bytes | bytearray) -> str:
@@ -354,6 +383,9 @@ def _kill_process_group(process: subprocess.Popen[bytes]) -> None:
         pass
     except OSError:
         pass
+
+
+def _close_process_streams(process: subprocess.Popen[bytes]) -> None:
     for stream in (process.stdin, process.stdout, process.stderr):
         if stream is None:
             continue

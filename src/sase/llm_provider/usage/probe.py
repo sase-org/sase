@@ -279,6 +279,9 @@ def _run_isolated(
             tmp_cwd.cleanup()
     _log_worker_stderr(context.provider, stderr, stdout=stdout)
     if overflow == "timeout":
+        completed = _completed_worker_observation(context, stdout, now=now)
+        if completed is not None:
+            return UsageProbeResult(observation=completed)
         return UsageProbeResult(
             observation=validated_status_observation(
                 context,
@@ -302,6 +305,32 @@ def _run_isolated(
             context, stdout, stderr=stderr, now=now
         )
     )
+
+
+def _completed_worker_observation(
+    context: UsageProbeContext, stdout: bytes, *, now: float
+) -> dict[str, Any] | None:
+    """Return a validated worker payload when stdout is a complete observation.
+
+    Used when the isolate wrapper hits its deadline after the worker already
+    wrote its result: a classified rate-limit must not become a timeout just
+    because the last read raced the clock.
+    """
+    if not stdout.strip():
+        return None
+    try:
+        decoded = json.loads(stdout.decode("utf-8"))
+    except (UnicodeDecodeError, json.JSONDecodeError):
+        return None
+    if not isinstance(decoded, dict):
+        return None
+    try:
+        clock = max(time.time(), now)
+        return validate_observation(
+            _bind_observation(decoded, context, clock), now=clock
+        )
+    except (TypeError, ValueError, AttributeError):
+        return None
 
 
 def _observation_from_worker_stdout(

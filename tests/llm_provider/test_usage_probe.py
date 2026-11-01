@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import logging
 import os
 from pathlib import Path
@@ -14,6 +15,7 @@ from sase.llm_provider.usage.probe import (
     run_usage_probe,
     worker_environ,
 )
+from sase.llm_provider.usage.types import validated_status_observation
 from sase.testing.usage_synthetic import (
     SECRET_CANARY,
     SYNTHETIC_MODE_ENV,
@@ -63,6 +65,79 @@ def test_in_process_synthetic_probe_matches_isolated_shape(
     )
     assert result.observation is not None
     assert result.observation["windows"][0]["used_percent"] == 12.5
+
+
+def test_isolated_timeout_keeps_completed_worker_observation(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    monkeypatch.delenv("SASE_FEATURE_FLAGS", raising=False)
+    context = default_probe_context(
+        "agy", deadline_seconds=1.0, working_directory=str(tmp_path)
+    )
+    observation = validated_status_observation(
+        context,
+        now=context.request_started_at,
+        outcome="error",
+        reason_code="rate_limited",
+        diagnostic="agy_usage_rate_limited",
+        retry_after_seconds=45.0,
+    )
+
+    class _FakeProc:
+        pid = 1
+        stdin = stdout = stderr = None
+
+        def poll(self) -> int:
+            return 0
+
+    monkeypatch.setattr(
+        "sase.llm_provider.usage.probe.spawn_killable_process",
+        lambda *args, **kwargs: _FakeProc(),
+    )
+    monkeypatch.setattr(
+        "sase.llm_provider.usage.probe.bounded_communicate",
+        lambda *args, **kwargs: (json.dumps(observation).encode(), b"", "timeout"),
+    )
+    result = run_usage_probe(
+        context,
+        isolate=True,
+        plugin_spec={"kind": "entry_point", "name": "agy"},
+    )
+    assert result.observation is not None
+    assert result.observation["reason_code"] == "rate_limited"
+    assert result.observation["retry_after_seconds"] == pytest.approx(45.0)
+
+
+def test_isolated_timeout_without_worker_stdout_is_timeout(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    monkeypatch.delenv("SASE_FEATURE_FLAGS", raising=False)
+    context = default_probe_context(
+        "agy", deadline_seconds=1.0, working_directory=str(tmp_path)
+    )
+
+    class _FakeProc:
+        pid = 1
+        stdin = stdout = stderr = None
+
+        def poll(self) -> int:
+            return 0
+
+    monkeypatch.setattr(
+        "sase.llm_provider.usage.probe.spawn_killable_process",
+        lambda *args, **kwargs: _FakeProc(),
+    )
+    monkeypatch.setattr(
+        "sase.llm_provider.usage.probe.bounded_communicate",
+        lambda *args, **kwargs: (b"", b"", "timeout"),
+    )
+    result = run_usage_probe(
+        context,
+        isolate=True,
+        plugin_spec={"kind": "entry_point", "name": "agy"},
+    )
+    assert result.observation is not None
+    assert result.observation["reason_code"] == "timeout"
 
 
 def test_hanging_plugin_is_killed_at_deadline(
