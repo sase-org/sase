@@ -104,9 +104,9 @@ def test_production_completed_marker_repairs_selected_run_only(
     def track(path: Path) -> None:
         reads.append(path)
 
-    import sase.agents_sync._publication_state_repair_observations as observations
+    import sase.agents_sync._publication_state_repair_observation_support as observation_io
 
-    monkeypatch.setattr(observations, "_READ_HOOK", track)
+    monkeypatch.setattr(observation_io, "_READ_HOOK", track)
     report = repair_project_run_states(sync_target, OWNER, apply=True, state_limit=1)
 
     assert report.error is None
