@@ -488,7 +488,6 @@ _lint-patch-stitch-terminology: _setup
 # its rows are dropped.
 # sase-1pj.3 (questions-pipe) made StagedAdoptionOutcome private after the
 # questions and pipe adopters used it in-file as _StagedAdoptionOutcome.
-# sase-1pt.6 provides publisher_is_live for the enqueue-only caller in sase-1pt.7.
 # sase-1pj.5.1.4 consumed the staged-monitor transaction. Its implementation
 # details and payload readers are private; prepared-reservation state is
 # inspected directly by focused tests rather than through a public reader.
