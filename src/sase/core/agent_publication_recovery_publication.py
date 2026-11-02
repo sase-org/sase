@@ -404,6 +404,22 @@ def classify_stale_publication_request(
     return decision
 
 
+def default_publication_cleanup_timeout() -> float:
+    """Return the shared best-effort publication cleanup budget in seconds."""
+    from sase.core.rust import optional_rust_binding
+
+    binding = optional_rust_binding("default_publication_cleanup_timeout")
+    if binding is None:
+        return 1.0
+    try:
+        value = float(binding())
+    except Exception:  # noqa: BLE001 - stale binding must not break cleanup.
+        return 1.0
+    if not (value > 0):
+        return 1.0
+    return min(value, 1.0)
+
+
 def classify_deferred_prompt_obligation(
     *,
     restore_wrote: bool,

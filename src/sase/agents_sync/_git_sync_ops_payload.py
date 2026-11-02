@@ -5,6 +5,8 @@ from __future__ import annotations
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+from collections.abc import Callable
+
 from sase.agents_sync._git_sync_ops_git import agents_git_error
 from sase.agents_sync.git import GitRunner
 from sase.core.agent_identity_facade import AgentOwnerIdentity
@@ -350,6 +352,8 @@ def _tracked_legacy_manifest(repo: Path, git_runner: GitRunner) -> bool:
 def clean_agents_payload_worktree(
     repo: Path,
     git_runner: GitRunner,
+    *,
+    remaining_timeout: Callable[[], float | None] | None = None,
 ) -> str | None:
     """Restore the regenerable sidecar payload to ``HEAD``.
 
@@ -360,7 +364,15 @@ def clean_agents_payload_worktree(
     regenerate.
     """
 
-    _clear_stale_agents_index_lock(repo, git_runner)
+    _clear_stale_agents_index_lock(
+        repo, git_runner, remaining_timeout=remaining_timeout
+    )
+    if remaining_timeout is not None:
+        try:
+            if (remaining_timeout() or 0) <= 0:
+                return "publication cleanup budget exhausted"
+        except Exception:  # noqa: BLE001 - a failing clock ends cleanup.
+            return "publication cleanup budget exhausted"
     payload_paths = _existing_or_tracked_payload_paths(repo, git_runner)
     reset = git_runner(
         repo,
@@ -406,6 +418,19 @@ def clean_agents_payload_worktree(
     return None
 
 
-def _clear_stale_agents_index_lock(repo: Path, git_runner: GitRunner) -> None:
+def _clear_stale_agents_index_lock(
+    repo: Path,
+    git_runner: GitRunner,
+    *,
+    remaining_timeout: Callable[[], float | None] | None = None,
+) -> None:
     del git_runner
-    try_remove_stale_index_lock(repo)
+    probe_timeout: float | None = None
+    if remaining_timeout is not None:
+        try:
+            probe_timeout = remaining_timeout()
+        except Exception:  # noqa: BLE001 - a failing clock skips eager cleanup.
+            return
+        if probe_timeout is not None and probe_timeout <= 0:
+            return
+    try_remove_stale_index_lock(repo, probe_timeout=probe_timeout)

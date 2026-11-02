@@ -23,8 +23,17 @@ def try_remove_stale_index_lock(
     min_age_seconds: float = STALE_GIT_INDEX_LOCK_MIN_AGE_SECONDS,
     unix_clock: UnixClock | None = None,
     owner_probe: Callable[..., dict[str, Any]] | None = None,
+    probe_timeout: float | None = None,
 ) -> bool:
-    """Remove an aged owner-free index lock using the shared recovery policy."""
+    """Remove an aged owner-free index lock using the shared recovery policy.
+
+    When *probe_timeout* is supplied, the owner probe is capped to that
+    budget so exception cleanup cannot spend a fresh 2s probe after the
+    shared deadline is nearly exhausted. A zero or negative budget skips
+    the probe entirely.
+    """
+    if probe_timeout is not None and probe_timeout <= 0:
+        return False
     policy = git_lock_policy()
     now = unix_clock or time.time
     context = policy.resolve_index_lock_context(workspace_dir)
@@ -33,6 +42,11 @@ def try_remove_stale_index_lock(
         return False
     lock_path = Path(resolved)
     snapshot = policy.snapshot_lock_path(lock_path)
+    remaining = (
+        min(DEFAULT_GIT_LOCK_RECOVERY_WAIT_CAP_SECONDS, probe_timeout)
+        if probe_timeout is not None
+        else DEFAULT_GIT_LOCK_RECOVERY_WAIT_CAP_SECONDS
+    )
     owner = owner_observation(
         owner_probe or policy.probe_index_lock_owner,
         lock_path=lock_path,
@@ -46,7 +60,7 @@ def try_remove_stale_index_lock(
             if context.get("resolved_worktree")
             else None
         ),
-        remaining=DEFAULT_GIT_LOCK_RECOVERY_WAIT_CAP_SECONDS,
+        remaining=remaining,
     )
     decision = policy.decide_eager_git_lock_cleanup(
         {

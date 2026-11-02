@@ -117,6 +117,7 @@ def try_remove_stale_index_lock(
     min_age_seconds: float | None = None,
     unix_clock: Callable[[], float] | None = None,
     owner_probe: Callable[..., dict[str, Any]] | None = None,
+    probe_timeout: float | None = None,
 ) -> bool:
     """Remove an aged owner-free index lock using the shared recovery policy."""
     from sase.git_lock_retry._stale import try_remove_stale_index_lock as impl
@@ -124,6 +125,8 @@ def try_remove_stale_index_lock(
     extra: dict[str, Any] = {}
     if min_age_seconds is not None:
         extra["min_age_seconds"] = min_age_seconds
+    if probe_timeout is not None:
+        extra["probe_timeout"] = probe_timeout
     return impl(
         workspace_dir,
         unix_clock=unix_clock,

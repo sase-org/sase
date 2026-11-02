@@ -147,16 +147,42 @@ def publish_queued_locked(
             timer=timer,
         )
     except BaseException as exc:
+        from sase.agents_sync.publication_cleanup import (
+            PublicationCleanupBudget,
+            PublicationCleanupTimedOut,
+            bounded_cleanup_alarm,
+            bounded_git_runner,
+        )
+
+        # One shared one-second deadline covers both regenerable families
+        # with no fresh allowance per git command or family. The original
+        # publication exception stays primary; cleanup trouble is diagnostic
+        # evidence that still leaves the request queued.
+        budget = PublicationCleanupBudget()
+        cleanup_base = bounded_git_runner(git_runner, budget)
+        cleanup_runner = (
+            _counting_git_runner(cleanup_base, timer)
+            if timer is not None
+            else cleanup_base
+        )
         try:
             if timer is not None:
                 with timer.record_stage("cleanup"):
-                    cleanup_error = git_sync.clean_publication_worktree(
-                        target.sidecar_path, runner
-                    )
+                    with bounded_cleanup_alarm(budget):
+                        cleanup_error = git_sync.clean_publication_worktree(
+                            target.sidecar_path,
+                            cleanup_runner,
+                            remaining_timeout=budget.remaining_timeout,
+                        )
             else:
-                cleanup_error = git_sync.clean_publication_worktree(
-                    target.sidecar_path, runner
-                )
+                with bounded_cleanup_alarm(budget):
+                    cleanup_error = git_sync.clean_publication_worktree(
+                        target.sidecar_path,
+                        cleanup_runner,
+                        remaining_timeout=budget.remaining_timeout,
+                    )
+        except PublicationCleanupTimedOut as cleanup_exc:
+            cleanup_error = str(cleanup_exc) or type(cleanup_exc).__name__
         except BaseException as cleanup_exc:
             cleanup_error = (
                 f"cleanup raised {type(cleanup_exc).__name__}: {cleanup_exc}"

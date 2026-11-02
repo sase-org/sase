@@ -104,6 +104,12 @@ def _sync_replay_patchables() -> None:
     replay_impl.require_rust_binding = require_rust_binding
 
 
+def default_publication_cleanup_timeout() -> float:
+    """Return the shared best-effort publication cleanup budget in seconds."""
+    _sync_publication_patchables()
+    return publication_impl.default_publication_cleanup_timeout()
+
+
 def classify_publication_error(error: str | None) -> str:
     """Return the stable failure class for one publication error message."""
     _sync_publication_patchables()

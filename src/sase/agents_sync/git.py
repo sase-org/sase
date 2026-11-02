@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 import os
 from pathlib import Path
 import subprocess
@@ -52,12 +52,24 @@ def _noninteractive_git_env(
     return env
 
 
+def _remaining_seconds(
+    remaining_timeout: Callable[[], float | None] | None,
+) -> float | None:
+    if remaining_timeout is None:
+        return None
+    try:
+        return remaining_timeout()
+    except Exception:  # noqa: BLE001 - a failing clock must not unblock cleanup.
+        return 0.0
+
+
 def run_git(
     cwd: Path,
     args: list[str],
     *,
     network: bool = False,
     op: str = "agents_sync.git",
+    remaining_timeout: Callable[[], float | None] | None = None,
 ) -> subprocess.CompletedProcess[str]:
     """Run one bounded git command with network prompt hardening.
 
@@ -66,14 +78,32 @@ def run_git(
     commit, reset, checkout, clean, ls-files, or ``rebase --abort`` is safe.
     Network commands (pull --rebase, push) are left unwrapped; rebase
     failures already go through ``abort_agents_rebase``.
+
+    When *remaining_timeout* is supplied, it caps both lock-retry recovery
+    and the local subprocess timeout to the shared cleanup deadline. A zero
+    or negative budget never falls back to an unbounded default: the command
+    is refused without running git.
     """
 
+    remaining = _remaining_seconds(remaining_timeout)
+    if remaining is not None and remaining <= 0:
+        return subprocess.CompletedProcess(
+            args,
+            128,
+            "",
+            "publication cleanup budget exhausted",
+        )
     if network:
+        timeout = (
+            min(remaining, network_git_timeout())
+            if remaining is not None
+            else network_git_timeout()
+        )
         result = run_sdd_network_git(
             args,
             cwd=cwd,
             op=op,
-            timeout=network_git_timeout(),
+            timeout=timeout,
             check=False,
             capture_output=True,
             text=True,
@@ -81,19 +111,38 @@ def run_git(
             output_previews=False,
         )
     else:
-        result, _outcome = run_with_git_lock_retry(
-            lambda: run_sdd_git(
+        # Never substitute an unbounded default once a budget exists: cap the
+        # subprocess to the remaining cleanup time. Re-read on every attempt
+        # so retries observe the same shrinking deadline as the recovery
+        # policy instead of a stale initial snapshot.
+
+        def _attempt() -> subprocess.CompletedProcess[str]:
+            attempt_remaining = _remaining_seconds(remaining_timeout)
+            if attempt_remaining is not None and attempt_remaining <= 0:
+                return subprocess.CompletedProcess(
+                    args,
+                    128,
+                    "",
+                    "publication cleanup budget exhausted",
+                )
+            return run_sdd_git(  # type: ignore[return-value]
                 args,
                 cwd=cwd,
                 op=op,
-                timeout=None,
+                timeout=attempt_remaining,
                 check=False,
                 capture_output=True,
                 text=True,
                 env=_noninteractive_git_env(),
                 output_previews=False,
-            ),
+            )
+
+        # Re-read the budget for every recovery decision so backoff, age-wait,
+        # and removal all observe the same shrinking deadline.
+        result, _outcome = run_with_git_lock_retry(
+            _attempt,
             cwd=cwd,
+            remaining_timeout=remaining_timeout,
         )
     return subprocess.CompletedProcess(
         result.args,
@@ -109,15 +158,29 @@ def run_git_bytes(
     *,
     network: bool = False,
     op: str = "agents_sync.git",
+    remaining_timeout: Callable[[], float | None] | None = None,
 ) -> subprocess.CompletedProcess[bytes]:
     """Run one bounded git command without decoding or newline conversion."""
 
+    remaining = _remaining_seconds(remaining_timeout)
+    if remaining is not None and remaining <= 0:
+        return subprocess.CompletedProcess(
+            args,
+            128,
+            b"",
+            b"publication cleanup budget exhausted",
+        )
     if network:
+        timeout = (
+            min(remaining, network_git_timeout())
+            if remaining is not None
+            else network_git_timeout()
+        )
         result = run_sdd_network_git(
             args,
             cwd=cwd,
             op=op,
-            timeout=network_git_timeout(),
+            timeout=timeout,
             check=False,
             capture_output=True,
             text=False,
@@ -125,19 +188,32 @@ def run_git_bytes(
             output_previews=False,
         )
     else:
-        result, _outcome = run_with_git_lock_retry(
-            lambda: run_sdd_git(
+
+        def _attempt_bytes() -> subprocess.CompletedProcess[bytes]:
+            attempt_remaining = _remaining_seconds(remaining_timeout)
+            if attempt_remaining is not None and attempt_remaining <= 0:
+                return subprocess.CompletedProcess(
+                    args,
+                    128,
+                    b"",
+                    b"publication cleanup budget exhausted",
+                )
+            return run_sdd_git(  # type: ignore[return-value]
                 args,
                 cwd=cwd,
                 op=op,
-                timeout=None,
+                timeout=attempt_remaining,
                 check=False,
                 capture_output=True,
                 text=False,
                 env=_noninteractive_git_env(),
                 output_previews=False,
-            ),
+            )
+
+        result, _outcome = run_with_git_lock_retry(
+            _attempt_bytes,
             cwd=cwd,
+            remaining_timeout=remaining_timeout,
         )
     return subprocess.CompletedProcess(
         result.args,

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from pathlib import Path
 import subprocess
 from typing import TYPE_CHECKING
@@ -147,13 +148,24 @@ def publish_pending_archive_objects(
     )
 
 
-def clean_prompt_archive_worktree(repo: Path, git_runner: GitRunner) -> str | None:
+def clean_prompt_archive_worktree(
+    repo: Path,
+    git_runner: GitRunner,
+    *,
+    remaining_timeout: Callable[[], float | None] | None = None,
+) -> str | None:
     """Restore the regenerable prompt archive paths to ``HEAD``.
 
     ``files/objects`` is deliberately absent: it is append-only, so nothing here
     resets, restores, or cleans under it.
     """
 
+    if remaining_timeout is not None:
+        try:
+            if (remaining_timeout() or 0) <= 0:
+                return "publication cleanup budget exhausted"
+        except Exception:  # noqa: BLE001 - a failing clock ends cleanup.
+            return "publication cleanup budget exhausted"
     reset = git_runner(
         repo,
         ["reset", "--quiet", "HEAD", "--", *REGENERABLE_ARCHIVE_PATHS],

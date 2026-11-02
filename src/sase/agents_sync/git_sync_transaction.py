@@ -75,19 +75,50 @@ def _clean_sync_worktree(repo: Path, git_runner: GitRunner) -> str | None:
     return clean_publication_worktree(repo, git_runner)
 
 
-def clean_publication_worktree(repo: Path, git_runner: GitRunner) -> str | None:
-    """Clean both regenerable publication path families, reporting every failure."""
+def clean_publication_worktree(
+    repo: Path,
+    git_runner: GitRunner,
+    *,
+    remaining_timeout: Callable[[], float | None] | None = None,
+) -> str | None:
+    """Clean both regenerable publication path families, reporting every failure.
+
+    When *remaining_timeout* is supplied, both families share one monotonic
+    deadline with no fresh allowance per family: the second family is skipped
+    with an unfinished-cleanup error once the budget is exhausted.
+    """
+
+    from sase.agents_sync.publication_cleanup import PublicationCleanupTimedOut
 
     errors: list[str] = []
     for cleanup in (clean_agents_payload_worktree, clean_prompt_archive_worktree):
+        if remaining_timeout is not None:
+            try:
+                if (remaining_timeout() or 0) <= 0:
+                    errors.append("publication cleanup budget exhausted")
+                    break
+            except Exception:  # noqa: BLE001 - a failing clock ends cleanup.
+                errors.append("publication cleanup budget exhausted")
+                break
         try:
-            error = cleanup(repo, git_runner)
+            error = cleanup(repo, git_runner, remaining_timeout=remaining_timeout)
         except PublicationDrainTimedOut:
             raise
+        except PublicationCleanupTimedOut as exc:
+            errors.append(str(exc) or type(exc).__name__)
+            break
         except Exception as exc:  # noqa: BLE001 - try every owned path family.
             error = str(exc) or type(exc).__name__
         if error is not None:
             errors.append(error)
+            # Re-check the shared deadline before starting the next family
+            # so cumulative operations cannot reset or overrun the budget.
+            if remaining_timeout is not None:
+                try:
+                    if (remaining_timeout() or 0) <= 0:
+                        break
+                except Exception:  # noqa: BLE001 - clock failure ends cleanup.
+                    break
     return "; ".join(errors) if errors else None
 
 
