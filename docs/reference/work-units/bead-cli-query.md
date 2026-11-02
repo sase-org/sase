@@ -80,14 +80,25 @@ command's options.
 
 ## `sase bead epic-symbols [<id>]`
 
-List `--epic-symbol` whitelist entries from the working tree's Justfile (for a full ID
-owned by another enabled project, that project's primary-workspace Justfile). With no
-ID, every entry is printed. With an ID, only entries keyed to that bead or a descendant
-suffix (`<bead-id>` matches `<bead-id>` and `<bead-id>.2`) are shown. Land and phase
-agents should run this before closing: leftover entries go stale the instant the bead
-closes, and `sase bead close` refuses while any remain. Inside a SASE agent run, a
-target that differs from the assigned bead by one interior segment prints the near-miss
-warning on stderr and still lists the entries.
+List the union of `--epic-symbol` whitelist entries from the working tree's Justfile and
+the default branch's Justfile. A full ID owned by another enabled project selects that
+project's primary checkout. Rows shared by both sources appear once, labeled with their
+origins. The scan attempts a bounded fetch; if it fails, cached upstream rows may be
+used with a warning. If upstream content is unavailable, only local rows are used.
+
+With no ID, every entry is printed. With an ID, only entries keyed to that bead or a
+descendant suffix (`<bead-id>` matches `<bead-id>` and `<bead-id>.2`) are shown. Land
+and phase agents should run this before closing: leftover entries go stale the instant
+the bead closes, and `sase bead close` refuses while any remain. Inside a SASE agent
+run, a target that differs from the assigned bead by one interior segment prints the
+near-miss warning on stderr and still lists the entries.
+
+This repository's verification starts with an epic-symbol freshness preflight. A row
+known to name a closed bead stops verification and is classified as `stale_checkout`,
+`local_invalid_row`, `upstream_unresolved`, or `uncertain`. The diagnostic reports the
+local and observed upstream revisions. `stale_checkout` means upstream cleanup needs to
+be integrated while preserving local work; the other results require resolving the row
+under the symbol-cleanup policy. A failed fetch cannot prove upstream is clean.
 
 See the generated [`sase bead` CLI reference](../cli/bead.md#sase-bead-epic-symbols) for
 this command's options.

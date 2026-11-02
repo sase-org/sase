@@ -148,12 +148,14 @@ matching `sase bead note`; forced closes apply it only to the listed beads, neve
 swept descendants. Keep `sase bead note` for mid-work progress notes and for adding
 evidence to a bead that is already closed.
 
-Closing a plan or phase bead that still has Justfile `--epic-symbol` entries keyed to it
-(or to a descendant suffix) is rejected before any store write. The error lists the
-exact flags. They go stale the instant the bead closes and turn unrelated agents'
-`just check` red, so resolve each symbol or re-key the line to a still-open bead first.
-List the entries with `sase bead epic-symbols <id>`. Already-closed no-ops skip this
-check. `--force` does not bypass it: leftover entries still break the lint gate.
+Closing a bead that still has Justfile `--epic-symbol` entries keyed to it (or to a
+descendant suffix) in the local/default-branch union is rejected before any store write.
+The error lists the exact flags and their origins; see
+[epic-symbol queries](bead-cli-query.md#sase-bead-epic-symbols-id) for fetch and
+fallback behavior. The entries go stale the instant the bead closes and turn unrelated
+agents' `just check` red, so resolve each symbol or re-key the line to a still-open bead
+first. List the entries with `sase bead epic-symbols <id>`. Already-closed no-ops skip
+this check. `--force` does not bypass it: leftover entries still break the lint gate.
 
 Closing a `flag` task bead is rejected the same way while the working tree's
 `src/sase/feature_flags/registry.py` still defines a flag naming it

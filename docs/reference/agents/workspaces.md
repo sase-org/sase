@@ -363,6 +363,40 @@ skipped instead of clobbered. `cleanup --stale` removes both the canonical manag
 checkout and its transition symlink. Once workflows are adapted, `migrate --finalize`
 removes the leftover transition symlinks without touching the canonical checkouts.
 
+## Held workspaces
+
+A terminal monitor, gate, or staged handoff can keep its workspace reserved when
+uncommitted session work has no confirmed successor in that same workspace. SASE
+inspects the session's main checkout and the repositories recorded for the turn. A
+follow-up that starts in another checkout does not take ownership of the original
+checkout's edits.
+
+| Settlement evidence                                                                                  | Workspace outcome                      |
+| ---------------------------------------------------------------------------------------------------- | -------------------------------------- |
+| A confirmed successor inherits the same workspace and its obligations                                | Ownership passes to the successor      |
+| Session-owned edits remain                                                                           | Keep the workspace held                |
+| Repository inspection fails, or a repository owned by the turn has edits but no saved starting state | Keep the workspace held for inspection |
+| All relevant repositories are clean, or only unchanged pre-existing edits remain                     | Release the terminal turn's claim      |
+| The recorded claim now belongs to another turn                                                       | Leave the new owner's claim untouched  |
+
+The agent detail header shows **Workspace held: stranded work**, the checkout path,
+cause, affected repositories, and any recovery diff paths. The durable record lives at
+`diagnostics/workspace_retention.json` in the turn's artifacts. Diff capture is
+best-effort; an absent diff does not mean the held checkout is clean. Late holds from
+monitor or gate settlement also send a `workspace-held` notification.
+
+For a saved handoff, repair the reported cause before
+[re-adopting it](agent-sessions.md#handoff-recovery). For an eligible terminal monitor,
+[`sase monitor resume`](../automation/monitor-operations.md#inspecting-and-stopping-monitors)
+retries its follow-up without rerunning the command. Dismissing the terminal agent
+releases a retained claim only if its recorded ownership still matches. Recover work
+before dismissing: release makes the workspace available for reuse.
+
+Dead-process holds follow
+[`workspace.held_claim_ttl_days`](../config/workspace-behavior.md#workspace), which
+defaults to 14 days; `0` disables automatic expiry. A live claim stays held until
+dismissed or transferred.
+
 ## Disabling Plugins
 
 The workspace provider registry loads provider entry points directly. It does not

@@ -223,6 +223,12 @@ was open toasts `That action is no longer available` instead of acting.
 
 ## Resolving stranded work
 
+An agent with a terminal workspace hold shows **Workspace held: stranded work** in its
+detail header, including the checkout, cause, affected repositories, and recovery diff
+paths. This callout can appear even without an assigned bead. Dismissing the agent
+releases the hold only while the recorded claim still belongs to that turn. See
+[Held workspaces](../agents/workspaces.md#held-workspaces) for recovery and expiry.
+
 `Enter` on a stranded or blocked owner, waiter, or clan row opens a resolve modal
 (or adds **resolve stranded** to the action chooser when a pending gate or Patch is
 also present). `f` / `Enter` prefills the home prompt with

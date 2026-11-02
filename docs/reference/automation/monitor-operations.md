@@ -64,6 +64,13 @@ carries `code` and `suggested_command` fields. If the starter settled but its
 continuation capture failed, the `not-launchable` error names that capture failure and
 gives the `-k FILE` / `-m MODEL` resume command.
 
+Terminal settlement checks for uncommitted work before releasing the monitor's
+workspace. A failed, missing, or degraded follow-up can leave the original checkout
+[held for recovery](../agents/workspaces.md#held-workspaces), including when the monitor
+command itself succeeded. A degraded follow-up uses another checkout and does not take
+ownership of those edits. The hold's detail callout lists its cause and recovery paths;
+inspect that work before dismissing the monitor row.
+
 If a proc-backed monitor loses its supervisor, its failure message in
 `sase monitor show` and `done.json` includes `last supervisor error: <line>` when the
 supervisor log has a readable diagnostic. SASE reads only the last 4 KiB and caps the

@@ -182,12 +182,31 @@ prevents activation. A monitor may already have a reserved ID or ToolRun ID at t
 point, but its command has not started. A joined ToolRun remains the existing execution;
 staging its monitor does not start a second command.
 
+### Handoff recovery
+
+The hourly `staged_handoff_reconcile` housekeeping job recovers saved handoffs whose
+originating runner has died and whose host finalizers have settled. It reuses a recorded
+gate, monitor, or successor; when only delivery remains, it delivers that continuation
+without repeating completed work. Recovery never reruns the provider or finalizers. Live
+runners, unknown runner liveness, missing settlement evidence, and explicit kills or
+discarded stages prevent automatic activation.
+
+An explicitly held handoff requires manual re-adoption. A newly recorded hold produces a
+notification naming the originating agent, the cause, and the retry command. The saved
+handoff and archived proposal remain available for recovery.
+
 When completion is held, repair the reported finalizer obligation first. Once its
 completion evidence is recorded, run `sase agent readopt <origin-agent>` to retry the
 handoff from its saved state. Re-adoption rechecks the original turn, workspace owner,
 and settlement evidence; it does not rerun the provider or treat a clean working tree as
 proof that finalization succeeded. If a session selector contains multiple staged turns,
 the command lists their exact member names so one originating turn can be selected.
+
+The result reports whether adoption succeeded, whether it was already adopted, the
+destination, and any refusal reason or repair action. Exit `0` means adopted, including
+an already-adopted handoff; exit `1` means held, refused, or an unresolved selector. A
+failed handoff can leave a [held workspace](workspaces.md#held-workspaces) when work
+still needs recovery.
 
 ### Session detail folding
 
