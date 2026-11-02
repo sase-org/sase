@@ -307,7 +307,7 @@ def test_a_git_log_failure_degrades_to_the_cached_rows(
     def _boom(*_args: object, **_kwargs: object) -> None:
         raise RuntimeError("simulated git failure")
 
-    monkeypatch.setattr("sase.artifact_links.projection._stitch_rules.run_git", _boom)
+    monkeypatch.setattr("sase.agents_sync.git.run_git", _boom)
 
     degraded = project_stitch_rules(_inputs(repo))
 

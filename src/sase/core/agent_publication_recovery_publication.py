@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any
@@ -406,18 +407,18 @@ def classify_stale_publication_request(
 
 def default_publication_cleanup_timeout() -> float:
     """Return the shared best-effort publication cleanup budget in seconds."""
-    from sase.core.rust import optional_rust_binding
-
-    binding = optional_rust_binding("default_publication_cleanup_timeout")
-    if binding is None:
-        return 1.0
-    try:
-        value = float(binding())
-    except Exception:  # noqa: BLE001 - stale binding must not break cleanup.
-        return 1.0
-    if not (value > 0):
-        return 1.0
-    return min(value, 1.0)
+    binding = require_rust_binding("default_publication_cleanup_timeout")
+    raw_value = binding()
+    if isinstance(raw_value, bool) or not isinstance(raw_value, (int, float)):
+        raise RuntimeError(
+            "sase_core_rs returned a non-numeric publication cleanup timeout"
+        )
+    value = float(raw_value)
+    if not math.isfinite(value) or value <= 0:
+        raise RuntimeError(
+            "sase_core_rs returned an invalid publication cleanup timeout"
+        )
+    return value
 
 
 def classify_deferred_prompt_obligation(

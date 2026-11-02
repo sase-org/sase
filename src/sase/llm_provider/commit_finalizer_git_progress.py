@@ -10,8 +10,6 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 import uuid
 
-from sase.agents_sync.git_sync_ops import AGENTS_SYNC_AUTO_COMMIT_TYPE
-
 from .commit_finalizer_agent_provenance import agent_provenance_matches
 from .commit_finalizer_git_paths import normalize_path
 from .commit_finalizer_git_status import (
@@ -372,6 +370,8 @@ def _new_commits_are_attributable(
     agent_name: str,
     ledger: tuple[_LedgerEntry, ...],
 ) -> bool:
+    from sase.agents_sync.git_sync_ops import AGENTS_SYNC_AUTO_COMMIT_TYPE
+
     for sha, tree, message in _new_commit_records(repo_dir, before_head, after_head):
         from sase.workflows.commit.runtime_tags import parse_trailing_commit_tags
 

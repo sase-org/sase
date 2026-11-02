@@ -36,7 +36,7 @@ def test_manual_sync_uses_tracked_deduplicated_scope_and_refreshes_agents(
         SyncOutcome("alpha", "Alpha", pulled=True),
         SyncOutcome("beta", "Beta", error="push failed"),
     )
-    monkeypatch.setattr(agents_sync, "sync_agents", lambda: outcomes)
+    monkeypatch.setattr("sase.agents_sync.sync_agents", lambda: outcomes)
     app = _Harness()
 
     app.action_sync_agents()

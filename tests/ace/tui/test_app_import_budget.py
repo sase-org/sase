@@ -82,6 +82,11 @@ _DEFERRED_MODULES = (
     "sase.dev_update",
     "sase.dev_update.execute",
     "sase.update_progress",
+    "sase.agents_sync.git",
+    "sase.agents_sync.git_sync",
+    "sase.agents_sync.git_sync_transaction",
+    "sase.agents_sync.publication",
+    "sase.agents_sync.publication_cleanup",
 )
 
 

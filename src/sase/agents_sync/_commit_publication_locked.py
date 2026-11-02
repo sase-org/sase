@@ -158,14 +158,14 @@ def publish_queued_locked(
         # with no fresh allowance per git command or family. The original
         # publication exception stays primary; cleanup trouble is diagnostic
         # evidence that still leaves the request queued.
-        budget = PublicationCleanupBudget()
-        cleanup_base = bounded_git_runner(git_runner, budget)
-        cleanup_runner = (
-            _counting_git_runner(cleanup_base, timer)
-            if timer is not None
-            else cleanup_base
-        )
         try:
+            budget = PublicationCleanupBudget()
+            cleanup_base = bounded_git_runner(git_runner, budget)
+            cleanup_runner = (
+                _counting_git_runner(cleanup_base, timer)
+                if timer is not None
+                else cleanup_base
+            )
             if timer is not None:
                 with timer.record_stage("cleanup"):
                     with bounded_cleanup_alarm(budget):

@@ -9,7 +9,6 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from pathlib import Path
 
-from sase.agents_sync.git import run_git
 from sase.artifact_links.projection._cache import read_rule_cache, write_rule_cache
 from sase.artifact_links.projection._model import ProjectedEdge, ProjectionInputs
 from sase.association_agents import commit_agent_association
@@ -106,6 +105,8 @@ def _current_rows(
         bead_rows, agent_rows = _log_commits(repo_root, repo_name, identity, "HEAD")
         return bead_rows, agent_rows, head_sha, True
 
+    from sase.agents_sync.git import run_git
+
     result = run_git(
         repo_root,
         ["log", _LOG_FORMAT, f"{cached_sha}..HEAD"],
@@ -127,6 +128,8 @@ def _current_rows(
 
 
 def _is_ancestor(repo_root: Path, ancestor_sha: str, descendant_sha: str) -> bool:
+    from sase.agents_sync.git import run_git
+
     result = run_git(
         repo_root,
         ["merge-base", "--is-ancestor", ancestor_sha, descendant_sha],
@@ -141,6 +144,8 @@ def _log_commits(
     identity: AgentIdentitySnapshot,
     rev: str,
 ) -> tuple[list[dict[str, str]], list[dict[str, str]]]:
+    from sase.agents_sync.git import run_git
+
     result = run_git(
         repo_root,
         ["log", _LOG_FORMAT, rev],

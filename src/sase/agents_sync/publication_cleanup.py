@@ -12,21 +12,14 @@ import subprocess
 
 from sase.agents_sync.git import GitRunner
 
-_FALLBACK_CLEANUP_TIMEOUT_SECONDS = 1.0
-
 
 def default_publication_cleanup_timeout() -> float:
-    """Return the shared best-effort cleanup budget in seconds (max 1s)."""
-    try:
-        from sase.core.agent_publication_recovery_publication import (
-            default_publication_cleanup_timeout as core_default,
-        )
-    except Exception:  # noqa: BLE001 - fallback keeps old trees working.
-        return _FALLBACK_CLEANUP_TIMEOUT_SECONDS
-    try:
-        return core_default()
-    except Exception:  # noqa: BLE001 - never fail a drain on policy lookup.
-        return _FALLBACK_CLEANUP_TIMEOUT_SECONDS
+    """Return the required Rust-owned cleanup budget in seconds."""
+    from sase.core.agent_publication_recovery import (
+        default_publication_cleanup_timeout as core_default,
+    )
+
+    return core_default()
 
 
 class PublicationCleanupTimedOut(TimeoutError):
@@ -42,14 +35,13 @@ class PublicationCleanupBudget:
         *,
         deadline: float | None = None,
     ) -> None:
-        timeout = (
-            default_publication_cleanup_timeout()
-            if timeout_seconds is None
-            else timeout_seconds
-        )
-        if not (timeout > 0):
-            timeout = _FALLBACK_CLEANUP_TIMEOUT_SECONDS
-        timeout = min(timeout, _FALLBACK_CLEANUP_TIMEOUT_SECONDS)
+        rust_cap = default_publication_cleanup_timeout()
+        if timeout_seconds is None:
+            timeout = rust_cap
+        else:
+            if not (timeout_seconds > 0):
+                raise ValueError("publication cleanup timeout must be positive")
+            timeout = min(timeout_seconds, rust_cap)
         self.timeout = timeout
         self.deadline = time.monotonic() + timeout if deadline is None else deadline
 

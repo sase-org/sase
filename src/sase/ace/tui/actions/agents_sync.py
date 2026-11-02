@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
-from sase.agents_sync import sync_agents
+from collections.abc import Callable
+from typing import cast
+
 from sase.agents_sync.models import SyncOutcome
 
 from ..agents_sync_format import (
@@ -22,8 +24,11 @@ class AgentsSyncActionsMixin:
         def task(
             reporter: SessionProcReporter,
         ) -> TrackedProcResult[tuple[SyncOutcome, ...]]:
+            from sase.agents_sync import sync_agents
+
             reporter.phase("Publishing and reconciling agent hoods")
-            outcomes = sync_agents()
+            run_sync_agents = cast(Callable[[], tuple[SyncOutcome, ...]], sync_agents)
+            outcomes = run_sync_agents()
             reporter.section("Agents repository results")
             for outcome in outcomes:
                 reporter.log(agents_sync_outcome_line(outcome), stream="result")
