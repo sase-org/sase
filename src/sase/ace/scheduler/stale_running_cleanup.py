@@ -222,6 +222,8 @@ def cleanup_stale_running_entries(
                 continue
             elif is_gate_claim and not gate_claim_is_releasable(project_file, claim):
                 continue
+            if _pending_retention_retains_claim(project_file, claim):
+                continue
 
             released = release_workspace(
                 project_file,
@@ -268,6 +270,51 @@ def _staged_origin_retains_claim(project_file: str, claim: WorkspaceClaim) -> bo
         return False
     except Exception:
         return True
+
+
+def _pending_retention_retains_claim(project_file: str, claim: WorkspaceClaim) -> bool:
+    """Honor an exact-owner pending-retention fact until settlement decides.
+
+    A pending fact protects the exact workspace/workflow/cl/timestamp/pid
+    owner while a fresh-interpreter retry or guarded settlement is still
+    outstanding. Once a terminal retention record settles, the pending fact
+    is stale and no longer blocks TTL-driven cleanup.
+    """
+    if not claim.artifacts_timestamp:
+        return False
+    try:
+        from sase.core.agent_artifact_paths import resolve_agent_artifact_timestamp_path
+        from sase.turns.workspace_retention import (
+            pending_retention_matches_owner,
+            read_pending_retention,
+        )
+        from sase.workspace_provider.retention_record import (
+            read_workspace_retention_record,
+        )
+
+        artifacts = resolve_agent_artifact_timestamp_path(
+            Path(project_file).parent.name, "ace-run", claim.artifacts_timestamp
+        )
+        pending = read_pending_retention(artifacts)
+        if pending is None:
+            return False
+        record = read_workspace_retention_record(artifacts)
+        if record is not None and not record.unresolved:
+            return False
+        from sase.turns.workspace_retention import WorkspaceRetentionOwner
+
+        owner = WorkspaceRetentionOwner(
+            project_file=project_file,
+            workspace_num=claim.workspace_num,
+            workflow=claim.workflow,
+            cl_name=claim.cl_name or "",
+            artifacts_timestamp=claim.artifacts_timestamp or "",
+            pid=claim.pid,
+            artifacts_dir=str(artifacts),
+        )
+        return pending_retention_matches_owner(pending, owner)
+    except Exception:
+        return False
 
 
 def _settle_stale_retention_record(project_file: str, claim: WorkspaceClaim) -> None:

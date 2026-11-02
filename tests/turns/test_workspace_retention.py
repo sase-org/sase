@@ -8,6 +8,8 @@ from dataclasses import replace
 from pathlib import Path
 from unittest.mock import patch
 
+import pytest
+
 from sase.llm_provider.commit_finalizer_baseline import FINALIZER_BASELINE_FILENAME
 from sase.llm_provider.commit_finalizer_git import normalize_path
 from sase.llm_provider.commit_finalizer_git_status import dirty_path_fingerprints
@@ -531,3 +533,87 @@ def test_successful_release_clears_matching_occupant(tmp_path: Path) -> None:
 
     assert result.disposition == "release"
     assert read_occupant_record(str(checkout)) is None
+
+
+def test_settled_record_survives_fresh_unresolved_hold(tmp_path: Path) -> None:
+    """Recovery never overwrites a settled record with a fresh hold."""
+    from sase.workspace_provider.retention_record import (
+        mark_workspace_retention_settled,
+    )
+
+    checkout = _init_repo(tmp_path / "ws", tracked_dirty=True)
+    artifacts = tmp_path / "artifacts"
+    _write_empty_baseline(artifacts, "primary", checkout)
+    project_file = create_project_file_with_running(tmp_path, [_claim()])
+    owner = _owner(project_file, checkout, artifacts)
+
+    first = settle_stranded_workspace(owner)
+    assert first.disposition == "retain"
+    assert first.record_path is not None
+    before = json.loads(Path(first.record_path).read_text(encoding="utf-8"))
+    assert before["disposition"] == "retain"
+
+    assert (
+        mark_workspace_retention_settled(
+            artifacts, reason="resume_transfer", settled_at="2026-11-02T00:00:00+00:00"
+        )
+        is True
+    )
+
+    second = settle_stranded_workspace(owner)
+    after = json.loads(Path(first.record_path).read_text(encoding="utf-8"))
+    assert after.get("settled_at") == "2026-11-02T00:00:00+00:00"
+    assert after.get("settled_reason") == "resume_transfer"
+    assert second.record_path == first.record_path
+
+
+def test_pending_retention_round_trip_and_owner_match(tmp_path: Path) -> None:
+    """Pending evidence names the exact owner awaiting settlement."""
+    from sase.turns.workspace_retention import (
+        clear_pending_retention,
+        pending_retention_matches_owner,
+        read_pending_retention,
+        write_pending_retention,
+    )
+
+    checkout = _init_repo(tmp_path / "ws", tracked_dirty=True)
+    artifacts = tmp_path / "artifacts"
+    artifacts.mkdir(parents=True, exist_ok=True)
+    project_file = create_project_file_with_running(tmp_path, [_claim()])
+    owner = _owner(project_file, checkout, artifacts)
+
+    assert read_pending_retention(artifacts) is None
+    assert write_pending_retention(owner, "monitor_settlement") is not None
+    pending = read_pending_retention(artifacts)
+    assert pending is not None
+    assert pending_retention_matches_owner(pending, owner) is True
+    other = replace(owner, pid=999999)
+    assert pending_retention_matches_owner(pending, other) is False
+    clear_pending_retention(artifacts)
+    assert read_pending_retention(artifacts) is None
+
+
+def test_metadata_write_failure_still_protects_custody(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A metadata-write failure cannot abort before custody is protected."""
+    import sase.axe.run_agent_helpers_artifacts as _meta
+
+    checkout = _init_repo(tmp_path / "ws", tracked_dirty=True)
+    artifacts = tmp_path / "artifacts"
+    _write_empty_baseline(artifacts, "primary", checkout)
+    project_file = create_project_file_with_running(tmp_path, [_claim()])
+
+    def _boom(*_args: object, **_kwargs: object) -> None:
+        raise OSError("metadata store unavailable")
+
+    monkeypatch.setattr(_meta, "update_meta_field", _boom)
+
+    result = settle_stranded_workspace(_owner(project_file, checkout, artifacts))
+
+    assert result.disposition == "retain"
+    assert result.claim_changed is True
+    claims = get_claimed_workspaces(project_file)
+    assert len(claims) == 1
+    assert claims[0].pinned is True
+    assert (checkout / "tracked.txt").read_text(encoding="utf-8") == "session owned\n"

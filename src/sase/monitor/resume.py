@@ -128,6 +128,11 @@ def resume_monitor(
         receiver = _delivery_identity(active_record)
         if receiver is not None:
             _record_successful_resume(record, meta, receiver)
+            _settle_retention_after_resume(
+                record.artifacts_dir,
+                FollowupLaunchResult(launched=True, agent_name=receiver),
+                receiver,
+            )
         return MonitorResumeResult(
             monitor_id=monitor_id,
             branch=branch,
@@ -313,41 +318,53 @@ def _settle_retention_after_resume(
     obligations, so the stranded hold is discharged. A degraded launch into
     another checkout, or a failed resume, leaves the original hold and its
     recovery evidence untouched.
+
+    The settled marker uses ``settled_at``/``settled_reason`` so
+    :attr:`WorkspaceRetentionRecord.unresolved` clears; the legacy
+    ``settled`` boolean is kept for backward compatibility with readers
+    that still check it.
     """
     if not launch.launched or launch.degraded_reason:
         return
     try:
-        from pathlib import Path
+        from datetime import datetime
 
-        from sase.turns.workspace_retention import RETENTION_RECORD_LOCATOR
+        from sase.core.time import get_timezone
+        from sase.workspace_provider.retention_record import (
+            mark_workspace_retention_settled,
+            read_workspace_retention_record,
+        )
     except Exception:  # noqa: BLE001 - retention settling is best effort
         return
-    record_path = Path(artifacts_dir) / RETENTION_RECORD_LOCATOR
-    try:
-        raw = record_path.read_bytes()
-    except OSError:
+    record = read_workspace_retention_record(artifacts_dir)
+    if record is None or not record.unresolved:
         return
+    if record.disposition != "retain":
+        return
+    settled = mark_workspace_retention_settled(
+        artifacts_dir,
+        reason="resume_transfer",
+        settled_at=datetime.now(get_timezone()).isoformat(),
+    )
+    if not settled:
+        return
+    # Preserve transfer evidence and the legacy boolean for old readers.
     try:
         import json
+        from pathlib import Path
 
-        payload = json.loads(raw.decode("utf-8"))
-    except (ValueError, UnicodeDecodeError):
-        return
-    if not isinstance(payload, dict):
-        return
-    if payload.get("settled") is True:
-        return
-    if payload.get("disposition") != "retain":
-        return
-    payload["settled"] = True
-    payload["settled_via"] = "resume_transfer"
-    if agent_name:
-        payload["resumed_to"] = agent_name
-    try:
         from sase.core.atomic_json import write_json_marker_atomic
+        from sase.turns.workspace_retention import RETENTION_RECORD_LOCATOR
 
-        write_json_marker_atomic(record_path, payload)
-    except OSError:
+        record_path = Path(artifacts_dir) / RETENTION_RECORD_LOCATOR
+        payload = json.loads(record_path.read_text(encoding="utf-8"))
+        if isinstance(payload, dict):
+            payload["settled"] = True
+            payload["settled_via"] = "resume_transfer"
+            if agent_name:
+                payload["resumed_to"] = agent_name
+            write_json_marker_atomic(record_path, payload)
+    except (OSError, ValueError, UnicodeDecodeError):
         return
 
 

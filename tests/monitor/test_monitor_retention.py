@@ -378,6 +378,42 @@ def test_blocked_continuation_capture_retains_dirty(
 
 def test_same_workspace_successor_does_not_hold(tmp_path: Path) -> None:
     """A confirmed same-workspace successor keeps custody without a hold."""
+    from sase.monitor.delivery import (
+        new_delivery_record,
+        persist_delivery_record,
+        transition_delivery,
+    )
+
+    repo = _init_repo(tmp_path / "ws", dirty=True)
+    artifacts_dir, project_file = _make_monitor(
+        repo, outcome="launched", protocol=MONITOR_CONTINUATION_PROTOCOL_LEGACY
+    )
+    meta = _read_meta(artifacts_dir)
+    meta["monitor_followup_agent"] = "acme--mon@1"
+    _write_meta(artifacts_dir, meta)
+    key = {
+        "monitor_id": "abc123def456",
+        "result_id": meta.get("monitor_result_id") or "result",
+        "branch": "failed",
+    }
+    record = new_delivery_record(key, selected_action="continue")
+    reserved = transition_delivery(record, "reserved", reserved_identity="acme--mon@1")
+    dispatching = transition_delivery(reserved, "dispatching")
+    acknowledged = transition_delivery(
+        dispatching, "acknowledged", acknowledged_by="acme--mon@1"
+    )
+    persist_delivery_record(artifacts_dir, acknowledged)
+
+    error = _release_monitor_claim(
+        meta, project_name="proj", artifacts_dir=artifacts_dir
+    )
+
+    assert error is None
+    assert get_claimed_workspaces(project_file) == []
+
+
+def test_stale_launch_label_without_proof_retains_dirty(tmp_path: Path) -> None:
+    """A bare launched label with a still-owned dirty claim must retain."""
     repo = _init_repo(tmp_path / "ws", dirty=True)
     artifacts_dir, project_file = _make_monitor(
         repo, outcome="launched", protocol=MONITOR_CONTINUATION_PROTOCOL_LEGACY
@@ -389,7 +425,13 @@ def test_same_workspace_successor_does_not_hold(tmp_path: Path) -> None:
     )
 
     assert error is None
-    assert get_claimed_workspaces(project_file) == []
+    claims = get_claimed_workspaces(project_file)
+    assert len(claims) == 1
+    assert claims[0].pinned is True
+    assert (repo / "tracked.txt").read_text() == "session owned\n"
+    record = _retention_record(artifacts_dir)
+    assert record is not None
+    assert record["disposition"] == "retain"
 
 
 def test_prepared_completion_success_releases_clean(tmp_path: Path) -> None:
@@ -466,6 +508,9 @@ def test_repeated_settlement_is_idempotent(tmp_path: Path) -> None:
 def test_resume_transfer_settles_retention_record(tmp_path: Path) -> None:
     """A same-workspace resume discharges the stranded hold."""
     from sase.monitor.resume import _settle_retention_after_resume
+    from sase.workspace_provider.retention_record import (
+        read_workspace_retention_record,
+    )
 
     repo = _init_repo(tmp_path / "ws", dirty=True)
     artifacts_dir, _project_file = _make_monitor(repo)
@@ -486,6 +531,11 @@ def test_resume_transfer_settles_retention_record(tmp_path: Path) -> None:
     assert record is not None
     assert record["settled"] is True
     assert record["settled_via"] == "resume_transfer"
+    assert record.get("settled_at")
+    assert record.get("settled_reason") == "resume_transfer"
+    typed = read_workspace_retention_record(artifacts_dir)
+    assert typed is not None
+    assert typed.unresolved is False
 
 
 def test_resume_degraded_and_failed_leave_hold(tmp_path: Path) -> None:
@@ -598,3 +648,113 @@ def test_proc_reconcile_path_retains_dirty(tmp_path: Path) -> None:
     assert claims[0].pinned is True
     assert (repo / "tracked.txt").read_text() == "session owned\n"
     _ = SimpleNamespace  # keep import used across protocol variants
+
+
+def _write_monitor_baselines(artifacts_dir: str, repos: list[tuple[str, Path]]) -> None:
+    """Write a finalizer baseline covering *repos* with empty fingerprints."""
+    import json
+
+    from sase.llm_provider.commit_finalizer_baseline import FINALIZER_BASELINE_FILENAME
+    from sase.llm_provider.commit_finalizer_git import normalize_path
+
+    payload = {
+        "schema_version": 1,
+        "repositories": [
+            {
+                "repo_id": repo_id,
+                "path": normalize_path(str(path)),
+                "kind": "primary" if repo_id == "primary" else "linked",
+                "name": repo_id,
+                "scope": "run_start",
+                "captured_at": "2026-01-01T00:00:00+00:00",
+                "fingerprints": {},
+            }
+            for repo_id, path in repos
+        ],
+    }
+    (Path(artifacts_dir) / FINALIZER_BASELINE_FILENAME).write_text(
+        json.dumps(payload), encoding="utf-8"
+    )
+
+
+def test_dirty_linked_repo_beyond_eighth_still_retains(tmp_path: Path) -> None:
+    """No eight-repository cutoff: the ninth dirty linked repo retains."""
+    repos: list[tuple[str, Path]] = []
+    primary = _init_repo(tmp_path / "ws-0", dirty=False)
+    repos.append(("primary", primary))
+    for index in range(1, 9):
+        clean = _init_repo(tmp_path / f"ws-{index}", dirty=False)
+        repos.append((f"linked-{index}", clean))
+    ninth = _init_repo(tmp_path / "ws-9", dirty=True)
+    repos.append(("linked-9", ninth))
+    artifacts_dir, project_file = _make_monitor(primary)
+    _write_monitor_baselines(artifacts_dir, repos)
+    meta = _read_meta(artifacts_dir)
+
+    error = _release_monitor_claim(
+        meta, project_name="proj", artifacts_dir=artifacts_dir
+    )
+
+    assert error is None
+    claims = get_claimed_workspaces(project_file)
+    assert len(claims) == 1
+    assert claims[0].pinned is True
+    assert (ninth / "tracked.txt").read_text() == "session owned\n"
+    record = _retention_record(artifacts_dir)
+    assert record is not None
+    assert record["disposition"] == "retain"
+
+
+def test_unavailable_owned_checkout_retains_as_uncertainty(
+    tmp_path: Path,
+) -> None:
+    """A deleted owned checkout is uncertainty, not a clean release."""
+    import shutil
+
+    repo = _init_repo(tmp_path / "ws", dirty=True)
+    artifacts_dir, project_file = _make_monitor(repo)
+    _write_monitor_baselines(artifacts_dir, [("primary", repo)])
+    shutil.rmtree(repo)
+    meta = _read_meta(artifacts_dir)
+
+    error = _release_monitor_claim(
+        meta, project_name="proj", artifacts_dir=artifacts_dir
+    )
+
+    assert error is None
+    claims = get_claimed_workspaces(project_file)
+    assert len(claims) == 1
+    assert claims[0].pinned is True
+    record = _retention_record(artifacts_dir)
+    assert record is not None
+    assert record["disposition"] == "retain"
+    assert record.get("probe_errors")
+
+
+def test_stale_binding_retries_in_fresh_interpreter(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A stale loaded binding retries the same Rust settlement fresh."""
+    from sase.turns import workspace_retention as _adapter
+
+    repo = _init_repo(tmp_path / "ws", dirty=True)
+    artifacts_dir, project_file = _make_monitor(repo)
+    meta = _read_meta(artifacts_dir)
+
+    def _stale(*_args: object, **_kwargs: object) -> object:
+        raise TypeError("old release_workspace signature")
+
+    monkeypatch.setattr(_adapter, "settle_stranded_workspace", _stale)
+
+    error = _release_monitor_claim(
+        meta, project_name="proj", artifacts_dir=artifacts_dir
+    )
+
+    assert error is None
+    claims = get_claimed_workspaces(project_file)
+    assert len(claims) == 1
+    assert claims[0].pinned is True
+    assert (repo / "tracked.txt").read_text() == "session owned\n"
+    record = _retention_record(artifacts_dir)
+    assert record is not None
+    assert record["disposition"] == "retain"
