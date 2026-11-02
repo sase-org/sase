@@ -167,6 +167,66 @@ def test_member_loader_reuses_reply_and_prompt_precedence(tmp_path: Path) -> Non
     ]
 
 
+def test_member_loader_prompt_precedence_with_forced_tie_and_reversed_order(
+    tmp_path: Path,
+    monkeypatch: Any,
+) -> None:
+    """Equal mtimes and raw-first enumeration still select the expanded prompt."""
+
+    import os as _os
+
+    from sase.agent.artifact_files_cache import get_global_cache
+
+    artifacts = tmp_path / "artifacts"
+    artifacts.mkdir()
+    (artifacts / "raw_prompt.md").write_text(
+        "\n#research first segment\n",
+        encoding="utf-8",
+    )
+    (artifacts / "01_prompt.md").write_text(
+        "\nExpanded prompt body\n",
+        encoding="utf-8",
+    )
+    response = artifacts / "response.md"
+    response.write_text("\nFinal member conclusion\nsecond line\n", encoding="utf-8")
+    base = (artifacts / "raw_prompt.md").stat().st_mtime_ns
+    _os.utime(artifacts / "raw_prompt.md", ns=(base, base))
+    _os.utime(artifacts / "01_prompt.md", ns=(base, base))
+    member = _agent(
+        "research.one",
+        artifacts_dir=str(artifacts),
+        response_path=str(response),
+    )
+    real_listdir = _os.listdir
+
+    def _raw_first(path: str) -> list[str]:
+        if path == str(artifacts):
+            return ["raw_prompt.md", "01_prompt.md", "response.md"]
+        return real_listdir(path)
+
+    def _expanded_first(path: str) -> list[str]:
+        if path == str(artifacts):
+            return ["01_prompt.md", "raw_prompt.md", "response.md"]
+        return real_listdir(path)
+
+    for listdir in (_raw_first, _expanded_first):
+        get_global_cache().clear()
+        monkeypatch.setattr("sase.agent.artifact_files_cache.os.listdir", listdir)
+        snapshot = _load_clan_disk_member_snapshot(
+            member,
+            ".one",
+            frozenset({"replies", "prompts"}),
+        )
+        assert [(entry.kind, entry.preview) for entry in snapshot.replies] == [
+            ("AGENT REPLY", "Final member conclusion")
+        ]
+        assert [(entry.kind, entry.preview) for entry in snapshot.prompts] == [
+            ("AGENT RAW PROMPT", "#research first segment"),
+            ("AGENT PROMPT", "Expanded prompt body"),
+        ]
+    get_global_cache().clear()
+
+
 def test_context_lanes_dedupe_in_declared_order_and_count_uses() -> None:
     first = _agent(
         "research.first",

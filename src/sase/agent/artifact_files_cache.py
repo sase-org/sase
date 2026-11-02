@@ -16,9 +16,7 @@ import os
 from dataclasses import dataclass, field
 from threading import Lock
 
-from sase.core.commit_finalizer_prompt_artifacts import (
-    is_commit_finalizer_followup_prompt,
-)
+from sase.core.rust import require_rust_binding
 
 
 def _stat_signature(path: str) -> tuple[int, int] | None:
@@ -119,13 +117,16 @@ class _ArtifactFileCache:
         is_workflow_child: bool,
         step_name: str | None,
     ) -> str | None:
-        """Pick the prompt file path for an agent, cached by directory listing.
+        """Pick the expanded prompt file path for an agent.
 
-        Mirrors the logic in ``get_prompt_content``: glob ``*_prompt.md``
-        (excluding the commit finalizer's ``commit_finalizer_pass_*_prompt.md``
-        re-prompts), narrow workflow-children to ``-{step_name}_prompt.md``
-        matches, then select the most-recently-modified entry. Cache
-        invalidates when the ``(path, mtime_ns)`` of any candidate changes.
+        Observes ``*_prompt.md`` candidates and delegates eligibility and
+        ranking to the Rust ``agent_prompt_select`` binding so every frontend
+        agrees: raw prompts (canonical and legacy) and commit-finalizer
+        re-prompts are never selected, workflow children prefer
+        ``-{step_name}_prompt.md`` with fallback, the newest integer mtime
+        wins, and timestamp ties prefer the lexicographically greatest path.
+        Cache invalidates when the ``(path, mtime_ns)`` of any observed
+        candidate changes, including the empty eligible set.
         """
         try:
             entries = os.listdir(artifacts_dir)
@@ -136,20 +137,12 @@ class _ArtifactFileCache:
         for entry in entries:
             if not entry.endswith("_prompt.md"):
                 continue
-            # Skip the commit finalizer's post-completion re-prompts: they
-            # match ``*_prompt.md`` and are newer than the submitted prompt,
-            # so they would hijack the panel away from what launched the agent.
-            if is_commit_finalizer_followup_prompt(entry):
-                continue
             full = os.path.join(artifacts_dir, entry)
             try:
                 st = os.stat(full)
             except OSError:
                 continue
             candidates.append((full, st.st_mtime_ns))
-
-        if not candidates:
-            return None
 
         sig = tuple(sorted(candidates))
         key = _PromptSelectionKey(
@@ -162,14 +155,14 @@ class _ArtifactFileCache:
             if cached is not None and cached.dir_signature == sig:
                 return cached.selected_path
 
-        if is_workflow_child and step_name:
-            suffix = f"-{step_name}_prompt.md"
-            filtered = [c for c in candidates if c[0].endswith(suffix)]
-            if filtered:
-                candidates = filtered
-
-        candidates.sort(key=lambda item: item[1], reverse=True)
-        selected = candidates[0][0]
+        request = {
+            "candidates": [
+                {"path": path, "mtime_ns": mtime_ns} for path, mtime_ns in candidates
+            ],
+            "is_workflow_child": is_workflow_child,
+            "step_name": step_name,
+        }
+        selected = require_rust_binding("agent_prompt_select")(request)
 
         with self._lock:
             self._prompt_selection[key] = _PromptSelectionEntry(

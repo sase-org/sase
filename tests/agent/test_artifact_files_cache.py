@@ -8,6 +8,7 @@ from pathlib import Path
 from unittest.mock import Mock, patch
 
 from sase.agent.artifact_files_cache import _ArtifactFileCache, _TailCache
+from sase.legacy_xprompt_names import LEGACY_RAW_XPROMPT_FILENAME
 
 
 def test_read_text_caches_by_signature(tmp_path: Path) -> None:
@@ -150,6 +151,143 @@ def test_select_prompt_file_skips_commit_finalizer_followups(tmp_path: Path) -> 
 
     selected = cache.select_prompt_file(str(d), is_workflow_child=False, step_name=None)
     assert selected == str(original)
+
+
+def test_select_prompt_file_excludes_raw_across_mtimes(tmp_path: Path) -> None:
+    for raw_delta, expanded_delta in [
+        (5_000_000_000, 0),
+        (0, 0),
+        (0, 5_000_000_000),
+    ]:
+        cache = _ArtifactFileCache()
+        d = tmp_path / f"artifacts-{raw_delta}-{expanded_delta}"
+        d.mkdir()
+        raw = d / "raw_prompt.md"
+        expanded = d / "01_prompt.md"
+        raw.write_text("RAW", encoding="utf-8")
+        expanded.write_text("EXPANDED", encoding="utf-8")
+        base = raw.stat().st_mtime_ns
+        os.utime(raw, ns=(base + raw_delta, base + raw_delta))
+        os.utime(expanded, ns=(base + expanded_delta, base + expanded_delta))
+        selected = cache.select_prompt_file(
+            str(d), is_workflow_child=False, step_name=None
+        )
+        assert selected == str(expanded)
+
+
+def test_select_prompt_file_excludes_legacy_raw(tmp_path: Path) -> None:
+    cache = _ArtifactFileCache()
+    d = tmp_path / "artifacts"
+    d.mkdir()
+    raw = d / LEGACY_RAW_XPROMPT_FILENAME
+    expanded = d / "01_prompt.md"
+    raw.write_text("RAW", encoding="utf-8")
+    expanded.write_text("EXPANDED", encoding="utf-8")
+    st = expanded.stat()
+    os.utime(raw, ns=(st.st_mtime_ns + 5_000_000_000, st.st_mtime_ns + 5_000_000_000))
+    assert cache.select_prompt_file(
+        str(d), is_workflow_child=False, step_name=None
+    ) == str(expanded)
+
+
+def test_select_prompt_file_tie_prefers_greatest_path_both_orders(
+    tmp_path: Path,
+) -> None:
+    import sase.agent.artifact_files_cache as mod
+
+    d = tmp_path / "artifacts"
+    d.mkdir()
+    first = d / "01_prompt.md"
+    second = d / "02_prompt.md"
+    first.write_text("a", encoding="utf-8")
+    second.write_text("b", encoding="utf-8")
+    base = first.stat().st_mtime_ns
+    os.utime(first, ns=(base, base))
+    os.utime(second, ns=(base, base))
+    real_listdir = os.listdir
+    for order in (["01_prompt.md", "02_prompt.md"], ["02_prompt.md", "01_prompt.md"]):
+        cache = _ArtifactFileCache()
+        mod.os.listdir = lambda path, _o=order, _d=str(d): (  # type: ignore[assignment]
+            list(_o) if path == _d else real_listdir(path)
+        )
+        try:
+            selected = cache.select_prompt_file(
+                str(d), is_workflow_child=False, step_name=None
+            )
+        finally:
+            mod.os.listdir = real_listdir  # type: ignore[assignment]
+        assert selected == str(second)
+
+
+def test_select_prompt_file_raw_only_and_empty_are_none(tmp_path: Path) -> None:
+    raw_only = tmp_path / "raw-only"
+    raw_only.mkdir()
+    (raw_only / "raw_prompt.md").write_text("RAW", encoding="utf-8")
+    cache = _ArtifactFileCache()
+    assert (
+        cache.select_prompt_file(str(raw_only), is_workflow_child=False, step_name=None)
+        is None
+    )
+    # A repeat call hits the cached empty selection.
+    assert (
+        cache.select_prompt_file(str(raw_only), is_workflow_child=False, step_name=None)
+        is None
+    )
+    empty = tmp_path / "empty"
+    empty.mkdir()
+    assert (
+        cache.select_prompt_file(str(empty), is_workflow_child=False, step_name=None)
+        is None
+    )
+
+
+def test_select_prompt_file_workflow_fallback_to_other_prompts(
+    tmp_path: Path,
+) -> None:
+    cache = _ArtifactFileCache()
+    d = tmp_path / "artifacts"
+    d.mkdir()
+    other = d / "01-other_prompt.md"
+    fallback = d / "02-else_prompt.md"
+    other.write_text("a", encoding="utf-8")
+    fallback.write_text("b", encoding="utf-8")
+    st = fallback.stat()
+    os.utime(other, ns=(st.st_mtime_ns + 1_000_000_000, st.st_mtime_ns + 1_000_000_000))
+    assert cache.select_prompt_file(
+        str(d), is_workflow_child=True, step_name="coder"
+    ) == str(other)
+
+
+def test_select_prompt_file_invalidates_on_add_remove_and_mtime(
+    tmp_path: Path,
+) -> None:
+    cache = _ArtifactFileCache()
+    d = tmp_path / "artifacts"
+    d.mkdir()
+    first = d / "01_prompt.md"
+    first.write_text("a", encoding="utf-8")
+    assert cache.select_prompt_file(
+        str(d), is_workflow_child=False, step_name=None
+    ) == str(first)
+    second = d / "02_prompt.md"
+    second.write_text("b", encoding="utf-8")
+    st = first.stat()
+    os.utime(
+        second, ns=(st.st_mtime_ns + 5_000_000_000, st.st_mtime_ns + 5_000_000_000)
+    )
+    assert cache.select_prompt_file(
+        str(d), is_workflow_child=False, step_name=None
+    ) == str(second)
+    second.unlink()
+    assert cache.select_prompt_file(
+        str(d), is_workflow_child=False, step_name=None
+    ) == str(first)
+    first.write_text("a-changed", encoding="utf-8")
+    st = first.stat()
+    os.utime(first, ns=(st.st_mtime_ns + 5_000_000_000, st.st_mtime_ns + 5_000_000_000))
+    assert cache.select_prompt_file(
+        str(d), is_workflow_child=False, step_name=None
+    ) == str(first)
 
 
 def test_read_reply_chunks_decodes_jointly(tmp_path: Path) -> None:
