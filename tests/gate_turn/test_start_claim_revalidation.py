@@ -7,7 +7,8 @@ from pathlib import Path
 import pytest
 
 from sase.gate_turn.start_claim import move_gate_turn_claim
-from sase.running_field import WorkspaceClaim
+from sase.running_field import WorkspaceClaim, get_claimed_workspaces
+from tests._running_field_helpers import create_project_file_with_running
 
 
 def _claim(
@@ -93,6 +94,38 @@ def test_reused_live_pid_with_foreign_identity_refuses_to_steal(
     assert "no longer owned" in (move.result.error or "")
 
 
+def test_dead_pid_with_foreign_identity_still_refuses_to_move(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    foreign = _claim(pid=111, artifacts_timestamp="another-run", cl_name="other")
+    monkeypatch.setattr(
+        "sase.gate_turn.start_claim.get_claimed_workspaces", lambda _path: [foreign]
+    )
+    monkeypatch.setattr(
+        "sase.gate_turn.start_claim._creator_pid_is_live", lambda _pid: False
+    )
+
+    def fail_transfer(*_args, **_kwargs):
+        raise AssertionError("must not move a stale row from another run")
+
+    monkeypatch.setattr(
+        "sase.gate_turn.start_claim.transfer_workspace_claim", fail_transfer
+    )
+
+    move = move_gate_turn_claim(
+        str(tmp_path / "proj.sase"),
+        3,
+        creator_pid=111,
+        artifacts_timestamp="20261029120100",
+        cl_name="cl-1",
+        workspace_policy="inherit",
+        creator_artifacts_timestamp="20261029120000",
+    )
+
+    assert not move.result.success
+    assert "no longer owned" in (move.result.error or "")
+
+
 def test_dead_pid_still_listed_may_move(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -128,3 +161,32 @@ def test_dead_pid_still_listed_may_move(
 
     assert move.result.success
     assert transferred == [111]
+
+
+def test_release_policy_preserves_replacement_claim_after_preflight_race(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    creator = _claim(pid=111, artifacts_timestamp="20261029120000")
+    replacement = _claim(pid=111, artifacts_timestamp="20261029120100")
+    project_file = create_project_file_with_running(tmp_path, [replacement])
+
+    # The initial ownership read sees the creator. The locked release rereads the
+    # actual project file after another run has replaced that claim identity.
+    monkeypatch.setattr(
+        "sase.gate_turn.start_claim.get_claimed_workspaces",
+        lambda _path: [creator],
+    )
+    move = move_gate_turn_claim(
+        project_file,
+        3,
+        creator_pid=111,
+        artifacts_timestamp="20261029120200",
+        cl_name="cl-1",
+        workspace_policy="release",
+        creator_artifacts_timestamp="20261029120000",
+    )
+
+    assert not move.result.success
+    actual_claims = get_claimed_workspaces(project_file)
+    assert len(actual_claims) == 1
+    assert actual_claims[0].artifacts_timestamp == "20261029120100"

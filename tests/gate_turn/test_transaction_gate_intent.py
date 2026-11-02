@@ -211,6 +211,19 @@ def test_clean_gate_error_clears_intent_marker(
 ) -> None:
     artifacts_dir = _set_agent_env(tmp_path, monkeypatch)
     _install_transaction_fakes(tmp_path, monkeypatch)
+    restored: list[bool] = []
+    monkeypatch.setattr(
+        transaction_module,
+        "restore_gate_turn_claim",
+        lambda *_args, **_kwargs: restored.append(True),
+    )
+    monkeypatch.setattr(
+        "sase.gate_turn.transaction_retention.retain_failed_gate_origin",
+        lambda *_args, **_kwargs: pytest.fail(
+            "a synchronous creator remains responsible for its workspace"
+        ),
+        raising=False,
+    )
     monkeypatch.setattr(
         transaction_module,
         "create_gate",
@@ -223,6 +236,7 @@ def test_clean_gate_error_clears_intent_marker(
         create_gate_turn(_shell_gate_spec())
 
     assert list_gate_intents(artifacts_dir) == []
+    assert restored == [True]
 
 
 def test_auto_resolved_gate_clears_intent_marker(

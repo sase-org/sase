@@ -45,10 +45,10 @@ def move_gate_turn_claim(
 ) -> GateClaimMove:
     """Move or release the creator claim for a pending gate turn.
 
-    Ownership is revalidated at the actual move. A live claim whose PID
-    matches the recorded creator is still refused when its identity
-    (artifacts timestamp / cl_name) no longer matches, so a reused PID
-    cannot steal the workspace.
+    Ownership is revalidated at the actual move. A claim whose PID matches
+    the recorded creator is refused when its identity (artifacts timestamp
+    / cl_name) no longer matches, regardless of whether that PID is still
+    live. A stale row from a prior session cannot move on PID equality alone.
     """
     if workspace_num is None or workspace_num == 0 or creator_pid is None:
         return GateClaimMove(
@@ -92,6 +92,8 @@ def move_gate_turn_claim(
             creator_claim.workflow,
             creator_claim.cl_name,
             caller_tag="gate-turn-create",
+            expected_pid=creator_pid,
+            artifacts_timestamp=creator_claim.artifacts_timestamp,
         )
         return GateClaimMove(
             result=result,
@@ -455,21 +457,17 @@ def _claim_still_owned_by_creator(
 
     A matching PID is not enough: after the original process exits, the
     kernel may reuse that PID for an unrelated occupant of the same
-    workspace. Conflicting identity fields refuse the move. A dead PID
-    still listed in RUNNING is the original creator and may be moved.
+    workspace. Conflicting artifact or Patch identity refuses the move even
+    when the recorded PID is dead.
     """
     if claim.pid != creator_pid:
         return False
+    if claim.cl_name != creator_cl_name:
+        return False
+    if claim.artifacts_timestamp != creator_artifacts_timestamp:
+        return False
     if not _creator_pid_is_live(creator_pid):
         return True
-    if creator_cl_name and claim.cl_name and claim.cl_name != creator_cl_name:
-        return False
-    if (
-        creator_artifacts_timestamp
-        and claim.artifacts_timestamp
-        and claim.artifacts_timestamp != creator_artifacts_timestamp
-    ):
-        return False
     return True
 
 

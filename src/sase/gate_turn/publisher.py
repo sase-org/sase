@@ -55,6 +55,7 @@ def publish_staged_gate(
     return publish_gate_turn(
         spec,
         creator=creator,
+        creator_live=False,
         before_auto_settle=before_auto_settle,
         frozen_auto=frozen_auto,
         resource_bytes=resource_bytes,

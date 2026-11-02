@@ -37,6 +37,8 @@ class CreatorContext:
     workspace_num: int | None
     runner_pid: int | None
     cl_name: str | None
+    claim_artifacts_dir: str | None = None
+    claim_artifacts_timestamp: str | None = None
 
 
 def resolve_project_name() -> str:
@@ -92,9 +94,13 @@ def resolve_creator(project_name: str) -> CreatorContext:
         )
         durable_lane = agent_session_base(promoted_name) or target_name
         raw_meta = _read_meta(ctx.record.artifact_dir)
-    workspace_num = _optional_int(raw_meta.get("workspace_num"))
-    runner_pid = _optional_int(raw_meta.get("pid"))
-    cl_name = raw_meta.get("cl_name")
+    claim_origin = _claim_origin_fields(
+        ctx.record.artifact_dir,
+        raw_meta,
+        project_name=project_name,
+        root_timestamp=os.environ.get("SASE_AGENT_ROOT_TIMESTAMP"),
+        cl_name_hint=os.environ.get("SASE_AGENT_CL_NAME"),
+    )
     return CreatorContext(
         project_name=project_name,
         project_file=ctx.record.project_file or get_project_file_path(project_name),
@@ -103,9 +109,11 @@ def resolve_creator(project_name: str) -> CreatorContext:
         target_name=target_name,
         durable_lane=durable_lane,
         meta=raw_meta,
-        workspace_num=workspace_num,
-        runner_pid=runner_pid,
-        cl_name=cl_name if isinstance(cl_name, str) else None,
+        workspace_num=claim_origin["workspace_num"],
+        runner_pid=claim_origin["runner_pid"],
+        cl_name=claim_origin["cl_name"],
+        claim_artifacts_dir=claim_origin["artifacts_dir"],
+        claim_artifacts_timestamp=claim_origin["timestamp"],
     )
 
 
@@ -146,22 +154,49 @@ def creator_context_from_persisted(
         raw_meta = _read_meta(artifacts_dir)
         if isinstance(raw_meta.get("name"), str) and raw_meta.get("name"):
             target_name = str(raw_meta["name"])
-    workspace_num = _optional_int(raw_meta.get("workspace_num"))
-    if workspace_num is None:
-        workspace_num = _optional_int(creator.get("workspace_num"))
-    runner_pid = _optional_int(raw_meta.get("pid"))
-    if runner_pid is None:
-        runner_pid = _optional_int(creator.get("runner_pid"))
-    cl_name = raw_meta.get("cl_name")
-    if not isinstance(cl_name, str) or not cl_name:
-        recorded_cl = creator.get("cl_name")
-        cl_name = recorded_cl if isinstance(recorded_cl, str) else None
-    project_file = creator.get("project_file")
-    if not isinstance(project_file, str) or not project_file.strip():
-        project_file = get_project_file_path(project_name)
     timestamp = creator.get("timestamp")
     if not isinstance(timestamp, str) or not timestamp.strip():
         timestamp = os.path.basename(artifacts_dir.rstrip("/"))
+    raw_claim_origin = creator.get("meta")
+    claim_origin = (
+        raw_claim_origin.get("claim_origin")
+        if isinstance(raw_claim_origin, Mapping)
+        else None
+    )
+    claim_origin = claim_origin if isinstance(claim_origin, Mapping) else {}
+    claim_timestamp = _clean_optional_str(
+        claim_origin.get("artifacts_timestamp")
+    ) or _clean_optional_str(creator.get("claim_artifacts_timestamp"))
+    if claim_timestamp is None:
+        claim_timestamp = timestamp.strip()
+    claim_artifacts_dir = _clean_optional_str(claim_origin.get("artifacts_dir"))
+    if claim_artifacts_dir is None and claim_timestamp:
+        claim_artifacts_dir = _resolve_claim_artifacts_dir(
+            artifacts_dir, project_name, claim_timestamp
+        )
+    claim_meta = _read_claim_origin_meta(
+        artifacts_dir,
+        raw_meta,
+        claim_artifacts_dir or artifacts_dir,
+    )
+    workspace_num = _optional_int(creator.get("workspace_num"))
+    if workspace_num is None:
+        workspace_num = _optional_int(claim_origin.get("workspace_num"))
+    if workspace_num is None:
+        workspace_num = _optional_int(claim_meta.get("workspace_num"))
+    runner_pid = _optional_int(creator.get("runner_pid"))
+    if runner_pid is None:
+        runner_pid = _optional_int(claim_origin.get("runner_pid"))
+    if runner_pid is None:
+        runner_pid = _optional_int(claim_meta.get("pid"))
+    cl_name = _clean_optional_str(creator.get("cl_name"))
+    if cl_name is None:
+        cl_name = _clean_optional_str(claim_origin.get("cl_name"))
+    if cl_name is None:
+        cl_name = _claim_cl_name(claim_meta, fallback=raw_meta)
+    project_file = creator.get("project_file")
+    if not isinstance(project_file, str) or not project_file.strip():
+        project_file = get_project_file_path(project_name)
     return CreatorContext(
         project_name=project_name,
         project_file=project_file.strip(),
@@ -172,8 +207,140 @@ def creator_context_from_persisted(
         meta=raw_meta,
         workspace_num=workspace_num,
         runner_pid=runner_pid,
-        cl_name=cl_name if isinstance(cl_name, str) else None,
+        cl_name=cl_name,
+        claim_artifacts_dir=claim_artifacts_dir,
+        claim_artifacts_timestamp=claim_timestamp or timestamp.strip(),
     )
+
+
+def claim_origin_for_artifacts(
+    artifacts_dir: str,
+    meta: Mapping[str, Any],
+    *,
+    project_name: str,
+    root_timestamp: str | None = None,
+    cl_name_hint: str | None = None,
+) -> dict[str, Any]:
+    """Return the RUNNING-claim identity for this agent session member.
+
+    Workflow steps can publish their own ``SASE_ARTIFACTS_DIR`` while the
+    runner keeps the claim created for its root turn. The root timestamp and
+    root agent metadata identify that exact claim; the current member path
+    remains the source of gate content and repository evidence.
+    """
+    return _claim_origin_fields(
+        artifacts_dir,
+        dict(meta),
+        project_name=project_name,
+        root_timestamp=root_timestamp,
+        cl_name_hint=cl_name_hint,
+    )
+
+
+def _claim_origin_fields(
+    artifacts_dir: str,
+    meta: dict[str, Any],
+    *,
+    project_name: str,
+    root_timestamp: str | None,
+    cl_name_hint: str | None,
+) -> dict[str, Any]:
+    current_timestamp = Path(artifacts_dir.rstrip("/")).name
+    timestamp = _clean_optional_str(root_timestamp) or current_timestamp
+    if Path(timestamp).name != timestamp:
+        timestamp = current_timestamp
+    claim_artifacts_dir = _resolve_claim_artifacts_dir(
+        artifacts_dir, project_name, timestamp
+    )
+    claim_meta = _read_claim_origin_meta(
+        artifacts_dir,
+        meta,
+        claim_artifacts_dir,
+    )
+    return {
+        "artifacts_dir": claim_artifacts_dir,
+        "timestamp": timestamp,
+        "workspace_num": _optional_int(claim_meta.get("workspace_num"))
+        if _optional_int(claim_meta.get("workspace_num")) is not None
+        else _optional_int(meta.get("workspace_num")),
+        "runner_pid": _optional_int(claim_meta.get("pid"))
+        if _optional_int(claim_meta.get("pid")) is not None
+        else _optional_int(meta.get("pid")),
+        "cl_name": _claim_cl_name(
+            claim_meta,
+            fallback=meta,
+            hint=cl_name_hint,
+        ),
+    }
+
+
+def _read_claim_origin_meta(
+    artifacts_dir: str,
+    current_meta: dict[str, Any],
+    claim_artifacts_dir: str,
+) -> dict[str, Any]:
+    claim_dir = Path(claim_artifacts_dir)
+    if (
+        claim_dir == Path(artifacts_dir)
+        or not (claim_dir / "agent_meta.json").is_file()
+    ):
+        return current_meta
+    return _read_meta(str(claim_dir))
+
+
+def _resolve_claim_artifacts_dir(
+    artifacts_dir: str,
+    project_name: str,
+    claim_timestamp: str,
+) -> str:
+    """Resolve the root artifact path across legacy and day-sharded layouts."""
+    from sase.core.agent_artifact_paths import (
+        ACE_RUN_WORKFLOW_DIR,
+        resolve_agent_artifact_timestamp_path,
+    )
+
+    try:
+        canonical = resolve_agent_artifact_timestamp_path(
+            project_name,
+            ACE_RUN_WORKFLOW_DIR,
+            claim_timestamp,
+        )
+    except Exception:
+        canonical = Path(artifacts_dir).parent / claim_timestamp
+    if (canonical / "agent_meta.json").is_file():
+        return str(canonical)
+    same_parent = Path(artifacts_dir).parent / claim_timestamp
+    if (same_parent / "agent_meta.json").is_file():
+        return str(same_parent)
+    return str(canonical)
+
+
+def _claim_cl_name(
+    claim_meta: Mapping[str, Any],
+    *,
+    fallback: Mapping[str, Any],
+    hint: str | None = None,
+) -> str | None:
+    for candidate in (claim_meta,):
+        for key in ("cl_name", "patch_name", "changespec_name"):
+            value = candidate.get(key)
+            if isinstance(value, str) and value.strip():
+                return value.strip()
+    hinted = _clean_optional_str(hint)
+    if hinted is not None:
+        return hinted
+    for key in ("cl_name", "patch_name", "changespec_name"):
+        value = fallback.get(key)
+        if isinstance(value, str) and value.strip():
+            return value.strip()
+    return None
+
+
+def _clean_optional_str(value: object) -> str | None:
+    if not isinstance(value, str):
+        return None
+    cleaned = value.strip()
+    return cleaned or None
 
 
 def _read_meta(artifacts_dir: str) -> dict[str, Any]:

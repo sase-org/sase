@@ -38,7 +38,10 @@ from sase.gate_turn.models import (
     GateTurnError,
     GateTurnRecord,
 )
-from sase.gate_turn.settlement import settle_gate_turn
+from sase.gate_turn.settlement import (
+    publish_gate_turn_terminal_state,
+    settle_gate_turn,
+)
 from sase.gate_turn.start_claim import (
     GateClaimMove,
     move_gate_turn_claim,
@@ -117,6 +120,7 @@ def create_gate_turn(
         creation = publish_gate_turn(
             spec,
             creator=creator,
+            creator_live=True,
             before_auto_settle=before_auto_settle,
             frozen_auto=frozen_auto,
         )
@@ -140,6 +144,7 @@ def publish_gate_turn(
     spec: GateSpec,
     *,
     creator: CreatorContext,
+    creator_live: bool = False,
     before_auto_settle: Callable[[GateTurnRecord, GateCreationResult], None]
     | None = None,
     frozen_auto: Mapping[str, Any] | None = None,
@@ -166,6 +171,7 @@ def publish_gate_turn(
             return _finish_existing_gate_turn(
                 spec,
                 creator=creator,
+                creator_live=creator_live,
                 replay=replay,
                 before_auto_settle=before_auto_settle,
                 frozen_auto=frozen_auto,
@@ -203,16 +209,18 @@ def publish_gate_turn(
             artifacts_timestamp=member_timestamp,
             cl_name=creator.cl_name,
             workspace_policy=turn.workspace,
-            creator_artifacts_timestamp=creator.timestamp,
+            creator_artifacts_timestamp=(
+                creator.claim_artifacts_timestamp or creator.timestamp
+            ),
         )
         _record_creator_claim(artifacts_dir, claim_move)
         if not claim_move.result.success:
             record = _read_required_record(project_name, artifacts_dir)
-            settle_gate_turn(
+            _settle_failed_gate_publication(
                 record,
-                gate_state="failed",
+                creator,
                 reason=claim_move.result.error or "workspace claim move failed",
-                creator_live=True,
+                creator_live=creator_live,
             )
             raise GateTurnError(
                 claim_move.result.error or "workspace claim move failed"
@@ -231,16 +239,16 @@ def publish_gate_turn(
             )
         except BaseException:
             record = _read_required_record(project_name, artifacts_dir)
-            settle_gate_turn(
+            _settle_failed_gate_publication(
                 record,
-                gate_state="failed",
+                creator,
                 reason="gate creation failed",
-                creator_live=True,
-            )
-            restore_gate_turn_claim(
-                creator.project_file,
-                move=claim_move,
-                cl_name=creator.cl_name,
+                creator_live=creator_live,
+                before_retention=lambda: restore_gate_turn_claim(
+                    creator.project_file,
+                    move=claim_move,
+                    cl_name=creator.cl_name,
+                ),
             )
             raise
 
@@ -257,7 +265,7 @@ def publish_gate_turn(
                 record,
                 gate_state="answered",
                 reason="auto-resolved",
-                creator_live=True,
+                creator_live=creator_live,
             )
             # The creator is still running in the workspace ``move_gate_turn_claim``
             # retitled to this gate turn above; restore its original claim now
@@ -283,6 +291,7 @@ def _finish_existing_gate_turn(
     spec: GateSpec,
     *,
     creator: CreatorContext,
+    creator_live: bool,
     replay: GateTurnRecord,
     before_auto_settle: Callable[[GateTurnRecord, GateCreationResult], None] | None,
     frozen_auto: Mapping[str, Any] | None,
@@ -298,7 +307,12 @@ def _finish_existing_gate_turn(
         raise GateTurnError(
             "request id already belongs to a failed gate turn that never published"
         )
-    claim_move = _repair_replay_claim(spec, creator, replay)
+    claim_move = _repair_replay_claim(
+        spec,
+        creator,
+        replay,
+        creator_live=creator_live,
+    )
     member_timestamp = replay.timestamp or os.path.basename(
         replay.artifacts_dir.rstrip("/")
     )
@@ -316,16 +330,16 @@ def _finish_existing_gate_turn(
     except BaseException:
         if claim_move is not None and not replay.is_terminal:
             record = _read_required_record(creator.project_name, replay.artifacts_dir)
-            settle_gate_turn(
+            _settle_failed_gate_publication(
                 record,
-                gate_state="failed",
+                creator,
                 reason="gate creation failed",
-                creator_live=True,
-            )
-            restore_gate_turn_claim(
-                creator.project_file,
-                move=claim_move,
-                cl_name=creator.cl_name,
+                creator_live=creator_live,
+                before_retention=lambda: restore_gate_turn_claim(
+                    creator.project_file,
+                    move=claim_move,
+                    cl_name=creator.cl_name,
+                ),
             )
         raise
 
@@ -341,7 +355,7 @@ def _finish_existing_gate_turn(
             record,
             gate_state="answered",
             reason="auto-resolved",
-            creator_live=True,
+            creator_live=creator_live,
         )
         if claim_move is not None:
             restore_gate_turn_claim(
@@ -361,7 +375,11 @@ def _finish_existing_gate_turn(
 
 
 def _repair_replay_claim(
-    spec: GateSpec, creator: CreatorContext, replay: GateTurnRecord
+    spec: GateSpec,
+    creator: CreatorContext,
+    replay: GateTurnRecord,
+    *,
+    creator_live: bool,
 ) -> GateClaimMove | None:
     """Finish a pending claim transfer or release without moving twice."""
     turn = spec.turn
@@ -377,21 +395,78 @@ def _repair_replay_claim(
         or os.path.basename(replay.artifacts_dir.rstrip("/")),
         cl_name=creator.cl_name,
         workspace_policy=turn.workspace,
-        creator_artifacts_timestamp=creator.timestamp,
+        creator_artifacts_timestamp=(
+            creator.claim_artifacts_timestamp or creator.timestamp
+        ),
     )
     if not claim_move.result.success:
+        _record_creator_claim(replay.artifacts_dir, claim_move)
         record = _read_required_record(creator.project_name, replay.artifacts_dir)
-        settle_gate_turn(
+        _settle_failed_gate_publication(
             record,
-            gate_state="failed",
+            creator,
             reason=claim_move.result.error or "workspace claim move failed",
-            creator_live=True,
+            creator_live=creator_live,
         )
         raise GateTurnError(claim_move.result.error or "workspace claim move failed")
     if claim_move.creator_claim is None:
         return None
     _record_creator_claim(replay.artifacts_dir, claim_move)
     return claim_move
+
+
+def _settle_failed_gate_publication(
+    record: GateTurnRecord,
+    creator: CreatorContext,
+    *,
+    reason: str,
+    creator_live: bool,
+    before_retention: Callable[[], object] | None = None,
+) -> None:
+    """Make a failed gate visible and retain its detached origin if needed."""
+    if creator_live:
+        try:
+            settle_gate_turn(
+                record,
+                gate_state="failed",
+                reason=reason,
+                creator_live=True,
+            )
+        except Exception as exc:  # noqa: BLE001 - still restore origin custody.
+            from sase.gate_turn.log import append_gate_turn_log_text
+
+            append_gate_turn_log_text(
+                record.artifacts_dir,
+                f"! gate-origin-retention: failed to settle synchronous gate: {exc}\n",
+            )
+    else:
+        try:
+            publish_gate_turn_terminal_state(
+                record,
+                gate_state="failed",
+                reason=reason,
+            )
+        except Exception as exc:  # noqa: BLE001 - still attempt origin custody.
+            from sase.gate_turn.log import append_gate_turn_log_text
+
+            append_gate_turn_log_text(
+                record.artifacts_dir,
+                f"! gate-origin-retention: failed to publish terminal state: {exc}\n",
+            )
+    if before_retention is not None:
+        try:
+            before_retention()
+        except Exception as exc:  # noqa: BLE001 - retention rechecks the owner.
+            from sase.gate_turn.log import append_gate_turn_log_text
+
+            append_gate_turn_log_text(
+                record.artifacts_dir,
+                f"! gate-origin-retention: creator claim restore failed: {exc}\n",
+            )
+    if not creator_live:
+        from sase.gate_turn.transaction_retention import retain_failed_gate_origin
+
+        retain_failed_gate_origin(creator, record, reason=reason)
 
 
 def _pulse_after_gate_visible(project_name: str | None) -> None:

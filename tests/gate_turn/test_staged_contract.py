@@ -505,7 +505,13 @@ def test_collect_creator_from_environment(
     assert creator["workspace_num"] == 3
     assert creator["runner_pid"] == 111
     assert creator["cl_name"] == "cl-1"
-    assert creator["meta"] == {}
+    assert creator["meta"]["claim_origin"] == {
+        "artifacts_dir": str(artifacts),
+        "artifacts_timestamp": "20261029T000000Z",
+        "workspace_num": 3,
+        "runner_pid": 111,
+        "cl_name": "cl-1",
+    }
     assert creator["project_file"].endswith(".sase")
 
 

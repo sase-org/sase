@@ -278,6 +278,15 @@ def collect_staged_gate_creator(
     timestamp = os.path.basename(root.rstrip("/"))
     if not timestamp:
         raise GateTurnError(f"artifacts directory has no timestamp: {root}")
+    from sase.gate_turn._transaction_creator import claim_origin_for_artifacts
+
+    claim_origin = claim_origin_for_artifacts(
+        root,
+        meta,
+        project_name=project,
+        root_timestamp=os.environ.get("SASE_AGENT_ROOT_TIMESTAMP"),
+        cl_name_hint=os.environ.get("SASE_AGENT_CL_NAME"),
+    )
     return {
         "project": project,
         "project_file": _project_file_path(project),
@@ -286,12 +295,18 @@ def collect_staged_gate_creator(
         "agent": agent.strip(),
         "agent_session": _agent_session_value(meta),
         "target": meta.get("name") if isinstance(meta.get("name"), str) else agent,
-        "workspace_num": _optional_int(meta.get("workspace_num")),
-        "runner_pid": _optional_int(meta.get("pid")),
-        "cl_name": meta.get("cl_name")
-        if isinstance(meta.get("cl_name"), str)
-        else None,
-        "meta": {},
+        "workspace_num": claim_origin["workspace_num"],
+        "runner_pid": claim_origin["runner_pid"],
+        "cl_name": claim_origin["cl_name"],
+        "meta": {
+            "claim_origin": {
+                "artifacts_dir": claim_origin["artifacts_dir"],
+                "artifacts_timestamp": claim_origin["timestamp"],
+                "workspace_num": claim_origin["workspace_num"],
+                "runner_pid": claim_origin["runner_pid"],
+                "cl_name": claim_origin["cl_name"],
+            }
+        },
     }
 
 
@@ -448,17 +463,6 @@ def _project_file_path(project_name: str) -> str:
     from sase.workflows.utils import get_project_file_path
 
     return get_project_file_path(project_name)
-
-
-def _optional_int(value: object) -> int | None:
-    if value is None:
-        return None
-    if not isinstance(value, int | str):
-        return None
-    try:
-        return int(value)
-    except ValueError:
-        return None
 
 
 __all__ = [
