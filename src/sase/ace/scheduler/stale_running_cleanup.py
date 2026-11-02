@@ -12,7 +12,7 @@ from sase.running_field import (
     get_workspace_directory_for_num,
     release_workspace,
 )
-from sase.workspace_provider.occupant import clear_occupant_record
+from sase.workspace_provider.occupant import clear_owned_occupant_record
 
 from ..hooks.processes import is_process_running
 
@@ -183,10 +183,10 @@ def cleanup_stale_running_entries(
         claims = get_claimed_workspaces(project_file)
 
         for claim in claims:
-            # This housekeeping lane can race staged reconciliation. Retain
-            # the origin independently of job ordering, including pinned or
-            # terminalized origins; custody transfer changes the claim owner.
-            if _staged_origin_retains_claim(project_file, claim):
+            # Protect pending adoption independently of reconciliation ordering.
+            # Once pinned, the origin follows the normal held-claim lifecycle,
+            # including its configured TTL and explicit dismissal.
+            if not claim.pinned and _staged_origin_retains_claim(project_file, claim):
                 continue
             is_monitor_claim = claim.workflow == monitor_workflow
             is_gate_claim = claim.workflow == GATE_WORKSPACE_CLAIM_WORKFLOW
@@ -198,15 +198,16 @@ def cleanup_stale_running_entries(
                     continue
                 if is_process_running(claim.pid):
                     continue
-                # Keep a pinned dead claim only while it still has a
-                # dismissal path (artifacts + done.json) and is younger
-                # than the held-claim TTL. No done.json means ACE can
-                # never offer dismissal, so the conservative skip would
-                # preserve a leak. The claim's own PID is already dead,
-                # so no finalizer can still write the marker.
+                # Terminal holds follow the configured TTL. A staged origin
+                # can also be pinned just before its runner crashes without
+                # writing done.json; recovery still owns that pending marker
+                # and must get a chance to publish terminal evidence.
                 if _held_agent_artifacts_exist(
                     project_file, claim.artifacts_timestamp
-                ) and _held_done_marker_exists(project_file, claim.artifacts_timestamp):
+                ) and (
+                    _held_done_marker_exists(project_file, claim.artifacts_timestamp)
+                    or _staged_origin_retains_claim(project_file, claim)
+                ):
                     if held_ttl_days is None:
                         held_ttl_days = _held_claim_ttl_days()
                     if not _held_claim_exceeds_ttl(
@@ -222,14 +223,19 @@ def cleanup_stale_running_entries(
             elif is_gate_claim and not gate_claim_is_releasable(project_file, claim):
                 continue
 
-            release_workspace(
+            released = release_workspace(
                 project_file,
                 claim.workspace_num,
                 claim.workflow,
                 claim.cl_name,
                 caller_tag="stale-cleanup",
+                expected_pid=claim.pid,
+                artifacts_timestamp=claim.artifacts_timestamp,
             )
-            _clear_stale_occupant_record(project_file, claim.workspace_num)
+            if not released.success:
+                continue
+            _settle_stale_retention_record(project_file, claim)
+            _clear_stale_occupant_record(project_file, claim)
             released_count += 1
 
             if log_fn:
@@ -264,18 +270,45 @@ def _staged_origin_retains_claim(project_file: str, claim: WorkspaceClaim) -> bo
         return True
 
 
-def _clear_stale_occupant_record(project_file: str, workspace_num: int) -> None:
+def _settle_stale_retention_record(project_file: str, claim: WorkspaceClaim) -> None:
+    """Keep recovery surfaces in sync after releasing a terminal held claim."""
+    if not claim.pinned or not claim.artifacts_timestamp:
+        return
+    try:
+        from sase.core.agent_artifact_paths import resolve_agent_artifact_timestamp_path
+        from sase.workspace_provider.retention_record import (
+            mark_workspace_retention_settled,
+        )
+
+        artifacts = resolve_agent_artifact_timestamp_path(
+            Path(project_file).parent.name, "ace-run", claim.artifacts_timestamp
+        )
+        mark_workspace_retention_settled(
+            artifacts, reason="stale_cleanup", settled_at=_now().isoformat()
+        )
+    except Exception:
+        return
+
+
+def _clear_stale_occupant_record(project_file: str, claim: WorkspaceClaim) -> None:
     """Best-effort clear of a stale claim's checkout occupant marker."""
-    if workspace_num <= 1:
+    if claim.workspace_num <= 1:
         return
     try:
         project_name = Path(project_file).parent.name
         workspace_dir, _ = get_workspace_directory_for_num(
-            workspace_num, project_name, clean=False
+            claim.workspace_num, project_name, clean=False
         )
     except Exception:
         return
-    clear_occupant_record(workspace_dir)
+    clear_owned_occupant_record(
+        workspace_dir,
+        claim.pid,
+        artifacts_timestamp=claim.artifacts_timestamp,
+        workflow=claim.workflow,
+        cl_name=claim.cl_name,
+        workspace_num=claim.workspace_num,
+    )
 
 
 def _get_all_project_files() -> list[str]:

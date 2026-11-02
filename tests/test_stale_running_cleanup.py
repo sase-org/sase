@@ -165,6 +165,8 @@ def test_cleanup_releases_each_dead_claim_by_identity() -> None:
             "ace(run)-260101_120000",
             "feature_a",
             caller_tag="stale-cleanup",
+            expected_pid=11111,
+            artifacts_timestamp=None,
         ),
         call(
             project_file,
@@ -172,6 +174,8 @@ def test_cleanup_releases_each_dead_claim_by_identity() -> None:
             "ace(run)-260101_120001",
             "feature_b",
             caller_tag="stale-cleanup",
+            expected_pid=11111,
+            artifacts_timestamp=None,
         ),
     ]
 
@@ -226,6 +230,8 @@ def test_cleanup_skips_pinned_entries() -> None:
             "run",
             "unpinned_feature",
             caller_tag="stale-cleanup",
+            expected_pid=22222,
+            artifacts_timestamp=None,
         )
         # is_process_running should only be called for the unpinned entry
         mock_is_running.assert_called_once_with(22222)

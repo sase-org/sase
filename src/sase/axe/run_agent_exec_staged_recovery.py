@@ -178,6 +178,14 @@ def recover_staged_handoff(
                 }
             )
             if automatic["action"] not in {"adopt", "deliver_only"}:
+                if automatic["action"] == "hold":
+                    from sase.axe.run_agent_exec_staged_retention import (
+                        retain_dead_staged_origin,
+                    )
+
+                    retain_dead_staged_origin(
+                        staged_id, str(automatic["reason"]), artifacts_dir=origin
+                    )
                 return StagedRecoveryResult(
                     adopted=False,
                     already_adopted=bool(automatic["already_adopted"]),

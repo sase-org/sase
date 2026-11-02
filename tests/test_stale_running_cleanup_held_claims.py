@@ -110,6 +110,8 @@ def test_cleanup_releases_held_workspace_without_done_marker() -> None:
         "run",
         "feature",
         caller_tag="stale-cleanup",
+        expected_pid=11111,
+        artifacts_timestamp="20260901120000",
     )
 
 
@@ -126,6 +128,8 @@ def test_cleanup_releases_held_workspace_after_artifacts_are_deleted() -> None:
         "run",
         "feature",
         caller_tag="stale-cleanup",
+        expected_pid=11111,
+        artifacts_timestamp="20260901120000",
     )
 
 
@@ -146,6 +150,8 @@ def test_cleanup_releases_held_workspace_older_than_ttl() -> None:
         "run",
         "feature",
         caller_tag="stale-cleanup",
+        expected_pid=11111,
+        artifacts_timestamp=old_stamp,
     )
 
 
@@ -212,10 +218,11 @@ def test_held_claim_exceeds_ttl_boundaries() -> None:
 
 
 @pytest.mark.parametrize("pinned", [False, True])
+@pytest.mark.parametrize("age,ttl", [(13, 14), (15, 14), (400, 0)])
 def test_staged_origin_retains_claim_before_and_after_receipt(
-    tmp_path, monkeypatch, pinned
+    tmp_path, monkeypatch, pinned, age, ttl
 ):
-    """Even an expired held origin keeps custody until ownership transfers."""
+    """Pending adoption keeps custody until settlement or ownership transfer."""
     import sase.ace.scheduler.stale_running_cleanup as cleanup
 
     artifacts = tmp_path / "origin"
@@ -233,6 +240,10 @@ def test_staged_origin_retains_claim_before_and_after_receipt(
     )
     monkeypatch.setattr(cleanup, "get_claimed_workspaces", lambda _: [claim])
     monkeypatch.setattr(cleanup, "is_process_running", lambda _: False)
+    monkeypatch.setattr(cleanup, "_held_claim_ttl_days", lambda: ttl)
+    monkeypatch.setattr(
+        cleanup, "_now", lambda: datetime(2020, 1, 1, 12) + timedelta(days=age)
+    )
     monkeypatch.setattr(
         "sase.core.agent_artifact_paths.resolve_agent_artifact_timestamp_path",
         lambda *_: artifacts,
@@ -242,7 +253,8 @@ def test_staged_origin_retains_claim_before_and_after_receipt(
     (artifacts / ".sase_handoff_staged.json").write_text(
         "malformed evidence still owns custody"
     )
-    assert cleanup_stale_running_entries() == 0
+    expired = pinned and ttl > 0 and age > ttl
+    assert cleanup_stale_running_entries() == int(expired)
     (artifacts / ".sase_handoff_adopted.json").write_text('{"outcome":"adopted"}')
-    assert cleanup_stale_running_entries() == 0
-    release.assert_not_called()
+    assert cleanup_stale_running_entries() == int(expired)
+    assert release.call_count == (2 if expired else 0)

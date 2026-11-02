@@ -87,8 +87,13 @@ def adopted_destination_refs(
 
 def write_held_locked(staged_id: str, reason: str, *, artifacts_dir: str) -> None:
     from sase.axe.run_agent_exec_staged_monitor import cleanup_staged_monitor_handoff
+    from sase.axe.run_agent_exec_staged_retention import retain_dead_staged_origin
 
     try:
+        receipt_state, _ = classify_receipt(artifacts_dir, staged_id)
+        if receipt_state not in {"absent", "held"}:
+            return
+        retain_dead_staged_origin(staged_id, reason, artifacts_dir=artifacts_dir)
         write_adoption_receipt_locked(
             _held_receipt_payload(staged_id, reason),
             artifacts_dir=artifacts_dir,

@@ -83,7 +83,13 @@ def test_cleanup_releases_dead_monitor_claim_once_member_is_terminal() -> None:
     ):
         assert cleanup_stale_running_entries() == 1
     release.assert_called_once_with(
-        project_file, 10, "ace-monitor", "feature", caller_tag="stale-cleanup"
+        project_file,
+        10,
+        "ace-monitor",
+        "feature",
+        caller_tag="stale-cleanup",
+        expected_pid=claim.pid,
+        artifacts_timestamp=claim.artifacts_timestamp,
     )
 
 
@@ -159,7 +165,13 @@ def test_cleanup_releases_dead_gate_claim_once_member_is_terminal() -> None:
     ):
         assert cleanup_stale_running_entries() == 1
     release.assert_called_once_with(
-        project_file, 10, "ace-gate", "feature", caller_tag="stale-cleanup"
+        project_file,
+        10,
+        "ace-gate",
+        "feature",
+        caller_tag="stale-cleanup",
+        expected_pid=claim.pid,
+        artifacts_timestamp=claim.artifacts_timestamp,
     )
 
 
@@ -202,7 +214,13 @@ def test_cleanup_skip_monitor_claims_leaves_ace_monitor_claims_untouched() -> No
 
     assert released == 1
     release.assert_called_once_with(
-        project_file, 11, "run", "other", caller_tag="stale-cleanup"
+        project_file,
+        11,
+        "run",
+        "other",
+        caller_tag="stale-cleanup",
+        expected_pid=other_claim.pid,
+        artifacts_timestamp=other_claim.artifacts_timestamp,
     )
     read_marker.assert_not_called()
 
@@ -269,7 +287,13 @@ def test_cleanup_skip_monitor_claims_survives_unimportable_monitor_start(
     assert isinstance(released, int)
     assert released == 1
     release.assert_called_once_with(
-        project_file, 11, "run", "other", caller_tag="stale-cleanup"
+        project_file,
+        11,
+        "run",
+        "other",
+        caller_tag="stale-cleanup",
+        expected_pid=other_claim.pid,
+        artifacts_timestamp=other_claim.artifacts_timestamp,
     )
 
 

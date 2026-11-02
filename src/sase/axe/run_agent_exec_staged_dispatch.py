@@ -125,6 +125,26 @@ def _record_failed_adoption(
     continuation: StagedInlineContinuation | None = None,
 ) -> None:
     """Retain unresolved owner work before making the failed receipt visible."""
+    retain_failed_adoption_workspace(
+        staged_id,
+        reason,
+        artifacts_dir=artifacts_dir,
+        run_metadata=run_metadata,
+        continuation=continuation,
+    )
+    _write_held_receipt_locked(staged_id, reason, artifacts_dir=artifacts_dir)
+
+
+def retain_failed_adoption_workspace(
+    staged_id: str,
+    reason: str,
+    *,
+    artifacts_dir: str,
+    run_metadata: Mapping[str, Any],
+    continuation: StagedInlineContinuation | None = None,
+    notify_on_retain: bool = False,
+) -> None:
+    """Settle a failed origin through shared policy, pinning on probe failure."""
     try:
         _retain_failed_adoption_workspace(
             staged_id,
@@ -132,6 +152,7 @@ def _record_failed_adoption(
             artifacts_dir=artifacts_dir,
             run_metadata=run_metadata,
             continuation=continuation,
+            notify_on_retain=notify_on_retain,
         )
     except Exception as exc:  # noqa: BLE001 - also pin before receipt publication.
         try:
@@ -146,7 +167,6 @@ def _record_failed_adoption(
                 f"Could not pin staged starter after retention error: {hold_exc}",
                 file=sys.stderr,
             )
-    _write_held_receipt_locked(staged_id, reason, artifacts_dir=artifacts_dir)
 
 
 def _hold_failed_adoption_claim(
@@ -250,6 +270,7 @@ def _retain_failed_adoption_workspace(
     artifacts_dir: str,
     run_metadata: Mapping[str, Any],
     continuation: StagedInlineContinuation | None,
+    notify_on_retain: bool,
 ) -> None:
     """Apply shared policy to the exact staged starter claim and repositories."""
     from sase.running_field import get_claimed_workspaces
@@ -340,6 +361,7 @@ def _retain_failed_adoption_workspace(
         ),
         turn_id=(str(run_metadata.get("name")) if run_metadata.get("name") else None),
         terminal_reason=reason,
+        notify_on_retain=notify_on_retain,
     )
     settle_stranded_workspace(owner)
 
