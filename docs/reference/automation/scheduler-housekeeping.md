@@ -26,14 +26,16 @@ Periodic maintenance:
 | `artifact_retention`         | Enforce indexed artifact-file retention and purge expired trash                  |
 | `artifact_run_prune`         | Preview old ace-run directories and empty shard cleanup                          |
 
-The `staged_handoff_reconcile` job processes finalized handoffs after their originating
-runner dies. Each pass examines at most 32 candidates within a 60-second budget and
-checkpoints unfinished discovery for the next pass. It includes terminal origins and
-historical artifacts. Recovery reuses recorded destinations and does not rerun providers
-or finalizers. Explicit holds require
-[`sase agent readopt`](../agents/agent-sessions.md#handoff-recovery); a new hold sends a
-deduplicated notification with that command. Live or unobservable runners, killed
-stages, and incomplete settlement prevent automatic activation.
+The `staged_handoff_reconcile` job recovers staged handoffs after the originating
+process dies and host finalization is complete. Each pass attempts at most 32 candidates
+and stops starting further candidates after a 60-second budget; an in-flight attempt can
+outlast that budget. Discovery and pending candidates are saved for the next pass. The
+scan includes finished turns and historical artifacts. Recovery reuses recorded
+destinations and does not rerun the originating provider or finalizers. Recorded holds
+require [`sase agent readopt`](../agents/agent-sessions.md#handoff-recovery); a new hold
+recorded by this job sends a notification with that command, deduplicated by origin,
+stage, and cause. Live or unobservable runners, killed or discarded stages, and
+incomplete finalization prevent automatic activation.
 
 ## publication (15-second interval)
 

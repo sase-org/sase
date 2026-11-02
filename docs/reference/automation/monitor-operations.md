@@ -67,9 +67,11 @@ gives the `-k FILE` / `-m MODEL` resume command.
 Terminal settlement checks for uncommitted work before releasing the monitor's
 workspace. A failed, missing, or degraded follow-up can leave the original checkout
 [held for recovery](../agents/workspaces.md#held-workspaces), including when the monitor
-command itself succeeded. A degraded follow-up uses another checkout and does not take
-ownership of those edits. The hold's detail callout lists its cause and recovery paths;
-inspect that work before dismissing the monitor row.
+command itself succeeded. **Degraded** means workspace ownership could not be
+transferred normally: the follow-up may take a fresh claim on the same workspace or use
+another checkout. Its prompt states which happened. A follow-up in another checkout does
+not take ownership of the original edits. The hold's detail callout lists its cause and
+any captured recovery diffs; inspect that work before dismissing the monitor row.
 
 If a proc-backed monitor loses its supervisor, its failure message in
 `sase monitor show` and `done.json` includes `last supervisor error: <line>` when the

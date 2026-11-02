@@ -281,8 +281,9 @@ launch retains its recovery information instead of appearing as a running succes
 
 When a gate still owns a workspace at terminal settlement, uncommitted session work can
 keep that workspace [held for recovery](../agents/workspaces.md#held-workspaces). A
-clean checkout releases the gate's claim. A gate that already released its workspace
-does not reacquire it, and settlement leaves a successor's claim untouched.
+claim is released when all relevant repositories are clean or contain only unchanged
+pre-existing edits. A gate configured to release its workspace at creation does not
+reacquire it during settlement, and settlement leaves a successor's claim untouched.
 
 The hourly `gate_turn_reclaim` housekeeping job settles pending turns whose gates were
 already answered, cancelled, or removed. It also times out gates past their own

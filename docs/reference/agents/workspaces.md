@@ -365,23 +365,24 @@ removes the leftover transition symlinks without touching the canonical checkout
 
 ## Held workspaces
 
-A terminal monitor, gate, or staged handoff can keep its workspace reserved when
-uncommitted session work has no confirmed successor in that same workspace. SASE
-inspects the session's main checkout and the repositories recorded for the turn. A
-follow-up that starts in another checkout does not take ownership of the original
+A finished monitor, gate, or agent turn with a staged handoff can keep its workspace
+reserved when uncommitted session work has no confirmed successor in that same
+workspace. This reservation is a **workspace hold**. SASE inspects the main checkout and
+the repositories recorded for the turn, comparing edits with their saved starting state.
+A follow-up that starts in another checkout does not take ownership of the original
 checkout's edits.
 
 | Settlement evidence                                                                                  | Workspace outcome                      |
 | ---------------------------------------------------------------------------------------------------- | -------------------------------------- |
+| The recorded claim now belongs to another turn                                                       | Leave the new owner's claim untouched  |
 | A confirmed successor inherits the same workspace and its obligations                                | Ownership passes to the successor      |
 | Session-owned edits remain                                                                           | Keep the workspace held                |
 | Repository inspection fails, or a repository owned by the turn has edits but no saved starting state | Keep the workspace held for inspection |
 | All relevant repositories are clean, or only unchanged pre-existing edits remain                     | Release the terminal turn's claim      |
-| The recorded claim now belongs to another turn                                                       | Leave the new owner's claim untouched  |
 
 The agent detail header shows **Workspace held: stranded work**, the checkout path,
-cause, affected repositories, and any recovery diff paths. The durable record lives at
-`diagnostics/workspace_retention.json` in the turn's artifacts. Diff capture is
+cause, recorded repositories, and any captured recovery diff paths. The durable record
+lives at `diagnostics/workspace_retention.json` in the turn's artifacts. Diff capture is
 best-effort; an absent diff does not mean the held checkout is clean. Late holds from
 monitor or gate settlement also send a `workspace-held` notification.
 
@@ -392,10 +393,11 @@ retries its follow-up without rerunning the command. Dismissing the terminal age
 releases a retained claim only if its recorded ownership still matches. Recover work
 before dismissing: release makes the workspace available for reuse.
 
-Dead-process holds follow
-[`workspace.held_claim_ttl_days`](../config/workspace-behavior.md#workspace), which
-defaults to 14 days; `0` disables automatic expiry. A live claim stays held until
-dismissed or transferred.
+For a dead process with retained artifacts and a completion marker, cleanup applies
+[`workspace.held_claim_ttl_days`](../config/workspace-behavior.md#workspace): 14 days by
+default, measured from the turn's launch timestamp; `0` disables age-based expiry. A
+saved staged-handoff record protects its claim from this cleanup, even past that age. A
+claim whose recorded process is still alive also remains protected from expiry.
 
 ## Disabling Plugins
 

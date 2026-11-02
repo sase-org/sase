@@ -154,8 +154,10 @@ The error lists the exact flags and their origins; see
 [epic-symbol queries](bead-cli-query.md#sase-bead-epic-symbols-id) for fetch and
 fallback behavior. The entries go stale the instant the bead closes and turn unrelated
 agents' `just check` red, so resolve each symbol or re-key the line to a still-open bead
-first. List the entries with `sase bead epic-symbols <id>`. Already-closed no-ops skip
-this check. `--force` does not bypass it: leftover entries still break the lint gate.
+first. If an entry also exists upstream, the cleanup must reach the default branch
+before closing; a local edit alone leaves the upstream entry in the scan. List the
+entries with `sase bead epic-symbols <id>`. Already-closed no-ops skip this refusal.
+`--force` does not bypass it: leftover entries still break the lint gate.
 
 Closing a `flag` task bead is rejected the same way while the working tree's
 `src/sase/feature_flags/registry.py` still defines a flag naming it

@@ -184,16 +184,18 @@ staging its monitor does not start a second command.
 
 ### Handoff recovery
 
-The hourly `staged_handoff_reconcile` housekeeping job recovers saved handoffs whose
-originating runner has died and whose host finalizers have settled. It reuses a recorded
-gate, monitor, or successor; when only delivery remains, it delivers that continuation
-without repeating completed work. Recovery never reruns the provider or finalizers. Live
-runners, unknown runner liveness, missing settlement evidence, and explicit kills or
-discarded stages prevent automatic activation.
+The `staged_handoff_reconcile` housekeeping job, scheduled hourly by default, recovers
+staged handoffs after the process running the originating turn has died and the host has
+recorded completion of its finalizers. It reuses any recorded gate, monitor, or
+successor; when a successor is recorded but has not started, recovery completes its
+delivery. Recovery never reruns the originating provider or finalizers. Live runners,
+unknown runner liveness, missing completion evidence, and explicit kills or discarded
+stages prevent automatic activation.
 
-An explicitly held handoff requires manual re-adoption. A newly recorded hold produces a
-notification naming the originating agent, the cause, and the retry command. The saved
-handoff and archived proposal remain available for recovery.
+A handoff recorded as held requires manual re-adoption: retrying its saved request after
+repairing the reported cause. Hold notifications identify the originating agent, cause,
+and retry command. The saved handoff and archived proposal remain available for
+recovery.
 
 When completion is held, repair the reported finalizer obligation first. Once its
 completion evidence is recorded, run `sase agent readopt <origin-agent>` to retry the
@@ -202,9 +204,9 @@ and settlement evidence; it does not rerun the provider or treat a clean working
 proof that finalization succeeded. If a session selector contains multiple staged turns,
 the command lists their exact member names so one originating turn can be selected.
 
-The result reports whether adoption succeeded, whether it was already adopted, the
-destination, and any refusal reason or repair action. Exit `0` means adopted, including
-an already-adopted handoff; exit `1` means held, refused, or an unresolved selector. A
+The result reports the destination and any refusal reason or repair action. Add `--json`
+for explicit `adopted` and `already_adopted` fields. Exit `0` means adoption succeeded
+or was already complete; exit `1` means held, refused, or an unresolved selector. A
 failed handoff can leave a [held workspace](workspaces.md#held-workspaces) when work
 still needs recovery.
 

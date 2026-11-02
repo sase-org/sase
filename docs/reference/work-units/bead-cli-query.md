@@ -80,11 +80,13 @@ command's options.
 
 ## `sase bead epic-symbols [<id>]`
 
-List the union of `--epic-symbol` whitelist entries from the working tree's Justfile and
-the default branch's Justfile. A full ID owned by another enabled project selects that
-project's primary checkout. Rows shared by both sources appear once, labeled with their
-origins. The scan attempts a bounded fetch; if it fails, cached upstream rows may be
-used with a warning. If upstream content is unavailable, only local rows are used.
+List Symvision's temporary lint exemptions (`--epic-symbol` entries) from both the
+working tree's Justfile and the default branch's Justfile. A full ID owned by another
+enabled project selects that project's primary checkout. Each distinct bead-and-symbol
+pair appears once, labeled `local`, the upstream ref (such as `origin/main`), or both.
+The scan attempts a fetch with a 30-second timeout; if it fails, cached upstream rows
+may be used with a warning. If upstream content is unavailable, only local rows are
+used.
 
 With no ID, every entry is printed. With an ID, only entries keyed to that bead or a
 descendant suffix (`<bead-id>` matches `<bead-id>` and `<bead-id>.2`) are shown. Land
@@ -93,12 +95,13 @@ the bead closes, and `sase bead close` refuses while any remain. Inside a SASE a
 run, a target that differs from the assigned bead by one interior segment prints the
 near-miss warning on stderr and still lists the entries.
 
-This repository's verification starts with an epic-symbol freshness preflight. A row
-known to name a closed bead stops verification and is classified as `stale_checkout`,
-`local_invalid_row`, `upstream_unresolved`, or `uncertain`. The diagnostic reports the
-local and observed upstream revisions. `stale_checkout` means upstream cleanup needs to
-be integrated while preserving local work; the other results require resolving the row
-under the symbol-cleanup policy. A failed fetch cannot prove upstream is clean.
+In sase's own repository, `just check` starts with a separate epic-symbol freshness
+preflight. A local row known to name a closed bead fails the preflight and is classified
+as `stale_checkout`, `local_invalid_row`, `upstream_unresolved`, or `uncertain`. The
+diagnostic reports the local and observed upstream revisions. `stale_checkout` means
+upstream cleanup needs to be integrated while preserving local work; the other results
+require resolving the row under the symbol-cleanup policy. A failed fetch cannot prove
+upstream is clean.
 
 See the generated [`sase bead` CLI reference](../cli/bead.md#sase-bead-epic-symbols) for
 this command's options.

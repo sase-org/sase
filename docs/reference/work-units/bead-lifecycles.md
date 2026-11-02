@@ -195,9 +195,9 @@ with no live session member, pending monitor, gate, handoff, or recovery, and no
 launched child epic still working. Standalone `in_progress` task beads are included.
 
 A terminal [workspace hold](../agents/workspaces.md#held-workspaces) preserves recovery
-evidence but does not count as active work, even if that turn still has a staged-handoff
-record. With no other live owner, the bead can become stranded. A live successor still
-owns the bead through its own session member.
+evidence but does not make that finished turn an active bead owner, even if it still has
+a staged-handoff record. With no other live owner, the bead can become stranded. A live
+successor still owns the bead through its own session member.
 
 Host completion can also strand work it already closed. When a run's product commit or
 declaration recovery fails with unlanded work, the host reopens that run's standing
