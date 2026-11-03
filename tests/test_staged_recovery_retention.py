@@ -23,7 +23,7 @@ from sase.workspace_provider.occupant import (
 from sase.workspace_provider.retention_record import read_workspace_retention_record
 from tests.monitor._fixtures import write_project_file
 from tests.test_staged_recovery_service import STAGED_ID, _record, _write_meta
-from tests.turns.test_workspace_retention import _init_repo
+from tests.turns._workspace_retention_helpers import init_repo
 
 
 @pytest.fixture
@@ -34,7 +34,7 @@ def origin(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
         "proj", "ace-run", "20261028120000"
     )
     artifacts.mkdir(parents=True)
-    checkout = _init_repo(tmp_path / "workspace")
+    checkout = init_repo(tmp_path / "workspace")
     write_staged_handoff(_record(tmp_path, "pipe"), artifacts_dir=str(artifacts))
     _write_meta(artifacts, pid=999999)
     metadata_path = artifacts / "agent_meta.json"
@@ -92,7 +92,7 @@ def test_recovery_settles_dead_origin_through_shared_policy(
     if dirty_repo == "linked":
         from sase._linked_repo_markers import record_opened_external_repo
 
-        linked = _init_repo(tmp_path / "linked")
+        linked = init_repo(tmp_path / "linked")
         monkeypatch.setenv("SASE_ARTIFACTS_DIR", str(artifacts))
         record_opened_external_repo(
             "widget", str(linked), reason="work", opened_at="2026-10-28T12:00:00Z"
