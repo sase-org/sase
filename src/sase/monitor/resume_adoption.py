@@ -306,6 +306,16 @@ def _manual_revision_fingerprint(
     return f"sha256:{sha256(encoded).hexdigest()}"
 
 
+def receiver_is_live(project_name: str, identity: str) -> bool:
+    """Return True when *identity* resolves to a live receiver process."""
+    if not project_name or not identity:
+        return False
+    ctx = _try_resolve_agent(project_name, identity)
+    if ctx is None:
+        return False
+    return _receiver_process_alive(ctx)
+
+
 def collect_receiver_proofs(
     record: MonitorRecord,
     deliveries: list[dict[str, Any]],
@@ -372,4 +382,5 @@ def _receiver_process_alive(ctx: Any) -> bool:
 __all__ = [
     "apply_resume_adoption",
     "collect_receiver_proofs",
+    "receiver_is_live",
 ]

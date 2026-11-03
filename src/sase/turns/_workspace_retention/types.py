@@ -39,6 +39,7 @@ class WorkspaceRetentionOwner:
     terminal_reason: str = ""
     evidence_artifacts_dir: str | None = None
     notify_on_retain: bool = False
+    discovery_errors: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)

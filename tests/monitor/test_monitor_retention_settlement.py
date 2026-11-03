@@ -9,6 +9,7 @@ same-workspace successor proof.
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
 
 import pytest
@@ -27,8 +28,10 @@ from ._retention_fixtures import (
     init_retention_repo,
     make_retention_monitor,
     no_launch_followup,
+    persist_retention_delivery,
     read_retention_meta,
     retention_record,
+    transfer_retention_to_successor,
     write_retention_meta,
 )
 
@@ -301,13 +304,11 @@ def test_blocked_continuation_capture_retains_dirty(
     assert (repo / "tracked.txt").read_text() == "session owned\n"
 
 
-def test_same_workspace_successor_does_not_hold(tmp_path: Path) -> None:
-    """A confirmed same-workspace successor keeps custody without a hold."""
-    from sase.monitor.delivery import (
-        new_delivery_record,
-        persist_delivery_record,
-        transition_delivery,
-    )
+def test_same_workspace_successor_keeps_transferred_claim(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """An actual transferred claim stays with the successor and its occupant."""
+    from sase.workspace_provider.occupant import read_occupant_record
 
     repo = init_retention_repo(tmp_path / "ws", dirty=True)
     artifacts_dir, project_file = make_retention_monitor(
@@ -315,26 +316,38 @@ def test_same_workspace_successor_does_not_hold(tmp_path: Path) -> None:
     )
     meta = read_retention_meta(artifacts_dir)
     meta["monitor_followup_agent"] = "acme--mon@1"
+    meta["project_file"] = project_file
+    meta["project_name"] = "proj"
     write_retention_meta(artifacts_dir, meta)
-    key = {
-        "monitor_id": "abc123def456",
-        "result_id": meta.get("monitor_result_id") or "result",
-        "branch": "failed",
-    }
-    record = new_delivery_record(key, selected_action="continue")
-    reserved = transition_delivery(record, "reserved", reserved_identity="acme--mon@1")
-    dispatching = transition_delivery(reserved, "dispatching")
-    acknowledged = transition_delivery(
-        dispatching, "acknowledged", acknowledged_by="acme--mon@1"
+    persist_retention_delivery(
+        artifacts_dir, meta, agent="acme--mon@1", disposition="acknowledged"
     )
-    persist_delivery_record(artifacts_dir, acknowledged)
+    successor_pid = os.getpid() + 17
+    transfer_retention_to_successor(
+        project_file,
+        repo,
+        from_pid=os.getpid(),
+        to_pid=successor_pid,
+        timestamp="20260906120100",
+    )
+    monkeypatch.setattr(
+        "sase.monitor.settlement_fresh_owner._receiver_is_live",
+        lambda *_args, **_kwargs: True,
+    )
 
     error = release_monitor_claim(
         meta, project_name="proj", artifacts_dir=artifacts_dir
     )
 
     assert error is None
-    assert get_claimed_workspaces(project_file) == []
+    claims = get_claimed_workspaces(project_file)
+    assert len(claims) == 1
+    assert claims[0].pid == successor_pid
+    assert claims[0].artifacts_timestamp == "20260906120100"
+    occupant = read_occupant_record(str(repo))
+    assert occupant is not None
+    assert occupant.pid == successor_pid
+    assert (repo / "tracked.txt").read_text() == "session owned\n"
 
 
 def test_stale_launch_label_without_proof_retains_dirty(tmp_path: Path) -> None:
@@ -352,6 +365,194 @@ def test_stale_launch_label_without_proof_retains_dirty(tmp_path: Path) -> None:
     assert error is None
     claims = get_claimed_workspaces(project_file)
     assert len(claims) == 1
+    assert claims[0].pinned is True
+    assert (repo / "tracked.txt").read_text() == "session owned\n"
+    record = retention_record(artifacts_dir)
+    assert record is not None
+    assert record["disposition"] == "retain"
+
+
+@pytest.mark.parametrize(
+    "disposition",
+    ["reserved", "dispatching", "acknowledged", "settled"],
+)
+def test_delivery_history_without_live_successor_retains(
+    tmp_path: Path, disposition: str
+) -> None:
+    """Historical delivery labels without a live successor keep the dirty origin."""
+    repo = init_retention_repo(tmp_path / "ws", dirty=True)
+    artifacts_dir, project_file = make_retention_monitor(
+        repo, outcome="launched", protocol=MONITOR_CONTINUATION_PROTOCOL_LEGACY
+    )
+    meta = read_retention_meta(artifacts_dir)
+    meta["monitor_followup_agent"] = "receiver-that-does-not-exist"
+    write_retention_meta(artifacts_dir, meta)
+    persist_retention_delivery(
+        artifacts_dir,
+        meta,
+        agent="receiver-that-does-not-exist",
+        disposition=disposition,
+    )
+
+    error = release_monitor_claim(
+        meta, project_name="proj", artifacts_dir=artifacts_dir
+    )
+
+    assert error is None
+    claims = get_claimed_workspaces(project_file)
+    assert len(claims) == 1
+    assert claims[0].pid == os.getpid()
+    assert claims[0].pinned is True
+    assert (repo / "tracked.txt").read_text() == "session owned\n"
+    record = retention_record(artifacts_dir)
+    assert record is not None
+    assert record["disposition"] == "retain"
+
+
+def test_wrong_result_id_delivery_does_not_prove_transfer(tmp_path: Path) -> None:
+    """A delivery for another result cannot discharge this monitor's hold."""
+    repo = init_retention_repo(tmp_path / "ws", dirty=True)
+    artifacts_dir, project_file = make_retention_monitor(
+        repo, outcome="launched", protocol=MONITOR_CONTINUATION_PROTOCOL_LEGACY
+    )
+    meta = read_retention_meta(artifacts_dir)
+    meta["monitor_followup_agent"] = "acme--mon@1"
+    write_retention_meta(artifacts_dir, meta)
+    persist_retention_delivery(
+        artifacts_dir,
+        meta,
+        agent="acme--mon@1",
+        disposition="acknowledged",
+        result_id="other-result",
+    )
+
+    error = release_monitor_claim(
+        meta, project_name="proj", artifacts_dir=artifacts_dir
+    )
+
+    assert error is None
+    claims = get_claimed_workspaces(project_file)
+    assert len(claims) == 1
+    assert claims[0].pinned is True
+    assert (repo / "tracked.txt").read_text() == "session owned\n"
+    record = retention_record(artifacts_dir)
+    assert record is not None
+    assert record["disposition"] == "retain"
+
+
+def test_degraded_delivery_does_not_prove_same_workspace_transfer(
+    tmp_path: Path,
+) -> None:
+    """A degraded delivery is not same-workspace successor proof."""
+    repo = init_retention_repo(tmp_path / "ws", dirty=True)
+    artifacts_dir, project_file = make_retention_monitor(
+        repo, outcome="launched", protocol=MONITOR_CONTINUATION_PROTOCOL_LEGACY
+    )
+    meta = read_retention_meta(artifacts_dir)
+    meta["monitor_followup_agent"] = "acme--mon@1"
+    write_retention_meta(artifacts_dir, meta)
+    persist_retention_delivery(
+        artifacts_dir,
+        meta,
+        agent="acme--mon@1",
+        disposition="acknowledged",
+        degraded=True,
+    )
+
+    error = release_monitor_claim(
+        meta, project_name="proj", artifacts_dir=artifacts_dir
+    )
+
+    assert error is None
+    claims = get_claimed_workspaces(project_file)
+    assert len(claims) == 1
+    assert claims[0].pinned is True
+    assert (repo / "tracked.txt").read_text() == "session owned\n"
+    record = retention_record(artifacts_dir)
+    assert record is not None
+    assert record["disposition"] == "retain"
+
+
+def test_live_receiver_without_transferred_claim_retains(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A live name is not transfer while the original still owns the claim."""
+    repo = init_retention_repo(tmp_path / "ws", dirty=True)
+    artifacts_dir, project_file = make_retention_monitor(
+        repo, outcome="launched", protocol=MONITOR_CONTINUATION_PROTOCOL_LEGACY
+    )
+    meta = read_retention_meta(artifacts_dir)
+    meta["monitor_followup_agent"] = "acme--mon@1"
+    meta["project_file"] = project_file
+    write_retention_meta(artifacts_dir, meta)
+    persist_retention_delivery(
+        artifacts_dir, meta, agent="acme--mon@1", disposition="acknowledged"
+    )
+    monkeypatch.setattr(
+        "sase.monitor.settlement_fresh_owner._receiver_is_live",
+        lambda *_args, **_kwargs: True,
+    )
+
+    error = release_monitor_claim(
+        meta, project_name="proj", artifacts_dir=artifacts_dir
+    )
+
+    assert error is None
+    claims = get_claimed_workspaces(project_file)
+    assert len(claims) == 1
+    assert claims[0].pid == os.getpid()
+    assert claims[0].pinned is True
+    assert (repo / "tracked.txt").read_text() == "session owned\n"
+    record = retention_record(artifacts_dir)
+    assert record is not None
+    assert record["disposition"] == "retain"
+
+
+def test_different_workspace_occupant_does_not_prove_transfer(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Occupancy of another workspace cannot prove this workspace transferred."""
+    from sase.workspace_provider.occupant import (
+        new_occupant_record,
+        write_occupant_record,
+    )
+
+    repo = init_retention_repo(tmp_path / "ws", dirty=True)
+    artifacts_dir, project_file = make_retention_monitor(
+        repo, outcome="launched", protocol=MONITOR_CONTINUATION_PROTOCOL_LEGACY
+    )
+    meta = read_retention_meta(artifacts_dir)
+    meta["monitor_followup_agent"] = "acme--mon@1"
+    meta["project_file"] = project_file
+    write_retention_meta(artifacts_dir, meta)
+    persist_retention_delivery(
+        artifacts_dir, meta, agent="acme--mon@1", disposition="acknowledged"
+    )
+    write_occupant_record(
+        str(repo),
+        new_occupant_record(
+            pid=os.getpid() + 99,
+            workflow="ace-run",
+            project="proj",
+            workspace_num=99,
+            artifacts_timestamp="20260906120100",
+            agent_name="acme--mon@1",
+            cl_name="acme",
+        ),
+    )
+    monkeypatch.setattr(
+        "sase.monitor.settlement_fresh_owner._receiver_is_live",
+        lambda *_args, **_kwargs: True,
+    )
+
+    error = release_monitor_claim(
+        meta, project_name="proj", artifacts_dir=artifacts_dir
+    )
+
+    assert error is None
+    claims = get_claimed_workspaces(project_file)
+    assert len(claims) == 1
+    assert claims[0].pid == os.getpid()
     assert claims[0].pinned is True
     assert (repo / "tracked.txt").read_text() == "session owned\n"
     record = retention_record(artifacts_dir)

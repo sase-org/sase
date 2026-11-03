@@ -8,6 +8,7 @@ baselines, unavailable checkouts, and stale-binding retry.
 from __future__ import annotations
 
 import os
+import subprocess
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -25,11 +26,16 @@ from sase.running_field import WorkspaceClaim, get_claimed_workspaces
 from ._fixtures import make_starter_agent, write_project_file
 from ._retention_fixtures import (
     RETENTION_CLAIM_WORKFLOW,
+    fail_fresh_python_c,
     init_retention_repo,
     make_retention_monitor,
     no_launch_followup,
+    pending_retention_record,
+    persist_retention_delivery,
     read_retention_meta,
     retention_record,
+    transfer_retention_to_successor,
+    write_opened_linked,
     write_retention_meta,
 )
 
@@ -40,12 +46,18 @@ def _sandbox_home(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.delenv("SASE_AGENT_NAME", raising=False)
 
 
-def _write_monitor_baselines(artifacts_dir: str, repos: list[tuple[str, Path]]) -> None:
-    """Write a finalizer baseline covering *repos* with empty fingerprints."""
+def _write_monitor_baselines(
+    artifacts_dir: str,
+    repos: list[tuple[str, Path]],
+    *,
+    capture_fingerprints: bool = False,
+) -> None:
+    """Write a finalizer baseline covering *repos*."""
     import json
 
     from sase.llm_provider.commit_finalizer_baseline import FINALIZER_BASELINE_FILENAME
     from sase.llm_provider.commit_finalizer_git import normalize_path
+    from sase.llm_provider.commit_finalizer_git_status import dirty_path_fingerprints
 
     payload = {
         "schema_version": 1,
@@ -57,7 +69,14 @@ def _write_monitor_baselines(artifacts_dir: str, repos: list[tuple[str, Path]]) 
                 "name": repo_id,
                 "scope": "run_start",
                 "captured_at": "2026-01-01T00:00:00+00:00",
-                "fingerprints": {},
+                "fingerprints": {
+                    dirty_path: list(fingerprint)
+                    for dirty_path, fingerprint in dirty_path_fingerprints(
+                        str(path)
+                    ).items()
+                }
+                if capture_fingerprints
+                else {},
             }
             for repo_id, path in repos
         ],
@@ -140,8 +159,8 @@ def test_repeated_settlement_is_idempotent(tmp_path: Path) -> None:
     assert (repo / "tracked.txt").read_text() == "session owned\n"
 
 
-def test_resume_transfer_settles_retention_record(tmp_path: Path) -> None:
-    """A same-workspace resume discharges the stranded hold."""
+def test_resume_success_label_without_proof_leaves_hold(tmp_path: Path) -> None:
+    """A success label without live successor custody cannot clear unresolved."""
     from sase.monitor.resume import _settle_retention_after_resume
     from sase.workspace_provider.retention_record import (
         read_workspace_retention_record,
@@ -164,13 +183,10 @@ def test_resume_transfer_settles_retention_record(tmp_path: Path) -> None:
 
     record = retention_record(artifacts_dir)
     assert record is not None
-    assert record["settled"] is True
-    assert record["settled_via"] == "resume_transfer"
-    assert record.get("settled_at")
-    assert record.get("settled_reason") == "resume_transfer"
+    assert record.get("settled") is not True
     typed = read_workspace_retention_record(artifacts_dir)
     assert typed is not None
-    assert typed.unresolved is False
+    assert typed.unresolved is True
 
 
 def test_resume_degraded_and_failed_leave_hold(tmp_path: Path) -> None:
@@ -366,3 +382,282 @@ def test_stale_binding_retries_in_fresh_interpreter(
     record = retention_record(artifacts_dir)
     assert record is not None
     assert record["disposition"] == "retain"
+
+
+def test_failed_git_preflight_without_baseline_retains(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A failed git preflight keeps the known dirty workspace instead of dropping it."""
+    repo = init_retention_repo(tmp_path / "ws", dirty=True)
+    artifacts_dir, project_file = make_retention_monitor(repo)
+    meta = read_retention_meta(artifacts_dir)
+    monkeypatch.setattr(
+        "sase.monitor.settlement_fresh_owner._classify_git_toplevel",
+        lambda _path: ("failed", "git preflight failed"),
+    )
+
+    error = release_monitor_claim(
+        meta, project_name="proj", artifacts_dir=artifacts_dir
+    )
+
+    assert error is None
+    claims = get_claimed_workspaces(project_file)
+    assert len(claims) == 1
+    assert claims[0].pinned is True
+    assert (repo / "tracked.txt").read_text() == "session owned\n"
+    record = retention_record(artifacts_dir)
+    assert record is not None
+    assert record["disposition"] == "retain"
+
+
+def test_discovery_failure_with_dirty_opened_linked_retains(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Failed linked discovery retains rather than classifying only a clean primary."""
+    primary = init_retention_repo(tmp_path / "ws", dirty=False)
+    linked = init_retention_repo(tmp_path / "linked", dirty=True)
+    artifacts_dir, project_file = make_retention_monitor(primary)
+    write_opened_linked(artifacts_dir, "linked-core", linked)
+    monkeypatch.setattr(
+        "sase.monitor.settlement_fresh_owner._shared_repos",
+        lambda *_args, **_kwargs: ([], set(), "linked discovery failed"),
+    )
+    meta = read_retention_meta(artifacts_dir)
+
+    error = release_monitor_claim(
+        meta, project_name="proj", artifacts_dir=artifacts_dir
+    )
+
+    assert error is None
+    claims = get_claimed_workspaces(project_file)
+    assert len(claims) == 1
+    assert claims[0].pinned is True
+    assert (linked / "tracked.txt").read_text() == "session owned\n"
+    record = retention_record(artifacts_dir)
+    assert record is not None
+    assert record["disposition"] == "retain"
+    assert record.get("probe_errors")
+
+
+def test_repo_less_command_releases(tmp_path: Path) -> None:
+    """A positively known non-repository command still releases."""
+    workspace = tmp_path / "plain"
+    workspace.mkdir()
+    (workspace / "notes.txt").write_text("not a repo\n", encoding="utf-8")
+    artifacts_dir, project_file = make_retention_monitor(workspace)
+    meta = read_retention_meta(artifacts_dir)
+
+    error = release_monitor_claim(
+        meta, project_name="proj", artifacts_dir=artifacts_dir
+    )
+
+    assert error is None
+    assert get_claimed_workspaces(project_file) == []
+    assert retention_record(artifacts_dir) is None
+    assert (workspace / "notes.txt").read_text(encoding="utf-8") == "not a repo\n"
+
+
+def test_unchanged_foreign_baseline_dirt_releases(tmp_path: Path) -> None:
+    """Dirt already present in the starter baseline still releases."""
+    repo = init_retention_repo(tmp_path / "ws", dirty=True)
+    artifacts_dir, project_file = make_retention_monitor(repo)
+    _write_monitor_baselines(
+        artifacts_dir, [("primary", repo)], capture_fingerprints=True
+    )
+    meta = read_retention_meta(artifacts_dir)
+
+    error = release_monitor_claim(
+        meta, project_name="proj", artifacts_dir=artifacts_dir
+    )
+
+    assert error is None
+    assert get_claimed_workspaces(project_file) == []
+    assert retention_record(artifacts_dir) is None
+    assert (repo / "tracked.txt").read_text() == "session owned\n"
+
+
+def test_stale_owner_and_unavailable_fresh_interpreter_pins_monitor_timestamp(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Failure pin uses the monitor artifact timestamp, never parent_timestamp."""
+    import sase.monitor._settlement_retention as settlement_mod
+
+    repo = init_retention_repo(tmp_path / "ws", dirty=True)
+    artifacts_dir, project_file = make_retention_monitor(repo)
+    meta = read_retention_meta(artifacts_dir)
+    meta["parent_timestamp"] = "20260906115900"
+    write_retention_meta(artifacts_dir, meta)
+
+    def _stale_owner(*_args: object, **_kwargs: object) -> object:
+        raise AttributeError("stale owner adapter")
+
+    monkeypatch.setattr(settlement_mod, "_build_retention_owner", _stale_owner)
+    monkeypatch.setattr(
+        subprocess,
+        "run",
+        fail_fresh_python_c(OSError("fresh interpreter unavailable")),
+    )
+
+    error = release_monitor_claim(
+        meta, project_name="proj", artifacts_dir=artifacts_dir
+    )
+
+    assert error is not None
+    claims = get_claimed_workspaces(project_file)
+    assert len(claims) == 1
+    assert claims[0].pinned is True
+    assert claims[0].artifacts_timestamp == "20260906120000"
+    pending = pending_retention_record(artifacts_dir)
+    assert pending is not None
+    assert pending["artifacts_timestamp"] == "20260906120000"
+    assert pending["pid"] == os.getpid()
+    assert (repo / "tracked.txt").read_text() == "session owned\n"
+
+
+def test_successor_collection_failure_pins_dirty_claim(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Successor-proof collection failure pins the exact owner instead of releasing."""
+    import sase.monitor._settlement_retention as settlement_mod
+
+    repo = init_retention_repo(tmp_path / "ws", dirty=True)
+    artifacts_dir, project_file = make_retention_monitor(repo)
+    meta = read_retention_meta(artifacts_dir)
+
+    def _boom(*_args: object, **_kwargs: object) -> object:
+        raise OSError("successor collection failed")
+
+    monkeypatch.setattr(settlement_mod, "_retention_successor_from_meta", _boom)
+
+    error = release_monitor_claim(
+        meta, project_name="proj", artifacts_dir=artifacts_dir
+    )
+
+    assert error is not None
+    claims = get_claimed_workspaces(project_file)
+    assert len(claims) == 1
+    assert claims[0].pinned is True
+    assert claims[0].artifacts_timestamp == "20260906120000"
+    pending = pending_retention_record(artifacts_dir)
+    assert pending is not None
+    assert pending["artifacts_timestamp"] == "20260906120000"
+    assert (repo / "tracked.txt").read_text() == "session owned\n"
+
+
+def test_pending_write_failure_still_pins(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A failed pending write still pins the exact matching claim."""
+    repo = init_retention_repo(tmp_path / "ws", dirty=True)
+    artifacts_dir, project_file = make_retention_monitor(repo)
+    meta = read_retention_meta(artifacts_dir)
+    monkeypatch.setattr(
+        "sase.turns.workspace_retention_pending.write_pending_retention_identity",
+        lambda *_args, **_kwargs: None,
+    )
+
+    error = release_monitor_claim(
+        meta, project_name="proj", artifacts_dir=artifacts_dir
+    )
+
+    assert error is None
+    claims = get_claimed_workspaces(project_file)
+    assert len(claims) == 1
+    assert claims[0].pinned is True
+    assert claims[0].artifacts_timestamp == "20260906120000"
+    assert (repo / "tracked.txt").read_text() == "session owned\n"
+    assert pending_retention_record(artifacts_dir) is None
+
+
+def test_fresh_interpreter_timeout_pins_dirty_claim(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A timed-out fresh interpreter still pins the original dirty claim."""
+    from sase.turns import workspace_retention as _adapter
+
+    repo = init_retention_repo(tmp_path / "ws", dirty=True)
+    artifacts_dir, project_file = make_retention_monitor(repo)
+    meta = read_retention_meta(artifacts_dir)
+
+    def _stale(*_args: object, **_kwargs: object) -> object:
+        raise TypeError("old release_workspace signature")
+
+    monkeypatch.setattr(_adapter, "settle_stranded_workspace", _stale)
+    monkeypatch.setattr(
+        subprocess,
+        "run",
+        fail_fresh_python_c(
+            subprocess.TimeoutExpired(cmd=["python", "-c"], timeout=60)
+        ),
+    )
+
+    error = release_monitor_claim(
+        meta, project_name="proj", artifacts_dir=artifacts_dir
+    )
+
+    assert error is not None
+    claims = get_claimed_workspaces(project_file)
+    assert len(claims) == 1
+    assert claims[0].pinned is True
+    assert claims[0].artifacts_timestamp == "20260906120000"
+    pending = pending_retention_record(artifacts_dir)
+    assert pending is not None
+    assert pending["artifacts_timestamp"] == "20260906120000"
+    assert (repo / "tracked.txt").read_text() == "session owned\n"
+
+
+def test_resume_transfer_with_live_successor_settles(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Resume settles a hold only after live successor custody is proven."""
+    from sase.monitor.resume import _settle_retention_after_resume
+    from sase.workspace_provider.occupant import read_occupant_record
+    from sase.workspace_provider.retention_record import read_workspace_retention_record
+
+    repo = init_retention_repo(tmp_path / "ws", dirty=True)
+    artifacts_dir, project_file = make_retention_monitor(repo)
+    meta = read_retention_meta(artifacts_dir)
+    assert (
+        release_monitor_claim(meta, project_name="proj", artifacts_dir=artifacts_dir)
+        is None
+    )
+    assert retention_record(artifacts_dir) is not None
+
+    successor_pid = os.getpid() + 17
+    meta = read_retention_meta(artifacts_dir)
+    meta["monitor_followup_agent"] = "acme--mon@1"
+    meta["monitor_followup_outcome"] = "launched"
+    meta["project_file"] = project_file
+    meta["project_name"] = "proj"
+    write_retention_meta(artifacts_dir, meta)
+    persist_retention_delivery(
+        artifacts_dir, meta, agent="acme--mon@1", disposition="acknowledged"
+    )
+    transfer_retention_to_successor(
+        project_file,
+        repo,
+        from_pid=os.getpid(),
+        to_pid=successor_pid,
+        timestamp="20260906120100",
+    )
+    monkeypatch.setattr(
+        "sase.monitor.settlement_fresh_owner._receiver_is_live",
+        lambda *_args, **_kwargs: True,
+    )
+
+    _settle_retention_after_resume(
+        artifacts_dir,
+        FollowupLaunchResult(launched=True, agent_name="acme--mon@1"),
+        "acme--mon@1",
+    )
+
+    typed = read_workspace_retention_record(artifacts_dir)
+    assert typed is not None
+    assert typed.unresolved is False
+    claims = get_claimed_workspaces(project_file)
+    assert len(claims) == 1
+    assert claims[0].pid == successor_pid
+    occupant = read_occupant_record(str(repo))
+    assert occupant is not None
+    assert occupant.pid == successor_pid
+    assert (repo / "tracked.txt").read_text() == "session owned\n"

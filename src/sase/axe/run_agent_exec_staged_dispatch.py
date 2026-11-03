@@ -338,6 +338,9 @@ def _retain_failed_adoption_workspace(
         if len(matching) == 1:
             workflow = matching[0].workflow
 
+    if not workflow or not artifacts_timestamp:
+        return
+
     repos, origin_repo_ids = discover_workspace_retention_repos(
         artifacts_dir,
         checkout_dir,

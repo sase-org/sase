@@ -57,6 +57,12 @@ def settle_stranded_workspace(
     gate_released_workspace: bool = False,
 ) -> _WorkspaceRetentionResult:
     """Collect evidence, classify through Rust, and apply the selected effect."""
+    if not _owner_identity_complete(owner):
+        return _WorkspaceRetentionResult(
+            disposition=DISPOSITION_OWNERSHIP_MOVED,
+            reason="claim_ownership_moved",
+            stale_attempt=True,
+        )
     successor = successor or WorkspaceRetentionSuccessor()
     observed = _observed_claim(owner)
     dirt, probe_errors, affected_repo_ids = _collect_dirt(owner)
@@ -131,6 +137,19 @@ def _observed_claim(owner: WorkspaceRetentionOwner) -> dict[str, Any] | None:
     return None
 
 
+def _owner_identity_complete(owner: WorkspaceRetentionOwner) -> bool:
+    """Refuse effects that would pass an empty wildcard as proof."""
+    return (
+        bool(owner.project_file)
+        and isinstance(owner.workspace_num, int)
+        and not isinstance(owner.workspace_num, bool)
+        and bool(owner.workflow)
+        and bool(owner.artifacts_timestamp)
+        and isinstance(owner.pid, int)
+        and not isinstance(owner.pid, bool)
+    )
+
+
 def _collect_dirt(
     owner: WorkspaceRetentionOwner,
 ) -> tuple[dict[str, bool], tuple[str, ...], tuple[str, ...]]:
@@ -142,11 +161,23 @@ def _collect_dirt(
     all_proven_clean = True
     missing_baseline = False
     positive_custody = False
-    probe_errors: list[str] = []
+    probe_errors: list[str] = list(owner.discovery_errors)
     affected: list[str] = []
     baselines = _baseline_by_path(owner.evidence_artifacts_dir or owner.artifacts_dir)
 
     if not repos:
+        if probe_errors:
+            return (
+                {
+                    "session_owned": False,
+                    "only_unchanged_foreign": False,
+                    "all_proven_clean": False,
+                    "missing_baseline": False,
+                    "positive_custody": True,
+                },
+                tuple(probe_errors),
+                (),
+            )
         return (
             {
                 "session_owned": False,
@@ -188,7 +219,9 @@ def _collect_dirt(
 
     if saw_unchanged_foreign and not session_owned:
         only_unchanged_foreign = True
-    if not saw_dirty and not probe_errors:
+    if probe_errors:
+        all_proven_clean = False
+    elif not saw_dirty:
         all_proven_clean = True
 
     return (

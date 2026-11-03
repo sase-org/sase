@@ -454,6 +454,26 @@ def test_probe_failure_retains_and_is_not_clean(tmp_path: Path) -> None:
     assert get_claimed_workspaces(project_file)[0].pinned is True
 
 
+def test_incomplete_owner_identity_does_not_mutate(tmp_path: Path) -> None:
+    """Empty timestamp/workflow identity is a stale attempt, never a wildcard pin."""
+    from sase.turns.workspace_retention import write_pending_retention
+
+    checkout = _init_repo(tmp_path / "ws", tracked_dirty=True)
+    artifacts = tmp_path / "artifacts"
+    _write_empty_baseline(artifacts, "primary", checkout)
+    project_file = create_project_file_with_running(tmp_path, [_claim()])
+    owner = replace(_owner(project_file, checkout, artifacts), artifacts_timestamp="")
+
+    result = settle_stranded_workspace(owner)
+
+    assert result.disposition == "ownership_moved"
+    assert result.stale_attempt is True
+    claims = get_claimed_workspaces(project_file)
+    assert len(claims) == 1
+    assert claims[0].pinned is False
+    assert write_pending_retention(owner, "incomplete") is None
+
+
 def test_staged_and_untracked_edits_retain(tmp_path: Path) -> None:
     checkout = _init_repo(tmp_path / "ws", untracked=True, staged=True)
     artifacts = tmp_path / "artifacts"

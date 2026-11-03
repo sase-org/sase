@@ -56,6 +56,12 @@ def retain_failed_gate_origin(
         )
         return
     claim = matches[0]
+    if not claim.workflow or not (claim.artifacts_timestamp or ""):
+        _log(
+            record,
+            "creator claim identity is incomplete; claim was left untouched",
+        )
+        return
     claim_artifacts_dir = creator.claim_artifacts_dir or str(
         Path(creator.artifacts_dir).parent / artifacts_timestamp
     )

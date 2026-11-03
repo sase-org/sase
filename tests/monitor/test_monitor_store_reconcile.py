@@ -37,6 +37,7 @@ def _sandbox_home(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 def test_dead_supervisor_reconciliation_kills_tree_releases_claim_and_settles(
+    tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     import sase.monitor.reconcile as reconcile_module
@@ -45,6 +46,8 @@ def test_dead_supervisor_reconciliation_kills_tree_releases_claim_and_settles(
         ["sh", "-c", "trap '' TERM; sleep 30 & wait"],
         start_new_session=True,
     )
+    workspace = tmp_path / "plain"
+    workspace.mkdir()
     project_file = write_project_file(
         "proj",
         running_claims=[
@@ -70,7 +73,7 @@ def test_dead_supervisor_reconciliation_kills_tree_releases_claim_and_settles(
         monitor_pgid=child.pid,
         pid=DEAD_PID,
         workspace_num=0,
-        workspace_dir="/work",
+        workspace_dir=str(workspace),
         cl_name="acme",
     )
     (Path(monitor_dir) / "live_reply.md").write_text("before crash\n")
@@ -301,11 +304,14 @@ def test_dead_supervisor_reconciliation_records_project_file_and_finalizes_workf
 
 
 def test_pre_reboot_monitor_reconciles_to_lost_without_followup_or_signal(
+    tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     import sase.monitor.reconcile as reconcile_module
     from sase.monitor.settlement import LOST_FOLLOWUP_ERROR
 
+    workspace = tmp_path / "plain"
+    workspace.mkdir()
     project_file = write_project_file(
         "proj",
         running_claims=[
@@ -333,7 +339,7 @@ def test_pre_reboot_monitor_reconciles_to_lost_without_followup_or_signal(
         monitor_pgid=12345,
         pid=DEAD_PID,
         workspace_num=0,
-        workspace_dir="/work",
+        workspace_dir=str(workspace),
         cl_name="acme",
     )
     patch_project_records(monkeypatch, [monitor_dir])

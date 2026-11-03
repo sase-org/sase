@@ -48,10 +48,19 @@ def release_monitor_claim(
             "(missing pid); claim left untouched for guarded retry"
         )
 
+    pending_ok = _bootstrap_pending_retention(
+        artifacts_dir, meta, workspace_num, pid, "monitor_settlement"
+    )
+    if not pending_ok:
+        _pin_exact_claim_on_failure(
+            project_file, workspace_num, meta, pid, artifacts_dir
+        )
+
     try:
         owner = _build_retention_owner(
             artifacts_dir, meta, project_name, project_file, workspace_num, pid
         )
+        successor = _retention_successor_from_meta(artifacts_dir, meta)
     except (ImportError, AttributeError, TypeError) as exc:
         # Stale interpreter: the loaded adapter/binding or effect signature
         # is stale. Retry the same Rust-backed settlement in a bounded fresh
@@ -60,22 +69,24 @@ def release_monitor_claim(
             artifacts_dir, meta, project_file, workspace_num, pid, exc
         )
     except Exception as exc:  # noqa: BLE001 - custody outranks discovery
-        _pin_exact_claim_on_failure(project_file, workspace_num, meta, pid)
+        _pin_exact_claim_on_failure(
+            project_file, workspace_num, meta, pid, artifacts_dir
+        )
         return f"workspace retention settlement failed: {exc}"
     if owner is None:
+        _pin_exact_claim_on_failure(
+            project_file, workspace_num, meta, pid, artifacts_dir
+        )
         return (
             "workspace retention settlement failed: unresolved monitor owner; "
             "claim left untouched for guarded retry"
         )
-    successor = _retention_successor_from_meta(artifacts_dir, meta)
     try:
         from sase.turns.workspace_retention import (
             clear_pending_retention,
             settle_stranded_workspace,
-            write_pending_retention,
         )
 
-        write_pending_retention(owner, "monitor_settlement")
         result = settle_stranded_workspace(owner, successor=successor)
         clear_pending_retention(artifacts_dir)
     except (ImportError, AttributeError, TypeError) as exc:
@@ -83,42 +94,80 @@ def release_monitor_claim(
             artifacts_dir, meta, project_file, workspace_num, pid, exc
         )
     except Exception as exc:  # noqa: BLE001 - never drop a claim on error
-        _pin_exact_claim_on_failure(project_file, workspace_num, meta, pid)
-        try:
-            from sase.turns.workspace_retention import write_pending_retention
-
-            write_pending_retention(owner, f"settlement_failed: {exc}")
-        except Exception:  # noqa: BLE001 - pending is best effort
-            pass
+        _pin_exact_claim_on_failure(
+            project_file, workspace_num, meta, pid, artifacts_dir
+        )
+        _bootstrap_pending_retention(
+            artifacts_dir, meta, workspace_num, pid, f"settlement_failed: {exc}"
+        )
         return f"workspace retention settlement failed: {exc}"
     if result.disposition == "release" and not result.claim_changed:
         return result.reason or "workspace release failed"
     return None
 
 
-def _pin_exact_claim_on_failure(
-    project_file: str, workspace_num: int, meta: dict[str, Any], pid: int
-) -> None:
-    """Pin the exact matching claim when settlement cannot complete."""
+def _bootstrap_pending_retention(
+    artifacts_dir: str,
+    meta: dict[str, Any],
+    workspace_num: int,
+    pid: int,
+    reason: str,
+) -> bool:
+    """Persist exact-owner pending evidence without importing the adapter."""
+    from sase.turns.workspace_retention_pending import write_pending_retention_identity
+
+    from .settlement_fresh_owner import monitor_owner_timestamp
+
+    timestamp = monitor_owner_timestamp(artifacts_dir)
+    cl_name = meta.get("cl_name")
+    terminal_reason = meta.get("monitor_state")
     try:
-        from sase.running_field import hold_workspace_claim
+        path = write_pending_retention_identity(
+            artifacts_dir,
+            workspace_num=workspace_num,
+            workflow=_monitor_claim_workflow(),
+            cl_name=cl_name if isinstance(cl_name, str) else "",
+            artifacts_timestamp=timestamp,
+            pid=pid,
+            reason=reason,
+            terminal_reason=terminal_reason
+            if isinstance(terminal_reason, str) and terminal_reason
+            else "terminal",
+        )
+    except Exception:  # noqa: BLE001 - pending is best effort
+        return False
+    return path is not None
 
-        cl_name = meta.get("cl_name")
-        artifacts_timestamp = meta.get("parent_timestamp")
-        if not isinstance(artifacts_timestamp, str) or not artifacts_timestamp:
-            import os
 
-            artifacts_timestamp = os.path.basename(
-                str(meta.get("artifacts_dir") or "").rstrip("/")
-            )
+def _pin_exact_claim_on_failure(
+    project_file: str,
+    workspace_num: int,
+    meta: dict[str, Any],
+    pid: int,
+    artifacts_dir: str,
+) -> None:
+    """Pin the exact matching claim when settlement cannot complete.
+
+    The owner timestamp comes from the monitor artifacts directory, never
+    ``parent_timestamp``. Incomplete identity is left untouched rather than
+    pinning another owner with an empty wildcard.
+    """
+    from .settlement_fresh_owner import monitor_owner_timestamp
+
+    timestamp = monitor_owner_timestamp(artifacts_dir)
+    cl_name = meta.get("cl_name")
+    if not timestamp or not isinstance(pid, int) or not isinstance(workspace_num, int):
+        return
+    try:
         from sase.monitor.claims import MONITOR_WORKSPACE_CLAIM_WORKFLOW
+        from sase.running_field import hold_workspace_claim
 
         hold_workspace_claim(
             project_file,
             workspace_num,
             MONITOR_WORKSPACE_CLAIM_WORKFLOW,
             cl_name if isinstance(cl_name, str) else "",
-            artifacts_timestamp if isinstance(artifacts_timestamp, str) else "",
+            timestamp,
             caller_tag="workspace-retention-failure",
             expected_pid=pid,
         )
@@ -145,24 +194,37 @@ def _settle_via_fresh_interpreter(
     import subprocess as _subprocess
     import sys as _sys
 
+    _bootstrap_pending_retention(
+        artifacts_dir, meta, workspace_num, pid, "fresh_interpreter_retry"
+    )
     try:
-        from sase.turns.workspace_retention import write_pending_retention
-
         from .settlement_fresh_owner import fresh_owner_payload
-    except Exception:  # noqa: BLE001 - pending is best effort
-        return f"workspace retention settlement failed: stale binding ({exc})"
+    except Exception as inner:  # noqa: BLE001 - payload helper unavailable
+        _pin_exact_claim_on_failure(
+            project_file, workspace_num, meta, pid, artifacts_dir
+        )
+        return f"workspace retention settlement failed: stale binding ({exc}; {inner})"
     try:
         payload = fresh_owner_payload(
             artifacts_dir, meta, project_file, workspace_num, pid
         )
     except Exception as inner:  # noqa: BLE001 - owner facts unavailable
+        _pin_exact_claim_on_failure(
+            project_file, workspace_num, meta, pid, artifacts_dir
+        )
         return f"workspace retention settlement failed: stale binding ({exc}; {inner})"
     if payload is None:
+        _pin_exact_claim_on_failure(
+            project_file, workspace_num, meta, pid, artifacts_dir
+        )
         return f"workspace retention settlement failed: stale binding ({exc})"
     try:
         owner_repr = _json.dumps(payload["owner"])
         successor_repr = _json.dumps(payload["successor"])
     except (TypeError, ValueError) as inner:
+        _pin_exact_claim_on_failure(
+            project_file, workspace_num, meta, pid, artifacts_dir
+        )
         return f"workspace retention settlement failed: stale binding ({exc}; {inner})"
     code = (
         "import json,sys;"
@@ -180,7 +242,8 @@ def _settle_via_fresh_interpreter(
         "staged_id=o.get('staged_id'),session_id=o.get('session_id'),"
         "turn_id=o.get('turn_id'),terminal_reason=o.get('terminal_reason',''),"
         "evidence_artifacts_dir=o.get('evidence_artifacts_dir'),"
-        "notify_on_retain=bool(o.get('notify_on_retain',False)));"
+        "notify_on_retain=bool(o.get('notify_on_retain',False)),"
+        "discovery_errors=tuple(o.get('discovery_errors',())));"
         "succ=WorkspaceRetentionSuccessor(confirmed_active=s.get('confirmed_active',False),"
         "same_workspace=s.get('same_workspace',False),"
         "inherited_obligations=s.get('inherited_obligations',False));"
@@ -199,16 +262,22 @@ def _settle_via_fresh_interpreter(
             check=False,
         )
     except Exception as inner:  # noqa: BLE001 - fresh attempt unavailable
-        _pin_exact_claim_on_failure(project_file, workspace_num, meta, pid)
+        _pin_exact_claim_on_failure(
+            project_file, workspace_num, meta, pid, artifacts_dir
+        )
         return f"workspace retention settlement failed: stale binding ({exc}; {inner})"
     if proc.returncode != 0:
-        _pin_exact_claim_on_failure(project_file, workspace_num, meta, pid)
+        _pin_exact_claim_on_failure(
+            project_file, workspace_num, meta, pid, artifacts_dir
+        )
         detail = (proc.stderr or proc.stdout or "").strip()[-500:]
         return f"workspace retention settlement failed: stale binding ({exc}; {detail})"
     try:
         outcome = _json.loads((proc.stdout or "").strip().splitlines()[-1])
     except (IndexError, ValueError) as inner:
-        _pin_exact_claim_on_failure(project_file, workspace_num, meta, pid)
+        _pin_exact_claim_on_failure(
+            project_file, workspace_num, meta, pid, artifacts_dir
+        )
         return f"workspace retention settlement failed: stale binding ({exc}; {inner})"
     if outcome.get("disposition") == "release" and not outcome.get("claim_changed"):
         return str(outcome.get("reason") or "workspace release failed")
@@ -234,20 +303,35 @@ def _build_retention_owner(
     so dirt is compared against the starter baseline, not the monitor
     member's own baseline.
     """
-    import os
-
     from sase.turns.workspace_retention import (
         WorkspaceRetentionOwner,
-        discover_workspace_retention_repos,
+        WorkspaceRetentionRepo,
     )
 
+    from .settlement_fresh_owner import (
+        collect_monitor_repo_observations,
+        monitor_owner_timestamp,
+        observe_checkout_dir,
+    )
     from .staged_owner import read_staged_owner_index
 
     cl_name = meta.get("cl_name")
-    artifacts_timestamp = os.path.basename(artifacts_dir.rstrip("/"))
-    checkout_dir = _retention_checkout_dir(meta)
-    repos, origin_ids, evidence_dir = _monitor_retention_repos(
-        artifacts_dir, meta, checkout_dir, discover_workspace_retention_repos
+    artifacts_timestamp = monitor_owner_timestamp(artifacts_dir)
+    if not artifacts_timestamp:
+        return None
+    checkout_dir = observe_checkout_dir(meta)
+    repo_dicts, origin_ids, evidence_dir, discovery_errors = (
+        collect_monitor_repo_observations(artifacts_dir, meta, checkout_dir)
+    )
+    repos = tuple(
+        WorkspaceRetentionRepo(
+            repo_id=str(item.get("repo_id") or ""),
+            path=str(item.get("path") or ""),
+            is_primary=bool(item.get("is_primary")),
+            positive_custody=bool(item.get("positive_custody")),
+        )
+        for item in repo_dicts
+        if item.get("path")
     )
     monitor_id = meta.get("monitor_id")
     staged_id = meta.get("monitor_staged_id")
@@ -287,88 +371,10 @@ def _build_retention_owner(
             terminal_reason=terminal_reason,
             evidence_artifacts_dir=evidence_dir,
             notify_on_retain=True,
+            discovery_errors=discovery_errors,
         )
     except Exception:  # noqa: BLE001 - malformed metadata falls back
         return None
-
-
-def _monitor_retention_repos(
-    artifacts_dir: str,
-    meta: dict[str, Any],
-    checkout_dir: str | None,
-    discover: Any,
-) -> tuple[tuple[Any, ...], tuple[str, ...], str | None]:
-    """Merge shared-discovery repos for monitor and starter evidence."""
-    from pathlib import Path
-
-    starter = meta.get("monitor_starter_artifacts_dir")
-    starter_dir = starter if isinstance(starter, str) and starter.strip() else None
-    by_path: dict[str, Any] = {}
-    origin_ids: set[str] = set()
-    for evidence in (artifacts_dir, starter_dir):
-        if not evidence:
-            continue
-        try:
-            repos, origins = discover(evidence, checkout_dir)
-        except Exception:  # noqa: BLE001 - discovery never blocks settlement
-            continue
-        origin_ids.update(origins)
-        for repo in repos:
-            key = str(getattr(repo, "path", ""))
-            prior = by_path.get(key)
-            if prior is None:
-                by_path[key] = repo
-            else:
-                from sase.turns.workspace_retention import WorkspaceRetentionRepo
-
-                by_path[key] = WorkspaceRetentionRepo(
-                    repo_id=getattr(prior, "repo_id", ""),
-                    path=getattr(prior, "path", ""),
-                    is_primary=bool(
-                        getattr(prior, "is_primary", False)
-                        or getattr(repo, "is_primary", False)
-                    ),
-                    positive_custody=bool(
-                        getattr(prior, "positive_custody", False)
-                        or getattr(repo, "positive_custody", False)
-                    ),
-                )
-    if checkout_dir:
-        from sase.llm_provider.commit_finalizer_git import normalize_path
-        from sase.turns.workspace_retention import WorkspaceRetentionRepo
-
-        wanted = normalize_path(checkout_dir)
-        match_key: str | None = None
-        for key, repo in by_path.items():
-            try:
-                if normalize_path(str(getattr(repo, "path", ""))) == wanted:
-                    match_key = key
-                    break
-            except Exception:  # noqa: BLE001 - path normalization is best effort
-                continue
-        if match_key is not None:
-            current = by_path[match_key]
-            by_path[match_key] = WorkspaceRetentionRepo(
-                repo_id=getattr(current, "repo_id", "primary"),
-                path=getattr(current, "path", checkout_dir),
-                is_primary=True,
-                positive_custody=True,
-            )
-        elif Path(checkout_dir).is_dir():
-            by_path[checkout_dir] = WorkspaceRetentionRepo(
-                repo_id="primary",
-                path=checkout_dir,
-                is_primary=True,
-                positive_custody=True,
-            )
-            origin_ids.add("primary")
-    ordered = tuple(
-        sorted(by_path.values(), key=lambda r: (str(r.path), str(r.repo_id)))
-    )
-    evidence_dir = (
-        starter_dir if starter_dir and Path(starter_dir).is_dir() else artifacts_dir
-    )
-    return ordered, tuple(sorted(origin_ids)), evidence_dir
 
 
 def _monitor_claim_workflow() -> str:
@@ -377,65 +383,12 @@ def _monitor_claim_workflow() -> str:
     return MONITOR_WORKSPACE_CLAIM_WORKFLOW
 
 
-def _retention_checkout_dir(meta: dict[str, Any]) -> str | None:
-    """Return the workspace checkout the settling monitor ran in.
-
-    Only an existing git-backed directory can carry retainable worktree
-    evidence; a missing checkout (reboot-lost records, removed lanes) or a
-    plain non-repo directory contributes no dirt and must not turn into a
-    probe failure. The adapter probes ``checkout_dir`` when no explicit
-    repos survive discovery, so this gate decides release-vs-retain for
-    repo-less monitors.
-    """
-    import os
-
-    for key in ("workspace_dir", "monitor_cwd"):
-        candidate = meta.get(key)
-        if (
-            isinstance(candidate, str)
-            and candidate.strip()
-            and os.path.isdir(candidate)
-            and _retention_git_toplevel(candidate) is not None
-        ):
-            return candidate
-    return None
-
-
-def _retention_git_toplevel(path: str) -> str | None:
-    """Return the enclosing git work-tree root for *path*, if any.
-
-    A directory outside any git repository cannot carry session-owned
-    uncommitted work in the sense the retention policy protects, so it
-    contributes no dirt evidence instead of a probe failure.
-    """
-    import subprocess
-
-    try:
-        result = subprocess.run(
-            ["git", "rev-parse", "--show-toplevel"],
-            cwd=path,
-            capture_output=True,
-            text=True,
-            encoding="utf-8",
-            errors="replace",
-            timeout=10,
-            check=False,
-        )
-    except Exception:  # noqa: BLE001 - evidence probes never block settlement
-        return None
-    if result.returncode != 0:
-        return None
-    root = result.stdout.strip()
-    return root or None
-
-
 def _retention_successor_from_meta(artifacts_dir: str, meta: dict[str, Any]) -> Any:
-    """Derive successor custody from delivery proofs, never a bare label.
+    """Derive successor custody from live transfer proof, never a bare label.
 
     A recorded outcome, agent name, or historical ``carried_to`` is not
-    proof. A real transferred claim needs a non-degraded delivery record
-    naming the follow-up agent as the acknowledged or reserved receiver;
-    a dirty original with only an old launch label retains. Degraded
+    proof. A real transferred claim needs a live matching receiver that
+    already owns this workspace and inherited its obligations. Degraded
     follow-ups keep the original dirty workspace.
     """
     from sase.turns.workspace_retention import WorkspaceRetentionSuccessor

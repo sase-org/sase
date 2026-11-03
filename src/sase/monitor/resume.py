@@ -325,15 +325,24 @@ def _settle_retention_after_resume(
     """
     if not launch.launched or launch.degraded_reason:
         return
+    if not isinstance(agent_name, str) or not agent_name.strip():
+        return
     try:
         from datetime import datetime
 
         from sase.core.time import get_timezone
+        from sase.monitor.settlement_fresh_owner import has_transfer_proof
         from sase.workspace_provider.retention_record import (
             mark_workspace_retention_settled,
             read_workspace_retention_record,
         )
     except Exception:  # noqa: BLE001 - retention settling is best effort
+        return
+    try:
+        meta = _read_meta(artifacts_dir)
+    except Exception:  # noqa: BLE001 - unreadable meta cannot prove transfer
+        return
+    if not has_transfer_proof(artifacts_dir, meta, agent_name.strip()):
         return
     record = read_workspace_retention_record(artifacts_dir)
     if record is None or not record.unresolved:
