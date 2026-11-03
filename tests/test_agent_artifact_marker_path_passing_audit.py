@@ -389,6 +389,26 @@ _REVIEWED_PATH_PASSING_CONTEXTS: dict[str, PathPassingReview] = {
             "derive preview facts; no marker is written here."
         ),
     ),
+    "src/sase/instructions/_readout_build.py:build_readout": (
+        PathPassingReview(
+            exemption=(
+                "Read-only finalization readout: agent_meta.json is read "
+                "through the readout read_json helper and done.json is only "
+                "probed with is_file() to select and classify recent runs "
+                "for the readout table; no marker is written."
+            ),
+        )
+    ),
+    "src/sase/instructions/_readout_classify.py:classify_artifact_dir": (
+        PathPassingReview(
+            exemption=(
+                "Read-only readout classification: agent_meta.json is read "
+                "through the readout read_json helper only when the caller "
+                "supplied no meta, to classify one artifact dir's "
+                "declaration and handoff evidence; no marker is written."
+            ),
+        )
+    ),
     "src/sase/axe/run_agent_successor_delivery.py:_successor_destination_observation": PathPassingReview(
         exemption=(
             "Read-only detached-successor ownership probe: agent_meta.json "
