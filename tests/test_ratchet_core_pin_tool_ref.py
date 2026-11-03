@@ -6,12 +6,12 @@ from types import ModuleType
 
 import pytest
 
-from tests._ratchet_core_window_tool_helpers import SOURCE_PIN
-from tests._ratchet_core_window_tool_helpers import fake_core_lag as _fake_core_lag
-from tests._ratchet_core_window_tool_helpers import fake_ensure as _fake_ensure
-from tests._ratchet_core_window_tool_helpers import load_tool as _load_tool
-from tests._ratchet_core_window_tool_helpers import lock_text as _lock_text
-from tests._ratchet_core_window_tool_helpers import pyproject_text as _pyproject_text
+from tests._ratchet_core_pin_tool_helpers import SOURCE_PIN
+from tests._ratchet_core_pin_tool_helpers import fake_core_lag as _fake_core_lag
+from tests._ratchet_core_pin_tool_helpers import fake_ensure as _fake_ensure
+from tests._ratchet_core_pin_tool_helpers import load_tool as _load_tool
+from tests._ratchet_core_pin_tool_helpers import lock_text as _lock_text
+from tests._ratchet_core_pin_tool_helpers import pyproject_text as _pyproject_text
 
 
 pytestmark = pytest.mark.contract

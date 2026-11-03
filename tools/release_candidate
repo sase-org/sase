@@ -7,7 +7,8 @@ candidate manifest: ``seal`` writes the immutable sealed fields, ``observe``
 appends one observation asset, ``qualify`` validates N1 evidence and appends a
 qualification observation, ``verify`` rechecks a sealed manifest,
 ``evaluate`` runs the promotion predicate, ``show`` prints a manifest,
-``download`` resolves an asset locator to local bytes, ``core-files`` fetches
+``download`` resolves an asset locator to local bytes, ``containment``
+proves tag ``v<core>`` contains the source pin, ``core-files`` fetches
 the core PyPI file list and cross-checks ``uv.lock``, ``core-suffixes``
 parses the completeness set from sase-core's ``release-plz.yml``,
 ``published-core`` selects the sealed manifest's published core wheel,
@@ -19,7 +20,8 @@ nothing extra.
 
 Sealed fields (immutable): repository, version, tag (or the rehearsal ref),
 peeled SHA and tree, candidate ID, build generation, builder workflow revision,
-run ID and attempt, core source pin, exact core version with its full file set
+run ID and attempt, core source pin, the sealed containment record proving
+tag ``v<core>`` contains that pin, exact core version with its full file set
 and PyPI digests, and every dist's filename, size and SHA-256 plus its asset
 locator.
 
@@ -79,7 +81,7 @@ sys.modules[_core_spec.name] = _core
 _core_spec.loader.exec_module(_core)
 
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 
 OBSERVATION_KINDS = (
     "qualification",
@@ -103,6 +105,7 @@ SEALED_KEYS = (
     "builder_run_id",
     "builder_attempt",
     "core_source_pin",
+    "core_containment",
     "core_version",
     "core_files",
     "dists",
@@ -158,6 +161,27 @@ def _core_files_complete(
     return missing
 
 
+def _require_containment(
+    core_source_pin: str,
+    core_version: str,
+    core_containment: object,
+) -> dict[str, str]:
+    """Refuse unless *core_containment* proves *core_version* contains *pin*."""
+
+    if not _core.is_full_sha(core_source_pin):
+        raise Refusal(
+            f"CORE_PIN_INVALID pin={core_source_pin!r}; expected a full 40-hex SHA"
+        )
+    try:
+        record = _core.parse_containment_record(core_containment)
+    except _core.CoreEnsureError as exc:
+        raise Refusal(f"CORE_CONTAINMENT_UNREADABLE {exc}") from exc
+    pin = core_source_pin.strip().lower()
+    if not _core.record_proves_pin(record, pin, core_version):
+        raise Refusal(f"CORE_LAG(pin={pin}, core={core_version})")
+    return record.as_dict()
+
+
 def seal_manifest(
     *,
     repository: str,
@@ -170,6 +194,7 @@ def seal_manifest(
     builder_run_id: int,
     builder_attempt: int,
     core_source_pin: str,
+    core_containment: object,
     core_version: str,
     core_files: list[dict[str, Any]],
     expected_core_suffixes: Sequence[str],
@@ -201,6 +226,7 @@ def seal_manifest(
             f"incomplete core file set for sase-core-rs=={core_version}: "
             f"no live file for suffixes {missing}"
         )
+    containment = _require_containment(core_source_pin, core_version, core_containment)
     manifest: dict[str, Any] = {
         "schema_version": SCHEMA_VERSION,
         "repository": repository,
@@ -212,7 +238,8 @@ def seal_manifest(
         "builder_revision": builder_revision,
         "builder_run_id": builder_run_id,
         "builder_attempt": builder_attempt,
-        "core_source_pin": core_source_pin,
+        "core_source_pin": core_source_pin.strip().lower(),
+        "core_containment": containment,
         "core_version": core_version,
         "core_files": core_files,
         "dists": dists,
@@ -246,6 +273,7 @@ def verify_manifest(manifest: dict[str, Any]) -> list[str]:
             builder_run_id=manifest.get("builder_run_id", 0),
             builder_attempt=manifest.get("builder_attempt", 1),
             core_source_pin=manifest.get("core_source_pin", ""),
+            core_containment=manifest.get("core_containment"),
             core_version=manifest["core_version"],
             core_files=manifest["core_files"],
             expected_core_suffixes=_suffixes_covered_by(manifest["core_files"]),
@@ -320,15 +348,36 @@ def evaluate_manifest(
 
     core_files = manifest.get("core_files", [])
     live_core = [f for f in core_files if isinstance(f, dict) and not f.get("yanked")]
-    core_ok = bool(manifest.get("core_version")) and bool(live_core) and not problems
+    containment = manifest.get("core_containment")
+    try:
+        record = _core.parse_containment_record(containment)
+        contained = _core.record_proves_pin(
+            record,
+            str(manifest.get("core_source_pin", "")),
+            str(manifest.get("core_version", "")),
+        )
+    except _core.CoreEnsureError:
+        record = None
+        contained = False
+    core_ok = (
+        bool(manifest.get("core_version"))
+        and bool(live_core)
+        and contained
+        and not problems
+    )
+    if core_ok and record is not None:
+        core_detail = (
+            f"exact core pin {manifest.get('core_version')!r} with "
+            f"{len(live_core)} live file(s); contained by {record.tag} "
+            f"({record.compare_status}, tag_sha={record.tag_sha})"
+        )
+    else:
+        core_detail = "exact core pin missing, incomplete, uncontained, or manifest red"
     clauses.append(
         Clause(
             "public_dependency_contract_satisfied",
             core_ok,
-            f"exact core pin {manifest.get('core_version')!r} with "
-            f"{len(live_core)} live file(s)"
-            if core_ok
-            else "exact core pin missing, incomplete, or manifest red",
+            core_detail,
         )
     )
 
@@ -481,8 +530,13 @@ def _latest_candidate_observation(
             or generation < 1
         ):
             return None, f"{kind} cannot be bound to a malformed candidate generation"
-        if item.get("asset") != observation_asset_name(generation, kind, run_id, attempt):
-            return None, f"{kind} observation asset does not match its run/attempt identity"
+        if item.get("asset") != observation_asset_name(
+            generation, kind, run_id, attempt
+        ):
+            return (
+                None,
+                f"{kind} observation asset does not match its run/attempt identity",
+            )
         if attempt in attempts:
             return None, f"{kind} history has duplicate attempt {attempt}"
         attempts[attempt] = item
@@ -511,10 +565,16 @@ def _latest_qualification_report(
             manifest, payload
         )
         if validation_error:
-            return None, f"qualification observation is unverifiable: {validation_error}"
+            return (
+                None,
+                f"qualification observation is unverifiable: {validation_error}",
+            )
         assert result is not None
         if result.get("workflow_run_id") != run_id:
-            return None, "qualification report workflow_run_id disagrees with observation"
+            return (
+                None,
+                "qualification report workflow_run_id disagrees with observation",
+            )
         if result.get("current_attempt") != observation.get("attempt"):
             return None, "qualification report attempt disagrees with observation"
         expected_verdict = "pass" if result.get("verdict") == "pass" else "red"
@@ -725,9 +785,7 @@ def select_published_wheel(
         and entry.get("packagetype") == "bdist_wheel"
     ]
     if not matches:
-        raise Refusal(
-            f"no live {platform_suffix} wheel for sase-core-rs=={version}"
-        )
+        raise Refusal(f"no live {platform_suffix} wheel for sase-core-rs=={version}")
     if len(matches) > 1:
         names = sorted(str(entry.get("filename", "?")) for entry in matches)
         raise Refusal(
@@ -946,7 +1004,9 @@ def compute_publish_plan(
         pypi_by_name[name] = entry
     for name in sorted(pypi_by_name):
         if name not in by_name:
-            raise Refusal(f"PUBLISH_CONFLICT extra PyPI file {name!r} is not in the manifest")
+            raise Refusal(
+                f"PUBLISH_CONFLICT extra PyPI file {name!r} is not in the manifest"
+            )
     files = []
     for dist in dists:
         name = dist["filename"]
@@ -1030,7 +1090,9 @@ def confirm_pypi_files(
         pypi_by_name[name] = entry
     for name in sorted(pypi_by_name):
         if name not in by_name:
-            raise Refusal(f"PUBLISH_CONFLICT extra PyPI file {name!r} is not in the manifest")
+            raise Refusal(
+                f"PUBLISH_CONFLICT extra PyPI file {name!r} is not in the manifest"
+            )
     checked = []
     for dist in dists:
         name = dist["filename"]
@@ -1039,8 +1101,7 @@ def confirm_pypi_files(
             raise Refusal(f"PUBLISH_PARTIAL {name!r} is not yet listed on PyPI")
         if _pypi_digest(remote) != dist.get("sha256", ""):
             raise Refusal(
-                f"PUBLISH_CONFLICT {name!r} is listed on PyPI "
-                "with a different SHA-256"
+                f"PUBLISH_CONFLICT {name!r} is listed on PyPI with a different SHA-256"
             )
         checked.append({"filename": name, "sha256": dist["sha256"]})
     return {
@@ -1084,7 +1145,12 @@ def build_parser() -> argparse.ArgumentParser:
     seal.add_argument("--builder-revision", default="")
     seal.add_argument("--builder-run-id", type=int, default=0)
     seal.add_argument("--builder-attempt", type=int, default=1)
-    seal.add_argument("--core-source-pin", default="")
+    seal.add_argument("--core-source-pin", required=True)
+    seal.add_argument(
+        "--core-containment",
+        required=True,
+        help="containment record JSON (from the containment subcommand)",
+    )
     seal.add_argument("--core-version", required=True)
     seal.add_argument("--core-files", required=True, help="PyPI core file list JSON")
     seal.add_argument(
@@ -1175,7 +1241,9 @@ def build_parser() -> argparse.ArgumentParser:
     )
     qualify.add_argument("--run-id", required=True, type=int)
     qualify.add_argument("--attempt", required=True, type=int)
-    qualify.add_argument("--out", default="", help="qualification observation output path")
+    qualify.add_argument(
+        "--out", default="", help="qualification observation output path"
+    )
 
     evaluate = subs.add_parser("evaluate", help="run the promotion predicate")
     _add_common(evaluate)
@@ -1188,6 +1256,22 @@ def build_parser() -> argparse.ArgumentParser:
     download = subs.add_parser("download", help="resolve an asset locator")
     download.add_argument("--locator", required=True)
     download.add_argument("--dest", required=True)
+
+    containment = subs.add_parser(
+        "containment",
+        help="prove tag v<core> contains the source pin and write the record",
+    )
+    pin_group = containment.add_mutually_exclusive_group(required=True)
+    pin_group.add_argument("--pin", default="", help="full 40-hex source pin")
+    pin_group.add_argument(
+        "--pin-file",
+        default="",
+        help="path to sase-core-revision.txt (or equivalent pin file)",
+    )
+    containment.add_argument("--core-version", required=True)
+    containment.add_argument(
+        "--out", required=True, help="containment record JSON path"
+    )
 
     core_files = subs.add_parser(
         "core-files", help="fetch the core PyPI file list and cross-check uv.lock"
@@ -1235,6 +1319,16 @@ def build_parser() -> argparse.ArgumentParser:
 def main(argv: Sequence[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     try:
+        if args.command == "containment":
+            pin = args.pin if args.pin else _core.read_source_pin(Path(args.pin_file))
+            try:
+                record = _core.prove_containment(pin, args.core_version)
+            except _core.ContainmentLag as exc:
+                raise Refusal(exc.typed()) from exc
+            payload = record.as_dict()
+            _dump_json(Path(args.out), payload)
+            print(json.dumps(payload, indent=2, sort_keys=True))
+            return EXIT_OK
         if args.command == "seal":
             manifest = seal_manifest(
                 repository=args.repository,
@@ -1247,6 +1341,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 builder_run_id=args.builder_run_id,
                 builder_attempt=args.builder_attempt,
                 core_source_pin=args.core_source_pin,
+                core_containment=_load_json(Path(args.core_containment)),
                 core_version=args.core_version,
                 core_files=_load_json(Path(args.core_files)),
                 expected_core_suffixes=_load_json(Path(args.expected_core_suffixes)),

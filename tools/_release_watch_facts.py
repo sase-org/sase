@@ -1589,6 +1589,7 @@ class ReleaseFactsReader:
                 "builder_run_id",
                 "builder_attempt",
                 "core_source_pin",
+                "core_containment",
                 "core_version",
                 "core_files",
                 "dists",

@@ -47,6 +47,7 @@ GITHUB_TIMEOUT_SECONDS = 10.0
 _TRANSIENT_HTTP_CODES = frozenset({408, 429, 500, 502, 503, 504})
 _VERSION_RE = re.compile(r"^\d+(?:\.\d+)*$")
 _PIN_RE = re.compile(r"^[0-9a-fA-F]{7,40}$")
+_FULL_SHA_RE = re.compile(r"^[0-9a-fA-F]{40}$")
 _SUFFIXES_BLOCK_RE = re.compile(
     r"(?m)^([ \t]*)EXPECTED_DIST_SUFFIXES: \|(?:\n((?:\1[ \t]+[^\n]*(?:\n|$))*))?"
 )
@@ -59,6 +60,7 @@ SleepFn = Callable[[float], None]
 CompareFn = Callable[[str, str], str]
 WorkflowFn = Callable[[str], str]
 GitContainsFn = Callable[[str, str], bool]
+TagShaFn = Callable[[str], str]
 PypiFetcher = Callable[[], dict[str, object]]
 
 
@@ -97,6 +99,39 @@ class CoreLag:
     def typed(self) -> str:
         newest = self.newest_complete if self.newest_complete is not None else "none"
         return f"CORE_LAG(pin={self.pin}, newest_complete={newest})"
+
+
+class ContainmentLag(Exception):
+    """Tag ``v<core>`` does not contain the source pin."""
+
+    def __init__(self, pin: str, core: str, status: str | None = None) -> None:
+        self.pin = pin
+        self.core = core
+        self.status = status
+        super().__init__(self.typed())
+
+    def typed(self) -> str:
+        return f"CORE_LAG(pin={self.pin}, core={self.core})"
+
+
+@dataclass(frozen=True)
+class ContainmentRecord:
+    """Proof that tag ``v<core_version>`` contains *pin*."""
+
+    pin: str
+    core_version: str
+    tag: str
+    compare_status: str
+    tag_sha: str
+
+    def as_dict(self) -> dict[str, str]:
+        return {
+            "pin": self.pin,
+            "core_version": self.core_version,
+            "tag": self.tag,
+            "compare_status": self.compare_status,
+            "tag_sha": self.tag_sha,
+        }
 
 
 CoreEnsureResult = Pinned | CoreLag
@@ -524,3 +559,185 @@ def ensure_core(
         ):
             return Pinned(version=version.raw, files=complete)
     return CoreLag(pin=pin, newest_complete=newest_complete)
+
+
+def is_full_sha(value: object) -> bool:
+    return isinstance(value, str) and bool(_FULL_SHA_RE.fullmatch(value.strip()))
+
+
+def _require_full_sha(value: object, label: str) -> str:
+    if not is_full_sha(value):
+        raise CoreEnsureError(f"unreadable {label}: {value!r}")
+    assert isinstance(value, str)
+    return value.strip().lower()
+
+
+def is_containing_status(status: str) -> bool:
+    return status.strip().lower() in _CONTAINING_STATUSES
+
+
+def github_tag_peeled_sha(
+    version: str,
+    *,
+    urlopen_fn: UrlOpenFn | None = None,
+) -> str:
+    payload = _github_api(
+        f"repos/{CORE_REPO}/commits/v{version}",
+        urlopen_fn=urlopen_fn,
+    )
+    sha = payload.get("sha")
+    if not isinstance(sha, str) or not _FULL_SHA_RE.fullmatch(sha.strip()):
+        raise CoreEnsureError(f"unreadable tag sha v{version}: {sha!r}")
+    return sha.strip().lower()
+
+
+def git_tag_peeled_sha(version: str, git_dir: Path) -> str:
+    if not git_dir.is_dir():
+        raise CoreEnsureError(
+            f"unreadable tag sha v{version}: local git dir {git_dir} is missing"
+        )
+    result = subprocess.run(
+        ["git", "rev-parse", "--verify", f"v{version}^{{commit}}"],
+        cwd=git_dir,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    if result.returncode != 0:
+        detail = (result.stderr or result.stdout).strip()
+        raise CoreEnsureError(
+            f"unreadable tag sha v{version} via local git: "
+            f"{detail or result.returncode}"
+        )
+    sha = result.stdout.strip()
+    if not _FULL_SHA_RE.fullmatch(sha):
+        raise CoreEnsureError(f"unreadable tag sha v{version} via local git: {sha!r}")
+    return sha.lower()
+
+
+def _peel_tag_sha(
+    version: str,
+    *,
+    tag_sha_fn: TagShaFn | None,
+    git_dir: Path,
+    urlopen_fn: UrlOpenFn | None,
+) -> str:
+    try:
+        if tag_sha_fn is not None:
+            return _require_full_sha(tag_sha_fn(version), f"tag sha v{version}")
+        return github_tag_peeled_sha(version, urlopen_fn=urlopen_fn)
+    except CoreEnsureNetworkError:
+        return git_tag_peeled_sha(version, git_dir)
+
+
+def parse_containment_record(payload: object) -> ContainmentRecord:
+    """Parse a sealed containment record. Malformed input raises."""
+
+    if not isinstance(payload, Mapping):
+        raise CoreEnsureError("unreadable containment record: not an object")
+    required = ("pin", "core_version", "tag", "compare_status", "tag_sha")
+    missing = [key for key in required if key not in payload]
+    if missing:
+        raise CoreEnsureError(
+            f"unreadable containment record: missing {', '.join(missing)}"
+        )
+    pin = _require_full_sha(payload["pin"], "containment pin")
+    version = parse_version(payload["core_version"], "containment core version").raw
+    tag = payload["tag"]
+    if not isinstance(tag, str) or not tag.strip():
+        raise CoreEnsureError(f"unreadable containment tag: {tag!r}")
+    status = payload["compare_status"]
+    if not isinstance(status, str) or not status.strip():
+        raise CoreEnsureError(f"unreadable compare status: {status!r}")
+    normalized = status.strip().lower()
+    if (
+        normalized not in _CONTAINING_STATUSES
+        and normalized not in _NON_CONTAINING_STATUSES
+    ):
+        raise CoreEnsureError(
+            f"unreadable compare {pin}...v{version}: unknown status {status!r}"
+        )
+    tag_sha = _require_full_sha(payload["tag_sha"], "containment tag sha")
+    return ContainmentRecord(
+        pin=pin,
+        core_version=version,
+        tag=tag.strip(),
+        compare_status=normalized,
+        tag_sha=tag_sha,
+    )
+
+
+def record_proves_pin(record: ContainmentRecord, pin: str, core_version: str) -> bool:
+    """True when *record* proves *core_version*'s tag contains *pin*."""
+
+    if not is_full_sha(pin):
+        return False
+    try:
+        expected_version = parse_version(core_version, "core version").raw
+    except CoreEnsureError:
+        return False
+    return (
+        record.pin == pin.strip().lower()
+        and record.core_version == expected_version
+        and record.tag == f"v{expected_version}"
+        and is_containing_status(record.compare_status)
+        and is_full_sha(record.tag_sha)
+    )
+
+
+def prove_containment(
+    pin: str,
+    version: str,
+    *,
+    compare_fn: CompareFn | None = None,
+    tag_sha_fn: TagShaFn | None = None,
+    git_contains_fn: GitContainsFn | None = None,
+    git_dir: Path | None = None,
+    urlopen_fn: UrlOpenFn | None = None,
+) -> ContainmentRecord:
+    """Prove tag ``v<version>`` contains *pin*.
+
+    Uses GitHub compare ``ahead``/``identical`` with the local-git ancestor
+    fallback. Non-containing status raises ``ContainmentLag``. Unreadable
+    input raises ``CoreEnsureError``.
+    """
+
+    pin = _require_full_sha(pin, "source pin")
+    version = parse_version(version, "core version").raw
+    core_dir = git_dir if git_dir is not None else DEFAULT_SASE_CORE_DIR
+    try:
+        if compare_fn is not None:
+            status = compare_fn(pin, version)
+        else:
+            status = github_compare_status(pin, version, urlopen_fn=urlopen_fn)
+        contains = _status_contains(status, pin, version)
+        normalized = status.strip().lower()
+        if not contains:
+            raise ContainmentLag(pin, version, normalized)
+        tag_sha = _peel_tag_sha(
+            version,
+            tag_sha_fn=tag_sha_fn,
+            git_dir=core_dir,
+            urlopen_fn=urlopen_fn,
+        )
+    except CoreEnsureNetworkError:
+        contains_fn = git_contains_fn or (
+            lambda candidate_pin, candidate_version: git_contains_pin(
+                candidate_pin, candidate_version, core_dir
+            )
+        )
+        contains = contains_fn(pin, version)
+        tag_sha = git_tag_peeled_sha(version, core_dir)
+        if pin == tag_sha:
+            normalized = "identical"
+        else:
+            normalized = "ahead" if contains else "behind"
+    if not contains:
+        raise ContainmentLag(pin, version, normalized)
+    return ContainmentRecord(
+        pin=pin,
+        core_version=version,
+        tag=f"v{version}",
+        compare_status=normalized,
+        tag_sha=tag_sha,
+    )

@@ -216,6 +216,14 @@ jobs:
             python tools/release_candidate core-suffixes \
             --url 'https://raw.githubusercontent.com/sase-org/sase-core/v${{ steps.core.outputs.core_version }}/.github/workflows/release-plz.yml' \
             --out core-suffixes.json
+      - name: Prove the core tag contains the source pin
+        run: |
+          set -euo pipefail
+          uv run --no-project --with packaging \
+            python tools/release_candidate containment \
+            --pin-file sase-core-revision.txt \
+            --core-version '${{ steps.core.outputs.core_version }}' \
+            --out core-containment.json
       - name: Seal the candidate manifest
         id: seal
         env:
@@ -265,7 +273,8 @@ jobs:
             --builder-revision '${{ github.workflow_ref }}' \
             --builder-run-id '${{ github.run_id }}' \
             --builder-attempt '${{ github.run_attempt }}' \
-            --core-source-pin "$(grep -Eo 'sase-core-rs[^"]*' pyproject.toml | head -n 1)" \
+            --core-source-pin "$(python3 -c 'from pathlib import Path; print(Path("sase-core-revision.txt").read_text().split()[0])')" \
+            --core-containment core-containment.json \
             --core-version '${{ steps.core.outputs.core_version }}' \
             --core-files core-files.json \
             --expected-core-suffixes core-suffixes.json \

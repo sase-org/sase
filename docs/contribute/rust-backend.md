@@ -766,11 +766,11 @@ file is an error, never a pick.
 If your change calls a `sase-core` binding or depends on core behavior that has not been
 published yet: do nothing. Land the Python change as usual — a source checkout builds
 `sase_core_rs` from `../sase-core` regardless of the declared pin, so nothing blocks
-local development or the feature PR. The release lane (`release-core-floor-smoke` in
-`ci.yml`, now a pinned-core smoke, plus the pin-locked leg of `publish.yml`'s
-`install-smoke`) mechanically blocks the `sase` release until a complete `sase-core`
-release contains the source pin, which is the correct place for that invariant to be
-enforced.
+local development or the feature PR. The release lane (the release PR's pinned-core
+smoke `release-core-floor-smoke` in `ci.yml`, plus `release.yml`'s seal-time containment
+refusal and qualification) mechanically blocks the `sase` release until a complete
+`sase-core` release contains the source pin, which is the correct place for that
+invariant to be enforced.
 
 To run the ratchet by hand (for example, to preview what the release branch will do):
 

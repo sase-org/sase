@@ -22,11 +22,11 @@ uses `qualify-<sha>`, never cancelled.
 `tools/release_candidate` owns the candidate manifest: `seal` writes the immutable
 sealed fields, `observe` appends one observation asset, `verify` rechecks a sealed
 manifest, `evaluate` runs the promotion predicate, `show` prints a manifest, `download`
-resolves an asset locator, `core-files` fetches the core PyPI file list and cross-checks
-`uv.lock`, `core-suffixes` parses the completeness set from sase-core's
-`release-plz.yml`, `publish-plan` diffs the sealed dist set against PyPI for a
-digest-checked upload plan, and `confirm` verifies every sealed file is listed on PyPI
-with a matching SHA-256 and nothing extra.
+resolves an asset locator, `containment` proves tag `v<core>` contains the source pin,
+`core-files` fetches the core PyPI file list and cross-checks `uv.lock`, `core-suffixes`
+parses the completeness set from sase-core's `release-plz.yml`, `publish-plan` diffs the
+sealed dist set against PyPI for a digest-checked upload plan, and `confirm` verifies
+every sealed file is listed on PyPI with a matching SHA-256 and nothing extra.
 
 ## Modes
 
@@ -37,7 +37,8 @@ with a matching SHA-256 and nothing extra.
 | `rehearse` | a branch (normally `master`)     | workflow artifacts       | never; `publish` is verify-only |
 
 `rehearse` accepts a `core_version` override, sealed into the manifest as `override`.
-The override is refused outside `rehearse` mode.
+The override is refused outside `rehearse` mode. An override must still contain the
+source pin: seal-time containment runs against the selected `core_version` either way.
 
 ## Identity rule
 
@@ -50,9 +51,12 @@ mismatch refuses.
 
 Sealed at build and immutable: the repository, version, tag (or the rehearsal ref),
 peeled SHA and tree; the candidate ID and build generation; the builder workflow
-revision, run ID and attempt; the core source pin; the exact core version with its full
-file set and PyPI digests; and every dist's filename, size and SHA-256 plus its asset
-locator.
+revision, run ID and attempt; the core source pin (a full 40-hex SHA from
+`sase-core-revision.txt`); the containment record (`pin`, `core_version`, `tag`,
+`compare_status`, `tag_sha`) proving tag `v<core>` contains that pin; the exact core
+version with its full file set and PyPI digests; and every dist's filename, size and
+SHA-256 plus its asset locator. Schema version 2 adds the containment record to the
+sealed key set.
 
 The candidate ID derives only from sealed fields: it is stable across observations and
 changes with the generation. A rebuild at the same tag is a new generation that must be
@@ -62,6 +66,15 @@ never double-build.
 Observations are append-only, each its own asset named by generation, kind, run ID and
 attempt. The kinds are `qualification`, `exercise`, `publication`, `confirmation`,
 `abandoned` and `veto`.
+
+## Build
+
+The `build` job reads `sase-core-revision.txt` as the core source pin, resolves the
+exact `sase-core-rs` version, and runs `tools/release_candidate containment` against
+that version before `seal`. GitHub compare `ahead` or `identical` (with the local-git
+fallback) is the proof; a non-containing tag refuses with typed
+`CORE_LAG(pin=…, core=…)`. `seal` and `evaluate` refuse without a record that proves
+exactly that pin by exactly the sealed core version. `verify` rechecks the record.
 
 ## Exercise
 

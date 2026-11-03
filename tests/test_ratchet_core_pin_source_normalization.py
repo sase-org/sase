@@ -5,7 +5,7 @@ from types import ModuleType
 
 import pytest
 
-from tests import _ratchet_core_window_tool_helpers as base
+from tests import _ratchet_core_pin_tool_helpers as base
 
 
 pytestmark = pytest.mark.contract

@@ -17,6 +17,28 @@ CORE_WHEEL_PLATFORMS = (
     "manylinux_2_28_aarch64",
 )
 CORE_SUFFIXES = (".tar.gz", *(f"{platform}.whl" for platform in CORE_WHEEL_PLATFORMS))
+SOURCE_PIN = "a" * 40
+TAG_SHA = "b" * 40
+
+
+def _looks_like_sha(value: object) -> bool:
+    if not isinstance(value, str) or len(value) != 40:
+        return False
+    return all(char in "0123456789abcdefABCDEF" for char in value)
+
+
+def containment_record(**overrides: object) -> dict[str, object]:
+    core_version = str(overrides.get("core_version", "0.42.0"))
+    pin = str(overrides.get("pin", SOURCE_PIN))
+    record: dict[str, object] = {
+        "pin": pin,
+        "core_version": core_version,
+        "tag": f"v{core_version}",
+        "compare_status": "identical",
+        "tag_sha": TAG_SHA,
+    }
+    record.update(overrides)
+    return record
 
 
 def load_tool() -> ModuleType:
@@ -80,6 +102,9 @@ def dists(version: str = "0.18.0") -> list[dict[str, object]]:
 
 
 def seal_kwargs(**overrides: object) -> dict[str, object]:
+    core_version = str(overrides.get("core_version", "0.42.0"))
+    pin_override = overrides.get("core_source_pin", SOURCE_PIN)
+    pin = str(pin_override) if _looks_like_sha(pin_override) else SOURCE_PIN
     kwargs: dict[str, object] = {
         "repository": "sase-org/sase",
         "version": "0.18.0",
@@ -90,9 +115,10 @@ def seal_kwargs(**overrides: object) -> dict[str, object]:
         "builder_revision": "sase-org/sase/.github/workflows/release.yml@refs/tags/v0.18.0",
         "builder_run_id": 123,
         "builder_attempt": 1,
-        "core_source_pin": "sase-core-rs>=0.42.0,<0.43.0",
-        "core_version": "0.42.0",
-        "core_files": core_files(),
+        "core_source_pin": pin,
+        "core_containment": containment_record(pin=pin, core_version=core_version),
+        "core_version": core_version,
+        "core_files": core_files(core_version),
         "expected_core_suffixes": list(CORE_SUFFIXES),
         "dists": dists(),
     }

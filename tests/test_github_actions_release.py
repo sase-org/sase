@@ -159,9 +159,19 @@ def test_release_build_checks_dist_set_and_seals() -> None:
     assert "exactly one wheel plus one sdist" in run_text
     assert "release_candidate core-files" in run_text
     assert "release_candidate core-suffixes" in run_text
+    assert "release_candidate containment" in run_text
     assert "release_candidate seal" in run_text
     assert "release_candidate verify" in run_text
     assert "core_version override is rehearse-only" in run_text
+    assert "sase-core-revision.txt" in run_text
+    assert run_text.index("release_candidate containment") < run_text.index(
+        "release_candidate seal"
+    )
+    assert "--pin-file sase-core-revision.txt" in run_text
+    assert "--core-containment core-containment.json" in run_text
+    assert (
+        "grep -Eo 'sase-core-rs" not in run_text.split("release_candidate seal", 1)[1]
+    )
 
 
 def test_release_stash_refuses_without_draft_or_rebuild() -> None:

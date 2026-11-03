@@ -8,23 +8,23 @@ from types import ModuleType
 
 import pytest
 
-from tests._ratchet_core_window_tool_helpers import PLATFORMS
-from tests._ratchet_core_window_tool_helpers import (
+from tests._ratchet_core_pin_tool_helpers import PLATFORMS
+from tests._ratchet_core_pin_tool_helpers import (
     ASTTOKENS_DEPENDENCIES_FIELD as _ASTTOKENS_DEPENDENCIES_FIELD,
 )
-from tests._ratchet_core_window_tool_helpers import (
+from tests._ratchet_core_pin_tool_helpers import (
     asttokens_refresh_lock_runner as _asttokens_refresh_lock_runner,
 )
-from tests._ratchet_core_window_tool_helpers import fake_ensure as _fake_ensure
-from tests._ratchet_core_window_tool_helpers import load_tool as _load_tool
-from tests._ratchet_core_window_tool_helpers import (
+from tests._ratchet_core_pin_tool_helpers import fake_ensure as _fake_ensure
+from tests._ratchet_core_pin_tool_helpers import load_tool as _load_tool
+from tests._ratchet_core_pin_tool_helpers import (
     lock_text_for_platforms as _lock_text_for_platforms,
 )
-from tests._ratchet_core_window_tool_helpers import (
+from tests._ratchet_core_pin_tool_helpers import (
     lock_text_with_asttokens as _lock_text_with_asttokens,
 )
-from tests._ratchet_core_window_tool_helpers import write_project as _write_project
-from tests._ratchet_core_window_tool_helpers import (
+from tests._ratchet_core_pin_tool_helpers import write_project as _write_project
+from tests._ratchet_core_pin_tool_helpers import (
     write_project_with_asttokens as _write_project_with_asttokens,
 )
 

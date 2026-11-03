@@ -14,6 +14,7 @@ import urllib.error
 from importlib.machinery import SourceFileLoader
 from pathlib import Path
 from types import ModuleType
+from typing import Any
 
 import pytest
 from tests._release_watch_facts_contract_cases import (
@@ -502,3 +503,133 @@ def test_parse_json_object_strips_ansi_color(tool: ModuleType) -> None:
     assert tool._parse_json_object(colored) == {"status": "ahead"}
     assert tool._parse_json_object("") is None
     assert tool._parse_json_object("[1]") is None
+
+
+def _prove(
+    tool: ModuleType,
+    *,
+    pin: str = PIN,
+    version: str = "0.42.0",
+    status: str = "ahead",
+    tag_sha: str = "b" * 40,
+    compare_error: Exception | None = None,
+    git_dir: Path | None = None,
+) -> Any:
+    def _compare(_pin: str, _version: str) -> str:
+        if compare_error is not None:
+            raise compare_error
+        return status
+
+    return tool.prove_containment(
+        pin,
+        version,
+        compare_fn=_compare,
+        tag_sha_fn=lambda _version: tag_sha,
+        git_dir=git_dir,
+    )
+
+
+def test_prove_containment_writes_ahead_and_identical_records(
+    tool: ModuleType,
+) -> None:
+    ahead = _prove(tool, status="ahead")
+    assert ahead.as_dict() == {
+        "pin": PIN,
+        "core_version": "0.42.0",
+        "tag": "v0.42.0",
+        "compare_status": "ahead",
+        "tag_sha": "b" * 40,
+    }
+    identical = _prove(tool, status="identical", tag_sha=PIN)
+    assert identical.compare_status == "identical"
+    assert identical.tag_sha == PIN
+
+
+def test_prove_containment_non_containing_status_is_core_lag(
+    tool: ModuleType,
+) -> None:
+    with pytest.raises(tool.ContainmentLag, match=r"CORE_LAG\(pin="):
+        _prove(tool, status="behind")
+    with pytest.raises(tool.ContainmentLag, match=r"CORE_LAG\(pin="):
+        _prove(tool, status="diverged")
+
+
+def test_prove_containment_unreadable_compare_raises(tool: ModuleType) -> None:
+    with pytest.raises(tool.CoreEnsureError, match="unreadable compare"):
+        _prove(tool, compare_error=tool.CoreEnsureError("unreadable compare"))
+    with pytest.raises(tool.CoreEnsureError, match="unknown status"):
+        _prove(tool, status="sideways")
+    with pytest.raises(tool.CoreEnsureError, match="unreadable source pin"):
+        _prove(tool, pin="not-a-source-commit")
+
+
+def test_prove_containment_falls_back_to_local_git(
+    tool: ModuleType, tmp_path: Path
+) -> None:
+    repo = tmp_path / "sase-core"
+    repo.mkdir()
+    subprocess.run(["git", "init"], cwd=repo, check=True, capture_output=True)
+    subprocess.run(
+        ["git", "config", "user.email", "test@example.com"],
+        cwd=repo,
+        check=True,
+        capture_output=True,
+    )
+    subprocess.run(
+        ["git", "config", "user.name", "SASE Test"],
+        cwd=repo,
+        check=True,
+        capture_output=True,
+    )
+    tracked = repo / "README"
+    tracked.write_text("one\n", encoding="utf-8")
+    subprocess.run(["git", "add", "README"], cwd=repo, check=True, capture_output=True)
+    subprocess.run(
+        ["git", "commit", "-m", "first"],
+        cwd=repo,
+        check=True,
+        capture_output=True,
+    )
+    pin = subprocess.check_output(
+        ["git", "rev-parse", "HEAD"], cwd=repo, text=True
+    ).strip()
+    tracked.write_text("two\n", encoding="utf-8")
+    subprocess.run(
+        ["git", "commit", "-am", "second"],
+        cwd=repo,
+        check=True,
+        capture_output=True,
+    )
+    subprocess.run(["git", "tag", "v0.42.0"], cwd=repo, check=True, capture_output=True)
+    tag_sha = subprocess.check_output(
+        ["git", "rev-parse", "HEAD"], cwd=repo, text=True
+    ).strip()
+
+    record = _prove(
+        tool,
+        pin=pin,
+        compare_error=tool.CoreEnsureNetworkError("github down"),
+        git_dir=repo,
+    )
+    assert record.compare_status == "ahead"
+    assert record.tag_sha == tag_sha
+    assert record.pin == pin
+
+
+def test_parse_containment_record_and_proof(tool: ModuleType) -> None:
+    payload = {
+        "pin": PIN,
+        "core_version": "0.42.0",
+        "tag": "v0.42.0",
+        "compare_status": "Ahead",
+        "tag_sha": "B" * 40,
+    }
+    record = tool.parse_containment_record(payload)
+    assert record.compare_status == "ahead"
+    assert record.tag_sha == "b" * 40
+    assert tool.record_proves_pin(record, PIN, "0.42.0")
+    assert not tool.record_proves_pin(record, PIN, "0.41.0")
+    behind = tool.parse_containment_record({**payload, "compare_status": "behind"})
+    assert not tool.record_proves_pin(behind, PIN, "0.42.0")
+    with pytest.raises(tool.CoreEnsureError, match="not an object"):
+        tool.parse_containment_record("nope")

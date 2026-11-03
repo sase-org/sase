@@ -6,7 +6,7 @@ from types import ModuleType
 
 import pytest
 
-from tests._ratchet_core_window_tool_helpers import load_tool as _load_tool
+from tests._ratchet_core_pin_tool_helpers import load_tool as _load_tool
 
 
 pytestmark = pytest.mark.contract

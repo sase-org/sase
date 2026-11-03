@@ -36,7 +36,7 @@ MANIFEST_PATH = ROOT / "tests" / "contract_manifest.txt"
 # measured-cost comment.
 #
 # Re-curated to 40 on 2026-08-10 for four `tools/` script guards:
-# `test_ratchet_core_window_tool.py`, `test_probe_core_floor_tool.py`,
+# `test_ratchet_core_pin_tool.py`, `test_probe_core_floor_tool.py`,
 # `test_sase_core_rs_glossary_line_break_smoke_tool.py`, and the
 # `tools/sase_bead` wrapper guard in `test_sase_bead_tool.py`. They earn their
 # place on value per second rather than on kind: a `tools/` script is not a
@@ -106,23 +106,23 @@ MANIFEST_PATH = ROOT / "tests" / "contract_manifest.txt"
 # 27.0 s under the command above on this host.
 #
 # Re-curated to 54 on 2026-08-22 (sase-s1.6) when
-# `test_ratchet_core_window_source_normalization.py` split the canonical-PyPI
-# trailing-slash equivalence tests out of `test_ratchet_core_window_tool.py`.
+# `test_ratchet_core_pin_source_normalization.py` split the canonical-PyPI
+# trailing-slash equivalence tests out of `test_ratchet_core_pin_tool.py`.
 # The added path redistributes the same tools/ ratchet guard already in the
-# set: `tools/ratchet_core_window` is not a node in the import graph, so a
+# set: `tools/ratchet_core_pin` is not a node in the import graph, so a
 # source-spelling-only lock rewrite is otherwise invisible to scoped
 # selection. The whole 54-entry set measured 26.9 s under the command above
 # on this host, still inside the 30 s serial budget.
 #
-# Re-curated to 57 on 2026-08-24 when `test_ratchet_core_window_tool.py` split
-# into `test_ratchet_core_window_tool_core.py` (ceiling policy, target-version
-# selection, PyPI fetch retries), `test_ratchet_core_window_tool_modes.py`
-# (report/check/apply flows), `test_ratchet_core_window_tool_reconciliation.py`
+# Re-curated to 57 on 2026-08-24 when `test_ratchet_core_pin_tool.py` split
+# into `test_ratchet_core_pin_tool_core.py` (ceiling policy, target-version
+# selection, PyPI fetch retries), `test_ratchet_core_pin_tool_modes.py`
+# (report/check/apply flows), `test_ratchet_core_pin_tool_reconciliation.py`
 # (transitive uv.lock reconciliation), and
-# `test_ratchet_core_window_tool_guardrails.py` (unexpected-diff guardrails) to
+# `test_ratchet_core_pin_tool_guardrails.py` (unexpected-diff guardrails) to
 # keep every file under 500 lines, the same one-file-in/four-files-out shape as
 # the `test_suite_gate.py` split. Each successor keeps the marker for the
-# reason the original file earned it: `tools/ratchet_core_window` is not a
+# reason the original file earned it: `tools/ratchet_core_pin` is not a
 # node in the import graph, so scoped selection cannot see a regression in any
 # of the four without it. The whole 57-entry set measured 30.7 s under the
 # command above (median of three runs on this host) -- the first time this set
@@ -145,7 +145,7 @@ MANIFEST_PATH = ROOT / "tests" / "contract_manifest.txt"
 # the original file earned it -- checked-in workflow YAML is a data asset no import
 # edge reaches. Second, `test_ratchet_core_revision_tool.py` guards the new
 # `tools/ratchet_core_revision` script (the sase-core source-revision-pin ratchet),
-# admitted on the same value-per-second basis as the other `tools/ratchet_core_window`
+# admitted on the same value-per-second basis as the other `tools/ratchet_core_pin`
 # and `tools/probe_core_floor` guards already in this set: a `tools/` script
 # contributes no import-graph seeds, so `RULE_CONTRACT_SET_ONLY` fires and this set is
 # the only thing that would catch a regression in it. The whole 60-entry set measured
@@ -406,7 +406,7 @@ MANIFEST_PATH = ROOT / "tests" / "contract_manifest.txt"
 #
 # Re-curated to 90 on 2026-10-29 (sase-1pn.2) to repair a stale onto
 # manifest: `test_core_finalizer_handoff.py` and
-# `test_ratchet_core_window_tool_ref.py` already carried
+# `test_ratchet_core_pin_tool_ref.py` already carried
 # `pytest.mark.contract` (split from `test_core_finalizer_facade.py` and
 # `tools/ratchet_core_pin --ref` coverage) but were never listed. Admitting
 # them restores `collect_contract_files() == committed manifest` without

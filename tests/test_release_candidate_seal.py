@@ -6,6 +6,8 @@ from types import ModuleType
 
 import pytest
 
+from tests._release_candidate_tool_helpers import SOURCE_PIN
+from tests._release_candidate_tool_helpers import containment_record
 from tests._release_candidate_tool_helpers import core_files
 from tests._release_candidate_tool_helpers import dists
 from tests._release_candidate_tool_helpers import load_tool
@@ -148,6 +150,79 @@ def test_yanked_only_core_file_set_refuses_to_seal(tool: ModuleType) -> None:
     yanked = core_files(yanked=True)
     with pytest.raises(tool.Refusal, match="incomplete core file set"):
         tool.seal_manifest(**seal_kwargs(core_files=yanked))  # type: ignore[arg-type]
+
+
+def test_seal_refuses_non_source_commit_pin(tool: ModuleType) -> None:
+    with pytest.raises(tool.Refusal, match="CORE_PIN_INVALID"):
+        tool.seal_manifest(
+            **seal_kwargs(core_source_pin="not-a-source-commit")  # type: ignore[arg-type]
+        )
+
+
+def test_seal_refuses_non_containing_compare_status(tool: ModuleType) -> None:
+    with pytest.raises(tool.Refusal, match=r"CORE_LAG\(pin="):
+        tool.seal_manifest(
+            **seal_kwargs(  # type: ignore[arg-type]
+                core_containment=containment_record(compare_status="behind")
+            )
+        )
+
+
+def test_seal_refuses_pin_version_mismatch_in_record(tool: ModuleType) -> None:
+    with pytest.raises(tool.Refusal, match=r"CORE_LAG\(pin="):
+        tool.seal_manifest(
+            **seal_kwargs(  # type: ignore[arg-type]
+                core_containment=containment_record(
+                    core_version="0.41.0", tag="v0.41.0"
+                )
+            )
+        )
+    with pytest.raises(tool.Refusal, match=r"CORE_LAG\(pin="):
+        tool.seal_manifest(
+            **seal_kwargs(  # type: ignore[arg-type]
+                core_containment=containment_record(pin="c" * 40)
+            )
+        )
+
+
+def test_verify_catches_a_tampered_containment_record(tool: ModuleType) -> None:
+    manifest = tool.seal_manifest(**seal_kwargs())  # type: ignore[arg-type]
+    assert tool.verify_manifest(manifest) == []
+    tampered = dict(manifest)
+    tampered["core_containment"] = dict(
+        manifest["core_containment"], compare_status="behind"
+    )
+    problems = tool.verify_manifest(tampered)
+    assert any("CORE_LAG" in problem for problem in problems)
+    missing = dict(manifest)
+    del missing["core_containment"]
+    assert any(
+        problem.startswith("MISSING_FIELD") for problem in tool.verify_manifest(missing)
+    )
+
+
+def test_evaluate_requires_and_names_the_containment_record(tool: ModuleType) -> None:
+    manifest = tool.seal_manifest(**seal_kwargs())  # type: ignore[arg-type]
+    result = tool.evaluate_manifest(manifest, manifest["observations"])
+    clause = next(
+        item
+        for item in result["clauses"]
+        if item["name"] == "public_dependency_contract_satisfied"
+    )
+    assert clause["ok"] is True
+    assert "contained by v0.42.0" in clause["detail"]
+    assert "identical" in clause["detail"]
+    assert SOURCE_PIN in manifest["core_source_pin"]
+    dropped = dict(manifest)
+    dropped["core_containment"] = containment_record(compare_status="diverged")
+    dropped["candidate_id"] = tool.candidate_id(dropped)
+    red = tool.evaluate_manifest(dropped, [])
+    red_clause = next(
+        item
+        for item in red["clauses"]
+        if item["name"] == "public_dependency_contract_satisfied"
+    )
+    assert red_clause["ok"] is False
 
 
 def test_second_stash_generation_must_requalify(tool: ModuleType) -> None:
