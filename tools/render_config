@@ -75,6 +75,7 @@ FAMILIES: dict[str, tuple[str, str, tuple[str, ...]]] = {
         "Agent launch, completion, capacity, restart, and process-scope settings.",
         (
             "agent_auto_restart",
+            "agent_hijack",
             "agent_hold_confirm_capture_threshold",
             "agent_hold_default_ttl",
             "agent_hold_max_ttl",

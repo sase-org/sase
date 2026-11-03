@@ -5577,6 +5577,31 @@
         }
       }
     },
+    "agent_hijack": {
+      "type": "object",
+      "description": "Recovery for hijacked agents (`,k` / `sase agent hijack`). A hijack stops a stalled agent but keeps its workspace claim until it is recovered.",
+      "additionalProperties": false,
+      "properties": {
+        "escalation_ladder": {
+          "type": "array",
+          "description": "Ordered size rungs for the recovery panel's Escalate action. A hijacked run moves to the first rung above the one it ran on; runs below the first rung (or with unknown provenance) move to it. On the top rung, Escalate becomes Switch: the first candidate of that alias whose provider/model differs.",
+          "items": {
+            "type": "string",
+            "description": "One size-alias rung, with or without the @ prefix.",
+            "pattern": "^@?[A-Za-z0-9_][A-Za-z0-9_.-]*$"
+          },
+          "minItems": 1,
+          "uniqueItems": true,
+          "default": ["@large", "@xlarge"]
+        },
+        "successor_context": {
+          "type": "string",
+          "description": "What Escalate/Continue/Instruct successors learn about the hijacked turn: \"fork\" inlines its transcript (falling back to \"brief\" when it would exceed llm_provider.continuation_budget); \"brief\" sends only the evidence brief.",
+          "enum": ["fork", "brief"],
+          "default": "fork"
+        }
+      }
+    },
     "agent_hold_default_ttl": {
       "type": "string",
       "description": "TTL applied to `sase agent hold create`/`run` when --ttl is omitted. Bare seconds or a number suffixed with s/m/h.",

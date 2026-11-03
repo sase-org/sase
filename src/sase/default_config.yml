@@ -113,6 +113,19 @@ agent_auto_restart:
   storm_max_per_episode: 12
   storm_max_per_30m: 20
 
+# Recovery for hijacked agents (`,k` / `sase agent hijack`). A hijack stops a
+# stalled agent but keeps its workspace claim until it is recovered.
+agent_hijack:
+  # Ordered size rungs for the recovery panel's Escalate action. A hijacked run
+  # moves to the first rung above the one it ran on; runs below the first rung
+  # (or with unknown provenance) move to it. On the top rung, Escalate becomes
+  # Switch: the first candidate of that alias whose provider/model differs.
+  escalation_ladder: ["@large", "@xlarge"]
+  # What Escalate/Continue/Instruct successors learn about the hijacked turn:
+  # "fork" inlines its transcript (falling back to "brief" when it would exceed
+  # llm_provider.continuation_budget); "brief" sends only the evidence brief.
+  successor_context: fork
+
 # TTL bounds for `sase agent hold create`/`run`. A hold armed without --ttl
 # uses the default; an explicit --ttl above the maximum is rejected. Both
 # values parse with the shared duration syntax (bare seconds, or a number

@@ -509,6 +509,15 @@ _lint-symvision *args: _setup
     SASE_SYMVISION_BEAD_STATUS_ONLY=1 BD_COMMAND=tools/sase_bead {{ venv_bin }}/symvision src/sase \
         --exclude-decorator gate_command_entrypoint \
         --exclude-decorator builtin_chop \
+        --epic-symbol "sase-1qz.6(AgentHijackConfig)" \
+        --epic-symbol "sase-1qz.6(agent_hijack_config)" \
+        --epic-symbol "sase-1qz.6(build_alias_candidates)" \
+        --epic-symbol "sase-1qz.6(continuation_wire_schema_version)" \
+        --epic-symbol "sase-1qz.6(escalation_wire_schema_version)" \
+        --epic-symbol "sase-1qz.6(hijack_continuation_prompt)" \
+        --epic-symbol "sase-1qz.6(hijack_escalation_target)" \
+        --epic-symbol "sase-1qz.6(normalize_hijack_rung)" \
+        --epic-symbol "sase-1qz.6(strip_hijack_launch_directives)" \
         {{ args }}
 
 # Check Python file line counts (private, extracted for per-stage wrapping)

@@ -1,4 +1,4 @@
-{"count": 3673, "rev": "75a1cec04e31", "schema": "sase.footprint.catalog/1"}
+{"count": 3675, "rev": "a5b4680d3ed0", "schema": "sase.footprint.catalog/1"}
 {"area": "automation", "id": "auto:axe.agent_waits", "kind": "auto", "label": "Resolve agent wait dependencies within seconds of completion", "ns": "auto", "parent": null, "src": "sase/default_config.yml"}
 {"area": "automation", "id": "auto:axe.agent_waits.wait_checks", "kind": "auto", "label": "Resolve agent wait dependencies and write ready.json when satisfied", "ns": "auto", "parent": "auto:axe.agent_waits", "src": "sase/default_config.yml"}
 {"area": "automation", "id": "auto:axe.checks", "kind": "auto", "label": "Poll slower PR-submission and workspace-claim checks on a five-minute cadence", "ns": "auto", "parent": null, "src": "sase/default_config.yml"}
@@ -2642,6 +2642,8 @@
 {"area": "config.agent_auto_restart", "id": "config:agent_auto_restart.quiescence_seconds", "kind": "config", "label": "Quiescence seconds", "ns": "config", "parent": null, "src": "sase/default_config.yml"}
 {"area": "config.agent_auto_restart", "id": "config:agent_auto_restart.storm_max_per_30m", "kind": "config", "label": "Storm max per 30m", "ns": "config", "parent": null, "src": "sase/default_config.yml"}
 {"area": "config.agent_auto_restart", "id": "config:agent_auto_restart.storm_max_per_episode", "kind": "config", "label": "Storm max per episode", "ns": "config", "parent": null, "src": "sase/default_config.yml"}
+{"area": "config.agent_hijack", "id": "config:agent_hijack.escalation_ladder", "kind": "config", "label": "Escalation ladder", "ns": "config", "parent": null, "src": "sase/default_config.yml"}
+{"area": "config.agent_hijack", "id": "config:agent_hijack.successor_context", "kind": "config", "label": "Successor context", "ns": "config", "parent": null, "src": "sase/default_config.yml"}
 {"area": "config.agent_hold_confirm_capture_threshold", "id": "config:agent_hold_confirm_capture_threshold", "kind": "config", "label": "Agent hold confirm capture threshold", "ns": "config", "parent": null, "src": "sase/default_config.yml"}
 {"area": "config.agent_hold_default_ttl", "id": "config:agent_hold_default_ttl", "kind": "config", "label": "Agent hold default ttl", "ns": "config", "parent": null, "src": "sase/default_config.yml"}
 {"area": "config.agent_hold_max_ttl", "id": "config:agent_hold_max_ttl", "kind": "config", "label": "Agent hold max ttl", "ns": "config", "parent": null, "src": "sase/default_config.yml"}
