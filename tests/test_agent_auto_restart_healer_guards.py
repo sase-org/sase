@@ -34,6 +34,7 @@ __all__ = [
     "test_probe_reports_missing_module",
     "test_quiescence_returns_a_reason",
     "test_skip_already_restarted",
+    "test_skip_hijacked_outcome",
     "test_skip_killed_outcome",
     "test_skip_non_failed_row",
     "test_skip_remote_row",
@@ -52,6 +53,17 @@ def test_skip_already_restarted(failed_row: Path) -> None:
     decision = apply_skip_rules(healer_target(failed_row), done=done, meta=meta)
     assert decision.skip
     assert decision.decline_reason == "already_restarted"
+
+
+def test_skip_hijacked_outcome(failed_row: Path) -> None:
+    done = {
+        "outcome": "hijacked",
+        "recovery": {"kind": "hijack", "state": "pending"},
+    }
+    decision = apply_skip_rules(healer_target(failed_row), done=done, meta={})
+    assert decision.skip
+    assert decision.decline_reason == "agent_hijacked"
+    assert not decision.loud
 
 
 def test_skip_killed_outcome(failed_row: Path) -> None:

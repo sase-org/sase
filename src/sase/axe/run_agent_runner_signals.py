@@ -56,7 +56,13 @@ def install_workspace_release_sigterm_handler(
         from sase.running_field import release_workspace
         from sase.workspace_provider.occupant import clear_occupant_record
 
-        release_workspace(project_file, workspace_num, workflow_name, cl_name)
+        release_workspace(
+            project_file,
+            workspace_num,
+            workflow_name,
+            cl_name,
+            expected_pid=os.getpid(),
+        )
         clear_occupant_record(workspace_dir)
 
     install_sigterm_handler("agent", soft=True, on_signal=_release_workspace_claim)

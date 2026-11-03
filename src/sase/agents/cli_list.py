@@ -178,7 +178,7 @@ def _print_pretty(agents: list[AgentListEntry], *, include_all: bool) -> None:
         table.add_row(
             agent.name or "-",
             project_display_name_for(agent.project),
-            "-" if agent.workspace_num is None else str(agent.workspace_num),
+            _workspace_cell(agent),
             agent.model or "-",
             _provider_badge(agent.provider),
             agent.duration,
@@ -191,6 +191,26 @@ def _print_pretty(agents: list[AgentListEntry], *, include_all: bool) -> None:
         )
 
     console.print(Panel(table, title=title, border_style="cyan"))
+
+
+def _workspace_cell(agent: AgentListEntry) -> Text | str:
+    """Return the WS column, with a dim held/released hint for HIJACKED rows."""
+    if agent.status != "HIJACKED":
+        return "-" if agent.workspace_num is None else str(agent.workspace_num)
+    held = False
+    try:
+        from sase.agent.hijack.custody import hijack_skips_claim_release
+
+        held = hijack_skips_claim_release(
+            artifacts_dir=agent.artifacts_dir,
+            workspace_num=agent.workspace_num,
+        )
+    except Exception:
+        held = True
+    suffix = "held" if held else "released"
+    if agent.workspace_num is None:
+        return Text(suffix, style="dim")
+    return Text(f"#{agent.workspace_num} {suffix}", style="dim")
 
 
 def _status_badge(agent: AgentListEntry) -> Text:

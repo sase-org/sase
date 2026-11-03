@@ -127,6 +127,14 @@ def effective_done_outcome(done_data: Mapping[str, Any]) -> str | None:
             fallback_state_field="gate_state",
             success_states=GATE_SUCCESS_STATES,
         )
+    if outcome == "hijacked":
+        recovery = done_data.get("recovery")
+        state = None
+        if isinstance(recovery, Mapping):
+            state = recovery.get("state")
+        if state == "dismissed":
+            return "killed"
+        return outcome
     return outcome
 
 

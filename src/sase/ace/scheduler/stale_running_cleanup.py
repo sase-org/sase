@@ -3,6 +3,7 @@
 from collections.abc import Callable
 from datetime import datetime, timedelta
 from pathlib import Path
+from typing import Any
 
 from sase.core.paths import sase_projects_dir
 from sase.core.time import local_now
@@ -188,6 +189,20 @@ def cleanup_stale_running_entries(
             # including its configured TTL and explicit dismissal.
             if not claim.pinned and _staged_origin_retains_claim(project_file, claim):
                 continue
+            hijack_record = _matching_hijack_record(project_file, claim)
+            if hijack_record is _HIJACK_LOOKUP_FAILED:
+                continue
+            if isinstance(hijack_record, dict):
+                hijack_released, held_ttl_days = _apply_hijack_custody(
+                    project_file,
+                    claim,
+                    hijack_record,
+                    held_ttl_days=held_ttl_days,
+                    log_fn=log_fn,
+                )
+                if hijack_released:
+                    released_count += 1
+                continue
             is_monitor_claim = claim.workflow == monitor_workflow
             is_gate_claim = claim.workflow == GATE_WORKSPACE_CLAIM_WORKFLOW
             if is_monitor_claim and skip_monitor_claims:
@@ -250,6 +265,67 @@ def cleanup_stale_running_entries(
                 )
 
     return released_count
+
+
+_HIJACK_LOOKUP_FAILED = object()
+
+
+def _matching_hijack_record(
+    project_file: str, claim: WorkspaceClaim
+) -> dict[str, Any] | object | None:
+    """Return the active hijack record, or a sentinel when lookup itself failed.
+
+    Lookup failures fail closed: the claim stays until a later sweep can
+    prove it is not hijacked.
+    """
+    try:
+        from sase.agent.hijack.custody import matching_active_record
+
+        return matching_active_record(project_file, claim)
+    except Exception:
+        return _HIJACK_LOOKUP_FAILED
+
+
+def _apply_hijack_custody(
+    project_file: str,
+    claim: WorkspaceClaim,
+    record: dict[str, Any],
+    *,
+    held_ttl_days: int | None,
+    log_fn: Callable[[str, str | None], None] | None,
+) -> tuple[bool, int | None]:
+    """Retain or expire one hijack-owned claim. Never fall through to generic release."""
+    from sase.agent.hijack.custody import expire_hijack_hold, hijacked_at_exceeds_ttl
+
+    state = str(record.get("state") or "")
+    if state in {"requested", "stopping", "resolving"}:
+        return False, held_ttl_days
+    if state != "held":
+        return False, held_ttl_days
+    if is_process_running(claim.pid):
+        return False, held_ttl_days
+    if held_ttl_days is None:
+        held_ttl_days = _held_claim_ttl_days()
+    hijacked_at = record.get("hijacked_at")
+    stamp = hijacked_at if isinstance(hijacked_at, str) else None
+    if not hijacked_at_exceeds_ttl(stamp, held_ttl_days):
+        return False, held_ttl_days
+    try:
+        expired = expire_hijack_hold(project_file, claim, record)
+    except Exception:
+        return False, held_ttl_days
+    if not expired:
+        return False, held_ttl_days
+    _settle_stale_retention_record(project_file, claim)
+    _clear_stale_occupant_record(project_file, claim)
+    if log_fn:
+        cl_info = f" for PR {claim.cl_name}" if claim.cl_name else ""
+        log_fn(
+            f"Released expired hijack workspace #{claim.workspace_num} "
+            f"({claim.workflow}){cl_info} - held claim TTL elapsed",
+            "cyan",
+        )
+    return True, held_ttl_days
 
 
 def _staged_origin_retains_claim(project_file: str, claim: WorkspaceClaim) -> bool:

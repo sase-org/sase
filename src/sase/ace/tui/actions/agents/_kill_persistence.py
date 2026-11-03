@@ -150,7 +150,15 @@ def persist_bulk_kill_side_effects(
 
 
 def _persist_running_kill(agent: Agent) -> None:
+    from sase.agent.hijack.custody import hijack_skips_claim_release
     from sase.running_field import release_workspace
+
+    if hijack_skips_claim_release(
+        artifacts_dir=agent.artifacts_dir or agent.get_artifacts_dir(),
+        project_file=agent.project_file,
+        workspace_num=agent.workspace_num,
+    ):
+        return
 
     if agent.workspace_num is not None:
         release_workspace(

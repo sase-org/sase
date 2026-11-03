@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import signal
 from unittest.mock import patch
 
@@ -64,6 +65,7 @@ def test_workspace_release_sigterm_handler_releases_claim(
         10,
         "ace(run)-260101_120000",
         "sase",
+        expected_pid=os.getpid(),
     )
     exit_mock.assert_not_called()
     assert was_killed() is True
@@ -133,6 +135,7 @@ def test_workspace_release_sigterm_handler_releases_plain_user_kill(
         10,
         "ace(run)-260101_120000",
         "sase",
+        expected_pid=os.getpid(),
     )
     exit_mock.assert_not_called()
     assert was_killed() is True
@@ -170,6 +173,7 @@ def test_workspace_release_sigterm_handler_releases_despite_pending_markers(
         10,
         "ace(run)-260101_120000",
         "sase",
+        expected_pid=os.getpid(),
     )
     exit_mock.assert_not_called()
     assert was_killed() is True
@@ -287,6 +291,7 @@ def test_workspace_release_sigterm_handler_releases_failed_monitor_handoff(
         10,
         "ace(run)-260101_120000",
         "sase",
+        expected_pid=os.getpid(),
     )
     exit_mock.assert_not_called()
     assert was_killed() is True

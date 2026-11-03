@@ -14,7 +14,8 @@ class RunningAgentInfo:
 
     ``status`` defaults to ``"RUNNING"`` for compatibility with direct
     construction in tests and integrations. Listing functions may emit
-    ``"STARTING"``, ``"WAITING"``, ``"DONE"``, and ``"FAILED"`` as well.
+    ``"STARTING"``, ``"WAITING"``, ``"HIJACKED"``, ``"DONE"``, and
+    ``"FAILED"`` as well.
     """
 
     name: str | None

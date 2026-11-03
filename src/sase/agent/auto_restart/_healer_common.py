@@ -83,6 +83,13 @@ def apply_skip_rules(
             reason_text="auto-restart skipped — agent was killed or stopped",
             loud=False,
         )
+    if _outcome_is_hijacked(done, target):
+        return SkipDecision(
+            skip=True,
+            decline_reason="agent_hijacked",
+            reason_text="auto-restart skipped — agent was hijacked",
+            loud=False,
+        )
     if str(done.get("outcome", "")) != "failed":
         return SkipDecision(
             skip=True,
@@ -120,6 +127,20 @@ def _outcome_is_killed(done: Mapping[str, Any]) -> bool:
         return True
     kill_source = str(done.get("kill_source") or "")
     return bool(kill_source) and outcome != "failed"
+
+
+def _outcome_is_hijacked(done: Mapping[str, Any], target: HealerTarget) -> bool:
+    if str(done.get("outcome", "")) == "hijacked":
+        return True
+    recovery = done.get("recovery")
+    if isinstance(recovery, Mapping) and str(recovery.get("kind") or "") == "hijack":
+        return True
+    try:
+        from sase.agent._user_kill_intent import has_hijack_intent
+
+        return bool(has_hijack_intent(target.artifacts_dir))
+    except Exception:
+        return False
 
 
 def _find_moved_on(target: HealerTarget, meta: Mapping[str, Any]) -> bool:

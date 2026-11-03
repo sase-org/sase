@@ -11,6 +11,7 @@ from sase.agent.wait_watch import (
     resolve_wait_targets,
     watch_wait_targets,
 )
+from sase.core.agent_auto_restart_wire import AgentRecoveryWire
 from sase.core.agent_scan_wire import (
     AGENT_SCAN_WIRE_SCHEMA_VERSION,
     AgentArtifactRecordWire,
@@ -50,6 +51,7 @@ def _record(
     waiting: WaitingMarkerWire | None = None,
     pending_question: PendingQuestionMarkerWire | None = None,
     plan_path: str | None = None,
+    recovery: AgentRecoveryWire | None = None,
 ) -> AgentArtifactRecordWire:
     return AgentArtifactRecordWire(
         project_name="sase",
@@ -68,7 +70,11 @@ def _record(
             agent_clan_generation=clan_generation,
             run_started_at="2026-08-23T12:00:00Z" if pid is not None else None,
         ),
-        done=DoneMarkerWire(outcome=outcome, agent_session_turn=done_agent_session_turn)
+        done=DoneMarkerWire(
+            outcome=outcome,
+            agent_session_turn=done_agent_session_turn,
+            recovery=recovery,
+        )
         if outcome is not None
         else None,
         waiting=waiting,
@@ -109,6 +115,74 @@ def test_wait_watch_classifies_success_and_failure() -> None:
         WaitState.SUCCEEDED,
         WaitState.FAILED,
     ]
+
+
+def test_wait_watch_classifies_hijacked_pending_as_needs_input() -> None:
+    snapshot = _snapshot(
+        _record(
+            "20261103120000",
+            name="held-agent",
+            outcome="hijacked",
+            recovery=AgentRecoveryWire(state="pending", kind="hijack"),
+        )
+    )
+    target = resolve_wait_targets(
+        ["held-agent"],
+        snapshot,
+        liveness_checker=_live_if_pid,
+    )[0]
+    state = classify_wait_targets(
+        [target],
+        snapshot,
+        liveness_checker=_live_if_pid,
+    )[0]
+    assert state.state is WaitState.NEEDS_INPUT
+    assert state.members[0].outcome == "hijacked"
+
+
+def test_wait_watch_classifies_hijacked_expired_as_needs_input() -> None:
+    snapshot = _snapshot(
+        _record(
+            "20261103120001",
+            name="expired-agent",
+            outcome="hijacked",
+            recovery=AgentRecoveryWire(state="expired", kind="hijack"),
+        )
+    )
+    target = resolve_wait_targets(
+        ["expired-agent"],
+        snapshot,
+        liveness_checker=_live_if_pid,
+    )[0]
+    state = classify_wait_targets(
+        [target],
+        snapshot,
+        liveness_checker=_live_if_pid,
+    )[0]
+    assert state.state is WaitState.NEEDS_INPUT
+
+
+def test_wait_watch_classifies_hijacked_dismissed_as_killed() -> None:
+    snapshot = _snapshot(
+        _record(
+            "20261103120002",
+            name="dismissed-agent",
+            outcome="hijacked",
+            recovery=AgentRecoveryWire(state="dismissed", kind="hijack"),
+        )
+    )
+    target = resolve_wait_targets(
+        ["dismissed-agent"],
+        snapshot,
+        liveness_checker=_live_if_pid,
+    )[0]
+    state = classify_wait_targets(
+        [target],
+        snapshot,
+        liveness_checker=_live_if_pid,
+    )[0]
+    assert state.state is WaitState.FAILED
+    assert state.members[0].outcome == "killed"
 
 
 def test_wait_watch_classifies_settled_gate_as_success() -> None:

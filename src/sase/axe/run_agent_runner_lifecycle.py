@@ -586,6 +586,7 @@ def finalize_runner_shutdown(
                     context.workflow_name,
                     context.cl_name,
                     caller_tag="agent-finalize",
+                    expected_pid=os.getpid(),
                 )
                 clear_occupant_record(state.workspace_dir)
                 print("Workspace released")

@@ -151,6 +151,8 @@ def _classify_record(
     if record.has_done_marker:
         if outcome in WAIT_SUCCESS_OUTCOMES:
             return _member(record, WaitState.SUCCEEDED, outcome)
+        if outcome == "hijacked":
+            return _member(record, WaitState.NEEDS_INPUT, outcome, "hijacked")
         if outcome in FAILURE_OUTCOMES:
             return _member(record, WaitState.FAILED, outcome)
         if outcome in KNOWN_DONE_OUTCOMES or outcome is not None:
@@ -265,6 +267,8 @@ def _record_done_outcome(record: AgentArtifactRecordWire) -> str | None:
     done_data: dict[str, object] = {"outcome": record.done.outcome}
     if record.done.agent_session_turn is not None:
         done_data[AGENT_SESSION_TURN_KEY] = asdict(record.done.agent_session_turn)
+    if record.done.recovery is not None:
+        done_data["recovery"] = asdict(record.done.recovery)
     return effective_done_outcome(done_data)
 
 

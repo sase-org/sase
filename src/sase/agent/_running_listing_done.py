@@ -210,7 +210,37 @@ def done_from_snapshot(
     return [info for _, info in pairs]
 
 
+def hijacked_from_snapshot(snapshot: AgentArtifactScanWire) -> list[RunningAgentInfo]:
+    """Return HIJACKED done rows so they appear without ``list -a``."""
+    clan_contexts = clan_context_by_key(snapshot.clan_context)
+    rows: list[RunningAgentInfo] = []
+    for record in snapshot.records:
+        if record.workflow_dir_name != "ace-run":
+            continue
+        info = done_info_from_record(record, clan_contexts=clan_contexts)
+        if info is None or info.status != "HIJACKED":
+            continue
+        rows.append(info)
+    rows.sort(
+        key=lambda info: info.started_at.timestamp() if info.started_at else 0.0,
+        reverse=True,
+    )
+    return rows
+
+
+def merge_hijacked_rows(
+    running: list[RunningAgentInfo],
+    hijacked: list[RunningAgentInfo],
+) -> list[RunningAgentInfo]:
+    """Append HIJACKED rows that are not already present in *running*."""
+    seen = {info.artifacts_dir for info in running if info.artifacts_dir}
+    extra = [row for row in hijacked if row.artifacts_dir not in seen]
+    return [*running, *extra]
+
+
 __all__ = [
     "done_from_snapshot",
     "done_info_from_record",
+    "hijacked_from_snapshot",
+    "merge_hijacked_rows",
 ]

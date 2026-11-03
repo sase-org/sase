@@ -421,7 +421,12 @@ def test_finalize_releases_failed_workspace_without_visible_notification(
 
     hold.assert_not_called()
     release.assert_called_once_with(
-        "/tmp/project.sase", 17, "run", "feature", caller_tag="agent-finalize"
+        "/tmp/project.sase",
+        17,
+        "run",
+        "feature",
+        caller_tag="agent-finalize",
+        expected_pid=os.getpid(),
     )
     all_steps_hidden.assert_called_once_with("/tmp/artifacts")
     send_notification.assert_not_called()
@@ -478,7 +483,12 @@ def test_finalize_releases_failed_retry_parent(tmp_path: Path) -> None:
 
     hold.assert_not_called()
     release.assert_called_once_with(
-        "/tmp/project.sase", 17, "run", "feature", caller_tag="agent-finalize"
+        "/tmp/project.sase",
+        17,
+        "run",
+        "feature",
+        caller_tag="agent-finalize",
+        expected_pid=os.getpid(),
     )
 
 
@@ -503,7 +513,12 @@ def test_finalize_releases_transient_setup_materialization_failure(
 
     hold.assert_not_called()
     release.assert_called_once_with(
-        "/tmp/project.sase", 17, "run", "feature", caller_tag="agent-finalize"
+        "/tmp/project.sase",
+        17,
+        "run",
+        "feature",
+        caller_tag="agent-finalize",
+        expected_pid=os.getpid(),
     )
 
 
@@ -566,7 +581,12 @@ def test_finalize_releases_monitored_workspace_without_live_monitor_claim(
 
     hold.assert_not_called()
     release.assert_called_once_with(
-        "/tmp/project.sase", 17, "run", "feature", caller_tag="agent-finalize"
+        "/tmp/project.sase",
+        17,
+        "run",
+        "feature",
+        caller_tag="agent-finalize",
+        expected_pid=os.getpid(),
     )
 
 
@@ -639,6 +659,11 @@ def test_finalize_never_holds_gated_workspace_when_gate_claim_is_missing(
 
     hold.assert_not_called()
     release.assert_called_once_with(
-        "/tmp/project.sase", 17, "run", "feature", caller_tag="agent-finalize"
+        "/tmp/project.sase",
+        17,
+        "run",
+        "feature",
+        caller_tag="agent-finalize",
+        expected_pid=os.getpid(),
     )
     notify.assert_not_called()

@@ -15,6 +15,7 @@ STATUS_COLORS: dict[str, str] = {
     "RUNNING": "green",
     "QUEUED": "#5F87FF",
     "WAITING": "yellow",
+    "HIJACKED": "#FF5FAF",
     "DONE": "bright_black",
     "FAILED": "red",
 }

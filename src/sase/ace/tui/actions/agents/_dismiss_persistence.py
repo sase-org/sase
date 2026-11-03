@@ -65,6 +65,13 @@ def _release_held_workspace_claims(
             continue
         if expected_cl_name is not None and claim.cl_name != expected_cl_name:
             continue
+        try:
+            from sase.agent.hijack.custody import hijack_retains_claim
+
+            if hijack_retains_claim(project_file, claim):
+                continue
+        except Exception:
+            continue
         if claim.artifacts_timestamp:
             try:
                 from sase.core.agent_artifact_paths import (
@@ -109,6 +116,32 @@ def _release_held_workspace_claims(
     return released
 
 
+def _hijack_skips_workspace_release(intent: object, agent: Agent | None) -> bool:
+    """Return whether persist-cleanup must leave this workspace claim pinned."""
+    try:
+        from sase.agent.hijack.custody import hijack_skips_claim_release
+    except Exception:
+        return False
+    artifacts_dir = None
+    if agent is not None:
+        artifacts_dir = agent.artifacts_dir or agent.get_artifacts_dir()
+    if not artifacts_dir:
+        artifacts_dir = getattr(intent, "artifacts_dir", None)
+    workspace = getattr(intent, "workspace", None)
+    try:
+        workspace_num = int(workspace) if workspace is not None else None
+    except (TypeError, ValueError):
+        workspace_num = None
+    try:
+        return hijack_skips_claim_release(
+            artifacts_dir=artifacts_dir,
+            project_file=getattr(intent, "project_file", None),
+            workspace_num=workspace_num,
+        )
+    except Exception:
+        return True
+
+
 def persist_cleanup_side_effect_intents(
     cleanup_plan: object | None,
     agents_with_children_snapshot: list[Agent],
@@ -140,6 +173,9 @@ def persist_cleanup_side_effect_intents(
     }
 
     for intent in getattr(side_effects, "workspace_release_requests", ()):
+        agent = by_identity.get(wire_identity_key(intent.identity))
+        if _hijack_skips_workspace_release(intent, agent):
+            continue
         workspace = intent.workspace
         workflow = intent.workflow
         if getattr(intent, "lookup_timestamp", False):
@@ -157,7 +193,6 @@ def persist_cleanup_side_effect_intents(
             )
         if workspace is None:
             continue
-        agent = by_identity.get(wire_identity_key(intent.identity))
         if (
             workflow is not None
             and agent is not None

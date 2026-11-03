@@ -24,7 +24,12 @@ from ._running_listing_common import (
     record_status_bucket,
     recorded_monitor_status,
 )
-from ._running_listing_done import done_from_snapshot, done_info_from_record
+from ._running_listing_done import (
+    done_from_snapshot,
+    done_info_from_record,
+    hijacked_from_snapshot,
+    merge_hijacked_rows,
+)
 from ._running_listing_running import (
     is_visible_monitor_record,
     is_visible_runner_slot_child,
@@ -102,7 +107,10 @@ def list_running_agents(
     )
     counters = _ListingDecodeCounters()
     with listing_trace("agent_listing.decode", mode="running") as extra:
-        running = _running_from_snapshot(snapshot, counters=counters)
+        running = merge_hijacked_rows(
+            _running_from_snapshot(snapshot, counters=counters),
+            hijacked_from_snapshot(snapshot),
+        )
         finish_decode_trace(
             extra,
             snapshot=snapshot,
@@ -141,8 +149,13 @@ def list_all_agents(
     )
     counters = _ListingDecodeCounters()
     with listing_trace("agent_listing.decode", mode="all") as extra:
-        running = _running_from_snapshot(snapshot, counters=counters)
+        running = merge_hijacked_rows(
+            _running_from_snapshot(snapshot, counters=counters),
+            hijacked_from_snapshot(snapshot),
+        )
         done = done_from_snapshot(snapshot, cap_per_project=cap_per_project)
+        seen = {info.artifacts_dir for info in running if info.artifacts_dir}
+        done = [row for row in done if row.artifacts_dir not in seen]
         finish_decode_trace(
             extra,
             snapshot=snapshot,

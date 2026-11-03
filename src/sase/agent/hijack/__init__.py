@@ -14,6 +14,12 @@ from .core import (
     agent_hijack_status_for_done_marker,
     agent_hijack_wire_schema_version,
 )
+from .custody import (
+    ACTIVE_CUSTODY_STATES,
+    hijack_retains_claim,
+    hijack_skips_claim_release,
+    matching_active_record,
+)
 from .ledger import (
     HijackLedgerConflict,
     cas_advance_record,
@@ -30,6 +36,7 @@ from .ledger import (
 HIJACK_RUNNER_CAPABILITY = "hijack"
 
 __all__ = [
+    "ACTIVE_CUSTODY_STATES",
     "HIJACK_RUNNER_CAPABILITY",
     "HijackLedgerConflict",
     "advance_agent_hijack_record",
@@ -38,11 +45,14 @@ __all__ = [
     "agent_hijack_wire_schema_version",
     "cas_advance_record",
     "create_record",
+    "hijack_retains_claim",
+    "hijack_skips_claim_release",
     "list_active_records",
     "load_record",
     "load_record_by_agent_name",
     "load_record_by_artifacts_dir",
     "load_record_by_workspace",
     "mark_stopping_if_requested",
+    "matching_active_record",
     "new_requested_record",
 ]

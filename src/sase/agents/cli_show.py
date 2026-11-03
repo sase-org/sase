@@ -41,7 +41,17 @@ def handle_agents_show(args: argparse.Namespace) -> None:
     body.append("Status: ", style="bold")
     if agent.is_done:
         outcome = agent.outcome or "completed"
-        body.append(f"DONE ({outcome})\n")
+        if outcome == "hijacked":
+            from sase.agent.hijack.core import agent_hijack_status_for_done_marker
+
+            recovery = done.get("recovery") if done else None
+            recovery_arg = recovery if isinstance(recovery, dict) else None
+            status = (
+                agent_hijack_status_for_done_marker(outcome, recovery_arg) or "HIJACKED"
+            )
+            body.append(f"{status}\n")
+        else:
+            body.append(f"DONE ({outcome})\n")
     else:
         body.append("RUNNING\n")
     body.append("Artifacts dir: ", style="bold")
@@ -77,6 +87,7 @@ def handle_agents_show(args: argparse.Namespace) -> None:
         if done.get("outcome"):
             body.append("Outcome: ", style="bold")
             body.append(f"{done['outcome']}\n")
+        _append_hijack_section(body, agent, done)
 
     from sase.legacy_xprompt_names import resolve_raw_prompt_path
 
@@ -103,6 +114,57 @@ def handle_agents_show(args: argparse.Namespace) -> None:
         body.append(f"tail -f {artifacts_dir}/live_reply.md\n")
 
     Console().print(Panel(body, title=f"Agent: {name}", border_style="cyan"))
+
+
+def _append_hijack_section(body: Text, agent: object, done: dict[str, object]) -> None:
+    """Append the Hijack detail block for a hijacked run."""
+    from sase.agent.hijack.custody import (
+        ACTIVE_CUSTODY_STATES,
+        format_diff_summary,
+        record_for_agent,
+    )
+
+    artifacts_dir = str(getattr(agent, "artifacts_dir", "") or "")
+    agent_name = getattr(agent, "name", None)
+    record = record_for_agent(
+        artifacts_dir=artifacts_dir or None,
+        agent_name=agent_name if isinstance(agent_name, str) else None,
+    )
+    if record is None and done.get("outcome") != "hijacked":
+        return
+    body.append("\nHijack\n", style="bold")
+    state = str((record or {}).get("state") or "settled")
+    body.append("  State: ", style="bold")
+    body.append(f"{state}\n")
+    recovery = done.get("recovery")
+    if isinstance(recovery, dict) and recovery.get("state"):
+        body.append("  Recovery: ", style="bold")
+        body.append(f"{recovery['state']}\n")
+    if record is None:
+        return
+    hijack_id = record.get("hijack_id")
+    if hijack_id:
+        body.append("  Id: ", style="bold")
+        body.append(f"{hijack_id}\n")
+    summary = format_diff_summary(record)
+    if summary:
+        body.append("  Evidence: ", style="bold")
+        body.append(f"{summary}\n")
+    snapshots = record.get("snapshots") or []
+    refs: list[str] = []
+    if isinstance(snapshots, list):
+        for entry in snapshots:
+            if not isinstance(entry, dict):
+                continue
+            ref = str(entry.get("reference") or entry.get("fingerprint") or "")
+            if ref:
+                refs.append(ref)
+    if refs:
+        body.append("  Snapshots: ", style="bold")
+        body.append(f"{', '.join(refs)}\n")
+    if str(record.get("state") or "") in ACTIVE_CUSTODY_STATES:
+        body.append("  Next: ", style="bold")
+        body.append("recover in ACE (Enter on the HIJACKED row)\n")
 
 
 def _append_autonomy_section(body: Text, meta: dict[str, object]) -> None:

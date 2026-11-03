@@ -443,6 +443,8 @@ def _lifecycle(record: AgentArtifactRecordWire) -> str:
     if record.has_done_marker:
         done = record.done
         if done is not None:
+            if done.outcome == "hijacked" and _hijack_is_user_parked(done):
+                return "asking"
             if done.outcome in {"failed", "epic_launch_failed"}:
                 return "failed"
             if done.outcome == "stopped" or done.repeat_stopped:
@@ -468,8 +470,22 @@ def _lifecycle(record: AgentArtifactRecordWire) -> str:
     return "unknown"
 
 
+def _hijack_is_user_parked(done: object) -> bool:
+    from sase.agent.hijack.custody import recovery_is_user_parked
+
+    recovery = getattr(done, "recovery", None)
+    return recovery_is_user_parked(recovery)
+
+
 def _process_live(record: AgentArtifactRecordWire) -> bool:
     if record.has_done_marker:
+        done = record.done
+        if (
+            done is not None
+            and done.outcome == "hijacked"
+            and _hijack_is_user_parked(done)
+        ):
+            return True
         return False
     if record.waiting is not None:
         return True

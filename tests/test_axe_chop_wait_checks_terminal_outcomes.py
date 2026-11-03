@@ -30,6 +30,24 @@ def test_named_agent_killed_newest_does_not_resolve(
     assert not (waiter_dir / "ready.json").exists()
 
 
+def test_named_agent_hijacked_newest_does_not_resolve(
+    tmp_path: Path, monkeypatch
+) -> None:
+    waiter_dir = make_waiting_agent(tmp_path, "foo")
+    make_agent(
+        tmp_path,
+        "proj",
+        "20260506010202",
+        "foo",
+        done=True,
+        outcome="hijacked",
+    )
+
+    run_wait_checks(tmp_path, monkeypatch)
+
+    assert not (waiter_dir / "ready.json").exists()
+
+
 def test_later_same_name_completed_agent_resolves_after_killed(
     tmp_path: Path, monkeypatch
 ) -> None:
