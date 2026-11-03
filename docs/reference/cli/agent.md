@@ -13,7 +13,7 @@ Reference for `sase agent`. Run `sase agent --help` for the exact output on this
 
 ```text
 usage: sase agent [-h]
-                  {archive,artifacts,auto-restart,drain,hold,index,kill,list,load,names,persist-cleanup,persist-directive,prompts,readopt,restart,revert,search,show,sync,tab,tribe,wait} ...
+                  {archive,artifacts,auto-restart,drain,hijack,hold,index,kill,list,load,names,persist-cleanup,persist-directive,persist-hijack,prompts,readopt,restart,revert,search,show,sync,tab,tribe,wait} ...
 ```
 
 Inspect and manage agents across projects. Running bare `sase agent` delegates to `sase agent list`.
@@ -34,6 +34,7 @@ Subcommands:
 | `sase agent artifacts`         | Inspect and migrate agent artifact storage                                                               |
 | `sase agent auto-restart`      | Relaunch agents broken by a live sase update (at most once each)                                         |
 | `sase agent drain`             | Relaunch agents stranded by one hard-disabled provider                                                   |
+| `sase agent hijack`            | Stop a stalled agent but keep its workspace                                                              |
 | `sase agent hold`              | Arm and manage reverse-wait admission holds (blocks WAITING/QUEUED/future agents and undispatched procs) |
 | `sase agent index`             | Manage the persistent agent artifact index                                                               |
 | `sase agent kill`              | SIGTERM a running agent by name                                                                          |
@@ -42,6 +43,7 @@ Subcommands:
 | `sase agent names`             | Maintain the permanent agent-name registry and migrations                                                |
 | `sase agent persist-cleanup`   | Persist kill, dismiss, or save cleanup from a private request sidecar                                    |
 | `sase agent persist-directive` | Persist an agent directive update from a private request sidecar                                         |
+| `sase agent persist-hijack`    | Hijack a stalled agent from a private request sidecar                                                    |
 | `sase agent prompts`           | Inspect and validate canonical prompt persistence                                                        |
 | `sase agent readopt`           | Retry a held staged handoff after its obligations are satisfied                                          |
 | `sase agent restart`           | Stop a named agent and immediately relaunch its stored prompt                                            |
@@ -356,6 +358,28 @@ Arguments:
 | Argument   | Description                     |
 | ---------- | ------------------------------- |
 | `provider` | Hard-disabled provider to drain |
+
+## `sase agent hijack`
+
+```text
+usage: sase agent hijack [-h] [-j] [-r REASON] NAME
+```
+
+Stop the named agent without releasing its workspace claim. The agent's process tree is verified dead, its workspace stays held, and its evidence is snapshotted, so it can be recovered with `sase agent recover NAME`. What is kept: the workspace, the Agents-tab node, and the evidence. What is stopped: the process tree. Exit 0 means HIJACKED, 2 means refused with nothing changed, and 1 means the stop failed or an error occurred.
+
+Options:
+
+| Option                         | Description                                              | Default |
+| ------------------------------ | -------------------------------------------------------- | ------- |
+| `-h`, `--help`                 | show this help message and exit                          | —       |
+| `-j`, `--json`                 | Emit one stable JSON envelope on stdout and nothing else | `false` |
+| `-r REASON`, `--reason REASON` | Record why the agent was hijacked                        | —       |
+
+Arguments:
+
+| Argument | Description                 |
+| -------- | --------------------------- |
+| `name`   | Name of the agent to hijack |
 
 ## `sase agent hold`
 
@@ -721,6 +745,22 @@ Arguments:
 | Argument        | Description                                             |
 | --------------- | ------------------------------------------------------- |
 | `artifacts_dir` | Agent artifacts directory that owns the directive files |
+
+## `sase agent persist-hijack`
+
+```text
+usage: sase agent persist-hijack [-h] [-Q PATH] [-R PATH]
+```
+
+Run the ordered hijack stop orchestrator for one named agent. The agent name and optional reason come from the private request sidecar. Exit 0 means the agent is HIJACKED with its workspace held, 2 means refused with nothing changed, and 1 means the stop failed or an error occurred.
+
+Options:
+
+| Option                           | Description                                                                                                             | Default |
+| -------------------------------- | ----------------------------------------------------------------------------------------------------------------------- | ------- |
+| `-h`, `--help`                   | show this help message and exit                                                                                         | —       |
+| `-Q PATH`, `--request-path PATH` | Private versioned operation request sidecar. Defaults to $SASE_PROC_REQUEST_PATH when that environment variable is set. | —       |
+| `-R PATH`, `--result-path PATH`  | Private versioned typed result sidecar. Defaults to $SASE_PROC_RESULT_PATH when that environment variable is set.       | —       |
 
 ## `sase agent prompts`
 

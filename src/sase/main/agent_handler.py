@@ -78,6 +78,11 @@ def handle_agent_command(args: argparse.Namespace) -> None:
 
         sys.exit(handle_agent_operation(args))
 
+    if sub == "hijack":
+        from sase.agents.cli_hijack import handle_agents_hijack
+
+        sys.exit(handle_agents_hijack(args))
+
     if sub == "hold":
         from sase.agents.cli_hold import handle_agents_hold
 
@@ -101,6 +106,11 @@ def handle_agent_command(args: argparse.Namespace) -> None:
         sys.exit(handle_agent_operation(args))
 
     if sub == "persist-directive":
+        from sase.ops.commands.agent import handle_agent_operation
+
+        sys.exit(handle_agent_operation(args))
+
+    if sub == "persist-hijack":
         from sase.ops.commands.agent import handle_agent_operation
 
         sys.exit(handle_agent_operation(args))
@@ -137,8 +147,8 @@ def handle_agent_command(args: argparse.Namespace) -> None:
 
     print(
         "Usage: sase agent "
-        "{archive,artifacts,auto-restart,drain,hold,index,kill,list,load,names,"
-        "persist-cleanup,persist-directive,prompts,restart,revert,search,show,"
-        "sync,tab,tribe,wait}"
+        "{archive,artifacts,auto-restart,drain,hijack,hold,index,kill,list,load,names,"
+        "persist-cleanup,persist-directive,persist-hijack,prompts,restart,"
+        "revert,search,show,sync,tab,tribe,wait}"
     )
     sys.exit(1)

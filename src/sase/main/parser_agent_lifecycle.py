@@ -135,6 +135,49 @@ def register_agent_load_parser(agents_sub: argparse._SubParsersAction) -> None:
     )
 
 
+def register_agent_hijack_parser(agents_sub: argparse._SubParsersAction) -> None:
+    """Register the 'sase agent hijack' subcommand."""
+    hijack_parser = agents_sub.add_parser(
+        "hijack",
+        help="Stop a stalled agent but keep its workspace",
+        description=(
+            "Stop the named agent without releasing its workspace claim. "
+            "The agent's process tree is verified dead, its workspace stays "
+            "held, and its evidence is snapshotted, so it can be recovered "
+            "with `sase agent recover NAME`. What is kept: the workspace, "
+            "the Agents-tab node, and the evidence. What is stopped: the "
+            "process tree. Exit 0 means HIJACKED, 2 means refused with "
+            "nothing changed, and 1 means the stop failed or an error "
+            "occurred."
+        ),
+        epilog=(
+            "examples:\n"
+            "  sase agent hijack sase-7f.2\n"
+            '  sase agent hijack sase-7f.2 -r "stalled on lint"\n'
+            "  sase agent hijack sase-7f.2 -j"
+        ),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    hijack_parser.add_argument(
+        "-j",
+        "--json",
+        action="store_true",
+        help="Emit one stable JSON envelope on stdout and nothing else",
+    )
+    hijack_parser.add_argument(
+        "-r",
+        "--reason",
+        default=None,
+        metavar="REASON",
+        help="Record why the agent was hijacked",
+    )
+    hijack_parser.add_argument(
+        "name",
+        metavar="NAME",
+        help="Name of the agent to hijack",
+    )
+
+
 def register_agent_kill_parser(agents_sub: argparse._SubParsersAction) -> None:
     """Register the 'sase agent kill' subcommand."""
     kill_parser = agents_sub.add_parser(

@@ -21,6 +21,7 @@ from sase.feature_flags.models import FeatureFlagDefinition, FeatureFlagError
 class FeatureFlag(StrEnum):
     """Every SASE feature flag key. Add members through ``sase flag new``."""
 
+    agent_hijack = "agent_hijack"
     artifacts_agent_pane_retired = "artifacts_agent_pane_retired"
     artifacts_files_pane = "artifacts_files_pane"
     claude_explicit_instructions = "claude_explicit_instructions"
@@ -31,6 +32,15 @@ class FeatureFlag(StrEnum):
 
 
 _FEATURE_FLAG_DEFINITIONS: dict[FeatureFlag, FeatureFlagDefinition] = {
+    FeatureFlag.agent_hijack: FeatureFlagDefinition(
+        key=FeatureFlag.agent_hijack,
+        kind="beta",
+        description=(
+            "`,k`, the kill dialog Hijack choice, and `sase agent hijack` "
+            "can hijack eligible running agents."
+        ),
+        bead="sase-1r1",
+    ),
     FeatureFlag.artifacts_agent_pane_retired: FeatureFlagDefinition(
         key=FeatureFlag.artifacts_agent_pane_retired,
         kind="sunset",

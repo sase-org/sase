@@ -110,35 +110,35 @@ def test_cas_concurrent_begin_stop_has_exactly_one_winner(
 
 
 def test_load_skips_torn_json(hijack_home: Path, tmp_path: Path) -> None:
-    from sase.agent.hijack.ledger import _hijack_record_path
+    from sase.agent.hijack.ledger import hijack_record_path
 
-    path = _hijack_record_path("torn")
+    path = hijack_record_path("torn")
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text("{", encoding="utf-8")
     assert load_record("torn") is None
 
 
 def test_atomic_replace_leaves_valid_json(hijack_home: Path, tmp_path: Path) -> None:
-    from sase.agent.hijack.ledger import _hijack_record_path
+    from sase.agent.hijack.ledger import hijack_record_path
 
     artifacts = tmp_path / "artifacts"
     record = create_record(_requested(artifacts))
     cas_advance_record(record, {"event": "begin_stop"})
-    payload = json.loads(_hijack_record_path("h-1").read_text(encoding="utf-8"))
+    payload = json.loads(hijack_record_path("h-1").read_text(encoding="utf-8"))
     assert payload["state"] == "stopping"
     assert payload["revision"] == 1
 
 
 def test_terminal_state_moves_to_settled(hijack_home: Path, tmp_path: Path) -> None:
-    from sase.agent.hijack.ledger import _hijack_record_path
+    from sase.agent.hijack.ledger import hijack_record_path
 
     artifacts = tmp_path / "artifacts"
     record = create_record(_requested(artifacts))
     stopping = cas_advance_record(record, {"event": "begin_stop"})
     failed = cas_advance_record(stopping, {"event": "stop_failed", "error": "alive"})
     assert failed["state"] == "stop_failed"
-    assert not _hijack_record_path("h-1").exists()
-    settled = _hijack_record_path("h-1", settled=True)
+    assert not hijack_record_path("h-1").exists()
+    settled = hijack_record_path("h-1", settled=True)
     assert settled.is_file()
     assert list_active_records() == []
     loaded = load_record("h-1")

@@ -1355,6 +1355,84 @@
           },
           {
             "aliases": [],
+            "default_child": null,
+            "description_digest": "62d81a52c2d4de59",
+            "hidden": false,
+            "mutex_groups": [],
+            "name": "hijack",
+            "options": [
+              {
+                "choices": null,
+                "default": null,
+                "dest": "help",
+                "hidden": false,
+                "kind": null,
+                "metavar": null,
+                "repeatable": false,
+                "required": false,
+                "strings": [
+                  "-h",
+                  "--help"
+                ],
+                "takes_value": false,
+                "value_hint": null
+              },
+              {
+                "choices": null,
+                "default": "False",
+                "dest": "json",
+                "hidden": false,
+                "kind": null,
+                "metavar": null,
+                "repeatable": false,
+                "required": false,
+                "strings": [
+                  "-j",
+                  "--json"
+                ],
+                "takes_value": false,
+                "value_hint": null
+              },
+              {
+                "choices": null,
+                "default": null,
+                "dest": "reason",
+                "hidden": false,
+                "kind": null,
+                "metavar": "REASON",
+                "repeatable": false,
+                "required": false,
+                "strings": [
+                  "-r",
+                  "--reason"
+                ],
+                "takes_value": true,
+                "value_hint": "text"
+              }
+            ],
+            "path": [
+              "agent",
+              "hijack"
+            ],
+            "positionals": [
+              {
+                "choices": null,
+                "dest": "name",
+                "is_remainder": false,
+                "kind": null,
+                "metavar": "NAME",
+                "nargs": null,
+                "required": true,
+                "value_hint": "text"
+              }
+            ],
+            "run_policy": [],
+            "stdin": false,
+            "subcommands": [],
+            "writes": false
+          },
+          {
+            "aliases": [],
             "default_child": "list",
             "description_digest": "09305613bbc1b5a9",
             "hidden": false,
@@ -2907,6 +2985,73 @@
                 "value_hint": "path"
               }
             ],
+            "run_policy": [],
+            "stdin": false,
+            "subcommands": [],
+            "writes": false
+          },
+          {
+            "aliases": [],
+            "default_child": null,
+            "description_digest": "655fd8ea1bbcc527",
+            "hidden": false,
+            "mutex_groups": [],
+            "name": "persist-hijack",
+            "options": [
+              {
+                "choices": null,
+                "default": null,
+                "dest": "help",
+                "hidden": false,
+                "kind": null,
+                "metavar": null,
+                "repeatable": false,
+                "required": false,
+                "strings": [
+                  "-h",
+                  "--help"
+                ],
+                "takes_value": false,
+                "value_hint": null
+              },
+              {
+                "choices": null,
+                "default": null,
+                "dest": "operation_request_path",
+                "hidden": false,
+                "kind": "path",
+                "metavar": "PATH",
+                "repeatable": false,
+                "required": false,
+                "strings": [
+                  "-Q",
+                  "--request-path"
+                ],
+                "takes_value": true,
+                "value_hint": "path"
+              },
+              {
+                "choices": null,
+                "default": null,
+                "dest": "operation_result_path",
+                "hidden": false,
+                "kind": "path",
+                "metavar": "PATH",
+                "repeatable": false,
+                "required": false,
+                "strings": [
+                  "-R",
+                  "--result-path"
+                ],
+                "takes_value": true,
+                "value_hint": "path"
+              }
+            ],
+            "path": [
+              "agent",
+              "persist-hijack"
+            ],
+            "positionals": [],
             "run_policy": [],
             "stdin": false,
             "subcommands": [],

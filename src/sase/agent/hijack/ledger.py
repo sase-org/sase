@@ -59,15 +59,15 @@ def _safe_hijack_id(hijack_id: str) -> str:
     return cleaned or "hijack"
 
 
-def _hijack_record_path(hijack_id: str, *, settled: bool = False) -> Path:
+def hijack_record_path(hijack_id: str, *, settled: bool = False) -> Path:
     """Return the JSON path for one hijack id."""
     name = f"{_safe_hijack_id(hijack_id)}.json"
     directory = _hijack_settled_dir() if settled else _hijack_ledger_root()
     return directory / name
 
 
-def _lock_path(hijack_id: str) -> Path:
-    return _hijack_record_path(hijack_id).with_suffix(".lock")
+def hijack_record_lock_path(hijack_id: str) -> Path:
+    return hijack_record_path(hijack_id).with_suffix(".lock")
 
 
 def timestamp_for(at: float | None = None) -> str:
@@ -142,7 +142,7 @@ def new_requested_record(
     }
 
 
-def _read_payload(path: Path) -> dict[str, Any] | None:
+def read_hijack_record_payload(path: Path) -> dict[str, Any] | None:
     try:
         payload = json.loads(path.read_text(encoding="utf-8"))
     except (FileNotFoundError, NotADirectoryError):
@@ -159,23 +159,23 @@ def _read_payload(path: Path) -> dict[str, Any] | None:
 
 def load_record(hijack_id: str) -> dict[str, Any] | None:
     """Load one record from the active dir, then ``settled/``."""
-    payload = _read_payload(_hijack_record_path(hijack_id))
+    payload = read_hijack_record_payload(hijack_record_path(hijack_id))
     if payload is not None:
         return payload
-    return _read_payload(_hijack_record_path(hijack_id, settled=True))
+    return read_hijack_record_payload(hijack_record_path(hijack_id, settled=True))
 
 
 def create_record(record: dict[str, Any]) -> dict[str, Any]:
     """Exclusively create one hijack record. Raises ``FileExistsError``."""
     hijack_id = str(record["hijack_id"])
-    path = _hijack_record_path(hijack_id)
+    path = hijack_record_path(hijack_id)
     atomic_write_json(path, record, exclusive=True)
     return dict(record)
 
 
 def _move_to_settled(hijack_id: str) -> None:
-    active = _hijack_record_path(hijack_id)
-    settled = _hijack_record_path(hijack_id, settled=True)
+    active = hijack_record_path(hijack_id)
+    settled = hijack_record_path(hijack_id, settled=True)
     settled.parent.mkdir(parents=True, exist_ok=True)
     try:
         os_replace = active.replace
@@ -183,7 +183,7 @@ def _move_to_settled(hijack_id: str) -> None:
     except FileNotFoundError:
         return
     try:
-        _lock_path(hijack_id).unlink(missing_ok=True)
+        hijack_record_lock_path(hijack_id).unlink(missing_ok=True)
     except OSError:
         pass
 
@@ -199,12 +199,12 @@ def cas_advance_record(
     """
     hijack_id = str(record["hijack_id"])
     expected_revision = int(record["revision"])
-    path = _hijack_record_path(hijack_id)
+    path = hijack_record_path(hijack_id)
     event_payload = dict(event)
     event_payload.setdefault("at", timestamp_for())
     try:
-        with file_lock(_lock_path(hijack_id), timeout=10.0):
-            current = _read_payload(path)
+        with file_lock(hijack_record_lock_path(hijack_id), timeout=10.0):
+            current = read_hijack_record_payload(path)
             if current is None:
                 raise HijackLedgerConflict(
                     f"hijack record {hijack_id} disappeared during CAS"
@@ -242,7 +242,7 @@ def list_active_records() -> list[dict[str, Any]]:
     for path in paths:
         if path.name.endswith(".lock"):
             continue
-        payload = _read_payload(path)
+        payload = read_hijack_record_payload(path)
         if payload is not None:
             records.append(payload)
     return records
@@ -308,6 +308,8 @@ __all__ = [
     "TERMINAL_STATES",
     "cas_advance_record",
     "create_record",
+    "hijack_record_lock_path",
+    "hijack_record_path",
     "list_active_records",
     "load_record",
     "load_record_by_agent_name",
@@ -315,5 +317,6 @@ __all__ = [
     "load_record_by_workspace",
     "mark_stopping_if_requested",
     "new_requested_record",
+    "read_hijack_record_payload",
     "timestamp_for",
 ]

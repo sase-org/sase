@@ -6163,6 +6163,11 @@
         "type": "boolean"
       },
       "properties": {
+        "agent_hijack": {
+          "type": "boolean",
+          "description": "`,k`, the kill dialog Hijack choice, and `sase agent hijack` can hijack eligible running agents.",
+          "default": false
+        },
         "artifacts_agent_pane_retired": {
           "type": "boolean",
           "description": "Artifacts has no Agent sub-tab: Stitch becomes digit 1 and agent history lives in the Agents tab Archive.",

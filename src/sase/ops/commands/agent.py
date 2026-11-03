@@ -16,6 +16,7 @@ from sase.ops.commands._agent_directive import (
     persist_directive_from_payload as _persist_directive_from_payload,
     run_persist_directive,
 )
+from sase.ops.commands._agent_persist_hijack import run_persist_hijack
 from sase.ops.commands._agent_revert import (
     run_revert,
     serialize_bulk_revert_preview as serialize_bulk_revert_preview,
@@ -26,6 +27,7 @@ from sase.ops.names import (
     AGENT_CLEANUP,
     AGENT_DRAIN,
     AGENT_PERSIST_DIRECTIVE,
+    AGENT_PERSIST_HIJACK,
     AGENT_REVERT,
 )
 
@@ -46,6 +48,19 @@ def add_agent_operation_parsers(subparsers: argparse._SubParsersAction) -> None:
         ),
     )
     add_operation_io_flags(cleanup)
+
+    hijack = subparsers.add_parser(
+        "persist-hijack",
+        help="Hijack a stalled agent from a private request sidecar",
+        description=(
+            "Run the ordered hijack stop orchestrator for one named agent. "
+            "The agent name and optional reason come from the private request "
+            "sidecar. Exit 0 means the agent is HIJACKED with its workspace "
+            "held, 2 means refused with nothing changed, and 1 means the stop "
+            "failed or an error occurred."
+        ),
+    )
+    add_operation_io_flags(hijack)
 
     persist = subparsers.add_parser(
         "persist-directive",
@@ -88,6 +103,12 @@ def handle_agent_operation(args: argparse.Namespace) -> int:
         return run_and_finish(
             operation=AGENT_PERSIST_DIRECTIVE,
             body=lambda: run_persist_directive(args),
+            args=args,
+        )
+    if sub == "persist-hijack":
+        return run_and_finish(
+            operation=AGENT_PERSIST_HIJACK,
+            body=lambda: run_persist_hijack(args),
             args=args,
         )
     if sub == "revert":

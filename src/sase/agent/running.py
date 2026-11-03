@@ -105,7 +105,7 @@ def kill_named_agent(
         )
 
     artifacts_path, project_name, project_file, timestamp, is_home = (
-        _named_agent_project_fields(agent)
+        named_agent_project_fields(agent)
     )
 
     # Find PID
@@ -257,7 +257,7 @@ def dismiss_named_agent(name: str, *, exact_name: bool = False) -> _KillResult:
         )
 
     artifacts_path, project_name, project_file, timestamp, is_home = (
-        _named_agent_project_fields(agent)
+        named_agent_project_fields(agent)
     )
     cl_name = _read_cl_name_from_artifacts(artifacts_path)
     if not is_home:
@@ -330,7 +330,7 @@ def _finish_named_monitor_kill(
     name: str, agent: NamedAgent, stopped_monitors: list[object]
 ) -> _KillResult:
     artifacts_path, project_name, project_file, timestamp, is_home = (
-        _named_agent_project_fields(agent)
+        named_agent_project_fields(agent)
     )
     cl_name = _read_cl_name_from_artifacts(artifacts_path)
     if not is_home:
@@ -357,7 +357,7 @@ def _finish_named_monitor_kill(
     )
 
 
-def _named_agent_project_fields(
+def named_agent_project_fields(
     agent: NamedAgent,
 ) -> tuple[Path, str, str, str, bool]:
     """Return artifacts path, project, spec path, timestamp, and home flag."""
