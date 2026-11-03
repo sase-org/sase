@@ -120,6 +120,11 @@ The shipped Rust-backed operations are grouped by the Python facade that calls t
   The Rust core owns the closed vocabulary, the wire types, the validation invariants,
   delivery-channel and fallback invariants, and the `common_digest` definition; Python
   owns bundle composition and manifest assembly. Readers continue to accept v1.
+- Instruction readout scoring (`classify_instruction_readout`), called through
+  `sase.core.instruction_readout`. The Rust core owns the handoff/declaration scoring
+  precedence shared by staged and legacy evidence; Python gathers staged
+  records/receipts, host lifecycle facts, declaration and prepared-intent evidence, and
+  bounded legacy tail strings, and owns aggregation and rendering.
 - Staged-handoff records (`staged_handoff_wire_schema_version`,
   `validate_staged_handoff`, `validate_staged_handoff_receipt`,
   `evaluate_stage_admission`, `staged_handoff_receipt_authorizes`,
@@ -297,6 +302,7 @@ Rust-backed boundaries, while others are Python-owned host adapters.
 | `agent_artifact_run_retention.py` | `ace-run` retention protection gathering plus the Rust preview/refusal owner                                       |
 | `agent_tribe.py`                  | Rust-backed tribe validation and public/stored tribe identity resolution                                           |
 | `instruction_manifest.py`         | Thin adapter over the Rust instruction-manifest wire version and normalizer                                        |
+| `instruction_readout.py`          | Thin adapter over the Rust instruction-readout scoring precedence                                                  |
 
 ### Command Line grammar handle
 

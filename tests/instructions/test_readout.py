@@ -129,8 +129,8 @@ def test_readout_help_documents_flags() -> None:
     assert "reports; it does not gate" in help_text
 
 
-def test_classify_accepted_beats_handoff(tmp_path: Path) -> None:
-    """An accepted submission wins even when a monitor handoff also happened."""
+def test_classify_handoff_beats_accepted_submission(tmp_path: Path) -> None:
+    """A recognized handoff keeps its class despite an accepted submission."""
     artifacts = tmp_path / "accepted"
     artifacts.mkdir()
     _write_meta(artifacts, name="acc", provider="codex")
@@ -141,18 +141,17 @@ def test_classify_accepted_beats_handoff(tmp_path: Path) -> None:
     (artifacts / "tool_calls.jsonl").write_text(
         "sase monitor start -p verify -- just check\n", encoding="utf-8"
     )
-    assert _classify_artifact_dir(artifacts) == ACCEPTED
+    assert _classify_artifact_dir(artifacts) == MONITOR_PLAIN
 
 
 def test_classify_plan_handoff(tmp_path: Path) -> None:
-    """``sase plan propose``, ``validate``, and ``decide`` are plan handoffs."""
-    for marker in ("sase plan propose", "sase plan validate", "sase plan decide"):
-        artifacts = tmp_path / f"plan-{marker.split()[-1]}"
-        artifacts.mkdir()
-        _write_meta(artifacts, name="pln", provider="muse")
-        _write_done(artifacts)
-        (artifacts / "tool_calls.jsonl").write_text(f"{marker}\n", encoding="utf-8")
-        assert _classify_artifact_dir(artifacts) == PLAN_HANDOFF
+    """``sase plan propose`` is a plan handoff."""
+    artifacts = tmp_path / "plan-propose"
+    artifacts.mkdir()
+    _write_meta(artifacts, name="pln", provider="muse")
+    _write_done(artifacts)
+    (artifacts / "tool_calls.jsonl").write_text("sase plan propose\n", encoding="utf-8")
+    assert _classify_artifact_dir(artifacts) == PLAN_HANDOFF
 
 
 def test_classify_monitor_prepared_needs_real_prepare(tmp_path: Path) -> None:
@@ -285,8 +284,8 @@ def test_classify_aborted_handoff_is_miss(tmp_path: Path) -> None:
     assert _classify_artifact_dir(artifacts) == MISS
 
 
-def test_classify_accepted_beats_host_evidence(tmp_path: Path) -> None:
-    """An accepted submission wins even when host records show a handoff."""
+def test_classify_host_handoff_beats_accepted(tmp_path: Path) -> None:
+    """Host handoff facts keep their class despite an accepted submission."""
     artifacts = tmp_path / "accepted-host"
     artifacts.mkdir()
     _write_meta(
@@ -300,7 +299,7 @@ def test_classify_accepted_beats_host_evidence(tmp_path: Path) -> None:
         json.dumps({"accepted_at": "2026-10-06T12:00:00Z"}), encoding="utf-8"
     )
     (artifacts / "plan_path.json").write_text("{}", encoding="utf-8")
-    assert _classify_artifact_dir(artifacts) == ACCEPTED
+    assert _classify_artifact_dir(artifacts) == PLAN_HANDOFF
 
 
 def test_classify_miss(tmp_path: Path) -> None:
@@ -500,3 +499,277 @@ def test_readout_rejects_bad_since() -> None:
 
     args = create_parser().parse_args(["instructions", "readout", "-s", "24"])
     assert _run_instructions_readout(args) == 2
+
+
+_STAGED_ID = "11111111-1111-1111-1111-111111111111"
+
+
+def _write_staged_record(
+    artifacts: Path,
+    *,
+    kind: str = "plan",
+    dirty: tuple[str, ...] = (),
+    payload: dict[str, object] | None = None,
+    staged_id: str = _STAGED_ID,
+) -> None:
+    """Write a staged-handoff record the way the staging handlers persist it."""
+    record = {
+        "schema_version": 1,
+        "staged_id": staged_id,
+        "kind": kind,
+        "created_at": "2026-10-06T12:00:00Z",
+        "payload": payload if payload is not None else {},
+        "successor_workspace": "none" if kind == "plan" else "inherit",
+        "carry_allowed": kind != "plan",
+        "dirty_obligations_at_stage": list(dirty),
+    }
+    (artifacts / ".sase_handoff_staged.json").write_text(
+        json.dumps(record), encoding="utf-8"
+    )
+
+
+def _write_final_context(artifacts: Path, *, submission_required: bool = True) -> None:
+    (artifacts / "final_context.json").write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "submission_required": submission_required,
+                "selected_instances": [],
+                "context": {"requirements": []},
+            }
+        ),
+        encoding="utf-8",
+    )
+
+
+def _write_intents(artifacts: Path) -> None:
+    index = artifacts / "continuation" / "completion_intents" / "index.json"
+    index.parent.mkdir(parents=True, exist_ok=True)
+    index.write_text(
+        json.dumps({"intents": {"intent-1": {"filename": "intent-1.json"}}}),
+        encoding="utf-8",
+    )
+
+
+def test_staged_plan_with_dirty_missing_declaration_is_miss(tmp_path: Path) -> None:
+    """A held staged handoff with a missing required declaration is a miss.
+
+    There is no adopted handoff lifecycle entry here: the staged record
+    alone establishes the handoff, and the dirty stage snapshot plus a
+    requiring final context make the missing declaration a miss.
+    """
+    artifacts = tmp_path / "held-staged"
+    artifacts.mkdir()
+    _write_meta(artifacts, name="held", provider="codex")
+    _write_done(artifacts)
+    _write_staged_record(artifacts, kind="plan", dirty=("repo:main",))
+    _write_final_context(artifacts, submission_required=True)
+    assert _classify_artifact_dir(artifacts) == MISS
+
+
+def test_staged_plan_clean_missing_declaration_keeps_class(tmp_path: Path) -> None:
+    """A clean staged handoff without a declaration keeps its class.
+
+    The host can complete a clean handoff without a model-submitted
+    declaration, so a missing declaration is not a miss here.
+    """
+    artifacts = tmp_path / "clean-staged"
+    artifacts.mkdir()
+    _write_meta(artifacts, name="clean", provider="codex")
+    _write_done(artifacts)
+    _write_staged_record(artifacts, kind="plan", dirty=())
+    assert _classify_artifact_dir(artifacts) == PLAN_HANDOFF
+
+
+def test_staged_handoff_beats_accepted_submission(tmp_path: Path) -> None:
+    """A recognized handoff keeps its class even with an accepted declaration."""
+    artifacts = tmp_path / "staged-accepted"
+    artifacts.mkdir()
+    _write_meta(artifacts, name="acc", provider="codex")
+    _write_done(artifacts)
+    _write_staged_record(artifacts, kind="plan", dirty=())
+    (artifacts / "final_submission.json").write_text(
+        json.dumps({"accepted_at": "2026-10-06T12:00:00Z"}), encoding="utf-8"
+    )
+    assert _classify_artifact_dir(artifacts) == PLAN_HANDOFF
+
+
+def test_staged_not_required_keeps_handoff_class(tmp_path: Path) -> None:
+    """An explicitly not-required declaration keeps the staged handoff class."""
+    artifacts = tmp_path / "staged-notreq"
+    artifacts.mkdir()
+    _write_meta(artifacts, name="nr", provider="codex")
+    _write_done(artifacts)
+    _write_staged_record(artifacts, kind="monitor", dirty=())
+    _write_final_context(artifacts, submission_required=False)
+    assert _classify_artifact_dir(artifacts) == MONITOR_PLAIN
+
+
+def test_staged_prepared_monitor_needs_validated_intent(tmp_path: Path) -> None:
+    """A staged prepared ref alone is a plain monitor without stored intents."""
+    prepared = tmp_path / "staged-prepared"
+    prepared.mkdir()
+    _write_meta(prepared, name="prep", provider="codex")
+    _write_done(prepared)
+    _write_staged_record(
+        prepared,
+        kind="monitor",
+        dirty=(),
+        payload={"prepared_intent_ref": "intent-1"},
+    )
+    _write_intents(prepared)
+    assert _classify_artifact_dir(prepared) == MONITOR_PREPARED
+
+    unvalidated = tmp_path / "staged-unvalidated"
+    unvalidated.mkdir()
+    _write_meta(unvalidated, name="unval", provider="codex")
+    _write_done(unvalidated)
+    _write_staged_record(
+        unvalidated,
+        kind="monitor",
+        dirty=(),
+        payload={"prepared_intent_ref": "intent-1"},
+    )
+    assert _classify_artifact_dir(unvalidated) == MONITOR_PLAIN
+
+
+def test_legacy_killed_handoff_preserved_with_required_declaration(
+    tmp_path: Path,
+) -> None:
+    """Old kill-protocol handoffs are not rescored as missing declarations."""
+    artifacts = tmp_path / "killed"
+    artifacts.mkdir()
+    _write_meta(
+        artifacts,
+        name="old",
+        provider="codex",
+        extra={**_HANDOFF_PHASE, "handoff_protocol": "killed"},
+    )
+    _write_done(artifacts)
+    (artifacts / "plan_path.json").write_text(
+        json.dumps({"plan_path": "/tmp/plan.md"}), encoding="utf-8"
+    )
+    _write_final_context(artifacts, submission_required=True)
+    assert _classify_artifact_dir(artifacts) == PLAN_HANDOFF
+
+
+def test_plan_validate_alone_is_not_handoff(tmp_path: Path) -> None:
+    """A mere plan validation never establishes a handoff."""
+    artifacts = tmp_path / "validate-only"
+    artifacts.mkdir()
+    _write_meta(artifacts, name="val", provider="codex")
+    _write_done(artifacts)
+    (artifacts / "tool_calls.jsonl").write_text(
+        "sase plan validate\n", encoding="utf-8"
+    )
+    _write_final_context(artifacts, submission_required=True)
+    assert _classify_artifact_dir(artifacts) == MISS
+
+
+def test_help_invocations_are_not_handoffs(tmp_path: Path) -> None:
+    """Help output for staging commands never establishes a handoff."""
+    artifacts = tmp_path / "help-only"
+    artifacts.mkdir()
+    _write_meta(artifacts, name="help", provider="codex")
+    _write_done(artifacts)
+    (artifacts / "tool_calls.jsonl").write_text(
+        "sase plan propose -h\nsase monitor start --help\n", encoding="utf-8"
+    )
+    _write_final_context(artifacts, submission_required=True)
+    assert _classify_artifact_dir(artifacts) == MISS
+
+
+def test_aborted_with_accepted_submission_is_accepted(tmp_path: Path) -> None:
+    """An aborted handoff with an accepted declaration stays accepted."""
+    artifacts = tmp_path / "aborted-accepted"
+    artifacts.mkdir()
+    _write_meta(artifacts, name="aborted", provider="grok")
+    _write_done(artifacts)
+    (artifacts / "handoff_aborted.json").write_text("{}", encoding="utf-8")
+    (artifacts / "final_submission.json").write_text(
+        json.dumps({"accepted_at": "2026-10-06T12:00:00Z"}), encoding="utf-8"
+    )
+    assert _classify_artifact_dir(artifacts) == ACCEPTED
+
+
+def test_adapter_binding_scores_evidence_matrix() -> None:
+    """The thin adapter defers to the Rust readout policy without a fallback."""
+    from sase.core.instruction_readout import classify_instruction_readout
+
+    assert (
+        classify_instruction_readout(
+            {
+                "handoff": "plan",
+                "declaration": "accepted",
+                "has_dirty_obligations": True,
+            }
+        )
+        == PLAN_HANDOFF
+    )
+    assert (
+        classify_instruction_readout(
+            {
+                "handoff": "monitor_prepared",
+                "declaration": "not_required",
+                "has_dirty_obligations": True,
+            }
+        )
+        == MONITOR_PREPARED
+    )
+    assert (
+        classify_instruction_readout(
+            {
+                "handoff": "plan",
+                "declaration": "missing",
+                "has_dirty_obligations": False,
+            }
+        )
+        == PLAN_HANDOFF
+    )
+    assert (
+        classify_instruction_readout(
+            {
+                "handoff": "plan",
+                "declaration": "missing",
+                "has_dirty_obligations": True,
+            }
+        )
+        == MISS
+    )
+    assert (
+        classify_instruction_readout(
+            {
+                "handoff": None,
+                "declaration": "accepted",
+                "has_dirty_obligations": False,
+            }
+        )
+        == ACCEPTED
+    )
+    assert (
+        classify_instruction_readout(
+            {
+                "handoff": None,
+                "declaration": "missing",
+                "has_dirty_obligations": False,
+            }
+        )
+        == MISS
+    )
+
+
+def test_adapter_binding_rejects_unknown_handoff() -> None:
+    """Unknown handoff evidence is a contract error, not a silent class."""
+    from sase.core.instruction_readout import (
+        _InstructionReadoutError,
+        classify_instruction_readout,
+    )
+
+    with pytest.raises(_InstructionReadoutError):
+        classify_instruction_readout(
+            {
+                "handoff": "future_kind",
+                "declaration": "accepted",
+                "has_dirty_obligations": False,
+            }
+        )
