@@ -70,6 +70,10 @@ def test_monitor_start_help_documents_positional_command_and_optional_policy() -
     assert_metavar_option_documented(start_help, "-k", "--checkpoint", "FILE")
     assert "Bound by content digest, not path" in start_help
     assert "Profile selection alone never authorizes host completion" in start_help
+    assert "reports Staged" in start_help
+    assert "/sase_final" in start_help
+    assert "staged_handoffs" not in start_help
+    assert "killed" not in start_help
 
 
 def test_monitor_start_help_names_status_flags_as_required() -> None:

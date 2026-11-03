@@ -8,7 +8,8 @@ The implementation lives next door:
 - :mod:`sase.monitor.start_stage_cleanup` (unwind unstarted resources)
 - :mod:`sase.monitor._start_stage_shared` (helpers shared across the split)
 
-Public ``start_monitor`` stays on the immediate path until activation.
+Public ``start_monitor`` stays the immediate outside-agent path; in-agent
+CLI starts call ``stage_monitor`` instead.
 """
 
 from __future__ import annotations

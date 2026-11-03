@@ -1,15 +1,9 @@
 """In-flight markers and aborted-handoff recording for agent handoffs.
 
-An in-agent handoff command (above all ``sase monitor start``) can be killed
-mid-flight: a yielding harness exec, a CLI timeout, or OOM. The pending
-handoff marker then never lands and the run falls into a normal-looking
-declaration recovery with no signal to the user.
-
-To close that gap, an in-agent handoff command writes a small in-flight
-marker into ``SASE_ARTIFACTS_DIR`` before any slow work. The marker is
-superseded when the pending handoff marker is written and removed on every
-error exit. When the provider turn ends with no pending handoff marker, the
-runner consults the in-flight marker:
+In-agent handoff commands now stage and return; they no longer write an
+in-flight marker or kill the runner. Leftover markers from the retired
+kill path are still adopted or recorded here when a provider turn ends
+with no pending handoff marker:
 
 - owning process still alive: wait a bounded time for the pending marker,
   then adopt the handoff normally;
@@ -21,7 +15,6 @@ from __future__ import annotations
 
 import logging
 import os
-import sys
 import time
 from collections.abc import Mapping
 from pathlib import Path
@@ -38,49 +31,6 @@ HANDOFF_ABORTED_FILENAME = "handoff_aborted.json"
 HANDOFF_ADOPT_WAIT_ENV = "SASE_HANDOFF_ADOPT_WAIT_SECONDS"
 HANDOFF_ADOPT_WAIT_DEFAULT_SECONDS = 30.0
 HANDOFF_ADOPT_POLL_SECONDS = 0.25
-
-
-def _handoff_inflight_enabled(env: Mapping[str, str] | None = None) -> bool:
-    """Return whether the current process runs inside an agent runner."""
-    current = env if env is not None else os.environ
-    return bool(current.get("SASE_AGENT"))
-
-
-def write_handoff_inflight_marker(
-    command: str,
-    *,
-    lane: str | None = None,
-    artifacts_dir: str | None = None,
-) -> Path | None:
-    """Record that an in-agent handoff command started, best-effort.
-
-    Returns the marker path, or ``None`` when outside an agent or without an
-    artifacts dir. Never raises: a marker must not break the handoff itself.
-    """
-    from sase.core.process_identity import process_identity_token
-
-    resolved = artifacts_dir or os.environ.get("SASE_ARTIFACTS_DIR")
-    if not resolved or not _handoff_inflight_enabled():
-        return None
-    pid = os.getpid()
-    payload = {
-        "command": command,
-        "lane": lane,
-        "agent": os.environ.get("SASE_AGENT"),
-        "agent_name": os.environ.get("SASE_AGENT_NAME"),
-        "pid": pid,
-        "process_identity": process_identity_token(pid),
-        "argv": list(sys.argv),
-        "started_at": time.time(),
-    }
-    try:
-        path = Path(resolved) / HANDOFF_INFLIGHT_MARKER
-        path.parent.mkdir(parents=True, exist_ok=True)
-        atomic_write_json(path, payload)
-        return path
-    except OSError as exc:
-        _logger.warning("could not write handoff in-flight marker: %s", exc)
-        return None
 
 
 def _read_handoff_inflight_marker(artifacts_dir: str | None) -> dict[str, Any] | None:
@@ -381,5 +331,4 @@ __all__ = [
     "adopt_or_record_aborted_handoff",
     "clear_handoff_inflight_marker",
     "merge_handoff_aborted_into_done_marker",
-    "write_handoff_inflight_marker",
 ]

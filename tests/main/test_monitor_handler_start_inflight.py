@@ -1,4 +1,4 @@
-"""In-flight marker lifecycle for in-agent ``sase monitor start``."""
+"""Staged in-agent ``sase monitor start`` writes no kill-path markers."""
 
 from __future__ import annotations
 
@@ -9,10 +9,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from sase.agent.handoff_inflight import (
-    HANDOFF_INFLIGHT_MARKER,
-    _read_handoff_inflight_marker,
-)
+from sase.agent.handoff_inflight import HANDOFF_INFLIGHT_MARKER
 from sase.agent.pending_handoff import MONITOR_PENDING_MARKER
 from sase.main.monitor.start import handle_monitor_start
 from sase.monitor import MonitorError
@@ -31,9 +28,7 @@ from tests.monitor._fixtures import (
 __all__ = ["monitor_home"]
 
 
-def _start_in_agent(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-) -> tuple[str, list[str]]:
+def _start_in_agent(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> str:
     """Build a starter agent and pin this process inside it."""
     write_project_file(
         "proj",
@@ -54,13 +49,7 @@ def _start_in_agent(
     monkeypatch.setenv("SASE_AGENT", "acme")
     monkeypatch.setenv("SASE_AGENT_NAME", "acme")
     monkeypatch.setenv("SASE_ARTIFACTS_DIR", starter_dir)
-    kills: list[str] = []
-
-    def _record_kill(artifacts_dir: str) -> None:
-        kills.append(artifacts_dir)
-
-    monkeypatch.setattr("sase.main.utils.kill_agent_runner_group", _record_kill)
-    return starter_dir, kills
+    return starter_dir
 
 
 def _start_args(tmp_path: Path):
@@ -86,56 +75,60 @@ def _start_args(tmp_path: Path):
     )
 
 
-def test_inflight_marker_written_before_start_and_superseded(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-) -> None:
-    """The marker exists during the slow start and is gone after handoff."""
-    starter_dir, kills = _start_in_agent(monkeypatch, tmp_path)
-    observed: dict = {}
-
-    def _fake_start(request):  # type: ignore[no-untyped-def]
-        observed["inflight"] = _read_handoff_inflight_marker(starter_dir)
-        return SimpleNamespace(
+def _staged_result() -> SimpleNamespace:
+    return SimpleNamespace(
+        record=SimpleNamespace(
             monitor_id="m" * 40,
             member_agent_name="acme--mon",
-            artifacts_dir=str(tmp_path / "member"),
-            lane="acme",
-            project_name="proj",
-            command=request.command,
-            cwd=request.cwd,
-            next_action=request.next_action,
-            next_model=None,
-            next_output=request.next_output,
-            request_fingerprint="fp",
             tool_run_id=None,
-        )
-
-    monkeypatch.setattr("sase.main.monitor.start.start_monitor", _fake_start)
-    assert handle_monitor_start(_start_args(tmp_path)) == 0
-
-    marker = observed.get("inflight")
-    assert marker is not None
-    assert marker["lane"] == "acme"
-    assert marker["pid"] == os.getpid()
-    assert (Path(starter_dir) / MONITOR_PENDING_MARKER).is_file()
-    assert not (Path(starter_dir) / HANDOFF_INFLIGHT_MARKER).exists()
-    assert kills == [starter_dir]
+            tool_run_joined=False,
+        ),
+        staged_id="aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee",
+        payload={},
+        replayed=False,
+    )
 
 
-def test_failed_start_removes_inflight_marker(
+def test_staged_start_writes_no_kill_markers(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
-    """A start that errors after the marker write leaves no marker behind."""
-    starter_dir, kills = _start_in_agent(monkeypatch, tmp_path)
+    """A successful in-agent start stages without inflight or pending kill markers."""
+    starter_dir = _start_in_agent(monkeypatch, tmp_path)
+    spawned: list[object] = []
+
+    monkeypatch.setattr(
+        "sase.monitor.start_stage.stage_monitor", lambda request: _staged_result()
+    )
+    monkeypatch.setattr(
+        "sase.main.monitor.start.start_monitor",
+        lambda request: spawned.append(request),
+    )
+    assert handle_monitor_start(_start_args(tmp_path)) == 0
+    assert spawned == []
+    assert not (Path(starter_dir) / MONITOR_PENDING_MARKER).exists()
+    assert not (Path(starter_dir) / HANDOFF_INFLIGHT_MARKER).exists()
+    assert list(Path(starter_dir).glob(".sase_handoff_inflight*")) == []
+
+
+def test_failed_stage_writes_no_kill_markers(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """A staged start that errors leaves no kill-path markers behind."""
+    starter_dir = _start_in_agent(monkeypatch, tmp_path)
 
     def _boom(request):  # type: ignore[no-untyped-def]
         raise MonitorError("boom")
 
-    monkeypatch.setattr("sase.main.monitor.start.start_monitor", _boom)
+    monkeypatch.setattr("sase.monitor.start_stage.stage_monitor", _boom)
+    monkeypatch.setattr(
+        "sase.main.monitor.start.start_monitor",
+        lambda *_a, **_k: (_ for _ in ()).throw(
+            AssertionError("must not spawn on staged path")
+        ),
+    )
     assert handle_monitor_start(_start_args(tmp_path)) == 1
     assert not (Path(starter_dir) / HANDOFF_INFLIGHT_MARKER).exists()
     assert not (Path(starter_dir) / MONITOR_PENDING_MARKER).exists()
-    assert kills == []
     assert (
         json.loads((Path(starter_dir) / "agent_meta.json").read_text(encoding="utf-8"))[
             "name"

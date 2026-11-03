@@ -10,23 +10,15 @@ from collections.abc import Mapping
 from pathlib import Path
 import sys
 
-from sase.agent.handoff_inflight import (
-    clear_handoff_inflight_marker,
-    write_handoff_inflight_marker,
-)
 from sase.core.cli_duration import parse_cli_duration
 from sase.core.paths import is_valid_sase_project_name, sase_projects_dir
 from sase.monitor import (
     MonitorAlreadyRunningError,
     MonitorError,
-    MonitorRecord,
     StartMonitorRequest,
     default_caller,
-    maybe_handoff_monitor_from_agent,
     short_monitor_id,
     start_monitor,
-    stop_monitor,
-    will_handoff_monitor_to_agent_runner,
 )
 from sase.monitor.join import JoinRefusal, JoinTarget
 from sase.monitor.outcome_policy import load_outcome_policy_file
@@ -71,15 +63,9 @@ def handle_monitor_start(args: argparse.Namespace) -> int:
     except MonitorError as exc:
         print(f"sase monitor start: {exc}", file=sys.stderr)
         return 1
-    in_agent = bool(os.environ.get("SASE_AGENT"))
-    use_staged = False
-    if in_agent:
-        try:
-            from sase.agent.staged_handoff import staged_handoffs_enabled
-
-            use_staged = staged_handoffs_enabled()
-        except Exception:  # noqa: BLE001 - flag read never blocks a start.
-            use_staged = False
+    # In-agent starts always stage. The flag-read fail-open route is gone:
+    # execution begins only after this turn completes through `/sase_final`.
+    use_staged = bool(os.environ.get("SASE_AGENT"))
     raw_weight = getattr(args, "weight", None)
     queue_weight_override: float | None = None
     if raw_weight is not None:
@@ -241,31 +227,9 @@ def handle_monitor_start(args: argparse.Namespace) -> int:
         )
         return 2
 
-    if use_staged:
-        # Staged starts never write legacy pending/in-flight kill markers and
-        # never kill the runner: adoption happens after host finalization.
-        pass
-    elif will_handoff_monitor_to_agent_runner():
-        # Lane resolution and the launch transaction can take many seconds. A
-        # harness whose tool yields before this command exits (Codex's
-        # exec_command) must see a running command, not an empty result it
-        # could mistake for a finished handoff. Stdout stays reserved for the
-        # summary that must print before the runner is killed.
-        print(
-            f"sase monitor start: starting monitor for lane {agent}; this "
-            "command hands off your turn when it finishes -- wait for it to exit",
-            file=sys.stderr,
-            flush=True,
-        )
-        # Record the in-flight handoff before any slow work so the host can
-        # notice a killed start instead of recovering silently (sase-18e.3).
-        # The pending handoff marker supersedes this when the start lands;
-        # every error exit below removes it.
-        write_handoff_inflight_marker(command, lane=agent)
     cwd = resolve_cwd(getattr(args, "cwd", None), agent, exact=exact_caller)
     project_name = _monitor_start_project_name(infer_project_name(str(cwd)))
     if not project_name:
-        clear_handoff_inflight_marker(os.environ.get("SASE_ARTIFACTS_DIR"))
         print(
             f"sase monitor start: could not infer a project from cwd {cwd}",
             file=sys.stderr,
@@ -310,26 +274,14 @@ def handle_monitor_start(args: argparse.Namespace) -> int:
             queue_weight_override=queue_weight_override,
         )
 
-    refused = _admit_legacy_agent_monitor_start()
-    if refused is not None:
-        return refused
-
     try:
         record = start_monitor(request)
     except (MonitorAlreadyRunningError, MonitorError) as exc:
-        clear_handoff_inflight_marker(os.environ.get("SASE_ARTIFACTS_DIR"))
         print(f"sase monitor start: {exc}", file=sys.stderr)
         return 1
 
-    # kill_agent_runner_group() (invoked below, once handed off) never
-    # returns, so every line of output must print before it -- including
-    # the --json envelope, whose handed_off flag is decided the same way.
-    handed_off = will_handoff_monitor_to_agent_runner()
-
     if bool(getattr(args, "json", False)):
-        json.dump(
-            monitor_start_json(record, handed_off=handed_off), sys.stdout, indent=2
-        )
+        json.dump(monitor_start_json(record, handed_off=False), sys.stdout, indent=2)
         sys.stdout.write("\n")
     else:
         short_id = short_monitor_id(record.monitor_id)
@@ -345,57 +297,8 @@ def handle_monitor_start(args: argparse.Namespace) -> int:
         if idle_timeout_label is not None:
             print(f"  idle timeout: {idle_timeout_label}")
         print(f"  sase monitor show {short_id} --follow")
-        if handed_off:
-            print(
-                "\nThis is the last output before the agent runner is killed; "
-                "the monitor keeps running."
-            )
     sys.stdout.flush()
-
-    try:
-        maybe_handoff_monitor_from_agent(record)
-    except MonitorError as exc:
-        clear_handoff_inflight_marker(os.environ.get("SASE_ARTIFACTS_DIR"))
-        print(f"sase monitor start: {exc}", file=sys.stderr)
-        _stop_orphaned_monitor_after_failed_handoff(record)
-        return 1
     return 0
-
-
-def _admit_legacy_agent_monitor_start() -> int | None:
-    """Refuse a legacy in-agent start when the handoff slot is occupied.
-
-    Returns an exit code on refusal, or ``None`` when the start may proceed.
-    """
-    if not os.environ.get("SASE_AGENT"):
-        return None
-    from sase.agent.pending_handoff_write import PendingHandoffError, handoff_guard
-
-    try:
-        handoff_guard(command="sase monitor start")
-    except PendingHandoffError as exc:
-        clear_handoff_inflight_marker(os.environ.get("SASE_ARTIFACTS_DIR"))
-        print(f"sase monitor start: {exc}", file=sys.stderr)
-        return 1
-    return None
-
-
-def _stop_orphaned_monitor_after_failed_handoff(record: MonitorRecord) -> None:
-    """Stop a monitor whose post-spawn handoff lost the slot race."""
-    short_id = short_monitor_id(record.monitor_id)
-    try:
-        stop_monitor(record)
-    except Exception as exc:  # noqa: BLE001 - never leave the orphan unmarked
-        print(
-            f"sase monitor start: failed to stop monitor {short_id} "
-            f"after failed handoff: {exc}",
-            file=sys.stderr,
-        )
-        return
-    print(
-        f"sase monitor start: stopped monitor {short_id} after failed handoff",
-        file=sys.stderr,
-    )
 
 
 _STAGED_MONITOR_INSTRUCTION = (

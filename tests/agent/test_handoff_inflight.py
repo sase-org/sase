@@ -22,9 +22,9 @@ from sase.agent.handoff_inflight import (
     _read_handoff_inflight_marker,
     _record_handoff_aborted,
     _wait_for_pending_handoff,
-    write_handoff_inflight_marker,
 )
 from sase.agent.pending_handoff import MONITOR_PENDING_MARKER
+from sase.core.process_identity import process_identity_token
 
 _DEAD_PID = 2**30
 
@@ -50,27 +50,31 @@ def _dead_marker(*, command: str = "sase monitor start -- just check") -> dict:
     }
 
 
-def test_write_returns_none_outside_an_agent(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-) -> None:
-    monkeypatch.delenv("SASE_AGENT", raising=False)
-    monkeypatch.setenv("SASE_ARTIFACTS_DIR", str(tmp_path))
-    assert write_handoff_inflight_marker("sase monitor start") is None
-    assert not (tmp_path / HANDOFF_INFLIGHT_MARKER).exists()
+def _live_marker(*, command: str = "sase monitor start") -> dict:
+    pid = os.getpid()
+    return {
+        "command": command,
+        "lane": "acme",
+        "agent": os.environ.get("SASE_AGENT"),
+        "agent_name": os.environ.get("SASE_AGENT_NAME"),
+        "pid": pid,
+        "process_identity": process_identity_token(pid),
+        "argv": ["sase", "monitor", "start"],
+        "started_at": 1234.0,
+    }
 
 
-def test_write_read_clear_lifecycle(agent_env: Path) -> None:
-    path = write_handoff_inflight_marker(
-        "sase monitor start -- just check", lane="acme"
+def _write_inflight_marker(artifacts_dir: Path, payload: dict) -> None:
+    (artifacts_dir / HANDOFF_INFLIGHT_MARKER).write_text(
+        json.dumps(payload), encoding="utf-8"
     )
-    assert path is not None and path.is_file()
-    payload = _read_handoff_inflight_marker(str(agent_env))
-    assert payload is not None
-    assert payload["command"] == "sase monitor start -- just check"
-    assert payload["lane"] == "acme"
-    assert payload["pid"] == os.getpid()
-    assert payload["argv"]
-    assert payload["started_at"] > 0
+
+
+def test_read_clear_lifecycle(agent_env: Path) -> None:
+    payload = _live_marker(command="sase monitor start -- just check")
+    _write_inflight_marker(agent_env, payload)
+    stored = _read_handoff_inflight_marker(str(agent_env))
+    assert stored == payload
     clear_handoff_inflight_marker(str(agent_env))
     assert _read_handoff_inflight_marker(str(agent_env)) is None
 
@@ -80,11 +84,8 @@ def test_read_missing_marker_is_none(tmp_path: Path) -> None:
     assert _read_handoff_inflight_marker(None) is None
 
 
-def test_owner_alive_for_current_process(agent_env: Path) -> None:
-    write_handoff_inflight_marker("sase monitor start", lane="acme")
-    payload = _read_handoff_inflight_marker(str(agent_env))
-    assert payload is not None
-    assert _inflight_owner_alive(payload) is True
+def test_owner_alive_for_current_process() -> None:
+    assert _inflight_owner_alive(_live_marker()) is True
 
 
 def test_owner_dead_for_reaped_pid() -> None:
@@ -98,17 +99,14 @@ def test_owner_dead_for_malformed_marker() -> None:
 
 
 def test_owner_dead_when_identity_mismatches_live_pid(
-    agent_env: Path, monkeypatch: pytest.MonkeyPatch
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """A recycled PID carrying a different start token is not the owner."""
-    write_handoff_inflight_marker("sase monitor start", lane="acme")
-    payload = _read_handoff_inflight_marker(str(agent_env))
-    assert payload is not None
     monkeypatch.setattr(
         "sase.core.process_identity.process_identity_matches",
         lambda _pid, _recorded: False,
     )
-    assert _inflight_owner_alive(payload) is False
+    assert _inflight_owner_alive(_live_marker()) is False
 
 
 def test_wait_for_pending_handoff_no_marker(tmp_path: Path) -> None:

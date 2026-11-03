@@ -289,17 +289,12 @@ def test_start_lane_flag_is_a_deprecated_alias_for_agent(
     assert "member: acme--mon" in out
 
 
-def test_start_prints_the_summary_before_the_agent_runner_handoff_kill(
+def test_start_in_an_agent_reports_staged_without_spawning(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    """``kill_agent_runner_group`` never returns, so output must precede it.
-
-    Regression test for a bug where every line printed after the handoff
-    call -- including the whole non-JSON summary and the ``--json``
-    envelope -- was unreachable inside a real agent process.
-    """
+    """In-agent starts stage and return; the supervisor launches after the turn."""
     write_project_file(
         "proj",
         running_claims=[WorkspaceClaim(3, "ace-run", "acme", pid=os.getpid())],
@@ -318,43 +313,48 @@ def test_start_prints_the_summary_before_the_agent_runner_handoff_kill(
     pin_project(monkeypatch)
 
     monkeypatch.setenv("SASE_AGENT", "1")
+    monkeypatch.setenv("SASE_AGENT_NAME", "acme")
     monkeypatch.setenv("SASE_ARTIFACTS_DIR", starter_dir)
 
-    killed: list[str] = []
+    from types import SimpleNamespace
 
-    def fake_kill(artifacts_dir: str) -> int:
-        killed.append(artifacts_dir)
-        raise SystemExit(0)
+    from sase.main.monitor import start as start_handler
 
-    monkeypatch.setattr("sase.main.utils.kill_agent_runner_group", fake_kill)
+    staged_calls: list[object] = []
 
-    exit_code = dispatch(
-        [
-            "monitor",
-            "start",
-            "-c",
-            "true",
-            "-r",
-            "verify",
-            "-t",
-            "30s",
-            "-a",
-            "acme",
-            "-C",
-            str(tmp_path),
-            "-s",
-            "TESTING",
-            "-S",
-            "TESTED",
-        ]
+    def fake_stage(request: object) -> SimpleNamespace:
+        staged_calls.append(request)
+        return SimpleNamespace(
+            record=SimpleNamespace(
+                monitor_id="m" * 40,
+                member_agent_name="acme--mon",
+                tool_run_id=None,
+                tool_run_joined=False,
+            ),
+            staged_id="aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee",
+            payload={},
+            replayed=False,
+        )
+
+    monkeypatch.setattr("sase.monitor.start_stage.stage_monitor", fake_stage)
+    monkeypatch.setattr(
+        start_handler,
+        "start_monitor",
+        lambda *_a, **_k: (_ for _ in ()).throw(
+            AssertionError("must not spawn on staged path")
+        ),
     )
 
+    exit_code = dispatch(_agent_handoff_start_argv(tmp_path))
+
     assert exit_code == 0
-    assert killed == [starter_dir]
+    assert len(staged_calls) == 1
     out = capsys.readouterr().out
-    assert "Started monitor" in out
-    assert "member: acme--mon" in out
-    assert "This is the last output before the agent runner is killed" in out
+    assert out.startswith("Staged monitor")
+    assert "Nothing starts until this turn ends" in out
+    assert "/sase_final" in out
+    assert "Started monitor" not in out
+    assert "This is the last output before the agent runner is killed" not in out
 
 
 def _agent_handoff_start_argv(tmp_path: Path) -> list[str]:
@@ -378,12 +378,12 @@ def _agent_handoff_start_argv(tmp_path: Path) -> list[str]:
     ]
 
 
-def test_start_in_an_agent_says_so_on_stderr_before_any_slow_work(
+def test_start_in_an_agent_does_not_print_a_kill_handoff_line(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    """A yielding harness must see a non-empty, self-explanatory running command."""
+    """Staging returns; there is no print-before-kill stderr line."""
     write_project_file(
         "proj",
         running_claims=[WorkspaceClaim(3, "ace-run", "acme", pid=os.getpid())],
@@ -401,31 +401,43 @@ def test_start_in_an_agent_says_so_on_stderr_before_any_slow_work(
     patch_project_records(monkeypatch, [starter_dir])
     pin_project(monkeypatch)
     monkeypatch.setenv("SASE_AGENT", "1")
+    monkeypatch.setenv("SASE_AGENT_NAME", "acme")
     monkeypatch.setenv("SASE_ARTIFACTS_DIR", starter_dir)
-    monkeypatch.setattr(
-        "sase.main.utils.kill_agent_runner_group",
-        lambda _artifacts_dir: (_ for _ in ()).throw(SystemExit(0)),
-    )
+
+    from types import SimpleNamespace
 
     from sase.main.monitor import start as start_handler
 
-    real_start_monitor = start_handler.start_monitor
-    stderr_when_start_began: list[str] = []
+    spawned: list[object] = []
 
-    def spying_start_monitor(request: object) -> object:
-        stderr_when_start_began.append(capsys.readouterr().err)
-        return real_start_monitor(request)  # type: ignore[arg-type]
+    def fake_stage(request: object) -> SimpleNamespace:
+        return SimpleNamespace(
+            record=SimpleNamespace(
+                monitor_id="m" * 40,
+                member_agent_name="acme--mon",
+                tool_run_id=None,
+                tool_run_joined=False,
+            ),
+            staged_id="aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee",
+            payload={},
+            replayed=False,
+        )
 
-    monkeypatch.setattr(start_handler, "start_monitor", spying_start_monitor)
+    monkeypatch.setattr("sase.monitor.start_stage.stage_monitor", fake_stage)
+    monkeypatch.setattr(
+        start_handler,
+        "start_monitor",
+        lambda request: spawned.append(request),
+    )
 
     exit_code = dispatch(_agent_handoff_start_argv(tmp_path))
 
     assert exit_code == 0
-    assert len(stderr_when_start_began) == 1
-    assert (
-        "sase monitor start: starting monitor for lane acme; this command "
-        "hands off your turn when it finishes -- wait for it to exit"
-    ) in stderr_when_start_began[0]
+    assert spawned == []
+    captured = capsys.readouterr()
+    assert "starting monitor for lane" not in captured.err
+    assert "hands off your turn" not in captured.err
+    assert "Staged monitor" in captured.out
 
 
 def test_start_outside_an_agent_prints_no_handoff_line(
@@ -457,12 +469,12 @@ def test_start_outside_an_agent_prints_no_handoff_line(
     assert "starting monitor for lane" not in capsys.readouterr().err
 
 
-def test_start_json_envelope_reports_handed_off_before_the_kill(
+def test_start_json_envelope_in_an_agent_is_staged_not_handed_off(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    """The ``--json`` envelope's ``handed_off`` flag prints before the kill too."""
+    """The ``--json`` envelope reports staged status and never ``handed_off``."""
     write_project_file(
         "proj",
         running_claims=[WorkspaceClaim(3, "ace-run", "acme", pid=os.getpid())],
@@ -481,10 +493,32 @@ def test_start_json_envelope_reports_handed_off_before_the_kill(
     pin_project(monkeypatch)
 
     monkeypatch.setenv("SASE_AGENT", "1")
+    monkeypatch.setenv("SASE_AGENT_NAME", "acme")
     monkeypatch.setenv("SASE_ARTIFACTS_DIR", starter_dir)
+
+    from types import SimpleNamespace
+
     monkeypatch.setattr(
-        "sase.main.utils.kill_agent_runner_group",
-        lambda _artifacts_dir: (_ for _ in ()).throw(SystemExit(0)),
+        "sase.monitor.start_stage.stage_monitor",
+        lambda request: SimpleNamespace(
+            record=SimpleNamespace(
+                monitor_id="m" * 40,
+                member_agent_name="acme--mon",
+                tool_run_id=None,
+                tool_run_joined=False,
+            ),
+            staged_id="aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee",
+            payload={},
+            replayed=False,
+        ),
+    )
+    monkeypatch.setattr(
+        "sase.main.monitor.start.monitor_start_json",
+        lambda record, *, handed_off: {
+            "schema_version": 3,
+            "monitor": {"monitor_id": record.monitor_id},
+            "handed_off": handed_off,
+        },
     )
 
     exit_code = dispatch(
@@ -510,8 +544,12 @@ def test_start_json_envelope_reports_handed_off_before_the_kill(
     )
 
     assert exit_code == 0
-    payload = json.loads(capsys.readouterr().out)
-    assert payload["handed_off"] is True
+    captured = capsys.readouterr()
+    payload = json.loads(captured.out)
+    assert payload["staged"] is True
+    assert payload["status"] == "staged"
+    assert payload["handed_off"] is False
+    assert "Staged monitor" in captured.err
 
 
 def test_start_json_envelope_is_stable(

@@ -29,9 +29,7 @@ from .start import (
     MONITOR_GO_MARKER,
     MONITOR_PENDING_MARKER,
     StartMonitorRequest,
-    maybe_handoff_monitor_from_agent,
     start_monitor,
-    will_handoff_monitor_to_agent_runner,
     write_monitor_pending_marker,
 )
 from .store import (
@@ -85,7 +83,6 @@ __all__ = [
     "is_monitor_member_record",
     "list_monitors",
     "monitor_state_bucket",
-    "maybe_handoff_monitor_from_agent",
     "monitor_blocking_start_for_lane",
     "new_monitor_id",
     "read_monitor_marker",
@@ -100,6 +97,5 @@ __all__ = [
     "start_monitor",
     "stop_monitor",
     "resume_monitor",
-    "will_handoff_monitor_to_agent_runner",
     "write_monitor_pending_marker",
 ]

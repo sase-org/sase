@@ -1,16 +1,14 @@
 """Activation: staged CLI branch, monitor adopter, self-wait, and ordering.
 
-Covers `sase-1pj.5.1.4`: in-agent flag-on starts stage instead of launching,
-flag-off and non-agent starts keep the immediate path, the post-finalizer
-monitor adopter launches from the frozen payload with the real custodian,
-self-waits refuse with a `/sase_final` message, discard cleans unstarted
-resources while held retains, and adoption waits for finalizer settlement.
+In-agent starts always stage instead of launching. Non-agent starts keep the
+immediate path. The post-finalizer monitor adopter launches from the frozen
+payload with the real custodian, self-waits refuse with a `/sase_final`
+message, and adoption waits for finalizer settlement.
 """
 
 from __future__ import annotations
 
 import argparse
-import io
 import json
 from datetime import UTC, datetime
 from pathlib import Path
@@ -114,26 +112,22 @@ def test_staged_branch_reports_staged_without_kill_markers(
         return staged_record
 
     monkeypatch.setattr("sase.monitor.start_stage.stage_monitor", fake_stage)
-    monkeypatch.setattr(
-        start_module, "will_handoff_monitor_to_agent_runner", lambda: True
-    )
-    monkeypatch.setattr(
-        start_module,
-        "maybe_handoff_monitor_from_agent",
-        lambda *a, **k: (_ for _ in ()).throw(
-            AssertionError("must not kill on staged path")
-        ),
-    )
     monkeypatch.setattr(start_module, "resolve_cwd", lambda *a, **k: tmp_path)
     monkeypatch.setattr(start_module, "infer_project_name", lambda cwd: "proj")
     monkeypatch.setattr(
         start_module, "_monitor_start_project_name", lambda name: "proj"
     )
+    monkeypatch.setattr(
+        start_module,
+        "start_monitor",
+        lambda *a, **k: (_ for _ in ()).throw(
+            AssertionError("must not spawn on staged path")
+        ),
+    )
 
-    # Enable the staged_handoffs beta flag for this branch.
-    with override_flags(staged_handoffs=True):
-        from sase.main.monitor.start import handle_monitor_start
+    from sase.main.monitor.start import handle_monitor_start
 
+    with override_flags(staged_handoffs=False):
         code = handle_monitor_start(_start_args(cwd=str(tmp_path)))
     assert code == 0
     assert calls == ["stage"]
@@ -190,10 +184,9 @@ def test_staged_json_envelope_is_valid_json_with_prose_on_stderr(
         start_module2, "_monitor_start_project_name", lambda name: "proj"
     )
 
-    with override_flags(staged_handoffs=True):
-        from sase.main.monitor.start import handle_monitor_start
+    from sase.main.monitor.start import handle_monitor_start
 
-        code = handle_monitor_start(_start_args(cwd=str(tmp_path), json=True))
+    code = handle_monitor_start(_start_args(cwd=str(tmp_path), json=True))
     assert code == 0
     out = capsys.readouterr()
     envelope = json.loads(out.out)
@@ -205,12 +198,11 @@ def test_staged_json_envelope_is_valid_json_with_prose_on_stderr(
     assert "/sase_final" in out.err
 
 
-def test_flag_off_and_non_agent_keep_immediate_path(
+def test_non_agent_keeps_immediate_path(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     from sase.main.monitor import start as start_module
 
-    # Non-agent: even with the flag on, the immediate path is preserved.
     monkeypatch.delenv("SASE_AGENT", raising=False)
     monkeypatch.delenv("SASE_AGENT_NAME", raising=False)
     starter = tmp_path / "starter"
@@ -236,32 +228,15 @@ def test_flag_off_and_non_agent_keep_immediate_path(
             )
         ),
     )
-    monkeypatch.setattr(
-        start_module, "will_handoff_monitor_to_agent_runner", lambda: False
-    )
-    monkeypatch.setattr(
-        start_module, "maybe_handoff_monitor_from_agent", lambda record: False
-    )
     monkeypatch.setattr(start_module, "short_monitor_id", lambda mid: "m1")
     monkeypatch.setattr(start_module, "resolve_cwd", lambda *a, **k: str(tmp_path))
     monkeypatch.setattr(start_module, "infer_project_name", lambda cwd: "proj")
     monkeypatch.setattr(
         start_module, "_monitor_start_project_name", lambda name: "proj"
     )
-    with override_flags(staged_handoffs=True):
-        from sase.main.monitor.start import handle_monitor_start
+    from sase.main.monitor.start import handle_monitor_start
 
-        assert handle_monitor_start(_start_args(agent="test-agent")) == 0
-    assert calls == ["immediate"]
-
-    # In-agent with the flag off also stays immediate.
-    monkeypatch.setenv("SASE_AGENT", "agent-1")
-    monkeypatch.setenv("SASE_AGENT_NAME", "agent-1")
-    calls.clear()
-    with override_flags(staged_handoffs=False):
-        from sase.main.monitor.start import handle_monitor_start as handle2
-
-        assert handle2(_start_args()) == 0
+    assert handle_monitor_start(_start_args(agent="test-agent")) == 0
     assert calls == ["immediate"]
 
 

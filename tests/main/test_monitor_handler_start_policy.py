@@ -146,14 +146,6 @@ def test_start_loads_yaml_policy_before_calling_start_monitor(
         lambda request: captured.append(request) or _Record(),
     )
     monkeypatch.setattr(
-        "sase.main.monitor.start.will_handoff_monitor_to_agent_runner",
-        lambda: False,
-    )
-    monkeypatch.setattr(
-        "sase.main.monitor.start.maybe_handoff_monitor_from_agent",
-        lambda _record: None,
-    )
-    monkeypatch.setattr(
         "sase.main.monitor.start.infer_project_name",
         lambda _cwd: "proj",
     )

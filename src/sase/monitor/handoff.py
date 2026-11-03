@@ -1,72 +1,22 @@
-"""Handing a lane from the starter agent to the monitor it just started.
+"""Pending-monitor marker writer kept for archived kill-path readers.
 
-Split out of :mod:`sase.monitor.start`: a monitor started from inside an
-agent takes the lane over by dropping a pending marker in the starter's own
-artifacts dir and killing the agent runner, which is a concern of the
-*starter*, not of the supervisor launch.
+In-agent ``sase monitor start`` now stages and returns. This module still
+writes the historical pending-marker shape so archived runs and runtime
+retirement can interpret old handoffs.
 """
 
 from __future__ import annotations
 
-import os
 from pathlib import Path
 from typing import Any
 
 from sase.agent.pending_handoff import MONITOR_PENDING_MARKER
 from sase.turns.handoff import (
     TurnHandoffError,
-    maybe_handoff_turn_from_agent,
-    will_handoff_turn_to_agent_runner,
     write_turn_pending_marker,
 )
 
 from .models import MonitorError, MonitorRecord
-
-
-def will_handoff_monitor_to_agent_runner() -> bool:
-    """Return whether ``maybe_handoff_monitor_from_agent`` will kill this runner.
-
-    ``kill_agent_runner_group()`` is ``NoReturn``, so any output a caller
-    wants to show (a start summary, a ``--json`` envelope) must be emitted
-    *before* calling ``maybe_handoff_monitor_from_agent`` -- not after, and
-    not conditioned on its return value, which the process never lives to
-    observe when this is true.
-    """
-    return will_handoff_turn_to_agent_runner(os.environ)
-
-
-def maybe_handoff_monitor_from_agent(
-    record: MonitorRecord,
-    *,
-    artifacts_dir: str | None = None,
-) -> bool:
-    """Write the in-agent monitor handoff marker and kill this runner.
-
-    ``start_monitor()`` is shared by host-owned monitor starts and future CLI
-    code.  The CLI should call this helper after a record is created; it is a
-    no-op outside an agent process and terminates the current runner when
-    ``SASE_AGENT`` is set.
-    """
-    if not os.environ.get("SASE_AGENT"):
-        return False
-    resolved_artifacts_dir = artifacts_dir or os.environ.get("SASE_ARTIFACTS_DIR")
-    if not resolved_artifacts_dir:
-        raise MonitorError(
-            "cannot hand monitor to agent runner: SASE_ARTIFACTS_DIR is unset"
-        )
-    try:
-        return maybe_handoff_turn_from_agent(
-            marker_name=MONITOR_PENDING_MARKER,
-            marker_data=_monitor_pending_payload(
-                record,
-                starter_artifacts_dir=resolved_artifacts_dir,
-            ),
-            artifacts_dir=resolved_artifacts_dir,
-            env=os.environ,
-            member="monitor turn",
-        )
-    except TurnHandoffError as exc:
-        raise MonitorError(str(exc)) from exc
 
 
 def write_monitor_pending_marker(
@@ -125,7 +75,5 @@ def _monitor_pending_payload(
 
 __all__ = [
     "MONITOR_PENDING_MARKER",
-    "maybe_handoff_monitor_from_agent",
-    "will_handoff_monitor_to_agent_runner",
     "write_monitor_pending_marker",
 ]

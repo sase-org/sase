@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any
 
 import pytest
@@ -44,7 +45,6 @@ def _agent(
 ) -> None:
     monkeypatch.setenv("SASE_AGENT", "1")
     monkeypatch.setenv("SASE_AGENT_NAME", name)
-    # Legacy start admits the handoff slot, which requires an artifacts dir.
     monkeypatch.setenv("SASE_ARTIFACTS_DIR", str(tmp_path))
 
 
@@ -270,14 +270,22 @@ def test_join_start_builds_a_join_request_and_reports_joined(
     run_id = reserve_detached_run("--", "true")
     captured: dict[str, Any] = {}
 
-    def _fake_start(request: StartMonitorRequest) -> MonitorRecord:
+    def _fake_stage(request: StartMonitorRequest) -> Any:
         captured["request"] = request
-        return _fake_record(tool_run_id=request.join_run_id)
+        return SimpleNamespace(
+            record=_fake_record(tool_run_id=request.join_run_id),
+            staged_id="aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee",
+            payload={},
+            replayed=False,
+        )
 
-    monkeypatch.setattr(handler, "start_monitor", _fake_start)
-    monkeypatch.setattr(handler, "will_handoff_monitor_to_agent_runner", lambda: False)
+    monkeypatch.setattr("sase.monitor.start_stage.stage_monitor", _fake_stage)
     monkeypatch.setattr(
-        handler, "maybe_handoff_monitor_from_agent", lambda _record: False
+        handler,
+        "start_monitor",
+        lambda *_a, **_k: (_ for _ in ()).throw(
+            AssertionError("join start must not spawn")
+        ),
     )
     code = dispatch(["monitor", "start", "-J", run_id, "-p", "verify"])
     assert code == 0
@@ -287,6 +295,7 @@ def test_join_start_builds_a_join_request_and_reports_joined(
     assert request.label == "tool:ad-hoc (joined)"
     assert request.reason == "finish ad-hoc (joined run)"
     out = capsys.readouterr().out
+    assert out.startswith("Staged monitor")
     assert f"tool run: {run_id} (joined)" in out
 
 
@@ -300,12 +309,36 @@ def test_join_start_json_reports_tool_run_joined(
     _agent(monkeypatch, tmp_path)
     pin_project(monkeypatch)
     run_id = reserve_detached_run("--", "true")
-    monkeypatch.setattr(handler, "start_monitor", lambda request: _fake_record())
-    monkeypatch.setattr(handler, "will_handoff_monitor_to_agent_runner", lambda: False)
     monkeypatch.setattr(
-        handler, "maybe_handoff_monitor_from_agent", lambda _record: False
+        "sase.monitor.start_stage.stage_monitor",
+        lambda request: SimpleNamespace(
+            record=_fake_record(),
+            staged_id="aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee",
+            payload={},
+            replayed=False,
+        ),
+    )
+    monkeypatch.setattr(
+        handler,
+        "start_monitor",
+        lambda *_a, **_k: (_ for _ in ()).throw(
+            AssertionError("join start must not spawn")
+        ),
+    )
+    monkeypatch.setattr(
+        "sase.main.monitor.start.monitor_start_json",
+        lambda record, *, handed_off: {
+            "schema_version": 3,
+            "monitor": {
+                "monitor_id": record.monitor_id,
+                "tool_run_joined": record.tool_run_joined,
+            },
+            "handed_off": handed_off,
+        },
     )
     code = dispatch(["monitor", "start", "-J", run_id, "-p", "verify", "--json"])
     assert code == 0
     payload = json.loads(capsys.readouterr().out)
+    assert payload["staged"] is True
+    assert payload["handed_off"] is False
     assert payload["monitor"]["tool_run_joined"] is True

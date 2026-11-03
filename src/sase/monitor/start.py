@@ -11,8 +11,7 @@ proc-service facade), :mod:`sase.monitor.start_lane` (lane and workspace
 resolution), :mod:`sase.monitor.start_claim` (RUNNING-field claim moves),
 :mod:`sase.monitor.start_continuation` (continuation-record setup),
 :mod:`sase.monitor.start_runtime` (proc/claim failure helpers), and
-:mod:`sase.monitor.handoff` (giving the lane to the monitor from inside an
-agent).
+:mod:`sase.monitor.handoff` (archived pending-monitor marker writer).
 """
 
 from __future__ import annotations
@@ -23,8 +22,6 @@ from .claims import MONITOR_WORKSPACE_CLAIM_WORKFLOW
 from .followup_prompt import DEFAULT_NEXT_OUTPUT, NEXT_OUTPUT_CHOICES
 from .handoff import (
     MONITOR_PENDING_MARKER,
-    maybe_handoff_monitor_from_agent,
-    will_handoff_monitor_to_agent_runner,
     write_monitor_pending_marker,
 )
 from .request import (
@@ -51,8 +48,6 @@ __all__ = [
     "NEXT_OUTPUT_CHOICES",
     "SUPERVISOR_LOG_NAME",
     "StartMonitorRequest",
-    "maybe_handoff_monitor_from_agent",
     "start_monitor",
-    "will_handoff_monitor_to_agent_runner",
     "write_monitor_pending_marker",
 ]
