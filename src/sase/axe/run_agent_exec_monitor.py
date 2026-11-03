@@ -11,7 +11,6 @@ from sase.axe.run_agent_helpers import (
     update_meta_suffix,
     update_step_marker_chat_path,
 )
-from sase.axe.runner_signals import reset_killed
 from sase.core.continuation_wire import AgentDeltaStatus
 from sase.history.chat import save_chat_history
 from sase.history.chat_extras import format_extra_sections
@@ -29,15 +28,12 @@ def capture_monitor_handoff(
     *,
     response: str,
     status: AgentDeltaStatus,
-    reset_killed_state: bool = False,
-    require_capture: bool = False,
     promotion_base_name: str | None = None,
 ) -> Any:
     """Save the starter transcript and continuation links for a monitor handoff.
 
     Staged adoption uses the real provider response and requires the checkpoint and
-    starter delta to persist before the monitor starts. The legacy marker path keeps
-    its interrupted response and best-effort capture behavior.
+    starter delta to persist before the monitor starts.
     """
     starter_meta = _read_json_object(
         Path(state.current_artifacts_dir) / "agent_meta.json"
@@ -101,17 +97,9 @@ def capture_monitor_handoff(
 
     handoff_checkpoint_ref = _text(monitor_data.get("handoff_checkpoint_ref"))
     if handoff_checkpoint_ref is None:
-        from sase.continuation_capture import (
-            publish_handoff_checkpoint,
-            publish_handoff_checkpoint_best_effort,
-        )
+        from sase.continuation_capture import publish_handoff_checkpoint
 
-        publish_checkpoint = (
-            publish_handoff_checkpoint
-            if require_capture
-            else publish_handoff_checkpoint_best_effort
-        )
-        handoff_checkpoint_ref = publish_checkpoint(
+        handoff_checkpoint_ref = publish_handoff_checkpoint(
             state.current_artifacts_dir,
             checkpoint_kind="monitor_handoff",
             payload={
@@ -123,31 +111,19 @@ def capture_monitor_handoff(
             },
         )
 
-    from sase.continuation_capture import (
-        persist_agent_delta,
-        persist_agent_delta_best_effort,
-    )
+    from sase.continuation_capture import persist_agent_delta
 
     continuation_result: ContinuationPublishResult | None
-    if require_capture:
-        continuation_result = persist_agent_delta(
-            ctx,
-            state,
-            status=status,
-            final_response=response,
-            handoff_checkpoint_ref=handoff_checkpoint_ref,
-            allow_missing_validation=True,
-        )
-    else:
-        continuation_result = persist_agent_delta_best_effort(
-            ctx,
-            state,
-            status=status,
-            final_response=response,
-            handoff_checkpoint_ref=handoff_checkpoint_ref,
-        )
+    continuation_result = persist_agent_delta(
+        ctx,
+        state,
+        status=status,
+        final_response=response,
+        handoff_checkpoint_ref=handoff_checkpoint_ref,
+        allow_missing_validation=True,
+    )
 
-    if require_capture and continuation_result is None:
+    if continuation_result is None:
         raise RuntimeError("starter continuation delta could not be persisted")
     if member_artifacts_dir and starter_agent:
         update_meta_field(member_artifacts_dir, "monitor_starter_agent", starter_agent)
@@ -156,7 +132,7 @@ def capture_monitor_handoff(
             "monitor_starter_artifacts_dir",
             state.current_artifacts_dir,
         )
-    if member_artifacts_dir and continuation_result is not None:
+    if member_artifacts_dir:
         update_meta_field(
             member_artifacts_dir,
             "continuation_parent_node_ids",
@@ -167,20 +143,6 @@ def capture_monitor_handoff(
             "continuation_parent_node_id",
             continuation_result.node_id,
         )
-    elif member_artifacts_dir and _text(monitor_meta.get("monitor_next_action")):
-        from sase.continuation_capture import (
-            CAPTURE_DISPOSITION_NEEDS_RECOVERY,
-            record_capture_disposition,
-        )
-
-        record_capture_disposition(
-            member_artifacts_dir,
-            disposition=CAPTURE_DISPOSITION_NEEDS_RECOVERY,
-            error="starter agent delta was not published before monitor handoff",
-        )
-
-    if reset_killed_state:
-        reset_killed()
     return continuation_result
 
 

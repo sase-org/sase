@@ -19,8 +19,6 @@ from sase.axe.agent_meta import (
 from sase.axe.run_agent_helpers import (
     assemble_feedback_replan_prompt,
     create_followup_artifacts,
-    finalize_handoff_artifacts_as_completed,
-    normalize_handoff_interruption_state,
     promote_to_workflow,
     update_meta_field,
     update_meta_suffix,
@@ -28,7 +26,6 @@ from sase.axe.run_agent_helpers import (
 )
 from sase.axe.run_agent_successor import SuccessorRequest, continue_as_successor
 from sase.axe.runner_lifecycle_phase import mark_lifecycle_phase
-from sase.axe.runner_signals import reset_killed
 from sase.plan_chain import (
     PLAN_CHAIN_PLAN_SUFFIX,
     plan_chain_agent_name,
@@ -91,13 +88,12 @@ def handle_staged_plan_marker(
     staged_id: str | None = None,
     approval_context: Mapping[str, Any] | None = None,
 ) -> str | None:
-    """Adopt a settled staged plan without the legacy kill interruption."""
+    """Adopt a settled staged plan."""
     return _handle_plan_handoff(
         plan_data,
         ctx,
         state,
         planner_response=planner_response,
-        interrupted=False,
         staged_id=staged_id,
         approval_context=approval_context,
     )
@@ -108,8 +104,7 @@ def _handle_plan_handoff(
     ctx: AgentExecContext,
     state: LoopState,
     *,
-    planner_response: str | None,
-    interrupted: bool,
+    planner_response: str,
     staged_id: str | None = None,
     approval_context: Mapping[str, Any] | None = None,
 ) -> str | None:
@@ -120,9 +115,6 @@ def _handle_plan_handoff(
 
         restore_staged_approval_loop_state(state, approval_context)
     mark_lifecycle_phase(state.current_artifacts_dir, "handoff")
-    if interrupted:
-        normalize_handoff_interruption_state(state.current_artifacts_dir)
-        finalize_handoff_artifacts_as_completed(state.current_artifacts_dir)
     # Only set the planner suffix on the original workflow entry;
     # feedback round agents keep their numeric suffixes.
     if state.feedback_round == 0:
@@ -155,10 +147,6 @@ def _handle_plan_handoff(
         },
     )
 
-    if interrupted:
-        # Clear the killed flag set by the plan command's SIGTERM so the poll
-        # loop only exits on a NEW kill signal.
-        reset_killed()
     return _handle_plan_via_gate_turn(
         plan_data,
         ctx,
@@ -176,7 +164,7 @@ def _handle_plan_via_gate_turn(
     state: LoopState,
     *,
     agent_runtime: str | None,
-    planner_response: str | None = None,
+    planner_response: str,
     staged_id: str | None = None,
     approval_context: Mapping[str, Any] | None = None,
 ) -> str | None:
@@ -219,17 +207,16 @@ def _handle_plan_via_gate_turn(
 
     from sase.axe.run_agent_exec_gate import handle_gate_marker
 
-    if planner_response is not None:
-        _write_plan_path_artifact(state.current_artifacts_dir, plan_file)
-        record_workflow_metadata(
-            state.current_artifacts_dir,
-            {
-                "plan_path": plan_file,
-                "patch_name": ctx.cl_name,
-                "changespec_name": ctx.cl_name,
-            },
-        )
-        _save_planner_chat(plan_file, ctx, state, planner_response=planner_response)
+    _write_plan_path_artifact(state.current_artifacts_dir, plan_file)
+    record_workflow_metadata(
+        state.current_artifacts_dir,
+        {
+            "plan_path": plan_file,
+            "patch_name": ctx.cl_name,
+            "changespec_name": ctx.cl_name,
+        },
+    )
+    _save_planner_chat(plan_file, ctx, state, planner_response=planner_response)
 
     gate_data = {
         "gate_id": creation.record.gate_id,
@@ -241,7 +228,6 @@ def _handle_plan_via_gate_turn(
         gate_data,
         ctx,
         state,
-        persist_chat=planner_response is None,
     )
 
 
@@ -250,9 +236,9 @@ def _save_planner_chat(
     ctx: AgentExecContext,
     state: LoopState,
     *,
-    planner_response: str | None,
+    planner_response: str,
 ) -> None:
-    """Persist the planner chat: real staged response, else a plan preview."""
+    """Persist the planner chat: the real staged response plus a plan preview."""
     from sase.history.chat import save_chat_history
     from sase.history.chat_extras import format_extra_sections
     from sase.history.chat_links import format_plan_as_response
@@ -261,20 +247,16 @@ def _save_planner_chat(
     _planner_suffix = state.current_role_suffix or PLAN_CHAIN_PLAN_SUFFIX
     planner_agent = agent_name_for_suffix(ctx, _planner_suffix)
     _planner_extra = format_extra_sections(state.current_artifacts_dir)
-    planner_extra = _planner_extra
-    if planner_response is None:
-        response_content = plan_response
-    else:
-        response_content = planner_response
-        sections = [
-            section
-            for section in (
-                _planner_extra,
-                f"## Proposed Plan Preview\n\n{plan_response.strip()}",
-            )
-            if isinstance(section, str) and section.strip()
-        ]
-        planner_extra = "\n\n".join(sections) or None
+    response_content = planner_response
+    sections = [
+        section
+        for section in (
+            _planner_extra,
+            f"## Proposed Plan Preview\n\n{plan_response.strip()}",
+        )
+        if isinstance(section, str) and section.strip()
+    ]
+    planner_extra = "\n\n".join(sections) or None
 
     _planner_chat = save_chat_history(
         prompt=state.current_prompt,
@@ -299,7 +281,7 @@ def _continue_after_plan_result(
     ctx: AgentExecContext,
     state: LoopState,
     *,
-    planner_response: str | None = None,
+    planner_response: str,
     staged_id: str | None = None,
 ) -> str | None:
     # Write plan_path.json so the TUI can show the plan

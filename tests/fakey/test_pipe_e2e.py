@@ -266,7 +266,7 @@ def test_fresh_named_model_pipe_skips_fork_and_records_model(
     assert review.model == "fakey-small"
 
 
-def test_pipe_chain_bound_leaves_the_agent_running(
+def test_two_link_chain_then_bound_leaves_the_agent_running(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
     harness = FakeyRetryHarness(
@@ -274,10 +274,11 @@ def test_pipe_chain_bound_leaves_the_agent_running(
         monkeypatch,
         expose_to_agent_loader=True,
     )
-    _configure_pipe_chain(harness, 1)
-    monkeypatch.setattr("sase.main.pipe_handler.get_max_agent_pipe_chain", lambda: 1)
+    _configure_pipe_chain(harness, 2)
+    monkeypatch.setattr("sase.main.pipe_handler.get_max_agent_pipe_chain", lambda: 2)
     first_hang = harness.barrier("first")
     second_hang = harness.barrier("second")
+    third_hang = harness.barrier("third")
     handle = _run_until_hang(
         harness,
         first_hang,
@@ -285,6 +286,8 @@ def test_pipe_chain_bound_leaves_the_agent_running(
         [
             _hanging_success("root waiting", first_hang),
             _hanging_success("first successor waiting", second_hang),
+            _hanging_success("second successor waiting", third_hang),
+            successful_attempt("would not run after the bound"),
         ],
     )
     try:
@@ -305,24 +308,41 @@ def test_pipe_chain_bound_leaves_the_agent_running(
         assert first_meta["pipe_depth"] == 1
         second_hang.wait_until_started()
 
-        code = _pipe(monkeypatch, first_successor, "should refuse")
+        assert (
+            _pipe(
+                monkeypatch,
+                first_successor,
+                "second hop",
+                fresh=True,
+                model="fakey-large",
+            )
+            == 0
+        )
+        second_hang.open()
+        second_successor = _wait_for_named_agent(harness, "fakey-e2e--2")
+        third_hang.wait_until_started()
+        assert _read_meta(second_successor)["pipe_depth"] == 2
+        assert _read_meta(second_successor)["piped_from"] == "fakey-e2e--1"
+
+        code = _pipe(monkeypatch, second_successor, "should refuse")
         err = capsys.readouterr().err
         assert code == 1
-        assert "max_agent_pipe_chain=1" in err
-        assert "chain length reached: 1" in err
-        assert not (first_successor / STAGED_HANDOFF_FILENAME).exists()
-        assert _read_meta(first_successor)["name"] == "fakey-e2e--1"
-        assert second_hang.release.exists() is False
-        second_hang.open()
+        assert "max_agent_pipe_chain=2" in err
+        assert "chain length reached: 2" in err
+        assert not (second_successor / STAGED_HANDOFF_FILENAME).exists()
+        assert _read_meta(second_successor)["name"] == "fakey-e2e--2"
+        assert third_hang.release.exists() is False
+        third_hang.open()
         result = handle.finish()
     finally:
         first_hang.open()
         second_hang.open()
+        third_hang.open()
         runner_signals.reset_killed()
 
     assert result.success is True
-    assert _read_meta(first_successor)["pipe_depth"] == 1
-    assert _read_meta(first_successor)["name"] == "fakey-e2e--1"
+    assert _read_meta(second_successor)["pipe_depth"] == 2
+    assert _read_meta(second_successor)["name"] == "fakey-e2e--2"
 
 
 def test_monitor_sleep_one_next_still_attaches_and_transfers_claim(

@@ -9,7 +9,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from sase.axe.run_agent_exec import run_execution_loop
-from tests._legacy_handoff_markers import handle_plan_marker
+from tests._staged_handoff_adoption import handle_plan_marker
 from tests._axe_run_agent_exec_helpers import make_exec_ctx
 from tests._axe_run_agent_exec_plan_helpers import (
     make_ctx,
@@ -29,12 +29,9 @@ def test_handle_plan_marker_does_not_persist_lifecycle_state(
     plan_file.write_text("# Plan\n", encoding="utf-8")
 
     with (
-        patch("sase.axe.run_agent_exec_plan.normalize_handoff_interruption_state"),
-        patch("sase.axe.run_agent_exec_plan.finalize_handoff_artifacts_as_completed"),
         patch(
             "sase.axe.run_agent_exec_plan.format_agent_run_runtime", return_value="1s"
         ),
-        patch("sase.axe.run_agent_exec_plan.reset_killed"),
         patch_plan_gate_turn_result(None),
     ):
         outcome = handle_plan_marker({"plan_file": str(plan_file)}, ctx, state)

@@ -21,7 +21,7 @@ import pytest
 
 from sase._plan_archive_approval import _ApprovedPlanArchive
 from sase.axe.agent_meta import write_agent_meta_atomic
-from tests._legacy_handoff_markers import handle_plan_marker
+from tests._staged_handoff_adoption import handle_plan_marker
 from sase.axe.run_agent_successor import SuccessorRequest
 from sase.history.chat import save_chat_history
 from sase.llm_provider._plan_utils import PlanApprovalResult
@@ -237,18 +237,7 @@ def test_combined_tale_approval_to_coder_link_lifecycle(
                 side_effect=refuse_runner_commit,
             )
         )
-        stack.enter_context(
-            patch(
-                "sase.axe.run_agent_exec_plan.normalize_handoff_interruption_state",
-            )
-        )
-        stack.enter_context(
-            patch(
-                "sase.axe.run_agent_exec_plan.finalize_handoff_artifacts_as_completed",
-            )
-        )
         stack.enter_context(patch("sase.axe.run_agent_exec_plan.update_meta_suffix"))
-        stack.enter_context(patch("sase.axe.run_agent_exec_plan.reset_killed"))
         stack.enter_context(
             patch("sase.axe.run_agent_exec_plan._write_plan_path_artifact")
         )

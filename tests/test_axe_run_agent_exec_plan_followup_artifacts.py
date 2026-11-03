@@ -5,7 +5,7 @@ import subprocess
 from pathlib import Path
 from unittest.mock import patch
 
-from tests._legacy_handoff_markers import handle_plan_marker
+from tests._staged_handoff_adoption import handle_plan_marker
 from sase.axe.run_agent_exec_plan_artifacts import store_followup_prompt_artifact
 from sase.axe.run_agent_helpers import create_followup_artifacts
 from sase.core.artifact_file_facade import list_explicit_artifact_files
@@ -35,8 +35,6 @@ def test_handle_plan_marker_leaves_epic_kickoff_metadata_to_host(
     (tmp_path / "plan.md").write_text(VALID_EPIC_PLAN)
     approval = PlanApprovalResult(action="epic", plan_file=plan_file)
     with (
-        patch("sase.axe.run_agent_exec_plan.normalize_handoff_interruption_state"),
-        patch("sase.axe.run_agent_exec_plan.reset_killed"),
         patch("sase.axe.run_agent_exec_plan._write_plan_path_artifact"),
         patch("sase.axe.run_agent_exec_plan.update_step_marker_chat_path"),
         patch("sase.axe.run_agent_exec_plan_accept.promote_to_workflow"),

@@ -7,7 +7,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from sase.axe.run_agent_exec import LoopState
-from tests._legacy_handoff_markers import handle_monitor_marker
+from tests._staged_handoff_adoption import handle_monitor_marker
 
 from tests._axe_run_agent_exec_helpers import make_exec_ctx
 
@@ -99,16 +99,18 @@ def test_handle_monitor_marker_saves_starter_chat_and_relationships(
             },
             ctx,
             _state(artifacts),
+            response="The model's actual final response.",
         )
 
     assert outcome == "monitored"
     assert captured["agent"] == "agent--0"
     assert captured["metadata_agent"] == "agent--0"
-    response = str(captured["response"])
-    assert "sase monitor show m123" in response
-    assert "just check-full" in response
-    assert "verify before handoff" in response
-    assert "Fix any failures." in response
+    assert captured["response"] == "The model's actual final response."
+    extra = str(captured.get("extra_sections") or "")
+    assert "sase monitor show m123" in extra
+    assert "just check-full" in extra
+    assert "verify before handoff" in extra
+    assert "Fix any failures." in extra
 
     starter_meta = json.loads((artifacts / "agent_meta.json").read_text())
     assert starter_meta["monitor_id"] == "m123"
@@ -117,11 +119,6 @@ def test_handle_monitor_marker_saves_starter_chat_and_relationships(
 
     monitor_meta = json.loads((monitor_artifacts / "agent_meta.json").read_text())
     assert monitor_meta["monitor_starter_agent"] == "agent--0"
-
-    workflow_state = json.loads((artifacts / "workflow_state.json").read_text())
-    assert workflow_state["status"] == "completed"
-    assert workflow_state["steps"][0]["status"] == "completed"
-    assert workflow_state["steps"][0]["error"] is None
 
 
 def test_handle_monitor_marker_tracks_promoted_suffix_in_loop_state(

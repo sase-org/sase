@@ -13,6 +13,41 @@ from sase.axe._run_agent_exec_staged_shared import (
 )
 
 
+def _is_in_process_member_settlement(
+    agent_id: object,
+    persisted_name: object,
+    run_metadata: Mapping[str, Any],
+) -> bool:
+    """Return whether *persisted_name* is the runner's current member.
+
+    The runner keeps ``SASE_AGENT_NAME`` at the session base while the loop
+    state moves to the member, so the finalizer context still names the base
+    when a member stages the next handoff. Accept that durable member shape.
+    """
+    from sase.plan_chain import (
+        agent_session_base,
+        agent_session_value,
+        canonical_plan_chain_suffix,
+    )
+
+    if not isinstance(agent_id, str) or not agent_id:
+        return False
+    if not isinstance(persisted_name, str) or not persisted_name:
+        return False
+    if not persisted_name.startswith(f"{agent_id}--"):
+        return False
+    suffix = persisted_name[len(agent_id) :]
+    if canonical_plan_chain_suffix(suffix) is None:
+        return False
+    if agent_session_base(persisted_name) != agent_id:
+        return False
+    try:
+        session_value = agent_session_value(run_metadata)
+    except Exception:  # noqa: BLE001 - malformed metadata is not a member.
+        return False
+    return session_value == agent_id
+
+
 def _timestamp(value: object) -> float | None:
     if not isinstance(value, str) or not value:
         return None
@@ -107,11 +142,12 @@ def finalizer_settlement_refusal(
         if context.get("plan_digest") != plan_digest:
             return "finalizer context does not match the settled plan"
         persisted_name = run_metadata.get("name")
-        if (
-            isinstance(persisted_name, str)
-            and context.get("agent_id") != persisted_name
-        ):
-            return "finalizer context does not match the persisted agent identity"
+        agent_id = context.get("agent_id")
+        if isinstance(persisted_name, str) and agent_id != persisted_name:
+            if not _is_in_process_member_settlement(
+                agent_id, persisted_name, run_metadata
+            ):
+                return "finalizer context does not match the persisted agent identity"
     elif result_status != "success":
         return "an empty finalizer plan must settle with success"
 

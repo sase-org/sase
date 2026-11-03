@@ -20,7 +20,6 @@ from sase.axe.run_agent_helpers import (
     create_followup_artifacts,
     finalize_handoff_artifacts_as_completed,
     merge_qa_for_prompt,
-    normalize_handoff_interruption_state,
     promote_to_workflow,
     update_meta_field,
     update_meta_suffix,
@@ -28,7 +27,6 @@ from sase.axe.run_agent_helpers import (
 )
 from sase.axe.run_agent_successor import SuccessorRequest, continue_as_successor
 from sase.axe.runner_lifecycle_phase import mark_lifecycle_phase
-from sase.axe.runner_signals import reset_killed
 from sase.plan_chain import (
     AGENT_SESSION_SEPARATOR,
     agent_session_base,
@@ -117,13 +115,12 @@ def handle_staged_questions_marker(
     staged_id: str | None = None,
     approval_context: Mapping[str, Any] | None = None,
 ) -> str | None:
-    """Adopt a settled staged questions handoff without the legacy kill."""
+    """Adopt a settled staged questions handoff."""
     return _handle_questions_handoff(
         q_data,
         ctx,
         state,
         provider_response=provider_response,
-        interrupted=False,
         staged_id=staged_id,
         approval_context=approval_context,
     )
@@ -134,8 +131,7 @@ def _handle_questions_handoff(
     ctx: AgentExecContext,
     state: LoopState,
     *,
-    provider_response: str | None,
-    interrupted: bool,
+    provider_response: str,
     staged_id: str | None = None,
     approval_context: Mapping[str, Any] | None = None,
 ) -> str | None:
@@ -146,9 +142,6 @@ def _handle_questions_handoff(
 
         restore_staged_approval_loop_state(state, approval_context)
     mark_lifecycle_phase(state.current_artifacts_dir, "handoff")
-    if interrupted:
-        normalize_handoff_interruption_state(state.current_artifacts_dir)
-        reset_killed()
     finalize_handoff_artifacts_as_completed(state.current_artifacts_dir)
 
     from sase.main.plan_approve_handler import is_auto_approve_active
@@ -321,13 +314,12 @@ def _handle_questions_handoff(
 
     from sase.axe.run_agent_exec_gate import handle_gate_marker
 
-    if provider_response is not None:
-        _save_questions_chat(
-            ctx,
-            state,
-            base_meta=base_meta,
-            provider_response=provider_response,
-        )
+    _save_questions_chat(
+        ctx,
+        state,
+        base_meta=base_meta,
+        provider_response=provider_response,
+    )
 
     gate_data = {
         "gate_id": creation.record.gate_id,
@@ -339,7 +331,6 @@ def _handle_questions_handoff(
         gate_data,
         ctx,
         state,
-        persist_chat=provider_response is None,
     )
 
 
@@ -415,16 +406,14 @@ def _continue_after_auto_answered_question(
     base_meta: dict[str, Any],
     base_prompt: str,
     question_relationships: dict[str, Any],
-    provider_response: str | None = None,
+    provider_response: str,
     staged_id: str | None = None,
 ) -> str | None:
     """Continue in-process after the ``%auto`` short-circuit answered a question.
 
-    Mirrors the Off branch's ordinary successor launch -- suffix allocation,
-    inherited role, relationships, and artifact-label arguments -- except the
-    merged Q&A comes from the agent session's settled question gate turns, rebuilt
-    here to include the round the gate turn just settled, rather than from
-    ``LoopState.qa_rounds``.
+    The merged Q&A comes from the agent session's settled question gate turns,
+    rebuilt here to include the round the gate turn just settled, rather than
+    from ``LoopState.qa_rounds``.
     """
     from sase.question_gate_turn import question_rounds
 
@@ -442,20 +431,16 @@ def _continue_after_auto_answered_question(
     _q_suffix = interrupted_suffix
     _q_agent = agent_name_for_suffix(ctx, _q_suffix)
     _q_extra = format_extra_sections(state.current_artifacts_dir)
-    if provider_response is None:
-        response_content = merged_qa_text
-        extra_sections = _q_extra
-    else:
-        response_content = provider_response
-        sections = [
-            section
-            for section in (
-                _q_extra,
-                f"## Question Answers\n\n{merged_qa_text.strip()}",
-            )
-            if isinstance(section, str) and section.strip()
-        ]
-        extra_sections = "\n\n".join(sections) or None
+    response_content = provider_response
+    sections = [
+        section
+        for section in (
+            _q_extra,
+            f"## Question Answers\n\n{merged_qa_text.strip()}",
+        )
+        if isinstance(section, str) and section.strip()
+    ]
+    extra_sections = "\n\n".join(sections) or None
 
     _q_chat = save_chat_history(
         prompt=state.current_prompt,

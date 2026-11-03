@@ -7,7 +7,6 @@ from pathlib import Path
 from unittest.mock import patch
 
 from sase.axe.run_agent_exec import LoopState
-from tests._legacy_handoff_markers import handle_monitor_marker
 
 from tests._axe_run_agent_exec_helpers import make_exec_ctx
 
@@ -45,6 +44,8 @@ def test_monitor_handoff_publishes_interrupted_delta_and_member_parent(
         encoding="utf-8",
     )
 
+    from sase.axe.run_agent_exec_monitor import capture_monitor_handoff
+
     with (
         patch(
             "sase.axe.run_agent_exec_monitor.save_chat_history",
@@ -54,7 +55,7 @@ def test_monitor_handoff_publishes_interrupted_delta_and_member_parent(
         patch("sase.core.continuation_facade.validate_agent_delta"),
         patch("sase.core.continuation_facade.validate_continuation_node"),
     ):
-        outcome = handle_monitor_marker(
+        result = capture_monitor_handoff(
             {
                 "monitor_id": "m1",
                 "member_artifacts_dir": str(member),
@@ -62,9 +63,11 @@ def test_monitor_handoff_publishes_interrupted_delta_and_member_parent(
             },
             ctx,
             state,
+            response="The model's actual final response.",
+            status="completed",
         )
 
-    assert outcome == "monitored"
+    assert result is not None
     manifest = json.loads(
         (artifacts / "continuation" / "manifest.json").read_text(encoding="utf-8")
     )
@@ -74,7 +77,7 @@ def test_monitor_handoff_publishes_interrupted_delta_and_member_parent(
             artifacts / "continuation" / delta_ref.removeprefix("local:continuation/")
         ).read_text(encoding="utf-8")
     )
-    assert delta["status"] == "interrupted"
+    assert delta["status"] == "completed"
     assert delta["authored_local_request"] == prompt
     assert delta["handoff_checkpoint_ref"].startswith("local:continuation/checkpoints/")
 

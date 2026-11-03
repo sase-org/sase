@@ -17,11 +17,74 @@ if TYPE_CHECKING:
     from sase.axe.run_agent_exec_types import AgentExecContext
 
 
+def _is_current_in_process_member(
+    continuation: StagedInlineContinuation,
+    run_metadata: Mapping[str, Any],
+) -> bool:
+    """Return whether *run_metadata* names the runner's current member.
+
+    Pipe, plan-coder, and question successors continue inside the same runner
+    through ``continue_as_successor``: ``ctx.agent_name`` stays the session
+    base while ``state.current_role_suffix`` and ``state.current_artifacts_dir``
+    move to the member. A later staged handoff then persists that member
+    identity, which must adopt without a kill-based fallback.
+    """
+    from sase.plan_chain import (
+        agent_session_value,
+        canonical_plan_chain_suffix,
+        plan_chain_agent_name,
+    )
+
+    ctx = continuation.ctx
+    state = continuation.state
+    persisted_name = run_metadata.get("name")
+    base = ctx.agent_name
+    suffix = getattr(state, "current_role_suffix", None)
+    if not isinstance(persisted_name, str) or not persisted_name:
+        return False
+    if not isinstance(base, str) or not base:
+        return False
+    if not isinstance(suffix, str) or not suffix:
+        return False
+    if canonical_plan_chain_suffix(suffix) is None:
+        return False
+    try:
+        expected = plan_chain_agent_name(base, suffix)
+    except ValueError:
+        return False
+    if persisted_name != expected:
+        return False
+    try:
+        session_value = agent_session_value(run_metadata)
+    except Exception:  # noqa: BLE001 - malformed metadata is not a member.
+        return False
+    return session_value == base
+
+
+def _runner_ctx_for_in_process_member(
+    continuation: StagedInlineContinuation,
+    run_metadata: Mapping[str, Any],
+) -> AgentExecContext:
+    """Rebind per-member facts while keeping the session-base runner identity."""
+    from dataclasses import replace
+
+    ctx = continuation.ctx
+    return replace(
+        ctx,
+        agent_model=run_metadata.get("model", ctx.agent_model),
+        agent_llm_provider=run_metadata.get("llm_provider", ctx.agent_llm_provider),
+        agent_vcs_provider=run_metadata.get("vcs_provider", ctx.agent_vcs_provider),
+        agent_meta=dict(run_metadata),
+    )
+
+
 def _runner_ctx_from_metadata(
     continuation: StagedInlineContinuation,
     run_metadata: Mapping[str, Any],
 ) -> AgentExecContext:
     """Rebind the live runner context to persisted agent identity."""
+    if _is_current_in_process_member(continuation, run_metadata):
+        return _runner_ctx_for_in_process_member(continuation, run_metadata)
     ctx = continuation.ctx
     persisted_name = run_metadata.get("name")
     if isinstance(persisted_name, str) and persisted_name != ctx.agent_name:
@@ -72,6 +135,12 @@ def _runner_ctx_from_approval_context(
         values["is_home_mode"] = execution["is_home_mode"]
     if isinstance(execution.get("agent_hidden"), bool):
         values["agent_hidden"] = execution["agent_hidden"]
+    if _is_current_in_process_member(continuation, run_metadata):
+        persisted_name = run_metadata.get("name")
+        if values.get("agent_name") == persisted_name:
+            base_name = continuation.ctx.agent_name
+            if isinstance(base_name, str) and base_name:
+                values["agent_name"] = base_name
     return replace(ctx, **values, agent_meta=dict(run_metadata))
 
 
@@ -79,7 +148,9 @@ def _runner_ctx_from_monitor_metadata(
     continuation: StagedInlineContinuation,
     run_metadata: Mapping[str, Any],
 ) -> AgentExecContext:
-    """Accept only the exact root-member promotion made by monitor staging."""
+    """Accept the root promotion and the current in-process member."""
+    if _is_current_in_process_member(continuation, run_metadata):
+        return _runner_ctx_for_in_process_member(continuation, run_metadata)
     from sase.core.agent_identity_facade import normalize_owned_agent_name
     from sase.plan_chain import (
         AGENT_SESSION_SEPARATOR,
@@ -355,7 +426,6 @@ def _adopt_monitor(
         continuation.state,
         response=response,
         status="completed",
-        require_capture=True,
         promotion_base_name=continuation.ctx.agent_name,
     )
     if continuation_result is None:

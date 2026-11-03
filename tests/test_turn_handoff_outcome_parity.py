@@ -9,7 +9,7 @@ from unittest.mock import patch
 from sase.axe.run_agent_exec import LoopState
 from sase.axe.run_agent_exec_finalize import _COMPLETED_MARKER_LOOP_OUTCOMES
 from sase.axe.run_agent_exec_gate import handle_gate_marker
-from tests._legacy_handoff_markers import handle_monitor_marker
+from tests._staged_handoff_adoption import handle_monitor_marker
 from sase.axe.run_agent_runner_finalize import (
     _COMPLETION_NOTIFICATION_SUPPRESSED_OUTCOMES,
 )
@@ -65,11 +65,6 @@ def test_marker_handler_outcomes_are_registered_shell_handoffs(
             "sase.axe.run_agent_exec_monitor.format_extra_sections",
             return_value="",
         ),
-        patch(
-            "sase.axe.run_agent_exec_gate.save_chat_history",
-            return_value=str(tmp_path / "gate-chat.md"),
-        ),
-        patch("sase.axe.run_agent_exec_gate.format_extra_sections", return_value=""),
     ):
         outcomes = {
             handle_monitor_marker(

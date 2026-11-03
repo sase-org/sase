@@ -10,7 +10,7 @@ import pytest
 
 from sase.axe import run_agent_exec_questions as questions_mod
 from sase.gate_turn.models import GateTurnRecord
-from tests._legacy_handoff_markers import handle_questions_marker
+from tests._staged_handoff_adoption import handle_questions_marker
 from sase.gate_turn.transaction import GateTurnCreation
 from sase.main.qa_markdown import QARound
 from sase.notification_gates.model_results import GateCreationResult
@@ -264,4 +264,4 @@ def test_staged_questions_gated_keeps_real_response_and_skips_synthetic_chat(
 
     assert outcome == "gated"
     assert captured["response"] == "The model's actual final response."
-    assert gate_calls[0]["persist_chat"] is False
+    assert "persist_chat" not in gate_calls[0]

@@ -10,7 +10,7 @@ import pytest
 
 from sase.axe import run_agent_exec_plan as plan_mod
 from sase.gate_turn.models import GateTurnRecord
-from tests._legacy_handoff_markers import handle_plan_marker
+from tests._staged_handoff_adoption import handle_plan_marker
 from sase.gate_turn.transaction import GateTurnCreation
 from sase.llm_provider._plan_utils import PlanApprovalResult
 from sase.notification_gates.model_results import GateCreationResult

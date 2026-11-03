@@ -8,12 +8,9 @@ from typing import TYPE_CHECKING, Any
 
 from sase.agent.staged_handoff import update_staged_successor_locked
 from sase.axe._run_agent_exec_pipe_shared import (
-    build_pipe_successor_prompt,
     interrupted_phase_meta,
-    pipe_depth,
     read_json_meta,
     read_successor_prompt,
-    resolve_pipe_model,
     text,
 )
 from sase.axe.run_agent_exec_plan_artifacts import store_followup_prompt_artifact
@@ -21,7 +18,6 @@ from sase.axe.run_agent_exec_pipe_staged import prepare_staged_pipe_successor
 from sase.axe.run_agent_helpers import (
     create_followup_artifacts,
     finalize_handoff_artifacts_as_completed,
-    normalize_handoff_interruption_state,
     promote_to_workflow,
     update_meta_field,
     update_step_marker_chat_path,
@@ -32,13 +28,8 @@ from sase.axe.run_agent_successor import (
     continue_as_successor,
 )
 from sase.axe.runner_lifecycle_phase import mark_lifecycle_phase
-from sase.axe.runner_signals import reset_killed
 from sase.history.chat import save_chat_history
 from sase.history.chat_extras import format_extra_sections
-from sase.plan_chain import (
-    allocate_agent_session_child_suffix,
-    plan_chain_agent_name,
-)
 
 if TYPE_CHECKING:
     from sase.axe.run_agent_exec import AgentExecContext, LoopState
@@ -54,13 +45,12 @@ def handle_staged_pipe_marker(
     provider_response: str,
     staged_id: str,
 ) -> str | None:
-    """Adopt a settled staged pipe handoff without the legacy kill."""
+    """Adopt a settled staged pipe handoff."""
     return _handle_pipe_handoff(
         pipe_data,
         ctx,
         state,
         provider_response=provider_response,
-        interrupted=False,
         staged_id=staged_id,
     )
 
@@ -70,65 +60,32 @@ def _handle_pipe_handoff(
     ctx: AgentExecContext,
     state: LoopState,
     *,
-    provider_response: str | None,
-    interrupted: bool,
-    staged_id: str | None = None,
+    provider_response: str,
+    staged_id: str,
 ) -> str | None:
     parent_dir = state.current_artifacts_dir
-    staged_plan: dict[str, Any] | None = None
-    if staged_id is not None:
-        staged_plan = prepare_staged_pipe_successor(
-            pipe_data,
-            ctx,
-            state,
-            staged_id=staged_id,
-            provider_response=provider_response or "",
-        )
+    staged_plan = prepare_staged_pipe_successor(
+        pipe_data,
+        ctx,
+        state,
+        staged_id=staged_id,
+        provider_response=provider_response,
+    )
     mark_lifecycle_phase(parent_dir, "handoff")
-    if interrupted:
-        normalize_handoff_interruption_state(parent_dir)
     finalize_handoff_artifacts_as_completed(parent_dir)
     base_meta = interrupted_phase_meta(parent_dir, ctx.agent_meta)
     parent_name = text(base_meta.get("name")) or ctx.agent_name
-    name_token = text(pipe_data.get("name_token"))
-    fresh = bool(pipe_data.get("fresh"))
     reason = text(pipe_data.get("reason"))
-    model_spec = text(pipe_data.get("model"))
     piped_prompt = pipe_data.get("prompt")
     if not isinstance(piped_prompt, str):
         piped_prompt = ""
-    current_depth = pipe_depth(pipe_data, base_meta)
 
-    if staged_plan is not None:
-        planned_successor = staged_plan["successor"]
-        suffix = planned_successor["role_suffix"]
-        successor_name = planned_successor["agent_name"]
-        pipe_role = planned_successor.get("agent_session_role") or "feedback"
-        followup_model = _followup_model_from_record(planned_successor)
-        successor_prompt = read_successor_prompt(planned_successor)
-    else:
-        if name_token:
-            suffix = f"--{name_token}"
-            pipe_role = name_token
-        elif ctx.agent_name:
-            suffix = allocate_agent_session_child_suffix(
-                ctx.agent_name,
-                "--@",
-                extra_reserved_suffixes=tuple(
-                    saved_suffix
-                    for saved_suffix, _path in state.saved_chat_paths
-                    if saved_suffix
-                ),
-            )
-            pipe_role = "feedback"
-        else:
-            from sase.agent.names import render_agent_name_template
-
-            suffix = render_agent_name_template("--@", "0")
-            pipe_role = "feedback"
-        successor_name = (
-            plan_chain_agent_name(ctx.agent_name, suffix) if ctx.agent_name else suffix
-        )
+    planned_successor = staged_plan["successor"]
+    suffix = planned_successor["role_suffix"]
+    successor_name = planned_successor["agent_name"]
+    pipe_role = planned_successor.get("agent_session_role") or "feedback"
+    followup_model = _followup_model_from_record(planned_successor)
+    successor_prompt = read_successor_prompt(planned_successor)
 
     extra = format_extra_sections(parent_dir)
     pipe_summary = _format_pipe_response(
@@ -136,21 +93,17 @@ def _handle_pipe_handoff(
         reason=reason,
         piped_prompt=piped_prompt,
     )
-    if provider_response is None:
-        response_content = pipe_summary
-    else:
-        response_content = provider_response
-        sections = [
-            section
-            for section in (extra, f"## Pipe Hand-off\n\n{pipe_summary.strip()}")
-            if isinstance(section, str) and section.strip()
-        ]
-        extra = "\n\n".join(sections) or None
+    response_content = provider_response
+    sections = [
+        section
+        for section in (extra, f"## Pipe Hand-off\n\n{pipe_summary.strip()}")
+        if isinstance(section, str) and section.strip()
+    ]
+    extra = "\n\n".join(sections) or None
     chat_path = None
-    if staged_plan is not None:
-        existing_chat = staged_plan["successor"]["continuation_refs"].get("chat_path")
-        if isinstance(existing_chat, str) and existing_chat:
-            chat_path = existing_chat
+    existing_chat = staged_plan["successor"]["continuation_refs"].get("chat_path")
+    if isinstance(existing_chat, str) and existing_chat:
+        chat_path = existing_chat
     if chat_path is None:
         chat_path = save_chat_history(
             prompt=state.current_prompt,
@@ -189,51 +142,25 @@ def _handle_pipe_handoff(
     update_meta_field(parent_dir, "chat_path", chat_path)
     update_step_marker_chat_path(parent_dir, chat_path)
 
-    if staged_plan is None:
-        followup_model = resolve_pipe_model(model_spec) if model_spec else None
-        successor_prompt = build_pipe_successor_prompt(
-            piped_prompt,
-            parent_name=parent_name,
-            fresh=fresh,
-            model_prefix=followup_model.model_prefix if followup_model else "",
-        )
-    if staged_plan is None or staged_plan["delivery_state"] in {"prepared"}:
+    if staged_plan["delivery_state"] in {"prepared"}:
         request = SuccessorRequest(
             base_meta=base_meta,
             prompt=successor_prompt,
             suffix=suffix,
-            reserved_timestamp=(
-                staged_plan["successor"]["launch_timestamp"]
-                if staged_plan is not None
-                else None
-            ),
+            reserved_timestamp=staged_plan["successor"]["launch_timestamp"],
             extra_reserved_suffixes=tuple(
                 saved_suffix
                 for saved_suffix, _path in state.saved_chat_paths
                 if saved_suffix
             ),
             agent_session_role=pipe_role,
-            relationships=(
-                staged_plan["successor"]["relationships"]
-                if staged_plan is not None
-                else {
-                    "piped_from": parent_name,
-                    "pipe_reason": reason,
-                    "pipe_depth": current_depth + 1,
-                    "patch_name": ctx.cl_name,
-                    "changespec_name": ctx.cl_name,
-                }
-            ),
+            relationships=staged_plan["successor"]["relationships"],
             prompt_artifact_label="Piped prompt",
             model=followup_model,
             before_state_change=(
-                (
-                    lambda chosen_suffix, chosen_name: _assert_staged_pipe_identity(
-                        staged_plan, chosen_suffix, chosen_name
-                    )
+                lambda chosen_suffix, chosen_name: _assert_staged_pipe_identity(
+                    staged_plan, chosen_suffix, chosen_name
                 )
-                if staged_plan is not None
-                else None
             ),
         )
         continue_as_successor(
@@ -245,29 +172,26 @@ def _handle_pipe_handoff(
             store_prompt=_store_followup_prompt_artifact,
         )
         state.question_base_prompt = state.current_prompt
-        if staged_plan is not None:
-            successor_dir = staged_plan["successor"]["artifacts_dir"]
-            if str(Path(state.current_artifacts_dir)) != str(Path(successor_dir)):
-                raise RuntimeError(
-                    "pipe successor artifacts differ from the persisted identity"
-                )
-            update_staged_successor_locked(
-                parent_dir,
-                staged_id or "",
-                delivery_state="created",
+        successor_dir = staged_plan["successor"]["artifacts_dir"]
+        if str(Path(state.current_artifacts_dir)) != str(Path(successor_dir)):
+            raise RuntimeError(
+                "pipe successor artifacts differ from the persisted identity"
             )
-            state.pending_staged_successor = {
-                "origin_artifacts_dir": parent_dir,
-                "staged_id": staged_id or "",
-            }
+        update_staged_successor_locked(
+            parent_dir,
+            staged_id,
+            delivery_state="created",
+        )
+        state.pending_staged_successor = {
+            "origin_artifacts_dir": parent_dir,
+            "staged_id": staged_id,
+        }
     elif staged_plan["delivery_state"] in {"created"}:
         _restore_staged_pipe_loop_state(state, staged_plan)
     else:
         raise RuntimeError(
             "staged pipe successor is already submitted and cannot be adopted inline"
         )
-    if interrupted:
-        reset_killed()
     return None
 
 

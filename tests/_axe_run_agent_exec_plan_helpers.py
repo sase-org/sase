@@ -72,10 +72,8 @@ def _fake_write_sdd_spec(
 
 
 PLAN_PATCHES = {
-    "sase.axe.run_agent_exec_plan.normalize_handoff_interruption_state": None,
     "sase.axe.run_agent_exec_plan.update_meta_suffix": None,
     "sase.axe.run_agent_exec_plan.update_meta_field": None,
-    "sase.axe.run_agent_exec_plan.reset_killed": None,
     "sase.axe.run_agent_exec_plan._write_plan_path_artifact": None,
     "sase.axe.run_agent_exec_plan.update_step_marker_chat_path": None,
     "sase.axe.run_agent_exec_plan.create_followup_artifacts": lambda *a, **kw: (
@@ -93,10 +91,8 @@ PLAN_PATCHES = {
         lambda *_args, **_kwargs: Path("/tmp/prompt-archive.md")
     ),
     "sase.axe.run_agent_exec_plan_accept._commit_sdd_files": None,
-    "sase.axe.run_agent_exec_questions.normalize_handoff_interruption_state": None,
     "sase.axe.run_agent_exec_questions.update_meta_suffix": None,
     "sase.axe.run_agent_exec_questions.update_meta_field": None,
-    "sase.axe.run_agent_exec_questions.reset_killed": None,
     "sase.axe.run_agent_exec_questions.update_step_marker_chat_path": None,
     "sase.axe.run_agent_exec_questions.create_followup_artifacts": lambda *a, **kw: (
         "/tmp/followup"

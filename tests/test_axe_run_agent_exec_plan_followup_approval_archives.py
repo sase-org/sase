@@ -6,7 +6,7 @@ from unittest.mock import call, patch
 import pytest
 
 from sase.axe import run_agent_exec_plan_accept as accept_mod
-from tests._legacy_handoff_markers import handle_plan_marker
+from tests._staged_handoff_adoption import handle_plan_marker
 from sase.axe.run_agent_successor import SuccessorRequest
 from sase.llm_provider._plan_utils import PlanApprovalResult
 from sase.sdd.store import SddStore

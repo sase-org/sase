@@ -67,7 +67,6 @@ def handle_staged_gate_marker(
         gate_data,
         ctx,
         continuation.state,
-        persist_chat=False,
     )
     retains_workspace = (
         staged_record.get("successor_workspace") == "inherit"

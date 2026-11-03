@@ -259,10 +259,10 @@ def test_successful_settlement_publishes_once_and_records_gate_refs(
         _data: object,
         _ctx: object,
         _state: object,
-        *,
-        persist_chat: bool = True,
+        **kwargs: object,
     ) -> str:
-        persist_flags.append(persist_chat)
+        assert "persist_chat" not in kwargs
+        persist_flags.append(False)
         return "gated"
 
     monkeypatch.setattr(
@@ -340,10 +340,6 @@ def test_handle_gate_marker_does_not_write_synthetic_summary(
     )
     monkeypatch.setattr("sase.axe.run_agent_exec_gate.reset_killed", lambda: None)
     saved: list[str] = []
-    monkeypatch.setattr(
-        "sase.axe.run_agent_exec_gate.save_chat_history",
-        lambda **kwargs: saved.append(str(kwargs.get("response"))) or "/fake/chat",
-    )
     ctx = replace(
         make_exec_ctx(tmp_path, is_home_mode=False),
         artifacts_dir=str(artifacts),
