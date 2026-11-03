@@ -172,6 +172,40 @@ def test_regular_no_prompt_traceback_only_reply() -> None:
     assert isinstance(flat, Text)
 
 
+def test_archive_raw_prompt_without_expanded_still_paints_reply(
+    tmp_path: Path,
+) -> None:
+    from sase.ace.tui.models.agent_archive_reader import (
+        ARCHIVE_MISSING_CONTEXT,
+        mark_agent_archive_read_only,
+    )
+
+    artifacts = tmp_path / "artifacts"
+    artifacts.mkdir()
+    prompt = "the archived prompt reads back verbatim"
+    reply = "the archived reply reads back verbatim"
+    (artifacts / "raw_prompt.md").write_text(prompt, encoding="utf-8")
+    response = artifacts / "response.md"
+    response.write_text(reply, encoding="utf-8")
+    agent = mark_agent_archive_read_only(
+        _make_agent(
+            status="DONE",
+            cl_name="archived",
+            agent_name="archived-run",
+            artifacts_dir=str(artifacts),
+            response_path=str(response),
+        )
+    )
+    panel = _FakePanel()
+    panel.update_display(agent)
+    cards = _cards_of(panel.captured[-1])
+    assert [c.card_id for c in cards] == ["context", "reply"]
+    flat = _flat_plain(panel.captured[-1])
+    assert prompt in flat
+    assert reply in flat
+    assert ARCHIVE_MISSING_CONTEXT not in flat
+
+
 def test_output_cards_use_reply_id() -> None:
     agent = _make_agent(
         agent_type=AgentType.WORKFLOW,

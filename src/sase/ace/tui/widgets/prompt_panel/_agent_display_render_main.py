@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from typing import Any
 
 from rich.text import Text
@@ -60,6 +61,8 @@ from ._member_roster import member_jump_map_publisher_for
 from ._traceback_section import build_traceback_block
 from ._agent_display_prompt_render import AgentPromptDisplayMixin
 from ._agent_display_empty import AgentDisplayEmptyMixin
+
+log = logging.getLogger(__name__)
 
 
 class AgentDisplayRenderMixin(
@@ -274,18 +277,43 @@ class AgentDisplayRenderMixin(
                 header_text.append("\n")
         memoize_raw_prompt(self, agent, raw_prompt_text)
 
-        # AGENT PROMPT section
-        append_section_heading(header_text, "AGENT PROMPT")
+        # Expanded prompt is a separate file from raw_prompt.md.
+        # ``agent_prompt_select`` never returns raw/canonical prompts, so an
+        # archived run that retained only raw_prompt.md has no expanded
+        # prompt. The identity header still carries the raw prompt; Reply
+        # still paints from response.md.
+        try:
+            prompt_content = get_prompt_content(agent)
+        except Exception:
+            log.exception(
+                "Failed to load expanded prompt for %s",
+                getattr(agent, "identity", agent),
+            )
+            prompt_content = None
 
-        # Get and display prompt content
-        prompt_content = get_prompt_content(agent)
+        prompt_syntax: Any | None = None
         if prompt_content:
+            append_section_heading(header_text, "AGENT PROMPT")
             prompt_syntax = self._render_agent_prompt(
                 agent,
                 prompt_content,
                 context=highlight_context,
             )
+        elif not raw_prompt:
+            if agent_is_archive_read_only(agent):
+                from ...models.agent_archive_reader import ARCHIVE_MISSING_CONTEXT
 
+                header_text.append(f"{ARCHIVE_MISSING_CONTEXT}\n", style="dim italic")
+            else:
+                header_text.append("No prompt file found.\n", style="dim italic")
+
+        context = (
+            context_card(header_text, prompt_syntax)
+            if prompt_syntax is not None
+            else context_card(header_text)
+        )
+
+        if prompt_content or agent_is_archive_read_only(agent):
             # For agents with follow-ups, show consolidated reply
             if agent.followup_agents:
                 phases = (agent, *agent.followup_agents)
@@ -345,7 +373,7 @@ class AgentDisplayRenderMixin(
 
                 self.update(  # type: ignore[attr-defined]
                     card_document(
-                        context_card(header_text, prompt_syntax),
+                        context,
                         reply_card(*reply_parts),
                     )
                 )
@@ -432,7 +460,7 @@ class AgentDisplayRenderMixin(
                 append_finalizer_receipt(reply_parts, agent)
                 self.update(  # type: ignore[attr-defined]
                     card_document(
-                        context_card(header_text, prompt_syntax),
+                        context,
                         reply_card(*reply_parts),
                     )
                 )
@@ -479,24 +507,18 @@ class AgentDisplayRenderMixin(
                 append_finalizer_receipt(reply_parts, agent)
                 self.update(  # type: ignore[attr-defined]
                     card_document(
-                        context_card(header_text, prompt_syntax),
+                        context,
                         reply_card(*reply_parts),
                     )
                 )
         else:
-            if agent_is_archive_read_only(agent):
-                from ...models.agent_archive_reader import ARCHIVE_MISSING_CONTEXT
-
-                header_text.append(f"{ARCHIVE_MISSING_CONTEXT}\n", style="dim italic")
-            else:
-                header_text.append("No prompt file found.\n", style="dim italic")
             traceback_parts = build_traceback_block(error_tb_syntax)
             if traceback_parts:
                 self.update(  # type: ignore[attr-defined]
                     card_document(
-                        context_card(header_text),
+                        context,
                         reply_card(*traceback_parts),
                     )
                 )
             else:
-                self.update(card_document(context_card(header_text)))  # type: ignore[attr-defined]
+                self.update(card_document(context))  # type: ignore[attr-defined]

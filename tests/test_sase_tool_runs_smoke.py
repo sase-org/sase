@@ -111,13 +111,16 @@ def test_dod_summary_separates_fail_not_run_and_pass() -> None:
 
 def test_harness_environment_is_isolated_from_the_caller(
     monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
 ) -> None:
     monkeypatch.setenv("SASE_AGENT_NAME", "leaky-agent")
     monkeypatch.setenv("SASE_MONITOR_ID", "leaky-monitor")
     monkeypatch.setenv("SASE_TOOL_RUN_ID", "leaky-run")
     monkeypatch.setenv("PYTEST_CURRENT_TEST", "leaky::test")
     tool = _load_tool()
-    harness = tool.Harness.create(sase=_sase(), live=False, keep=False)
+    harness = tool.Harness.create(
+        sase=_sase(), live=False, keep=False, tmp=tmp_path / "harness"
+    )
     try:
         env = harness.base_env
         assert not [
@@ -135,9 +138,11 @@ def test_harness_environment_is_isolated_from_the_caller(
 
 
 @pytest.mark.slow
-def test_tool_runs_harness_passes_every_hermetic_case() -> None:
+def test_tool_runs_harness_passes_every_hermetic_case(tmp_path: Path) -> None:
     tool = _load_tool()
-    report = tool.run_harness(sase=_sase(), live=False, keep=False)
+    report = tool.run_harness(
+        sase=_sase(), live=False, keep=False, tmp=tmp_path / "harness"
+    )
     statuses = {item["id"]: item["status"] for item in report["cases"]}
     assert _failures(report) == []
     hermetic = [
@@ -163,9 +168,15 @@ def test_tool_runs_harness_passes_every_hermetic_case() -> None:
 
 
 @pytest.mark.slow
-def test_tool_runs_harness_live_owner_cases_pass() -> None:
+def test_tool_runs_harness_live_owner_cases_pass(tmp_path: Path) -> None:
     tool = _load_tool()
-    report = tool.run_harness(sase=_sase(), live=True, keep=False, only=LIVE_CASES)
+    report = tool.run_harness(
+        sase=_sase(),
+        live=True,
+        keep=False,
+        only=LIVE_CASES,
+        tmp=tmp_path / "harness",
+    )
     assert _failures(report) == []
     assert {item["id"]: item["status"] for item in report["cases"]} == dict.fromkeys(
         LIVE_CASES, "pass"

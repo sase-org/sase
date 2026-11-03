@@ -149,10 +149,11 @@ def run_harness(
     live: bool,
     keep: bool,
     only: Sequence[str] | None = None,
+    tmp: Path | None = None,
 ) -> dict[str, Any]:
     """Run the harness. ``only`` restricts the run to the named case ids."""
 
-    h = Harness.create(sase=sase, live=live, keep=keep)
+    h = Harness.create(sase=sase, live=live, keep=keep, tmp=tmp)
     cases: list[dict[str, Any]] = []
     try:
         loaded = _loaded_modules(h)

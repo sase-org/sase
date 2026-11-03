@@ -27,6 +27,7 @@ from tests.ace.tui.visual._ace_png_snapshot_helpers import (
     patches,
     patch_startup_loaders,
     wait_for_startup,
+    wait_for_svg_contains,
     wait_for_visual_idle,
 )
 from tests.ace.tui.visual.png_diff import AcePngSnapshotFixture
@@ -163,6 +164,8 @@ async def test_epic_clan_panel_png_snapshots(
         await page.press("shift+tab")
         await page.expect_state("tab", "agents")
         await page.expect_state("agent_count", 1)
+        await wait_for_svg_contains(page, "CLAN")
+        await wait_for_svg_contains(page, "Rich clan summaries")
         await wait_for_visual_idle(page)
 
         assert_page_svg_contains(page, "CLAN")
@@ -238,6 +241,8 @@ async def test_clan_waves_ladder_png_snapshots(
                 break
             await page.press("j")
         assert page.app._agents[page.app.current_idx].agent_clan == "wave-epic"
+        await wait_for_svg_contains(page, "WAVES")
+        await wait_for_svg_contains(page, "wave 1 in flight")
         await wait_for_visual_idle(page)
 
         assert_page_svg_contains(page, "WAVES")
@@ -250,6 +255,7 @@ async def test_clan_waves_ladder_png_snapshots(
 
         await page.press("z", "z")
         assert page.app.panel_fold_level.value == "expanded"
+        await wait_for_svg_contains(page, "after")
         await wait_for_visual_idle(page)
         assert_page_svg_contains(page, "after")
         ace_png_visual.assert_page_png(
@@ -260,6 +266,7 @@ async def test_clan_waves_ladder_png_snapshots(
 
         await page.press("z", "z")
         assert page.app.panel_fold_level.value == "fully_expanded"
+        await wait_for_svg_contains(page, "waits on")
         await wait_for_visual_idle(page)
         assert_page_svg_contains(page, "waits on")
         ace_png_visual.assert_page_png(
@@ -291,6 +298,7 @@ async def test_epic_clan_panel_hint_mode_png_snapshot(
 
         await page.press("v")
         await page.wait_for(lambda _state: bool(page.app._hint_mappings))
+        await wait_for_svg_contains(page, "[1]")
         await wait_for_visual_idle(page)
 
         assert_page_svg_contains(page, "CLAN")
@@ -324,6 +332,7 @@ async def test_epic_clan_panel_logical_prompt_hint_mode_png_snapshot(
 
         await page.press("v")
         await page.wait_for(lambda _state: len(page.app._hint_mappings) >= 2)
+        await wait_for_svg_contains(page, "plan:202608/")
         await wait_for_visual_idle(page)
 
         assert_page_svg_contains(page, "[1]")
@@ -355,6 +364,8 @@ async def test_swarm_clan_panel_png_snapshots(
         await page.press("shift+tab")
         await page.expect_state("tab", "agents")
         await page.expect_state("agent_count", 1)
+        await wait_for_svg_contains(page, "CLAN")
+        await wait_for_svg_contains(page, "RESEARCH PROMPT:")
         await wait_for_visual_idle(page)
 
         assert_page_svg_contains(page, "CLAN")

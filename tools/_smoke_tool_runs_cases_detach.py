@@ -10,11 +10,13 @@ Matrix mapping:
 - accepted ``-d`` is observable at once and settles ... ``dod-17-detach-accept``
 - ``-d`` misuse is refused before reserving ........... ``dod-17-detach-refusals``
 - starter death stops the unjoined run ................ ``dod-17-detach-starter-death``
+- in-agent ``-J`` stages, host adopt joins the run .... ``dod-17-live-escalate-join``
 """
 
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 from pathlib import Path
 from typing import Any
@@ -285,10 +287,11 @@ def detach_join(h: Harness) -> dict[str, Any]:
 def live_escalate_join(h: Harness) -> dict[str, Any]:
     """Escalate-then-join over a real monitor: one id from detach to settlement.
 
-    A detached run from a simulated agent is joined by a real
-    ``sase monitor start -J`` whose runner kill targets the sacrificial
-    starter process group. The run keeps one id end to end and the monitor
-    mirrors the run's exit code.
+    A detached run from a simulated agent is joined by a real in-agent
+    ``sase monitor start -J``. In-agent starts always stage; the host
+    adopter then launches the frozen payload (the helper stands in for
+    that adopter). Staging writes no runner-kill markers. The run keeps
+    one id end to end and the monitor mirrors the run's exit code.
     """
 
     if not h.live:
@@ -298,9 +301,9 @@ def live_escalate_join(h: Harness) -> dict[str, Any]:
             dod=["DoD-17"],
         )
     env, project = owners._owner_world(h, "escalate-join")
-    # The join runs on the calling agent's lane, so the caller is the fixture
-    # agent; its runner pid is a sacrificial sleeper so the monitor start's
-    # runner kill targets that process group, never the harness.
+    # The join runs on the calling agent's lane. The fixture agent's runner
+    # pid is a sacrificial sleeper so a stray kill cannot target the harness;
+    # in-agent start stages and does not kill that pid.
     artifacts = owners.fixture_agent_artifacts(env, project)
     sleeper = subprocess.Popen(
         ["sleep", "300"],
@@ -320,6 +323,7 @@ def live_escalate_join(h: Harness) -> dict[str, Any]:
         SASE_AGENT_NAME=owners.FIXTURE_AGENT,
         SASE_ARTIFACTS_DIR=str(artifacts),
     )
+    monitor_id = ""
     try:
         proc = h.run(
             [
@@ -354,8 +358,6 @@ def live_escalate_join(h: Harness) -> dict[str, Any]:
                 "verify",
                 "-r",
                 "finish escalated run (joined run)",
-                "-n",
-                "read the joined run with sase tool show",
                 "-j",
             ],
             env=agent_env,
@@ -367,18 +369,37 @@ def live_escalate_join(h: Harness) -> dict[str, Any]:
         except json.JSONDecodeError:
             envelope = {}
         monitor_id = str(owners._find_key(envelope, "monitor_id") or "")
-        settled = bool(monitor_id) and wait_for(
+        member_dir = str(owners._find_key(envelope, "artifacts_dir") or "")
+        staged = bool(envelope.get("staged"))
+        starter_survived_stage = sleeper.poll() is None
+        adopt_error = ""
+        adopted: dict[str, Any] = {}
+        if joined.returncode == 0 and staged and monitor_id and member_dir:
+            try:
+                adopted = h.helper(
+                    "adopt-staged-monitor",
+                    {"artifacts_dir": member_dir},
+                    env=env,
+                )
+            except RuntimeError as exc:
+                adopt_error = str(exc)[-400:]
+        settled = bool(adopted.get("monitor_id")) and wait_for(
             lambda: bool(
                 owners._monitor_record(h, env, monitor_id, project).get("is_terminal")
             ),
             timeout=90.0,
             step=0.5,
         )
-        try:
-            sleeper.wait(timeout=10)
-            runner_killed = True
-        except subprocess.TimeoutExpired:
-            runner_killed = False
+        if settled:
+            supervisor_pid = owners._monitor_record(h, env, monitor_id, project).get(
+                "pid"
+            )
+            if isinstance(supervisor_pid, int) and supervisor_pid > 0:
+                wait_for(
+                    lambda: not _pid_alive(supervisor_pid),
+                    timeout=10.0,
+                    step=0.2,
+                )
         final = _terminal(h, env, run_id) if run_id else {}
         rows = h.runs(env=env, cwd=h.tmp)
         h.note(
@@ -389,9 +410,11 @@ def live_escalate_join(h: Harness) -> dict[str, Any]:
         )
         ok = (
             joined.returncode == 0
+            and staged
             and bool(monitor_id)
+            and starter_survived_stage
+            and not adopt_error
             and settled
-            and runner_killed
             and final.get("state") == "failed"
             and final.get("exit_code") == 3
             and (final.get("join") or {}).get("id") == monitor_id
@@ -404,18 +427,30 @@ def live_escalate_join(h: Harness) -> dict[str, Any]:
             run_ids=[run_id],
             monitor_id=monitor_id,
             join_exit=joined.returncode,
+            staged=staged,
+            starter_survived_stage=starter_survived_stage,
+            adopt_error=adopt_error,
             monitor_settled=settled,
-            runner_killed=runner_killed,
             final_state=final.get("state"),
             final_exit=final.get("exit_code"),
             join_id=(final.get("join") or {}).get("id"),
             rows=len(rows),
         )
     finally:
+        if monitor_id:
+            h.run(["monitor", "stop", monitor_id], env=env, cwd=project)
         try:
             sleeper.kill()
         except OSError:
             pass
+
+
+def _pid_alive(pid: int) -> bool:
+    try:
+        os.kill(pid, 0)
+    except OSError:
+        return False
+    return True
 
 
 def detach_starter_death(h: Harness) -> dict[str, Any]:

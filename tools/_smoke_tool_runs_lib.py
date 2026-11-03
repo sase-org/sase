@@ -90,8 +90,14 @@ class Harness:
     _counter: int = 0
 
     @classmethod
-    def create(cls, *, sase: str, live: bool, keep: bool) -> Harness:
-        tmp = Path(tempfile.mkdtemp(prefix="sase-tool-runs-harness-"))
+    def create(
+        cls, *, sase: str, live: bool, keep: bool, tmp: Path | None = None
+    ) -> Harness:
+        if tmp is None:
+            tmp = Path(tempfile.mkdtemp(prefix="sase-tool-runs-harness-"))
+        else:
+            tmp = Path(tmp)
+            tmp.mkdir(parents=True, exist_ok=True)
         user_home = tmp / "user-home"
         user_home.mkdir()
         # A black-box child is a real sase process: neither the caller's SASE_* identity
@@ -307,7 +313,11 @@ class Harness:
             ["chmod", "-R", "u+rwX", str(self.tmp)], check=False, capture_output=True
         )
         if not self.keep:
-            shutil.rmtree(self.tmp, ignore_errors=True)
+            deadline = time.monotonic() + 2.0
+            while self.tmp.exists() and time.monotonic() < deadline:
+                shutil.rmtree(self.tmp, ignore_errors=True)
+                if self.tmp.exists():
+                    time.sleep(0.1)
 
 
 def kill_tree(proc: subprocess.Popen[Any]) -> None:

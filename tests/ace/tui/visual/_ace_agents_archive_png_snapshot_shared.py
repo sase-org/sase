@@ -35,7 +35,10 @@ from tests.ace.tui._agent_archive_column_helpers import (
     complete_load,
     light_row,
 )
-from tests.ace.tui.visual._ace_agents_png_snapshot_helpers import page_svg_text
+from tests.ace.tui.visual._ace_agents_png_snapshot_helpers import (
+    decoded_svg_text_contains,
+    page_svg_text,
+)
 from tests.ace.tui.visual._ace_png_snapshot_helpers import wait_for_visual_idle
 
 NOW = datetime(2026, 10, 10, 20, 0, tzinfo=UTC)
@@ -128,13 +131,20 @@ async def _wait_for_rows(page: AcePage) -> None:
 
 
 async def wait_for_svg(page: AcePage, needle: str, timeout: float = 15.0) -> None:
-    """Poll decoded screen text until ``needle`` paints (spaces are plain)."""
+    """Poll decoded screen text until ``needle`` paints (wrap is ignored)."""
     start = asyncio.get_running_loop().time()
+    last_text = ""
     while asyncio.get_running_loop().time() - start < timeout:
-        if needle in page_svg_text(page):
+        last_text = page_svg_text(page)
+        if decoded_svg_text_contains(last_text, needle):
             return
         await asyncio.sleep(0.1)  # sase-test-wait: poll SVG text paint
-    raise AssertionError(f"timed out waiting for {needle!r} in the Archive view")
+    visible = " ".join(last_text.split())
+    if len(visible) > 800:
+        visible = f"{visible[:800]}…"
+    raise AssertionError(
+        f"timed out waiting for {needle!r} in the Archive view; visible={visible!r}"
+    )
 
 
 async def open_archive(

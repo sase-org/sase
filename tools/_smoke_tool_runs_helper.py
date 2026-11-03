@@ -441,7 +441,24 @@ def _list_runs(payload: dict[str, Any]) -> dict[str, Any]:
     return tool_run_list({"schema_version": 1, "limit": 200, **payload})
 
 
+def _adopt_staged_monitor(payload: dict[str, Any]) -> dict[str, Any]:
+    """Launch a staged monitor from its frozen payload (host-adopter stand-in)."""
+
+    from sase.monitor.start_stage import launch_from_persisted_payload
+
+    artifacts_dir = str(payload["artifacts_dir"])
+    record = launch_from_persisted_payload(artifacts_dir)
+    return {
+        "monitor_id": record.monitor_id,
+        "artifacts_dir": record.artifacts_dir,
+        "tool_run_id": record.tool_run_id,
+        "tool_run_joined": record.tool_run_joined,
+        "monitor_state": record.monitor_state,
+    }
+
+
 _COMMANDS = {
+    "adopt-staged-monitor": _adopt_staged_monitor,
     "core-round-trip": _core_round_trip,
     "identity": lambda _: _identity(),
     "list-runs": _list_runs,

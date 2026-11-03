@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 from datetime import datetime
+import re
 from xml.etree import ElementTree
 
 import pytest
@@ -539,6 +540,33 @@ def assert_page_svg_contains(page: AcePage, text: str) -> None:
 def page_svg_text(page: AcePage, *, title: str = "ACE visual assertion") -> str:
     """Return decoded text content from a fresh SVG export."""
     return _page_svg_text(page.export_svg(title=title))
+
+
+_SVG_WORD_GAP = r"[^A-Za-z0-9]+"
+
+
+def decoded_svg_text_contains(text: str, needle: str) -> bool:
+    """Return whether ``needle`` is visible in decoded SVG text.
+
+    Each SVG ``<text>`` node becomes its own line, so a wrapped sentence is
+    split by newlines. Neighboring columns can also insert box-drawing and
+    quote-bar chrome between those lines. Styled runs can omit spaces
+    (x-offsets). Match the literal text first, then whitespace-collapsed,
+    compact, and ordered-word forms that allow non-alphanumeric gaps.
+    """
+    if needle in text:
+        return True
+    if needle in " ".join(text.split()):
+        return True
+    compact_needle = needle.replace(" ", "")
+    compact_text = text.replace(" ", "").replace("\n", "")
+    if compact_needle in compact_text:
+        return True
+    words = needle.split()
+    if len(words) < 2:
+        return False
+    pattern = _SVG_WORD_GAP.join(re.escape(word) for word in words)
+    return re.search(pattern, text) is not None
 
 
 def prompt_header_and_body_text(prompt: object) -> str:

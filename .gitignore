@@ -33,6 +33,7 @@ coverage.xml
 *.cover
 *.py,cover
 .pytest_cache/
+.cache/
 
 # Mypy
 .mypy_cache/
