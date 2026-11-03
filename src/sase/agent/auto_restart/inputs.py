@@ -22,6 +22,7 @@ from collections.abc import Mapping
 
 from sase.agent.auto_restart.managed_roots import ManagedRoot
 from sase.agent.auto_restart.witnesses import WitnessInputs, collect_witnesses
+from sase.agent._user_kill_types import USER_KILL_INTENT_MARKER
 from sase.core.agent_auto_restart_wire import (
     AgentFailureFactsWire,
     AutoRestartContextWire,
@@ -181,6 +182,12 @@ def _has_staged_handoff(artifacts_dir: str) -> bool:
     return False
 
 
+def _has_hijack_intent(artifacts_dir: Path) -> bool:
+    """Return whether the user-kill marker records hijack mode."""
+    marker = read_json_dict(artifacts_dir / USER_KILL_INTENT_MARKER)
+    return marker is not None and marker.get("mode") == "hijack"
+
+
 def pending_handoff(artifacts_dir: Path | None) -> bool:
     """Return whether a plan/question/monitor/gate/pipe handoff is pending."""
     if artifacts_dir is None:
@@ -246,6 +253,7 @@ def assemble_done_row_input(
         has_pending_question=pending_question(artifacts_dir, meta),
         has_pending_handoff=pending_handoff(artifacts_dir),
         is_remote=_is_remote(done, meta),
+        has_hijack_intent=_has_hijack_intent(artifacts_dir),
         error_text=error_text,
         traceback_text=traceback_text,
         log_tail=log_tail,
@@ -317,6 +325,7 @@ def assemble_bundle_input(
         has_pending_question=False,
         has_pending_handoff=False,
         is_remote=False,
+        has_hijack_intent=False,
         error_text=error_text,
         traceback_text=traceback_text,
         log_tail=log_tail,

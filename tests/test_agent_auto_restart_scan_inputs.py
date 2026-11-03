@@ -7,6 +7,7 @@ re-exports these tests so its import path keeps working.
 from __future__ import annotations
 
 import datetime
+import json
 from pathlib import Path
 from typing import Any
 
@@ -22,6 +23,7 @@ __all__ = [
     "test_assemble_bundle_input",
     "test_assemble_done_row_legacy_without_facts",
     "test_assemble_done_row_pending_markers",
+    "test_assemble_done_row_hijack_intent_excludes_auto_restart",
     "test_assemble_done_row_with_structured_facts",
     "test_find_runner_log_by_timestamp_suffix",
     "test_find_runner_log_prefers_output_path",
@@ -125,6 +127,28 @@ def test_assemble_done_row_pending_markers(tmp_path: Path) -> None:
     )
     assert assembled.context.has_pending_question is True
     assert assembled.context.has_pending_handoff is True
+
+
+def test_assemble_done_row_hijack_intent_excludes_auto_restart(
+    tmp_path: Path,
+) -> None:
+    artifacts_dir = tmp_path / "20261009112914"
+    artifacts_dir.mkdir()
+    (artifacts_dir / ".sase_user_kill_pending").write_text(
+        json.dumps({"mode": "hijack"}), encoding="utf-8"
+    )
+    assembled = assemble_done_row_input(
+        artifacts_dir=artifacts_dir,
+        done=_done_dict(),
+        meta={},
+        managed_roots=(),
+        project="p",
+        died_at=None,
+        log_tail="",
+        journal_path=tmp_path / "absent.jsonl",
+        enable_file_proof=False,
+    )
+    assert assembled.context.has_hijack_intent is True
 
 
 def test_assemble_bundle_input(tmp_path: Path) -> None:

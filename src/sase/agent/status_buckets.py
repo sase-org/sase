@@ -71,7 +71,7 @@ ANSWERED_STATUS = "ANSWERED"
 #: its shell state implies, so approving a plan never files the agent session under
 #: ``Done`` while the follow-up agent is still coming up.
 HANDOFF_SETTLED_STATUSES: frozenset[str] = APPROVED_PLAN_STATUSES | frozenset(
-    {EPIC_APPROVED_STATUS, ANSWERED_STATUS}
+    {EPIC_APPROVED_STATUS, ANSWERED_STATUS, "ESCALATED", "CONTINUED"}
 )
 WORKING_PLAN_STATUSES: frozenset[str] = frozenset(
     {WORKING_PLAN_STATUS, WORKING_TALE_STATUS}
@@ -112,7 +112,7 @@ ACTIVE_AGENT_STATUSES: frozenset[str] = frozenset(
 #: intentionally narrower than ``needs:input`` query matching, which also
 #: includes execution states such as ``PLAN APPROVED``.
 AGENT_ASKING_STATUSES: frozenset[str] = frozenset(
-    PENDING_PLAN_REVIEW_STATUS_SET | {"QUESTION", "WAITING INPUT"}
+    PENDING_PLAN_REVIEW_STATUS_SET | {"QUESTION", "WAITING INPUT", "HIJACKED"}
 )
 
 # Status mapping for status bucketing.  The semantic line is:

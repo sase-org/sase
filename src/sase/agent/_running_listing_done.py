@@ -58,7 +58,12 @@ def done_info_from_record(
     outcome = done.outcome or "completed"
     if outcome == "noop":
         return None
-    if outcome == "epic_approved":
+    if outcome == "hijacked":
+        from sase.agent.hijack.core import agent_hijack_status_for_done_marker
+
+        status = agent_hijack_status_for_done_marker(outcome, done.recovery)
+        status = status or "HIJACKED"
+    elif outcome == "epic_approved":
         status = EPIC_APPROVED_STATUS
     elif outcome == "monitored":
         status = clamp_monitor_status_or_default(

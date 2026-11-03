@@ -128,6 +128,7 @@ class AutoRestartContextWire:
     has_pending_question: bool = False
     has_pending_handoff: bool = False
     is_remote: bool = False
+    has_hijack_intent: bool = False
     error_text: str = ""
     traceback_text: str = ""
     log_tail: str = ""
@@ -232,6 +233,11 @@ class AgentRecoveryWire:
     updated_at: str | None = None
     episode_id: str | None = None
     ledger_key: str | None = None
+    kind: str | None = None
+    hijack_id: str | None = None
+    action: str | None = None
+    successor: str | None = None
+    model_changed: bool | None = None
 
 
 def agent_failure_facts_to_dict(facts: AgentFailureFactsWire) -> dict[str, Any]:
@@ -292,6 +298,7 @@ def auto_restart_context_to_dict(
         "has_pending_question": context.has_pending_question,
         "has_pending_handoff": context.has_pending_handoff,
         "is_remote": context.is_remote,
+        "has_hijack_intent": context.has_hijack_intent,
         "error_text": context.error_text,
         "traceback_text": context.traceback_text,
         "log_tail": context.log_tail,
@@ -530,6 +537,15 @@ def agent_recovery_from_mapping(data: Any) -> AgentRecoveryWire | None:
         updated_at=_opt_str(data.get("updated_at")),
         episode_id=_opt_str(data.get("episode_id")),
         ledger_key=_opt_str(data.get("ledger_key")),
+        kind=_opt_str(data.get("kind")),
+        hijack_id=_opt_str(data.get("hijack_id")),
+        action=_opt_str(data.get("action")),
+        successor=_opt_str(data.get("successor")),
+        model_changed=(
+            data.get("model_changed")
+            if isinstance(data.get("model_changed"), bool)
+            else None
+        ),
     )
 
 

@@ -44,6 +44,16 @@ def test_pending_plan_review_statuses_share_semantics(status: str) -> None:
     assert status_bucket_for_values(status) == "Stopped"
 
 
+def test_hijacked_status_is_stopped_and_needs_user_action() -> None:
+    assert status_bucket_for_values("HIJACKED") == "Stopped"
+    assert agent_is_asking("HIJACKED")
+
+
+@pytest.mark.parametrize("status", ["ESCALATED", "CONTINUED"])
+def test_hijack_handoff_settlement_buckets_as_running(status: str) -> None:
+    assert status_bucket_for_values(status) == "Running"
+
+
 def test_non_pending_status_is_not_pending_plan_review() -> None:
     assert not is_pending_plan_review_status("PLAN APPROVED")
     assert not is_pending_plan_review_status(None)
