@@ -492,9 +492,11 @@ def _apply_release(
             cl_name=owner.cl_name or None,
             workspace_num=owner.workspace_num,
         )
+    record_path = _settle_existing_record(owner, reason=reason)
     return _WorkspaceRetentionResult(
         disposition=DISPOSITION_RELEASE,
         reason=reason,
+        record_path=record_path,
         claim_changed=True,
         probe_errors=tuple(probe_errors),
     )
@@ -642,6 +644,31 @@ def pending_retention_matches_owner(
         return False
 
 
+def _settle_existing_record(
+    owner: WorkspaceRetentionOwner, *, reason: str
+) -> str | None:
+    """Settle a prior retain record after a proven release or transfer."""
+    if not owner.artifacts_dir:
+        return None
+    try:
+        from datetime import datetime
+
+        from sase.core.time import get_timezone
+        from sase.workspace_provider.retention_record import (
+            mark_workspace_retention_settled,
+        )
+
+        if not mark_workspace_retention_settled(
+            owner.artifacts_dir,
+            reason=reason,
+            settled_at=datetime.now(get_timezone()).isoformat(),
+        ):
+            return None
+    except Exception:  # noqa: BLE001 - settlement of an old record is best effort
+        return None
+    return str(Path(owner.artifacts_dir) / RETENTION_RECORD_LOCATOR)
+
+
 def _persist_record(
     owner: WorkspaceRetentionOwner,
     *,
@@ -656,6 +683,12 @@ def _persist_record(
         return None
     if disposition == DISPOSITION_RETAIN and _settled_record_path(owner) is not None:
         return _settled_record_path(owner)
+    if disposition == DISPOSITION_OWNERSHIP_MOVED:
+        # An unresolved retain stays visible until a proven transfer or
+        # release settles it. A stale ownership probe is not that proof.
+        existing = _unresolved_retain_path(owner)
+        if existing is not None:
+            return existing
     payload: dict[str, object] = {
         "schema_version": WORKSPACE_RETENTION_WIRE_SCHEMA_VERSION,
         "kind": "terminal_workspace_retention",
@@ -681,6 +714,7 @@ def _persist_record(
         "stale_attempt": stale_attempt,
         "created_at": time.time(),
     }
+    payload.update(_guidance_fields(owner))
     record_path = Path(owner.artifacts_dir) / RETENTION_RECORD_LOCATOR
     try:
         write_json_marker_atomic(record_path, payload)
@@ -688,6 +722,54 @@ def _persist_record(
         return None
     _record_meta_path(owner.artifacts_dir, str(record_path))
     return str(record_path)
+
+
+def _unresolved_retain_path(owner: WorkspaceRetentionOwner) -> str | None:
+    if not owner.artifacts_dir:
+        return None
+    try:
+        from sase.workspace_provider.retention_record import (
+            read_workspace_retention_record,
+        )
+
+        record = read_workspace_retention_record(owner.artifacts_dir)
+    except Exception:  # noqa: BLE001 - missing records are treated as absent
+        return None
+    if record is None or not record.unresolved:
+        return None
+    return str(Path(owner.artifacts_dir) / RETENTION_RECORD_LOCATOR)
+
+
+def _guidance_fields(owner: WorkspaceRetentionOwner) -> dict[str, object]:
+    """Capture recovery-command facts so surfaces need no extra I/O."""
+    extra: dict[str, object] = {}
+    if not owner.artifacts_dir:
+        return extra
+    try:
+        raw = json.loads(
+            (Path(owner.artifacts_dir) / "agent_meta.json").read_text(encoding="utf-8")
+        )
+    except (OSError, json.JSONDecodeError):
+        raw = {}
+    meta = raw if isinstance(raw, dict) else {}
+    name = meta.get("name") or meta.get("agent_name")
+    if isinstance(name, str) and name.strip():
+        extra["origin_agent_name"] = name.strip()
+    is_monitor = owner.workflow == "ace-monitor" or meta.get("turn_kind") == "monitor"
+    if not is_monitor:
+        return extra
+    state = meta.get("monitor_state")
+    if not isinstance(state, str) or not state.strip():
+        state = owner.terminal_reason
+    if isinstance(state, str) and state.strip():
+        extra["monitor_state"] = state.strip()
+    next_action = meta.get("monitor_next_action")
+    if isinstance(next_action, str):
+        extra["monitor_next_action"] = next_action.strip()
+    host_status = meta.get("monitor_host_completion_status")
+    if isinstance(host_status, str) and host_status.strip():
+        extra["monitor_host_completion_status"] = host_status.strip()
+    return extra
 
 
 def _record_meta_path(artifacts_dir: str, record_path: str) -> None:

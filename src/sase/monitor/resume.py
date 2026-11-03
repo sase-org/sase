@@ -319,10 +319,9 @@ def _settle_retention_after_resume(
     another checkout, or a failed resume, leaves the original hold and its
     recovery evidence untouched.
 
-    The settled marker uses ``settled_at``/``settled_reason`` so
-    :attr:`WorkspaceRetentionRecord.unresolved` clears; the legacy
-    ``settled`` boolean is kept for backward compatibility with readers
-    that still check it.
+    The shared settlement API writes ``settled_at``/``settled_reason`` so
+    :attr:`WorkspaceRetentionRecord.unresolved` clears, plus the legacy
+    ``settled`` boolean and ``settled_via`` for older readers.
     """
     if not launch.launched or launch.degraded_reason:
         return
@@ -341,31 +340,13 @@ def _settle_retention_after_resume(
         return
     if record.disposition != "retain":
         return
-    settled = mark_workspace_retention_settled(
+    extra = {"resumed_to": agent_name} if agent_name else None
+    mark_workspace_retention_settled(
         artifacts_dir,
         reason="resume_transfer",
         settled_at=datetime.now(get_timezone()).isoformat(),
+        extra=extra,
     )
-    if not settled:
-        return
-    # Preserve transfer evidence and the legacy boolean for old readers.
-    try:
-        import json
-        from pathlib import Path
-
-        from sase.core.atomic_json import write_json_marker_atomic
-        from sase.turns.workspace_retention import RETENTION_RECORD_LOCATOR
-
-        record_path = Path(artifacts_dir) / RETENTION_RECORD_LOCATOR
-        payload = json.loads(record_path.read_text(encoding="utf-8"))
-        if isinstance(payload, dict):
-            payload["settled"] = True
-            payload["settled_via"] = "resume_transfer"
-            if agent_name:
-                payload["resumed_to"] = agent_name
-            write_json_marker_atomic(record_path, payload)
-    except (OSError, ValueError, UnicodeDecodeError):
-        return
 
 
 __all__ = [

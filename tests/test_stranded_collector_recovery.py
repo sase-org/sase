@@ -124,6 +124,66 @@ def test_terminal_workspace_retention_marks_member_as_stranded_owner(
     assert member["workspace_retention"] is False
 
 
+def test_historical_settled_boolean_does_not_clear_stranded_projection(
+    monkeypatch, tmp_path: Path
+) -> None:
+    from sase.workspace_provider.retention_record import (
+        mark_workspace_retention_settled,
+        read_workspace_retention_record,
+    )
+
+    artifact = _dir(tmp_path, "origin-run")
+    wire_collector(
+        monkeypatch,
+        tmp_path,
+        [
+            phase(
+                "sase-yo",
+                status=Status.OPEN,
+                completion_failure=_failure(),
+            )
+        ],
+        [
+            record(
+                artifact,
+                name="origin-agent",
+                session="origin-session",
+                done=DoneMarkerWire(outcome="failed", finished_at=_NOW - 3600),
+            )
+        ],
+    )
+    retention_path = artifact / "diagnostics" / "workspace_retention.json"
+    retention_path.parent.mkdir()
+    retention_path.write_text(
+        json.dumps(
+            {
+                "kind": "terminal_workspace_retention",
+                "disposition": "retain",
+                "workspace_num": 17,
+                "settled": True,
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    typed = read_workspace_retention_record(artifact)
+    assert typed is not None and typed.unresolved is True
+    member = bead_facts(collect_stranded_work_input(PROJECT, now=_NOW), "sase-yo")[
+        "members"
+    ][0]
+    assert member["workspace_retention"] is True
+
+    assert mark_workspace_retention_settled(
+        artifact, reason="resume_transfer", settled_at="2026-01-01T00:00:00+00:00"
+    )
+    typed = read_workspace_retention_record(artifact)
+    assert typed is not None and typed.unresolved is False
+    member = bead_facts(collect_stranded_work_input(PROJECT, now=_NOW), "sase-yo")[
+        "members"
+    ][0]
+    assert member["workspace_retention"] is False
+
+
 def test_ordinary_open_draft_is_not_a_candidate(monkeypatch, tmp_path: Path) -> None:
     wire_collector(
         monkeypatch,

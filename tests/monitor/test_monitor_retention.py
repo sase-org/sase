@@ -188,6 +188,18 @@ def test_stopped_dirty_monitor_pins_claim_and_keeps_files(
     assert record is not None
     assert record["disposition"] == "retain"
     assert record["terminal_reason"] == "stopped"
+    assert record["monitor_state"] == "stopped"
+    from sase.workspace_provider.retention_record import (
+        read_workspace_retention_record,
+        workspace_retention_lines,
+    )
+
+    typed = read_workspace_retention_record(artifacts_dir)
+    assert typed is not None and typed.unresolved is True
+    assert typed.monitor_resume_eligible is False
+    joined = "\n".join(workspace_retention_lines(typed))
+    assert "sase monitor resume" not in joined
+    assert "Dismiss this agent to release the workspace." in joined
 
 
 @pytest.mark.parametrize(
@@ -245,7 +257,9 @@ def test_reboot_lost_dirty_monitor_retains(tmp_path: Path) -> None:
 def test_failed_monitor_with_failed_followup_retains_dirty(tmp_path: Path) -> None:
     """Launch failure with unresolved dirt retains the original workspace."""
     repo = _init_repo(tmp_path / "ws", dirty=True)
-    artifacts_dir, project_file = _make_monitor(repo, next_action="Report it.")
+    artifacts_dir, project_file = _make_monitor(
+        repo, monitor_state="failed", next_action="Report it."
+    )
     meta = _read_meta(artifacts_dir)
 
     result = settle_claim_and_followup(
@@ -270,6 +284,19 @@ def test_failed_monitor_with_failed_followup_retains_dirty(tmp_path: Path) -> No
     record = _retention_record(artifacts_dir)
     assert record is not None
     assert record["disposition"] == "retain"
+    assert record.get("monitor_state") == "failed"
+    assert record.get("monitor_next_action") == "Report it."
+    from sase.workspace_provider.retention_record import (
+        read_workspace_retention_record,
+        workspace_retention_lines,
+    )
+
+    typed = read_workspace_retention_record(artifacts_dir)
+    assert typed is not None and typed.monitor_resume_eligible is True
+    assert any(
+        "sase monitor resume abc123def456" in line
+        for line in workspace_retention_lines(typed)
+    )
 
 
 def test_failed_monitor_with_failed_followup_releases_when_clean(

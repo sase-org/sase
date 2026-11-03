@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -10,6 +11,10 @@ from typing import Any
 from sase.core.atomic_json import write_json_marker_atomic
 
 RETENTION_RECORD_LOCATOR = "diagnostics/workspace_retention.json"
+_RESUME_INELIGIBLE_MONITOR_STATES = frozenset({"running", "stopped", "lost"})
+_KNOWN_MONITOR_STATES = frozenset(
+    {"running", "stopped", "lost", "failed", "completed", "timeout"}
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -85,11 +90,45 @@ class WorkspaceRetentionRecord:
 
     @property
     def unresolved(self) -> bool:
+        """Return whether this retain record still needs recovery or release.
+
+        A historical ``settled: true`` boolean is not evidence of transfer.
+        Only ``settled_at`` (written after proven custody transfer or release)
+        clears the hold for readers and stranded/UI projections.
+        """
         return self.disposition == "retain" and not self.payload.get("settled_at")
 
     @property
     def terminal(self) -> bool:
         return self.payload.get("kind") == "terminal_workspace_retention"
+
+    @property
+    def origin_agent_name(self) -> str | None:
+        return _optional_string(self.payload.get("origin_agent_name"))
+
+    @property
+    def monitor_state(self) -> str | None:
+        state = _optional_string(self.payload.get("monitor_state"))
+        if state is not None:
+            return state
+        reason = self.terminal_reason
+        return reason if reason in _KNOWN_MONITOR_STATES else None
+
+    @property
+    def monitor_resume_eligible(self) -> bool:
+        """Return whether `sase monitor resume` is an applicable recovery action."""
+        if self.workflow != "ace-monitor" or not self.turn_id:
+            return False
+        state = self.monitor_state
+        if state is None or state in _RESUME_INELIGIBLE_MONITOR_STATES:
+            return False
+        if _optional_string(self.payload.get("monitor_host_completion_status")):
+            return False
+        if "monitor_next_action" in self.payload and not _optional_string(
+            self.payload.get("monitor_next_action")
+        ):
+            return False
+        return True
 
 
 def read_workspace_retention_record(
@@ -115,14 +154,28 @@ def mark_workspace_retention_settled(
     *,
     reason: str,
     settled_at: str,
+    extra: Mapping[str, Any] | None = None,
 ) -> bool:
-    """Mark a retained record settled after its ownership-checked release."""
+    """Mark a retained record settled after proven custody transfer or release.
+
+    Resume, clean release, explicit dismissal, TTL expiry, and successful
+    staged readoption share this field contract. Failure, an unknown
+    receiver, or a degraded different-workspace launch must not call it.
+    A historical ``settled: true`` boolean without ``settled_at`` stays
+    unresolved and is ignored here.
+    """
     record = read_workspace_retention_record(artifacts_dir)
     if record is None or not record.unresolved:
         return False
     payload = dict(record.payload)
     payload["settled_at"] = settled_at
     payload["settled_reason"] = reason
+    payload["settled"] = True
+    payload["settled_via"] = reason
+    if extra:
+        for key, value in extra.items():
+            if value is not None:
+                payload[key] = value
     try:
         write_json_marker_atomic(Path(record.path), payload)
     except OSError:
@@ -166,11 +219,18 @@ def workspace_retention_lines(
             "held checkout preserves the work."
         )
     if record.staged_id:
-        lines.append(
-            f"Staged handoff {record.staged_id} remains available for re-adoption; "
-            "dismiss this agent to release the workspace."
-        )
-    elif record.workflow == "ace-monitor" and record.turn_id:
+        origin = record.origin_agent_name
+        if origin:
+            lines.append(
+                f"Re-adopt with `sase agent readopt {origin}`, or dismiss this "
+                "agent to release the workspace."
+            )
+        else:
+            lines.append(
+                f"Staged handoff {record.staged_id} remains available for "
+                "re-adoption; dismiss this agent to release the workspace."
+            )
+    elif record.monitor_resume_eligible:
         lines.append(
             f"Resume with `sase monitor resume {record.turn_id}`, or dismiss this "
             "agent to release the workspace."

@@ -479,6 +479,8 @@ async def test_agents_workspace_retention_detail_png_snapshot(
                     "affected_repo_ids": ["sase", "sase-core"],
                     "snapshot_paths": ["/artifacts/worktree.diff"],
                     "turn_id": "turn-123",
+                    "monitor_state": "failed",
+                    "monitor_next_action": "Report the result.",
                 },
             ),
             held_claim_ttl_days=14,

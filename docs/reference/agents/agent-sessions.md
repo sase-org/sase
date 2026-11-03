@@ -208,7 +208,9 @@ The result reports the destination and any refusal reason or repair action. Add 
 for explicit `adopted` and `already_adopted` fields. Exit `0` means adoption succeeded
 or was already complete; exit `1` means held, refused, or an unresolved selector. A
 failed handoff can leave a [held workspace](workspaces.md#held-workspaces) when work
-still needs recovery.
+still needs recovery. Successful re-adoption that transfers the original workspace
+settles that hold; a delayed failed-adoption callback does not recreate it. A successor
+that launches in a different workspace leaves the original hold unresolved.
 
 ### Session detail folding
 

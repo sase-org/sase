@@ -617,3 +617,108 @@ def test_metadata_write_failure_still_protects_custody(
     assert len(claims) == 1
     assert claims[0].pinned is True
     assert (checkout / "tracked.txt").read_text(encoding="utf-8") == "session owned\n"
+
+
+def test_same_workspace_successor_settles_prior_retain_record(tmp_path: Path) -> None:
+    """A proven successor transfer discharges the old retain through the reader."""
+    from sase.workspace_provider.retention_record import read_workspace_retention_record
+
+    checkout = _init_repo(tmp_path / "ws", tracked_dirty=True)
+    artifacts = tmp_path / "artifacts"
+    _write_empty_baseline(artifacts, "primary", checkout)
+    project_file = create_project_file_with_running(tmp_path, [_claim()])
+    owner = _owner(project_file, checkout, artifacts)
+
+    held = settle_stranded_workspace(owner)
+    assert held.disposition == "retain"
+    before = read_workspace_retention_record(artifacts)
+    assert before is not None and before.unresolved is True
+
+    result = settle_stranded_workspace(
+        owner,
+        successor=WorkspaceRetentionSuccessor(
+            confirmed_active=True,
+            same_workspace=True,
+            inherited_obligations=True,
+        ),
+    )
+
+    assert result.disposition == "release"
+    assert result.reason == "same_workspace_successor"
+    assert get_claimed_workspaces(project_file) == []
+    after = read_workspace_retention_record(artifacts)
+    assert after is not None
+    assert after.unresolved is False
+    assert after.payload.get("settled_reason") == "same_workspace_successor"
+    assert after.payload.get("settled_at")
+    assert after.payload.get("settled") is True
+
+
+def test_stale_ownership_probe_leaves_unresolved_retain(tmp_path: Path) -> None:
+    """A later ownership-moved probe must not hide an unresolved retain."""
+    from sase.workspace_provider.retention_record import read_workspace_retention_record
+
+    checkout = _init_repo(tmp_path / "ws", tracked_dirty=True)
+    artifacts = tmp_path / "artifacts"
+    _write_empty_baseline(artifacts, "primary", checkout)
+    project_file = create_project_file_with_running(tmp_path, [_claim()])
+    owner = _owner(project_file, checkout, artifacts)
+    held = settle_stranded_workspace(owner)
+    assert held.disposition == "retain"
+
+    foreign = WorkspaceClaim(
+        _WORKSPACE,
+        _WORKFLOW,
+        _CL_NAME,
+        pid=999,
+        artifacts_timestamp="20260101999999",
+    )
+    Path(project_file).write_text(
+        "# Test Project\n\nRUNNING:\n"
+        + foreign.to_line()
+        + "\nNAME: Test Feature\nDESCRIPTION:\n  Test description\n"
+        "PARENT: None\nPR: None\nSTATUS: Ready\n",
+        encoding="utf-8",
+    )
+
+    result = settle_stranded_workspace(owner)
+
+    assert result.disposition == "ownership_moved"
+    after = read_workspace_retention_record(artifacts)
+    assert after is not None
+    assert after.unresolved is True
+    assert after.disposition == "retain"
+    assert get_claimed_workspaces(project_file)[0].pid == 999
+
+
+def test_historical_settled_boolean_without_timestamp_stays_unresolved(
+    tmp_path: Path,
+) -> None:
+    """A legacy settled flag is not transfer evidence for readers."""
+    from sase.workspace_provider.retention_record import (
+        mark_workspace_retention_settled,
+        read_workspace_retention_record,
+    )
+
+    checkout = _init_repo(tmp_path / "ws", tracked_dirty=True)
+    artifacts = tmp_path / "artifacts"
+    _write_empty_baseline(artifacts, "primary", checkout)
+    project_file = create_project_file_with_running(tmp_path, [_claim()])
+    held = settle_stranded_workspace(_owner(project_file, checkout, artifacts))
+    assert held.record_path is not None
+    payload = json.loads(Path(held.record_path).read_text(encoding="utf-8"))
+    payload["settled"] = True
+    Path(held.record_path).write_text(json.dumps(payload), encoding="utf-8")
+
+    record = read_workspace_retention_record(artifacts)
+    assert record is not None
+    assert record.unresolved is True
+    assert (
+        mark_workspace_retention_settled(
+            artifacts, reason="resume_transfer", settled_at="2026-11-02T00:00:00+00:00"
+        )
+        is True
+    )
+    settled = read_workspace_retention_record(artifacts)
+    assert settled is not None
+    assert settled.unresolved is False

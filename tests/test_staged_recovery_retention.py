@@ -259,3 +259,53 @@ def test_cleanup_expiry_preserves_successor_custody(origin, monkeypatch, race):
     recover_staged_handoff(str(artifacts), mode="explicit")
     assert get_claimed_workspaces(project_file) == [successor]
     assert (artifacts / "diagnostics/workspace_retention.json").read_bytes() == before
+
+
+def test_successful_readopt_settles_record_and_blocks_late_hold(origin, monkeypatch):
+    """A proven transfer settles the hold; a delayed callback cannot recreate it."""
+    from sase.axe._run_agent_exec_staged_recovery_shared import (
+        write_adopted_locked,
+        write_held_locked,
+    )
+    from sase.agent.staged_handoff import acquire_adoption_lock
+
+    artifacts, checkout, project_file, claim = origin
+    (checkout / "tracked.txt").write_text("held\n")
+    recover_staged_handoff(str(artifacts), mode="explicit")
+    held = read_workspace_retention_record(artifacts)
+    assert held is not None and held.unresolved is True
+
+    successor = replace(claim, pid=123456, artifacts_timestamp="20261120120000")
+    write_project_file("proj", workspace_dir=str(checkout), running_claims=[successor])
+    with acquire_adoption_lock(artifacts):
+        write_adopted_locked(staged_id=STAGED_ID, refs={}, artifacts_dir=str(artifacts))
+        write_held_locked(STAGED_ID, "late refusal", artifacts_dir=str(artifacts))
+
+    settled = read_workspace_retention_record(artifacts)
+    assert settled is not None
+    assert settled.unresolved is False
+    assert settled.payload.get("settled_reason") == "staged_readopt"
+    assert get_claimed_workspaces(project_file) == [successor]
+    assert (checkout / "tracked.txt").read_text() == "held\n"
+    assert read_adoption_receipt(str(artifacts))["outcome"] == "adopted"
+
+
+def test_degraded_adoption_leaves_origin_hold_unresolved(origin):
+    """A successor that does not take the origin claim leaves the hold open."""
+    from sase.axe._run_agent_exec_staged_recovery_shared import write_adopted_locked
+    from sase.agent.staged_handoff import acquire_adoption_lock
+
+    artifacts, checkout, project_file, claim = origin
+    (checkout / "tracked.txt").write_text("held\n")
+    recover_staged_handoff(str(artifacts), mode="explicit")
+    with acquire_adoption_lock(artifacts):
+        write_adopted_locked(staged_id=STAGED_ID, refs={}, artifacts_dir=str(artifacts))
+
+    record = read_workspace_retention_record(artifacts)
+    assert record is not None and record.unresolved is True
+    remaining = get_claimed_workspaces(project_file)
+    assert len(remaining) == 1
+    assert remaining[0].pid == claim.pid
+    assert remaining[0].artifacts_timestamp == claim.artifacts_timestamp
+    assert remaining[0].pinned is True
+    assert (checkout / "tracked.txt").read_text() == "held\n"

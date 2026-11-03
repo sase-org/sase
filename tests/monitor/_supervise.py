@@ -92,15 +92,23 @@ def _make_member(
     extra_meta = {}
     if idle_timeout_seconds > 0:
         extra_meta["monitor_idle_timeout_seconds"] = idle_timeout_seconds
+    timestamp = "20260812120000"
+    pid = os.getpid()
     project_file = write_project_file(
         "proj",
         running_claims=[
-            WorkspaceClaim(workspace_num, claim_workflow, "acme", pid=os.getpid())
+            WorkspaceClaim(
+                workspace_num,
+                claim_workflow,
+                "acme",
+                pid=pid,
+                artifacts_timestamp=timestamp,
+            )
         ],
     )
     artifacts_dir = make_starter_agent(
         "proj",
-        "20260812120000",
+        timestamp,
         "acme--mon",
         agent_session="acme",
         agent_session_role="monitor",
@@ -116,6 +124,7 @@ def _make_member(
         cl_name="acme",
         workspace_dir=str(tmp_path),
         workspace_num=workspace_num,
+        pid=pid,
         monitor_continuation_protocol=MONITOR_CONTINUATION_PROTOCOL_RECORDS_V1,
         **extra_meta,
     )

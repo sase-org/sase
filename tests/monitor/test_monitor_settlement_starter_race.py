@@ -43,13 +43,23 @@ def _sandbox_home(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
 def _make_settlement_monitor(
     tmp_path: Path, starter: Path, *, monitor_state: str = "completed"
 ) -> str:
+    timestamp = "20260916094222"
+    pid = os.getpid()
     write_project_file(
         "proj",
-        running_claims=[WorkspaceClaim(3, "ace-monitor", "acme", pid=os.getpid())],
+        running_claims=[
+            WorkspaceClaim(
+                3,
+                "ace-monitor",
+                "acme",
+                pid=pid,
+                artifacts_timestamp=timestamp,
+            )
+        ],
     )
     return make_starter_agent(
         "proj",
-        "20260916094222",
+        timestamp,
         "acme--mon",
         agent_session="acme",
         agent_session_role="monitor",
@@ -65,6 +75,7 @@ def _make_settlement_monitor(
         cl_name="acme",
         workspace_dir=str(tmp_path),
         workspace_num=3,
+        pid=pid,
         shell_kind="proc",
     )
 

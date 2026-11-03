@@ -71,7 +71,10 @@ command itself succeeded. **Degraded** means workspace ownership could not be
 transferred normally: the follow-up may take a fresh claim on the same workspace or use
 another checkout. Its prompt states which happened. A follow-up in another checkout does
 not take ownership of the original edits. The hold's detail callout lists its cause and
-any captured recovery diffs; inspect that work before dismissing the monitor row.
+any captured recovery diffs. When resume is eligible it names `sase monitor resume`;
+stopped and lost monitors stay inspection-only and the callout names dismissal instead.
+A later successful same-workspace resume settles the retention record; a failed resume
+leaves it unresolved. Inspect that work before dismissing the monitor row.
 
 If a proc-backed monitor loses its supervisor, its failure message in
 `sase monitor show` and `done.json` includes `last supervisor error: <line>` when the

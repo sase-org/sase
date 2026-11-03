@@ -88,8 +88,12 @@ def adopted_destination_refs(
 def write_held_locked(staged_id: str, reason: str, *, artifacts_dir: str) -> None:
     from sase.axe.run_agent_exec_staged_monitor import cleanup_staged_monitor_handoff
     from sase.axe.run_agent_exec_staged_retention import retain_dead_staged_origin
+    from sase.workspace_provider.retention_record import read_workspace_retention_record
 
     try:
+        retained = read_workspace_retention_record(artifacts_dir)
+        if retained is not None and not retained.unresolved:
+            return
         receipt_state, _ = classify_receipt(artifacts_dir, staged_id)
         if receipt_state not in {"absent", "held"}:
             return
@@ -117,6 +121,61 @@ def write_adopted_locked(
             "refs": dict(refs),
         },
         artifacts_dir=artifacts_dir,
+    )
+    _settle_origin_retention_after_adoption(artifacts_dir)
+
+
+def _settle_origin_retention_after_adoption(artifacts_dir: str) -> None:
+    """Settle a retain record after proven same-workspace adoption.
+
+    A delayed failed-adoption callback must not recreate a hold after this
+    success. If the origin still owns the exact claim, the successor did not
+    inherit the workspace and the hold stays unresolved.
+    """
+    try:
+        from sase.workspace_provider.retention_record import (
+            mark_workspace_retention_settled,
+            read_workspace_retention_record,
+        )
+    except Exception:  # noqa: BLE001 - retention settling is best effort
+        return
+    record = read_workspace_retention_record(artifacts_dir)
+    if record is None or not record.unresolved:
+        return
+    if _origin_claim_still_held(record):
+        return
+    mark_workspace_retention_settled(
+        artifacts_dir,
+        reason="staged_readopt",
+        settled_at=datetime.now(UTC).isoformat().replace("+00:00", "Z"),
+    )
+
+
+def _origin_claim_still_held(record: Any) -> bool:
+    """Fail closed: unreadable claims are treated as still held."""
+    project_file = record.payload.get("project_file")
+    if not isinstance(project_file, str) or not project_file:
+        return True
+    if (
+        record.workspace_num is None
+        or record.workflow is None
+        or record.artifacts_timestamp is None
+        or record.pid is None
+    ):
+        return True
+    try:
+        from sase.running_field import get_claimed_workspaces
+
+        claims = get_claimed_workspaces(project_file)
+    except OSError:
+        return True
+    return any(
+        claim.workspace_num == record.workspace_num
+        and claim.workflow == record.workflow
+        and (claim.cl_name or "") == (record.cl_name or "")
+        and (claim.artifacts_timestamp or "") == record.artifacts_timestamp
+        and claim.pid == record.pid
+        for claim in claims
     )
 
 

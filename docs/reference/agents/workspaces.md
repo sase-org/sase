@@ -387,17 +387,29 @@ best-effort; an absent diff does not mean the held checkout is clean. Late holds
 monitor or gate settlement also send a `workspace-held` notification.
 
 For a saved handoff, repair the reported cause before
-[re-adopting it](agent-sessions.md#handoff-recovery). For an eligible terminal monitor,
+[re-adopting it](agent-sessions.md#handoff-recovery). Held-work details name
+`sase agent readopt` when that command is eligible. For a terminal monitor that is
+eligible to continue — not still running, not stopped or lost, and not fire-and-forget
+or host-completion —
 [`sase monitor resume`](../automation/monitor-operations.md#inspecting-and-stopping-monitors)
-retries its follow-up without rerunning the command. Dismissing the terminal agent
-releases a retained claim only if its recorded ownership still matches. Recover work
-before dismissing: release makes the workspace available for reuse.
+retries its follow-up without rerunning the command. Stopped and lost monitors stay
+inspection-only; their details name dismissal rather than resume. Dismissing the
+terminal agent releases a retained claim only if its recorded ownership still matches.
+Recover work before dismissing: release makes the workspace available for reuse.
+
+A successful same-workspace resume, staged re-adoption, clean release, explicit
+dismissal, or TTL expiry writes `settled_at` on the retention record. Later refresh and
+recovery then treat the hold as discharged. A historical `settled: true` flag without
+that timestamp does not hide the hold. A failed, unknown, or degraded
+different-workspace launch leaves the record unresolved.
 
 For a dead process with retained artifacts and a completion marker, cleanup applies
 [`workspace.held_claim_ttl_days`](../config/workspace-behavior.md#workspace): 14 days by
-default, measured from the turn's launch timestamp; `0` disables age-based expiry. A
-saved staged-handoff record protects its claim from this cleanup, even past that age. A
-claim whose recorded process is still alive also remains protected from expiry.
+default, measured from the turn's launch timestamp; `0` disables age-based expiry.
+Pinned terminal holds, including staged origins that already have a completion marker,
+follow that TTL. An unpinned staged origin still waiting for adoption keeps its claim
+until transfer, pinning, or explicit dismissal. A claim whose recorded process is still
+alive also remains protected from expiry.
 
 ## Disabling Plugins
 
