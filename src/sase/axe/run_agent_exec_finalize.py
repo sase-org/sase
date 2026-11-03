@@ -413,6 +413,11 @@ def finalize_loop(
                     else current_lifecycle_phase()
                 ),
             )
+        hijack_recovery: dict[str, Any] | None = None
+        if actual_outcome == "hijacked":
+            from sase.agent._user_kill_intent import pending_hijack_recovery
+
+            hijack_recovery = pending_hijack_recovery(state.current_artifacts_dir)
         done_marker = build_done_marker(
             ctx.cl_name,
             ctx.project_file,
@@ -436,12 +441,23 @@ def finalize_loop(
             retry_chain_root_timestamp=retry_chain_root_timestamp,
             retry_error_category=retry_error_category,
             failure_facts=loop_failure_facts,
+            recovery=hijack_recovery,
         )
         done_path = write_done_marker_and_update_index(
             state.current_artifacts_dir,
             done_marker,
         )
         print(f"Done marker written to: {done_path} (outcome: {state.loop_outcome})")
+        if actual_outcome == "hijacked":
+            try:
+                from sase.agent.hijack.ledger import mark_stopping_if_requested
+
+                mark_stopping_if_requested(state.current_artifacts_dir)
+            except Exception:  # noqa: BLE001 - settlement is best-effort here.
+                _LOGGER.warning(
+                    "could not advance hijack ledger after hijacked done marker",
+                    exc_info=True,
+                )
 
     if state.current_artifacts_dir != ctx.artifacts_dir:
         write_done_marker_and_update_index(

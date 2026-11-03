@@ -6,6 +6,7 @@ import signal
 from unittest.mock import patch
 
 from sase.ace.tui.models.agent import AgentType
+from sase.agent._user_kill_intent import write_user_kill_intent
 from sase.axe.run_agent_runner_lifecycle import auto_dismiss_completed_agent
 from sase.axe.run_agent_runner_signals import (
     install_workspace_release_sigterm_handler,
@@ -41,6 +42,75 @@ def test_workspace_release_sigterm_handler_releases_claim(
 ) -> None:
     reset_killed()
     monkeypatch.setenv("SASE_ARTIFACTS_DIR", str(tmp_path))
+    project_file = "/tmp/.sase/projects/sase/sase.sase"
+    with patch("sase.axe.runner_signals.signal.signal") as signal_handler:
+        install_workspace_release_sigterm_handler(
+            project_file=project_file,
+            workspace_num=10,
+            workflow_name="ace(run)-260101_120000",
+            cl_name="sase",
+            is_home_mode=False,
+        )
+        captured_handler = signal_handler.call_args[0][1]
+
+    with (
+        patch("sase.running_field.release_workspace") as release,
+        patch("sase.axe.runner_signals.sys.exit") as exit_mock,
+    ):
+        captured_handler(signal.SIGTERM, None)
+
+    release.assert_called_once_with(
+        project_file,
+        10,
+        "ace(run)-260101_120000",
+        "sase",
+    )
+    exit_mock.assert_not_called()
+    assert was_killed() is True
+    reset_killed()
+
+
+def test_workspace_release_sigterm_handler_skips_hijack_intent(
+    tmp_path, monkeypatch
+) -> None:
+    reset_killed()
+    monkeypatch.setenv("SASE_ARTIFACTS_DIR", str(tmp_path))
+    write_user_kill_intent(
+        tmp_path,
+        pid=9,
+        source="test",
+        mode="hijack",
+        hijack_id="h-1",
+    )
+
+    with patch("sase.axe.runner_signals.signal.signal") as signal_handler:
+        install_workspace_release_sigterm_handler(
+            project_file="/tmp/.sase/projects/sase/sase.sase",
+            workspace_num=10,
+            workflow_name="ace(run)-260101_120000",
+            cl_name="sase",
+            is_home_mode=False,
+        )
+        captured_handler = signal_handler.call_args[0][1]
+
+    with (
+        patch("sase.running_field.release_workspace") as release,
+        patch("sase.axe.runner_signals.sys.exit") as exit_mock,
+    ):
+        captured_handler(signal.SIGTERM, None)
+
+    release.assert_not_called()
+    exit_mock.assert_not_called()
+    assert was_killed() is True
+    reset_killed()
+
+
+def test_workspace_release_sigterm_handler_releases_plain_user_kill(
+    tmp_path, monkeypatch
+) -> None:
+    reset_killed()
+    monkeypatch.setenv("SASE_ARTIFACTS_DIR", str(tmp_path))
+    write_user_kill_intent(tmp_path, pid=9, source="test")
     project_file = "/tmp/.sase/projects/sase/sase.sase"
     with patch("sase.axe.runner_signals.signal.signal") as signal_handler:
         install_workspace_release_sigterm_handler(

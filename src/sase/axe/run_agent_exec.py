@@ -40,7 +40,7 @@ from sase.axe.run_agent_helpers import (
 from sase.axe.runner_lifecycle_phase import mark_lifecycle_phase
 from sase.axe.runner_signals import killed_at, reset_killed, was_killed
 from sase.axe.runner_kill_provenance import record_kill_provenance
-from sase.agent.user_kill import has_user_kill_intent
+from sase.agent.user_kill import has_hijack_intent, has_user_kill_intent
 from sase.history.chat import generate_chat_filename, get_chat_file_path
 from sase.history.chat import save_chat_history
 from sase.history.chat_extras import format_extra_sections
@@ -167,6 +167,8 @@ def _handle_killed_iteration(
         read_and_delete_marker(state.current_artifacts_dir, ".sase_gate_pending")
         read_and_delete_marker(state.current_artifacts_dir, ".sase_pipe_pending")
         record_kill_provenance(state.current_artifacts_dir, state, kill_time=kill_time)
+        if has_hijack_intent(state.current_artifacts_dir):
+            return "hijacked"
         return "killed"
 
     # External teardown (OOM, a manual kill, a host stop). Staged records

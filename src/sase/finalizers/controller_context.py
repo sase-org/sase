@@ -46,6 +46,13 @@ def should_skip_finalizers(artifacts_dir: str | None) -> bool:
         return True
     if not os.environ.get("SASE_AGENT_TIMESTAMP"):
         return True
+    try:
+        from sase.agent._user_kill_intent import has_hijack_intent
+
+        if has_hijack_intent(artifacts_dir):
+            return True
+    except Exception:  # noqa: BLE001 - skip guard fails open to running finalizers.
+        pass
     return False
 
 

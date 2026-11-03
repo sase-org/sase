@@ -175,6 +175,59 @@ def test_user_kill_discards_staged_and_pending(
     assert result["status"] == "interrupted"
 
 
+def test_hijack_intent_returns_hijacked_and_discards_markers(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    ctx = make_exec_ctx(tmp_path, is_home_mode=False)
+    state = _state(Path(ctx.artifacts_dir))
+    artifacts = Path(ctx.artifacts_dir)
+    monkeypatch.setenv("SASE_AGENT", "1")
+    staged_record = build_plan_staged_record(
+        plan_file="/tmp/plan.md",
+        original_file="/tmp/scratch.md",
+        dirty_obligations_at_stage=[],
+        staged_id="aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee",
+        created_at="2026-10-28T12:00:00Z",
+    )
+    write_staged_handoff(staged_record, artifacts_dir=str(artifacts))
+    write_staged_handoff_response(
+        str(staged_record["staged_id"]),
+        "planner response",
+        artifacts_dir=str(artifacts),
+    )
+    _write_marker(
+        artifacts,
+        USER_KILL_INTENT_MARKER,
+        {
+            "schema_version": 1,
+            "timestamp": 50.0,
+            "pid": 123,
+            "source": "test",
+            "mode": "hijack",
+            "hijack_id": "h-1",
+        },
+    )
+    _write_pending_call(artifacts)
+    _write_marker(
+        artifacts,
+        ".sase_plan_pending",
+        {"plan_file": "/tmp/plan.md", "timestamp": 49.0},
+    )
+
+    with patch("sase.axe.run_agent_exec.killed_at", return_value=100.0):
+        outcome = _handle_killed_iteration(ctx, state)
+
+    assert outcome == "hijacked"
+    assert (artifacts / USER_KILL_INTENT_MARKER).exists()
+    assert not (artifacts / ".sase_plan_pending").exists()
+    assert read_staged_handoff(str(artifacts)) is None
+    assert not (artifacts / STAGED_HANDOFF_RESPONSE_FILENAME).exists()
+    result = _tool_call_records(artifacts)[-1]
+    assert result["event"] == "ToolResult"
+    assert result["status"] == "interrupted"
+
+
 def test_user_kill_intent_discards_monitor_marker(tmp_path: Path) -> None:
     ctx = make_exec_ctx(tmp_path, is_home_mode=False)
     artifacts = Path(ctx.artifacts_dir)

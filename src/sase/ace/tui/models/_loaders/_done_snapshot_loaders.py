@@ -25,6 +25,7 @@ from ._meta_enrichment import (
     enrich_agent_from_meta_wire,
     enrich_agent_from_prompt_markers_wire,
 )
+from ._meta_enrichment_status import hijack_status_from_done_marker
 from ._meta_enrichment_identity import (
     apply_archive_source_machine,
     apply_imported_source_owner,
@@ -124,6 +125,10 @@ def build_done_agent_from_record(
         error_traceback = None
     elif outcome == "epic_approved":
         status = EPIC_APPROVED_STATUS
+        error_message = None
+        error_traceback = None
+    elif outcome == "hijacked":
+        status = hijack_status_from_done_marker(outcome, done.recovery) or "HIJACKED"
         error_message = None
         error_traceback = None
     else:

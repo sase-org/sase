@@ -22,7 +22,6 @@ from collections.abc import Mapping
 
 from sase.agent.auto_restart.managed_roots import ManagedRoot
 from sase.agent.auto_restart.witnesses import WitnessInputs, collect_witnesses
-from sase.agent._user_kill_types import USER_KILL_INTENT_MARKER
 from sase.core.agent_auto_restart_wire import (
     AgentFailureFactsWire,
     AutoRestartContextWire,
@@ -184,8 +183,9 @@ def _has_staged_handoff(artifacts_dir: str) -> bool:
 
 def _has_hijack_intent(artifacts_dir: Path) -> bool:
     """Return whether the user-kill marker records hijack mode."""
-    marker = read_json_dict(artifacts_dir / USER_KILL_INTENT_MARKER)
-    return marker is not None and marker.get("mode") == "hijack"
+    from sase.agent._user_kill_intent import has_hijack_intent
+
+    return has_hijack_intent(artifacts_dir)
 
 
 def pending_handoff(artifacts_dir: Path | None) -> bool:

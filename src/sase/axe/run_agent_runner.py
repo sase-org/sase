@@ -437,10 +437,13 @@ def main() -> None:
 
 def _record_user_kill(state: RunnerRunState) -> None:
     """Record user-kill outcome and provenance before leaving the runner."""
-    state.exec_outcome = "killed"
+    artifacts_dir = state.current_artifacts_dir or state.artifacts_dir
+    from sase.agent._user_kill_intent import has_hijack_intent
+
+    state.exec_outcome = "hijacked" if has_hijack_intent(artifacts_dir) else "killed"
     state.suppress_completion_notification = True
     record_kill_provenance(
-        state.current_artifacts_dir or state.artifacts_dir,
+        artifacts_dir,
         None,
         kill_time=killed_at(),
     )

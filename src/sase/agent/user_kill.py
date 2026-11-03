@@ -19,7 +19,16 @@ from sase.agent._user_kill_intent import (
     ensure_user_kill_intent as ensure_user_kill_intent,
 )
 from sase.agent._user_kill_intent import (
+    has_hijack_intent as has_hijack_intent,
+)
+from sase.agent._user_kill_intent import (
     has_user_kill_intent as has_user_kill_intent,
+)
+from sase.agent._user_kill_intent import (
+    hijack_intent_id as hijack_intent_id,
+)
+from sase.agent._user_kill_intent import (
+    pending_hijack_recovery as pending_hijack_recovery,
 )
 from sase.agent._user_kill_intent import (
     live_verified_agent_pid as live_verified_agent_pid,
@@ -50,8 +59,11 @@ __all__ = [
     "AgentTerminationResult",
     "ensure_user_kill_intent",
     "escalate_user_kill_in_background",
+    "has_hijack_intent",
     "has_user_kill_intent",
+    "hijack_intent_id",
     "live_verified_agent_pid",
+    "pending_hijack_recovery",
     "request_user_kill",
     "terminate_agent_processes",
 ]

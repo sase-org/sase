@@ -125,6 +125,8 @@ def _should_hold_workspace(
     explicit user kill discards the stage first, so ``was_killed`` correctly
     releases. Adopted staged turns settle as ordinary completions.
     """
+    if state.exec_outcome == "hijacked":
+        return True
     if (
         was_killed
         or auto_dismiss
@@ -366,6 +368,35 @@ def _held_bead_claim_for_shutdown(
     )
 
 
+def _write_hijacked_done_marker(
+    *,
+    context: RunnerShutdownContext,
+    state: RunnerShutdownState,
+) -> None:
+    """Write ``outcome: hijacked`` plus pending recovery when none exists."""
+    from sase.agent._user_kill_intent import pending_hijack_recovery
+    from sase.axe.run_agent_exec_markers import write_done_marker_and_update_index
+    from sase.axe.run_agent_phases import build_done_marker
+
+    artifacts_dir = state.current_artifacts_dir
+    marker = build_done_marker(
+        context.cl_name,
+        context.project_file,
+        context.artifacts_timestamp,
+        context.artifacts_timestamp,
+        state.workspace_num,
+        state.workspace_dir,
+        context.output_path,
+        "hijacked",
+        agent_name=state.agent_name,
+        agent_model=state.agent_model,
+        agent_llm_provider=state.agent_llm_provider,
+        agent_hidden=state.agent_hidden,
+        recovery=pending_hijack_recovery(artifacts_dir),
+    )
+    write_done_marker_and_update_index(str(artifacts_dir), marker)
+
+
 def _ensure_failed_done_marker(
     *,
     context: RunnerShutdownContext,
@@ -381,6 +412,22 @@ def _ensure_failed_done_marker(
     artifacts_dir = state.current_artifacts_dir
     done_path = os.path.join(artifacts_dir, "done.json")
     if os.path.isfile(done_path):
+        return
+    if state.exec_outcome == "hijacked":
+        try:
+            _write_hijacked_done_marker(context=context, state=state)
+        except Exception as exc:
+            print(
+                f"Error writing hijacked done.json for workspace "
+                f"#{state.workspace_num}: {exc}",
+                file=sys.stderr,
+            )
+        if not os.path.isfile(done_path):
+            print(
+                f"Error: workspace #{state.workspace_num} still has no "
+                f"done.json at {done_path}",
+                file=sys.stderr,
+            )
         return
     error = state.error_summary or "workspace held without a done.json marker"
     traceback_str = state.error_traceback_str or ""
@@ -497,22 +544,31 @@ def finalize_runner_shutdown(
                 hold_done_marker_ensured = True
                 from sase.running_field import hold_workspace_claim
 
+                hold_kwargs: dict[str, Any] = {"caller_tag": "agent-finalize"}
+                if state.exec_outcome == "hijacked":
+                    hold_kwargs["expected_pid"] = os.getpid()
                 result = hold_workspace_claim(
                     context.project_file,
                     state.workspace_num,
                     context.workflow_name,
                     context.cl_name,
                     context.artifacts_timestamp,
-                    caller_tag="agent-finalize",
+                    **hold_kwargs,
                 )
                 workspace_held = result.success
                 if workspace_held:
-                    hold_reason = (
-                        "deferred commit" if deferred_commits else "visible failed run"
-                    )
+                    if state.exec_outcome == "hijacked":
+                        hold_reason = "hijacked"
+                        hold_next = "recover the agent in ace to release it"
+                    elif deferred_commits:
+                        hold_reason = "deferred commit"
+                        hold_next = "dismiss the agent in ace to release it"
+                    else:
+                        hold_reason = "visible failed run"
+                        hold_next = "dismiss the agent in ace to release it"
                     print(
                         f"Workspace #{state.workspace_num} held ({hold_reason}) — "
-                        "dismiss the agent in ace to release it"
+                        f"{hold_next}"
                     )
                 else:
                     print(
@@ -536,12 +592,24 @@ def finalize_runner_shutdown(
         except Exception as e:
             print(f"Error updating workspace claim: {e}", file=sys.stderr)
 
+    if state.exec_outcome == "hijacked":
+        try:
+            from sase.agent.hijack.ledger import mark_stopping_if_requested
+
+            mark_stopping_if_requested(
+                state.current_artifacts_dir or context.artifacts_dir
+            )
+        except Exception as e:
+            print(f"Error advancing hijack ledger: {e}", file=sys.stderr)
+
     held_bead_claim = _held_bead_claim_for_shutdown(context, state)
     if held_bead_claim is not None:
         try:
-            if not _has_staged_handoff(
-                context.artifacts_dir
-            ) and not _agent_meta_has_promoted_bead_claim(context.artifacts_dir):
+            if (
+                not _has_staged_handoff(context.artifacts_dir)
+                and not _agent_meta_has_promoted_bead_claim(context.artifacts_dir)
+                and state.exec_outcome != "hijacked"
+            ):
                 from sase.bead.claims import (
                     BeadClaimReleaseOutcome,
                     release_bead_claim_for_agent,
@@ -577,11 +645,11 @@ def finalize_runner_shutdown(
     except Exception as e:
         print(f"Error writing completion marker: {e}", file=sys.stderr)
 
-    if auto_dismiss:
+    if auto_dismiss and state.exec_outcome != "hijacked":
         deps.auto_dismiss_completed_agent(context.cl_name, context.artifacts_timestamp)
 
     error_report_path: str | None = None
-    if not state.success and state.error_summary:
+    if not state.success and state.error_summary and state.exec_outcome != "hijacked":
         if not hold_done_marker_ensured:
             _ensure_failed_done_marker(
                 context=context,
@@ -604,7 +672,12 @@ def finalize_runner_shutdown(
             agent_name=state.agent_name,
         )
 
-    if not state.suppress_completion_notification and not killed and not steps_hidden:
+    if (
+        not state.suppress_completion_notification
+        and not killed
+        and not steps_hidden
+        and state.exec_outcome != "hijacked"
+    ):
         deps.send_completion_notification(
             cl_name=context.cl_name,
             artifacts_timestamp=context.artifacts_timestamp,

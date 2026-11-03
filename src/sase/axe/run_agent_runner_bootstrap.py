@@ -143,6 +143,16 @@ def _write_bootstrap_agent_meta(
         os.environ.pop(PROVENANCE_ENV, None)
     if provenance is not None and "auto_restart" not in agent_meta:
         agent_meta["auto_restart"] = provenance
+    from sase.agent.hijack import HIJACK_RUNNER_CAPABILITY
+
+    capabilities = agent_meta.get("runner_capabilities")
+    if not isinstance(capabilities, list):
+        capabilities = []
+    else:
+        capabilities = list(capabilities)
+    if HIJACK_RUNNER_CAPABILITY not in capabilities:
+        capabilities.append(HIJACK_RUNNER_CAPABILITY)
+    agent_meta["runner_capabilities"] = capabilities
     write_agent_meta(artifacts_dir, agent_meta)
 
 

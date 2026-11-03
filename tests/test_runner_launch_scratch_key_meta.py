@@ -35,6 +35,24 @@ def test_bootstrap_meta_records_the_launch_scratch_key(
 
     assert meta["launch_scratch_key"] == "agent-ws3-20260924"
     assert meta["pid"] == os.getpid()
+    assert meta["runner_capabilities"] == ["hijack"]
+
+
+def test_bootstrap_meta_stamps_hijack_runner_capability(tmp_path: Path) -> None:
+    meta = _bootstrap_meta(tmp_path)
+    assert meta["runner_capabilities"] == ["hijack"]
+
+
+def test_bootstrap_refresh_adds_hijack_capability_to_existing_meta(
+    tmp_path: Path,
+) -> None:
+    metadata_path = tmp_path / "agent_meta.json"
+    metadata_path.write_text(json.dumps({"pid": 1}), encoding="utf-8")
+    with patch.object(run_agent_runner_bootstrap, "write_agent_meta") as write:
+        run_agent_runner_bootstrap._write_bootstrap_agent_meta(
+            str(tmp_path), output_path="out.log", refreshed=True
+        )
+    assert write.call_args.args[1]["runner_capabilities"] == ["hijack"]
 
 
 def test_bootstrap_meta_omits_the_key_when_the_launch_set_none(

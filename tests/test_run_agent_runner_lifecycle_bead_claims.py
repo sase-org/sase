@@ -156,6 +156,33 @@ def test_finalize_does_not_release_promoted_marker_claim(tmp_path: Path) -> None
     release.assert_not_called()
 
 
+def test_finalize_preserves_held_bead_claim_for_hijack(tmp_path: Path) -> None:
+    context = make_context(tmp_path, is_home_mode=True)
+    deps = make_deps(was_killed=MagicMock(return_value=True))
+
+    with (
+        patch(
+            "sase.bead.claims.release_bead_claim_for_agent",
+            return_value=BeadClaimReleaseOutcome.RELEASED,
+        ) as release,
+        patch("sase.agent.hijack.ledger.mark_stopping_if_requested"),
+    ):
+        finalize_runner_shutdown(
+            context=context,
+            state=make_state(
+                error_summary=None,
+                suppress_completion_notification=True,
+                exec_outcome="hijacked",
+                held_bead_claim_id="sase-1.2",
+                held_bead_claim_agent="sase-1.2",
+                held_bead_claim_project="sase",
+            ),
+            deps=deps,
+        )
+
+    release.assert_not_called()
+
+
 @pytest.mark.parametrize(
     "marker",
     [".sase_plan_pending", ".sase_questions_pending", ".sase_pipe_pending"],

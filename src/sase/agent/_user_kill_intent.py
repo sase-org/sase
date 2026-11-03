@@ -52,8 +52,14 @@ def write_user_kill_intent(
     source: str,
     reason: str | None = None,
     timestamp: float | None = None,
+    mode: str | None = None,
+    hijack_id: str | None = None,
 ) -> Path | None:
-    """Persist explicit user-kill intent before signalling an agent."""
+    """Persist explicit user-kill intent before signalling an agent.
+
+    ``mode="hijack"`` plus ``hijack_id`` marks a keep-work stop. Markers
+    without ``mode`` still read as plain kills.
+    """
     if artifacts_dir is None:
         return None
     marker_path = user_kill_intent_path(artifacts_dir)
@@ -65,6 +71,10 @@ def write_user_kill_intent(
     }
     if reason:
         marker_data["reason"] = reason
+    if mode:
+        marker_data["mode"] = mode
+    if hijack_id:
+        marker_data["hijack_id"] = hijack_id
     try:
         _atomic_write_json(marker_path, marker_data)
     except OSError:
@@ -86,12 +96,42 @@ def has_user_kill_intent(artifacts_dir: str | Path) -> bool:
     return _read_user_kill_intent(artifacts_dir) is not None
 
 
+def has_hijack_intent(artifacts_dir: str | Path | None) -> bool:
+    """Return whether the user-kill marker records hijack mode."""
+    if artifacts_dir is None:
+        return False
+    marker = _read_user_kill_intent(artifacts_dir)
+    return marker is not None and marker.get("mode") == "hijack"
+
+
+def hijack_intent_id(artifacts_dir: str | Path | None) -> str | None:
+    """Return the hijack id from a hijack-mode intent marker, if present."""
+    if artifacts_dir is None:
+        return None
+    marker = _read_user_kill_intent(artifacts_dir)
+    if marker is None or marker.get("mode") != "hijack":
+        return None
+    hijack_id = marker.get("hijack_id")
+    return hijack_id if isinstance(hijack_id, str) and hijack_id else None
+
+
+def pending_hijack_recovery(artifacts_dir: str | Path | None) -> dict[str, Any]:
+    """Return the ``done.json`` recovery object for a hijack settlement."""
+    return {
+        "state": "pending",
+        "kind": "hijack",
+        "hijack_id": hijack_intent_id(artifacts_dir),
+    }
+
+
 def ensure_user_kill_intent(
     artifacts_dir: str | Path | None,
     *,
     pid: int,
     source: str,
     reason: str | None = None,
+    mode: str | None = None,
+    hijack_id: str | None = None,
 ) -> Path | None:
     """Return the intent marker path, writing one only when none exists yet.
 
@@ -104,7 +144,14 @@ def ensure_user_kill_intent(
         return None
     if has_user_kill_intent(artifacts_dir):
         return user_kill_intent_path(artifacts_dir)
-    return write_user_kill_intent(artifacts_dir, pid=pid, source=source, reason=reason)
+    return write_user_kill_intent(
+        artifacts_dir,
+        pid=pid,
+        source=source,
+        reason=reason,
+        mode=mode,
+        hijack_id=hijack_id,
+    )
 
 
 def record_user_kill_result(
@@ -180,8 +227,11 @@ def live_verified_agent_pid(pid: int, *, artifacts_dir: str | Path | None) -> bo
 
 __all__ = [
     "ensure_user_kill_intent",
+    "has_hijack_intent",
     "has_user_kill_intent",
+    "hijack_intent_id",
     "live_verified_agent_pid",
+    "pending_hijack_recovery",
     "read_recorded_scratch_key",
     "record_user_kill_result",
     "target_identity_is_verified",

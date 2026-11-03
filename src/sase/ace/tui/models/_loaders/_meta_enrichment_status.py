@@ -20,6 +20,38 @@ from ..agent_session_members import root_represents_member
 ACTIVE_ENRICHMENT_STATUSES = {"STARTING", "RUNNING"}
 
 
+def hijack_status_from_done_marker(
+    outcome: object,
+    recovery: object = None,
+) -> str | None:
+    """Map hijack done-marker facts onto the user-facing status label.
+
+    ``outcome: hijacked`` with recovery pending/expired is ``HIJACKED``;
+    resolved recovery is ``ESCALATED`` or ``CONTINUED`` per the Rust
+    derivation. Non-hijack outcomes return ``None``.
+    """
+    if outcome != "hijacked":
+        return None
+    from sase.agent.hijack.core import agent_hijack_status_for_done_marker
+
+    recovery_payload: dict[str, object] | None
+    if recovery is None:
+        recovery_payload = None
+    elif isinstance(recovery, dict):
+        recovery_payload = recovery
+    else:
+        recovery_payload = {
+            "state": getattr(recovery, "state", None),
+            "kind": getattr(recovery, "kind", None),
+            "hijack_id": getattr(recovery, "hijack_id", None),
+            "action": getattr(recovery, "action", None),
+            "successor": getattr(recovery, "successor", None),
+            "model_changed": getattr(recovery, "model_changed", None),
+        }
+    status = agent_hijack_status_for_done_marker(str(outcome), recovery_payload)
+    return status or "HIJACKED"
+
+
 def refresh_agent_plan_path(agent: Agent) -> None:
     """Refresh the compatibility plan path from retained source metadata."""
     agent.plan_path = select_canonical_plan_path(

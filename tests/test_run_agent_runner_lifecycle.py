@@ -11,6 +11,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+from sase.agent._user_kill_intent import write_user_kill_intent
 from sase.axe.run_agent_runner_finalize import (
     send_completion_notification,
     write_error_done_marker,
@@ -107,6 +108,8 @@ from tests.monitor._fixtures import write_project_file
             True,
             False,
         ),
+        ({"exec_outcome": "hijacked"}, True, True, True, False, True),
+        ({"exec_outcome": "hijacked"}, False, False, False, False, True),
     ],
 )
 def test_should_hold_workspace_matches_terminal_failed_rows(
@@ -172,6 +175,71 @@ def test_finalize_holds_failed_workspace_and_surfaces_recovery(
         send_notification.call_args.kwargs["held_workspace_dir"] == "/tmp/workspace-17"
     )
     assert "Workspace #17 held (visible failed run)" in capsys.readouterr().out
+
+
+def test_finalize_holds_hijacked_workspace_with_expected_pid(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    monkeypatch.setenv("SASE_AGENT_AUTO_DISMISS", "1")
+    (tmp_path / "output.log").write_text("run output", encoding="utf-8")
+    write_user_kill_intent(
+        tmp_path,
+        pid=9,
+        source="test",
+        mode="hijack",
+        hijack_id="h-1",
+    )
+    context = make_context(tmp_path, workflow_name="ace(run)-260712_120000")
+    send_notification = MagicMock()
+    deps = make_deps(
+        was_killed=MagicMock(return_value=True),
+        all_steps_hidden=MagicMock(return_value=False),
+        send_completion_notification=send_notification,
+    )
+
+    with (
+        patch(
+            "sase.running_field.hold_workspace_claim",
+            return_value=ClaimResult(success=True),
+        ) as hold,
+        patch("sase.running_field.release_workspace") as release,
+        patch(
+            "sase.agent.hijack.ledger.mark_stopping_if_requested",
+            return_value={"state": "stopping"},
+        ) as mark_stopping,
+    ):
+        finalize_runner_shutdown(
+            context=context,
+            state=make_state(
+                current_artifacts_dir=str(tmp_path),
+                exec_outcome="hijacked",
+                error_summary=None,
+            ),
+            deps=deps,
+        )
+
+    hold.assert_called_once_with(
+        "/tmp/project.sase",
+        17,
+        "ace(run)-260712_120000",
+        "feature",
+        "20260712120000",
+        caller_tag="agent-finalize",
+        expected_pid=os.getpid(),
+    )
+    release.assert_not_called()
+    send_notification.assert_not_called()
+    deps.auto_dismiss_completed_agent.assert_not_called()
+    deps.write_error_report.assert_not_called()
+    mark_stopping.assert_called_once_with(str(tmp_path))
+    marker = json.loads((tmp_path / "done.json").read_text(encoding="utf-8"))
+    assert marker["outcome"] == "hijacked"
+    assert marker["recovery"] == {
+        "state": "pending",
+        "kind": "hijack",
+        "hijack_id": "h-1",
+    }
+    assert "Workspace #17 held (hijacked)" in capsys.readouterr().out
 
 
 def test_finalize_hold_writes_failed_done_json_when_missing(

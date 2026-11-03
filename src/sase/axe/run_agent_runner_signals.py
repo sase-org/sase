@@ -43,6 +43,8 @@ def install_workspace_release_sigterm_handler(
             except Exception:
                 fallback_artifacts_dir = None
         artifacts_dir = os.environ.get("SASE_ARTIFACTS_DIR") or fallback_artifacts_dir
+        if _has_hijack_intent(artifacts_dir):
+            return
         if _has_staged_handoff(artifacts_dir):
             return
         if monitor_handoff_claim_transferred(
@@ -58,6 +60,18 @@ def install_workspace_release_sigterm_handler(
         clear_occupant_record(workspace_dir)
 
     install_sigterm_handler("agent", soft=True, on_signal=_release_workspace_claim)
+
+
+def _has_hijack_intent(artifacts_dir: str | None) -> bool:
+    """Return whether a hijack-mode user-kill marker keeps the claim on SIGTERM."""
+    if not artifacts_dir:
+        return False
+    try:
+        from sase.agent._user_kill_intent import has_hijack_intent
+
+        return bool(has_hijack_intent(artifacts_dir))
+    except Exception:  # noqa: BLE001 - signal guard fails open.
+        return False
 
 
 def _has_staged_handoff(artifacts_dir: str | None) -> bool:

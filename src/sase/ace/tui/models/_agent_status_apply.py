@@ -234,7 +234,15 @@ def apply_status_overrides(
         agent.followup_agents.clear()
         agent.wait_display_source = None
 
-    completed_statuses = {"DONE", "FAILED", "FAILED (RETRIED)", "PLAN REJECTED"}
+    completed_statuses = {
+        "DONE",
+        "FAILED",
+        "FAILED (RETRIED)",
+        "PLAN REJECTED",
+        "HIJACKED",
+        "ESCALATED",
+        "CONTINUED",
+    }
 
     parent_by_suffix: dict[str, Agent] = {}
     for agent in all_agents:
