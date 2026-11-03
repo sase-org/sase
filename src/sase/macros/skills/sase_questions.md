@@ -70,20 +70,17 @@ If the command reports **Staged**, it validated the questions and staged a quest
 for host completion. Nothing starts until your turn ends: finish through `/sase_final`,
 submitting only when its context says a declaration is required. Stage before you
 declare, do not mutate files after a successful declaration, and never wait for your own
-staged questions. Otherwise the legacy command has ended your turn mechanically: it
-writes a durable handoff marker and sends `SIGTERM` to the current agent runner process
-group. The runner recognizes the marker as an intentional question handoff and creates a
-**question gate turn** — a named, non-LLM member of your agent session that publishes
-the questions, outlives you, and hands the answer to the next session member. A
-successful legacy handoff prints nothing and never returns control to you; the process
-is killed before it would return. **If the tool call ever returns any result at all —
-output, an error, or a normal exit — and that output does not report Staged, your turn
-has NOT ended.** Read it and report it instead of assuming the handoff already happened.
+staged questions. If it does not report **Staged**, the questions were not handed off —
+read the output and continue or retry. **If the tool call ever returns any result at all
+— output, an error, or a normal exit — and that output does not report Staged, your turn
+has NOT ended.**
 
-Your turn ends as `DONE` once the host adopts the handoff. The agent session's status
-shows `QUESTION` until it is answered, then `ANSWERED`. Answering it launches a
-follow-up agent whose prompt carries the merged Q&A across every round asked so far,
-continuously numbered — the same `## Your next action` shape a gate turn always
+Your turn ends as `DONE` once the host adopts the handoff. The host then publishes a
+**question gate turn** — a named, non-LLM member of your agent session that publishes
+the questions, outlives you, and hands the answer to the next session member. The agent
+session's status shows `QUESTION` until it is answered, then `ANSWERED`. Answering it
+launches a follow-up agent whose prompt carries the merged Q&A across every round asked
+so far, continuously numbered — the same `## Your next action` shape a gate turn always
 composes. Do not create a question gate turn yourself with `/sase_gate`;
 `sase questions` already does this for you.
 

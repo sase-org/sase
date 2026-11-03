@@ -23,10 +23,8 @@ sase launch request -f launch_request.json -o json
 
 The request may contain `%i(suffix, session=parent)` in its prompt, so the approved
 launch joins an existing session with any valid suffix. `launch_preview.md` shows the
-resolved launch plan before approval. Inside an agent, the default immediate path
-creates a pending `LAUNCH` gate turn, hands off the session lane, and ends the
-requesting turn. With `staged_handoffs` enabled, the request returns `Staged` and the
-gate is published after host completion; the root agent must finish through
+resolved launch plan before approval. Inside an agent, the request returns `Staged` and
+the gate is published after host completion; the root agent must finish through
 `/sase_final`. See [Handoff completion](agent-sessions.md#handoff-completion). Its
 default `requester_continuation.mode` is `resume_requester`: after approval, rejection,
 timeout, or gate/dispatch failure, one successor resumes the original assignment with

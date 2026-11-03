@@ -14,7 +14,8 @@ sorted A–Z and each anchor matches its memory slug.
 
 ## A Gate Never Blocks An Agent {#gates-never-block}
 
-_Status: accepted · Decided: 2026-08-27._
+_Status: superseded-in-part · Decided: 2026-08-27 · Superseded by:
+[Handoffs End Through Host Completion](#handoffs-end-through-host-completion)._
 
 _Also known as: gates never block, gate shells, blocking gate wait._
 
@@ -49,7 +50,8 @@ harness's private wait semantics.
 
 ## Agents Are Single-Turn {#single-turn-agents}
 
-_Status: accepted · Decided: 2026-08-15._
+_Status: superseded-in-part · Decided: 2026-08-15 · Superseded by:
+[Handoffs End Through Host Completion](#handoffs-end-through-host-completion)._
 
 _Also known as: single turn, one-turn agent._
 
@@ -129,7 +131,8 @@ this commit's fast gate is green, and `heavy_max_age_hours` requires a recent gr
 
 ## Completion Is Host-Owned {#host-owned-completion}
 
-_Status: accepted · Decided: 2026-08-21._
+_Status: superseded-in-part · Decided: 2026-08-21 · Superseded by:
+[Handoffs End Through Host Completion](#handoffs-end-through-host-completion)._
 
 _Also known as: finalizer declaration, agents never commit._
 
@@ -265,6 +268,28 @@ is still explicit and measured, but it is no longer the only mechanism — the d
 call is refused.
 
 [Read the full record on GitHub.](https://github.com/sase-org/sase/blob/master/sase/memory/decisions/guarded-recipes.md)
+
+## Handoffs End Through Host Completion {#handoffs-end-through-host-completion}
+
+_Status: accepted · Decided: 2026-11-03._
+
+_Also known as: staged handoffs, host-adopted handoffs, no kill-path handoff._
+
+A turn-ending handoff is staged, the turn completes through host completion, and the
+host then adopts the handoff.
+
+**Claim.** A turn-ending handoff (`sase plan propose`, `sase questions`, `sase pipe`,
+`sase gate create`, `sase sudo request`, `sase launch request`, `sase monitor start`,
+and agent-side workflow HITL) is staged while the agent is still alive. Every root turn
+then completes through `/sase_final` and host-owned finalizers. Only after those
+finalizers settle does a fixed host-owned epilogue adopt the staged handoff. The agent
+never waits on its own staged work. This partly supersedes the kill-era clauses of
+[A Gate Never Blocks An Agent](#gates-never-block),
+[Agents Are Single-Turn](#single-turn-agents), and
+[Completion Is Host-Owned](#host-owned-completion): the no-blocking, single-turn, and
+host-ownership principles stay.
+
+[Read the full record on GitHub.](https://github.com/sase-org/sase/blob/master/sase/memory/decisions/handoffs-end-through-host-completion.md)
 
 ## Hold Admission Uses Pull Evaluation With Fail-Open TTL {#hold-pull-fail-open}
 

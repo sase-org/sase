@@ -118,12 +118,14 @@ _STALE_PHRASE_ALLOWLIST = {
 
 # Whole-file generated pages whose sources are already guarded: the glossary
 # roster renders the allowlisted bridge clauses above, and the
-# design-decisions roster renders the immutable decision records skipped
-# below. Their wording is scanned where it lives, not where it renders.
+# design-decisions / decisions-web rosters render the immutable decision
+# records skipped below. Their wording is scanned where it lives, not where
+# it renders.
 _GENERATED_DOCS_EXEMPT = frozenset(
     {
         Path("docs/reference/glossary.md"),
         Path("docs/reference/design-decisions.md"),
+        Path("sase/memory/decisions.md"),
     }
 )
 

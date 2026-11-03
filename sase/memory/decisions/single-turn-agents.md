@@ -5,9 +5,15 @@ summary:
   A SASE agent run is one provider turn; continuation is always mechanical, never a
   promise to resume.
 metadata:
-  status: accepted
+  status: superseded-in-part
   decided: 2026-08-15
+  superseded_by: decisions/handoffs-end-through-host-completion
 ---
+
+> _Superseded in part:_ the "terminates the runner" mechanism is retired. Continuation
+> is still mechanical — stage the handoff, complete the turn through host completion,
+> and let the host adopt the successor — never a promise to resume. See
+> [[decisions/handoffs-end-through-host-completion]].
 
 **Claim.** A SASE agent run is exactly one provider turn. Work that outlives the turn is
 continued by a mechanism that terminates the runner and starts a successor —

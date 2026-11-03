@@ -214,6 +214,8 @@ def test_builtin_land_prompt_prefers_tale_plans() -> None:
     assert "`xsmall`, `small`, or `medium`" in body
     assert "has no land agent of its own" in prose
     assert "nothing resumes this landing after its coder finishes" in prose
+    assert "finish through `/sase_final`" in prose
+    assert "integration edits commit before the host adopts the proposal" in prose
     assert "sase bead close {{ bead_id }}" in body
     assert "just symvision" in body
     assert "status: done" in body

@@ -365,10 +365,10 @@ follow-up member according to the `next` policy above. Never run bundle commands
 hand. Never poll bundle files directly.
 
 When the descriptor has no staged status and `auto_resolution.state` is `resolved`, the
-gate resolved automatically and this process continues. Otherwise, it is the legacy
-flag-off result: its output is the last output before the runner hands off and kills
-this process. Wait for the command to finish on its own; an error, unexpected output,
-timeout, or empty result does not mean the handoff succeeded. Read and report it.
+gate resolved automatically and this process continues. If it does not report staged and
+did not auto-resolve, the gate was not handed off — read the output and continue or
+retry. An error, unexpected output, timeout, or empty result does not mean the handoff
+succeeded.
 
 If your gate resolves via `"auto": true` before creation even returns, none of this
 costs you a hand-off: creation settles it synchronously and your own process continues

@@ -5,9 +5,16 @@ summary:
   Creating a gate from inside an agent ends that agent's turn; continuation is a gate
   shell's follow-up, never a wait.
 metadata:
-  status: accepted
+  status: superseded-in-part
   decided: 2026-08-27
+  superseded_by: decisions/handoffs-end-through-host-completion
 ---
+
+> _Superseded in part:_ the "kills the creating agent's turn immediately" clause is
+> retired. Creating a gate now stages a handoff; the creator's turn completes through
+> `/sase_final`, and the host adopts the gate after finalizers settle. The no-blocking
+> principle stands: continuation is still the gate shell's recorded follow-up, never a
+> wait. See [[decisions/handoffs-end-through-host-completion]].
 
 **Claim.** A gate an agent creates becomes a gate shell: a named, non-LLM member of that
 agent's family that publishes the decision, outlives its creator, runs the commands the

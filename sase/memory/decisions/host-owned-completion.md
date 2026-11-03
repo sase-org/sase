@@ -5,9 +5,15 @@ summary:
   An agent never creates commits, branches, or PRs; it submits a declaration and
   host-owned finalizers act.
 metadata:
-  status: accepted
+  status: superseded-in-part
   decided: 2026-08-21
+  superseded_by: decisions/handoffs-end-through-host-completion
 ---
+
+> _Superseded in part:_ the mechanical-exemption sentence is retired. Handoff turns are
+> no longer exempt from `/sase_final`; every root turn completes through host-owned
+> finalizers, and the host then adopts the staged handoff. See
+> [[decisions/handoffs-end-through-host-completion]].
 
 **Claim.** A turn completes when the host's selected finalizers are satisfied, not when
 an agent says it is done. The agent submits one atomic, turn-bound declaration; bounded

@@ -257,14 +257,13 @@ def test_sase_final_skill_documents_typed_deferrals_not_refuse_action() -> None:
     text = (_SKILL_SOURCE_DIR / "sase_final.md").read_text(encoding="utf-8")
     normalized = re.sub(r"\s+", " ", text)
 
-    assert "Handoff commands have two outcomes" in normalized
+    assert "Turn-ending commands stage their handoff and return" in normalized
     assert (
         "If a command reports **Staged**, finish the turn through `/sase_final`"
         in normalized
     )
     assert (
-        "If it does not report **Staged**, the legacy command ends your turn mechanically"
-        in normalized
+        "If it does not report **Staged**, the command did not hand off" in normalized
     )
     assert not re.search(r"`refuse`[^.]+(?:decision|action)", text)
     assert not re.search(r"(?:decision|action)[^.]+`refuse`", text)

@@ -22,9 +22,8 @@ If the command reports **Staged**, it wrote the handoff and staged the successor
 host completion. Nothing starts until your turn ends: finish through `/sase_final`,
 submitting only when its context says a declaration is required. Stage before you
 declare, do not mutate files after a successful declaration, and never wait for your own
-staged pipe. If it does not report **Staged**, the legacy command ended your turn
-mechanically: `sase pipe` kills the calling agent only after it writes its handoff
-marker, and after a successful handoff there is no afterward.
+staged pipe. If it does not report **Staged**, the pipe was not handed off — read the
+output and continue or retry.
 
 ## Canonical Invocation
 

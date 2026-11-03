@@ -155,13 +155,9 @@ whole session while the injected history stops at the captured turn.
 
 ### Handoff completion
 
-Agent-side handoffs have two modes, selected by the `staged_handoffs` beta
-[feature flag](../config/feature-flags.md#featureflags), which defaults off:
-
-| Mode                       | Command result                                                               | When the next work starts                                       |
-| -------------------------- | ---------------------------------------------------------------------------- | --------------------------------------------------------------- |
-| Default, immediate handoff | The command hands off and ends the requesting provider turn                  | The handoff machinery activates the monitor, gate, or successor |
-| Staged handoff             | The command prints `Staged` and returns successfully without ending the turn | After the turn ends and host finalizers settle                  |
+Agent-side handoffs stage their work and return. The command prints `Staged` without
+ending the turn; the host activates the monitor, gate, or successor after the turn ends
+and finalizers settle.
 
 The staged path covers `sase plan propose`, `sase questions`, `sase pipe`,
 `sase monitor start`, agent launch requests (including agent-origin `sase run`),

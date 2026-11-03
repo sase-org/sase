@@ -82,10 +82,10 @@ published. Do not wait for your own staged gate; it starts after the turn ends. 
 gates may still be waited on.
 
 When the descriptor has no staged status and `auto_resolution.state` is `resolved`, the
-gate resolved automatically and this process continues. Otherwise, it is the legacy
-flag-off result: its output is the last output before the runner hands off and kills
-this process. Wait for the command to finish on its own; an error, unexpected output,
-timeout, or empty result does not mean the gate was created. Read and report it.
+gate resolved automatically and this process continues. If it does not report staged and
+did not auto-resolve, the gate was not created — read the output and continue or retry.
+An error, unexpected output, timeout, or empty result does not mean the gate was
+created.
 
 Bryan authenticates only on a real terminal handed to `/usr/bin/sudo`/PAM. A successor
 agent receives the structured ledger with the authentication outcome, per-command

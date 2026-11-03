@@ -42,11 +42,9 @@ acme
 | supervisor   | The detached process that runs the command and streams its output               |
 | follow-up    | The agent turn launched under the session after the command finishes            |
 
-With the default immediate handoff, agent-side `sase monitor start` starts the
-supervisor and ends the calling provider turn. With the `staged_handoffs` beta flag
-enabled, it prints `Staged monitor` and returns without starting the command. The root
-agent then finishes through `/sase_final`; the host activates the monitor after
-finalizers settle. Never wait for your own staged monitor. See
+Agent-side `sase monitor start` prints `Staged monitor` and returns without starting the
+command. The root agent then finishes through `/sase_final`; the host activates the
+monitor after finalizers settle. Never wait for your own staged monitor. See
 [Handoff completion](../agents/agent-sessions.md#handoff-completion).
 
 Staged JSON output includes `staged: true`, `status: "staged"`, `staged_id`, and the
@@ -428,14 +426,13 @@ its own.
 
 ### Surviving the starter's teardown
 
-On the immediate handoff path, `sase monitor start` hands the command to a supervisor
-and then kills the calling agent's runner group as part of the same handoff. The
-supervisor must not be a casualty of that kill: it is spawned through a double-fork
-bootstrap that reparents it to PID 1 _before_ `start_monitor` returns, so a process-tree
-teardown launched after the call cannot reach it by walking PPIDs. The supervisor also
-sets `SIGHUP` to ignored and installs its `SIGTERM`/`SIGINT` handling in the first
-statements it runs, before any expensive import, closing the startup window in which a
-stray signal could kill it silently.
+The host activates a staged monitor after the starter's turn ends and finalizers settle.
+The supervisor must survive that teardown: it is spawned through a double-fork bootstrap
+that reparents it to PID 1 before activation returns, so a process-tree teardown of the
+ended starter cannot reach it by walking PPIDs. The supervisor also sets `SIGHUP` to
+ignored and installs its `SIGTERM`/`SIGINT` handling in the first statements it runs,
+before any expensive import, closing the startup window in which a stray signal could
+kill it silently.
 
 On Linux, when the starter runs inside a SASE-owned systemd unit or scope such as
 `sase.service` or under a reachable user systemd manager, the supervisor also moves into
@@ -445,15 +442,12 @@ restarting that service does not kill a running monitor. Set
 
 ### A start is fast, and never silent
 
-An in-agent `sase monitor start` has to finish inside the harness's own tool budget:
-Codex's yielding `exec_command` hands control back to the model after about 30 seconds
-while the command keeps running, and anything still running when the turn ends is
-killed. So the start touches only what it needs and says so at once:
+An in-agent `sase monitor start` stages the request and returns. Spawn, bind, and proc
+launch wait until host adoption, so the start command itself stays inside the harness's
+tool budget:
 
-- Inside an agent it prints one line to stderr before any slow work
-  (`sase monitor start: starting monitor for lane <lane>; ... wait for it to exit`), so
-  a yielded result is never empty. All stdout, including the `--json` envelope, still
-  prints before the runner is killed.
+- Inside an agent it prints `Staged monitor` (and the `--json` envelope) before
+  returning, so a yielded result is never empty.
 - The calling agent is resolved by reading its own `SASE_ARTIFACTS_DIR` directly. The
   full project scan is only the fallback for a missing, stale, or foreign pin.
 - The lane's existing monitors are read once, through the artifact index's
@@ -461,32 +455,24 @@ killed. So the start touches only what it needs and says so at once:
   `--mon` suffix allocation. A lane read does not hydrate other lanes' records or walk
   the project's source directories.
 - Each phase of the start (identity, lane lock, replay lookup, lane resolution, claim
-  preflight, member creation, ToolRun reservation, supervisor spawn and ack, intent
-  persistence) is timed. The timings are logged at debug level and written to
-  `monitor_start_timing.json` in the new member's artifacts directory.
-
-On a host with about 12,000 artifact records this took an in-agent start from roughly
-20-40 seconds to well under one.
+  preflight, member creation, ToolRun reservation) is timed. The timings are logged at
+  debug level and written to `monitor_start_timing.json` in the new member's artifacts
+  directory.
 
 ### Startup acknowledgement
 
-For a staged start, these guarantees apply when the host activates the saved request,
-after finalization; the initial `Staged monitor` response is not a startup
-acknowledgement.
+These guarantees apply when the host activates the saved request after finalization; the
+initial `Staged monitor` response is not a startup acknowledgement.
 
 The monitored command runs under the durable proc service's detached supervisor, and
-`start_monitor` never hands back a `running` record for a supervisor that is not
-provably alive, because its caller's very next act — inside an agent — is to kill
-itself. Once the supervisor has taken ownership, it writes a `.proc_started`
-acknowledgement in its proc runtime directory. `start_monitor` waits for that marker for
-up to 20 seconds (`SASE_PROC_START_ACK_TIMEOUT_SECONDS` overrides the budget), polling
-the supervisor's liveness too so a supervisor that is already dead fails fast instead of
-waiting out the full budget. A failed start hands the workspace claim back to the
-still-live starter exactly as it held it (never releasing it into the free pool),
-returns any bound completion intent to the prepared state, tears the member down as
-terminal `failed`, and raises `MonitorError`. On the immediate path the starter stays
-alive and `sase monitor start` exits non-zero. On the staged path this is an activation
-failure after the starter ended; it never counts as a running command.
+activation never hands back a `running` record for a supervisor that is not provably
+alive. Once the supervisor has taken ownership, it writes a `.proc_started`
+acknowledgement in its proc runtime directory. Activation waits for that marker for up
+to 20 seconds (`SASE_PROC_START_ACK_TIMEOUT_SECONDS` overrides the budget), polling the
+supervisor's liveness too so a supervisor that is already dead fails fast instead of
+waiting out the full budget. A failed activation returns any bound completion intent to
+the prepared state, tears the member down as terminal `failed`, and raises
+`MonitorError`. It never counts as a running command.
 
 ### A monitor owns its workspace until it is reconciled
 

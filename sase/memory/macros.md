@@ -165,12 +165,12 @@ finalizers run after the model returns. A turn-ending command that reports `Stag
 leaves the root agent running; finish through `/sase_final`, which reads
 `sase final context` and submits one `sase final submit` manifest when a payload is
 required. Stage before declaring, do not mutate after a successful declaration, and
-never wait for your own staged handoff. A command that does not report `Staged` uses the
-legacy marker-and-kill flow and ends the turn mechanically. Native helpers return to the
-root agent and never declare. A declaration covers every repository the agent changed
-during the turn, including linked, sidecar, or external repos opened through
-`/sase_repo`; it is not narrowed by the launch ref or by a host prompt scoped to one
-repository. The default `builtin@commit` instance dispatches accepted decisions through
+never wait for your own staged handoff. If a command does not report `Staged`, it did
+not hand off — read the output and continue or retry. Native helpers return to the root
+agent and never declare. A declaration covers every repository the agent changed during
+the turn, including linked, sidecar, or external repos opened through `/sase_repo`; it
+is not narrowed by the launch ref or by a host prompt scoped to one repository. The
+default `builtin@commit` instance dispatches accepted decisions through
 `sase stitch create`, honoring `SASE_COMMIT_METHOD`, `SASE_PR_NAME`, `SASE_PR_STATUS`,
 and `SASE_BUG_ID`. Use `gh` only for GitHub API/PR reads when needed.
 

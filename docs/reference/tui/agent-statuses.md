@@ -43,14 +43,14 @@ Running bucket when it handed off to a successor.
 | **SUDO**          | Gate accent                   | An agent's [sudo request](../automation/sudo.md) is waiting for review; it settles as `SUDOED` or `DENIED`                     |
 | **RETRYING**      | Orange                        | Agent hit a retryable error and is in a countdown before retrying                                                |
 
-Modern `/sase_questions` calls hand the session to a processless `QUESTION` gate turn
-and end the asking LLM turn. The turn owns the durable question until it is answered,
-cancelled, or times out, so dismissing its notification does not dismiss the session
-state. An answer settles it as `ANSWERED` and launches the next ordinary session member
-with the accumulated Q&A. That successor starts under the serial-session admission
-exemption and becomes the session's occupied slot; it does not enter the runner queue.
-The `Enter` shortcut can reopen the live question even when no unread notification
-remains.
+Modern `/sase_questions` calls stage a processless `QUESTION` gate turn that the host
+publishes after the asking LLM turn completes through `/sase_final`. The turn owns the
+durable question until it is answered, cancelled, or times out, so dismissing its
+notification does not dismiss the session state. An answer settles it as `ANSWERED` and
+launches the next ordinary session member with the accumulated Q&A. That successor
+starts under the serial-session admission exemption and becomes the session's occupied
+slot; it does not enter the runner queue. The `Enter` shortcut can reopen the live
+question even when no unread notification remains.
 
 Approval labels are receipt-derived: they appear as soon as the accepted gate decision
 is durable, without waiting for the selected command or successor launch to finish. If

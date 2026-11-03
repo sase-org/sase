@@ -54,11 +54,12 @@ and select an instance. Plugin-contributed config layers cannot activate finaliz
 
 Use `sase final list`, `sase final show <instance>`, and `sase final doctor` to inspect
 effective policy, provider provenance, and diagnostics. During an active agent turn,
-generated agent instructions tell the model to finish with `/sase_final`. That skill
-uses `sase final context -f json` and `sase final submit` to publish the one turn-bound
-declaration required by selected finalizers, and it returns after reading context when
-no payload is required. If a required submission is missing or stale, the host opens one
-bounded recovery turn that explicitly requests `/sase_final`. The host executes and
+generated agent instructions tell the model to finish with `/sase_final`, including
+handoff turns. That skill uses `sase final context -f json` and `sase final submit` to
+publish the one turn-bound declaration required by selected finalizers, and it returns
+after reading context when no payload is required. A staged handoff is adopted after
+those finalizers settle. If a required submission is missing or stale, the host opens
+one bounded recovery turn that explicitly requests `/sase_final`. The host executes and
 verifies finalizers after the model returns.
 
 `sase final prepare <wrapper.json>` is the conditional alternative for a long

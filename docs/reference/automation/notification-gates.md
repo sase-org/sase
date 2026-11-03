@@ -256,13 +256,12 @@ from the on-disk tombstone when a remote edit fails.
 
 ### Gate turns and continuation
 
-With the `staged_handoffs` beta flag enabled, agent-side plan, question, launch, sudo,
-custom turn-backed gate, and workflow HITL requests that await a human are saved before
-publication. The gate becomes answerable only after the requesting turn's host
-finalizers settle. A command that reports `Staged` returns control to the root agent,
-which must finish through `/sase_final`; it must not wait for a decision on its own
-staged request. With the flag off, creation uses the immediate handoff path. Gates
-eligible for synchronous auto-execution continue inline without staging. See
+Agent-side plan, question, launch, sudo, custom turn-backed gate, and workflow HITL
+requests that await a human are saved before publication. The gate becomes answerable
+only after the requesting turn's host finalizers settle. A command that reports `Staged`
+returns control to the root agent, which must finish through `/sase_final`; it must not
+wait for a decision on its own staged request. Gates eligible for synchronous
+auto-execution continue inline without staging. See
 [Handoff completion](../agents/agent-sessions.md#handoff-completion).
 
 A gate turn is a named, non-LLM member of an agent session, normally `--gate` or

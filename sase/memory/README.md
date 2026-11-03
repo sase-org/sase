@@ -109,15 +109,15 @@ strand inherits no `type:` of its own and never inlines into `AGENTS.md`.
 - Parent: `AGENTS.md`
 - Description: No description set.
 - Lines: 87
-- Approx. tokens: 1195
+- Approx. tokens: 1193
 
 ### `sase/memory/decisions.md`
 
 - Kind: memory web descriptor
 - Description: Architectural decision records — accepted choices, their rejected
   alternatives, and what would reopen them.
-- Lines: 132
-- Approx. tokens: 2057
+- Lines: 137
+- Approx. tokens: 2161
 
 ### `sase/memory/glossary.md`
 
@@ -201,7 +201,7 @@ strand inherits no `type:` of its own and never inlines into `AGENTS.md`.
 - Description: Read before macros, prompt directives, or launching agents with git/gh
   VCS workflow blocks.
 - Lines: 177
-- Approx. tokens: 3817
+- Approx. tokens: 3815
 
 ### `sase/memory/sase_artifacts.md`
 
@@ -293,8 +293,8 @@ strand inherits no `type:` of its own and never inlines into `AGENTS.md`.
 - Core notes: 3
 - Reference notes: 17
 - Web descriptor notes: 3
-- Total lines: 1722
-- Total approx. tokens: 24102
+- Total lines: 1727
+- Total approx. tokens: 24202
 
 ## Commands
 

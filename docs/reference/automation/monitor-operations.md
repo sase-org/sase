@@ -247,12 +247,12 @@ This waiting exception is specific to host-owned approved-epic launches; running
 ## Pipe vs. monitor
 
 `sase pipe '<prompt>'` (the `/sase_handoff` skill) continues the run as a new session
-member after the calling turn ends. Both commands support immediate and
-[staged handoffs](../agents/agent-sessions.md#handoff-completion). A monitor runs and
-waits on an OS command; nothing about the command's content is an LLM turn. Pipe hands
-the agent's own unfinished _turn_ to a fresh successor: no command runs, nothing is
-captured or timed out, and the successor's prompt is written by the agent, not derived
-from a command's outcome.
+member after the calling turn ends. Both commands
+[stage a handoff](../agents/agent-sessions.md#handoff-completion) that the host adopts
+after `/sase_final`. A monitor runs and waits on an OS command; nothing about the
+command's content is an LLM turn. Pipe hands the agent's own unfinished _turn_ to a
+fresh successor: no command runs, nothing is captured or timed out, and the successor's
+prompt is written by the agent, not derived from a command's outcome.
 
 Concretely:
 

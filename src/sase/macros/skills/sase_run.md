@@ -51,15 +51,10 @@ request. Print the descriptor, then stop. The host publishes the gate after this
 completes; it does not spawn an agent unless the approver accepts the request and host
 dispatch succeeds.
 
-When the descriptor has no staged status, it is the legacy flag-off result: the command
-creates a durable pending `LaunchApproval` gate turn, prints its descriptor, hands this
-agent's session lane to that gate turn, and then this turn ends by killing this process
-right after the descriptor prints. Seeing that descriptor is how you know the request
-was created; the kill that follows is not a signal you can observe, so never treat an
-early or empty tool result as that signal. If the tool call ever returns something other
-than the descriptor — an error, or output you did not expect — your turn has NOT ended;
-read it and report it instead of assuming the handoff already happened. It does not
-spawn an agent unless the approver accepts the request and host dispatch succeeds.
+If the descriptor has no staged status, the request was not handed off — read the output
+and continue or retry. An error, unexpected output, or empty result does not mean the
+request was created. It does not spawn an agent unless the approver accepts the request
+and host dispatch succeeds.
 
 The pending request lives in SASE's neutral `interaction_requests/launch/<request-id>/`
 layout. Every terminal option uses the bundle's hash-verified command; do not write the
@@ -230,21 +225,6 @@ A staged creation descriptor looks like:
   "staged_id": "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee",
   "workspace_mode": "inherit",
   "instruction": "Nothing starts until this turn ends; finish through `/sase_final`. Do not wait for your own staged gate."
-}
-```
-
-A published (legacy flag-off) creation descriptor looks like:
-
-```json
-{
-  "request_id": "launch-123",
-  "notification_id": "notification-123",
-  "response_dir": "/path/to/interaction_requests/launch/launch-123",
-  "gate_turn": {
-    "gate_id": "launch-123",
-    "member_agent_name": "agent--gate",
-    "state": "pending"
-  }
 }
 ```
 

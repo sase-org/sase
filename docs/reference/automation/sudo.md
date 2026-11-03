@@ -22,7 +22,7 @@ A sudo request moves through four steps:
    `SUDO` status. With
    [staged handoffs](../agents/agent-sessions.md#handoff-completion), the command
    returns `Staged` and the root agent finishes through `/sase_final` before gate
-   publication; the default immediate path ends the agent's turn directly.
+   publication.
 2. A reviewer opens the request in sase's TUI, checks the commands, and chooses which
    ones to run.
 3. `sase sudo answer` authenticates through the real `sudo` prompt in a terminal. The

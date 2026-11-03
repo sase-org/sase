@@ -29,7 +29,7 @@ _FINAL_DECLARATION_MARKERS = (
     "Before any normal response that ends this SASE provider turn",
     "incomplete-status response",
     "Never end a turn to wait for a command or to resume later",
-    "plan, monitor, pipe, or questions handoff",
+    "including handoff turns",
 )
 
 

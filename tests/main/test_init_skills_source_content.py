@@ -158,8 +158,8 @@ def test_sase_sudo_skill_teaches_reviewed_request_contract() -> None:
     )
     assert "Finish through `/sase_final`" in flat
     assert "Do not wait for your own staged gate" in flat
-    assert "the runner hands off and kills this process" in flat
-    assert "does not mean the gate was created. Read and report it." in flat
+    assert "the gate was not created" in flat
+    assert "does not mean the gate was created" in flat
 
 
 @pytest.mark.parametrize("skill_name", ["sase_git_commit"])
@@ -271,9 +271,7 @@ def test_sase_final_skill_documents_declaration_commands() -> None:
     )
     assert "I will wait" not in flat
     assert "replies that intend to resume in a later turn" not in flat
-    assert (
-        "Only a successfully executed plan, monitor, pipe, or questions handoff" in flat
-    )
+    assert "Every root turn ends through this skill, including handoff turns" in flat
     assert "sase final context -f json" in body
     assert "sase final submit <manifest-file>" in body
     assert "beta" not in flat
