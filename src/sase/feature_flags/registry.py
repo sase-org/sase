@@ -28,7 +28,6 @@ class FeatureFlag(StrEnum):
     codex_explicit_instructions = "codex_explicit_instructions"
     grok_explicit_instructions = "grok_explicit_instructions"
     muse_explicit_instructions = "muse_explicit_instructions"
-    staged_handoffs = "staged_handoffs"
 
 
 _FEATURE_FLAG_DEFINITIONS: dict[FeatureFlag, FeatureFlagDefinition] = {
@@ -88,15 +87,6 @@ _FEATURE_FLAG_DEFINITIONS: dict[FeatureFlag, FeatureFlagDefinition] = {
         kind="sunset",
         description="Deliver Muse instruction bundles as a prompt prefix",
         bead="sase-1ku",
-    ),
-    FeatureFlag.staged_handoffs: FeatureFlagDefinition(
-        key=FeatureFlag.staged_handoffs,
-        kind="beta",
-        description=(
-            "Stage plan, question, pipe, gate, and monitor handoffs for host "
-            "completion instead of killing the runner."
-        ),
-        bead="sase-1pk",
     ),
 }
 

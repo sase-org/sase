@@ -1,19 +1,12 @@
-"""Guard and write helpers for pending agent-handoff markers.
+"""Admission guards for in-agent staged handoffs.
 
-Kept out of :mod:`sase.agent.pending_handoff` so the runner's SIGTERM path
-can keep its cheap read-only import.
+Historical pending markers remain readable in :mod:`sase.agent.pending_handoff`.
 """
 
 from __future__ import annotations
 
 import os
-import time
-from collections.abc import Mapping
 from pathlib import Path
-from typing import Any
-
-from sase.agent.pending_handoff import PENDING_HANDOFF_MARKERS
-from sase.core.atomic_json import write_json_marker_atomic
 
 
 class PendingHandoffError(RuntimeError):
@@ -53,54 +46,4 @@ def handoff_guard(*, command: str = "turn-ending handoffs") -> str:
     return artifacts_dir
 
 
-def write_pending_handoff_marker(
-    marker: str,
-    payload: Mapping[str, Any],
-    *,
-    artifacts_dir: str | None = None,
-    reservation_id: str | None = None,
-) -> Path:
-    """Stamp ``timestamp``, write ``marker`` atomically, and fsync it.
-
-    ``timestamp`` is left alone when the payload already carries one so a
-    caller can pin the archived-marker value.
-    """
-    _refuse_finalizer_owned_handoff("turn-ending handoffs")
-    resolved = artifacts_dir or os.environ.get("SASE_ARTIFACTS_DIR")
-    if not resolved:
-        raise PendingHandoffError("SASE_ARTIFACTS_DIR is unset")
-    if marker not in PENDING_HANDOFF_MARKERS:
-        raise PendingHandoffError(f"unknown pending handoff marker: {marker}")
-
-    data = dict(payload)
-    data.setdefault("timestamp", time.time())
-    path = Path(resolved) / marker
-    path.parent.mkdir(parents=True, exist_ok=True)
-    from sase.agent.staged_handoff import (
-        acquire_handoff_locks,
-        occupying_handoff_names,
-    )
-
-    with acquire_handoff_locks(Path(resolved)):
-        existing = occupying_handoff_names(
-            resolved, ignore_reservation_id=reservation_id
-        )
-        if existing:
-            raise PendingHandoffError(_already_exists_message(existing))
-        write_json_marker_atomic(path, data)
-        if reservation_id is not None:
-            from sase.agent.staged_handoff import release_staging_reservation_locked
-
-            release_staging_reservation_locked(Path(resolved), reservation_id)
-    return path
-
-
-def _already_exists_message(existing: tuple[str, ...]) -> str:
-    return f"pending handoff already exists: {', '.join(existing)}"
-
-
-__all__ = [
-    "PendingHandoffError",
-    "handoff_guard",
-    "write_pending_handoff_marker",
-]
+__all__ = ["PendingHandoffError", "handoff_guard"]

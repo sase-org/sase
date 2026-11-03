@@ -2,10 +2,22 @@
 
 from __future__ import annotations
 
+import json
+from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from sase.axe.run_agent_exec import AgentExecContext, LoopState
+
+
+def write_legacy_handoff_marker(
+    marker: str, payload: dict[str, Any], *, artifacts_dir: str
+) -> Path:
+    """Seed an archived marker fixture without a production write protocol."""
+    path = Path(artifacts_dir) / marker
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(payload), encoding="utf-8")
+    return path
 
 
 def handle_plan_marker(

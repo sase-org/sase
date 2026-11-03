@@ -255,6 +255,8 @@ def _format_stranded_command_refs(commands: Sequence[CodexStrandedCommand]) -> s
 # These prefixes are the direct CLI handoff entry points. Their corresponding
 # paths stage in-agent and return: monitor/start, plan/propose, pipe, questions,
 # gate/create, sudo/request, launch/request, and run.
+# An unfinished CLI call still needs a guard; durable staged state decides
+# whether to retry preparation or leave completion to the host.
 _SASE_HANDOFF_COMMAND_PREFIXES = (
     ("monitor", "start"),
     ("plan", "propose"),

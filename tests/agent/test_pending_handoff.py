@@ -1,8 +1,7 @@
-"""Registry and write-path coverage for pending runner handoff markers."""
+"""Historical marker readers and staged-handoff admission guards."""
 
 from __future__ import annotations
 
-import json
 from pathlib import Path
 
 import pytest
@@ -19,7 +18,6 @@ from sase.agent.pending_handoff import (
 from sase.agent.pending_handoff_write import (
     PendingHandoffError,
     handoff_guard,
-    write_pending_handoff_marker,
 )
 
 
@@ -77,40 +75,3 @@ def test_handoff_guard_refuses_existing_marker(
 
     with pytest.raises(PendingHandoffError, match=PLAN_PENDING_MARKER):
         handoff_guard()
-
-
-def test_second_marker_write_from_one_turn_raises(tmp_path: Path) -> None:
-    first = write_pending_handoff_marker(
-        QUESTIONS_PENDING_MARKER,
-        {"questions": [{"question": "one"}]},
-        artifacts_dir=str(tmp_path),
-    )
-    assert first.is_file()
-
-    with pytest.raises(PendingHandoffError, match=QUESTIONS_PENDING_MARKER):
-        write_pending_handoff_marker(
-            PIPE_PENDING_MARKER,
-            {"prompt": "continue"},
-            artifacts_dir=str(tmp_path),
-        )
-
-
-def test_write_pending_handoff_marker_stamps_timestamp(tmp_path: Path) -> None:
-    path = write_pending_handoff_marker(
-        PLAN_PENDING_MARKER,
-        {"plan_file": "/tmp/plan.md"},
-        artifacts_dir=str(tmp_path),
-    )
-    payload = json.loads(path.read_text(encoding="utf-8"))
-    assert payload["plan_file"] == "/tmp/plan.md"
-    assert isinstance(payload["timestamp"], float)
-
-
-def test_write_pending_handoff_marker_keeps_explicit_timestamp(tmp_path: Path) -> None:
-    path = write_pending_handoff_marker(
-        MONITOR_PENDING_MARKER,
-        {"monitor_id": "m1", "timestamp": 123.0},
-        artifacts_dir=str(tmp_path),
-    )
-    payload = json.loads(path.read_text(encoding="utf-8"))
-    assert payload["timestamp"] == 123.0

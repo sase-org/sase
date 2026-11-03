@@ -8,6 +8,24 @@ import time
 from pathlib import Path
 
 
+def staged_handoff_blocks_continuation() -> bool:
+    """Leave durable stages to host completion rather than retrying the provider."""
+    artifacts_dir = os.environ.get("SASE_ARTIFACTS_DIR")
+    if not artifacts_dir:
+        return False
+    from sase.agent.staged_handoff import StagedHandoffError, read_staged_handoff
+
+    from .types import LLMInvocationError
+
+    try:
+        return read_staged_handoff(artifacts_dir) is not None
+    except StagedHandoffError as exc:
+        raise LLMInvocationError(
+            "Provider continuation encountered unreadable staged state; "
+            "refusing to retry preparation. " + str(exc)
+        ) from exc
+
+
 def log_wait_guard(reason: str, cycle: int) -> None:
     """Append one stranded-command guard firing to the artifacts directory."""
     artifacts_dir = os.environ.get("SASE_ARTIFACTS_DIR")

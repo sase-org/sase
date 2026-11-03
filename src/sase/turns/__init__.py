@@ -16,8 +16,6 @@ _MODULE_BY_EXPORT = {
     "starter_identity": "followup",
     "wait_for_followup_started": "followup",
     "wait_for_starter": "followup",
-    "TurnHandoffError": "handoff",
-    "write_turn_pending_marker": "handoff",
     "create_agent_session_turn_member": "member",
     "SequenceSuffixSpec": "naming",
     "TurnIdSpec": "naming",

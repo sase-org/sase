@@ -10,20 +10,16 @@ moves, and the running record), :mod:`sase.monitor.request`
 proc-service facade), :mod:`sase.monitor.start_lane` (lane and workspace
 resolution), :mod:`sase.monitor.start_claim` (RUNNING-field claim moves),
 :mod:`sase.monitor.start_continuation` (continuation-record setup),
-:mod:`sase.monitor.start_runtime` (proc/claim failure helpers), and
-:mod:`sase.monitor.handoff` (archived pending-monitor marker writer).
+:mod:`sase.monitor.start_runtime` (proc/claim failure helpers).
 """
 
 from __future__ import annotations
 
+from sase.agent.pending_handoff import MONITOR_PENDING_MARKER
 from sase.procs.spawn import SUPERVISOR_LOG_NAME
 
 from .claims import MONITOR_WORKSPACE_CLAIM_WORKFLOW
 from .followup_prompt import DEFAULT_NEXT_OUTPUT, NEXT_OUTPUT_CHOICES
-from .handoff import (
-    MONITOR_PENDING_MARKER,
-    write_monitor_pending_marker,
-)
 from .request import (
     DEFAULT_REASON,
     DEFAULT_START_STATUS,
@@ -49,5 +45,4 @@ __all__ = [
     "SUPERVISOR_LOG_NAME",
     "StartMonitorRequest",
     "start_monitor",
-    "write_monitor_pending_marker",
 ]

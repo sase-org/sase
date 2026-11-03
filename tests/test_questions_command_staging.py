@@ -7,9 +7,9 @@ from pathlib import Path
 from unittest.mock import patch
 
 import pytest
+from tests._legacy_handoff_markers import write_legacy_handoff_marker
 
 from sase.agent.pending_handoff import QUESTIONS_PENDING_MARKER
-from sase.agent.pending_handoff_write import write_pending_handoff_marker
 from sase.agent.staged_handoff import (
     STAGED_HANDOFF_FILENAME,
     STAGING_RESERVATION_FILENAME,
@@ -95,7 +95,7 @@ def test_existing_handoff_refuses_questions_stage(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     artifacts = _prepare(tmp_path, monkeypatch)
-    write_pending_handoff_marker(
+    write_legacy_handoff_marker(
         QUESTIONS_PENDING_MARKER,
         {"questions": [{"question": "already pending"}]},
         artifacts_dir=str(artifacts),

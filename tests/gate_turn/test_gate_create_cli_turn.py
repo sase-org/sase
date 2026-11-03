@@ -12,7 +12,6 @@ from pathlib import Path
 import pytest
 
 from sase.agent.pending_handoff import PIPE_PENDING_MARKER
-from sase.agent.pending_handoff_write import write_pending_handoff_marker
 from sase.agent.staged_handoff import (
     STAGED_HANDOFF_FILENAME,
     STAGING_RESERVATION_FILENAME,
@@ -21,6 +20,7 @@ from sase.agent.staged_handoff import (
 from sase.gate_turn.store import find_gate_turn_by_gate_id
 from sase.main.gate_handler import handle_gate_command
 from sase.main.parser_gate import register_gate_parser
+from tests._legacy_handoff_markers import write_legacy_handoff_marker
 from tests._notification_gates_fixtures import custom_gate_spec
 from tests.gate_turn._settlement_followup_helpers import sandbox_home
 from tests.monitor._fixtures import make_starter_agent, write_project_file
@@ -174,7 +174,7 @@ def test_existing_legacy_handoff_refuses_gate_before_publication(
     del gate_home
     project = "cli-turn-existing-handoff"
     creator_dir = _prepare_creator(monkeypatch, project)
-    write_pending_handoff_marker(
+    write_legacy_handoff_marker(
         PIPE_PENDING_MARKER,
         {"prompt": "already handed off"},
         artifacts_dir=creator_dir,

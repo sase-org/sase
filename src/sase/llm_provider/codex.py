@@ -45,7 +45,7 @@ from ._subprocess import (
     stream_and_parse_codex_json_output,
 )
 from ._subprocess_codex import CodexStreamResult
-from ._wait_guard import log_wait_guard
+from ._wait_guard import log_wait_guard, staged_handoff_blocks_continuation
 from .base import LLMProvider
 from .model_manifest import (
     provider_model_names,
@@ -387,7 +387,10 @@ class CodexProvider(LLMProvider):
                 for command in stream_result.stranded_commands
                 if command.is_handoff
             )
-            if stranded_handoff_commands:
+            # A CLI can persist its stage before losing its tool result.
+            # Normal host finalization, including declaration recovery, then
+            # owns completion; retrying could collide or mutate declared work.
+            if stranded_handoff_commands and not staged_handoff_blocks_continuation():
                 guard_cycle = wait_continuations + 1
                 log_wait_guard("stranded_handoff_command", guard_cycle)
                 command_label = (

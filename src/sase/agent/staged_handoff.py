@@ -22,7 +22,6 @@ from sase.agent._staged_handoff_store import (
     read_staged_handoff_response,
     release_staging_reservation,
     release_staging_reservation_locked,
-    staged_handoffs_enabled,
     write_staged_handoff_response,
 )
 from sase.agent._staged_handoff_admission import (
@@ -109,7 +108,6 @@ __all__ = [
     "release_staging_reservation_locked",
     "release_staging_reservation",
     "read_staged_successor",
-    "staged_handoffs_enabled",
     "staged_successor_path",
     "successor_prompt_digest",
     "update_staged_successor_locked",

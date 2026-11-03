@@ -8,7 +8,6 @@ from typing import Any
 
 import pytest
 
-from sase.agent.pending_handoff import MONITOR_PENDING_MARKER
 from sase.gate_turn.settlement import _done_marker
 from sase.turns.followup import (
     FollowupLaunchResult,
@@ -16,9 +15,6 @@ from sase.turns.followup import (
     fork_target_for_settled_starter,
     record_followup_launched,
     wait_for_followup_started,
-)
-from sase.turns.handoff import (
-    write_turn_pending_marker,
 )
 from sase.turns.member import create_agent_session_turn_member
 from sase.turns.naming import SequenceSuffixSpec, allocate_turn_suffix
@@ -113,29 +109,6 @@ def test_allocate_turn_suffix_uses_first_suffix_then_template_allocator() -> Non
         )
         == "--gate-7"
     )
-
-
-def test_write_turn_pending_marker_adds_payload_and_refresh_pulse(
-    tmp_path: Path,
-) -> None:
-    artifacts_root = tmp_path / ".sase" / "projects" / "demo" / "artifacts"
-    artifacts_dir = artifacts_root / "ace-run" / "202608" / "12" / "20260812120000"
-    artifacts_dir.mkdir(parents=True)
-
-    marker = write_turn_pending_marker(
-        MONITOR_PENDING_MARKER,
-        {"shell_id": "s123", "member_agent_name": "acme--gate"},
-        str(artifacts_dir),
-        timestamp=123.0,
-    )
-
-    assert json.loads(marker.read_text(encoding="utf-8")) == {
-        "shell_id": "s123",
-        "member_agent_name": "acme--gate",
-        "timestamp": 123.0,
-    }
-    assert (artifacts_root / ".ace_refresh_pulse").exists()
-    assert not (artifacts_root / "ace-run" / "202608" / ".ace_refresh_pulse").exists()
 
 
 def test_status_and_state_helpers_are_parameterized() -> None:

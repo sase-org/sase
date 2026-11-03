@@ -14,10 +14,6 @@ from sase.agent.pending_handoff import (
     PLAN_PENDING_MARKER,
     QUESTIONS_PENDING_MARKER,
 )
-from sase.agent.pending_handoff_write import (
-    PendingHandoffError,
-    write_pending_handoff_marker,
-)
 from sase.agent.staged_handoff import (
     STAGED_HANDOFF_FILENAME,
     StagedHandoffError,
@@ -34,7 +30,6 @@ from sase.axe.run_agent_exec_staged import (
     StagedInlineContinuation,
     dispatch_completed_staged_handoff,
 )
-from sase.feature_flags import override_flags
 from sase.finalizers.commit import BuiltinCommitFinalizerError, StitchCommandResult
 from sase.finalizers.config import (
     ConfiguredFinalizerInstance,
@@ -46,6 +41,7 @@ from sase.finalizers.plan import resolve_and_persist_finalizer_plan
 from sase.llm_provider.commit_finalizer_types import DirtyRepo
 from sase.llm_provider.types import InvokeResult
 from sase.macro.directives import PromptDirectives, extract_prompt_directives
+from tests._legacy_handoff_markers import write_legacy_handoff_marker
 from tests.finalizers_protocol_harness_test_helpers import (
     dirty_repo,
     run_controller,
@@ -385,7 +381,7 @@ def test_partial_commit_keeps_receipts_and_holds(
     assert calls == ["main"]
 
 
-def test_flag_flip_after_stage_does_not_switch_runner(
+def test_runner_adopts_staged_record(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -393,14 +389,13 @@ def test_flag_flip_after_stage_does_not_switch_runner(
     dirty = dual_dirty(repo, linked)
     stage_plan(artifacts, plan_file)
     settle_commits(monkeypatch, artifacts, repo, dirty)
-    with override_flags(staged_handoffs=False):
-        result = dispatch_with_gate(
-            tmp_path,
-            artifacts,
-            expected_cwds={str(repo), str(linked)},
-            gate_mode="pending",
-            plan_file=plan_file,
-        )
+    result = dispatch_with_gate(
+        tmp_path,
+        artifacts,
+        expected_cwds={str(repo), str(linked)},
+        gate_mode="pending",
+        plan_file=plan_file,
+    )
     assert result is not None and result.adopted
     assert not (artifacts / PLAN_PENDING_MARKER).exists()
     meta = json.loads((artifacts / "agent_meta.json").read_text(encoding="utf-8"))
@@ -461,35 +456,25 @@ def test_second_handoff_fails_before_publication(
     _repo, _linked, artifacts, plan_file = prepare_dual_repo_env(tmp_path, monkeypatch)
     if protocol == "staged":
         stage_plan(artifacts, plan_file)
-        with (
-            pytest.raises(StagedHandoffError),
-            patch("sase.plan_gate_turn.create_plan_gate_turn") as create_gate,
-        ):
-            write_staged_handoff(
-                build_plan_staged_record(
-                    plan_file=str(plan_file),
-                    original_file=str(plan_file),
-                    dirty_obligations_at_stage=[],
-                ),
-                artifacts_dir=str(artifacts),
-            )
-        create_gate.assert_not_called()
     else:
-        write_pending_handoff_marker(
+        write_legacy_handoff_marker(
             PLAN_PENDING_MARKER,
             {"plan_file": str(plan_file)},
             artifacts_dir=str(artifacts),
         )
-        with (
-            pytest.raises(PendingHandoffError),
-            patch("sase.plan_gate_turn.create_plan_gate_turn") as create_gate,
-        ):
-            write_pending_handoff_marker(
-                PLAN_PENDING_MARKER,
-                {"plan_file": str(plan_file)},
-                artifacts_dir=str(artifacts),
-            )
-        create_gate.assert_not_called()
+    with (
+        pytest.raises(StagedHandoffError),
+        patch("sase.plan_gate_turn.create_plan_gate_turn") as create_gate,
+    ):
+        write_staged_handoff(
+            build_plan_staged_record(
+                plan_file=str(plan_file),
+                original_file=str(plan_file),
+                dirty_obligations_at_stage=[],
+            ),
+            artifacts_dir=str(artifacts),
+        )
+    create_gate.assert_not_called()
 
 
 @pytest.mark.parametrize("gate_mode", ["pending", "auto"])

@@ -34,14 +34,17 @@ def single_turn_directive() -> str:
         "SASE single-turn instructions for Codex: this session is exactly one turn, "
         "and nothing can wake you after you end it. `exec_command` returns control "
         "after its `yield_time_ms` even while the command keeps running. An empty or "
-        "partial yielded result means the command is still running, not done. Anything "
-        "still running when your turn ends is killed, so its intended effects never "
-        "happen. Handoff commands such as `sase monitor start`, `sase plan propose`, "
-        "`sase pipe`, and `sase questions` can take up to a minute before they hand off. "
+        "partial yielded result means the command is still running, not done. "
+        "Unfinished subprocesses are killed when your turn ends; an early result is "
+        "not proof of completion. Handoff commands such as `sase monitor start`, "
+        "`sase plan propose`, "
+        "`sase pipe`, and `sase questions` can take up to a minute to stage a handoff. "
         "Wait for the handoff command itself to exit: if a yielded exec session remains "
         "running, repeatedly call `write_stdin` with empty input until it reports an "
-        "exit code. Never end your turn while one is running. The monitored command is "
-        "different: let SASE monitor that command after `sase monitor start` exits."
+        "exit code. Never end your turn while one is running. When it reports Staged, "
+        "finish through `/sase_final`, submitting only if the context requires it. "
+        "Do not wait for the staged successor, gate, or monitored command: the host "
+        "starts it after this turn ends and finalizers settle."
     )
 
 
@@ -59,16 +62,18 @@ def max_wait_continuations() -> int:
 def stranded_handoff_continuation_nudge(
     commands: tuple[CodexStrandedCommand, ...],
 ) -> str:
-    """Tell a fresh Codex invocation how to recover the killed handoff."""
+    """Recover an unfinished staging command after checking no stage exists."""
     command = next((fact.command for fact in commands if fact.command), None)
     command_label = command or commands[0].command_id
     return (
         "Your previous Codex turn ended while this SASE handoff command was still "
-        f"running: `{command_label}`. It was killed when the turn ended, and no monitor "
-        "or handoff took effect. Re-run the identical command so fingerprint replay can "
-        "adopt any partially started monitor. Keep waiting on the same exec session: if "
+        f"running: `{command_label}`. No durable staged handoff was found. Re-run the "
+        "identical command so fingerprint replay can recover partial preparation. "
+        "Keep waiting on the same exec session: if "
         "the tool yields before an exit code, repeatedly call `write_stdin` with empty "
-        "input until the command exits. Do not end the turn while it is running."
+        "input until the command exits. Do not end the turn while it is running. "
+        "When it reports Staged, finish through `/sase_final`; do not wait for the "
+        "staged successor or monitor, which starts after this turn ends."
     )
 
 

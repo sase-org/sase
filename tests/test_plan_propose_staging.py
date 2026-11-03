@@ -9,13 +9,13 @@ from unittest.mock import patch
 import pytest
 
 from sase.agent.pending_handoff import PLAN_PENDING_MARKER
-from sase.agent.pending_handoff_write import write_pending_handoff_marker
 from sase.agent.staged_handoff import (
     STAGED_HANDOFF_FILENAME,
     STAGING_RESERVATION_FILENAME,
 )
 from sase.main import plan_command_handler
 from sase.llm_provider import _plan_utils
+from tests._legacy_handoff_markers import write_legacy_handoff_marker
 from tests.conftest import redirect_sase_home
 from tests.plan_command_handler_helpers import (
     VALID_TALE,
@@ -142,7 +142,7 @@ def test_existing_handoff_refuses_before_plan_mutations(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     artifacts_dir, plan_file, _sase_home = _prepare(tmp_path, monkeypatch)
-    write_pending_handoff_marker(
+    write_legacy_handoff_marker(
         PLAN_PENDING_MARKER,
         {"plan_file": "existing.md"},
         artifacts_dir=str(artifacts_dir),

@@ -30,7 +30,6 @@ from .start import (
     MONITOR_PENDING_MARKER,
     StartMonitorRequest,
     start_monitor,
-    write_monitor_pending_marker,
 )
 from .store import (
     MIN_MONITOR_REF_LENGTH,
@@ -97,5 +96,4 @@ __all__ = [
     "start_monitor",
     "stop_monitor",
     "resume_monitor",
-    "write_monitor_pending_marker",
 ]

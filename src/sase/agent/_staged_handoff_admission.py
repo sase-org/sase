@@ -49,8 +49,8 @@ def occupying_handoff_names(
 ) -> tuple[str, ...]:
     """Return occupying legacy markers, staged records, and reservations.
 
-    Dead-owner staging reservations are reclaimed here so ``admit_stage``,
-    ``acquire_staging_reservation``, and ``write_pending_handoff_marker``
+    Dead-owner staging reservations are reclaimed here so ``admit_stage`` and
+    ``acquire_staging_reservation``
     share one observation. Callers must hold the handoff lock.
     """
     root = Path(artifacts_dir)

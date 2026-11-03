@@ -1,4 +1,4 @@
-"""Host storage, guards, and flag coverage for staged handoffs."""
+"""Host storage and guards for staged handoffs."""
 
 from __future__ import annotations
 
@@ -14,7 +14,6 @@ from sase.agent.pending_handoff import PLAN_PENDING_MARKER, has_pending_handoff
 from sase.agent.pending_handoff_write import (
     PendingHandoffError,
     handoff_guard,
-    write_pending_handoff_marker,
 )
 from sase.agent.staged_handoff import (
     STAGED_HANDOFF_FILENAME,
@@ -31,13 +30,10 @@ from sase.agent.staged_handoff import (
     read_staged_handoff_response,
     receipt_authorizes,
     release_staging_reservation,
-    staged_handoffs_enabled,
     write_adoption_receipt,
     write_staged_handoff,
     write_staged_handoff_response,
 )
-from sase.feature_flags import override_flags
-from sase.feature_flags.registry import FeatureFlag, feature_flag_definitions
 from sase.finalizers.declaration import (
     FINAL_SUBMISSION_FILENAME,
     final_submission_is_current,
@@ -46,6 +42,7 @@ from sase.finalizers.declaration import (
 )
 from sase.finalizers.owned_turn import SASE_FINALIZER_OWNED_TURN_ENV
 
+from tests._legacy_handoff_markers import write_legacy_handoff_marker
 from tests.finalizer_declaration_channel_test_helpers import (
     clean_state,
     persist_default_plan,
@@ -72,61 +69,30 @@ def _plan_record(tmp_path: Path) -> dict[str, object]:
     )
 
 
-def test_flag_is_default_off_beta_with_generated_bead() -> None:
-    definition = feature_flag_definitions()[FeatureFlag.staged_handoffs]
-    assert definition.kind == "beta"
-    assert definition.default is False
-    assert definition.bead == "sase-1pk"
-
-
-def test_flag_disabled_keeps_legacy_protocol(
+def test_archived_marker_is_not_staged(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     _agent_env(monkeypatch, tmp_path)
-    with override_flags(staged_handoffs=False):
-        assert staged_handoffs_enabled() is False
-        path = write_pending_handoff_marker(
-            PLAN_PENDING_MARKER,
-            {"plan_file": str(tmp_path / "plan.md")},
-            artifacts_dir=str(tmp_path),
-        )
-        assert path.is_file()
-        assert has_pending_handoff(str(tmp_path)) is True
-        assert read_staged_handoff(str(tmp_path)) is None
-
-
-def test_legacy_marker_consumes_its_staging_reservation(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-) -> None:
-    _agent_env(monkeypatch, tmp_path)
-    reservation_id = acquire_staging_reservation(
-        artifacts_dir=str(tmp_path), command="sase gate create"
-    )
-
-    path = write_pending_handoff_marker(
+    path = write_legacy_handoff_marker(
         PLAN_PENDING_MARKER,
         {"plan_file": str(tmp_path / "plan.md")},
         artifacts_dir=str(tmp_path),
-        reservation_id=reservation_id,
     )
-
     assert path.is_file()
-    assert not (tmp_path / STAGING_RESERVATION_FILENAME).exists()
-    assert occupying_handoff_names(str(tmp_path)) == (PLAN_PENDING_MARKER,)
+    assert has_pending_handoff(str(tmp_path)) is True
+    assert read_staged_handoff(str(tmp_path)) is None
 
 
-def test_flag_enabled_exposes_staging_helper(
+def test_staging_helper_writes_durable_record(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     _agent_env(monkeypatch, tmp_path)
-    with override_flags(staged_handoffs=True):
-        assert staged_handoffs_enabled() is True
-        path = write_staged_handoff(_plan_record(tmp_path), artifacts_dir=str(tmp_path))
-        assert path.name == STAGED_HANDOFF_FILENAME
-        assert has_pending_handoff(str(tmp_path)) is False
-        record = read_staged_handoff(str(tmp_path))
-        assert record is not None
-        assert record["kind"] == "plan"
+    path = write_staged_handoff(_plan_record(tmp_path), artifacts_dir=str(tmp_path))
+    assert path.name == STAGED_HANDOFF_FILENAME
+    assert has_pending_handoff(str(tmp_path)) is False
+    record = read_staged_handoff(str(tmp_path))
+    assert record is not None
+    assert record["kind"] == "plan"
 
 
 def test_write_and_read_round_trip(
@@ -183,24 +149,11 @@ def test_release_reservation_on_pre_stage_failure(
     assert handoff_guard() == str(tmp_path)
 
 
-def test_legacy_writer_refuses_staged_record(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-) -> None:
-    _agent_env(monkeypatch, tmp_path)
-    write_staged_handoff(_plan_record(tmp_path), artifacts_dir=str(tmp_path))
-    with pytest.raises(PendingHandoffError, match=STAGED_HANDOFF_FILENAME):
-        write_pending_handoff_marker(
-            PLAN_PENDING_MARKER,
-            {"plan_file": "x"},
-            artifacts_dir=str(tmp_path),
-        )
-
-
 def test_staged_writer_refuses_legacy_marker(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     _agent_env(monkeypatch, tmp_path)
-    write_pending_handoff_marker(
+    write_legacy_handoff_marker(
         PLAN_PENDING_MARKER,
         {"plan_file": "x"},
         artifacts_dir=str(tmp_path),
@@ -338,44 +291,29 @@ def test_accepted_current_submission_refuses_staging(
         write_staged_handoff(_plan_record(tmp_path), artifacts_dir=str(tmp_path))
 
 
-def test_concurrent_staged_and_legacy_writers_exclude_each_other(
+def test_concurrent_staged_writers_exclude_each_other(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     _agent_env(monkeypatch, tmp_path)
-    errors: list[BaseException] = []
-    staged_ok = threading.Event()
-    legacy_ok = threading.Event()
+    barrier = threading.Barrier(2)
+    outcomes: list[str] = []
 
     def stage() -> None:
+        barrier.wait(timeout=5)
         try:
             write_staged_handoff(_plan_record(tmp_path), artifacts_dir=str(tmp_path))
-            staged_ok.set()
-        except BaseException as exc:  # noqa: BLE001 - collected by parent
-            errors.append(exc)
+            outcomes.append("staged")
+        except StagedHandoffError:
+            outcomes.append("refused")
 
-    def legacy() -> None:
-        try:
-            write_pending_handoff_marker(
-                PLAN_PENDING_MARKER,
-                {"plan_file": "x"},
-                artifacts_dir=str(tmp_path),
-            )
-            legacy_ok.set()
-        except BaseException as exc:  # noqa: BLE001 - collected by parent
-            errors.append(exc)
-
-    threads = [
-        threading.Thread(target=stage),
-        threading.Thread(target=legacy),
-    ]
+    threads = [threading.Thread(target=stage) for _ in range(2)]
     for thread in threads:
         thread.start()
     for thread in threads:
         thread.join(timeout=5)
         assert not thread.is_alive()
-    assert staged_ok.is_set() ^ legacy_ok.is_set()
-    assert len(errors) == 1
-    assert isinstance(errors[0], (PendingHandoffError, StagedHandoffError))
+    assert sorted(outcomes) == ["refused", "staged"]
+    assert read_staged_handoff(str(tmp_path)) == _plan_record(tmp_path)
 
 
 def test_stage_versus_submit_refuses_after_accepted_submission(

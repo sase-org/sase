@@ -8,6 +8,12 @@ from unittest.mock import patch
 
 import pytest
 
+from sase.agent.staged_handoff import (
+    STAGED_HANDOFF_FILENAME,
+    build_plan_staged_record,
+    read_staged_handoff,
+    write_staged_handoff,
+)
 from sase.llm_provider._subprocess_codex import (
     CodexStreamResult,
     CodexStrandedCommand,
@@ -60,7 +66,7 @@ def test_codex_parser_reports_stranded_monitor_despite_commentary(
         "/bin/zsh -lc 'sase monitor start --profile verify -- just check'",
     ],
 )
-def test_sase_handoff_command_classifier_covers_marker_writers(command: str) -> None:
+def test_sase_handoff_command_classifier_covers_staging_commands(command: str) -> None:
     assert _is_sase_handoff_command(command)
 
 
@@ -90,6 +96,9 @@ def test_codex_handoff_guard_redrives_command_and_logs(
     assert "--- Required Continuation ---" in continuation
     assert stranded.command in continuation
     assert "write_stdin" in continuation
+    assert "No durable staged handoff was found" in continuation
+    assert "/sase_final" in continuation
+    assert "no monitor or handoff took effect" not in continuation
     log_entries = [
         json.loads(line)
         for line in (tmp_path / "wait_guard_log.jsonl").read_text().splitlines()
@@ -99,11 +108,90 @@ def test_codex_handoff_guard_redrives_command_and_logs(
     assert log_entries[0]["cycle"] == 1
 
 
-def test_codex_handoff_guard_exhaustion_names_command_and_artifacts(
+@pytest.mark.parametrize("budget", [0, 2])
+def test_codex_handoff_guard_leaves_valid_stage_for_host_completion(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, budget: int
+) -> None:
+    """A persisted stage wins over missing CLI output, even without retry budget."""
+    monkeypatch.setenv("SASE_ARTIFACTS_DIR", str(tmp_path))
+    monkeypatch.setenv("SASE_AGENT", "1")
+    monkeypatch.setenv("SASE_CODEX_MAX_WAIT_CONTINUATIONS", str(budget))
+    record = build_plan_staged_record(
+        plan_file=str(tmp_path / "plan.md"),
+        original_file=str(tmp_path / "scratch.md"),
+        dirty_obligations_at_stage=[],
+    )
+    write_staged_handoff(record, artifacts_dir=str(tmp_path))
+    stranded = CodexStrandedCommand(
+        command_id="exec-plan-propose",
+        command="sase plan propose plan.md",
+        reason="killed_at_teardown",
+        is_handoff=True,
+    )
+    provider = CodexProvider()
+    with patch.object(
+        provider,
+        "_run_subprocess",
+        return_value=CodexStreamResult(
+            "Plan staged.", "", 0, stranded_commands=(stranded,)
+        ),
+    ) as run:
+        result = provider.invoke(
+            "Plan the task.", model_tier="large", suppress_output=True
+        )
+
+    run.assert_called_once()
+    assert result.content == "Plan staged."
+    assert read_staged_handoff(str(tmp_path)) == record
+    assert not (tmp_path / "wait_guard_log.jsonl").exists()
+
+
+def test_codex_handoff_guard_refuses_retry_with_malformed_stage(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
-    """A zero continuation budget refuses to report a killed handoff as success."""
-    monkeypatch.setenv("SASE_CODEX_MAX_WAIT_CONTINUATIONS", "0")
+    monkeypatch.setenv("SASE_ARTIFACTS_DIR", str(tmp_path))
+    path = tmp_path / STAGED_HANDOFF_FILENAME
+    path.write_text("{", encoding="utf-8")
+    stranded = CodexStrandedCommand(
+        command_id="exec-plan-propose",
+        command="sase plan propose plan.md",
+        reason="started_without_result",
+        is_handoff=True,
+    )
+    provider = CodexProvider()
+    with (
+        patch.object(
+            provider,
+            "_run_subprocess",
+            return_value=CodexStreamResult("", "", 0, stranded_commands=(stranded,)),
+        ) as run,
+        pytest.raises(LLMInvocationError, match="unreadable staged state"),
+    ):
+        provider.invoke("Plan the task.", model_tier="large", suppress_output=True)
+    run.assert_called_once()
+    assert path.read_text(encoding="utf-8") == "{"
+
+
+def test_codex_completed_staging_command_needs_no_continuation() -> None:
+    provider = CodexProvider()
+    with patch.object(
+        provider,
+        "_run_subprocess",
+        return_value=CodexStreamResult("Staged; declaration submitted.", "", 0),
+    ) as run:
+        result = provider.invoke(
+            "Plan the task.", model_tier="large", suppress_output=True
+        )
+    run.assert_called_once()
+    assert result.content == "Staged; declaration submitted."
+
+
+@pytest.mark.parametrize("budget", [0, 2])
+def test_codex_handoff_guard_exhaustion_names_command_and_artifacts(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, budget: int
+) -> None:
+    """Exhausting the retry budget refuses to report an unfinished CLI as success."""
+    monkeypatch.setenv("SASE_CODEX_MAX_WAIT_CONTINUATIONS", str(budget))
     monkeypatch.setenv("SASE_ARTIFACTS_DIR", str(tmp_path))
     stranded = CodexStrandedCommand(
         command_id="exec-monitor-start",
@@ -118,7 +206,7 @@ def test_codex_handoff_guard_exhaustion_names_command_and_artifacts(
             provider,
             "_run_subprocess",
             return_value=CodexStreamResult("", "", 0, stranded_commands=(stranded,)),
-        ),
+        ) as run,
         pytest.raises(LLMInvocationError) as exc_info,
     ):
         provider.invoke(
@@ -129,6 +217,7 @@ def test_codex_handoff_guard_exhaustion_names_command_and_artifacts(
     assert "stranded_handoff_command" in message
     assert stranded.command in message
     assert str(tmp_path) in message
+    assert run.call_count == budget + 1
 
 
 def test_stranded_non_handoff_with_nonempty_final_is_unaffected() -> None:
@@ -165,3 +254,6 @@ def test_codex_single_turn_directive_states_unified_exec_ceiling() -> None:
     assert "still running" in directive
     assert "write_stdin" in directive
     assert "up to a minute" in directive
+    assert "Staged" in directive
+    assert "/sase_final" in directive
+    assert "after this turn ends and finalizers settle" in directive

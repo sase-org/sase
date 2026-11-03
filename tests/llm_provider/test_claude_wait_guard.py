@@ -5,10 +5,16 @@ from __future__ import annotations
 import json
 import os
 import uuid
+from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
 
+from sase.agent.staged_handoff import (
+    build_plan_staged_record,
+    read_staged_handoff,
+    write_staged_handoff,
+)
 from sase.llm_provider._subprocess_claude import (
     ClaudeTurnWaitState,
     _process_json_line,
@@ -16,6 +22,7 @@ from sase.llm_provider._subprocess_claude import (
 from sase.llm_provider.claude import (
     ClaudeCodeProvider,
     _BASH_MAX_TIMEOUT_MS,
+    _SINGLE_TURN_DIRECTIVE,
     _WAIT_CONTINUATION_NUDGE,
     _classify_claude_wait_state,
 )
@@ -217,6 +224,45 @@ def test_claude_wait_state_classifier_flags_schedule_wakeup() -> None:
         True,
         "schedule_wakeup_tool_use",
     )
+
+
+def test_claude_staged_handoff_does_not_resume_background_wait(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    monkeypatch.setenv("SASE_ARTIFACTS_DIR", str(tmp_path))
+    monkeypatch.setenv("SASE_AGENT", "1")
+    monkeypatch.setenv("SASE_CLAUDE_MAX_WAIT_CONTINUATIONS", "0")
+    record = build_plan_staged_record(
+        plan_file=str(tmp_path / "plan.md"),
+        original_file=str(tmp_path / "scratch.md"),
+        dirty_obligations_at_stage=[],
+    )
+    write_staged_handoff(record, artifacts_dir=str(tmp_path))
+
+    def run_subprocess(*_args, wait_state: ClaudeTurnWaitState):
+        wait_state.outstanding_background_tasks.add("bg-stage")
+        wait_state.final_text_tail = "I'll wait for the background task."
+        return "Plan staged.", "", 0, _usage(1, 2)
+
+    provider = ClaudeCodeProvider()
+    with (
+        patch.object(provider, "_run_subprocess", side_effect=run_subprocess) as run,
+        patch("sase.llm_provider.claude.subagent_prompt_supported", return_value=True),
+    ):
+        result = provider.invoke(
+            "Plan the task.", model_tier="large", suppress_output=True
+        )
+
+    run.assert_called_once()
+    assert result.content == "Plan staged."
+    assert result.usage == _usage(1, 2)
+    assert read_staged_handoff(str(tmp_path)) == record
+
+
+def test_claude_directive_finishes_staging_through_finalization() -> None:
+    assert "Staged" in _SINGLE_TURN_DIRECTIVE
+    assert "/sase_final" in _SINGLE_TURN_DIRECTIVE
+    assert "after this turn ends" in _SINGLE_TURN_DIRECTIVE
 
 
 @patch.dict(os.environ, {"SASE_CLAUDE_MAX_WAIT_CONTINUATIONS": "2"})

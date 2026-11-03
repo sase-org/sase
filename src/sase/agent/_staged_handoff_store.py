@@ -18,8 +18,6 @@ from sase.core.staged_handoff import (
     StagedHandoffContractError,
     validate_staged_handoff,
 )
-from sase.feature_flags import current_flags
-from sase.feature_flags.registry import FeatureFlag
 from sase.memory.locks import locked_file
 
 STAGED_HANDOFF_FILENAME = ".sase_handoff_staged.json"
@@ -54,15 +52,6 @@ class HostStageAdmission:
 
     identity: HostStageIdentity
     provider_evidence: str | None = None
-
-
-def staged_handoffs_enabled() -> bool:
-    """Return whether the ``staged_handoffs`` beta flag is on.
-
-    The CLI is the deciding process and reads the inherited snapshot. The
-    runner dispatches on durable artifacts, never this helper.
-    """
-    return bool(current_flags().enabled(FeatureFlag.staged_handoffs))
 
 
 def _handoff_sync_hook(_point: str) -> None:

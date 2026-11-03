@@ -17,8 +17,6 @@ from typing import Any
 
 import pytest
 
-from sase.feature_flags import override_flags
-
 
 @pytest.fixture(autouse=True)
 def _isolated_home(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -127,8 +125,7 @@ def test_staged_branch_reports_staged_without_kill_markers(
 
     from sase.main.monitor.start import handle_monitor_start
 
-    with override_flags(staged_handoffs=False):
-        code = handle_monitor_start(_start_args(cwd=str(tmp_path)))
+    code = handle_monitor_start(_start_args(cwd=str(tmp_path)))
     assert code == 0
     assert calls == ["stage"]
     out = capsys.readouterr()

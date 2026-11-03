@@ -25,6 +25,7 @@ from .instruction_delivery import (
     legacy_instruction_delivery,
 )
 from ._wait_signals import ends_with_wait_claim
+from ._wait_guard import staged_handoff_blocks_continuation
 from ._subprocess import (
     start_completion_watchdog,
     start_interrupt_monitor,
@@ -65,7 +66,12 @@ _SINGLE_TURN_DIRECTIVE = (
     "anything still running when you give your final response is lost. Run "
     "commands synchronously in the foreground, and if a command is killed by "
     "its timeout, rerun it with a larger explicit timeout. Never end your "
-    "turn to wait."
+    "turn to wait. Wait for handoff commands such as `sase monitor start`, "
+    "`sase plan propose`, `sase pipe`, and `sase questions` to exit. When "
+    "they report Staged, finish through `/sase_final`, submitting only if "
+    "the context requires it. Do not wait for the staged successor, gate, "
+    "or monitored command: the host starts it after this turn ends and "
+    "finalizers settle."
 )
 _WAIT_CONTINUATION_NUDGE = (
     "Your previous reply ended the turn waiting for a background notification "
@@ -556,7 +562,7 @@ class ClaudeCodeProvider(LLMProvider):
 
             response_content = _join_response_parts(response_content, content)
             is_wait_state, wait_reason = _classify_claude_wait_state(wait_state)
-            if is_wait_state:
+            if is_wait_state and not staged_handoff_blocks_continuation():
                 if wait_continuations >= max_wait_continuations:
                     artifacts_dir = os.environ.get("SASE_ARTIFACTS_DIR")
                     artifact_hint = (

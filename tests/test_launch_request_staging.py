@@ -20,7 +20,6 @@ from sase.agent.launch_request import (
 )
 from sase.agent.launch_request_followup import launch_next_action
 from sase.agent.pending_handoff import PIPE_PENDING_MARKER
-from sase.agent.pending_handoff_write import write_pending_handoff_marker
 from sase.agent.staged_handoff import (
     STAGED_HANDOFF_FILENAME,
     STAGING_RESERVATION_FILENAME,
@@ -34,6 +33,7 @@ from sase.launch_approval_actions import (
 from sase.main.launch_handler import handle_launch_command
 from sase.main.query_handler._launch import launch_query
 from sase.notification_gates.paths import bundle_paths
+from tests._legacy_handoff_markers import write_legacy_handoff_marker
 from tests.monitor._fixtures import make_starter_agent, write_project_file
 
 
@@ -216,7 +216,7 @@ def test_second_handoff_is_refused_before_publication(
     monkeypatch.setenv("SASE_HOME", str(tmp_path / ".sase"))
     monkeypatch.chdir(tmp_path)
     creator_dir = _prepare_creator(monkeypatch, "launch-second")
-    write_pending_handoff_marker(
+    write_legacy_handoff_marker(
         PIPE_PENDING_MARKER,
         {"prompt": "already handed off"},
         artifacts_dir=creator_dir,
