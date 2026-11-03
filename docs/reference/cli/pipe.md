@@ -1,13 +1,13 @@
 ---
 title: "sase pipe"
-description: "End this agent's turn and continue the run as the next agent session member in the same workspace, with the prompt you write."
+description: "Stage this turn for the next agent session member in the same workspace, with the prompt you write."
 ---
 
 <!-- generated, do not edit; source: argparse tree (tools/render_cli; run just fix to regenerate) -->
 
 # sase pipe
 
-Hand this agent's turn to the next agent session member and end this turn
+Stage this turn for the next agent session member
 
 Reference for `sase pipe`. Run `sase pipe --help` for the exact output on this checkout.
 
@@ -15,7 +15,7 @@ Reference for `sase pipe`. Run `sase pipe --help` for the exact output on this c
 usage: sase pipe [-h] PROMPT [-f] [-j] [-m MODEL] [-n TOKEN] [-r TEXT]
 ```
 
-End this agent's turn and continue the run as the next agent session member in the same workspace, with the prompt you write. This is not a launch, a monitor, or fan-out: one successor, serially, in the same process. This command kills the calling agent; say everything the successor needs inside PROMPT.
+Stage this turn for the next agent session member in the same workspace, with the prompt you write. Host completion ends this turn before the successor starts. This is not a launch, a monitor, or fan-out: one successor, serially, in the same process. Say everything the successor needs inside PROMPT.
 
 Options:
 

@@ -11,14 +11,8 @@ from typing import Any, NoReturn
 from rich.panel import Panel
 from rich.text import Text
 
-from sase.agent.pending_handoff import PIPE_PENDING_MARKER
-from sase.agent.pending_handoff_write import (
-    PendingHandoffError,
-    handoff_guard,
-    write_pending_handoff_marker,
-)
+from sase.agent.pending_handoff_write import PendingHandoffError, handoff_guard
 from sase.config import get_max_agent_pipe_chain
-from sase.main.utils import kill_agent_runner_group
 from sase.output import console, error_console
 from sase.plan_chain import (
     PLAN_CHAIN_CODER_SUFFIX,
@@ -118,7 +112,7 @@ def _pipe_handoff_json(
     agent_name: str | None,
     max_chain: int,
 ) -> dict[str, Any]:
-    """Machine-readable summary printed before the runner kill."""
+    """Machine-readable summary printed with the staged handoff."""
     return {
         "schema_version": _PIPE_JSON_SCHEMA_VERSION,
         "command": "pipe",
@@ -142,9 +136,10 @@ def _render_pipe_summary(
 ) -> Text:
     """Rich hand-off summary matching the monitor command surface."""
     text = Text()
-    text.append("This ends your turn.\n", style="bold yellow")
+    text.append("This stages the handoff.\n", style="bold yellow")
     text.append(
-        "The next agent session member starts immediately with the prompt below.\n\n"
+        "The next agent session member starts after this turn completes with the "
+        "prompt below.\n\n"
     )
     text.append("from  ", style="dim")
     text.append(agent_name or "(unnamed agent)", style="bold")
@@ -185,7 +180,6 @@ def _print_summary(
     json_output: bool,
     agent_name: str | None,
     max_chain: int,
-    staged: bool,
 ) -> None:
     if json_output:
         json.dump(
@@ -204,11 +198,6 @@ def _print_summary(
                 border_style=_BORDER_STYLE,
             )
         )
-        if not staged:
-            console.print(
-                "This is the last output before the agent runner is killed.",
-                style="dim",
-            )
     sys.stdout.flush()
 
 
@@ -231,8 +220,8 @@ def handle_pipe_command(
     1. Guard: only inside a sase agent, and only one hand-off per turn
     2. Reject an empty prompt, a reserved ``--name``, or a chain past the bound
     3. Print the summary
-    4. With ``staged_handoffs`` on, write the staged record and exit 0.
-       Otherwise write ``.sase_pipe_pending`` and SIGTERM the runner group
+    4. Reserve the handoff slot and stage the pipe handoff before returning
+       successfully.
     """
     try:
         artifacts_dir = handoff_guard(command="sase pipe")
@@ -246,19 +235,15 @@ def handle_pipe_command(
         StagedHandoffError,
         acquire_staging_reservation,
         release_staging_reservation,
-        staged_handoffs_enabled,
     )
 
-    use_staged_handoffs = staged_handoffs_enabled()
-    reservation_id: str | None = None
-    if use_staged_handoffs:
-        try:
-            reservation_id = acquire_staging_reservation(
-                artifacts_dir=artifacts_dir,
-                command="sase pipe",
-            )
-        except StagedHandoffError as exc:
-            _fail(str(exc))
+    try:
+        reservation_id = acquire_staging_reservation(
+            artifacts_dir=artifacts_dir,
+            command="sase pipe",
+        )
+    except StagedHandoffError as exc:
+        _fail(str(exc))
 
     try:
         _handle_pipe_after_guard(
@@ -269,7 +254,6 @@ def handle_pipe_command(
             model=model,
             name=name,
             reason=reason,
-            use_staged_handoffs=use_staged_handoffs,
             reservation_id=reservation_id,
         )
     finally:
@@ -289,10 +273,9 @@ def _handle_pipe_after_guard(
     model: str | None,
     name: str | None,
     reason: str | None,
-    use_staged_handoffs: bool,
-    reservation_id: str | None,
+    reservation_id: str,
 ) -> NoReturn:
-    """Validate, print, and stage or kill after the one-handoff reservation."""
+    """Validate, stage, and print after the one-handoff reservation."""
     if not prompt.strip():
         _fail("prompt must not be empty")
 
@@ -327,43 +310,29 @@ def _handle_pipe_after_guard(
     )
     agent_name = meta.get("name") if isinstance(meta.get("name"), str) else None
 
+    from sase.agent.staged_handoff import (
+        StagedHandoffError,
+        build_pipe_staged_record,
+        write_staged_handoff,
+    )
+
+    try:
+        write_staged_handoff(
+            build_pipe_staged_record(payload=payload),
+            artifacts_dir=artifacts_dir,
+            command="sase pipe",
+            reservation_id=reservation_id,
+        )
+    except StagedHandoffError as exc:
+        _fail(str(exc))
     _print_summary(
         payload,
         json_output=json_output,
         agent_name=agent_name,
         max_chain=max_chain,
-        staged=use_staged_handoffs,
     )
-
-    if use_staged_handoffs:
-        from sase.agent.staged_handoff import (
-            StagedHandoffError,
-            build_pipe_staged_record,
-            write_staged_handoff,
-        )
-
-        try:
-            write_staged_handoff(
-                build_pipe_staged_record(payload=payload),
-                artifacts_dir=artifacts_dir,
-                command="sase pipe",
-                reservation_id=reservation_id,
-            )
-        except StagedHandoffError as exc:
-            _fail(str(exc))
-        if json_output:
-            print(_STAGED_MESSAGE, file=sys.stderr)
-        else:
-            console.print(_STAGED_MESSAGE)
-        sys.exit(0)
-
-    try:
-        write_pending_handoff_marker(
-            PIPE_PENDING_MARKER,
-            payload,
-            artifacts_dir=artifacts_dir,
-        )
-    except PendingHandoffError as exc:
-        _fail(str(exc))
-
-    kill_agent_runner_group(artifacts_dir)
+    if json_output:
+        print(_STAGED_MESSAGE, file=sys.stderr)
+    else:
+        console.print(_STAGED_MESSAGE)
+    sys.exit(0)

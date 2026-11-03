@@ -10,6 +10,7 @@ from unittest.mock import patch
 
 import pytest
 
+from sase.agent.staged_handoff import STAGED_HANDOFF_FILENAME
 from sase.main import plan_command_handler
 from tests.conftest import redirect_sase_home
 from tests.plan_command_handler_helpers import (
@@ -18,6 +19,7 @@ from tests.plan_command_handler_helpers import (
     clear_bead_work_association_env,
     invoke_plan as _invoke_plan,
     make_artifacts_dir as _make_artifacts_dir,
+    read_staged_plan_payload as _read_staged_plan_payload,
 )
 
 
@@ -65,14 +67,10 @@ def test_plan_command_writes_refresh_pulse(
 
     with (
         patch(
-            "sase.main.plan_propose_handler.kill_agent_runner_group",
-        ) as kill_mock,
-        patch(
             "sase.file_references.format_with_prettier",
             side_effect=lambda raw: raw,
         ),
     ):
-        kill_mock.side_effect = SystemExit(0)
         assert _invoke_plan(plan_file) == 0
 
     assert pulse_path.is_file()
@@ -102,14 +100,10 @@ def test_plan_command_sharded_artifacts_dir_pulses_artifacts_root(
 
     with (
         patch(
-            "sase.main.plan_propose_handler.kill_agent_runner_group",
-        ) as kill_mock,
-        patch(
             "sase.file_references.format_with_prettier",
             side_effect=lambda raw: raw,
         ),
     ):
-        kill_mock.side_effect = SystemExit(0)
         assert _invoke_plan(plan_file) == 0
 
     assert (project_artifacts_root / ".ace_refresh_pulse").is_file()
@@ -136,22 +130,16 @@ def test_plan_command_pulse_mtime_advances(
 
     with (
         patch(
-            "sase.main.plan_propose_handler.kill_agent_runner_group",
-        ) as kill_mock,
-        patch(
             "sase.file_references.format_with_prettier",
             side_effect=lambda raw: raw,
         ),
     ):
-        kill_mock.side_effect = SystemExit(0)
-
         assert _invoke_plan(plan_file) == 0
         first_mtime = pulse_path.stat().st_mtime_ns
 
-        # The runner consumes the pending marker before the next turn. A
-        # second propose with that marker still on disk is a second hand-off
-        # from one turn and is refused.
-        (artifacts_dir / ".sase_plan_pending").unlink()
+        # The host consumes the staged record before the next turn. A second
+        # propose with it still on disk is a second hand-off from one turn.
+        (artifacts_dir / STAGED_HANDOFF_FILENAME).unlink()
 
         # The first invocation consumes the scratch plan, so recreate it before
         # proposing again.
@@ -184,31 +172,25 @@ def test_plan_command_moves_source_into_archive(
     formatted = VALID_TALE.replace("body", "formatted body")
     with (
         patch(
-            "sase.main.plan_propose_handler.kill_agent_runner_group",
-        ) as kill_mock,
-        patch(
             "sase.file_references.format_with_prettier",
             side_effect=lambda raw: raw.replace("body", "formatted body"),
         ),
     ):
-        kill_mock.side_effect = SystemExit(0)
         assert _invoke_plan(plan_file) == 0
 
     # The scratch source file is consumed by the move into the archive.
     assert not plan_file.exists()
 
-    marker = json.loads(
-        (artifacts_dir / ".sase_plan_pending").read_text(encoding="utf-8")
-    )
+    payload = _read_staged_plan_payload(artifacts_dir)
     # ``plan_file`` points at the durable archive copy, which exists on disk.
-    archived_path = Path(marker["plan_file"])
+    archived_path = Path(payload["plan_file"])
     assert archived_path.is_file()
     assert archived_path.parent.parent == sase_home / "plans"
     assert archived_path.name == "feature.md"  # "sase_plan_" prefix stripped
     # The archive holds the prettier-formatted content, not the raw source.
     assert archived_path.read_text(encoding="utf-8") == formatted
     # ``original_file`` is retained as provenance even though it no longer exists.
-    assert marker["original_file"] == str(plan_file.resolve())
+    assert payload["original_file"] == str(plan_file.resolve())
 
 
 def test_plan_command_accepts_valid_epic(
@@ -225,18 +207,13 @@ def test_plan_command_accepts_valid_epic(
 
     with (
         patch(
-            "sase.main.plan_propose_handler.kill_agent_runner_group",
-            side_effect=SystemExit(0),
-        ) as kill_mock,
-        patch(
             "sase.file_references.format_with_prettier",
             side_effect=lambda raw: raw,
         ),
     ):
         assert _invoke_plan(plan_file) == 0
 
-    kill_mock.assert_called_once_with(str(artifacts_dir))
-    assert (artifacts_dir / ".sase_plan_pending").is_file()
+    assert (artifacts_dir / STAGED_HANDOFF_FILENAME).is_file()
 
 
 def test_plan_command_rejects_legacy_sizeless_tale_in_authoring_mode(
@@ -255,7 +232,6 @@ def test_plan_command_rejects_legacy_sizeless_tale_in_authoring_mode(
     monkeypatch.setenv("SASE_ARTIFACTS_DIR", str(artifacts_dir))
 
     with (
-        patch("sase.main.plan_propose_handler.kill_agent_runner_group") as kill_mock,
         patch("sase.file_references.format_with_prettier") as format_mock,
     ):
         assert _invoke_plan(plan_file) == 1
@@ -265,9 +241,8 @@ def test_plan_command_rejects_legacy_sizeless_tale_in_authoring_mode(
     assert "error [tale-size-missing]" in captured.err.lower()
     assert "Expected tale frontmatter schema" in captured.err
     assert plan_file.read_text(encoding="utf-8") == content
-    assert not (artifacts_dir / ".sase_plan_pending").exists()
+    assert not (artifacts_dir / STAGED_HANDOFF_FILENAME).exists()
     format_mock.assert_not_called()
-    kill_mock.assert_not_called()
 
 
 @pytest.mark.parametrize(
@@ -325,7 +300,6 @@ def test_plan_command_rejects_invalid_plan_without_side_effects(
         )
 
     with (
-        patch("sase.main.plan_propose_handler.kill_agent_runner_group") as kill_mock,
         patch("sase.file_references.format_with_prettier") as format_mock,
     ):
         assert _invoke_plan(plan_file) == 1
@@ -336,10 +310,9 @@ def test_plan_command_rejects_invalid_plan_without_side_effects(
     assert f"Expected {expected_tier} frontmatter schema" in captured.err
     assert "Validation failed" in captured.err
     assert plan_file.read_text(encoding="utf-8") == content
-    assert not (artifacts_dir / ".sase_plan_pending").exists()
+    assert not (artifacts_dir / STAGED_HANDOFF_FILENAME).exists()
     assert not (artifacts_dir.parents[1] / ".ace_refresh_pulse").exists()
     format_mock.assert_not_called()
-    kill_mock.assert_not_called()
 
 
 @pytest.mark.parametrize(
@@ -379,13 +352,11 @@ def test_plan_command_parks_cross_tier_auto_for_review(
     )
 
     with (
-        patch("sase.main.plan_propose_handler.kill_agent_runner_group") as kill_mock,
         patch(
             "sase.file_references.format_with_prettier",
             side_effect=lambda raw: raw,
         ),
     ):
-        kill_mock.side_effect = SystemExit(0)
         assert _invoke_plan(plan_file) == 0
 
     captured = capsys.readouterr()
@@ -395,5 +366,4 @@ def test_plan_command_parks_cross_tier_auto_for_review(
         "this plan waits for review" in captured.out
     )
     assert "auto-approved" not in captured.out
-    assert (artifacts_dir / ".sase_plan_pending").exists()
-    kill_mock.assert_called_once()
+    assert (artifacts_dir / STAGED_HANDOFF_FILENAME).exists()

@@ -1,15 +1,13 @@
 """End-to-end ``sase pipe`` coverage through the real executor and fakey.
 
-These scenarios exercise the production execution loop, the ``sase pipe``
-CLI, follow-up artifact creation, and the ACE agent loader. SIGTERM is
-translated into the runner's killed flag rather than targeting pytest's
-process group; fakey still runs as a real subprocess.
+These scenarios exercise the production execution loop, the staged
+``sase pipe`` CLI, follow-up artifact creation, and the ACE agent loader.
+Fakey runs as a real subprocess.
 """
 
 from __future__ import annotations
 
 import json
-import time
 from pathlib import Path
 from typing import Any
 
@@ -20,6 +18,7 @@ from sase.ace.tui.actions.agents._loading_helpers import (
     load_agents_from_disk_with_state,
 )
 from sase.axe import runner_signals
+from sase.agent.staged_handoff import STAGED_HANDOFF_FILENAME
 from sase.core.agent_artifact_paths import iter_agent_artifact_dirs
 from sase.core.paths import sase_home
 from sase.main.pipe_handler import handle_pipe_command
@@ -111,18 +110,8 @@ def _pipe(
     prompt: str,
     **kwargs: Any,
 ) -> int:
-    def fake_kill(target: str) -> None:
-        assert target == str(artifacts_dir)
-        runner_signals._killed_state["killed"] = True
-        runner_signals._killed_state["killed_at"] = time.time()
-        raise SystemExit(0)
-
     monkeypatch.setenv("SASE_AGENT", "1")
     monkeypatch.setenv("SASE_ARTIFACTS_DIR", str(artifacts_dir))
-    monkeypatch.setattr(
-        "sase.main.pipe_handler.kill_agent_runner_group",
-        fake_kill,
-    )
     with pytest.raises(SystemExit) as exit_info:
         handle_pipe_command(prompt, **kwargs)
     return int(exit_info.value.code or 0)
@@ -277,7 +266,7 @@ def test_fresh_named_model_pipe_skips_fork_and_records_model(
     assert review.model == "fakey-small"
 
 
-def test_two_link_chain_then_bound_leaves_the_agent_running(
+def test_pipe_chain_bound_leaves_the_agent_running(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
     harness = FakeyRetryHarness(
@@ -285,11 +274,10 @@ def test_two_link_chain_then_bound_leaves_the_agent_running(
         monkeypatch,
         expose_to_agent_loader=True,
     )
-    _configure_pipe_chain(harness, 2)
-    monkeypatch.setattr("sase.main.pipe_handler.get_max_agent_pipe_chain", lambda: 2)
+    _configure_pipe_chain(harness, 1)
+    monkeypatch.setattr("sase.main.pipe_handler.get_max_agent_pipe_chain", lambda: 1)
     first_hang = harness.barrier("first")
     second_hang = harness.barrier("second")
-    third_hang = harness.barrier("third")
     handle = _run_until_hang(
         harness,
         first_hang,
@@ -297,8 +285,6 @@ def test_two_link_chain_then_bound_leaves_the_agent_running(
         [
             _hanging_success("root waiting", first_hang),
             _hanging_success("first successor waiting", second_hang),
-            _hanging_success("second successor waiting", third_hang),
-            successful_attempt("would not run after the bound"),
         ],
     )
     try:
@@ -319,41 +305,24 @@ def test_two_link_chain_then_bound_leaves_the_agent_running(
         assert first_meta["pipe_depth"] == 1
         second_hang.wait_until_started()
 
-        assert (
-            _pipe(
-                monkeypatch,
-                first_successor,
-                "second hop",
-                fresh=True,
-                model="fakey-large",
-            )
-            == 0
-        )
-        second_hang.open()
-        second_successor = _wait_for_named_agent(harness, "fakey-e2e--2")
-        third_hang.wait_until_started()
-        assert _read_meta(second_successor)["pipe_depth"] == 2
-        assert _read_meta(second_successor)["piped_from"] == "fakey-e2e--1"
-
-        code = _pipe(monkeypatch, second_successor, "should refuse")
+        code = _pipe(monkeypatch, first_successor, "should refuse")
         err = capsys.readouterr().err
         assert code == 1
-        assert "max_agent_pipe_chain=2" in err
-        assert "chain length reached: 2" in err
-        assert not (second_successor / ".sase_pipe_pending").exists()
-        assert _read_meta(second_successor)["name"] == "fakey-e2e--2"
-        assert third_hang.release.exists() is False
-        third_hang.open()
+        assert "max_agent_pipe_chain=1" in err
+        assert "chain length reached: 1" in err
+        assert not (first_successor / STAGED_HANDOFF_FILENAME).exists()
+        assert _read_meta(first_successor)["name"] == "fakey-e2e--1"
+        assert second_hang.release.exists() is False
+        second_hang.open()
         result = handle.finish()
     finally:
         first_hang.open()
         second_hang.open()
-        third_hang.open()
         runner_signals.reset_killed()
 
     assert result.success is True
-    assert _read_meta(second_successor)["pipe_depth"] == 2
-    assert _read_meta(second_successor)["name"] == "fakey-e2e--2"
+    assert _read_meta(first_successor)["pipe_depth"] == 1
+    assert _read_meta(first_successor)["name"] == "fakey-e2e--1"
 
 
 def test_monitor_sleep_one_next_still_attaches_and_transfers_claim(

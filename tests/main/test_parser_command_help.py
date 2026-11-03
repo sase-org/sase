@@ -265,7 +265,8 @@ def test_pipe_help_documents_prompt_flags_and_turn_warning() -> None:
     pipe_help = flat_help(parser_for(("sase", "pipe")).format_help())
     args = create_parser().parse_args(["pipe", "continue the work", "-n", "review"])
 
-    assert "This ends your turn" in pipe_help
+    assert "returns after staging" in pipe_help
+    assert "successor starts after host completion" in pipe_help
     assert "-f, --fresh" in pipe_help
     assert "-j, --json" in pipe_help
     _assert_metavar_option_documented(pipe_help, "-m", "--model", "MODEL")

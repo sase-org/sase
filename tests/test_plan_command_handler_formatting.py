@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import json
 import shutil
 from collections.abc import Callable
 from pathlib import Path
@@ -10,11 +9,13 @@ from unittest.mock import patch
 
 import pytest
 
+from sase.agent.staged_handoff import STAGED_HANDOFF_FILENAME
 from tests.conftest import redirect_sase_home
 from tests.plan_command_handler_helpers import (
     clear_bead_work_association_env,
     invoke_plan as _invoke_plan,
     make_artifacts_dir as _make_artifacts_dir,
+    read_staged_plan_payload as _read_staged_plan_payload,
 )
 
 DECISIONS_TALE = """---
@@ -70,7 +71,7 @@ def _propose(
     monkeypatch: pytest.MonkeyPatch,
     content: str,
     formatter: Callable[[str], str],
-) -> tuple[int, Path, Path, Path, object]:
+) -> tuple[int, Path, Path, Path]:
     """Run propose with *formatter* standing in for prettier."""
     sase_home = tmp_path / ".sase"
     redirect_sase_home(monkeypatch, sase_home)
@@ -81,14 +82,10 @@ def _propose(
     monkeypatch.setenv("SASE_ARTIFACTS_DIR", str(artifacts_dir))
 
     with (
-        patch(
-            "sase.main.plan_propose_handler.kill_agent_runner_group",
-            side_effect=SystemExit(0),
-        ) as kill,
         patch("sase.file_references.format_with_prettier", side_effect=formatter),
     ):
         code = _invoke_plan(plan_file)
-    return code, plan_file, artifacts_dir, sase_home, kill
+    return code, plan_file, artifacts_dir, sase_home
 
 
 def _assert_nothing_proposed(
@@ -96,12 +93,10 @@ def _assert_nothing_proposed(
     content: str,
     artifacts_dir: Path,
     sase_home: Path,
-    kill: object,
 ) -> None:
     assert plan_file.read_text(encoding="utf-8") == content
     assert list((sase_home / "plans").rglob("*.md")) == []
-    assert not (artifacts_dir / ".sase_plan_pending").exists()
-    kill.assert_not_called()  # type: ignore[attr-defined]
+    assert not (artifacts_dir / STAGED_HANDOFF_FILENAME).exists()
 
 
 def test_formatter_renaming_a_callout_id_fails_before_any_mutation(
@@ -110,12 +105,12 @@ def test_formatter_renaming_a_callout_id_fails_before_any_mutation(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     """A callout that formatting made invalid never reaches the archive."""
-    code, plan_file, artifacts_dir, sase_home, kill = _propose(
+    code, plan_file, artifacts_dir, sase_home = _propose(
         tmp_path, monkeypatch, DECISIONS_TALE, _rename_first_callout
     )
 
     assert code == 1
-    _assert_nothing_proposed(plan_file, DECISIONS_TALE, artifacts_dir, sase_home, kill)
+    _assert_nothing_proposed(plan_file, DECISIONS_TALE, artifacts_dir, sase_home)
     error = capsys.readouterr().err
     lines = error.splitlines()
     assert lines[0] == HEADLINE
@@ -131,12 +126,12 @@ def test_formatter_merging_callout_headers_reports_the_dropped_callout(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     """A merged header still validates, so the callout drift check catches it."""
-    code, plan_file, artifacts_dir, sase_home, kill = _propose(
+    code, plan_file, artifacts_dir, sase_home = _propose(
         tmp_path, monkeypatch, DECISIONS_TALE, _merge_callout_headers
     )
 
     assert code == 1
-    _assert_nothing_proposed(plan_file, DECISIONS_TALE, artifacts_dir, sase_home, kill)
+    _assert_nothing_proposed(plan_file, DECISIONS_TALE, artifacts_dir, sase_home)
     lines = capsys.readouterr().err.splitlines()
     assert lines == [HEADLINE, "lost callout: grouping = yes", HINT]
 
@@ -145,21 +140,18 @@ def test_identity_formatter_archives_a_plan_with_decision_callouts(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """Formatting that preserves the callouts keeps today's success path."""
-    code, plan_file, artifacts_dir, sase_home, kill = _propose(
+    code, plan_file, artifacts_dir, sase_home = _propose(
         tmp_path, monkeypatch, DECISIONS_TALE, lambda raw: raw
     )
 
     assert code == 0
     assert not plan_file.exists()
-    marker = json.loads(
-        (artifacts_dir / ".sase_plan_pending").read_text(encoding="utf-8")
-    )
-    archived = Path(marker["plan_file"])
+    payload = _read_staged_plan_payload(artifacts_dir)
+    archived = Path(payload["plan_file"])
     assert archived.is_relative_to(sase_home / "plans")
     assert "> [!decision] tui_note [!decision]" not in archived.read_text(
         encoding="utf-8"
     )
-    kill.assert_called_once()  # type: ignore[attr-defined]
 
 
 def test_link_inlet_publication_that_breaks_the_archive_restores_the_scratch(
@@ -193,12 +185,12 @@ def test_link_inlet_publication_that_breaks_the_archive_restores_the_scratch(
         lambda *_args, **_kwargs: None,
     )
 
-    code, plan_file, artifacts_dir, sase_home, kill = _propose(
+    code, plan_file, artifacts_dir, sase_home = _propose(
         tmp_path, monkeypatch, content, lambda raw: raw
     )
 
     assert code == 1
-    _assert_nothing_proposed(plan_file, content, artifacts_dir, sase_home, kill)
+    _assert_nothing_proposed(plan_file, content, artifacts_dir, sase_home)
     error = capsys.readouterr().err
     assert error.splitlines()[0] == HEADLINE
     assert "decision-branch-unknown" in error
@@ -233,12 +225,12 @@ def test_link_inlet_publication_failure_restores_the_scratch(
         lambda *_args, **_kwargs: None,
     )
 
-    code, plan_file, artifacts_dir, sase_home, kill = _propose(
+    code, plan_file, artifacts_dir, sase_home = _propose(
         tmp_path, monkeypatch, content, lambda raw: raw
     )
 
     assert code == 1
-    _assert_nothing_proposed(plan_file, content, artifacts_dir, sase_home, kill)
+    _assert_nothing_proposed(plan_file, content, artifacts_dir, sase_home)
     assert "injected inlet failure" in capsys.readouterr().err
 
 
@@ -269,12 +261,12 @@ def test_link_inlet_store_error_restores_the_scratch(
         lambda *_args, **_kwargs: None,
     )
 
-    code, plan_file, artifacts_dir, sase_home, kill = _propose(
+    code, plan_file, artifacts_dir, sase_home = _propose(
         tmp_path, monkeypatch, content, lambda raw: raw
     )
 
     assert code == 1
-    _assert_nothing_proposed(plan_file, content, artifacts_dir, sase_home, kill)
+    _assert_nothing_proposed(plan_file, content, artifacts_dir, sase_home)
     assert "artifact-link event store is invalid" in capsys.readouterr().err
 
 
@@ -292,12 +284,12 @@ def test_second_formatting_pass_that_breaks_validation_proposes_nothing(
             return raw
         return _rename_first_callout(raw)
 
-    code, plan_file, artifacts_dir, sase_home, kill = _propose(
+    code, plan_file, artifacts_dir, sase_home = _propose(
         tmp_path, monkeypatch, DECISIONS_TALE, formatter
     )
 
     assert code == 1
-    _assert_nothing_proposed(plan_file, DECISIONS_TALE, artifacts_dir, sase_home, kill)
+    _assert_nothing_proposed(plan_file, DECISIONS_TALE, artifacts_dir, sase_home)
     error = capsys.readouterr().err
     assert error.splitlines()[0] == HEADLINE
     assert "decision-branch-unknown" in error
@@ -345,20 +337,13 @@ def test_incident_shaped_epic_proposes_and_archives(
     monkeypatch.setenv("SASE_AGENT", "agent-x")
     monkeypatch.setenv("SASE_ARTIFACTS_DIR", str(artifacts_dir))
 
-    with patch(
-        "sase.main.plan_propose_handler.kill_agent_runner_group",
-        side_effect=SystemExit(0),
-    ) as kill:
-        code = _invoke_plan(plan_file)
+    code = _invoke_plan(plan_file)
 
     assert code == 0
-    marker = json.loads(
-        (artifacts_dir / ".sase_plan_pending").read_text(encoding="utf-8")
-    )
-    proposed = Path(marker["plan_file"]).read_text(encoding="utf-8")
+    payload = _read_staged_plan_payload(artifacts_dir)
+    proposed = Path(payload["plan_file"]).read_text(encoding="utf-8")
     assert "memory_glossary" in proposed
     assert "memory*glossary" not in proposed
-    kill.assert_called_once()  # type: ignore[attr-defined]
 
     store_root = tmp_path / "sidecar-plans"
     store_root.mkdir()

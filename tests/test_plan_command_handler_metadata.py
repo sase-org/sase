@@ -11,6 +11,7 @@ from unittest.mock import patch
 import pytest
 
 from sase.sdd.artifact_link_event_publisher import rows_from_events
+from sase.agent.staged_handoff import STAGED_HANDOFF_FILENAME
 from tests.conftest import redirect_sase_home
 from tests.plan_command_handler_helpers import (
     VALID_EPIC,
@@ -19,6 +20,7 @@ from tests.plan_command_handler_helpers import (
     clear_bead_work_association_env,
     invoke_plan as _invoke_plan,
     make_artifacts_dir as _make_artifacts_dir,
+    read_staged_plan_payload as _read_staged_plan_payload,
 )
 from sase.sdd.artifact_link_store import ArtifactLinkStore
 from sase.sdd.frontmatter import parse_frontmatter
@@ -106,10 +108,6 @@ def test_plan_command_stamps_associations_from_agent_metadata(
 
     with (
         patch(
-            "sase.main.plan_propose_handler.kill_agent_runner_group",
-            side_effect=SystemExit(0),
-        ),
-        patch(
             "sase.file_references.format_with_prettier",
             side_effect=lambda raw: raw,
         ),
@@ -145,10 +143,6 @@ def test_plan_command_association_env_overrides_agent_metadata(
     monkeypatch.setenv("SASE_EPIC_PLAN_REF", "sase/repos/plans/202607/env-parent.md")
 
     with (
-        patch(
-            "sase.main.plan_propose_handler.kill_agent_runner_group",
-            side_effect=SystemExit(0),
-        ),
         patch(
             "sase.file_references.format_with_prettier",
             side_effect=lambda raw: raw,
@@ -187,10 +181,6 @@ def test_plan_command_ignores_missing_or_malformed_agent_metadata(
 
     with (
         patch(
-            "sase.main.plan_propose_handler.kill_agent_runner_group",
-            side_effect=SystemExit(0),
-        ),
-        patch(
             "sase.file_references.format_with_prettier",
             side_effect=lambda raw: raw,
         ),
@@ -226,10 +216,6 @@ def test_plan_command_stamps_after_runner_consumes_bead_work_env(
     assert "SASE_EPIC_PLAN_REF" not in os.environ
 
     with (
-        patch(
-            "sase.main.plan_propose_handler.kill_agent_runner_group",
-            side_effect=SystemExit(0),
-        ),
         patch(
             "sase.file_references.format_with_prettier",
             side_effect=lambda raw: raw,
@@ -310,20 +296,14 @@ def test_plan_command_consumes_links_frontmatter_into_artifact_links(
 
     with (
         patch(
-            "sase.main.plan_propose_handler.kill_agent_runner_group",
-            side_effect=SystemExit(0),
-        ),
-        patch(
             "sase.file_references.format_with_prettier",
             side_effect=lambda raw: raw,
         ),
     ):
         assert _invoke_plan(plan_file) == 0
 
-    marker = json.loads(
-        (artifacts_dir / ".sase_plan_pending").read_text(encoding="utf-8")
-    )
-    archived = Path(marker["plan_file"])
+    payload = _read_staged_plan_payload(artifacts_dir)
+    archived = Path(payload["plan_file"])
     archived_content = archived.read_text(encoding="utf-8")
     frontmatter, _body, _had_frontmatter = parse_frontmatter(archived_content)
     archive_relpath = archived.relative_to(sase_home / "plans").as_posix()
@@ -366,12 +346,10 @@ def test_plan_command_rejects_unknown_links_relation_without_consuming(
     monkeypatch.setenv("SASE_AGENT", "agent-x")
     monkeypatch.setenv("SASE_ARTIFACTS_DIR", str(artifacts_dir))
 
-    with patch("sase.main.plan_propose_handler.kill_agent_runner_group") as kill:
-        assert _invoke_plan(plan_file) == 1
+    assert _invoke_plan(plan_file) == 1
 
     assert plan_file.read_text(encoding="utf-8") == content
-    assert not (artifacts_dir / ".sase_plan_pending").exists()
-    assert not kill.called
+    assert not (artifacts_dir / STAGED_HANDOFF_FILENAME).exists()
     error = capsys.readouterr().err
     assert "links[0].relation" in error
     assert "unknown relation `invented`" in error

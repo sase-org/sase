@@ -63,7 +63,7 @@ Groups:
 | [`sase pager`](pager.md)               | Read refs, paths, or stdin in the SASE link-traversing pager                      |
 | [`sase patch`](patch.md)               | Inspect and maintain Patches                                                      |
 | [`sase path`](path.md)                 | Print well-known sase paths (for editor integration)                              |
-| [`sase pipe`](pipe.md)                 | Hand this agent's turn to the next agent session member and end this turn         |
+| [`sase pipe`](pipe.md)                 | Stage this turn for the next agent session member                                 |
 | [`sase plan`](plan.md)                 | Review, approve, reject, propose, search, show, and validate implementation plans |
 | [`sase plugin`](plugin.md)             | Discover SASE plugins from the GitHub catalog                                     |
 | [`sase proc`](proc.md)                 | List, inspect, run, and kill durable procs                                        |

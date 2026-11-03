@@ -1,4 +1,4 @@
-{"count": 3673, "rev": "fdd557c37278", "schema": "sase.footprint.catalog/1"}
+{"count": 3673, "rev": "75a1cec04e31", "schema": "sase.footprint.catalog/1"}
 {"area": "automation", "id": "auto:axe.agent_waits", "kind": "auto", "label": "Resolve agent wait dependencies within seconds of completion", "ns": "auto", "parent": null, "src": "sase/default_config.yml"}
 {"area": "automation", "id": "auto:axe.agent_waits.wait_checks", "kind": "auto", "label": "Resolve agent wait dependencies and write ready.json when satisfied", "ns": "auto", "parent": "auto:axe.agent_waits", "src": "sase/default_config.yml"}
 {"area": "automation", "id": "auto:axe.checks", "kind": "auto", "label": "Poll slower PR-submission and workspace-claim checks on a five-minute cadence", "ns": "auto", "parent": null, "src": "sase/default_config.yml"}
@@ -1366,7 +1366,7 @@
 {"area": "cli.patch", "id": "cli:patch.tag#operation_result_path", "kind": "option", "label": "Option --operation_result_path of cli:patch.tag", "ns": "cli", "parent": "cli:patch.tag", "src": "sase/main/parser_patch.py:register_patch_parser"}
 {"area": "cli.patch", "id": "cli:patch.tag#project_file", "kind": "option", "label": "Option --project_file of cli:patch.tag", "ns": "cli", "parent": "cli:patch.tag", "src": "sase/main/parser_patch.py:register_patch_parser"}
 {"area": "cli.path", "id": "cli:path", "kind": "command", "label": "Print well-known sase paths (for editor integration)", "ns": "cli", "parent": null, "src": "sase/main/parser_commands.py:register_path_parser"}
-{"area": "cli.pipe", "id": "cli:pipe", "kind": "command", "label": "Hand this agent's turn to the next agent session member and end this turn", "ns": "cli", "parent": null, "src": "sase/main/parser_pipe.py:register_pipe_parser"}
+{"area": "cli.pipe", "id": "cli:pipe", "kind": "command", "label": "Stage this turn for the next agent session member", "ns": "cli", "parent": null, "src": "sase/main/parser_pipe.py:register_pipe_parser"}
 {"area": "cli.pipe", "id": "cli:pipe#fresh", "kind": "option", "label": "Option --fresh of cli:pipe", "ns": "cli", "parent": "cli:pipe", "src": "sase/main/parser_pipe.py:register_pipe_parser"}
 {"area": "cli.pipe", "id": "cli:pipe#json", "kind": "option", "label": "Option --json of cli:pipe", "ns": "cli", "parent": "cli:pipe", "src": "sase/main/parser_pipe.py:register_pipe_parser"}
 {"area": "cli.pipe", "id": "cli:pipe#model", "kind": "option", "label": "Option --model of cli:pipe", "ns": "cli", "parent": "cli:pipe", "src": "sase/main/parser_pipe.py:register_pipe_parser"}

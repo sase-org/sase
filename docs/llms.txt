@@ -121,7 +121,7 @@
 - [sase pager](https://sase.sh/reference/cli/pager/) — Open artifact references, file paths, or stdin as one navigable SASE pager document.
 - [sase patch](https://sase.sh/reference/cli/patch/) — Inspect and maintain Patch lifecycle records.
 - [sase path](https://sase.sh/reference/cli/path/) — Print well-known sase paths (for editor integration)
-- [sase pipe](https://sase.sh/reference/cli/pipe/) — End this agent's turn and continue the run as the next agent session member in the same workspace, with the prompt you write.
+- [sase pipe](https://sase.sh/reference/cli/pipe/) — Stage this turn for the next agent session member in the same workspace, with the prompt you write.
 - [sase plan](https://sase.sh/reference/cli/plan/) — Review the plan pipeline, approve or reject pending proposals from the Patch, inspect SDD prompt/plan links, submit a new plan for review, search SDD and…
 - [sase plugin](https://sase.sh/reference/cli/plugin/) — Discover every SASE plugin that exists by treating the GitHub `sase--plugin` repository topic as the canonical registry.
 - [sase proc](https://sase.sh/reference/cli/proc/) — Inspect and run SASE procs.

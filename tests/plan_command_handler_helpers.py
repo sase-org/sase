@@ -4,10 +4,12 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from typing import Any
 
 import pytest
 
 from sase.main import plan_command_handler
+from sase.agent.staged_handoff import STAGED_HANDOFF_FILENAME
 from sase.sdd.frontmatter import parse_frontmatter
 from sase.sdd.plan_header_block import (
     PlanHeaderSectionKind,
@@ -79,10 +81,8 @@ def assert_archived_associations(
     expected_fields: dict[str, str],
 ) -> None:
     """Assert the archived plan has exactly the expected managed associations."""
-    marker = json.loads(
-        (artifacts_dir / ".sase_plan_pending").read_text(encoding="utf-8")
-    )
-    archived = Path(marker["plan_file"])
+    payload = read_staged_plan_payload(artifacts_dir)
+    archived = Path(payload["plan_file"])
     archived_content = archived.read_text(encoding="utf-8")
     frontmatter, _body, _had_frontmatter = parse_frontmatter(archived_content)
     for field in ("bead", "parent_bead", "proposed_by", "proposed_with"):
@@ -134,3 +134,14 @@ def assert_archived_associations(
     assert validation.plan.parent is None
     assert validation.plan.parent_bead == expected_fields.get("parent_bead")
     assert validation.plan.proposed_by == expected_fields.get("proposed_by")
+
+
+def read_staged_plan_payload(artifacts_dir: Path) -> dict[str, Any]:
+    """Return the durable proposal payload from the staged handoff."""
+    record = json.loads(
+        (artifacts_dir / STAGED_HANDOFF_FILENAME).read_text(encoding="utf-8")
+    )
+    assert record["kind"] == "plan"
+    assert record["successor_workspace"] == "none"
+    assert record["carry_allowed"] is False
+    return record["payload"]

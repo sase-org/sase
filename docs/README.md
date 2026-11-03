@@ -119,7 +119,7 @@
 - [sase pager](reference/cli/pager.md) — Open artifact references, file paths, or stdin as one navigable SASE pager document.
 - [sase patch](reference/cli/patch.md) — Inspect and maintain Patch lifecycle records.
 - [sase path](reference/cli/path.md) — Print well-known sase paths (for editor integration)
-- [sase pipe](reference/cli/pipe.md) — End this agent's turn and continue the run as the next agent session member in the same workspace, with the prompt you write.
+- [sase pipe](reference/cli/pipe.md) — Stage this turn for the next agent session member in the same workspace, with the prompt you write.
 - [sase plan](reference/cli/plan.md) — Review the plan pipeline, approve or reject pending proposals from the Patch, inspect SDD prompt/plan links, submit a new plan for review, search SDD and…
 - [sase plugin](reference/cli/plugin.md) — Discover every SASE plugin that exists by treating the GitHub `sase--plugin` repository topic as the canonical registry.
 - [sase proc](reference/cli/proc.md) — Inspect and run SASE procs.

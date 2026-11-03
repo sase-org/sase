@@ -10,18 +10,18 @@ def register_pipe_parser(subparsers: argparse._SubParsersAction) -> None:
     pipe_parser = subparsers.add_parser(
         "pipe",
         usage="sase pipe [-h] [-f] [-j] [-m MODEL] [-n TOKEN] [-r TEXT] PROMPT",
-        help="Hand this agent's turn to the next agent session member and end this turn",
+        help="Stage this turn for the next agent session member",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         description=(
-            "End this agent's turn and continue the run as the next agent session "
-            "member in the same workspace, with the prompt you write. This is "
-            "not a launch, a monitor, or fan-out: one successor, serially, in "
-            "the same process. This command kills the calling agent; say "
+            "Stage this turn for the next agent session member in the same "
+            "workspace, with the prompt you write. Host completion ends this "
+            "turn before the successor starts. This is not a launch, a monitor, "
+            "or fan-out: one successor, serially, in the same process. Say "
             "everything the successor needs inside PROMPT."
         ),
         epilog=(
-            "This ends your turn. The process does not return after a "
-            "successful hand-off.\n"
+            "The command returns after staging, then finish this turn with "
+            "/sase_final; the successor starts after host completion.\n"
             "\n"
             "example:\n"
             "  sase pipe 'implement the approved plan' --reason "

@@ -1,4 +1,4 @@
-"""Flag-gated staging behavior for ``sase questions``."""
+"""Unconditional staging behavior for ``sase questions``."""
 
 from __future__ import annotations
 
@@ -14,7 +14,6 @@ from sase.agent.staged_handoff import (
     STAGED_HANDOFF_FILENAME,
     STAGING_RESERVATION_FILENAME,
 )
-from sase.feature_flags import override_flags
 from sase.main.questions_command_handler import handle_questions_command
 
 _QUESTIONS = json.dumps(
@@ -30,21 +29,18 @@ def _prepare(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     return artifacts
 
 
-def test_flag_enabled_questions_stage_without_kill(
+def test_questions_stage_without_kill(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     artifacts = _prepare(tmp_path, monkeypatch)
     with (
-        override_flags(staged_handoffs=True),
-        patch("sase.main.questions_command_handler.kill_agent_runner_group") as kill,
         pytest.raises(SystemExit) as staged_exit,
     ):
         handle_questions_command(_QUESTIONS)
 
     assert staged_exit.value.code == 0
-    kill.assert_not_called()
     assert not (artifacts / QUESTIONS_PENDING_MARKER).exists()
     assert not (artifacts / STAGING_RESERVATION_FILENAME).exists()
     record = json.loads(
@@ -60,34 +56,12 @@ def test_flag_enabled_questions_stage_without_kill(
     assert "`/sase_final`" in output
 
 
-def test_flag_disabled_questions_keeps_legacy_marker_and_kill(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    artifacts = _prepare(tmp_path, monkeypatch)
-    with (
-        override_flags(staged_handoffs=False),
-        patch(
-            "sase.main.questions_command_handler.kill_agent_runner_group",
-            side_effect=SystemExit(0),
-        ) as kill,
-        pytest.raises(SystemExit) as exc,
-    ):
-        handle_questions_command(_QUESTIONS)
-
-    assert exc.value.code == 0
-    kill.assert_called_once_with(str(artifacts))
-    assert (artifacts / QUESTIONS_PENDING_MARKER).is_file()
-    assert not (artifacts / STAGED_HANDOFF_FILENAME).exists()
-
-
 def test_invalid_json_releases_reservation(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     artifacts = _prepare(tmp_path, monkeypatch)
     with (
-        override_flags(staged_handoffs=True),
         pytest.raises(SystemExit) as exc,
     ):
         handle_questions_command("{not-json")
@@ -103,7 +77,6 @@ def test_accepted_declaration_refuses_before_questions_mutations(
 ) -> None:
     artifacts = _prepare(tmp_path, monkeypatch)
     with (
-        override_flags(staged_handoffs=True),
         patch(
             "sase.agent._staged_handoff_admission._has_accepted_current_final_submission",
             return_value=True,
@@ -128,7 +101,6 @@ def test_existing_handoff_refuses_questions_stage(
         artifacts_dir=str(artifacts),
     )
     with (
-        override_flags(staged_handoffs=True),
         pytest.raises(SystemExit) as exc,
     ):
         handle_questions_command(_QUESTIONS)

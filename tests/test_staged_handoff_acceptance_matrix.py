@@ -407,7 +407,7 @@ def test_flag_flip_after_stage_does_not_switch_runner(
     assert meta.get("handoff_protocol") == "staged"
 
 
-def test_flag_enabled_questions_stages_instead_of_pending_marker(
+def test_questions_stages_instead_of_pending_marker(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -415,12 +415,8 @@ def test_flag_enabled_questions_stages_instead_of_pending_marker(
 
     monkeypatch.setenv("SASE_AGENT", "1")
     monkeypatch.setenv("SASE_ARTIFACTS_DIR", str(tmp_path))
-    monkeypatch.setattr(
-        "sase.main.questions_command_handler.kill_agent_runner_group",
-        lambda _artifacts: (_ for _ in ()).throw(SystemExit(0)),
-    )
     payload = json.dumps([{"question": "Pick one", "options": [{"label": "A"}]}])
-    with override_flags(staged_handoffs=True), pytest.raises(SystemExit) as exc:
+    with pytest.raises(SystemExit) as exc:
         handle_questions_command(payload)
     assert exc.value.code == 0
     assert not (tmp_path / QUESTIONS_PENDING_MARKER).exists()
@@ -432,7 +428,7 @@ def test_flag_enabled_questions_stages_instead_of_pending_marker(
     assert record["carry_allowed"] is True
 
 
-def test_flag_enabled_pipe_stages_instead_of_pending_marker(
+def test_pipe_stages_instead_of_pending_marker(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -443,11 +439,7 @@ def test_flag_enabled_pipe_stages_instead_of_pending_marker(
     )
     monkeypatch.setenv("SASE_AGENT", "1")
     monkeypatch.setenv("SASE_ARTIFACTS_DIR", str(tmp_path))
-    monkeypatch.setattr(
-        "sase.main.pipe_handler.kill_agent_runner_group",
-        lambda _artifacts: (_ for _ in ()).throw(SystemExit(0)),
-    )
-    with override_flags(staged_handoffs=True), pytest.raises(SystemExit) as exc:
+    with pytest.raises(SystemExit) as exc:
         handle_pipe_command("finish the review")
     assert exc.value.code == 0
     assert not (tmp_path / PIPE_PENDING_MARKER).exists()

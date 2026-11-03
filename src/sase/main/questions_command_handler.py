@@ -6,13 +6,7 @@ import json
 import sys
 from typing import NoReturn
 
-from sase.agent.pending_handoff import QUESTIONS_PENDING_MARKER
-from sase.agent.pending_handoff_write import (
-    PendingHandoffError,
-    handoff_guard,
-    write_pending_handoff_marker,
-)
-from sase.main.utils import kill_agent_runner_group
+from sase.agent.pending_handoff_write import PendingHandoffError, handoff_guard
 
 _STAGED_MESSAGE = (
     "Staged questions handoff. Nothing starts until this turn ends; "
@@ -52,8 +46,8 @@ def handle_questions_command(questions_json: str) -> NoReturn:
 
     1. Guard: verify SASE_AGENT and SASE_ARTIFACTS_DIR env vars
     2. Parse and validate questions JSON
-    3. With ``staged_handoffs`` on, write the staged record and exit 0.
-       Otherwise write ``.sase_questions_pending`` and SIGTERM the runner.
+    3. Reserve the handoff slot, validate the declaration state, and stage the
+       questions handoff before returning successfully.
     """
     try:
         artifacts_dir = handoff_guard(command="sase questions")
@@ -65,26 +59,21 @@ def handle_questions_command(questions_json: str) -> NoReturn:
         StagedHandoffError,
         acquire_staging_reservation,
         release_staging_reservation,
-        staged_handoffs_enabled,
     )
 
-    use_staged_handoffs = staged_handoffs_enabled()
-    reservation_id: str | None = None
-    if use_staged_handoffs:
-        try:
-            reservation_id = acquire_staging_reservation(
-                artifacts_dir=artifacts_dir,
-                command="sase questions",
-            )
-        except StagedHandoffError as exc:
-            print(f"Error: {exc}", file=sys.stderr)
-            sys.exit(1)
+    try:
+        reservation_id = acquire_staging_reservation(
+            artifacts_dir=artifacts_dir,
+            command="sase questions",
+        )
+    except StagedHandoffError as exc:
+        print(f"Error: {exc}", file=sys.stderr)
+        sys.exit(1)
 
     try:
         _handle_questions_after_guard(
             questions_json,
             artifacts_dir=artifacts_dir,
-            use_staged_handoffs=use_staged_handoffs,
             reservation_id=reservation_id,
         )
     finally:
@@ -99,10 +88,9 @@ def _handle_questions_after_guard(
     questions_json: str,
     *,
     artifacts_dir: str,
-    use_staged_handoffs: bool,
-    reservation_id: str | None,
+    reservation_id: str,
 ) -> NoReturn:
-    """Parse, validate, and stage or kill after the one-handoff reservation."""
+    """Parse, validate, and stage after the one-handoff reservation."""
     try:
         questions = json.loads(questions_json)
     except json.JSONDecodeError as e:
@@ -115,38 +103,21 @@ def _handle_questions_after_guard(
         print(f"Error: Invalid questions schema: {e}", file=sys.stderr)
         sys.exit(1)
 
-    if use_staged_handoffs:
-        from sase.agent.staged_handoff import (
-            StagedHandoffError,
-            build_questions_staged_record,
-            write_staged_handoff,
-        )
-
-        try:
-            write_staged_handoff(
-                build_questions_staged_record(questions=questions),
-                artifacts_dir=artifacts_dir,
-                command="sase questions",
-                reservation_id=reservation_id,
-            )
-        except StagedHandoffError as exc:
-            print(f"Error: {exc}", file=sys.stderr)
-            sys.exit(1)
-        print(_STAGED_MESSAGE)
-        sys.exit(0)
+    from sase.agent.staged_handoff import (
+        StagedHandoffError,
+        build_questions_staged_record,
+        write_staged_handoff,
+    )
 
     try:
-        write_pending_handoff_marker(
-            QUESTIONS_PENDING_MARKER,
-            {"questions": questions},
+        write_staged_handoff(
+            build_questions_staged_record(questions=questions),
             artifacts_dir=artifacts_dir,
+            command="sase questions",
+            reservation_id=reservation_id,
         )
-    except PendingHandoffError as exc:
+    except StagedHandoffError as exc:
         print(f"Error: {exc}", file=sys.stderr)
         sys.exit(1)
-
-    # Kill the agent runner's process group (which includes the claude
-    # subprocess).  We cannot use our own process group because Claude Code
-    # spawns Bash-tool subprocesses in an isolated process group — the
-    # SIGTERM would never reach `claude` or the agent runner.
-    kill_agent_runner_group(artifacts_dir)
+    print(_STAGED_MESSAGE)
+    sys.exit(0)

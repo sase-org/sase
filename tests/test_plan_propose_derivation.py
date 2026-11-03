@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import json
 from pathlib import Path
 from unittest.mock import patch
 
@@ -17,6 +16,7 @@ from tests.plan_command_handler_helpers import (
     clear_bead_work_association_env,
     invoke_plan as _invoke_plan,
     make_artifacts_dir as _make_artifacts_dir,
+    read_staged_plan_payload as _read_staged_plan_payload,
 )
 
 _PLAN_WITH_BEAD = """---
@@ -64,10 +64,6 @@ def test_derives_an_implements_row_for_the_archived_plan(
     )
 
     with (
-        patch(
-            "sase.main.plan_propose_handler.kill_agent_runner_group",
-            side_effect=SystemExit(0),
-        ),
         patch("sase.file_references.format_with_prettier", side_effect=lambda raw: raw),
     ):
         assert _invoke_plan(plan_file) == 0
@@ -76,8 +72,6 @@ def test_derives_an_implements_row_for_the_archived_plan(
     assert len(rows) == 1
     assert rows[0]["relation"] == "implements"
     assert rows[0]["target_ref"] == "bead:sase-xx"
-    marker = json.loads(
-        (artifacts_dir / ".sase_plan_pending").read_text(encoding="utf-8")
-    )
-    archived_name = Path(marker["plan_file"]).name
+    payload = _read_staged_plan_payload(artifacts_dir)
+    archived_name = Path(payload["plan_file"]).name
     assert rows[0]["source_ref"].endswith(archived_name)

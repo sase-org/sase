@@ -17,6 +17,7 @@ from tests.plan_command_handler_helpers import (
     clear_bead_work_association_env,
     invoke_plan as _invoke_plan,
     make_artifacts_dir as _make_artifacts_dir,
+    read_staged_plan_payload as _read_staged_plan_payload,
 )
 
 
@@ -79,10 +80,6 @@ def test_plan_command_stamps_proposer_before_formatting(
 
     with (
         patch(
-            "sase.main.plan_propose_handler.kill_agent_runner_group",
-            side_effect=SystemExit(0),
-        ),
-        patch(
             "sase.file_references.format_with_prettier",
             side_effect=format_plan,
         ),
@@ -102,10 +99,8 @@ def test_plan_command_stamps_proposer_before_formatting(
     )
     assert stamped_frontmatter["proposed_by"] == proposer
     assert stamped_frontmatter["proposed_with"] == "claude/opus"
-    marker = json.loads(
-        (artifacts_dir / ".sase_plan_pending").read_text(encoding="utf-8")
-    )
-    assert "formatted body" in Path(marker["plan_file"]).read_text(encoding="utf-8")
+    payload = _read_staged_plan_payload(artifacts_dir)
+    assert "formatted body" in Path(payload["plan_file"]).read_text(encoding="utf-8")
 
 
 def test_plan_command_without_resolvable_agent_omits_proposer(
@@ -121,10 +116,6 @@ def test_plan_command_without_resolvable_agent_omits_proposer(
     monkeypatch.setenv("SASE_ARTIFACTS_DIR", str(artifacts_dir))
 
     with (
-        patch(
-            "sase.main.plan_propose_handler.kill_agent_runner_group",
-            side_effect=SystemExit(0),
-        ),
         patch(
             "sase.file_references.format_with_prettier",
             side_effect=lambda raw: raw,
@@ -157,10 +148,6 @@ def test_plan_command_overwrites_authored_project_with_registered_display_name(
         return content
 
     with (
-        patch(
-            "sase.main.plan_propose_handler.kill_agent_runner_group",
-            side_effect=SystemExit(0),
-        ),
         patch(
             "sase.file_references.format_with_prettier",
             side_effect=capture_format,
@@ -325,10 +312,6 @@ def test_plan_command_stamps_associations_from_bead_work_env(
 
     with (
         patch(
-            "sase.main.plan_propose_handler.kill_agent_runner_group",
-            side_effect=SystemExit(0),
-        ),
-        patch(
             "sase.file_references.format_with_prettier",
             side_effect=lambda raw: raw,
         ),
@@ -365,10 +348,6 @@ def test_epic_proposal_auto_parent_depends_on_active_bead_status(
     monkeypatch.setenv("SASE_EPIC_BEAD_ID", "sase-bv")
 
     with (
-        patch(
-            "sase.main.plan_propose_handler.kill_agent_runner_group",
-            side_effect=SystemExit(0),
-        ),
         patch("sase.file_references.format_with_prettier", side_effect=lambda raw: raw),
         patch(
             "sase.workflows.commit.bead_hooks.bead_status_fact",
@@ -378,10 +357,8 @@ def test_epic_proposal_auto_parent_depends_on_active_bead_status(
         assert _invoke_plan(plan_file) == 0
 
     status_reader.assert_called_once_with("sase-bv", str(Path.cwd()))
-    marker = json.loads(
-        (artifacts_dir / ".sase_plan_pending").read_text(encoding="utf-8")
-    )
-    archived = Path(marker["plan_file"]).read_text(encoding="utf-8")
+    payload = _read_staged_plan_payload(artifacts_dir)
+    archived = Path(payload["plan_file"]).read_text(encoding="utf-8")
     frontmatter, _body, _had = parse_frontmatter(archived)
     assert frontmatter.get("parent_bead") == expected_parent
     assert (
@@ -404,10 +381,6 @@ def test_closed_active_bead_does_not_replace_authored_epic_parent(
     monkeypatch.setenv("SASE_EPIC_BEAD_ID", "sase-bv")
 
     with (
-        patch(
-            "sase.main.plan_propose_handler.kill_agent_runner_group",
-            side_effect=SystemExit(0),
-        ),
         patch("sase.file_references.format_with_prettier", side_effect=lambda raw: raw),
         patch(
             "sase.workflows.commit.bead_hooks.bead_status_fact", return_value="closed"
@@ -415,10 +388,8 @@ def test_closed_active_bead_does_not_replace_authored_epic_parent(
     ):
         assert _invoke_plan(plan_file) == 0
 
-    marker = json.loads(
-        (artifacts_dir / ".sase_plan_pending").read_text(encoding="utf-8")
-    )
+    payload = _read_staged_plan_payload(artifacts_dir)
     frontmatter, _body, _had = parse_frontmatter(
-        Path(marker["plan_file"]).read_text(encoding="utf-8")
+        Path(payload["plan_file"]).read_text(encoding="utf-8")
     )
     assert frontmatter["parent_bead"] == "sase-authored"
