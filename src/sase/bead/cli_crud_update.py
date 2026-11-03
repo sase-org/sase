@@ -304,15 +304,19 @@ def handle_bead_update(args: argparse.Namespace) -> None:
                 # so it must reach the same leftover-whitelist guard as close.
                 from sase.bead.cli_crud_lifecycle import refuse_leftover_epic_symbols
                 from sase.bead.operation_context import (
-                    symbol_scan_start_for_operation_context,
+                    symbol_scan_start_detail_for_operation_context,
                 )
 
                 closing_issues = [
                     proj.show(raw_id) for raw_id in dict.fromkeys(issue_ids)
                 ]
+                scan_start, scan_source = (
+                    symbol_scan_start_detail_for_operation_context(bead_context)
+                )
                 refuse_leftover_epic_symbols(
                     closing_issues,
-                    start=symbol_scan_start_for_operation_context(bead_context),
+                    start=scan_start,
+                    start_source=scan_source,
                 )
             # Author attachments before any mutation: an attachment problem
             # must leave the bead store unchanged, including field updates.

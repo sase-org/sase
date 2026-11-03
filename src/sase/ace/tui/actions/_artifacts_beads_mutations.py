@@ -548,7 +548,9 @@ class ArtifactsBeadsMutationActionsMixin(ArtifactsBeadsCommonMixin):
             issues = [store_project.show(issue.id)]
             start = Path(workspace_text)
             raise_if_leftover_epic_symbols(issues, start=start)
-            raise_if_surviving_flag_definition(issues, start=start)
+            raise_if_surviving_flag_definition(
+                issues, start=start, start_source="local"
+            )
             store_project.close(
                 [issue.id],
                 reason=result.reason,

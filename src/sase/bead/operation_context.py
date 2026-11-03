@@ -316,14 +316,38 @@ def symbol_scan_start_for_operation_context(
     same-project case the implementing checkout's Justfile is authoritative;
     foreign-project targets and non-checkout invocations fall back to the
     routed owner's primary workspace.
+
+    Gate commands run with the bundle directory as their working directory,
+    so they use ``SASE_GATE_WORKSPACE_DIR`` when it names a same-project
+    checkout of the routed project.
     """
 
+    start, _source = symbol_scan_start_detail_for_operation_context(context)
+    return start
+
+
+def symbol_scan_start_detail_for_operation_context(
+    context: BeadOperationContext | None,
+) -> tuple[Path | None, str]:
+    """Return the scan root plus where it came from.
+
+    The source is ``"local"`` for the invocation checkout, ``"gate"`` for
+    the gate turn's inherited checkout, ``"primary"`` for the fallback to
+    the routed owner's primary workspace, and ``"none"`` when no checkout
+    is available. Guards use this instead of re-deriving the fallback, so
+    the refusal can name the scanned checkout and the reason.
+    """
     if context is None:
-        return None
+        return None, "none"
     local_checkout = _same_project_invocation_checkout(context)
     if local_checkout is not None:
-        return local_checkout
-    return context.primary_workspace
+        return local_checkout, "local"
+    gate_checkout = _same_project_gate_workspace_checkout(context)
+    if gate_checkout is not None:
+        return gate_checkout, "gate"
+    if context.primary_workspace is not None:
+        return context.primary_workspace, "primary"
+    return None, "none"
 
 
 def _invocation_cwd(cwd: Path | None) -> Path:
@@ -533,10 +557,44 @@ def _writable_beads_dir_for_context(context: Any | None) -> Path | None:
 def _same_project_invocation_checkout(
     context: BeadOperationContext,
 ) -> Path | None:
+    return _same_project_checkout_for_candidate(context, context.invocation_cwd)
+
+
+def _same_project_gate_workspace_checkout(
+    context: BeadOperationContext,
+) -> Path | None:
+    """Return the gate turn's inherited checkout when it is same-project.
+
+    Gate option and operation commands run with the bundle directory as cwd,
+    so the invocation checkout never matches. When ``SASE_GATE_COMMAND=1``
+    and ``SASE_GATE_WORKSPACE_DIR`` names a same-project checkout of the
+    routed project, that checkout is authoritative, exactly like a local
+    invocation from it. Anything else falls back to the primary workspace.
+    """
+    import os
+
+    if os.environ.get("SASE_GATE_COMMAND") != "1":
+        return None
+    raw = os.environ.get("SASE_GATE_WORKSPACE_DIR")
+    if not raw:
+        return None
+    try:
+        candidate = Path(raw).expanduser()
+        if not candidate.is_dir():
+            return None
+    except OSError:
+        return None
+    return _same_project_checkout_for_candidate(context, candidate)
+
+
+def _same_project_checkout_for_candidate(
+    context: BeadOperationContext,
+    candidate_cwd: Path,
+) -> Path | None:
     try:
         from sase.workspace_provider import ownership
 
-        invocation_context = ownership.user_directed_context(cwd=context.invocation_cwd)
+        invocation_context = ownership.user_directed_context(cwd=candidate_cwd)
     except Exception:
         return None
 
@@ -635,5 +693,6 @@ __all__ = [
     "read_view_for_operation_context",
     "resolve_operation_context_for_project",
     "resolve_operation_context_for_targets",
+    "symbol_scan_start_detail_for_operation_context",
     "symbol_scan_start_for_operation_context",
 ]

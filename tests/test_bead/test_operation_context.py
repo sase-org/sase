@@ -326,3 +326,156 @@ def _snapshot(project_key: str, primary: Path, issue_id: str) -> BeadStoreSnapsh
         issue_prefix=project_key,
         project_refs=frozenset({project_key}),
     )
+
+
+def _gate_scan_context(
+    tmp_path: Path,
+    *,
+    project_key: str = "sase",
+    primary_name: str = "primary",
+    bundle_name: str = "bundle",
+) -> tuple[Any, Path, Path]:
+    from sase.bead.cli_location import BeadsLocation
+    from sase.bead.operation_context import BeadOperationContext
+
+    primary = tmp_path / primary_name
+    primary.mkdir()
+    bundle = tmp_path / bundle_name
+    bundle.mkdir()
+    location = BeadsLocation(primary, "sdd/beads")
+    context = BeadOperationContext(
+        invocation_cwd=bundle.resolve(),
+        location=location,
+        project_key=project_key,
+        project_label=project_key,
+        primary_workspace=primary.resolve(),
+        ownership_context=None,
+    )
+    return context, primary.resolve(), bundle.resolve()
+
+
+def _mock_ownership_for_gate(
+    monkeypatch: pytest.MonkeyPatch,
+    *,
+    bundle: Path,
+    gate_checkout: Path | None,
+    primary: Path,
+    gate_project: str = "sase",
+    gate_primary: Path | None = None,
+) -> None:
+    from types import SimpleNamespace
+
+    from sase.workspace_provider import ownership
+    from sase.workspace_provider._ownership_types import (
+        AccessKind,
+        MutationOrigin,
+    )
+
+    def fake_user_directed_context(
+        *,
+        cwd: Path | None = None,
+        project: str | None = None,
+        project_file: object = None,
+        config: object = None,
+        env: object = None,
+    ) -> Any:
+        del project, project_file, config, env
+        resolved = Path(cwd).expanduser() if cwd is not None else Path.cwd()
+        try:
+            resolved = resolved.resolve(strict=False)
+        except OSError:
+            pass
+        if resolved == bundle:
+            from sase.workspace_provider._ownership_types import (
+                WorkspaceOwnershipError,
+            )
+
+            raise WorkspaceOwnershipError(f"no checkout at {resolved}")
+        resolved_gate_primary = gate_primary if gate_primary is not None else primary
+        if gate_checkout is not None and resolved == gate_checkout.resolve():
+            return SimpleNamespace(
+                project=gate_project,
+                access_kind=AccessKind.USER_DIRECTED,
+                mutation_origin=MutationOrigin.USER,
+                workspace_num=13,
+                checkout_dir=gate_checkout.resolve(),
+                primary_checkout_dir=resolved_gate_primary,
+                project_file=None,
+            )
+        from sase.workspace_provider._ownership_types import WorkspaceOwnershipError
+
+        raise WorkspaceOwnershipError(f"no checkout at {resolved}")
+
+    monkeypatch.setattr(ownership, "user_directed_context", fake_user_directed_context)
+
+
+def test_gate_workspace_selects_same_project_checkout(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from sase.bead.operation_context import (
+        symbol_scan_start_detail_for_operation_context,
+        symbol_scan_start_for_operation_context,
+    )
+
+    context, primary, bundle = _gate_scan_context(tmp_path)
+    gate_checkout = tmp_path / "gate"
+    gate_checkout.mkdir()
+    _mock_ownership_for_gate(
+        monkeypatch, bundle=bundle, gate_checkout=gate_checkout, primary=primary
+    )
+    monkeypatch.setenv("SASE_GATE_COMMAND", "1")
+    monkeypatch.setenv("SASE_GATE_WORKSPACE_DIR", str(gate_checkout.resolve()))
+
+    assert symbol_scan_start_for_operation_context(context) == gate_checkout.resolve()
+    start, source = symbol_scan_start_detail_for_operation_context(context)
+    assert start == gate_checkout.resolve()
+    assert source == "gate"
+
+
+def test_gate_workspace_foreign_project_falls_back_to_primary(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from sase.bead.operation_context import (
+        symbol_scan_start_detail_for_operation_context,
+    )
+
+    context, primary, bundle = _gate_scan_context(tmp_path)
+    gate_checkout = tmp_path / "gate"
+    gate_checkout.mkdir()
+    other_primary = tmp_path / "other-primary"
+    other_primary.mkdir()
+    _mock_ownership_for_gate(
+        monkeypatch,
+        bundle=bundle,
+        gate_checkout=gate_checkout,
+        primary=primary,
+        gate_project="other",
+        gate_primary=other_primary.resolve(),
+    )
+    monkeypatch.setenv("SASE_GATE_COMMAND", "1")
+    monkeypatch.setenv("SASE_GATE_WORKSPACE_DIR", str(gate_checkout.resolve()))
+
+    start, source = symbol_scan_start_detail_for_operation_context(context)
+    assert start == primary
+    assert source == "primary"
+
+
+def test_gate_workspace_missing_directory_falls_back_to_primary(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from sase.bead.operation_context import (
+        symbol_scan_start_detail_for_operation_context,
+    )
+
+    context, primary, bundle = _gate_scan_context(tmp_path)
+    gate_checkout = tmp_path / "gate"
+    gate_checkout.mkdir()
+    _mock_ownership_for_gate(
+        monkeypatch, bundle=bundle, gate_checkout=gate_checkout, primary=primary
+    )
+    monkeypatch.setenv("SASE_GATE_COMMAND", "1")
+    monkeypatch.setenv("SASE_GATE_WORKSPACE_DIR", str(tmp_path / "absent"))
+
+    start, source = symbol_scan_start_detail_for_operation_context(context)
+    assert start == primary
+    assert source == "primary"

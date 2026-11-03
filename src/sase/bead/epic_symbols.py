@@ -459,11 +459,13 @@ def raise_if_surviving_flag_definition(
     issues: Iterable[Issue],
     *,
     start: Path | None = None,
+    start_source: str | None = None,
 ) -> None:
     """Refuse closing a flag bead whose registry definition still exists.
 
-    ``check_feature_flags`` rule 7 fails every workspace once a named flag bead
-    is closed while its definition survives, so close must surface it first.
+    ``check_feature_flags`` rule 7 stays red once a named flag bead is closed
+    while its definition survives — siblings only warn while a removal lands,
+    so this refusal means nobody has removed the definition yet.
     """
     targets = [
         issue.id
@@ -476,11 +478,13 @@ def raise_if_surviving_flag_definition(
     surviving = [bead_id for bead_id in targets if bead_id in definitions]
     if not surviving:
         return
+    scanned = str(start) if start is not None else "the current working directory"
     lines = [
         f"refusing to close {', '.join(surviving)}: the feature-flag registry "
-        f"({_FLAG_REGISTRY_RELPATH}) still defines a flag naming this bead "
-        "(closing it turns unrelated agents' just check red through "
-        "check_feature_flags rule 7):",
+        f"({_FLAG_REGISTRY_RELPATH}) in {scanned} still defines a flag naming "
+        "this bead (closing it keeps check_feature_flags rule 7 red — "
+        "siblings only warn while a removal lands, so nobody has removed "
+        "the definition yet):",
         *(
             f"  {key} (bead={bead_id})"
             for bead_id in surviving
@@ -491,4 +495,23 @@ def raise_if_surviving_flag_definition(
         "unconditional, and remove the registry entry (with its references and "
         "schema entry); or keep the bead open.",
     ]
+    if start_source == "primary":
+        lines.extend(
+            [
+                "",
+                f"Scanned {scanned} because the invocation was not a "
+                "same-project checkout (fell back to the primary workspace). "
+                "Remedy: run the close from the checkout that removed the "
+                "definition.",
+            ]
+        )
+    elif start_source == "gate":
+        lines.extend(
+            [
+                "",
+                f"Scanned {scanned} from the gate turn's inherited workspace "
+                "(SASE_GATE_WORKSPACE_DIR). Remedy: run the close from the "
+                "checkout that removed the definition.",
+            ]
+        )
     raise _LeftoverEpicSymbolsError("\n".join(lines))

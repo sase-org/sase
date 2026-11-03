@@ -268,7 +268,8 @@ the environment of whichever process executes the answer — the TUI, mobile, a 
 follow-up runner — not in the creating agent's environment. So bake absolute paths and
 pinned artifacts into the command at creation time, and never depend on agent-only
 variables such as `CARGO_TARGET_DIR`, `SASE_ARTIFACTS_DIR`, or the agent's workspace
-path.
+path. Commands of an `inherit` gate turn receive `SASE_GATE_WORKSPACE_DIR`, and
+`sase bead close` uses it automatically.
 
 ## Declare The `turn` Block
 

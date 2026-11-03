@@ -5,8 +5,12 @@ but the registry entry only exists on the authoring tree until that commit
 lands. Sibling checkouts then see a live bead with no definition — the same
 symptom as a genuine orphan (definition deleted or never written).
 
-This module keeps the genuine-orphan case an error, and downgrades the
-in-flight window to a warning.
+The reverse holds for removal: the bead store closes first and the registry
+entry lands later, so sibling checkouts see a closed bead with a surviving
+definition while the removal is in flight.
+
+This module keeps the genuine-orphan and genuine-survivor cases an error,
+and downgrades each in-flight window to a warning.
 """
 
 from __future__ import annotations
@@ -98,6 +102,53 @@ def classify_orphan_bead(
     return _OrphanBeadVerdict("error")
 
 
+def classify_surviving_definition(
+    *,
+    closed_at: str | None,
+    closed_by: str | None = None,
+    checkout_committed_at: datetime | None,
+    now: datetime,
+    grace: timedelta = ORPHAN_BEAD_GRACE,
+) -> _OrphanBeadVerdict:
+    """Return whether a surviving definition on a closed bead is in-flight.
+
+    Warn when the bead closed after this checkout's base commit (the tree
+    is older than the close) or when the close is younger than *grace*.
+    Error otherwise, including when ``closed_at`` is missing — fail closed.
+    """
+    closed = _as_utc(closed_at)
+    who = f" by {closed_by}" if closed_by else ""
+    checkout = _coerce_utc(checkout_committed_at)
+    now_utc = _coerce_utc(now) or datetime.now(UTC)
+
+    if closed is not None and checkout is not None and closed > checkout:
+        return _OrphanBeadVerdict(
+            "warning",
+            f"this checkout's HEAD is older than the bead "
+            f"(closed {closed_at}{who}), so this is likely another "
+            f"tree's in-flight removal",
+        )
+    if closed is not None and now_utc - closed <= grace:
+        return _OrphanBeadVerdict(
+            "warning",
+            f"bead was closed {_format_age(now_utc - closed)} ago{who} "
+            "and removal may still be landing",
+        )
+    if closed is not None:
+        return _OrphanBeadVerdict(
+            "error",
+            f"closed {closed_at}{who} — remove the registry definition or "
+            "reopen the bead",
+        )
+    if closed_by:
+        return _OrphanBeadVerdict(
+            "error",
+            f"closed by {closed_by} — remove the registry definition or "
+            "reopen the bead",
+        )
+    return _OrphanBeadVerdict("error")
+
+
 def _as_utc(value: str | None) -> datetime | None:
     if not value or not value.strip():
         return None
@@ -165,4 +216,5 @@ __all__ = [
     "ORPHAN_BEAD_GRACE",
     "checkout_base_committed_at",
     "classify_orphan_bead",
+    "classify_surviving_definition",
 ]

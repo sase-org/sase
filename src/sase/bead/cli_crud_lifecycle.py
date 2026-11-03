@@ -132,6 +132,7 @@ def refuse_leftover_epic_symbols(
     issues: list[Issue],
     *,
     start: Path | None = None,
+    start_source: str | None = None,
 ) -> None:
     """Refuse a close that would stale remaining Justfile ``--epic-symbol`` entries.
 
@@ -141,7 +142,7 @@ def refuse_leftover_epic_symbols(
     the close-time flow.
     """
     raise_if_leftover_epic_symbols(issues, start=start)
-    raise_if_surviving_flag_definition(issues, start=start)
+    raise_if_surviving_flag_definition(issues, start=start, start_source=start_source)
 
 
 def _author_close_note(
@@ -238,9 +239,11 @@ def handle_bead_close(args: argparse.Namespace) -> None:
             pre_close_issues = [
                 mutation.project.show(raw_id) for raw_id in dict.fromkeys(resolved_ids)
             ]
+            scan_start, scan_source = _owner_symbol_scan_detail(bead_context)
             refuse_leftover_epic_symbols(
                 pre_close_issues,
-                start=_owner_symbol_start(bead_context),
+                start=scan_start,
+                start_source=scan_source,
             )
             author = resolve_mutation_author(mutation.project)
             note_attachments: list[dict[str, Any]] | None = None
@@ -383,12 +386,16 @@ def _settle_close_task_gates(
     settle_closed_task_bead_gates(project_name, gateable_ids)
 
 
-def _owner_symbol_start(
+def _owner_symbol_scan_detail(
     bead_context: BeadOperationContext | None,
-) -> Path | None:
-    from sase.bead.operation_context import symbol_scan_start_for_operation_context
+) -> tuple[Path | None, str | None]:
+    """Return the symbol scan root plus its fallback signal for the guard."""
+    from sase.bead.operation_context import (
+        symbol_scan_start_detail_for_operation_context,
+    )
 
-    return symbol_scan_start_for_operation_context(bead_context)
+    start, source = symbol_scan_start_detail_for_operation_context(bead_context)
+    return start, source
 
 
 def handle_bead_rm(args: argparse.Namespace) -> None:

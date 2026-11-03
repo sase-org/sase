@@ -145,3 +145,77 @@ def test_orphan_bead_errors_when_bead_predates_checkout_and_grace() -> None:
     assert findings[0].severity == "error"
     assert "add the registry definition" in findings[0].message
     assert "sase-old" in findings[0].message
+
+
+def test_closed_survives_warns_when_close_is_in_flight() -> None:
+    closed = _NOW - (ORPHAN_BEAD_GRACE / 2)
+    findings = registry_integrity_findings(
+        definitions(demo_flag("demo_flag")),
+        (
+            flag_bead(
+                "demo_flag",
+                status="closed",
+                closed_at=closed.isoformat().replace("+00:00", "Z"),
+                closed_by="sase-qn.2",
+            ),
+        ),
+        checkout_committed_at=_NOW,
+        now=_NOW,
+    )
+
+    assert [finding.code for finding in findings] == ["closed_survives"]
+    assert findings[0].severity == "warning"
+    assert "removal may still be landing" in findings[0].message
+
+
+def test_closed_survives_warns_when_close_is_newer_than_checkout() -> None:
+    findings = registry_integrity_findings(
+        definitions(demo_flag("demo_flag")),
+        (
+            flag_bead(
+                "demo_flag",
+                status="closed",
+                closed_at="2026-08-19T01:21:12Z",
+                closed_by="sase-qn.2",
+            ),
+        ),
+        checkout_committed_at=datetime(2026, 8, 18, tzinfo=UTC),
+        now=_NOW,
+    )
+
+    assert [finding.code for finding in findings] == ["closed_survives"]
+    assert findings[0].severity == "warning"
+    assert "in-flight removal" in findings[0].message
+
+
+def test_closed_survives_errors_when_removal_should_have_landed() -> None:
+    closed = _NOW - ORPHAN_BEAD_GRACE - ORPHAN_BEAD_GRACE
+    findings = registry_integrity_findings(
+        definitions(demo_flag("demo_flag")),
+        (
+            flag_bead(
+                "demo_flag",
+                status="closed",
+                closed_at=closed.isoformat().replace("+00:00", "Z"),
+                closed_by="sase-old",
+            ),
+        ),
+        checkout_committed_at=_NOW,
+        now=_NOW,
+    )
+
+    assert [finding.code for finding in findings] == ["closed_survives"]
+    assert findings[0].severity == "error"
+    assert "remove the registry definition" in findings[0].message
+
+
+def test_closed_survives_errors_when_closed_at_is_missing() -> None:
+    findings = registry_integrity_findings(
+        definitions(demo_flag("demo_flag")),
+        (flag_bead("demo_flag", status="closed"),),
+        checkout_committed_at=_NOW,
+        now=_NOW,
+    )
+
+    assert [finding.code for finding in findings] == ["closed_survives"]
+    assert findings[0].severity == "error"

@@ -83,6 +83,8 @@ def flag_bead(
     title: str = "Retire demo_flag",
     created_at: str = "",
     created_by: str = "",
+    closed_at: str | None = None,
+    closed_by: str | None = None,
 ) -> FlagBeadSnapshot:
     return FlagBeadSnapshot(
         id=bead_id,
@@ -95,4 +97,6 @@ def flag_bead(
         title=title,
         created_at=created_at,
         created_by=created_by,
+        closed_at=closed_at,
+        closed_by=closed_by,
     )

@@ -49,6 +49,8 @@ class FlagBeadSnapshot:
     title: str = ""
     created_at: str = ""
     created_by: str = ""
+    closed_at: str | None = None
+    closed_by: str | None = None
 
 
 def _is_loaded_flag_bead(issue: Issue) -> bool:
@@ -71,6 +73,8 @@ def _flag_bead_snapshot_from_issue(issue: Issue) -> FlagBeadSnapshot:
         title=issue.title,
         created_at=issue.created_at,
         created_by=issue.created_by,
+        closed_at=issue.closed_at,
+        closed_by=None,
     )
 
 

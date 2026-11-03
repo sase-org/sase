@@ -199,3 +199,96 @@ def test_open_regular_nofollow_rejects_a_fifo_without_blocking(tmp_path: Path) -
     assert not worker.is_alive(), "open_regular_nofollow blocked on a FIFO"
     assert isinstance(outcome[0], GateError)
     assert outcome[0].code == "unsafe_file"
+
+
+def _write_env_echo_bundle(root: Path) -> tuple[Path, str]:
+    import hashlib
+
+    commands = root / "commands"
+    commands.mkdir(parents=True, exist_ok=True)
+    command = commands / "proceed"
+    script = (
+        "#!/usr/bin/env python3\n"
+        "import json, os\n"
+        "print(json.dumps({\n"
+        '    "workspace_dir": os.environ.get("SASE_GATE_WORKSPACE_DIR"),\n'
+        '    "gate_command": os.environ.get("SASE_GATE_COMMAND"),\n'
+        "}))\n"
+    )
+    command.write_text(script, encoding="utf-8")
+    command.chmod(0o700)
+    return root, hashlib.sha256(command.read_bytes()).hexdigest()
+
+
+def _gate_turn_record(artifacts_dir: Path, workspace_policy: str) -> object:
+    from types import SimpleNamespace
+
+    return SimpleNamespace(
+        gate_id="gate-1",
+        member_agent_name="agent",
+        lane="lane",
+        project_name="sase",
+        artifacts_dir=str(artifacts_dir),
+        workspace_policy=workspace_policy,
+    )
+
+
+def test_gate_command_exports_inherited_workspace_for_inherit_turn(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import json
+
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    artifacts = tmp_path / "artifacts"
+    artifacts.mkdir()
+    (artifacts / "agent_meta.json").write_text(
+        json.dumps({"workspace_dir": str(workspace)}), encoding="utf-8"
+    )
+    monkeypatch.setattr(
+        "sase.gate_turn.store.find_gate_turn_by_gate_id",
+        lambda _project, _gate_id: _gate_turn_record(artifacts, "inherit"),
+    )
+    bundle, digest = _write_env_echo_bundle(tmp_path / "bundle")
+
+    completed = run_owned_command(
+        bundle, ("commands/proceed",), expected_hash=digest, input_data={}
+    )
+
+    assert completed.returncode == 0
+    payload = json.loads(completed.stdout)
+    assert payload["gate_command"] == "1"
+    assert payload["workspace_dir"] == str(workspace)
+
+
+def test_gate_command_omits_workspace_for_release_or_missing_turn(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import json
+
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    artifacts = tmp_path / "artifacts"
+    artifacts.mkdir()
+    (artifacts / "agent_meta.json").write_text(
+        json.dumps({"workspace_dir": str(workspace)}), encoding="utf-8"
+    )
+    bundle, digest = _write_env_echo_bundle(tmp_path / "bundle")
+
+    monkeypatch.setattr(
+        "sase.gate_turn.store.find_gate_turn_by_gate_id",
+        lambda _project, _gate_id: _gate_turn_record(artifacts, "release"),
+    )
+    completed = run_owned_command(
+        bundle, ("commands/proceed",), expected_hash=digest, input_data={}
+    )
+    assert json.loads(completed.stdout)["workspace_dir"] is None
+
+    monkeypatch.setattr(
+        "sase.gate_turn.store.find_gate_turn_by_gate_id",
+        lambda _project, _gate_id: None,
+    )
+    completed = run_owned_command(
+        bundle, ("commands/proceed",), expected_hash=digest, input_data={}
+    )
+    assert json.loads(completed.stdout)["workspace_dir"] is None

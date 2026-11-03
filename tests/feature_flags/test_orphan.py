@@ -11,6 +11,7 @@ from sase.feature_flags.orphan import (
     ORPHAN_BEAD_GRACE,
     checkout_base_committed_at,
     classify_orphan_bead,
+    classify_surviving_definition,
 )
 
 
@@ -122,6 +123,61 @@ def test_classify_errors_when_bead_is_older_than_checkout_and_grace() -> None:
 def test_classify_errors_when_created_at_is_missing() -> None:
     verdict = classify_orphan_bead(
         created_at=None,
+        checkout_committed_at=datetime(2026, 8, 1, tzinfo=UTC),
+        now=_NOW,
+    )
+
+    assert verdict.severity == "error"
+    assert verdict.detail == ""
+
+
+_CLOSED_AT = "2026-08-19T01:21:12Z"
+
+
+def test_surviving_warns_when_bead_closed_after_checkout() -> None:
+    verdict = classify_surviving_definition(
+        closed_at=_CLOSED_AT,
+        closed_by="sase-qn.2",
+        checkout_committed_at=datetime(2026, 8, 18, tzinfo=UTC),
+        now=_NOW,
+    )
+
+    assert verdict.severity == "warning"
+    assert "older than the bead" in verdict.detail
+    assert "in-flight removal" in verdict.detail
+    assert "sase-qn.2" in verdict.detail
+
+
+def test_surviving_warns_within_grace_even_if_checkout_is_newer() -> None:
+    closed = _NOW - (ORPHAN_BEAD_GRACE / 2)
+    verdict = classify_surviving_definition(
+        closed_at=closed.isoformat().replace("+00:00", "Z"),
+        closed_by="sase-qn.2",
+        checkout_committed_at=_NOW,
+        now=_NOW,
+    )
+
+    assert verdict.severity == "warning"
+    assert "removal may still be landing" in verdict.detail
+
+
+def test_surviving_errors_when_bead_closed_before_checkout_and_grace() -> None:
+    closed = _NOW - (ORPHAN_BEAD_GRACE * 2)
+    verdict = classify_surviving_definition(
+        closed_at=closed.isoformat().replace("+00:00", "Z"),
+        closed_by="sase-old",
+        checkout_committed_at=_NOW,
+        now=_NOW,
+    )
+
+    assert verdict.severity == "error"
+    assert "remove the registry definition" in verdict.detail
+    assert "sase-old" in verdict.detail
+
+
+def test_surviving_errors_when_closed_at_is_missing() -> None:
+    verdict = classify_surviving_definition(
+        closed_at=None,
         checkout_committed_at=datetime(2026, 8, 1, tzinfo=UTC),
         now=_NOW,
     )

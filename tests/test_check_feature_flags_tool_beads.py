@@ -379,3 +379,110 @@ def test_marker_bead_from_issue_dict_reads_created_at_and_created_by() -> None:
 
     assert bead.created_at == "2026-08-19T01:21:12Z"
     assert bead.created_by == "sase-qn.2"
+
+
+def test_rule_7_warns_inside_grace_and_does_not_fail_tool() -> None:
+    tool = _load_tool()
+    from datetime import UTC as _UTC
+
+    now = datetime(2026, 8, 19, 12, 0, tzinfo=_UTC)
+    created = now - (ORPHAN_BEAD_GRACE / 2)
+    markers = tool.markers_from_flag_definitions(definitions(demo_flag("demo_flag")))
+
+    findings = tool.check_bead_status(
+        markers,
+        [
+            _bead(
+                tool,
+                status="closed",
+                closed_at=created.isoformat().replace("+00:00", "Z"),
+                closed_by="sase-qn.2",
+            )
+        ],
+        today=date(2026, 8, 19),
+        release="0.10.0",
+        now=now,
+        checkout_committed_at=now,
+    )
+
+    assert _rules(findings) == [7]
+    assert findings[0].severity == "warning"
+    assert "removal may still be landing" in findings[0].message
+    assert [f for f in findings if f.severity == "error"] == []
+
+
+def test_rule_7_warns_when_close_is_newer_than_checkout() -> None:
+    tool = _load_tool()
+    from datetime import UTC as _UTC
+
+    now = datetime(2026, 8, 19, 12, 0, tzinfo=_UTC)
+    markers = tool.markers_from_flag_definitions(definitions(demo_flag("demo_flag")))
+
+    findings = tool.check_bead_status(
+        markers,
+        [
+            _bead(
+                tool,
+                status="closed",
+                closed_at="2026-08-19T01:21:12Z",
+                closed_by="sase-qn.2",
+            )
+        ],
+        today=date(2026, 8, 19),
+        release="0.10.0",
+        now=now,
+        checkout_committed_at=datetime(2026, 8, 18, tzinfo=_UTC),
+    )
+
+    assert _rules(findings) == [7]
+    assert findings[0].severity == "warning"
+    assert "in-flight removal" in findings[0].message
+
+
+def test_rule_7_errors_when_removal_should_have_landed() -> None:
+    tool = _load_tool()
+    from datetime import UTC as _UTC
+
+    now = datetime(2026, 8, 19, 12, 0, tzinfo=_UTC)
+    closed = now - ORPHAN_BEAD_GRACE - ORPHAN_BEAD_GRACE
+    markers = tool.markers_from_flag_definitions(definitions(demo_flag("demo_flag")))
+
+    findings = tool.check_bead_status(
+        markers,
+        [
+            _bead(
+                tool,
+                status="closed",
+                closed_at=closed.isoformat().replace("+00:00", "Z"),
+                closed_by="sase-old",
+            )
+        ],
+        today=date(2026, 8, 19),
+        release="0.10.0",
+        now=now,
+        checkout_committed_at=now,
+    )
+
+    assert _rules(findings) == [7]
+    assert findings[0].severity == "error"
+    assert "remove the registry definition" in findings[0].message
+
+
+def test_marker_bead_from_issue_dict_reads_closed_at_and_closer() -> None:
+    tool = _load_tool()
+
+    bead = tool.marker_bead_from_issue_dict(
+        {
+            "id": "sase-xy",
+            "status": "closed",
+            "issue_type": "task",
+            "task_type": "flag",
+            "closed_at": "2026-08-19T01:21:12Z",
+            "closed_by": "sase-qn.2",
+            "task_type_fields": {"key": "demo_key"},
+        },
+        source="flag",
+    )
+
+    assert bead.closed_at == "2026-08-19T01:21:12Z"
+    assert bead.closed_by == "sase-qn.2"

@@ -19,7 +19,10 @@ from sase.feature_flags.models import (
     FeatureFlagEnvError,
     FeatureFlagSnapshot,
 )
-from sase.feature_flags.orphan import classify_orphan_bead
+from sase.feature_flags.orphan import (
+    classify_orphan_bead,
+    classify_surviving_definition,
+)
 
 
 IntegritySeverity = Literal["error", "warning"]
@@ -49,12 +52,18 @@ def registry_integrity_findings(
     was deleted or never written, and a warning when the bead is still in
     the ``sase flag new`` landing window — see
     :func:`sase.feature_flags.orphan.classify_orphan_bead`.
+
+    Rule 7 (closed bead with a surviving definition) mirrors it: an error
+    once the removal should have landed, and a warning while the removal is
+    still in flight — see
+    :func:`sase.feature_flags.orphan.classify_surviving_definition`.
     """
     findings: list[IntegrityFinding] = []
     defined_keys = set(definitions)
     named_ids = {
         definition.bead for definition in definitions.values() if definition.bead
     }
+    resolved_now = datetime.now(UTC) if now is None else now
 
     for key, definition in sorted(definitions.items()):
         try:
@@ -142,20 +151,27 @@ def registry_integrity_findings(
                 )
             )
         if bead.status == "closed":
+            verdict = classify_surviving_definition(
+                closed_at=bead.closed_at,
+                closed_by=bead.closed_by or None,
+                checkout_committed_at=checkout_committed_at,
+                now=resolved_now,
+            )
+            message = (
+                f"closed flag bead {bead.id!r} still has a surviving {key!r} definition"
+            )
+            if verdict.detail:
+                message = f"{message}; {verdict.detail}"
             findings.append(
                 IntegrityFinding(
                     code="closed_survives",
-                    severity="error",
-                    message=(
-                        f"closed flag bead {bead.id!r} still has a surviving "
-                        f"{key!r} definition"
-                    ),
+                    severity=verdict.severity,
+                    message=message,
                     key=key,
                     bead_id=bead.id,
                 )
             )
 
-    resolved_now = datetime.now(UTC) if now is None else now
     for bead in beads:
         if bead.status not in LIVE_FLAG_STATUS_VALUES:
             continue

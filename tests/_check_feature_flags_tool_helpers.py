@@ -93,6 +93,8 @@ def _bead(
     kind: str | None = None,
     created_at: str | None = None,
     created_by: str | None = None,
+    closed_at: str | None = None,
+    closed_by: str | None = None,
 ) -> Any:
     return tool.MarkerBead(
         source=source,
@@ -106,4 +108,6 @@ def _bead(
         kind=kind,
         created_at=created_at,
         created_by=created_by,
+        closed_at=closed_at,
+        closed_by=closed_by,
     )

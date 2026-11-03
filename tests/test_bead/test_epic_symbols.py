@@ -214,3 +214,118 @@ def test_raise_if_surviving_flag_definition_skips_missing_registry(
     (tmp_path / "Justfile").write_text("check:\n", encoding="utf-8")
 
     raise_if_surviving_flag_definition([_flag_issue("sase-abc")], start=tmp_path)
+
+
+def test_surviving_refusal_names_scanned_checkout(tmp_path: Path) -> None:
+    _write_flag_registry(tmp_path, _REGISTRY_WITH_ABC)
+
+    with pytest.raises(_LeftoverEpicSymbolsError, match="rule 7") as exc_info:
+        raise_if_surviving_flag_definition(
+            [_flag_issue("sase-abc")],
+            start=tmp_path,
+            start_source="local",
+        )
+
+    message = str(exc_info.value)
+    assert str(tmp_path) in message
+    assert "refusing to close sase-abc" in message
+
+
+def test_surviving_refusal_explains_primary_fallback(tmp_path: Path) -> None:
+    _write_flag_registry(tmp_path, _REGISTRY_WITH_ABC)
+
+    with pytest.raises(_LeftoverEpicSymbolsError) as exc_info:
+        raise_if_surviving_flag_definition(
+            [_flag_issue("sase-abc")],
+            start=tmp_path,
+            start_source="primary",
+        )
+
+    message = str(exc_info.value)
+    assert "fell back to the primary workspace" in message
+    assert "run the close from the checkout that removed" in message
+
+
+def test_surviving_refusal_mentions_gate_workspace(tmp_path: Path) -> None:
+    _write_flag_registry(tmp_path, _REGISTRY_WITH_ABC)
+
+    with pytest.raises(_LeftoverEpicSymbolsError) as exc_info:
+        raise_if_surviving_flag_definition(
+            [_flag_issue("sase-abc")],
+            start=tmp_path,
+            start_source="gate",
+        )
+
+    message = str(exc_info.value)
+    assert "SASE_GATE_WORKSPACE_DIR" in message
+    assert str(tmp_path) in message
+
+
+def test_gate_inherited_checkout_close_succeeds_while_primary_defines_flag(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from types import SimpleNamespace
+
+    from sase.bead.cli_location import BeadsLocation
+    from sase.bead.operation_context import (
+        BeadOperationContext,
+        symbol_scan_start_detail_for_operation_context,
+    )
+    from sase.workspace_provider import ownership
+
+    primary = tmp_path / "primary"
+    gate = tmp_path / "gate"
+    bundle = tmp_path / "bundle"
+    for directory in (primary, gate, bundle):
+        directory.mkdir()
+    _write_flag_registry(primary, _REGISTRY_WITH_ABC)
+    _write_flag_registry(gate, "_FEATURE_FLAG_DEFINITIONS = {}\n")
+    location = BeadsLocation(primary, "sdd/beads")
+    context = BeadOperationContext(
+        invocation_cwd=bundle.resolve(),
+        location=location,
+        project_key=None,
+        project_label=None,
+        primary_workspace=primary.resolve(),
+        ownership_context=None,
+    )
+
+    def fake_user_directed_context(
+        *,
+        cwd: Path | None = None,
+        project: object = None,
+        project_file: object = None,
+        config: object = None,
+        env: object = None,
+    ) -> object:
+        del project, project_file, config, env
+        resolved = Path(cwd).expanduser().resolve(strict=False)
+        if resolved == bundle.resolve():
+            from sase.workspace_provider._ownership_types import (
+                WorkspaceOwnershipError,
+            )
+
+            raise WorkspaceOwnershipError("no checkout at bundle")
+        return SimpleNamespace(
+            checkout_dir=gate.resolve(),
+            primary_checkout_dir=primary.resolve(),
+            project="sase",
+        )
+
+    monkeypatch.setattr(ownership, "user_directed_context", fake_user_directed_context)
+    monkeypatch.setenv("SASE_GATE_COMMAND", "1")
+    monkeypatch.setenv("SASE_GATE_WORKSPACE_DIR", str(gate.resolve()))
+
+    start, source = symbol_scan_start_detail_for_operation_context(context)
+    assert start == gate.resolve()
+    assert source == "gate"
+    # The inherited checkout removed the definition, so the guard passes
+    # even though the primary checkout still defines it.
+    raise_if_surviving_flag_definition(
+        [_flag_issue("sase-abc")], start=start, start_source=source
+    )
+
+    with pytest.raises(_LeftoverEpicSymbolsError, match="rule 7"):
+        raise_if_surviving_flag_definition(
+            [_flag_issue("sase-abc")], start=primary.resolve(), start_source="primary"
+        )

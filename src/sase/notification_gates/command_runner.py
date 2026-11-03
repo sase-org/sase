@@ -39,6 +39,12 @@ _PROC_FD_DIR = Path("/proc/self/fd")
 #: across a proc boundary and silently drop human mobile/Telegram rows).
 GATE_COMMAND_ENV = "SASE_GATE_COMMAND"
 
+#: Inherited checkout exported into ``inherit`` gate-turn commands so
+#: ``sase bead close`` can guard against the tree the gate turn inherits
+#: instead of the routed owner's primary workspace. Never exported for
+#: ``release`` policy or non-turn gates; the cwd stays the bundle directory.
+GATE_WORKSPACE_ENV = "SASE_GATE_WORKSPACE_DIR"
+
 
 def run_owned_command(
     bundle_path: Path,
@@ -63,6 +69,9 @@ def run_owned_command(
         argv, pass_fds = _exec_target(command_fd, command_path, command_argv)
         try:
             command_env = {**os.environ, GATE_COMMAND_ENV: "1"}
+            inherited = _gate_inherited_workspace_dir(bundle_path)
+            if inherited is not None:
+                command_env[GATE_WORKSPACE_ENV] = str(inherited)
             if on_output_line is not None:
                 return _run_command_streaming(
                     argv,
@@ -99,6 +108,48 @@ def run_owned_command(
             ) from exc
     finally:
         os.close(command_fd)
+
+
+def _gate_inherited_workspace_dir(bundle_path: Path) -> Path | None:
+    """Return the checkout an ``inherit`` gate turn inherits, if resolvable.
+
+    Reuses the existing gate-turn lookup from the bundle's request id; any
+    failure (no turn, ``release`` policy, missing meta, non-directory value)
+    returns ``None`` so the caller falls back to the primary workspace.
+    """
+    try:
+        request_id = bundle_path.name
+        if not request_id:
+            return None
+        from sase.gate_turn.store import find_gate_turn_by_gate_id
+
+        record = find_gate_turn_by_gate_id(None, request_id)
+        if record is None:
+            return None
+        if record.workspace_policy != "inherit":
+            return None
+        artifacts = Path(record.artifacts_dir).expanduser()
+        meta_path = artifacts / "agent_meta.json"
+        try:
+            import json
+
+            data = json.loads(meta_path.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            return None
+        if not isinstance(data, dict):
+            return None
+        raw = data.get("workspace_dir")
+        if not isinstance(raw, str) or not raw:
+            return None
+        candidate = Path(raw).expanduser()
+        try:
+            if not candidate.is_dir():
+                return None
+        except OSError:
+            return None
+        return candidate
+    except Exception:
+        return None
 
 
 def _exec_target(
@@ -365,6 +416,7 @@ def _sha256_fd(fd: int) -> str:
 
 __all__ = [
     "GATE_COMMAND_ENV",
+    "GATE_WORKSPACE_ENV",
     "decode_json_result",
     "decode_output",
     "record_execution_error",
