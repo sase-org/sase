@@ -152,13 +152,8 @@ def _runner_ctx_from_monitor_metadata(
     if _is_current_in_process_member(continuation, run_metadata):
         return _runner_ctx_for_in_process_member(continuation, run_metadata)
     from sase.core.agent_identity_facade import normalize_owned_agent_name
-    from sase.plan_chain import (
-        AGENT_SESSION_SEPARATOR,
-        PLAN_CHAIN_PLAN_SUFFIX,
-        agent_session_base,
-        agent_session_role_value,
-        agent_session_value,
-        canonical_plan_chain_suffix,
+    from sase.agent._agent_session_promotion import (
+        is_exact_agent_session_root_promotion,
     )
 
     ctx = continuation.ctx
@@ -172,23 +167,13 @@ def _runner_ctx_from_monitor_metadata(
     expected_base = (
         normalize_owned_agent_name(ctx.agent_name) if ctx.agent_name else None
     )
-    suffix = (
-        persisted_name[len(expected_base) :]
-        if expected_base
-        and persisted_name.startswith(f"{expected_base}{AGENT_SESSION_SEPARATOR}")
-        else ""
-    )
     valid_promotion = (
         isinstance(active_meta_name, str)
         and active_meta_name == ctx.agent_name
         and expected_base is not None
-        and suffix in {f"{AGENT_SESSION_SEPARATOR}0", PLAN_CHAIN_PLAN_SUFFIX}
-        and canonical_plan_chain_suffix(suffix) == suffix
-        and agent_session_base(persisted_name) == expected_base
-        and agent_session_value(run_metadata) == expected_base
-        and run_metadata.get("workflow_name") == expected_base
-        and agent_session_role_value(run_metadata) == "root"
-        and run_metadata.get("role_suffix") == suffix
+        and is_exact_agent_session_root_promotion(
+            persisted_name, expected_base, run_metadata
+        )
     )
     if not valid_promotion:
         raise StagedHandoffError(

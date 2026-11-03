@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from hashlib import sha256
 import json
+import os
 from pathlib import Path
 from typing import Any
 from unittest.mock import MagicMock
@@ -36,6 +37,14 @@ from sase.llm_provider.commit_finalizer_types import DirtyRepo, DirtyState
 from sase.llm_provider.types import InvokeResult
 from sase.monitor.delivery import HOST_COMPLETION_RECEIPT_FILENAME
 from sase.monitor.host_completion_state import install_prepared_declaration
+from sase.monitor.diagnostics import diagnostic_manifest_path
+from sase.monitor.host_completion import (
+    HOST_COMPLETION_IDENTITY,
+    settle_host_completion,
+)
+from sase.monitor.output import OutputCapture
+from sase.finalizers._prepare_reservations import reserve_prepared_intent
+from sase.finalizers.declaration import SASE_FINAL_TURN_NONCE_ENV
 
 from .finalizer_declaration_channel_test_helpers import (
     prepare_dirty_declaration,
@@ -47,6 +56,7 @@ from .finalizers_protocol_harness_test_helpers import (
     patch_dirty as patch_controller_dirty,
     prepare_agent_env,
     run_controller,
+    successful_stitch,
 )
 
 
@@ -403,6 +413,75 @@ def test_plan_digest_drift_refuses_adapter_coverage(
     assert "changed_finalizer_requirements" in decision.reasons
 
 
+def test_non_root_rename_does_not_reuse_prepared_creator_identity(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    prepare_dirty_declaration(monkeypatch, tmp_path)
+    monkeypatch.setenv("SASE_HOME", str(tmp_path / ".sase"))
+    (tmp_path / "agent_meta.json").write_text(
+        json.dumps({"name": "agent-1"}), encoding="utf-8"
+    )
+    sealed, prepared, _observations, repo_id = _seal_prepared(monkeypatch, tmp_path)
+    _stage_monitor(
+        monkeypatch,
+        tmp_path,
+        prepared_intent_ref=prepared.intent_ref,
+        reservation=_reservation(),
+    )
+    from sase.agent._agent_session_promotion import promote_agent_to_agent_session
+
+    promote_agent_to_agent_session(tmp_path, "agent-1")
+    metadata_path = tmp_path / "agent_meta.json"
+    metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
+    metadata["name"] = "agent-1--1"
+    metadata["role_suffix"] = "--1"
+    metadata_path.write_text(json.dumps(metadata), encoding="utf-8")
+
+    decision = evaluate_prepared_starter_coverage_for_artifacts(
+        tmp_path,
+        plan_digest=sealed.context.plan_digest,
+        obligation_ids=[repo_id],
+        run_id=sealed.context.run_id,
+        agent_id="agent-1--1",
+    )
+
+    assert decision.eligible is False
+    assert decision.reason == "prepared_creator_agent_mismatch"
+
+
+def test_different_run_does_not_reuse_prepared_creator_identity(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    prepare_dirty_declaration(monkeypatch, tmp_path)
+    monkeypatch.setenv("SASE_HOME", str(tmp_path / ".sase"))
+    (tmp_path / "agent_meta.json").write_text(
+        json.dumps({"name": "agent-1"}), encoding="utf-8"
+    )
+    sealed, prepared, _observations, repo_id = _seal_prepared(monkeypatch, tmp_path)
+    _stage_monitor(
+        monkeypatch,
+        tmp_path,
+        prepared_intent_ref=prepared.intent_ref,
+        reservation=_reservation(),
+    )
+    from sase.agent._agent_session_promotion import promote_agent_to_agent_session
+
+    promote_agent_to_agent_session(tmp_path, "agent-1")
+
+    decision = evaluate_prepared_starter_coverage_for_artifacts(
+        tmp_path,
+        plan_digest=sealed.context.plan_digest,
+        obligation_ids=[repo_id],
+        run_id="different-run",
+        agent_id="agent-1--0",
+    )
+
+    assert decision.eligible is False
+    assert decision.reason == "prepared_creator_run_mismatch"
+
+
 def test_uncovered_new_work_still_requires_submission(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -464,32 +543,59 @@ def test_uncovered_new_work_still_requires_submission(
     assert extra_ids[0] not in coverage["covered_repository_ids"]
 
 
-def test_reserved_starter_green_execution_skips_commit_hooks(
+def test_promoted_prepared_starter_and_nonce_free_host_completion_commit_on_green(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     repo = tmp_path / "repo"
     repo.mkdir()
     artifacts = tmp_path / "artifacts"
+    artifacts.mkdir()
     prepare_agent_env(monkeypatch, artifacts, repo)
+    monkeypatch.setenv("SASE_HOME", str(tmp_path / ".sase"))
+    monkeypatch.setenv("SASE_WORKSPACE_NUM", "20")
+    (artifacts / "agent_meta.json").write_text(
+        json.dumps({"name": "agent-1"}), encoding="utf-8"
+    )
     dirty = {"repos": (dirty_repo(repo),)}
     patch_controller_dirty(monkeypatch, repo, dirty)
     from sase.finalizers.plan import resolve_and_persist_finalizer_plan
     from sase.macro.directives import PromptDirectives
+    from sase.agent._agent_session_promotion import promote_agent_to_agent_session
+    from sase.core.continuation_wire import CONTINUATION_WIRE_SCHEMA_VERSION
 
     resolve_and_persist_finalizer_plan(PromptDirectives(), artifacts_dir=str(artifacts))
-    _sealed, prepared, _observations, repo_id = _seal_prepared(monkeypatch, artifacts)
+    _sealed, prepared, observations, repo_id = _seal_prepared(
+        monkeypatch, artifacts, command=["just", "check-full"]
+    )
+    reservation = {
+        "staged_id": _STAGED_ID,
+        "monitor_id": _MONITOR_ID,
+        "request_fingerprint": _FINGERPRINT,
+        "command": ["just", "check-full"],
+    }
+    reserve_prepared_intent(prepared.intent_ref, reservation, artifacts_dir=artifacts)
     _stage_monitor(
         monkeypatch,
         artifacts,
         prepared_intent_ref=prepared.intent_ref,
-        reservation=_reservation(),
+        reservation=reservation,
     )
-    stitch = MagicMock(return_value=StitchCommandResult(returncode=0, stdout="ok\n"))
-    pin = MagicMock(return_value=("pin", None))
-    monkeypatch.setattr("sase.finalizers.commit_execution.run_stitch_create", stitch)
+    assert promote_agent_to_agent_session(artifacts, "agent-1") == "agent-1--0"
+    promoted_publication = publish_final_context(artifacts_dir=str(artifacts))
+    assert promoted_publication.submission_required is False
+    assert promoted_publication.payload["commit_declaration"]["prepared_coverage"][
+        "covered_repository_ids"
+    ] == [repo_id]
+
+    host_stitches: list[str] = []
     monkeypatch.setattr(
-        "sase.finalizers.commit_dispatch._maybe_write_revision_pin", pin
+        "sase.finalizers.commit_execution.run_stitch_create",
+        successful_stitch(artifacts, dirty, host_stitches),
+    )
+    monkeypatch.setattr(
+        "sase.finalizers.commit_dispatch._maybe_write_revision_pin",
+        lambda *_args, **_kwargs: ("pin", None),
     )
 
     result = run_controller(artifacts)
@@ -508,11 +614,97 @@ def test_reserved_starter_green_execution_skips_commit_hooks(
     )
     assert parsed["repo_id"] == repo_id
     assert parsed["staged_ref"] == _STAGED_ID
-    stitch.assert_not_called()
-    pin.assert_not_called()
+    assert host_stitches == []
     assert not (artifacts / FINAL_SUBMISSION_FILENAME).exists()
     assert not (artifacts / "commit_results.json").exists()
     assert dirty["repos"] == (dirty_repo(repo),)
+
+    bound = bind_prepared_completion(
+        prepared.intent_ref,
+        monitor_id=_MONITOR_ID,
+        command=["just", "check-full"],
+        request_fingerprint=_FINGERPRINT,
+        staged_id=_STAGED_ID,
+        artifacts_dir=artifacts,
+    )
+    assert bound["status"] == "bound"
+    stages = [
+        {
+            "stage_id": stage_id,
+            "name": name,
+            "status": "passed",
+            "exit_code": 0,
+            "diagnostic_refs": [],
+            "counts": {},
+            "retained_ranges": [],
+            "capture_errors": [],
+        }
+        for stage_id, name in (
+            ("formatting", "fmt (python)"),
+            ("ruff", "lint (ruff)"),
+            ("mypy", "lint (mypy)"),
+            ("validation", "SASE validation"),
+            ("full_tests", "test (full)"),
+        )
+    ]
+    manifest_path = diagnostic_manifest_path(artifacts)
+    manifest_path.parent.mkdir(parents=True, exist_ok=True)
+    manifest_path.write_text(
+        json.dumps(
+            {"schema_version": CONTINUATION_WIRE_SCHEMA_VERSION, "stages": stages}
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(
+        "sase.monitor.host_completion_state.observe_completion_repositories",
+        lambda _root: observations,
+    )
+    monkeypatch.delenv(SASE_FINAL_TURN_NONCE_ENV, raising=False)
+    monkeypatch.setattr(
+        "sase.monitor.host_completion_execute._NoModelProvider.invoke",
+        lambda *_args, **_kwargs: pytest.fail(
+            "host completion must not invoke a model"
+        ),
+    )
+    host_meta = {
+        "monitor_id": _MONITOR_ID,
+        "monitor_completion_ref": prepared.intent_ref,
+        "monitor_profile": "verify",
+        "monitor_command": "just check-full",
+        "monitor_execution_argv": ["just", "check-full"],
+        "workspace_dir": "/ws/20",
+        "workspace_num": 20,
+        "continuation_workspace_ref": "/ws/20",
+        "continuation_monitor_result_id": "result-1",
+        "monitor_next_action": "Diagnose failures or stale verification, then finish.",
+        "name": "agent-1--0",
+    }
+    host_result = settle_host_completion(
+        str(artifacts),
+        host_meta,
+        monitor_state="completed",
+        exit_code=0,
+        elapsed_seconds=182,
+        project_name="proj",
+        launch_recovery=lambda *_args, **_kwargs: pytest.fail(
+            "green prepared completion must not launch recovery"
+        ),
+        release_claim=lambda *_args, **_kwargs: None,
+        capture=OutputCapture(),
+        selected_action="complete",
+    )
+    assert host_result is not None
+    assert host_result.launch_result is not None
+    assert host_result.launch_result.host_completed is True
+    assert host_result.launch_result.agent_name == HOST_COMPLETION_IDENTITY
+    assert os.environ.get(SASE_FINAL_TURN_NONCE_ENV)
+    assert host_stitches == ["main"]
+    assert dirty["repos"] == ()
+    host_receipt = json.loads(
+        (artifacts / HOST_COMPLETION_RECEIPT_FILENAME).read_text(encoding="utf-8")
+    )
+    assert host_receipt["status"] == "completed"
+    assert host_receipt["commit_receipts"]
 
 
 def test_ineligible_red_execution_does_not_commit(

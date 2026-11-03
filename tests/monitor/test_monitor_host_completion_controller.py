@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import inspect
 import json
+import os
 from pathlib import Path
 from typing import Any
 
@@ -12,7 +13,10 @@ import pytest
 from sase.core.continuation_facade import bind_conditional_completion
 from sase.core.continuation_wire import CONTINUATION_WIRE_SCHEMA_VERSION
 from sase.finalizers.commit import StitchCommandResult
-from sase.finalizers.declaration import publish_final_context
+from sase.finalizers.declaration import (
+    SASE_FINAL_TURN_NONCE_ENV,
+    publish_final_context,
+)
 from sase.finalizers.plan import resolve_and_persist_finalizer_plan
 from sase.finalizers.prepare import (
     persist_prepared_completion,
@@ -249,6 +253,7 @@ def test_real_controller_success_uses_zero_model_calls(
     monkeypatch.setattr(
         "sase.monitor.host_completion_execute._NoModelProvider.invoke", track_invoke
     )
+    monkeypatch.delenv(SASE_FINAL_TURN_NONCE_ENV, raising=False)
 
     result = settle_host_completion(
         str(artifacts),
@@ -269,11 +274,27 @@ def test_real_controller_success_uses_zero_model_calls(
     assert result.launch_result.agent_name == HOST_COMPLETION_IDENTITY
     assert recoveries == []
     assert invokes == []
+    assert os.environ.get(SASE_FINAL_TURN_NONCE_ENV)
     assert calls == ["main"]
     receipt = load_host_completion_receipt(artifacts)
     assert receipt is not None
     assert receipt["status"] == "completed"
     assert "Required checks passed in 3m 02s." in str(receipt.get("published_message"))
+
+
+def test_finalizer_process_binding_preserves_existing_nonce(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from sase.monitor.host_completion_state import _bind_finalizer_process_identity
+
+    artifacts = tmp_path / "run-1"
+    artifacts.mkdir()
+    monkeypatch.setenv(SASE_FINAL_TURN_NONCE_ENV, "starter-nonce")
+
+    _bind_finalizer_process_identity(str(artifacts))
+
+    assert os.environ[SASE_FINAL_TURN_NONCE_ENV] == "starter-nonce"
 
 
 @pytest.mark.parametrize(

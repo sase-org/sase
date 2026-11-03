@@ -25,6 +25,7 @@ from sase.finalizers.controller import FinalizerControllerError
 from sase.finalizers.declaration import (
     SASE_FINAL_TURN_NONCE_ENV,
     FinalizerDeclarationError,
+    mint_finalizer_turn_nonce,
     publish_final_context,
     submit_final_manifest,
 )
@@ -113,6 +114,8 @@ def install_prepared_declaration(
 def _publication_for_prepared_install(artifacts_dir: str, publication: Any) -> Any:
     """Refresh context so starter prepared satisfaction cannot trap install."""
 
+    _bind_finalizer_process_identity(artifacts_dir)
+
     if getattr(publication, "submission_required", True) is not False:
         return publication
     context = getattr(publication, "context", None)
@@ -176,6 +179,8 @@ def _bind_finalizer_process_identity(artifacts_dir: str) -> None:
     """Bind this monitor member's process identity for finalizer calls."""
     os.environ.setdefault("SASE_AGENT_TIMESTAMP", Path(artifacts_dir).name)
     os.environ["SASE_ARTIFACTS_DIR"] = artifacts_dir
+    if not (os.environ.get(SASE_FINAL_TURN_NONCE_ENV) or "").strip():
+        os.environ[SASE_FINAL_TURN_NONCE_ENV] = mint_finalizer_turn_nonce()
 
 
 def evaluate_intent(

@@ -172,7 +172,9 @@ def evaluate_prepared_starter_coverage_for_artifacts(
         "staged_id": str(record.get("staged_id") or ""),
         "staged_kind": str(record.get("kind") or ""),
         "starter_run_id": run_id,
-        "starter_agent_id": agent_id,
+        "starter_agent_id": _prepared_creator_agent_id(
+            root, intent, run_id=run_id, resolved_agent_id=agent_id
+        ),
         "monitor_id": monitor_id,
         "command": command,
         "request_fingerprint": fingerprint,
@@ -214,6 +216,45 @@ def _live_observations(root: Path) -> list[dict[str, Any]]:
 
     observed = prepare_facade.observe_completion_repositories(root)
     return [dict(item) for item in observed if isinstance(item, Mapping)]
+
+
+def _prepared_creator_agent_id(
+    root: Path,
+    intent: Mapping[str, Any],
+    *,
+    run_id: str,
+    resolved_agent_id: str,
+) -> str:
+    """Restore the sealed creator name only for its exact stage-time promotion."""
+    seal = intent.get("seal")
+    creator = seal.get("creator") if isinstance(seal, Mapping) else None
+    if not isinstance(creator, Mapping):
+        return resolved_agent_id
+    creator_run_id = creator.get("run_id")
+    creator_name = creator.get("agent_name")
+    if (
+        creator_run_id != run_id
+        or not isinstance(creator_name, str)
+        or not creator_name
+    ):
+        return resolved_agent_id
+    try:
+        metadata = json.loads(
+            (Path(root) / "agent_meta.json").read_text(encoding="utf-8")
+        )
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError):
+        return resolved_agent_id
+    if not isinstance(metadata, Mapping):
+        return resolved_agent_id
+    from sase.agent._agent_session_promotion import (
+        is_exact_agent_session_root_promotion,
+    )
+
+    if is_exact_agent_session_root_promotion(
+        metadata.get("name"), creator_name, metadata
+    ):
+        return creator_name
+    return resolved_agent_id
 
 
 def _request_identity(

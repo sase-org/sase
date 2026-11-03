@@ -15,6 +15,8 @@ from sase.plan_chain import (
     AGENT_SESSION_SEPARATOR,
     PLAN_CHAIN_PLAN_SUFFIX,
     PLAN_CHAIN_ROOT_FIELD,
+    agent_session_base,
+    agent_session_role_value,
     agent_session_value,
     canonical_plan_chain_suffix,
     set_agent_session_fields,
@@ -61,6 +63,30 @@ def normalized_agent_session_root_role_suffix(role_suffix: str | None) -> str:
     if canonical_plan_chain_suffix(role_suffix) == PLAN_CHAIN_PLAN_SUFFIX:
         return _PLAN_ROOT_SUFFIX
     return _GENERIC_ROOT_SUFFIX
+
+
+def is_exact_agent_session_root_promotion(
+    persisted_name: object,
+    base_name: str,
+    metadata: Mapping[str, object],
+) -> bool:
+    """Return whether metadata is the exact first root promotion of *base_name*."""
+    if not base_name or not isinstance(persisted_name, str) or not persisted_name:
+        return False
+    suffix = (
+        persisted_name[len(base_name) :]
+        if persisted_name.startswith(f"{base_name}{AGENT_SESSION_SEPARATOR}")
+        else ""
+    )
+    return (
+        suffix in {_GENERIC_ROOT_SUFFIX, _PLAN_ROOT_SUFFIX}
+        and canonical_plan_chain_suffix(suffix) == suffix
+        and agent_session_base(persisted_name) == base_name
+        and agent_session_value(metadata) == base_name
+        and metadata.get("workflow_name") == base_name
+        and agent_session_role_value(metadata) == "root"
+        and metadata.get("role_suffix") == suffix
+    )
 
 
 def promote_agent_session_parent_for_attach(
@@ -240,6 +266,7 @@ def _write_json_atomic(path: Path, data: Mapping[str, object]) -> None:
 
 __all__ = [
     "agent_session_root_role_suffix",
+    "is_exact_agent_session_root_promotion",
     "normalized_agent_session_root_role_suffix",
     "promote_agent_to_agent_session",
     "promote_agent_session_parent_for_attach",
