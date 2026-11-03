@@ -15,7 +15,7 @@ from pathlib import Path
 from typing import Any
 
 
-INVENTORY_SCHEMA_VERSION = 1
+INVENTORY_SCHEMA_VERSION = 2
 JOB_BUNDLE_SCHEMA_VERSION = 1
 EVIDENCE_SCHEMA_VERSION = 1
 QUALIFICATION_SCHEMA_VERSION = 1
@@ -95,8 +95,8 @@ def load_inventory(raw: bytes) -> dict[str, Any]:
         raise QualificationInputError("qualification inventory root must be an object")
     _require_keys(
         inventory,
-        {"schema_version", "admission_policy", "checks"},
-        {"schema_version", "admission_policy", "checks"},
+        {"schema_version", "admission_policy", "merge_gate", "checks"},
+        {"schema_version", "admission_policy", "merge_gate", "checks"},
         where="qualification inventory",
     )
     if inventory["schema_version"] != INVENTORY_SCHEMA_VERSION:
@@ -104,6 +104,29 @@ def load_inventory(raw: bytes) -> dict[str, Any]:
             "unknown qualification inventory schema_version "
             f"{inventory['schema_version']!r}; expected {INVENTORY_SCHEMA_VERSION}"
         )
+
+    # These are the release PR's checks. Master Gate evaluates its own jobs.
+    merge_gate = inventory["merge_gate"]
+    if not isinstance(merge_gate, dict):
+        raise QualificationInputError("merge_gate must be an object")
+    _require_keys(
+        merge_gate,
+        {"required_checks"},
+        {"required_checks"},
+        where="merge_gate",
+    )
+    required = merge_gate["required_checks"]
+    if not isinstance(required, list) or not required:
+        raise QualificationInputError(
+            "merge_gate.required_checks must be a nonempty list"
+        )
+    if any(
+        not isinstance(name, str) or not name.strip() or name != name.strip()
+        for name in required
+    ):
+        raise QualificationInputError("merge_gate.required_checks has an invalid name")
+    if len(set(required)) != len(required):
+        raise QualificationInputError("merge_gate.required_checks has duplicate names")
 
     policy = inventory["admission_policy"]
     if not isinstance(policy, dict):

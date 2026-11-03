@@ -28,6 +28,11 @@ from tests._release_watch_facts_contract_cases import (
     test_train_reader_matches_and_rejects_conflicting_pypi_digests,
 )  # noqa: F401
 
+from tests._release_watch_merge_gate_cases import (
+    test_master_records_local_inventory_without_branch_protection,
+    test_missing_or_malformed_inventory_is_unreadable,
+)  # noqa: F401
+
 
 pytestmark = pytest.mark.contract
 

@@ -6,6 +6,10 @@ orchestration, and output. Shared eligibility, precedence, idempotency-key,
 and escalation policy live in ``sase_core`` and are called through
 ``sase_core_rs``. There is no Python policy fallback.
 
+The release PR merge gate comes from this checkout's versioned
+``.github/release-qualification.json`` inventory. Master Gate is checked
+separately: every job at master HEAD must succeed.
+
 Modes (mutually exclusive; ``--once`` is the default when none is selected):
 
 * ``--once/-o``: one read-only decision.

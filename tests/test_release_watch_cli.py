@@ -33,7 +33,7 @@ def _decision(
     evidence: list[Any] | None = None,
 ) -> dict[str, Any]:
     return {
-        "schema_version": 1,
+        "schema_version": 2,
         "primary": {"kind": kind},
         "details": details,
         "evidence": evidence or ["https://example.test/evidence"],

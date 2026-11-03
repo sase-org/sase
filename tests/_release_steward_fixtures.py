@@ -13,7 +13,7 @@ HEAD = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
 PIN = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
 CORE_VERSION = "0.50.0"
 NOON = "2026-10-19T12:00:00Z"
-SCHEMA = 1
+SCHEMA = 2
 
 
 def ready(value: Any) -> dict[str, Any]:
@@ -103,11 +103,16 @@ def releasable_snapshot() -> dict[str, Any]:
                 "sha": HEAD,
                 "gate_run": green_gate_run(HEAD),
                 "expected_required_checks": [
-                    {"name": "tests", "source": "branch protection"},
-                    {"name": "lint", "source": "branch protection"},
+                    {"name": name, "source": "release-qualification inventory"}
+                    for name in (
+                        "Conventional PR title",
+                        "prepare",
+                        "release-core-floor-smoke",
+                    )
                 ],
-                "expected_checks_source": "branch protection",
+                "expected_checks_source": "release-qualification inventory",
                 "expected_checks_readable": True,
+                "inventory_digest": "d" * 64,
             }
         ),
         "release_pr": ready(
@@ -117,7 +122,14 @@ def releasable_snapshot() -> dict[str, Any]:
                 "source_pin": PIN,
                 "exact_public_core_pin": CORE_VERSION,
                 "labels": ["autorelease: pending"],
-                "checks": [success_check("tests"), success_check("lint")],
+                "checks": [
+                    success_check(name)
+                    for name in (
+                        "Conventional PR title",
+                        "prepare",
+                        "release-core-floor-smoke",
+                    )
+                ],
                 "merge_history": [],
                 "stale_head": False,
                 "pin_changed": False,

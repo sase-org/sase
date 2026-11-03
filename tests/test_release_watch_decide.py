@@ -63,7 +63,7 @@ def test_adapter_consumes_registered_binding(
     def fake_decide(request: dict[str, Any]) -> dict[str, Any]:
         seen["request"] = request
         return {
-            "schema_version": 1,
+            "schema_version": 2,
             "primary": {
                 "kind": "releasable",
                 "pr_number": 42,
@@ -96,7 +96,7 @@ def test_adapter_consumes_registered_binding(
         SimpleNamespace(release_steward_decide=fake_decide),
     )
     result = tool.decide(releasable_request())
-    assert seen["request"]["schema_version"] == 1
+    assert seen["request"]["schema_version"] == 2
     assert result["primary"]["kind"] == "releasable"
     assert result["train_action"]["disposition"] == "proposed"
     assert result["process_exit"] == 0
@@ -131,5 +131,16 @@ def test_real_binding_round_trip_when_installed(tool: ModuleType) -> None:
         pytest.skip("installed sase_core_rs predates release_steward_decide")
     result = tool.decide(releasable_request())
     assert result["primary"]["kind"] == "releasable"
+    assert result["schema_version"] == 2
+    assert sase_core_rs.release_steward_wire_schema_version() == 2
     assert result["process_exit"] == 0
     assert result["train_action"]["disposition"] != "executed"
+
+
+@pytest.mark.parametrize("version", [1, 2, 3])
+def test_validator_requires_current_steward_wire(version: int) -> None:
+    from tests._validate_sase_core_rs_tool_helpers import load_validate_sase_core_rs
+
+    validator = load_validate_sase_core_rs()
+    module = SimpleNamespace(release_steward_wire_schema_version=lambda: version)
+    assert validator._validate_release_steward_wire_schema(module) is (version == 2)

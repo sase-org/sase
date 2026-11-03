@@ -248,7 +248,7 @@ def test_complete_snapshot_feeds_real_binding() -> None:
     facts, health = full_world()
     snapshot = facts.collect_snapshot(observed_at=OBSERVED, health=health)
     request = {
-        "schema_version": 1,
+        "schema_version": decide_tool.RELEASE_STEWARD_WIRE_SCHEMA_VERSION,
         "observed_at": OBSERVED_ISO,
         "policy": {
             "merge_authority_enabled": True,

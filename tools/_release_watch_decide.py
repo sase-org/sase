@@ -14,7 +14,7 @@ from __future__ import annotations
 from collections.abc import Mapping
 from typing import Any
 
-RELEASE_STEWARD_WIRE_SCHEMA_VERSION = 1
+RELEASE_STEWARD_WIRE_SCHEMA_VERSION = 2
 BINDING_NAME = "release_steward_decide"
 EXTENSION_MODULE = "sase_core_rs"
 

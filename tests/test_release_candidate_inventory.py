@@ -45,6 +45,12 @@ def test_n1_inventory_is_single_versioned_classification(tool: ModuleType) -> No
     exercise = next(entry for entry in checks if entry["evidence_kind"] == "exercise")
     assert len(exercise["required_legs"]) == 4
     assert inventory["admission_policy"]["id"] == "master-gate"
+    assert inventory["schema_version"] == 2
+    assert inventory["merge_gate"]["required_checks"] == [
+        "Conventional PR title",
+        "prepare",
+        "release-core-floor-smoke",
+    ]
     assert tool._qualification.inventory_digest(
         raw
     ) != tool._qualification.inventory_digest(raw + b" ")
@@ -66,7 +72,7 @@ def test_qualification_evaluator_loads_its_focused_helpers(tool: ModuleType) -> 
     ("mutate", "message"),
     [
         (
-            lambda value: value.update(schema_version=2),
+            lambda value: value.update(schema_version=999),
             "unknown qualification inventory schema",
         ),
         (lambda value: value.update(checks=[]), "no release checks"),
@@ -110,6 +116,26 @@ def test_inventory_duplicate_json_keys_fail_closed(tool: ModuleType) -> None:
         tool._qualification.load_inventory(
             b'{"schema_version":1,"schema_version":1,"admission_policy":{},"checks":[]}'
         )
+
+
+@pytest.mark.parametrize(
+    "merge_gate",
+    [
+        None,
+        {},
+        {"required_checks": []},
+        {"required_checks": "smoke"},
+        {"required_checks": [""]},
+        {"required_checks": [1]},
+        {"required_checks": [" smoke "]},
+        {"required_checks": ["smoke", "smoke"]},
+    ],
+)
+def test_invalid_merge_gate_fails_closed(tool: ModuleType, merge_gate: object) -> None:
+    _, inventory = qualification_inventory(tool)
+    inventory["merge_gate"] = merge_gate
+    with pytest.raises(tool._qualification.QualificationInputError, match="merge_gate"):
+        tool._qualification.load_inventory(json.dumps(inventory).encode())
 
 
 def test_qualification_pass_archives_bound_evidence_and_advisories(

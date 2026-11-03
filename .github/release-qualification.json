@@ -1,5 +1,12 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
+  "merge_gate": {
+    "required_checks": [
+      "Conventional PR title",
+      "prepare",
+      "release-core-floor-smoke"
+    ]
+  },
   "admission_policy": {
     "id": "master-gate",
     "workflow": ".github/workflows/master-gate.yml",

@@ -21,6 +21,11 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
+from _release_qualification_inventory import (
+    QualificationInputError,
+    inventory_digest,
+    load_inventory_file,
+)
 from _release_watch_transport import (
     GithubTransport,
     PypiTransport,
@@ -405,6 +410,7 @@ class ReleaseFactsReader:
         pypi: Any | None = None,
         candidate_runner: Any = subprocess.run,
         candidate_script: Path | None = None,
+        inventory_path: Path | None = None,
     ) -> None:
         if not re.fullmatch(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+", repo):
             raise ValueError("repo must be owner/repository")
@@ -413,6 +419,9 @@ class ReleaseFactsReader:
         self.pypi = pypi or PypiTransport()
         self.candidate_runner = candidate_runner
         self.candidate_script = candidate_script
+        self.inventory_path = inventory_path or (
+            Path(__file__).resolve().parents[1] / ".github/release-qualification.json"
+        )
 
     def _api(self, path: str, params: dict[str, object] | None = None) -> object:
         base = f"repos/{self.repo}"
@@ -460,32 +469,23 @@ class ReleaseFactsReader:
         branch = _required_str(payload, "default_branch", "repository")
         return {"owner": owner, "name": name, "default_branch": branch}
 
-    def _required_checks(self) -> tuple[list[dict[str, str]], bool]:
-        source = f"repos/{self.repo}/branches/master/protection/required_status_checks"
+    def _merge_gate(self) -> tuple[list[dict[str, str]], str]:
+        """Read the release-PR gate from the steward checkout's N1 inventory.
+
+        Branch protection need not exist. Invalid or missing inventory remains
+        unreadable, never an empty gate that could authorize a merge.
+        """
         try:
-            payload = _mapping(self.github.json(source), "required status checks")
-        except Exception:
-            # An unprotected branch or a credential without this read permission
-            # cannot establish the authoritative expected set.
-            return [], False
-        names: set[str] = set()
-        for context in _list(payload.get("contexts", []), "required checks.contexts"):
-            if not isinstance(context, str) or not context.strip():
-                raise ReleaseFactsError(
-                    "required checks.contexts contains an invalid name"
-                )
-            names.add(context.strip())
-        for index, raw in enumerate(
-            _list(payload.get("checks", []), "required checks.checks")
-        ):
-            item = _mapping(raw, f"required checks.checks[{index}]")
-            names.add(
-                _required_str(item, "context", f"required checks.checks[{index}]")
-            )
-        ordered = [
-            {"name": name, "source": "branch protection"} for name in sorted(names)
-        ]
-        return ordered, bool(ordered)
+            raw, inventory = load_inventory_file(self.inventory_path)
+        except QualificationInputError as exc:
+            raise ReleaseFactsError(f"cannot read merge gate: {exc}") from exc
+        return (
+            [
+                {"name": name, "source": "release-qualification inventory"}
+                for name in inventory["merge_gate"]["required_checks"]
+            ],
+            inventory_digest(raw),
+        )
 
     def _git_file(self, path: str, ref: str) -> str:
         payload = _mapping(
@@ -1070,9 +1070,6 @@ class ReleaseFactsReader:
                 newest[check["name"]] = check
         return [newest[name] for name in sorted(newest)]
 
-    def _expected_checks(self) -> tuple[list[dict[str, str]], bool]:
-        return self._required_checks()
-
     def _checks_for_head(
         self, sha: str, expected: list[dict[str, str]]
     ) -> list[dict[str, Any]]:
@@ -1097,7 +1094,7 @@ class ReleaseFactsReader:
         sha = _required_str(target, "sha", "master ref").lower()
         if not _SHA_RE.fullmatch(sha):
             raise ReleaseFactsError("master ref SHA is invalid")
-        expected, expected_readable = self._expected_checks()
+        expected, digest = self._merge_gate()
         raw_runs = self._workflow_run_rows(
             MASTER_GATE_WORKFLOW,
             since=observed_at - HISTORY_LOOKBACK,
@@ -1124,8 +1121,9 @@ class ReleaseFactsReader:
             "sha": sha,
             "gate_run": gate_run,
             "expected_required_checks": expected,
-            "expected_checks_source": "branch protection",
-            "expected_checks_readable": expected_readable,
+            "expected_checks_source": "release-qualification inventory",
+            "expected_checks_readable": True,
+            "inventory_digest": digest,
         }
 
     def _pull_rows(self) -> list[dict[str, Any]]:
@@ -1933,7 +1931,7 @@ class ReleaseFactsReader:
         master_fact = self._fact(
             "master",
             lambda: self._master_facts(now),
-            "restore read access to master, branch protection, and Actions",
+            "restore the local release-qualification inventory and read access to master and Actions",
         )
         release_records_fact = self._fact(
             "releases",

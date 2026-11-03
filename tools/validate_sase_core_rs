@@ -45,7 +45,12 @@ EXPECTED_EDITOR_SNIPPET_CATALOG_WIRE_SCHEMA_VERSION = 2
 # sase.core.footprint_facade.FOOTPRINT_WIRE_SCHEMA_VERSION.
 EXPECTED_FOOTPRINT_WIRE_SCHEMA_VERSION = 1
 
+# Keep in lockstep with tools/_release_watch_decide.py and sase-core.
+EXPECTED_RELEASE_STEWARD_WIRE_SCHEMA_VERSION = 2
+
 REQUIRED_BINDINGS = (
+    "release_steward_decide",
+    "release_steward_wire_schema_version",
     "parse_patch_project_bytes",
     "parse_project_bytes",
     "parse_query",
@@ -3692,6 +3697,21 @@ def _parse_args(argv: list[str] | None) -> argparse.Namespace:
     return parser.parse_args(argv)
 
 
+def _validate_release_steward_wire_schema(module: ModuleType) -> bool:
+    try:
+        actual = module.release_steward_wire_schema_version()
+    except Exception as exc:
+        _error(f"release_steward_wire_schema_version() probe failed: {exc}")
+        return False
+    if actual != EXPECTED_RELEASE_STEWARD_WIRE_SCHEMA_VERSION:
+        _error(
+            f"release steward schema {actual!r} does not match "
+            f"{EXPECTED_RELEASE_STEWARD_WIRE_SCHEMA_VERSION}; rebuild the extension"
+        )
+        return False
+    return True
+
+
 def main(argv: list[str] | None = None) -> int:
     namespace = _parse_args(argv)
     if not _validate_installed_version(
@@ -3702,6 +3722,8 @@ def main(argv: list[str] | None = None) -> int:
     if module is None:
         return 1
     if not _validate_bindings(module):
+        return 1
+    if not _validate_release_steward_wire_schema(module):
         return 1
     if not _validate_artifact_ref_schemas(module):
         return 1

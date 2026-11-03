@@ -45,7 +45,7 @@ def request(*, abandoned: bool = False) -> dict[str, Any]:
         "confirmation_complete": False,
     }
     return {
-        "schema_version": 1,
+        "schema_version": 2,
         "observed_at": "2026-10-20T12:00:00Z",
         "policy": {"tick_identity": "run-500/attempt-1"},
         "snapshot": {
@@ -85,7 +85,7 @@ def abandon_action() -> dict[str, Any]:
 
 def decision(action: dict[str, Any] | None) -> dict[str, Any]:
     return {
-        "schema_version": 1,
+        "schema_version": 2,
         "primary": {"kind": "qualify_red", "signature": "n1", "recovered": False},
         "details": "qualification retries exhausted",
         "evidence": [],
