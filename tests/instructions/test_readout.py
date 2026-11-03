@@ -1,777 +1,98 @@
-"""Tests for ``sase instructions readout`` classification and aggregation."""
+"""Readout classification and aggregation tests.
+
+This module is a facade preserving the original import path. The tests
+now live in :mod:`tests.instructions.test_readout_cli`,
+:mod:`tests.instructions.test_readout_classify`,
+:mod:`tests.instructions.test_readout_build`,
+:mod:`tests.instructions.test_readout_staged`, and
+:mod:`tests.instructions.test_readout_adapter`; shared fixtures live
+in :mod:`tests.instructions._readout_support`. Only public names are
+re-exported here, never ``_``-private helpers.
+"""
 
 from __future__ import annotations
 
-import json
-from datetime import UTC, datetime
-from pathlib import Path
+# The re-exported tests must not be collected twice: pytest collects
+# this module (zero tests) and each home module (the real tests).
+__test__ = False
 
-import pytest
-
-from sase.instructions._readout_build import (
-    _delivery_mode_for_dir,
-    _is_excluded_run,
-    _is_research_run,
+from tests.instructions._readout_support import RUN_END, RUN_START
+from tests.instructions.test_readout_adapter import (
+    test_adapter_binding_rejects_unknown_handoff,
+    test_adapter_binding_scores_evidence_matrix,
 )
-from sase.instructions._readout_classify import classify_artifact_dir
-from sase.instructions.readout import (
-    ACCEPTED,
-    MISS,
-    MONITOR_PLAIN,
-    MONITOR_PREPARED,
-    NOT_REQUIRED,
-    OTHER_HANDOFF,
-    PLAN_HANDOFF,
-    UNKNOWN,
-    build_readout,
+from tests.instructions.test_readout_build import (
+    test_build_readout_excludes_monitor_and_gate,
+    test_build_readout_groups_modes_and_research,
+    test_build_readout_memory_join,
+    test_build_readout_missing_done_is_unknown,
+    test_build_readout_window_bounds,
+    test_delivery_mode_split,
 )
-from sase.instructions.run_index import ScoredRun
-from sase.main.parser import create_parser
-from tests.instructions.fixture_shadow import write_shadow_run
-from tests.main.parser_help_helpers import (
-    assert_metavar_option_documented as _assert_metavar_option_documented,
+from tests.instructions.test_readout_classify import (
+    test_classify_aborted_handoff_is_miss,
+    test_classify_handoff_beats_accepted_submission,
+    test_classify_host_handoff_beats_accepted,
+    test_classify_host_monitor_plain_without_tool_calls,
+    test_classify_host_monitor_prepared_from_intents,
+    test_classify_host_other_handoff,
+    test_classify_host_plan_handoff,
+    test_classify_miss,
+    test_classify_monitor_prepared_needs_real_prepare,
+    test_classify_not_required,
+    test_classify_other_handoff,
+    test_classify_plan_handoff,
 )
-from tests.main.parser_help_helpers import flat_help, parser_for
-
-RUN_START = datetime(2026, 10, 6, 11, tzinfo=UTC)
-RUN_END = datetime(2026, 10, 6, 13, tzinfo=UTC)
-
-
-def _write_meta(
-    artifacts: Path,
-    *,
-    name: str,
-    provider: str,
-    started_at: str = "2026-10-06T11:00:00Z",
-    role: str | None = None,
-    extra: dict[str, object] | None = None,
-) -> None:
-    payload: dict[str, object] = {
-        "name": name,
-        "llm_provider": provider,
-        "workspace_dir": "/work/synthetic",
-        "run_started_at": started_at,
-    }
-    if role is not None:
-        payload["agent_session_role"] = role
-    if extra:
-        payload.update(extra)
-    (artifacts / "agent_meta.json").write_text(json.dumps(payload), encoding="utf-8")
-
-
-_HANDOFF_PHASE = {
-    "lifecycle_phases": [{"phase": "handoff", "at": "2026-10-06T12:00:00Z"}]
-}
-
-
-def _write_done(artifacts: Path) -> None:
-    (artifacts / "done.json").write_text(
-        json.dumps({"outcome": "completed", "finished_at": 1791000000}),
-        encoding="utf-8",
-    )
-
-
-def _make_run(
-    provider: str,
-    name: str,
-    artifacts: Path,
-    *,
-    started_at: datetime = RUN_START,
-) -> ScoredRun:
-    return ScoredRun(
-        provider=provider,
-        name=name,
-        workspace_dir="/work/synthetic",
-        artifact_dir=str(artifacts),
-        started_at=started_at,
-        ended_at=RUN_END,
-        project="fixture",
-    )
-
-
-@pytest.fixture(autouse=True)
-def _passthrough_manifest_normalize(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(
-        "sase.core.instruction_manifest.normalize_instruction_manifest",
-        lambda payload: payload,
-    )
-
-
-def test_readout_parser_options_are_alphabetical_with_short_aliases() -> None:
-    """Every ``readout`` value-taking option keeps its short alias."""
-    args = create_parser().parse_args(
-        [
-            "instructions",
-            "readout",
-            "-j",
-            "-p",
-            "codex",
-            "-p",
-            "claude",
-            "-s",
-            "7d",
-            "-u",
-            "2026-10-02T00:00:00Z",
-        ]
-    )
-    assert args.instructions_subcommand == "readout"
-    assert args.json is True
-    assert args.provider == ["codex", "claude"]
-    assert args.since == "7d"
-    assert args.until == "2026-10-02T00:00:00Z"
-
-
-def test_readout_help_documents_flags() -> None:
-    """``readout -h`` names every option and the reporting contract."""
-    help_text = flat_help(parser_for(("sase", "instructions", "readout")).format_help())
-    assert "-j, --json" in help_text
-    _assert_metavar_option_documented(help_text, "-p", "--provider", "PROVIDER")
-    _assert_metavar_option_documented(help_text, "-s", "--since", "WHEN")
-    _assert_metavar_option_documented(help_text, "-u", "--until", "WHEN")
-    assert "reports; it does not gate" in help_text
-
-
-def test_classify_handoff_beats_accepted_submission(tmp_path: Path) -> None:
-    """A recognized handoff keeps its class despite an accepted submission."""
-    artifacts = tmp_path / "accepted"
-    artifacts.mkdir()
-    _write_meta(artifacts, name="acc", provider="codex")
-    _write_done(artifacts)
-    (artifacts / "final_submission.json").write_text(
-        json.dumps({"accepted_at": "2026-10-06T12:00:00Z"}), encoding="utf-8"
-    )
-    (artifacts / "tool_calls.jsonl").write_text(
-        "sase monitor start -p verify -- just check\n", encoding="utf-8"
-    )
-    assert classify_artifact_dir(artifacts) == MONITOR_PLAIN
-
-
-def test_classify_plan_handoff(tmp_path: Path) -> None:
-    """``sase plan propose`` is a plan handoff."""
-    artifacts = tmp_path / "plan-propose"
-    artifacts.mkdir()
-    _write_meta(artifacts, name="pln", provider="muse")
-    _write_done(artifacts)
-    (artifacts / "tool_calls.jsonl").write_text("sase plan propose\n", encoding="utf-8")
-    assert classify_artifact_dir(artifacts) == PLAN_HANDOFF
-
-
-def test_classify_monitor_prepared_needs_real_prepare(tmp_path: Path) -> None:
-    """A prepared monitor needs a real prepare before the monitor start.
-
-    A naive ``has final_submission.json`` check misses this case entirely:
-    there is no submission, yet the run handed off through a prepared
-    declaration. A bare ``-h`` help call never counts as the prepare.
-    """
-    artifacts = tmp_path / "prepared"
-    artifacts.mkdir()
-    _write_meta(artifacts, name="mon", provider="codex")
-    _write_done(artifacts)
-    (artifacts / "tool_calls.jsonl").write_text(
-        "sase final prepare /tmp/wrapper.json -j\n"
-        "sase monitor start -p verify -- just check\n",
-        encoding="utf-8",
-    )
-    assert classify_artifact_dir(artifacts) == MONITOR_PREPARED
-
-    help_only = tmp_path / "help-only"
-    help_only.mkdir()
-    _write_meta(help_only, name="mon2", provider="codex")
-    _write_done(help_only)
-    (help_only / "tool_calls.jsonl").write_text(
-        "sase final prepare -h\nsase monitor start -p verify -- just check\n",
-        encoding="utf-8",
-    )
-    assert classify_artifact_dir(help_only) == MONITOR_PLAIN
-
-
-def test_classify_other_handoff(tmp_path: Path) -> None:
-    """Pipe, questions, and handoff count as other recognized handoffs."""
-    for marker in ("sase pipe", "sase questions", "sase handoff"):
-        artifacts = tmp_path / f"other-{marker.split()[-1]}"
-        artifacts.mkdir()
-        _write_meta(artifacts, name="oth", provider="grok")
-        _write_done(artifacts)
-        (artifacts / "tool_calls.jsonl").write_text(f"{marker} ...\n", encoding="utf-8")
-        assert classify_artifact_dir(artifacts) == OTHER_HANDOFF
-
-
-def test_classify_not_required(tmp_path: Path) -> None:
-    """``submission_required: false`` in final_context means not required."""
-    artifacts = tmp_path / "notreq"
-    artifacts.mkdir()
-    _write_meta(artifacts, name="nr", provider="claude")
-    _write_done(artifacts)
-    (artifacts / "final_context.json").write_text(
-        json.dumps({"submission_required": False}), encoding="utf-8"
-    )
-    (artifacts / "tool_calls.jsonl").write_text("", encoding="utf-8")
-    assert classify_artifact_dir(artifacts) == NOT_REQUIRED
-
-
-def test_classify_host_monitor_plain_without_tool_calls(tmp_path: Path) -> None:
-    """A lifecycle handoff plus ``monitor_id`` is a plain monitor handoff."""
-    artifacts = tmp_path / "host-mon"
-    artifacts.mkdir()
-    _write_meta(
-        artifacts,
-        name="10f--code",
-        provider="grok",
-        extra={
-            **_HANDOFF_PHASE,
-            "monitor_id": "9m6zn3csd5wf",
-            "monitor_member_agent_name": "10f--mon",
-        },
-    )
-    _write_done(artifacts)
-    assert classify_artifact_dir(artifacts) == MONITOR_PLAIN
-
-
-def test_classify_host_monitor_prepared_from_intents(tmp_path: Path) -> None:
-    """Prepared monitor uses ``completion_intents/index.json`` intents."""
-    artifacts = tmp_path / "host-prep"
-    artifacts.mkdir()
-    _write_meta(
-        artifacts,
-        name="prep",
-        provider="codex",
-        extra={**_HANDOFF_PHASE, "monitor_id": "monid"},
-    )
-    _write_done(artifacts)
-    index = artifacts / "continuation" / "completion_intents" / "index.json"
-    index.parent.mkdir(parents=True)
-    index.write_text(
-        json.dumps({"intents": {"intent-1": {"filename": "intent-1.json"}}}),
-        encoding="utf-8",
-    )
-    assert classify_artifact_dir(artifacts) == MONITOR_PREPARED
-
-
-def test_classify_host_plan_handoff(tmp_path: Path) -> None:
-    """``plan_path.json`` with a handoff phase is a plan handoff."""
-    artifacts = tmp_path / "host-plan"
-    artifacts.mkdir()
-    _write_meta(artifacts, name="pln", provider="muse", extra=_HANDOFF_PHASE)
-    _write_done(artifacts)
-    (artifacts / "plan_path.json").write_text(
-        json.dumps({"plan_path": "/tmp/plan.md"}), encoding="utf-8"
-    )
-    assert classify_artifact_dir(artifacts) == PLAN_HANDOFF
-
-
-def test_classify_host_other_handoff(tmp_path: Path) -> None:
-    """A handoff phase with no plan or monitor markers is other."""
-    artifacts = tmp_path / "host-other"
-    artifacts.mkdir()
-    _write_meta(artifacts, name="oth", provider="grok", extra=_HANDOFF_PHASE)
-    _write_done(artifacts)
-    assert classify_artifact_dir(artifacts) == OTHER_HANDOFF
-
-
-def test_classify_aborted_handoff_is_miss(tmp_path: Path) -> None:
-    """``handoff_aborted.json`` is never a handoff, even with a handoff phase."""
-    artifacts = tmp_path / "aborted"
-    artifacts.mkdir()
-    _write_meta(
-        artifacts,
-        name="aborted",
-        provider="grok",
-        extra={**_HANDOFF_PHASE, "monitor_id": "monid"},
-    )
-    _write_done(artifacts)
-    (artifacts / "handoff_aborted.json").write_text("{}", encoding="utf-8")
-    (artifacts / "tool_calls.jsonl").write_text(
-        "sase monitor start -p verify -- just check\n", encoding="utf-8"
-    )
-    assert classify_artifact_dir(artifacts) == MISS
-
-
-def test_classify_host_handoff_beats_accepted(tmp_path: Path) -> None:
-    """Host handoff facts keep their class despite an accepted submission."""
-    artifacts = tmp_path / "accepted-host"
-    artifacts.mkdir()
-    _write_meta(
-        artifacts,
-        name="acc",
-        provider="codex",
-        extra={**_HANDOFF_PHASE, "monitor_id": "monid"},
-    )
-    _write_done(artifacts)
-    (artifacts / "final_submission.json").write_text(
-        json.dumps({"accepted_at": "2026-10-06T12:00:00Z"}), encoding="utf-8"
-    )
-    (artifacts / "plan_path.json").write_text("{}", encoding="utf-8")
-    assert classify_artifact_dir(artifacts) == PLAN_HANDOFF
-
-
-def test_classify_miss(tmp_path: Path) -> None:
-    """No declaration, handoff, or waiver is a miss."""
-    artifacts = tmp_path / "miss"
-    artifacts.mkdir()
-    _write_meta(artifacts, name="ms", provider="claude")
-    _write_done(artifacts)
-    (artifacts / "final_context.json").write_text(
-        json.dumps({"submission_required": True}), encoding="utf-8"
-    )
-    (artifacts / "tool_calls.jsonl").write_text("sase bead read\n", encoding="utf-8")
-    assert classify_artifact_dir(artifacts) == MISS
-
-
-def test_delivery_mode_split(tmp_path: Path) -> None:
-    """Explicit, legacy (shadow), and pre-E2 (none) modes split correctly."""
-    artifacts, manifest, _ = write_shadow_run(tmp_path, provider="codex")
-    mode, _ = _delivery_mode_for_dir(artifacts)
-    assert mode == "legacy"
-    manifest["delivery"]["status"] = "explicit"
-    manifest["delivery"]["channel"] = "codex.developer_instructions"
-    (artifacts / "instructions" / "00-codex.json").write_text(
-        json.dumps(manifest, indent=2, sort_keys=True) + "\n", encoding="utf-8"
-    )
-    mode, _ = _delivery_mode_for_dir(artifacts)
-    assert mode == "explicit"
-    inherits = tmp_path / "inherits"
-    inherits.mkdir()
-    (inherits / "instructions").mkdir()
-    (inherits / "instructions" / "00-codex.json").write_text(
-        json.dumps(
-            {
-                "facts": {"purpose": "ordinary"},
-                "delivery": {"status": "inherits_native"},
-            }
-        ),
-        encoding="utf-8",
-    )
-    mode, _ = _delivery_mode_for_dir(inherits)
-    assert mode == "legacy"
-    bare = tmp_path / "bare"
-    bare.mkdir()
-    mode, _ = _delivery_mode_for_dir(bare)
-    assert mode == "none"
-
-
-def test_build_readout_groups_modes_and_research(tmp_path: Path) -> None:
-    """Rows split by provider × mode, with research in its own rows."""
-    main_dir, _, _ = write_shadow_run(tmp_path, provider="codex")
-    _write_meta(main_dir, name="coder", provider="codex")
-    _write_done(main_dir)
-    (main_dir / "final_submission.json").write_text("{}", encoding="utf-8")
-    research_dir, _, _ = write_shadow_run(
-        tmp_path, provider="codex", artifacts_dir=tmp_path / "research-run"
-    )
-    _write_meta(research_dir, name="research.7.cdx", provider="codex")
-    _write_done(research_dir)
-    scored = [
-        _make_run("codex", "coder", main_dir),
-        _make_run("codex", "research.7.cdx", research_dir),
-    ]
-    payload = build_readout(scored, since=None, until=None, providers=())
-    assert payload["schema_version"] == 1
-    rows = payload["rows"]
-    assert all(r["provider"] == "codex" for r in rows)
-    assert any(r["is_research"] is False for r in rows)
-    assert any(r["is_research"] is True for r in rows)
-    assert all(r["total"] == 1 for r in rows)
-
-
-def test_build_readout_excludes_monitor_and_gate(tmp_path: Path) -> None:
-    """Monitor and gate turns never enter the readout."""
-    mon_dir = tmp_path / "mon"
-    mon_dir.mkdir()
-    _write_meta(mon_dir, name="x--mon", provider="claude", role="monitor")
-    _write_done(mon_dir)
-    assert _is_excluded_run({"agent_session_role": "monitor"}) is True
-    assert _is_excluded_run({"role_suffix": "--gate"}) is True
-    assert _is_research_run("research.1.cdx", {}) is True
-    assert _is_research_run("coder", {}) is False
-    scored = [_make_run("claude", "x--mon", mon_dir)]
-    payload = build_readout(scored, since=None, until=None, providers=())
-    assert payload["rows"] == []
-
-
-def test_build_readout_window_bounds(tmp_path: Path) -> None:
-    """Only runs with started_at inside [since, until] are counted."""
-    from datetime import timedelta
-
-    early, _, _ = write_shadow_run(tmp_path, provider="muse")
-    _write_meta(early, name="early", provider="muse")
-    _write_done(early)
-    (early / "final_submission.json").write_text("{}", encoding="utf-8")
-    late, _, _ = write_shadow_run(
-        tmp_path, provider="muse", artifacts_dir=tmp_path / "late-run"
-    )
-    _write_meta(late, name="late", provider="muse")
-    _write_done(late)
-    scored = [
-        _make_run("muse", "early", early, started_at=RUN_START),
-        _make_run("muse", "late", late, started_at=RUN_START + timedelta(days=30)),
-    ]
-    payload = build_readout(
-        scored,
-        since=RUN_START - timedelta(hours=1),
-        until=RUN_START + timedelta(hours=1),
-        providers=(),
-    )
-    assert sum(r["total"] for r in payload["rows"]) == 1
-
-
-def test_build_readout_missing_done_is_unknown(tmp_path: Path) -> None:
-    """An old run without done.json counts as unknown, not a miss."""
-    from datetime import timedelta
-
-    artifacts = tmp_path / "old-nodone"
-    artifacts.mkdir()
-    _write_meta(artifacts, name="old", provider="grok")
-    (artifacts / "tool_calls.jsonl").write_text("sase bead read\n", encoding="utf-8")
-    old_start = datetime(2026, 9, 15, tzinfo=UTC)
-    scored = [
-        ScoredRun(
-            provider="grok",
-            name="old",
-            workspace_dir="/work/synthetic",
-            artifact_dir=str(artifacts),
-            started_at=old_start,
-            ended_at=None,
-            project="fixture",
-        )
-    ]
-    payload = build_readout(
-        scored, since=old_start - timedelta(hours=1), until=None, providers=()
-    )
-    rows = [r for r in payload["rows"] if r["provider"] == "grok"]
-    assert rows
-    row = rows[0]
-    assert row["unknown"] == 1
-    assert row["miss"] == 0
-    assert row["misses"].startswith("≤0/")
-
-
-def test_build_readout_memory_join(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """Memory reads join by artifacts_dir for mean and share columns."""
-    from sase.core import paths as paths_mod
-
-    projects = tmp_path / "projects"
-    projects.mkdir()
-    monkeypatch.setattr(paths_mod, "sase_projects_dir", lambda: projects)
-    first, _, _ = write_shadow_run(tmp_path, provider="codex")
-    _write_meta(first, name="one", provider="codex")
-    _write_done(first)
-    (first / "final_submission.json").write_text("{}", encoding="utf-8")
-    second, _, _ = write_shadow_run(
-        tmp_path, provider="codex", artifacts_dir=tmp_path / "second-run"
-    )
-    _write_meta(second, name="two", provider="codex")
-    _write_done(second)
-    log = projects / "proj" / "memory_reads.jsonl"
-    log.parent.mkdir(parents=True)
-    log.write_text(
-        json.dumps(
-            {
-                "agent_name": "one",
-                "artifacts_dir": str(first),
-                "timestamp": "2026-10-06T12:00:00+00:00",
-            }
-        )
-        + "\n"
-        + json.dumps(
-            {
-                "agent_name": "one",
-                "artifacts_dir": str(first),
-                "timestamp": "2026-10-06T12:01:00+00:00",
-            }
-        )
-        + "\n",
-        encoding="utf-8",
-    )
-    scored = [
-        _make_run("codex", "one", first),
-        _make_run("codex", "two", second),
-    ]
-    payload = build_readout(scored, since=None, until=None, providers=())
-    row = next(r for r in payload["rows"] if r["provider"] == "codex")
-    assert row["total"] == 2
-    assert row["memory_mean"] == 1.0
-    assert row["memory_share"] == 0.5
-
-
-def test_readout_rejects_bad_since() -> None:
-    """A bare ``-s 24`` is a clean CLI error (exit 2), not a traceback."""
-    from sase.main.instructions_handler import _run_instructions_readout
-
-    args = create_parser().parse_args(["instructions", "readout", "-s", "24"])
-    assert _run_instructions_readout(args) == 2
-
-
-_STAGED_ID = "11111111-1111-1111-1111-111111111111"
-
-
-def _write_staged_record(
-    artifacts: Path,
-    *,
-    kind: str = "plan",
-    dirty: tuple[str, ...] = (),
-    payload: dict[str, object] | None = None,
-    staged_id: str = _STAGED_ID,
-) -> None:
-    """Write a staged-handoff record the way the staging handlers persist it."""
-    record = {
-        "schema_version": 1,
-        "staged_id": staged_id,
-        "kind": kind,
-        "created_at": "2026-10-06T12:00:00Z",
-        "payload": payload if payload is not None else {},
-        "successor_workspace": "none" if kind == "plan" else "inherit",
-        "carry_allowed": kind != "plan",
-        "dirty_obligations_at_stage": list(dirty),
-    }
-    (artifacts / ".sase_handoff_staged.json").write_text(
-        json.dumps(record), encoding="utf-8"
-    )
-
-
-def _write_final_context(artifacts: Path, *, submission_required: bool = True) -> None:
-    (artifacts / "final_context.json").write_text(
-        json.dumps(
-            {
-                "schema_version": 1,
-                "submission_required": submission_required,
-                "selected_instances": [],
-                "context": {"requirements": []},
-            }
-        ),
-        encoding="utf-8",
-    )
-
-
-def _write_intents(artifacts: Path) -> None:
-    index = artifacts / "continuation" / "completion_intents" / "index.json"
-    index.parent.mkdir(parents=True, exist_ok=True)
-    index.write_text(
-        json.dumps({"intents": {"intent-1": {"filename": "intent-1.json"}}}),
-        encoding="utf-8",
-    )
-
-
-def test_staged_plan_with_dirty_missing_declaration_is_miss(tmp_path: Path) -> None:
-    """A held staged handoff with a missing required declaration is a miss.
-
-    There is no adopted handoff lifecycle entry here: the staged record
-    alone establishes the handoff, and the dirty stage snapshot plus a
-    requiring final context make the missing declaration a miss.
-    """
-    artifacts = tmp_path / "held-staged"
-    artifacts.mkdir()
-    _write_meta(artifacts, name="held", provider="codex")
-    _write_done(artifacts)
-    _write_staged_record(artifacts, kind="plan", dirty=("repo:main",))
-    _write_final_context(artifacts, submission_required=True)
-    assert classify_artifact_dir(artifacts) == MISS
-
-
-def test_staged_plan_clean_missing_declaration_keeps_class(tmp_path: Path) -> None:
-    """A clean staged handoff without a declaration keeps its class.
-
-    The host can complete a clean handoff without a model-submitted
-    declaration, so a missing declaration is not a miss here.
-    """
-    artifacts = tmp_path / "clean-staged"
-    artifacts.mkdir()
-    _write_meta(artifacts, name="clean", provider="codex")
-    _write_done(artifacts)
-    _write_staged_record(artifacts, kind="plan", dirty=())
-    assert classify_artifact_dir(artifacts) == PLAN_HANDOFF
-
-
-def test_staged_handoff_beats_accepted_submission(tmp_path: Path) -> None:
-    """A recognized handoff keeps its class even with an accepted declaration."""
-    artifacts = tmp_path / "staged-accepted"
-    artifacts.mkdir()
-    _write_meta(artifacts, name="acc", provider="codex")
-    _write_done(artifacts)
-    _write_staged_record(artifacts, kind="plan", dirty=())
-    (artifacts / "final_submission.json").write_text(
-        json.dumps({"accepted_at": "2026-10-06T12:00:00Z"}), encoding="utf-8"
-    )
-    assert classify_artifact_dir(artifacts) == PLAN_HANDOFF
-
-
-def test_staged_not_required_keeps_handoff_class(tmp_path: Path) -> None:
-    """An explicitly not-required declaration keeps the staged handoff class."""
-    artifacts = tmp_path / "staged-notreq"
-    artifacts.mkdir()
-    _write_meta(artifacts, name="nr", provider="codex")
-    _write_done(artifacts)
-    _write_staged_record(artifacts, kind="monitor", dirty=())
-    _write_final_context(artifacts, submission_required=False)
-    assert classify_artifact_dir(artifacts) == MONITOR_PLAIN
-
-
-def test_staged_prepared_monitor_needs_validated_intent(tmp_path: Path) -> None:
-    """A staged prepared ref alone is a plain monitor without stored intents."""
-    prepared = tmp_path / "staged-prepared"
-    prepared.mkdir()
-    _write_meta(prepared, name="prep", provider="codex")
-    _write_done(prepared)
-    _write_staged_record(
-        prepared,
-        kind="monitor",
-        dirty=(),
-        payload={"prepared_intent_ref": "intent-1"},
-    )
-    _write_intents(prepared)
-    assert classify_artifact_dir(prepared) == MONITOR_PREPARED
-
-    unvalidated = tmp_path / "staged-unvalidated"
-    unvalidated.mkdir()
-    _write_meta(unvalidated, name="unval", provider="codex")
-    _write_done(unvalidated)
-    _write_staged_record(
-        unvalidated,
-        kind="monitor",
-        dirty=(),
-        payload={"prepared_intent_ref": "intent-1"},
-    )
-    assert classify_artifact_dir(unvalidated) == MONITOR_PLAIN
-
-
-def test_legacy_killed_handoff_preserved_with_required_declaration(
-    tmp_path: Path,
-) -> None:
-    """Old kill-protocol handoffs are not rescored as missing declarations."""
-    artifacts = tmp_path / "killed"
-    artifacts.mkdir()
-    _write_meta(
-        artifacts,
-        name="old",
-        provider="codex",
-        extra={**_HANDOFF_PHASE, "handoff_protocol": "killed"},
-    )
-    _write_done(artifacts)
-    (artifacts / "plan_path.json").write_text(
-        json.dumps({"plan_path": "/tmp/plan.md"}), encoding="utf-8"
-    )
-    _write_final_context(artifacts, submission_required=True)
-    assert classify_artifact_dir(artifacts) == PLAN_HANDOFF
-
-
-def test_plan_validate_alone_is_not_handoff(tmp_path: Path) -> None:
-    """A mere plan validation never establishes a handoff."""
-    artifacts = tmp_path / "validate-only"
-    artifacts.mkdir()
-    _write_meta(artifacts, name="val", provider="codex")
-    _write_done(artifacts)
-    (artifacts / "tool_calls.jsonl").write_text(
-        "sase plan validate\n", encoding="utf-8"
-    )
-    _write_final_context(artifacts, submission_required=True)
-    assert classify_artifact_dir(artifacts) == MISS
-
-
-def test_help_invocations_are_not_handoffs(tmp_path: Path) -> None:
-    """Help output for staging commands never establishes a handoff."""
-    artifacts = tmp_path / "help-only"
-    artifacts.mkdir()
-    _write_meta(artifacts, name="help", provider="codex")
-    _write_done(artifacts)
-    (artifacts / "tool_calls.jsonl").write_text(
-        "sase plan propose -h\nsase monitor start --help\n", encoding="utf-8"
-    )
-    _write_final_context(artifacts, submission_required=True)
-    assert classify_artifact_dir(artifacts) == MISS
-
-
-def test_aborted_with_accepted_submission_is_accepted(tmp_path: Path) -> None:
-    """An aborted handoff with an accepted declaration stays accepted."""
-    artifacts = tmp_path / "aborted-accepted"
-    artifacts.mkdir()
-    _write_meta(artifacts, name="aborted", provider="grok")
-    _write_done(artifacts)
-    (artifacts / "handoff_aborted.json").write_text("{}", encoding="utf-8")
-    (artifacts / "final_submission.json").write_text(
-        json.dumps({"accepted_at": "2026-10-06T12:00:00Z"}), encoding="utf-8"
-    )
-    assert classify_artifact_dir(artifacts) == ACCEPTED
-
-
-def test_adapter_binding_scores_evidence_matrix() -> None:
-    """The thin adapter defers to the Rust readout policy without a fallback."""
-    from sase.core.instruction_readout import classify_instruction_readout
-
-    assert (
-        classify_instruction_readout(
-            {
-                "handoff": "plan",
-                "declaration": "accepted",
-                "has_dirty_obligations": True,
-            }
-        )
-        == PLAN_HANDOFF
-    )
-    assert (
-        classify_instruction_readout(
-            {
-                "handoff": "monitor_prepared",
-                "declaration": "not_required",
-                "has_dirty_obligations": True,
-            }
-        )
-        == MONITOR_PREPARED
-    )
-    assert (
-        classify_instruction_readout(
-            {
-                "handoff": "plan",
-                "declaration": "missing",
-                "has_dirty_obligations": False,
-            }
-        )
-        == PLAN_HANDOFF
-    )
-    assert (
-        classify_instruction_readout(
-            {
-                "handoff": "plan",
-                "declaration": "missing",
-                "has_dirty_obligations": True,
-            }
-        )
-        == MISS
-    )
-    assert (
-        classify_instruction_readout(
-            {
-                "handoff": None,
-                "declaration": "accepted",
-                "has_dirty_obligations": False,
-            }
-        )
-        == ACCEPTED
-    )
-    assert (
-        classify_instruction_readout(
-            {
-                "handoff": None,
-                "declaration": "missing",
-                "has_dirty_obligations": False,
-            }
-        )
-        == MISS
-    )
-
-
-def test_adapter_binding_rejects_unknown_handoff() -> None:
-    """Unknown handoff evidence is a contract error, not a silent class."""
-    from sase.core.instruction_readout import (
-        _InstructionReadoutError,
-        classify_instruction_readout,
-    )
-
-    with pytest.raises(_InstructionReadoutError):
-        classify_instruction_readout(
-            {
-                "handoff": "future_kind",
-                "declaration": "accepted",
-                "has_dirty_obligations": False,
-            }
-        )
+from tests.instructions.test_readout_cli import (
+    test_readout_help_documents_flags,
+    test_readout_parser_options_are_alphabetical_with_short_aliases,
+    test_readout_rejects_bad_since,
+)
+from tests.instructions.test_readout_staged import (
+    test_aborted_with_accepted_submission_is_accepted,
+    test_help_invocations_are_not_handoffs,
+    test_legacy_killed_handoff_preserved_with_required_declaration,
+    test_plan_validate_alone_is_not_handoff,
+    test_staged_handoff_beats_accepted_submission,
+    test_staged_not_required_keeps_handoff_class,
+    test_staged_plan_clean_missing_declaration_keeps_class,
+    test_staged_plan_with_dirty_missing_declaration_is_miss,
+    test_staged_prepared_monitor_needs_validated_intent,
+)
+
+__all__ = [
+    "RUN_END",
+    "RUN_START",
+    "test_aborted_with_accepted_submission_is_accepted",
+    "test_adapter_binding_rejects_unknown_handoff",
+    "test_adapter_binding_scores_evidence_matrix",
+    "test_build_readout_excludes_monitor_and_gate",
+    "test_build_readout_groups_modes_and_research",
+    "test_build_readout_memory_join",
+    "test_build_readout_missing_done_is_unknown",
+    "test_build_readout_window_bounds",
+    "test_classify_aborted_handoff_is_miss",
+    "test_classify_handoff_beats_accepted_submission",
+    "test_classify_host_handoff_beats_accepted",
+    "test_classify_host_monitor_plain_without_tool_calls",
+    "test_classify_host_monitor_prepared_from_intents",
+    "test_classify_host_other_handoff",
+    "test_classify_host_plan_handoff",
+    "test_classify_miss",
+    "test_classify_monitor_prepared_needs_real_prepare",
+    "test_classify_not_required",
+    "test_classify_other_handoff",
+    "test_classify_plan_handoff",
+    "test_delivery_mode_split",
+    "test_help_invocations_are_not_handoffs",
+    "test_legacy_killed_handoff_preserved_with_required_declaration",
+    "test_plan_validate_alone_is_not_handoff",
+    "test_readout_help_documents_flags",
+    "test_readout_parser_options_are_alphabetical_with_short_aliases",
+    "test_readout_rejects_bad_since",
+    "test_staged_handoff_beats_accepted_submission",
+    "test_staged_not_required_keeps_handoff_class",
+    "test_staged_plan_clean_missing_declaration_keeps_class",
+    "test_staged_plan_with_dirty_missing_declaration_is_miss",
+    "test_staged_prepared_monitor_needs_validated_intent",
+]
