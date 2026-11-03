@@ -26,10 +26,8 @@ from sase.continuation_capture.rollout import (
 from sase.monitor.followup import FollowupLaunchResult
 from sase.monitor.models import MONITOR_FOLLOWUP_DEGRADED_OUTCOME
 from sase.monitor.output import OutputCapture
-from sase.monitor.settlement import (
-    _release_monitor_claim,
-    settle_claim_and_followup,
-)
+from sase.monitor._settlement_retention import release_monitor_claim
+from sase.monitor.settlement import settle_claim_and_followup
 from sase.running_field import WorkspaceClaim, get_claimed_workspaces
 
 from ._fixtures import make_starter_agent, write_project_file
@@ -365,7 +363,7 @@ def test_blocked_continuation_capture_retains_dirty(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """Blocked dispatch (records protocol) retains instead of direct release."""
-    import sase.monitor.settlement as settlement
+    import sase.monitor._settlement_followup as settlement
 
     repo = _init_repo(tmp_path / "ws", dirty=True)
     artifacts_dir, project_file = _make_monitor(
@@ -431,7 +429,7 @@ def test_same_workspace_successor_does_not_hold(tmp_path: Path) -> None:
     )
     persist_delivery_record(artifacts_dir, acknowledged)
 
-    error = _release_monitor_claim(
+    error = release_monitor_claim(
         meta, project_name="proj", artifacts_dir=artifacts_dir
     )
 
@@ -447,7 +445,7 @@ def test_stale_launch_label_without_proof_retains_dirty(tmp_path: Path) -> None:
     )
     meta = _read_meta(artifacts_dir)
 
-    error = _release_monitor_claim(
+    error = release_monitor_claim(
         meta, project_name="proj", artifacts_dir=artifacts_dir
     )
 
@@ -469,7 +467,7 @@ def test_prepared_completion_success_releases_clean(tmp_path: Path) -> None:
     artifacts_dir, project_file = _make_monitor(repo, outcome=HOST_COMPLETED_OUTCOME)
     meta = _read_meta(artifacts_dir)
 
-    error = _release_monitor_claim(
+    error = release_monitor_claim(
         meta, project_name="proj", artifacts_dir=artifacts_dir
     )
 
@@ -483,7 +481,7 @@ def test_prepared_completion_failure_retains_dirty(tmp_path: Path) -> None:
     artifacts_dir, project_file = _make_monitor(repo, outcome="not-launchable")
     meta = _read_meta(artifacts_dir)
 
-    error = _release_monitor_claim(
+    error = release_monitor_claim(
         meta, project_name="proj", artifacts_dir=artifacts_dir
     )
 
@@ -543,7 +541,7 @@ def test_resume_transfer_settles_retention_record(tmp_path: Path) -> None:
     artifacts_dir, _project_file = _make_monitor(repo)
     meta = _read_meta(artifacts_dir)
     assert (
-        _release_monitor_claim(meta, project_name="proj", artifacts_dir=artifacts_dir)
+        release_monitor_claim(meta, project_name="proj", artifacts_dir=artifacts_dir)
         is None
     )
     assert _retention_record(artifacts_dir) is not None
@@ -614,7 +612,7 @@ def test_resume_degraded_and_failed_leave_hold(tmp_path: Path) -> None:
         )
         meta = _read_meta(artifacts_dir)
         assert (
-            _release_monitor_claim(
+            release_monitor_claim(
                 meta, project_name="proj", artifacts_dir=artifacts_dir
             )
             is None
@@ -637,7 +635,7 @@ def test_stale_claim_is_noop(tmp_path: Path) -> None:
     meta["pid"] = 999999999
     _write_meta(artifacts_dir, meta)
 
-    error = _release_monitor_claim(
+    error = release_monitor_claim(
         meta, project_name="proj", artifacts_dir=artifacts_dir
     )
 
@@ -718,7 +716,7 @@ def test_dirty_linked_repo_beyond_eighth_still_retains(tmp_path: Path) -> None:
     _write_monitor_baselines(artifacts_dir, repos)
     meta = _read_meta(artifacts_dir)
 
-    error = _release_monitor_claim(
+    error = release_monitor_claim(
         meta, project_name="proj", artifacts_dir=artifacts_dir
     )
 
@@ -744,7 +742,7 @@ def test_unavailable_owned_checkout_retains_as_uncertainty(
     shutil.rmtree(repo)
     meta = _read_meta(artifacts_dir)
 
-    error = _release_monitor_claim(
+    error = release_monitor_claim(
         meta, project_name="proj", artifacts_dir=artifacts_dir
     )
 
@@ -773,7 +771,7 @@ def test_stale_binding_retries_in_fresh_interpreter(
 
     monkeypatch.setattr(_adapter, "settle_stranded_workspace", _stale)
 
-    error = _release_monitor_claim(
+    error = release_monitor_claim(
         meta, project_name="proj", artifacts_dir=artifacts_dir
     )
 

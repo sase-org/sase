@@ -1,0 +1,318 @@
+"""Monitor follow-up settlement and continuation disposition."""
+
+from __future__ import annotations
+
+from collections.abc import Callable
+from dataclasses import dataclass
+from typing import Any
+
+from sase.axe.run_agent_helpers_artifacts import update_meta_field
+from sase.continuation_capture.rollout import (
+    monitor_continuation_records_enabled_for_meta,
+)
+from sase.turns.settlement import (
+    TurnSettlementConfig,
+    record_turn_followup_outcome,
+    settle_turn_claim_and_followup,
+)
+
+from ._settlement_retention import release_monitor_claim
+from .followup import FollowupLaunchResult, launch_followup_agent
+from .host_completion import HOST_COMPLETED_OUTCOME, settle_host_completion
+from .models import MONITOR_FOLLOWUP_DEGRADED_OUTCOME, MonitorState
+from .naming import short_monitor_id
+from .output import OutputCapture
+from .worktree_recovery import snapshot_worktree_recovery_diff
+
+LOST_FOLLOWUP_ERROR = (
+    "follow-up not launched because the monitor command outcome is unknown"
+)
+
+FollowupLauncher = Callable[..., bool | FollowupLaunchResult]
+
+_MONITOR_SETTLEMENT_CONFIG = TurnSettlementConfig(
+    next_action_field="monitor_next_action",
+    agent_field="monitor_followup_agent",
+    outcome_field="monitor_followup_outcome",
+    error_field="monitor_followup_error",
+    degraded_reason_field="monitor_followup_degraded_reason",
+    prompt_path_field="monitor_followup_prompt_path",
+    lost_state="lost",
+    stopped_state="stopped",
+    lost_followup_error=LOST_FOLLOWUP_ERROR,
+    degraded_outcome=MONITOR_FOLLOWUP_DEGRADED_OUTCOME,
+    fallback_followup_error="follow-up launch failed",
+    missing_project_error=(
+        "could not resolve the monitor's project from its artifacts path"
+    ),
+)
+
+
+@dataclass(frozen=True, slots=True)
+class _MonitorFollowupSettlementResult:
+    """Disposition recorded while settling a monitor follow-up."""
+
+    error: str | None = None
+    launch_result: FollowupLaunchResult | None = None
+
+
+def settle_claim_and_followup(
+    artifacts_dir: str,
+    meta: dict[str, Any],
+    *,
+    monitor_state: MonitorState,
+    exit_code: int | None,
+    elapsed_seconds: float,
+    capture: OutputCapture,
+    timeout_kind: str | None,
+    project_name: str | None,
+    transfer_from_pid: int | None = None,
+    launch_followup: FollowupLauncher | None = None,
+) -> _MonitorFollowupSettlementResult:
+    """Launch/record follow-up disposition and dispose of the monitor claim."""
+    launcher = launch_followup or launch_followup_agent
+    captured_launch_result: FollowupLaunchResult | None = None
+
+    def launch_and_capture(*args: Any, **kwargs: Any) -> FollowupLaunchResult:
+        nonlocal captured_launch_result
+        raw = launcher(*args, **kwargs)
+        captured_launch_result = _coerce_monitor_followup_result(raw, meta)
+        return captured_launch_result
+
+    if not monitor_continuation_records_enabled_for_meta(meta):
+        error = settle_turn_claim_and_followup(
+            artifacts_dir,
+            meta,
+            shell_state=monitor_state,
+            project_name=project_name,
+            config=_MONITOR_SETTLEMENT_CONFIG,
+            release_claim=_make_retention_release_claim(artifacts_dir),
+            launch_followup=launch_and_capture,
+            launch_kwargs={
+                "monitor_state": monitor_state,
+                "exit_code": exit_code,
+                "elapsed_seconds": elapsed_seconds,
+                "capture": capture,
+                "timeout_kind": timeout_kind,
+                "project_name": project_name,
+                "transfer_from_pid": transfer_from_pid,
+            },
+            update_meta_field=update_meta_field,
+        )
+        return _MonitorFollowupSettlementResult(
+            error=error, launch_result=captured_launch_result
+        )
+
+    blocked_reason = None
+    if monitor_state not in ("stopped", "lost"):
+        blocked_reason = _continuation_dispatch_blocked_reason(meta)
+        if blocked_reason and _repair_missing_starter_parent(artifacts_dir, meta):
+            blocked_reason = _continuation_dispatch_blocked_reason(meta)
+    if blocked_reason:
+        followup_error = _blocked_followup_error(blocked_reason, meta)
+        snapshot_worktree_recovery_diff(artifacts_dir, meta)
+        meta[_MONITOR_SETTLEMENT_CONFIG.outcome_field] = "not-launchable"
+        meta[_MONITOR_SETTLEMENT_CONFIG.error_field] = followup_error
+        update_meta_field(
+            artifacts_dir,
+            _MONITOR_SETTLEMENT_CONFIG.outcome_field,
+            "not-launchable",
+        )
+        update_meta_field(
+            artifacts_dir,
+            _MONITOR_SETTLEMENT_CONFIG.error_field,
+            followup_error,
+        )
+        release_error = release_monitor_claim(
+            meta, project_name=project_name, artifacts_dir=artifacts_dir
+        )
+        return _MonitorFollowupSettlementResult(
+            error=release_error or followup_error,
+            launch_result=FollowupLaunchResult(
+                launched=False,
+                error=followup_error,
+            ),
+        )
+
+    from sase.monitor.outcome_policy import (
+        apply_frozen_branch,
+        frozen_action,
+        settlement_policy_decision,
+        should_launch_frozen_followup,
+    )
+
+    decision = settlement_policy_decision(artifacts_dir, meta, monitor_state)
+    if frozen_action(decision) == "complete":
+        completion_ref = decision.get("completion_ref")
+        if isinstance(completion_ref, str) and completion_ref.strip():
+            meta.setdefault("monitor_completion_ref", completion_ref.strip())
+        host_settlement = settle_host_completion(
+            artifacts_dir,
+            meta,
+            monitor_state=monitor_state,
+            exit_code=exit_code,
+            elapsed_seconds=elapsed_seconds,
+            project_name=project_name,
+            launch_recovery=launch_and_capture,
+            release_claim=_make_retention_release_claim(artifacts_dir),
+            capture=capture,
+            selected_action="complete",
+            timeout_kind=timeout_kind,
+            transfer_from_pid=transfer_from_pid,
+        )
+        if host_settlement is not None:
+            if captured_launch_result is None:
+                captured_launch_result = host_settlement.launch_result
+            settlement_launch_result = captured_launch_result
+            if (
+                settlement_launch_result is not None
+                and settlement_launch_result.host_completed
+                and not meta.get(_MONITOR_SETTLEMENT_CONFIG.outcome_field)
+            ):
+                record_turn_followup_outcome(
+                    artifacts_dir,
+                    meta,
+                    outcome=HOST_COMPLETED_OUTCOME,
+                    config=_MONITOR_SETTLEMENT_CONFIG,
+                    update_meta_field=update_meta_field,
+                )
+            elif captured_launch_result is not None and not meta.get(
+                _MONITOR_SETTLEMENT_CONFIG.outcome_field
+            ):
+                if captured_launch_result.launched:
+                    outcome = (
+                        _MONITOR_SETTLEMENT_CONFIG.degraded_outcome
+                        if captured_launch_result.degraded_reason
+                        else "launched"
+                    )
+                else:
+                    outcome = "not-launchable"
+                record_turn_followup_outcome(
+                    artifacts_dir,
+                    meta,
+                    outcome=outcome,
+                    config=_MONITOR_SETTLEMENT_CONFIG,
+                    update_meta_field=update_meta_field,
+                    degraded_reason=captured_launch_result.degraded_reason,
+                    prompt_path=captured_launch_result.prompt_path,
+                )
+            return _MonitorFollowupSettlementResult(
+                error=host_settlement.error, launch_result=captured_launch_result
+            )
+
+    if should_launch_frozen_followup(decision, monitor_state):
+        apply_frozen_branch(artifacts_dir, meta, decision)
+    elif monitor_state not in ("stopped", "lost"):
+        meta.pop(_MONITOR_SETTLEMENT_CONFIG.next_action_field, None)
+
+    error = settle_turn_claim_and_followup(
+        artifacts_dir,
+        meta,
+        shell_state=monitor_state,
+        project_name=project_name,
+        config=_MONITOR_SETTLEMENT_CONFIG,
+        release_claim=_make_retention_release_claim(artifacts_dir),
+        launch_followup=launch_and_capture,
+        launch_kwargs={
+            "monitor_state": monitor_state,
+            "exit_code": exit_code,
+            "elapsed_seconds": elapsed_seconds,
+            "capture": capture,
+            "timeout_kind": timeout_kind,
+            "project_name": project_name,
+            "transfer_from_pid": transfer_from_pid,
+        },
+        update_meta_field=update_meta_field,
+    )
+    return _MonitorFollowupSettlementResult(
+        error=error, launch_result=captured_launch_result
+    )
+
+
+def _continuation_dispatch_blocked_reason(meta: dict[str, Any]) -> str | None:
+    from sase.continuation_capture import continuation_dispatch_blocked_reason
+
+    return continuation_dispatch_blocked_reason(meta)
+
+
+def _repair_missing_starter_parent(artifacts_dir: str, meta: dict[str, Any]) -> bool:
+    """Give a missing-starter-parent disposition one more chance to clear.
+
+    The starter may settle in the gap between result-capture publish (which
+    already waited, bounded, for it once) and this settlement call.
+    """
+    from sase.continuation_capture import repair_missing_starter_parent_disposition
+
+    return repair_missing_starter_parent_disposition(artifacts_dir, meta)
+
+
+def _blocked_followup_error(reason: str, meta: dict[str, Any]) -> str:
+    from sase.continuation_capture import starter_capture_error_summary
+
+    message = reason
+    if reason == _missing_starter_parent_error():
+        starter_dir = meta.get("monitor_starter_artifacts_dir")
+        summary = starter_capture_error_summary(
+            starter_dir if isinstance(starter_dir, str) else None
+        )
+        if summary:
+            starter = meta.get("monitor_starter_agent")
+            starter_name = (
+                starter if isinstance(starter, str) and starter else "unknown"
+            )
+            message += (
+                f"; starter {starter_name} continuation capture failed ({summary})"
+            )
+
+    monitor_id = meta.get("monitor_id")
+    short_id = (
+        short_monitor_id(monitor_id) if isinstance(monitor_id, str) else "unknown"
+    )
+    return (
+        f"{message}; recover with `sase monitor resume {short_id} -k FILE` "
+        f"or `sase monitor resume {short_id} -m MODEL`"
+    )
+
+
+def _missing_starter_parent_error() -> str:
+    from sase.continuation_capture.monitor import _MISSING_STARTER_PARENT_ERROR
+
+    return _MISSING_STARTER_PARENT_ERROR
+
+
+def _coerce_monitor_followup_result(
+    raw: bool | FollowupLaunchResult,
+    meta: dict[str, Any],
+) -> FollowupLaunchResult:
+    """Coerce legacy boolean monitor follow-up launchers into a result."""
+    if isinstance(raw, FollowupLaunchResult):
+        return raw
+    if raw:
+        agent = meta.get(_MONITOR_SETTLEMENT_CONFIG.agent_field)
+        return FollowupLaunchResult(
+            launched=True,
+            agent_name=agent if isinstance(agent, str) and agent else None,
+        )
+    error = meta.get(_MONITOR_SETTLEMENT_CONFIG.error_field)
+    prompt_path = meta.get(_MONITOR_SETTLEMENT_CONFIG.prompt_path_field)
+    return FollowupLaunchResult(
+        launched=False,
+        error=error if isinstance(error, str) and error else None,
+        prompt_path=prompt_path
+        if isinstance(prompt_path, str) and prompt_path
+        else None,
+    )
+
+
+def _make_retention_release_claim(artifacts_dir: str) -> Any:
+    """Return a ``ClaimReleaser`` that settles through the retention adapter."""
+
+    def _release(
+        meta: dict[str, Any],
+        project_name: str | None,
+    ) -> str | None:
+        return release_monitor_claim(
+            meta, project_name=project_name, artifacts_dir=artifacts_dir
+        )
+
+    return _release

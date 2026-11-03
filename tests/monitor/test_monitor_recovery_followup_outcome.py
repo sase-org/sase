@@ -64,7 +64,7 @@ def test_host_completion_recovery_records_followup_outcome(
     expected_outcome: str,
     expected_degraded_reason: str | None,
 ) -> None:
-    import sase.monitor.settlement as settlement_module
+    import sase.monitor._settlement_followup as settlement_module
 
     artifacts_dir = Path(
         make_starter_agent(

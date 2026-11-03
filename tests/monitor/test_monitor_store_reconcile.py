@@ -179,7 +179,7 @@ def test_dead_supervisor_reconciliation_publishes_deferred_epic_completion(
 def test_dead_supervisor_reconciliation_launches_recorded_followup(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    import sase.monitor.settlement as settlement_module
+    import sase.monitor._settlement_followup as settlement_module
 
     monitor_dir = make_starter_agent(
         "proj",
