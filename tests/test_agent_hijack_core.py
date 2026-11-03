@@ -11,6 +11,10 @@ from sase.agent.hijack.core import (
     agent_hijack_eligibility,
     agent_hijack_status_for_done_marker,
     agent_hijack_wire_schema_version,
+    hijack_recovery_preview,
+    hijack_recovery_preview_wire_schema_version,
+    hijack_recovery_reconcile,
+    hijack_recovery_reconcile_wire_schema_version,
 )
 from sase.core.agent_auto_restart_wire import AgentRecoveryWire
 from sase.core.agent_scan_wire_conversion import _done_marker_from_dict
@@ -74,6 +78,59 @@ def test_hijack_wrappers_call_the_registered_bindings(
             },
         ),
     )
+
+
+def test_recovery_preview_and_reconcile_wrappers_call_bindings(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[tuple[str, object]] = []
+
+    def preview_version() -> int:
+        calls.append(("preview_version", ()))
+        return 1
+
+    def preview(request: dict[str, Any]) -> dict[str, Any]:
+        calls.append(("preview", request))
+        return {
+            "schema_version": 1,
+            "hijack_id": request["hijack_id"],
+            "revision": 4,
+            "default_action": "escalate",
+            "actions": [],
+        }
+
+    def reconcile_version() -> int:
+        calls.append(("reconcile_version", ()))
+        return 1
+
+    def reconcile(record: dict[str, Any], facts: dict[str, Any]) -> dict[str, Any]:
+        calls.append(("reconcile", (record, facts)))
+        return {
+            "schema_version": 1,
+            "outcome": "keep_resolving",
+            "code": "live_resolver",
+            "message": "live",
+            "successor_name": "agent.2",
+            "launch_identity": None,
+        }
+
+    install_fake_rust_extension(
+        monkeypatch,
+        hijack_recovery_preview_wire_schema_version=preview_version,
+        hijack_recovery_preview=preview,
+        hijack_recovery_reconcile_wire_schema_version=reconcile_version,
+        hijack_recovery_reconcile=reconcile,
+    )
+
+    request = {"schema_version": 1, "hijack_id": "h-1", "state": "held"}
+    facts = {"schema_version": 1, "successor": {"kind": "absent"}}
+    record = {"schema_version": 1, "state": "resolving"}
+    assert hijack_recovery_preview_wire_schema_version() == 1
+    assert hijack_recovery_preview(request)["default_action"] == "escalate"
+    assert hijack_recovery_reconcile_wire_schema_version() == 1
+    assert hijack_recovery_reconcile(record, facts)["outcome"] == "keep_resolving"
+    assert ("preview", request) in calls
+    assert ("reconcile", (record, facts)) in calls
 
 
 def test_scan_wire_preserves_hijack_recovery_fields() -> None:

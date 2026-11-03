@@ -518,6 +518,10 @@ _lint-symvision *args: _setup
         --epic-symbol "sase-1qz.6(hijack_escalation_target)" \
         --epic-symbol "sase-1qz.6(normalize_hijack_rung)" \
         --epic-symbol "sase-1qz.6(strip_hijack_launch_directives)" \
+        --epic-symbol "sase-1qz.6.1.2(hijack_recovery_preview)" \
+        --epic-symbol "sase-1qz.6.1.2(hijack_recovery_preview_wire_schema_version)" \
+        --epic-symbol "sase-1qz.6.1.5(hijack_recovery_reconcile)" \
+        --epic-symbol "sase-1qz.6.1.5(hijack_recovery_reconcile_wire_schema_version)" \
         {{ args }}
 
 # Check Python file line counts (private, extracted for per-stage wrapping)
