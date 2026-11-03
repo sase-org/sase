@@ -64,12 +64,6 @@ def test_auto_gate_publishes_inline_with_frozen_policy(
         ),
         raising=False,
     )
-    monkeypatch.setattr(
-        gate_turn,
-        "will_handoff_gate_to_agent_runner",
-        lambda: False,
-        raising=False,
-    )
 
     entry.handle_gate_entry(lambda: {"kind": "custom"}, command="sase gate create")
 

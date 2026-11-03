@@ -397,7 +397,7 @@ def final_submission_is_current(*, artifacts_dir: str | None = None) -> bool:
         return True
 
 
-class AcceptedFinalSubmission(NamedTuple):
+class _AcceptedFinalSubmission(NamedTuple):
     """An accepted final declaration that still satisfies the latest context."""
 
     accepted_at: str | None
@@ -407,7 +407,7 @@ class AcceptedFinalSubmission(NamedTuple):
 
 def load_accepted_current_final_submission(
     root: Path,
-) -> AcceptedFinalSubmission | None:
+) -> _AcceptedFinalSubmission | None:
     """Return the accepted submission when it satisfies the latest context.
 
     Lock-free read for host adjudication after the agent has stopped writing.
@@ -433,7 +433,7 @@ def load_accepted_current_final_submission(
     except Exception:
         return None
     accepted_at = submission.get("accepted_at")
-    return AcceptedFinalSubmission(
+    return _AcceptedFinalSubmission(
         accepted_at=accepted_at if isinstance(accepted_at, str) else None,
         submission_digest=validation.submission_digest,
         payload=submission,
@@ -471,7 +471,6 @@ __all__ = [
     "FinalizerDeclarationError",
     "HostRepositoryRecord",
     "SASE_FINAL_TURN_NONCE_ENV",
-    "AcceptedFinalSubmission",
     "accepted_context_from_submission",
     "ensure_final_declaration_or_recover",
     "final_submission_is_current",

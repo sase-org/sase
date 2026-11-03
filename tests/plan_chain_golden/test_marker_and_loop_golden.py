@@ -9,7 +9,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from sase.axe.run_agent_exec import run_execution_loop
-from sase.axe.run_agent_exec_plan import handle_plan_marker
+from tests._legacy_handoff_markers import handle_plan_marker
 from tests._axe_run_agent_exec_helpers import make_exec_ctx
 from tests._axe_run_agent_exec_plan_helpers import (
     make_ctx,

@@ -30,11 +30,11 @@ def handle_gate_marker(
     *,
     persist_chat: bool = True,
 ) -> str:
-    """Adopt a ``.sase_gate_pending`` marker after runner SIGTERM.
+    """Adopt a gate-turn handoff for the execution loop.
 
-    ``persist_chat`` is true for the legacy kill path. Staged plan adoption
-    already saved the planner's real final response and passes false so this
-    handoff cannot overwrite it with a synthetic gate summary.
+    ``persist_chat`` is true when this adoption needs a synthetic gate
+    summary in chat. Staged plan adoption already saved the planner's real
+    final response and passes false so this handoff cannot overwrite it.
     """
     normalize_handoff_interruption_state(state.current_artifacts_dir)
     finalize_handoff_artifacts_as_completed(state.current_artifacts_dir)

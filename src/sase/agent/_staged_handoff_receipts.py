@@ -6,7 +6,7 @@ from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
 
-from sase.agent.gate_intent import atomic_write_json
+from sase.core.atomic_json import write_json_marker_atomic
 from sase.agent._staged_handoff_store import (
     STAGED_HANDOFF_RECEIPT_FILENAME,
     StagedHandoffError,
@@ -76,7 +76,7 @@ def write_adoption_receipt(
             raise StagedHandoffError(
                 "a successful adoption receipt already owns this stage"
             )
-        atomic_write_json(path, normalized)
+        write_json_marker_atomic(path, normalized)
         return path
 
 

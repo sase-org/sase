@@ -93,7 +93,7 @@ def test_handle_questions_marker_persists_response_paths_on_interrupted_dir(
     the request/response paths so the asking row is self-describing, before
     the gate even settles.
     """
-    from sase.axe.run_agent_exec_questions import handle_questions_marker
+    from tests._legacy_handoff_markers import handle_questions_marker
     from sase.gate_turn.models import GateTurnRecord
     from sase.gate_turn.transaction import GateTurnCreation
     from sase.notification_gates.model_results import GateCreationResult

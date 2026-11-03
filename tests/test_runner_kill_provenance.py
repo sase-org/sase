@@ -72,7 +72,7 @@ def test_classify_user_kill_intent(tmp_path: Path) -> None:
     assert provenance.evidence is None
 
 
-def test_classify_handoff_marker_predating_kill(tmp_path: Path) -> None:
+def test_leftover_pending_marker_is_external(tmp_path: Path) -> None:
     artifacts = _artifacts(tmp_path)
     with open(
         os.path.join(artifacts, ".sase_plan_pending"), "w", encoding="utf-8"
@@ -81,7 +81,7 @@ def test_classify_handoff_marker_predating_kill(tmp_path: Path) -> None:
 
     provenance = _classify_runner_kill(artifacts, kill_time=1000.0)
 
-    assert provenance.source == "handoff"
+    assert provenance.source == "external"
 
 
 def test_classify_external_without_markers(tmp_path: Path) -> None:
@@ -119,21 +119,6 @@ def test_record_user_increments_user_metric(
     assert provenance.source == "user"
     assert fake_kills.calls == [{"reason": "user"}]
     assert state.kill_source == "user"
-
-
-def test_record_handoff_reports_no_metric(
-    tmp_path: Path, fake_kills: _FakeKills
-) -> None:
-    artifacts = _artifacts(tmp_path)
-    with open(
-        os.path.join(artifacts, ".sase_plan_pending"), "w", encoding="utf-8"
-    ) as f:
-        json.dump({"timestamp": 999.0}, f)
-
-    provenance = record_kill_provenance(artifacts, None, kill_time=1000.0)
-
-    assert provenance.source == "handoff"
-    assert fake_kills.calls == []
 
 
 def test_format_external_line_with_oom_evidence() -> None:

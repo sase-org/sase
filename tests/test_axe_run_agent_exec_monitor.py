@@ -7,7 +7,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from sase.axe.run_agent_exec import LoopState
-from sase.axe.run_agent_exec_monitor import handle_monitor_marker
+from tests._legacy_handoff_markers import handle_monitor_marker
 
 from tests._axe_run_agent_exec_helpers import make_exec_ctx
 

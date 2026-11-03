@@ -114,22 +114,6 @@ _REVIEWED_MARKER_MUTATION_CONTEXTS: dict[str, Review] = {
         mutation_calls=("unlink",),
         lifecycle_calls=(_UPDATE_INDEX,),
     ),
-    "src/sase/agent/handoff_inflight.py:_merge_record_into_done_json": Review(
-        mutation_calls=("write_text",),
-        exemption=(
-            "Merges an informational handoff_aborted record into an "
-            "already-written done.json; outcome fields are untouched and no "
-            "index projection reads handoff_aborted."
-        ),
-    ),
-    "src/sase/agent/handoff_inflight.py:_stamp_workflow_state": Review(
-        mutation_calls=("write_text",),
-        exemption=(
-            "Stamps an informational handoff_aborted record onto an existing "
-            "workflow_state.json; steps and status are untouched and no index "
-            "projection reads handoff_aborted."
-        ),
-    ),
     "src/sase/agent/names/_migration.py:_rewrite_artifact_json_files": Review(
         mutation_calls=("_write_json_file", "_write_json_file"),
         batched_by=(

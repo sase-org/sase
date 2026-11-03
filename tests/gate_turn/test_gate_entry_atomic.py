@@ -12,14 +12,14 @@ from typing import Any
 import pytest
 
 from sase.gate_turn._lost_withdraw import withdraw_lost_gate
-from sase.gate_turn._signal_guard import GateEntrySignal, gate_entry_signal_guard
+from sase.gate_turn._signal_guard import _GateEntrySignal, gate_entry_signal_guard
 
 
 def test_signal_guard_converts_sigterm_and_restores_handlers() -> None:
     prev_term = signal.getsignal(signal.SIGTERM)
     prev_hup = signal.getsignal(signal.SIGHUP)
     prev_int = signal.getsignal(signal.SIGINT)
-    with pytest.raises(GateEntrySignal) as exc_info:
+    with pytest.raises(_GateEntrySignal) as exc_info:
         with gate_entry_signal_guard():
             assert signal.getsignal(signal.SIGTERM) is not prev_term
             os.kill(os.getpid(), signal.SIGTERM)
@@ -30,11 +30,11 @@ def test_signal_guard_converts_sigterm_and_restores_handlers() -> None:
 
 
 def test_signal_guard_defers_second_signal_during_compensation() -> None:
-    with pytest.raises(GateEntrySignal):
+    with pytest.raises(_GateEntrySignal):
         with gate_entry_signal_guard():
             try:
                 os.kill(os.getpid(), signal.SIGTERM)
-            except GateEntrySignal:
+            except _GateEntrySignal:
                 # Compensation is running; a second signal must not interrupt it.
                 os.kill(os.getpid(), signal.SIGHUP)
                 raise
@@ -159,10 +159,9 @@ def test_signal_after_notification_append_compensates_gate(
     gate_home: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     del gate_home
-    from sase.agent.gate_intent import list_gate_intents
     from sase.finalizers.owned_turn import SASE_FINALIZER_OWNED_TURN_ENV
     from sase.gate_turn import transaction as transaction_module
-    from sase.gate_turn._signal_guard import GateEntrySignal
+    from sase.gate_turn._signal_guard import _GateEntrySignal
     from sase.gate_turn._transaction_creator import CreatorContext
     from sase.gate_turn.models import GateTurnRecord
     from sase.gate_turn.transaction import create_gate_turn
@@ -235,17 +234,16 @@ def test_signal_after_notification_append_compensates_gate(
 
     def append_then_interrupt(notification) -> None:
         real_append(notification)
-        raise GateEntrySignal(signal.SIGTERM)
+        raise _GateEntrySignal(signal.SIGTERM)
 
     monkeypatch.setattr(
         notifications_store, "append_notification_strict", append_then_interrupt
     )
 
-    with pytest.raises(GateEntrySignal):
+    with pytest.raises(_GateEntrySignal):
         create_gate_turn(_custom_request("signal-atomic-1"))
 
-    # Intent is cleared for the converted termination signal.
-    assert list_gate_intents(artifacts_dir) == []
+    assert not list(artifacts_dir.glob(".sase_gate_intent.*"))
     # Claim is restored and the member settles failed.
     assert restored == ["restored"]
     assert settled == ["failed"]
@@ -272,7 +270,7 @@ def test_run_gate_entry_releases_reservation_on_signal(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     from sase.gate_turn import entry as entry_module
-    from sase.gate_turn._signal_guard import GateEntrySignal
+    from sase.gate_turn._signal_guard import _GateEntrySignal
 
     artifacts_dir = tmp_path / "artifacts"
     artifacts_dir.mkdir()
@@ -298,10 +296,10 @@ def test_run_gate_entry_releases_reservation_on_signal(
 
     # Patch the staged preparation used inside run_gate_entry.
     def _raise_signal(*_a: object, **_k: object):
-        raise GateEntrySignal(signal.SIGTERM)
+        raise _GateEntrySignal(signal.SIGTERM)
 
     monkeypatch.setattr(entry_module, "_prepare_staged_gate", _raise_signal)
-    with pytest.raises(GateEntrySignal):
+    with pytest.raises(_GateEntrySignal):
         entry_module.run_gate_entry(
             lambda: {"kind": "custom"}, command="sase gate create"
         )

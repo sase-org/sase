@@ -6,7 +6,6 @@ import os
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-from sase.agent.pending_handoff import has_pending_handoff
 from sase.finalizers.declaration_context_evidence import COMMIT_DECLARATION_RULE
 from sase.finalizers.declaration_recovery_evidence import build_recovery_evidence
 from sase.finalizers.declaration_store import (
@@ -44,14 +43,6 @@ def ensure_final_declaration_or_recover(
     # remain authoritative during recovery without introducing an import cycle.
     from sase.finalizers import declaration
 
-    # Legacy handoffs skip declaration recovery; staged turns never take
-    # this path (staged records are not legacy markers) and proceed to the
-    # ordinary one-shot recovery below. Recovery-owned staging stays refused
-    # by staged admission's finalizer-owned-turn guard.
-    if has_pending_handoff(artifacts_dir):
-        FINALIZER_RECOVERIES.labels(kind="declaration", result="handoff").inc()
-        return invoke_result
-
     context = declaration.publish_final_context(artifacts_dir=artifacts_dir)
     if not context.submission_required or declaration.final_submission_is_current(
         artifacts_dir=artifacts_dir
@@ -59,10 +50,9 @@ def ensure_final_declaration_or_recover(
         FINALIZER_RECOVERIES.labels(kind="declaration", result="not_required").inc()
         return invoke_result
 
-    aborted_handoff = _adopt_or_record_aborted_handoff(
-        artifacts_dir,
-        context=context,
-    )
+    from sase.agent.handoff_inflight import load_handoff_aborted_record
+
+    aborted_handoff = load_handoff_aborted_record(artifacts_dir)
 
     previous_nonce = os.environ.get(declaration.SASE_FINAL_TURN_NONCE_ENV)
     recovery_nonce = declaration.mint_finalizer_turn_nonce()
@@ -123,38 +113,6 @@ def ensure_final_declaration_or_recover(
             os.environ.pop(declaration.SASE_FINAL_TURN_NONCE_ENV, None)
         else:
             os.environ[declaration.SASE_FINAL_TURN_NONCE_ENV] = previous_nonce
-
-
-def _adopt_or_record_aborted_handoff(
-    artifacts_dir: str | None,
-    *,
-    context: FinalContextPublication,
-) -> dict[str, Any] | None:
-    """Adopt a late handoff or record a killed one, best-effort.
-
-    Runs when the provider turn ended with no pending handoff marker: a live
-    in-flight owner is given a bounded wait to land its handoff, while a dead
-    owner is recorded as ``handoff_aborted`` (and notified) so the recovery
-    evidence stays accurate. Never raises.
-    """
-    import logging
-
-    from sase.agent.handoff_inflight import adopt_or_record_aborted_handoff
-
-    assigned = context.context.assigned_bead
-    try:
-        return adopt_or_record_aborted_handoff(
-            artifacts_dir,
-            agent_name=os.environ.get("SASE_AGENT_NAME")
-            or os.environ.get("SASE_AGENT"),
-            assigned_bead_id=assigned.bead_id if assigned is not None else None,
-        )
-    except Exception:
-        logging.getLogger(__name__).warning(
-            "aborted-handoff check failed; continuing with normal recovery",
-            exc_info=True,
-        )
-        return None
 
 
 def _latest_context_matches_nonce(root: Path, nonce: str) -> bool:

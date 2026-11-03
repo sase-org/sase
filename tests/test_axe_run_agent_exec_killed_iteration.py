@@ -1,4 +1,4 @@
-"""Tests for killed agent iteration handoff classification."""
+"""Tests for killed agent iteration user/external classification."""
 
 from __future__ import annotations
 
@@ -6,7 +6,6 @@ import json
 from pathlib import Path
 from unittest.mock import patch
 
-from sase.agent.gate_intent import GATE_INTENT_PREFIX
 from sase.agent.staged_handoff import (
     STAGED_HANDOFF_RESPONSE_FILENAME,
     build_plan_staged_record,
@@ -61,66 +60,34 @@ def _tool_call_records(artifacts_dir: Path) -> list[dict[str, object]]:
     ]
 
 
-def test_plan_marker_older_than_sigterm_is_handoff(tmp_path: Path) -> None:
+def test_pending_plan_marker_is_not_adopted_on_external_kill(tmp_path: Path) -> None:
     ctx = make_exec_ctx(tmp_path, is_home_mode=False)
-    state = _state(Path(ctx.artifacts_dir))
+    artifacts = Path(ctx.artifacts_dir)
+    state = _state(artifacts)
     _write_marker(
-        Path(ctx.artifacts_dir),
+        artifacts,
         ".sase_plan_pending",
         {"plan_file": "/tmp/plan.md", "timestamp": 99.0},
     )
-    _write_marker(
-        Path(ctx.artifacts_dir),
-        f"{GATE_INTENT_PREFIX}123.json",
-        {"kind": "custom", "pid": 123, "timestamp": 98.0},
-    )
-    _write_pending_call(Path(ctx.artifacts_dir))
+    _write_pending_call(artifacts)
 
-    with (
-        patch("sase.axe.run_agent_exec.killed_at", return_value=100.0),
-        patch("sase.axe.run_agent_exec.handle_plan_marker", return_value=None) as plan,
-    ):
-        outcome = _handle_killed_iteration(ctx, state)
-
-    assert outcome is None
-    plan.assert_called_once()
-    marker = plan.call_args.args[0]
-    assert marker == {"plan_file": "/tmp/plan.md", "timestamp": 99.0}
-    result = _tool_call_records(Path(ctx.artifacts_dir))[-1]
-    assert result["event"] == "ToolResult"
-    assert result["status"] == "interrupted"
-    assert result["completed_at"] == "1970-01-01T00:01:40+00:00"
-    assert not (Path(ctx.artifacts_dir) / f"{GATE_INTENT_PREFIX}123.json").exists()
-
-
-def test_plan_marker_newer_than_sigterm_is_ignored_as_user_kill(
-    tmp_path: Path,
-) -> None:
-    ctx = make_exec_ctx(tmp_path, is_home_mode=False)
-    state = _state(Path(ctx.artifacts_dir))
-    marker_path = Path(ctx.artifacts_dir) / ".sase_plan_pending"
-    _write_marker(
-        Path(ctx.artifacts_dir),
-        marker_path.name,
-        {"plan_file": "/tmp/plan.md", "timestamp": 101.0},
-    )
-
-    with (
-        patch("sase.axe.run_agent_exec.killed_at", return_value=100.0),
-        patch("sase.axe.run_agent_exec.handle_plan_marker") as plan,
-    ):
+    with patch("sase.axe.run_agent_exec.killed_at", return_value=100.0):
         outcome = _handle_killed_iteration(ctx, state)
 
     assert outcome == "killed"
-    plan.assert_not_called()
-    assert not marker_path.exists()
+    assert (artifacts / ".sase_plan_pending").exists()
+    result = _tool_call_records(artifacts)[-1]
+    assert result["event"] == "ToolResult"
+    assert result["status"] == "interrupted"
+    assert result["completed_at"] == "1970-01-01T00:01:40+00:00"
 
 
-def test_monitor_marker_older_than_sigterm_is_handoff(tmp_path: Path) -> None:
+def test_pending_monitor_marker_is_not_adopted_on_external_kill(tmp_path: Path) -> None:
     ctx = make_exec_ctx(tmp_path, is_home_mode=False)
-    state = _state(Path(ctx.artifacts_dir))
+    artifacts = Path(ctx.artifacts_dir)
+    state = _state(artifacts)
     _write_marker(
-        Path(ctx.artifacts_dir),
+        artifacts,
         ".sase_monitor_pending",
         {
             "monitor_id": "m123",
@@ -130,56 +97,45 @@ def test_monitor_marker_older_than_sigterm_is_handoff(tmp_path: Path) -> None:
         },
     )
 
-    with (
-        patch("sase.axe.run_agent_exec.killed_at", return_value=100.0),
-        patch(
-            "sase.axe.run_agent_exec.handle_monitor_marker",
-            return_value="monitored",
-        ) as monitor,
-    ):
-        outcome = _handle_killed_iteration(ctx, state)
-
-    assert outcome == "monitored"
-    monitor.assert_called_once()
-    marker = monitor.call_args.args[0]
-    assert marker["monitor_id"] == "m123"
-
-
-def test_monitor_marker_newer_than_sigterm_is_ignored_as_user_kill(
-    tmp_path: Path,
-) -> None:
-    ctx = make_exec_ctx(tmp_path, is_home_mode=False)
-    state = _state(Path(ctx.artifacts_dir))
-    marker_path = Path(ctx.artifacts_dir) / ".sase_monitor_pending"
-    _write_marker(
-        Path(ctx.artifacts_dir),
-        marker_path.name,
-        {
-            "monitor_id": "m123",
-            "member_artifacts_dir": "/tmp/member",
-            "member_agent_name": "agent--mon",
-            "timestamp": 101.0,
-        },
-    )
-
-    with (
-        patch("sase.axe.run_agent_exec.killed_at", return_value=100.0),
-        patch("sase.axe.run_agent_exec.handle_monitor_marker") as monitor,
-    ):
+    with patch("sase.axe.run_agent_exec.killed_at", return_value=100.0):
         outcome = _handle_killed_iteration(ctx, state)
 
     assert outcome == "killed"
-    monitor.assert_not_called()
-    assert not marker_path.exists()
+    assert (artifacts / ".sase_monitor_pending").exists()
 
 
-def test_user_kill_intent_wins_over_plan_marker(
+def test_pending_pipe_marker_is_not_adopted_on_external_kill(tmp_path: Path) -> None:
+    ctx = make_exec_ctx(tmp_path, is_home_mode=False)
+    artifacts = Path(ctx.artifacts_dir)
+    state = _state(artifacts)
+    _write_marker(
+        artifacts,
+        ".sase_pipe_pending",
+        {
+            "prompt": "continue the work",
+            "reason": "hand off",
+            "model": None,
+            "name_token": None,
+            "fresh": False,
+            "pipe_depth": 0,
+            "timestamp": 99.0,
+        },
+    )
+
+    with patch("sase.axe.run_agent_exec.killed_at", return_value=100.0):
+        outcome = _handle_killed_iteration(ctx, state)
+
+    assert outcome == "killed"
+    assert (artifacts / ".sase_pipe_pending").exists()
+
+
+def test_user_kill_discards_staged_and_pending(
     tmp_path: Path,
     monkeypatch,
 ) -> None:
     ctx = make_exec_ctx(tmp_path, is_home_mode=False)
-    state = _state(Path(ctx.artifacts_dir))
     artifacts = Path(ctx.artifacts_dir)
+    state = _state(artifacts)
     monkeypatch.setenv("SASE_AGENT", "1")
     staged_record = build_plan_staged_record(
         plan_file="/tmp/plan.md",
@@ -205,25 +161,15 @@ def test_user_kill_intent_wins_over_plan_marker(
         ".sase_plan_pending",
         {"plan_file": "/tmp/plan.md", "timestamp": 49.0},
     )
-    _write_marker(
-        artifacts,
-        f"{GATE_INTENT_PREFIX}123.json",
-        {"kind": "custom", "pid": 123, "timestamp": 48.0},
-    )
 
-    with (
-        patch("sase.axe.run_agent_exec.killed_at", return_value=100.0),
-        patch("sase.axe.run_agent_exec.handle_plan_marker") as plan,
-    ):
+    with patch("sase.axe.run_agent_exec.killed_at", return_value=100.0):
         outcome = _handle_killed_iteration(ctx, state)
 
     assert outcome == "killed"
-    plan.assert_not_called()
     assert (artifacts / USER_KILL_INTENT_MARKER).exists()
     assert not (artifacts / ".sase_plan_pending").exists()
     assert read_staged_handoff(str(artifacts)) is None
     assert not (artifacts / STAGED_HANDOFF_RESPONSE_FILENAME).exists()
-    assert not (artifacts / f"{GATE_INTENT_PREFIX}123.json").exists()
     result = _tool_call_records(artifacts)[-1]
     assert result["event"] == "ToolResult"
     assert result["status"] == "interrupted"
@@ -231,8 +177,8 @@ def test_user_kill_intent_wins_over_plan_marker(
 
 def test_user_kill_intent_discards_monitor_marker(tmp_path: Path) -> None:
     ctx = make_exec_ctx(tmp_path, is_home_mode=False)
-    state = _state(Path(ctx.artifacts_dir))
     artifacts = Path(ctx.artifacts_dir)
+    state = _state(artifacts)
     _write_marker(
         artifacts,
         USER_KILL_INTENT_MARKER,
@@ -249,77 +195,18 @@ def test_user_kill_intent_discards_monitor_marker(tmp_path: Path) -> None:
         },
     )
 
-    with (
-        patch("sase.axe.run_agent_exec.killed_at", return_value=100.0),
-        patch("sase.axe.run_agent_exec.handle_monitor_marker") as monitor,
-    ):
+    with patch("sase.axe.run_agent_exec.killed_at", return_value=100.0):
         outcome = _handle_killed_iteration(ctx, state)
 
     assert outcome == "killed"
-    monitor.assert_not_called()
     assert (artifacts / USER_KILL_INTENT_MARKER).exists()
     assert not (artifacts / ".sase_monitor_pending").exists()
 
 
-def test_pipe_marker_older_than_sigterm_is_handoff(tmp_path: Path) -> None:
-    ctx = make_exec_ctx(tmp_path, is_home_mode=False)
-    state = _state(Path(ctx.artifacts_dir))
-    _write_marker(
-        Path(ctx.artifacts_dir),
-        ".sase_pipe_pending",
-        {
-            "prompt": "continue the work",
-            "reason": "hand off",
-            "model": None,
-            "name_token": None,
-            "fresh": False,
-            "pipe_depth": 0,
-            "timestamp": 99.0,
-        },
-    )
-
-    with (
-        patch("sase.axe.run_agent_exec.killed_at", return_value=100.0),
-        patch("sase.axe.run_agent_exec.handle_pipe_marker", return_value=None) as pipe,
-    ):
-        outcome = _handle_killed_iteration(ctx, state)
-
-    assert outcome is None
-    pipe.assert_called_once()
-    marker = pipe.call_args.args[0]
-    assert marker["prompt"] == "continue the work"
-
-
-def test_pipe_marker_newer_than_sigterm_is_ignored_as_user_kill(
-    tmp_path: Path,
-) -> None:
-    ctx = make_exec_ctx(tmp_path, is_home_mode=False)
-    state = _state(Path(ctx.artifacts_dir))
-    marker_path = Path(ctx.artifacts_dir) / ".sase_pipe_pending"
-    _write_marker(
-        Path(ctx.artifacts_dir),
-        marker_path.name,
-        {
-            "prompt": "continue the work",
-            "timestamp": 101.0,
-        },
-    )
-
-    with (
-        patch("sase.axe.run_agent_exec.killed_at", return_value=100.0),
-        patch("sase.axe.run_agent_exec.handle_pipe_marker") as pipe,
-    ):
-        outcome = _handle_killed_iteration(ctx, state)
-
-    assert outcome == "killed"
-    pipe.assert_not_called()
-    assert not marker_path.exists()
-
-
 def test_user_kill_intent_discards_pipe_marker(tmp_path: Path) -> None:
     ctx = make_exec_ctx(tmp_path, is_home_mode=False)
-    state = _state(Path(ctx.artifacts_dir))
     artifacts = Path(ctx.artifacts_dir)
+    state = _state(artifacts)
     _write_marker(
         artifacts,
         USER_KILL_INTENT_MARKER,
@@ -331,13 +218,33 @@ def test_user_kill_intent_discards_pipe_marker(tmp_path: Path) -> None:
         {"prompt": "continue the work", "timestamp": 49.0},
     )
 
-    with (
-        patch("sase.axe.run_agent_exec.killed_at", return_value=100.0),
-        patch("sase.axe.run_agent_exec.handle_pipe_marker") as pipe,
-    ):
+    with patch("sase.axe.run_agent_exec.killed_at", return_value=100.0):
         outcome = _handle_killed_iteration(ctx, state)
 
     assert outcome == "killed"
-    pipe.assert_not_called()
     assert (artifacts / USER_KILL_INTENT_MARKER).exists()
     assert not (artifacts / ".sase_pipe_pending").exists()
+
+
+def test_external_kill_leaves_staged_record(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    ctx = make_exec_ctx(tmp_path, is_home_mode=False)
+    artifacts = Path(ctx.artifacts_dir)
+    state = _state(artifacts)
+    monkeypatch.setenv("SASE_AGENT", "1")
+    staged_record = build_plan_staged_record(
+        plan_file="/tmp/plan.md",
+        original_file="/tmp/scratch.md",
+        dirty_obligations_at_stage=[],
+        staged_id="aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee",
+        created_at="2026-10-28T12:00:00Z",
+    )
+    write_staged_handoff(staged_record, artifacts_dir=str(artifacts))
+
+    with patch("sase.axe.run_agent_exec.killed_at", return_value=100.0):
+        outcome = _handle_killed_iteration(ctx, state)
+
+    assert outcome == "killed"
+    assert read_staged_handoff(str(artifacts)) is not None

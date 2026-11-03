@@ -5,7 +5,7 @@ import subprocess
 from pathlib import Path
 from unittest.mock import patch
 
-from sase.axe.run_agent_exec_plan import handle_plan_marker
+from tests._legacy_handoff_markers import handle_plan_marker
 from sase.axe.run_agent_exec_plan_artifacts import store_followup_prompt_artifact
 from sase.axe.run_agent_helpers import create_followup_artifacts
 from sase.core.artifact_file_facade import list_explicit_artifact_files

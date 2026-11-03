@@ -539,13 +539,9 @@ def finalize_runner_shutdown(
     held_bead_claim = _held_bead_claim_for_shutdown(context, state)
     if held_bead_claim is not None:
         try:
-            from sase.agent.pending_handoff import has_pending_handoff
-
-            if (
-                not has_pending_handoff(context.artifacts_dir)
-                and not _has_staged_handoff(context.artifacts_dir)
-                and not _agent_meta_has_promoted_bead_claim(context.artifacts_dir)
-            ):
+            if not _has_staged_handoff(
+                context.artifacts_dir
+            ) and not _agent_meta_has_promoted_bead_claim(context.artifacts_dir):
                 from sase.bead.claims import (
                     BeadClaimReleaseOutcome,
                     release_bead_claim_for_agent,

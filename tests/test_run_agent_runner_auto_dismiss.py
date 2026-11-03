@@ -69,45 +69,19 @@ def test_workspace_release_sigterm_handler_releases_claim(
     reset_killed()
 
 
-def test_workspace_release_sigterm_handler_skips_plan_handoff(
+def test_workspace_release_sigterm_handler_releases_despite_pending_markers(
     tmp_path, monkeypatch
 ) -> None:
     reset_killed()
     monkeypatch.setenv("SASE_ARTIFACTS_DIR", str(tmp_path))
     (tmp_path / ".sase_plan_pending").write_text("{}", encoding="utf-8")
-
-    with patch("sase.axe.runner_signals.signal.signal") as signal_handler:
-        install_workspace_release_sigterm_handler(
-            project_file="/tmp/.sase/projects/sase/sase.sase",
-            workspace_num=10,
-            workflow_name="ace(run)-260101_120000",
-            cl_name="sase",
-            is_home_mode=False,
-        )
-        captured_handler = signal_handler.call_args[0][1]
-
-    with (
-        patch("sase.running_field.release_workspace") as release,
-        patch("sase.axe.runner_signals.sys.exit") as exit_mock,
-    ):
-        captured_handler(signal.SIGTERM, None)
-
-    release.assert_not_called()
-    exit_mock.assert_not_called()
-    assert was_killed() is True
-    reset_killed()
-
-
-def test_workspace_release_sigterm_handler_skips_pipe_handoff(
-    tmp_path, monkeypatch
-) -> None:
-    reset_killed()
-    monkeypatch.setenv("SASE_ARTIFACTS_DIR", str(tmp_path))
     (tmp_path / ".sase_pipe_pending").write_text("{}", encoding="utf-8")
+    (tmp_path / ".sase_questions_pending").write_text("{}", encoding="utf-8")
+    project_file = "/tmp/.sase/projects/sase/sase.sase"
 
     with patch("sase.axe.runner_signals.signal.signal") as signal_handler:
         install_workspace_release_sigterm_handler(
-            project_file="/tmp/.sase/projects/sase/sase.sase",
+            project_file=project_file,
             workspace_num=10,
             workflow_name="ace(run)-260101_120000",
             cl_name="sase",
@@ -121,18 +95,34 @@ def test_workspace_release_sigterm_handler_skips_pipe_handoff(
     ):
         captured_handler(signal.SIGTERM, None)
 
-    release.assert_not_called()
+    release.assert_called_once_with(
+        project_file,
+        10,
+        "ace(run)-260101_120000",
+        "sase",
+    )
     exit_mock.assert_not_called()
     assert was_killed() is True
     reset_killed()
 
 
-def test_workspace_release_sigterm_handler_skips_question_handoff(
+def test_workspace_release_sigterm_handler_skips_staged_handoff(
     tmp_path, monkeypatch
 ) -> None:
+    from sase.agent.staged_handoff import build_plan_staged_record, write_staged_handoff
+
     reset_killed()
     monkeypatch.setenv("SASE_ARTIFACTS_DIR", str(tmp_path))
-    (tmp_path / ".sase_questions_pending").write_text("{}", encoding="utf-8")
+    monkeypatch.setenv("SASE_AGENT", "1")
+    write_staged_handoff(
+        build_plan_staged_record(
+            plan_file="/tmp/plan.md",
+            original_file="/tmp/plan.md",
+            dirty_obligations_at_stage=[],
+            created_at="2026-10-28T12:00:00Z",
+        ),
+        artifacts_dir=str(tmp_path),
+    )
 
     with patch("sase.axe.runner_signals.signal.signal") as signal_handler:
         install_workspace_release_sigterm_handler(
@@ -236,9 +226,20 @@ def test_workspace_release_sigterm_handler_releases_failed_monitor_handoff(
 def test_workspace_release_sigterm_handler_uses_artifacts_fallback(
     tmp_path, monkeypatch
 ) -> None:
+    from sase.agent.staged_handoff import build_plan_staged_record, write_staged_handoff
+
     reset_killed()
     monkeypatch.delenv("SASE_ARTIFACTS_DIR", raising=False)
-    (tmp_path / ".sase_plan_pending").write_text("{}", encoding="utf-8")
+    monkeypatch.setenv("SASE_AGENT", "1")
+    write_staged_handoff(
+        build_plan_staged_record(
+            plan_file="/tmp/plan.md",
+            original_file="/tmp/plan.md",
+            dirty_obligations_at_stage=[],
+            created_at="2026-10-28T12:00:00Z",
+        ),
+        artifacts_dir=str(tmp_path),
+    )
 
     with patch("sase.axe.runner_signals.signal.signal") as signal_handler:
         install_workspace_release_sigterm_handler(

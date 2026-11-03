@@ -5,12 +5,9 @@ from unittest.mock import patch
 
 import pytest
 
-from sase.axe.run_agent_exec_plan import (
-    handle_plan_marker,
-    handle_staged_plan_marker,
-)
-from sase.axe.run_agent_exec_questions import handle_questions_marker
+from sase.axe.run_agent_exec_plan import handle_staged_plan_marker
 from sase.llm_provider._plan_utils import PlanApprovalResult
+from tests._legacy_handoff_markers import handle_plan_marker, handle_questions_marker
 from sase.main.qa_prompt import build_qa_round
 from tests._axe_run_agent_exec_plan_helpers import (
     make_ctx,

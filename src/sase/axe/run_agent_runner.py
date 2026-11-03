@@ -82,7 +82,6 @@ from sase.env_contracts import (
     SASE_HOST_PATH_SNAPSHOT_ENV,
     SASE_LAUNCH_SUBMITTED_AT_ENV,
 )
-from sase.llm_provider.gate_intent_guard import find_gate_intent_lost_error
 from sase.telemetry.metrics import AGENT_KILLS
 
 install_sigterm_handler("agent", soft=True)
@@ -375,14 +374,12 @@ def main() -> None:
                 raise SystemExit(128 + signal.SIGTERM) from e
 
             state.success = False
-            lost_intent = find_gate_intent_lost_error(e)
             state.error_summary, state.error_traceback_str = record_runner_error(
                 e,
                 context=state.error_context(),
                 write_error_done_marker=write_error_done_marker,
                 agent_kills=AGENT_KILLS,
                 message_prefix="Error running agent",
-                error_summary=str(lost_intent) if lost_intent is not None else None,
                 auto_restart_enabled=state.auto_restart_enabled,
                 killed=was_killed(),
             )

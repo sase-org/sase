@@ -302,7 +302,7 @@ def test_incident_shaped_recovery_prompt_attributes_paths_to_this_run(
 
 
 @pytest.mark.parametrize("protocol", ["legacy", "staged"])
-def test_handoff_skips_declaration_recovery(
+def test_pending_or_staged_handoff_still_runs_declaration_recovery(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
     protocol: str,
@@ -312,28 +312,17 @@ def test_handoff_skips_declaration_recovery(
     original = InvokeResult(content="planning")
     if protocol == "legacy":
         (tmp_path / ".sase_plan_pending").write_text("1\n", encoding="utf-8")
-        result = ensure_final_declaration_or_recover(
-            provider=provider,
-            invoke_result=original,
-            model_tier="large",
-            suppress_output=True,
-            model_override=None,
+    else:
+        monkeypatch.setenv("SASE_AGENT", "1")
+        write_staged_handoff(
+            build_plan_staged_record(
+                plan_file=str(tmp_path / "plan.md"),
+                original_file=str(tmp_path / "plan.md"),
+                dirty_obligations_at_stage=[],
+                created_at="2020-01-01T00:00:00Z",
+            ),
             artifacts_dir=str(tmp_path),
         )
-        assert result is original
-        provider.invoke.assert_not_called()
-        return
-
-    monkeypatch.setenv("SASE_AGENT", "1")
-    write_staged_handoff(
-        build_plan_staged_record(
-            plan_file=str(tmp_path / "plan.md"),
-            original_file=str(tmp_path / "plan.md"),
-            dirty_obligations_at_stage=[],
-            created_at="2020-01-01T00:00:00Z",
-        ),
-        artifacts_dir=str(tmp_path),
-    )
     provider.invoke.return_value = InvokeResult(content="no declaration")
     with pytest.raises(RuntimeError, match="declaration"):
         ensure_final_declaration_or_recover(

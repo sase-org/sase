@@ -160,10 +160,84 @@ def test_finalize_does_not_release_promoted_marker_claim(tmp_path: Path) -> None
     "marker",
     [".sase_plan_pending", ".sase_questions_pending", ".sase_pipe_pending"],
 )
-def test_finalize_preserves_held_bead_claim_for_pending_handoff(
+def test_finalize_releases_held_bead_claim_for_leftover_pending_handoff(
     tmp_path: Path, marker: str
 ) -> None:
     (tmp_path / marker).touch()
+    context = make_context(tmp_path, is_home_mode=True)
+    deps = make_deps()
+
+    with patch(
+        "sase.bead.claims.release_bead_claim_for_agent",
+        return_value=BeadClaimReleaseOutcome.RELEASED,
+    ) as release:
+        finalize_runner_shutdown(
+            context=context,
+            state=make_state(
+                error_summary=None,
+                suppress_completion_notification=True,
+                held_bead_claim_id="sase-1.2",
+                held_bead_claim_agent="sase-1.2",
+                held_bead_claim_project="sase",
+            ),
+            deps=deps,
+        )
+
+    release.assert_called_once_with(
+        project_name="sase",
+        bead_id="sase-1.2",
+        agent_name="sase-1.2",
+    )
+
+
+def test_finalize_releases_marker_only_bead_claim_for_leftover_pending_handoff(
+    tmp_path: Path,
+) -> None:
+    (tmp_path / ".sase_plan_pending").touch()
+    _write_marker(tmp_path)
+    context = make_context(tmp_path, is_home_mode=True)
+    deps = make_deps()
+
+    with patch(
+        "sase.bead.claims.release_bead_claim_for_agent",
+        return_value=BeadClaimReleaseOutcome.RELEASED,
+    ) as release:
+        finalize_runner_shutdown(
+            context=context,
+            state=make_state(
+                error_summary=None,
+                suppress_completion_notification=True,
+            ),
+            deps=deps,
+        )
+
+    release.assert_called_once_with(
+        project_name="sase",
+        bead_id="sase-1.2",
+        agent_name="sase-1.2",
+    )
+    assert not (tmp_path / BEAD_CLAIM_MARKER).exists()
+
+
+def _write_staged_plan(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    from sase.agent.staged_handoff import build_plan_staged_record, write_staged_handoff
+
+    monkeypatch.setenv("SASE_AGENT", "1")
+    write_staged_handoff(
+        build_plan_staged_record(
+            plan_file="/tmp/plan.md",
+            original_file="/tmp/plan.md",
+            dirty_obligations_at_stage=[],
+            created_at="2026-10-28T12:00:00Z",
+        ),
+        artifacts_dir=str(tmp_path),
+    )
+
+
+def test_finalize_preserves_held_bead_claim_for_staged_handoff(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _write_staged_plan(tmp_path, monkeypatch)
     context = make_context(tmp_path, is_home_mode=True)
     deps = make_deps()
 
@@ -183,10 +257,10 @@ def test_finalize_preserves_held_bead_claim_for_pending_handoff(
     release.assert_not_called()
 
 
-def test_finalize_preserves_marker_only_bead_claim_for_pending_handoff(
-    tmp_path: Path,
+def test_finalize_preserves_marker_only_bead_claim_for_staged_handoff(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    (tmp_path / ".sase_plan_pending").touch()
+    _write_staged_plan(tmp_path, monkeypatch)
     _write_marker(tmp_path)
     context = make_context(tmp_path, is_home_mode=True)
     deps = make_deps()

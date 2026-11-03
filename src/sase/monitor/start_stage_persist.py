@@ -13,7 +13,7 @@ import os
 from typing import Any
 import uuid
 
-from sase.agent.gate_intent import atomic_write_json
+from sase.core.atomic_json import write_json_marker_atomic
 from sase.agent.staged_handoff import (
     StagedHandoffError,
     acquire_staging_reservation,
@@ -194,7 +194,7 @@ def _stage_monitor_locked(
                 f"could not freeze staged monitor payload: {exc}"
             ) from exc
         path = launch_payload_path(context.artifacts_dir)
-        atomic_write_json(path, normalized)
+        write_json_marker_atomic(path, normalized)
         write_staged_owner_index(
             context.monitor_id,
             staged_id=stage_id,

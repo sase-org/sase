@@ -12,7 +12,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from sase.agent.pending_handoff import PLAN_PENDING_MARKER
+from sase.agent.staged_handoff import build_plan_staged_record, write_staged_handoff
 from sase.bead.model import IssueType, PhaseSize, Resolution, Status
 from sase.bead.project import BeadProject
 from sase.bead.sync import push_bead_work_launch
@@ -48,7 +48,7 @@ __all__ = [
 
 
 class TestHandoffAndIdentity:
-    def test_pending_handoff_skips_assessment(
+    def test_staged_handoff_skips_assessment(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         repo = tmp_path / "repo"
@@ -58,14 +58,23 @@ class TestHandoffAndIdentity:
         resolve_and_persist_finalizer_plan(
             PromptDirectives(), artifacts_dir=str(artifacts)
         )
-        (artifacts / PLAN_PENDING_MARKER).write_text("1\n", encoding="utf-8")
+        monkeypatch.setenv("SASE_AGENT", "1")
+        write_staged_handoff(
+            build_plan_staged_record(
+                plan_file=str(tmp_path / "plan.md"),
+                original_file=str(tmp_path / "plan.md"),
+                dirty_obligations_at_stage=[],
+                created_at="2026-10-28T12:00:00Z",
+            ),
+            artifacts_dir=str(artifacts),
+        )
         assessment = assess_terminal_failure(
             str(artifacts),
             failure_code="stitch_failed",
             failure_message="hook failed",
         )
         assert assessment.should_recover is False
-        assert assessment.reason == "pending_handoff"
+        assert assessment.reason == "staged_handoff"
 
     def test_human_close_without_provenance_never_recovers(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch

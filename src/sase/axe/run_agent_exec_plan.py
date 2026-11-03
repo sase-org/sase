@@ -82,24 +82,6 @@ def record_workflow_metadata(
             update_meta_field(artifacts_dir, key, value)
 
 
-def handle_plan_marker(
-    plan_data: dict[str, Any],
-    ctx: AgentExecContext,
-    state: LoopState,
-) -> str | None:
-    """Handle a plan marker left by ``sase plan``.
-
-    Returns a loop-outcome string to break the loop, or ``None`` to continue.
-    """
-    return _handle_plan_handoff(
-        plan_data,
-        ctx,
-        state,
-        planner_response=None,
-        interrupted=True,
-    )
-
-
 def handle_staged_plan_marker(
     plan_data: dict[str, Any],
     ctx: AgentExecContext,

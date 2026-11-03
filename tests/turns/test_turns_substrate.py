@@ -18,7 +18,6 @@ from sase.turns.followup import (
     wait_for_followup_started,
 )
 from sase.turns.handoff import (
-    will_handoff_turn_to_agent_runner,
     write_turn_pending_marker,
 )
 from sase.turns.member import create_agent_session_turn_member
@@ -137,8 +136,6 @@ def test_write_turn_pending_marker_adds_payload_and_refresh_pulse(
     }
     assert (artifacts_root / ".ace_refresh_pulse").exists()
     assert not (artifacts_root / "ace-run" / "202608" / ".ace_refresh_pulse").exists()
-    assert will_handoff_turn_to_agent_runner({"SASE_AGENT": "1"}) is True
-    assert will_handoff_turn_to_agent_runner({}) is False
 
 
 def test_status_and_state_helpers_are_parameterized() -> None:

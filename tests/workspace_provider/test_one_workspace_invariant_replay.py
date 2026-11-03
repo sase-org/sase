@@ -5,7 +5,12 @@ from __future__ import annotations
 from pathlib import Path
 from unittest.mock import patch
 
-from sase.agent.pending_handoff import MONITOR_PENDING_MARKER
+import pytest
+
+from sase.agent.staged_handoff import (
+    build_monitor_staged_record,
+    write_staged_handoff,
+)
 from sase.logs.workspace_claim_ledger import read_ledger_records
 from sase.monitor.claims import MONITOR_WORKSPACE_CLAIM_WORKFLOW
 from sase.monitor.start_claim import claim_monitor_workspace
@@ -25,6 +30,7 @@ from tests._running_field_helpers import create_project_file_with_running
 
 def test_gate_vcs_monitor_handoff_keeps_one_claim_and_blocks_reallocation(
     tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     starter_pid = 1001
     monitor_pid = 1002
@@ -56,7 +62,14 @@ def test_gate_vcs_monitor_handoff_keeps_one_claim_and_blocks_reallocation(
     )
     artifacts = tmp_path / "artifacts"
     artifacts.mkdir()
-    (artifacts / MONITOR_PENDING_MARKER).write_text("{}", encoding="utf-8")
+    monkeypatch.setenv("SASE_AGENT", "1")
+    write_staged_handoff(
+        build_monitor_staged_record(
+            payload={"monitor_id": "monitor-1"},
+            created_at="2026-10-28T12:00:00Z",
+        ),
+        artifacts_dir=str(artifacts),
+    )
     ledger_file = str(tmp_path / "workspace_claims.jsonl")
 
     with patch("sase.logs.workspace_claim_ledger.LEDGER_FILE", ledger_file):

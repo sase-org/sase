@@ -1,36 +1,26 @@
 """Shared SIGTERM kill-source classification for agent runners.
 
-A SIGTERM with no user-kill intent and no handoff marker used to be reported
-as a user kill. This module gives every kill path one shared classifier so
+A SIGTERM with no user-kill intent used to be reported as a user kill.
+This module gives every kill path one shared classifier so
 ``run_agent_exec`` (the killed-iteration handler), ``run_agent_exec_retry``
 (the retry-wait interruption), and ``run_agent_runner`` (the ``SystemExit``
 path) all report the same provenance:
 
 - ``user``: an explicit user-kill intent marker exists.
-- ``handoff``: a plan, questions, monitor, gate, or pipe marker predates the
-  kill, so the runner's own handoff SIGTERM caused the failure.
 - ``external``: everything else (an OOM teardown of the launcher's scope, a
   manual ``kill``, a host stop, ...), with OOM evidence when the runner's
-  cgroup recorded OOM kills during the run.
+  cgroup recorded OOM kills during the run. Leftover pending-handoff markers
+  are archived evidence and never classify a kill as a handoff.
 """
 
 from __future__ import annotations
 
-import json
 import os
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
 from sase.agent.user_kill import has_user_kill_intent
-
-HANDOFF_MARKERS = (
-    ".sase_plan_pending",
-    ".sase_questions_pending",
-    ".sase_monitor_pending",
-    ".sase_gate_pending",
-    ".sase_pipe_pending",
-)
 
 _OOM_BASELINE: dict[str, Any] | None = None
 
@@ -52,10 +42,9 @@ def _classify_runner_kill(
 ) -> _KillProvenance:
     """Classify a runner SIGTERM without consuming any marker files."""
 
+    del kill_time
     if has_user_kill_intent(artifacts_dir):
         return _KillProvenance(source="user")
-    if _handoff_marker_predates_kill(artifacts_dir, kill_time):
-        return _KillProvenance(source="handoff")
     return _KillProvenance(
         source="external",
         evidence=_oom_kill_evidence(proc_root=proc_root, sysfs_root=sysfs_root),
@@ -131,12 +120,11 @@ def record_kill_provenance(
 ) -> _KillProvenance:
     """Classify a runner SIGTERM, count it, and stash it on *state*.
 
-    Handoff kills keep their existing outcome handling: no metric and no
-    ``kill_source``. ``user`` and ``external`` kills increment
-    ``AGENT_KILLS{reason=...}`` and set ``kill_source``/``kill_evidence`` on
-    *state* when it accepts those attributes. External kills also print the
-    one-line classification after the signal handler's ``Received SIGTERM``
-    line. Never raises: classification is best effort.
+    ``user`` and ``external`` kills increment ``AGENT_KILLS{reason=...}``
+    and set ``kill_source``/``kill_evidence`` on *state* when it accepts
+    those attributes. External kills also print the one-line classification
+    after the signal handler's ``Received SIGTERM`` line. Never raises:
+    classification is best effort.
     """
 
     import sys as _sys
@@ -150,8 +138,6 @@ def record_kill_provenance(
         )
     except Exception:
         return _KillProvenance(source="external")
-    if provenance.source == "handoff":
-        return provenance
     try:
         from sase.telemetry.metrics import AGENT_KILLS
 
@@ -175,50 +161,15 @@ def record_kill_provenance(
 def _format_kill_classification(provenance: _KillProvenance) -> str:
     """Render the one-line kill-source classification for the runner log."""
 
-    if provenance.source != "external":
-        return (
-            f"Kill source: {provenance.source} "
-            f"({'user-kill intent marker present' if provenance.source == 'user' else 'handoff marker predates the kill'})"
-        )
-    line = "Kill source: external (no user-kill intent or handoff marker)"
+    if provenance.source == "user":
+        return "Kill source: user (user-kill intent marker present)"
+    line = "Kill source: external (no user-kill intent)"
     evidence = provenance.evidence or {}
     delta = evidence.get("oom_kill_delta")
     unit = evidence.get("cgroup_unit")
     if isinstance(delta, int) and delta > 0:
         line += f"; cgroup {unit or 'unknown'} recorded {delta} OOM kill(s) since start"
     return line
-
-
-def _handoff_marker_predates_kill(
-    artifacts_dir: str,
-    kill_time: float | None,
-) -> bool:
-    for marker in HANDOFF_MARKERS:
-        data = _read_marker(artifacts_dir, marker)
-        if data is not None and _marker_predates_kill(data, kill_time):
-            return True
-    return False
-
-
-def _read_marker(artifacts_dir: str, marker: str) -> dict[str, Any] | None:
-    try:
-        with open(Path(artifacts_dir) / marker, encoding="utf-8") as f:
-            data = json.load(f)
-    except (FileNotFoundError, json.JSONDecodeError, OSError):
-        return None
-    return data if isinstance(data, dict) else None
-
-
-def _marker_predates_kill(
-    marker_data: dict[str, Any],
-    kill_time: float | None,
-) -> bool:
-    if kill_time is None:
-        return True
-    marker_time = marker_data.get("timestamp")
-    if not isinstance(marker_time, int | float):
-        return True
-    return float(marker_time) <= kill_time + 0.001
 
 
 def _read_oom_state(
@@ -269,7 +220,6 @@ def _unit_from_cgroup_path(path: str) -> str | None:
 
 
 __all__ = [
-    "HANDOFF_MARKERS",
     "record_kill_provenance",
     "snapshot_oom_baseline",
 ]

@@ -9,7 +9,6 @@ from typing import Any
 
 import pytest
 
-from sase.agent.gate_intent import list_gate_intents
 from sase.finalizers.owned_turn import SASE_FINALIZER_OWNED_TURN_ENV
 from sase.gate_turn import transaction as transaction_module
 from sase.gate_turn._transaction_creator import CreatorContext
@@ -181,10 +180,7 @@ def test_keyboard_interrupt_leaves_intent_marker(
     with pytest.raises(KeyboardInterrupt):
         create_gate_turn(_shell_gate_spec())
 
-    intents = list_gate_intents(artifacts_dir)
-    assert len(intents) == 1
-    assert intents[0].kind == "custom"
-    assert intents[0].request_id == "intent-one"
+    assert not list(artifacts_dir.glob(".sase_gate_intent.*"))
 
 
 def test_clean_lane_error_clears_intent_marker(
@@ -202,7 +198,7 @@ def test_clean_lane_error_clears_intent_marker(
     with pytest.raises(GateTurnLaneError, match="clean failure"):
         create_gate_turn(_shell_gate_spec())
 
-    assert list_gate_intents(artifacts_dir) == []
+    assert not list(artifacts_dir.glob(".sase_gate_intent.*"))
 
 
 def test_clean_gate_error_clears_intent_marker(
@@ -235,7 +231,7 @@ def test_clean_gate_error_clears_intent_marker(
     with pytest.raises(GateError, match="clean failure"):
         create_gate_turn(_shell_gate_spec())
 
-    assert list_gate_intents(artifacts_dir) == []
+    assert not list(artifacts_dir.glob(".sase_gate_intent.*"))
     assert restored == [True]
 
 
@@ -253,7 +249,7 @@ def test_auto_resolved_gate_clears_intent_marker(
     creation = create_gate_turn(_shell_gate_spec())
 
     assert creation.record.is_terminal
-    assert list_gate_intents(artifacts_dir) == []
+    assert not list(artifacts_dir.glob(".sase_gate_intent.*"))
 
 
 def test_non_terminal_creation_keeps_intent_for_handoff(
@@ -266,9 +262,7 @@ def test_non_terminal_creation_keeps_intent_for_handoff(
     creation = create_gate_turn(_shell_gate_spec())
 
     assert creation.should_handoff
-    intents = list_gate_intents(artifacts_dir)
-    assert len(intents) == 1
-    assert intents[0].request_id == "intent-one"
+    assert not list(artifacts_dir.glob(".sase_gate_intent.*"))
 
 
 def test_finalizer_owned_turn_writes_no_intent(
@@ -281,4 +275,4 @@ def test_finalizer_owned_turn_writes_no_intent(
     with pytest.raises(transaction_module.GateTurnError, match="host finalizer turn"):
         create_gate_turn(_shell_gate_spec())
 
-    assert list_gate_intents(artifacts_dir) == []
+    assert not list(artifacts_dir.glob(".sase_gate_intent.*"))

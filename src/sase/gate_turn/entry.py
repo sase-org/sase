@@ -166,12 +166,8 @@ def run_gate_entry(
 
 
 def _complete_gate_entry(outcome: _GateEntryOutcome) -> None:
-    """Print the common descriptor and hand off a published gate turn."""
+    """Print the common descriptor for a staged or published gate turn."""
     from sase.agent.staged_handoff import release_staging_reservation
-    from sase.gate_turn import (
-        maybe_handoff_gate_from_agent,
-        will_handoff_gate_to_agent_runner,
-    )
 
     if outcome.status == "staged":
         if outcome.preparation is None:
@@ -189,14 +185,6 @@ def _complete_gate_entry(outcome: _GateEntryOutcome) -> None:
     artifacts_dir = os.environ.get("SASE_ARTIFACTS_DIR")
     try:
         _emit_published_descriptor(outcome.creation)
-        if outcome.creation.should_handoff and will_handoff_gate_to_agent_runner():
-            if reservation_id is None:
-                raise GateTurnError("gate handoff has no active admission reservation")
-            maybe_handoff_gate_from_agent(
-                outcome.creation,
-                reservation_id=reservation_id,
-            )
-            reservation_id = None
     finally:
         if reservation_id is not None:
             release_staging_reservation(

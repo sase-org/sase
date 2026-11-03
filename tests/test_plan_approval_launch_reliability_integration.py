@@ -21,7 +21,7 @@ import pytest
 
 from sase._plan_archive_approval import _ApprovedPlanArchive
 from sase.axe.agent_meta import write_agent_meta_atomic
-from sase.axe.run_agent_exec_plan import handle_plan_marker
+from tests._legacy_handoff_markers import handle_plan_marker
 from sase.axe.run_agent_successor import SuccessorRequest
 from sase.history.chat import save_chat_history
 from sase.llm_provider._plan_utils import PlanApprovalResult

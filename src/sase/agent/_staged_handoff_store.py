@@ -13,7 +13,7 @@ from pathlib import Path
 import threading
 from typing import Any, Literal, overload
 
-from sase.agent.gate_intent import atomic_write_json
+from sase.core.atomic_json import write_json_marker_atomic
 from sase.core.staged_handoff import (
     StagedHandoffContractError,
     validate_staged_handoff,
@@ -143,7 +143,7 @@ def write_staged_handoff_response(
                 "cannot persist provider response for a different staged handoff"
             )
         path = root / STAGED_HANDOFF_RESPONSE_FILENAME
-        atomic_write_json(
+        write_json_marker_atomic(
             path,
             {
                 "schema_version": 1,

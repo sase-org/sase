@@ -76,17 +76,9 @@ _LAZY_EXPORTS: dict[str, tuple[str, str]] = {
     ),
     "has_any_gate_turn": ("sase.gate_turn.store", "has_any_gate_turn"),
     "list_gate_turns": ("sase.gate_turn.store", "list_gate_turns"),
-    "maybe_handoff_gate_from_agent": (
-        "sase.gate_turn.agent_handoff",
-        "maybe_handoff_gate_from_agent",
-    ),
     "read_gate_turn_marker": ("sase.gate_turn.store", "read_gate_turn_marker"),
     "resolve_gate_turn_ref": ("sase.gate_turn.store", "resolve_gate_turn_ref"),
     "settle_gate_turn": ("sase.gate_turn.settlement", "settle_gate_turn"),
-    "will_handoff_gate_to_agent_runner": (
-        "sase.gate_turn.agent_handoff",
-        "will_handoff_gate_to_agent_runner",
-    ),
 }
 
 
@@ -135,7 +127,6 @@ __all__ = [
     "is_gate_turn_member_record",
     "list_gate_turns",
     "load_staged_gate_resource_bytes",
-    "maybe_handoff_gate_from_agent",
     "new_gate_turn_id",
     "prepare_staged_gate",
     "publish_gate_turn",
@@ -146,5 +137,4 @@ __all__ = [
     "resolve_gate_turn_ref",
     "settle_gate_turn",
     "short_gate_turn_id",
-    "will_handoff_gate_to_agent_runner",
 ]

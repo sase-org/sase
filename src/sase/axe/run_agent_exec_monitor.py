@@ -7,8 +7,6 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from sase.axe.run_agent_helpers import (
-    finalize_handoff_artifacts_as_completed,
-    normalize_handoff_interruption_state,
     update_meta_field,
     update_meta_suffix,
     update_step_marker_chat_path,
@@ -22,40 +20,6 @@ from sase.plan_chain import AGENT_SESSION_SEPARATOR, canonical_plan_chain_suffix
 if TYPE_CHECKING:
     from sase.axe.run_agent_exec import AgentExecContext, LoopState
     from sase.continuation_capture.models import ContinuationPublishResult
-
-
-def handle_monitor_marker(
-    monitor_data: dict[str, Any],
-    ctx: AgentExecContext,
-    state: LoopState,
-) -> str:
-    """Adopt a ``.sase_monitor_pending`` marker after runner SIGTERM."""
-    normalize_handoff_interruption_state(state.current_artifacts_dir)
-    finalize_handoff_artifacts_as_completed(state.current_artifacts_dir)
-    monitor_meta = _monitor_member_meta(monitor_data)
-    monitor_id = _text(monitor_data.get("monitor_id")) or _text(
-        monitor_meta.get("monitor_id")
-    )
-    member_agent_name = _text(monitor_data.get("member_agent_name")) or _text(
-        monitor_meta.get("name")
-    )
-    response = _format_monitor_response(
-        monitor_id=monitor_id,
-        member_agent_name=member_agent_name,
-        command=_text(monitor_meta.get("monitor_command")),
-        cwd=_text(monitor_meta.get("monitor_cwd")),
-        reason=_text(monitor_meta.get("monitor_reason")),
-        next_action=_text(monitor_meta.get("monitor_next_action")),
-    )
-    capture_monitor_handoff(
-        monitor_data,
-        ctx,
-        state,
-        response=response,
-        status="interrupted",
-        reset_killed_state=True,
-    )
-    return "monitored"
 
 
 def capture_monitor_handoff(
@@ -283,4 +247,4 @@ def _text(value: Any) -> str | None:
     return value if isinstance(value, str) and value else None
 
 
-__all__ = ["capture_monitor_handoff", "handle_monitor_marker"]
+__all__ = ["capture_monitor_handoff"]

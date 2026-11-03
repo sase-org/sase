@@ -9,6 +9,7 @@ from unittest.mock import patch
 import pytest
 
 from sase.agent.pending_handoff import PENDING_HANDOFF_MARKERS
+from sase.agent.staged_handoff import build_plan_staged_record, write_staged_handoff
 from sase.logs.workspace_claim_ledger import read_ledger_records
 from sase.running_field import WorkspaceClaim, get_claimed_workspaces
 from sase.scripts import git_release
@@ -75,7 +76,7 @@ def _release(
 
 class TestHandoffSkipsRelease:
     @pytest.mark.parametrize("marker", PENDING_HANDOFF_MARKERS)
-    def test_each_handoff_kind_skips_release_and_occupant(
+    def test_leftover_pending_marker_does_not_skip_release(
         self, tmp_path: Path, marker: str
     ) -> None:
         runner_pid = os.getpid()
@@ -88,6 +89,43 @@ class TestHandoffSkipsRelease:
         artifacts = tmp_path / "artifacts"
         artifacts.mkdir()
         (artifacts / marker).write_text("{}", encoding="utf-8")
+
+        with _isolate_ledger(tmp_path):
+            result = _release(
+                project_file,
+                checkout,
+                runner_pid=runner_pid,
+                artifacts_dir=str(artifacts),
+            )
+
+        assert result.released is True
+        assert result.occupant_cleared is True
+        assert result.skip_reason is None
+        assert get_claimed_workspaces(project_file) == []
+        assert read_occupant_record(str(checkout)) is None
+
+    def test_staged_handoff_skips_release_and_occupant(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        runner_pid = os.getpid()
+        project_file = create_project_file_with_running(
+            tmp_path, running_claims=[_claim(pid=runner_pid)]
+        )
+        checkout = tmp_path / "ws_23"
+        checkout.mkdir()
+        _write_occupant(checkout, runner_pid)
+        artifacts = tmp_path / "artifacts"
+        artifacts.mkdir()
+        monkeypatch.setenv("SASE_AGENT", "1")
+        write_staged_handoff(
+            build_plan_staged_record(
+                plan_file="/tmp/plan.md",
+                original_file="/tmp/plan.md",
+                dirty_obligations_at_stage=[],
+                created_at="2026-10-28T12:00:00Z",
+            ),
+            artifacts_dir=str(artifacts),
+        )
         ledger_file = str(tmp_path / "workspace_claims.jsonl")
 
         with _isolate_ledger(tmp_path):

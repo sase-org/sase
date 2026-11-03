@@ -11,7 +11,7 @@ from pathlib import Path
 import uuid
 from typing import Any
 
-from sase.agent.gate_intent import atomic_write_json
+from sase.core.atomic_json import write_json_marker_atomic
 from sase.agent.pending_handoff import PENDING_HANDOFF_MARKERS
 from sase.agent._staged_handoff_store import (
     STAGED_HANDOFF_FILENAME,
@@ -262,7 +262,7 @@ def write_staged_handoff(
         except StagedHandoffContractError as exc:
             raise StagedHandoffError(str(exc)) from exc
         path = root / STAGED_HANDOFF_FILENAME
-        atomic_write_json(path, normalized)
+        write_json_marker_atomic(path, normalized)
         if reservation_id is not None:
             release_staging_reservation_locked(root, reservation_id)
         return path
@@ -298,7 +298,7 @@ def acquire_staging_reservation(
             "pid": pid,
             "process_identity": process_identity_token(pid),
         }
-        atomic_write_json(root / STAGING_RESERVATION_FILENAME, payload)
+        write_json_marker_atomic(root / STAGING_RESERVATION_FILENAME, payload)
     return reservation_id
 
 

@@ -1,9 +1,13 @@
-"""Pending-marker handoff from an agent runner to an agent-session turn."""
+"""Pending-marker writer kept for archived kill-path readers.
+
+In-agent handoff commands now stage and return. This module still writes the
+historical pending-marker shape so archived runs, collision detection, and
+runtime tests can interpret old handoffs.
+"""
 
 from __future__ import annotations
 
-import os
-from collections.abc import Callable, Mapping
+from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
 
@@ -19,52 +23,6 @@ class TurnHandoffError(RuntimeError):
     def __init__(self, message: str, *, member: str = "turn") -> None:
         super().__init__(message)
         self.member = member
-
-
-def will_handoff_turn_to_agent_runner(
-    env: Mapping[str, str] | None = None,
-) -> bool:
-    """Return whether a handoff helper will terminate the current runner."""
-    current_env = env if env is not None else os.environ
-    return bool(current_env.get("SASE_AGENT"))
-
-
-def maybe_handoff_turn_from_agent(
-    *,
-    marker_name: str,
-    marker_data: Mapping[str, Any],
-    artifacts_dir: str | None = None,
-    env: Mapping[str, str] | None = None,
-    on_marker_written: Callable[[], None] | None = None,
-    member: str = "turn",
-    reservation_id: str | None = None,
-) -> bool:
-    """Write a pending marker and kill this runner when inside an agent."""
-    current_env = env if env is not None else os.environ
-    if not current_env.get("SASE_AGENT"):
-        return False
-
-    resolved_artifacts_dir = artifacts_dir or current_env.get("SASE_ARTIFACTS_DIR")
-    if not resolved_artifacts_dir:
-        raise TurnHandoffError(
-            f"cannot hand {member} to agent runner: SASE_ARTIFACTS_DIR is unset",
-            member=member,
-        )
-
-    write_turn_pending_marker(
-        marker_name,
-        marker_data,
-        resolved_artifacts_dir,
-        member=member,
-        reservation_id=reservation_id,
-    )
-    if on_marker_written is not None:
-        on_marker_written()
-
-    from sase.main.utils import kill_agent_runner_group
-
-    kill_agent_runner_group(resolved_artifacts_dir)
-    return True
 
 
 def write_turn_pending_marker(
@@ -92,11 +50,6 @@ def write_turn_pending_marker(
             f"could not write {member} handoff marker: {exc}", member=member
         ) from exc
 
-    # A pending marker supersedes any in-flight marker the handoff command
-    # wrote before its slow work (sase-18e.3 aborted-handoff evidence).
-    from sase.agent.handoff_inflight import clear_handoff_inflight_marker
-
-    clear_handoff_inflight_marker(artifacts_dir)
     _touch_turn_refresh_pulse_for_artifacts_dir(artifacts_dir)
     return marker_path
 
@@ -116,7 +69,5 @@ def _touch_turn_refresh_pulse_for_artifacts_dir(artifacts_dir: str) -> None:
 
 __all__ = [
     "TurnHandoffError",
-    "maybe_handoff_turn_from_agent",
-    "will_handoff_turn_to_agent_runner",
     "write_turn_pending_marker",
 ]

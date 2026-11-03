@@ -6,7 +6,7 @@ from unittest.mock import call, patch
 
 import pytest
 
-from sase.axe.run_agent_exec_plan import handle_plan_marker
+from tests._legacy_handoff_markers import handle_plan_marker
 from sase.axe import run_agent_exec_plan_accept as accept_mod
 from sase.axe.run_agent_exec_plan_accept import _accepted_plan_action_for_meta
 from sase.llm_provider._plan_utils import PlanApprovalResult

@@ -14,7 +14,7 @@ import time
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from sase.agent.gate_intent import atomic_write_json
+from sase.core.atomic_json import write_json_marker_atomic
 from sase.axe.run_agent_exec_staged_recovery import recover_staged_handoff
 from sase.axe.staged_handoff_notifications import (
     held_staged_handoff_notification,
@@ -100,7 +100,7 @@ def reconcile_staged_handoffs(
                 state["pending"] = page["candidates"]
                 summary.scanned = page["scanned"]
                 summary.errors.extend(page["errors"])
-            atomic_write_json(state_file, state)
+            write_json_marker_atomic(state_file, state)
         while (
             state["pending"]
             and summary.inspected < candidate_limit
@@ -137,7 +137,7 @@ def reconcile_staged_handoffs(
             except Exception as exc:  # noqa: BLE001 - isolate each damaged origin.
                 summary.errors.append(f"{origin}: {exc}")
             state["pending"].pop(0)
-            atomic_write_json(state_file, state)
+            write_json_marker_atomic(state_file, state)
         summary.deferred = len(state["pending"])
     return summary
 

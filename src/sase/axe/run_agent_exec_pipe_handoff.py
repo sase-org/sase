@@ -46,24 +46,6 @@ if TYPE_CHECKING:
 _store_followup_prompt_artifact = store_followup_prompt_artifact
 
 
-def handle_pipe_marker(
-    pipe_data: dict[str, Any],
-    ctx: AgentExecContext,
-    state: LoopState,
-) -> str | None:
-    """Adopt a ``.sase_pipe_pending`` marker after runner SIGTERM.
-
-    Returns ``None`` so the execution loop runs the successor.
-    """
-    return _handle_pipe_handoff(
-        pipe_data,
-        ctx,
-        state,
-        provider_response=None,
-        interrupted=True,
-    )
-
-
 def handle_staged_pipe_marker(
     pipe_data: dict[str, Any],
     ctx: AgentExecContext,
@@ -437,7 +419,6 @@ def restore_staged_pipe_successor(
 
 
 __all__ = [
-    "handle_pipe_marker",
     "handle_staged_pipe_marker",
     "restore_staged_pipe_successor",
 ]

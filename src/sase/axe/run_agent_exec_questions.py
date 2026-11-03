@@ -108,30 +108,6 @@ def _question_successor_fallback_token(reserved_suffixes: tuple[str, ...]) -> st
     return str(token)
 
 
-def handle_questions_marker(
-    q_data: dict[str, Any],
-    ctx: AgentExecContext,
-    state: LoopState,
-) -> str | None:
-    """Handle a questions marker left by ``sase questions``.
-
-    The runner creates a question gate turn during marker adoption: it
-    never writes ``pending_question.json``, never yields or reacquires a
-    runner slot, and never calls ``wait_for_gate``. Either the runner
-    terminalizes as ``DONE`` (delegated to :func:`handle_gate_marker`,
-    exactly as any other gate turn), or -- on the ``%auto`` short-circuit,
-    where the gate already settled synchronously inside creation -- it
-    continues in-process at the cost of exactly one agent.
-    """
-    return _handle_questions_handoff(
-        q_data,
-        ctx,
-        state,
-        provider_response=None,
-        interrupted=True,
-    )
-
-
 def handle_staged_questions_marker(
     q_data: dict[str, Any],
     ctx: AgentExecContext,
@@ -533,6 +509,5 @@ def _continue_after_auto_answered_question(
 
 
 __all__ = [
-    "handle_questions_marker",
     "handle_staged_questions_marker",
 ]

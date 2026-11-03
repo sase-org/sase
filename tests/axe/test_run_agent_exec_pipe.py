@@ -7,7 +7,7 @@ from dataclasses import replace
 from pathlib import Path
 from unittest.mock import Mock, patch
 
-from sase.axe.run_agent_exec_pipe import handle_pipe_marker
+from tests._legacy_handoff_markers import handle_pipe_marker
 from sase.axe.run_agent_successor import FollowupModel
 from tests._axe_run_agent_exec_plan_helpers import make_ctx, make_state
 

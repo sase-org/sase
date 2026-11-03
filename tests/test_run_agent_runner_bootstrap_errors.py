@@ -11,7 +11,6 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from sase.agent.gate_intent import GateIntent
 from sase.axe import (
     run_agent_runner,
     run_agent_runner_bootstrap,
@@ -19,8 +18,6 @@ from sase.axe import (
 )
 from sase.env_contracts import SASE_HOST_PATH_SNAPSHOT_ENV
 from sase.axe.run_agent_runner_refresh import RUNNER_CODE_REFRESHED_ENV
-from sase.llm_provider.gate_intent_guard import GateIntentLostError
-from sase.macro.workflow_models import WorkflowExecutionError
 
 
 def _runner_args(tmp_path: Path) -> SimpleNamespace:
@@ -401,56 +398,3 @@ def test_exception_without_sigterm_stays_failure_even_with_user_intent(
     assert record_error.call_args.kwargs["killed"] is False
     provenance.assert_not_called()
     assert finalize.call_args.kwargs["state"].exec_outcome == ""
-
-
-def test_gate_intent_lost_summary_is_passed_to_error_recorder(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    monkeypatch.delenv(RUNNER_CODE_REFRESHED_ENV, raising=False)
-    args = _runner_args(tmp_path)
-    Path(args.prompt_file).write_text("Do work", encoding="utf-8")
-    intent = GateIntent(
-        path=tmp_path / ".sase_gate_intent.999.json",
-        payload={},
-        kind="sudo",
-        request_id="sudo-lost",
-        source="sase sudo request",
-        pid=999,
-        process_identity="",
-        timestamp=1.0,
-    )
-    lost = GateIntentLostError(
-        intent,
-        evidence_path=tmp_path / "gate_intent_lost.json",
-        pid_alive=False,
-    )
-    try:
-        raise lost
-    except GateIntentLostError as cause:
-        try:
-            raise WorkflowExecutionError("Step 'main' failed") from cause
-        except WorkflowExecutionError as exc:
-            wrapped = exc
-
-    with ExitStack() as stack:
-        _artifacts_dir, _record_completion, _finalize, _ = _runner_patches(
-            stack,
-            tmp_path=tmp_path,
-        )
-        stack.enter_context(
-            patch.object(run_agent_runner, "_run_agent", side_effect=wrapped)
-        )
-        record_error = stack.enter_context(
-            patch.object(
-                run_agent_runner,
-                "record_runner_error",
-                return_value=(str(lost), "traceback"),
-            )
-        )
-
-        with pytest.raises(SystemExit) as exc_info:
-            run_agent_runner.main()
-
-    assert exc_info.value.code == 1
-    assert record_error.call_args.kwargs["error_summary"] == str(lost)

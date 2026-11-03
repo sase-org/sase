@@ -16,7 +16,7 @@ from contextlib import contextmanager
 from typing import Any
 
 
-class GateEntrySignal(BaseException):
+class _GateEntrySignal(BaseException):
     """Termination signal received during gate entry."""
 
     def __init__(self, signum: int) -> None:
@@ -26,12 +26,11 @@ class GateEntrySignal(BaseException):
 
 @contextmanager
 def gate_entry_signal_guard() -> Iterator[None]:
-    """Convert termination signals into GateEntrySignal for one gate entry.
+    """Convert termination signals into _GateEntrySignal for one gate entry.
 
-    Restores previous handlers on exit so the handoff kill that follows a
-    published gate uses the process default disposition. Signals arriving
-    while compensation for a first signal is running are deferred until
-    the compensation finishes.
+    Restores previous handlers on exit so a later SIGTERM uses the process
+    default disposition. Signals arriving while compensation for a first
+    signal is running are deferred until the compensation finishes.
     """
     if threading.current_thread() is not threading.main_thread():
         yield
@@ -43,7 +42,7 @@ def gate_entry_signal_guard() -> Iterator[None]:
             state["deferred"] = signum
             return
         state["interrupted"] = True
-        raise GateEntrySignal(signum)
+        raise _GateEntrySignal(signum)
 
     previous: dict[Any, Any] = {}
     for sig in (signal.SIGTERM, signal.SIGHUP, signal.SIGINT):
@@ -62,7 +61,7 @@ def gate_entry_signal_guard() -> Iterator[None]:
                 pass
         deferred = state["deferred"]
         if isinstance(deferred, int) and sys.exception() is None:
-            raise GateEntrySignal(deferred)
+            raise _GateEntrySignal(deferred)
 
 
-__all__ = ["GateEntrySignal", "gate_entry_signal_guard"]
+__all__ = ["gate_entry_signal_guard"]

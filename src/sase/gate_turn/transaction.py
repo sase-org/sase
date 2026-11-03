@@ -12,7 +12,6 @@ from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from typing import Any
 
-from sase.agent.gate_intent import begin_gate_intent, clear_gate_intent
 from sase.axe.run_agent_helpers_artifacts import update_meta_fields
 from sase.finalizers.owned_turn import finalizer_owned_turn_is_active
 from sase.gate_turn import naming
@@ -102,42 +101,23 @@ def create_gate_turn(
     """Create a gate-turn member, then create the durable gate.
 
     This is the immediate compatibility wrapper: it resolves the creator
-    from the live environment, stamps a gate-intent marker, and publishes.
-    Staged adoption calls :func:`publish_gate_turn` with persisted creator
-    context and never writes an intent marker.
+    from the live environment and publishes. Staged adoption calls
+    :func:`publish_gate_turn` with persisted creator context.
     """
     if finalizer_owned_turn_is_active():
         raise GateTurnError(_FINALIZER_OWNED_TURN_ERROR)
     spec = spec_from_request(request)
     if spec.turn is None:
         raise GateTurnError("gate turn creation requires a shell block")
-    begin_gate_intent(spec.kind, request_id=spec.request_id)
 
-    from sase.gate_turn._signal_guard import GateEntrySignal
-
-    try:
-        creator = resolve_creator(resolve_project_name())
-        creation = publish_gate_turn(
-            spec,
-            creator=creator,
-            creator_live=True,
-            before_auto_settle=before_auto_settle,
-            frozen_auto=frozen_auto,
-        )
-    except GateEntrySignal:
-        # Termination during gate entry (SIGTERM/SIGHUP/SIGINT converted by
-        # gate_entry_signal_guard) must clear the intent so host adjudication
-        # does not see a stale marker. Other BaseExceptions keep the existing
-        # contract (KeyboardInterrupt outside the guard still leaves it).
-        clear_gate_intent()
-        raise
-    except Exception:
-        clear_gate_intent()
-        raise
-
-    if not creation.should_handoff:
-        clear_gate_intent()
-    return creation
+    creator = resolve_creator(resolve_project_name())
+    return publish_gate_turn(
+        spec,
+        creator=creator,
+        creator_live=True,
+        before_auto_settle=before_auto_settle,
+        frozen_auto=frozen_auto,
+    )
 
 
 def publish_gate_turn(

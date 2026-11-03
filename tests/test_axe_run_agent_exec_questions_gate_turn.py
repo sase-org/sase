@@ -10,6 +10,7 @@ import pytest
 
 from sase.axe import run_agent_exec_questions as questions_mod
 from sase.gate_turn.models import GateTurnRecord
+from tests._legacy_handoff_markers import handle_questions_marker
 from sase.gate_turn.transaction import GateTurnCreation
 from sase.main.qa_markdown import QARound
 from sase.notification_gates.model_results import GateCreationResult
@@ -112,9 +113,7 @@ def test_non_auto_creates_a_gate_turn_and_ends_gated(
         "sase.axe.run_agent_exec_gate.handle_gate_marker", fake_handle_gate_marker
     )
 
-    outcome = questions_mod.handle_questions_marker(
-        {"questions": _questions()}, ctx, state
-    )
+    outcome = handle_questions_marker({"questions": _questions()}, ctx, state)
 
     assert outcome == "gated"
     assert state.question_gate_artifacts_dir == creation.record.artifacts_dir
@@ -206,9 +205,7 @@ def test_auto_continues_in_process_with_no_second_agent(
     handoff = MagicMock(return_value="gated")
     monkeypatch.setattr("sase.axe.run_agent_exec_gate.handle_gate_marker", handoff)
 
-    outcome = questions_mod.handle_questions_marker(
-        {"questions": _questions()}, ctx, state
-    )
+    outcome = handle_questions_marker({"questions": _questions()}, ctx, state)
 
     if profile == "standard":
         assert outcome == "gated"

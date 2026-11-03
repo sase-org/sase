@@ -10,7 +10,6 @@ from unittest.mock import patch
 
 import pytest
 
-from sase.agent.gate_intent import list_gate_intents
 from sase.agent.launch_request import (
     LaunchRequestCreationResult,
     LaunchRequestError,
@@ -55,18 +54,6 @@ def _prepare_creator(
     monkeypatch.setenv("SASE_BEAD_ID", "sase-demo.1")
     monkeypatch.delenv("SASE_FINALIZER_OWNED_TURN", raising=False)
     monkeypatch.delenv("SASE_NATIVE_HELPER", raising=False)
-    import sase.gate_turn.agent_handoff as agent_handoff
-    import sase.gate_turn as gate_turn_pkg
-
-    monkeypatch.setattr(
-        agent_handoff, "will_handoff_gate_to_agent_runner", lambda: False
-    )
-    monkeypatch.setattr(
-        gate_turn_pkg,
-        "will_handoff_gate_to_agent_runner",
-        lambda: False,
-        raising=False,
-    )
     return creator_dir
 
 
@@ -122,7 +109,7 @@ def test_agent_launch_request_stages(
     assert (Path(creator_dir) / STAGED_HANDOFF_FILENAME).is_file()
     assert not (Path(creator_dir) / STAGING_RESERVATION_FILENAME).exists()
     assert not (Path(creator_dir) / ".sase_gate_pending").exists()
-    assert list_gate_intents(creator_dir) == []
+    assert not list(Path(creator_dir).glob(".sase_gate_intent.*"))
     assert not bundle_paths("launch", result.request_id).root.exists()
     assert spawned == []
 

@@ -61,7 +61,7 @@ def test_missing_artifacts_dir_is_a_safe_noop(monkeypatch: pytest.MonkeyPatch) -
 
 
 @pytest.mark.parametrize("protocol", ["legacy", "staged"])
-def test_handoff_skips_generic_controller(
+def test_pending_or_staged_handoff_still_runs_controller(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
     protocol: str,
@@ -73,7 +73,6 @@ def test_handoff_skips_generic_controller(
     prepare_agent_env(monkeypatch, artifacts, repo)
     if protocol == "legacy":
         (artifacts / PLAN_PENDING_MARKER).write_text("1\n", encoding="utf-8")
-        dirty = {"repos": (dirty_repo(repo),)}
     else:
         monkeypatch.setenv("SASE_AGENT", "1")
         write_staged_handoff(
@@ -85,7 +84,7 @@ def test_handoff_skips_generic_controller(
             ),
             artifacts_dir=str(artifacts),
         )
-        dirty = {"repos": ()}
+    dirty = {"repos": ()}
     patch_dirty(monkeypatch, repo, dirty)
     provider = MagicMock()
 
@@ -96,10 +95,6 @@ def test_handoff_skips_generic_controller(
     result = run_controller(artifacts, provider)
 
     assert result.content == "done"
-    if protocol == "legacy":
-        provider.invoke.assert_not_called()
-        assert not (artifacts / "finalizer_result.json").exists()
-        return
     payload = json.loads((artifacts / "finalizer_result.json").read_text())
     assert payload["status"] == "success"
 

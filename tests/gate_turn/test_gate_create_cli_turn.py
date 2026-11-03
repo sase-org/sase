@@ -11,7 +11,6 @@ from pathlib import Path
 
 import pytest
 
-from sase.agent.gate_intent import list_gate_intents
 from sase.agent.pending_handoff import PIPE_PENDING_MARKER
 from sase.agent.pending_handoff_write import write_pending_handoff_marker
 from sase.agent.staged_handoff import (
@@ -43,20 +42,6 @@ def _prepare_creator(monkeypatch: pytest.MonkeyPatch, project: str) -> str:
     monkeypatch.setenv("SASE_ARTIFACTS_DIR", creator_dir)
     monkeypatch.setenv("SASE_AGENT", "1")
     monkeypatch.delenv("SASE_FINALIZER_OWNED_TURN", raising=False)
-    # A test must never signal the real runner.
-    import sase.gate_turn.agent_handoff as agent_handoff
-
-    monkeypatch.setattr(
-        agent_handoff, "will_handoff_gate_to_agent_runner", lambda: False
-    )
-    import sase.gate_turn as gate_turn_pkg
-
-    monkeypatch.setattr(
-        gate_turn_pkg,
-        "will_handoff_gate_to_agent_runner",
-        lambda: False,
-        raising=False,
-    )
     return creator_dir
 
 
@@ -148,7 +133,7 @@ def test_pending_gate_uses_staged_entry_protocol(
     assert record["payload"]["request_id"] == request_id
     assert not (Path(creator_dir) / STAGING_RESERVATION_FILENAME).exists()
     assert not (Path(creator_dir) / ".sase_gate_pending").exists()
-    assert list_gate_intents(creator_dir) == []
+    assert not list(Path(creator_dir).glob(".sase_gate_intent.*"))
     assert find_gate_turn_by_gate_id(project, request_id) is None
     from sase.notification_gates.paths import bundle_paths
 
@@ -175,7 +160,7 @@ def test_invalid_pending_gate_releases_reservation_before_publication(
     assert "invalid_icon" in err
     assert read_staged_handoff(creator_dir) is None
     assert not (Path(creator_dir) / STAGING_RESERVATION_FILENAME).exists()
-    assert list_gate_intents(creator_dir) == []
+    assert not list(Path(creator_dir).glob(".sase_gate_intent.*"))
     assert find_gate_turn_by_gate_id(project, request_id) is None
     from sase.notification_gates.paths import bundle_paths
 

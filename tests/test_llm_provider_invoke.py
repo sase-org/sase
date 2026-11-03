@@ -16,7 +16,6 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from sase.agent.gate_intent import GATE_INTENT_PREFIX, atomic_write_json
 from sase.agent._agent_session_attach_types import AGENT_SESSION_ATTACH_ENV
 from sase.llm_provider._invoke import invoke_agent
 from sase.llm_provider.continuation_budget import (
@@ -164,129 +163,6 @@ def test_invoke_agent_returns_local_ai_message_with_content(
 
     assert isinstance(result, AIMessage)
     assert result.content == "provider response"
-
-
-@patch("sase.llm_provider._invoke.get_provider")
-@patch("sase.llm_provider._invoke.preprocess_prompt")
-@patch("sase.llm_provider._invoke.postprocess_success")
-@patch("sase.llm_provider._invoke.postprocess_error")
-def test_invoke_agent_lost_gate_intent_fails_before_finalizers(
-    mock_postprocess_error: MagicMock,
-    mock_postprocess_success: MagicMock,
-    mock_preprocess: MagicMock,
-    mock_get_provider: MagicMock,
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    artifacts = tmp_path / "artifacts"
-    artifacts.mkdir()
-    (artifacts / "agent_meta.json").write_text("{}", encoding="utf-8")
-    atomic_write_json(
-        artifacts / f"{GATE_INTENT_PREFIX}999999999.json",
-        {
-            "kind": "sudo",
-            "request_id": "sudo-lost",
-            "source": "sase sudo request",
-            "pid": 999999999,
-            "process_identity": "",
-            "timestamp": 1.0,
-        },
-    )
-    monkeypatch.setattr(
-        "sase.llm_provider.gate_intent_guard._gate_turn_member_detail",
-        lambda _intent: "",
-    )
-    mock_preprocess.return_value = _PreprocessResult(prompt="preprocessed")
-    mock_provider = MagicMock()
-    mock_provider.invoke.return_value = InvokeResult(content="provider response")
-    mock_get_provider.return_value = mock_provider
-
-    with (
-        patch("sase.finalizers.run_finalizers") as run_finalizers,
-        pytest.raises(LLMInvocationError, match="gate intent lost:"),
-    ):
-        invoke_agent(
-            "prompt",
-            agent_type="test",
-            suppress_output=True,
-            artifacts_dir=str(artifacts),
-        )
-
-    run_finalizers.assert_not_called()
-    mock_postprocess_success.assert_not_called()
-    mock_postprocess_error.assert_called_once()
-
-
-@patch("sase.llm_provider._invoke.get_provider")
-@patch("sase.llm_provider._invoke.preprocess_prompt")
-@patch("sase.llm_provider._invoke.postprocess_success")
-def test_invoke_agent_later_accepted_declaration_runs_finalizers_after_lost_intent(
-    mock_postprocess_success: MagicMock,
-    mock_preprocess: MagicMock,
-    mock_get_provider: MagicMock,
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    from sase.finalizers.declaration import AcceptedFinalSubmission
-
-    artifacts = tmp_path / "artifacts"
-    artifacts.mkdir()
-    (artifacts / "agent_meta.json").write_text("{}", encoding="utf-8")
-    atomic_write_json(
-        artifacts / f"{GATE_INTENT_PREFIX}999999999.json",
-        {
-            "kind": "sudo",
-            "request_id": "sudo-lost",
-            "source": "sase sudo request",
-            "pid": 999999999,
-            "process_identity": "",
-            "timestamp": 1.0,
-        },
-    )
-    monkeypatch.setattr(
-        "sase.finalizers.declaration.load_accepted_current_final_submission",
-        lambda _root: AcceptedFinalSubmission(
-            accepted_at="2026-11-01T16:21:13Z",
-            submission_digest="digest-1",
-            payload={},
-        ),
-    )
-    monkeypatch.setattr(
-        "sase.gate_turn.reclaim.settle_superseded_gate_turn", lambda _id: True
-    )
-    notified: list[dict[str, object]] = []
-    monkeypatch.setattr(
-        "sase.notifications.senders.notify_workflow_complete",
-        lambda **kwargs: notified.append(kwargs),
-    )
-    mock_preprocess.return_value = _PreprocessResult(prompt="preprocessed")
-    mock_provider = MagicMock()
-    mock_provider.invoke.return_value = InvokeResult(content="provider response")
-    mock_get_provider.return_value = mock_provider
-
-    def passthrough_finalizers(**kwargs: object) -> InvokeResult:
-        result = kwargs["invoke_result"]
-        assert isinstance(result, InvokeResult)
-        return result
-
-    with patch(
-        "sase.finalizers.run_finalizers", side_effect=passthrough_finalizers
-    ) as run_finalizers:
-        result = invoke_agent(
-            "prompt",
-            agent_type="test",
-            suppress_output=True,
-            artifacts_dir=str(artifacts),
-        )
-
-    run_finalizers.assert_called_once()
-    mock_postprocess_success.assert_called_once()
-    assert result.content == "provider response"
-    evidence = json.loads((artifacts / "gate_intent_lost.json").read_text())
-    assert evidence["superseded_by_final_submission"] is True
-    assert evidence["submission_digest"] == "digest-1"
-    assert not list(artifacts.glob(f"{GATE_INTENT_PREFIX}*.json"))
-    assert len(notified) == 1
 
 
 def test_invoke_agent_records_provider_preprocess_shadow_measurement(

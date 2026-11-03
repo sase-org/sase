@@ -1,12 +1,11 @@
 """Starter identity for agent-scoped detached ToolRuns.
 
 A detached run is scoped to the agent runner that started it: the process
-whose PID ``kill_agent_runner_group`` reads from
-``$SASE_ARTIFACTS_DIR/agent_meta.json`` (written in-process by the runner at
-launch via ``os.getpid()`` in ``run_agent_runner_setup_meta`` and
-``build_agent_meta``). The ``sase tool run -d`` CLI runs as a child of that
-runner, so resolution reads the runner PID from the meta file, never from
-``os.getpid()``.
+whose PID is recorded in ``$SASE_ARTIFACTS_DIR/agent_meta.json`` (written
+in-process by the runner at launch via ``os.getpid()`` in
+``run_agent_runner_setup_meta`` and ``build_agent_meta``). The ``sase tool
+run -d`` CLI runs as a child of that runner, so resolution reads the runner
+PID from the meta file, never from ``os.getpid()``.
 
 A PID alone is not durable (Linux reuses PIDs), so the starter record pairs
 the PID with boot/start-time identity from ``process_identity_token``. Both

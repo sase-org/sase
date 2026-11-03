@@ -8,7 +8,7 @@ import pytest
 
 from sase.axe import run_agent_exec_plan as plan_mod
 from sase.axe import run_agent_exec_questions as questions_mod
-from sase.axe.run_agent_exec_questions import handle_questions_marker
+from tests._legacy_handoff_markers import handle_questions_marker
 from sase.llm_provider._plan_utils import PlanApprovalResult
 from sase.main.qa_prompt import build_qa_round
 from sase.sdd.store import SddStore

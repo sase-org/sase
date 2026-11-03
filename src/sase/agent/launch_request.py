@@ -185,33 +185,17 @@ def maybe_handoff_launch_approval_from_agent(
     *,
     artifacts_dir: str | None = None,
 ) -> bool:
-    """Hand an agent-side LaunchApproval request to its gate turn, if any."""
+    """Release an unused reservation after a non-staged LaunchApproval request.
+
+    In-agent pending LaunchApproval requests stage and return. This helper
+    never kills the runner; it only drops a reservation that publication did
+    not consume.
+    """
+    del artifacts_dir
     if isinstance(request, StagedLaunchRequestCreationResult):
         return False
-    creation = request.gate_turn_creation
-    if creation is None or not creation.should_handoff:
-        _release_unused_launch_reservation(request)
-        return False
-    from sase.gate_turn import (
-        maybe_handoff_gate_from_agent,
-        will_handoff_gate_to_agent_runner,
-    )
-
-    if not will_handoff_gate_to_agent_runner():
-        _release_unused_launch_reservation(request)
-        return False
-    try:
-        handed_off = maybe_handoff_gate_from_agent(
-            creation,
-            artifacts_dir=artifacts_dir,
-            reservation_id=request.reservation_id,
-        )
-    except GateTurnError as exc:
-        _release_unused_launch_reservation(request)
-        raise LaunchRequestError("gate_turn_handoff_failed", "turn", str(exc)) from exc
-    if not handed_off:
-        _release_unused_launch_reservation(request)
-    return handed_off
+    _release_unused_launch_reservation(request)
+    return False
 
 
 def _create_agent_launch_approval_request(

@@ -276,38 +276,26 @@ def test_deferral_projects_deferred(
     assert instance.deferral.paths == ["secret.env"]
 
 
-def test_handoff_skip_projects_skipped(
+def test_leftover_pending_handoff_still_projects_success(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     artifacts = tmp_path / "artifacts"
     artifacts.mkdir(parents=True)
-    # Production order: the plan seals at turn start, the skip lands later.
     _prepare_command_run(
         monkeypatch,
         artifacts,
         _command_config([sys.executable, "-c", "print('checked')"]),
     )
     (artifacts / PLAN_PENDING_MARKER).write_text("pending", encoding="utf-8")
-    sentinel = InvokeResult(content="untouched")
 
-    result = run_finalizers(
-        provider=MagicMock(),
-        original_prompt="do work",
-        invoke_result=sentinel,
-        model_tier="small",
-        suppress_output=True,
-        model_override=None,
-        artifacts_dir=str(artifacts),
-    )
+    result = _run(artifacts)
 
-    assert result is sentinel
-    view = _project(artifacts, turn_terminal=False)
-    assert view.status == "skipped"
-    assert view.glyph == "skipped"
+    assert result.content == "done"
+    view = _project(artifacts)
+    assert view.status == "success"
     run = view.runs[0]
-    assert run.disposition == "skipped"
-    assert run.reason == "skipped · handoff:plan"
-    assert [item.status for item in run.instances] == ["skipped"]
+    assert run.disposition == "ran"
+    assert [item.status for item in run.instances] == ["success"]
 
 
 def test_kill_mid_op_projects_interrupted_with_live_tail(

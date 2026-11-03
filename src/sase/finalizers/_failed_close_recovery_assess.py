@@ -11,7 +11,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from sase.agent.pending_handoff import has_pending_handoff
+from sase.agent.staged_handoff import StagedHandoffError, read_staged_handoff
 from sase.bead.close_provenance import (
     RECOVERY_RUN_ID_ENV_VAR,
     RUN_ID_ENV_VAR,
@@ -429,10 +429,10 @@ def assess_terminal_failure(
         )
     run_id = str(proven.get("run_id", ""))
     try:
-        if has_pending_handoff(artifacts_dir):
+        if _has_staged_handoff(artifacts_dir):
             return RecoveryAssessment(
                 should_recover=False,
-                reason="pending_handoff",
+                reason="staged_handoff",
                 failure_code=failure_code,
                 failure_message=failure_message,
             )
@@ -488,6 +488,16 @@ def assess_terminal_failure(
         failure_code=failure_code,
         failure_message=failure_message,
     )
+
+
+def _has_staged_handoff(artifacts_dir: str) -> bool:
+    """Return whether staged state keeps failed-close recovery from running."""
+    try:
+        return read_staged_handoff(artifacts_dir) is not None
+    except StagedHandoffError:
+        return True
+    except Exception:  # noqa: BLE001 - assessment fails open to recovery.
+        return False
 
 
 def _stitch_attempted(

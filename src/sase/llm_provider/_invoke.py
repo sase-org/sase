@@ -46,7 +46,6 @@ from .postprocessing import (
 )
 from .preprocessing import preprocess_prompt
 from sase.macro.directives import PromptDirectives
-from .gate_intent_guard import raise_if_gate_intent_lost
 from .launch_selection import LaunchSelection
 from .registry import (
     LLM_EXEC_PROVIDER_ENV,
@@ -272,7 +271,6 @@ def invoke_agent(
         )
         if artifacts_dir:
             mark_lifecycle_phase(artifacts_dir, "provider_done")
-        raise_if_gate_intent_lost(artifacts_dir)
         if defer_finalizers:
             _record_deferred_evidence(
                 agent_type=agent_type,

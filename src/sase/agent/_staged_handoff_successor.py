@@ -8,7 +8,7 @@ from pathlib import Path
 import tempfile
 from typing import Any
 
-from sase.agent.gate_intent import atomic_write_json
+from sase.core.atomic_json import write_json_marker_atomic
 from sase.agent._staged_handoff_recovery import (
     read_recovery_context,
     write_recovery_context_locked,
@@ -215,7 +215,7 @@ def write_staged_successor_locked(
                     f"staged successor {field} changed after it was persisted"
                 )
         return current
-    atomic_write_json(path, normalized)
+    write_json_marker_atomic(path, normalized)
     recovery_context = read_recovery_context(
         str(root), staged_id=normalized["staged_id"]
     )
@@ -250,7 +250,7 @@ def update_staged_successor_locked(
         successor[key] = value
     next_record["successor"] = successor
     normalized = _validate_successor_record(next_record)
-    atomic_write_json(root / STAGED_SUCCESSOR_FILENAME, normalized)
+    write_json_marker_atomic(root / STAGED_SUCCESSOR_FILENAME, normalized)
     return normalized
 
 

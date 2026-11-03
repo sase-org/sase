@@ -21,7 +21,6 @@ from sase.agent.pending_handoff_write import (
     handoff_guard,
     write_pending_handoff_marker,
 )
-from sase.axe.run_agent_runner_signals import _NON_MONITOR_HANDOFF_MARKERS
 
 
 def test_pending_handoff_markers_are_named_constants() -> None:
@@ -33,11 +32,6 @@ def test_pending_handoff_markers_are_named_constants() -> None:
         PIPE_PENDING_MARKER,
     )
     assert PIPE_PENDING_MARKER == ".sase_pipe_pending"
-
-
-def test_non_monitor_handoff_markers_include_pipe() -> None:
-    assert PIPE_PENDING_MARKER in _NON_MONITOR_HANDOFF_MARKERS
-    assert MONITOR_PENDING_MARKER not in _NON_MONITOR_HANDOFF_MARKERS
 
 
 def test_has_pending_handoff_detects_pipe_marker(tmp_path: Path) -> None:

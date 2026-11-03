@@ -7,7 +7,6 @@ after an LLM invocation completes (success or error).
 import os
 from datetime import datetime
 
-from sase.agent.pending_handoff import has_pending_handoff
 from sase.artifacts import get_sase_log_file, run_bam_command
 from sase.core.time import get_timezone
 from sase.history.chat import save_chat_history
@@ -121,11 +120,9 @@ def postprocess_success(
         start_timestamp: Timestamp when the invocation started.
     """
     # Play audio notification (only if not suppressed). Staged handoffs end
-    # through normal host completion, not a kill, so they keep the ordinary
-    # reply sound: only legacy pending markers suppress it. Error/response
-    # evidence is always logged regardless of staged state; a stage never
-    # suppresses finalization.
-    if not context.suppress_output and not has_pending_handoff(context.artifacts_dir):
+    # through normal host completion, so they keep the ordinary reply sound.
+    # Leftover pending markers are archived evidence and never suppress it.
+    if not context.suppress_output:
         run_bam_command("Agent reply received", delay=0.2)
 
     # Log the prompt and response to sase.md

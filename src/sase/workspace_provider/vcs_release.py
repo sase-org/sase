@@ -17,7 +17,6 @@ from __future__ import annotations
 import os
 from dataclasses import dataclass
 
-from sase.agent.pending_handoff import has_pending_handoff
 from sase.agent.staged_handoff import StagedHandoffError, read_staged_handoff
 from sase.logs.workspace_claim_ledger import record_running_field_mutation
 from sase.running_field import release_workspace
@@ -70,7 +69,7 @@ def release_vcs_workspace(
     if artifacts_dir is None:
         artifacts_dir = os.environ.get("SASE_ARTIFACTS_DIR")
 
-    if has_pending_handoff(artifacts_dir) or _has_staged_handoff(artifacts_dir):
+    if _has_staged_handoff(artifacts_dir):
         _record_refusal(
             project_file=project_file,
             workspace_num=workspace_num,

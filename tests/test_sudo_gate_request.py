@@ -11,7 +11,6 @@ import sys
 
 import pytest
 
-from sase.agent.gate_intent import list_gate_intents
 from sase.agent.staged_handoff import read_staged_handoff
 from sase.main.parser import create_parser
 from sase.notification_gates.durability import read_json_object
@@ -72,7 +71,7 @@ def test_sudo_request_stages_before_publishing_or_marking_intent(
     assert staged is not None
     assert staged["kind"] == "gate"
     assert staged["payload"]["spec"]["payload"]["sudo"]["manifest_sha256"]
-    assert list_gate_intents(creator_dir) == []
+    assert not list(Path(creator_dir).glob(".sase_gate_intent.*"))
     assert not (Path(creator_dir) / ".sase_gate_pending").exists()
     from sase.notification_gates.paths import bundle_paths
 

@@ -14,10 +14,6 @@ from sase.axe.run_agent_exec_markers import (
     publish_phase_env as _publish_phase_env,
     write_done_marker_and_update_index as _write_done_marker_and_update_index,
 )
-from sase.axe.run_agent_exec_gate import handle_gate_marker
-from sase.axe.run_agent_exec_monitor import handle_monitor_marker
-from sase.axe.run_agent_exec_pipe import handle_pipe_marker
-from sase.axe.run_agent_exec_plan import handle_plan_marker
 from sase.axe.run_agent_exec_staged import (
     StagedInlineContinuation,
     dispatch_completed_staged_handoff,
@@ -26,7 +22,6 @@ from sase.axe.run_agent_exec_staged_monitor import cleanup_staged_monitor_handof
 from sase.axe.run_agent_exec_plan_artifacts import (
     get_embedded_workflow_refs as _get_embedded_workflow_refs,
 )
-from sase.axe.run_agent_exec_questions import handle_questions_marker
 from sase.axe.run_agent_exec_retry import RetryTracker, handle_workflow_error
 from sase.axe.run_agent_exec_types import (
     AgentExecContext,
@@ -41,22 +36,16 @@ from sase.axe.run_agent_helpers import (
     extract_step_output_and_diff_path,
     is_workflow_noop,
     read_and_delete_marker,
-    update_meta_field,
 )
 from sase.axe.runner_lifecycle_phase import mark_lifecycle_phase
 from sase.axe.runner_signals import killed_at, reset_killed, was_killed
 from sase.axe.runner_kill_provenance import record_kill_provenance
-from sase.agent.gate_intent import discard_gate_intents
 from sase.agent.user_kill import has_user_kill_intent
 from sase.history.chat import generate_chat_filename, get_chat_file_path
 from sase.history.chat import save_chat_history
 from sase.history.chat_extras import format_extra_sections
 from sase.llm_provider.retry_config import get_retry_config
 from sase.llm_provider._tool_calls import finalize_pending_tool_calls
-from sase.llm_provider.gate_intent_guard import (
-    gate_intent_lost_error_for,
-    raise_if_gate_intent_lost,
-)
 
 __all__ = [
     "AgentExecContext",
@@ -162,12 +151,12 @@ def _handle_killed_iteration(
     ctx: AgentExecContext,
     state: LoopState,
 ) -> str | None:
+    del ctx
     kill_time = killed_at()
     finalize_pending_tool_calls(
         state.current_artifacts_dir,
         completed_at=kill_time,
     )
-    discard_gate_intents(state.current_artifacts_dir)
 
     if has_user_kill_intent(state.current_artifacts_dir):
         cleanup_staged_monitor_handoff(state.current_artifacts_dir, held=False)
@@ -180,51 +169,10 @@ def _handle_killed_iteration(
         record_kill_provenance(state.current_artifacts_dir, state, kill_time=kill_time)
         return "killed"
 
-    plan_data = read_and_delete_marker(
-        state.current_artifacts_dir,
-        ".sase_plan_pending",
-    )
-    q_data = read_and_delete_marker(
-        state.current_artifacts_dir,
-        ".sase_questions_pending",
-    )
-    monitor_data = read_and_delete_marker(
-        state.current_artifacts_dir,
-        ".sase_monitor_pending",
-    )
-    gate_data = read_and_delete_marker(
-        state.current_artifacts_dir,
-        ".sase_gate_pending",
-    )
-    pipe_data = read_and_delete_marker(
-        state.current_artifacts_dir,
-        ".sase_pipe_pending",
-    )
-
-    if plan_data or q_data or monitor_data or gate_data or pipe_data:
-        mark_lifecycle_phase(state.current_artifacts_dir, "handoff")
-
-    if plan_data and _marker_predates_kill(plan_data, kill_time):
-        update_meta_field(state.current_artifacts_dir, "handoff_protocol", "killed")
-        return handle_plan_marker(plan_data, ctx, state)
-    if q_data and _marker_predates_kill(q_data, kill_time):
-        update_meta_field(state.current_artifacts_dir, "handoff_protocol", "killed")
-        return handle_questions_marker(q_data, ctx, state)
-    if monitor_data and _marker_predates_kill(monitor_data, kill_time):
-        update_meta_field(state.current_artifacts_dir, "handoff_protocol", "killed")
-        return handle_monitor_marker(monitor_data, ctx, state)
-    if gate_data and _marker_predates_kill(gate_data, kill_time):
-        update_meta_field(state.current_artifacts_dir, "handoff_protocol", "killed")
-        return handle_gate_marker(gate_data, ctx, state)
-    if pipe_data and _marker_predates_kill(pipe_data, kill_time):
-        update_meta_field(state.current_artifacts_dir, "handoff_protocol", "killed")
-        return handle_pipe_marker(pipe_data, ctx, state)
-
-    # Neither a user kill nor a handoff: an external teardown (OOM policy on
-    # the launcher's scope, a manual kill, a host stop). Record it as such.
-    # Staged records are never treated as a successful handoff here: an
-    # unresolved stage stays on disk for the later reconciler, and the caller
-    # decides the failed outcome through the staged dispatch path.
+    # External teardown (OOM, a manual kill, a host stop). Staged records
+    # stay on disk for the later reconciler and are never adopted as a
+    # successful handoff here. Leftover pending markers are archived
+    # evidence only.
     record_kill_provenance(state.current_artifacts_dir, state, kill_time=kill_time)
     return "killed"
 
@@ -300,18 +248,6 @@ def _export_exec_agent_tab(
     export(tab if isinstance(tab, str) and tab else None)
 
 
-def _marker_predates_kill(
-    marker_data: dict[str, Any],
-    kill_time: float | None,
-) -> bool:
-    if kill_time is None:
-        return True
-    marker_time = marker_data.get("timestamp")
-    if not isinstance(marker_time, int | float):
-        return True
-    return float(marker_time) <= kill_time + 0.001
-
-
 def run_execution_loop(
     ctx: AgentExecContext,
     prompt: str,
@@ -379,7 +315,6 @@ def _run_execution_loop_bound(
 
     state.continuation_workspace_ref = persist_workspace_facts_best_effort(ctx, state)
     result = None
-    loop_ended_without_kill = False
 
     def _rebind_workspace_identity(output: dict[str, Any], workspace_dir: str) -> None:
         rebind_agent_workspace_identity_from_output(
@@ -439,20 +374,12 @@ def _run_execution_loop_bound(
         except Exception as wf_exc:
             if not was_killed():
                 if _dispatch_staged_on_workflow_error(ctx, state):
-                    loop_ended_without_kill = True
                     break
-                converted_exc = gate_intent_lost_error_for(
-                    wf_exc,
-                    state.current_artifacts_dir,
-                )
-                action = handle_workflow_error(converted_exc, tracker, ctx, state)
+                action = handle_workflow_error(wf_exc, tracker, ctx, state)
                 if action == "continue":
                     continue
                 if action == "break":
-                    loop_ended_without_kill = state.loop_outcome != "killed"
                     break
-                if converted_exc is not wf_exc:
-                    raise converted_exc from wf_exc
                 raise
             result = None
 
@@ -469,22 +396,17 @@ def _run_execution_loop_bound(
                         staged_dispatch.reason,
                     )
                     state.loop_outcome = "failed"
-                    loop_ended_without_kill = True
                     break
                 if staged_dispatch.outcome is None:
                     # Plan feedback and synchronous auto-approval can hand
                     # control to the next prompt without ending the loop.
                     continue
                 state.loop_outcome = staged_dispatch.outcome
-            loop_ended_without_kill = True
             break
 
         outcome = _handle_killed_iteration(ctx, state)
         if outcome is not None:
             state.loop_outcome = outcome
             break
-
-    if loop_ended_without_kill:
-        raise_if_gate_intent_lost(state.current_artifacts_dir)
 
     return _finalize_loop(ctx, state, tracker, result)

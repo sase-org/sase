@@ -10,7 +10,7 @@ from pathlib import Path
 import time
 from typing import Any
 
-from sase.agent.gate_intent import atomic_write_json
+from sase.core.atomic_json import write_json_marker_atomic
 from sase.agent._staged_handoff_store import (
     StagedHandoffError,
     artifacts_root,
@@ -313,7 +313,7 @@ def ensure_staged_approval_context_locked(
         continuation=continuation,
     )
     normalized = _validate_approval_context(context, staged_id=staged_id, kind=kind)
-    atomic_write_json(
+    write_json_marker_atomic(
         Path(artifacts_dir) / STAGED_APPROVAL_CONTEXT_FILENAME, normalized
     )
     return normalized

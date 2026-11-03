@@ -32,7 +32,6 @@ def _patch_main_harness(
     monkeypatch.setattr(
         runner, "cleanup_launch_scratch", lambda **kwargs: order.append("cleanup")
     )
-    monkeypatch.setattr(runner, "find_gate_intent_lost_error", lambda e: None)
     monkeypatch.setattr(runner, "record_runner_error", lambda *a, **k: ("s", "t"))
 
 
@@ -255,10 +254,6 @@ def test_exec_loop_sweeps_only_from_second_iteration(
         "sase.continuation_capture.persist_workspace_facts_best_effort",
         lambda ctx, state: None,
     )
-    monkeypatch.setattr(
-        "sase.llm_provider.gate_intent_guard.raise_if_gate_intent_lost",
-        lambda *a, **k: None,
-    )
 
     result = exec_module._run_execution_loop_bound(_exec_context(tmp_path), "do work")
     assert result == "done"
@@ -297,10 +292,6 @@ def test_exec_loop_no_sweep_for_single_turn(
     monkeypatch.setattr(
         "sase.continuation_capture.persist_workspace_facts_best_effort",
         lambda ctx, state: None,
-    )
-    monkeypatch.setattr(
-        "sase.llm_provider.gate_intent_guard.raise_if_gate_intent_lost",
-        lambda *a, **k: None,
     )
 
     assert exec_module._run_execution_loop_bound(_exec_context(tmp_path), "x") == "done"

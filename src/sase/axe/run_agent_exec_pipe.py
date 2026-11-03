@@ -6,13 +6,11 @@ implementation lives in smaller focused modules.
 """
 
 from sase.axe.run_agent_exec_pipe_handoff import (
-    handle_pipe_marker,
     handle_staged_pipe_marker,
     restore_staged_pipe_successor,
 )
 
 __all__ = [
-    "handle_pipe_marker",
     "handle_staged_pipe_marker",
     "restore_staged_pipe_successor",
 ]

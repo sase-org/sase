@@ -7,7 +7,7 @@ import json
 from typing import Any
 from collections.abc import Callable
 
-from sase.agent.gate_intent import atomic_write_json
+from sase.core.atomic_json import write_json_marker_atomic
 from sase.core.staged_handoff import (
     StagedHandoffContractError,
     validate_staged_monitor_launch_payload,
@@ -75,7 +75,7 @@ def launch_staged_payload(
                 raise MonitorError(
                     f"could not bind starter continuation parent: {exc}"
                 ) from exc
-            atomic_write_json(launch_payload_path(artifacts_dir), payload)
+            write_json_marker_atomic(launch_payload_path(artifacts_dir), payload)
         return _launch_from_persisted_payload_locked(
             artifacts_dir, payload, claim, timer, launch_callback
         )

@@ -16,9 +16,7 @@ from unittest.mock import MagicMock
 import pytest
 
 from sase.agent.pending_handoff import (
-    MONITOR_PENDING_MARKER,
     PLAN_PENDING_MARKER,
-    QUESTIONS_PENDING_MARKER,
 )
 from sase.finalizers.declaration import FINAL_DECLARATION_RECOVERY_PROMPT_FILENAME
 from sase.finalizers.declaration import (
@@ -587,7 +585,7 @@ def test_live_rejected_deferral_is_repaired_by_resubmitting_a_commit(
     assert markers[0]["commit_sha"] == remote_sha
 
 
-def test_live_intentional_handoffs_skip_controller(
+def test_live_leftover_pending_markers_do_not_skip_controller(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -597,22 +595,14 @@ def test_live_intentional_handoffs_skip_controller(
     artifacts = tmp_path / "artifacts"
     prepare_live_env(monkeypatch, artifacts, repo)
     (repo / "agent.py").write_text("print('handoff')\n", encoding="utf-8")
-    runner = MagicMock()
-    monkeypatch.setattr("sase.finalizers.commit_execution.run_stitch_create", runner)
+    use_real_git_stitch(monkeypatch)
     resolve_and_persist_finalizer_plan(PromptDirectives(), artifacts_dir=str(artifacts))
-    provider = MagicMock()
+    (artifacts / PLAN_PENDING_MARKER).write_text("1\n", encoding="utf-8")
+    submit_from_context(artifacts)
+    result = run_controller(artifacts)
 
-    for marker in (
-        PLAN_PENDING_MARKER,
-        MONITOR_PENDING_MARKER,
-        QUESTIONS_PENDING_MARKER,
-    ):
-        (artifacts / marker).write_text("1\n", encoding="utf-8")
-        result = run_controller(artifacts, provider)
-        assert result.content == "done"
-        (artifacts / marker).unlink()
-
-    provider.invoke.assert_not_called()
-    runner.assert_not_called()
-    assert not (artifacts / "finalizer_result.json").exists()
-    assert git_changed_files(str(repo)) == ["agent.py"]
+    assert result.content == "done"
+    payload = load_result(artifacts)
+    assert payload["status"] == "success"
+    assert git_changed_files(str(repo)) == []
+    assert not (artifacts / FINAL_DECLARATION_RECOVERY_PROMPT_FILENAME).exists()

@@ -15,7 +15,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-from sase.agent.gate_intent import atomic_write_json
+from sase.core.atomic_json import write_json_marker_atomic
 from sase.agent._staged_handoff_store import (
     HANDOFF_LOCK_FILENAME,
     STAGED_HANDOFF_RECEIPT_FILENAME,
@@ -140,7 +140,7 @@ def write_recovery_context_locked(
     """Persist *context* while the caller holds the adoption lock."""
     normalized = _normalize_context(context)
     path = Path(artifacts_dir) / RECOVERY_CONTEXT_FILENAME
-    atomic_write_json(path, normalized)
+    write_json_marker_atomic(path, normalized)
     return path
 
 
@@ -154,7 +154,7 @@ def write_recovery_context(
     normalized = _normalize_context(context)
     with acquire_adoption_lock(root):
         path = root / RECOVERY_CONTEXT_FILENAME
-        atomic_write_json(path, normalized)
+        write_json_marker_atomic(path, normalized)
         return path
 
 
@@ -314,7 +314,7 @@ def write_adoption_receipt_locked(
         raise StagedHandoffError(
             "a successful adoption receipt already owns this stage"
         )
-    atomic_write_json(current_path, normalized)
+    write_json_marker_atomic(current_path, normalized)
     return current_path
 
 

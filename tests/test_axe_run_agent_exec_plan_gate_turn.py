@@ -10,6 +10,7 @@ import pytest
 
 from sase.axe import run_agent_exec_plan as plan_mod
 from sase.gate_turn.models import GateTurnRecord
+from tests._legacy_handoff_markers import handle_plan_marker
 from sase.gate_turn.transaction import GateTurnCreation
 from sase.llm_provider._plan_utils import PlanApprovalResult
 from sase.notification_gates.model_results import GateCreationResult
@@ -96,7 +97,7 @@ def test_non_auto_creates_gate_turn_and_ends_gated(
         "sase.axe.run_agent_exec_gate.handle_gate_marker", fake_handle_gate_marker
     )
 
-    outcome = plan_mod.handle_plan_marker({"plan_file": plan_file}, ctx, state)
+    outcome = handle_plan_marker({"plan_file": plan_file}, ctx, state)
 
     assert outcome == "gated"
     assert state.plan_gate_artifacts_dir == creation.record.artifacts_dir
@@ -146,7 +147,7 @@ def test_auto_continues_in_process_without_gate_handoff(
         lambda *args, **kwargs: successor_calls.append((args, kwargs)),
     )
 
-    outcome = plan_mod.handle_plan_marker({"plan_file": plan_file}, ctx, state)
+    outcome = handle_plan_marker({"plan_file": plan_file}, ctx, state)
 
     assert outcome is None
     assert state.plan_gate_artifacts_dir == creation.record.artifacts_dir

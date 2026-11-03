@@ -12,8 +12,8 @@ from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
 
-from sase.agent.gate_intent import atomic_write_json
 from sase.agent.pending_handoff import PENDING_HANDOFF_MARKERS
+from sase.core.atomic_json import write_json_marker_atomic
 
 
 class PendingHandoffError(RuntimeError):
@@ -63,7 +63,7 @@ def write_pending_handoff_marker(
     """Stamp ``timestamp``, write ``marker`` atomically, and fsync it.
 
     ``timestamp`` is left alone when the payload already carries one so a
-    caller can pin the value the runner later compares against the kill.
+    caller can pin the archived-marker value.
     """
     _refuse_finalizer_owned_handoff("turn-ending handoffs")
     resolved = artifacts_dir or os.environ.get("SASE_ARTIFACTS_DIR")
@@ -87,7 +87,7 @@ def write_pending_handoff_marker(
         )
         if existing:
             raise PendingHandoffError(_already_exists_message(existing))
-        atomic_write_json(path, data)
+        write_json_marker_atomic(path, data)
         if reservation_id is not None:
             from sase.agent.staged_handoff import release_staging_reservation_locked
 
@@ -101,7 +101,6 @@ def _already_exists_message(existing: tuple[str, ...]) -> str:
 
 __all__ = [
     "PendingHandoffError",
-    "atomic_write_json",
     "handoff_guard",
     "write_pending_handoff_marker",
 ]

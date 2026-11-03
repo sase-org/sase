@@ -122,7 +122,7 @@ def test_save_to_chat_history_passes_transcript_model_metadata() -> None:
         ".sase_pipe_pending",
     ],
 )
-def test_postprocess_success_suppresses_sound_for_pending_handoff(
+def test_postprocess_success_plays_sound_with_leftover_pending_handoff(
     tmp_path, marker_name: str
 ) -> None:
     (tmp_path / marker_name).write_text("{}", encoding="utf-8")
@@ -144,7 +144,7 @@ def test_postprocess_success_suppresses_sound_for_pending_handoff(
             start_timestamp="260501_225009",
         )
 
-    bam.assert_not_called()
+    bam.assert_called_once_with("Agent reply received", delay=0.2)
     save_chat.assert_called_once()
     assert "prompt" in (tmp_path / "sase.md").read_text(encoding="utf-8")
     assert "response" in (tmp_path / "sase.md").read_text(encoding="utf-8")

@@ -38,7 +38,7 @@ def _record_provider_failure(
         from datetime import UTC, datetime
         from pathlib import Path
 
-        from sase.agent.gate_intent import atomic_write_json
+        from sase.core.atomic_json import write_json_marker_atomic
 
         payload = {
             "schema_version": 1,
@@ -46,7 +46,9 @@ def _record_provider_failure(
             "provider": execution_provider_label,
             "error": error_content[:4000],
         }
-        atomic_write_json(Path(artifacts_dir) / ".sase_provider_failure.json", payload)
+        write_json_marker_atomic(
+            Path(artifacts_dir) / ".sase_provider_failure.json", payload
+        )
     except Exception:  # noqa: BLE001 - failure recording never masks the error.
         logger.debug("provider-failure recording failed", exc_info=True)
 
