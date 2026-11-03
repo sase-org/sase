@@ -42,26 +42,22 @@ def handle_gate_entry(
     request_factory: Callable[[], Mapping[str, Any] | GateSpec],
     *,
     command: str,
-    before_legacy_prepare: Callable[[], None] | None = None,
-    on_legacy_failure: Callable[[], None] | None = None,
     before_auto_settle: Callable[[GateTurnRecord, GateCreationResult], None]
     | None = None,
     allow_auto: bool = True,
 ) -> None:
     """Prepare, stage or publish a gate, print its descriptor, then hand off.
 
-    Agent calls reserve their one-handoff slot before gate preparation. With
-    staged handoffs enabled, pending human gates write only a staged record;
-    effective auto gates still publish synchronously. With the flag disabled,
-    the existing marker-and-kill protocol is retained, with its slot protected
-    from concurrent gate publication by the same reservation.
+    Agent calls reserve their one-handoff slot before gate preparation. Pending
+    human gates from an agent always write only a staged record; effective auto
+    gates still publish synchronously. Calls outside an agent publish
+    immediately, with the slot protected from concurrent gate publication by
+    the same reservation.
     """
     _complete_gate_entry(
         run_gate_entry(
             request_factory,
             command=command,
-            before_legacy_prepare=before_legacy_prepare,
-            on_legacy_failure=on_legacy_failure,
             before_auto_settle=before_auto_settle,
             allow_auto=allow_auto,
         )
@@ -72,8 +68,6 @@ def run_gate_entry(
     request_factory: Callable[[], Mapping[str, Any] | GateSpec],
     *,
     command: str,
-    before_legacy_prepare: Callable[[], None] | None = None,
-    on_legacy_failure: Callable[[], None] | None = None,
     before_auto_settle: Callable[[GateTurnRecord, GateCreationResult], None]
     | None = None,
     allow_auto: bool = True,
@@ -88,7 +82,6 @@ def run_gate_entry(
         StagedHandoffError,
         acquire_staging_reservation,
         release_staging_reservation,
-        staged_handoffs_enabled,
         write_staged_handoff,
     )
     from sase.gate_turn import create_gate_turn
@@ -103,65 +96,52 @@ def run_gate_entry(
     with gate_entry_signal_guard():
         try:
             if in_agent:
-                use_staged = staged_handoffs_enabled()
                 reservation_id = acquire_staging_reservation(
                     artifacts_dir=artifacts_dir,
                     command=command,
                 )
-                if use_staged:
-                    from sase.gate_turn.staged_contract import (
-                        collect_staged_gate_creator,
+                from sase.gate_turn.staged_contract import (
+                    collect_staged_gate_creator,
+                )
+
+                creator = collect_staged_gate_creator(artifacts_dir=artifacts_dir)
+                preparation = _prepare_staged_gate(
+                    request_factory(), creator=creator, artifacts_dir=artifacts_dir
+                )
+                if preparation.auto_execute and not allow_auto:
+                    raise GateTurnError("LaunchApproval cannot auto-execute")
+                if not preparation.auto_execute:
+                    if preparation.record is None:
+                        raise GateTurnError(
+                            "pending gate preparation did not produce a staged record"
+                        )
+                    write_staged_handoff(
+                        preparation.record,
+                        artifacts_dir=artifacts_dir,
+                        command=command,
+                        reservation_id=reservation_id,
+                    )
+                    staged_record_written = True
+                    reservation_id = None
+                    success = True
+                    return _GateEntryOutcome(
+                        status="staged",
+                        preparation=preparation,
                     )
 
-                    creator = collect_staged_gate_creator(artifacts_dir=artifacts_dir)
-                    preparation = _prepare_staged_gate(
-                        request_factory(), creator=creator, artifacts_dir=artifacts_dir
-                    )
-                    if preparation.auto_execute and not allow_auto:
-                        raise GateTurnError("LaunchApproval cannot auto-execute")
-                    if not preparation.auto_execute:
-                        if preparation.record is None:
-                            raise GateTurnError(
-                                "pending gate preparation did not produce a staged "
-                                "record"
-                            )
-                        write_staged_handoff(
-                            preparation.record,
-                            artifacts_dir=artifacts_dir,
-                            command=command,
-                            reservation_id=reservation_id,
-                        )
-                        staged_record_written = True
-                        reservation_id = None
-                        success = True
-                        return _GateEntryOutcome(
-                            status="staged",
-                            preparation=preparation,
-                        )
-
-                    creation_kwargs: dict[str, Any] = {
-                        "frozen_auto": {
-                            "decision": preparation.decision,
-                            "policy_block": preparation.policy_block,
-                            "auto_execute": True,
-                        }
+                creation_kwargs: dict[str, Any] = {
+                    "frozen_auto": {
+                        "decision": preparation.decision,
+                        "policy_block": preparation.policy_block,
+                        "auto_execute": True,
                     }
-                    if before_auto_settle is not None:
-                        creation_kwargs["before_auto_settle"] = before_auto_settle
-                    creation = create_gate_turn(preparation.spec, **creation_kwargs)
-                else:
-                    creation = _run_legacy_creation(
-                        request_factory,
-                        before_legacy_prepare=before_legacy_prepare,
-                        on_legacy_failure=on_legacy_failure,
-                        before_auto_settle=before_auto_settle,
-                        allow_auto=allow_auto,
-                    )
+                }
+                if before_auto_settle is not None:
+                    creation_kwargs["before_auto_settle"] = before_auto_settle
+                creation = create_gate_turn(preparation.spec, **creation_kwargs)
             else:
-                creation = _run_legacy_creation(
-                    request_factory,
-                    before_legacy_prepare=before_legacy_prepare,
-                    on_legacy_failure=on_legacy_failure,
+                creation = _publish_gate(
+                    request_factory(),
                     before_auto_settle=before_auto_settle,
                     allow_auto=allow_auto,
                 )
@@ -251,29 +231,19 @@ def emit_staged_descriptor(
     )
 
 
-def _run_legacy_creation(
-    request_factory: Callable[[], Mapping[str, Any] | GateSpec],
+def _publish_gate(
+    request: Mapping[str, Any] | GateSpec,
     *,
-    before_legacy_prepare: Callable[[], None] | None,
-    on_legacy_failure: Callable[[], None] | None,
     before_auto_settle: Callable[[GateTurnRecord, GateCreationResult], None] | None,
     allow_auto: bool,
 ) -> GateTurnCreation:
     from sase.gate_turn import create_gate_turn
 
-    try:
-        if before_legacy_prepare is not None:
-            before_legacy_prepare()
-        request = request_factory()
-        if not allow_auto and _request_auto_enabled(request):
-            raise GateTurnError("LaunchApproval cannot auto-execute")
-        if before_auto_settle is None:
-            return create_gate_turn(request)
-        return create_gate_turn(request, before_auto_settle=before_auto_settle)
-    except BaseException:
-        if on_legacy_failure is not None:
-            on_legacy_failure()
-        raise
+    if not allow_auto and _request_auto_enabled(request):
+        raise GateTurnError("LaunchApproval cannot auto-execute")
+    if before_auto_settle is None:
+        return create_gate_turn(request)
+    return create_gate_turn(request, before_auto_settle=before_auto_settle)
 
 
 def _request_auto_enabled(request: Mapping[str, Any] | GateSpec) -> bool:

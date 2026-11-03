@@ -13,7 +13,6 @@ from typing import Any, Literal
 from rich.console import Console
 from rich.table import Table
 
-from sase.agent.gate_intent import begin_gate_intent, clear_gate_intent
 from sase.gate_turn.models import GateTurnRecord
 from sase.gate_turn.status import effective_gate_status, gate_status_pair
 from sase.notification_gates.cli_support import emit_json, resolve_gate_cli_bundle
@@ -176,9 +175,6 @@ def _request(args: argparse.Namespace) -> int:
     """Create a sudo gate turn from stdin."""
     from sase.gate_turn.entry import handle_gate_entry
 
-    def begin_intent() -> None:
-        begin_gate_intent("sudo", source="sase sudo request")
-
     def build_request() -> dict[str, Any]:
         value = _read_stdin_object()
         return build_sudo_gate_request(
@@ -193,8 +189,6 @@ def _request(args: argparse.Namespace) -> int:
     handle_gate_entry(
         build_request,
         command="sase sudo request",
-        before_legacy_prepare=begin_intent,
-        on_legacy_failure=clear_gate_intent,
     )
     return 0
 

@@ -78,10 +78,10 @@ def create_workflow_hitl_shell_gate(
 ) -> Any:
     """Create or stage a shell-backed HITL gate for workflow continuation.
 
-    Agent-context staged reviews use the shared staged-gate contract and
+    Agent-context reviews always use the shared staged-gate contract and
     host-preparation admission. The executor settles their finalizers after
-    required workflow cleanup. Flag-off callers retain immediate legacy gate
-    creation and handoff behavior.
+    required workflow cleanup. Calls outside an agent create the gate
+    immediately.
     """
     if workflow_hitl_should_stage_from_agent():
         from sase.macro.workflow_completion import (
@@ -135,20 +135,6 @@ def create_workflow_hitl_shell_gate(
     from sase.gate_turn import create_gate_turn
 
     return create_gate_turn(spec)
-
-
-def maybe_handoff_workflow_hitl_from_agent(creation: Any) -> bool:
-    """Hand a shell-backed workflow HITL gate to the agent runner."""
-    if not getattr(creation, "should_handoff", False):
-        return False
-    from sase.gate_turn import (
-        maybe_handoff_gate_from_agent,
-        will_handoff_gate_to_agent_runner,
-    )
-
-    if not will_handoff_gate_to_agent_runner():
-        return False
-    return maybe_handoff_gate_from_agent(creation)
 
 
 def _workflow_hitl_gate_spec(
@@ -253,11 +239,7 @@ def workflow_hitl_should_handoff_from_agent() -> bool:
 
 def workflow_hitl_should_stage_from_agent() -> bool:
     """Return whether this agent workflow review uses staged handoff."""
-    if not workflow_hitl_should_handoff_from_agent():
-        return False
-    from sase.agent.staged_handoff import staged_handoffs_enabled
-
-    return staged_handoffs_enabled()
+    return workflow_hitl_should_handoff_from_agent()
 
 
 def _workflow_hitl_shell_spec(
@@ -563,7 +545,6 @@ __all__ = [
     "create_workflow_hitl_gate",
     "create_workflow_hitl_shell_gate",
     "execute_hitl_gate_command",
-    "maybe_handoff_workflow_hitl_from_agent",
     "wait_for_workflow_hitl_gate",
     "workflow_hitl_should_handoff_from_agent",
     "workflow_hitl_should_stage_from_agent",

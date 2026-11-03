@@ -25,7 +25,6 @@ def test_auto_gate_publishes_inline_with_frozen_policy(
 
     released: list[str] = []
     captured: dict[str, Any] = {}
-    monkeypatch.setattr(staged_handoff, "staged_handoffs_enabled", lambda: True)
     monkeypatch.setattr(
         staged_handoff, "acquire_staging_reservation", lambda **_kwargs: "reservation"
     )
@@ -96,7 +95,6 @@ def test_allow_auto_false_rejects_auto_execute_before_publication(
     from sase.gate_turn.models import GateTurnError
 
     released: list[str] = []
-    monkeypatch.setattr(staged_handoff, "staged_handoffs_enabled", lambda: True)
     monkeypatch.setattr(
         staged_handoff, "acquire_staging_reservation", lambda **_kwargs: "reservation"
     )

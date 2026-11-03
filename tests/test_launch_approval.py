@@ -26,7 +26,6 @@ from sase.launch_approval_actions import (
     execute_launch_approval_response,
 )
 from sase.notification_gates.failure_notifications import GATE_EXECUTION_FAILED_ACTION
-from sase.notification_gates.service import create_gate
 from sase.notifications.store import load_notifications
 
 
@@ -116,42 +115,31 @@ def test_create_launch_request_writes_preview_and_notification(
 
 
 def test_agent_launch_request_uses_shell_gate_outcome_branches(
+    gate_home: Path,
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    del gate_home
+    from sase.agent.launch_request_types import StagedLaunchRequestCreationResult
+    from sase.agent.staged_handoff import read_staged_handoff
+    from sase.gate_turn.publisher import publish_staged_gate
+    from tests.monitor._fixtures import make_starter_agent, write_project_file
+
     monkeypatch.setenv("SASE_HOME", str(tmp_path / ".sase"))
     monkeypatch.setenv("SASE_AGENT", "1")
     monkeypatch.setenv("SASE_AGENT_NAME", "requester--0")
     monkeypatch.setenv("SASE_BEAD_ID", "sase-demo.1")
     monkeypatch.setenv("SASE_ACTIVE_PROJECT_DIR", str(tmp_path))
-    artifacts = tmp_path / "artifacts"
-    artifacts.mkdir()
-    monkeypatch.setenv("SASE_ARTIFACTS_DIR", str(artifacts))
     monkeypatch.chdir(tmp_path)
-    captured: dict[str, Any] = {}
-
-    class _Creation:
-        should_handoff = True
-
-        def __init__(self, spec: dict[str, Any]) -> None:
-            self.gate = create_gate(spec)
-
-        def to_dict(self) -> dict[str, Any]:
-            payload = self.gate.to_dict()
-            payload["gate_turn"] = {
-                "gate_id": self.gate.request_id,
-                "member_agent_name": "agent--gate",
-                "artifacts_dir": str(tmp_path / "agent--gate"),
-                "state": "pending",
-                "workspace_policy": "inherit",
-            }
-            return payload
-
-    def fake_create_gate_turn(spec: dict[str, Any]) -> _Creation:
-        captured["spec"] = spec
-        return _Creation(spec)
-
-    monkeypatch.setattr("sase.gate_turn.create_gate_turn", fake_create_gate_turn)
+    write_project_file("launch-shell-branches")
+    creator_dir = make_starter_agent(
+        "launch-shell-branches",
+        "20261029120000",
+        "requester--0",
+        agent_session="requester--0",
+        agent_session_role="root",
+    )
+    monkeypatch.setenv("SASE_ARTIFACTS_DIR", creator_dir)
 
     result = create_launch_approval_request(
         {
@@ -162,9 +150,18 @@ def test_agent_launch_request_uses_shell_gate_outcome_branches(
         }
     )
 
-    assert result.gate_turn_creation is not None
-    assert result.to_dict()["gate_turn"]["workspace_policy"] == "inherit"
-    envelope = json.loads(result.request_path.read_text(encoding="utf-8"))
+    assert isinstance(result, StagedLaunchRequestCreationResult)
+    assert result.to_dict()["workspace_mode"] == "inherit"
+    staged = read_staged_handoff(creator_dir)
+    assert staged is not None
+    assert staged["payload"]["spec"]["turn"]["workspace"] == "inherit"
+    creation = publish_staged_gate(
+        staged["payload"],
+        staged_id=str(staged["staged_id"]),
+        artifacts_dir=creator_dir,
+    )
+    assert creation.to_dict()["gate_turn"]["workspace_policy"] == "inherit"
+    envelope = json.loads(creation.gate.request_path.read_text(encoding="utf-8"))
     continuation = envelope["payload"]["requester_continuation"]
     assert continuation["mode"] == "resume_requester"
     assert continuation["context"]["SASE_AGENT_NAME"] == "requester--0"
@@ -194,7 +191,6 @@ def test_agent_launch_request_uses_shell_gate_outcome_branches(
         gate_state="timeout",
         response={},
     ) == ("LAUNCH TIMED OUT", "#FFAF00")
-    assert captured["spec"]["shell"]["workspace"] == "inherit"
     assert "Requester continuation: resume after" in (
         "\n".join(envelope["presentation"]["notes"])
     )
@@ -267,30 +263,31 @@ def test_launch_followup_next_action_reports_dispatch_failure() -> None:
 
 
 def test_neutral_launch_shell_response_settles_gate_turn(
+    gate_home: Path,
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    del gate_home
+    from sase.agent.staged_handoff import read_staged_handoff
+    from sase.gate_turn.publisher import publish_staged_gate
+    from tests.monitor._fixtures import make_starter_agent, write_project_file
+
     monkeypatch.setenv("SASE_HOME", str(tmp_path / ".sase"))
     monkeypatch.setenv("SASE_AGENT", "1")
-    artifacts = tmp_path / "artifacts"
-    artifacts.mkdir()
-    monkeypatch.setenv("SASE_ARTIFACTS_DIR", str(artifacts))
+    monkeypatch.setenv("SASE_AGENT_NAME", "requester--0")
+    monkeypatch.setenv("SASE_BEAD_ID", "sase-demo.1")
     monkeypatch.chdir(tmp_path)
-
-    class _Creation:
-        should_handoff = True
-
-        def __init__(self, spec: dict[str, Any]) -> None:
-            self.gate = create_gate(spec)
-
-        def to_dict(self) -> dict[str, Any]:
-            return self.gate.to_dict()
-
-    monkeypatch.setattr(
-        "sase.gate_turn.create_gate_turn",
-        lambda spec: _Creation(spec),
+    write_project_file("launch-settles")
+    creator_dir = make_starter_agent(
+        "launch-settles",
+        "20261029120001",
+        "requester--0",
+        agent_session="requester--0",
+        agent_session_role="root",
     )
-    request = create_launch_approval_request(
+    monkeypatch.setenv("SASE_ARTIFACTS_DIR", creator_dir)
+
+    staged_result = create_launch_approval_request(
         {
             "schema_version": 1,
             "prompt": "Do work",
@@ -298,13 +295,21 @@ def test_neutral_launch_shell_response_settles_gate_turn(
             "max_slots": 1,
         }
     )
+    staged = read_staged_handoff(creator_dir)
+    assert staged is not None
+    creation = publish_staged_gate(
+        staged["payload"],
+        staged_id=str(staged["staged_id"]),
+        artifacts_dir=creator_dir,
+    )
+    assert staged_result.request_id == creation.gate.request_id
     context = _LaunchApprovalActionContext(
-        id=request.notification_id,
-        host_files=(str(request.preview_path),),
+        id=creation.gate.notification_id,
+        host_files=(str(creation.gate.preview_path),),
         host_action_data={
-            "request_id": request.request_id,
+            "request_id": creation.gate.request_id,
             "request_kind": "launch",
-            "response_dir": str(request.response_dir),
+            "response_dir": str(creation.gate.bundle_path),
         },
     )
     fake_record = SimpleNamespace(artifacts_dir=str(tmp_path / "gate-shell"))

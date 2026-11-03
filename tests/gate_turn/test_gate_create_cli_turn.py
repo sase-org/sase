@@ -19,7 +19,6 @@ from sase.agent.staged_handoff import (
     STAGING_RESERVATION_FILENAME,
     read_staged_handoff,
 )
-from sase.feature_flags import override_flags
 from sase.gate_turn.store import find_gate_turn_by_gate_id
 from sase.main.gate_handler import handle_gate_command
 from sase.main.parser_gate import register_gate_parser
@@ -101,6 +100,8 @@ def test_canonical_turn_block_registers_row_via_cli(
     del gate_home
     project = "cli-turn-canonical"
     _prepare_creator(monkeypatch, project)
+    # In-agent calls stage; immediate publication is the outside-agent contract.
+    monkeypatch.delenv("SASE_AGENT", raising=False)
     request_id = "cli-turn-canonical"
     spec = custom_gate_spec(request_id=request_id)
     spec["turn"] = {"next": {"prompt": "Verify the cleanup landed."}}
@@ -116,7 +117,7 @@ def test_canonical_turn_block_registers_row_via_cli(
     assert request_id in _list_gate_ids(project)
 
 
-def test_pending_gate_uses_staged_entry_protocol_when_enabled(
+def test_pending_gate_uses_staged_entry_protocol(
     gate_home: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -127,8 +128,7 @@ def test_pending_gate_uses_staged_entry_protocol_when_enabled(
     spec = custom_gate_spec(request_id=request_id)
     spec["turn"] = {"workspace": "inherit", "next": {"prompt": "Continue."}}
 
-    with override_flags(staged_handoffs=True):
-        code, out, err = _run_create(monkeypatch, spec, ["gate", "create"])
+    code, out, err = _run_create(monkeypatch, spec, ["gate", "create"])
 
     descriptor = json.loads(out)
     assert code == 0
@@ -169,8 +169,7 @@ def test_invalid_pending_gate_releases_reservation_before_publication(
     assert isinstance(presentation, dict)
     presentation["icon"] = "not-a-glyph"
 
-    with override_flags(staged_handoffs=True):
-        code, _out, err = _run_create(monkeypatch, spec, ["gate", "create"])
+    code, _out, err = _run_create(monkeypatch, spec, ["gate", "create"])
 
     assert code == 1
     assert "invalid_icon" in err
@@ -199,8 +198,7 @@ def test_existing_legacy_handoff_refuses_gate_before_publication(
     spec = custom_gate_spec(request_id=request_id)
     spec["turn"] = {"next": {"prompt": "Continue."}}
 
-    with override_flags(staged_handoffs=True):
-        code, _out, err = _run_create(monkeypatch, spec, ["gate", "create"])
+    code, _out, err = _run_create(monkeypatch, spec, ["gate", "create"])
 
     assert code == 1
     assert "already exists" in err
@@ -218,6 +216,8 @@ def test_turn_less_json_with_turn_next_flags_registers_row(
     del gate_home
     project = "cli-turn-flags"
     _prepare_creator(monkeypatch, project)
+    # In-agent calls stage; immediate publication is the outside-agent contract.
+    monkeypatch.delenv("SASE_AGENT", raising=False)
     request_id = "cli-turn-flags"
     spec = custom_gate_spec(request_id=request_id)
 
@@ -246,6 +246,8 @@ def test_legacy_shell_block_registers_row_via_cli(
     del gate_home
     project = "cli-shell-legacy"
     _prepare_creator(monkeypatch, project)
+    # In-agent calls stage; immediate publication is the outside-agent contract.
+    monkeypatch.delenv("SASE_AGENT", raising=False)
     request_id = "cli-shell-legacy"
     spec = custom_gate_spec(request_id=request_id)
     spec["shell"] = {"next": {"prompt": "Verify the cleanup landed."}}
@@ -265,6 +267,8 @@ def test_legacy_shell_block_with_turn_status_flag(
     del gate_home
     project = "cli-shell-status"
     _prepare_creator(monkeypatch, project)
+    # In-agent calls stage; immediate publication is the outside-agent contract.
+    monkeypatch.delenv("SASE_AGENT", raising=False)
     request_id = "cli-shell-status"
     spec = custom_gate_spec(request_id=request_id)
     spec["shell"] = {"next": {"prompt": "Verify the cleanup landed."}}

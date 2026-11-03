@@ -17,7 +17,6 @@ from sase.agent.launch_request import (
     StagedLaunchRequestCreationResult,
     cancel_launch_approval_request,
     create_launch_approval_request,
-    create_launch_approval_request_from_prompt,
     wait_for_launch_approval,
 )
 from sase.agent.launch_request_followup import launch_next_action
@@ -28,7 +27,6 @@ from sase.agent.staged_handoff import (
     STAGING_RESERVATION_FILENAME,
     read_staged_handoff,
 )
-from sase.feature_flags import override_flags
 from sase.gate_turn.publisher import publish_staged_gate
 from sase.launch_approval_actions import (
     _LaunchApprovalActionContext,
@@ -82,20 +80,19 @@ def _stage_launch(
     monkeypatch.setenv("SASE_HOME", str(tmp_path / ".sase"))
     monkeypatch.chdir(tmp_path)
     creator_dir = _prepare_creator(monkeypatch, "launch-staged")
-    with override_flags(staged_handoffs=True):
-        result = create_launch_approval_request(
-            {
-                "schema_version": 1,
-                "prompt": prompt,
-                "reason": "Need a helper",
-                "max_slots": max_slots,
-            }
-        )
+    result = create_launch_approval_request(
+        {
+            "schema_version": 1,
+            "prompt": prompt,
+            "reason": "Need a helper",
+            "max_slots": max_slots,
+        }
+    )
     assert isinstance(result, StagedLaunchRequestCreationResult)
     return result, creator_dir
 
 
-def test_agent_launch_request_stages_when_flag_enabled(
+def test_agent_launch_request_stages(
     gate_home: Path,
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -130,7 +127,7 @@ def test_agent_launch_request_stages_when_flag_enabled(
     assert spawned == []
 
 
-def test_human_origin_launch_request_still_publishes_with_flag_on(
+def test_human_origin_launch_request_still_publishes(
     gate_home: Path,
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -139,15 +136,14 @@ def test_human_origin_launch_request_still_publishes_with_flag_on(
     monkeypatch.setenv("SASE_HOME", str(tmp_path / ".sase"))
     monkeypatch.chdir(tmp_path)
     monkeypatch.delenv("SASE_AGENT", raising=False)
-    with override_flags(staged_handoffs=True):
-        result = create_launch_approval_request(
-            {
-                "schema_version": 1,
-                "prompt": "Do work",
-                "reason": "Human origin",
-                "max_slots": 1,
-            }
-        )
+    result = create_launch_approval_request(
+        {
+            "schema_version": 1,
+            "prompt": "Do work",
+            "reason": "Human origin",
+            "max_slots": 1,
+        }
+    )
     assert isinstance(result, LaunchRequestCreationResult)
     assert result.notification_id
     assert result.preview_path.is_file()
@@ -174,10 +170,7 @@ def test_invalid_auto_is_rejected_before_publication(
 
     monkeypatch.setattr("sase.agent.launch_request_gate.launch_gate_spec", auto_spec)
     monkeypatch.setattr("sase.agent.launch_request._launch_gate_spec", auto_spec)
-    with (
-        override_flags(staged_handoffs=True),
-        pytest.raises(LaunchRequestError, match="cannot auto-execute"),
-    ):
+    with pytest.raises(LaunchRequestError, match="cannot auto-execute"):
         create_launch_approval_request(
             {
                 "schema_version": 1,
@@ -202,10 +195,7 @@ def test_max_slots_and_continuation_conflicts_leave_no_published_gate(
     monkeypatch.setenv("SASE_HOME", str(tmp_path / ".sase"))
     monkeypatch.chdir(tmp_path)
     creator_dir = _prepare_creator(monkeypatch, "launch-invalid")
-    with (
-        override_flags(staged_handoffs=True),
-        pytest.raises(LaunchRequestError, match="max_slots"),
-    ):
+    with pytest.raises(LaunchRequestError, match="max_slots"):
         create_launch_approval_request(
             {
                 "schema_version": 1,
@@ -214,10 +204,7 @@ def test_max_slots_and_continuation_conflicts_leave_no_published_gate(
                 "max_slots": 1,
             }
         )
-    with (
-        override_flags(staged_handoffs=True),
-        pytest.raises(LaunchRequestError, match="requester's agent-session lane"),
-    ):
+    with pytest.raises(LaunchRequestError, match="requester's agent-session lane"):
         create_launch_approval_request(
             {
                 "schema_version": 1,
@@ -247,10 +234,7 @@ def test_second_handoff_is_refused_before_publication(
         {"prompt": "already handed off"},
         artifacts_dir=creator_dir,
     )
-    with (
-        override_flags(staged_handoffs=True),
-        pytest.raises(LaunchRequestError, match="already exists"),
-    ):
+    with pytest.raises(LaunchRequestError, match="already exists"):
         create_launch_approval_request(
             {
                 "schema_version": 1,
@@ -378,10 +362,7 @@ def test_launch_request_cli_emits_staged_descriptor(
         approval="required",
         source=None,
     )
-    with (
-        override_flags(staged_handoffs=True),
-        pytest.raises(SystemExit) as exc_info,
-    ):
+    with pytest.raises(SystemExit) as exc_info:
         handle_launch_command(args)
     assert exc_info.value.code == 0
     captured = capsys.readouterr()
@@ -421,10 +402,7 @@ def test_agent_origin_run_stages_instead_of_spawning(
         "sase.ops.cli.load_request",
         lambda *_a, **_k: argparse.Namespace(payload={}),
     )
-    with (
-        override_flags(staged_handoffs=True),
-        pytest.raises(SystemExit) as exc_info,
-    ):
+    with pytest.raises(SystemExit) as exc_info:
         launch_query("Do work")
     assert exc_info.value.code == 0
     captured = capsys.readouterr()
@@ -434,26 +412,6 @@ def test_agent_origin_run_stages_instead_of_spawning(
     assert "Staged" in captured.err
     assert spawned == []
     assert read_staged_handoff(creator_dir) is not None
-
-
-def test_flag_off_agent_request_still_publishes(
-    gate_home: Path,
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    del gate_home
-    monkeypatch.setenv("SASE_HOME", str(tmp_path / ".sase"))
-    monkeypatch.chdir(tmp_path)
-    _prepare_creator(monkeypatch, "launch-flag-off")
-    with override_flags(staged_handoffs=False):
-        result = create_launch_approval_request_from_prompt(
-            "Do work",
-            reason="Need a helper",
-        )
-    assert isinstance(result, LaunchRequestCreationResult)
-    assert result.notification_id
-    assert result.gate_turn_creation is not None
-    assert result.preview_path.is_file()
 
 
 def test_wait_and_cancel_reject_staged_results() -> None:
@@ -468,75 +426,3 @@ def test_wait_and_cancel_reject_staged_results() -> None:
         wait_for_launch_approval(staged)
     with pytest.raises(LaunchRequestError, match="cannot cancel"):
         cancel_launch_approval_request(staged)
-
-
-def test_flag_off_launch_request_cli_emits_published_descriptor(
-    gate_home: Path,
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-    capsys: pytest.CaptureFixture[str],
-) -> None:
-    del gate_home
-    monkeypatch.setenv("SASE_HOME", str(tmp_path / ".sase"))
-    monkeypatch.chdir(tmp_path)
-    _prepare_creator(monkeypatch, "launch-cli-off")
-    args = argparse.Namespace(
-        launch_subcommand="request",
-        output="json",
-        prompt="Do work",
-        reason="Need a helper",
-        max_slots=1,
-        payload=None,
-        payload_file=None,
-        approval="required",
-        source=None,
-    )
-    with (
-        override_flags(staged_handoffs=False),
-        pytest.raises(SystemExit) as exc_info,
-    ):
-        handle_launch_command(args)
-    assert exc_info.value.code == 0
-    descriptor = json.loads(capsys.readouterr().out)
-    assert "notification_id" in descriptor
-    assert descriptor.get("status") != "staged"
-    assert bundle_paths("launch", descriptor["request_id"]).root.exists()
-
-
-def test_flag_off_agent_origin_run_publishes_instead_of_spawning(
-    gate_home: Path,
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-    capsys: pytest.CaptureFixture[str],
-) -> None:
-    del gate_home
-    monkeypatch.setenv("SASE_HOME", str(tmp_path / ".sase"))
-    monkeypatch.chdir(tmp_path)
-    _prepare_creator(monkeypatch, "launch-run-off")
-    spawned: list[str] = []
-    monkeypatch.setattr(
-        "sase.agent.launcher.launch_agents_from_cwd",
-        lambda *_a, **_k: spawned.append("spawned"),
-    )
-    monkeypatch.setattr(
-        "sase.agent.prompt_inputs.missing_required_input_names",
-        lambda _query: [],
-    )
-    monkeypatch.setattr(
-        "sase.macro.unresolved.scan_query_for_unresolved_references",
-        lambda _query: [],
-    )
-    monkeypatch.setattr(
-        "sase.ops.cli.load_request",
-        lambda *_a, **_k: argparse.Namespace(payload={}),
-    )
-    with (
-        override_flags(staged_handoffs=False),
-        pytest.raises(SystemExit) as exc_info,
-    ):
-        launch_query("Do work")
-    assert exc_info.value.code == 0
-    descriptor = json.loads(capsys.readouterr().out)
-    assert "notification_id" in descriptor
-    assert descriptor.get("status") != "staged"
-    assert spawned == []

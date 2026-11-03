@@ -80,7 +80,6 @@ class TUIHITLHandler:
         from sase.macro.workflow_hitl_gate import (
             create_workflow_hitl_gate,
             create_workflow_hitl_shell_gate,
-            maybe_handoff_workflow_hitl_from_agent,
             wait_for_workflow_hitl_gate,
             workflow_hitl_should_handoff_from_agent,
         )
@@ -100,10 +99,8 @@ class TUIHITLHandler:
                 provider_content=provider_content,
                 original_prompt=original_prompt,
             )
-            if isinstance(gate, WorkflowSuspended):
-                return gate
-            maybe_handoff_workflow_hitl_from_agent(gate)
-            return HITLResult(action="reject", approved=False)
+            assert isinstance(gate, WorkflowSuspended)
+            return gate
         gate = create_workflow_hitl_gate(
             step_name=step_name,
             step_type=step_type,

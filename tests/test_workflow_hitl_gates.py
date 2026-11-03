@@ -23,7 +23,6 @@ from sase.macro.workflow_hitl_gate import (
     _workflow_hitl_gate_spec,
     _workflow_hitl_shell_spec,
     create_workflow_hitl_gate,
-    create_workflow_hitl_shell_gate,
     wait_for_workflow_hitl_gate,
 )
 
@@ -114,35 +113,6 @@ def test_command_hitl_gate_keeps_rerun_and_edit_actions(
     result = _translate_workflow_hitl_response(execution.response)
     assert result.action == "edit"
     assert result.edited_output == {"artifact": "fixed.json"}
-
-
-def test_agent_flag_off_keeps_immediate_shell_publisher(
-    hitl_gate_home: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    monkeypatch.setenv("SASE_AGENT", "legacy-agent")
-    monkeypatch.setattr(
-        "sase.macro.workflow_hitl_gate.workflow_hitl_should_stage_from_agent",
-        lambda: False,
-    )
-    published = object()
-    monkeypatch.setattr(
-        "sase.gate_turn.create_gate_turn",
-        lambda spec: published,
-    )
-
-    result = create_workflow_hitl_shell_gate(
-        step_name="review",
-        step_type="bash",
-        output={"status": "ready"},
-        workflow_name="demo",
-        artifacts_dir=str(hitl_gate_home / "artifacts"),
-        has_output=True,
-        output_types=None,
-        timeout_seconds=60,
-    )
-
-    assert result is published
 
 
 def test_workflow_hitl_execution_failure_is_actionable_for_requester(

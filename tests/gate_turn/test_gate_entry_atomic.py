@@ -279,8 +279,8 @@ def test_run_gate_entry_releases_reservation_on_signal(
     monkeypatch.setenv("SASE_AGENT", "1")
     monkeypatch.setenv("SASE_ARTIFACTS_DIR", str(artifacts_dir))
     import sase.agent.staged_handoff as staged_handoff
+    import sase.gate_turn.staged_contract as staged_contract
 
-    monkeypatch.setattr(staged_handoff, "staged_handoffs_enabled", lambda: False)
     monkeypatch.setattr(
         staged_handoff, "acquire_staging_reservation", lambda **_k: "reservation-1"
     )
@@ -290,13 +290,17 @@ def test_run_gate_entry_releases_reservation_on_signal(
         "release_staging_reservation",
         lambda reservation_id, **_k: released.append(reservation_id),
     )
-    # Patch the lazy import used inside run_gate_entry/_run_legacy_creation.
-    import sase.gate_turn as gate_turn_pkg
+    monkeypatch.setattr(
+        staged_contract,
+        "collect_staged_gate_creator",
+        lambda **_k: {"project": "test"},
+    )
 
+    # Patch the staged preparation used inside run_gate_entry.
     def _raise_signal(*_a: object, **_k: object):
         raise GateEntrySignal(signal.SIGTERM)
 
-    monkeypatch.setattr(gate_turn_pkg, "create_gate_turn", _raise_signal, raising=False)
+    monkeypatch.setattr(entry_module, "_prepare_staged_gate", _raise_signal)
     with pytest.raises(GateEntrySignal):
         entry_module.run_gate_entry(
             lambda: {"kind": "custom"}, command="sase gate create"
