@@ -16,9 +16,9 @@ from typing import Any
 
 import pytest
 
+from sase.agent.hijack._stop_models import StopDeps
 from sase.agent.hijack.stop import (
     HijackStopResult,
-    _StopDeps,
     stop_agent_for_hijack,
 )
 from sase.running_field import WorkspaceClaim
@@ -34,7 +34,9 @@ _WS = 4
 def hijack_home(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     home = tmp_path / "sase-home"
     monkeypatch.setenv("SASE_HOME", str(home))
-    monkeypatch.setattr("sase.agent.hijack.stop._hijack_stop_enabled", lambda: True)
+    monkeypatch.setattr(
+        "sase.agent.hijack._stop_orchestrator._hijack_stop_enabled", lambda: True
+    )
     return home
 
 
@@ -77,7 +79,7 @@ def _install_target(
 
     monkeypatch.setattr("sase.agent.running.named_agent_project_fields", fake_fields)
     monkeypatch.setattr(
-        "sase.agent.hijack.stop._claim_workspace_dir",
+        "sase.agent.hijack._stop_target._claim_workspace_dir",
         lambda _project, _claim: None,
     )
 
@@ -87,7 +89,7 @@ def _deps(
     *,
     terminate: Any | None = None,
     snapshot_repo: Any | None = None,
-) -> _StopDeps:
+) -> StopDeps:
     row = SimpleNamespace(
         name=_AGENT,
         artifacts_dir=str(artifacts),
@@ -106,7 +108,7 @@ def _deps(
         terminate_fn = _ok
     else:
         terminate_fn = terminate
-    return _StopDeps(
+    return StopDeps(
         find_agent=lambda name: (
             SimpleNamespace(
                 name=_AGENT,
@@ -137,7 +139,9 @@ def _hijack_ids(home: Path) -> list[str]:
 def test_flag_disabled_refuses_without_changing_anything(
     hijack_home: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    monkeypatch.setattr("sase.agent.hijack.stop._hijack_stop_enabled", lambda: False)
+    monkeypatch.setattr(
+        "sase.agent.hijack._stop_orchestrator._hijack_stop_enabled", lambda: False
+    )
     result = stop_agent_for_hijack(_AGENT, deps=_deps(tmp_path / "artifacts"))
     assert result.status == "refused"
     assert result.exit_code == 2
@@ -151,7 +155,7 @@ def test_unknown_agent_is_refused(
 ) -> None:
     result = stop_agent_for_hijack(
         "nobody",
-        deps=_StopDeps(
+        deps=StopDeps(
             find_agent=lambda name: None,
             list_running=lambda: [],
         ),
@@ -257,7 +261,8 @@ def test_lost_race_keeps_the_real_outcome(
     artifacts = _artifacts(tmp_path)
     project_file = _project_file(tmp_path)
     _install_target(monkeypatch, artifacts, project_file)
-    import sase.agent.hijack.stop as stop_module
+    import sase.agent.hijack._stop_orchestrator as orchestrator_module
+    import sase.agent.hijack._stop_target as target_module
 
     calls = {"n": 0}
 
@@ -267,7 +272,8 @@ def test_lost_race_keeps_the_real_outcome(
             return None, None
         return "succeeded", {}
 
-    monkeypatch.setattr(stop_module, "_read_done_marker", flaky)
+    monkeypatch.setattr(target_module, "read_done_marker", flaky)
+    monkeypatch.setattr(orchestrator_module, "read_done_marker", flaky)
     result = stop_agent_for_hijack(_AGENT, deps=_deps(artifacts))
     assert result.status == "finished_first"
     assert result.exit_code == 2
@@ -330,15 +336,22 @@ def test_fallback_writes_done_json_and_reasserts_pin(
     project_file = _project_file(tmp_path)
     _install_target(monkeypatch, artifacts, project_file)
     pins = {"n": 0}
-    import sase.agent.hijack.stop as stop_module
+    import sase.agent.hijack._stop_claim as claim_module
+    import sase.agent.hijack._stop_orchestrator as orchestrator_module
 
-    original_pin = stop_module._pin_claim
+    original_claim_pin = claim_module.pin_claim
+    original_orchestrator_pin = orchestrator_module.pin_claim
 
-    def counting_pin(target: Any) -> bool:
+    def counting_claim_pin(target: Any) -> bool:
         pins["n"] += 1
-        return original_pin(target)
+        return original_claim_pin(target)
 
-    monkeypatch.setattr(stop_module, "_pin_claim", counting_pin)
+    def counting_orchestrator_pin(target: Any) -> bool:
+        pins["n"] += 1
+        return original_orchestrator_pin(target)
+
+    monkeypatch.setattr(claim_module, "pin_claim", counting_claim_pin)
+    monkeypatch.setattr(orchestrator_module, "pin_claim", counting_orchestrator_pin)
 
     def fake_write(artifacts_dir: str, marker: dict[str, Any]) -> str:
         path = Path(artifacts_dir) / "done.json"
