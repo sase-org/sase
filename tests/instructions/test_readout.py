@@ -8,6 +8,12 @@ from pathlib import Path
 
 import pytest
 
+from sase.instructions._readout_build import (
+    _delivery_mode_for_dir,
+    _is_excluded_run,
+    _is_research_run,
+)
+from sase.instructions._readout_classify import classify_artifact_dir
 from sase.instructions.readout import (
     ACCEPTED,
     MISS,
@@ -18,10 +24,6 @@ from sase.instructions.readout import (
     PLAN_HANDOFF,
     UNKNOWN,
     build_readout,
-    _classify_artifact_dir,
-    _delivery_mode_for_dir,
-    _is_excluded_run,
-    _is_research_run,
 )
 from sase.instructions.run_index import ScoredRun
 from sase.main.parser import create_parser
@@ -141,7 +143,7 @@ def test_classify_handoff_beats_accepted_submission(tmp_path: Path) -> None:
     (artifacts / "tool_calls.jsonl").write_text(
         "sase monitor start -p verify -- just check\n", encoding="utf-8"
     )
-    assert _classify_artifact_dir(artifacts) == MONITOR_PLAIN
+    assert classify_artifact_dir(artifacts) == MONITOR_PLAIN
 
 
 def test_classify_plan_handoff(tmp_path: Path) -> None:
@@ -151,7 +153,7 @@ def test_classify_plan_handoff(tmp_path: Path) -> None:
     _write_meta(artifacts, name="pln", provider="muse")
     _write_done(artifacts)
     (artifacts / "tool_calls.jsonl").write_text("sase plan propose\n", encoding="utf-8")
-    assert _classify_artifact_dir(artifacts) == PLAN_HANDOFF
+    assert classify_artifact_dir(artifacts) == PLAN_HANDOFF
 
 
 def test_classify_monitor_prepared_needs_real_prepare(tmp_path: Path) -> None:
@@ -170,7 +172,7 @@ def test_classify_monitor_prepared_needs_real_prepare(tmp_path: Path) -> None:
         "sase monitor start -p verify -- just check\n",
         encoding="utf-8",
     )
-    assert _classify_artifact_dir(artifacts) == MONITOR_PREPARED
+    assert classify_artifact_dir(artifacts) == MONITOR_PREPARED
 
     help_only = tmp_path / "help-only"
     help_only.mkdir()
@@ -180,7 +182,7 @@ def test_classify_monitor_prepared_needs_real_prepare(tmp_path: Path) -> None:
         "sase final prepare -h\nsase monitor start -p verify -- just check\n",
         encoding="utf-8",
     )
-    assert _classify_artifact_dir(help_only) == MONITOR_PLAIN
+    assert classify_artifact_dir(help_only) == MONITOR_PLAIN
 
 
 def test_classify_other_handoff(tmp_path: Path) -> None:
@@ -191,7 +193,7 @@ def test_classify_other_handoff(tmp_path: Path) -> None:
         _write_meta(artifacts, name="oth", provider="grok")
         _write_done(artifacts)
         (artifacts / "tool_calls.jsonl").write_text(f"{marker} ...\n", encoding="utf-8")
-        assert _classify_artifact_dir(artifacts) == OTHER_HANDOFF
+        assert classify_artifact_dir(artifacts) == OTHER_HANDOFF
 
 
 def test_classify_not_required(tmp_path: Path) -> None:
@@ -204,7 +206,7 @@ def test_classify_not_required(tmp_path: Path) -> None:
         json.dumps({"submission_required": False}), encoding="utf-8"
     )
     (artifacts / "tool_calls.jsonl").write_text("", encoding="utf-8")
-    assert _classify_artifact_dir(artifacts) == NOT_REQUIRED
+    assert classify_artifact_dir(artifacts) == NOT_REQUIRED
 
 
 def test_classify_host_monitor_plain_without_tool_calls(tmp_path: Path) -> None:
@@ -222,7 +224,7 @@ def test_classify_host_monitor_plain_without_tool_calls(tmp_path: Path) -> None:
         },
     )
     _write_done(artifacts)
-    assert _classify_artifact_dir(artifacts) == MONITOR_PLAIN
+    assert classify_artifact_dir(artifacts) == MONITOR_PLAIN
 
 
 def test_classify_host_monitor_prepared_from_intents(tmp_path: Path) -> None:
@@ -242,7 +244,7 @@ def test_classify_host_monitor_prepared_from_intents(tmp_path: Path) -> None:
         json.dumps({"intents": {"intent-1": {"filename": "intent-1.json"}}}),
         encoding="utf-8",
     )
-    assert _classify_artifact_dir(artifacts) == MONITOR_PREPARED
+    assert classify_artifact_dir(artifacts) == MONITOR_PREPARED
 
 
 def test_classify_host_plan_handoff(tmp_path: Path) -> None:
@@ -254,7 +256,7 @@ def test_classify_host_plan_handoff(tmp_path: Path) -> None:
     (artifacts / "plan_path.json").write_text(
         json.dumps({"plan_path": "/tmp/plan.md"}), encoding="utf-8"
     )
-    assert _classify_artifact_dir(artifacts) == PLAN_HANDOFF
+    assert classify_artifact_dir(artifacts) == PLAN_HANDOFF
 
 
 def test_classify_host_other_handoff(tmp_path: Path) -> None:
@@ -263,7 +265,7 @@ def test_classify_host_other_handoff(tmp_path: Path) -> None:
     artifacts.mkdir()
     _write_meta(artifacts, name="oth", provider="grok", extra=_HANDOFF_PHASE)
     _write_done(artifacts)
-    assert _classify_artifact_dir(artifacts) == OTHER_HANDOFF
+    assert classify_artifact_dir(artifacts) == OTHER_HANDOFF
 
 
 def test_classify_aborted_handoff_is_miss(tmp_path: Path) -> None:
@@ -281,7 +283,7 @@ def test_classify_aborted_handoff_is_miss(tmp_path: Path) -> None:
     (artifacts / "tool_calls.jsonl").write_text(
         "sase monitor start -p verify -- just check\n", encoding="utf-8"
     )
-    assert _classify_artifact_dir(artifacts) == MISS
+    assert classify_artifact_dir(artifacts) == MISS
 
 
 def test_classify_host_handoff_beats_accepted(tmp_path: Path) -> None:
@@ -299,7 +301,7 @@ def test_classify_host_handoff_beats_accepted(tmp_path: Path) -> None:
         json.dumps({"accepted_at": "2026-10-06T12:00:00Z"}), encoding="utf-8"
     )
     (artifacts / "plan_path.json").write_text("{}", encoding="utf-8")
-    assert _classify_artifact_dir(artifacts) == PLAN_HANDOFF
+    assert classify_artifact_dir(artifacts) == PLAN_HANDOFF
 
 
 def test_classify_miss(tmp_path: Path) -> None:
@@ -312,7 +314,7 @@ def test_classify_miss(tmp_path: Path) -> None:
         json.dumps({"submission_required": True}), encoding="utf-8"
     )
     (artifacts / "tool_calls.jsonl").write_text("sase bead read\n", encoding="utf-8")
-    assert _classify_artifact_dir(artifacts) == MISS
+    assert classify_artifact_dir(artifacts) == MISS
 
 
 def test_delivery_mode_split(tmp_path: Path) -> None:
@@ -564,7 +566,7 @@ def test_staged_plan_with_dirty_missing_declaration_is_miss(tmp_path: Path) -> N
     _write_done(artifacts)
     _write_staged_record(artifacts, kind="plan", dirty=("repo:main",))
     _write_final_context(artifacts, submission_required=True)
-    assert _classify_artifact_dir(artifacts) == MISS
+    assert classify_artifact_dir(artifacts) == MISS
 
 
 def test_staged_plan_clean_missing_declaration_keeps_class(tmp_path: Path) -> None:
@@ -578,7 +580,7 @@ def test_staged_plan_clean_missing_declaration_keeps_class(tmp_path: Path) -> No
     _write_meta(artifacts, name="clean", provider="codex")
     _write_done(artifacts)
     _write_staged_record(artifacts, kind="plan", dirty=())
-    assert _classify_artifact_dir(artifacts) == PLAN_HANDOFF
+    assert classify_artifact_dir(artifacts) == PLAN_HANDOFF
 
 
 def test_staged_handoff_beats_accepted_submission(tmp_path: Path) -> None:
@@ -591,7 +593,7 @@ def test_staged_handoff_beats_accepted_submission(tmp_path: Path) -> None:
     (artifacts / "final_submission.json").write_text(
         json.dumps({"accepted_at": "2026-10-06T12:00:00Z"}), encoding="utf-8"
     )
-    assert _classify_artifact_dir(artifacts) == PLAN_HANDOFF
+    assert classify_artifact_dir(artifacts) == PLAN_HANDOFF
 
 
 def test_staged_not_required_keeps_handoff_class(tmp_path: Path) -> None:
@@ -602,7 +604,7 @@ def test_staged_not_required_keeps_handoff_class(tmp_path: Path) -> None:
     _write_done(artifacts)
     _write_staged_record(artifacts, kind="monitor", dirty=())
     _write_final_context(artifacts, submission_required=False)
-    assert _classify_artifact_dir(artifacts) == MONITOR_PLAIN
+    assert classify_artifact_dir(artifacts) == MONITOR_PLAIN
 
 
 def test_staged_prepared_monitor_needs_validated_intent(tmp_path: Path) -> None:
@@ -618,7 +620,7 @@ def test_staged_prepared_monitor_needs_validated_intent(tmp_path: Path) -> None:
         payload={"prepared_intent_ref": "intent-1"},
     )
     _write_intents(prepared)
-    assert _classify_artifact_dir(prepared) == MONITOR_PREPARED
+    assert classify_artifact_dir(prepared) == MONITOR_PREPARED
 
     unvalidated = tmp_path / "staged-unvalidated"
     unvalidated.mkdir()
@@ -630,7 +632,7 @@ def test_staged_prepared_monitor_needs_validated_intent(tmp_path: Path) -> None:
         dirty=(),
         payload={"prepared_intent_ref": "intent-1"},
     )
-    assert _classify_artifact_dir(unvalidated) == MONITOR_PLAIN
+    assert classify_artifact_dir(unvalidated) == MONITOR_PLAIN
 
 
 def test_legacy_killed_handoff_preserved_with_required_declaration(
@@ -650,7 +652,7 @@ def test_legacy_killed_handoff_preserved_with_required_declaration(
         json.dumps({"plan_path": "/tmp/plan.md"}), encoding="utf-8"
     )
     _write_final_context(artifacts, submission_required=True)
-    assert _classify_artifact_dir(artifacts) == PLAN_HANDOFF
+    assert classify_artifact_dir(artifacts) == PLAN_HANDOFF
 
 
 def test_plan_validate_alone_is_not_handoff(tmp_path: Path) -> None:
@@ -663,7 +665,7 @@ def test_plan_validate_alone_is_not_handoff(tmp_path: Path) -> None:
         "sase plan validate\n", encoding="utf-8"
     )
     _write_final_context(artifacts, submission_required=True)
-    assert _classify_artifact_dir(artifacts) == MISS
+    assert classify_artifact_dir(artifacts) == MISS
 
 
 def test_help_invocations_are_not_handoffs(tmp_path: Path) -> None:
@@ -676,7 +678,7 @@ def test_help_invocations_are_not_handoffs(tmp_path: Path) -> None:
         "sase plan propose -h\nsase monitor start --help\n", encoding="utf-8"
     )
     _write_final_context(artifacts, submission_required=True)
-    assert _classify_artifact_dir(artifacts) == MISS
+    assert classify_artifact_dir(artifacts) == MISS
 
 
 def test_aborted_with_accepted_submission_is_accepted(tmp_path: Path) -> None:
@@ -689,7 +691,7 @@ def test_aborted_with_accepted_submission_is_accepted(tmp_path: Path) -> None:
     (artifacts / "final_submission.json").write_text(
         json.dumps({"accepted_at": "2026-10-06T12:00:00Z"}), encoding="utf-8"
     )
-    assert _classify_artifact_dir(artifacts) == ACCEPTED
+    assert classify_artifact_dir(artifacts) == ACCEPTED
 
 
 def test_adapter_binding_scores_evidence_matrix() -> None:
