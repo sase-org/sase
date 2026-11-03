@@ -25,7 +25,10 @@ from ._meta_enrichment import (
     enrich_agent_from_meta_wire,
     enrich_agent_from_prompt_markers_wire,
 )
-from ._meta_enrichment_status import hijack_status_from_done_marker
+from ._meta_enrichment_status import (
+    hijack_recovery_is_expired,
+    hijack_status_from_done_marker,
+)
 from ._meta_enrichment_identity import (
     apply_archive_source_machine,
     apply_imported_source_owner,
@@ -176,6 +179,7 @@ def build_done_agent_from_record(
         approve=bool(done.approve),
         monitor_stop_status=status if outcome == "monitored" else None,
         gate_stop_status=status if outcome == "gated" else None,
+        hijack_expired=hijack_recovery_is_expired(outcome, done.recovery),
     )
 
     if done.retried_as_timestamp:

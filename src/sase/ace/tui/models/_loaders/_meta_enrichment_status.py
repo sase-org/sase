@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from collections.abc import Mapping
 from datetime import datetime
 from pathlib import Path
 
@@ -50,6 +51,17 @@ def hijack_status_from_done_marker(
         }
     status = agent_hijack_status_for_done_marker(str(outcome), recovery_payload)
     return status or "HIJACKED"
+
+
+def hijack_recovery_is_expired(outcome: object, recovery: object = None) -> bool:
+    """Return whether the done marker records an expired hijack hold."""
+    if outcome != "hijacked":
+        return False
+    if isinstance(recovery, Mapping):
+        state = recovery.get("state")
+    else:
+        state = getattr(recovery, "state", None)
+    return state == "expired"
 
 
 def refresh_agent_plan_path(agent: Agent) -> None:

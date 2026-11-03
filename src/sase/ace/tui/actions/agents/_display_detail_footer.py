@@ -200,12 +200,14 @@ class AgentFooterDisplayMixin:
             )
         elif getattr(self, "_leader_mode_active", False):
             from ..agent_workflow._launch_records import latest_live_launch_record
+            from ._hijack_action import agent_hijack_ingress_available
 
             footer_widget.update_leader_bindings(
                 current_tab="agents",
                 has_unread_completed_agent=self._has_unread_completed_agent(),  # type: ignore[attr-defined]
                 has_bulk_read_undo_available=self._has_bulk_read_undo_available(),  # type: ignore[attr-defined]
                 has_stopped_agent=self._has_stopped_agent(),  # type: ignore[attr-defined]
+                can_hijack_selected_agent=agent_hijack_ingress_available(current_agent),
                 has_live_launch_record=latest_live_launch_record(self) is not None,
             )
         elif getattr(self, "_bang_mode_active", False):
@@ -247,6 +249,8 @@ class AgentFooterDisplayMixin:
                     )
                 except Exception:
                     enter_action_label = None
+            if current_agent is not None and current_agent.status == "HIJACKED":
+                enter_action_label = "recover"
             cached_artifacts = getattr(self, "_cached_artifact_files", None)
             if (
                 current_agent is not None

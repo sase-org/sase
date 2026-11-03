@@ -34,22 +34,42 @@ class ConfirmDismissAllModal(ConfirmDialog):
 class ConfirmKillModal(ConfirmDialog):
     """Modal for confirming agent termination."""
 
-    def __init__(self, agent_description: str) -> None:
+    BINDINGS = [*ConfirmDialog.BINDINGS, ("h", "hijack", "Hijack instead")]
+
+    def __init__(
+        self,
+        agent_description: str,
+        *,
+        hijack_available: bool = False,
+        workspace_num: int | None = None,
+    ) -> None:
         """Initialize the confirm kill modal.
 
         Args:
             agent_description: Description of the agent to kill.
         """
         self.agent_description = agent_description
+        self.hijack_available = hijack_available
+        message = "Kill this agent? Running work will stop immediately."
+        if hijack_available:
+            workspace = (
+                f"#{workspace_num}" if workspace_num is not None else "its workspace"
+            )
+            message += f"\n\nh Hijack instead · stop it but keep workspace {workspace}"
         super().__init__(
             "Kill Agent",
-            "Kill this agent? Running work will stop immediately.",
+            message,
             subject=agent_description,
             kind=ConfirmKind.DANGER,
             confirm_label="Kill",
             cancel_label="Keep running",
             default="cancel",
         )
+
+    def action_hijack(self) -> None:
+        """Choose the keep-work stop path when it was offered."""
+        if self.hijack_available:
+            self.dismiss("hijack")  # type: ignore[arg-type]
 
 
 class ConfirmStopMonitorModal(ConfirmDialog):

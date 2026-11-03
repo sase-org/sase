@@ -27,6 +27,9 @@ from ..models.agent import (
 )
 from ..models.agent_runner_slots import format_capacity_value
 from ..models.agent_status import (
+    HIJACKED_COLOR,
+    HIJACKED_GLYPH,
+    HIJACKED_STATUS,
     RUNNING_COLOR,
     STOPPED_COLOR,
     STOPPED_GLYPH,
@@ -176,7 +179,18 @@ def append_agent_row_status(
     presentation = gate_status_presentation(agent) or monitor_status_presentation(agent)
     stranded_leaf = stranded_state == "stranded"
     stranded_done_overlay = stranded_leaf and agent_status_bucket(agent) == "Done"
-    if stranded_done_overlay:
+    hijack_overlay = getattr(agent, "hijack_overlay", None)
+    if hijack_overlay == "hijacking":
+        text.append("HIJACKING…", style="bold #FF5FAF")
+    elif hijack_overlay == "recovering":
+        text.append("RECOVERING…", style="bold #FF5FAF")
+    elif agent.status == HIJACKED_STATUS:
+        text.append(
+            f"{HIJACKED_GLYPH} {HIJACKED_STATUS}", style=f"bold {HIJACKED_COLOR}"
+        )
+        if agent.hijack_expired:
+            text.append(" · workspace released", style="dim")
+    elif stranded_done_overlay:
         text.append("STRANDED", style=STRANDED_LEAF_STYLE)
     elif presentation is not None:
         style, glyph = presentation
@@ -193,6 +207,8 @@ def append_agent_row_status(
         text.append(display_status, style=f"bold {RUNNING_COLOR}")
     elif agent.status == "DONE":
         text.append(display_status, style="bold #5FD75F")  # Green
+    elif agent.status in {"ESCALATED", "CONTINUED"}:
+        text.append(display_status, style="bold #5FD7FF")  # ANSWERED cyan
     elif agent.status == STOPPED_STATUS:
         text.append(
             f"{STOPPED_GLYPH} {display_status}",
@@ -352,6 +368,8 @@ def append_agent_row_status(
     elif not waiting_on_stranded and stranded_leaf:
         text.append(f" {STRANDED_GLYPH}", style=STRANDED_LEAF_STYLE)
     text.append(")", style="dim")
+    if getattr(agent, "hijack_stop_failed", False):
+        text.append(" ⏏ stop failed", style="bold #FF5F5F")
     _append_finalizer_chip(text, agent)
     _append_tool_run_chip(text, agent, now=now)
     if agent.is_monitor and (

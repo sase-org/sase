@@ -428,12 +428,16 @@ def _normalize_loaded_agents(
     *,
     keep_orphaned_followups: bool = False,
 ) -> list[Agent]:
-    return _normalize_agents(
+    normalized = _normalize_agents(
         agents,
         workflow_agent_steps,
         is_process_running=is_process_running,
         keep_orphaned_followups=keep_orphaned_followups,
     )
+    from .agent_hijack_presentation import apply_hijack_ledger_presentation
+
+    apply_hijack_ledger_presentation(normalized)
+    return normalized
 
 
 def _mark_live_artifact_delta_runners(agents: list[Agent]) -> None:

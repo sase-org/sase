@@ -429,6 +429,7 @@ class KeybindingModesMixin:
         has_unread_completed_agent: bool = False,
         has_bulk_read_undo_available: bool = False,
         has_stopped_agent: bool = False,
+        can_hijack_selected_agent: bool = False,
         has_revertable_agent: bool = False,
         marked_agent_count: int = 0,
         has_live_launch_record: bool = False,
@@ -442,6 +443,8 @@ class KeybindingModesMixin:
             has_unread_completed_agent: Whether any completed agent is unread.
             has_bulk_read_undo_available: Whether the last bulk read can be undone.
             has_stopped_agent: Whether any stopped agent is loaded.
+            can_hijack_selected_agent: Whether local hijack is plausible or a remote
+                row can copy the owning-host command while the beta flag is enabled.
             has_revertable_agent: Whether the selected Agents-tab row is a
                 done/failed agent whose commits can be reverted.
             marked_agent_count: Number of marked agents; when non-zero ``,r``
@@ -488,6 +491,8 @@ class KeybindingModesMixin:
         bindings.append((k("toggle_agents_archive"), "toggle Archive"))
         if current_tab == "agents":
             bindings.append((k("collapse_fold_by_hint"), "collapse by hint"))
+            if can_hijack_selected_agent:
+                bindings.append((k("hijack_agent"), "hijack"))
             if has_stopped_agent:
                 bindings.append((k("jump_to_next_stopped_agent"), "next stopped"))
             if has_unread_completed_agent:

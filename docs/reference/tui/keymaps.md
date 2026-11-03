@@ -557,6 +557,7 @@ These are the bundled defaults for configurable TUI actions. The key and action 
 | `,H` | Collapse fold by hint | `ace.keymaps.modes.leader_mode.keys.collapse_fold_by_hint` |
 | `,j` | Jump to next unread done agent | `ace.keymaps.modes.leader_mode.keys.jump_to_next_unread_done_agent` |
 | `,J` | Jump to next stopped agent | `ace.keymaps.modes.leader_mode.keys.jump_to_next_stopped_agent` |
+| `,k` | Hijack agent | `ace.keymaps.modes.leader_mode.keys.hijack_agent` |
 | `,y` | Full history refresh | `ace.keymaps.modes.leader_mode.keys.full_history_refresh` |
 | `,u` | Mark all unread done agents read | `ace.keymaps.modes.leader_mode.keys.mark_all_unread_done_agents_read` |
 | `,x` | Kill and edit | `ace.keymaps.modes.leader_mode.keys.kill_and_edit` |

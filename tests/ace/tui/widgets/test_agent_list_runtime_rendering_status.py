@@ -29,6 +29,60 @@ def test_format_agent_option_finished_suffix_has_timestamp_and_elapsed() -> None
     assert "❌" not in suffix.plain
 
 
+@pytest.mark.parametrize(
+    ("status", "overlay", "expected"),
+    [
+        ("HIJACKED", None, "⏏ HIJACKED"),
+        ("RUNNING", "hijacking", "HIJACKING…"),
+        ("HIJACKED", "recovering", "RECOVERING…"),
+    ],
+)
+def test_hijack_row_status_and_overlays(
+    status: str, overlay: str | None, expected: str
+) -> None:
+    row = agent(status=status)
+    row.hijack_overlay = overlay
+
+    left, _, _ = format_agent_option(row, 0, is_selected=False)
+
+    assert expected in left.plain
+
+
+def test_hijack_stop_failed_badge_is_red_and_keeps_running_status() -> None:
+    row = agent(status="RUNNING")
+    row.hijack_stop_failed = True
+
+    left, _, _ = format_agent_option(row, 0, is_selected=False)
+
+    assert "RUNNING" in left.plain
+    assert "⏏ stop failed" in left.plain
+    assert any(
+        span.style == "bold #FF5F5F"
+        for span in left.spans
+        if left.plain[span.start : span.end] == " ⏏ stop failed"
+    )
+
+
+def test_expired_hijack_shows_workspace_released_hint() -> None:
+    row = agent(status="HIJACKED")
+    row.hijack_expired = True
+
+    left, _, _ = format_agent_option(row, 0, is_selected=False)
+
+    assert "⏏ HIJACKED · workspace released" in left.plain
+
+
+@pytest.mark.parametrize("status", ["ESCALATED", "CONTINUED"])
+def test_resolved_hijack_statuses_use_answered_cyan(status: str) -> None:
+    left, _, _ = format_agent_option(agent(status=status), 0, is_selected=False)
+
+    assert any(
+        span.style == "bold #5FD7FF"
+        for span in left.spans
+        if left.plain[span.start : span.end] == status
+    )
+
+
 def test_format_agent_option_unread_finished_suffix_has_completed_marker() -> None:
     start = datetime(2026, 4, 25, 14, 0, 0)
     stop = datetime(2026, 4, 25, 20, 17, 3)

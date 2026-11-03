@@ -1,4 +1,4 @@
-{"count": 3681, "rev": "7d326bddd755", "schema": "sase.footprint.catalog/1"}
+{"count": 3683, "rev": "7a926c95ddf9", "schema": "sase.footprint.catalog/1"}
 {"area": "automation", "id": "auto:axe.agent_waits", "kind": "auto", "label": "Resolve agent wait dependencies within seconds of completion", "ns": "auto", "parent": null, "src": "sase/default_config.yml"}
 {"area": "automation", "id": "auto:axe.agent_waits.wait_checks", "kind": "auto", "label": "Resolve agent wait dependencies and write ready.json when satisfied", "ns": "auto", "parent": "auto:axe.agent_waits", "src": "sase/default_config.yml"}
 {"area": "automation", "id": "auto:axe.checks", "kind": "auto", "label": "Poll slower PR-submission and workspace-claim checks on a five-minute cadence", "ns": "auto", "parent": null, "src": "sase/default_config.yml"}
@@ -2450,6 +2450,7 @@
 {"area": "config.ace", "id": "config:ace.keymaps.modes.leader_mode.keys.clear_comments", "kind": "config", "label": "Clear comments", "ns": "config", "parent": null, "src": "sase/default_config.yml"}
 {"area": "config.ace", "id": "config:ace.keymaps.modes.leader_mode.keys.collapse_fold_by_hint", "kind": "config", "label": "Collapse fold by hint", "ns": "config", "parent": null, "src": "sase/default_config.yml"}
 {"area": "config.ace", "id": "config:ace.keymaps.modes.leader_mode.keys.full_history_refresh", "kind": "config", "label": "Full history refresh", "ns": "config", "parent": null, "src": "sase/default_config.yml"}
+{"area": "config.ace", "id": "config:ace.keymaps.modes.leader_mode.keys.hijack_agent", "kind": "config", "label": "Hijack agent", "ns": "config", "parent": null, "src": "sase/default_config.yml"}
 {"area": "config.ace", "id": "config:ace.keymaps.modes.leader_mode.keys.jump_to_last_error", "kind": "config", "label": "Jump to last error", "ns": "config", "parent": null, "src": "sase/default_config.yml"}
 {"area": "config.ace", "id": "config:ace.keymaps.modes.leader_mode.keys.jump_to_next_stopped_agent", "kind": "config", "label": "Jump to next stopped agent", "ns": "config", "parent": null, "src": "sase/default_config.yml"}
 {"area": "config.ace", "id": "config:ace.keymaps.modes.leader_mode.keys.jump_to_next_unread_done_agent", "kind": "config", "label": "Jump to next unread done agent", "ns": "config", "parent": null, "src": "sase/default_config.yml"}
@@ -3311,6 +3312,7 @@
 {"area": "tui.leader", "id": "tui:leader.clear_comments", "kind": "mode_key", "label": "Clear Patch comments", "ns": "tui", "parent": "tui:app.start_leader_mode", "src": null}
 {"area": "tui.leader", "id": "tui:leader.collapse_fold_by_hint", "kind": "mode_key", "label": "Collapse a fold by hint", "ns": "tui", "parent": "tui:app.start_leader_mode", "src": null}
 {"area": "tui.leader", "id": "tui:leader.full_history_refresh", "kind": "mode_key", "label": "Full history refresh", "ns": "tui", "parent": "tui:app.start_leader_mode", "src": null}
+{"area": "tui.leader", "id": "tui:leader.hijack_agent", "kind": "mode_key", "label": "Hijack Agent", "ns": "tui", "parent": "tui:app.start_leader_mode", "src": null}
 {"area": "tui.leader", "id": "tui:leader.jump_to_last_error", "kind": "mode_key", "label": "Jump to the last error in Logs", "ns": "tui", "parent": "tui:app.start_leader_mode", "src": null}
 {"area": "tui.leader", "id": "tui:leader.jump_to_next_stopped_agent", "kind": "mode_key", "label": "Jump to next stopped agent", "ns": "tui", "parent": "tui:app.start_leader_mode", "src": null}
 {"area": "tui.leader", "id": "tui:leader.jump_to_next_unread_done_agent", "kind": "mode_key", "label": "Jump to next unread completed agent", "ns": "tui", "parent": "tui:app.start_leader_mode", "src": null}

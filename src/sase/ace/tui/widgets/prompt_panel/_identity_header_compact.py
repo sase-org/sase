@@ -390,11 +390,36 @@ def build_agent_compact_lines(
     if retention_callout is not None:
         compact.append("\n")
         compact.append_text(retention_callout)
+    hijack_callout = build_hijack_header_callout(agent)
+    if hijack_callout is not None:
+        compact.append("\n")
+        compact.append_text(hijack_callout)
     callout = _stranded_header_callout(agent)
     if callout is not None:
         compact.append("\n")
         compact.append_text(callout)
     return compact
+
+
+def build_hijack_header_callout(agent: Agent) -> Text | None:
+    """Show why a hijacked row still owns its workspace."""
+    from ...models.agent_status import HIJACKED_COLOR, HIJACKED_STATUS
+
+    if (
+        agent.status != HIJACKED_STATUS
+        and getattr(agent, "hijack_overlay", None) != "recovering"
+    ):
+        return None
+    if agent.hijack_expired:
+        return None
+    line = Text("Workspace held: hijacked", style=f"bold {HIJACKED_COLOR}")
+    if agent.workspace_num is not None:
+        line.append(f" · ws #{agent.workspace_num}", style=f"bold {HIJACKED_COLOR}")
+    detail = getattr(agent, "hijack_diff_summary", None)
+    if isinstance(detail, str) and detail.strip():
+        line.append(f" · {detail.strip()}", style=f"bold {HIJACKED_COLOR}")
+    line.append(" · ⏎ recover", style=f"bold {HIJACKED_COLOR}")
+    return line
 
 
 def _workspace_retention_header_callout(agent: Agent) -> Text | None:
@@ -570,6 +595,7 @@ def build_workflow_compact_lines(*, agent: Agent) -> Text:
 __all__ = [
     "CHIP_SEPARATOR_STYLE",
     "build_agent_compact_lines",
+    "build_hijack_header_callout",
     "build_tribe_compact_lines",
     "build_workflow_compact_lines",
     "chips_row",

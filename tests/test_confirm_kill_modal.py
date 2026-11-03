@@ -22,3 +22,17 @@ def test_confirm_kill_modal_empty_description() -> None:
     """Test ConfirmKillModal with empty description."""
     modal = ConfirmKillModal(agent_description="")
     assert modal.agent_description == ""
+
+
+def test_confirm_kill_modal_hijack_choice_is_opt_in() -> None:
+    normal = ConfirmKillModal(agent_description="agent")
+    assert normal.hijack_available is False
+    assert "Hijack instead" not in normal._message
+
+    eligible = ConfirmKillModal(
+        agent_description="agent",
+        hijack_available=True,
+        workspace_num=4,
+    )
+    assert "h Hijack instead" in eligible._message
+    assert "workspace #4" in eligible._message

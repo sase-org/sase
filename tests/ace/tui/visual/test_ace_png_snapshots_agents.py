@@ -14,6 +14,7 @@ import pytest
 
 from sase.ace.testing import AcePage
 from sase.ace.tui.models.agent_workspace_retention import AgentWorkspaceRetention
+from sase.ace.tui.models.agent import Agent, AgentType
 from sase.ace.tui.widgets.agent_detail import AgentDetail
 from sase.ace.tui.widgets.agent_header_panel import AgentHeaderPanel
 from sase.ace.tui.widgets.agent_info_panel import AgentInfoPanel
@@ -48,6 +49,106 @@ from tests.ace.tui.visual._ace_png_snapshot_helpers import (
 from tests.ace.tui.visual.png_diff import AcePngSnapshotFixture
 
 pytestmark = pytest.mark.visual
+
+
+def _hijack_rendering_agents() -> list[Agent]:
+    """Fixed rows for hijacked, pending-stop, pending-recovery, and failed-stop UX."""
+    started = datetime(2026, 11, 3, 10, 0, 0)
+    common = {
+        "agent_type": AgentType.RUNNING,
+        "project_file": "/workspace/sase/visual_project.sase",
+        "start_time": started,
+        "workspace_num": 4,
+        "llm_provider": "codex",
+        "model": "gpt-6.1-sol",
+        "raw_suffix": "20261103100000",
+    }
+    hijacked = Agent(
+        **common,
+        cl_name="visual-hijacked",
+        status="HIJACKED",
+        agent_name="visual.hijacked",
+        stop_time=started,
+        hijack_diff_summary="5 files +212 −31",
+    )
+    expired = Agent(
+        **common,
+        cl_name="visual-expired",
+        status="HIJACKED",
+        agent_name="visual.expired",
+        stop_time=started,
+        hijack_expired=True,
+    )
+    hijacking = Agent(
+        **common,
+        cl_name="visual-hijacking",
+        status="RUNNING",
+        agent_name="visual.hijacking",
+        hijack_overlay="hijacking",
+    )
+    recovering = Agent(
+        **common,
+        cl_name="visual-recovering",
+        status="HIJACKED",
+        agent_name="visual.recovering",
+        stop_time=started,
+        hijack_overlay="recovering",
+    )
+    stop_failed = Agent(
+        **common,
+        cl_name="visual-stop-failed",
+        status="RUNNING",
+        agent_name="visual.stop-failed",
+        hijack_stop_failed=True,
+    )
+    return [hijacked, expired, hijacking, recovering, stop_failed]
+
+
+async def test_agent_hijack_rows_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    pin_agents_visual_now(monkeypatch, datetime(2026, 11, 3, 10, 5, 0))
+    patch_startup_loaders(monkeypatch, agents=_hijack_rendering_agents())
+
+    async with AcePage(query='"visual"', size=(200, 40), patches=patches()) as page:
+        await wait_for_startup(page)
+        await page.press("shift+tab")
+        await page.expect_state("tab", "agents")
+        await page.expect_state("agent_count", 5)
+        await wait_for_visual_idle(page)
+
+        for _ in range(len(page.app._agents) + 1):
+            selected = page.app._get_selected_agent()
+            if (
+                selected is not None
+                and selected.status == "HIJACKED"
+                and not selected.hijack_expired
+            ):
+                break
+            await page.press("j")
+            await wait_for_visual_idle(page)
+
+        assert_page_svg_contains(page, "⏏ HIJACKED")
+        assert_page_svg_contains(page, "workspace released")
+        assert_page_svg_contains(page, "HIJACKING…")
+        assert_page_svg_contains(page, "RECOVERING…")
+        assert_page_svg_contains(page, "⏏ stop failed")
+
+        detail = page.app.query_one("#agent-detail-panel", AgentDetail)
+        assert detail.toggle_header_expanded() is True
+        await wait_for_visual_idle(page)
+        header = detail.query_one("#agent-header-panel", AgentHeaderPanel)
+        header.scroll_to(y=header.max_scroll_y, animate=False)
+        await wait_for_visual_idle(page)
+
+        assert_page_svg_styled_text_contains(page, "Workspace held: hijacked")
+        assert_page_svg_contains(page, "⏎ recover")
+        ace_png_visual.assert_page_png(
+            page,
+            "agents_hijack_rendering_200x40",
+            title="ACE agents hijack row rendering",
+        )
 
 
 async def test_agent_list_png_snapshot(

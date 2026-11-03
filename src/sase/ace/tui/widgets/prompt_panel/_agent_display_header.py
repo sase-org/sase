@@ -71,7 +71,10 @@ from ._identity_header import (
     identity_kind_for_agent,
     strip_leading_document_chrome,
 )
-from ._identity_header_compact import build_agent_compact_lines
+from ._identity_header_compact import (
+    build_agent_compact_lines,
+    build_hijack_header_callout,
+)
 
 if TYPE_CHECKING:
     from sase.core.agent_models import AgentModelSummary, AgentModelTurnFact
@@ -231,6 +234,10 @@ def build_header_text(
                 level=resolved_lane_fold_level,
                 scale=AGENT_SESSION_FOLD_SCALE,
             )
+        hijack_callout = build_hijack_header_callout(agent)
+        if hijack_callout is not None:
+            append_major_section_divider(identity_text)
+            identity_text.append_text(hijack_callout)
         retention = getattr(agent, "workspace_retention", None)
         if retention is not None:
             append_major_section_divider(identity_text)

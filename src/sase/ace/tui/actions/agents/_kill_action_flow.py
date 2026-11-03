@@ -149,12 +149,24 @@ class AgentKillActionFlowMixin:
         agent_description = "\n".join(desc_parts)
 
         from ...modals import ConfirmKillModal
+        from ._hijack_action import agent_can_offer_hijack
 
-        def on_dismiss(confirmed: bool | None) -> None:
-            if confirmed:
+        hijack_available = agent_can_offer_hijack(agent)
+
+        def on_dismiss(confirmed: bool | str | None) -> None:
+            if confirmed == "hijack":
+                self._start_hijack_agent(agent)  # type: ignore[attr-defined]
+            elif confirmed:
                 self._do_kill_agent(agent, cleanup_plan)  # type: ignore[attr-defined]
 
-        self.push_screen(ConfirmKillModal(agent_description), on_dismiss)  # type: ignore[attr-defined]
+        self.push_screen(  # type: ignore[attr-defined]
+            ConfirmKillModal(
+                agent_description,
+                hijack_available=hijack_available,
+                workspace_num=agent.workspace_num,
+            ),
+            on_dismiss,
+        )
 
     def _resolve_panel_cleanup_focus(self) -> AgentPanelFocus | None:
         """Resolve panel focus while preserving collapsed-only test adapters."""

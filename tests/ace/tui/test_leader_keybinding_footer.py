@@ -113,6 +113,17 @@ def test_footer_surfaces_capacity_inspector_only_on_agents_tab() -> None:
         assert "capacity inspector" not in _last_labels(captured)
 
 
+def test_footer_surfaces_hijack_only_for_an_eligible_selected_agent() -> None:
+    footer = KeybindingFooter()
+    captured = _capture_bindings(footer)
+
+    footer.update_leader_bindings(current_tab="agents", can_hijack_selected_agent=True)
+    assert ("k", "hijack") in captured[-1][0]
+
+    footer.update_leader_bindings(current_tab="agents", can_hijack_selected_agent=False)
+    assert ("k", "hijack") not in captured[-1][0]
+
+
 def test_pr_footer_surfaces_configured_app_query_key() -> None:
     footer = KeybindingFooter()
     footer.set_keymap_registry(

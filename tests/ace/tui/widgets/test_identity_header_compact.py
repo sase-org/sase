@@ -119,6 +119,28 @@ def test_workspace_retention_header_shows_compact_hold_marker() -> None:
     assert "Cause: stopped" not in rendered.plain
 
 
+def test_expired_hijack_header_does_not_claim_workspace_is_held() -> None:
+    agent = make_agent(agent_name="hijacked-agent", status="HIJACKED")
+    agent.hijack_expired = True
+
+    rendered = build_agent_compact_lines(agent=agent)
+
+    assert "Workspace held: hijacked" not in rendered.plain
+
+
+def test_hijacked_agent_header_shows_held_workspace_and_recovery_hint() -> None:
+    agent = make_agent(agent_name="held-agent", status="HIJACKED")
+    agent.workspace_num = 4
+    agent.hijack_diff_summary = "5 files +212 −31"
+
+    rendered = build_agent_compact_lines(agent=agent)
+
+    assert (
+        "Workspace held: hijacked · ws #4 · 5 files +212 −31 · ⏎ recover"
+        in rendered.plain
+    )
+
+
 def test_blocked_agent_header_uses_blocked_sentence_tail() -> None:
     agent = make_agent(
         agent_name="sase-demo.2",

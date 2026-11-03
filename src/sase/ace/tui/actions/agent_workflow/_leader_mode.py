@@ -170,6 +170,14 @@ class LeaderModeMixin:
             self._refresh_current_tab()  # type: ignore[attr-defined]
             return True
 
+        hijack_key = leader_keys.get("hijack_agent")
+        if isinstance(hijack_key, str) and key == hijack_key:
+            LeaderModeMixin._remember_leader_key(self, key, remember=remember)
+            if self.current_tab == "agents":
+                self._start_hijack_agent()  # type: ignore[attr-defined]
+            self._refresh_current_tab()  # type: ignore[attr-defined]
+            return True
+
         if key == leader_keys["run_cmd"]:
             LeaderModeMixin._remember_leader_key(self, key, remember=remember)
             if self.current_tab != "artifacts":
@@ -527,6 +535,7 @@ class LeaderModeMixin:
         has_unread_completed_agent = False
         has_bulk_read_undo = False
         has_stopped_agent = False
+        can_hijack_selected_agent = False
         has_revertable_agent = False
         marked_agent_count = 0
         has_live_launch_record = False
@@ -537,6 +546,9 @@ class LeaderModeMixin:
             agent = self._get_selected_agent()  # type: ignore[attr-defined]
             if agent is not None:
                 has_revertable_agent = is_revertable_agent_status(agent.status)
+                from ..agents._hijack_action import agent_hijack_ingress_available
+
+                can_hijack_selected_agent = agent_hijack_ingress_available(agent)
             has_unread_completed_agent = self._has_unread_completed_agent()  # type: ignore[attr-defined]
             has_bulk_read_undo = self._has_bulk_read_undo_available()  # type: ignore[attr-defined]
             has_stopped_agent = self._has_stopped_agent()  # type: ignore[attr-defined]
@@ -552,6 +564,7 @@ class LeaderModeMixin:
                 has_unread_completed_agent=has_unread_completed_agent,
                 has_bulk_read_undo_available=has_bulk_read_undo,
                 has_stopped_agent=has_stopped_agent,
+                can_hijack_selected_agent=can_hijack_selected_agent,
                 has_revertable_agent=has_revertable_agent,
                 marked_agent_count=marked_agent_count,
                 has_live_launch_record=has_live_launch_record,

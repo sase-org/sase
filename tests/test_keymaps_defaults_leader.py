@@ -214,6 +214,13 @@ def test_leader_mode_includes_jump_to_last_error() -> None:
     """LeaderModeKeymaps default binds the last-error jump to ``,L``."""
     reg = load_keymap_registry({})
     assert reg.leader_mode.keys["jump_to_last_error"] == "L"
+
+
+def test_leader_mode_binds_hijack_agent_to_k() -> None:
+    """Leader ``,k`` is the configured Agent Hijack ingress."""
+    reg = load_keymap_registry({})
+    assert LeaderModeKeymaps().keys["hijack_agent"] == "k"
+    assert reg.leader_mode.keys["hijack_agent"] == "k"
     assert LeaderModeKeymaps().keys["jump_to_last_error"] == "L"
 
 

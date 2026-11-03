@@ -11,6 +11,9 @@ STOPPED_COLOR = "#8787AF"
 # U+2298 (circled division slash) renders as a missing-glyph box in the
 # pinned Fira Code visual snapshots; Ø preserves the slashed-circle identity.
 STOPPED_GLYPH = "Ø"
+HIJACKED_STATUS = "HIJACKED"
+HIJACKED_COLOR = "#FF5FAF"
+HIJACKED_GLYPH = "⏏"
 
 # Statuses that indicate an agent is dismissable (shows "x dismiss" in footer).
 DISMISSABLE_STATUSES = {

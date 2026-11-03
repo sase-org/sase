@@ -9,6 +9,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Literal
 
 from ._kill_action_flow import AgentKillActionFlowMixin
+from ._hijack_action import AgentHijackActionMixin
 from ._kill_cleanup_panel import AgentCleanupPanelMixin
 from ._kill_cleanup_selection import AgentCleanupSelectionMixin
 from ._monitor_stop_flow import MonitorStopActionFlowMixin
@@ -28,6 +29,7 @@ class AgentKillMixin(
     AgentCleanupSelectionMixin,
     NamedProcDismissMixin,
     MonitorStopActionFlowMixin,
+    AgentHijackActionMixin,
     AgentKillActionFlowMixin,
 ):
     """Mixin providing agent kill, dismiss, and cleanup-selection actions."""

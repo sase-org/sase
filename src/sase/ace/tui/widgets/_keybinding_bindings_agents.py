@@ -385,10 +385,14 @@ class AgentBindingsMixin:
                 bindings.append((self._kd("act_on_agent"), enter_action_label))
             return bindings
 
-        bindings.append((self._kd("agents_retry"), "retry"))
+        if agent.status != "HIJACKED":
+            bindings.append((self._kd("agents_retry"), "retry"))
 
         # --- Status-dependent actions ---
-        if agent.status == "FAILED" or is_resumable_done_status(agent.status):
+        if agent.status == "HIJACKED":
+            if marked_count == 0:
+                bindings.append((x, "dismiss"))
+        elif agent.status == "FAILED" or is_resumable_done_status(agent.status):
             if marked_count == 0:
                 bindings.append((x, "dismiss"))
             if agent.status == "FAILED":

@@ -18,6 +18,7 @@ from sase.ops.names import (
     AGENT_CLEANUP,
     AGENT_DRAIN,
     AGENT_PERSIST_DIRECTIVE,
+    AGENT_PERSIST_HIJACK,
     AGENT_REVERT,
     MACHINE_AGENT_ACTION,
     MACHINE_ATTENTION_ACTION,
@@ -91,6 +92,35 @@ def submit_agent_revert(
         on_complete=on_complete,
         reload_on_complete=False,
         notify_on_complete=True,
+    )
+    return submitted is not None
+
+
+def submit_agent_hijack(
+    app: Any,
+    *,
+    name: str,
+    identity: str,
+    cl_name: str,
+    project_file: str,
+    display_name: str,
+    on_complete: Callable[[TrackedProcCompletion[Any]], None] | None = None,
+) -> bool:
+    """Submit ``sase agent persist-hijack`` as a durable TUI proc."""
+    payload: dict[str, Any] = {"name": name}
+    submitted = app._submit_durable_proc(
+        sase_command_argv("agent", "persist-hijack"),
+        operation=AGENT_PERSIST_HIJACK,
+        request=payload,
+        request_fingerprint=operation_fingerprint(AGENT_PERSIST_HIJACK, payload),
+        concurrency_keys=(f"agent-hijack:{identity}",),
+        proc_type="agent-hijack",
+        display_name=display_name,
+        cl_name=cl_name,
+        project_file=project_file,
+        on_complete=on_complete,
+        reload_on_complete=False,
+        notify_on_complete=False,
     )
     return submitted is not None
 
@@ -265,6 +295,7 @@ def submit_machine_attention_action(
 
 
 __all__ = [
+    "submit_agent_hijack",
     "submit_agent_cleanup",
     "submit_agent_directive",
     "submit_agent_launch",

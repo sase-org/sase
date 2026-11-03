@@ -110,6 +110,15 @@ class AgentStateOperationsFields:
     # Runner stdout/stderr output file path (for debugging failed agents)
     output_path: str | None = None
 
+    # Agents-tab-only transient presentation for Agent Hijack. The operation
+    # itself and its custody state remain authoritative in the hijack ledger;
+    # these fields only cover the short optimistic stop/recovery interval and
+    # the stop-failed badge returned to the current TUI session.
+    hijack_overlay: str | None = field(default=None, compare=False, repr=False)
+    hijack_stop_failed: bool = field(default=False, compare=False, repr=False)
+    hijack_diff_summary: str | None = field(default=None, compare=False, repr=False)
+    hijack_expired: bool = field(default=False, compare=False, repr=False)
+
     # Tolerant finalizer-execution row summary from
     # ``agent_meta.json["finalizer_status"]`` (plan §3.3 C5). A per-turn hint
     # for glance surfaces; session containers never carry it (they aggregate

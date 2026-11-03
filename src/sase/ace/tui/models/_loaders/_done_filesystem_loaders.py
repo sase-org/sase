@@ -25,7 +25,10 @@ from ._meta_enrichment import (
     enrich_agent_from_meta,
     enrich_agent_from_prompt_markers,
 )
-from ._meta_enrichment_status import hijack_status_from_done_marker
+from ._meta_enrichment_status import (
+    hijack_recovery_is_expired,
+    hijack_status_from_done_marker,
+)
 from ._meta_enrichment_identity import (
     apply_archive_source_machine,
     apply_imported_source_owner,
@@ -241,6 +244,7 @@ def load_done_agent_for_dir(
             approve=bool(data.get("approve")),
             monitor_stop_status=status if outcome == "monitored" else None,
             gate_stop_status=status if outcome == "gated" else None,
+            hijack_expired=hijack_recovery_is_expired(outcome, data.get("recovery")),
         )
 
         # Retry-chain lineage from done.json (parent-side: forward pointer

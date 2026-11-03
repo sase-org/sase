@@ -175,6 +175,7 @@ class LeaderModeKeymaps(ModeKeymaps):
             "collapse_fold_by_hint": "H",
             "jump_to_next_unread_done_agent": "j",
             "jump_to_next_stopped_agent": "J",
+            "hijack_agent": "k",
             "full_history_refresh": "y",
             "mark_all_unread_done_agents_read": "u",
             "kill_and_edit": "x",

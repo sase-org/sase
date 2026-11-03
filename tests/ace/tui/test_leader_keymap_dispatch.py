@@ -110,6 +110,21 @@ def test_leader_h_runs_agent_home() -> None:
     assert app.refresh_count == 1
 
 
+def test_leader_k_starts_hijack_only_on_agents_tab() -> None:
+    app = _FakeApp(current_tab="agents")
+    calls: list[str] = []
+    app._start_hijack_agent = lambda: calls.append("hijack")  # type: ignore[attr-defined]
+
+    assert app._handle_leader_key("k") is True
+    assert calls == ["hijack"]
+    assert app._last_leader_key == "k"
+
+    app = _FakeApp(current_tab="patches")
+    app._start_hijack_agent = lambda: calls.append("unexpected")  # type: ignore[attr-defined]
+    assert app._handle_leader_key("k") is True
+    assert calls == ["hijack"]
+
+
 def test_leader_ctrl_space_no_longer_runs_agent_from_current_cl() -> None:
     app = _FakeApp(patches=[_make_cs("alpha")])
 
