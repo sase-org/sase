@@ -479,6 +479,8 @@ async def test_todo_background_yields_to_selection_search_yank_and_cursor() -> N
     app = _TodoRenderApp()
     async with app.run_test(size=(50, 10)) as pilot:
         text_area = app.query_one(PromptTextArea)
+        # Keep the caret painted while checking that it overrides TODO styling.
+        text_area.cursor_blink = False
         text_area.focus()
         text_area.cursor_location = (0, len(text_area.text))
         text_area._build_highlight_map()

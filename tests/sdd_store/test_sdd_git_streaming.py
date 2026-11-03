@@ -168,6 +168,7 @@ def _descendant_pipe_command(tmp_path: Path) -> tuple[list[str], Path]:
     parent.write_text(
         "import subprocess, sys, time\n"
         "child = subprocess.Popen([sys.executable, sys.argv[1], sys.argv[2]])\n"
+        "open(sys.argv[2], 'w').write(str(child.pid))\n"
         "print(child.pid, flush=True)\n"
         "sys.stderr.write('Receiving objects: 1\\r')\n"
         "sys.stderr.flush()\n"
@@ -200,11 +201,9 @@ def _assert_process_stopped(pid: int) -> None:
 
 
 @pytest.mark.skipif(os.name != "posix", reason="process group cleanup requires POSIX")
-@pytest.mark.parametrize("external_drain_alarm", [False, True])
 def test_interruption_kills_process_group_with_pipe_holding_descendant(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
-    external_drain_alarm: bool,
 ) -> None:
     command, pid_file = _descendant_pipe_command(tmp_path)
     monkeypatch.setenv("SASE_SDD_GIT_NETWORK_TRANSFER_CEILING", "5")
@@ -215,7 +214,7 @@ def test_interruption_kills_process_group_with_pipe_holding_descendant(
             ["fetch", "origin"],
             cwd=tmp_path,
             op="test.fetch_with_descendant",
-            timeout=0.05 if not external_drain_alarm else 5.0,
+            timeout=5.0,
             check=True,
             capture_output=True,
             text=True,
@@ -223,12 +222,8 @@ def test_interruption_kills_process_group_with_pipe_holding_descendant(
 
     try:
         started = time.monotonic()
-        if external_drain_alarm:
-            with pytest.raises(PublicationDrainTimedOut):
-                with publication_drain._bounded_publication_drain(0.5):
-                    run_transfer()
-        else:
-            with pytest.raises(SddGitCommandTimeout):
+        with pytest.raises(PublicationDrainTimedOut):
+            with publication_drain._bounded_publication_drain(0.5):
                 run_transfer()
         descendant_pid = int(pid_file.read_text())
         _assert_process_stopped(descendant_pid)
@@ -239,6 +234,26 @@ def test_interruption_kills_process_group_with_pipe_holding_descendant(
                 os.kill(int(pid_file.read_text()), signal.SIGKILL)
             except ProcessLookupError:
                 pass
+
+
+def test_streaming_stall_timeout_fires_without_progress(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    command = [sys.executable, "-c", "import time; time.sleep(30)"]
+    monkeypatch.setenv("SASE_SDD_GIT_NETWORK_TRANSFER_CEILING", "5")
+    monkeypatch.setattr("sase.sdd._git_runner.sdd_git_command", lambda _args: command)
+
+    with pytest.raises(SddGitCommandTimeout, match="stalled after 0.05s"):
+        run_sdd_git(
+            ["fetch", "origin"],
+            cwd=tmp_path,
+            op="test.fetch_without_progress",
+            timeout=0.05,
+            check=True,
+            capture_output=True,
+            text=True,
+        )
 
 
 def test_agents_push_omits_output_previews_from_git_ops_log(

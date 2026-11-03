@@ -9,6 +9,7 @@ import weakref
 import pytest
 from textual.widgets import Button, Input, Static
 
+from sase.ace.testing import wait_for
 from sase.ace.tui.actions.proc_actions import TrackedProcCompletion
 from sase.ace.tui.modals._new_project_apply_flow import (
     _intent_from_submission,
@@ -511,7 +512,13 @@ async def test_create_review_button_enters_review_and_back_restores_configure(
         await pilot.pause()
         await enter_create_stage(pilot, modal)
         modal.query_one("#new-project-create-name", Input).value = "new"
-        await pilot.pause(0.6)
+        await wait_for(
+            pilot,
+            lambda: (
+                modal._create_identity.name == "new"
+                and modal._create_availability.status == "available"
+            ),
+        )
         assert modal._create_availability.status == "available"
         review_button = modal.query_one("#new-project-create-review", Button)
         assert not review_button.disabled

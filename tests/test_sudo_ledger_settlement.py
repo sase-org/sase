@@ -355,12 +355,12 @@ def test_sudo_answer_defers_after_long_lock_timeout_and_reclaim_settles_later(
     def hold_lock() -> None:
         with with_gate_followup_lock(artifacts_dir, timeout=1.0):
             lock_held.set()
-            release_lock.wait(timeout=2)
+            release_lock.wait()
 
     lock_thread = threading.Thread(target=hold_lock)
     lock_thread.start()
-    assert lock_held.wait(timeout=2)
     try:
+        assert lock_held.wait(timeout=2)
         payload = _apply_sudo_receipt(gate, envelope)
     finally:
         release_lock.set()
