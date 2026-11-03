@@ -16,10 +16,8 @@ from sase.axe.run_agent_runner_finalize import (
     send_completion_notification,
     write_error_done_marker,
 )
-from sase.axe.run_agent_runner_lifecycle import (
-    finalize_runner_shutdown,
-    _should_hold_workspace,
-)
+from sase.axe.run_agent_runner_lifecycle import finalize_runner_shutdown
+from sase.axe._run_agent_runner_shutdown_retention import should_hold_workspace
 from sase.gate_turn.claims import GATE_WORKSPACE_CLAIM_WORKFLOW
 from sase.running_field import ClaimResult, WorkspaceClaim, get_claimed_workspaces
 from sase.agent._staged_handoff_receipts import write_adoption_receipt
@@ -121,7 +119,7 @@ def test_should_hold_workspace_matches_terminal_failed_rows(
     expected: bool,
 ) -> None:
     assert (
-        _should_hold_workspace(
+        should_hold_workspace(
             make_state(**overrides),
             was_killed=was_killed,
             auto_dismiss=auto_dismiss,

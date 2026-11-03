@@ -17,7 +17,7 @@ from sase.axe.run_agent_directive_metadata import preserved_agent_metadata
 from sase.axe.run_agent_markers import build_done_marker
 from sase.axe.run_agent_runner_errors import RunnerErrorContext, record_runner_error
 from sase.axe.run_agent_runner_finalize import write_error_done_marker
-from sase.axe.run_agent_runner_lifecycle import _ensure_failed_done_marker
+from sase.axe._run_agent_runner_shutdown_markers import ensure_failed_done_marker
 from sase.axe.run_agent_exec import LoopState, _finalize_loop
 from sase.axe.run_agent_exec_retry import RetryTracker
 from sase.llm_provider.types import LLMInvocationError
@@ -536,7 +536,7 @@ def test_shutdown_path_writes_phase_only_facts(tmp_path: Path) -> None:
         error_summary="RuntimeError: boom",
         error_traceback_str="",
     )
-    _ensure_failed_done_marker(
+    ensure_failed_done_marker(
         context=context,
         state=state,
         write_error_done_marker=write_error_done_marker,
