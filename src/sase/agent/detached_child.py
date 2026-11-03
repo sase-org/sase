@@ -27,14 +27,18 @@ not share it.
 from __future__ import annotations
 
 import json
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from dataclasses import asdict, replace
+from typing import TYPE_CHECKING, Any
 
 from sase.agent import _agent_session_attach_resolution as _resolution
 from sase.agent import _agent_session_attach_types as _types
 from sase.agent.launch_types import AgentLaunchResult
 from sase.agent.launch_validation import INTERNAL_AGENT_NAME_BYPASS_ENV
 from sase.core.agent_launch_facade import reserve_launch_timestamp_batch
+
+if TYPE_CHECKING:
+    from sase.agent.hijack.recovery_successor import RecoveryLineage
 
 AgentSessionAttachDirective = _types.AgentSessionAttachDirective
 AgentSessionAttachLaunchPlan = _types.AgentSessionAttachLaunchPlan
@@ -178,10 +182,95 @@ def spawn_agent_session_successor(
     return replace(result, agent_name=result.agent_name or launch_plan.agent_name)
 
 
+def prepare_recovery_successor(
+    directive: AgentSessionAttachDirective,
+    *,
+    project_name: str,
+    prompt: str,
+    workspace_dir: str,
+    workspace_num: int,
+    transfer_from_pid: int | None,
+    lineage: RecoveryLineage | Mapping[str, Any],
+    resolve_plan: ResolvePlanFn | None = None,
+    extra_env: dict[str, str] | None = None,
+) -> tuple[AgentSessionAttachLaunchPlan, dict[str, str]]:
+    """Resolve the exact reserved member for a keep-work recovery successor.
+
+    Narrow seam over the shared agent-session attach resolver (solo-agent
+    promotion preserved) with the held workspace pair validated before
+    resolution. Returns the resolved plan and the strict-boot child
+    environment delta. Raises
+    :class:`sase.agent.hijack.recovery_successor.RecoveryInheritanceError`
+    before any spawn is attempted.
+    """
+    from sase.agent.hijack.recovery_successor import (
+        prepare_recovery_successor as _prepare,
+    )
+
+    return _prepare(
+        directive,
+        project_name=project_name,
+        prompt=prompt,
+        workspace_dir=workspace_dir,
+        workspace_num=workspace_num,
+        transfer_from_pid=transfer_from_pid,
+        lineage=lineage,
+        resolve_plan=resolve_plan,
+        extra_env=extra_env,
+    )
+
+
+def spawn_recovery_successor(
+    directive: AgentSessionAttachDirective,
+    *,
+    project_name: str,
+    prompt: str,
+    workspace_dir: str,
+    workspace_num: int,
+    transfer_from_pid: int | None,
+    lineage: RecoveryLineage | Mapping[str, Any],
+    cl_name: str | None = None,
+    agent_session_role: str | None = None,
+    vcs_ref: tuple[str, str] | None = None,
+    timestamp: str | None = None,
+    extra_env: dict[str, str] | None = None,
+    spawn_fn: SpawnFn | None = None,
+    resolve_plan: ResolvePlanFn | None = None,
+) -> AgentLaunchResult:
+    """Spawn a keep-work recovery successor on the exact held workspace pair.
+
+    One resolution (reused for the spawn so the reserved member cannot
+    drift), one transfer-or-fresh-claim on the same pair, no pool or ``#0``
+    fallback. Delegates to :func:`spawn_agent_session_successor`.
+    """
+    from sase.agent.hijack.recovery_successor import (
+        spawn_recovery_successor as _spawn,
+    )
+
+    return _spawn(
+        directive,
+        project_name=project_name,
+        prompt=prompt,
+        workspace_dir=workspace_dir,
+        workspace_num=workspace_num,
+        transfer_from_pid=transfer_from_pid,
+        lineage=lineage,
+        cl_name=cl_name,
+        agent_session_role=agent_session_role,
+        vcs_ref=vcs_ref,
+        timestamp=timestamp,
+        extra_env=extra_env,
+        spawn_fn=spawn_fn,
+        resolve_plan=resolve_plan,
+    )
+
+
 __all__: list[str] = [
     "AgentSessionAttachDirective",
     "SpawnFn",
     "agent_session_attach_env",
+    "prepare_recovery_successor",
     "spawn_detached_child",
     "spawn_agent_session_successor",
+    "spawn_recovery_successor",
 ]

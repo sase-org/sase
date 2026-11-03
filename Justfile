@@ -520,6 +520,10 @@ _lint-symvision *args: _setup
         --epic-symbol "sase-1qz.6(strip_hijack_launch_directives)" \
         --epic-symbol "sase-1qz.6.1.2(hijack_recovery_preview)" \
         --epic-symbol "sase-1qz.6.1.2(hijack_recovery_preview_wire_schema_version)" \
+        --epic-symbol "sase-1qz.6.1.4(require_recovery_inheritance)" \
+        --epic-symbol "sase-1qz.6.1.4(write_recovery_ack)" \
+        --epic-symbol "sase-1qz.6.1.4(read_recovery_ack)" \
+        --epic-symbol "sase-1qz.6.1.4(rollback_recovery_preparation)" \
         --epic-symbol "sase-1qz.6.1.5(hijack_recovery_reconcile)" \
         --epic-symbol "sase-1qz.6.1.5(hijack_recovery_reconcile_wire_schema_version)" \
         {{ args }}

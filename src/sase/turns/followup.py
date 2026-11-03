@@ -130,6 +130,49 @@ def _resolve_turn_followup_vcs_ref(
     return prompt_ref
 
 
+def _strict_workspace_pair_error(
+    project_name: str,
+    meta_workspace_num: object,
+    meta_workspace_dir: str,
+) -> str | None:
+    """Validate a positive workspace pair before a strict follow-up spawn.
+
+    Returns an error message when the pair is not usable, else ``None``.
+    Strict follow-ups (keep-work recovery successors) must run in the exact
+    positive workspace number **and** directory: they may never degrade to a
+    pool workspace or workspace ``#0``.
+    """
+    if (
+        not isinstance(meta_workspace_num, int)
+        or isinstance(meta_workspace_num, bool)
+        or meta_workspace_num <= 0
+    ):
+        return (
+            "strict follow-up requires a positive workspace number, "
+            f"got {meta_workspace_num!r}"
+        )
+    if not isinstance(meta_workspace_dir, str) or not meta_workspace_dir.strip():
+        return (
+            "strict follow-up requires a workspace directory, "
+            f"got {meta_workspace_dir!r}"
+        )
+    try:
+        canonical_dir = _workspace_dir_for_num(project_name, meta_workspace_num)
+    except (RuntimeError, OSError, ValueError):
+        # The canonical directory is not resolvable here; positivity of the
+        # pair is the check this layer can still enforce.
+        return None
+    import os as _os
+
+    if _os.path.normpath(canonical_dir) != _os.path.normpath(meta_workspace_dir):
+        return (
+            f"strict follow-up workspace metadata mismatch: workspace "
+            f"#{meta_workspace_num} resolves to {canonical_dir}, "
+            f"not {meta_workspace_dir}"
+        )
+    return None
+
+
 def launch_turn_followup(
     *,
     project_name: str,
@@ -144,6 +187,7 @@ def launch_turn_followup(
     record_launched: Callable[..., FollowupLaunchResult],
     record_not_launchable: Callable[[str, str], FollowupLaunchResult],
     recorded_vcs_ref: tuple[str, str] | None = None,
+    strict_workspace: bool = False,
 ) -> FollowupLaunchResult:
     """Launch a follow-up agent, degrading through workspace claim fallbacks.
 
@@ -161,7 +205,19 @@ def launch_turn_followup(
     member. Each spawn attempt resolves it against the composed prompt and
     forwards the result so pre-allocation env describes the workspace that
     spawn actually used, including degraded ``#0`` fallbacks.
+
+    When *strict_workspace* is true (keep-work recovery successors), the
+    positive workspace pair is validated before spawn, only transfer and one
+    fresh claim on that same pair are attempted, and any further failure is
+    reported through *record_not_launchable*: pool-workspace and ``#0``
+    fallbacks are never used.
     """
+    if strict_workspace:
+        pair_error = _strict_workspace_pair_error(
+            project_name, meta_workspace_num, meta_workspace_dir
+        )
+        if pair_error is not None:
+            return record_not_launchable(pair_error, compose_prompt(None))
     initial_degraded_reason: str | None = None
     if isinstance(meta_workspace_num, int) and meta_workspace_num:
         original_workspace_dir = meta_workspace_dir
@@ -225,6 +281,17 @@ def launch_turn_followup(
             degraded_vcs_ref,
         )
     except WorkspaceClaimError as claim_exc:
+        if strict_workspace:
+            # Strict recovery successors stay on their exact workspace pair:
+            # a failed transfer gets one same-pair fresh claim, and a second
+            # failure is terminal -- never a pool workspace or workspace #0.
+            error = (
+                f"{claim_exc}; strict follow-up keeps workspace "
+                f"#{original_workspace_num} ({original_workspace_dir}) after "
+                f"transfer failure was prepared "
+                f"with degraded reason: {fresh_reason}"
+            )
+            return record_not_launchable(error, degraded_prompt)
         if not _workspace_is_claimed(project_name, original_workspace_num):
             error = (
                 f"{claim_exc}; follow-up prompt after transfer failure was prepared "

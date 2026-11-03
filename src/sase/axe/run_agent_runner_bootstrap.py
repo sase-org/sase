@@ -162,6 +162,7 @@ def _capture_commit_finalizer_baseline(
     workspace_dir: str | None = None,
     workspace_num: int | None = None,
     project_name: str | None = None,
+    strict_recovery: bool = False,
 ) -> bool:
     """Snapshot pre-existing repository checkouts before this agent's first turn.
 
@@ -177,6 +178,10 @@ def _capture_commit_finalizer_baseline(
     ``sase.llm_provider``, the same constraint ``_invoke.py`` works around
     with its own lazy ``run_agent_helpers`` imports.
     """
+    from sase.agent.hijack.recovery_successor import (
+        RECOVERY_STRICT_ENV,
+        RecoveryInheritanceError,
+    )
     from sase.llm_provider.commit_finalizer_baseline import capture_dirty_baseline
     from sase.llm_provider.commit_finalizer_config import (
         resolve_finalizer_project_dir,
@@ -187,10 +192,21 @@ def _capture_commit_finalizer_baseline(
         load_agent_session_attach_plan_from_env,
     )
 
+    strict = strict_recovery or os.environ.get(RECOVERY_STRICT_ENV) == "1"
     try:
         plan = load_agent_session_attach_plan_from_env()
-    except AgentSessionAttachError:
+    except AgentSessionAttachError as exc:
+        if strict:
+            raise RecoveryInheritanceError(
+                "recovery requires the predecessor attach plan for baseline "
+                f"inheritance: {exc}"
+            ) from exc
         plan = None
+    if plan is None and strict:
+        raise RecoveryInheritanceError(
+            "recovery requires the predecessor attach plan for baseline "
+            "inheritance: no attach plan in the child environment"
+        )
     if plan is not None:
         from sase.llm_provider.commit_finalizer_inheritance import (
             inherit_commit_finalizer_responsibility,
@@ -210,9 +226,44 @@ def _capture_commit_finalizer_baseline(
                 else plan.parent_workspace_num
             ),
         ):
+            if strict:
+                _require_clean_recovery_inheritance(artifacts_dir)
             return True
+        if strict:
+            raise RecoveryInheritanceError(
+                "recovery requires the predecessor's commit-finalizer "
+                "baseline: inheritance reported failure and a fresh dirty "
+                "baseline must not replace it"
+            )
     capture_dirty_baseline(resolve_finalizer_project_dir(), artifacts_dir)
     return False
+
+
+def _require_clean_recovery_inheritance(artifacts_dir: str) -> None:
+    """Fail a recovery boot when inheritance left partial-repo diagnostics.
+
+    :func:`inherit_commit_finalizer_responsibility` logs partial
+    opened-repository failures as diagnostics while still reporting success;
+    for recovery those paths must report failure instead, before any provider
+    executes.
+    """
+    from sase.agent.hijack.recovery_successor import RecoveryInheritanceError
+    from sase.llm_provider.commit_finalizer_inheritance import (
+        INHERITANCE_DIAGNOSTICS_FILENAME,
+    )
+
+    diagnostics_path = os.path.join(artifacts_dir, INHERITANCE_DIAGNOSTICS_FILENAME)
+    try:
+        with open(diagnostics_path, encoding="utf-8") as f:
+            payload = json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError, OSError):
+        return
+    diagnostics = payload.get("diagnostics") if isinstance(payload, dict) else None
+    if diagnostics:
+        detail = "; ".join(str(item) for item in diagnostics)
+        raise RecoveryInheritanceError(
+            "recovery requires all opened-repository obligations: " + detail
+        )
 
 
 def _load_submitted_prompt(state: RunnerRunState) -> None:

@@ -202,6 +202,7 @@ def build_agent_meta(
         agent_meta.setdefault("cl_name", inputs.cl_name)
     if agent_session_attach_plan:
         _add_agent_session_metadata(agent_meta, agent_session_attach_plan)
+    _apply_recovery_lineage_metadata(agent_meta)
     if clan_membership_plan:
         _add_clan_metadata(
             agent_meta,
@@ -211,6 +212,29 @@ def build_agent_meta(
         )
     _qualify_agent_identity_metadata(agent_meta)
     return agent_meta
+
+
+def _apply_recovery_lineage_metadata(agent_meta: dict[str, Any]) -> None:
+    """Persist keep-work recovery lineage on a strict recovery successor.
+
+    The preparation seam transports ``{hijack_id, from_rung, to_rung,
+    predecessor}`` through ``SASE_HIJACK_RECOVERY_LINEAGE``; the child boot
+    records it here so settlement and waits can follow the recovery chain.
+    Fresh child metadata never carries the predecessor's verification
+    receipts or declarations: those stay with their original turn.
+    """
+    from sase.agent.hijack.recovery_successor import (
+        NON_INHERITABLE_VERDICT_KEYS,
+        RECOVERY_LINEAGE_ENV,
+        decode_recovery_lineage,
+    )
+
+    raw = os.environ.get(RECOVERY_LINEAGE_ENV)
+    if not raw:
+        return
+    for key in NON_INHERITABLE_VERDICT_KEYS:
+        agent_meta.pop(key, None)
+    agent_meta["recovery_lineage"] = decode_recovery_lineage(raw).as_dict()
 
 
 def _apply_agent_tab_directive(
