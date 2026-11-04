@@ -2,6 +2,7 @@
 
 from collections.abc import Iterator
 import os
+import tempfile
 import warnings
 from pathlib import Path
 
@@ -278,12 +279,16 @@ def _isolate_sase_home(
 ) -> Iterator[None]:
     """Redirect per-user SASE state/config to per-test tmpdirs.
 
-    Uses ``tmp_path_factory`` (not ``tmp_path``) so the fake sase home lives
-    in a sibling directory and doesn't pollute tests that iterate over their
-    own ``tmp_path``. Yields so ``_clear_config_caches`` can drain the
-    refresh worker while this redirect is still active.
+    Uses a unique directory under this worker's temp parent (not ``tmp_path``)
+    so the fake sase home lives alongside, but doesn't pollute, tests that
+    iterate over their own ``tmp_path``. Creating the directory with
+    ``mkdtemp`` avoids retaining a tmp_path-factory node for every test.
+    Yields so ``_clear_config_caches`` can drain the refresh worker while this
+    redirect is still active.
     """
-    fake_home = tmp_path_factory.mktemp("home")
+    fake_home = Path(
+        tempfile.mkdtemp(prefix="home-", dir=tmp_path_factory.getbasetemp())
+    )
     redirect_sase_home(monkeypatch, fake_home / ".sase")
     fake_config_dir = fake_home / ".config" / "sase"
 
@@ -475,6 +480,7 @@ def _clear_agent_env_vars(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
                 "SASE_HOME_MEMORY_DEPLOY_BYPASS",
                 SASE_LAUNCH_SUBMITTED_AT_ENV,
                 "SASE_LINKED_REPOS_JSON",
+                "SASE_MODEL_OVERRIDE",
                 SASE_MODEL_ALIAS_OVERRIDES_ENV,
                 "SASE_MONITOR_CONTINUATION",
                 "SASE_MONITOR_ID",
