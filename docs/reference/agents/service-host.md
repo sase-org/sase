@@ -93,11 +93,21 @@ operational workspace, so they fail with `Permission denied (publickey)`. The ex
 issue mirror treats this as a credential failure: it reports `auth_error`, logs the git
 error, and backs off exponentially instead of failing on every scheduled tick. Beads are
 not mirrored until the credential is restored. Operational lease preparation retries a
-transient transport failure (connection reset, timeout, DNS) up to three attempts. It
-re-checks a `Permission denied (publickey)` once after about 10 seconds before failing,
-so a brief remote-side refusal, such as during a GitHub incident, can recover before the
-leased operation fails. A refusal that survives the re-check is reported with the
-existing remediation.
+transient transport failure (connection reset, timeout, DNS) up to three attempts.
+GitHub-side `Permission denied (publickey)` refusals of a valid SSH key get their own
+bounded credential-retry budget instead of failing at once. Operations that block an
+agent launch (workspace preparation, including the launch-time SDD store clone) retry up
+to 6 attempts, sleeping 5, 10, 20, 30, and 45 seconds between them (about 110 seconds of
+sleep). Background operations (scheduled jobs such as the external issue mirror) make
+one confirmation retry after 10 seconds and then fail, since the next scheduled tick
+retries anyway.
+
+A denial fails fast, without sleeping, when the host holds no local SSH credential at
+all, when GitHub's refusal names a deploy key (`denied to deploy key`, which stays a
+permanent authentication failure), or when the denial outlasts the budget. A refusal
+that survives is reported with the existing remediation, and always keeps git's original
+stderr first. Set `SASE_GIT_CREDENTIAL_RETRY_MAX_SECONDS` to cap the total
+credential-retry sleep across every budget, or to `0` to disable credential retries.
 
 The code cannot restore the credential, so this is yours to fix. There are two supported
 ways to give the host an unattended credential:

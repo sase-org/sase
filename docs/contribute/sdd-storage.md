@@ -273,6 +273,17 @@ agents-sidecar publication retry up to three attempts, waiting 0.25 and then 1 s
 with a transport error that the Rust core classifies as transient. A retry never starts
 after the caller's deadline has passed.
 
+GitHub SSH `Permission denied (publickey)` denials are not transient failures; they get
+a separate bounded credential-confirmation budget on the paths that adopted it: the
+launch-time SDD store clone, agent-publication network git, and the operational-lease
+fetch. Launch-blocking operations use the launch budget (up to 6 attempts, sleeping 5,
+10, 20, 30, and 45 seconds, about 110 seconds of sleep); scheduled background work uses
+the background budget (one confirmation retry after 10 seconds). A denial fails fast
+with no local SSH credential, on deploy-key refusals (permanent), and after an exhausted
+budget, always keeping git's original stderr first.
+`SASE_GIT_CREDENTIAL_RETRY_MAX_SECONDS` caps the total credential-retry sleep, and `0`
+disables these retries.
+
 Sidecar clones have their own bounded retry loop:
 
 - In a numbered workspace, SASE first clones with the primary workspace's clone of the
@@ -287,7 +298,9 @@ Sidecar clones have their own bounded retry loop:
   removed before every retry.
 - Timeouts and failures classified as transient network or transport errors are retried.
   Permanent failures, such as a missing repository or rejected credentials, stop
-  immediately.
+  immediately — except GitHub SSH `Permission denied (publickey)` denials, which use the
+  launch credential-retry budget above instead of stopping at once. Deploy-key refusals
+  still stop immediately as permanent authentication failures.
 - Clones from hosted remotes such as GitHub take a machine-wide clone permit (a lock
   under the managed temp root's `sdd-remote-clone-pool/`), so concurrent agent launches
   clone sidecars one at a time by default. The permit is held only while Git runs.

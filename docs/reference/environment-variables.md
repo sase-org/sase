@@ -52,6 +52,7 @@ numeric suffix.
 | `SASE_SDD_REMOTE_CLONE_CONCURRENCY`         | Positive number of SDD sidecar remote clones allowed to run at once on this machine (default: 1).                                                                            |
 | `SASE_EPIC_PLAN_LAUNCH_LOCK_TIMEOUT`        | Positive seconds an epic plan launch waits for another launch in the same project (default: 900).                                                                            |
 | `SASE_EPIC_APPROVAL_PREFLIGHT_LOCK_TIMEOUT` | Positive seconds an approval preflight waits for an in-flight epic launch before deferring its health check to the detached launch (default: 120).                           |
+| `SASE_GIT_CREDENTIAL_RETRY_MAX_SECONDS`     | Float seconds capping the total sleep of GitHub SSH publickey credential retries for every budget (launch or background). `0` disables credential retries.                   |
 
 See
 [SDD storage concurrency and recovery](../contribute/sdd-storage.md#concurrency-and-recovery)
