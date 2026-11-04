@@ -257,10 +257,11 @@ behind it, the proposed or executed action, and the escalation:
 | State                    | Meaning                                                               |
 | ------------------------ | --------------------------------------------------------------------- |
 | `nothing_to_release`     | no release PR and no in-flight train                                  |
-| `waiting`                | held for metadata refresh, cadence, or another precondition           |
+| `waiting`                | held for metadata refresh, cadence, a fresh-tag dispatch, or another  |
+|                          | precondition                                                          |
 | `releasable`             | the release PR is eligible; the merge waits on merge authority        |
 | `released`               | the train confirmed and un-drafted the version                        |
-| `gate_red`               | the Master gate or a required check is red at the candidate SHA       |
+| `gate_red`               | Master Gate is red at HEAD, or a required PR check is red             |
 | `qualify_red`            | qualification failed against the published core                       |
 | `exercise_red`           | the Linux or macOS exercise leg failed                                |
 | `core_lag`               | no complete published core contains the source pin yet; the steward   |
@@ -285,6 +286,21 @@ the named check, cut the named core, resume the named tag with
 `RELEASE_STEWARD_MERGE_ENABLED` is anything but the literal `true`: a releasable release
 PR is then reported with its merge action suppressed until a human flips the switch.
 ci_watch never merges a `sase` release PR; the steward is the single decider.
+
+The release-PR merge gate comes from the versioned N1 inventory
+(`.github/release-qualification.json`, `merge_gate.required_checks`), read from the
+steward's own master checkout — never from branch protection, whose absence is simply
+not a source. Master Gate is judged on its own jobs (every job `success`, with skipped,
+cancelled and missing jobs red), not on the PR's check list. A fresh tag with an
+unsealed draft is its own train fact: newer than the newest confirmed release, with a
+peeled SHA equal to the merged release PR's head, backed by a draft release, and with no
+`sase` file on PyPI for that version. The steward dispatches `release.yml mode=release`
+exactly once at the fresh tag, suppressed while a matching run is in flight. A sealed,
+publishable generation with no PyPI files resumes with `mode=resume` instead: a second
+`mode=release` run would hit the stash refusal. If a matching run completed without
+stashing a manifest, the workflow is broken at that tag: the version is burned through
+the abandonment path (observation plus the `[ABANDONED]` draft-title prefix), never with
+PyPI files present, and the next release comes from release-please.
 
 Cadence is daily: at most one release merge per UTC day, after the daily core cut, and a
 burned candidate frees the slot. Actions and escalation run on the schedule; only merges

@@ -1502,12 +1502,65 @@ class ReleaseFactsReader:
             dist_assets_missing,
         )
 
+    def _fresh_train_abandoned(
+        self,
+        tag: str,
+        tag_fact: dict[str, Any],
+        release_wire: dict[str, Any],
+    ) -> bool:
+        """Whether a fresh unsealed tag carries a valid burned observation.
+
+        A burned fresh train has generation 0 and no sealed manifest, so its
+        abandonment is proven only by a ``candidate-gen0-abandoned-*`` release
+        asset whose content matches this train's identity.
+        """
+        candidate_id = f"unsealed:{tag}:{tag_fact['peeled_sha']}"
+        for asset in release_wire.get("assets", []):
+            if not isinstance(asset, dict):
+                continue
+            name = asset.get("name")
+            if not isinstance(name, str):
+                continue
+            match = _OBSERVATION_RE.fullmatch(name)
+            if (
+                match is None
+                or match.group("kind") != "abandoned"
+                or int(match.group("generation")) != 0
+            ):
+                continue
+            observation = self.github.asset_json(
+                _integer(
+                    asset.get("id"),
+                    f"release {tag} abandoned asset id",
+                    minimum=1,
+                ),
+                source=f"release {tag} abandoned observation",
+            )
+            if (
+                isinstance(observation, dict)
+                and observation.get("kind") == "abandoned"
+                and observation.get("generation") == 0
+                and not isinstance(observation.get("generation"), bool)
+                and observation.get("candidate_id") == candidate_id
+                and isinstance(observation.get("run_id"), int)
+                and not isinstance(observation.get("run_id"), bool)
+                and observation["run_id"] > 0
+                and isinstance(observation.get("attempt"), int)
+                and not isinstance(observation.get("attempt"), bool)
+                and observation["attempt"] > 0
+                and observation.get("asset") == name
+            ):
+                return True
+        return False
+
     def _train_context(
         self,
         tags: list[dict[str, Any]],
         releases: list[tuple[dict[str, Any], dict[str, Any]]],
         pypi: dict[str, dict[str, Any]],
         workflows: dict[str, Any],
+        *,
+        merged_head_sha: str | None = None,
     ) -> tuple[list[dict[str, Any]], dict[str, Any] | None]:
         release_by_tag = {wire["tag"]: (wire, raw) for wire, raw in releases}
         tag_by_name = {tag["name"]: tag for tag in tags}
@@ -1752,6 +1805,26 @@ class ReleaseFactsReader:
                     release_wire and release_wire["draft"]
                 ):
                     continue
+                version_files = [
+                    file for file in sase_files if file["version"] == version
+                ]
+                # A fresh tag is its own fact, not a manifest mismatch: newer
+                # than any confirmed release, backed by a draft release,
+                # matching the merged release PR head where one exists, with
+                # no sealed manifest and no PyPI files. Real mismatches keep
+                # failing closed: an unsealed tag that already has PyPI files,
+                # one that disagrees with the merged head, or one without a
+                # draft release.
+                fresh = (
+                    release_wire is not None
+                    and bool(release_wire["draft"])
+                    and newer_than_baseline
+                    and not version_files
+                    and (
+                        merged_head_sha is None
+                        or tag_fact["peeled_sha"].lower() == merged_head_sha.lower()
+                    )
+                )
                 trains.append(
                     {
                         "candidate_id": f"unsealed:{tag}:{tag_fact['peeled_sha']}",
@@ -1760,16 +1833,16 @@ class ReleaseFactsReader:
                         "sha": tag_fact["peeled_sha"],
                         "generation": 0,
                         "confirmed": False,
-                        "abandoned": False,
+                        "abandoned": (
+                            self._fresh_train_abandoned(tag, tag_fact, release_wire)
+                            if fresh and release_wire is not None
+                            else False
+                        ),
                         "pre_train_legacy": False,
-                        "manifest_mismatch": True,
+                        "manifest_mismatch": not fresh,
                         "evidence_mismatch": False,
                         "py_files_present": len(
-                            [
-                                file
-                                for file in sase_files
-                                if file["version"] == version and not file["yanked"]
-                            ]
+                            [file for file in version_files if not file["yanked"]]
                         ),
                         "py_files_expected": 2,
                         "py_digest_conflict": False,
@@ -1988,6 +2061,16 @@ class ReleaseFactsReader:
             fact["status"] == "ready"
             for fact in (tags_fact, release_records_fact, pypi_fact, workflows_fact)
         ):
+            # The merged release PR head, where one exists, gates the fresh
+            # unsealed-tag fact: the tag must match the merged head.
+            merged_head_sha: str | None = None
+            if pr_context_fact["status"] == "ready":
+                release_pr_value, _merge_history = pr_context_fact["value"]
+                if isinstance(release_pr_value, dict) and release_pr_value.get(
+                    "merged"
+                ):
+                    head_sha = release_pr_value.get("head_sha")
+                    merged_head_sha = head_sha if isinstance(head_sha, str) else None
             trains_fact = self._fact(
                 "trains",
                 lambda: self._train_context(
@@ -1995,6 +2078,7 @@ class ReleaseFactsReader:
                     release_records,
                     pypi_fact["value"],
                     workflows_fact["value"],
+                    merged_head_sha=merged_head_sha,
                 ),
                 "repair candidate manifest/evidence assets and retry the read-only evaluator",
             )

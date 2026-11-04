@@ -365,7 +365,7 @@ class ReleaseWatchActionExecutor:
         request: Mapping[str, Any],
     ) -> None:
         candidate_id = _text(action.get("candidate_id"), "candidate_id")
-        generation = _positive_int(action.get("generation"), "generation")
+        generation = _non_negative_int(action.get("generation"), "generation")
         expected_logical_asset = f"{candidate_id}.gen{generation}.abandoned.json"
         if action.get("observation_asset") != expected_logical_asset:
             raise ActionExecutionError(
@@ -383,7 +383,14 @@ class ReleaseWatchActionExecutor:
         tag = _text(train.get("tag"), "train.tag")
         sha = _text(train.get("sha"), "train.sha")
         release = self._release_for_tag(tag)
-        manifest = self._manifest(release, candidate_id, generation, version, tag, sha)
+        if generation == 0:
+            # A burned fresh train has no sealed manifest to re-read; the
+            # abandoned observation carries only the train identity.
+            manifest = {"candidate_id": candidate_id, "generation": 0}
+        else:
+            manifest = self._manifest(
+                release, candidate_id, generation, version, tag, sha
+            )
         self._require_zero_public_files(version)
 
         asset_name = (
@@ -682,7 +689,7 @@ class ReleaseWatchActionExecutor:
             version = _text(train.get("version"), "train.version")
             tag = _text(train.get("tag"), "train.tag")
             candidate_id = _text(train.get("candidate_id"), "train.candidate_id")
-            generation = _positive_int(train.get("generation"), "train.generation")
+            generation = _non_negative_int(train.get("generation"), "train.generation")
             self._require_zero_public_files(version)
             release = self._release_for_tag(tag)
             if release["name"].startswith(ABANDONED_TITLE_PREFIX):
@@ -808,6 +815,13 @@ def _valid_abandonment_observation(
 def _positive_int(value: object, name: str) -> int:
     if not isinstance(value, int) or isinstance(value, bool) or value < 1:
         raise ActionExecutionError(name, f"{name} must be a positive integer")
+    return value
+
+
+def _non_negative_int(value: object, name: str) -> int:
+    """Candidate generations: sealed trains carry 1+, fresh trains carry 0."""
+    if not isinstance(value, int) or isinstance(value, bool) or value < 0:
+        raise ActionExecutionError(name, f"{name} must be a non-negative integer")
     return value
 
 
