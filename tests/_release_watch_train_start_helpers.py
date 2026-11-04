@@ -1,4 +1,4 @@
-"""Shared facts for release-watch train-start splits."""
+"""Shared helpers for train-start release-watch tests."""
 
 from __future__ import annotations
 
@@ -13,11 +13,9 @@ from _release_watch_facts import ReleaseFactsReader  # noqa: E402
 
 
 SHA = "b" * 40
-SEALED_SHA = "c" * 40
 VERSION = "0.19.0"
 TAG = f"v{VERSION}"
 CANDIDATE = f"unsealed:{TAG}:{SHA}"
-REPO = "sase-org/sase"
 
 
 class FakeGithub:

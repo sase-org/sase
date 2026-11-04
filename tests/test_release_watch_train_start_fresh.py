@@ -1,10 +1,12 @@
-"""Fresh-tag train facts for release-watch train start."""
+"""Fresh-tag reader facts for train start."""
 
 from __future__ import annotations
 
-from tests._release_watch_train_start_helpers import CANDIDATE
-from tests._release_watch_train_start_helpers import VERSION
-from tests._release_watch_train_start_helpers import fresh_context
+from tests._release_watch_train_start_helpers import (
+    CANDIDATE,
+    VERSION,
+    fresh_context,
+)
 
 
 def test_fresh_unsealed_tag_is_its_own_fact() -> None:

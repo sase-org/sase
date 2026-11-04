@@ -1,4 +1,4 @@
-"""Releasable-to-released walk for release-watch train start."""
+"""Releasable-to-released walk for train start."""
 
 from __future__ import annotations
 
@@ -8,21 +8,23 @@ from typing import Any
 
 import pytest
 
-from tests._release_candidate_tool_helpers import dists
-from tests._release_candidate_tool_helpers import load_tool
-from tests._release_candidate_tool_helpers import seal_kwargs
+from tests._release_candidate_tool_helpers import dists, load_tool, seal_kwargs
 from tests._release_steward_fixtures import releasable_request
-from tests._release_watch_train_start_helpers import SEALED_SHA
-from tests._release_watch_train_start_helpers import SHA
-from tests._release_watch_train_start_helpers import TAG
-from tests._release_watch_train_start_helpers import VERSION
-from tests._release_watch_train_start_helpers import FakeGithub
-from tests._release_watch_train_start_helpers import fresh_context
+from tests._release_watch_train_start_helpers import (
+    SHA,
+    TAG,
+    VERSION,
+    FakeGithub,
+    fresh_context,
+)
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "tools"))
 
 from _release_watch_facts import ReleaseFactsReader  # noqa: E402
+
+
+SEALED_SHA = "c" * 40
 
 
 def _release_run(
@@ -95,7 +97,7 @@ def _sealed_context(
             "verdict": "pass",
         }
     for row in rows[1:]:
-        payloads.setdefault(row["id"], {})
+        payloads.setdefault(row["id"], {})  # type: ignore[call-overload]
     github = FakeGithub(payloads)
     reader = ReleaseFactsReader(github=github)
     release_wire = {
@@ -176,7 +178,7 @@ def _walk_request(
     trains: list[dict[str, Any]],
     candidate: dict[str, Any] | None,
     release_runs: list[dict[str, Any]] | None = None,
-    release_pr: dict[str, Any] | None | str = "open",
+    release_pr: str | dict[str, Any] | None = "open",
     merged_head: str = SHA,
     tags: list[dict[str, Any]] | None = None,
     releases: list[dict[str, Any]] | None = None,
@@ -213,7 +215,7 @@ def test_walk_drives_one_train_from_releasable_to_released() -> None:
     sase_core_rs = pytest.importorskip("sase_core_rs")
     if not hasattr(sase_core_rs, "release_steward_decide"):
         pytest.skip("installed sase_core_rs predates release_steward_decide")
-    import _release_watch_decide as decide_tool
+    import _release_watch_decide as decide_tool  # noqa: E402
 
     tag_fact = {"name": TAG, "peeled_sha": SHA, "has_manifest": False}
     draft_release = {

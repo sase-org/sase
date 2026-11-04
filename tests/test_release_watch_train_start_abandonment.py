@@ -1,4 +1,4 @@
-"""Generation-0 abandonment for release-watch train start."""
+"""Generation-0 abandonment for train start."""
 
 from __future__ import annotations
 
@@ -11,11 +11,12 @@ from typing import Any
 
 import pytest
 
-from tests._release_watch_train_start_helpers import CANDIDATE
-from tests._release_watch_train_start_helpers import REPO
-from tests._release_watch_train_start_helpers import SHA
-from tests._release_watch_train_start_helpers import TAG
-from tests._release_watch_train_start_helpers import VERSION
+from tests._release_watch_train_start_helpers import (
+    CANDIDATE,
+    SHA,
+    TAG,
+    VERSION,
+)
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "tools"))
@@ -24,6 +25,9 @@ from _release_watch_actions import (  # noqa: E402
     ABANDONED_TITLE_PREFIX,
     ReleaseWatchActionExecutor,
 )
+
+
+REPO = "sase-org/sase"
 
 
 class MemoryGithub:
