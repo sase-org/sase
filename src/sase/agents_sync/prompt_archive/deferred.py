@@ -141,6 +141,7 @@ def restore_deferred_prompt_archives(
     if not requests:
         return {}
     prompt_runs = prompt_runs_by_request(inventory, identity)
+    archived_agents = _prompt_archive_agents(target.sidecar_path, identity)
     failures: dict[tuple[str, str], str] = {}
     owner = identity.owner
     for request in requests:
@@ -182,7 +183,7 @@ def restore_deferred_prompt_archives(
             restore_wrote=wrote,
             restore_error=restore_error,
             local_source_present=local_source_present,
-            archive_present=_prompt_archive_present(target.sidecar_path, request),
+            archive_present=_prompt_archive_present(archived_agents, request, identity),
             prompt_file_in_snapshot=(
                 snapshot_prompt_file_present(target, request, owner)
                 if isinstance(owner, AgentOwnerIdentity)
@@ -222,13 +223,16 @@ def _local_prompt_source_present(
     return resolve_raw_prompt_path(Path(source_label)) is not None
 
 
-def _prompt_archive_present(
+def _prompt_archive_agents(
     repo: Path,
-    request: AgentPublicationOutboxItem,
-) -> bool:
+    identity: AgentIdentitySnapshot,
+) -> set[str]:
+    """Index the session names represented by existing prompt archives."""
+
     prompts_root = repo / "prompts"
     if not prompts_root.is_dir():
-        return False
+        return set()
+    archived_agents: set[str] = set()
     for month_dir in sorted(path for path in prompts_root.iterdir() if path.is_dir()):
         try:
             prompts_month_dir(repo, month_dir.name)
@@ -243,14 +247,24 @@ def _prompt_archive_present(
                 raise
             except Exception:
                 continue
-            if any(
-                entry.label in {request.global_agent, request.local_agent}
+            archived_agents.update(
+                sase_agent_ref_for_turn(entry.label, identity).local_name
                 for section in parsed.sections
                 if section.kind is PlanHeaderSectionKind.AGENTS
                 for entry in section.entries
-            ):
-                return True
-    return False
+            )
+    return archived_agents
+
+
+def _prompt_archive_present(
+    archived_agents: set[str],
+    request: AgentPublicationOutboxItem,
+    identity: AgentIdentitySnapshot,
+) -> bool:
+    """Whether an archive belongs to this request's agent session."""
+
+    requested_agent = sase_agent_ref_for_turn(request.local_agent, identity).local_name
+    return requested_agent in archived_agents
 
 
 __all__ = [
