@@ -80,12 +80,12 @@ def publication_protection_upsert(
     )
 
 
-def publication_protection_lookup(
+def publication_protection_lookup_enforced(
     ledger: dict[str, object],
     identity: dict[str, object],
 ) -> dict[str, object] | None:
-    """Look up one repository, path, and digest identity through Rust core."""
-    binding = require_rust_binding("publication_protection_lookup")
+    """Look up a current protection record, hiding stale scanner-hit blocks."""
+    binding = require_rust_binding("publication_protection_lookup_enforced")
     raw = binding(
         {
             "schema_version": AGENT_PUBLICATION_PROTECTION_WIRE_SCHEMA_VERSION,
@@ -95,6 +95,17 @@ def publication_protection_lookup(
     )
     if raw is not None and not isinstance(raw, dict):
         raise RuntimeError("sase_core_rs returned a non-dict protection lookup")
+    return raw
+
+
+def publication_protection_record_enforced(
+    record: dict[str, object],
+) -> bool:
+    """Return whether one ledger record still enforces publication protection."""
+    binding = require_rust_binding("publication_protection_record_enforced")
+    raw = binding(record)
+    if not isinstance(raw, bool):
+        raise RuntimeError("sase_core_rs returned a non-bool enforcement decision")
     return raw
 
 
@@ -119,6 +130,9 @@ def publication_protection_retry_allowed(
 def publication_protection_resolve_verified_clean(
     ledger: dict[str, object],
     identity: dict[str, object],
+    *,
+    clean_rules_version: int | None = None,
+    timestamp: float | None = None,
 ) -> dict[str, object]:
     """Clear only a transient unverified row after a complete clean scan."""
     binding = require_rust_binding("publication_protection_resolve_verified_clean")
@@ -128,6 +142,8 @@ def publication_protection_resolve_verified_clean(
                 "schema_version": AGENT_PUBLICATION_PROTECTION_WIRE_SCHEMA_VERSION,
                 "ledger": ledger,
                 "identity": identity,
+                "clean_rules_version": clean_rules_version,
+                "timestamp": timestamp,
             }
         ),
         "protection ledger",
@@ -147,7 +163,8 @@ __all__ = [
     "AGENT_PUBLICATION_PROTECTION_WIRE_SCHEMA_VERSION",
     "publication_protection_ledger_empty",
     "publication_protection_ledger_validate",
-    "publication_protection_lookup",
+    "publication_protection_lookup_enforced",
+    "publication_protection_record_enforced",
     "publication_protection_record_from_rejection",
     "publication_protection_record_from_scan",
     "publication_protection_retry_allowed",

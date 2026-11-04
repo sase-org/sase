@@ -8,6 +8,9 @@ from sase.agents_sync.publication_protection import (
     AGENT_PUBLICATION_PROTECTION_FILENAME,
     read_publication_protection_ledger_from_path,
 )
+from sase.core.agent_publication_protection import (
+    publication_protection_record_enforced,
+)
 from sase.core.project_lifecycle_facade import list_project_records
 from sase.core.project_lifecycle_wire import effective_project_name
 from sase.diagnostics import CheckSpec, DiagnosticCheck
@@ -68,7 +71,9 @@ def _check_agent_publication_protection(
     safe_rows: list[dict[str, object]] = []
     errors: list[str] = []
     blocked_count = 0
+    stale_count = 0
     unverified_count = 0
+    superseded_count = 0
     for project in records:
         path = (
             projects_root / project.project_name / AGENT_PUBLICATION_PROTECTION_FILENAME
@@ -84,9 +89,11 @@ def _check_agent_publication_protection(
         if ledger is None:
             continue
         rows = ledger.get("records")
-        if not isinstance(rows, list):
+        superseded = ledger.get("superseded", [])
+        if not isinstance(rows, list) or not isinstance(superseded, list):
             errors.append(effective_project_name(project))
             continue
+        superseded_count += len(superseded)
         for row in rows:
             if not isinstance(row, dict):
                 errors.append(effective_project_name(project))
@@ -108,7 +115,16 @@ def _check_agent_publication_protection(
                             rule_ids.append(rule_id)
             rule_ids = sorted(set(rule_ids))
             if status == "blocked":
-                blocked_count += 1
+                try:
+                    enforced = publication_protection_record_enforced(row)
+                except Exception:  # noqa: BLE001 - keep doctor free of stored values.
+                    errors.append(effective_project_name(project))
+                    continue
+                if enforced:
+                    blocked_count += 1
+                else:
+                    status = "stale"
+                    stale_count += 1
             else:
                 unverified_count += 1
             safe_row = {
@@ -122,16 +138,24 @@ def _check_agent_publication_protection(
             }
             safe_rows.append(safe_row)
             rules = f"; rules: {', '.join(rule_ids)}" if rule_ids else ""
-            details.append(
-                f"{effective_project_name(project)}: {status} content at "
-                f"{destination}{rules}"
-            )
+            if status == "stale":
+                details.append(
+                    f"{effective_project_name(project)}: stale scanner block at "
+                    f"{destination} awaits revalidation{rules}"
+                )
+            else:
+                details.append(
+                    f"{effective_project_name(project)}: {status} content at "
+                    f"{destination}{rules}"
+                )
 
     base_data: dict[str, Any] = {
         "projects_root": str(projects_root),
         "record_count": len(records),
         "blocked_count": blocked_count,
+        "stale_count": stale_count,
         "unverified_count": unverified_count,
+        "superseded_count": superseded_count,
         "error_count": len(errors),
         "errors": tuple(errors),
         "records": tuple(safe_rows),
@@ -155,21 +179,32 @@ def _check_agent_publication_protection(
             data={**base_data, "details_truncated": len(errors) > _MAX_DETAIL_ROWS},
         )
 
-    if blocked_count or unverified_count:
+    if blocked_count or stale_count or unverified_count:
+        next_steps: list[str] = []
+        if blocked_count:
+            next_steps.append(
+                "Sanitize blocked source content and publish its changed digest; blocked bytes remain withheld."
+            )
+        if stale_count:
+            next_steps.append(
+                "Retry publication to rescan stale scanner-hit blocks under the current rules."
+            )
+        if unverified_count:
+            next_steps.append(
+                "Retry unverified content only after the scanner can inspect it within its configured text limit."
+            )
         return DiagnosticCheck(
             id="state.agent_publication_protection",
             group="state",
             status="WARN",
             title="Agent publication protection",
             summary=(
-                f"{blocked_count} blocked and {unverified_count} unverified "
-                "publication content record(s) remain withheld"
+                f"{blocked_count} enforced blocked, {stale_count} stale awaiting "
+                f"revalidation, and {unverified_count} unverified publication "
+                f"record(s) remain; {superseded_count} superseded record(s) retained"
             ),
             details=tuple(details[:_MAX_DETAIL_ROWS]),
-            next_steps=(
-                "Sanitize blocked source content and publish its changed digest; blocked bytes remain withheld.",
-                "Retry unverified content only after the scanner can inspect it within its configured text limit.",
-            ),
+            next_steps=tuple(next_steps),
             data={**base_data, "details_truncated": len(details) > _MAX_DETAIL_ROWS},
         )
 
@@ -178,7 +213,10 @@ def _check_agent_publication_protection(
         group="state",
         status="OK",
         title="Agent publication protection",
-        summary="no blocked or unverified publication content is recorded",
+        summary=(
+            "no blocked or unverified publication content is recorded; "
+            f"{superseded_count} superseded record(s) retained"
+        ),
         data=base_data,
     )
 

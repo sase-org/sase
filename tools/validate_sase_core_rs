@@ -128,6 +128,8 @@ REQUIRED_BINDINGS = (
     "publication_protection_record_from_rejection",
     "publication_protection_upsert",
     "publication_protection_lookup",
+    "publication_protection_lookup_enforced",
+    "publication_protection_record_enforced",
     "publication_protection_retry_allowed",
     "publication_protection_resolve_verified_clean",
     "claim_gate_decision_execution",

@@ -38,12 +38,23 @@ from tests.agents_sync.git_sync_fixtures import (
 )
 
 MARKER = b"SYNTHETIC-PROMPT-SECRET-1oh"
+LEGACY_TASK_NAME = b"ta" + b"sk-" + b"metadata-name-with-a-long-tail"
 
 
-def _install_marker_scanner(monkeypatch: pytest.MonkeyPatch) -> None:
+def _install_marker_scanner(
+    monkeypatch: pytest.MonkeyPatch,
+    *,
+    blocked_marker: bytes = MARKER,
+    rules_version: int = 2,
+) -> dict[str, object]:
     import sase.core.rust as rust
 
     real_require = rust.require_rust_binding
+    scanner_state: dict[str, object] = {
+        "blocked": True,
+        "blocked_marker": blocked_marker,
+        "rules_version": rules_version,
+    }
 
     def require_binding(name: str):
         if name == "attachment_scan_file":
@@ -56,29 +67,36 @@ def _install_marker_scanner(monkeypatch: pytest.MonkeyPatch) -> None:
                 _sase_home: str,
             ) -> dict[str, object]:
                 data = Path(path).read_bytes()
-                if MARKER in data:
+                version = int(scanner_state["rules_version"])
+                marker = scanner_state["blocked_marker"]
+                if (
+                    scanner_state["blocked"]
+                    and isinstance(marker, bytes)
+                    and marker in data
+                ):
                     return {
                         "outcome": "hit",
                         "hit": {
                             "kind": "credential_pattern",
                             "rule_id": "synthetic-marker",
                             "line": 1,
-                            "rules_version": 1,
+                            "rules_version": version,
                         },
                         "bytes_scanned": len(data),
-                        "rules_version": 1,
+                        "rules_version": version,
                     }
                 return {
                     "outcome": "clean",
                     "hit": None,
                     "bytes_scanned": len(data),
-                    "rules_version": 1,
+                    "rules_version": version,
                 }
 
             return scan
         return real_require(name)
 
     monkeypatch.setattr(rust, "require_rust_binding", require_binding)
+    return scanner_state
 
 
 def _payload_blobs(repo: Path) -> dict[str, bytes]:
@@ -161,6 +179,65 @@ def test_blocked_raw_prompt_is_not_published(
         relative_destination="prompts/202608/alice.athena.worker.md",
         sha256=digest,
     )
+
+
+def test_stale_prompt_archive_block_is_rescanned_and_superseded(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    scanner = _install_marker_scanner(
+        monkeypatch,
+        blocked_marker=LEGACY_TASK_NAME,
+        rules_version=1,
+    )
+    target, remote, artifacts_dir = _publish_env(
+        tmp_path,
+        monkeypatch,
+        f"archive name {LEGACY_TASK_NAME.decode()}\n",
+    )
+
+    blocked = publish_prompt_archive(
+        "worker",
+        "a" * 40,
+        project="Project",
+        commit_cwd=target.primary_checkout,
+        agent_artifacts_dir=artifacts_dir,
+    )
+    assert not blocked.published
+    assert blocked.protection_status == "blocked"
+
+    scanner["rules_version"] = 2
+    scanner["blocked"] = False
+    republished = publish_prompt_archive(
+        "worker",
+        "a" * 40,
+        project="Project",
+        commit_cwd=target.primary_checkout,
+        agent_artifacts_dir=artifacts_dir,
+    )
+
+    assert republished.published and republished.error is None
+    ledger_path = (
+        tmp_path
+        / "state"
+        / "projects"
+        / "proj"
+        / protection.AGENT_PUBLICATION_PROTECTION_FILENAME
+    )
+    ledger = protection.read_publication_protection_ledger_from_path(
+        ledger_path,
+        "proj",
+    )
+    assert ledger is not None
+    assert ledger["records"] == []
+    superseded = ledger["superseded"]
+    assert isinstance(superseded, list) and len(superseded) == 1
+    entry = superseded[0]
+    assert entry["superseded_by_rules_version"] == 2
+    assert entry["reason"] == "rescanned_clean"
+
+    verify = tmp_path / "verify-republished-prompt"
+    git(tmp_path, "clone", str(remote), str(verify))
+    assert (verify / "prompts/202608/alice.athena.worker.md").exists()
 
 
 def test_blocked_text_object_is_withheld_and_clean_sibling_publishes(

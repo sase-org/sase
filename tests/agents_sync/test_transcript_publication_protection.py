@@ -63,10 +63,10 @@ def _install_marker_scanner(monkeypatch: pytest.MonkeyPatch) -> None:
                             "kind": "credential_pattern",
                             "rule_id": "synthetic-marker",
                             "line": 1,
-                            "rules_version": 1,
+                            "rules_version": 2,
                         },
                         "bytes_scanned": len(data),
-                        "rules_version": 1,
+                        "rules_version": 2,
                     }
                 if UNVERIFIED_MARKER in data:
                     raise RuntimeError(SCANNER_UNAVAILABLE)
@@ -74,7 +74,7 @@ def _install_marker_scanner(monkeypatch: pytest.MonkeyPatch) -> None:
                     "outcome": "clean",
                     "hit": None,
                     "bytes_scanned": len(data),
-                    "rules_version": 1,
+                    "rules_version": 2,
                 }
 
             return scan

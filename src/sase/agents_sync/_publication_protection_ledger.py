@@ -20,7 +20,7 @@ from sase.core.agent_publication_protection import (
     AGENT_PUBLICATION_PROTECTION_WIRE_SCHEMA_VERSION,
     publication_protection_ledger_empty,
     publication_protection_ledger_validate,
-    publication_protection_lookup,
+    publication_protection_lookup_enforced,
     publication_protection_record_from_rejection,
     publication_protection_record_from_scan,
     publication_protection_retry_allowed,
@@ -131,7 +131,7 @@ def lookup_publication_content_record(
     except RuntimeError:
         return None
     try:
-        return publication_protection_lookup(
+        return publication_protection_lookup_enforced(
             ledger,
             _identity(repository_identity, relative_destination, sha256),
         )
@@ -151,6 +151,8 @@ def _record_scan_disposition(
     affected_requests: Iterable[str] = (),
     timestamp: float | None = None,
 ) -> dict[str, object] | None:
+    scan_timestamp = time.time() if timestamp is None else timestamp
+    rules_version = disposition.get("rules_version")
     record = publication_protection_record_from_scan(
         {
             "schema_version": AGENT_PUBLICATION_PROTECTION_WIRE_SCHEMA_VERSION,
@@ -161,7 +163,7 @@ def _record_scan_disposition(
             },
             "affected_requests": list(affected_requests),
             "disposition": disposition,
-            "timestamp": time.time() if timestamp is None else timestamp,
+            "timestamp": scan_timestamp,
         }
     )
     if record is None:
@@ -172,6 +174,8 @@ def _record_scan_disposition(
                 relative_destination,
                 sha256,
             ),
+            clean_rules_version=rules_version if type(rules_version) is int else None,
+            timestamp=scan_timestamp,
         )
     return _upsert_record(project_key, record)
 
@@ -236,6 +240,9 @@ def _upsert_record(
 def _resolve_verified_clean(
     project_key: str,
     identity: dict[str, object],
+    *,
+    clean_rules_version: int | None = None,
+    timestamp: float | None = None,
 ) -> dict[str, object]:
     path = _ledger_path(project_key)
     if not path.exists() and not path.is_symlink():
@@ -244,9 +251,14 @@ def _resolve_verified_clean(
         return publication_protection_ledger_empty()
     with _ledger_lock(path):
         ledger = _read_ledger(path)
-        updated = publication_protection_resolve_verified_clean(ledger, identity)
+        updated = publication_protection_resolve_verified_clean(
+            ledger,
+            identity,
+            clean_rules_version=clean_rules_version,
+            timestamp=timestamp,
+        )
         if updated != ledger:
-            if updated.get("records"):
+            if updated.get("records") or updated.get("superseded"):
                 atomic_write_json(path, updated)
             else:
                 path.unlink(missing_ok=True)

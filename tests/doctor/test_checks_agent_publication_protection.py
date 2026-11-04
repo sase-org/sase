@@ -79,6 +79,25 @@ def test_doctor_reports_counts_and_safe_metadata_only(
                 },
                 {
                     "repository_identity": "sase-org/sase--agents",
+                    "relative_destination": "agents/alice/run/meta.json",
+                    "sha256": "c" * 64,
+                    "status": "blocked",
+                    "reason": "scanner_hit",
+                    "affected_requests": ["request-b"],
+                    "evidence": [
+                        {
+                            "kind": "credential_pattern",
+                            "rule_id": "openai-key",
+                            "line": 3,
+                            "rules_version": 1,
+                        }
+                    ],
+                    "rules_versions": [1],
+                    "created_at": 1.0,
+                    "updated_at": 1.0,
+                },
+                {
+                    "repository_identity": "sase-org/sase--agents",
                     "relative_destination": "agents/alice/run/prompt.md",
                     "sha256": "b" * 64,
                     "status": "unverified",
@@ -90,21 +109,48 @@ def test_doctor_reports_counts_and_safe_metadata_only(
                     "updated_at": 2.0,
                 },
             ],
+            "superseded": [
+                {
+                    "record": {"private_candidate_bytes": secret},
+                    "superseded_at": 3.0,
+                    "superseded_by_rules_version": 2,
+                    "reason": "rescanned_clean",
+                }
+            ],
         },
+    )
+    monkeypatch.setattr(
+        "sase.doctor.checks_agent_publication_protection.publication_protection_record_enforced",
+        lambda row: (
+            not (
+                row.get("reason") == "scanner_hit"
+                and row.get("evidence")
+                and not any(
+                    isinstance(hit, dict) and hit.get("kind") == "known_value"
+                    for hit in row["evidence"]
+                )
+                and max(hit["rules_version"] for hit in row["evidence"]) < 2
+            )
+        ),
     )
 
     check = _check_agent_publication_protection(_context(tmp_path))
 
     assert check.status == "WARN"
     assert check.data["blocked_count"] == 1
+    assert check.data["stale_count"] == 1
     assert check.data["unverified_count"] == 1
+    assert check.data["superseded_count"] == 1
     serialized = json.dumps(check.to_dict())
     assert secret not in serialized
     assert "a" * 64 not in serialized
     assert "sase-org/sase--agents" not in serialized
     assert "agents/alice/run/chat.md" in serialized
+    assert "agents/alice/run/meta.json" in serialized
+    assert "stale" in serialized
     assert "known-value" in serialized
     assert check.next_steps[0].startswith("Sanitize blocked source content")
+    assert any("rescan stale" in step for step in check.next_steps)
 
 
 def test_doctor_skips_projects_without_a_ledger_and_is_registered(
@@ -125,5 +171,7 @@ def test_doctor_skips_projects_without_a_ledger_and_is_registered(
 
     assert check.status == "OK"
     assert check.data["blocked_count"] == 0
+    assert check.data["stale_count"] == 0
     assert check.data["unverified_count"] == 0
+    assert check.data["superseded_count"] == 0
     assert any(spec.id == "state.agent_publication_protection" for spec in specs)

@@ -99,16 +99,16 @@ def _install_scan_binding(
                             "kind": "credential_pattern",
                             "rule_id": "synthetic-marker",
                             "line": 1,
-                            "rules_version": 1,
+                            "rules_version": 2,
                         },
                         "bytes_scanned": len(data),
-                        "rules_version": 1,
+                        "rules_version": 2,
                     }
                 return {
                     "outcome": "clean",
                     "hit": None,
                     "bytes_scanned": len(data),
-                    "rules_version": 1,
+                    "rules_version": 2,
                 }
 
             return scan

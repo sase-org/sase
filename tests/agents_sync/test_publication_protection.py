@@ -40,11 +40,14 @@ def _install_fake_core(monkeypatch: pytest.MonkeyPatch) -> None:
                     "hit": "blocked",
                     "skipped": "unverified",
                 }[str(outcome)]
+                hit = scan.get("hit")
+                if isinstance(hit, dict) and type(scan.get("rules_version")) is int:
+                    hit = {**hit, "rules_version": scan["rules_version"]}
                 return {
                     "schema_version": 1,
                     "status": status,
                     "reason": "scanner_hit" if outcome == "hit" else str(outcome),
-                    "hit": scan.get("hit"),
+                    "hit": hit,
                     "rules_version": scan.get("rules_version"),
                 }
 
@@ -90,7 +93,22 @@ def _install_fake_core(monkeypatch: pytest.MonkeyPatch) -> None:
                     str(record["relative_destination"]),
                     str(record["sha256"]),
                 )
-                previous = ledger_by_identity.get(key)
+                rows = ledger["records"]
+                assert isinstance(rows, list)
+                previous = next(
+                    (
+                        row
+                        for row in rows
+                        if isinstance(row, dict)
+                        and (
+                            str(row["repository_identity"]),
+                            str(row["relative_destination"]),
+                            str(row["sha256"]),
+                        )
+                        == key
+                    ),
+                    None,
+                )
                 if previous is not None:
                     record = {
                         **previous,
@@ -99,12 +117,51 @@ def _install_fake_core(monkeypatch: pytest.MonkeyPatch) -> None:
                             set(previous["affected_requests"])
                             | set(record["affected_requests"])
                         ),
+                        "evidence": [
+                            *previous.get("evidence", []),
+                            *record.get("evidence", []),
+                        ],
+                        "rules_versions": sorted(
+                            set(previous.get("rules_versions", []))
+                            | set(record.get("rules_versions", []))
+                        ),
+                        "created_at": min(previous["created_at"], record["created_at"]),
+                        "updated_at": max(previous["updated_at"], record["updated_at"]),
                     }
-                ledger_by_identity[key] = record
-                return {
+                retained = [
+                    row
+                    for row in rows
+                    if not (
+                        isinstance(row, dict)
+                        and (
+                            str(row["repository_identity"]),
+                            str(row["relative_destination"]),
+                            str(row["sha256"]),
+                        )
+                        == key
+                    )
+                ]
+                retained.append(record)
+                ledger_by_identity.clear()
+                ledger_by_identity.update(
+                    {
+                        (
+                            str(row["repository_identity"]),
+                            str(row["relative_destination"]),
+                            str(row["sha256"]),
+                        ): row
+                        for row in retained
+                        if isinstance(row, dict)
+                    }
+                )
+                result: dict[str, object] = {
                     "schema_version": 1,
-                    "records": list(ledger_by_identity.values()),
+                    "records": retained,
                 }
+                superseded = ledger.get("superseded")
+                if superseded:
+                    result["superseded"] = superseded
+                return result
 
             return upsert
         if name == "publication_protection_retry_allowed":
@@ -134,6 +191,55 @@ def _install_fake_core(monkeypatch: pytest.MonkeyPatch) -> None:
                 )
                 rows = ledger["records"]
                 assert isinstance(rows, list)
+                clean_version = request.get("clean_rules_version")
+                timestamp = request.get("timestamp")
+                superseded = list(ledger.get("superseded", []))
+                moved: dict[str, object] | None = None
+                if type(clean_version) is int and type(timestamp) in {int, float}:
+                    for row in rows:
+                        if (
+                            not isinstance(row, dict)
+                            or (
+                                str(row["repository_identity"]),
+                                str(row["relative_destination"]),
+                                str(row["sha256"]),
+                            )
+                            != key
+                        ):
+                            continue
+                        evidence = row.get("evidence")
+                        versions = (
+                            [
+                                hit.get("rules_version")
+                                for hit in evidence
+                                if isinstance(hit, dict)
+                                and type(hit.get("rules_version")) is int
+                            ]
+                            if isinstance(evidence, list)
+                            else []
+                        )
+                        known_value = isinstance(evidence, list) and any(
+                            isinstance(hit, dict) and hit.get("kind") == "known_value"
+                            for hit in evidence
+                        )
+                        if (
+                            row.get("status") == "blocked"
+                            and row.get("reason") == "scanner_hit"
+                            and versions
+                            and not known_value
+                            and max(versions) < clean_version
+                        ):
+                            moved = row
+                        break
+                if moved is not None:
+                    superseded.append(
+                        {
+                            "record": moved,
+                            "superseded_at": timestamp,
+                            "superseded_by_rules_version": clean_version,
+                            "reason": "rescanned_clean",
+                        }
+                    )
                 retained = [
                     row
                     for row in rows
@@ -145,7 +251,7 @@ def _install_fake_core(monkeypatch: pytest.MonkeyPatch) -> None:
                             str(row["sha256"]),
                         )
                         == key
-                        and row["status"] == "unverified"
+                        and (row["status"] == "unverified" or row is moved)
                     )
                 ]
                 ledger_by_identity.clear()
@@ -158,12 +264,69 @@ def _install_fake_core(monkeypatch: pytest.MonkeyPatch) -> None:
                             str(row["sha256"]),
                         )
                     ] = row
-                return {"schema_version": 1, "records": retained}
+                result: dict[str, object] = {
+                    "schema_version": 1,
+                    "records": retained,
+                }
+                if superseded:
+                    result["superseded"] = superseded
+                return result
 
             return resolve_clean
-        if name == "publication_protection_lookup":
-            return lambda _request: None
+        if name == "publication_protection_lookup_enforced":
+
+            def lookup(request: dict[str, object]) -> dict[str, object] | None:
+                ledger = request["ledger"]
+                identity = request["identity"]
+                assert isinstance(ledger, dict) and isinstance(identity, dict)
+                rows = ledger["records"]
+                assert isinstance(rows, list)
+                key = (
+                    str(identity["repository_identity"]),
+                    str(identity["relative_destination"]),
+                    str(identity["sha256"]),
+                )
+                record = next(
+                    (
+                        row
+                        for row in rows
+                        if isinstance(row, dict)
+                        and (
+                            str(row["repository_identity"]),
+                            str(row["relative_destination"]),
+                            str(row["sha256"]),
+                        )
+                        == key
+                    ),
+                    None,
+                )
+                if name == "publication_protection_lookup_enforced" and record:
+                    if not record_enforced(record):
+                        return None
+                return record
+
+            return lookup
+        if name == "publication_protection_record_enforced":
+            return record_enforced
         raise AssertionError(f"unexpected Rust binding: {name}")
+
+    def record_enforced(record: dict[str, object]) -> bool:
+        if record.get("status") != "blocked" or record.get("reason") != "scanner_hit":
+            return True
+        evidence = record.get("evidence")
+        if not isinstance(evidence, list) or not evidence:
+            return True
+        if any(
+            isinstance(hit, dict) and hit.get("kind") == "known_value"
+            for hit in evidence
+        ):
+            return True
+        versions = [
+            hit.get("rules_version")
+            for hit in evidence
+            if isinstance(hit, dict) and type(hit.get("rules_version")) is int
+        ]
+        return not versions or max(versions) >= 2
 
     monkeypatch.setattr(
         "sase.core.agent_publication_protection.require_rust_binding",
@@ -205,13 +368,50 @@ def _install_fake_scanner(
                 "bytes_scanned": (
                     min(count, max_bytes) if outcome == "skipped" else count
                 ),
-                "rules_version": 1,
+                "rules_version": 2,
             }
 
         return scan
 
     monkeypatch.setattr("sase.core.rust.require_rust_binding", require_binding)
     return scanned_paths
+
+
+def _seed_stale_openai_block(
+    projects_root: Path,
+    *,
+    relative_destination: str,
+    content: bytes,
+) -> tuple[Path, dict[str, object]]:
+    identity = {
+        "repository_identity": "sase-org/sase--agents",
+        "relative_destination": relative_destination,
+        "sha256": hashlib.sha256(content).hexdigest(),
+    }
+    record: dict[str, object] = {
+        **identity,
+        "status": "blocked",
+        "reason": "scanner_hit",
+        "affected_requests": ["request-a"],
+        "evidence": [
+            {
+                "kind": "credential_pattern",
+                "rule_id": "openai-key",
+                "line": 1,
+                "rules_version": 1,
+            }
+        ],
+        "rules_versions": [1],
+        "created_at": 1.0,
+        "updated_at": 1.0,
+    }
+    path = projects_root / "alpha" / protection.AGENT_PUBLICATION_PROTECTION_FILENAME
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        json.dumps({"schema_version": 1, "records": [record]}),
+        encoding="utf-8",
+    )
+    return path, identity
 
 
 def test_clean_scan_stages_private_bytes_and_copies_only_the_verified_digest(
@@ -419,7 +619,7 @@ def test_clean_scan_resolves_transient_unverified_state(
                 "outcome": next(results),
                 "hit": None,
                 "bytes_scanned": path.stat().st_size,
-                "rules_version": 1,
+                "rules_version": 2,
             },
             None,
         )
@@ -444,6 +644,91 @@ def test_clean_scan_resolves_transient_unverified_state(
         projects_root / "alpha" / protection.AGENT_PUBLICATION_PROTECTION_FILENAME
     )
     assert not ledger_path.exists()
+
+
+def test_stale_scanner_block_is_rescanned_and_superseded_on_clean(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _install_fake_core(monkeypatch)
+    scanned_paths = _install_fake_scanner(monkeypatch, outcome="clean")
+    monkeypatch.setattr(protection_scan, "sase_home", lambda: tmp_path / ".sase")
+    projects_root = tmp_path / ".sase" / "projects"
+    monkeypatch.setattr(protection_ledger, "sase_projects_dir", lambda: projects_root)
+    source = tmp_path / "run" / "meta.json"
+    source.parent.mkdir()
+    task_marker = b"ta" + b"sk-" + b"meta-name-with-a-long-tail"
+    content = b'{"agent":"' + task_marker + b'"}\n'
+    source.write_bytes(content)
+    ledger_path, identity = _seed_stale_openai_block(
+        projects_root,
+        relative_destination="agents/alice/run/meta.json",
+        content=content,
+    )
+
+    assert protection.lookup_publication_content_record("alpha", **identity) is None
+    with protection.scan_publication_candidate(source, max_bytes=1024) as candidate:
+        result = protection.record_publication_scan(
+            "alpha",
+            repository_identity=str(identity["repository_identity"]),
+            relative_destination=str(identity["relative_destination"]),
+            candidate=candidate,
+            affected_requests=("request-a",),
+            timestamp=10.0,
+        )
+
+    assert scanned_paths
+    assert result is not None
+    assert result["records"] == []
+    superseded = result["superseded"]
+    assert isinstance(superseded, list) and len(superseded) == 1
+    entry = superseded[0]
+    assert isinstance(entry, dict)
+    assert entry["record"]["evidence"][0]["rule_id"] == "openai-key"
+    assert entry["superseded_at"] == 10.0
+    assert entry["superseded_by_rules_version"] == 2
+    assert entry["reason"] == "rescanned_clean"
+    assert ledger_path.exists()
+    persisted = json.loads(ledger_path.read_text(encoding="utf-8"))
+    assert persisted["superseded"] == superseded
+
+
+def test_stale_scanner_block_that_still_hits_is_reblocked_with_current_evidence(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _install_fake_core(monkeypatch)
+    _install_fake_scanner(monkeypatch, outcome="hit")
+    monkeypatch.setattr(protection_scan, "sase_home", lambda: tmp_path / ".sase")
+    projects_root = tmp_path / ".sase" / "projects"
+    monkeypatch.setattr(protection_ledger, "sase_projects_dir", lambda: projects_root)
+    source = tmp_path / "run" / "meta.json"
+    source.parent.mkdir()
+    content = b"still blocked candidate bytes\n"
+    source.write_bytes(content)
+    _, identity = _seed_stale_openai_block(
+        projects_root,
+        relative_destination="agents/alice/run/meta.json",
+        content=content,
+    )
+
+    assert protection.lookup_publication_content_record("alpha", **identity) is None
+    with protection.scan_publication_candidate(source, max_bytes=1024) as candidate:
+        result = protection.record_publication_scan(
+            "alpha",
+            repository_identity=str(identity["repository_identity"]),
+            relative_destination=str(identity["relative_destination"]),
+            candidate=candidate,
+            affected_requests=("request-a",),
+            timestamp=10.0,
+        )
+
+    assert result is not None
+    current = protection.lookup_publication_content_record("alpha", **identity)
+    assert current is not None
+    evidence = current["evidence"]
+    assert isinstance(evidence, list)
+    assert max(hit["rules_version"] for hit in evidence) == 2
 
 
 def test_symlink_candidate_is_withheld(
