@@ -388,8 +388,16 @@ def test_mixed_hood_parks_blocked_sibling_without_charging(
     assert parked.terminal is False
     assert parked.quarantined is False
     assert parked.last_error == RUN_WITHHELD_BLOCKED
+    assert parked.parked_reason == RUN_WITHHELD_BLOCKED
+    assert parked.parked_since is not None
+    assert parked.parked_checked_at is not None
+    assert parked.parked_rules_version is not None
     assert "did not materialize" not in (parked.last_error or "")
-    assert RUN_WITHHELD_BLOCKED in result.item_errors
+    assert result.parked_keys == (blocked.logical_key,)
+    assert result.newly_parked_keys == (blocked.logical_key,)
+    assert len(result.item_errors) == 1
+    assert RUN_WITHHELD_BLOCKED in result.item_errors[0]
+    assert "alice.athena.foo.blocked@" in result.item_errors[0]
 
 
 def test_fully_blocked_hood_is_parked_not_retired(

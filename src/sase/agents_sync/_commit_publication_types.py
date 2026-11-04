@@ -19,3 +19,5 @@ class CommitPublicationOutcome:
     skip_reason: str | None = None
     error: str | None = None
     failure_scope: str | None = None
+    parked_keys: tuple[tuple[str, str], ...] = ()
+    newly_parked_keys: tuple[tuple[str, str], ...] = ()

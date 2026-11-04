@@ -110,6 +110,30 @@ def default_publication_cleanup_timeout() -> float:
     return publication_impl.default_publication_cleanup_timeout()
 
 
+def attachment_scanner_rules_version() -> int:
+    """Return the current attachment scanner rules version from Rust core."""
+    _sync_publication_patchables()
+    return publication_impl.attachment_scanner_rules_version()
+
+
+def publication_parked_recheck_due(
+    now: float,
+    parked_checked_at: float,
+    parked_rules_version: int,
+    current_rules_version: int,
+    recheck_interval_seconds: float,
+) -> bool:
+    """Return whether a parked request is due for one more publish attempt."""
+    _sync_publication_patchables()
+    return publication_impl.publication_parked_recheck_due(
+        now,
+        parked_checked_at,
+        parked_rules_version,
+        current_rules_version,
+        recheck_interval_seconds,
+    )
+
+
 def classify_publication_error(error: str | None) -> str:
     """Return the stable failure class for one publication error message."""
     _sync_publication_patchables()
@@ -338,6 +362,7 @@ __all__ = [
     "ReplayByteDivergenceDecision",
     "ReplayHoodMergeDecision",
     "ReplayPathClassification",
+    "attachment_scanner_rules_version",
     "classify_deferred_prompt_obligation",
     "classify_publication_error",
     "classify_replay_paths",
@@ -347,6 +372,7 @@ __all__ = [
     "decide_replay_apply",
     "decide_replay_byte_divergence",
     "decide_replay_hood_merge",
+    "publication_parked_recheck_due",
     "select_publication_drain",
     "select_publication_retries",
 ]

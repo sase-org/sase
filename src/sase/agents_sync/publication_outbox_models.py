@@ -5,10 +5,12 @@ from __future__ import annotations
 from dataclasses import dataclass
 import hashlib
 
-PUBLICATION_OUTBOX_SCHEMA_VERSION = 7
+PUBLICATION_OUTBOX_SCHEMA_VERSION = 8
 PUBLICATION_SCOPE_LINKED = "linked"
 PUBLICATION_SCOPE_REVISION = "revision"
 _PUBLICATION_SCOPES = frozenset({PUBLICATION_SCOPE_LINKED, PUBLICATION_SCOPE_REVISION})
+
+PUBLICATION_PARK_RECHECK_INTERVAL_SECONDS = 3600.0
 
 PublicationLogicalKey = tuple[str, str]
 
@@ -37,6 +39,10 @@ class AgentPublicationOutboxItem:
     terminal_reason: str | None = None
     created_at: float = 0.0
     updated_at: float = 0.0
+    parked_reason: str | None = None
+    parked_since: float | None = None
+    parked_checked_at: float | None = None
+    parked_rules_version: int | None = None
 
     @property
     def logical_key(self) -> PublicationLogicalKey:
@@ -59,6 +65,12 @@ class AgentPublicationOutboxItem:
             )
         )
         return hashlib.sha256(payload.encode("utf-8")).hexdigest()
+
+    @property
+    def is_parked(self) -> bool:
+        """Return whether this request is parked awaiting a recheck."""
+
+        return self.parked_reason is not None
 
     def to_json_dict(self) -> dict[str, object]:
         return {
@@ -83,6 +95,10 @@ class AgentPublicationOutboxItem:
             "terminal_reason": self.terminal_reason,
             "created_at": self.created_at,
             "updated_at": self.updated_at,
+            "parked_reason": self.parked_reason,
+            "parked_since": self.parked_since,
+            "parked_checked_at": self.parked_checked_at,
+            "parked_rules_version": self.parked_rules_version,
         }
 
 
@@ -125,6 +141,33 @@ def validate_publication_item(
                 f"agents publication outbox {field_name} must be "
                 "a non-empty string or null"
             )
+    if item.parked_reason is not None and not item.parked_reason:
+        raise RuntimeError(
+            "agents publication outbox parked reason must be a non-empty string or null"
+        )
+    for parked_field, parked_value in (
+        ("parked_since", item.parked_since),
+        ("parked_checked_at", item.parked_checked_at),
+    ):
+        if parked_value is not None and (
+            not isinstance(parked_value, (int, float))
+            or isinstance(parked_value, bool)
+            or parked_value != parked_value
+            or parked_value == float("inf")
+            or parked_value == float("-inf")
+        ):
+            raise RuntimeError(
+                f"agents publication outbox {parked_field} must be a number or null"
+            )
+    if item.parked_rules_version is not None and (
+        not isinstance(item.parked_rules_version, int)
+        or isinstance(item.parked_rules_version, bool)
+        or item.parked_rules_version < 0
+    ):
+        raise RuntimeError(
+            "agents publication outbox parked rules version must be "
+            "a non-negative integer or null"
+        )
 
 
 def publication_sort_key(
@@ -137,6 +180,7 @@ def publication_sort_key(
 
 __all__ = [
     "PUBLICATION_OUTBOX_SCHEMA_VERSION",
+    "PUBLICATION_PARK_RECHECK_INTERVAL_SECONDS",
     "PUBLICATION_SCOPE_LINKED",
     "PUBLICATION_SCOPE_REVISION",
     "AgentPublicationOutboxItem",

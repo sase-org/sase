@@ -108,10 +108,11 @@ def test_agent_publication_outbox_doctor_reports_clean_outbox(
     check = check_agent_publication_outbox(_context(tmp_path), now=200.0)
 
     assert check.status == "OK"
-    assert "no quarantined or stalled requests" in check.summary
+    assert "no quarantined, stalled, or parked requests" in check.summary
     assert check.data["request_count"] == 0
     assert check.data["quarantined_request_count"] == 0
     assert check.data["stalled_request_count"] == 0
+    assert check.data["parked_request_count"] == 0
 
 
 def test_agent_publication_outbox_doctor_reports_quarantined_and_stalled_requests(

@@ -259,19 +259,31 @@ def retry_rejected_publication(
             failure_scope=REPOSITORY_FAILURE_SCOPE,
             failure_stage="retry_push",
         )
-    acked_retry_keys, gate_errors = acknowledge_completed(
-        target,
-        owner,
-        git_runner,
-        identity,
-        inventory,
-        retry_prepared,
-        hooks=hooks,
-        timer=timer,
-        withheld_runs=withheld_runs,
-        withheld_hoods=withheld_hoods,
+    acked_retry_keys, gate_errors, parked_keys, newly_parked_keys, newly_details = (
+        acknowledge_completed(
+            target,
+            owner,
+            git_runner,
+            identity,
+            inventory,
+            retry_prepared,
+            hooks=hooks,
+            timer=timer,
+            withheld_runs=withheld_runs,
+            withheld_hoods=withheld_hoods,
+        )
     )
+    from sase.agents_sync._commit_publication_transaction_engine import (
+        park_notice_error,
+    )
+
     return DrainResult(
         drained=len(acked_retry_keys),
-        item_errors=(*all_item_errors, *gate_errors),
+        item_errors=(
+            *all_item_errors,
+            *gate_errors,
+            *(park_notice_error(newly_details) or ()),
+        ),
+        parked_keys=parked_keys,
+        newly_parked_keys=newly_parked_keys,
     )

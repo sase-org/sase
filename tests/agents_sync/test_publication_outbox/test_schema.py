@@ -255,7 +255,7 @@ def test_schema_v4_drops_non_agent_requests_with_a_visible_diagnostic(
     update_agent_publications("proj", (survivor.logical_key,), error=None)
     rewritten = json.loads(path.read_text(encoding="utf-8"))
     assert rewritten["schema_version"] == PUBLICATION_OUTBOX_SCHEMA_VERSION
-    assert PUBLICATION_OUTBOX_SCHEMA_VERSION == 7
+    assert PUBLICATION_OUTBOX_SCHEMA_VERSION == 8
     assert rewritten["items"][0]["scope"] == PUBLICATION_SCOPE_REVISION
     assert [row["global_agent"] for row in rewritten["items"]] == [
         make_outbox_item().global_agent

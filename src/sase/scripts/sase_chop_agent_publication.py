@@ -28,6 +28,7 @@ def _run(runtime: BuiltinChopRuntime) -> ChopResultBuilder:
             "link_drained": tick.link_drained,
             "referenced_by_drained": tick.referenced_by_drained,
             "active_remaining": tick.active_remaining,
+            "parked": tick.parked,
             "lock_busy": tick.lock_busy,
             "deferred_projects": tick.deferred_projects,
             "errors": tick.errors,

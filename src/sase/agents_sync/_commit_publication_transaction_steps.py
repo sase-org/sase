@@ -225,14 +225,22 @@ def acknowledge_completed(
     timer: DrainTiming | None = None,
     withheld_runs: tuple[tuple[str, str], ...] = (),
     withheld_hoods: tuple[tuple[str, str], ...] = (),
-) -> tuple[tuple[tuple[str, str], ...], tuple[str, ...]]:
+) -> tuple[
+    tuple[tuple[str, str], ...],
+    tuple[str, ...],
+    tuple[tuple[str, str], ...],
+    tuple[tuple[str, str], ...],
+    tuple[str, ...],
+]:
     """Acknowledge only requests whose page, revision, and prompt are complete.
 
     A rejected push or interruption leaves requests durable; only verified
     requests are removed. Unfulfilled requests are charged once as hood
-    failures so a later drain can retry them. Withheld runs are parked or
-    retried without acknowledging and without treating the missing page as
-    a terminal materialization failure.
+    failures so a later drain can retry them. Withheld and uncharged
+    prompt-protection rows are parked without acknowledging: they keep no
+    attempt charge and are excluded from selection until the Rust recheck
+    predicate says they are due. Parks are not job errors; the caller
+    reports one aggregated error per newly parked row batch.
     """
 
     from sase.agents_sync.prompt_archive.deferred import (
@@ -248,7 +256,7 @@ def acknowledge_completed(
     )
 
     if not prepared:
-        return (), ()
+        return (), (), (), (), ()
     prepared_tuple = tuple(prepared)
     prepared_archives: dict[tuple[str, str], PreparedPromptArchive] = {}
     try:
@@ -266,6 +274,36 @@ def acknowledge_completed(
         prompt_failures = {}
     ackable: list[tuple[str, str]] = []
     gate_errors: list[str] = []
+    parked_keys: list[tuple[str, str]] = []
+    newly_parked_keys: list[tuple[str, str]] = []
+    newly_parked_details: list[str] = []
+    parked_reasons: dict[tuple[str, str], str] = {}
+    before_parked = {
+        item.logical_key: item.parked_reason is not None for item in prepared_tuple
+    }
+    by_key = {item.logical_key: item for item in prepared_tuple}
+    try:
+        from sase.agents_sync.publication_outbox_operations import (
+            current_scanner_rules_version,
+        )
+
+        current_rules_version = current_scanner_rules_version()
+    except Exception:  # noqa: BLE001 - parking still records without a version.
+        current_rules_version = None
+    import time as _time
+
+    park_now = _time.time()
+
+    def _park_one(key: tuple[str, str], reason: str) -> None:
+        parked_keys.append(key)
+        parked_reasons[key] = reason
+        if not before_parked.get(key, False):
+            newly_parked_keys.append(key)
+            item = by_key.get(key)
+            agent = item.global_agent if item is not None else key[0]
+            revision = key[1]
+            newly_parked_details.append(f"{agent}@{revision[:12]}: {reason}")
+
     for item in prepared_tuple:
         withheld_error = settlement_error_for_withheld_request(
             global_agent=item.global_agent,
@@ -274,14 +312,7 @@ def acknowledge_completed(
             withheld_hoods=withheld_hoods,
         )
         if withheld_error is not None:
-            hooks.update_publications(
-                target.project_key,
-                (item.logical_key,),
-                error=withheld_error,
-                increment_attempts=False,
-                quarantine_threshold=None,
-            )
-            gate_errors.append(withheld_error)
+            _park_one(item.logical_key, withheld_error)
             continue
         prompt_error = prompt_failures.get(item.logical_key)
         if prompt_error is not None:
@@ -290,14 +321,15 @@ def acknowledge_completed(
             )
 
             charge = should_charge_prompt_protection_failure(prompt_error)
+            if not charge:
+                _park_one(item.logical_key, prompt_error)
+                continue
             hooks.update_publications(
                 target.project_key,
                 (item.logical_key,),
                 error=prompt_error,
-                increment_attempts=charge,
-                quarantine_threshold=(
-                    hooks.configured_max_attempts() if charge else None
-                ),
+                increment_attempts=True,
+                quarantine_threshold=hooks.configured_max_attempts(),
             )
             gate_errors.append(prompt_error)
             continue
@@ -348,11 +380,40 @@ def acknowledge_completed(
                 gate_errors.append(side_effect_error)
                 continue
         ackable.append(item.logical_key)
+    if parked_reasons:
+        if hooks.park_publications is not None:
+            hooks.park_publications(
+                target.project_key,
+                dict(parked_reasons),
+                now=park_now,
+                rules_version=current_rules_version,
+            )
+        else:
+            for key, reason in parked_reasons.items():
+                hooks.update_publications(
+                    target.project_key,
+                    (key,),
+                    error=reason,
+                    increment_attempts=False,
+                    quarantine_threshold=None,
+                )
     if not ackable:
-        return (), tuple(gate_errors)
+        return (
+            (),
+            tuple(gate_errors),
+            tuple(parked_keys),
+            tuple(newly_parked_keys),
+            tuple(newly_parked_details),
+        )
     if timer is not None:
         with timer.record_stage("verify"):
             hooks.acknowledge_publications(target.project_key, ackable)
     else:
         hooks.acknowledge_publications(target.project_key, ackable)
-    return tuple(ackable), tuple(gate_errors)
+    return (
+        tuple(ackable),
+        tuple(gate_errors),
+        tuple(parked_keys),
+        tuple(newly_parked_keys),
+        tuple(newly_parked_details),
+    )

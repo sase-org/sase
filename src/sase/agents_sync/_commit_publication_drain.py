@@ -295,6 +295,8 @@ def drain_agent_publications(
         retired=retired_count(remaining),
         error="; ".join(result.item_errors) if result.item_errors else None,
         failure_scope=None,
+        parked_keys=result.parked_keys,
+        newly_parked_keys=result.newly_parked_keys,
     )
 
 

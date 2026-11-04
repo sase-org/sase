@@ -102,6 +102,7 @@ def sync_agents(
                 configured_publication_max_attempts,
                 drop_terminal_agent_publications,
                 list_agent_publications,
+                park_agent_publications,
                 publication_quarantine_diagnostics,
                 revive_agent_publications,
                 update_agent_publications,
@@ -184,12 +185,16 @@ def sync_agents(
                         target.project_key,
                         (item.logical_key for item in materialized),
                     )
+                park_reasons: dict[tuple[str, str], str] = {}
                 for item in pending_publications:
                     if item in materialized:
                         continue
                     # A prompt archive that could not be rebuilt is a transient
                     # failure of a recoverable request, so it stays retryable
-                    # instead of being retired as unpublishable.
+                    # instead of being retired as unpublishable. Withheld and
+                    # uncharged prompt-protection rows park instead of retrying
+                    # every pass; they are excluded from selection until the
+                    # Rust recheck predicate says they are due.
                     withheld_error = settlement_error_for_withheld_request(
                         global_agent=item.global_agent,
                         local_hood=item.local_hood,
@@ -198,15 +203,18 @@ def sync_agents(
                     )
                     prompt_error = prompt_failures.get(item.logical_key)
                     if withheld_error is not None:
-                        error = withheld_error
-                        charge = False
-                    elif prompt_error is not None:
+                        park_reasons[item.logical_key] = withheld_error
+                        continue
+                    if prompt_error is not None:
                         from sase.agents_sync.prompt_archive.protection import (
                             should_charge_prompt_protection_failure,
                         )
 
                         error = prompt_error
                         charge = should_charge_prompt_protection_failure(prompt_error)
+                        if not charge:
+                            park_reasons[item.logical_key] = prompt_error
+                            continue
                     else:
                         error = refusals[item.logical_key]
                         charge = True
@@ -218,10 +226,10 @@ def sync_agents(
                         quarantine_threshold=(
                             configured_publication_max_attempts() if charge else None
                         ),
-                        terminal_reason=None
-                        if withheld_error is not None or prompt_error is not None
-                        else error,
+                        terminal_reason=None if prompt_error is not None else error,
                     )
+                if park_reasons:
+                    park_agent_publications(target.project_key, park_reasons)
             referenced_by_diagnostics: tuple[str, ...] = ()
             if outcome.ok and outcome.skip_reason is None:
                 referenced_by_diagnostics = drain_referenced_by_requests(

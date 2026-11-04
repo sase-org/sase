@@ -241,10 +241,12 @@ def check_agent_publication_outbox(
         quarantined_count = sum(problem.quarantined for problem in problems)
         retired_count = sum(problem.retired for problem in problems)
         stalled_count = sum(problem.stalled for problem in problems)
+        parked_count = sum(problem.parked for problem in problems)
         breakdown_parts = [
             *((f"{quarantined_count} quarantined",) if quarantined_count else ()),
             *((f"{retired_count} retired",) if retired_count else ()),
             *((f"{stalled_count} stalled",) if stalled_count else ()),
+            *((f"{parked_count} parked",) if parked_count else ()),
             *(
                 (f"{len(manifest_problems)} unreadable owner manifest",)
                 if manifest_problems
@@ -324,7 +326,7 @@ def check_agent_publication_outbox(
         title="Agent publication outbox",
         summary=(
             f"{total_requests} queued publication request(s); "
-            "no quarantined or stalled requests"
+            "no quarantined, stalled, or parked requests"
         ),
         data=data,
     )

@@ -132,6 +132,8 @@ REQUIRED_BINDINGS = (
     "publication_protection_record_enforced",
     "publication_protection_retry_allowed",
     "publication_protection_resolve_verified_clean",
+    "attachment_scanner_rules_version",
+    "publication_parked_recheck_due",
     "claim_gate_decision_execution",
     "decide_gate_decision_acceptance",
     "decide_gate_lifecycle",

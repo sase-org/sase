@@ -43,8 +43,12 @@ class OutboxProblem:
         return self.item.quarantined and not self.item.terminal
 
     @property
+    def parked(self) -> bool:
+        return self.item.parked_reason is not None
+
+    @property
     def stalled(self) -> bool:
-        return not self.retired and not self.quarantined
+        return not self.retired and not self.quarantined and not self.parked
 
     @property
     def remediation_command(self) -> str:
@@ -77,6 +81,11 @@ class OutboxProblem:
             "attempts": self.item.attempts,
             "quarantined": self.item.quarantined,
             "retired": self.retired,
+            "parked": self.parked,
+            "parked_reason": self.item.parked_reason,
+            "parked_since": self.item.parked_since,
+            "parked_checked_at": self.item.parked_checked_at,
+            "parked_rules_version": self.item.parked_rules_version,
             "terminal_reason": self.item.terminal_reason,
             "last_error": self.item.last_error,
             "age_seconds": self.age_seconds,
@@ -118,6 +127,22 @@ class OutboxProjectData(TypedDict):
     quarantined_request_count: int
     retired_request_count: int
     stalled_request_count: int
+    parked_request_count: int
+
+
+def _parked_age_seconds(
+    item: AgentPublicationOutboxItem,
+    *,
+    now: float,
+) -> float | None:
+    base = item.parked_since
+    if base is None:
+        base = item.parked_checked_at
+    if base is None:
+        return _item_age_seconds(item, now=now)
+    if base <= 0:
+        return None
+    return max(now - base, 0.0)
 
 
 def problem_for_item(
@@ -147,6 +172,16 @@ def problem_for_item(
             item,
             ("quarantined",),
             age_seconds,
+        )
+    if item.parked_reason is not None:
+        parked_age = _parked_age_seconds(item, now=now)
+        return OutboxProblem(
+            record.project_name,
+            effective_project_name(record),
+            path,
+            item,
+            (f"parked: {item.parked_reason}",),
+            parked_age if parked_age is not None else age_seconds,
         )
 
     reasons: list[str] = []
@@ -196,6 +231,7 @@ def outbox_project_data(
         ),
         "retired_request_count": sum(item.terminal for item in items),
         "stalled_request_count": sum(problem.stalled for problem in problems),
+        "parked_request_count": sum(problem.parked for problem in problems),
     }
 
 
@@ -229,6 +265,7 @@ def outbox_data(
         "quarantined_request_count": sum(problem.quarantined for problem in problems),
         "retired_request_count": sum(problem.retired for problem in problems),
         "stalled_request_count": sum(problem.stalled for problem in problems),
+        "parked_request_count": sum(problem.parked for problem in problems),
         "problems": tuple(problem.to_data() for problem in problems),
         "error_count": len(errors),
         "errors": errors,

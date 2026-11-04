@@ -23,6 +23,7 @@ from sase.agents_sync.publication import publish_agent_hood
 from sase.agents_sync.publication_outbox import (
     acknowledge_agent_publications,
     configured_publication_max_attempts,
+    park_agent_publications,
     update_agent_publications,
 )
 from sase.agents_sync.publication_timing import DrainTiming
@@ -143,6 +144,7 @@ def publish_queued_locked(
                 update_publications=update_agent_publications,
                 acknowledge_publications=acknowledge_agent_publications,
                 configured_max_attempts=configured_publication_max_attempts,
+                park_publications=park_agent_publications,
             ),
             timer=timer,
         )

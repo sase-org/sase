@@ -49,6 +49,7 @@ class _PublicationJobSummary:
     link_drained: int = 0
     referenced_by_drained: int = 0
     active_remaining: int = 0
+    parked: int = 0
     lock_busy: int = 0
     deferred_projects: int = 0
     errors: int = 0
@@ -137,9 +138,15 @@ def _run_publication_job(
         if time.monotonic() >= deadline:
             summary.deferred_projects += len(project_keys) - index
             for deferred_key in project_keys[index:]:
+                deferred_active = _safe_active_items(deferred_key)
+                deferred_parked = _parked_items(deferred_active)
+                deferred_parked_count = len(deferred_parked)
+                summary.parked += deferred_parked_count
                 summary.project_stats[deferred_key] = {
-                    "active_count": _safe_active_count(deferred_key),
-                    "oldest_active_age_seconds": _oldest_active_age(deferred_key),
+                    "active_count": len(deferred_active),
+                    "oldest_active_age_seconds": _oldest_age(deferred_active),
+                    "parked_count": deferred_parked_count,
+                    "oldest_parked_age_seconds": _oldest_parked_age(deferred_parked),
                     "last_outcome": "deferred_budget",
                 }
                 _safe_ring(deferred_key)
@@ -151,9 +158,15 @@ def _run_publication_job(
                 f"{project_key}: no usable agents publication target"
             )
             _safe_ring(project_key)
+            missing_active = _safe_active_items(project_key)
+            missing_parked = _parked_items(missing_active)
+            missing_parked_count = len(missing_parked)
+            summary.parked += missing_parked_count
             summary.project_stats[project_key] = {
-                "active_count": _safe_active_count(project_key),
-                "oldest_active_age_seconds": _oldest_active_age(project_key),
+                "active_count": len(missing_active),
+                "oldest_active_age_seconds": _oldest_age(missing_active),
+                "parked_count": missing_parked_count,
+                "oldest_parked_age_seconds": _oldest_parked_age(missing_parked),
                 "last_outcome": "target_unavailable",
             }
             continue
@@ -182,6 +195,9 @@ def _run_publication_job(
         active = _safe_active_items(project_key)
         active_count = len(active)
         summary.active_remaining += active_count
+        parked_items = _parked_items(active)
+        parked_count = len(parked_items)
+        summary.parked += parked_count
         publishable_count = sum(_publication_is_ready(item) for item in active)
         refby_count = _safe_referenced_by_count(project_key)
         if (
@@ -196,6 +212,8 @@ def _run_publication_job(
         summary.project_stats[project_key] = {
             "active_count": active_count,
             "oldest_active_age_seconds": _oldest_age(active),
+            "parked_count": parked_count,
+            "oldest_parked_age_seconds": _oldest_parked_age(parked_items),
             "last_outcome": result.outcome,
         }
 
@@ -457,8 +475,20 @@ def _publication_is_ready(
     *,
     now: float | None = None,
 ) -> bool:
-    """Wait briefly for done.json before publishing a newly queued run."""
+    """Return whether one active request should be selected for work now.
 
+    Parked rows stay out of selection until the Rust recheck predicate says
+    they are due. Explicit ``sase agent sync`` paths bypass this gate by
+    draining selected keys directly.
+    """
+
+    if item.parked_reason is not None:
+        from sase.agents_sync.publication_outbox_operations import (
+            publication_is_parked_due,
+        )
+
+        if not publication_is_parked_due(item, now=now):
+            return False
     if not item.artifacts_dir:
         return True
     if (Path(item.artifacts_dir).expanduser() / "done.json").is_file():
@@ -467,8 +497,31 @@ def _publication_is_ready(
     return observed - item.created_at >= _DONE_MARKER_GRACE_SECONDS
 
 
-def _safe_active_count(project_key: str) -> int:
-    return len(_safe_active_items(project_key))
+def _parked_items(
+    items: tuple[AgentPublicationOutboxItem, ...],
+) -> tuple[AgentPublicationOutboxItem, ...]:
+    """Return the parked subset of *items*."""
+
+    return tuple(item for item in items if item.parked_reason is not None)
+
+
+def _oldest_parked_age(
+    items: tuple[AgentPublicationOutboxItem, ...], *, now: float | None = None
+) -> float:
+    """Return the greatest parked age, or 0.0 when nothing is parked."""
+
+    if not items:
+        return 0.0
+    observed = time.time() if now is None else now
+    ages: list[float] = []
+    for item in items:
+        base = item.parked_since
+        if base is None:
+            base = item.parked_checked_at
+        if base is None:
+            base = item.created_at
+        ages.append(max(0.0, observed - base))
+    return max(ages) if ages else 0.0
 
 
 def _oldest_age(
@@ -479,10 +532,6 @@ def _oldest_age(
     observed = time.time() if now is None else now
     created = min(item.created_at for item in items)
     return max(0.0, observed - created)
-
-
-def _oldest_active_age(project_key: str) -> float:
-    return _oldest_age(_safe_active_items(project_key))
 
 
 def _safe_referenced_by_items(project_key: str) -> tuple[Any, ...]:

@@ -214,7 +214,7 @@ def test_acknowledged_deferred_archives_record_side_effects_once_per_request(
         configured_max_attempts=lambda: 3,
     )
 
-    acked, errors = acknowledge_completed(
+    acked, errors, _parked, _newly_parked, _park_details = acknowledge_completed(
         target,
         owner,
         run_git,
@@ -298,7 +298,7 @@ def test_deferred_acknowledgment_ignores_unrelated_referenced_by_drain_failure(
         configured_max_attempts=lambda: 3,
     )
 
-    acked, errors = acknowledge_completed(
+    acked, errors, _parked, _newly_parked, _park_details = acknowledge_completed(
         target,
         owner,
         run_git,
@@ -381,7 +381,7 @@ def test_deferred_acknowledgment_charges_its_own_cites_persist_failure(
         configured_max_attempts=lambda: 3,
     )
 
-    acked, errors = acknowledge_completed(
+    acked, errors, _parked, _newly_parked, _park_details = acknowledge_completed(
         target,
         owner,
         run_git,

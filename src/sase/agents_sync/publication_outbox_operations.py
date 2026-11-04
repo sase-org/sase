@@ -11,6 +11,7 @@ from sase.agents_sync.publication_outbox_diagnostics import (
     publication_stopped_diagnostic,
 )
 from sase.agents_sync.publication_outbox_models import (
+    PUBLICATION_PARK_RECHECK_INTERVAL_SECONDS,
     PUBLICATION_SCOPE_REVISION,
     AgentPublicationOutboxItem,
     publication_sort_key,
@@ -29,6 +30,111 @@ from sase.core.agent_publication_recovery import (
 
 DEFAULT_PUBLICATION_MAX_ATTEMPTS = 3
 _PUBLICATION_MAX_ATTEMPTS_ENV = "SASE_AGENTS_PUBLICATION_MAX_ATTEMPTS"
+
+
+def publication_is_parked_due(
+    item: AgentPublicationOutboxItem,
+    *,
+    now: float | None = None,
+    current_rules_version: int | None = None,
+    recheck_interval_seconds: float = PUBLICATION_PARK_RECHECK_INTERVAL_SECONDS,
+) -> bool:
+    """Return whether a parked row is due for one more publish attempt.
+
+    Unparked rows are always due. Parked rows with missing metadata are due
+    so a re-park can record complete metadata. Otherwise the Rust
+    ``publication_parked_recheck_due`` predicate decides.
+    """
+
+    if item.parked_reason is None:
+        return True
+    if item.parked_checked_at is None or item.parked_rules_version is None:
+        return True
+    from sase.core.agent_publication_recovery import (
+        attachment_scanner_rules_version,
+        publication_parked_recheck_due,
+    )
+
+    observed = time.time() if now is None else now
+    current = current_rules_version
+    if current is None:
+        try:
+            current = attachment_scanner_rules_version()
+        except Exception:
+            return False
+    try:
+        return bool(
+            publication_parked_recheck_due(
+                observed,
+                item.parked_checked_at,
+                item.parked_rules_version,
+                current,
+                recheck_interval_seconds,
+            )
+        )
+    except Exception:
+        return False
+
+
+def current_scanner_rules_version() -> int | None:
+    """Return the current scanner rules version, or None when unavailable."""
+
+    try:
+        from sase.core.agent_publication_recovery import (
+            attachment_scanner_rules_version,
+        )
+
+        return attachment_scanner_rules_version()
+    except Exception:
+        return None
+
+
+def park_agent_publications(
+    project_key: str,
+    parked_reasons: dict[tuple[str, str], str],
+    *,
+    now: float | None = None,
+    rules_version: int | None = None,
+) -> tuple[AgentPublicationOutboxItem, ...]:
+    """Park withheld rows without charging attempts.
+
+    Preserves ``parked_since`` across re-parks. Returns the resulting outbox.
+    """
+
+    if not parked_reasons:
+        return list_agent_publications(project_key)
+    observed = time.time() if now is None else now
+    current_rules = (
+        rules_version if rules_version is not None else current_scanner_rules_version()
+    )
+    selected = frozenset(parked_reasons)
+
+    def update(
+        items: tuple[AgentPublicationOutboxItem, ...],
+    ) -> tuple[AgentPublicationOutboxItem, ...]:
+        updated: list[AgentPublicationOutboxItem] = []
+        for item in items:
+            if item.logical_key not in selected:
+                updated.append(item)
+                continue
+            reason = parked_reasons[item.logical_key]
+            parked_since = (
+                item.parked_since if item.parked_since is not None else observed
+            )
+            updated.append(
+                replace(
+                    item,
+                    last_error=reason,
+                    parked_reason=reason,
+                    parked_since=parked_since,
+                    parked_checked_at=observed,
+                    parked_rules_version=current_rules,
+                    updated_at=observed,
+                )
+            )
+        return tuple(updated)
+
+    return mutate_publication_outbox(project_key, update)
 
 
 @dataclass(frozen=True, slots=True)
@@ -92,6 +198,10 @@ def select_and_revive_agent_publications(
                 terminal=False,
                 terminal_reason=None,
                 updated_at=now,
+                parked_reason=None,
+                parked_since=None,
+                parked_checked_at=None,
+                parked_rules_version=None,
             )
             if item.logical_key in revived_keys
             else item
@@ -151,7 +261,11 @@ def _merged_publication_scope(
 def enqueue_agent_publication(
     item: AgentPublicationOutboxItem,
 ) -> AgentPublicationOutboxItem:
-    """Insert or refresh *item* without duplicating its logical operation."""
+    """Insert or refresh *item* without duplicating its logical operation.
+
+    Merging into the same logical key clears parked state: a fresh enqueue
+    is a new publish attempt, not a continuation of a prior park.
+    """
 
     validate_publication_item(item, item.project_key)
     now = time.time()
@@ -185,6 +299,10 @@ def enqueue_agent_publication(
                 if existing is not None
                 else item.terminal_reason
             ),
+            parked_reason=None,
+            parked_since=None,
+            parked_checked_at=None,
+            parked_rules_version=None,
             commit_cwd=(
                 existing.commit_cwd
                 if existing is not None and existing.commit_cwd is not None
@@ -243,6 +361,9 @@ def update_agent_publications(
     ``terminal_reason`` nominates a failure that cannot be fixed by retrying.
     The request is retired only when its prior recorded error is the same, so
     an indexing race still receives one retry before becoming terminal.
+
+    Any charged update clears parked state: a row that earns another attempt
+    has been selected for work, so a prior park no longer applies.
     """
 
     if quarantine_threshold is not None and quarantine_threshold < 1:
@@ -273,6 +394,7 @@ def update_agent_publications(
                     and attempts >= quarantine_threshold
                 )
             )
+            clear_parked = bool(increment_attempts)
             updated.append(
                 replace(
                     item,
@@ -296,6 +418,12 @@ def update_agent_publications(
                         else None
                     ),
                     updated_at=now,
+                    parked_reason=None if clear_parked else item.parked_reason,
+                    parked_since=None if clear_parked else item.parked_since,
+                    parked_checked_at=None if clear_parked else item.parked_checked_at,
+                    parked_rules_version=None
+                    if clear_parked
+                    else item.parked_rules_version,
                 )
             )
         return tuple(updated)
@@ -321,6 +449,10 @@ def clear_quarantined_agent_publications(
                 quarantined=False,
                 quarantined_at=None,
                 updated_at=now,
+                parked_reason=None,
+                parked_since=None,
+                parked_checked_at=None,
+                parked_rules_version=None,
             )
             if item.quarantined and not item.terminal
             else item
@@ -379,6 +511,10 @@ def revive_agent_publications(
                 terminal=False,
                 terminal_reason=None,
                 updated_at=now,
+                parked_reason=None,
+                parked_since=None,
+                parked_checked_at=None,
+                parked_rules_version=None,
             )
             if item.logical_key in chosen
             else item
@@ -476,8 +612,11 @@ __all__ = [
     "acknowledge_agent_publications",
     "clear_quarantined_agent_publications",
     "configured_publication_max_attempts",
+    "current_scanner_rules_version",
     "drop_terminal_agent_publications",
     "enqueue_agent_publication",
+    "park_agent_publications",
+    "publication_is_parked_due",
     "publication_quarantine_diagnostics",
     "revive_agent_publications",
     "select_and_revive_agent_publications",

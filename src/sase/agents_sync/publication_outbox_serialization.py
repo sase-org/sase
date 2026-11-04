@@ -14,7 +14,7 @@ from sase.agents_sync.publication_outbox_models import (
     validate_publication_item,
 )
 
-SUPPORTED_PUBLICATION_OUTBOX_SCHEMA_VERSIONS = (1, 2, 3, 4, 5, 6, 7)
+SUPPORTED_PUBLICATION_OUTBOX_SCHEMA_VERSIONS = (1, 2, 3, 4, 5, 6, 7, 8)
 _MULTI_KIND_SCHEMA_VERSION = 4
 
 
@@ -146,6 +146,18 @@ def _item_from_json(
         terminal_reason=_json_optional_text(row, "terminal_reason"),
         created_at=_json_number(row, "created_at", default=0.0),
         updated_at=_json_number(row, "updated_at", default=0.0),
+        parked_reason=_json_optional_text(row, "parked_reason")
+        if schema_version >= 8
+        else None,
+        parked_since=_json_optional_number(row, "parked_since")
+        if schema_version >= 8
+        else None,
+        parked_checked_at=_json_optional_number(row, "parked_checked_at")
+        if schema_version >= 8
+        else None,
+        parked_rules_version=_json_optional_nonnegative_int(row, "parked_rules_version")
+        if schema_version >= 8
+        else None,
     )
     validate_publication_item(item, project_key)
     return item
@@ -233,6 +245,20 @@ def _json_optional_number(
             f"agents publication outbox {field} must be a number or null"
         )
     return float(value)
+
+
+def _json_optional_nonnegative_int(
+    row: dict[object, object],
+    field: str,
+) -> int | None:
+    value = row.get(field)
+    if value is None:
+        return None
+    if not isinstance(value, int) or isinstance(value, bool) or value < 0:
+        raise RuntimeError(
+            f"agents publication outbox {field} must be a non-negative integer or null"
+        )
+    return value
 
 
 __all__ = [

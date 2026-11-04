@@ -421,6 +421,38 @@ def default_publication_cleanup_timeout() -> float:
     return value
 
 
+def attachment_scanner_rules_version() -> int:
+    """Return the current attachment scanner rules version from Rust core."""
+
+    binding = require_rust_binding("attachment_scanner_rules_version")
+    raw_value = binding()
+    if isinstance(raw_value, bool) or not isinstance(raw_value, int):
+        raise RuntimeError("sase_core_rs returned a non-int scanner rules version")
+    return int(raw_value)
+
+
+def publication_parked_recheck_due(
+    now: float,
+    parked_checked_at: float,
+    parked_rules_version: int,
+    current_rules_version: int,
+    recheck_interval_seconds: float,
+) -> bool:
+    """Return whether a parked request is due for one more publish attempt."""
+
+    binding = require_rust_binding("publication_parked_recheck_due")
+    raw_value = binding(
+        float(now),
+        float(parked_checked_at),
+        int(parked_rules_version),
+        int(current_rules_version),
+        float(recheck_interval_seconds),
+    )
+    if not isinstance(raw_value, bool):
+        raise RuntimeError("sase_core_rs returned a non-bool parked recheck decision")
+    return raw_value
+
+
 def classify_deferred_prompt_obligation(
     *,
     restore_wrote: bool,

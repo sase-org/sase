@@ -155,21 +155,29 @@ def publish_queued_transaction(
         committed or git_sync.agents_ahead_count(target.sidecar_path, git_runner) > 0
     )
     if not should_push:
-        acked_keys, gate_errors = acknowledge_completed(
-            target,
-            owner,
-            git_runner,
-            identity,
-            inventory,
-            prepared,
-            hooks=hooks,
-            timer=timer,
-            withheld_runs=withheld_runs,
-            withheld_hoods=withheld_hoods,
+        acked_keys, gate_errors, parked_keys, newly_parked_keys, newly_details = (
+            acknowledge_completed(
+                target,
+                owner,
+                git_runner,
+                identity,
+                inventory,
+                prepared,
+                hooks=hooks,
+                timer=timer,
+                withheld_runs=withheld_runs,
+                withheld_hoods=withheld_hoods,
+            )
         )
         return DrainResult(
             drained=len(acked_keys),
-            item_errors=(*item_errors, *gate_errors),
+            item_errors=(
+                *item_errors,
+                *gate_errors,
+                *(park_notice_error(newly_details) or ()),
+            ),
+            parked_keys=parked_keys,
+            newly_parked_keys=newly_parked_keys,
         )
 
     if timer is not None:
@@ -188,21 +196,29 @@ def publish_queued_transaction(
             op="agents_sync.commit_publish_push",
         )
     if pushed.returncode == 0:
-        acked_keys, gate_errors = acknowledge_completed(
-            target,
-            owner,
-            git_runner,
-            identity,
-            inventory,
-            prepared,
-            hooks=hooks,
-            timer=timer,
-            withheld_runs=withheld_runs,
-            withheld_hoods=withheld_hoods,
+        acked_keys, gate_errors, parked_keys, newly_parked_keys, newly_details = (
+            acknowledge_completed(
+                target,
+                owner,
+                git_runner,
+                identity,
+                inventory,
+                prepared,
+                hooks=hooks,
+                timer=timer,
+                withheld_runs=withheld_runs,
+                withheld_hoods=withheld_hoods,
+            )
         )
         return DrainResult(
             drained=len(acked_keys),
-            item_errors=(*item_errors, *gate_errors),
+            item_errors=(
+                *item_errors,
+                *gate_errors,
+                *(park_notice_error(newly_details) or ()),
+            ),
+            parked_keys=parked_keys,
+            newly_parked_keys=newly_parked_keys,
         )
     return retry_rejected_publication(
         target,
@@ -217,3 +233,21 @@ def publish_queued_transaction(
         hooks=hooks,
         timer=timer,
     )
+
+
+def park_notice_error(
+    newly_parked_details: tuple[str, ...] | list[str],
+) -> tuple[str, ...]:
+    """Return the single park-notice error for newly parked rows, if any.
+
+    Implements ``park_notice = once``: the pass that first parks a request
+    reports one error naming each ``agent@revision`` and its reason; later
+    rechecks stay silent.
+    """
+
+    details = tuple(newly_parked_details)
+    if not details:
+        return ()
+    if len(details) == 1:
+        return (f"parked 1 publication request: {details[0]}",)
+    return (f"parked {len(details)} publication requests: " + "; ".join(details),)

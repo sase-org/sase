@@ -19,6 +19,8 @@ class DrainResult:
     error_keys: tuple[tuple[str, str], ...] = ()
     failure_scope: str | None = None
     failure_stage: str | None = None
+    parked_keys: tuple[tuple[str, str], ...] = ()
+    newly_parked_keys: tuple[tuple[str, str], ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
@@ -30,3 +32,4 @@ class PublicationTransactionHooks:
     update_publications: Callable[..., object]
     acknowledge_publications: Callable[..., object]
     configured_max_attempts: Callable[[], int]
+    park_publications: Callable[..., object] | None = None
