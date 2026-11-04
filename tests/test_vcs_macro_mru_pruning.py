@@ -35,8 +35,8 @@ class _FakePatch:
         self.name = name
 
 
-def _git_and_gh_metadata() -> tuple[WorkflowMetadata, ...]:
-    return git_metadata() + (
+def _gh_metadata() -> tuple[WorkflowMetadata, ...]:
+    return (
         WorkflowMetadata(
             workflow_type="gh",
             ref_pattern=r"(?:^|(?<=\s))#gh(?:[_:]([a-zA-Z0-9_./-]+)|\(([^)]+)\))",
@@ -46,8 +46,37 @@ def _git_and_gh_metadata() -> tuple[WorkflowMetadata, ...]:
     )
 
 
+def _git_and_gh_metadata() -> tuple[WorkflowMetadata, ...]:
+    return git_metadata() + _gh_metadata()
+
+
+def _gh_and_git_metadata() -> tuple[WorkflowMetadata, ...]:
+    """Same providers with the GitHub plugin registered first.
+
+    Explicit ``#git:`` / ``#gh:`` sigils must resolve to their named provider
+    regardless of plugin iteration order.
+    """
+
+    return _gh_metadata() + git_metadata()
+
+
 def _patch_git_and_gh_metadata(monkeypatch: pytest.MonkeyPatch) -> None:
     _patch_workflow_metadata(monkeypatch, _git_and_gh_metadata)
+
+
+def _patch_gh_and_git_metadata(monkeypatch: pytest.MonkeyPatch) -> None:
+    _patch_workflow_metadata(monkeypatch, _gh_and_git_metadata)
+
+
+def _detect_provider_by_project_dir(project_file: str) -> str:
+    """Report ``gh`` for the GitHub-backed project, ``git`` otherwise.
+
+    Matches on the project directory name, never on a substring of the full
+    path: agent temp roots (``TMPDIR``) can themselves contain the project key
+    and would otherwise flip every project to ``gh``.
+    """
+
+    return "gh" if Path(project_file).parent.name == "gh_sase-org__sase" else "git"
 
 
 def test_load_launchable_filters_known_stale_projects(
@@ -206,10 +235,12 @@ def test_load_launchable_keeps_entries_when_resolution_index_unavailable(
     assert json.loads(mru_file.read_text()) == {"entries": ["#git:sase", "#git:gone"]}
 
 
-def test_load_launchable_prunes_provider_mismatched_prefix(
+def _run_provider_mismatch_case(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """A stale ``#git:`` entry for a project whose real provider is GitHub
+    """Shared body for the provider-mismatch pruning cases.
+
+    A stale ``#git:`` entry for a project whose real provider is GitHub
     is pruned, while ``#gh:`` for the same project and an unrelated
     ``#git:`` entry for a genuine bare-git project both survive.
 
@@ -217,7 +248,6 @@ def test_load_launchable_prunes_provider_mismatched_prefix(
     from the MRU must never again silently re-point ``resolve_git_ref`` at
     a real GitHub project.
     """
-    _patch_git_and_gh_metadata(monkeypatch)
     sase_home = redirect_sase_home(monkeypatch, tmp_path / ".sase")
     projects_dir = sase_home / "projects"
     sase_ws = tmp_path / "sase-ws"
@@ -251,7 +281,7 @@ def test_load_launchable_prunes_provider_mismatched_prefix(
     patch_discovered_workflow_type_as_git(monkeypatch)
     monkeypatch.setattr(
         "sase.workspace_provider.detect_workflow_type",
-        lambda project_file: "gh" if "gh_sase-org__sase" in project_file else "git",
+        _detect_provider_by_project_dir,
     )
 
     result = load_launchable_vcs_macro_mru()
@@ -261,6 +291,27 @@ def test_load_launchable_prunes_provider_mismatched_prefix(
         "entries": ["#gh:gh_sase-org__sase", "#git:otherproj"]
     }
     assert not mru_file.exists()
+
+
+def test_load_launchable_prunes_provider_mismatched_prefix(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Stale ``#git:`` for the GitHub project is pruned; genuine ``#git:``
+    entries survive (git patterns registered before GitHub's)."""
+    _patch_git_and_gh_metadata(monkeypatch)
+    _run_provider_mismatch_case(tmp_path, monkeypatch)
+
+
+def test_load_launchable_prunes_provider_mismatched_prefix_github_first(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Same as above with the GitHub plugin registered first.
+
+    Explicit ``#git:`` / ``#gh:`` sigils must match their named provider no
+    matter which provider's patterns iterate first.
+    """
+    _patch_gh_and_git_metadata(monkeypatch)
+    _run_provider_mismatch_case(tmp_path, monkeypatch)
 
 
 def test_record_prunes_provider_mismatched_prefix(

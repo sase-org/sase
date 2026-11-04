@@ -7,11 +7,14 @@ re-exports these tests so its import path keeps working.
 from __future__ import annotations
 
 import json
+import shutil
 import socket
 import struct
+import tempfile
 import threading
 import time
-from collections.abc import Callable, Mapping
+from collections.abc import Callable, Iterator, Mapping
+from contextlib import contextmanager
 from pathlib import Path
 from typing import Any, cast
 
@@ -20,8 +23,28 @@ import pytest
 import sase.dispatch.federation as federation
 
 
-def test_ipc_client_decodes_success_and_error_frames(tmp_path: Path) -> None:
-    success_socket = tmp_path / "success.sock"
+@contextmanager
+def _short_socket_dir() -> Iterator[Path]:
+    """Yield a short scratch dir for AF_UNIX socket binds.
+
+    Agent temp roots (``TMPDIR``) can push ``tmp_path``-based socket paths
+    past the 108-byte ``sun_path`` limit, so bind under ``/tmp`` instead and
+    remove the directory afterwards.
+    """
+    short_dir = Path(tempfile.mkdtemp(prefix="sase-ipc-", dir="/tmp"))
+    try:
+        yield short_dir
+    finally:
+        shutil.rmtree(short_dir, ignore_errors=True)
+
+
+def test_ipc_client_decodes_success_and_error_frames() -> None:
+    with _short_socket_dir() as socket_dir:
+        _decodes_success_and_error_frames(socket_dir)
+
+
+def _decodes_success_and_error_frames(socket_dir: Path) -> None:
+    success_socket = socket_dir / "success.sock"
     success_thread = _serve_one_ipc(
         success_socket,
         lambda request: {
@@ -37,7 +60,7 @@ def test_ipc_client_decodes_success_and_error_frames(tmp_path: Path) -> None:
     success_thread.join(timeout=1)
     assert not success_thread.is_alive()
 
-    error_socket = tmp_path / "error.sock"
+    error_socket = socket_dir / "error.sock"
     error_thread = _serve_one_ipc(
         error_socket,
         lambda request: {
@@ -60,8 +83,13 @@ def test_ipc_client_decodes_success_and_error_frames(tmp_path: Path) -> None:
     assert not error_thread.is_alive()
 
 
-def test_ipc_client_rejects_oversized_response(tmp_path: Path) -> None:
-    socket_path = tmp_path / "oversize.sock"
+def test_ipc_client_rejects_oversized_response() -> None:
+    with _short_socket_dir() as socket_dir:
+        _rejects_oversized_response(socket_dir)
+
+
+def _rejects_oversized_response(socket_dir: Path) -> None:
+    socket_path = socket_dir / "oversize.sock"
     thread = _serve_raw_ipc(
         socket_path,
         lambda _request: struct.pack(">I", 257) + (b"x" * 257),

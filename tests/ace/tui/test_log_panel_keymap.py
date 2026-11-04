@@ -278,6 +278,12 @@ def test_update_shortcut_auto_approve_uses_current_provider_projection() -> None
 def test_update_shortcut_dispatch_performs_no_disk_or_subprocess_work(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    # The app warms the keymap defaults at startup (the registry build in
+    # ``_state_init_late``), so keypress dispatch must stay in-memory. Warm
+    # that same cache here first: otherwise this test depends on another test
+    # having warmed the process-global ``functools.cache`` before it.
+    load_keymap_registry({})
+
     def fail(*_args: object, **_kwargs: object) -> None:
         raise AssertionError("keypress dispatch must stay in-memory")
 
@@ -296,6 +302,35 @@ def test_update_shortcut_dispatch_performs_no_disk_or_subprocess_work(
 
     assert len(app.pushed_modals) == 1
     assert isinstance(app.pushed_modals[0], UpdatePanel)
+
+
+def test_keymap_registry_load_warms_defaults_before_first_keypress(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Pin the warm-before-input guarantee: building the keymap registry once
+    (as app startup does in ``_state_init_late``) warms the bundled-defaults
+    cache, so every later registry build — including keypress-time ones —
+    performs no disk reads."""
+    from sase.ace.tui.keymaps.defaults import _builtin_keymaps_config
+
+    _builtin_keymaps_config.cache_clear()
+    try:
+        load_keymap_registry({})
+
+        def fail(*_args: object, **_kwargs: object) -> None:
+            raise AssertionError("keypress-time registry load must stay in-memory")
+
+        monkeypatch.setattr(Path, "read_text", fail)
+        monkeypatch.setattr(Path, "write_text", fail)
+
+        load_keymap_registry({})
+    finally:
+        # Restore the normal post-startup (warm) state for later tests.
+        # Undo the blocks first: teardown would do it anyway, and undoing
+        # twice is a no-op, so the re-warm below reads the real file.
+        monkeypatch.undo()
+        _builtin_keymaps_config.cache_clear()
+        load_keymap_registry({})
 
 
 def test_open_config_center_action_requests_home() -> None:
