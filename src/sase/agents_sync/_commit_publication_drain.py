@@ -130,7 +130,8 @@ def drain_agent_publications(
         timer.error = detail
         emit_drain_timing(timer)
         return CommitPublicationOutcome(
-            skip_reason=f"project {project_key!r} has no usable agents target: {detail}"
+            skip_reason=f"project {project_key!r} has no usable agents target: {detail}",
+            failure_scope=REPOSITORY_FAILURE_SCOPE,
         )
     target = selection.targets[0]
     try:
@@ -140,7 +141,10 @@ def drain_agent_publications(
         timer.outcome = "owner_unavailable"
         timer.error = f"owner identity is unavailable: {exc}"
         emit_drain_timing(timer)
-        return CommitPublicationOutcome(error=f"owner identity is unavailable: {exc}")
+        return CommitPublicationOutcome(
+            error=f"owner identity is unavailable: {exc}",
+            failure_scope=REPOSITORY_FAILURE_SCOPE,
+        )
 
     from sase.agents_sync import git_sync
 
@@ -255,6 +259,7 @@ def drain_agent_publications(
                 quarantined=quarantined_count(remaining),
                 retired=retired_count(remaining),
                 error=result.error,
+                failure_scope=(result.failure_scope or REPOSITORY_FAILURE_SCOPE),
             )
         timer.outcome = "failed_with_item_errors" if result.drained else "failed"
         timer.error = result.error
@@ -289,6 +294,7 @@ def drain_agent_publications(
         quarantined=quarantined_count(remaining),
         retired=retired_count(remaining),
         error="; ".join(result.item_errors) if result.item_errors else None,
+        failure_scope=None,
     )
 
 
@@ -318,6 +324,7 @@ def _record_failure(
             quarantined=quarantined_count(remaining),
             retired=retired_count(remaining),
             error=error,
+            failure_scope=failure_scope,
         )
     rows = tuple(
         {
@@ -350,6 +357,7 @@ def _record_failure(
             quarantined=quarantined_count(remaining),
             retired=retired_count(remaining),
             error=error,
+            failure_scope=failure_scope,
         )
     charges: tuple[PublicationFailureCharge, ...] = decision.charges
     retire_reason: str | None = None
@@ -370,4 +378,5 @@ def _record_failure(
         quarantined=quarantined_count(updated),
         retired=retired_count(updated),
         error=error,
+        failure_scope=failure_scope,
     )

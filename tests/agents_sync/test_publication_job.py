@@ -171,11 +171,11 @@ def test_hinted_hood_requests_are_drained_before_the_oldest_backlog(
     monkeypatch.setattr(
         publication_job, "list_referenced_by_requests", lambda *_args, **_kwargs: ()
     )
-    calls: list[str] = []
+    calls: list[tuple[tuple[str, str], ...]] = []
     hinted_key = ("alice.athena.hinted", "b" * 40)
 
     def drain_selected(_key: str, selected: tuple[tuple[str, str], ...], **_kwargs):
-        calls.append("hinted" if hinted_key in selected else "backlog")
+        calls.append(selected)
         selected_set = set(selected)
         queue[:] = [item for item in queue if item.logical_key not in selected_set]
         return CommitPublicationOutcome(drained=len(selected), published=True)
@@ -193,9 +193,182 @@ def test_hinted_hood_requests_are_drained_before_the_oldest_backlog(
         git_runner=lambda *_a, **_k: None,  # type: ignore[arg-type]
     )
 
-    assert calls == ["hinted", "backlog"]
+    assert calls == [(hinted_key, ("alice.athena.backlog", "a" * 40))]
     assert outcome.hood_drained == 2
     assert queue == []
+
+
+def test_item_error_does_not_starve_unhinted_ready_requests(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    redirect_sase_home(monkeypatch, tmp_path / ".sase")
+    monkeypatch.setattr(publication_job, "_HOOD_BATCH_LIMIT", 1)
+    hinted = _item("alice.athena.hinted", "b" * 40, created_at=2)
+    oldest = _item("alice.athena.oldest", "a" * 40, created_at=1)
+    newer = _item("alice.athena.newer", "c" * 40, created_at=3)
+    queue = [newer, hinted, oldest]
+    monkeypatch.setattr(
+        publication_job, "active_agent_publications", lambda _key: tuple(queue)
+    )
+    monkeypatch.setattr(
+        publication_job,
+        "list_referenced_by_requests",
+        lambda *_args, **_kwargs: (),
+    )
+    calls: list[tuple[str, str]] = []
+    hinted_key = hinted.logical_key
+
+    def drain_selected(_key: str, selected: tuple[tuple[str, str], ...], **_kwargs):
+        calls.extend(selected)
+        if hinted_key in selected:
+            return CommitPublicationOutcome(error="withheld row failed")
+        selected_set = set(selected)
+        queue[:] = [item for item in queue if item.logical_key not in selected_set]
+        return CommitPublicationOutcome(drained=len(selected), published=True)
+
+    monkeypatch.setattr(
+        publication_queue, "drain_selected_agent_publications", drain_selected
+    )
+    publication_doorbell.ring_publication_doorbell(
+        "proj", _hint("alice.athena.hinted", "b" * 40)
+    )
+
+    outcome = publication_job._drain_project(
+        _target(tmp_path),
+        deadline=time.monotonic() + 10,
+        git_runner=lambda *_a, **_k: None,  # type: ignore[arg-type]
+    )
+
+    assert calls == [hinted.logical_key, oldest.logical_key, newer.logical_key]
+    assert queue == [hinted]
+    assert outcome.hood_drained == 2
+    assert "withheld row failed" in (outcome.error or "")
+
+
+def test_repository_failure_stops_and_retains_only_unattempted_hints(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    redirect_sase_home(monkeypatch, tmp_path / ".sase")
+    monkeypatch.setattr(publication_job, "_HOOD_BATCH_LIMIT", 1)
+    first = _item("alice.athena.first", "a" * 40, created_at=1)
+    second = _item("alice.athena.second", "b" * 40, created_at=2)
+    queue = [first, second]
+    monkeypatch.setattr(
+        publication_job, "active_agent_publications", lambda _key: tuple(queue)
+    )
+    monkeypatch.setattr(
+        publication_job,
+        "list_referenced_by_requests",
+        lambda *_args, **_kwargs: (),
+    )
+    calls: list[tuple[str, str]] = []
+
+    def repository_failure(_key: str, selected: tuple[tuple[str, str], ...], **_kwargs):
+        calls.extend(selected)
+        return CommitPublicationOutcome(
+            error="git push failed", failure_scope="repository"
+        )
+
+    monkeypatch.setattr(
+        publication_queue, "drain_selected_agent_publications", repository_failure
+    )
+    publication_doorbell.ring_publication_doorbell(
+        "proj", _hint("alice.athena.first", "a" * 40)
+    )
+    publication_doorbell.ring_publication_doorbell(
+        "proj", _hint("alice.athena.second", "b" * 40)
+    )
+
+    outcome = publication_job._drain_project(
+        _target(tmp_path),
+        deadline=time.monotonic() + 10,
+        git_runner=lambda *_a, **_k: None,  # type: ignore[arg-type]
+    )
+
+    directory = tmp_path / ".sase" / "projects" / "proj" / "agent_publication"
+    claims = tuple(directory.glob("hints.claimed.*.jsonl"))
+    assert calls == [first.logical_key]
+    assert outcome.outcome == "repository_error"
+    assert len(claims) == 1
+    assert [
+        hint["global_agent"] for hint in publication_doorbell._read_hints(claims[0])
+    ] == ["alice.athena.second"]
+
+
+def test_hint_claim_compacts_multiple_files_into_one(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    redirect_sase_home(monkeypatch, tmp_path / ".sase")
+    publication_doorbell.ring_publication_doorbell(
+        "proj", _hint("alice.athena.first", "a" * 40)
+    )
+    publication_doorbell.claim_publication_hints("proj")
+    publication_doorbell.ring_publication_doorbell(
+        "proj", _hint("alice.athena.second", "b" * 40)
+    )
+    claim = publication_doorbell.claim_publication_hints("proj")
+
+    assert len(claim.paths) == 2
+    publication_doorbell.finish_hint_claim(claim, retain=(*claim.hints, *claim.hints))
+
+    directory = tmp_path / ".sase" / "projects" / "proj" / "agent_publication"
+    claims = tuple(directory.glob("hints.claimed.*.jsonl"))
+    assert len(claims) == 1
+    assert {
+        hint["global_agent"] for hint in publication_doorbell._read_hints(claims[0])
+    } == {"alice.athena.first", "alice.athena.second"}
+
+
+def test_deadline_retains_unattempted_hinted_requests(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    redirect_sase_home(monkeypatch, tmp_path / ".sase")
+    monkeypatch.setattr(publication_job, "_HOOD_BATCH_LIMIT", 1)
+    first = _item("alice.athena.first", "a" * 40, created_at=1)
+    second = _item("alice.athena.second", "b" * 40, created_at=2)
+    queue = [first, second]
+    monkeypatch.setattr(
+        publication_job, "active_agent_publications", lambda _key: tuple(queue)
+    )
+    monkeypatch.setattr(
+        publication_job,
+        "list_referenced_by_requests",
+        lambda *_args, **_kwargs: (),
+    )
+    now = [0.0]
+    monkeypatch.setattr(publication_job.time, "monotonic", lambda: now[0])
+    calls: list[tuple[str, str]] = []
+
+    def drain_one(_key: str, selected: tuple[tuple[str, str], ...], **_kwargs):
+        calls.extend(selected)
+        queue[:] = [item for item in queue if item.logical_key not in set(selected)]
+        now[0] = 5.0
+        return CommitPublicationOutcome(drained=len(selected), published=True)
+
+    monkeypatch.setattr(
+        publication_queue, "drain_selected_agent_publications", drain_one
+    )
+    publication_doorbell.ring_publication_doorbell(
+        "proj", _hint("alice.athena.first", "a" * 40)
+    )
+    publication_doorbell.ring_publication_doorbell(
+        "proj", _hint("alice.athena.second", "b" * 40)
+    )
+
+    outcome = publication_job._drain_project(
+        _target(tmp_path),
+        deadline=5.0,
+        git_runner=lambda *_a, **_k: None,  # type: ignore[arg-type]
+    )
+
+    directory = tmp_path / ".sase" / "projects" / "proj" / "agent_publication"
+    claims = tuple(directory.glob("hints.claimed.*.jsonl"))
+    assert calls == [first.logical_key]
+    assert outcome.deferred
+    assert len(claims) == 1
+    assert [
+        hint["global_agent"] for hint in publication_doorbell._read_hints(claims[0])
+    ] == ["alice.athena.second"]
 
 
 def test_retained_link_rows_finish_the_hint_without_ringing_again(

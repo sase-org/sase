@@ -135,6 +135,7 @@ def test_mixed_queue_publishes_good_items_and_quarantines_only_bad_item(
     )
 
     assert first.published and first.queued and first.drained == 2
+    assert first.failure_scope is None
     assert published == ["good", "other"]
     queued = list_agent_publications("proj")
     assert len(queued) == 1

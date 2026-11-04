@@ -12,7 +12,10 @@ from collections.abc import Iterator
 from typing import Any
 
 from sase.agents_sync._commit_publication_outbox import active_agent_publications
-from sase.agents_sync._commit_publication_types import CommitPublicationOutcome
+from sase.agents_sync._commit_publication_types import (
+    REPOSITORY_FAILURE_SCOPE,
+    CommitPublicationOutcome,
+)
 from sase.agents_sync.git import GitRunner, run_git
 from sase.agents_sync.publication_doorbell import (
     PublicationHintClaim,
@@ -22,6 +25,7 @@ from sase.agents_sync.publication_doorbell import (
     write_publication_heartbeat,
 )
 from sase.agents_sync.publication_outbox import AgentPublicationOutboxItem
+from sase.agents_sync.publication_outbox_models import publication_sort_key
 from sase.agents_sync.referenced_by_outbox import list_referenced_by_requests
 from sase.agents_sync.models import ProjectTarget
 from sase.agents_sync.targets import resolve_sync_targets
@@ -62,7 +66,8 @@ class _ProjectPass:
     lock_busy: bool = False
     deferred: bool = False
     error: str | None = None
-    preserve_hints: bool = False
+    retained_hints: list[dict[str, Any]] = field(default_factory=list)
+    claim_unfinished: bool = False
     outcome: str = "idle"
 
 
@@ -159,8 +164,11 @@ def _run_publication_job(
                 git_runner=git_runner,
             )
         except Exception as exc:  # noqa: BLE001 - one project cannot starve others.
-            result = _ProjectPass(error=str(exc) or type(exc).__name__, outcome="error")
-            result.preserve_hints = True
+            result = _ProjectPass(
+                error=str(exc) or type(exc).__name__,
+                claim_unfinished=True,
+                outcome="error",
+            )
             summary.diagnostics.append(f"{project_key}: {result.error}")
             _safe_ring(project_key)
         summary.hood_drained += result.hood_drained
@@ -181,7 +189,8 @@ def _run_publication_job(
             or refby_count
             or result.lock_busy
             or result.deferred
-            or result.preserve_hints
+            or result.retained_hints
+            or result.claim_unfinished
         ):
             _safe_ring(project_key)
         summary.project_stats[project_key] = {
@@ -234,99 +243,69 @@ def _drain_project(
     claim = claim_publication_hints(project_key)
     result = _ProjectPass()
     try:
-        active = active_agent_publications(project_key)
-        active_by_key = {
-            item.logical_key: item for item in active if _publication_is_ready(item)
-        }
-        hinted_keys = _hinted_keys(claim, active_by_key)
         attempted: set[tuple[str, str]] = set()
-
-        while hinted_keys and time.monotonic() < deadline:
-            batch = tuple(key for key in hinted_keys if key not in attempted)[
-                :_HOOD_BATCH_LIMIT
-            ]
+        stop_for_repository_failure = False
+        while time.monotonic() < deadline:
+            before = tuple(
+                item
+                for item in active_agent_publications(project_key)
+                if _publication_is_ready(item)
+            )
+            active_by_key = {item.logical_key: item for item in before}
+            hinted_keys = _hinted_keys(claim, active_by_key)
+            hinted_order = tuple(key for key in hinted_keys if key not in attempted)
+            hinted_set = frozenset(hinted_order)
+            fallback_order = tuple(
+                item.logical_key
+                for item in sorted(before, key=publication_sort_key)
+                if item.logical_key not in attempted
+                and item.logical_key not in hinted_set
+            )
+            batch = (*hinted_order, *fallback_order)[:_HOOD_BATCH_LIMIT]
             if not batch:
                 break
-            before = active_agent_publications(project_key)
+
+            # Attempted keys stay excluded even if this batch makes no progress.
+            attempted.update(batch)
             outcome = drain_selected_agent_publications(
                 project_key,
-                batch,
+                tuple(batch),
                 git_runner=git_runner,
             )
             result.hood_drained += outcome.drained
-            attempted.update(batch)
-            after = active_agent_publications(project_key)
+            diagnostic = outcome.error or outcome.skip_reason
             if _is_lock_busy(outcome):
                 result.lock_busy = True
-                result.preserve_hints = True
                 result.outcome = "lock_busy"
+                _append_project_error(result, diagnostic or "agents sync lock is busy")
+                stop_for_repository_failure = True
                 break
-            if outcome.error or outcome.skip_reason:
-                result.error = outcome.error or outcome.skip_reason
-                result.preserve_hints = bool(
-                    set(batch) & {item.logical_key for item in after}
-                )
-                result.outcome = "hood_error"
+            if diagnostic:
+                _append_project_error(result, diagnostic)
+            if outcome.failure_scope == REPOSITORY_FAILURE_SCOPE:
+                result.outcome = "repository_error"
+                stop_for_repository_failure = True
                 break
-            if not _made_progress(before, after, outcome):
-                result.outcome = "hood_no_progress"
-                break
-            active_by_key = {
-                item.logical_key: item for item in after if _publication_is_ready(item)
-            }
-            hinted_keys = tuple(key for key in hinted_keys if key in active_by_key)
+            # Row-scoped failures and no-progress batches do not starve the
+            # project: their keys are attempted, so the next iteration moves on.
 
-        if not result.lock_busy and result.error is None:
-            while time.monotonic() < deadline:
-                before = tuple(
-                    item
-                    for item in active_agent_publications(project_key)
-                    if _publication_is_ready(item)
-                )
-                if not before:
-                    break
-                batch = tuple(item.logical_key for item in before[:_HOOD_BATCH_LIMIT])
-                outcome = drain_selected_agent_publications(
-                    project_key,
-                    batch,
-                    git_runner=git_runner,
-                )
-                result.hood_drained += outcome.drained
-                after = tuple(
-                    item
-                    for item in active_agent_publications(project_key)
-                    if _publication_is_ready(item)
-                )
-                if _is_lock_busy(outcome):
-                    result.lock_busy = True
-                    result.preserve_hints = bool(
-                        set(batch) & {item.logical_key for item in after}
-                    )
-                    result.outcome = "lock_busy"
-                    break
-                if outcome.error or outcome.skip_reason:
-                    result.error = outcome.error or outcome.skip_reason
-                    result.preserve_hints = bool(
-                        set(batch) & {item.logical_key for item in after}
-                    )
-                    result.outcome = "hood_error"
-                    break
-                if not _made_progress(before, after, outcome):
-                    result.outcome = "hood_no_progress"
-                    break
-            if time.monotonic() >= deadline and any(
-                _publication_is_ready(item)
-                for item in active_agent_publications(project_key)
-            ):
-                result.deferred = True
-                result.preserve_hints = result.preserve_hints or bool(hinted_keys)
-                result.outcome = "deferred_budget"
-
-        if time.monotonic() >= deadline:
+        ready_after = tuple(
+            item
+            for item in active_agent_publications(project_key)
+            if _publication_is_ready(item)
+        )
+        ready_keys = {item.logical_key for item in ready_after}
+        unattempted = ready_keys - attempted
+        budget_expired = time.monotonic() >= deadline
+        if budget_expired and unattempted:
             result.deferred = True
-            result.preserve_hints = result.preserve_hints or bool(claim.hints)
-            if result.outcome == "idle":
-                result.outcome = "deferred_budget"
+            result.outcome = "deferred_budget"
+        if unattempted and (
+            budget_expired or stop_for_repository_failure or result.lock_busy
+        ):
+            result.retained_hints.extend(
+                _claim_hints_for_work(claim, hood_keys=unattempted)
+            )
 
         link_agents = _hinted_link_agents(claim)
         if link_agents and time.monotonic() < deadline:
@@ -346,15 +325,21 @@ def _drain_project(
                 if link_report.selected_retained:
                     result.link_retained += link_report.selected_retained
                 if link_report.deferred:
-                    result.preserve_hints = True
+                    result.retained_hints.extend(
+                        _claim_hints_for_work(claim, link_agents=link_agents)
+                    )
                     result.deferred = True
                     result.outcome = "deferred_budget"
             except Exception as exc:  # noqa: BLE001 - hints retry on next pass.
-                result.error = f"artifact-link drain failed: {exc}"
-                result.preserve_hints = True
+                _append_project_error(result, f"artifact-link drain failed: {exc}")
+                result.retained_hints.extend(
+                    _claim_hints_for_work(claim, link_agents=link_agents)
+                )
                 result.outcome = "link_error"
         elif link_agents:
-            result.preserve_hints = True
+            result.retained_hints.extend(
+                _claim_hints_for_work(claim, link_agents=link_agents)
+            )
             result.deferred = True
             result.outcome = "deferred_budget"
 
@@ -399,8 +384,7 @@ def _drain_project(
                 detail if result.outcome == "idle" else f"{result.outcome}; {detail}"
             )
 
-        if not result.preserve_hints:
-            finish_hint_claim(claim)
+        finish_hint_claim(claim, retain=result.retained_hints)
         return result
     except BaseException:
         # Leave the renamed claim in place; the next pass re-merges it.
@@ -427,14 +411,33 @@ def _hinted_link_agents(claim: PublicationHintClaim) -> frozenset[str]:
     )
 
 
-def _made_progress(
-    before: tuple[AgentPublicationOutboxItem, ...],
-    after: tuple[AgentPublicationOutboxItem, ...],
-    outcome: CommitPublicationOutcome,
-) -> bool:
-    return outcome.drained > 0 or {item.logical_key for item in before} != {
-        item.logical_key for item in after
-    }
+def _claim_hints_for_work(
+    claim: PublicationHintClaim,
+    *,
+    hood_keys: set[tuple[str, str]] | frozenset[tuple[str, str]] = frozenset(),
+    link_agents: frozenset[str] = frozenset(),
+) -> list[dict[str, Any]]:
+    """Return only claimed hints that still identify deferred work."""
+
+    return [
+        hint
+        for hint in claim.hints
+        if (
+            (hint["global_agent"], hint["primary_revision"]) in hood_keys
+            or hint["link_outbox_agent_name"] in link_agents
+        )
+    ]
+
+
+def _append_project_error(result: _ProjectPass, diagnostic: str) -> None:
+    """Accumulate distinct diagnostics without stopping row-scoped work."""
+
+    messages = result.error.split("; ") if result.error else []
+    if diagnostic not in messages:
+        messages.append(diagnostic)
+    result.error = "; ".join(messages)
+    if result.outcome == "idle":
+        result.outcome = "hood_error"
 
 
 def _is_lock_busy(outcome: CommitPublicationOutcome) -> bool:

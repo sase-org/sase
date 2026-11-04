@@ -127,8 +127,60 @@ def claim_publication_hints(project_key: str) -> PublicationHintClaim:
     return PublicationHintClaim(project_key, tuple(claims), tuple(hints))
 
 
-def finish_hint_claim(claim: PublicationHintClaim) -> None:
-    """Remove claimed hints after the pass has handled them."""
+def finish_hint_claim(
+    claim: PublicationHintClaim,
+    *,
+    retain: Sequence[Mapping[str, object]] | None = None,
+) -> None:
+    """Compact deferred hints, then remove claims consumed by this pass."""
+
+    if retain:
+        directory = _project_publication_dir(claim.project_key)
+        unique: dict[tuple[str, ...], dict[str, object]] = {}
+        for hint in retain:
+            normalized: dict[str, object] = {}
+            for field in _HINT_FIELDS:
+                value = hint.get(field)
+                if not isinstance(value, str):
+                    raise ValueError(f"publication hint {field} must be a string")
+                normalized[field] = value
+            key = tuple(str(normalized[field]) for field in _HINT_FIELDS)
+            if key not in unique:
+                created_at = hint.get("created_at", time.time())
+                if not isinstance(created_at, (int, float)):
+                    created_at = time.time()
+                unique[key] = {
+                    **normalized,
+                    "created_at": float(created_at),
+                }
+        if unique:
+            fd, raw_temp = tempfile.mkstemp(
+                prefix=".hints.", suffix=".tmp", dir=directory
+            )
+            temp = Path(raw_temp)
+            claimed = directory / (
+                f"{_CLAIM_PREFIX}{os.getpid()}.{uuid.uuid4().hex}.jsonl"
+            )
+            try:
+                with os.fdopen(fd, "wb") as stream:
+                    for hint in unique.values():
+                        stream.write(
+                            json.dumps(
+                                hint,
+                                ensure_ascii=False,
+                                allow_nan=False,
+                                separators=(",", ":"),
+                            ).encode("utf-8")
+                            + b"\n"
+                        )
+                    stream.flush()
+                    os.fsync(stream.fileno())
+                os.replace(temp, claimed)
+            finally:
+                try:
+                    temp.unlink()
+                except FileNotFoundError:
+                    pass
 
     for path in claim.paths:
         try:

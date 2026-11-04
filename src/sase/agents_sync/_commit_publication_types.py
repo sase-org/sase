@@ -18,3 +18,4 @@ class CommitPublicationOutcome:
     retired: int = 0
     skip_reason: str | None = None
     error: str | None = None
+    failure_scope: str | None = None

@@ -94,6 +94,7 @@ def test_record_failure_repository_preserves_attempts(
 
     assert outcome.queued
     assert outcome.error is not None
+    assert outcome.failure_scope == "repository"
     after = list_agent_publications("proj")
     assert len(after) == 2
     for item in after:
@@ -149,6 +150,7 @@ def test_scanner_timeout_unwinds_drain_and_leaves_request_queued(
 
     [remaining] = list_agent_publications("proj", include_quarantined=False)
     assert outcome.error == "scanner alarm"
+    assert outcome.failure_scope == "repository"
     assert remaining.attempts == 0
     assert remaining.logical_key == ("alice.athena.worker--code", "a" * 40)
 
