@@ -9,7 +9,10 @@ from pathlib import Path
 from collections.abc import Mapping
 
 from sase.core.retryability_facade import classify_failure_retryability
-from sase.core.retryability_wire import RETRY_OPERATION_GIT
+from sase.core.retryability_wire import (
+    RETRY_OPERATION_GIT,
+    RETRYABILITY_VERDICT_CREDENTIAL_UNCONFIRMED,
+)
 from sase.git_credential_retry import (
     BACKGROUND_CREDENTIAL_RETRY_BUDGET,
     CredentialRetry,
@@ -172,7 +175,10 @@ def _fetch_origin_with_retries(
             exit_status=fetch.returncode,
             stderr=detail,
         )
-        if verdict.verdict == "credential_unconfirmed" and credential_retry is not None:
+        if (
+            verdict.verdict == RETRYABILITY_VERDICT_CREDENTIAL_UNCONFIRMED
+            and credential_retry is not None
+        ):
             if credential_retry.retry_after(verdict.verdict, detail):
                 continue
             suffix = credential_retry.failure_suffix()

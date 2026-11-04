@@ -9,7 +9,11 @@ from pathlib import Path
 from typing import Any
 
 from sase.core.retryability_facade import classify_failure_retryability
-from sase.core.retryability_wire import RETRY_OPERATION_GIT, RetryabilityVerdictWire
+from sase.core.retryability_wire import (
+    RETRY_OPERATION_GIT,
+    RETRYABILITY_VERDICT_CREDENTIAL_UNCONFIRMED,
+    RetryabilityVerdictWire,
+)
 from sase.git_credential_retry import (
     BACKGROUND_CREDENTIAL_RETRY_BUDGET,
     CredentialRetry,
@@ -149,7 +153,7 @@ def run_sdd_network_git_with_retries(
         verdict = _classify_network_git_failure(result)
         if (
             verdict is not None
-            and verdict.verdict == "credential_unconfirmed"
+            and verdict.verdict == RETRYABILITY_VERDICT_CREDENTIAL_UNCONFIRMED
             and credential_retry is not None
         ):
             detail = (
