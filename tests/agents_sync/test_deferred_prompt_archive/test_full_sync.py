@@ -1,0 +1,210 @@
+"""Busy-lock deferral and full-sync rebuild tests."""
+
+from __future__ import annotations
+
+from contextlib import contextmanager
+import json
+from pathlib import Path
+
+import pytest
+
+from sase.agents_sync import git_sync
+from sase.agents_sync.models import ProjectTarget, TargetSelection
+from sase.agents_sync.prompt_archive import publish as archive_publish
+from sase.agents_sync.prompt_archive.publish import publish_prompt_archive
+from sase.agents_sync.publication_outbox import list_agent_publications
+from tests.agents_sync.commit_publication_fixtures import git, setup_target
+from tests.agents_sync.test_deferred_prompt_archive._helpers import (
+    AGENT,
+    GLOBAL_AGENT,
+    OWNER,
+    REVISION,
+    HostedLinks,
+    stub_full_sync,
+)
+
+
+def _artifacts_dir(tmp_path: Path, target: ProjectTarget) -> Path:
+    artifacts_dir = tmp_path / "runs/20260801130000"
+    artifacts_dir.mkdir(parents=True)
+    (artifacts_dir / "agent_meta.json").write_text(
+        json.dumps({"workspace_dir": str(target.primary_checkout)}),
+        encoding="utf-8",
+    )
+    (artifacts_dir / "raw_xprompt.md").write_text(
+        "Archive this prompt.\n",
+        encoding="utf-8",
+    )
+    return artifacts_dir
+
+
+@pytest.fixture
+def deferred_publication(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> tuple[ProjectTarget, Path, Path]:
+    """Defer one prompt archive on a busy lock, leaving its request queued."""
+
+    monkeypatch.setenv("SASE_HOME", str(tmp_path / "state"))
+    target, remote = setup_target(tmp_path)
+    artifacts_dir = _artifacts_dir(tmp_path, target)
+    monkeypatch.setattr(
+        archive_publish,
+        "resolve_sync_targets",
+        lambda _projects: TargetSelection((target,), ()),
+    )
+    monkeypatch.setattr(
+        archive_publish,
+        "require_agent_owner_identity",
+        lambda: OWNER,
+    )
+    monkeypatch.setattr(
+        archive_publish,
+        "_hosted_resolver",
+        lambda *_args: HostedLinks(),
+    )
+    monkeypatch.setattr("sase.file_references.format_with_prettier", lambda text: text)
+
+    real_lock = git_sync.bounded_agents_lock
+    contended = [True]
+
+    @contextmanager
+    def busy_once(path: Path, timeout_seconds: float):
+        """Contend only the deferred publication, not the sync that follows."""
+
+        if contended[0]:
+            contended[0] = False
+            yield False
+            return
+        with real_lock(path, timeout_seconds) as acquired:
+            yield acquired
+
+    monkeypatch.setattr(git_sync, "bounded_agents_lock", busy_once)
+    outcome = publish_prompt_archive(
+        AGENT,
+        REVISION,
+        project="Project",
+        commit_cwd=target.primary_checkout,
+        agent_artifacts_dir=artifacts_dir,
+    )
+
+    assert not outcome.published
+    assert outcome.queued
+    assert outcome.error == "agents sync lock is busy"
+    [queued] = list_agent_publications(target.project_key)
+    assert queued.logical_key == (GLOBAL_AGENT, REVISION)
+    assert queued.commit_cwd == str(target.primary_checkout.resolve())
+    assert queued.artifacts_dir == str(artifacts_dir.resolve())
+    assert queued.run_id is None
+    verify = tmp_path / "verify-deferred"
+    git(tmp_path, "clone", str(remote), str(verify))
+    assert not (verify / "prompts").exists()
+    return target, remote, artifacts_dir
+
+
+def test_full_sync_publishes_the_prompt_archive_a_busy_lock_deferred(
+    deferred_publication: tuple[ProjectTarget, Path, Path],
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    target, remote, artifacts_dir = deferred_publication
+    stub_full_sync(monkeypatch, target, artifacts_dir)
+
+    [outcome] = git_sync.sync_agents(("proj",))
+
+    assert outcome.error is None
+    assert outcome.pushed
+    verify = tmp_path / "verify-synced"
+    git(tmp_path, "clone", str(remote), str(verify))
+    prompt = verify / "prompts/202608" / f"{GLOBAL_AGENT}.md"
+    assert prompt.is_file()
+    assert "Archive this prompt." in prompt.read_text(encoding="utf-8")
+    # The request is only acknowledged once both halves reached the sidecar.
+    assert list_agent_publications("proj") == ()
+
+
+def test_full_sync_keeps_the_request_queued_when_the_archive_cannot_be_rebuilt(
+    deferred_publication: tuple[ProjectTarget, Path, Path],
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    target, remote, artifacts_dir = deferred_publication
+    stub_full_sync(monkeypatch, target, artifacts_dir)
+
+    def explode(**_kwargs: object) -> None:
+        raise RuntimeError("prompt pool is unreadable")
+
+    monkeypatch.setattr(archive_publish, "prepare_prompt_archive", explode)
+
+    [outcome] = git_sync.sync_agents(("proj",))
+
+    assert outcome.error is None
+    assert any("prompt pool is unreadable" in line for line in outcome.diagnostics)
+    verify = tmp_path / "verify-failed"
+    git(tmp_path, "clone", str(remote), str(verify))
+    assert not (verify / "prompts").exists()
+    # The agent page materialized, but the prompt did not, so the request stays
+    # retryable instead of being acknowledged or retired.
+    [remaining] = list_agent_publications("proj")
+    assert remaining.attempts == 1
+    assert not remaining.terminal
+    assert "prompt pool is unreadable" in str(remaining.last_error)
+
+
+def test_full_sync_keeps_the_request_when_the_original_prompt_source_is_gone(
+    deferred_publication: tuple[ProjectTarget, Path, Path],
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    target, remote, artifacts_dir = deferred_publication
+    stub_full_sync(monkeypatch, target, artifacts_dir)
+    for leftover in artifacts_dir.glob("raw_*.md"):
+        leftover.unlink()
+
+    [outcome] = git_sync.sync_agents(("proj",))
+
+    assert outcome.error is None
+    verify = tmp_path / "verify-missing-source"
+    git(tmp_path, "clone", str(remote), str(verify))
+    assert not (verify / "prompts").exists()
+    [remaining] = list_agent_publications("proj")
+    assert remaining.attempts == 1
+    assert not remaining.terminal
+    assert remaining.last_error is not None
+    assert "missing local source" in remaining.last_error or (
+        "unresolved" in remaining.last_error
+    )
+
+
+def test_full_sync_parks_a_blocked_prompt_without_charging_attempts(
+    deferred_publication: tuple[ProjectTarget, Path, Path],
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    from tests.agents_sync.test_prompt_archive_protection import (
+        MARKER,
+        _install_marker_scanner,
+    )
+    from sase.agents_sync.prompt_archive.protection import PROMPT_PROTECTION_BLOCKED
+
+    target, remote, artifacts_dir = deferred_publication
+    _install_marker_scanner(monkeypatch)
+    (artifacts_dir / "raw_xprompt.md").write_text(
+        f"deferred {MARKER.decode()}\n", encoding="utf-8"
+    )
+    stub_full_sync(monkeypatch, target, artifacts_dir)
+
+    [outcome] = git_sync.sync_agents(("proj",))
+
+    assert outcome.error is None
+    verify = tmp_path / "verify-blocked-deferred"
+    git(tmp_path, "clone", str(remote), str(verify))
+    assert not any(
+        MARKER in path.read_bytes()
+        for path in verify.rglob("*")
+        if path.is_file() and ".git" not in path.parts
+    )
+    [remaining] = list_agent_publications("proj")
+    assert remaining.attempts == 0
+    assert not remaining.terminal
+    assert remaining.last_error == PROMPT_PROTECTION_BLOCKED

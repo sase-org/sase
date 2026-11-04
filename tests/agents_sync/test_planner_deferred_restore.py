@@ -37,9 +37,9 @@ from sase.axe.run_agent_exec_plan_accept_sdd import publish_planner_prompt_archi
 from sase.core.agent_identity_facade import AgentOwnerIdentity
 from tests.agents_sync.commit_publication_fixtures import git, setup_target
 from tests.agents_sync.git_sync_fixtures import plant_fulfilled_publication
-from tests.agents_sync.test_deferred_prompt_archive import (
-    _HostedLinks,
-    _stub_full_sync,
+from tests.agents_sync.test_deferred_prompt_archive._helpers import (
+    HostedLinks,
+    stub_full_sync,
 )
 
 _OWNER = AgentOwnerIdentity("alice", "athena")
@@ -82,7 +82,7 @@ def _stub_planner_full_sync(
 ) -> None:
     """Sync over a hood whose page proves only the page-only (linked) scope."""
 
-    _stub_full_sync(monkeypatch, target, artifacts_dir)
+    stub_full_sync(monkeypatch, target, artifacts_dir)
 
     def reconcile(_target: ProjectTarget, repo: Path, **_kwargs: object):
         for item in list_agent_publications(_target.project_key):
@@ -125,7 +125,7 @@ def deferred_planner(
     )
     monkeypatch.setattr(archive_publish, "require_agent_owner_identity", lambda: _OWNER)
     monkeypatch.setattr(
-        archive_publish, "_hosted_resolver", lambda *_args: _HostedLinks()
+        archive_publish, "_hosted_resolver", lambda *_args: HostedLinks()
     )
     monkeypatch.setattr("sase.file_references.format_with_prettier", lambda text: text)
 
