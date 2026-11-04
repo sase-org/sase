@@ -2,9 +2,29 @@
 
 from __future__ import annotations
 
+import logging
 import os
 
 from sase.editor_resolver import resolve_editor
+
+
+log = logging.getLogger(__name__)
+
+
+def _read_editor_file(path: str) -> str | None:
+    """Read an editor scratch file, returning None when it cannot be recovered."""
+    try:
+        with open(path, encoding="utf-8") as f:
+            return f.read()
+    except (OSError, UnicodeError):
+        return None
+
+
+def _unlink_editor_file(path: str) -> None:
+    try:
+        os.unlink(path)
+    except OSError:
+        pass
 
 
 class EditorMixin:
@@ -43,39 +63,49 @@ class EditorMixin:
                 prefix="sase_ace_prompt_",
                 dir=get_sase_managed_tmpdir("editors"),
             )
+            # Write initial content if provided
+            with os.fdopen(fd, "w", encoding="utf-8") as f:
+                f.write(initial_content)
+
+            editor = resolve_editor()
+            cmd: list[str] = list(editor.argv)
+            # Position cursor in nvim to match the input bar cursor position
+            if editor.command_name == "nvim":
+                if cursor_row > 0 or cursor_col > 0:
+                    # nvim's cursor() is 1-indexed
+                    cmd.extend(
+                        [
+                            "-c",
+                            f"call cursor({cursor_row + 1}, {cursor_col + 1})",
+                        ]
+                    )
+                elif cursor_position > 0:
+                    cmd.extend(["-c", f"call cursor(1, {cursor_position + 1})"])
+            cmd.append(temp_path)
+
             try:
-                # Write initial content if provided
-                with os.fdopen(fd, "w", encoding="utf-8") as f:
-                    f.write(initial_content)
-
-                editor = resolve_editor()
-                cmd: list[str] = list(editor.argv)
-                # Position cursor in nvim to match the input bar cursor position
-                if editor.command_name == "nvim":
-                    if cursor_row > 0 or cursor_col > 0:
-                        # nvim's cursor() is 1-indexed
-                        cmd.extend(
-                            [
-                                "-c",
-                                f"call cursor({cursor_row + 1}, {cursor_col + 1})",
-                            ]
-                        )
-                    elif cursor_position > 0:
-                        cmd.extend(["-c", f"call cursor(1, {cursor_position + 1})"])
-                cmd.append(temp_path)
-
                 result = subprocess.run(cmd, check=False)
-                if result.returncode != 0:
-                    return None
+            except Exception:
+                log.warning("Prompt editor failed; preserving draft", exc_info=True)
+                result = None
 
-                with open(temp_path, encoding="utf-8") as f:
-                    content = f.read().strip()
-                return content if content else None
-            finally:
-                try:
-                    os.unlink(temp_path)
-                except OSError:
-                    pass
+            content = _read_editor_file(temp_path)
+            if content is None:
+                self._recover_prompt_editor_draft(temp_path, None)
+                return None
+            if result is None or result.returncode != 0:
+                if content != initial_content:
+                    self._recover_prompt_editor_draft(temp_path, content)
+                else:
+                    _unlink_editor_file(temp_path)
+                return None
+
+            _unlink_editor_file(temp_path)
+            content = content.strip()
+            return content if content else None
+
+        # Recovery is deliberately local to this editor path. It never submits
+        # the recovered prompt or changes the mounted prompt bar.
 
         self._prompt_editor_suspended = True
         try:
@@ -120,22 +150,34 @@ class EditorMixin:
                 prefix="sase_ace_workflow_",
                 dir=get_sase_managed_tmpdir("editors"),
             )
+            with os.fdopen(fd, "w", encoding="utf-8") as f:
+                f.write(template)
+
+            editor = resolve_editor()
             try:
-                with os.fdopen(fd, "w", encoding="utf-8") as f:
-                    f.write(template)
-
-                editor = resolve_editor()
                 result = subprocess.run([*editor.argv, temp_path], check=False)
-                if result.returncode != 0:
-                    return None
+            except Exception:
+                log.warning("Workflow editor failed; preserving draft", exc_info=True)
+                result = None
 
-                with open(temp_path, encoding="utf-8") as f:
-                    content = f.read()
-            finally:
-                try:
-                    os.unlink(temp_path)
-                except OSError:
-                    pass
+            content = _read_editor_file(temp_path)
+            if content is None:
+                self.notify(  # type: ignore[attr-defined]
+                    f"Workflow draft could not be read; recovery file kept at {temp_path}",
+                    severity="warning",
+                )
+                return None
+            if result is None or result.returncode != 0:
+                if content != template:
+                    self.notify(  # type: ignore[attr-defined]
+                        f"Workflow draft kept at {temp_path}",
+                        severity="warning",
+                    )
+                else:
+                    _unlink_editor_file(temp_path)
+                return None
+
+            _unlink_editor_file(temp_path)
 
             stripped = content.strip()
             if not stripped:
@@ -170,3 +212,47 @@ class EditorMixin:
 
         with self.suspend():  # type: ignore[attr-defined]
             return run_editor()
+
+    def _recover_prompt_editor_draft(self, temp_path: str, content: str | None) -> None:
+        """Stash a changed prompt when possible and always retain its file."""
+        if content is None:
+            self.notify(  # type: ignore[attr-defined]
+                f"Prompt draft could not be read; recovery file kept at {temp_path}",
+                severity="warning",
+            )
+            return
+
+        from datetime import datetime
+        from uuid import uuid4
+
+        from sase.core.paths import prompt_stash_path
+        from sase.core.prompt_stash_facade import (
+            PromptStashEntryWire,
+            append_prompt_stash,
+        )
+        from sase.core.time import get_timezone
+
+        entry_id = str(uuid4())
+        prompt_context = getattr(self, "_prompt_context", None)
+        entry = PromptStashEntryWire(
+            id=entry_id,
+            created_at=datetime.now(get_timezone()).isoformat(),
+            text=content.strip(),
+            project=getattr(prompt_context, "project_name", None),
+            source="editor_recovered",
+            pane_index=0,
+        )
+        try:
+            append_prompt_stash(prompt_stash_path(), entry)
+        except Exception:
+            log.warning("Failed to stash recovered prompt editor draft", exc_info=True)
+            self.notify(  # type: ignore[attr-defined]
+                f"Prompt draft could not be stashed; recovery file kept at {temp_path}",
+                severity="warning",
+            )
+            return
+
+        self.notify(  # type: ignore[attr-defined]
+            f"Recovered prompt stashed as {entry_id}; editor file kept at {temp_path}",
+            severity="warning",
+        )
