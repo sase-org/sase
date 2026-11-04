@@ -312,7 +312,7 @@ def test_wait_for_followup_started_rereads_meta_after_dead_pid(
         )
         return False
 
-    monkeypatch.setattr("sase.turns.followup._pid_is_running", dead_after_start)
+    monkeypatch.setattr("sase.turns.followup_starter._pid_is_running", dead_after_start)
 
     assert wait_for_followup_started(str(followup_dir), 999, timeout_seconds=5.0)
 
@@ -323,7 +323,9 @@ def test_wait_for_followup_started_returns_false_on_dead_pid(
     followup_dir = tmp_path / "followup"
     followup_dir.mkdir()
     (followup_dir / "agent_meta.json").write_text("{}", encoding="utf-8")
-    monkeypatch.setattr("sase.turns.followup._pid_is_running", lambda _pid: False)
+    monkeypatch.setattr(
+        "sase.turns.followup_starter._pid_is_running", lambda _pid: False
+    )
 
     assert not wait_for_followup_started(str(followup_dir), 999, timeout_seconds=5.0)
 

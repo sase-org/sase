@@ -74,6 +74,7 @@ _FAMILY_IDENTIFIER_ALLOWLIST = {
     Path("src/sase/monitor/store.py"),
     Path("src/sase/scripts/_agent_chat_from_name_common.py"),
     Path("src/sase/turns/followup.py"),
+    Path("src/sase/turns/followup_starter.py"),
     # Legacy agent_meta.json reader (accepts the pre-rename agent_family key).
     Path("src/sase/agents/cli_tab.py"),
     # Historical-data normalization (reads pre-rename inventory metadata).

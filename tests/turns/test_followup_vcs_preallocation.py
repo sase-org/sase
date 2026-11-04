@@ -17,10 +17,12 @@ from sase.running_field import WorkspaceClaimError
 from sase.turns.followup import (
     FollowupLaunchResult,
     TurnFollowupWorkspace,
-    _resolve_turn_followup_vcs_ref,
-    _vcs_ref_from_prompt,
     launch_turn_followup,
     vcs_ref_from_meta,
+)
+from sase.turns.followup_launch import (
+    _resolve_turn_followup_vcs_ref,
+    _vcs_ref_from_prompt,
 )
 from sase.workspace_provider._hookspec import WorkflowMetadata
 from tests._workspace_provider_helpers import _patch_workflow_metadata
@@ -184,11 +186,11 @@ def test_launch_turn_followup_without_vcs_still_falls_back_to_workspace_zero(
     calls: list[dict[str, Any]] = []
 
     monkeypatch.setattr(
-        "sase.turns.followup._workspace_dir_for_num",
+        "sase.turns.followup_launch._workspace_dir_for_num",
         lambda project_name, workspace_num: str(primary),
     )
     monkeypatch.setattr(
-        "sase.turns.followup._workspace_is_claimed",
+        "sase.turns.followup_launch._workspace_is_claimed",
         lambda project_name, workspace_num: True,
     )
 
@@ -274,7 +276,7 @@ def test_launch_turn_followup_vcs_uses_fresh_pool_workspace_when_original_is_tak
     claim_calls: list[dict[str, Any]] = []
 
     monkeypatch.setattr(
-        "sase.turns.followup._workspace_is_claimed",
+        "sase.turns.followup_launch._workspace_is_claimed",
         lambda project_name, workspace_num: True,
     )
 
@@ -296,7 +298,9 @@ def test_launch_turn_followup_vcs_uses_fresh_pool_workspace_when_original_is_tak
         )
         return 11, str(pool), "proj_11"
 
-    monkeypatch.setattr("sase.turns.followup.claim_next_axe_workspace_dir", claim_pool)
+    monkeypatch.setattr(
+        "sase.turns.followup_launch.claim_next_axe_workspace_dir", claim_pool
+    )
 
     def spawn_pool_ok(
         prompt: str,
@@ -382,11 +386,11 @@ def test_launch_turn_followup_vcs_records_not_launchable_when_pool_is_exhausted(
     recorded: dict[str, str] = {}
 
     monkeypatch.setattr(
-        "sase.turns.followup._workspace_is_claimed",
+        "sase.turns.followup_launch._workspace_is_claimed",
         lambda project_name, workspace_num: True,
     )
     monkeypatch.setattr(
-        "sase.turns.followup.claim_next_axe_workspace_dir",
+        "sase.turns.followup_launch.claim_next_axe_workspace_dir",
         lambda *args, **kwargs: (_ for _ in ()).throw(
             WorkspaceClaimError("all workspaces are claimed")
         ),

@@ -103,7 +103,7 @@ def _launch(
 ) -> tuple[list[FollowupLaunchResult], list[tuple[str, str]], Any]:
     if monkeypatch is not None:
         monkeypatch.setattr(
-            "sase.turns.followup._workspace_dir_for_num",
+            "sase.turns.followup_launch._workspace_dir_for_num",
             lambda project_name, num: "/ws/3" if num == 3 else "/ws/0",
         )
     launched: list[FollowupLaunchResult] = []
@@ -152,7 +152,7 @@ class TestStrictFollowup:
     ) -> None:
         spawn = _ok_spawn(fail_transfer=True, fail_fresh=True)
         monkeypatch.setattr(
-            "sase.turns.followup._workspace_dir_for_num",
+            "sase.turns.followup_launch._workspace_dir_for_num",
             lambda project_name, num: "/ws/3" if num == 3 else "/ws/0",
         )
         launched: list[FollowupLaunchResult] = []
@@ -182,7 +182,7 @@ class TestStrictFollowup:
     ) -> None:
         spawn = _ok_spawn()
         monkeypatch.setattr(
-            "sase.turns.followup._workspace_dir_for_num",
+            "sase.turns.followup_launch._workspace_dir_for_num",
             lambda project_name, n: "/ws/3",
         )
         launched: list[FollowupLaunchResult] = []
@@ -210,7 +210,7 @@ class TestStrictFollowup:
     ) -> None:
         spawn = _ok_spawn()
         monkeypatch.setattr(
-            "sase.turns.followup._workspace_dir_for_num",
+            "sase.turns.followup_launch._workspace_dir_for_num",
             lambda project_name, num: "/ws/other",
         )
         launched: list[FollowupLaunchResult] = []
@@ -255,11 +255,11 @@ class TestStrictFollowup:
 
         spawn.calls = []  # type: ignore[attr-defined]
         monkeypatch.setattr(
-            "sase.turns.followup._workspace_dir_for_num",
+            "sase.turns.followup_launch._workspace_dir_for_num",
             lambda project_name, num: "/ws/3" if num == 3 else "/ws/0",
         )
         monkeypatch.setattr(
-            "sase.turns.followup._workspace_is_claimed", lambda *args: True
+            "sase.turns.followup_launch._workspace_is_claimed", lambda *args: True
         )
         launched: list[FollowupLaunchResult] = []
         not_launchable: list[tuple[str, str]] = []

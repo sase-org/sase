@@ -287,7 +287,7 @@ def test_weight_two_land_agent_session_retains_one_claim_through_real_dispatch_a
         # harness layout makes this poll the wrong directory for a full
         # 60 seconds and return False; the canonical layout must see the
         # starter's own done.json immediately and return True.
-        import sase.turns.followup as followup_module
+        import sase.turns.followup_starter as followup_module
 
         real_starter_wait = followup_module.wait_for_starter_artifacts_dir
         observed_starter_wait: dict[str, object] = {}
