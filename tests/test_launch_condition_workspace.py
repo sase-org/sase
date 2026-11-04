@@ -15,6 +15,7 @@ from sase.agent.launch_condition_workspace import (
     acquire_condition_workspace,
     settle_condition_workspace,
 )
+from sase.git_credential_retry import LAUNCH_CREDENTIAL_RETRY_BUDGET
 from sase.workspace_provider.lease import OperationalLeaseError
 from tests.workspace_lease_helpers import fake_operational_lease
 
@@ -25,14 +26,16 @@ def test_condition_workspace_marker_releases_once(
     checkout = tmp_path / "checkout"
     checkout.mkdir()
     released: list[dict[str, Any]] = []
+    budgets: list[object] = []
 
     def fake_acquire(
         project: str,
         *,
         workflow: str,
         holder: str,
-        **_kwargs: object,
+        **kwargs: object,
     ) -> Any:
+        budgets.append(kwargs.get("credential_budget"))
         return fake_operational_lease(
             checkout,
             project=project,
@@ -59,6 +62,7 @@ def test_condition_workspace_marker_releases_once(
     )
 
     assert lease.checkout_dir == checkout
+    assert budgets == [LAUNCH_CREDENTIAL_RETRY_BUDGET]
     marker_path = work_dir / CONDITION_WORKSPACE_MARKER
     marker = json.loads(marker_path.read_text(encoding="utf-8"))
     assert marker["settled"] is False

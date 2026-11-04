@@ -9,6 +9,7 @@ from typing import Any
 import pytest
 
 from sase.running_field import WorkspaceClaimError, get_claimed_workspaces
+from sase.git_credential_retry import CredentialRetryBudget
 from sase.workspace_provider.lease import (
     OPERATIONAL_LEASE_POLICY_KIND,
     _OperationalLeaseError as OperationalLeaseError,
@@ -125,6 +126,53 @@ class TestAuthorizeOperationalLeaseWorkspace:
 
 
 class TestAcquireAndContextManager:
+    def test_acquire_threads_credential_retry_configuration(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        primary = tmp_path / "proj"
+        primary.mkdir()
+        checkout = tmp_path / "proj_10"
+        checkout.mkdir()
+        project_file = _write_project_file(tmp_path / "demo.sase", primary=primary)
+        budget = CredentialRetryBudget("launch-test", (1.0,))
+        seen: dict[str, Any] = {}
+
+        def prepare(
+            _checkout: Path,
+            *,
+            workspace_num: int,
+            credential_budget: CredentialRetryBudget | None,
+            env: dict[str, str] | None,
+        ) -> None:
+            seen.update(
+                workspace_num=workspace_num,
+                credential_budget=credential_budget,
+                env=env,
+            )
+
+        _patch_acquire_steps(
+            monkeypatch,
+            checkout=checkout,
+            primary=primary,
+            prepare=prepare,
+        )
+
+        acquire_operational_lease(
+            "demo",
+            workflow="launch-if:test",
+            holder="test",
+            project_file=project_file,
+            config=_adjacent_config(),
+            env={"GIT_SSH_COMMAND": "ssh shim"},
+            credential_budget=budget,
+        )
+
+        assert seen == {
+            "workspace_num": 10,
+            "credential_budget": budget,
+            "env": {"GIT_SSH_COMMAND": "ssh shim"},
+        }
+
     def test_acquire_exposes_checkout_and_context(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:

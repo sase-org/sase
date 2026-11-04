@@ -6,9 +6,15 @@ import logging
 import subprocess
 import time
 from pathlib import Path
+from collections.abc import Mapping
 
 from sase.core.retryability_facade import classify_failure_retryability
 from sase.core.retryability_wire import RETRY_OPERATION_GIT
+from sase.git_credential_retry import (
+    BACKGROUND_CREDENTIAL_RETRY_BUDGET,
+    CredentialRetry,
+    CredentialRetryBudget,
+)
 from sase.git_lock_retry import run_with_git_lock_retry
 from sase.workspace_provider._lease_model import (
     OperationalLeaseError,
@@ -20,12 +26,18 @@ _logger = logging.getLogger(__name__)
 
 _FETCH_MAX_ATTEMPTS = 3
 _FETCH_RETRY_DELAYS_SECONDS = (1.0, 5.0)
-_CREDENTIAL_CONFIRMATION_DELAY_SECONDS = 10.0
 
 _sleep = time.sleep
 
 
-def prepare_from_primary_remote(checkout: Path, *, workspace_num: int) -> None:
+def prepare_from_primary_remote(
+    checkout: Path,
+    *,
+    workspace_num: int,
+    credential_budget: CredentialRetryBudget
+    | None = BACKGROUND_CREDENTIAL_RETRY_BUDGET,
+    env: Mapping[str, str] | None = None,
+) -> None:
     if not (checkout / ".git").exists() and not (checkout / ".git").is_file():
         raise OperationalLeaseError(
             "preparation",
@@ -33,7 +45,11 @@ def prepare_from_primary_remote(checkout: Path, *, workspace_num: int) -> None:
         )
     remotes = _git_remotes(checkout)
     if "origin" in remotes:
-        _fetch_origin_with_retries(checkout)
+        _fetch_origin_with_retries(
+            checkout,
+            credential_budget=credential_budget,
+            env=env,
+        )
     upstream = _configured_upstream(checkout)
     if upstream is None:
         return
@@ -100,36 +116,55 @@ def _maybe_rescue_dirty_checkout(checkout: Path, workspace_num: int) -> None:
             )
 
 
-def _fetch_origin_with_retries(checkout: Path) -> None:
+def _fetch_origin_with_retries(
+    checkout: Path,
+    *,
+    credential_budget: CredentialRetryBudget
+    | None = BACKGROUND_CREDENTIAL_RETRY_BUDGET,
+    env: Mapping[str, str] | None = None,
+) -> None:
     """Fetch origin with bounded, classified retries.
 
-    Transient transport failures retry up to ``_FETCH_MAX_ATTEMPTS`` total
-    attempts. A credential refusal gets exactly one delayed confirmation
-    retry. Anything else raises on the first attempt.
+    Transient transport failures retry up to ``_FETCH_MAX_ATTEMPTS`` attempts.
+    Credential denials use their separate shared budget. Anything else raises
+    on the first attempt.
     """
     from sase.sdd._git import network_git_timeout
 
     timeout = network_git_timeout()
-    credential_retry_used = False
-    first_credential_stderr: str | None = None
+    fetch_env = non_interactive_git_env(env)
+    credential_retry = (
+        CredentialRetry(
+            credential_budget,
+            deadline=None,
+            env=fetch_env,
+            sleep=_sleep,
+        )
+        if credential_budget is not None
+        else None
+    )
+    transient_attempts = 0
 
-    for attempt in range(1, _FETCH_MAX_ATTEMPTS + 1):
+    while True:
         try:
-            fetch = _run_git(["fetch", "--quiet", "origin"], checkout, timeout=timeout)
+            fetch = _run_git(
+                ["fetch", "--quiet", "origin"],
+                checkout,
+                timeout=timeout,
+                env=fetch_env,
+            )
         except subprocess.TimeoutExpired:
-            if attempt >= _FETCH_MAX_ATTEMPTS:
+            transient_attempts += 1
+            if transient_attempts >= _FETCH_MAX_ATTEMPTS:
                 raise OperationalLeaseError(
                     "preparation",
                     f"git fetch timed out after {timeout:g}s",
                 ) from None
-            _sleep(_FETCH_RETRY_DELAYS_SECONDS[attempt - 1])
+            _sleep(_FETCH_RETRY_DELAYS_SECONDS[transient_attempts - 1])
             continue
         if fetch.returncode == 0:
-            if first_credential_stderr is not None:
-                _logger.warning(
-                    "transient remote credential refusal cleared on retry: %s",
-                    first_credential_stderr,
-                )
+            if credential_retry is not None:
+                credential_retry.note_success()
             return
         detail = fetch.stderr.strip() or fetch.stdout.strip() or "git fetch failed"
         verdict = classify_failure_retryability(
@@ -137,19 +172,22 @@ def _fetch_origin_with_retries(checkout: Path) -> None:
             exit_status=fetch.returncode,
             stderr=detail,
         )
-        if is_credential_verdict(verdict):
-            if credential_retry_used or attempt >= _FETCH_MAX_ATTEMPTS:
-                raise _preparation_error(detail, fetch.returncode)
-            credential_retry_used = True
-            first_credential_stderr = detail
-            _sleep(_CREDENTIAL_CONFIRMATION_DELAY_SECONDS)
-            continue
-        if not verdict.retryable or attempt >= _FETCH_MAX_ATTEMPTS:
+        if verdict.verdict == "credential_unconfirmed" and credential_retry is not None:
+            if credential_retry.retry_after(verdict.verdict, detail):
+                continue
+            suffix = credential_retry.failure_suffix()
+            if suffix:
+                detail = f"{detail}\n{suffix}"
+            raise _preparation_error(detail, fetch.returncode)
+        if not verdict.retryable:
+            raise _preparation_error(detail, fetch.returncode)
+        transient_attempts += 1
+        if transient_attempts >= _FETCH_MAX_ATTEMPTS:
             raise _preparation_error(detail, fetch.returncode)
         if verdict.retry_after_seconds is not None:
             _sleep(max(0.0, float(verdict.retry_after_seconds)))
         else:
-            _sleep(_FETCH_RETRY_DELAYS_SECONDS[attempt - 1])
+            _sleep(_FETCH_RETRY_DELAYS_SECONDS[transient_attempts - 1])
 
 
 def _preparation_error(detail: str, returncode: int) -> OperationalLeaseError:
@@ -239,6 +277,8 @@ def _run_git(
     args: list[str],
     checkout: Path,
     timeout: float | None = None,
+    *,
+    env: Mapping[str, str] | None = None,
 ) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
         ["git", *args],
@@ -246,7 +286,7 @@ def _run_git(
         capture_output=True,
         text=True,
         check=False,
-        env=non_interactive_git_env(),
+        env=non_interactive_git_env(env),
         stdin=subprocess.DEVNULL,
         timeout=timeout,
     )

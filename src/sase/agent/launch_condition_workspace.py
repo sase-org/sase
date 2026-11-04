@@ -12,6 +12,7 @@ from pathlib import Path
 from typing import Any
 
 from sase.core.atomic_json import write_json_marker_atomic
+from sase.git_credential_retry import LAUNCH_CREDENTIAL_RETRY_BUDGET
 from sase.workspace_provider.lease import (
     OperationalLease,
     OperationalLeaseError,
@@ -82,6 +83,7 @@ def acquire_condition_workspace(
             project_file=project_file,
             cl_name=workflow,
             pid=os.getpid(),
+            credential_budget=LAUNCH_CREDENTIAL_RETRY_BUDGET,
         )
     except OperationalLeaseError as exc:
         if is_operational_lease_contention_error(exc):

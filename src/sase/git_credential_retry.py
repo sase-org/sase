@@ -71,16 +71,14 @@ class CredentialRetry:
         env: Mapping[str, str],
         sleep: Callable[[float], None] | None = None,
         monotonic: Callable[[], float] | None = None,
-        credential_probe: Callable[
-            [Mapping[str, str], str | None], str
-        ] = local_ssh_credential_state,
+        credential_probe: Callable[[Mapping[str, str], str | None], str] | None = None,
     ) -> None:
         self.budget = budget
         self.deadline = deadline
         self.env = env
         self._sleep = sleep or time.sleep
         self._monotonic = monotonic or time.monotonic
-        self._credential_probe = credential_probe
+        self._credential_probe = credential_probe or local_ssh_credential_state
         self._sleep_cap_seconds, cap_error = _sleep_cap(env)
         self._stop_reason = cap_error
         self._attempts = 0

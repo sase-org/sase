@@ -42,10 +42,14 @@ class TestPrepareFromRemote:
         script = list(fetch_script) if fetch_script is not None else None
 
         def fake_run_git(
-            args: list[str], checkout: Path, timeout: float | None = None
+            args: list[str],
+            checkout: Path,
+            timeout: float | None = None,
+            *,
+            env: dict[str, str] | None = None,
         ) -> subprocess.CompletedProcess[str]:
             if args[0] == "fetch":
-                fetch_calls.append({"timeout": timeout})
+                fetch_calls.append({"timeout": timeout, "env": env})
                 if script is not None:
                     item = script.pop(0) if script else None
                     if item is None:
@@ -96,6 +100,8 @@ class TestPrepareFromRemote:
         def fake_sleep(seconds: float) -> None:
             sleep_calls.append(seconds)
 
+        monkeypatch.setenv("GIT_SSH_COMMAND", "ssh -o BatchMode=yes")
+        monkeypatch.setattr("sase.git_credential_retry._EXHAUSTED_HOSTS", {})
         monkeypatch.setattr("sase.workspace_provider._lease_git._run_git", fake_run_git)
         monkeypatch.setattr("sase.workspace_provider._lease_git._sleep", fake_sleep)
         return {
@@ -158,7 +164,7 @@ class TestPrepareFromRemote:
         assert "SSH_AUTH_SOCK" not in message
         assert "sase service init" not in message
 
-    def test_publickey_denial_message_shape_is_unchanged(
+    def test_persistent_publickey_denial_keeps_stderr_then_hint(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         from sase.workspace_provider.lease import _prepare_from_primary_remote
@@ -172,6 +178,9 @@ class TestPrepareFromRemote:
         assert str(exc_info.value) == (
             "operational workspace lease failed during preparation: "
             f"{self._PUBLICKEY_DENIAL}\n"
+            "GitHub refused SSH publickey authentication on 2 attempts over 10s; "
+            "credential retry budget exhausted; "
+            "see docs/reference/agents/service-host.md\n"
             "This is usually a missing or empty SSH agent in the calling process "
             "(check SSH_AUTH_SOCK); when the caller is the service host, give it an "
             "unattended credential (see docs/reference/agents/service-host.md). Re-running `sase service "
@@ -238,9 +247,7 @@ class TestPrepareFromRemote:
         (tmp_path / ".git").mkdir()
         calls = self._fake_git(monkeypatch, fetch_script=[self._PUBLICKEY_DENIAL, None])
 
-        with caplog.at_level(
-            logging.WARNING, logger="sase.workspace_provider._lease_git"
-        ):
+        with caplog.at_level(logging.WARNING, logger="sase.git_credential_retry"):
             _prepare_from_primary_remote(tmp_path, workspace_num=7)
 
         assert len(calls["fetch_calls"]) == 2
@@ -248,12 +255,12 @@ class TestPrepareFromRemote:
         warnings = [
             r
             for r in caplog.records
-            if r.levelno >= logging.WARNING
-            and "sase.workspace_provider._lease_git" in r.name
+            if r.levelno >= logging.WARNING and "sase.git_credential_retry" in r.name
         ]
-        assert len(warnings) == 1
-        assert "cleared on retry" in warnings[0].getMessage()
-        assert self._PUBLICKEY_DENIAL in warnings[0].getMessage()
+        assert any(
+            "cleared after 1 retries" in record.getMessage() for record in warnings
+        )
+        assert any(self._PUBLICKEY_DENIAL in record.getMessage() for record in warnings)
 
     def test_persistent_fetch_publickey_denial_raises_after_confirmation(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
@@ -272,6 +279,9 @@ class TestPrepareFromRemote:
         assert str(exc_info.value) == (
             "operational workspace lease failed during preparation: "
             f"{self._PUBLICKEY_DENIAL}\n"
+            "GitHub refused SSH publickey authentication on 2 attempts over 10s; "
+            "credential retry budget exhausted; "
+            "see docs/reference/agents/service-host.md\n"
             "This is usually a missing or empty SSH agent in the calling process "
             "(check SSH_AUTH_SOCK); when the caller is the service host, give it an "
             "unattended credential (see docs/reference/agents/service-host.md). Re-running `sase service "
@@ -282,6 +292,47 @@ class TestPrepareFromRemote:
         assert calls["sleep_calls"] == [10.0]
         error = exc_info.value
         assert error.is_credential_failure is True
+
+    def test_absent_local_credential_fails_without_confirmation_retry(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        from sase.workspace_provider.lease import _prepare_from_primary_remote
+
+        (tmp_path / ".git").mkdir()
+        calls = self._fake_git(monkeypatch, fetch_stderr=self._PUBLICKEY_DENIAL)
+        monkeypatch.setattr(
+            "sase.git_credential_retry.local_ssh_credential_state",
+            lambda *_args: "absent",
+        )
+
+        with pytest.raises(OperationalLeaseError) as exc_info:
+            _prepare_from_primary_remote(tmp_path, workspace_num=7)
+
+        assert len(calls["fetch_calls"]) == 1
+        assert calls["sleep_calls"] == []
+        assert "no local SSH credential" in str(exc_info.value)
+        assert self._PUBLICKEY_DENIAL in str(exc_info.value)
+
+    def test_launch_budget_allows_multiple_credential_confirmations(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        from sase.git_credential_retry import LAUNCH_CREDENTIAL_RETRY_BUDGET
+        from sase.workspace_provider.lease import _prepare_from_primary_remote
+
+        (tmp_path / ".git").mkdir()
+        calls = self._fake_git(
+            monkeypatch,
+            fetch_script=[self._PUBLICKEY_DENIAL, self._PUBLICKEY_DENIAL, None],
+        )
+
+        _prepare_from_primary_remote(
+            tmp_path,
+            workspace_num=7,
+            credential_budget=LAUNCH_CREDENTIAL_RETRY_BUDGET,
+        )
+
+        assert len(calls["fetch_calls"]) == 3
+        assert calls["sleep_calls"] == [5.0, 10.0]
 
     def test_retryable_transport_failure_then_success(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch

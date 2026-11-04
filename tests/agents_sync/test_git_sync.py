@@ -18,10 +18,13 @@ from sase.agents_sync.v2_io import apply_payload_atomic
 from sase.agents_sync.v2_models import V2PublicationCounts
 from sase.core.agent_identity_facade import AgentOwnerIdentity
 from sase.core.retryability_wire import (
+    RETRYABILITY_VERDICT_CREDENTIAL_UNCONFIRMED,
     RETRYABILITY_VERDICT_TRANSIENT,
     RETRYABILITY_WIRE_SCHEMA_VERSION,
     RetryabilityVerdictWire,
 )
+from sase.git_credential_retry import CredentialRetryBudget
+from sase.sdd._git_network import run_sdd_network_git_with_retries
 from sase.git_lock_retry import STALE_GIT_INDEX_LOCK_MIN_AGE_SECONDS
 
 from tests.agents_sync.git_sync_fixtures import (
@@ -516,6 +519,92 @@ def test_network_git_retries_transient_classifier_failure(
     assert result.stdout == "ok"
     assert calls == [["fetch", "origin"], ["fetch", "origin"]]
     assert sleeps == [0.25]
+
+
+def test_network_git_credential_retry_does_not_consume_transient_attempts(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[list[str]] = []
+    denial = "git@github.com: Permission denied (publickey)."
+
+    def fake_run_once(
+        args: list[str], **_kwargs: object
+    ) -> subprocess.CompletedProcess[str]:
+        calls.append(args)
+        if len(calls) == 1:
+            return subprocess.CompletedProcess(args, 128, "", denial)
+        return subprocess.CompletedProcess(args, 0, "ok", "")
+
+    monkeypatch.setattr(
+        "sase.sdd._git_network.classify_failure_retryability",
+        lambda *_args, **_kwargs: RetryabilityVerdictWire(
+            schema_version=RETRYABILITY_WIRE_SCHEMA_VERSION,
+            verdict=RETRYABILITY_VERDICT_CREDENTIAL_UNCONFIRMED,
+            reason="authentication: ssh publickey denied",
+            retryable=False,
+            retry_after_seconds=None,
+        ),
+    )
+    monkeypatch.setattr("sase.git_credential_retry._EXHAUSTED_HOSTS", {})
+
+    result = run_sdd_network_git_with_retries(
+        fake_run_once,
+        ["fetch", "origin"],
+        cwd=tmp_path,
+        op="test",
+        check=False,
+        capture_output=True,
+        env={"GIT_SSH_COMMAND": "ssh shim"},
+        max_attempts=1,
+        credential_budget=CredentialRetryBudget("test", (0.0,)),
+    )
+
+    assert result.returncode == 0
+    assert calls == [["fetch", "origin"], ["fetch", "origin"]]
+
+
+def test_network_git_persistent_credential_denial_returns_original_result(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls = 0
+    denial = "git@github.com: Permission denied (publickey)."
+
+    def fake_run_once(
+        args: list[str], **_kwargs: object
+    ) -> subprocess.CompletedProcess[str]:
+        nonlocal calls
+        calls += 1
+        return subprocess.CompletedProcess(args, 128, "", denial)
+
+    monkeypatch.setattr(
+        "sase.sdd._git_network.classify_failure_retryability",
+        lambda *_args, **_kwargs: RetryabilityVerdictWire(
+            schema_version=RETRYABILITY_WIRE_SCHEMA_VERSION,
+            verdict=RETRYABILITY_VERDICT_CREDENTIAL_UNCONFIRMED,
+            reason="authentication: ssh publickey denied",
+            retryable=False,
+            retry_after_seconds=None,
+        ),
+    )
+    monkeypatch.setattr("sase.git_credential_retry._EXHAUSTED_HOSTS", {})
+
+    result = run_sdd_network_git_with_retries(
+        fake_run_once,
+        ["push", "origin"],
+        cwd=tmp_path,
+        op="test",
+        check=False,
+        capture_output=True,
+        env={"GIT_SSH_COMMAND": "ssh shim"},
+        max_attempts=1,
+        credential_budget=CredentialRetryBudget("test", (0.0,)),
+    )
+
+    assert calls == 2
+    assert result.returncode == 128
+    assert result.stderr == denial
 
 
 def test_run_git_retries_transient_local_index_lock_failure(

@@ -8,7 +8,10 @@ from pathlib import Path
 import pytest
 
 from sase.core.retryability_facade import classify_failure_retryability
-from sase.core.retryability_wire import RETRY_OPERATION_GIT
+from sase.core.retryability_wire import (
+    RETRYABILITY_VERDICT_CREDENTIAL_UNCONFIRMED,
+    RETRY_OPERATION_GIT,
+)
 from sase.external_mirror.auth import read_tracker_probes
 from sase.external_mirror.state import (
     ISSUE_MAX_BACKOFF_SECONDS,
@@ -39,7 +42,14 @@ def _credential_lease_failure() -> OperationalLeaseError:
     verdict = classify_failure_retryability(
         RETRY_OPERATION_GIT, exit_status=128, stderr=_PUBLICKEY_DENIAL
     )
-    return OperationalLeaseError("preparation", _PUBLICKEY_DENIAL, retryability=verdict)
+    assert verdict.verdict == RETRYABILITY_VERDICT_CREDENTIAL_UNCONFIRMED
+    detail = (
+        f"{_PUBLICKEY_DENIAL}\n"
+        "GitHub refused SSH publickey authentication on 2 attempts over 10s; "
+        "credential retry budget exhausted; "
+        "see docs/reference/agents/service-host.md"
+    )
+    return OperationalLeaseError("preparation", detail, retryability=verdict)
 
 
 def _contention_lease_failure() -> OperationalLeaseError:
@@ -56,7 +66,7 @@ def _install_listing(monkeypatch: pytest.MonkeyPatch) -> None:
     install_provider(monkeypatch, provider(FakeIssueProvider([issue(42)])))
 
 
-def test_credential_lease_failure_degrades_to_auth_error_and_backs_off(
+def test_exhausted_credential_unconfirmed_lease_failure_degrades_to_auth_error(
     bead_store: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     _install_listing(monkeypatch)

@@ -20,6 +20,10 @@ from contextlib import contextmanager
 from pathlib import Path
 from typing import Any
 
+from sase.git_credential_retry import (
+    BACKGROUND_CREDENTIAL_RETRY_BUDGET,
+    CredentialRetryBudget,
+)
 from sase.running_field import (
     WorkspaceClaimError,
     claim_next_axe_workspace,
@@ -63,6 +67,8 @@ def acquire_operational_lease(
     pid: int | None = None,
     config: Mapping[str, Any] | None = None,
     env: Mapping[str, str] | None = None,
+    credential_budget: CredentialRetryBudget
+    | None = BACKGROUND_CREDENTIAL_RETRY_BUDGET,
 ) -> OperationalLease:
     """Claim, materialize, and prepare one operational workspace.
 
@@ -99,7 +105,12 @@ def acquire_operational_lease(
             config=config,
             env=env,
         )
-        _prepare_from_primary_remote(checkout, workspace_num=workspace_num)
+        _prepare_from_primary_remote(
+            checkout,
+            workspace_num=workspace_num,
+            credential_budget=credential_budget,
+            env=env,
+        )
         context = leased_operational_context(
             project,
             workspace_num,
@@ -269,6 +280,8 @@ def operational_workspace_lease(
     pid: int | None = None,
     config: Mapping[str, Any] | None = None,
     env: Mapping[str, str] | None = None,
+    credential_budget: CredentialRetryBudget
+    | None = BACKGROUND_CREDENTIAL_RETRY_BUDGET,
 ) -> Iterator[OperationalLease]:
     """Synchronous lease for chops and in-process host actions."""
 
@@ -281,6 +294,7 @@ def operational_workspace_lease(
         pid=pid,
         config=config,
         env=env,
+        credential_budget=credential_budget,
     )
     try:
         yield lease

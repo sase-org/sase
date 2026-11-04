@@ -2,6 +2,7 @@
 
 from collections.abc import Callable, Mapping, Sequence
 import logging
+import os
 import subprocess
 import time
 from pathlib import Path
@@ -9,6 +10,11 @@ from typing import Any
 
 from sase.core.retryability_facade import classify_failure_retryability
 from sase.core.retryability_wire import RETRY_OPERATION_GIT, RetryabilityVerdictWire
+from sase.git_credential_retry import (
+    BACKGROUND_CREDENTIAL_RETRY_BUDGET,
+    CredentialRetry,
+    CredentialRetryBudget,
+)
 from sase.sdd._git_config import (
     DEFAULT_NETWORK_GIT_MAX_ATTEMPTS,
     DEFAULT_NETWORK_GIT_RETRY_DELAYS_SECONDS,
@@ -44,6 +50,8 @@ def run_sdd_network_git(
     env: Mapping[str, str] | None = None,
     max_attempts: int = DEFAULT_NETWORK_GIT_MAX_ATTEMPTS,
     backoff_delays: Sequence[float] = DEFAULT_NETWORK_GIT_RETRY_DELAYS_SECONDS,
+    credential_budget: CredentialRetryBudget
+    | None = BACKGROUND_CREDENTIAL_RETRY_BUDGET,
     output_previews: bool = True,
 ) -> subprocess.CompletedProcess[Any]:
     """Run a network git command with bounded classifier-driven retries."""
@@ -61,6 +69,7 @@ def run_sdd_network_git(
         env=env,
         max_attempts=max_attempts,
         backoff_delays=backoff_delays,
+        credential_budget=credential_budget,
         output_previews=output_previews,
     )
 
@@ -79,6 +88,8 @@ def run_sdd_network_git_with_retries(
     env: Mapping[str, str] | None = None,
     max_attempts: int = DEFAULT_NETWORK_GIT_MAX_ATTEMPTS,
     backoff_delays: Sequence[float] = DEFAULT_NETWORK_GIT_RETRY_DELAYS_SECONDS,
+    credential_budget: CredentialRetryBudget
+    | None = BACKGROUND_CREDENTIAL_RETRY_BUDGET,
     output_previews: bool = True,
 ) -> subprocess.CompletedProcess[Any]:
     """Run one network git command through an injectable execution boundary."""
@@ -87,8 +98,18 @@ def run_sdd_network_git_with_retries(
         raise ValueError("max_attempts must be at least 1")
     timeout_seconds = timeout if timeout is not None else _network_git_timeout()
     last_result: subprocess.CompletedProcess[Any] | None = None
+    transient_attempts = 0
+    credential_retry = (
+        CredentialRetry(
+            credential_budget,
+            deadline=deadline,
+            env=os.environ if env is None else env,
+        )
+        if credential_budget is not None
+        else None
+    )
 
-    for attempt in range(1, max_attempts + 1):
+    while True:
         attempt_timeout = _network_attempt_timeout(timeout_seconds, deadline)
         if attempt_timeout <= 0.0:
             if last_result is not None:
@@ -109,8 +130,9 @@ def run_sdd_network_git_with_retries(
                 output_previews=output_previews,
             )
         except SddGitCommandTimeout:
-            if attempt >= max_attempts or not _sleep_for_network_retry(
-                attempt=attempt,
+            transient_attempts += 1
+            if transient_attempts >= max_attempts or not _sleep_for_network_retry(
+                attempt=transient_attempts,
                 backoff_delays=backoff_delays,
                 deadline=deadline,
                 verdict=None,
@@ -120,24 +142,33 @@ def run_sdd_network_git_with_retries(
 
         last_result = result
         if result.returncode == 0:
+            if credential_retry is not None:
+                credential_retry.note_success()
             return _checked_network_result(result, check=check)
 
         verdict = _classify_network_git_failure(result)
         if (
-            verdict is None
-            or not verdict.retryable
-            or attempt >= max_attempts
-            or not _sleep_for_network_retry(
-                attempt=attempt,
-                backoff_delays=backoff_delays,
-                deadline=deadline,
-                verdict=verdict,
-            )
+            verdict is not None
+            and verdict.verdict == "credential_unconfirmed"
+            and credential_retry is not None
         ):
+            detail = (
+                stream_text(result.stderr).strip() or stream_text(result.stdout).strip()
+            )
+            if credential_retry.retry_after(verdict.verdict, detail):
+                continue
             return _checked_network_result(result, check=check)
 
-    assert last_result is not None
-    return _checked_network_result(last_result, check=check)
+        if verdict is None or not verdict.retryable:
+            return _checked_network_result(result, check=check)
+        transient_attempts += 1
+        if transient_attempts >= max_attempts or not _sleep_for_network_retry(
+            attempt=transient_attempts,
+            backoff_delays=backoff_delays,
+            deadline=deadline,
+            verdict=verdict,
+        ):
+            return _checked_network_result(result, check=check)
 
 
 def _checked_network_result(
