@@ -7,8 +7,18 @@ import os
 from pathlib import Path
 
 from sase._git_remote import is_http_git_remote
-from sase.core.retryability_facade import is_retryable_git_clone_failure
-from sase.core.retryability_wire import RETRY_OPERATION_GIT_CLONE
+from sase.core.retryability_facade import (
+    classify_failure_retryability,
+    is_retryable_git_clone_failure,
+)
+from sase.core.retryability_wire import (
+    RETRY_OPERATION_GIT_CLONE,
+    RETRYABILITY_VERDICT_CREDENTIAL_UNCONFIRMED,
+)
+from sase.git_credential_retry import (
+    LAUNCH_CREDENTIAL_RETRY_BUDGET,
+    CredentialRetry,
+)
 from sase.sdd._store_clone_admission import (
     RemoteCloneAdmissionTimeout,
     remote_clone_admission,
@@ -63,7 +73,13 @@ def clone_sdd_store_to_path(
     retries_without_reference = 0
     max_attempts = len(_REMOTE_CLONE_RETRY_DELAYS) + 1
     base_timeout = network_git_timeout()
-    for attempt in range(max_attempts):
+    credential_retry = CredentialRetry(
+        LAUNCH_CREDENTIAL_RETRY_BUDGET,
+        deadline=deadline,
+        env=clone_env,
+    )
+    attempt = 0
+    while True:
         attempt_telemetry = _clone_attempt_telemetry(
             telemetry_sdd,
             remote_url=remote_url,
@@ -71,6 +87,8 @@ def clone_sdd_store_to_path(
             max_attempts=max_attempts,
             reference=reference,
             clone_path=workspace_sdd,
+            credential_retry_attempt=credential_retry.attempts,
+            credential_retry_budget=len(LAUNCH_CREDENTIAL_RETRY_BUDGET.delays),
         )
         timeout = _clone_attempt_timeout(base_timeout, attempt, deadline)
         if timeout <= 0.0:
@@ -128,6 +146,7 @@ def clone_sdd_store_to_path(
                 clone_args = _remote_clone_args(
                     remote_url, workspace_sdd, reference=None
                 )
+                attempt += 1
                 continue
             if attempt >= len(_REMOTE_CLONE_RETRY_DELAYS):
                 return handle_failed_sdd_clone(
@@ -159,6 +178,7 @@ def clone_sdd_store_to_path(
                     transient=True,
                     cleanup_path=workspace_sdd,
                 )
+            attempt += 1
             continue
         except Exception as exc:
             return handle_failed_sdd_clone(
@@ -170,6 +190,7 @@ def clone_sdd_store_to_path(
                 cleanup_path=workspace_sdd,
             )
         if result.returncode == 0:
+            credential_retry.note_success()
             return True
 
         detail = (result.stderr or result.stdout or "").strip()
@@ -186,7 +207,35 @@ def clone_sdd_store_to_path(
             )
             reference = None
             clone_args = _remote_clone_args(remote_url, workspace_sdd, reference=None)
+            attempt += 1
             continue
+        verdict = classify_failure_retryability(
+            RETRY_OPERATION_GIT_CLONE,
+            exit_status=result.returncode,
+            stdout=result.stdout or "",
+            stderr=result.stderr or "",
+        )
+        if verdict.verdict == RETRYABILITY_VERDICT_CREDENTIAL_UNCONFIRMED:
+            # Credential sleeps happen here, outside remote_clone_admission,
+            # so a waiting clone never holds a host clone permit.
+            if credential_retry.retry_after(verdict.verdict, detail):
+                remove_partial_sdd_clone(workspace_sdd)
+                continue
+            failure_detail = detail or f"git clone exited {result.returncode}"
+            message = (
+                f"failed to clone SDD store {remote_url} into {telemetry_sdd}: "
+                f"{failure_detail}"
+            )
+            suffix = credential_retry.failure_suffix()
+            if suffix:
+                message += f" {suffix}"
+            return handle_failed_sdd_clone(
+                telemetry_sdd,
+                message,
+                strict=strict,
+                transient=False,
+                cleanup_path=workspace_sdd,
+            )
         transient = is_transient_remote_clone_failure(detail)
         if not transient or attempt >= len(_REMOTE_CLONE_RETRY_DELAYS):
             return handle_failed_sdd_clone(
@@ -218,6 +267,7 @@ def clone_sdd_store_to_path(
                 transient=True,
                 cleanup_path=workspace_sdd,
             )
+        attempt += 1
     raise AssertionError("remote clone retry loop did not return")
 
 
@@ -239,6 +289,8 @@ def _clone_attempt_telemetry(
     max_attempts: int,
     reference: Path | None,
     clone_path: Path | None = None,
+    credential_retry_attempt: int = 0,
+    credential_retry_budget: int = 0,
 ) -> dict[str, object]:
     telemetry: dict[str, object] = {
         "retry_attempt_index": attempt,
@@ -248,6 +300,8 @@ def _clone_attempt_telemetry(
         "sdd_store_path": str(workspace_sdd),
         "sdd_store_name": workspace_sdd.name,
         "sdd_remote_url": remote_url,
+        "credential_retry_attempt": credential_retry_attempt,
+        "credential_retry_budget": credential_retry_budget,
     }
     if clone_path is not None:
         telemetry["sdd_clone_stage_path"] = str(clone_path)

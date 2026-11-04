@@ -501,8 +501,9 @@ _lint-patch-stitch-terminology: _setup
 # types by routing every monitor terminal claim disposal through the adapter,
 # so those rows are dropped. sase-1pj.7.1.5.1 privatized the in-file-only
 # settlement result, so its parent-scoped row is dropped.
-# sase-1r5.1.2 added the shared credential-retry types for the SDD clone
-# adopter in sase-1r5.1.3; drop these rows once that consumer lands.
+# sase-1r5.1.3 consumed CredentialRetry in the SDD store clone and sase-1r5.1.4
+# consumed CredentialRetryBudget in network git and the lease fetch, so the rows
+# sase-1r5.1.2 added for the adopters are dropped.
 # Never put a comment
 # line inside the continued command below: just joins the lines, so the comment
 # would swallow every later argument.
