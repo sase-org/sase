@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import re
+import shlex
 import shutil
 import subprocess
 from collections.abc import Mapping
@@ -65,6 +66,112 @@ def _probe_ssh_agent(env: Mapping[str, str]) -> SshAgentState | None:
     if result.returncode == 2:
         return "unreachable"
     return "ready"
+
+
+def local_ssh_credential_state(
+    env: Mapping[str, str], host: str | None
+) -> Literal["present", "absent", "unknown"]:
+    """Return local credential state without allowing probe errors to escape."""
+    try:
+        return _local_ssh_credential_state(env, host)
+    except Exception:
+        return "unknown"
+
+
+def _local_ssh_credential_state(
+    env: Mapping[str, str], host: str | None
+) -> Literal["present", "absent", "unknown"]:
+    """Conservatively inspect whether ``env`` has a local SSH credential for ``host``.
+
+    This is an offline precheck for retry policy, not a remote authentication
+    probe. An overridden SSH command, an uninspectable SSH config, or an agent
+    whose contents cannot be read all remain ``unknown`` so transient remote
+    denials are not mistaken for missing credentials.
+    """
+    if "GIT_SSH_COMMAND" in env or "GIT_SSH" in env or host is None:
+        return "unknown"
+
+    try:
+        ssh = shutil.which("ssh", path=env.get("PATH"))
+        if ssh is None:
+            return "unknown"
+        result = subprocess.run(
+            [ssh, "-G", host],
+            env={
+                name: env[name] for name in (*_PROBE_ENV_NAMES, "HOME") if name in env
+            },
+            capture_output=True,
+            text=True,
+            errors="replace",
+            stdin=subprocess.DEVNULL,
+            timeout=_PROBE_TIMEOUT_SECONDS,
+            check=False,
+        )
+        if result.returncode != 0:
+            return "unknown"
+    except Exception:
+        return "unknown"
+
+    identity_agent: str | None = None
+    identity_files: list[str] = []
+    try:
+        for line in (result.stdout or "").splitlines():
+            try:
+                parts = shlex.split(line, comments=False, posix=True)
+            except ValueError:
+                return "unknown"
+            if len(parts) < 2:
+                continue
+            key, value = parts[0].casefold(), " ".join(parts[1:])
+            if key == "identityagent":
+                identity_agent = value
+            elif key == "identityfile":
+                identity_files.append(value)
+    except Exception:
+        return "unknown"
+
+    # ssh -G reports the effective IdentityAgent. Its default is the literal
+    # SSH_AUTH_SOCK; an explicit path takes precedence over that environment
+    # variable, while "none" disables agent use for this host.
+    if identity_agent is None or identity_agent == "SSH_AUTH_SOCK":
+        agent_socket = env.get("SSH_AUTH_SOCK")
+    elif identity_agent.casefold() == "none":
+        agent_socket = None
+    else:
+        agent_socket = identity_agent
+
+    agent_uncertain = False
+    if agent_socket and is_live_ssh_agent_socket(agent_socket):
+        probe_env = dict(env)
+        probe_env["SSH_AUTH_SOCK"] = agent_socket
+        try:
+            agent_state = _probe_ssh_agent(probe_env)
+        except Exception:
+            agent_uncertain = True
+            agent_state = None
+        if agent_state == "ready":
+            return "present"
+        if agent_state in (None, "unreachable"):
+            agent_uncertain = True
+
+    home = env.get("HOME")
+    for raw_path in identity_files:
+        if raw_path == "none":
+            continue
+        try:
+            if raw_path == "~":
+                expanded = Path(home) if home else Path.home()
+            elif raw_path.startswith("~/") and home:
+                expanded = Path(home) / raw_path[2:]
+            else:
+                expanded = Path(raw_path).expanduser()
+            expanded.stat()
+            return "present"
+        except (FileNotFoundError, NotADirectoryError):
+            continue
+        except (OSError, RuntimeError, ValueError):
+            return "unknown"
+    return "unknown" if agent_uncertain else "absent"
 
 
 def probe_git_remote_auth(env: Mapping[str, str]) -> GitRemoteReadiness:
@@ -212,6 +319,7 @@ __all__ = [
     "SshAgentScope",
     "SshAgentState",
     "is_live_ssh_agent_socket",
+    "local_ssh_credential_state",
     "probe_git_remote_auth",
     "ssh_agent_readiness_warnings",
 ]

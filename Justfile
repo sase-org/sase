@@ -501,6 +501,8 @@ _lint-patch-stitch-terminology: _setup
 # types by routing every monitor terminal claim disposal through the adapter,
 # so those rows are dropped. sase-1pj.7.1.5.1 privatized the in-file-only
 # settlement result, so its parent-scoped row is dropped.
+# sase-1r5.1.2 added the shared credential-retry types for the SDD clone
+# adopter in sase-1r5.1.3; drop these rows once that consumer lands.
 # Never put a comment
 # line inside the continued command below: just joins the lines, so the comment
 # would swallow every later argument.
@@ -518,6 +520,8 @@ _lint-symvision *args: _setup
         --epic-symbol "sase-1qz.6.1.4(rollback_recovery_preparation)" \
         --epic-symbol "sase-1qz.6.1.5(hijack_recovery_reconcile)" \
         --epic-symbol "sase-1qz.6.1.5(hijack_recovery_reconcile_wire_schema_version)" \
+        --epic-symbol "sase-1r5.1.3(CredentialRetry)" \
+        --epic-symbol "sase-1r5.1.3(CredentialRetryBudget)" \
         {{ args }}
 
 # Check Python file line counts (private, extracted for per-stage wrapping)

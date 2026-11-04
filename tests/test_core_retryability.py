@@ -10,10 +10,12 @@ from sase.core.retryability_facade import (
 )
 from sase.core.retryability_wire import (
     RETRYABILITY_VERDICT_AFTER_DELAY,
+    RETRYABILITY_VERDICT_CREDENTIAL_UNCONFIRMED,
     RETRYABILITY_VERDICT_PERMANENT,
     RETRYABILITY_VERDICT_TRANSIENT,
     RETRYABILITY_WIRE_SCHEMA_VERSION,
     RETRY_OPERATION_GH,
+    RETRY_OPERATION_GIT,
     RETRY_OPERATION_GIT_CLONE,
 )
 from sase.sdd._store_clone_ops import _is_transient_remote_clone_failure
@@ -139,6 +141,20 @@ def test_rust_extension_parity_for_retryability_cases() -> None:
             None,
         ),
         (
+            RETRY_OPERATION_GIT_CLONE,
+            "git@github.com: Permission denied (publickey).",
+            RETRYABILITY_VERDICT_CREDENTIAL_UNCONFIRMED,
+            False,
+            None,
+        ),
+        (
+            RETRY_OPERATION_GIT,
+            "git@ssh.github.com: Permission denied (publickey,keyboard-interactive).",
+            RETRYABILITY_VERDICT_CREDENTIAL_UNCONFIRMED,
+            False,
+            None,
+        ),
+        (
             RETRY_OPERATION_GH,
             "API rate limit exceeded\nRetry-After: 5",
             RETRYABILITY_VERDICT_AFTER_DELAY,
@@ -170,3 +186,5 @@ def test_rust_extension_parity_for_retryability_cases() -> None:
         assert verdict.verdict == expected_verdict
         assert verdict.retryable is retryable
         assert verdict.retry_after_seconds == retry_after
+        if expected_verdict == RETRYABILITY_VERDICT_CREDENTIAL_UNCONFIRMED:
+            assert verdict.reason.startswith("authentication:")
