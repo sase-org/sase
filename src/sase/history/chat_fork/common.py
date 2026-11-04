@@ -34,6 +34,51 @@ def fork_source_failure(source: Mapping[str, object]) -> Mapping[str, object] | 
     return value
 
 
+def fork_source_hijack_status(source: Mapping[str, object]) -> str | None:
+    """Classify a hijacked agent from its durable done marker through Rust."""
+    if source.get("kind", "agent") != "agent":
+        return None
+    done: Mapping[str, object] = {}
+    artifact_dir = fork_source_optional_string(source, "artifact_dir")
+    if artifact_dir:
+        done = load_json_object(Path(artifact_dir).expanduser() / "done.json")
+    if not done:
+        transcript = fork_source_optional_string(source, "path")
+        if transcript:
+            done = load_json_object(Path(transcript).expanduser().parent / "done.json")
+
+    failure = fork_source_failure(source)
+    outcome = source.get("outcome")
+    if not isinstance(outcome, str) or not outcome:
+        outcome = failure.get("outcome") if failure is not None else None
+    if not isinstance(outcome, str) or not outcome:
+        outcome = done.get("outcome")
+    recovery = source.get("recovery")
+    if not isinstance(recovery, Mapping):
+        recovery = done.get("recovery")
+    if not isinstance(recovery, Mapping):
+        recovery = None
+    if not isinstance(outcome, str) or not outcome:
+        return None
+
+    from sase.agent.hijack.core import agent_hijack_status_for_done_marker
+
+    return agent_hijack_status_for_done_marker(outcome, recovery)
+
+
+def fork_source_has_hijack(source: Mapping[str, object]) -> bool:
+    """Return whether an agent source or one of its session members was hijacked."""
+    if fork_source_hijack_status(source) is not None:
+        return True
+    if source.get("kind") not in ("session", LEGACY_FORK_SOURCE_KIND):
+        return False
+    members = source.get("members")
+    return isinstance(members, list) and any(
+        isinstance(member, Mapping) and fork_source_hijack_status(member) is not None
+        for member in members
+    )
+
+
 #: Terminal gate states that read as a failure, mirroring
 #: ``sase.gate_turn.state.TERMINAL_GATE_STATES``'s failing members. Kept as a
 #: local literal so this generic history module never imports the domain

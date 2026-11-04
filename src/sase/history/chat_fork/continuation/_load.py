@@ -14,6 +14,7 @@ from sase.core.continuation_wire import (
 from ..common import (
     fork_source_optional_string,
     fork_source_string,
+    fork_source_hijack_status,
     json_string,
     load_json_object,
 )
@@ -309,6 +310,16 @@ def _load_agent_delta_node(
     payload: dict[str, Any] = dict(delta)
     payload["artifact_dir"] = str(artifact_dir)
     payload["node_id"] = node.get("node_id")
+    owner = node.get("owner")
+    if isinstance(owner, Mapping):
+        agent_name = owner.get("agent_name")
+        if isinstance(agent_name, str) and agent_name:
+            payload["agent_name"] = agent_name
+    hijack_status = fork_source_hijack_status(
+        {"kind": "agent", "artifact_dir": str(artifact_dir)}
+    )
+    if hijack_status is not None:
+        payload["hijack_status"] = hijack_status
     final_response_ref = json_string(delta, "final_response_ref")
     if final_response_ref:
         payload["final_response_text"] = _read_text_ref(

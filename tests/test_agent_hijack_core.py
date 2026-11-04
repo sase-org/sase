@@ -7,11 +7,11 @@ from typing import Any
 import pytest
 
 from sase.agent.hijack.core import (
+    assemble_hijack_recovery_preview,
     advance_agent_hijack_record,
     agent_hijack_eligibility,
     agent_hijack_status_for_done_marker,
     agent_hijack_wire_schema_version,
-    hijack_recovery_preview,
     hijack_recovery_preview_wire_schema_version,
     hijack_recovery_reconcile,
     hijack_recovery_reconcile_wire_schema_version,
@@ -126,7 +126,7 @@ def test_recovery_preview_and_reconcile_wrappers_call_bindings(
     facts = {"schema_version": 1, "successor": {"kind": "absent"}}
     record = {"schema_version": 1, "state": "resolving"}
     assert hijack_recovery_preview_wire_schema_version() == 1
-    assert hijack_recovery_preview(request)["default_action"] == "escalate"
+    assert assemble_hijack_recovery_preview(request)["default_action"] == "escalate"
     assert hijack_recovery_reconcile_wire_schema_version() == 1
     assert hijack_recovery_reconcile(record, facts)["outcome"] == "keep_resolving"
     assert ("preview", request) in calls

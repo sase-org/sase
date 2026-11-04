@@ -24,6 +24,7 @@ def _write_agent_node(
     prompt: str,
     response: str | None,
     checkpoint: Mapping[str, Any] | None = None,
+    status: str = "completed",
 ) -> None:
     root = artifacts_dir / "continuation"
     artifacts_dir.mkdir(parents=True, exist_ok=True)
@@ -37,7 +38,7 @@ def _write_agent_node(
         "authored_local_request": prompt,
         "materialized_local_prompt_segments": [],
         "source_refs": [],
-        "status": "completed",
+        "status": status,
     }
     if final_response_ref:
         delta["final_response_ref"] = final_response_ref
@@ -276,6 +277,35 @@ def test_versioned_agent_session_replay_deduplicates_shared_parent(
     assert rendered.count("CHILD_REPLY") == 1
     assert "Continuation Block `block:v1:" in rendered
     assert "Member 1 of 2" not in rendered
+
+
+def test_versioned_hijacked_agent_delta_gets_hijack_frame(tmp_path: Path) -> None:
+    artifacts = tmp_path / "artifacts" / "20260911010101"
+    _write_agent_node(
+        artifacts,
+        name="worker",
+        node_id="agent-delta-hijacked",
+        prompt="Continue the task.",
+        response=None,
+        status="interrupted",
+    )
+    _write_json(
+        artifacts / "done.json",
+        {
+            "outcome": "hijacked",
+            "recovery": {"kind": "hijack", "state": "pending"},
+        },
+    )
+    source = _agent_member(tmp_path, "20260911010101", "worker")
+    source["outcome"] = "hijacked"
+
+    rendered = build_fork_injected_history([source])
+
+    assert "# Previous Continuation" in rendered
+    assert "### Hijack Frame" in rendered
+    assert "user stopped this unfinished agent `worker`" in rendered
+    assert "it did not finish" in rendered
+    assert "(FAILED)" not in rendered
 
 
 def test_versioned_replay_keeps_hundred_turn_chain_linear(tmp_path: Path) -> None:

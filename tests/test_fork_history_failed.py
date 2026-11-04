@@ -43,6 +43,30 @@ def test_single_failed_agent_source_marks_failure_and_keeps_transcript(
     ) in rendered
 
 
+def test_single_hijacked_agent_is_framed_as_unfinished_not_failed(
+    tmp_path: Path,
+) -> None:
+    chat = tmp_path / "hijacked.md"
+    write_chat(chat, "Fix the parser", "Partial response")
+
+    rendered = build_fork_injected_history(
+        [
+            {
+                "kind": "agent",
+                "name": "alpha",
+                "path": str(chat),
+                "outcome": "hijacked",
+            }
+        ]
+    )
+
+    assert "PARENT AGENT HIJACKED" in rendered
+    assert "user stopped this unfinished agent `alpha`" in rendered
+    assert "it did not finish" in rendered
+    assert "Partial response" in rendered
+    assert "(FAILED)" not in rendered
+
+
 def test_failed_traceback_renders_tail_and_truncation_marker(tmp_path: Path) -> None:
     chat = tmp_path / "failed.md"
     write_chat(chat, "Run tests", "")
@@ -145,3 +169,30 @@ def test_multi_agent_failed_parent_marks_only_that_section(
     assert "One or more parent sections are marked FAILED" in rendered
     assert "ValueError: bad" in rendered
     assert "Good reply" in rendered
+
+
+def test_multi_agent_hijack_is_marked_only_on_its_own_section(
+    tmp_path: Path,
+) -> None:
+    good_chat = tmp_path / "good.md"
+    hijacked_chat = tmp_path / "hijacked.md"
+    write_chat(good_chat, "Good prompt", "Good reply")
+    write_chat(hijacked_chat, "Stalled prompt", "Partial reply")
+
+    rendered = build_fork_injected_history(
+        [
+            {"kind": "agent", "name": "good", "path": str(good_chat)},
+            {
+                "kind": "agent",
+                "name": "stalled",
+                "path": str(hijacked_chat),
+                "outcome": "hijacked",
+            },
+        ]
+    )
+
+    assert "Conversation 1 of 2 — agent `good` (HIJACKED)" not in rendered
+    assert "Conversation 2 of 2 — agent `stalled` (HIJACKED)" in rendered
+    assert "Hijacked parent transcripts are unfinished" in rendered
+    assert "Good reply" in rendered
+    assert "Partial reply" in rendered

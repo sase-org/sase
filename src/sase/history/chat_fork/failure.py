@@ -1,10 +1,12 @@
 """Formatting for a fork source whose parent agent failed before finishing."""
 
 from collections.abc import Mapping
+from pathlib import Path
 
 from .common import (
     LoadChatForResume,
     blockquote,
+    fork_source_failure,
     fork_source_optional_string,
     fork_source_string,
     format_text_fence,
@@ -18,6 +20,92 @@ FAILED_PARENT_GUIDANCE = (
     "incomplete and their work is unverified — check the marked sections before "
     "relying on anything they claim."
 )
+HIJACKED_PARENT_GUIDANCE = (
+    "Hijacked parent transcripts are unfinished: the user stopped those agents "
+    "because they were not making progress, so their work is unverified."
+)
+
+
+def format_hijacked_agent_frame(name: str | None = None) -> str:
+    """Return the shared warning that a hijacked transcript is unfinished."""
+    agent = f" {markdown_code_span(name)}" if name else ""
+    return (
+        f"**The user stopped this unfinished agent{agent} because it was not "
+        "making progress; it did not finish.** Its transcript is incomplete, and "
+        "its work is unverified. Treat it as evidence, not as a completed result."
+    )
+
+
+def format_hijacked_agent_section(
+    source: Mapping[str, object],
+    name: str,
+    *,
+    heading: str,
+    load_resume_history: LoadChatForResume,
+) -> str:
+    """Render a hijacked parent section without labeling it as a failure."""
+    return f"{heading} (HIJACKED)\n\n" + format_hijacked_agent_body(
+        source,
+        name,
+        load_resume_history=load_resume_history,
+    )
+
+
+def format_hijacked_agent_body(
+    source: Mapping[str, object],
+    name: str,
+    *,
+    load_resume_history: LoadChatForResume,
+) -> str:
+    """Render a hijack notice and the available transcript or launch prompt."""
+    rows = [
+        format_hijacked_agent_frame(name),
+        "",
+        f"### Transcript — agent `{name}`",
+        "",
+    ]
+    path = fork_source_optional_string(source, "path")
+    if path:
+        try:
+            history = load_resume_history(path)
+        except (OSError, ValueError):
+            history = ""
+        if history:
+            return (
+                "\n".join(rows)
+                + history
+                + "\n\n"
+                + (
+                    f"**End of transcript — agent `{name}` was stopped before it finished.**"
+                )
+            )
+
+    rows.append("_No readable transcript was saved for this agent._")
+    launch_prompt = _hijacked_launch_prompt(source, path)
+    if launch_prompt:
+        rows.extend(["", "**Its launch prompt was:**", "", blockquote(launch_prompt)])
+    return "\n".join(rows)
+
+
+def _hijacked_launch_prompt(
+    source: Mapping[str, object], transcript_path: str | None
+) -> str | None:
+    failure = fork_source_failure(source)
+    prompt = _failure_string(failure, "launch_prompt") if failure is not None else None
+    if prompt:
+        return prompt
+    artifact_dir = fork_source_optional_string(source, "artifact_dir")
+    candidates = [Path(artifact_dir) / "raw_prompt.md"] if artifact_dir else []
+    if transcript_path:
+        candidates.append(Path(transcript_path).expanduser().parent / "raw_prompt.md")
+    for candidate in candidates:
+        try:
+            text = candidate.read_text(encoding="utf-8")
+        except OSError:
+            continue
+        if text:
+            return text
+    return None
 
 
 def format_failed_agent_section(

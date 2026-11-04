@@ -116,14 +116,29 @@ def _render_agent_delta(payload: Mapping[str, Any]) -> list[str]:
     authored = sanitize_span_text(
         str(payload.get("authored_local_request") or "").strip()
     )
-    lines = [
-        "### User",
-        "",
-        "**Protected user instruction.** Carry this request unless an explicit "
-        "attributed update supersedes it.",
-        "",
-        authored,
-    ]
+    lines: list[str] = []
+    if payload.get("hijack_status") is not None:
+        from ..failure import format_hijacked_agent_frame
+
+        name = payload.get("agent_name")
+        lines.extend(
+            [
+                "### Hijack Frame",
+                "",
+                format_hijacked_agent_frame(name if isinstance(name, str) else None),
+                "",
+            ]
+        )
+    lines.extend(
+        [
+            "### User",
+            "",
+            "**Protected user instruction.** Carry this request unless an explicit "
+            "attributed update supersedes it.",
+            "",
+            authored,
+        ]
+    )
     lines.extend(_render_materialized_segments(payload.get("materialized_segments")))
     checkpoint_body = payload.get("checkpoint_body")
     checkpoint_covers_assistant = isinstance(checkpoint_body, Mapping) and bool(

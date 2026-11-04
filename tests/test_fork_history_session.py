@@ -115,6 +115,42 @@ def test_legacy_family_kind_fork_source_renders_as_agent_session(
     assert "agent session `cx`" in rendered_legacy
 
 
+def test_hijacked_agent_session_member_gets_unfinished_frame(
+    tmp_path: Path,
+) -> None:
+    chat = tmp_path / "hijacked.md"
+    chat.write_text(
+        "## Prompt\n\nContinue the feature\n\n## Response\n\nPARTIAL_SESSION_REPLY\n",
+        encoding="utf-8",
+    )
+    artifact_dir = write_member_artifacts(
+        tmp_path / "artifacts", "20260718010101", model="gpt-5", provider="openai"
+    )
+    rendered = build_fork_injected_history(
+        [
+            {
+                "kind": "session",
+                "name": "cx",
+                "members": [
+                    {
+                        "kind": "agent",
+                        "name": "cx--work",
+                        "path": str(chat),
+                        "artifact_dir": str(artifact_dir),
+                        "outcome": "hijacked",
+                    }
+                ],
+                "excluded": [],
+            }
+        ]
+    )
+
+    assert "Member 1 of 1 — agent `cx--work` (HIJACKED)" in rendered
+    assert "user stopped this unfinished agent `cx--work`" in rendered
+    assert "PARTIAL_SESSION_REPLY" in rendered
+    assert "(FAILED)" not in rendered
+
+
 def test_agent_session_mixed_with_agent_and_clan_uses_correct_source_guidance(
     tmp_path: Path,
 ) -> None:

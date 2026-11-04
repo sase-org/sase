@@ -32,6 +32,14 @@ from .ledger import (
     mark_stopping_if_requested,
     new_requested_record,
 )
+from .preview import (
+    HijackContinuationPrompt,
+    HijackRecoveryRefusal,
+    RecoveryAction,
+    RecoveryPreview,
+    build_hijack_continuation_prompt,
+    hijack_recovery_preview,
+)
 
 HIJACK_RUNNER_CAPABILITY = "hijack"
 
@@ -39,14 +47,20 @@ __all__ = [
     "ACTIVE_CUSTODY_STATES",
     "HIJACK_RUNNER_CAPABILITY",
     "HijackLedgerConflict",
+    "HijackContinuationPrompt",
+    "HijackRecoveryRefusal",
+    "RecoveryAction",
+    "RecoveryPreview",
     "advance_agent_hijack_record",
     "agent_hijack_eligibility",
     "agent_hijack_status_for_done_marker",
     "agent_hijack_wire_schema_version",
     "cas_advance_record",
+    "build_hijack_continuation_prompt",
     "create_record",
     "hijack_retains_claim",
     "hijack_skips_claim_release",
+    "hijack_recovery_preview",
     "list_active_records",
     "load_record",
     "load_record_by_agent_name",

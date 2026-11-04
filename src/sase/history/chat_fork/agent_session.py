@@ -9,13 +9,14 @@ from .common import (
     GATE_FAILURE_OUTCOMES,
     LoadChatForResume,
     fork_source_failure,
+    fork_source_hijack_status,
     fork_source_optional_string,
     fork_source_string,
     json_string,
     load_json_object,
     require_proc_info,
 )
-from .failure import format_failed_agent_body
+from .failure import format_failed_agent_body, format_hijacked_agent_body
 from .proc import format_proc_body
 
 
@@ -133,6 +134,18 @@ def _format_agent_session_member(
             count=count,
             visited=visited,
             load_resume_history=load_resume_history,
+        )
+
+    if fork_source_hijack_status(member) is not None:
+        heading = f"### Member {index} of {count} — agent `{name}` (HIJACKED)"
+        return (
+            heading
+            + "\n\n"
+            + format_hijacked_agent_body(
+                member,
+                name,
+                load_resume_history=load_resume_history,
+            )
         )
 
     failure = fork_source_failure(member)

@@ -13,7 +13,9 @@ from .common import (
     LoadChatForResume,
     fork_source_failure,
     fork_source_has_failure,
+    fork_source_has_hijack,
     fork_source_has_proc_content,
+    fork_source_hijack_status,
     fork_source_kind,
     fork_source_string,
     require_proc_info,
@@ -21,8 +23,11 @@ from .common import (
 from .continuation import replay_versioned_continuation_history
 from .failure import (
     FAILED_PARENT_GUIDANCE,
+    HIJACKED_PARENT_GUIDANCE,
     format_failed_agent_body,
     format_failed_agent_section,
+    format_hijacked_agent_body,
+    format_hijacked_agent_section,
 )
 from .agent_session import format_agent_session_fork_source
 from .proc import PROC_UNTRUSTED_GUIDANCE, format_proc_body, format_proc_source
@@ -34,6 +39,7 @@ def build_fork_injected_history(
     load_resume_history: LoadChatForResume = load_chat_for_resume,
     resolve_resume_to_chat_path: ResolveResumeReference = resolve_resume_to_chat_path,
     automatic: bool = False,
+    record_shadow_measurement: bool = True,
 ) -> str:
     """Build the context block injected by the ``#fork`` workflow."""
     rendered: str
@@ -45,10 +51,23 @@ def build_fork_injected_history(
         if automatic:
             versioned.raise_for_automatic_launch()
         rendered = _wrap_fork_history("# Previous Continuation", versioned.rendered)
-        _record_fork_shadow_measurement(sources, rendered)
+        if record_shadow_measurement:
+            _record_fork_shadow_measurement(sources, rendered)
         return rendered
 
     if len(sources) == 1 and fork_source_kind(sources[0]) == "agent":
+        hijack_status = fork_source_hijack_status(sources[0])
+        if hijack_status is not None:
+            name = fork_source_string(sources[0], "name")
+            rendered = _wrap_fork_history(
+                "# Previous Conversation — PARENT AGENT HIJACKED",
+                format_hijacked_agent_body(
+                    sources[0], name, load_resume_history=load_resume_history
+                ),
+            )
+            if record_shadow_measurement:
+                _record_fork_shadow_measurement(sources, rendered)
+            return rendered
         failure = fork_source_failure(sources[0])
         if failure is not None:
             name = fork_source_string(sources[0], "name")
@@ -62,11 +81,13 @@ def build_fork_injected_history(
                     heading_level=2,
                 ),
             )
-            _record_fork_shadow_measurement(sources, rendered)
+            if record_shadow_measurement:
+                _record_fork_shadow_measurement(sources, rendered)
             return rendered
         history = load_resume_history(fork_source_string(sources[0], "path"))
         rendered = _wrap_fork_history("# Previous Conversation", history)
-        _record_fork_shadow_measurement(sources, rendered)
+        if record_shadow_measurement:
+            _record_fork_shadow_measurement(sources, rendered)
         return rendered
 
     if len(sources) == 1 and fork_source_kind(sources[0]) == "proc":
@@ -76,15 +97,30 @@ def build_fork_injected_history(
             "# Previous Proc Execution",
             format_proc_body(proc, name=name, heading_level=2),
         )
-        _record_fork_shadow_measurement(sources, rendered)
+        if record_shadow_measurement:
+            _record_fork_shadow_measurement(sources, rendered)
         return rendered
 
     if all(fork_source_kind(source) == "agent" for source in sources):
         count = len(sources)
         any_failed = any(fork_source_failure(source) is not None for source in sources)
+        any_hijacked = any(
+            fork_source_hijack_status(source) is not None for source in sources
+        )
         sections = []
         for index, source in enumerate(sources, start=1):
             name = fork_source_string(source, "name")
+            if fork_source_hijack_status(source) is not None:
+                heading = f"## Conversation {index} of {count} — agent `{name}`"
+                sections.append(
+                    format_hijacked_agent_section(
+                        source,
+                        name,
+                        heading=heading,
+                        load_resume_history=load_resume_history,
+                    )
+                )
+                continue
             failure = fork_source_failure(source)
             heading = f"## Conversation {index} of {count} — agent `{name}`"
             if failure is not None:
@@ -112,10 +148,13 @@ def build_fork_injected_history(
         )
         if any_failed:
             guidance += " " + FAILED_PARENT_GUIDANCE
+        if any_hijacked:
+            guidance += " " + HIJACKED_PARENT_GUIDANCE
         rendered = _wrap_fork_history(
             "# Previous Conversations", guidance + "\n\n" + "\n\n".join(sections)
         )
-        _record_fork_shadow_measurement(sources, rendered)
+        if record_shadow_measurement:
+            _record_fork_shadow_measurement(sources, rendered)
         return rendered
 
     count = len(sources)
@@ -148,11 +187,14 @@ def build_fork_injected_history(
     )
     if any(fork_source_has_failure(source) for source in sources):
         guidance_parts.append(FAILED_PARENT_GUIDANCE)
+    if any(fork_source_has_hijack(source) for source in sources):
+        guidance_parts.append(HIJACKED_PARENT_GUIDANCE)
     guidance = " ".join(guidance_parts)
     rendered = _wrap_fork_history(
         "# Previous Conversations", guidance + "\n\n" + "\n\n".join(sections)
     )
-    _record_fork_shadow_measurement(sources, rendered)
+    if record_shadow_measurement:
+        _record_fork_shadow_measurement(sources, rendered)
     return rendered
 
 
@@ -191,8 +233,15 @@ def _format_fork_source(
     kind = fork_source_kind(source)
     name = fork_source_string(source, "name")
     if kind == "agent":
-        failure = fork_source_failure(source)
         heading = f"## Source {index} of {count} — agent `{name}`"
+        if fork_source_hijack_status(source) is not None:
+            return format_hijacked_agent_section(
+                source,
+                name,
+                heading=heading,
+                load_resume_history=load_resume_history,
+            )
+        failure = fork_source_failure(source)
         if failure is not None:
             return format_failed_agent_section(
                 source,

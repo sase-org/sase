@@ -109,7 +109,7 @@ def hijack_recovery_preview_wire_schema_version() -> int:
     return int(binding())
 
 
-def hijack_recovery_preview(request: Mapping[str, Any]) -> dict[str, Any]:
+def assemble_hijack_recovery_preview(request: Mapping[str, Any]) -> dict[str, Any]:
     """Assemble a side-effect-free keep-work recovery preview.
 
     *request* mirrors ``AgentHijackRecoveryPreviewRequestWire``: ledger
@@ -154,7 +154,7 @@ __all__ = [
     "escalation_wire_schema_version",
     "hijack_continuation_prompt",
     "hijack_escalation_target",
-    "hijack_recovery_preview",
+    "assemble_hijack_recovery_preview",
     "hijack_recovery_preview_wire_schema_version",
     "hijack_recovery_reconcile",
     "hijack_recovery_reconcile_wire_schema_version",
