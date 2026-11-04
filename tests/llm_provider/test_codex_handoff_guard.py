@@ -186,6 +186,54 @@ def test_codex_completed_staging_command_needs_no_continuation() -> None:
     assert result.content == "Staged; declaration submitted."
 
 
+def test_codex_retried_monitor_spawn_failure_needs_no_continuation(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """A successful in-turn retry must not trigger stranded-handoff recovery."""
+    monkeypatch.setenv("SASE_ARTIFACTS_DIR", str(tmp_path))
+    command = "sase monitor start --profile verify -- just check"
+    events: list[dict[str, object]] = []
+    for command_id, exit_code in [("failed_spawn", -1), ("retry", 0)]:
+        item = {"id": command_id, "type": "command_execution", "command": command}
+        events.extend(
+            [
+                {"type": "item.started", "item": {**item, "status": "in_progress"}},
+                {
+                    "type": "item.completed",
+                    "item": {
+                        **item,
+                        "exit_code": exit_code,
+                        "status": "failed" if exit_code == -1 else "completed",
+                    },
+                },
+            ]
+        )
+    events.extend(
+        [
+            {
+                "type": "item.completed",
+                "item": {"type": "agent_message", "text": "Verification staged."},
+            },
+            {"type": "turn.completed"},
+        ]
+    )
+    parsed = stream_and_parse_codex_json_output(
+        _start_fixture_codex_process(events), suppress_output=True
+    )
+    assert parsed.integrity_error is None
+    assert parsed.stranded_commands == ()
+
+    provider = CodexProvider()
+    with patch.object(provider, "_run_subprocess", return_value=parsed) as run:
+        result = provider.invoke(
+            "Verify the changes.", model_tier="large", suppress_output=True
+        )
+
+    run.assert_called_once()
+    assert result.content == "Verification staged."
+    assert not (tmp_path / "wait_guard_log.jsonl").exists()
+
+
 @pytest.mark.parametrize("budget", [0, 2])
 def test_codex_handoff_guard_exhaustion_names_command_and_artifacts(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path, budget: int

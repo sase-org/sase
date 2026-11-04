@@ -55,8 +55,17 @@ class CodexStreamResult:
 
 @dataclass
 class _CodexTurnIntegrityState:
+    """Recognize final answers and commands stranded when a turn completes.
+
+    A completed phaseless exec message is a final-answer candidate until new work
+    starts; completions of already-running commands leave it intact. Failed -1
+    results are provisional teardown kills until a new item starts or an agent
+    message completes, proving that the turn continued past those failures.
+    """
+
     saw_task_complete: bool = False
     has_nonempty_final_answer: bool = False
+    has_final_answer_candidate: bool = False
     pending_commands: dict[str, str | None] = field(default_factory=dict)
     killed_commands: dict[str, str | None] = field(default_factory=dict)
     thread_id: str | None = None
@@ -70,7 +79,9 @@ class _CodexTurnIntegrityState:
 
         if event_type in {"turn.completed", "turn_completed", "task_complete"}:
             self.saw_task_complete = True
-            if _has_nonempty_message(payload.get("last_agent_message")):
+            if self.has_final_answer_candidate or _has_nonempty_message(
+                payload.get("last_agent_message")
+            ):
                 self.has_nonempty_final_answer = True
 
         if event_type not in {
@@ -81,23 +92,40 @@ class _CodexTurnIntegrityState:
         }:
             return
 
+        is_started = event_type in {"item.started", "item_started"}
+        if is_started:
+            self.killed_commands.clear()
+            if not self.saw_task_complete:
+                self.has_final_answer_candidate = False
+
         item = payload.get("item")
         if not isinstance(item, Mapping):
             return
 
         item_type = _normalized_item_type(item.get("type"))
         if item_type == "agentmessage":
+            if not is_started:
+                self.killed_commands.clear()
             if _is_final_answer_message(payload, item) and _has_nonempty_message(
                 item.get("text")
             ):
                 self.has_nonempty_final_answer = True
+            elif (
+                not is_started
+                and "phase" not in item
+                and "phase" not in payload
+                and _has_nonempty_message(item.get("text"))
+            ):
+                self.has_final_answer_candidate = True
+                if self.saw_task_complete:
+                    self.has_nonempty_final_answer = True
             return
         if item_type != "commandexecution":
             return
 
         command_id = _command_item_id(item)
         command = _command_item_text(item)
-        if event_type in {"item.started", "item_started"}:
+        if is_started:
             self.pending_commands[command_id] = command
             return
 

@@ -8,6 +8,9 @@ artifact tests.
   `codex exec --model gpt-5.6-sol --dangerously-bypass-approvals-and-sandbox --json --color never --skip-git-repo-check -`.
 - `codex-cli-0.130.0-error.jsonl` was captured locally from `codex-cli 0.130.0` on
   2026-05-14 by invoking an unsupported model.
+- `codex-cli-0.166.0-midturn-spawn-failure.jsonl` is a hand-distilled reproduction of a
+  mid-turn spawn failure followed by successful work and a final answer in the
+  `codex exec --json` format. It contains no copied transcript content.
 - `synthesized-unknown-item.jsonl` is synthetic and exists to pin current parser
   behavior for an unknown item shape until a real MCP or provider-specific Codex event
   is available.

@@ -144,6 +144,17 @@ patterns (see
 so the turn is retried with the resume nudge instead of being recorded as an empty
 success.
 
+A final answer is recognized from Codex's explicit final-answer phase or a non-empty
+`last_agent_message` on task completion. On `codex exec --json` streams, a completed
+agent message with non-empty text and no phase also counts if no new item starts before
+turn completion. Completions of commands already in flight do not invalidate that
+message. An explicit commentary phase never counts as a final answer.
+
+A failed command with `exit_code` `-1` counts as killed at teardown only if no later
+item starts or agent message completes. Those later events show that the turn continued
+past the failure, so it is excluded from both the integrity check and stranded-handoff
+recovery. Commands that started without a result remain stranded.
+
 ### Timer Display {#timer-display-2}
 
 While waiting for a response, a `provider_timer("Waiting for Codex")` spinner is shown
