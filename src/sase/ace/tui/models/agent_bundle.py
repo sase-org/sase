@@ -51,6 +51,9 @@ _RUNTIME_ONLY_BUNDLE_FIELDS = (
             "derived_plan_agent_session_root",
             "retry_chain_siblings",
             "attempt_history",
+            # Warm presentation state; meta enrichment reloads it from the
+            # authoritative on-disk retention record, which cleanup resolves.
+            "workspace_retention",
             "diff_has_real_edits",
             "live_file_change_hint",
             "linked_file_change_hint",

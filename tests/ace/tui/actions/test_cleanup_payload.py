@@ -21,7 +21,9 @@ from sase.ace.tui.actions.cleanup_payload import (
 from sase.core.wait_epic_follow_view import EpicFollowView
 from sase.ace.tui.models._agent_clan_waves import ClanWaveSlot, ClanWaveSummary
 from sase.ace.tui.models.agent import Agent, AgentType, LinkedRepoMetadata
+from sase.ace.tui.models.agent_workspace_retention import AgentWorkspaceRetention
 from sase.ops.commands.agent import _apply_cleanup_payload_for_result
+from sase.workspace_provider.retention_record import WorkspaceRetentionRecord
 
 
 _REVIVAL_FIELDS = (
@@ -126,6 +128,41 @@ def test_cleanup_archive_omits_runtime_clan_wave_projection() -> None:
     assert "clan_waves" not in payload
     assert "clan_wave_slot" not in payload
     json.dumps(payload)
+
+
+def test_cleanup_archive_omits_workspace_retention() -> None:
+    agent = _local_agent(artifacts_dir=None)
+    agent.workspace_retention = AgentWorkspaceRetention(
+        record=WorkspaceRetentionRecord(
+            path="/tmp/diagnostics/workspace_retention.json",
+            payload={"kind": "terminal_workspace_retention", "disposition": "retain"},
+        ),
+        held_claim_ttl_days=7,
+    )
+
+    payload = serialize_agent(agent)
+
+    assert "workspace_retention" not in payload
+    json.dumps(payload, allow_nan=False)
+
+
+def test_cleanup_dismiss_payload_encodes_with_retained_bystander() -> None:
+    plain = _local_agent(artifacts_dir=None, cl_name="plain_feature")
+    retained_bystander = _local_agent(artifacts_dir=None, cl_name="retained_feature")
+    retained_bystander.workspace_retention = AgentWorkspaceRetention(
+        record=WorkspaceRetentionRecord(
+            path="/tmp/diagnostics/workspace_retention.json",
+            payload={"kind": "terminal_workspace_retention", "disposition": "retain"},
+        ),
+        held_claim_ttl_days=7,
+    )
+    payload = {
+        "action": "dismiss",
+        "agents": serialize_agents([plain]),
+        "agents_with_children": serialize_agents([plain, retained_bystander]),
+    }
+
+    assert json.loads(json.dumps(payload, allow_nan=False))["action"] == "dismiss"
 
 
 def test_cleanup_archive_round_trip_preserves_durable_record() -> None:

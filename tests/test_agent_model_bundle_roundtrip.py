@@ -244,6 +244,22 @@ def test_bundle_skips_wait_display_source() -> None:
     assert restored.wait_display_source is None
 
 
+def test_bundle_skips_workspace_retention() -> None:
+    agent = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="retained",
+        project_file="/tmp/test.sase",
+        status="DONE",
+        start_time=datetime(2025, 6, 15, 10, 0, 0),
+    )
+    bundle = agent.to_bundle_dict()
+
+    assert "workspace_retention" not in bundle
+    json.dumps(bundle, allow_nan=False)
+    restored = Agent.from_bundle_dict({**bundle, "workspace_retention": {"path": "x"}})
+    assert restored.workspace_retention is None
+
+
 def test_bundle_dict_is_json_serializable_for_populated_agent() -> None:
     """Guard against future bundle fields leaking non-JSON-native values."""
     feedback_time = datetime(2025, 6, 15, 10, 6, 0)

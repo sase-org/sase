@@ -30,6 +30,7 @@ from tests.test_agent_model_bundle_roundtrip import (
     test_bundle_serialization_keeps_agent_state_without_artifact_text,
     test_bundle_skips_retry_chain_siblings,
     test_bundle_skips_wait_display_source,
+    test_bundle_skips_workspace_retention,
 )
 from tests.test_agent_model_bundle_times import (
     test_bundle_backward_compat_feedback_time_to_feedback_times,
@@ -74,6 +75,7 @@ __all__ = [
     "test_bundle_serialization_keeps_agent_state_without_artifact_text",
     "test_bundle_skips_retry_chain_siblings",
     "test_bundle_skips_wait_display_source",
+    "test_bundle_skips_workspace_retention",
     "test_bundle_write_emits_no_legacy_fields",
     "test_old_bundle_synthesis_falls_back_to_raw_suffix_date",
     "test_old_bundle_synthesis_skips_already_prefixed_name",
