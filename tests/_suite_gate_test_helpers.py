@@ -26,6 +26,8 @@ def make_lease(
     max_hold: float = 0.0,
     watchdog_interval: float = 0.0,
     now: Callable[[], float] | None = None,
+    monotonic: Callable[[], float] | None = None,
+    sleep: Callable[[float], None] | None = None,
 ) -> WorkerTokenLease:
     """Return a fast-polling lease against ``directory``'s token pool."""
     return WorkerTokenLease(
@@ -39,4 +41,6 @@ def make_lease(
         max_hold=max_hold,
         watchdog_interval=watchdog_interval,
         now=now,
+        monotonic=monotonic,
+        sleep=sleep,
     )

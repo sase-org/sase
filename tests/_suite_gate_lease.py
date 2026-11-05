@@ -20,6 +20,7 @@ from typing import IO
 
 import pytest
 
+from sase.core.process_identity import process_identity_token
 from tests._suite_gate_budget import fit_request_to_budget
 from tests._suite_gate_env import (
     DISABLED_ENV,
@@ -49,6 +50,13 @@ from tests._suite_gate_pool import (
     write_pool_capacity,
 )
 from tests._suite_gate_progress import read_progress_sidecar, remove_progress_sidecar
+from tests._suite_gate_waiters import (
+    bounded_grant_limit,
+    find_waiter,
+    read_waiter_state,
+    remove_dead_waiters,
+    write_waiter_state,
+)
 
 
 _POLL_INTERVAL_SECONDS = 2.0
@@ -85,6 +93,8 @@ class WorkerTokenLease:
         max_hold: float | None = None,
         watchdog_interval: float | None = None,
         now: Callable[[], float] | None = None,
+        monotonic: Callable[[], float] | None = None,
+        sleep: Callable[[float], None] | None = None,
     ) -> None:
         if budget < 1:
             raise ValueError("budget must be positive")
@@ -98,6 +108,8 @@ class WorkerTokenLease:
         self._max_hold = max_hold
         self._watchdog_interval = watchdog_interval
         self._now = now or time.time
+        self._monotonic = monotonic or time.monotonic
+        self._sleep = sleep or time.sleep
         self._token_files: list[IO[str]] = []
         self._previous_environment: dict[str, str | None] = {}
         self._effective_budget: int | None = None
@@ -107,6 +119,7 @@ class WorkerTokenLease:
         self._watchdog_stop = threading.Event()
         self._watchdog_started = False
         self._signaled_leases: dict[str, int] = {}
+        self._waiter_ticket: int | None = None
 
     @property
     def granted(self) -> int:
@@ -121,46 +134,50 @@ class WorkerTokenLease:
     def acquire(self, floor: int, ceiling: int, *, exact: bool = False) -> int:
         """Atomically reach ``floor``, then greedily grow through ``ceiling``."""
         self._prepare_request(floor, ceiling)
-        deadline = time.monotonic() + self._timeout
-        next_status = time.monotonic() + self._status_interval
+        deadline = self._monotonic() + self._timeout
+        next_status = self._monotonic() + self._status_interval
 
-        while True:
-            granted, last_available, last_holders = self._attempt(
-                floor, ceiling, exact=exact
-            )
-            if granted:
-                return granted
-
-            now = time.monotonic()
-            if now >= next_status:
-                print(
-                    waiting_message(
-                        floor,
-                        ceiling,
-                        last_available,
-                        last_holders,
-                        stale=self._effective_stale_timeout(),
-                        max_hold=self._effective_max_hold(),
-                    ),
-                    file=sys.stderr,
-                    flush=True,
+        try:
+            while True:
+                granted, last_available, last_holders = self._attempt(
+                    floor, ceiling, exact=exact, queue_waiter=True
                 )
-                next_status = now + self._status_interval
+                if granted:
+                    return granted
 
-            if now >= deadline:
-                raise WorkerTokenTimeout(
-                    timeout_message(
-                        self._timeout,
-                        floor,
-                        ceiling,
-                        last_available,
-                        last_holders,
-                        stale=self._effective_stale_timeout(),
-                        max_hold=self._effective_max_hold(),
+                now = self._monotonic()
+                if now >= next_status:
+                    print(
+                        waiting_message(
+                            floor,
+                            ceiling,
+                            last_available,
+                            last_holders,
+                            stale=self._effective_stale_timeout(),
+                            max_hold=self._effective_max_hold(),
+                        ),
+                        file=sys.stderr,
+                        flush=True,
                     )
-                )
+                    next_status = now + self._status_interval
 
-            time.sleep(min(self._poll_interval, max(0.0, deadline - now)))
+                if now >= deadline:
+                    raise WorkerTokenTimeout(
+                        timeout_message(
+                            self._timeout,
+                            floor,
+                            ceiling,
+                            last_available,
+                            last_holders,
+                            stale=self._effective_stale_timeout(),
+                            max_hold=self._effective_max_hold(),
+                        )
+                    )
+
+                self._sleep(min(self._poll_interval, max(0.0, deadline - now)))
+        except BaseException:
+            self._cancel_waiter_ticket()
+            raise
 
     def try_acquire(self, floor: int, ceiling: int) -> int:
         """Ask once for ``floor``..``ceiling`` tokens; return ``0`` if refused.
@@ -171,7 +188,9 @@ class WorkerTokenLease:
         wait — asks with this instead and takes no for an answer.
         """
         self._prepare_request(floor, ceiling)
-        granted, _available, _holders = self._attempt(floor, ceiling, exact=False)
+        granted, _available, _holders = self._attempt(
+            floor, ceiling, exact=False, queue_waiter=False
+        )
         return granted
 
     def _prepare_request(self, floor: int, ceiling: int) -> None:
@@ -182,7 +201,7 @@ class WorkerTokenLease:
         self._directory.mkdir(parents=True, exist_ok=True)
 
     def _attempt(
-        self, floor: int, ceiling: int, *, exact: bool
+        self, floor: int, ceiling: int, *, exact: bool, queue_waiter: bool
     ) -> tuple[int, int, dict[Path, str]]:
         """One pool-locked grant attempt: ``(granted, available, holders)``.
 
@@ -193,7 +212,12 @@ class WorkerTokenLease:
         pool_file = (self._directory / POOL_FILE_NAME).open("a+", encoding="utf-8")
         try:
             fcntl.flock(pool_file.fileno(), fcntl.LOCK_EX)
-            effective_budget = self._synchronize_capacity(pool_file)
+            waiter_state = read_waiter_state(self._directory)
+            waiters, removed_dead_waiters = remove_dead_waiters(waiter_state["waiters"])
+            waiter_state["waiters"] = waiters
+            effective_budget = self._synchronize_capacity(
+                pool_file, has_waiters=bool(waiters)
+            )
             effective_floor, effective_ceiling = fit_request_to_budget(
                 floor,
                 ceiling,
@@ -201,10 +225,46 @@ class WorkerTokenLease:
                 exact=exact,
                 capacity_is_explicit=self._capacity_is_explicit,
             )
+            own_entry = find_waiter(waiters, self._waiter_ticket)
+            if self._waiter_ticket is not None and own_entry is None:
+                self._waiter_ticket = None
+
+            candidate_ticket = int(waiter_state["next_ticket"])
+            candidate = {
+                "ticket": candidate_ticket,
+                "floor": effective_floor,
+                "backfills": 0,
+            }
+            policy_waiters = list(waiters)
+            if own_entry is None and queue_waiter:
+                policy_waiters.append(candidate)
+                own_entry = candidate
+            elif own_entry is not None:
+                own_entry["floor"] = effective_floor
+
+            # Lock the currently free tokens as a consistent snapshot while the
+            # pool lock excludes other acquisitions. Releases may still add
+            # tokens, but no contender can spend a token before this decision.
             token_files, holders = try_acquire_tokens(
-                self._directory, effective_budget, effective_ceiling
+                self._directory, effective_budget, effective_budget
             )
-            if len(token_files) >= effective_floor:
+            available = len(token_files)
+            requester_ticket = (
+                int(own_entry["ticket"]) if own_entry is not None else candidate_ticket
+            )
+            max_grant, backfilled_tickets = bounded_grant_limit(
+                floor=effective_floor,
+                ceiling=effective_ceiling,
+                available=available,
+                waiters=policy_waiters,
+                requester_ticket=requester_ticket,
+            )
+
+            if max_grant >= effective_floor:
+                granted_files = token_files[:max_grant]
+                release_token_files(token_files[max_grant:])
+                token_files = granted_files
+                ticket_to_remove = self._waiter_ticket
                 self._token_files = token_files
                 self._effective_budget = effective_budget
                 try:
@@ -218,6 +278,26 @@ class WorkerTokenLease:
                     self._started = float(metadata["started"])
                     self._set_descendant_environment()
                     _register_lease(self)
+
+                    for entry in waiters:
+                        if int(entry["ticket"]) in backfilled_tickets:
+                            entry["backfills"] = int(entry["backfills"]) + 1
+                    if ticket_to_remove is not None:
+                        waiter_state["waiters"] = [
+                            entry
+                            for entry in waiters
+                            if int(entry["ticket"]) != ticket_to_remove
+                        ]
+                    else:
+                        waiter_state["waiters"] = waiters
+                    if (
+                        backfilled_tickets
+                        or removed_dead_waiters
+                        or ticket_to_remove is not None
+                    ):
+                        write_waiter_state(self._directory, waiter_state)
+                    if ticket_to_remove is not None:
+                        self._waiter_ticket = None
                     self.start_watchdog()
                 except BaseException:
                     self._stop_watchdog()
@@ -229,8 +309,31 @@ class WorkerTokenLease:
                     self._started = None
                     self._restore_descendant_environment()
                     raise
-                return self.granted, len(token_files), holders
+                return self.granted, available, holders
+
             release_token_files(token_files)
+            if queue_waiter and self._waiter_ticket is None:
+                identity = process_identity_token(os.getpid())
+                if not identity:
+                    if removed_dead_waiters:
+                        write_waiter_state(self._directory, waiter_state)
+                    raise pytest.UsageError(
+                        "Cannot safely queue for pytest worker tokens because this "
+                        "process identity is unavailable."
+                    )
+                waiter_state["next_ticket"] = candidate_ticket + 1
+                waiter_state["waiters"].append(
+                    {
+                        **candidate,
+                        "pid": os.getpid(),
+                        "process_identity": identity,
+                    }
+                )
+                self._waiter_ticket = candidate_ticket
+                write_waiter_state(self._directory, waiter_state)
+            elif removed_dead_waiters:
+                write_waiter_state(self._directory, waiter_state)
+
             reclaim_wedged_holders(
                 holders,
                 self._signaled_leases,
@@ -238,7 +341,7 @@ class WorkerTokenLease:
                 stale=self._effective_stale_timeout(),
                 max_hold=self._effective_max_hold(),
             )
-            return 0, len(token_files), holders
+            return 0, available, holders
         finally:
             fcntl.flock(pool_file.fileno(), fcntl.LOCK_UN)
             pool_file.close()
@@ -367,12 +470,14 @@ class WorkerTokenLease:
             return
         refresh_token_heartbeats(token_files, heartbeat, progress)
 
-    def _synchronize_capacity(self, pool_file: IO[str]) -> int:
+    def _synchronize_capacity(
+        self, pool_file: IO[str], *, has_waiters: bool = False
+    ) -> int:
         stored_capacity = read_pool_capacity(pool_file)
         scan_limit = max(self._budget, stored_capacity or 0)
         active_holders = scan_active_holders(self._directory, scan_limit)
 
-        if not active_holders:
+        if not active_holders and not has_waiters:
             write_pool_capacity(
                 pool_file, self._budget, explicit=self._capacity_is_explicit
             )
@@ -392,6 +497,25 @@ class WorkerTokenLease:
                 "use the active capacity before retrying."
             )
         return stored_capacity
+
+    def _cancel_waiter_ticket(self) -> None:
+        """Remove this live process's queue entry after timeout or cancellation."""
+        ticket = self._waiter_ticket
+        if ticket is None:
+            return
+        pool_file = (self._directory / POOL_FILE_NAME).open("a+", encoding="utf-8")
+        try:
+            fcntl.flock(pool_file.fileno(), fcntl.LOCK_EX)
+            state = read_waiter_state(self._directory)
+            waiters, removed_dead_waiters = remove_dead_waiters(state["waiters"])
+            remaining = [entry for entry in waiters if int(entry["ticket"]) != ticket]
+            if len(remaining) != len(state["waiters"]) or removed_dead_waiters:
+                state["waiters"] = remaining
+                write_waiter_state(self._directory, state)
+        finally:
+            self._waiter_ticket = None
+            fcntl.flock(pool_file.fileno(), fcntl.LOCK_UN)
+            pool_file.close()
 
     def _set_descendant_environment(self) -> None:
         """Mark descendants exempt, and say *why* they are exempt.

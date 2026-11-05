@@ -244,6 +244,47 @@ def test_waiter_is_admitted_promptly_after_release(
         thread.join(timeout=1)
 
 
+def test_fifo_ticket_reserves_floor_and_bounds_backfill(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    monkeypatch.delenv("SASE_TEST_GATE_DISABLED", raising=False)
+    clock = [0.0]
+    holder = make_lease(tmp_path, budget=6)
+    first_backfill = make_lease(tmp_path, budget=6)
+    second_backfill = make_lease(tmp_path, budget=6)
+    raced = False
+
+    def poll(seconds: float) -> None:
+        nonlocal raced
+        if not raced:
+            raced = True
+            holder.release()
+            # These later arrivals run before the older waiter's next poll.
+            # The first may use only the two tokens above A's floor; the next
+            # is refused because A's one backfill allowance has been used.
+            assert first_backfill.try_acquire(2, 2) == 2
+            assert second_backfill.try_acquire(1, 1) == 0
+        clock[0] += seconds
+
+    oldest = make_lease(
+        tmp_path,
+        budget=6,
+        timeout=5,
+        monotonic=lambda: clock[0],
+        sleep=poll,
+    )
+    holder.acquire(6, 6, exact=True)
+    try:
+        assert oldest.acquire(4, 4, exact=True) == 4
+        assert oldest.granted + first_backfill.granted == 6
+        assert second_backfill.granted == 0
+    finally:
+        holder.release()
+        oldest.release()
+        first_backfill.release()
+        second_backfill.release()
+
+
 def test_tokens_are_reacquirable_after_exec_holder_is_sigkilled(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:

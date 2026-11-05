@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import json
+import os
+import signal
 import subprocess
 import sys
 import time
@@ -9,6 +11,7 @@ from pathlib import Path
 import pytest
 
 import tests._suite_gate_holders as holder_reclaim
+import tests._suite_gate_waiters as waiter_queue
 from tests._suite_gate import record_lease_progress
 from tests._suite_gate_holders import holder_reclaim_reason
 from tests._suite_gate_test_helpers import ROOT, make_lease
@@ -156,6 +159,89 @@ def test_waiter_reclaims_stale_live_holder(
             process.wait(timeout=5)
 
     assert process.returncode != 0
+
+
+def test_dead_waiter_ticket_is_reclaimed(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    monkeypatch.delenv("SASE_TEST_GATE_DISABLED", raising=False)
+    holder = make_lease(tmp_path, budget=2)
+    holder.acquire(2, 2, exact=True)
+    script = "\n".join(
+        (
+            "import sys, time",
+            "from pathlib import Path",
+            "from tests._suite_gate_lease import WorkerTokenLease",
+            "def pause(_seconds):",
+            "    print('waiting', flush=True)",
+            "    time.sleep(60)",
+            "lease = WorkerTokenLease(Path(sys.argv[1]), 2, 5, ",
+            "capacity_is_explicit=True, poll_interval=0.01, ",
+            "watchdog_interval=0.0, sleep=pause)",
+            "lease.acquire(2, 2, exact=True)",
+        )
+    )
+    process = subprocess.Popen(
+        [sys.executable, "-c", script, str(tmp_path)],
+        cwd=ROOT,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+    try:
+        assert process.stdout is not None
+        # The child's first poll has already persisted its ticket before sleep.
+        assert process.stdout.readline().strip() == "waiting"
+        process.send_signal(signal.SIGKILL)
+        assert process.wait(timeout=5) == -signal.SIGKILL
+
+        holder.release()
+        replacement = make_lease(tmp_path, budget=2)
+        try:
+            assert replacement.acquire(1, 1, exact=True) == 1
+            state = json.loads((tmp_path / "waiters.json").read_text(encoding="utf-8"))
+            assert state["waiters"] == []
+        finally:
+            replacement.release()
+    finally:
+        holder.release()
+        if process.poll() is None:
+            process.kill()
+            process.wait(timeout=5)
+
+
+def test_waiter_ticket_uses_process_identity_to_detect_pid_reuse(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    monkeypatch.delenv("SASE_TEST_GATE_DISABLED", raising=False)
+    monkeypatch.setattr(
+        waiter_queue, "process_identity_token", lambda _pid: "boot:current"
+    )
+    (tmp_path / "waiters.json").write_text(
+        json.dumps(
+            {
+                "version": 1,
+                "next_ticket": 2,
+                "waiters": [
+                    {
+                        "ticket": 1,
+                        "pid": os.getpid(),
+                        "process_identity": "boot:previous-process",
+                        "floor": 1,
+                        "backfills": 0,
+                    }
+                ],
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    replacement = make_lease(tmp_path, budget=1)
+
+    assert replacement.try_acquire(1, 1) == 1
+    replacement.release()
+    state = json.loads((tmp_path / "waiters.json").read_text(encoding="utf-8"))
+    assert state["waiters"] == []
 
 
 def test_watchdog_releases_a_stale_grant(
