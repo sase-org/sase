@@ -254,10 +254,12 @@ class Flow:
         monkeypatch.setattr(ledger, "cas_advance_record", self.ledger.cas)
         monkeypatch.setattr(ledger, "load_record", self.ledger.load)
         from sase.core import paths
-        from sase.agent.hijack import recovery_admission
+        from sase.agent.hijack import _recovery_admission_dispatcher
 
         monkeypatch.setattr(
-            recovery_admission, "_target_available", lambda target: (True, None)
+            _recovery_admission_dispatcher,
+            "_target_available",
+            lambda target: (True, None),
         )
 
         self.admission_root = successor_dir.parent / ".sase"
