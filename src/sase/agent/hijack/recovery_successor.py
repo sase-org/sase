@@ -355,7 +355,7 @@ def require_recovery_inheritance(
         explicit_autonomy_selection=explicit_autonomy_selection,
     )
     _ensure_no_verdict_carryover(parent_meta=parent_meta, child_meta=child_meta)
-    return build_bootstrap_ack(
+    return _build_bootstrap_ack(
         goal=predecessor_goal,
         bead=predecessor_bead,
         baseline_inherited=True,
@@ -455,7 +455,7 @@ def rollback_recovery_preparation(*, artifacts_dir: str | None) -> bool:
     return True
 
 
-def build_bootstrap_ack(
+def _build_bootstrap_ack(
     *,
     goal: str | None,
     bead: str | None,
@@ -806,7 +806,7 @@ def enforce_recovery_bootstrap(
         )
     except RecoveryInheritanceError as exc:
         raise RecoveryBootstrapError("verdict_carryover", str(exc)) from exc
-    ack = build_bootstrap_ack(
+    ack = _build_bootstrap_ack(
         goal=observation.predecessor_goal,
         bead=observation.predecessor_bead,
         baseline_inherited=True,
@@ -1277,7 +1277,6 @@ __all__ = [
     "RecoveryBootstrapError",
     "RecoveryInheritanceError",
     "RecoveryLineage",
-    "build_bootstrap_ack",
     "build_recovery_descriptor",
     "collect_bootstrap_observation",
     "decode_recovery_descriptor",

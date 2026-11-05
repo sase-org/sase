@@ -497,9 +497,12 @@ _lint-patch-stitch-terminology: _setup
 # Recovery-service phase sase-1pj.6.1.6 consumed the detached successor delivery
 # API through the host recovery service, so its rows are dropped.
 # sase-1qz.6.1.4.1.4 (bootstrap-ack) exported the child-side bootstrap gate;
-# sase-1qz.6.1.4.1.5 (settlement) consumes the versioned ack, the observation
-# shape, and the typed bootstrap failure when it replaces parent-side ack
-# synthesis with bootstrap-ack observation.
+# sase-1qz.6.1.4.1.5 (settlement) observes the versioned ack through
+# read_recovery_ack instead of parent-side synthesis. The bare ack
+# constructor is private to recovery_successor (require/enforce own the
+# only production construction paths); the observation shape and the typed
+# bootstrap failure stay allow-listed on the still-open parent epic
+# sase-1qz.6.1.4.1 for reconcile/CLI consumers or land-agent cleanup.
 # sase-1pj.7.1.1 exported the shared workspace-retention adapter; sase-1pj.7.1.2
 # (monitor-retention) consumed settle_stranded_workspace and its request
 # types by routing every monitor terminal claim disposal through the adapter,
@@ -527,9 +530,8 @@ _lint-symvision *args: _setup
         --epic-symbol "sase-1qz.6(strip_hijack_launch_directives)" \
         --epic-symbol "sase-1qz.6.1.5(hijack_recovery_reconcile)" \
         --epic-symbol "sase-1qz.6.1.5(hijack_recovery_reconcile_wire_schema_version)" \
-        --epic-symbol "sase-1qz.6.1.4.1.6(BootstrapObservation)" \
-        --epic-symbol "sase-1qz.6.1.4.1.6(RecoveryBootstrapError)" \
-        --epic-symbol "sase-1qz.6.1.4.1.6(build_bootstrap_ack)" \
+        --epic-symbol "sase-1qz.6.1.4.1(BootstrapObservation)" \
+        --epic-symbol "sase-1qz.6.1.4.1(RecoveryBootstrapError)" \
         --epic-symbol "sase-1rd(snapshot_dir)" \
         --epic-symbol "sase-1rd.4(parse_run_prune_review)" \
         --epic-symbol "sase-1rd.4(RunPruneReview)" \

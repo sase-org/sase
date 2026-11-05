@@ -513,6 +513,15 @@ _REVIEWED_PATH_PASSING_CONTEXTS: dict[str, PathPassingReview] = {
             "no marker is written."
         ),
     ),
+    "src/sase/agent/hijack/recover_confirm.py:_read_successor_meta": PathPassingReview(
+        exemption=(
+            "Read-only successor identity observation: the launched child's "
+            "agent_meta.json is read for its pid and process_identity token to "
+            "pair with the live workspace claim before settlement; a missing or "
+            "unreadable meta degrades to an empty mapping and fails closed "
+            "downstream. No marker is written."
+        ),
+    ),
     "src/sase/history/chat_fork/common.py:fork_source_hijack_status": PathPassingReview(
         exemption=(
             "Read-only transcript framing: done.json is inspected to classify "

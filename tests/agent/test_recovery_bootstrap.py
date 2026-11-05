@@ -26,7 +26,7 @@ from sase.agent.hijack.recovery_successor import (
     BootstrapObservation,
     RecoveryBootstrapError,
     RecoveryInheritanceError,
-    build_bootstrap_ack,
+    _build_bootstrap_ack,
     build_recovery_descriptor,
     collect_bootstrap_observation,
     decode_recovery_descriptor,
@@ -630,7 +630,7 @@ class TestParentSideProof:
 
 class TestVersionedAck:
     def test_ack_carries_identity_and_verified_flags(self) -> None:
-        ack = build_bootstrap_ack(
+        ack = _build_bootstrap_ack(
             goal="goal-1",
             bead="sase-1",
             baseline_inherited=True,

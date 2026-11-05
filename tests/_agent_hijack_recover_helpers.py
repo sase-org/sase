@@ -369,7 +369,7 @@ class Flow:
             )
             if flow._evidence != {}:
                 from sase.agent.hijack.recovery_successor import (
-                    build_bootstrap_ack,
+                    _build_bootstrap_ack,
                     write_recovery_ack,
                 )
 
@@ -400,7 +400,7 @@ class Flow:
                     lineage = json.loads(lineage)
                 provider_model, separator, effort = target.partition("@")
                 provider, _, model = provider_model.partition("/")
-                ack = build_bootstrap_ack(
+                ack = _build_bootstrap_ack(
                     goal=goal,
                     bead=bead,
                     baseline_inherited=baseline,
