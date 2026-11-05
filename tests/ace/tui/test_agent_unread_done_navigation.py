@@ -107,8 +107,14 @@ def test_repeated_leader_j_walks_unread_done_agents_by_recency(
         tribe="beta",
         stop_time=datetime(2026, 5, 7, 12, 0, 0),
     )
+    plan = make_agent(name="plan", status="PLAN", raw_suffix="plan", tribe="beta")
+    plan.plan_times = [datetime(2026, 5, 7, 11, 0, 0)]
+    question = make_agent(
+        name="question", status="QUESTION", raw_suffix="question", tribe="alpha"
+    )
+    question.questions_times = [datetime(2026, 5, 7, 14, 0, 0)]
     app = LeaderUnreadJumpApp(
-        [oldest, newest, running, middle],
+        [oldest, newest, running, middle, plan, question],
         current_idx=2,
     )
     app._unread_completed_agent_ids.update(
@@ -137,23 +143,28 @@ def test_repeated_leader_j_walks_unread_done_agents_by_recency(
         ("agent", 3, "beta"),
     ]
 
+    # With unread targets exhausted, repeat uses the newest stopped target.
     assert app._handle_leader_key("comma") is True
-    assert app.current_idx == 0
+    assert app.current_idx == 5
+    assert app._panel_group.focused_key == "alpha"
     assert app._last_leader_key == "j"
     assert app._entry_jump_agents_anchor_stack == [
         ("agent", 2, None),
         ("agent", 1, "alpha"),
         ("agent", 3, "beta"),
+        ("agent", 0, "zeta"),
     ]
     assert app._unread_completed_agent_ids == set()
-    assert app.notifications == ["No unread completed agents"]
+    assert app.notifications == []
     # Fast path: jumps paint their own highlight; no trailing tab refresh.
     assert app.current_tab_refresh_calls == 0
     assert app.refresh_calls == [
         {"list_changed": False, "defer_detail": True},
         {"list_changed": False, "defer_detail": True},
         {"list_changed": False, "defer_detail": True},
+        {"list_changed": False, "defer_detail": True},
     ]
+    # The fallback neither acknowledges nor patches another completion.
     assert app.patch_calls == [newest, middle, oldest]
     assert ack_completions.call_count == 3
     assert app.notification_count_refresh_calls == 0

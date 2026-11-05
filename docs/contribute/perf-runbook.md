@@ -851,6 +851,9 @@ jq -c 'select(.action == ",u" or .action == ",j" or .action == ",J")' \
   ~/.sase/perf/tui_jk.jsonl
 ```
 
+A `,j` that falls back records `fallback: true` on its single `leader.unread_jump` span,
+whose duration then includes the stopped jump.
+
 Note: an off-tab `,j` that switches Agents tabs records its paint under the
 `agents_tab_switch` action, not `,j` — the switch starts its own sample. The
 `store_bytes` counter on `unread.ack_complete` is statted on the ack worker thread; the

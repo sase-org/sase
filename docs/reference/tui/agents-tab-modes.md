@@ -147,11 +147,13 @@ Leader mode is available on every tab. In the Agents tab it also exposes notific
 shortcuts for the currently loaded agent list; global entries such as `,m` and `,U`
 behave the same from other tabs. Unread-completed actions operate on terminal rows that
 are loaded in the Agents tab; `,j` can reveal a direct member hidden by a collapsed
-clan. Help is not a leader command: press the app-level `?` to open the Help modal.
+clan. When no unread completed agent can be reached, `,j` falls back to the `,J`
+stopped-agent jump and toasts only when neither jump finds a target. Help is not a leader
+command: press the app-level `?` to open the Help modal.
 
-Here, "stopped" means a dismissable terminal row such as `DONE`, `FAILED`, `PLAN DONE`,
-`TALE DONE`, `PLAN REJECTED`, `PLAN COMMITTED`, or `EPIC CREATED`; it is separate from
-the Agents header's "stopped" attention bucket for rows paused on user action.
+Here, "stopped" means a row in the Agents header's **Stopped** bucket, such as a pending
+`PLAN`, `TALE`, `EPIC`, `QUESTION`, or custom gate awaiting user action. Terminal rows
+such as `DONE`, `FAILED`, and `PLAN DONE` are excluded from the stopped-agent jump.
 
 The CLI equivalent of `,x` without the edit pause is `sase agent restart NAME`: it stops
 the named agent and immediately relaunches the stored prompt under the same name. A

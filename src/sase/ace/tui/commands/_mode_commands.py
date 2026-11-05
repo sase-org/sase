@@ -60,7 +60,7 @@ _LEADER_LABELS: dict[str, str] = {
     "agent_home": "Agent (home mode)",
     "agent_from_cl": "Agent from Patch (quick)",
     "collapse_fold_by_hint": "Collapse a fold by hint",
-    "jump_to_next_unread_done_agent": "Jump to next unread completed agent",
+    "jump_to_next_unread_done_agent": "Jump to next unread completed agent (else next stopped)",
     "jump_to_next_stopped_agent": "Jump to next stopped agent",
     "full_history_refresh": "Refresh Agents from full history",
     "mark_all_unread_done_agents_read": "Mark all unread completed agents read (repeat within 10s to undo)",

@@ -208,6 +208,7 @@ def test_leader_j_jumps_to_next_unread_done_agent_on_agents_tab() -> None:
     assert handled is True
     assert app._leader_mode_active is False
     assert app.jump_unread_count == 1
+    assert app.jump_stopped_count == 0
     assert app.notifications == []
     assert app.refresh_count == 0
 
@@ -395,15 +396,30 @@ def test_leader_shift_x_noops_on_non_agents_tabs() -> None:
     assert app.refresh_count == 1
 
 
-def test_leader_j_notifies_when_no_unread_done_agent() -> None:
+def test_leader_j_notifies_when_no_unread_done_or_stopped_agent() -> None:
     app = _FakeApp(current_tab="agents")
     app.jump_unread_result = False
+    app.jump_stopped_result = False
 
     handled = app._handle_leader_key("j")
 
     assert handled is True
     assert app.jump_unread_count == 1
-    assert app.notifications == ["No unread completed agents"]
+    assert app.jump_stopped_count == 1
+    assert app.notifications == ["No unread completed or stopped agents"]
+    assert app.refresh_count == 0
+
+
+def test_leader_j_falls_back_to_next_stopped_agent() -> None:
+    app = _FakeApp(current_tab="agents")
+    app.jump_unread_result = False
+    app.jump_stopped_result = True
+
+    assert app._handle_leader_key("j") is True
+
+    assert app.jump_unread_count == 1
+    assert app.jump_stopped_count == 1
+    assert app.notifications == []
     assert app.refresh_count == 0
 
 
@@ -414,6 +430,7 @@ def test_leader_j_noops_on_non_agents_tabs() -> None:
 
     assert handled is True
     assert app.jump_unread_count == 0
+    assert app.jump_stopped_count == 0
     assert app.notifications == []
     assert app.refresh_count == 0
 

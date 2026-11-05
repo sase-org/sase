@@ -272,13 +272,17 @@ class LeaderModeMixin:
             LeaderModeMixin._remember_leader_key(self, key, remember=remember)
             LeaderModeMixin._begin_leader_perf(self, ",j")
             if self.current_tab == "agents":
-                with LeaderModeMixin._leader_unread_span(self, ",j"):
+                with LeaderModeMixin._leader_unread_span(self, ",j") as trace:
                     hit = self._jump_to_next_unread_done_agent()  # type: ignore[attr-defined]
+                    fell_back = not hit
+                    if fell_back:
+                        # Try the stopped jump before toasting on a double miss.
+                        hit = self._jump_to_next_stopped_agent()  # type: ignore[attr-defined]
+                    trace["fallback"] = fell_back
                 if not hit:
-                    self.notify("No unread completed agents")  # type: ignore[attr-defined]
-                # The jump's own refresh paints highlight and chips
-                # immediately with detail behind the debouncer; no
-                # trailing tab refresh, and a miss only toasts.
+                    self.notify("No unread completed or stopped agents")  # type: ignore[attr-defined]
+                # Both jumps paint their own highlight with detail behind
+                # the debouncer; no trailing refresh, even on a double miss.
             LeaderModeMixin._finish_leader_perf(self)
             return True
 

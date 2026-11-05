@@ -373,7 +373,7 @@ def agents_available(spec: CommandSpec, ctx: CommandContext) -> bool:
 
     # Leader commands scoped to agents.
     if spec.id == "leader.jump_to_next_unread_done_agent":
-        return ctx.unread_completed_agent_count > 0
+        return ctx.unread_completed_agent_count > 0 or ctx.stopped_agent_count > 0
 
     if spec.id == "leader.jump_to_next_stopped_agent":
         return ctx.stopped_agent_count > 0

@@ -1,4 +1,4 @@
-{"count": 3687, "rev": "fce1e35be87f", "schema": "sase.footprint.catalog/1"}
+{"count": 3687, "rev": "3cce4e588d55", "schema": "sase.footprint.catalog/1"}
 {"area": "automation", "id": "auto:axe.agent_waits", "kind": "auto", "label": "Resolve agent wait dependencies within seconds of completion", "ns": "auto", "parent": null, "src": "sase/default_config.yml"}
 {"area": "automation", "id": "auto:axe.agent_waits.wait_checks", "kind": "auto", "label": "Resolve agent wait dependencies and write ready.json when satisfied", "ns": "auto", "parent": "auto:axe.agent_waits", "src": "sase/default_config.yml"}
 {"area": "automation", "id": "auto:axe.checks", "kind": "auto", "label": "Poll slower PR-submission and workspace-claim checks on a five-minute cadence", "ns": "auto", "parent": null, "src": "sase/default_config.yml"}
@@ -3319,7 +3319,7 @@
 {"area": "tui.leader", "id": "tui:leader.hijack_agent", "kind": "mode_key", "label": "Hijack Agent", "ns": "tui", "parent": "tui:app.start_leader_mode", "src": null}
 {"area": "tui.leader", "id": "tui:leader.jump_to_last_error", "kind": "mode_key", "label": "Jump to the last error in Logs", "ns": "tui", "parent": "tui:app.start_leader_mode", "src": null}
 {"area": "tui.leader", "id": "tui:leader.jump_to_next_stopped_agent", "kind": "mode_key", "label": "Jump to next stopped agent", "ns": "tui", "parent": "tui:app.start_leader_mode", "src": null}
-{"area": "tui.leader", "id": "tui:leader.jump_to_next_unread_done_agent", "kind": "mode_key", "label": "Jump to next unread completed agent", "ns": "tui", "parent": "tui:app.start_leader_mode", "src": null}
+{"area": "tui.leader", "id": "tui:leader.jump_to_next_unread_done_agent", "kind": "mode_key", "label": "Jump to next unread completed agent (else next stopped)", "ns": "tui", "parent": "tui:app.start_leader_mode", "src": null}
 {"area": "tui.leader", "id": "tui:leader.kill_and_edit", "kind": "mode_key", "label": "Kill agent and edit", "ns": "tui", "parent": "tui:app.start_leader_mode", "src": null}
 {"area": "tui.leader", "id": "tui:leader.kill_and_edit_last", "kind": "mode_key", "label": "Kill last launched agent and edit", "ns": "tui", "parent": "tui:app.start_leader_mode", "src": null}
 {"area": "tui.leader", "id": "tui:leader.kill_mentors", "kind": "mode_key", "label": "Kill mentor workflows", "ns": "tui", "parent": "tui:app.start_leader_mode", "src": null}

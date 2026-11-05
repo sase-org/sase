@@ -150,7 +150,7 @@ def test_visible_row_jump_defers_detail_and_stats_no_artifact_dirs() -> None:
     assert all(call.get("defer_detail", True) for call in app.refresh_calls)
 
 
-def test_leader_j_hit_and_miss_skip_trailing_tab_refresh() -> None:
+def test_leader_j_hit_and_fallback_skip_trailing_tab_refresh() -> None:
     newest = make_agent(
         name="newest",
         status="DONE",
@@ -159,7 +159,10 @@ def test_leader_j_hit_and_miss_skip_trailing_tab_refresh() -> None:
         stop_time=datetime(2026, 5, 7, 12, 0, 0),
     )
     running = make_agent(name="running", status="RUNNING", raw_suffix="running")
-    app = LeaderUnreadJumpApp([running, newest], current_idx=0)
+    stopped = make_agent(
+        name="stopped", status="PLAN", raw_suffix="stopped", tribe="alpha"
+    )
+    app = LeaderUnreadJumpApp([running, newest, stopped], current_idx=0)
     app._unread_completed_agent_ids.add(newest.identity)
 
     assert app._handle_leader_key("j") is True
@@ -167,7 +170,19 @@ def test_leader_j_hit_and_miss_skip_trailing_tab_refresh() -> None:
     assert app.current_tab_refresh_calls == 0
     assert app.refresh_calls == [{"list_changed": False, "defer_detail": True}]
 
-    # Miss only toasts; still no trailing refresh.
+    # The unread miss falls back to the pending plan in the Stopped bucket.
     assert app._handle_leader_key("comma") is True
-    assert app.notifications == ["No unread completed agents"]
+    assert app.current_idx == 2
+    assert app.notifications == []
+    assert app.current_tab_refresh_calls == 0
+
+
+@pytest.mark.parametrize("status", ["RUNNING", "DONE", "FAILED", "PLAN DONE"])
+def test_leader_j_double_miss_skips_trailing_tab_refresh(status: str) -> None:
+    agent = make_agent(name="non-stopped", status=status, raw_suffix="non-stopped")
+    app = LeaderUnreadJumpApp([agent], current_idx=0)
+
+    assert app._handle_leader_key("j") is True
+    assert app.current_idx == 0
+    assert app.notifications == ["No unread completed or stopped agents"]
     assert app.current_tab_refresh_calls == 0

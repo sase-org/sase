@@ -225,7 +225,7 @@ def test_help_modal_labels_lowercase_a_as_agent_artifacts() -> None:
     }
     assert ("a", "Artifact files (or marked set)") in agent_pairs
     assert ("A", "Toggle %auto / answer local or remote attention") in agent_pairs
-    assert (",j", "Jump to next unread done agent") in agent_pairs
+    assert (",j", "Jump to next unread done agent (else next stopped)") in agent_pairs
     assert ("U", "Toggle unread marker") in agent_pairs
     for sections in (cls_sections, axe_sections):
         action_labels = {

@@ -174,7 +174,7 @@ def mode_sections(km: KeymapRegistry) -> Sections:
                 ),
                 (
                     f"{d(lm.prefix)}{d(sk(lm.keys, 'jump_to_next_unread_done_agent'))}",
-                    "Jump to next unread done agent",
+                    "Jump to next unread done agent (else next stopped)",
                 ),
                 (
                     f"{d(lm.prefix)}{d(sk(lm.keys, 'jump_to_next_stopped_agent'))}",
