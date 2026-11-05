@@ -278,7 +278,8 @@ lock is busy. Run `sase axe job run artifact_retention` for an immediate pass. S
 [SASE disk cleanup](../disk-cleanup.md) and
 [Store Lifecycle](../agent-attachments.md#store-lifecycle).
 
-The `artifact_run_prune` job is a read-only preview for old `artifacts/ace-run/`
+The `artifact_run_prune` job first purges expired run-trash batches, restoring any runs
+that gained a protection reference. It then previews old `artifacts/ace-run/`
 directories. Protection facts are gathered in Python, while the preview classification,
 symlink safety check, and empty-shard walk run in the Rust run-retention owner. The
 preview keeps the newest `artifacts.retention.keep_recent_run_months` calendar months
@@ -290,13 +291,15 @@ job crashing. The summary reports `candidates`, `selected` run directories,
 `empty_shards` outside sase's TUI startup watch window, reclaimable `bytes`,
 `protected`, and `unavailable` protection sources; any unavailable source turns the run
 into `check_error`. Whenever the preview finds candidates or protection problems, the
-job upserts an Axe `ViewReport` notification that names the preview command
-(`sase artifact prune-runs`). The notification is deduplicated by a fingerprint of the
-findings, so an unchanged preview adds a `+1` note to the existing notification rather
-than a new one. Confirming the preview quarantines the reviewed runs into journaled,
-restorable trash (`sase artifact prune-runs --apply`, optionally restricted with
-`--snapshot`); protections are re-verified before every move, and unattended apply paths
-still refuse.
+job writes a review snapshot and upserts an actionable Axe `ViewReport` notification.
+The notification is deduplicated by a fingerprint of the findings, so an unchanged
+preview adds a `+1` note to the existing notification; a changed preview retires the
+stale row. Enter opens the snapshot review, and confirming it quarantines the reviewed
+runs into journaled, restorable trash (`sase artifact prune-runs --apply`, optionally
+restricted with `--snapshot`). Protections are re-verified before every move, and
+unattended apply paths still refuse. The hourly job permanently purges batches after the
+configured `artifacts.retention.trash_grace_days` period; runs that gain a protection
+reference are restored instead.
 
 ## Related
 

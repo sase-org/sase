@@ -98,6 +98,39 @@ def _stub_retention_plan(
     monkeypatch.setattr(
         script, "plan_ace_run_retention", lambda *_args, **_kwargs: plan
     )
+    monkeypatch.setattr(
+        script, "purge_ace_run_trash", lambda *_args, **_kwargs: _purge_result()
+    )
+    monkeypatch.setattr(
+        script,
+        "write_snapshot",
+        lambda *_args, **_kwargs: (
+            script.preview_fingerprint(plan),
+            Path("/tmp") / f"{script.preview_fingerprint(plan)}.json",
+        ),
+    )
+    monkeypatch.setattr(script, "_read_last_preview_key", lambda _directory: None)
+    monkeypatch.setattr(script, "_write_last_preview_key", lambda *_args: None)
+    monkeypatch.setattr(
+        script,
+        "load_project_ref_display_snapshot",
+        lambda **_kwargs: SimpleNamespace(
+            label_for_ref=lambda _project: "Pretty Project"
+        ),
+    )
+
+
+def _purge_result(**overrides: object) -> SimpleNamespace:
+    values: dict[str, object] = {
+        "purged": 0,
+        "restored": 0,
+        "freed_bytes": 0,
+        "blocked_reason": None,
+        "errors": 0,
+        "index_errors": (),
+    }
+    values.update(overrides)
+    return SimpleNamespace(**values)
 
 
 def _run_artifact_prune(tmp_path: Path) -> dict[str, object]:
@@ -117,16 +150,7 @@ def test_artifact_run_prune_emits_noop_summary(
     script = importlib.import_module("sase.scripts.sase_chop_artifact_run_prune")
     result_path = tmp_path / "result.json"
     context_path = _write_context(tmp_path, result_path)
-    plan = SimpleNamespace(
-        counts=SimpleNamespace(
-            candidates=0,
-            selected=0,
-            empty_out_of_range_shards=0,
-            protected=0,
-        ),
-        reclaimable_bytes=0,
-        sources_unavailable=(),
-    )
+    plan = _retention_plan()
     notifications: list[Any] = []
     monkeypatch.setattr(
         script,
@@ -135,6 +159,9 @@ def test_artifact_run_prune_emits_noop_summary(
     )
     monkeypatch.setattr(
         script, "plan_ace_run_retention", lambda *_args, **_kwargs: plan
+    )
+    monkeypatch.setattr(
+        script, "purge_ace_run_trash", lambda *_args, **_kwargs: _purge_result()
     )
     monkeypatch.setattr(
         script,
@@ -157,6 +184,9 @@ def test_artifact_run_prune_emits_noop_summary(
         "protected": 0,
         "selected": 0,
         "unavailable": 0,
+        "purged_batches": 0,
+        "restored_runs": 0,
+        "freed_bytes": 0,
     }
     assert notifications == []
 
@@ -169,26 +199,10 @@ def test_artifact_run_prune_upserts_actionable_preview_notification(
     script = importlib.import_module("sase.scripts.sase_chop_artifact_run_prune")
     result_path = tmp_path / "result.json"
     context_path = _write_context(tmp_path, result_path)
-    plan = SimpleNamespace(
-        counts=SimpleNamespace(
-            candidates=3,
-            selected=1,
-            empty_out_of_range_shards=1,
-            protected=1,
-        ),
+    plan = _retention_plan(
+        selected=(_selected_item(tmp_path),),
+        empty_shards=(_empty_shard(tmp_path),),
         reclaimable_bytes=2048,
-        sources_unavailable=(),
-        selected=(
-            SimpleNamespace(
-                project="proj",
-                timestamp="20260101000000",
-                artifact_dir="/tmp/proj/artifacts/ace-run/202601/01/20260101000000",
-                size_bytes=2048,
-            ),
-        ),
-        empty_out_of_range_shards=(
-            SimpleNamespace(project="proj", kind="day", path="/tmp/proj/day"),
-        ),
     )
     notifications: list[Any] = []
     monkeypatch.setattr(
@@ -198,6 +212,26 @@ def test_artifact_run_prune_upserts_actionable_preview_notification(
     )
     monkeypatch.setattr(
         script, "plan_ace_run_retention", lambda *_args, **_kwargs: plan
+    )
+    monkeypatch.setattr(
+        script, "purge_ace_run_trash", lambda *_args, **_kwargs: _purge_result()
+    )
+    monkeypatch.setattr(
+        script,
+        "write_snapshot",
+        lambda *_args, **_kwargs: (
+            "deadbeefdeadbeef",
+            tmp_path / "deadbeefdeadbeef.json",
+        ),
+    )
+    monkeypatch.setattr(script, "_read_last_preview_key", lambda _directory: None)
+    monkeypatch.setattr(script, "_write_last_preview_key", lambda *_args: None)
+    monkeypatch.setattr(
+        script,
+        "load_project_ref_display_snapshot",
+        lambda **_kwargs: SimpleNamespace(
+            label_for_ref=lambda _project: "Pretty Project"
+        ),
     )
     monkeypatch.setattr(
         script,
@@ -216,13 +250,18 @@ def test_artifact_run_prune_upserts_actionable_preview_notification(
     assert notification.dedup_key.startswith("artifact_run_prune:")
     assert "artifact-retention" in notification.tags
     assert "apply_command" not in notification.action_data
+    assert "run_prune_review" in notification.action_data
     assert kwargs["plus_one_timestamp"] == notification.timestamp
     _assert_configured_aware_timestamp(notification.timestamp)
     report = json.loads(notification.action_data["report"])
     assert report["title"] == "ACE run pruning preview"
-    assert kwargs["plus_one_note"] == (
-        "Still previewing 1 run dir(s), 1 empty shard(s), 2.0 KiB reclaimable."
-    )
+    assert "Pretty Project" in json.dumps(report)
+    from sase.core.agent_artifact_run_prune_review import parse_run_prune_review
+
+    review = parse_run_prune_review(notification.action_data)
+    assert review is not None
+    assert review.counts.selected == 1
+    assert kwargs["plus_one_note"] == "Still available: 2.0 KiB across 1 runs."
     result = json.loads(result_path.read_text(encoding="utf-8"))
     assert result["status"] == "ok"
 
@@ -235,17 +274,16 @@ def test_artifact_run_prune_notifies_when_protection_sources_are_unavailable(
     script = importlib.import_module("sase.scripts.sase_chop_artifact_run_prune")
     result_path = tmp_path / "result.json"
     context_path = _write_context(tmp_path, result_path)
-    plan = SimpleNamespace(
-        counts=SimpleNamespace(
-            candidates=2,
-            selected=0,
-            empty_out_of_range_shards=0,
-            protected=2,
-        ),
+    base = _retention_plan()
+    plan = AceRunRetentionPlan(
+        policy=base.policy,
+        protections=base.protections,
+        selected=base.selected,
+        protected=base.protected,
+        empty_out_of_range_shards=base.empty_out_of_range_shards,
+        counts=AceRunRetentionCounts(2, 0, 0, 2, 0),
         reclaimable_bytes=0,
         sources_unavailable=("beads: unreadable",),
-        selected=(),
-        empty_out_of_range_shards=(),
     )
     notifications: list[Any] = []
     monkeypatch.setattr(
@@ -255,6 +293,17 @@ def test_artifact_run_prune_notifies_when_protection_sources_are_unavailable(
     )
     monkeypatch.setattr(
         script, "plan_ace_run_retention", lambda *_args, **_kwargs: plan
+    )
+    monkeypatch.setattr(
+        script, "purge_ace_run_trash", lambda *_args, **_kwargs: _purge_result()
+    )
+    monkeypatch.setattr(
+        script,
+        "write_snapshot",
+        lambda *_args, **_kwargs: (
+            "deadbeefdeadbeef",
+            tmp_path / "deadbeefdeadbeef.json",
+        ),
     )
     monkeypatch.setattr(
         script,
@@ -269,13 +318,124 @@ def test_artifact_run_prune_notifies_when_protection_sources_are_unavailable(
     assert len(notifications) == 1
     notification, kwargs = notifications[0]
     assert notification.color == "#D14343"
-    assert notification.notes[0] == "ACE run pruning needs attention"
+    assert notification.notes[0] == "ACE run pruning is paused"
     assert kwargs["plus_one_timestamp"] == notification.timestamp
     _assert_configured_aware_timestamp(notification.timestamp)
-    assert kwargs["plus_one_note"] == "Still blocked by 1 protection source(s)."
+    assert (
+        kwargs["plus_one_note"] == "Still paused: 1 protection sources are unreadable."
+    )
     result = json.loads(result_path.read_text(encoding="utf-8"))
     assert result["status"] == "check_error"
     assert result["reason"] == "protection_unavailable"
+
+
+def test_artifact_run_prune_purges_before_plan_and_snapshot(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    script = importlib.import_module("sase.scripts.sase_chop_artifact_run_prune")
+    plan = _retention_plan(selected=(_selected_item(tmp_path),), reclaimable_bytes=2048)
+    events: list[str] = []
+    monkeypatch.setattr(
+        script, "collect_ace_run_retention_protections", lambda **_kw: object()
+    )
+    monkeypatch.setattr(
+        script,
+        "purge_ace_run_trash",
+        lambda *_args, **_kwargs: events.append("purge") or _purge_result(),
+    )
+    monkeypatch.setattr(
+        script,
+        "plan_ace_run_retention",
+        lambda *_args, **_kwargs: events.append("plan") or plan,
+    )
+    monkeypatch.setattr(
+        script,
+        "write_snapshot",
+        lambda *_args, **_kwargs: (
+            events.append("snapshot")
+            or ("deadbeefdeadbeef", tmp_path / "deadbeefdeadbeef.json")
+        ),
+    )
+    monkeypatch.setattr(script, "_read_last_preview_key", lambda _directory: None)
+    monkeypatch.setattr(script, "_write_last_preview_key", lambda *_args: None)
+    monkeypatch.setattr(
+        script,
+        "upsert_notification",
+        lambda *_args, **_kwargs: events.append("notify"),
+    )
+    result_path = tmp_path / "result.json"
+    context_path = _write_context(tmp_path, result_path)
+
+    run_builtin_chop("artifact_run_prune", ["--context", str(context_path)])
+
+    assert events == ["purge", "plan", "snapshot", "notify"]
+
+
+def test_artifact_run_prune_busy_trash_lock_skips_notification(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    script = importlib.import_module("sase.scripts.sase_chop_artifact_run_prune")
+    plan = _retention_plan(selected=(_selected_item(tmp_path),), reclaimable_bytes=2048)
+    notifications: list[object] = []
+    monkeypatch.setattr(
+        script, "collect_ace_run_retention_protections", lambda **_kw: object()
+    )
+    monkeypatch.setattr(
+        script,
+        "purge_ace_run_trash",
+        lambda *_args, **_kwargs: _purge_result(blocked_reason="busy"),
+    )
+    monkeypatch.setattr(
+        script, "plan_ace_run_retention", lambda *_args, **_kwargs: plan
+    )
+    monkeypatch.setattr(
+        script,
+        "upsert_notification",
+        lambda *args, **kwargs: notifications.append(args),
+    )
+    result_path = tmp_path / "result.json"
+    context_path = _write_context(tmp_path, result_path)
+
+    run_builtin_chop("artifact_run_prune", ["--context", str(context_path)])
+
+    assert notifications == []
+    assert json.loads(result_path.read_text(encoding="utf-8"))["status"] == "ok"
+
+
+def test_artifact_run_prune_supersedes_stale_preview_key(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    script = importlib.import_module("sase.scripts.sase_chop_artifact_run_prune")
+    plan = _retention_plan(selected=(_selected_item(tmp_path),), reclaimable_bytes=2048)
+    captured: list[tuple[object, dict[str, object]]] = []
+    monkeypatch.setattr(
+        script,
+        "write_snapshot",
+        lambda *_args, **_kwargs: ("deadbeefdeadbeef", tmp_path / "snapshot.json"),
+    )
+    monkeypatch.setattr(
+        script, "_read_last_preview_key", lambda _directory: "old-preview"
+    )
+    monkeypatch.setattr(script, "_write_last_preview_key", lambda *_args: None)
+    monkeypatch.setattr(
+        script,
+        "load_project_ref_display_snapshot",
+        lambda **_kwargs: SimpleNamespace(
+            label_for_ref=lambda _project: "Pretty Project"
+        ),
+    )
+    monkeypatch.setattr(
+        script,
+        "upsert_notification",
+        lambda notification, **kwargs: captured.append((notification, kwargs)),
+    )
+
+    script._notify_actionable_preview(plan)
+
+    assert captured[0][1]["supersedes"] == "old-preview"
 
 
 def test_artifact_run_prune_real_store_reclaimable_preview_uses_aware_timestamps(
@@ -330,9 +490,7 @@ def test_artifact_run_prune_real_store_repeat_appends_aware_plus_one(
     assert len(notification.plus_ones) == 1
     plus_one = notification.plus_ones[0]
     _assert_configured_aware_timestamp(plus_one.timestamp)
-    assert plus_one.note == (
-        "Still previewing 1 run dir(s), 1 empty shard(s), 2.0 KiB reclaimable."
-    )
+    assert plus_one.note == "Still available: 2.0 KiB across 1 runs."
 
 
 def test_artifact_run_prune_real_store_protection_warning_deduplicates(
@@ -361,7 +519,7 @@ def test_artifact_run_prune_real_store_protection_warning_deduplicates(
     assert len(notification.plus_ones) == 1
     plus_one = notification.plus_ones[0]
     _assert_configured_aware_timestamp(plus_one.timestamp)
-    assert plus_one.note == "Still blocked by 1 protection source(s)."
+    assert plus_one.note == "Still paused: 1 protection sources are unreadable."
 
 
 def test_artifact_run_prune_real_store_empty_shards_only_preview_notifies(
@@ -380,7 +538,7 @@ def test_artifact_run_prune_real_store_empty_shards_only_preview_notifies(
     assert len(notifications) == 1
     notification = notifications[0]
     _assert_configured_aware_timestamp(notification.timestamp)
-    assert notification.notes[1] == ("0 run dir(s), 1 empty shard(s), 0 B reclaimable.")
+    assert "0 runs · 0 projects" in notification.notes[1]
 
 
 def test_epic_launch_flush_emits_noop_summary(

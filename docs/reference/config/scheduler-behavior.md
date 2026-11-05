@@ -398,14 +398,13 @@ axe:
           script: sase_job_artifact_run_prune
           timeout: "5m"
           description: |-
-            Preview old ace-run directories and empty shard cleanup
+            Preview old ace-run directories, purge expired trash, and notify for review
 
-            Plans whole-run ace-run retention without deleting anything. The preview keeps the newest
-            artifacts.retention.keep_recent_run_months calendar months whole, protects runs referenced by
-            artifact files, text refs, agent names, and non-closed beads, and reports empty month/day shards
-            outside sase's TUI startup watch window. When unchanged candidates or protection problems remain, it
-            upserts one deduplicated Axe report notification that names the preview command. Artifact-run
-            deletion is currently preview-only.
+            Purges expired restorable run-trash batches, then plans whole-run ace-run retention. The preview
+            keeps the newest artifacts.retention.keep_recent_run_months calendar months whole, protects runs
+            referenced by artifact files, text refs, agent names, and non-closed beads, and reports empty
+            month/day shards outside sase's TUI startup watch window. It writes a review snapshot and upserts
+            one actionable Axe report notification; confirmed runs move to a 14-day restorable trash.
 ```
 
 **Top-level fields:**

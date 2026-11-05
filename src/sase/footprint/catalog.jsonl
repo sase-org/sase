@@ -1,4 +1,4 @@
-{"count": 3687, "rev": "979f24ae99ea", "schema": "sase.footprint.catalog/1"}
+{"count": 3687, "rev": "fce1e35be87f", "schema": "sase.footprint.catalog/1"}
 {"area": "automation", "id": "auto:axe.agent_waits", "kind": "auto", "label": "Resolve agent wait dependencies within seconds of completion", "ns": "auto", "parent": null, "src": "sase/default_config.yml"}
 {"area": "automation", "id": "auto:axe.agent_waits.wait_checks", "kind": "auto", "label": "Resolve agent wait dependencies and write ready.json when satisfied", "ns": "auto", "parent": "auto:axe.agent_waits", "src": "sase/default_config.yml"}
 {"area": "automation", "id": "auto:axe.checks", "kind": "auto", "label": "Poll slower PR-submission and workspace-claim checks on a five-minute cadence", "ns": "auto", "parent": null, "src": "sase/default_config.yml"}
@@ -25,7 +25,7 @@
 {"area": "automation", "id": "auto:axe.housekeeping", "kind": "auto", "label": "Run hourly error digests, notification compaction, artifact retention, previews, and cleanup", "ns": "auto", "parent": null, "src": "sase/default_config.yml"}
 {"area": "automation", "id": "auto:axe.housekeeping.artifact_link_backfill", "kind": "auto", "label": "Retroactively derive artifact links, drain the read outbox, reconcile, and repair renames", "ns": "auto", "parent": "auto:axe.housekeeping", "src": "sase/default_config.yml"}
 {"area": "automation", "id": "auto:axe.housekeeping.artifact_retention", "kind": "auto", "label": "Enforce indexed artifact-file retention and purge expired trash", "ns": "auto", "parent": "auto:axe.housekeeping", "src": "sase/default_config.yml"}
-{"area": "automation", "id": "auto:axe.housekeeping.artifact_run_prune", "kind": "auto", "label": "Preview old ace-run directories and empty shard cleanup", "ns": "auto", "parent": "auto:axe.housekeeping", "src": "sase/default_config.yml"}
+{"area": "automation", "id": "auto:axe.housekeeping.artifact_run_prune", "kind": "auto", "label": "Preview old ace-run directories, purge expired trash, and notify for review", "ns": "auto", "parent": "auto:axe.housekeeping", "src": "sase/default_config.yml"}
 {"area": "automation", "id": "auto:axe.housekeeping.bead_stale_cleanup", "kind": "auto", "label": "Sweep stale sub-threshold ready task beads into one BeadStaleCleanup gate", "ns": "auto", "parent": "auto:axe.housekeeping", "src": "sase/default_config.yml"}
 {"area": "automation", "id": "auto:axe.housekeeping.disk_pressure", "kind": "auto", "label": "React when SASE's filesystem crosses disk-pressure thresholds", "ns": "auto", "parent": "auto:axe.housekeeping", "src": "sase/default_config.yml"}
 {"area": "automation", "id": "auto:axe.housekeeping.error_digest", "kind": "auto", "label": "Send a notification digest of errors from the last hour", "ns": "auto", "parent": "auto:axe.housekeeping", "src": "sase/default_config.yml"}
