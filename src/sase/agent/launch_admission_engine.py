@@ -115,8 +115,7 @@ class AdmissionEngine(AdmissionConditionMixin):
         self._next_seq = next_journal_seq(self.admission_dir)
         while True:
             if self.cancelled():
-                self._cancel_open_units()
-                return self._progress(complete=True)
+                return self._progress(complete=self._cancel_open_units())
             states = self._states()
             actions = next_admission_actions(
                 self.plan,
@@ -132,8 +131,7 @@ class AdmissionEngine(AdmissionConditionMixin):
                 continue
             for action in actions:
                 if self.cancelled():
-                    self._cancel_open_units()
-                    return self._progress(complete=True)
+                    return self._progress(complete=self._cancel_open_units())
                 outcome = self._apply_action(action)
                 if outcome == "blocked":
                     if until_blocked:
@@ -411,7 +409,8 @@ class AdmissionEngine(AdmissionConditionMixin):
             "python_executable": sys.executable,
         }
 
-    def _cancel_open_units(self) -> None:
+    def _cancel_open_units(self) -> bool:
+        settled = True
         states = self._states()
         for unit in self.plan.units:
             state = states.get(unit.logical_id) or {}
@@ -433,8 +432,15 @@ class AdmissionEngine(AdmissionConditionMixin):
                 if phase == "checking":
                     self._recover_condition(unit.logical_id)
             identity = state.get("identity")
-            if phase == "dispatching" and isinstance(identity, str) and identity:
-                stop_proc_identity(identity)
+            if phase == "dispatching":
+                if isinstance(identity, str) and identity:
+                    stop_proc_identity(identity)
+                # A process can have crossed the spawn boundary before its
+                # dispatcher receipt reached the journal. Keep this unit
+                # nonterminal so cancellation cannot turn an uncertain launch
+                # into permission to retry it.
+                settled = False
+                continue
             fingerprint = state.get("fingerprint")
             self._journal(
                 unit.logical_id,
@@ -443,6 +449,7 @@ class AdmissionEngine(AdmissionConditionMixin):
                 fingerprint=(fingerprint if isinstance(fingerprint, str) else None),
                 message="cancelled",
             )
+        return settled
 
     def _journal(
         self,

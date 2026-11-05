@@ -475,6 +475,44 @@ _REVIEWED_PATH_PASSING_CONTEXTS: dict[str, PathPassingReview] = {
             "measurement recording is disabled and no marker is written."
         ),
     ),
+    "src/sase/agent/hijack/recover_subject.py:_load_predecessor_meta": PathPassingReview(
+        exemption=(
+            "Read-only recovery subject loading: agent_meta.json is read to recover "
+            "predecessor identity and inheritance context; no marker is written."
+        ),
+    ),
+    "src/sase/agent/hijack/recover_subject.py:read_predecessor_done_marker": PathPassingReview(
+        exemption=(
+            "Read-only recovery subject loading: done.json is read to observe the "
+            "predecessor outcome and existing recovery state."
+        ),
+    ),
+    "src/sase/agent/hijack/recover_settle.py:gather_recovery_inheritance": PathPassingReview(
+        exemption=(
+            "Read-only recovery confirmation: predecessor and child metadata, "
+            "baseline fingerprints, and repository inventories are observed to "
+            "validate inherited state; no marker is written."
+        ),
+    ),
+    "src/sase/agent/hijack/recover_settle.py:_check_predecessor_outcome": PathPassingReview(
+        exemption=(
+            "Read-only settlement guard: done.json is checked before the ledger "
+            "transition so a non-hijack outcome is never rewritten."
+        ),
+    ),
+    "src/sase/agent/hijack/recover_settle.py:_write_predecessor_settlement": PathPassingReview(
+        lifecycle_coverage=(
+            "Atomically writes the recovery fields to done.json, then refreshes "
+            "the Tier 1 artifact index for the same artifacts directory."
+        ),
+    ),
+    "src/sase/agent/hijack/recovery_successor.py:collect_bootstrap_observation": PathPassingReview(
+        exemption=(
+            "Read-only child bootstrap audit: agent_meta.json, baseline fingerprints, "
+            "and repository inventories are observed before provider execution; "
+            "no marker is written."
+        ),
+    ),
     "src/sase/history/chat_fork/common.py:fork_source_hijack_status": PathPassingReview(
         exemption=(
             "Read-only transcript framing: done.json is inspected to classify "

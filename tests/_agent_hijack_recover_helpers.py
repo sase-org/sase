@@ -30,6 +30,7 @@ def record(artifacts: Path, **overrides: Any) -> dict[str, Any]:
         "workspace_num": 3,
         "workspace_dir": "/ws/3",
         "pid": 111,
+        "expected_claim_owner_pid": 111,
         "provider": "claude",
         "model": "opus",
         "effort": "high",
@@ -143,7 +144,8 @@ class FakeLedger:
                 *_LAUNCH_FIELDS,
             ):
                 if key in event:
-                    nxt[key] = event[key]
+                    record_key = "resolution_action" if key == "action" else key
+                    nxt[record_key] = event[key]
             nxt["error"] = None
         elif name == "record_launch":
             if nxt.get("state") != "resolving":
@@ -222,16 +224,45 @@ class Flow:
     ) -> None:
         from sase.agent.hijack import ledger
 
-        self.ledger = FakeLedger(record)
-        monkeypatch.setattr(ledger, "cas_advance_record", self.ledger.cas)
-        monkeypatch.setattr(ledger, "load_record", self.ledger.load)
         self.log: list[str] = []
         self.terminated: list[int] = []
         self.preview_states: list[str | None] = []
         self.prompt_prepared_before_cas = False
         self.spawned_prompt: str | None = None
+        self.spawned_descriptor: dict[str, Any] | None = None
+        self.spawned_extra_env: dict[str, str] | None = None
         self.record = record
         self.successor_dir = successor_dir
+        project_file = successor_dir.parent / "proj.sase"
+        project_file.write_text(
+            "\n".join(
+                (
+                    "# Project: proj",
+                    "RUNNING:",
+                    "  #3 | 111 | ace(run)-20261105_000000 | acme--3 | "
+                    "20261105000000 | PINNED",
+                    "",
+                )
+            ),
+            encoding="utf-8",
+        )
+        self.record["project_file"] = str(project_file)
+        self.ledger = FakeLedger(self.record)
+        monkeypatch.setattr(ledger, "cas_advance_record", self.ledger.cas)
+        monkeypatch.setattr(ledger, "load_record", self.ledger.load)
+        from sase.core import paths
+        from sase.agent.hijack import recovery_admission
+
+        monkeypatch.setattr(
+            recovery_admission, "_target_available", lambda target: (True, None)
+        )
+
+        self.admission_root = successor_dir.parent / ".sase"
+        monkeypatch.setattr(
+            paths,
+            "sase_subdir",
+            lambda subdir: self.admission_root / subdir,
+        )
         self._preview = preview or make_preview()
         self._spawn = spawn
         self._evidence = evidence
@@ -289,6 +320,8 @@ class Flow:
         def spawn(**kwargs: Any) -> Any:
             flow.log.append("spawn")
             flow.spawned_prompt = str(kwargs["prompt"])
+            flow.spawned_descriptor = dict(kwargs["descriptor"])
+            flow.spawned_extra_env = dict(kwargs["extra_env"])
             assert kwargs["workspace_num"] == 3
             assert kwargs["workspace_dir"] == "/ws/3"
             assert kwargs["transfer_from_pid"] == 111
@@ -329,6 +362,7 @@ class Flow:
             gather_inheritance=gather,
             verify_claim=verify,
             terminate_pid=terminate,
+            admission_spawn_coordinator=False,
             settle_timeout_seconds=0.01,
             settle_poll_seconds=0.001,
         )

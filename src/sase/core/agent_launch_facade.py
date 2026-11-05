@@ -20,6 +20,7 @@ from sase.core.agent_launch_wire import (
     LaunchPlanWire,
     LaunchUnitResultWire,
     LaunchUnitWire,
+    ProcUnitWire,
     agent_launch_prepared_from_dict,
     agent_launch_wire_to_json_dict,
     batch_predecessor_wait_binding_from_dict,
@@ -293,6 +294,20 @@ def agent_unit_dispatch_prompt(agent: AgentUnitWire) -> str:
     )
 
 
+def dispatch_fingerprint(
+    plan_digest: str, logical_id: str, payload: AgentUnitWire | ProcUnitWire
+) -> str:
+    """Return the Rust admission engine fingerprint for one typed unit."""
+    binding = require_rust_binding("dispatch_fingerprint")
+    return str(
+        binding(
+            str(plan_digest),
+            str(logical_id),
+            agent_launch_wire_to_json_dict(payload),
+        )
+    )
+
+
 def prompt_has_identity_directive(prompt: str) -> bool:
     """Return True when *prompt* already carries an active ``%id`` directive."""
 
@@ -517,6 +532,7 @@ __all__ = [
     "build_condition_context",
     "classify_condition_status",
     "cleanup_proc_private_inputs",
+    "dispatch_fingerprint",
     "evaluate_launch_condition",
     "filter_conditional_prompt_text",
     "next_admission_actions",

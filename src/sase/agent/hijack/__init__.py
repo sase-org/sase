@@ -66,6 +66,11 @@ from .recovery_successor import (
     rollback_recovery_preparation,
     write_recovery_ack,
 )
+from .recovery_admission import (
+    cancel_recovery_admission_request,
+    observe_recovery_admission,
+    resume_recovery_admission,
+)
 
 HIJACK_RUNNER_CAPABILITY = "hijack"
 
@@ -98,6 +103,7 @@ __all__ = [
     "agent_hijack_status_for_done_marker",
     "agent_hijack_wire_schema_version",
     "cas_advance_record",
+    "cancel_recovery_admission_request",
     "build_hijack_continuation_prompt",
     "create_record",
     "hijack_retains_claim",
@@ -111,10 +117,12 @@ __all__ = [
     "mark_stopping_if_requested",
     "matching_active_record",
     "new_requested_record",
+    "observe_recovery_admission",
     "read_recovery_ack",
     "recover_hijacked_agent",
     "require_recovery_inheritance",
     "rollback_recovery_preparation",
+    "resume_recovery_admission",
     "settle_recovery",
     "write_recovery_ack",
 ]

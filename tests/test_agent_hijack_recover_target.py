@@ -265,14 +265,16 @@ class TestEffectiveTargets:
 
 class TestAdmissionBinding:
     def test_stable_for_same_resolution(self) -> None:
-        first = admission_binding_for("h-1", "launch-1", "acme--4", "claude/opus")
-        second = admission_binding_for("h-1", "launch-1", "acme--4", "claude/opus")
+        fingerprint = "a" * 64
+        first = admission_binding_for("h-1", "launch-1", fingerprint)
+        second = admission_binding_for("h-1", "launch-1", fingerprint)
         assert first == second
         assert first["admission_request_id"].startswith("hijack-recover-h-1-")
+        assert first["admission_identity"] == fingerprint
 
     def test_unique_per_launch_identity(self) -> None:
-        first = admission_binding_for("h-1", "launch-1", "acme--4", "claude/opus")
-        second = admission_binding_for("h-1", "launch-2", "acme--4", "claude/opus")
+        first = admission_binding_for("h-1", "launch-1", "a" * 64)
+        second = admission_binding_for("h-1", "launch-2", "b" * 64)
         assert first != second
 
     def test_launch_identities_unique(self) -> None:

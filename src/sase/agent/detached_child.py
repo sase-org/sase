@@ -224,6 +224,7 @@ def spawn_recovery_successor(
     directive: AgentSessionAttachDirective,
     *,
     project_name: str,
+    project_file: str | None = None,
     prompt: str,
     workspace_dir: str,
     workspace_num: int,
@@ -253,6 +254,7 @@ def spawn_recovery_successor(
     return _spawn(
         directive,
         project_name=project_name,
+        project_file=project_file,
         prompt=prompt,
         workspace_dir=workspace_dir,
         workspace_num=workspace_num,

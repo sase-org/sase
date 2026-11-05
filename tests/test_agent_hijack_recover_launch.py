@@ -38,6 +38,7 @@ class TestLaunchedRecovery:
     def test_continue_launches_and_settles(
         self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
     ) -> None:
+        import hashlib
         import json
 
         flow, result = self._happy_flow(monkeypatch, tmp_path)
@@ -53,6 +54,30 @@ class TestLaunchedRecovery:
         assert flow.log == ["spawn"]
         assert flow.prompt_prepared_before_cas is True
         assert flow.preview_states == ["held"]
+        from sase.agent.hijack.recovery_successor import (
+            RECOVERY_DESCRIPTOR_ENV,
+            decode_recovery_descriptor,
+        )
+
+        assert flow.spawned_descriptor is not None
+        assert flow.spawned_extra_env is not None
+        assert flow.spawned_prompt is not None
+        bootstrap_descriptor = decode_recovery_descriptor(
+            flow.spawned_extra_env[RECOVERY_DESCRIPTOR_ENV]
+        )
+        assert bootstrap_descriptor == flow.spawned_descriptor
+        assert (
+            bootstrap_descriptor["admission_request_id"] == result.admission_request_id
+        )
+        assert (
+            bootstrap_descriptor["admission_identity"]
+            == (flow.ledger.current["admission_identity"])
+        )
+        assert bootstrap_descriptor["expected_owner_pid"] == 111
+        assert (
+            bootstrap_descriptor["prompt_digest"]
+            == hashlib.sha256(flow.spawned_prompt.encode("utf-8")).hexdigest()
+        )
         # Ack staged in the successor dir; predecessor marker settled.
         from sase.agent.hijack.recovery_successor import read_recovery_ack
 
@@ -99,6 +124,43 @@ class TestLaunchedRecovery:
         assert second.kind == "already_resolved"
         assert second.successor == "acme--4"
         assert flow.log == spawns
+
+    def test_fresh_coordinator_reuses_the_persisted_dispatch_fingerprint(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
+        import json
+
+        from sase.agent.hijack.recovery_admission import (
+            RECOVERY_ADMISSION_METADATA_KEY,
+        )
+        from sase.agent.launch_admission import run_coordinator_in_bundle
+        from sase.agent.launch_request_response import read_launch_request
+
+        flow, result = self._happy_flow(monkeypatch, tmp_path)
+        assert result.kind == "launched"
+        assert result.admission_request_id
+        bundle = flow.admission_root / "typed_launches" / result.admission_request_id
+        data = read_launch_request(bundle)
+        descriptor = data["unit_dispatch_metadata"][RECOVERY_ADMISSION_METADATA_KEY]
+        unit = descriptor["typed_plan"]["units"][0]["payload"]
+        assert descriptor["admission_request_id"] == result.admission_request_id
+        assert (
+            descriptor["dispatch_fingerprint"]
+            == flow.ledger.current["admission_identity"]
+        )
+        assert unit["identity"] == "acme--4"
+        assert unit["model"] == "claude/opus"
+        assert unit["reasoning_effort"] == "high"
+        journal = (bundle / "launch_admission" / "journal.jsonl").read_text()
+        assert json.loads(journal.splitlines()[-1])["phase"] == "launched"
+
+        # A new coordinator rebuilds the recovery dispatcher from the stored
+        # bundle and journal. The launched unit is terminal, so it cannot spawn
+        # a second successor.
+        progress = run_coordinator_in_bundle(bundle)
+        assert progress.complete is True
+        assert progress.summary.launched == 1
+        assert flow.log == ["spawn"]
 
     def test_concurrent_resolvers_yield_one_successor(
         self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path

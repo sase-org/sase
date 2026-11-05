@@ -45,6 +45,7 @@ from sase.agent.launch_admission_store import (
     ADMISSION_DIRNAME,
     COORDINATOR_ENV,
     COORDINATOR_LOG_FILENAME,
+    CANCEL_FILENAME,
     LOCK_FILENAME,
     POLL_SECONDS,
     RECEIPT_FILENAME,
@@ -54,6 +55,7 @@ from sase.agent.launch_admission_store import (
     STOP_KILL_SECONDS,
     STOP_TERM_SECONDS,
     admission_dir,
+    read_journal,
     read_json,
     write_sidecar,
 )
@@ -111,7 +113,10 @@ def dispatch_typed_launch_request(
                 condition_evaluator=condition_evaluator,
                 agent_dispatcher=agent_dispatcher,
                 proc_dispatcher=proc_dispatcher,
-                cancelled=cancelled or (lambda: False),
+                cancelled=lambda: (
+                    (cancelled is not None and cancelled())
+                    or _request_cancelled(root, data)
+                ),
                 project_file=request_project_file(data),
                 source_cwd=request_source_cwd(data),
                 safe_inputs=request_safe_inputs(data),
@@ -120,7 +125,11 @@ def dispatch_typed_launch_request(
         finally:
             fcntl.flock(lock_file.fileno(), fcntl.LOCK_UN)
 
-    if spawn_coordinator and not progress.complete:
+    if (
+        spawn_coordinator
+        and not progress.complete
+        and not _request_cancelled(root, data)
+    ):
         from sase.agent.launch_admission_coordinator import start_detached_coordinator
 
         start_detached_coordinator(response_dir)
@@ -163,7 +172,7 @@ def run_coordinator_in_bundle(
                 plan=plan,
                 admission_dir=root,
                 request_id=str(data.get("request_id") or ""),
-                cancelled=stop,
+                cancelled=lambda: stop() or _request_cancelled(root, data),
                 agent_dispatcher=agent_dispatcher,
                 project_file=request_project_file(data),
                 source_cwd=request_source_cwd(data),
@@ -189,6 +198,64 @@ def stop_launch_admission(response_dir: Path) -> None:
     if not isinstance(pid, int) or pid <= 0:
         return
     _escalate_pid(pid)
+
+
+def cancel_typed_launch_request(
+    response_dir: Path,
+    *,
+    reason: str = "launch request cancelled",
+) -> dict[str, Any]:
+    """Persist cancellation, then wait for its journal to become non-dispatchable."""
+    from sase.agent.launch_request_response import read_launch_request
+    from sase.core.atomic_json import write_json_marker_atomic
+
+    data = read_launch_request(response_dir)
+    request_id = str(data.get("request_id") or "")
+    plan = typed_plan_from_request(data)
+    root = admission_dir(response_dir)
+    root.mkdir(parents=True, exist_ok=True)
+    marker = root / CANCEL_FILENAME
+    existing = read_json(marker)
+    cancellation = {
+        "schema_version": 1,
+        "request_id": request_id,
+        "plan_digest": plan.content_digest,
+        "reason": str(reason),
+        "requested_at_unix": time.time(),
+    }
+    if marker.exists() and existing is None:
+        raise LaunchRequestError(
+            "invalid_request",
+            str(marker),
+            "cancellation marker is unreadable or malformed",
+        )
+    if existing is not None and (
+        existing.get("schema_version") != 1
+        or existing.get("request_id") != request_id
+        or existing.get("plan_digest") != plan.content_digest
+    ):
+        raise LaunchRequestError(
+            "invalid_request",
+            str(marker),
+            "cancellation marker belongs to a different launch request",
+        )
+    if existing is None:
+        write_json_marker_atomic(marker, cancellation)
+    progress = run_coordinator_in_bundle(response_dir)
+    from sase.core.agent_launch_facade import reconcile_admission_journal
+
+    states = reconcile_admission_journal(read_journal(root))
+    request_state = next(
+        (str(state.get("phase")) for state in states.values() if state.get("phase")),
+        "unknown",
+    )
+    return {
+        "request_id": request_id,
+        "state": request_state,
+        "cancel_requested": True,
+        "admission_complete": progress.complete,
+        "summary": progress.summary,
+    }
 
 
 def install_coordinator_signal_flag() -> Callable[[], bool]:
@@ -227,9 +294,46 @@ def _dispatch_result(
     )
 
 
+def _request_cancelled(root: Path, data: Mapping[str, Any]) -> bool:
+    path = root / CANCEL_FILENAME
+    marker = read_json(path)
+    if marker is None:
+        if path.exists():
+            raise LaunchRequestError(
+                "invalid_request",
+                str(path),
+                "cancellation marker is unreadable or malformed",
+            )
+        return False
+    try:
+        plan = typed_plan_from_request(data)
+    except Exception as exc:  # noqa: BLE001 - corrupt request must fail closed
+        raise LaunchRequestError(
+            "invalid_request", str(root / CANCEL_FILENAME), str(exc)
+        ) from exc
+    if (
+        marker.get("schema_version") != 1
+        or marker.get("request_id") != str(data.get("request_id") or "")
+        or marker.get("plan_digest") != plan.content_digest
+    ):
+        raise LaunchRequestError(
+            "invalid_request",
+            str(root / CANCEL_FILENAME),
+            "cancellation marker belongs to a different launch request",
+        )
+    return True
+
+
 def _agent_dispatcher_for_request(
     data: Mapping[str, Any], response_dir: Path
 ) -> UnitDispatcher | None:
+    from sase.agent.hijack.recovery_admission import (
+        is_hijack_recovery_typed_request,
+        make_hijack_recovery_agent_dispatcher,
+    )
+
+    if is_hijack_recovery_typed_request(data):
+        return make_hijack_recovery_agent_dispatcher(data, bundle_dir=response_dir)
     from sase.axe.chop_typed_admission import (
         is_axe_chop_typed_request,
         make_axe_chop_agent_dispatcher,
@@ -264,6 +368,12 @@ def _should_notify_admission_complete(
     progress: AdmissionProgress,
 ) -> bool:
     try:
+        from sase.agent.hijack.recovery_admission import (
+            is_hijack_recovery_typed_request,
+        )
+
+        if is_hijack_recovery_typed_request(data):
+            return False
         from sase.axe.chop_typed_admission import is_axe_chop_typed_request
 
         if is_axe_chop_typed_request(data):
@@ -367,6 +477,7 @@ __all__ = [
     "STARTED_FILENAME",
     "START_ACK_TIMEOUT_SECONDS",
     "admission_dir",
+    "cancel_typed_launch_request",
     "dispatch_typed_launch_request",
     "install_coordinator_signal_flag",
     "run_coordinator_in_bundle",

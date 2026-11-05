@@ -1203,6 +1203,7 @@ def spawn_recovery_successor(
     directive: Any,
     *,
     project_name: str,
+    project_file: str | None = None,
     prompt: str,
     workspace_dir: str,
     workspace_num: int,
@@ -1248,6 +1249,7 @@ def spawn_recovery_successor(
     return spawn_agent_session_successor(
         directive,
         project_name=project_name,
+        project_file=project_file,
         prompt=prompt,
         workspace_dir=workspace_dir,
         workspace_num=workspace_num,

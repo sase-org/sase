@@ -449,6 +449,9 @@ def _write_predecessor_settlement(
     non-hijack outcome refuses loudly instead of rewriting history.
     """
     from sase.notification_gates.durability import atomic_write_json
+    from sase.core.agent_artifact_index_lifecycle import (
+        update_agent_artifact_index_for_marker_mutation,
+    )
 
     artifacts_dir = clean_string(record.get("artifacts_dir"))
     if not artifacts_dir:
@@ -508,3 +511,4 @@ def _write_predecessor_settlement(
             "unwritable_done_marker",
             f"Could not write the predecessor done.json: {exc}",
         ) from exc
+    update_agent_artifact_index_for_marker_mutation(artifacts_dir)

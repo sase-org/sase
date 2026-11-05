@@ -31,10 +31,9 @@ owns Python effects. There is no parallel Python state machine.
 
 from __future__ import annotations
 
-import json
 import logging
 from collections.abc import Callable, Mapping
-from dataclasses import dataclass, replace
+from dataclasses import replace
 from typing import Any
 
 from sase.agent.hijack import ledger
@@ -61,6 +60,7 @@ from sase.agent.hijack.recover_common import (
     RecoverySubject,
     RecoveryTarget,
     admission_binding_for,
+    admission_request_id_for,
     clean_string,
     code_detail,
     current_resolution_result,
@@ -84,6 +84,13 @@ from sase.agent.hijack.recover_subject import (
     lineage_for,
     load_recovery_subject,
     session_base_for,
+)
+from sase.agent.hijack.recovery_admission import (
+    dispatch_recovery_admission,
+    prepare_recovery_admission_descriptor,
+    persist_prepared_recovery_descriptor,
+    remove_prepared_recovery_descriptor,
+    resume_recovery_admission,
 )
 from sase.agent.hijack.recover_target import (
     conflicting_launch_directives,
@@ -171,7 +178,7 @@ def recover_hijacked_agent(
                 ),
                 detail={**dict(result.detail), "code": "stale_revision"},
             )
-        return current_resolution_result(record, RESULT_ALREADY_RESOLVING)
+        return _resume_existing_resolution(record, seams=seams)
     if state in TERMINAL_RECOVERY_STATES or state != "held":
         return RecoveryResult(
             kind=RESULT_REFUSED,
@@ -279,11 +286,63 @@ def _recover_held(
             "unresolvable_successor",
             "The attach resolver produced no reserved successor name",
         )
+    workspace_num = record_workspace_num(record)
+    workspace_dir = clean_string(record.get("workspace_dir"))
+    if workspace_num is None or not workspace_dir:
+        raise RecoveryRefusal(
+            "workspace_unavailable",
+            "Recovery requires the predecessor's fixed positive workspace number "
+            "and directory",
+        )
+    if not project_name:
+        raise RecoveryRefusal(
+            "unresolvable_successor",
+            "Recovery requires the predecessor project name for strict dispatch",
+        )
     resolver_pid, resolver_token = resolver_identity()
     launch_identity = new_launch_identity()
-    binding = admission_binding_for(
-        hijack_id, launch_identity, reserved_name, target.concrete_target
-    )
+    request_id = admission_request_id_for(hijack_id, launch_identity)
+    lineage = lineage_for(hijack_id=hijack_id, record=record, target=target)
+    from sase.agent.launch_submission import capture_launch_submitted_at
+
+    try:
+        descriptor = prepare_recovery_admission_descriptor(
+            record=record,
+            action=target.action,
+            target=target.concrete_target,
+            model_changed=target.model_changed,
+            prompt=target.prompt,
+            context_mode=target.context_mode,
+            reserved_successor_name=reserved_name,
+            session_base=session_base,
+            project_name=project_name,
+            launch_identity=launch_identity,
+            admission_request_id=request_id,
+            lineage=lineage,
+            resolver_pid=resolver_pid,
+            resolver_process_identity_token=resolver_token,
+            # begin_resolution advances the held record once before dispatch.
+            attempt_revision=record_revision(record) + 1,
+            launch_submitted_at=capture_launch_submitted_at(),
+        )
+        binding = admission_binding_for(
+            hijack_id,
+            launch_identity,
+            str(descriptor["dispatch_fingerprint"]),
+        )
+        persist_prepared_recovery_descriptor(descriptor)
+    except (TypeError, ValueError, RuntimeError) as exc:
+        raise RecoveryRefusal(
+            "admission_preparation_failed",
+            f"Could not prepare the durable recovery request: {exc}",
+        ) from exc
+    if binding["admission_request_id"] != request_id:
+        remove_prepared_recovery_descriptor(request_id)
+        raise RecoveryRefusal(
+            "admission_preparation_failed",
+            "The durable recovery request id changed during preparation",
+        )
+
     begin_event: dict[str, Any] = {
         "event": "begin_resolution",
         "action": target.action,
@@ -300,165 +359,101 @@ def _recover_held(
     try:
         resolving = dict(ledger.cas_advance_record(record, begin_event))
     except ledger.HijackLedgerConflict:
+        remove_prepared_recovery_descriptor(request_id)
         return reload_resolution(hijack_id, revision)
     except ValueError as exc:
+        remove_prepared_recovery_descriptor(request_id)
         raise RecoveryRefusal(
             "ledger_rejected",
             f"The recovery reservation was rejected: {exc}",
         ) from exc
-    resolving_revision = record_revision(resolving)
+
     record_launch_event: dict[str, Any] = {
         "event": "record_launch",
         "launch_identity": launch_identity,
         "admission_request_id": binding["admission_request_id"],
         "admission_identity": binding["admission_identity"],
-        "launch_stage": "queued",
+        "launch_stage": "prepared",
     }
     try:
         resolving = dict(ledger.cas_advance_record(resolving, record_launch_event))
     except ledger.HijackLedgerConflict:
-        return reload_resolution(hijack_id, resolving_revision)
+        current = reload_record(hijack_id, resolving)
+        if current.get("admission_request_id") != request_id:
+            remove_prepared_recovery_descriptor(request_id)
+        return reload_resolution(hijack_id, record_revision(resolving))
     except ValueError as exc:
+        message = f"The admission binding was rejected: {exc}"
+        remove_prepared_recovery_descriptor(request_id)
+        fail_to_held(resolving, message)
+        current = reload_record(hijack_id, resolving)
+        if clean_string(current.get("state")) != "held":
+            return RecoveryResult(
+                kind=RESULT_UNCERTAIN,
+                hijack_id=hijack_id,
+                revision=record_revision(current),
+                action=target.action,
+                successor=reserved_name,
+                launch_identity=launch_identity,
+                admission_request_id=request_id,
+                concrete_target=target.concrete_target,
+                model_changed=target.model_changed,
+                message=(
+                    "The admission binding was rejected, but the reservation "
+                    "could not be returned to held"
+                ),
+                detail={"launch_stage": "failed"},
+            )
         raise RecoveryRefusal(
             "ledger_rejected",
-            f"The admission binding was rejected: {exc}",
+            message,
         ) from exc
-    _validate_pinned_target(resolving, target, mode="dispatch", seams=seams)
-    prompt_text, context_mode = target.prompt, target.context_mode
-    spawn_fn = seams.spawn_successor or _default_spawn_successor
-    lineage = lineage_for(hijack_id=hijack_id, record=resolving, target=target)
-    descriptor = _reservation_descriptor(
-        hijack_id=hijack_id,
-        resolving=resolving,
-        resolving_revision=resolving_revision,
-        launch_identity=launch_identity,
-        binding=binding,
-        target=target,
-        reserved_name=reserved_name,
-        project_name=project_name,
-        prompt_text=prompt_text,
-        lineage=lineage,
-        resolver_pid=resolver_pid,
-        resolver_token=resolver_token,
-    )
-    if descriptor is None:
-        return RecoveryResult(
-            kind=RESULT_ERROR,
-            detail=code_detail("descriptor_error"),
-            hijack_id=hijack_id,
-            revision=record_revision(resolving),
-            action=target.action,
-            successor=reserved_name,
-            launch_identity=launch_identity,
-            admission_request_id=binding["admission_request_id"],
-            concrete_target=target.concrete_target,
-            model_changed=target.model_changed,
-            message="Could not encode the recovery reservation descriptor",
-        )
-    extra_env = {
-        RECOVERY_LAUNCH_IDENTITY_ENV: launch_identity,
-    }
-    try:
-        from sase.agent.hijack.recovery_successor import (
-            RECOVERY_DESCRIPTOR_ENV,
-            RECOVERY_LINEAGE_ENV,
-            RECOVERY_STRICT_ENV,
-            encode_recovery_descriptor,
-        )
 
-        extra_env[RECOVERY_LINEAGE_ENV] = json.dumps(lineage.as_dict(), sort_keys=True)
-        extra_env[RECOVERY_STRICT_ENV] = "1"
-        extra_env[RECOVERY_DESCRIPTOR_ENV] = encode_recovery_descriptor(descriptor)
-    except Exception as exc:
-        fail_to_held(resolving, f"Could not encode the recovery lineage: {exc}")
-        return RecoveryResult(
-            kind=RESULT_ERROR,
-            detail=code_detail("lineage_error"),
-            hijack_id=hijack_id,
-            revision=record_revision(resolving),
-            action=target.action,
-            successor=reserved_name,
-            launch_identity=launch_identity,
-            admission_request_id=binding["admission_request_id"],
-            concrete_target=target.concrete_target,
-            model_changed=target.model_changed,
-            message=f"Could not encode the recovery lineage: {exc}",
-        )
     try:
-        launched = spawn_fn(
-            session_base=session_base,
-            plan=plan,
-            project_name=project_name,
-            prompt=prompt_text,
-            workspace_dir=clean_string(resolving.get("workspace_dir")),
-            workspace_num=record_workspace_num(resolving),
-            transfer_from_pid=record_pid(resolving.get("pid")),
-            lineage=lineage,
-            descriptor=descriptor,
-            extra_env=extra_env,
+        _validate_pinned_target(resolving, target, mode="dispatch", seams=seams)
+    except RecoveryRefusal as exc:
+        remove_prepared_recovery_descriptor(request_id)
+        current = reload_record(hijack_id, resolving)
+        if clean_string(current.get("state")) != "held":
+            return RecoveryResult(
+                kind=RESULT_UNCERTAIN,
+                hijack_id=hijack_id,
+                revision=record_revision(current),
+                action=target.action,
+                successor=reserved_name,
+                launch_identity=launch_identity,
+                admission_request_id=request_id,
+                concrete_target=target.concrete_target,
+                model_changed=target.model_changed,
+                message=(
+                    "Pinned target validation failed before dispatch, but the "
+                    f"reservation remains resolving: {exc.message}"
+                ),
+                detail={"code": exc.code, "launch_stage": "failed"},
+            )
+        raise
+
+    try:
+        admission_result, _bundle_dir = dispatch_recovery_admission(
+            descriptor,
+            spawn_successor=seams.spawn_successor,
+            resolve_session_plan=seams.resolve_session_plan,
+            spawn_coordinator=seams.admission_spawn_coordinator,
         )
-    except _ClaimQueued as exc:
+    except Exception as exc:  # noqa: BLE001 - request may already dispatch
         record_launch_stage(
             resolving,
             launch_identity,
             binding,
-            stage="queued",
-            error=str(exc),
+            stage="dispatching",
+            error=f"uncertain admission outcome: {exc}",
         )
-        return RecoveryResult(
-            kind=RESULT_QUEUED,
-            hijack_id=hijack_id,
-            revision=record_revision(reload_record(hijack_id, resolving)),
-            action=target.action,
-            successor=reserved_name,
-            launch_identity=launch_identity,
-            admission_request_id=binding["admission_request_id"],
-            concrete_target=target.concrete_target,
-            model_changed=target.model_changed,
-            message=str(exc),
-            detail={"launch_stage": "queued"},
-        )
-    except RecoveryInheritanceError as exc:
-        fail_to_held(resolving, str(exc))
-        return RecoveryResult(
-            kind=RESULT_ERROR,
-            detail=code_detail("inheritance_failed"),
-            hijack_id=hijack_id,
-            action=target.action,
-            successor=reserved_name,
-            launch_identity=launch_identity,
-            admission_request_id=binding["admission_request_id"],
-            concrete_target=target.concrete_target,
-            model_changed=target.model_changed,
-            message=str(exc),
-        )
-    except (RuntimeError, OSError, ValueError) as exc:
-        fail_to_held(resolving, str(exc) or type(exc).__name__)
-        return RecoveryResult(
-            kind=RESULT_ERROR,
-            detail=code_detail("launch_failed"),
-            hijack_id=hijack_id,
-            action=target.action,
-            successor=reserved_name,
-            launch_identity=launch_identity,
-            admission_request_id=binding["admission_request_id"],
-            concrete_target=target.concrete_target,
-            model_changed=target.model_changed,
-            message=f"Recovery launch failed before spawn: {exc}",
-        )
-    except Exception as exc:  # noqa: BLE001 - uncertain post-spawn outcome
-        record_launch_stage(
-            resolving,
-            launch_identity,
-            binding,
-            stage="prepared",
-            error=f"uncertain launch outcome: {exc}",
-        )
-        LOG.warning("uncertain recovery launch for %s: %s", hijack_id, exc)
+        LOG.warning("uncertain recovery admission for %s: %s", hijack_id, exc)
+        current = reload_record(hijack_id, resolving)
         return RecoveryResult(
             kind=RESULT_UNCERTAIN,
             hijack_id=hijack_id,
-            revision=record_revision(reload_record(hijack_id, resolving)),
+            revision=record_revision(current),
             action=target.action,
             successor=reserved_name,
             launch_identity=launch_identity,
@@ -466,11 +461,118 @@ def _recover_held(
             concrete_target=target.concrete_target,
             model_changed=target.model_changed,
             message=(
-                "The launch outcome is uncertain; the record retains "
-                f"resolving and custody for reconciliation: {exc}"
+                "The durable recovery request may still dispatch; the record "
+                f"retains resolving for reconciliation: {exc}"
             ),
-            detail={"launch_stage": "prepared"},
+            detail={"launch_stage": "dispatching"},
         )
+
+    unit_result = next(
+        (
+            item
+            for item in admission_result.unit_results
+            if item.logical_id == str(descriptor["logical_id"])
+        ),
+        None,
+    )
+    if not admission_result.admission_complete:
+        record_launch_stage(
+            resolving,
+            launch_identity,
+            binding,
+            stage="queued",
+            error=unit_result.message if unit_result is not None else None,
+        )
+        current = reload_record(hijack_id, resolving)
+        return RecoveryResult(
+            kind=RESULT_QUEUED,
+            hijack_id=hijack_id,
+            revision=record_revision(current),
+            action=target.action,
+            successor=reserved_name,
+            launch_identity=launch_identity,
+            admission_request_id=binding["admission_request_id"],
+            concrete_target=target.concrete_target,
+            model_changed=target.model_changed,
+            message=(
+                unit_result.message
+                if unit_result is not None and unit_result.message
+                else "Recovery is queued in durable launch admission"
+            ),
+            detail={"launch_stage": "queued", "admission_state": "queued"},
+        )
+
+    if unit_result is None or unit_result.outcome != "launched":
+        message = (
+            unit_result.message
+            if unit_result is not None and unit_result.message
+            else "The recovery admission request did not launch its unit"
+        )
+        # A terminal admission journal cannot dispatch this attempt later.
+        fail_to_held(resolving, message)
+        current = reload_record(hijack_id, resolving)
+        if clean_string(current.get("state")) != "held":
+            return RecoveryResult(
+                kind=RESULT_UNCERTAIN,
+                hijack_id=hijack_id,
+                revision=record_revision(current),
+                action=target.action,
+                successor=reserved_name,
+                launch_identity=launch_identity,
+                admission_request_id=request_id,
+                concrete_target=target.concrete_target,
+                model_changed=target.model_changed,
+                message=(
+                    "Admission is terminal but the recovery reservation could "
+                    "not be returned to held"
+                ),
+                detail={
+                    "launch_stage": "failed",
+                    "admission_state": (
+                        unit_result.outcome if unit_result is not None else "unknown"
+                    ),
+                },
+            )
+        remove_prepared_recovery_descriptor(request_id)
+        return RecoveryResult(
+            kind=RESULT_ERROR,
+            hijack_id=hijack_id,
+            revision=record_revision(current),
+            action=target.action,
+            successor=reserved_name,
+            launch_identity=launch_identity,
+            admission_request_id=binding["admission_request_id"],
+            concrete_target=target.concrete_target,
+            model_changed=target.model_changed,
+            message=message,
+            detail={
+                "code": "launch_failed",
+                "launch_stage": "failed",
+                "admission_state": (
+                    unit_result.outcome if unit_result is not None else "unknown"
+                ),
+            },
+        )
+
+    if not admission_result.results:
+        current = reload_record(hijack_id, resolving)
+        return RecoveryResult(
+            kind=RESULT_UNCERTAIN,
+            hijack_id=hijack_id,
+            revision=record_revision(current),
+            action=target.action,
+            successor=reserved_name,
+            launch_identity=launch_identity,
+            admission_request_id=binding["admission_request_id"],
+            concrete_target=target.concrete_target,
+            model_changed=target.model_changed,
+            message=(
+                "Admission journal says launched but returned no child observation"
+            ),
+            detail={"launch_stage": "dispatching", "admission_state": "launched"},
+        )
+
+    resolving = reload_record(hijack_id, resolving)
     return confirm_and_settle(
         resolving,
         subject=subject,
@@ -479,16 +581,85 @@ def _recover_held(
         reserved_name=reserved_name,
         launch_identity=launch_identity,
         binding=binding,
-        launched=launched,
-        context_mode=context_mode,
+        launched=admission_result.results[0],
+        context_mode=target.context_mode,
         goal=goal,
         bead=bead,
         seams=seams,
     )
 
 
-class _ClaimQueued(RuntimeError):
-    """The strict spawn could not proceed yet; the reservation stands."""
+def _resume_existing_resolution(
+    record: Mapping[str, Any],
+    *,
+    seams: RecoveryDeps | None = None,
+) -> RecoveryResult:
+    """Resume the CAS-bound admission bundle without creating another request."""
+    current = dict(record)
+    result = current_resolution_result(current, RESULT_ALREADY_RESOLVING)
+    try:
+        observation = resume_recovery_admission(
+            current,
+            spawn_successor=seams.spawn_successor if seams is not None else None,
+            resolve_session_plan=(
+                seams.resolve_session_plan if seams is not None else None
+            ),
+        )
+    except Exception as exc:  # noqa: BLE001 - keep the reservation for repair
+        observation = {"state": "uncertain", "message": str(exc)}
+    detail = {**dict(result.detail), "admission": dict(observation)}
+    phase = str(observation.get("state") or "")
+    receipt_state = str(observation.get("receipt_state") or "")
+    definitely_not_dispatched = phase == "cancelled" or (
+        phase == "launch_error" and receipt_state in {"failed", "rejected"}
+    )
+    if definitely_not_dispatched:
+        message = str(observation.get("message") or "recovery admission was cancelled")
+        request_id = clean_string(current.get("admission_request_id"))
+        fail_to_held(current, message)
+        current = reload_record(str(current.get("hijack_id") or ""), current)
+        if clean_string(current.get("state")) == "held":
+            if request_id:
+                remove_prepared_recovery_descriptor(request_id)
+            return RecoveryResult(
+                kind=RESULT_ERROR,
+                hijack_id=result.hijack_id,
+                revision=record_revision(current),
+                action=result.action,
+                successor=result.successor,
+                launch_identity=result.launch_identity,
+                admission_request_id=result.admission_request_id,
+                concrete_target=result.concrete_target,
+                model_changed=result.model_changed,
+                message=message,
+                detail={**detail, "code": "launch_failed", "launch_stage": phase},
+            )
+        return RecoveryResult(
+            kind=RESULT_UNCERTAIN,
+            hijack_id=result.hijack_id,
+            revision=record_revision(current),
+            action=result.action,
+            successor=result.successor,
+            launch_identity=result.launch_identity,
+            admission_request_id=result.admission_request_id,
+            concrete_target=result.concrete_target,
+            model_changed=result.model_changed,
+            message="Admission is terminal but held custody could not be restored",
+            detail=detail,
+        )
+    return RecoveryResult(
+        kind=result.kind,
+        hijack_id=result.hijack_id,
+        revision=result.revision,
+        action=result.action,
+        successor=result.successor,
+        launch_identity=result.launch_identity,
+        admission_request_id=result.admission_request_id,
+        concrete_target=result.concrete_target,
+        model_changed=result.model_changed,
+        message=result.message,
+        detail=detail,
+    )
 
 
 def _default_preview(record: Mapping[str, Any]) -> Any:
@@ -508,52 +679,6 @@ def _default_resolve_session_plan(session_base: str, project_name: str | None) -
         AgentSessionAttachDirective(parent=session_base, suffix="@"),
         project_name=project_name,
     )
-
-
-def _default_spawn_successor(
-    *,
-    session_base: str,
-    plan: Any,
-    project_name: str | None,
-    prompt: str,
-    workspace_dir: str | None,
-    workspace_num: int | None,
-    transfer_from_pid: int | None,
-    lineage: RecoveryLineage,
-    descriptor: Mapping[str, Any] | None = None,
-    extra_env: Mapping[str, str] | None = None,
-) -> Any:
-    from sase.agent.detached_child import (
-        AgentSessionAttachDirective,
-        spawn_recovery_successor,
-    )
-    from sase.running_field import WorkspaceClaimError
-
-    if not project_name:
-        raise RecoveryInheritanceError(
-            "recovery requires the predecessor project name to spawn"
-        )
-    if workspace_num is None or not workspace_dir:
-        raise RecoveryInheritanceError(
-            "recovery requires the held workspace pair to spawn"
-        )
-    try:
-        return spawn_recovery_successor(
-            AgentSessionAttachDirective(parent=session_base, suffix="@"),
-            project_name=project_name,
-            prompt=prompt,
-            workspace_dir=workspace_dir,
-            workspace_num=int(workspace_num),
-            transfer_from_pid=transfer_from_pid,
-            lineage=lineage,
-            descriptor=descriptor,
-            extra_env=dict(extra_env or {}),
-            resolve_plan=lambda *args, **kwargs: plan,
-        )
-    except WorkspaceClaimError as exc:
-        raise _ClaimQueued(
-            f"Recovery launch is queued on the held workspace: {exc}"
-        ) from exc
 
 
 def _validate_pinned_target(
@@ -586,67 +711,6 @@ def _validate_pinned_target(
     if mode == "dispatch":
         fail_to_held(dict(record), f"pinned target revalidation: {message}")
     raise RecoveryRefusal(code, message)
-
-
-def _reservation_descriptor(
-    *,
-    hijack_id: str,
-    resolving: Mapping[str, Any],
-    resolving_revision: int,
-    launch_identity: str,
-    binding: Mapping[str, str],
-    target: RecoveryTarget,
-    reserved_name: str,
-    project_name: str | None,
-    prompt_text: str,
-    lineage: RecoveryLineage,
-    resolver_pid: int,
-    resolver_token: str | None,
-) -> dict[str, Any] | None:
-    """Build the reservation descriptor the child boot must prove.
-
-    One validated descriptor per CAS reservation: the prepared prompt
-    digest and exact target, the reserved successor member/attach plan, the
-    fixed project and workspace pair, the expected held owner, lineage, and
-    the attempt identities. Returns ``None`` when the descriptor cannot be
-    encoded so the caller can return to held without dispatching.
-    """
-    import hashlib
-
-    from sase.agent.hijack.recovery_successor import build_recovery_descriptor
-
-    workspace_num = record_workspace_num(resolving)
-    workspace_dir = clean_string(resolving.get("workspace_dir"))
-    try:
-        digest = hashlib.sha256(prompt_text.encode("utf-8")).hexdigest()
-        descriptor = build_recovery_descriptor(
-            hijack_id=hijack_id,
-            launch_identity=launch_identity,
-            concrete_target=target.concrete_target,
-            reserved_successor_name=reserved_name,
-            project=project_name or "",
-            workspace_dir=workspace_dir or "",
-            lineage=lineage,
-            reserved_member=reserved_name,
-            attach_plan="",
-            admission_request_id=binding.get("admission_request_id"),
-            admission_identity=binding.get("admission_identity"),
-            workspace_num=workspace_num,
-            expected_owner_pid=record_pid(resolving.get("pid")),
-            resolver_pid=resolver_pid,
-            resolver_process_identity_token=resolver_token,
-            prompt_digest=digest,
-            attempt_revision=resolving_revision,
-        )
-    except Exception:
-        LOG.warning("recovery descriptor encoding failed", exc_info=True)
-        return None
-    if not descriptor.get("project") or not descriptor.get("workspace_dir"):
-        fail_to_held(
-            dict(resolving), "recovery descriptor lacks the held workspace pair"
-        )
-        return None
-    return descriptor
 
 
 def _prepare_continuation_target(

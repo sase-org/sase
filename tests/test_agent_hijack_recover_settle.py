@@ -70,6 +70,24 @@ class TestSettleRecovery:
             "launch_identity": "launch-1",
         }
 
+    def test_settle_refreshes_predecessor_artifact_index(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
+        from sase.core import agent_artifact_index_lifecycle
+
+        ledger, record = self._resolving(monkeypatch, tmp_path)
+        refreshed: list[Path | str | None] = []
+        monkeypatch.setattr(
+            agent_artifact_index_lifecycle,
+            "update_agent_artifact_index_for_marker_mutation",
+            lambda artifact_dir: refreshed.append(artifact_dir),
+        )
+
+        settle_recovery(record, action="continue", successor_name="acme--4")
+
+        assert ledger.events == ["complete_resolution"]
+        assert refreshed == [record["artifacts_dir"]]
+
     def test_settle_preserves_unrelated_done_fields(
         self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
     ) -> None:

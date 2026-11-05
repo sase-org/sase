@@ -8,13 +8,15 @@ from typing import Any
 
 import pytest
 
-from sase.agent.hijack.recover import _ClaimQueued
+from sase.agent.hijack.recovery_successor import RecoveryInheritanceError
+from sase.running_field import WorkspaceClaimError
 from tests._agent_hijack_recover_helpers import (
     Flow,
     evidence,
     make_preview,
     record as make_record,
     spawned,
+    subject as make_subject,
     write_done,
 )
 
@@ -30,23 +32,27 @@ class TestQueuedAndFailedLaunches:
         successor_dir.mkdir(exist_ok=True)
         return Flow(monkeypatch, make_record(artifacts), successor_dir, **kwargs)
 
-    def test_claim_contention_queues_and_holds(
+    def test_claim_contention_is_a_terminal_admission_failure(
         self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
     ) -> None:
-        flow = self._base(monkeypatch, tmp_path, spawn=_ClaimQueued("no runner"))
+        flow = self._base(
+            monkeypatch, tmp_path, spawn=WorkspaceClaimError("foreign claim")
+        )
         result = flow.recover()
-        assert result.kind == "queued"
+        assert result.kind == "error"
         assert result.successor == "acme--4"
         assert result.launch_identity
-        # No terminal write: still resolving, custody keeps the workspace.
-        assert flow.ledger.current["state"] == "resolving"
-        assert flow.ledger.current["launch_stage"] == "queued"
+        assert flow.ledger.current["state"] == "held"
         assert flow.log == ["spawn"]
 
     def test_definite_failure_returns_to_held(
         self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
     ) -> None:
-        flow = self._base(monkeypatch, tmp_path, spawn=ValueError("bad workspace"))
+        flow = self._base(
+            monkeypatch,
+            tmp_path,
+            spawn=RecoveryInheritanceError("bad workspace"),
+        )
         result = flow.recover()
         assert result.kind == "error"
         assert result.detail["code"] == "launch_failed"
@@ -61,7 +67,24 @@ class TestQueuedAndFailedLaunches:
         result = flow.recover()
         assert result.kind == "uncertain"
         assert flow.ledger.current["state"] == "resolving"
-        assert flow.ledger.current["error"] == "uncertain launch outcome: lost contact"
+        assert (
+            flow.ledger.current["error"] == "uncertain admission outcome: lost contact"
+        )
+
+    def test_repeated_resolving_call_keeps_the_same_uncertain_request(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
+        flow = self._base(monkeypatch, tmp_path, spawn=Exception("lost contact"))
+        first = flow.recover()
+        assert first.kind == "uncertain"
+        deps = flow.deps()
+        deps.load_subject = lambda _agent: make_subject(flow.ledger.current)
+
+        resumed = flow.recover(deps=deps)
+        assert resumed.kind == "already_resolving"
+        assert resumed.admission_request_id == first.admission_request_id
+        assert resumed.detail["admission"]["state"] == "dispatching"
+        assert flow.log == ["spawn"]
 
     def test_identity_mismatch_is_uncertain(
         self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path

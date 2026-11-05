@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import hashlib
 import os
 import uuid
 from collections.abc import Callable, Mapping
@@ -282,6 +281,7 @@ class RecoveryDeps:
     verify_claim: Callable[..., bool] | None = None
     terminate_pid: Callable[[int], None] | None = None
     sleep: Callable[[float], None] | None = None
+    admission_spawn_coordinator: bool = True
     settle_timeout_seconds: float = 20.0
     settle_poll_seconds: float = 0.5
 
@@ -294,34 +294,38 @@ def new_launch_identity() -> str:
 def admission_binding_for(
     hijack_id: str,
     launch_identity: str,
-    reserved_name: str,
-    concrete_target: str,
+    dispatch_fingerprint: str,
 ) -> dict[str, str]:
     """Derive the durable admission binding for one resolution.
 
     ``admission_request_id`` names the single admission request this
     resolution owns; retries address that request rather than submitting
-    another launch. ``admission_identity`` is the stable dispatch
-    fingerprint for the reserved successor and pinned target. Both are
+    another launch. ``admission_identity`` is the fingerprint produced by
+    the typed admission planner for the concrete dispatch payload. Both are
     persisted on the record before dispatch so a resolver crash leaves
     evidence reconciliation can match without launching a duplicate.
     """
+    request_id = admission_request_id_for(hijack_id, launch_identity)
+    fingerprint = str(dispatch_fingerprint)
+    if len(fingerprint) != 64 or any(
+        char not in "0123456789abcdef" for char in fingerprint
+    ):
+        raise ValueError("dispatch_fingerprint must be a lowercase SHA-256 digest")
+    return {
+        "admission_request_id": request_id,
+        "admission_identity": fingerprint,
+    }
+
+
+def admission_request_id_for(hijack_id: str, launch_identity: str) -> str:
+    """Derive the stable request ID owned by one reserved recovery attempt."""
     safe_id = (
         "".join(
             ch if ch.isalnum() or ch in ("-", "_") else "_" for ch in str(hijack_id)
         ).strip("_")
         or "hijack"
     )
-    request_id = f"hijack-recover-{safe_id}-{str(launch_identity)[:12]}"
-    fingerprint = hashlib.sha256(
-        "\n".join([request_id, str(reserved_name), str(concrete_target)]).encode(
-            "utf-8"
-        )
-    ).hexdigest()
-    return {
-        "admission_request_id": request_id,
-        "admission_identity": fingerprint,
-    }
+    return f"hijack-recover-{safe_id}-{str(launch_identity)[:12]}"
 
 
 def resolver_identity(
