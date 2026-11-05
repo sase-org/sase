@@ -213,13 +213,24 @@ def _capture_commit_finalizer_baseline(
         )
     if plan is not None:
         from sase.llm_provider.commit_finalizer_inheritance import (
+            commit_inheritance_source,
             inherit_commit_finalizer_responsibility,
         )
 
+        predecessor_dir, predecessor_name = commit_inheritance_source(plan)
+        source_diagnostic = None
+        if (plan.predecessor_name or plan.predecessor_artifacts_dir) and (
+            predecessor_dir != plan.predecessor_artifacts_dir
+        ):
+            source_diagnostic = (
+                f"Predecessor {plan.predecessor_name or 'unknown'} artifacts "
+                f"({plan.predecessor_artifacts_dir or 'missing parent_timestamp'}) "
+                f"are unavailable; inheriting from attach parent {plan.parent_name}."
+            )
         if inherit_commit_finalizer_responsibility(
-            parent_artifacts_dir=plan.parent_artifacts_dir,
+            parent_artifacts_dir=predecessor_dir,
             child_artifacts_dir=artifacts_dir,
-            predecessor_name=plan.parent_name,
+            predecessor_name=predecessor_name,
             successor_name=plan.agent_name,
             project_name=project_name or plan.parent_project_name,
             parent_workspace_dir=plan.parent_workspace_dir,
@@ -229,6 +240,7 @@ def _capture_commit_finalizer_baseline(
                 if workspace_num is not None
                 else plan.parent_workspace_num
             ),
+            source_diagnostic=source_diagnostic,
         ):
             if strict:
                 _require_clean_recovery_inheritance(artifacts_dir)
@@ -545,8 +557,10 @@ def _enforce_strict_recovery_bootstrap(
         attach_plan = agent_session_attach.load_agent_session_attach_plan_from_env()
     except Exception:
         attach_plan = None
+    from sase.llm_provider.commit_finalizer_inheritance import commit_inheritance_source
+
     parent_artifacts_dir = (
-        attach_plan.parent_artifacts_dir if attach_plan is not None else None
+        commit_inheritance_source(attach_plan)[0] if attach_plan is not None else None
     )
     meta = info.meta if isinstance(info.meta, dict) else {}
     raw_effort = meta.get("reasoning_effort")

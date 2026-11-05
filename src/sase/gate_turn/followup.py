@@ -36,6 +36,7 @@ from sase.turns.followup import (
     wait_for_starter,
 )
 from sase.turns.prompt import turn_routing_prefix
+from sase.turns.followup_starter import starter_predecessor
 
 _SAVED_FOLLOWUP_PROMPT_NAME = "gate_followup_prompt.md"
 
@@ -73,6 +74,9 @@ def launch_gate_followup_agent(
 
     parent_timestamp = meta.get("parent_timestamp")
     starter_role = starter_identity(project_name, parent_timestamp)[1]
+    predecessor_dir, predecessor_name = starter_predecessor(
+        project_name, parent_timestamp
+    )
     settled = wait_for_starter(
         project_name,
         parent_timestamp,
@@ -115,6 +119,8 @@ def launch_gate_followup_agent(
             cl_name=_clean_str(meta.get("cl_name")),
             suffix=policy.suffix,
             agent_session_role=policy.role or starter_role,
+            predecessor_artifacts_dir=predecessor_dir,
+            predecessor_name=predecessor_name,
             vcs_ref=vcs_ref,
             spawn_fn=spawn_agent_subprocess,
         )

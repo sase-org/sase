@@ -700,7 +700,12 @@ class TestStrictBootstrapEntry:
 
         from sase.agent import agent_session_attach
 
-        plan = SimpleNamespace(parent_artifacts_dir=str(parent))
+        plan = SimpleNamespace(
+            parent_artifacts_dir=str(tmp_path / "session-root"),
+            parent_name="acme--0",
+            predecessor_artifacts_dir=str(parent),
+            predecessor_name="acme--3",
+        )
         monkeypatch.setattr(
             agent_session_attach,
             "load_agent_session_attach_plan_from_env",

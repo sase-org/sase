@@ -360,7 +360,9 @@ class TestPrepareRecoverySuccessor:
             resolve_plan=fake_resolve,
         )
 
-        assert resolved is plan
+        assert resolved.agent_name == plan.agent_name
+        assert resolved.predecessor_artifacts_dir == plan.parent_artifacts_dir
+        assert resolved.predecessor_name == "acme--3"
         assert seen["directive"] is directive
         assert json.loads(env[RECOVERY_LINEAGE_ENV]) == _lineage()
         assert env[RECOVERY_STRICT_ENV] == "1"
@@ -390,6 +392,32 @@ class TestPrepareRecoverySuccessor:
                 resolve_plan=fake_resolve,
             )
         assert calls == []
+
+    def test_hijacked_member_is_predecessor_even_when_attached_to_root(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setattr(
+            "sase.running_field.get_workspace_directory_for_num",
+            lambda num, project_name, clean=False: ("/ws/3", None),
+        )
+        monkeypatch.setattr(
+            "sase.agent.hijack.ledger.load_record",
+            lambda _hijack_id: {"artifacts_dir": "/tmp/hijacked"},
+        )
+        plan = _fake_plan(parent_name="acme--0", parent_artifacts_dir="/tmp/root")
+        resolved, _ = prepare_recovery_successor(
+            AgentSessionAttachDirective(parent="acme", suffix="@"),
+            project_name="proj",
+            prompt="continue",
+            workspace_dir="/ws/3",
+            workspace_num=3,
+            transfer_from_pid=111,
+            lineage=_lineage(),
+            resolve_plan=lambda *args, **kwargs: plan,
+        )
+        assert resolved.parent_artifacts_dir == "/tmp/root"
+        assert resolved.predecessor_artifacts_dir == "/tmp/hijacked"
+        assert resolved.predecessor_name == "acme--3"
 
     def test_bad_lineage_raises_before_resolution(self) -> None:
         with pytest.raises(RecoveryInheritanceError, match="lineage"):

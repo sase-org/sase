@@ -98,20 +98,9 @@ def _record_recovery_journal(
 
 def _resolve_machine_project(artifacts_dir: str) -> str | None:
     """Return the project owning the checkout the failed run worked in."""
-    try:
-        from sase.llm_provider.commit_finalizer_config import (
-            resolve_finalizer_project_dir,
-        )
-        from sase.workspace_provider.marker import find_marker_from_cwd
+    from sase.finalizers.project_identity import resolve_finalizer_project_key
 
-        project_dir = resolve_finalizer_project_dir()
-        found = find_marker_from_cwd(project_dir)
-        if found is None:
-            return None
-        _, marker = found
-        return marker.project_name or None
-    except Exception:
-        return None
+    return resolve_finalizer_project_key(Path(artifacts_dir))
 
 
 def _acquire_recovery_store(project: str, run_id: str) -> Any:

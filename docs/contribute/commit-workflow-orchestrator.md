@@ -678,35 +678,43 @@ for monitor settlement and recovery behavior.
    check the main workspace, configured linked repos, and repos opened through
    `/sase_repo`.
 5. Preserve protected pre-existing dirt using `finalizer_baseline.json`, then dispatch
-   accepted commit decisions through `sase stitch create` in context order. The baseline
-   also records each repository's `head` commit, so commits an agent made with raw
-   `git commit` outside the host stitch path are visible even though the tree is clean.
-   Before dirty-state collection, `sase final context` and `sase final submit` absorb
-   each eligible raw chain: the host pins `refs/sase/recovery/raw-commits/<run_id>` at
-   the observed HEAD and runs `git reset --soft` to the oldest raw commit's parent, so
-   the changes enter the ordinary obligation and declaration path as staged dirt. A
-   chain qualifies only when the detected raw commits are the complete contiguous suffix
-   from the oldest raw commit's parent through the observed HEAD, with one parent per
-   commit. A foreign-agent or host-recorded commit inside that range prevents
-   absorption; remote-reachable, foreign, or host-recorded history before the whole raw
-   suffix is preserved as its reset target. The host revalidates HEAD before pinning
-   recovery and before resetting. HEAD must be attached to a branch, no rebase, merge,
-   cherry-pick, am, revert, or bisect may be in progress, and no path touched by any
-   candidate commit may appear in the canonical baseline's dirty-path fingerprints. That
-   protected set is historical: committing, editing, or restoring a baseline-dirty path
-   does not remove it. The path scan unions every candidate commit's changed paths,
-   including both sides of renames, so a later revert cannot hide an earlier overlap.
-   Anything else is left for the backstop, and the absorbed shas are reported in the
-   context output. At execution time the finalizer never absorbs: any unrecorded
-   local-only commit left in a main, sibling, or opened external repo (host stitch
-   commits recorded in `commit_results.json`, remote-reachable commits, and SDD stores
-   excluded) fails the run with the non-retryable `unpublished_local_commits`
-   diagnostic, which names the repo, path, each sha and subject, and the restore
-   command. The first conflict blocks later repositories until repair/resume succeeds. A
-   repository whose every changed path is already protected can never stage anything, so
-   the dispatcher refuses before running the stitch and fails with the non-retryable
-   `protected_paths_exhausted` diagnostic, which names the protected paths and the
-   baseline record (`repo_id`, `scope`, `captured_at`) that protects them.
+   accepted commit decisions through `sase stitch create` in context order. Monitor and
+   gate continuations inherit the actual starter's baseline and opened-repository
+   markers; hijack recovery inherits the hijacked agent's. The session attach parent
+   still controls naming and promotion. At boot, inherited baselines retain existing
+   records and add missing workspace checkouts with empty fingerprints. A late
+   `sase repo open` of those checkouts therefore cannot revoke an obligation for session
+   work by recapturing it as protected dirt. If a starter's artifacts are unavailable,
+   ordinary continuations fall back to the attach parent and record an inheritance
+   diagnostic; strict recovery refuses incomplete inheritance. The baseline also records
+   each repository's `head` commit, so commits an agent made with raw `git commit`
+   outside the host stitch path are visible even though the tree is clean. Before
+   dirty-state collection, `sase final context` and `sase final submit` absorb each
+   eligible raw chain: the host pins `refs/sase/recovery/raw-commits/<run_id>` at the
+   observed HEAD and runs `git reset --soft` to the oldest raw commit's parent, so the
+   changes enter the ordinary obligation and declaration path as staged dirt. A chain
+   qualifies only when the detected raw commits are the complete contiguous suffix from
+   the oldest raw commit's parent through the observed HEAD, with one parent per commit.
+   A foreign-agent or host-recorded commit inside that range prevents absorption;
+   remote-reachable, foreign, or host-recorded history before the whole raw suffix is
+   preserved as its reset target. The host revalidates HEAD before pinning recovery and
+   before resetting. HEAD must be attached to a branch, no rebase, merge, cherry-pick,
+   am, revert, or bisect may be in progress, and no path touched by any candidate commit
+   may appear in the canonical baseline's dirty-path fingerprints. That protected set is
+   historical: committing, editing, or restoring a baseline-dirty path does not remove
+   it. The path scan unions every candidate commit's changed paths, including both sides
+   of renames, so a later revert cannot hide an earlier overlap. Anything else is left
+   for the backstop, and the absorbed shas are reported in the context output. At
+   execution time the finalizer never absorbs: any unrecorded local-only commit left in
+   a main, sibling, or opened external repo (host stitch commits recorded in
+   `commit_results.json`, remote-reachable commits, and SDD stores excluded) fails the
+   run with the non-retryable `unpublished_local_commits` diagnostic, which names the
+   repo, path, each sha and subject, and the restore command. The first conflict blocks
+   later repositories until repair/resume succeeds. A repository whose every changed
+   path is already protected can never stage anything, so the dispatcher refuses before
+   running the stitch and fails with the non-retryable `protected_paths_exhausted`
+   diagnostic, which names the protected paths and the baseline record (`repo_id`,
+   `scope`, `captured_at`) that protects them.
 
    When the accepted declaration commits the primary checkout and a linked repo whose
    `repos.linked[].revision_pin` names a pin file, the dispatcher commits that pinned

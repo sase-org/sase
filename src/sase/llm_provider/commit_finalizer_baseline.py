@@ -107,9 +107,12 @@ def bind_run_start_baseline_to_workspace(
     still-uncommitted work is this run's to commit. When false, fingerprints
     and ``head`` are captured fresh, matching :func:`capture_dirty_baseline`.
 
-    Best-effort only: never raises. No-ops when *project_dir* is not a git
-    checkout, or when a ``run_start`` ``main`` record already names that
-    checkout.
+    An inherited baseline already bound to this checkout keeps every existing
+    record and adds missing checkouts with empty fingerprints. A late open
+    therefore cannot reclassify session work as pre-existing dirt.
+
+    Best-effort only: never raises. Fresh baselines already bound to this
+    checkout, and paths that are not git checkouts, are left unchanged.
     """
     try:
         _bind_run_start_baseline_to_workspace(
@@ -377,11 +380,37 @@ def _bind_run_start_baseline_to_workspace(
         raw_records = [
             item for item in payload.get("repositories", []) if isinstance(item, dict)
         ]
-        if _run_start_main_matches(raw_records, normalized_project):
+        main_matches = _run_start_main_matches(raw_records, normalized_project)
+        if main_matches and not inherited:
             return
         from .commit_finalizer_state import collect_baseline_repositories
 
         baseline_repos = collect_baseline_repositories(str(project_path))
+        if main_matches:
+            # Preserve the predecessor's first observation, including opened
+            # scopes and protected dirt, while covering newly materialized repos.
+            known_paths = {
+                normalize_path(str(item.get("path", ""))) for item in raw_records
+            }
+            added_records = []
+            for repo in baseline_repos:
+                path = normalize_path(repo.path)
+                if path in known_paths:
+                    continue
+                added_records.append(
+                    _baseline_record(
+                        repo_id=_repo_id(repo.kind, repo.name, repo.path),
+                        repo_path=path,
+                        kind=repo.kind,
+                        name=repo.name,
+                        scope=_BASELINE_SCOPE_RUN_START,
+                        fingerprints={},
+                    )
+                )
+                known_paths.add(path)
+            if added_records:
+                _write_finalizer_baseline_payload(root, [*raw_records, *added_records])
+            return
         fingerprints: dict[str, tuple[str, str | None]] | None
         fingerprints = {} if inherited else None
         run_start_records = [

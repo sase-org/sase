@@ -13,6 +13,7 @@ import hashlib
 import json
 import re
 from collections.abc import Callable, Mapping
+from dataclasses import replace
 from pathlib import Path
 from typing import Any
 
@@ -294,6 +295,11 @@ def make_hijack_recovery_agent_dispatcher(
         try:
             claim_owner = _current_claim_owner(descriptor)
             plan = _resolve_reserved_plan(descriptor, resolve_session_plan)
+            plan = replace(
+                plan,
+                predecessor_artifacts_dir=_string_or_none(current.get("artifacts_dir")),
+                predecessor_name=str(descriptor["lineage"]["predecessor"]),
+            )
         except RecoveryInheritanceError as exc:
             return False, None, str(exc), [], {"receipt_state": "rejected"}
         except Exception as exc:  # noqa: BLE001 - no spawn has started

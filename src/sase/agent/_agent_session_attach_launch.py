@@ -206,6 +206,8 @@ def load_agent_session_attach_plan_from_env(
         sase_plan=_str_or_none(data.get("sase_plan")),
         model_alias_overrides=_string_mapping(data.get("model_alias_overrides")),
         host_composed=bool(data.get("host_composed", False)),
+        predecessor_artifacts_dir=_str_or_none(data.get("predecessor_artifacts_dir")),
+        predecessor_name=_str_or_none(data.get("predecessor_name")),
     )
 
 

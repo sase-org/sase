@@ -27,6 +27,7 @@ from sase.agent._agent_session_attach_types import (
     AgentSessionAttachError,
 )
 from sase.agent.detached_child import spawn_agent_session_successor
+from sase.turns.followup_starter import starter_predecessor
 from sase.agent.launcher import spawn_agent_subprocess
 from sase.axe.run_agent_helpers_artifacts import update_meta_field
 from sase.continuation_capture.rollout import (
@@ -161,6 +162,9 @@ def launch_followup_agent(
 
     parent_timestamp = meta.get("parent_timestamp")
     starter_name, starter_role = _starter_identity(project_name, parent_timestamp)
+    predecessor_dir, predecessor_name = starter_predecessor(
+        project_name, parent_timestamp
+    )
     settled = _wait_for_starter(
         project_name,
         parent_timestamp,
@@ -384,6 +388,8 @@ def launch_followup_agent(
         agent_name=frozen_name,
         parent_is_running=False,
         agent_session_role=starter_role or resolved_plan.agent_session_role,
+        predecessor_artifacts_dir=predecessor_dir,
+        predecessor_name=predecessor_name,
     )
 
     def _spawn(
@@ -403,6 +409,8 @@ def launch_followup_agent(
             transfer_from_pid=transfer_pid,
             cl_name=_clean_str(meta.get("cl_name")),
             agent_session_role=starter_role,
+            predecessor_artifacts_dir=predecessor_dir,
+            predecessor_name=predecessor_name,
             vcs_ref=vcs_ref,
             extra_env=delivery_env,
             spawn_fn=spawn_agent_subprocess,

@@ -320,9 +320,27 @@ class Flow:
             }
 
         def resolve_plan(session_base: str, project_name: str | None) -> Any:
+            from sase.agent._agent_session_attach_types import (
+                AgentSessionAttachLaunchPlan,
+            )
+
             assert session_base == "acme"
             assert project_name == "proj"
-            return SimpleNamespace(agent_name="acme--4")
+            return AgentSessionAttachLaunchPlan(
+                parent_arg="acme",
+                suffix_arg="@",
+                parent_name="acme--0",
+                parent_base="acme",
+                parent_timestamp="20260812110000",
+                parent_artifacts_dir="/tmp/session-root",
+                role_suffix="--4",
+                agent_name="acme--4",
+                agent_session_role="feedback",
+                parent_agent_session_member_name="acme--0",
+                parent_agent_session_role_suffix="--0",
+                parent_needs_rename=False,
+                parent_project_name="proj",
+            )
 
         def spawn(**kwargs: Any) -> Any:
             import json
@@ -334,6 +352,11 @@ class Flow:
             assert kwargs["workspace_num"] == 3
             assert kwargs["workspace_dir"] == "/ws/3"
             assert kwargs["transfer_from_pid"] == 111
+            assert kwargs["plan"].parent_artifacts_dir == "/tmp/session-root"
+            assert (
+                kwargs["plan"].predecessor_artifacts_dir == flow.record["artifacts_dir"]
+            )
+            assert kwargs["plan"].predecessor_name == "acme--3"
             assert kwargs["lineage"].hijack_id == "h-123"
             assert kwargs["descriptor"]["launch_identity"]
             assert kwargs["descriptor"]["reserved_successor_name"] == "acme--4"

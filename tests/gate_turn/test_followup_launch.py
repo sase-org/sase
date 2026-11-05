@@ -149,6 +149,49 @@ def test_fork_session_targets_the_agent_session(
 
     assert result.launched is True
     assert captured["prompt"].startswith("#fork:acme\n%model:gpt-5\n\n")
+    plan = json.loads(captured["extra_env"]["SASE_AGENT_SESSION_ATTACH"])
+    assert plan["predecessor_artifacts_dir"] == str(
+        canonical_agent_artifact_path("proj", "ace-run", meta["parent_timestamp"])
+    )
+    assert plan["predecessor_artifacts_dir"] != member_dir
+    assert plan["predecessor_name"] == "acme"
+
+
+def test_gate_inherits_later_starter_instead_of_session_root(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    member_dir, meta = _make_member(tmp_path)
+    root_dir = str(
+        canonical_agent_artifact_path("proj", "ace-run", meta["parent_timestamp"])
+    )
+    timestamp = "20260812130000"
+    starter = make_starter_agent(
+        "proj", timestamp, "acme--3", agent_session="acme", agent_session_role="coder"
+    )
+    (Path(starter) / "done.json").write_text("{}")
+    meta["parent_timestamp"] = timestamp
+    captured: dict[str, Any] = {}
+
+    def spawn(**kwargs: Any) -> AgentLaunchResult:
+        captured.update(kwargs)
+        return _fake_result()
+
+    monkeypatch.setattr(followup_module, "spawn_agent_subprocess", spawn)
+    result = launch_gate_followup_agent(
+        member_dir,
+        meta,
+        project_name="proj",
+        gate_state="answered",
+        policy=_policy(),
+        envelope=_envelope(),
+        response=_response(),
+        settle_timeout_seconds=_SETTLE_TIMEOUT,
+    )
+    assert result.launched
+    plan = json.loads(captured["extra_env"]["SASE_AGENT_SESSION_ATTACH"])
+    assert plan["parent_artifacts_dir"] == root_dir
+    assert plan["predecessor_artifacts_dir"] == starter
+    assert plan["predecessor_name"] == "acme--3"
 
 
 def test_fork_turn_targets_the_gate_turns_lane(

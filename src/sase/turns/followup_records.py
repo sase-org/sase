@@ -46,6 +46,8 @@ def spawn_turn_agent_session_successor(
     vcs_ref: tuple[str, str] | None = None,
     extra_env: dict[str, str] | None = None,
     spawn_fn: SpawnFn | None = None,
+    predecessor_artifacts_dir: str | None = None,
+    predecessor_name: str | None = None,
 ) -> AgentLaunchResult:
     """Spawn the next agent member in *agent_session* using agent-session attach semantics."""
     return spawn_agent_session_successor(
@@ -60,6 +62,8 @@ def spawn_turn_agent_session_successor(
         vcs_ref=vcs_ref,
         extra_env=extra_env,
         spawn_fn=spawn_fn,
+        predecessor_artifacts_dir=predecessor_artifacts_dir,
+        predecessor_name=predecessor_name,
     )
 
 

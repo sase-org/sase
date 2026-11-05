@@ -15,7 +15,7 @@ from sase.agent.launch_types import AgentLaunchResult
 from sase.core.artifact_file_facade import list_explicit_artifact_files
 from sase.llm_provider.continuation_budget import MONITOR_CONTINUATION_ENV
 
-from ._fixtures import write_project_file
+from ._fixtures import make_starter_agent, write_project_file
 from ._followup_fixtures import (
     _SETTLE_TIMEOUT,
     _capture_with_output,
@@ -115,6 +115,9 @@ def test_launch_followup_agent_attaches_to_the_lane_and_transfers_the_claim(
     plan = json.loads(env["SASE_AGENT_SESSION_ATTACH"])
     assert plan["agent_name"] == "acme--1"
     assert plan["parent_base"] == "acme"
+    assert plan["predecessor_artifacts_dir"] == _starter_dir
+    assert plan["predecessor_name"] == "acme--0"
+    assert plan["predecessor_artifacts_dir"] != monitor_dir
     # The starter's own role ("root") is inherited rather than the generic
     # numeric-suffix default ("feedback").
     assert plan["agent_session_role"] == "root"
@@ -123,6 +126,41 @@ def test_launch_followup_agent_attaches_to_the_lane_and_transfers_the_claim(
     # Persisted to disk too, not just the in-memory dict.
     on_disk = json.loads((Path(monitor_dir) / "agent_meta.json").read_text())
     assert on_disk["monitor_followup_agent"] == "acme--1"
+
+
+def test_monitor_inherits_later_starter_instead_of_session_root(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monitor_dir, root_dir, _ = _promote_and_start_monitor(tmp_path, monkeypatch)
+    meta = json.loads((Path(monitor_dir) / "agent_meta.json").read_text())
+    timestamp = "20260812130000"
+    starter = make_starter_agent(
+        "proj", timestamp, "acme--3", agent_session="acme", agent_session_role="coder"
+    )
+    (Path(starter) / "done.json").write_text("{}")
+    meta["parent_timestamp"] = timestamp
+    captured: dict[str, Any] = {}
+
+    def spawn(**kwargs: Any) -> AgentLaunchResult:
+        captured.update(kwargs)
+        return _fake_result()
+
+    monkeypatch.setattr(followup_module, "spawn_agent_subprocess", spawn)
+    result = followup_module.launch_followup_agent(
+        monitor_dir,
+        meta,
+        monitor_state="completed",
+        exit_code=0,
+        elapsed_seconds=1.0,
+        capture=_capture_with_output(monitor_dir, "done\n"),
+        project_name="proj",
+        settle_timeout_seconds=_SETTLE_TIMEOUT,
+    )
+    assert result.launched
+    plan = json.loads(captured["extra_env"]["SASE_AGENT_SESSION_ATTACH"])
+    assert plan["parent_artifacts_dir"] == root_dir
+    assert plan["predecessor_artifacts_dir"] == starter
+    assert plan["predecessor_name"] == "acme--3"
 
 
 def test_launch_followup_agent_uses_explicit_next_model(

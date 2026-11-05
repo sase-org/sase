@@ -17,6 +17,7 @@ from sase._linked_repo_markers import (
     opened_repo_records,
 )
 from sase.agent.identity import AgentIdentity
+from sase.agent._agent_session_attach_types import AgentSessionAttachLaunchPlan
 from sase.llm_provider.commit_finalizer_baseline import (
     BASELINE_FILENAME,
     FINALIZER_BASELINE_FILENAME,
@@ -30,6 +31,16 @@ _logger = logging.getLogger(__name__)
 INHERITANCE_DIAGNOSTICS_FILENAME = "opened_repo_inheritance_diagnostics.json"
 
 
+def commit_inheritance_source(plan: AgentSessionAttachLaunchPlan) -> tuple[str, str]:
+    """Use the actual predecessor without changing attach-parent semantics."""
+    if plan.predecessor_artifacts_dir and Path(plan.predecessor_artifacts_dir).is_dir():
+        return (
+            plan.predecessor_artifacts_dir,
+            plan.predecessor_name or plan.parent_name,
+        )
+    return plan.parent_artifacts_dir, plan.parent_name
+
+
 def inherit_commit_finalizer_responsibility(
     *,
     parent_artifacts_dir: str | None,
@@ -40,6 +51,7 @@ def inherit_commit_finalizer_responsibility(
     parent_workspace_dir: str | None,
     child_workspace_dir: str | None,
     workspace_num: int | None,
+    source_diagnostic: str | None = None,
 ) -> bool:
     """Inherit a baseline and opened-repository discovery into a continuation.
 
@@ -50,7 +62,7 @@ def inherit_commit_finalizer_responsibility(
     """
     child_root = Path(child_artifacts_dir).expanduser().resolve(strict=False)
     child_root.mkdir(parents=True, exist_ok=True)
-    diagnostics: list[str] = []
+    diagnostics: list[str] = [source_diagnostic] if source_diagnostic else []
 
     parent_root = (
         Path(parent_artifacts_dir).expanduser().resolve(strict=False)
@@ -372,5 +384,6 @@ def _clean(value: object) -> str | None:
 
 __all__ = [
     "INHERITANCE_DIAGNOSTICS_FILENAME",
+    "commit_inheritance_source",
     "inherit_commit_finalizer_responsibility",
 ]

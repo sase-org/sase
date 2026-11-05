@@ -140,6 +140,8 @@ def spawn_agent_session_successor(
     extra_env: dict[str, str] | None = None,
     spawn_fn: SpawnFn | None = None,
     resolve_plan: ResolvePlanFn | None = None,
+    predecessor_artifacts_dir: str | None = None,
+    predecessor_name: str | None = None,
 ) -> AgentLaunchResult:
     """Resolve ``directive`` and spawn the resolved agent-session member.
 
@@ -162,6 +164,10 @@ def spawn_agent_session_successor(
         parent_workspace_dir=workspace_dir or plan.parent_workspace_dir,
         parent_workspace_num=workspace_num,
         host_composed=True,
+        predecessor_artifacts_dir=(
+            predecessor_artifacts_dir or plan.predecessor_artifacts_dir
+        ),
+        predecessor_name=predecessor_name or plan.predecessor_name,
     )
     result = spawn_detached_child(
         project_name=project_name,

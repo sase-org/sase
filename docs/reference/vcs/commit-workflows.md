@@ -39,6 +39,14 @@ sase stitch create -> CommitWorkflow -> VCS provider -> tracked output
 Outside a SASE-launched agent turn, a human (or an agent explicitly told to commit) runs
 the same `sase stitch create` command directly or through the `/sase_git_commit` skill.
 
+Continuations inherit repository responsibility from their predecessor, including repos
+opened during that session. At boot, inherited baselines preserve existing records and
+add missing workspace checkouts with empty fingerprints. Reopening one of those repos
+later with `sase repo open` cannot turn session work into protected pre-existing dirt or
+remove its commit obligation. See the
+[commit orchestrator contract](../../contribute/commit-workflow-orchestrator.md) for
+baseline and dispatch details.
+
 ## Workflow Details
 
 ### Commit (`#commit`)

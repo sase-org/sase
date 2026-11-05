@@ -1191,6 +1191,19 @@ def prepare_recovery_successor(
 
     resolve = resolve_plan or _resolution.resolve_agent_session_attach_plan
     plan = resolve(directive, project_name=project_name)
+    if not plan.predecessor_artifacts_dir:
+        from dataclasses import replace
+        from sase.agent.hijack import ledger
+
+        record = ledger.load_record(resolved_lineage.hijack_id)
+        predecessor_dir = record.get("artifacts_dir") if record is not None else None
+        if not predecessor_dir and plan.parent_name == resolved_lineage.predecessor:
+            predecessor_dir = plan.parent_artifacts_dir
+        plan = replace(
+            plan,
+            predecessor_artifacts_dir=predecessor_dir,
+            predecessor_name=resolved_lineage.predecessor,
+        )
     env: dict[str, str] = _recovery_child_env(resolved_lineage)
     if descriptor is not None:
         env[RECOVERY_DESCRIPTOR_ENV] = encode_recovery_descriptor(descriptor)

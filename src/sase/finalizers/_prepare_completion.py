@@ -288,34 +288,14 @@ def _executor_capabilities(plan: FinalizerPlanWire) -> list[dict[str, Any]]:
 
 
 def _resolve_creator_project(root: Path) -> str:
-    """Return the agent's real project name for the sealed creator identity.
+    """Resolve the storage key, preserving legacy defaults for manual preparation."""
+    from sase.finalizers.project_identity import resolve_finalizer_project_key
 
-    The artifacts directory is created under the runner's own project name,
-    so deriving it from the directory path reproduces exactly what the runner
-    used. The project-file formula is the runner's own fallback for runs
-    whose artifacts directory lives outside the projects tree (tests, manual
-    runs). The ``SASE_PROJECT`` variables predate agent runs and are kept
-    only as a legacy override; ``"sase"`` remains for runs with no project
-    at all.
-    """
-
-    try:
-        from sase.core.paths import sase_projects_dir
-
-        relative = (
-            root.expanduser().resolve().relative_to(sase_projects_dir().resolve())
-        )
-        if relative.parts:
-            return relative.parts[0]
-    except (OSError, RuntimeError, ValueError):
-        pass
-    project_file = (os.environ.get("SASE_AGENT_PROJECT_FILE") or "").strip()
-    if project_file:
-        parent = os.path.basename(os.path.dirname(os.path.abspath(project_file)))
-        if parent:
-            return parent
     return (
-        os.environ.get("SASE_PROJECT") or os.environ.get("SASE_PROJECT_NAME") or "sase"
+        resolve_finalizer_project_key(root)
+        or os.environ.get("SASE_PROJECT")
+        or os.environ.get("SASE_PROJECT_NAME")
+        or "sase"
     )
 
 

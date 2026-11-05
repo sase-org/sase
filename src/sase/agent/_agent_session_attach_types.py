@@ -52,6 +52,10 @@ class AgentSessionAttachLaunchPlan:
     sase_plan: str | None = None
     model_alias_overrides: dict[str, str] = field(default_factory=dict)
     host_composed: bool = False
+    # Repository responsibility follows the starter, independently of the
+    # attach parent used for session naming and promotion.
+    predecessor_artifacts_dir: str | None = None
+    predecessor_name: str | None = None
 
 
 @dataclass(frozen=True)

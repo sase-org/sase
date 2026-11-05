@@ -68,6 +68,19 @@ def wait_for_starter_artifacts_dir(
     return done_path.exists()
 
 
+def starter_predecessor(
+    project_name: str, parent_timestamp: object
+) -> tuple[str | None, str]:
+    """Locate the agent that started a turn, retaining missing-source identity.
+
+    Bootstrap records a diagnostic and uses the attach parent if this path
+    is unavailable. Never substitute the monitor or gate member's baseline.
+    """
+    path = _starter_artifacts_dir(project_name, parent_timestamp)
+    name = _read_meta_str(path, "name") if path else None
+    return path, name or f"starter at {parent_timestamp or 'missing parent_timestamp'}"
+
+
 def wait_for_starter(
     project_name: str,
     parent_timestamp: object,
@@ -158,6 +171,7 @@ __all__ = [
     "STARTER_SETTLE_POLL_SECONDS",
     "fork_target_for_settled_starter",
     "starter_identity",
+    "starter_predecessor",
     "wait_for_followup_started",
     "wait_for_starter",
     "wait_for_starter_artifacts_dir",
