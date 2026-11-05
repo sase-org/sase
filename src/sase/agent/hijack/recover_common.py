@@ -280,6 +280,12 @@ class RecoveryDeps:
     gather_inheritance: Callable[..., InheritanceEvidence | None] | None = None
     verify_claim: Callable[..., bool] | None = None
     terminate_pid: Callable[[int], None] | None = None
+    read_ack: Callable[[str], Mapping[str, Any] | None] | None = None
+    observe_admission: Callable[[str], Mapping[str, Any]] | None = None
+    cancel_admission: Callable[[str, str], Mapping[str, Any]] | None = None
+    terminate_successor: Callable[..., Mapping[str, Any] | bool] | None = None
+    restore_custody: Callable[..., tuple[bool, str]] | None = None
+    process_identity_token: Callable[[int], str | None] | None = None
     sleep: Callable[[float], None] | None = None
     admission_spawn_coordinator: bool = True
     settle_timeout_seconds: float = 20.0

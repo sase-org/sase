@@ -13,6 +13,8 @@ from .core import (
     agent_hijack_eligibility,
     agent_hijack_status_for_done_marker,
     agent_hijack_wire_schema_version,
+    hijack_recovery_confirm,
+    hijack_recovery_rollback,
 )
 from .custody import (
     ACTIVE_CUSTODY_STATES,
@@ -67,6 +69,7 @@ from .recovery_successor import (
     write_recovery_ack,
 )
 from .recovery_admission import (
+    cancel_recovery_admission_for_rollback,
     cancel_recovery_admission_request,
     observe_recovery_admission,
     resume_recovery_admission,
@@ -104,11 +107,14 @@ __all__ = [
     "agent_hijack_wire_schema_version",
     "cas_advance_record",
     "cancel_recovery_admission_request",
+    "cancel_recovery_admission_for_rollback",
     "build_hijack_continuation_prompt",
     "create_record",
     "hijack_retains_claim",
     "hijack_skips_claim_release",
     "hijack_recovery_preview",
+    "hijack_recovery_confirm",
+    "hijack_recovery_rollback",
     "list_active_records",
     "load_record",
     "load_record_by_agent_name",

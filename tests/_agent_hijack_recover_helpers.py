@@ -220,6 +220,9 @@ class Flow:
         spawn: Any = None,
         evidence: Any = "default",
         claim_ok: bool = True,
+        terminate_verified: bool = True,
+        restore_custody_ok: bool = True,
+        ack_overrides: Mapping[str, Any] | None = None,
         execution_facts: Any = None,
     ) -> None:
         from sase.agent.hijack import ledger
@@ -267,10 +270,14 @@ class Flow:
         self._spawn = spawn
         self._evidence = evidence
         self._claim_ok = claim_ok
+        self._terminate_verified = terminate_verified
+        self._restore_custody_ok = restore_custody_ok
+        self._ack_overrides = dict(ack_overrides or {})
         self._execution_facts = execution_facts
 
     def deps(self) -> RecoveryDeps:
         flow = self
+        from sase.agent.hijack.recovery_successor import read_recovery_ack
 
         def load_subject(agent_or_name: object) -> RecoverySubject | None:
             _ = agent_or_name
@@ -318,6 +325,8 @@ class Flow:
             return SimpleNamespace(agent_name="acme--4")
 
         def spawn(**kwargs: Any) -> Any:
+            import json
+
             flow.log.append("spawn")
             flow.spawned_prompt = str(kwargs["prompt"])
             flow.spawned_descriptor = dict(kwargs["descriptor"])
@@ -335,7 +344,83 @@ class Flow:
             assert "SASE_HIJACK_RECOVERY_DESCRIPTOR" in extra
             if isinstance(flow._spawn, Exception):
                 raise flow._spawn
-            return flow._spawn
+            result = flow._spawn
+            pid = int(getattr(result, "pid", 4242))
+            for name, value in (
+                ("workspace_num", 3),
+                ("workspace_dir", "/ws/3"),
+                ("workflow_name", "ace(run)-20261105_000000"),
+                ("cl_name", "acme--4"),
+                ("timestamp", "20261105000000"),
+            ):
+                if getattr(result, name, None) is None:
+                    setattr(result, name, value)
+            token = f"process-token-{pid}"
+            Path(result.artifacts_dir).mkdir(parents=True, exist_ok=True)
+            (Path(result.artifacts_dir) / "agent_meta.json").write_text(
+                json.dumps(
+                    {
+                        "name": getattr(result, "agent_name", None),
+                        "pid": pid,
+                        "process_identity": token,
+                    }
+                ),
+                encoding="utf-8",
+            )
+            if flow._evidence != {}:
+                from sase.agent.hijack.recovery_successor import (
+                    build_bootstrap_ack,
+                    write_recovery_ack,
+                )
+
+                observed = flow._evidence
+                goal = (
+                    observed.successor_goal
+                    if isinstance(observed, InheritanceEvidence)
+                    else "goal-1"
+                )
+                bead = (
+                    observed.successor_bead
+                    if isinstance(observed, InheritanceEvidence)
+                    else "sase-1"
+                )
+                baseline = (
+                    observed.baseline_inherited
+                    if isinstance(observed, InheritanceEvidence)
+                    else True
+                )
+                transferred = (
+                    observed.transferred_repo_count
+                    if isinstance(observed, InheritanceEvidence)
+                    else 0
+                )
+                target = str(kwargs["descriptor"]["concrete_target"])
+                lineage = kwargs["descriptor"]["lineage"]
+                if isinstance(lineage, str):
+                    lineage = json.loads(lineage)
+                provider_model, separator, effort = target.partition("@")
+                provider, _, model = provider_model.partition("/")
+                ack = build_bootstrap_ack(
+                    goal=goal,
+                    bead=bead,
+                    baseline_inherited=baseline,
+                    transferred_repos=transferred,
+                    permission=autonomy(),
+                    launch_identity=kwargs["descriptor"]["launch_identity"],
+                    successor_name=kwargs["descriptor"]["reserved_successor_name"],
+                    process_token=token,
+                    project=kwargs["descriptor"]["project"],
+                    workspace_num=kwargs["descriptor"]["workspace_num"],
+                    workspace_dir=kwargs["descriptor"]["workspace_dir"],
+                    lineage=lineage,
+                    provider=provider,
+                    model=model,
+                    effort=effort if separator else None,
+                    concrete_target=target,
+                )
+                ack.update(flow._ack_overrides)
+                write_recovery_ack(str(result.artifacts_dir), ack)
+            return result
 
         def gather(successor_dir: str | None, **kwargs: Any) -> Any:
             _ = (successor_dir, kwargs)
@@ -352,6 +437,21 @@ class Flow:
         def terminate(pid: int) -> None:
             flow.terminated.append(pid)
 
+        def terminate_successor(
+            pid: int, _artifacts_dir: str | None, _token: str | None
+        ) -> dict[str, Any]:
+            flow.terminated.append(pid)
+            return {
+                "verified_dead": flow._terminate_verified,
+                "state": "killed" if flow._terminate_verified else "survivors",
+                "survivors": [] if flow._terminate_verified else [pid],
+            }
+
+        def restore_custody(
+            _record: Mapping[str, Any], _pid: int | None, _launched: Any
+        ) -> tuple[bool, str]:
+            return flow._restore_custody_ok, "fixture custody restoration"
+
         return RecoveryDeps(
             load_subject=load_subject,
             preview=preview,  # type: ignore[arg-type]
@@ -362,6 +462,10 @@ class Flow:
             gather_inheritance=gather,
             verify_claim=verify,
             terminate_pid=terminate,
+            read_ack=read_recovery_ack,
+            terminate_successor=terminate_successor,
+            restore_custody=restore_custody,
+            process_identity_token=lambda pid: f"process-token-{pid}",
             admission_spawn_coordinator=False,
             settle_timeout_seconds=0.01,
             settle_poll_seconds=0.001,
@@ -389,5 +493,12 @@ def write_done(path: Path, outcome: str = "hijacked") -> None:
 
 def spawned(pid: int, successor_dir: Path) -> Any:
     return SimpleNamespace(
-        agent_name="acme--4", pid=pid, artifacts_dir=str(successor_dir)
+        agent_name="acme--4",
+        pid=pid,
+        artifacts_dir=str(successor_dir),
+        workspace_num=3,
+        workspace_dir="/ws/3",
+        workflow_name="ace(run)-20261105_000000",
+        cl_name="acme--4",
+        timestamp="20261105000000",
     )

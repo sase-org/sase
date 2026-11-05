@@ -484,6 +484,41 @@ def cancel_recovery_admission_request(
     return result
 
 
+def cancel_recovery_admission_for_rollback(
+    request_id: str,
+    *,
+    reason: str = "recovery confirmation failed",
+) -> dict[str, Any]:
+    """Make a recovery request non-dispatchable without changing its bead state.
+
+    Confirmation rollback must first prove cancellation, child termination,
+    and custody restoration, then advance the hijack record. The ordinary
+    cancellation entrypoint also returns the record to held, so this variant
+    deliberately performs only the admission cancellation and observation.
+    """
+    status = observe_recovery_admission(request_id)
+    if not status.get("in_flight"):
+        return dict(status)
+
+    from sase.agent.launch_admission import cancel_typed_launch_request
+
+    try:
+        cancellation = cancel_typed_launch_request(
+            _bundle_dir_for_request(request_id), reason=reason
+        )
+    except Exception as exc:  # noqa: BLE001 - observe whether cancellation settled
+        status = observe_recovery_admission(request_id)
+        return {
+            **dict(status),
+            "cancel_error": str(exc),
+        }
+    status = observe_recovery_admission(request_id)
+    return {
+        **dict(status),
+        "cancellation": dict(cancellation),
+    }
+
+
 def _typed_request_payload(
     descriptor: Mapping[str, Any],
     project_display: Callable[[str | None], str | None],
@@ -930,6 +965,7 @@ __all__ = [
     "RECOVERY_ADMISSION_SCHEMA_VERSION",
     "RECOVERY_ADMISSION_SOURCE_SURFACE",
     "cancel_recovery_admission_request",
+    "cancel_recovery_admission_for_rollback",
     "dispatch_recovery_admission",
     "is_hijack_recovery_typed_request",
     "make_hijack_recovery_agent_dispatcher",

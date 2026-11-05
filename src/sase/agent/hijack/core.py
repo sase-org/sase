@@ -163,6 +163,22 @@ def hijack_recovery_validate_execution(
     return dict(binding(dict(record), str(pinned_target), dict(facts)))
 
 
+def hijack_recovery_confirm(
+    record: Mapping[str, Any], facts: Mapping[str, Any]
+) -> dict[str, Any]:
+    """Decide whether observed successor evidence proves settlement."""
+    binding = require_rust_binding("hijack_recovery_confirm")
+    return dict(binding(dict(record), dict(facts)))
+
+
+def hijack_recovery_rollback(
+    record: Mapping[str, Any], facts: Mapping[str, Any]
+) -> dict[str, Any]:
+    """Decide whether proven termination and restored custody permit retry."""
+    binding = require_rust_binding("hijack_recovery_rollback")
+    return dict(binding(dict(record), dict(facts)))
+
+
 __all__ = [
     "CONTINUATION_WIRE_SCHEMA_VERSION",
     "ESCALATION_WIRE_SCHEMA_VERSION",
@@ -183,6 +199,8 @@ __all__ = [
     "hijack_recovery_execution_wire_schema_version",
     "hijack_recovery_effective_target",
     "hijack_recovery_validate_execution",
+    "hijack_recovery_confirm",
+    "hijack_recovery_rollback",
     "normalize_hijack_rung",
     "strip_hijack_launch_directives",
 ]

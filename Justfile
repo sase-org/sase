@@ -527,9 +527,9 @@ _lint-symvision *args: _setup
         --epic-symbol "sase-1qz.6(strip_hijack_launch_directives)" \
         --epic-symbol "sase-1qz.6.1.5(hijack_recovery_reconcile)" \
         --epic-symbol "sase-1qz.6.1.5(hijack_recovery_reconcile_wire_schema_version)" \
-        --epic-symbol "sase-1qz.6.1.4.1.5(BootstrapObservation)" \
-        --epic-symbol "sase-1qz.6.1.4.1.5(RecoveryBootstrapError)" \
-        --epic-symbol "sase-1qz.6.1.4.1.5(build_bootstrap_ack)" \
+        --epic-symbol "sase-1qz.6.1.4.1.6(BootstrapObservation)" \
+        --epic-symbol "sase-1qz.6.1.4.1.6(RecoveryBootstrapError)" \
+        --epic-symbol "sase-1qz.6.1.4.1.6(build_bootstrap_ack)" \
         --epic-symbol "sase-1rd(snapshot_dir)" \
         --epic-symbol "sase-1rd.4(parse_run_prune_review)" \
         --epic-symbol "sase-1rd.4(RunPruneReview)" \

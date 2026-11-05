@@ -86,7 +86,7 @@ class TestQueuedAndFailedLaunches:
         assert resumed.detail["admission"]["state"] == "dispatching"
         assert flow.log == ["spawn"]
 
-    def test_identity_mismatch_is_uncertain(
+    def test_identity_mismatch_rolls_back_only_after_verified_stop(
         self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
     ) -> None:
         flow = self._base(
@@ -98,10 +98,11 @@ class TestQueuedAndFailedLaunches:
             agent_name="acme--9", pid=4242, artifacts_dir=str(tmp_path / "succ")
         )
         result = flow.recover()
-        assert result.kind == "uncertain"
-        assert flow.ledger.current["state"] == "resolving"
+        assert result.kind == "error"
+        assert result.detail["code"] == "identity_mismatch"
+        assert flow.ledger.current["state"] == "held"
 
-    def test_missing_boot_evidence_is_uncertain(
+    def test_missing_boot_ack_returns_held_after_safe_rollback(
         self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
     ) -> None:
         flow = self._base(
@@ -111,10 +112,11 @@ class TestQueuedAndFailedLaunches:
             evidence={},
         )
         result = flow.recover()
-        assert result.kind == "uncertain"
-        assert flow.ledger.current["state"] == "resolving"
+        assert result.kind == "error"
+        assert result.detail["code"] == "ack_missing"
+        assert flow.ledger.current["state"] == "held"
 
-    def test_unverified_claim_is_uncertain(
+    def test_unverified_claim_returns_held_after_safe_rollback(
         self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
     ) -> None:
         flow = self._base(
@@ -124,8 +126,9 @@ class TestQueuedAndFailedLaunches:
             claim_ok=False,
         )
         result = flow.recover()
-        assert result.kind == "uncertain"
-        assert flow.ledger.current["state"] == "resolving"
+        assert result.kind == "error"
+        assert result.detail["code"] == "workspace_mismatch"
+        assert flow.ledger.current["state"] == "held"
 
     def test_inheritance_failure_terminates_and_holds(
         self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
@@ -142,10 +145,212 @@ class TestQueuedAndFailedLaunches:
         )
         result = flow.recover()
         assert result.kind == "error"
-        assert result.detail["code"] == "inheritance_failed"
+        assert result.detail["code"] == "ack_mismatch"
         assert flow.ledger.current["state"] == "held"
         assert flow.terminated == [4242]
-        assert not (successor_dir / "hijack_recovery_ack.json").exists()
+        assert (successor_dir / "hijack_recovery_ack.json").exists()
+
+    def test_failed_process_tree_stop_retains_resolving(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
+        flow = self._base(
+            monkeypatch,
+            tmp_path,
+            spawn=spawned(4242, tmp_path / "succ"),
+            evidence={},
+            terminate_verified=False,
+        )
+        result = flow.recover()
+        assert result.kind == "uncertain"
+        assert result.detail["termination"]["verified_dead"] is False
+        assert flow.ledger.current["state"] == "resolving"
+        assert flow.terminated == [4242]
+
+    def test_failed_custody_restoration_retains_resolving(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
+        flow = self._base(
+            monkeypatch,
+            tmp_path,
+            spawn=spawned(4242, tmp_path / "succ"),
+            evidence={},
+            restore_custody_ok=False,
+        )
+        result = flow.recover()
+        assert result.kind == "uncertain"
+        assert result.detail["custody"]["restored"] is False
+        assert flow.ledger.current["state"] == "resolving"
+
+    def test_cancellation_must_be_observed_before_rollback(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
+        from sase.agent.hijack.recover_common import RecoveryDeps
+        from sase.agent.hijack.recover_confirm import _make_request_non_dispatchable
+
+        flow = self._base(monkeypatch, tmp_path)
+        flow.ledger.current["state"] = "resolving"
+        calls: list[tuple[str, str]] = []
+
+        def cancel(request_id: str, reason: str) -> dict[str, Any]:
+            calls.append((request_id, reason))
+            return {
+                "request_id": request_id,
+                "dispatch_fingerprint": "fingerprint-1",
+                "state": "cancelled",
+                "in_flight": False,
+                "cancel_requested": True,
+            }
+
+        request_state, observed = _make_request_non_dispatchable(
+            {
+                "request_id": "request-1",
+                "dispatch_fingerprint": "fingerprint-1",
+                "state": "waiting",
+                "in_flight": True,
+            },
+            request_id="request-1",
+            admission_identity="fingerprint-1",
+            seams=RecoveryDeps(cancel_admission=cancel),
+        )
+        assert request_state == "canceled"
+        assert observed["cancel_requested"] is True
+        assert calls == [("request-1", "recovery successor confirmation failed")]
+        assert flow.ledger.current["state"] == "resolving"
+
+    def test_rollback_restores_and_pins_the_recorded_workspace_owner(
+        self, tmp_path: Path
+    ) -> None:
+        from sase.agent.hijack.recover_confirm import _restore_held_workspace_custody
+        from sase.running_field import get_claimed_workspaces
+
+        project_file = tmp_path / "proj.sase"
+        project_file.write_text(
+            "# Project: proj\nRUNNING:\n"
+            "  #3 | 4242 | ace(run)-20261105_000000 | acme--4 | "
+            "20261105000000\n",
+            encoding="utf-8",
+        )
+        artifacts = tmp_path / "artifacts"
+        artifacts.mkdir()
+        record = make_record(
+            artifacts,
+            project_file=str(project_file),
+            expected_claim_owner_pid=111,
+        )
+        launched = SimpleNamespace(
+            workspace_num=3,
+            workspace_dir="/ws/3",
+            workflow_name="ace(run)-20261105_000000",
+            cl_name="acme--4",
+            timestamp="20261105000000",
+        )
+
+        restored, message = _restore_held_workspace_custody(record, 4242, launched)
+
+        claims = get_claimed_workspaces(str(project_file))
+        assert restored is True, message
+        assert len(claims) == 1
+        assert claims[0].workspace_num == 3
+        assert claims[0].pid == 111
+        assert claims[0].pinned is True
+
+    def test_rollback_reclaims_missing_fixed_workspace_for_held_owner(
+        self, tmp_path: Path
+    ) -> None:
+        from sase.agent.hijack.recover_confirm import _restore_held_workspace_custody
+        from sase.running_field import get_claimed_workspaces
+
+        project_file = tmp_path / "proj.sase"
+        project_file.write_text("# Project: proj\nRUNNING:\n", encoding="utf-8")
+        artifacts = tmp_path / "artifacts"
+        artifacts.mkdir()
+        record = make_record(
+            artifacts,
+            project_file=str(project_file),
+            expected_claim_owner_pid=111,
+        )
+        launched = SimpleNamespace(
+            workspace_num=3,
+            workspace_dir="/ws/3",
+            workflow_name="ace(run)-20261105_000000",
+            cl_name="acme--4",
+            timestamp="20261105000000",
+        )
+
+        restored, message = _restore_held_workspace_custody(record, 4242, launched)
+
+        claims = get_claimed_workspaces(str(project_file))
+        assert restored is True, message
+        assert len(claims) == 1
+        assert claims[0].workspace_num == 3
+        assert claims[0].pid == 111
+        assert claims[0].pinned is True
+
+    def test_rollback_does_not_take_a_foreign_workspace_claim(
+        self, tmp_path: Path
+    ) -> None:
+        from sase.agent.hijack.recover_confirm import _restore_held_workspace_custody
+        from sase.running_field import get_claimed_workspaces
+
+        project_file = tmp_path / "proj.sase"
+        project_file.write_text(
+            "# Project: proj\nRUNNING:\n"
+            "  #3 | 9999 | run | other-agent | 20261105000000\n",
+            encoding="utf-8",
+        )
+        artifacts = tmp_path / "artifacts"
+        artifacts.mkdir()
+        record = make_record(
+            artifacts,
+            project_file=str(project_file),
+            expected_claim_owner_pid=111,
+        )
+        launched = SimpleNamespace(workspace_num=3, workspace_dir="/ws/3")
+
+        restored, message = _restore_held_workspace_custody(record, 4242, launched)
+
+        claims = get_claimed_workspaces(str(project_file))
+        assert restored is False
+        assert "foreign pid 9999" in message
+        assert len(claims) == 1
+        assert claims[0].pid == 9999
+
+    @pytest.mark.parametrize(
+        ("ack_overrides", "expected_code"),
+        [
+            ({"model": "sonnet"}, "model_mismatch"),
+            ({"effort": "low"}, "model_mismatch"),
+            (
+                {
+                    "lineage": {
+                        "hijack_id": "other-hijack",
+                        "from_rung": "claude/opus@high",
+                        "to_rung": "claude/opus@high",
+                        "predecessor": "acme--3",
+                    }
+                },
+                "lineage_mismatch",
+            ),
+        ],
+    )
+    def test_ack_mismatch_never_settles(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        tmp_path: Path,
+        ack_overrides: dict[str, Any],
+        expected_code: str,
+    ) -> None:
+        flow = self._base(
+            monkeypatch,
+            tmp_path,
+            spawn=spawned(4242, tmp_path / "succ"),
+            ack_overrides=ack_overrides,
+        )
+        result = flow.recover()
+        assert result.kind == "error"
+        assert result.detail["code"] == expected_code
+        assert flow.ledger.current["state"] == "held"
+        assert flow.terminated == [4242]
 
     def test_rotated_target_fails_back_to_held(
         self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path

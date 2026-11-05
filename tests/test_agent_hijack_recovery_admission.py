@@ -11,6 +11,7 @@ import pytest
 from sase.agent.hijack.recovery_admission import (
     RECOVERY_ADMISSION_METADATA_KEY,
     RECOVERY_ADMISSION_SOURCE_SURFACE,
+    cancel_recovery_admission_for_rollback,
     cancel_recovery_admission_request,
     observe_recovery_admission,
 )
@@ -119,6 +120,12 @@ def test_cancelled_waiting_recovery_request_stays_cancelled_after_restart(
     assert first.admission_complete is False
     assert dispatches == []
     assert observe_recovery_admission(request_id)["state"] == "waiting"
+
+    rollback_cancelled = cancel_recovery_admission_for_rollback(
+        request_id, reason="confirmation rollback"
+    )
+    assert rollback_cancelled["state"] == "cancelled"
+    assert record["state"] == "resolving"
 
     cancelled = cancel_recovery_admission_request(request_id, reason="stop request")
     assert cancelled["state"] == "cancelled"
