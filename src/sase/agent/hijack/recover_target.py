@@ -5,6 +5,10 @@ from __future__ import annotations
 from collections.abc import Mapping
 from typing import Any
 
+from sase.agent.hijack.core import (
+    hijack_recovery_effective_target,
+    hijack_recovery_execution_wire_schema_version,
+)
 from sase.agent.hijack.recover_common import (
     KEEP_WORK_ACTIONS,
     RecoveryRefusal,
@@ -126,7 +130,13 @@ def extract_prompt_model(prompt_text: str) -> str | None:
             f"Instruct prompt directives do not parse: {exc}",
         ) from exc
     model = getattr(directives, "model", None)
+    model_alias = getattr(directives, "model_alias", None)
     effort = getattr(directives, "reasoning_effort", None)
+    if isinstance(model_alias, str) and model_alias.strip():
+        # The shared parser has already resolved the spelling into its alias
+        # field. Keep it explicitly unresolved for Rust policy, which refuses
+        # rotating aliases at recovery time.
+        return f"@{model_alias.strip()}"
     if not isinstance(model, str) or not model.strip():
         return None
     text = model.strip()
@@ -147,14 +157,13 @@ def resolve_effective_target(
     model_override: str | None = None,
     prompt_text: str | None = None,
 ) -> RecoveryTarget:
-    """Validate *action* and pin its effective concrete target and prompt.
+    """Resolve a concrete target through the Rust-owned shared policy.
 
-    Escalate uses the freshly previewed target; Continue pins the
-    predecessor's concrete provider/model/effort. Instruct requires the full
-    edited replacement prompt: an explicit model override wins, otherwise an
-    edited ``%model`` overrides Continue's default. Conflicting
-    launch/fan-out directives refuse. The effective target, including
-    effort, decides ``model_changed`` (``ESCALATED`` versus ``CONTINUED``).
+    The public CLI action remains ``continue`` when it carries an explicit
+    model or edited prompt; those cases adapt internally to Instruct. The
+    selected target is also written into an edited prompt so the launched
+    invocation uses the exact provider, model, and effort pinned in the
+    recovery record.
     """
     normalized = clean_string(action) or ""
     if normalized not in KEEP_WORK_ACTIONS:
@@ -163,8 +172,14 @@ def resolve_effective_target(
             f"Recovery action must be one of {', '.join(KEEP_WORK_ACTIONS)}, "
             f"got {action!r}",
         )
+    edited = prompt_text if isinstance(prompt_text, str) else None
+    explicit_model = clean_string(model_override)
+    customized_continue = normalized == "continue" and (
+        explicit_model is not None or edited is not None
+    )
+    customized = normalized == "instruct" or customized_continue
     available = bool((preview_action or {}).get("available", False))
-    if not available:
+    if not available and not customized:
         reason = clean_string((preview_action or {}).get("reason"))
         raise RecoveryRefusal(
             "action_unavailable",
@@ -177,108 +192,83 @@ def resolve_effective_target(
             "unknown_model",
             "The predecessor's concrete model is unknown",
         )
-    stalled = require_concrete_target(stalled, source="predecessor record")
-    if normalized == "continue":
-        if model_override is not None or prompt_text is not None:
-            raise RecoveryRefusal(
-                "incompatible_options",
-                "Continue takes no model override or replacement prompt",
-            )
-        target = clean_string((preview_action or {}).get("target")) or stalled
-        target = require_concrete_target(target, source="continue preview")
-        return RecoveryTarget(
-            action=normalized,
-            concrete_target=target,
-            model_changed=target != stalled,
-            prompt="",
-            context_mode="",
-        )
-    if normalized == "escalate":
-        if model_override is not None or prompt_text is not None:
-            raise RecoveryRefusal(
-                "incompatible_options",
-                "Escalate takes no model override or replacement prompt",
-            )
-        pinned = clean_string((preview_action or {}).get("target"))
-        if not pinned:
-            raise RecoveryRefusal(
-                "action_unavailable",
-                "Escalate has no pinned target",
-            )
-        target = require_concrete_target(pinned, source="escalate preview")
-        return RecoveryTarget(
-            action=normalized,
-            concrete_target=target,
-            model_changed=target != stalled,
-            prompt="",
-            context_mode="",
-        )
-    # Instruct: the edited replacement prompt is the continuation prompt.
-    edited = prompt_text if isinstance(prompt_text, str) else ""
-    if not edited.strip():
+
+    if normalized == "instruct" and (edited is None or not edited.strip()):
         raise RecoveryRefusal(
             "missing_prompt",
             "Instruct requires the full edited replacement prompt",
         )
-    conflicts = conflicting_launch_directives(edited)
-    if conflicts:
+    if normalized == "continue" and edited is not None and not edited.strip():
+        raise RecoveryRefusal("missing_prompt", "The replacement prompt is empty")
+    if normalized == "escalate" and (explicit_model is not None or edited is not None):
         raise RecoveryRefusal(
-            "conflicting_directives",
-            "Instruct prompt carries launch directives owned by recovery: "
-            + ", ".join(conflicts),
+            "incompatible_options",
+            "Escalate takes no model override or replacement prompt",
         )
-    if model_override is not None:
-        override = require_concrete_target(
-            model_override, source="explicit model override"
+
+    internal_action = (
+        "instruct" if normalized == "instruct" or customized_continue else normalized
+    )
+    prompt_model: str | None = None
+    if edited is not None:
+        conflicts = conflicting_launch_directives(edited)
+        if conflicts:
+            raise RecoveryRefusal(
+                "conflicting_directives",
+                "Instruct prompt carries launch directives owned by recovery: "
+                + ", ".join(conflicts),
+            )
+        prompt_model = extract_prompt_model(edited)
+
+    request = {
+        "schema_version": hijack_recovery_execution_wire_schema_version(),
+        "action": internal_action,
+        "stalled_concrete": stalled,
+        "continue_target": clean_string((preview_action or {}).get("target")),
+        "escalate_target": clean_string((preview_action or {}).get("target")),
+        "explicit_model_override": explicit_model,
+        "prompt_model": prompt_model,
+        "predecessor_provider": clean_string(record.get("provider")),
+    }
+    try:
+        result = hijack_recovery_effective_target(request)
+    except (TypeError, ValueError) as exc:
+        message = str(exc)
+        raise RecoveryRefusal(_target_error_code(message), message) from exc
+
+    target_value = clean_string(result.get("concrete_target"))
+    if not target_value:
+        raise RecoveryRefusal(
+            "invalid_model_target", "Rust recovery policy returned no concrete target"
         )
+    is_instruct = internal_action == "instruct"
+    prepared_prompt = ""
+    if edited is not None:
         from sase.macro.directive_edit import set_prompt_model
 
         try:
-            rewritten = set_prompt_model(edited, override)
+            prepared_prompt = set_prompt_model(edited, target_value)
         except Exception as exc:
             raise RecoveryRefusal(
-                "invalid_prompt",
-                f"Could not apply the explicit model override: {exc}",
+                "invalid_prompt", f"Could not pin the Instruct prompt model: {exc}"
             ) from exc
-        return RecoveryTarget(
-            action=normalized,
-            concrete_target=override,
-            model_changed=override != stalled,
-            prompt=rewritten,
-            context_mode="instruct",
-        )
-    edited_model = extract_prompt_model(edited)
-    if edited_model is not None:
-        normalized_model = _normalize_prompt_model(
-            edited_model, predecessor_provider=clean_string(record.get("provider"))
-        )
-        target = require_concrete_target(
-            normalized_model, source="instruct prompt %model"
-        )
-        return RecoveryTarget(
-            action=normalized,
-            concrete_target=target,
-            model_changed=target != stalled,
-            prompt=edited,
-            context_mode="instruct",
-        )
     return RecoveryTarget(
-        action=normalized,
-        concrete_target=stalled,
-        model_changed=False,
-        prompt=edited,
-        context_mode="instruct",
+        action="instruct" if is_instruct else normalized,
+        concrete_target=target_value,
+        model_changed=bool(result.get("model_changed")),
+        prompt=prepared_prompt,
+        context_mode="instruct" if is_instruct and edited is not None else "",
     )
 
 
-def _normalize_prompt_model(value: str, *, predecessor_provider: str | None) -> str:
-    """Normalize an Instruct ``%model`` value toward concrete form.
-
-    A bare ``model[@effort]`` inherits the predecessor's provider, mirroring
-    how the stalled target is pinned. Pool aliases (``@alias``) stay
-    unresolved and refuse downstream as non-concrete.
-    """
-    text = value.strip()
-    if "/" in text or not predecessor_provider:
-        return text
-    return f"{predecessor_provider}/{text}"
+def _target_error_code(message: str) -> str:
+    text = message.lower()
+    if "incompatible options" in text:
+        return "incompatible_options"
+    if "unavailable" in text:
+        return "action_unavailable"
+    if "unknown" in text:
+        return "unknown_model"
+    if "unsupported action" in text:
+        return "unsupported_action"
+    return "invalid_model_target"

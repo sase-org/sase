@@ -141,6 +141,28 @@ def hijack_recovery_reconcile(
     return dict(binding(dict(record), dict(facts)))
 
 
+def hijack_recovery_execution_wire_schema_version() -> int:
+    """Return the recovery execution policy wire schema version."""
+    binding = require_rust_binding("hijack_recovery_execution_wire_schema_version")
+    return int(binding())
+
+
+def hijack_recovery_effective_target(request: Mapping[str, Any]) -> dict[str, Any]:
+    """Resolve a pinned target using Rust-owned model precedence."""
+    binding = require_rust_binding("hijack_recovery_effective_target")
+    return dict(binding(dict(request)))
+
+
+def hijack_recovery_validate_execution(
+    record: Mapping[str, Any],
+    pinned_target: str,
+    facts: Mapping[str, Any],
+) -> dict[str, Any]:
+    """Validate held preparation or the owner of a resolving dispatch."""
+    binding = require_rust_binding("hijack_recovery_validate_execution")
+    return dict(binding(dict(record), str(pinned_target), dict(facts)))
+
+
 __all__ = [
     "CONTINUATION_WIRE_SCHEMA_VERSION",
     "ESCALATION_WIRE_SCHEMA_VERSION",
@@ -158,6 +180,9 @@ __all__ = [
     "hijack_recovery_preview_wire_schema_version",
     "hijack_recovery_reconcile",
     "hijack_recovery_reconcile_wire_schema_version",
+    "hijack_recovery_execution_wire_schema_version",
+    "hijack_recovery_effective_target",
+    "hijack_recovery_validate_execution",
     "normalize_hijack_rung",
     "strip_hijack_launch_directives",
 ]

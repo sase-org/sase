@@ -15,6 +15,9 @@ from sase.agent.hijack.core import (
     hijack_recovery_preview_wire_schema_version,
     hijack_recovery_reconcile,
     hijack_recovery_reconcile_wire_schema_version,
+    hijack_recovery_execution_wire_schema_version,
+    hijack_recovery_effective_target,
+    hijack_recovery_validate_execution,
 )
 from sase.core.agent_auto_restart_wire import AgentRecoveryWire
 from sase.core.agent_scan_wire_conversion import _done_marker_from_dict
@@ -131,6 +134,66 @@ def test_recovery_preview_and_reconcile_wrappers_call_bindings(
     assert hijack_recovery_reconcile(record, facts)["outcome"] == "keep_resolving"
     assert ("preview", request) in calls
     assert ("reconcile", (record, facts)) in calls
+
+
+def test_recovery_execution_wrappers_call_registered_bindings(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[tuple[str, tuple[object, ...]]] = []
+
+    def version() -> int:
+        calls.append(("execution_version", ()))
+        return 1
+
+    def effective_target(request: dict[str, Any]) -> dict[str, Any]:
+        calls.append(("effective_target", (request,)))
+        return {
+            "schema_version": 1,
+            "action": request["action"],
+            "concrete_target": "claude/sonnet@xhigh",
+            "model_changed": True,
+        }
+
+    def validate_execution(
+        record: dict[str, Any], target: str, facts: dict[str, Any]
+    ) -> dict[str, Any]:
+        calls.append(("validate_execution", (record, target, facts)))
+        return {
+            "schema_version": 1,
+            "outcome": "proceed",
+            "mode": "dispatch",
+            "code": "dispatch_ready",
+            "message": "ready",
+        }
+
+    install_fake_rust_extension(
+        monkeypatch,
+        hijack_recovery_execution_wire_schema_version=version,
+        hijack_recovery_effective_target=effective_target,
+        hijack_recovery_validate_execution=validate_execution,
+    )
+
+    request = {"schema_version": 1, "action": "instruct"}
+    record = {"schema_version": 1, "state": "resolving"}
+    facts = {"schema_version": 1, "resolver_identity_matches": True}
+    assert hijack_recovery_execution_wire_schema_version() == 1
+    assert hijack_recovery_effective_target(request)["concrete_target"] == (
+        "claude/sonnet@xhigh"
+    )
+    assert (
+        hijack_recovery_validate_execution(record, "claude/sonnet@xhigh", facts)[
+            "outcome"
+        ]
+        == "proceed"
+    )
+    assert calls == [
+        ("execution_version", ()),
+        ("effective_target", (request,)),
+        (
+            "validate_execution",
+            (record, "claude/sonnet@xhigh", facts),
+        ),
+    ]
 
 
 def test_scan_wire_preserves_hijack_recovery_fields() -> None:

@@ -468,6 +468,13 @@ _REVIEWED_PATH_PASSING_CONTEXTS: dict[str, PathPassingReview] = {
             "shadow measurement recording is disabled and no marker is written."
         ),
     ),
+    "src/sase/agent/hijack/preview.py:validate_hijack_continuation_prompt": PathPassingReview(
+        exemption=(
+            "Read-only held-state edit validation: agent_meta.json, the transcript, "
+            "and fork history are read to validate the prepared prompt; fork-history "
+            "measurement recording is disabled and no marker is written."
+        ),
+    ),
     "src/sase/history/chat_fork/common.py:fork_source_hijack_status": PathPassingReview(
         exemption=(
             "Read-only transcript framing: done.json is inspected to classify "

@@ -112,12 +112,47 @@ class TestEffectiveTargets:
                 preview_action=self._row(),
             )
 
-    def test_continue_rejects_options(self) -> None:
+    def test_continue_explicit_model_uses_rust_effort_precedence(self) -> None:
+        target = resolve_effective_target(
+            action="continue",
+            record=_record(Path("/tmp/x")),
+            preview_action=self._row(),
+            model_override="sonnet",
+        )
+        assert target.action == "instruct"
+        assert target.concrete_target == "claude/sonnet@high"
+        assert target.model_changed is True
+
+    def test_continue_edited_prompt_updates_launched_model(self) -> None:
+        target = resolve_effective_target(
+            action="continue",
+            record=_record(Path("/tmp/x")),
+            preview_action=self._row(),
+            prompt_text="%model:sonnet\n\nContinue with a narrower approach.",
+        )
+        assert target.action == "instruct"
+        assert target.concrete_target == "claude/sonnet@high"
+        assert target.prompt.startswith("%model:claude/sonnet@high")
+
+    def test_explicit_model_override_wins_over_prompt_effort(self) -> None:
+        target = resolve_effective_target(
+            action="instruct",
+            record=_record(Path("/tmp/x")),
+            preview_action=self._row(),
+            model_override="sonnet",
+            prompt_text=(
+                "%model:opus@xhigh\n\nKeep the examples in fenced blocks inert."
+            ),
+        )
+        assert target.concrete_target == "claude/sonnet@high"
+        assert target.prompt.startswith("%model:claude/sonnet@high")
+
+    def test_continue_rejects_escalate_options(self) -> None:
         with pytest.raises(RecoveryRefusal, match="takes no"):
             resolve_effective_target(
-                action="continue",
+                action="escalate",
                 record=_record(Path("/tmp/x")),
-                preview_action=self._row(),
+                preview_action=self._row(target="claude/opus@xhigh"),
                 model_override="claude/sonnet@high",
             )
 
@@ -212,6 +247,20 @@ class TestEffectiveTargets:
             )
             == "claude/sonnet@high"
         )
+
+    def test_fenced_launch_example_stays_inert_in_edited_continue(self) -> None:
+        target = resolve_effective_target(
+            action="continue",
+            record=_record(Path("/tmp/x")),
+            preview_action=self._row(),
+            prompt_text=(
+                "Task:\n```markdown\n%id(other)\n%model:other/model\n```\n"
+                "Continue the held work."
+            ),
+        )
+        assert target.concrete_target == "claude/opus@high"
+        assert "%model:claude/opus@high" in target.prompt
+        assert "%id(other)\n%model:other/model" in target.prompt
 
 
 class TestAdmissionBinding:

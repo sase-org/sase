@@ -218,6 +218,7 @@ class Flow:
         spawn: Any = None,
         evidence: Any = "default",
         claim_ok: bool = True,
+        execution_facts: Any = None,
     ) -> None:
         from sase.agent.hijack import ledger
 
@@ -226,12 +227,16 @@ class Flow:
         monkeypatch.setattr(ledger, "load_record", self.ledger.load)
         self.log: list[str] = []
         self.terminated: list[int] = []
+        self.preview_states: list[str | None] = []
+        self.prompt_prepared_before_cas = False
+        self.spawned_prompt: str | None = None
         self.record = record
         self.successor_dir = successor_dir
         self._preview = preview or make_preview()
         self._spawn = spawn
         self._evidence = evidence
         self._claim_ok = claim_ok
+        self._execution_facts = execution_facts
 
     def deps(self) -> RecoveryDeps:
         flow = self
@@ -241,7 +246,9 @@ class Flow:
             return subject(flow.record)
 
         def preview(record: Mapping[str, Any]) -> FakePreview:
-            _ = record
+            flow.preview_states.append(
+                str(record.get("state")) if record.get("state") is not None else None
+            )
             current = flow._preview
             if isinstance(current, list):
                 if len(current) > 1:
@@ -251,10 +258,28 @@ class Flow:
 
         def build_prompt(record: Mapping[str, Any], **kwargs: Any) -> Any:
             _ = record
+            flow.prompt_prepared_before_cas = not flow.ledger.events
             return SimpleNamespace(
                 prompt=f"PROMPT for {kwargs.get('model_target')}",
                 context_mode="fork",
             )
+
+        def execution_facts(
+            record: Mapping[str, Any], target: str, mode: str
+        ) -> Mapping[str, Any]:
+            if flow._execution_facts is not None:
+                return flow._execution_facts(record, target, mode)
+            return {
+                "schema_version": 1,
+                "observed_resolver_pid": record.get("resolver_pid"),
+                "resolver_pid_live": True,
+                "resolver_identity_matches": True,
+                "pinned_available": True,
+                "pinned_unavailable_reason": None,
+                "current_target": target,
+                "provider_disabled": False,
+                "model_unavailable": False,
+            }
 
         def resolve_plan(session_base: str, project_name: str | None) -> Any:
             assert session_base == "acme"
@@ -263,6 +288,7 @@ class Flow:
 
         def spawn(**kwargs: Any) -> Any:
             flow.log.append("spawn")
+            flow.spawned_prompt = str(kwargs["prompt"])
             assert kwargs["workspace_num"] == 3
             assert kwargs["workspace_dir"] == "/ws/3"
             assert kwargs["transfer_from_pid"] == 111
@@ -294,6 +320,7 @@ class Flow:
             load_subject=load_subject,
             preview=preview,  # type: ignore[arg-type]
             build_prompt=build_prompt,
+            execution_facts=execution_facts,
             resolve_session_plan=resolve_plan,
             spawn_successor=spawn,
             gather_inheritance=gather,

@@ -246,3 +246,41 @@ def test_continuation_keeps_fork_when_budget_preflight_fits(
     assert result.context_mode == "fork"
     assert "#fork:worker" in result.prompt
     assert result.transcript_path == str(artifacts / "chat.md")
+
+
+def test_real_continuation_adapter_falls_back_for_an_oversized_fork(
+    tmp_path: Path, monkeypatch: Any
+) -> None:
+    artifacts = tmp_path / "artifacts"
+    artifacts.mkdir()
+    (artifacts / "raw_prompt.md").write_text("Do the task.\n", encoding="utf-8")
+    (artifacts / "chat.md").write_text(
+        "## Response\n\n" + ("unfinished transcript " * 3000), encoding="utf-8"
+    )
+    (artifacts / "agent_meta.json").write_text("{}", encoding="utf-8")
+    monkeypatch.setattr(
+        recovery,
+        "agent_hijack_config",
+        lambda: type(
+            "Config",
+            (),
+            {"escalation_ladder": ("@large", "@xlarge"), "successor_context": "fork"},
+        )(),
+    )
+    monkeypatch.setattr(
+        recovery,
+        "build_alias_candidates",
+        lambda ladder: {
+            "@large": ["claude/opus@high"],
+            "@xlarge": ["claude/opus@xhigh"],
+        },
+    )
+    monkeypatch.setenv("SASE_CONTINUATION_CONTEXT_LIMIT_BYTES", "4096")
+
+    result = recovery.build_hijack_continuation_prompt(_record(artifacts))
+
+    assert result.context_mode == "brief"
+    assert result.transcript_path == str(artifacts / "chat.md")
+    assert "#fork:" not in result.prompt
+    assert "unfinished transcript" not in result.prompt
+    assert result.budget_decision["kind"] != "refuse"

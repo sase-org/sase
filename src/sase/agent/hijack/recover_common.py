@@ -272,6 +272,9 @@ class RecoveryDeps:
     load_subject: Callable[[object], RecoverySubject | None] | None = None
     preview: Callable[[Mapping[str, Any]], Any] | None = None
     build_prompt: Callable[..., Any] | None = None
+    execution_facts: (
+        Callable[[Mapping[str, Any], str, str], Mapping[str, Any]] | None
+    ) = None
     resolve_session_plan: Callable[[str, str | None], Any] | None = None
     spawn_successor: Callable[..., Any] | None = None
     gather_inheritance: Callable[..., InheritanceEvidence | None] | None = None

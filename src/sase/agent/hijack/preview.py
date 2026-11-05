@@ -262,6 +262,81 @@ def build_hijack_continuation_prompt(
     )
 
 
+def validate_hijack_continuation_prompt(
+    agent_or_name: object,
+    *,
+    prompt: str,
+    model_target: str,
+) -> HijackContinuationPrompt:
+    """Preflight an edited continuation prompt without writing artifacts.
+
+    A user-edited ``#fork`` prompt is budgeted with its expanded transcript;
+    if it no longer fits, the caller gets a typed refusal instead of silently
+    dropping the user's edits. Unedited prompts use
+    :func:`build_hijack_continuation_prompt`, which can safely fall back to the
+    brief form.
+    """
+    preview = hijack_recovery_preview(agent_or_name)
+    if preview.state != "held":
+        raise HijackRecoveryRefusal(
+            "not_held",
+            f"Keep-work recovery is unavailable while state is {preview.state}",
+        )
+    record = preview._record
+    artifacts_dir = Path(preview._artifacts_dir)
+    meta = load_json_object(artifacts_dir / "agent_meta.json")
+    transcript = _transcript_path(artifacts_dir, meta)
+    name = str(record.get("agent_name") or "unknown")
+    fork_pattern = re.compile(r"(?m)^#fork:(?P<name>[^\s]+)\s*$")
+    fork_matches = _active_fork_matches(prompt, fork_pattern)
+    expanded = prompt
+    context_mode = "instruct"
+    if fork_matches:
+        if len(fork_matches) != 1 or fork_matches[0].group("name") != name:
+            raise HijackRecoveryRefusal(
+                "invalid_fork_directive",
+                "An edited continuation prompt must fork only the held predecessor",
+            )
+        if transcript is None:
+            raise HijackRecoveryRefusal(
+                "missing_transcript",
+                "The edited fork prompt has no readable predecessor transcript",
+            )
+        try:
+            history = build_fork_injected_history(
+                [
+                    {
+                        "kind": "agent",
+                        "name": name,
+                        "path": str(transcript),
+                        "artifact_dir": str(artifacts_dir),
+                    }
+                ],
+                record_shadow_measurement=False,
+            )
+            expanded = _expand_fork_directive(prompt, name=name, history=history)
+        except Exception as exc:
+            raise HijackRecoveryRefusal(
+                "invalid_fork_transcript",
+                f"Could not prepare the edited fork transcript: {exc}",
+            ) from exc
+        context_mode = "fork"
+
+    decision = _budget_decision(expanded, model_target=model_target)
+    if str(decision.get("kind") or "") == "refuse":
+        raise HijackRecoveryRefusal(
+            "continuation_budget_exceeded", refusal_message(decision)
+        )
+    return HijackContinuationPrompt(
+        prompt=prompt,
+        model_target=model_target,
+        context_mode=context_mode,
+        transcript_path=str(transcript) if transcript else None,
+        expanded_prompt_bytes=utf8_len(expanded),
+        budget_decision=decision,
+    )
+
+
 def _load_recovery_context(
     agent_or_name: object,
 ) -> tuple[dict[str, Any], str, Mapping[str, object]]:
@@ -439,13 +514,25 @@ def _transcript_path(artifacts_dir: Path, meta: Mapping[str, object]) -> Path | 
 
 def _expand_fork_directive(prompt: str, *, name: str, history: str) -> str:
     pattern = re.compile(rf"(?m)^#fork:{re.escape(name)}\s*$")
-    expanded, replacements = pattern.subn(lambda _match: history, prompt, count=1)
-    if replacements != 1:
+    matches = _active_fork_matches(prompt, pattern)
+    if len(matches) != 1:
         raise HijackRecoveryRefusal(
             "invalid_fork_directive",
-            "The Rust continuation prompt did not include its fork directive",
+            "The continuation prompt must include one active fork directive",
         )
-    return expanded
+    match = matches[0]
+    return prompt[: match.start()] + history + prompt[match.end() :]
+
+
+def _active_fork_matches(prompt: str, pattern: re.Pattern[str]) -> list[re.Match[str]]:
+    from sase.macro._literal_zones import literal_zone_ranges
+
+    inert_ranges = literal_zone_ranges(prompt)
+    return [
+        match
+        for match in pattern.finditer(prompt)
+        if not any(start <= match.start() < end for start, end in inert_ranges)
+    ]
 
 
 def _budget_decision(prompt: str, *, model_target: str) -> dict[str, Any]:
@@ -543,4 +630,5 @@ __all__ = [
     "RecoveryPreview",
     "build_hijack_continuation_prompt",
     "hijack_recovery_preview",
+    "validate_hijack_continuation_prompt",
 ]

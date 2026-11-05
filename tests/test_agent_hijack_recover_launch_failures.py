@@ -138,11 +138,21 @@ class TestQueuedAndFailedLaunches:
             record,
             successor_dir,
             spawn=spawned(4242, successor_dir),
-            preview=[make_preview(), make_preview(escalate=None)],
+            execution_facts=lambda record, target, mode: {
+                "schema_version": 1,
+                "observed_resolver_pid": record.get("resolver_pid"),
+                "resolver_pid_live": True,
+                "resolver_identity_matches": True,
+                "pinned_available": True,
+                "current_target": (target if mode == "prepare" else "claude/opus@low"),
+                "provider_disabled": False,
+                "model_unavailable": False,
+            },
         )
-        # The fresh preview (used for revalidation) no longer offers the pin.
+        # The public preview is not reopened after CAS. Execution policy sees
+        # that the pinned target changed and refuses before spawn.
         result = flow.recover(action="escalate")
         assert result.kind == "refused"
-        assert result.detail["code"] == "target_unavailable"
+        assert result.detail["code"] == "target_changed"
         assert flow.ledger.current["state"] == "held"
         assert flow.log == []

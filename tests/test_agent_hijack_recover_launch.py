@@ -51,6 +51,8 @@ class TestLaunchedRecovery:
         assert flow.ledger.events[:2] == ["begin_resolution", "record_launch"]
         assert flow.ledger.events[-1] == "complete_resolution"
         assert flow.log == ["spawn"]
+        assert flow.prompt_prepared_before_cas is True
+        assert flow.preview_states == ["held"]
         # Ack staged in the successor dir; predecessor marker settled.
         from sase.agent.hijack.recovery_successor import read_recovery_ack
 

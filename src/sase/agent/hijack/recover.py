@@ -34,11 +34,15 @@ from __future__ import annotations
 import json
 import logging
 from collections.abc import Callable, Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Any
 
 from sase.agent.hijack import ledger
 from sase.agent.hijack import preview as preview_module
+from sase.agent.hijack.core import (
+    hijack_recovery_execution_wire_schema_version,
+    hijack_recovery_validate_execution,
+)
 from sase.agent.hijack.recover_common import (
     KEEP_WORK_ACTIONS,
     RECOVERY_LAUNCH_IDENTITY_ENV,
@@ -242,6 +246,10 @@ def _recover_held(
         model_override=model,
         prompt_text=prompt,
     )
+    target = _prepare_continuation_target(
+        record, target, build_prompt_fn=seams.build_prompt
+    )
+    _validate_pinned_target(record, target, mode="prepare", seams=seams)
     if clean_string(subject.done_outcome) not in (None, "", "hijacked", "HIJACKED"):
         if str(subject.done_outcome).strip().lower() != "hijacked":
             raise RecoveryRefusal(
@@ -315,12 +323,8 @@ def _recover_held(
             "ledger_rejected",
             f"The admission binding was rejected: {exc}",
         ) from exc
-    _revalidate_pinned_target(
-        resolving, target, preview_fn=preview_fn, hijack_id=hijack_id
-    )
-    prompt_text, context_mode = _continuation_prompt_for(
-        resolving, target, build_prompt_fn=seams.build_prompt
-    )
+    _validate_pinned_target(resolving, target, mode="dispatch", seams=seams)
+    prompt_text, context_mode = target.prompt, target.context_mode
     spawn_fn = seams.spawn_successor or _default_spawn_successor
     lineage = lineage_for(hijack_id=hijack_id, record=resolving, target=target)
     extra_env = {
@@ -518,61 +522,142 @@ def _default_spawn_successor(
         ) from exc
 
 
-def _revalidate_pinned_target(
-    resolving: Mapping[str, Any],
+def _validate_pinned_target(
+    record: Mapping[str, Any],
     target: RecoveryTarget,
     *,
-    preview_fn: Callable[[Mapping[str, Any]], Any],
-    hijack_id: str,
+    mode: str,
+    seams: RecoveryDeps,
 ) -> None:
-    """Confirm the pinned target is still available before dispatch.
-
-    A model rotation between the caller's preview and execution fails the
-    reservation back to ``held`` with an error instead of launching a
-    target nobody previewed.
-    """
+    """Validate the pinned target without reopening the public preview menu."""
+    facts_fn = seams.execution_facts or _default_execution_facts
     try:
-        preview = preview_fn(dict(resolving))
-    except preview_module.HijackRecoveryRefusal as exc:
-        fail_to_held(dict(resolving), f"pinned target revalidation: {exc}")
+        facts = facts_fn(record, target.concrete_target, mode)
+        decision = hijack_recovery_validate_execution(
+            dict(record), target.concrete_target, facts
+        )
+    except (TypeError, ValueError, RuntimeError) as exc:
+        if mode == "dispatch":
+            fail_to_held(dict(record), f"pinned target validation failed: {exc}")
         raise RecoveryRefusal(
             "target_unavailable",
-            f"The pinned {target.action} target is no longer available: {exc.message}",
+            f"Could not validate the pinned {target.action} target: {exc}",
         ) from exc
-    row = preview.action(target.action)
-    current = clean_string(row.target if row else None)
-    if row is None or not row.available or current != target.concrete_target:
-        fail_to_held(
-            dict(resolving),
-            f"pinned target changed: {current!r} != {target.concrete_target!r}",
-        )
-        raise RecoveryRefusal(
-            "target_unavailable",
-            f"The pinned {target.action} target changed before dispatch "
-            f"({current!r}); refresh the preview and retry",
-        )
+    if clean_string(decision.get("outcome")) == "proceed":
+        return
+    code = clean_string(decision.get("code")) or "target_unavailable"
+    message = clean_string(decision.get("message")) or (
+        f"The pinned {target.action} target is not available for {mode}"
+    )
+    if mode == "dispatch":
+        fail_to_held(dict(record), f"pinned target revalidation: {message}")
+    raise RecoveryRefusal(code, message)
 
 
-def _continuation_prompt_for(
-    resolving: Mapping[str, Any],
+def _prepare_continuation_target(
+    held: Mapping[str, Any],
     target: RecoveryTarget,
     *,
     build_prompt_fn: Callable[..., Any] | None = None,
-) -> tuple[str, str]:
-    """Return the successor prompt and its context mode."""
-    if target.action == "instruct":
-        return target.prompt, target.context_mode or "instruct"
+) -> RecoveryTarget:
+    """Prepare prompt text while the record is still in the held state."""
+    if target.prompt:
+        try:
+            prepared = preview_module.validate_hijack_continuation_prompt(
+                dict(held),
+                prompt=target.prompt,
+                model_target=target.concrete_target,
+            )
+        except preview_module.HijackRecoveryRefusal as exc:
+            raise RecoveryRefusal(exc.code, exc.message) from exc
+        return replace(
+            target,
+            prompt=prepared.prompt,
+            context_mode=prepared.context_mode,
+            transcript_path=prepared.transcript_path,
+        )
     build = build_prompt_fn or preview_module.build_hijack_continuation_prompt
     try:
         prepared = build(
-            dict(resolving),
+            dict(held),
             model_target=target.concrete_target,
             guidance_requested=False,
         )
     except preview_module.HijackRecoveryRefusal as exc:
-        fail_to_held(dict(resolving), f"continuation prompt: {exc}")
         raise RecoveryRefusal(exc.code, exc.message) from exc
-    return prepared.prompt, prepared.context_mode
+    return replace(
+        target,
+        prompt=str(prepared.prompt),
+        context_mode=str(prepared.context_mode),
+        transcript_path=clean_string(getattr(prepared, "transcript_path", None)),
+    )
+
+
+def _default_execution_facts(
+    record: Mapping[str, Any], pinned_target: str, mode: str
+) -> Mapping[str, Any]:
+    """Gather current provider availability and the resolver's identity."""
+    from sase.llm_provider.model_alias_resolution_types import (
+        resolved_target_is_available,
+    )
+    from sase.llm_provider.provider_disable_peek import peek_active_provider_disables
+
+    provider, model = _target_provider_model(pinned_target)
+    disables = peek_active_provider_disables()
+    provider_disabled = provider in disables
+    available = False
+    reason: str | None = None
+    if provider_disabled:
+        reason = f"provider {provider!r} is disabled"
+    else:
+        try:
+            available = resolved_target_is_available(
+                f"{provider}/{model}", provider_disables=disables
+            )
+        except Exception as exc:  # noqa: BLE001 - unavailable facts fail closed
+            reason = f"could not confirm provider/model availability: {exc}"
+        if not available and reason is None:
+            reason = f"provider/model {provider}/{model} is unavailable"
+
+    observed_pid, observed_token = resolver_identity()
+    expected_pid = record_pid(record.get("resolver_pid"))
+    expected_token = clean_string(record.get("resolver_process_identity_token"))
+    resolver_pid_live = mode != "dispatch" or observed_pid == expected_pid
+    resolver_identity_matches = mode != "dispatch" or (
+        observed_pid == expected_pid
+        and observed_token is not None
+        and expected_token is not None
+        and observed_token == expected_token
+    )
+    return {
+        "schema_version": hijack_recovery_execution_wire_schema_version(),
+        "observed_resolver_pid": observed_pid if mode == "dispatch" else None,
+        "resolver_pid_live": resolver_pid_live,
+        "resolver_identity_matches": resolver_identity_matches,
+        "pinned_available": available,
+        "pinned_unavailable_reason": reason,
+        "current_target": pinned_target if available else None,
+        "provider_disabled": provider_disabled,
+        "model_unavailable": not available and not provider_disabled,
+    }
+
+
+def _target_provider_model(value: str) -> tuple[str, str]:
+    base, separator, effort = value.rpartition("@")
+    if separator and effort in {
+        "none",
+        "minimal",
+        "low",
+        "medium",
+        "high",
+        "xhigh",
+        "max",
+    }:
+        value = base
+    provider, slash, model = value.partition("/")
+    if not slash or not provider or not model:
+        raise ValueError("pinned target is not provider/model concrete")
+    return provider, model
 
 
 __all__ = [
