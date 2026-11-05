@@ -1,0 +1,148 @@
+"""Queued and failed hijack recovery launch cases."""
+
+from __future__ import annotations
+
+from pathlib import Path
+from types import SimpleNamespace
+from typing import Any
+
+import pytest
+
+from sase.agent.hijack.recover import _ClaimQueued
+from tests._agent_hijack_recover_helpers import (
+    Flow,
+    evidence,
+    make_preview,
+    record as make_record,
+    spawned,
+    write_done,
+)
+
+
+class TestQueuedAndFailedLaunches:
+    def _base(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path, **kwargs: Any
+    ) -> Flow:
+        artifacts = tmp_path / "artifacts"
+        artifacts.mkdir(exist_ok=True)
+        write_done(artifacts / "done.json")
+        successor_dir = tmp_path / "succ"
+        successor_dir.mkdir(exist_ok=True)
+        return Flow(monkeypatch, make_record(artifacts), successor_dir, **kwargs)
+
+    def test_claim_contention_queues_and_holds(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
+        flow = self._base(monkeypatch, tmp_path, spawn=_ClaimQueued("no runner"))
+        result = flow.recover()
+        assert result.kind == "queued"
+        assert result.successor == "acme--4"
+        assert result.launch_identity
+        # No terminal write: still resolving, custody keeps the workspace.
+        assert flow.ledger.current["state"] == "resolving"
+        assert flow.ledger.current["launch_stage"] == "queued"
+        assert flow.log == ["spawn"]
+
+    def test_definite_failure_returns_to_held(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
+        flow = self._base(monkeypatch, tmp_path, spawn=ValueError("bad workspace"))
+        result = flow.recover()
+        assert result.kind == "error"
+        assert result.detail["code"] == "launch_failed"
+        assert flow.ledger.current["state"] == "held"
+        assert flow.ledger.current["error"] == "bad workspace"
+        assert "launch_identity" not in flow.ledger.current
+
+    def test_uncertain_post_spawn_retains_resolving(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
+        flow = self._base(monkeypatch, tmp_path, spawn=Exception("lost contact"))
+        result = flow.recover()
+        assert result.kind == "uncertain"
+        assert flow.ledger.current["state"] == "resolving"
+        assert flow.ledger.current["error"] == "uncertain launch outcome: lost contact"
+
+    def test_identity_mismatch_is_uncertain(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
+        flow = self._base(
+            monkeypatch,
+            tmp_path,
+            spawn=spawned(4242, tmp_path / "succ"),
+        )
+        flow._spawn = SimpleNamespace(
+            agent_name="acme--9", pid=4242, artifacts_dir=str(tmp_path / "succ")
+        )
+        result = flow.recover()
+        assert result.kind == "uncertain"
+        assert flow.ledger.current["state"] == "resolving"
+
+    def test_missing_boot_evidence_is_uncertain(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
+        flow = self._base(
+            monkeypatch,
+            tmp_path,
+            spawn=spawned(4242, tmp_path / "succ"),
+            evidence={},
+        )
+        result = flow.recover()
+        assert result.kind == "uncertain"
+        assert flow.ledger.current["state"] == "resolving"
+
+    def test_unverified_claim_is_uncertain(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
+        flow = self._base(
+            monkeypatch,
+            tmp_path,
+            spawn=spawned(4242, tmp_path / "succ"),
+            claim_ok=False,
+        )
+        result = flow.recover()
+        assert result.kind == "uncertain"
+        assert flow.ledger.current["state"] == "resolving"
+
+    def test_inheritance_failure_terminates_and_holds(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
+        from sase.agent.hijack.recovery_successor import write_recovery_ack
+
+        successor_dir = tmp_path / "succ"
+        write_recovery_ack(str(successor_dir), {"schema_version": 1})
+        flow = self._base(
+            monkeypatch,
+            tmp_path,
+            spawn=spawned(4242, successor_dir),
+            evidence=evidence(successor_bead="other-bead"),
+        )
+        result = flow.recover()
+        assert result.kind == "error"
+        assert result.detail["code"] == "inheritance_failed"
+        assert flow.ledger.current["state"] == "held"
+        assert flow.terminated == [4242]
+        assert not (successor_dir / "hijack_recovery_ack.json").exists()
+
+    def test_rotated_target_fails_back_to_held(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
+        artifacts = tmp_path / "artifacts"
+        artifacts.mkdir()
+        write_done(artifacts / "done.json")
+        successor_dir = tmp_path / "succ"
+        successor_dir.mkdir()
+        record = make_record(artifacts)
+        flow = Flow(
+            monkeypatch,
+            record,
+            successor_dir,
+            spawn=spawned(4242, successor_dir),
+            preview=[make_preview(), make_preview(escalate=None)],
+        )
+        # The fresh preview (used for revalidation) no longer offers the pin.
+        result = flow.recover(action="escalate")
+        assert result.kind == "refused"
+        assert result.detail["code"] == "target_unavailable"
+        assert flow.ledger.current["state"] == "held"
+        assert flow.log == []
