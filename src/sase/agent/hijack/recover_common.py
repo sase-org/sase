@@ -111,6 +111,7 @@ class InheritanceEvidence:
     parent_meta: Mapping[str, Any] | None = None
     child_meta: Mapping[str, Any] | None = None
     successor_artifacts_dir: str | None = None
+    predecessor_inventory_missing: bool = False
 
 
 def code_detail(code: str) -> Mapping[str, Any]:

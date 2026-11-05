@@ -29,10 +29,15 @@ class TestGatherInheritance:
         predecessor.mkdir()
         successor = tmp_path / "succ"
         successor.mkdir()
+        (predecessor / "agent_meta.json").write_text(
+            json.dumps({"name": "acme--3", "bead_id": "sase-1", "goal_id": "goal-1"})
+        )
         (successor / "agent_meta.json").write_text(
             json.dumps({"name": "acme--4", "bead_id": "sase-1", "goal_id": "goal-1"})
         )
-        (successor / BASELINE_FILENAME).write_text(json.dumps({"ok": True}))
+        fingerprints = {"/ws/3": {"a.txt": ["abc123", None]}}
+        (predecessor / BASELINE_FILENAME).write_text(json.dumps(fingerprints))
+        (successor / BASELINE_FILENAME).write_text(json.dumps(fingerprints))
         subject = make_subject(make_record(predecessor))
         evidence = gather_recovery_inheritance(subject, str(successor))
         assert evidence is not None
@@ -40,6 +45,7 @@ class TestGatherInheritance:
         assert evidence.baseline_diagnostics == ()
         assert evidence.predecessor_repo_count == 0
         assert evidence.transferred_repo_count == 0
+        assert evidence.predecessor_inventory_missing is False
         assert evidence.successor_goal == "goal-1"
         assert evidence.successor_bead == "sase-1"
 

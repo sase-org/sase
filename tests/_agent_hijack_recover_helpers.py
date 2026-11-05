@@ -293,10 +293,13 @@ class Flow:
             assert kwargs["workspace_dir"] == "/ws/3"
             assert kwargs["transfer_from_pid"] == 111
             assert kwargs["lineage"].hijack_id == "h-123"
+            assert kwargs["descriptor"]["launch_identity"]
+            assert kwargs["descriptor"]["reserved_successor_name"] == "acme--4"
             extra = kwargs["extra_env"]
             assert extra["SASE_HIJACK_RECOVERY_STRICT"] == "1"
             assert "SASE_HIJACK_RECOVERY_LINEAGE" in extra
             assert "SASE_HIJACK_LAUNCH_IDENTITY" in extra
+            assert "SASE_HIJACK_RECOVERY_DESCRIPTOR" in extra
             if isinstance(flow._spawn, Exception):
                 raise flow._spawn
             return flow._spawn

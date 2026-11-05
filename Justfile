@@ -496,6 +496,10 @@ _lint-patch-stitch-terminology: _setup
 # Python wait_targets_with_descriptions facade, so no sase-1q4 rows remain.
 # Recovery-service phase sase-1pj.6.1.6 consumed the detached successor delivery
 # API through the host recovery service, so its rows are dropped.
+# sase-1qz.6.1.4.1.4 (bootstrap-ack) exported the child-side bootstrap gate;
+# sase-1qz.6.1.4.1.5 (settlement) consumes the versioned ack, the observation
+# shape, and the typed bootstrap failure when it replaces parent-side ack
+# synthesis with bootstrap-ack observation.
 # sase-1pj.7.1.1 exported the shared workspace-retention adapter; sase-1pj.7.1.2
 # (monitor-retention) consumed settle_stranded_workspace and its request
 # types by routing every monitor terminal claim disposal through the adapter,
@@ -523,8 +527,9 @@ _lint-symvision *args: _setup
         --epic-symbol "sase-1qz.6(strip_hijack_launch_directives)" \
         --epic-symbol "sase-1qz.6.1.5(hijack_recovery_reconcile)" \
         --epic-symbol "sase-1qz.6.1.5(hijack_recovery_reconcile_wire_schema_version)" \
-        --epic-symbol "sase-1rd(write_snapshot)" \
-        --epic-symbol "sase-1rd(encode_run_prune_review)" \
+        --epic-symbol "sase-1qz.6.1.4.1.5(BootstrapObservation)" \
+        --epic-symbol "sase-1qz.6.1.4.1.5(RecoveryBootstrapError)" \
+        --epic-symbol "sase-1qz.6.1.4.1.5(build_bootstrap_ack)" \
         --epic-symbol "sase-1rd(snapshot_dir)" \
         --epic-symbol "sase-1rd.4(parse_run_prune_review)" \
         --epic-symbol "sase-1rd.4(RunPruneReview)" \

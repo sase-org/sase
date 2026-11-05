@@ -32,8 +32,15 @@ def gather_recovery_inheritance(
     lets reconciliation retry rather than failing a live child to ``held``.
     Present-but-invalid evidence raises through
     :func:`require_recovery_inheritance` at validation time.
+
+    The proof always comes from the observed metadata: the predecessor's
+    ``agent_meta.json`` and the child's. Caller-supplied *goal*/*bead*
+    values are expectations, not proof -- when given they must equal the
+    observed child values or this raises instead of substituting for them.
     """
     from sase.history.chat_fork.common import load_json_object
+
+    from sase.agent.hijack.recovery_successor import RecoveryInheritanceError
 
     record = subject.record
     predecessor_meta = subject.predecessor_meta
@@ -44,20 +51,30 @@ def gather_recovery_inheritance(
             child_meta = dict(loaded)
     if not child_meta:
         return None
+    predecessor_dir = clean_string(record.get("artifacts_dir"))
     predecessor_bead = clean_string(predecessor_meta.get("bead_id"))
-    successor_bead = (
-        clean_string(bead)
-        if bead is not None
-        else clean_string(child_meta.get("bead_id"))
-    )
-    predecessor_goal = clean_string(goal) or _meta_goal(predecessor_meta)
-    successor_goal = clean_string(goal) or _meta_goal(child_meta)
+    successor_bead = clean_string(child_meta.get("bead_id"))
+    if bead is not None and clean_string(bead) != successor_bead:
+        raise RecoveryInheritanceError(
+            "recovery requires the observed bead claim to match the expected "
+            f"claim (expected {clean_string(bead)!r}, observed {successor_bead!r})"
+        )
+    predecessor_goal = _meta_goal(predecessor_meta)
+    successor_goal = _meta_goal(child_meta)
+    if goal is not None and clean_string(goal) != successor_goal:
+        raise RecoveryInheritanceError(
+            "recovery requires the observed goal to match the expected goal "
+            f"(expected {clean_string(goal)!r}, observed {successor_goal!r})"
+        )
     baseline_inherited, baseline_diagnostics = _observe_baseline_inheritance(
-        successor_artifacts_dir
+        successor_artifacts_dir, predecessor_dir
     )
-    predecessor_repo_count, transferred_repo_count = _observe_repo_transfer(
-        clean_string(record.get("artifacts_dir")), successor_artifacts_dir
-    )
+    (
+        predecessor_repo_count,
+        transferred_repo_count,
+        inventory_missing,
+        identity_diagnostics,
+    ) = _observe_repo_transfer(predecessor_dir, successor_artifacts_dir)
     repo_diagnostics = _observe_repo_diagnostics(successor_artifacts_dir)
     return InheritanceEvidence(
         predecessor_goal=predecessor_goal,
@@ -68,13 +85,14 @@ def gather_recovery_inheritance(
         baseline_diagnostics=tuple(baseline_diagnostics),
         predecessor_repo_count=predecessor_repo_count,
         transferred_repo_count=transferred_repo_count,
-        repo_diagnostics=tuple(repo_diagnostics),
+        repo_diagnostics=(*identity_diagnostics, *repo_diagnostics),
         predecessor_autonomy=_live_predecessor_autonomy(record),
         predecessor_name=clean_string(record.get("agent_name")),
         explicit_autonomy_selection=explicit_autonomy_selection,
         parent_meta=dict(predecessor_meta),
         child_meta=dict(child_meta),
         successor_artifacts_dir=successor_artifacts_dir,
+        predecessor_inventory_missing=inventory_missing,
     )
 
 
@@ -88,10 +106,12 @@ def _meta_goal(meta: Mapping[str, Any]) -> str | None:
 
 def _observe_baseline_inheritance(
     successor_artifacts_dir: str | None,
+    predecessor_artifacts_dir: str | None = None,
 ) -> tuple[bool, list[str]]:
     from sase.llm_provider.commit_finalizer_baseline import (
         BASELINE_FILENAME,
         FINALIZER_BASELINE_FILENAME,
+        load_dirty_baseline,
     )
     from sase.llm_provider.commit_finalizer_inheritance import (
         INHERITANCE_DIAGNOSTICS_FILENAME,
@@ -125,15 +145,44 @@ def _observe_baseline_inheritance(
     ).is_file()
     if not inherited:
         diagnostics.append("successor baseline is not yet observable")
+    if predecessor_artifacts_dir:
+        try:
+            parent_fingerprints = load_dirty_baseline(Path(predecessor_artifacts_dir))
+        except Exception:
+            parent_fingerprints = None
+        if parent_fingerprints is None:
+            diagnostics.append("predecessor baseline fingerprints are not observable")
+        else:
+            try:
+                child_fingerprints = load_dirty_baseline(root)
+            except Exception:
+                child_fingerprints = None
+            if child_fingerprints is None:
+                diagnostics.append("successor baseline fingerprints are not observable")
+            elif dict(child_fingerprints) != dict(parent_fingerprints):
+                diagnostics.append(
+                    "successor baseline fingerprints diverged from the "
+                    "predecessor; a fresh snapshot of the predecessor's dirty "
+                    "tree is never allowed"
+                )
     return (inherited and not diagnostics, diagnostics)
 
 
 def _observe_repo_transfer(
     predecessor_artifacts_dir: str | None,
     successor_artifacts_dir: str | None,
-) -> tuple[int, int]:
+) -> tuple[int, int, bool, list[str]]:
+    """Compare opened-repository obligations by identity, not just counts.
+
+    Returns ``(predecessor_count, transferred_count, inventory_missing,
+    diagnostics)``. ``inventory_missing`` is true when the predecessor's
+    inventory could not be read at all -- a missing inventory must never
+    pass as an empty one. Identity, workspace-directory, and direction
+    mismatches land in *diagnostics* so validation fails closed.
+    """
     from sase._linked_repo_markers import opened_repo_records
 
+    missing = _predecessor_inventory_missing(predecessor_artifacts_dir)
     try:
         parent_records = (
             opened_repo_records(
@@ -141,11 +190,12 @@ def _observe_repo_transfer(
                 if predecessor_artifacts_dir
                 else None
             )
-            if predecessor_artifacts_dir
+            if predecessor_artifacts_dir and not missing
             else {}
         )
     except Exception:
         parent_records = {}
+        missing = True
     try:
         child_records = (
             opened_repo_records(Path(successor_artifacts_dir).expanduser())
@@ -154,7 +204,58 @@ def _observe_repo_transfer(
         )
     except Exception:
         child_records = {}
-    return len(parent_records), len(child_records)
+    diagnostics: list[str] = []
+    if not missing:
+        for name in sorted(set(parent_records) - set(child_records)):
+            diagnostics.append(f"missing opened-repository obligation: {name}")
+        for name in sorted(set(child_records) - set(parent_records)):
+            diagnostics.append(f"unexpected opened-repository obligation: {name}")
+        for name in sorted(set(parent_records) & set(child_records)):
+            parent_dir = parent_records[name].get("workspace_dir", "")
+            child_dir = child_records[name].get("workspace_dir", "")
+            if parent_dir != child_dir:
+                diagnostics.append(
+                    f"opened-repository workspace moved: {name} "
+                    f"({parent_dir!r} != {child_dir!r})"
+                )
+    transferred = sum(
+        1
+        for name in parent_records
+        if name in child_records
+        and child_records[name].get("workspace_dir", "")
+        == parent_records[name].get("workspace_dir", "")
+    )
+    return len(parent_records), transferred, missing, diagnostics
+
+
+def _predecessor_inventory_missing(predecessor_artifacts_dir: str | None) -> bool:
+    """Return whether the predecessor's inventory could not be read at all.
+
+    An absent predecessor directory -- or a directory with neither
+    opened-repository markers nor an ``agent_meta.json`` -- leaves no
+    inventory to compare against, which must fail closed rather than pass
+    vacuously as zero repositories.
+    """
+    if not predecessor_artifacts_dir:
+        return True
+    root = Path(predecessor_artifacts_dir).expanduser()
+    try:
+        if not root.is_dir():
+            return True
+    except OSError:
+        return True
+    from sase._linked_repo_markers import (
+        OPENED_LINKED_FILENAME,
+        OPENED_SIBLINGS_FILENAME,
+    )
+
+    markers = (root / OPENED_LINKED_FILENAME, root / OPENED_SIBLINGS_FILENAME)
+    try:
+        if any(path.is_file() for path in markers):
+            return False
+        return not (root / "agent_meta.json").is_file()
+    except OSError:
+        return True
 
 
 def _observe_repo_diagnostics(successor_artifacts_dir: str | None) -> list[str]:

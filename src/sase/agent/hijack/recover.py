@@ -327,17 +327,48 @@ def _recover_held(
     prompt_text, context_mode = target.prompt, target.context_mode
     spawn_fn = seams.spawn_successor or _default_spawn_successor
     lineage = lineage_for(hijack_id=hijack_id, record=resolving, target=target)
+    descriptor = _reservation_descriptor(
+        hijack_id=hijack_id,
+        resolving=resolving,
+        resolving_revision=resolving_revision,
+        launch_identity=launch_identity,
+        binding=binding,
+        target=target,
+        reserved_name=reserved_name,
+        project_name=project_name,
+        prompt_text=prompt_text,
+        lineage=lineage,
+        resolver_pid=resolver_pid,
+        resolver_token=resolver_token,
+    )
+    if descriptor is None:
+        return RecoveryResult(
+            kind=RESULT_ERROR,
+            detail=code_detail("descriptor_error"),
+            hijack_id=hijack_id,
+            revision=record_revision(resolving),
+            action=target.action,
+            successor=reserved_name,
+            launch_identity=launch_identity,
+            admission_request_id=binding["admission_request_id"],
+            concrete_target=target.concrete_target,
+            model_changed=target.model_changed,
+            message="Could not encode the recovery reservation descriptor",
+        )
     extra_env = {
         RECOVERY_LAUNCH_IDENTITY_ENV: launch_identity,
     }
     try:
         from sase.agent.hijack.recovery_successor import (
+            RECOVERY_DESCRIPTOR_ENV,
             RECOVERY_LINEAGE_ENV,
             RECOVERY_STRICT_ENV,
+            encode_recovery_descriptor,
         )
 
         extra_env[RECOVERY_LINEAGE_ENV] = json.dumps(lineage.as_dict(), sort_keys=True)
         extra_env[RECOVERY_STRICT_ENV] = "1"
+        extra_env[RECOVERY_DESCRIPTOR_ENV] = encode_recovery_descriptor(descriptor)
     except Exception as exc:
         fail_to_held(resolving, f"Could not encode the recovery lineage: {exc}")
         return RecoveryResult(
@@ -363,6 +394,7 @@ def _recover_held(
             workspace_num=record_workspace_num(resolving),
             transfer_from_pid=record_pid(resolving.get("pid")),
             lineage=lineage,
+            descriptor=descriptor,
             extra_env=extra_env,
         )
     except _ClaimQueued as exc:
@@ -488,6 +520,7 @@ def _default_spawn_successor(
     workspace_num: int | None,
     transfer_from_pid: int | None,
     lineage: RecoveryLineage,
+    descriptor: Mapping[str, Any] | None = None,
     extra_env: Mapping[str, str] | None = None,
 ) -> Any:
     from sase.agent.detached_child import (
@@ -513,6 +546,7 @@ def _default_spawn_successor(
             workspace_num=int(workspace_num),
             transfer_from_pid=transfer_from_pid,
             lineage=lineage,
+            descriptor=descriptor,
             extra_env=dict(extra_env or {}),
             resolve_plan=lambda *args, **kwargs: plan,
         )
@@ -552,6 +586,67 @@ def _validate_pinned_target(
     if mode == "dispatch":
         fail_to_held(dict(record), f"pinned target revalidation: {message}")
     raise RecoveryRefusal(code, message)
+
+
+def _reservation_descriptor(
+    *,
+    hijack_id: str,
+    resolving: Mapping[str, Any],
+    resolving_revision: int,
+    launch_identity: str,
+    binding: Mapping[str, str],
+    target: RecoveryTarget,
+    reserved_name: str,
+    project_name: str | None,
+    prompt_text: str,
+    lineage: RecoveryLineage,
+    resolver_pid: int,
+    resolver_token: str | None,
+) -> dict[str, Any] | None:
+    """Build the reservation descriptor the child boot must prove.
+
+    One validated descriptor per CAS reservation: the prepared prompt
+    digest and exact target, the reserved successor member/attach plan, the
+    fixed project and workspace pair, the expected held owner, lineage, and
+    the attempt identities. Returns ``None`` when the descriptor cannot be
+    encoded so the caller can return to held without dispatching.
+    """
+    import hashlib
+
+    from sase.agent.hijack.recovery_successor import build_recovery_descriptor
+
+    workspace_num = record_workspace_num(resolving)
+    workspace_dir = clean_string(resolving.get("workspace_dir"))
+    try:
+        digest = hashlib.sha256(prompt_text.encode("utf-8")).hexdigest()
+        descriptor = build_recovery_descriptor(
+            hijack_id=hijack_id,
+            launch_identity=launch_identity,
+            concrete_target=target.concrete_target,
+            reserved_successor_name=reserved_name,
+            project=project_name or "",
+            workspace_dir=workspace_dir or "",
+            lineage=lineage,
+            reserved_member=reserved_name,
+            attach_plan="",
+            admission_request_id=binding.get("admission_request_id"),
+            admission_identity=binding.get("admission_identity"),
+            workspace_num=workspace_num,
+            expected_owner_pid=record_pid(resolving.get("pid")),
+            resolver_pid=resolver_pid,
+            resolver_process_identity_token=resolver_token,
+            prompt_digest=digest,
+            attempt_revision=resolving_revision,
+        )
+    except Exception:
+        LOG.warning("recovery descriptor encoding failed", exc_info=True)
+        return None
+    if not descriptor.get("project") or not descriptor.get("workspace_dir"):
+        fail_to_held(
+            dict(resolving), "recovery descriptor lacks the held workspace pair"
+        )
+        return None
+    return descriptor
 
 
 def _prepare_continuation_target(

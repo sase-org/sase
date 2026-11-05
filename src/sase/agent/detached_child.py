@@ -229,6 +229,7 @@ def spawn_recovery_successor(
     workspace_num: int,
     transfer_from_pid: int | None,
     lineage: RecoveryLineage | Mapping[str, Any],
+    descriptor: Mapping[str, Any] | None = None,
     cl_name: str | None = None,
     agent_session_role: str | None = None,
     vcs_ref: tuple[str, str] | None = None,
@@ -241,7 +242,9 @@ def spawn_recovery_successor(
 
     One resolution (reused for the spawn so the reserved member cannot
     drift), one transfer-or-fresh-claim on the same pair, no pool or ``#0``
-    fallback. Delegates to :func:`spawn_agent_session_successor`.
+    fallback. A reservation descriptor threads into the child environment
+    so its boot can prove inheritance before provider execution.
+    Delegates to :func:`spawn_agent_session_successor`.
     """
     from sase.agent.hijack.recovery_successor import (
         spawn_recovery_successor as _spawn,
@@ -255,6 +258,7 @@ def spawn_recovery_successor(
         workspace_num=workspace_num,
         transfer_from_pid=transfer_from_pid,
         lineage=lineage,
+        descriptor=descriptor,
         cl_name=cl_name,
         agent_session_role=agent_session_role,
         vcs_ref=vcs_ref,

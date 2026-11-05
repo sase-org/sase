@@ -621,6 +621,7 @@ class TestRecoveryLineageMetadata:
 
         _apply_recovery_lineage_metadata(agent_meta)
 
+        assert agent_meta["hijack_lineage"] == _lineage()
         assert agent_meta["recovery_lineage"] == _lineage()
         assert "outcome" not in agent_meta
         assert "receipts" not in agent_meta

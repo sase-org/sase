@@ -66,6 +66,10 @@ class RunnerBootstrap:
     has_wait: bool
     force_reuse_bead_association: ForceReuseBeadAssociation | None = None
     inherited_commit_finalizer_baseline: bool = False
+    # Versioned keep-work recovery bootstrap ack. Set only on strict
+    # recovery boots after every required inheritance effect finished; the
+    # launch phase must not invoke the provider when this is missing.
+    recovery_bootstrap_ack: dict[str, Any] | None = None
 
 
 def _write_bootstrap_agent_meta(
@@ -492,6 +496,8 @@ def bootstrap_agent_run(state: RunnerRunState) -> RunnerBootstrap:
             force_reuse_bead_association=force_reuse_bead_association,
         )
 
+    recovery_bootstrap_ack = _enforce_strict_recovery_bootstrap(state, info)
+
     return RunnerBootstrap(
         info=info,
         agent_meta=agent_meta,
@@ -503,4 +509,63 @@ def bootstrap_agent_run(state: RunnerRunState) -> RunnerBootstrap:
         inherited_commit_finalizer_baseline=(
             inherited_commit_finalizer_baseline is True
         ),
+        recovery_bootstrap_ack=recovery_bootstrap_ack,
+    )
+
+
+def _enforce_strict_recovery_bootstrap(
+    state: RunnerRunState, info: AgentInfo
+) -> dict[str, Any] | None:
+    """Prove required inheritance before provider execution on recovery boots.
+
+    On strict recovery boots (``SASE_HIJACK_RECOVERY_STRICT=1``) this
+    collects the child-side observation -- bound goal, bead claim, live
+    permission record, baseline fingerprints, opened-repository inventory,
+    and effective model -- and validates it against the reservation
+    descriptor the executor bound before dispatch. The versioned ack is
+    persisted only after every required bootstrap effect finished. Any
+    failure raises :class:`RecoveryBootstrapError` so the runner records a
+    typed stop and never invokes the provider. Non-recovery boots return
+    ``None`` without touching the provider path.
+    """
+    from sase.agent.hijack.recovery_successor import RECOVERY_STRICT_ENV
+
+    if os.environ.get(RECOVERY_STRICT_ENV) != "1":
+        return None
+    from sase.agent import agent_session_attach
+    from sase.agent.hijack.recovery_successor import (
+        RECOVERY_DESCRIPTOR_ENV,
+        collect_bootstrap_observation,
+        decode_recovery_descriptor,
+        enforce_recovery_bootstrap,
+    )
+
+    descriptor = decode_recovery_descriptor(os.environ.get(RECOVERY_DESCRIPTOR_ENV))
+    try:
+        attach_plan = agent_session_attach.load_agent_session_attach_plan_from_env()
+    except Exception:
+        attach_plan = None
+    parent_artifacts_dir = (
+        attach_plan.parent_artifacts_dir if attach_plan is not None else None
+    )
+    meta = info.meta if isinstance(info.meta, dict) else {}
+    raw_effort = meta.get("reasoning_effort")
+    observation = collect_bootstrap_observation(
+        child_artifacts_dir=state.artifacts_dir,
+        parent_artifacts_dir=parent_artifacts_dir,
+        successor_name=state.agent_name,
+        process_token=process_identity_token(os.getpid()),
+        project=state.project_name,
+        workspace_num=state.workspace_num,
+        workspace_dir=state.workspace_dir,
+        provider=info.llm_provider,
+        model=info.model,
+        effort=raw_effort
+        if isinstance(raw_effort, str) and raw_effort.strip()
+        else None,
+    )
+    return enforce_recovery_bootstrap(
+        child_artifacts_dir=state.artifacts_dir,
+        descriptor=descriptor,
+        observation=observation,
     )

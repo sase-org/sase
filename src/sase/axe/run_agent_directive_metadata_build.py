@@ -222,10 +222,16 @@ def _apply_recovery_lineage_metadata(agent_meta: dict[str, Any]) -> None:
     records it here so settlement and waits can follow the recovery chain.
     Fresh child metadata never carries the predecessor's verification
     receipts or declarations: those stay with their original turn.
+
+    ``hijack_lineage`` is the established canonical key the escalation
+    walk and recovery preview read; ``recovery_lineage`` is its historical
+    alias. Both carry the same payload until every reader is audited.
     """
     from sase.agent.hijack.recovery_successor import (
+        HIJACK_LINEAGE_META_KEY,
         NON_INHERITABLE_VERDICT_KEYS,
         RECOVERY_LINEAGE_ENV,
+        RECOVERY_LINEAGE_META_KEY,
         decode_recovery_lineage,
     )
 
@@ -234,7 +240,9 @@ def _apply_recovery_lineage_metadata(agent_meta: dict[str, Any]) -> None:
         return
     for key in NON_INHERITABLE_VERDICT_KEYS:
         agent_meta.pop(key, None)
-    agent_meta["recovery_lineage"] = decode_recovery_lineage(raw).as_dict()
+    payload = decode_recovery_lineage(raw).as_dict()
+    agent_meta[HIJACK_LINEAGE_META_KEY] = dict(payload)
+    agent_meta[RECOVERY_LINEAGE_META_KEY] = dict(payload)
 
 
 def _apply_agent_tab_directive(

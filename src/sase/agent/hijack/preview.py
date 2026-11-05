@@ -477,6 +477,8 @@ def _concrete_model_target(record: Mapping[str, Any]) -> str | None:
 
 def _lineage_to_rung(meta: Mapping[str, object]) -> str | None:
     lineage = meta.get("hijack_lineage")
+    if not isinstance(lineage, Mapping):
+        lineage = meta.get("recovery_lineage")
     return _string(lineage.get("to_rung")) if isinstance(lineage, Mapping) else None
 
 

@@ -243,6 +243,10 @@ def confirm_and_settle(
             explicit_autonomy_selection=evidence.explicit_autonomy_selection,
             parent_meta=evidence.parent_meta,
             child_meta=evidence.child_meta,
+            predecessor_inventory_missing=evidence.predecessor_inventory_missing,
+            launch_identity=launch_identity,
+            successor_name=successor_name,
+            project=clean_string(subject.project_name),
         )
     except RecoveryInheritanceError as exc:
         rollback_recovery_preparation(artifacts_dir=successor_artifacts)
