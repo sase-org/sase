@@ -36,6 +36,7 @@ from sase.axe._run_agent_exec_staged_recovery_shared import (
     SUCCESSOR_KINDS,
     StagedRecoveryResult,
     adopted_destination_refs,
+    adopted_stage_needs_delivery,
     classify_receipt,
     read_run_metadata,
     write_held_locked,
@@ -66,11 +67,7 @@ _RECOVERY_MODES = ("automatic", "explicit")
 def _already_needs_delivery(
     receipt: Mapping[str, Any] | None, kind: str | None
 ) -> bool:
-    if kind not in SUCCESSOR_KINDS:
-        return False
-    refs = adopted_destination_refs(receipt)
-    successor_dir = (refs or {}).get("successor_artifacts_dir")
-    return isinstance(successor_dir, str) and bool(successor_dir)
+    return adopted_stage_needs_delivery(receipt, kind)
 
 
 def recover_staged_handoff(

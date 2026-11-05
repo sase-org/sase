@@ -5,7 +5,9 @@ host already performs. The scan is cheap (one batched index query per
 hundred candidate sessions, one JSON read per candidate) and ignores ACE
 dismissal so flags survive hiding a row. Open beads that carry an active
 completion failure are recovery candidates; their failure provenance names
-the run to load without changing the bead assignee.
+the run to load without changing the bead assignee. An adopted staged
+handoff whose successor has been delivered no longer owns the bead; the
+successor owns it through its own session member when live.
 """
 
 from __future__ import annotations
@@ -371,6 +373,57 @@ def _staged_facts(artifact_dir: str) -> tuple[str | None, str | None]:
     return kind, outcome
 
 
+def _staged_delivered(artifact_dir: str) -> bool:
+    """Return whether a staged handoff is adopted and delivered.
+
+    Mirrors ``_already_needs_delivery`` in the staged recovery service:
+    non-successor kinds (``monitor``/``gate``) and successor kinds without
+    a ``successor_artifacts_dir`` ref need only a matching ``adopted``
+    receipt, while ``pipe``/``plan``/``questions`` stages with that ref
+    need ``observe_destination`` to report ``owned`` or ``terminal``.
+    Any read or contract error yields ``False``.
+    """
+    if not artifact_dir:
+        return False
+    try:
+        from sase.agent.staged_handoff import (
+            StagedHandoffError,
+            read_staged_handoff,
+        )
+        from sase.axe._run_agent_exec_staged_recovery_shared import (
+            adopted_stage_needs_delivery,
+            classify_receipt,
+        )
+        from sase.axe.run_agent_exec_staged_recovery_facts import (
+            observe_destination,
+        )
+    except Exception:  # noqa: BLE001 - facts collection fails open.
+        return False
+    try:
+        staged_record = read_staged_handoff(artifact_dir)
+        if staged_record is None:
+            return False
+        staged_id = staged_record.get("staged_id")
+        kind = staged_record.get("kind")
+        if not isinstance(staged_id, str) or not staged_id:
+            return False
+        if not isinstance(kind, str) or not kind:
+            return False
+        receipt_state, receipt = classify_receipt(artifact_dir, staged_id)
+        if receipt_state != "adopted":
+            return False
+        if not adopted_stage_needs_delivery(receipt, kind):
+            return True
+        return observe_destination(staged_record, artifacts_dir=artifact_dir) in (
+            "owned",
+            "terminal",
+        )
+    except StagedHandoffError:
+        return False
+    except Exception:  # noqa: BLE001 - facts collection fails open.
+        return False
+
+
 def _member_facts(record: AgentArtifactRecordWire) -> dict[str, Any]:
     meta = record.agent_meta
     name = ""
@@ -383,6 +436,7 @@ def _member_facts(record: AgentArtifactRecordWire) -> dict[str, Any]:
     process_live = _process_live(record)
     pending = pending_handoff_kind(record.artifact_dir)
     staged_kind, staged_outcome = _staged_facts(record.artifact_dir)
+    staged_delivered = _staged_delivered(record.artifact_dir)
     followup_outcome, followup_pending, followup_agent, turn_state = _followup_fields(
         record
     )
@@ -397,6 +451,7 @@ def _member_facts(record: AgentArtifactRecordWire) -> dict[str, Any]:
         "pending_handoff": pending,
         "staged_handoff": staged_kind,
         "staged_receipt_outcome": staged_outcome,
+        "staged_delivered": staged_delivered,
         "handoff_inflight": _handoff_inflight(record.artifact_dir),
         "recovery_in_flight": recovery_in_flight(record.artifact_dir),
         "workspace_retention": _workspace_retention_unresolved(record.artifact_dir),

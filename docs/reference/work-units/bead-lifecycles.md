@@ -199,6 +199,10 @@ evidence but does not make that finished turn an active bead owner, even if it s
 a staged-handoff record. With no other live owner, the bead can become stranded. A live
 successor still owns the bead through its own session member.
 
+An adopted staged handoff whose successor has been delivered no longer owns the bead;
+the successor owns it through its own session member, and with no other live owner the
+bead can become stranded.
+
 Host completion can also strand work it already closed. When a run's product commit or
 declaration recovery fails with unlanded work, the host reopens that run's standing
 `done` closes and any closed ancestors, appends one `STITCH FAILED:` note, and stores

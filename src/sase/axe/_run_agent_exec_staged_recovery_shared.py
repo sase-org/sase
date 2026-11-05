@@ -85,6 +85,23 @@ def adopted_destination_refs(
     return dict(refs) if isinstance(refs, Mapping) else {}
 
 
+def adopted_stage_needs_delivery(
+    receipt: Mapping[str, Any] | None, kind: str | None
+) -> bool:
+    """Return whether an adopted stage still needs successor delivery.
+
+    Shared by the recovery service and the stranded-work collector so the
+    two definitions cannot drift. Non-successor kinds need no delivery;
+    successor kinds (``pipe``/``plan``/``questions``) need it only when the
+    adopted receipt names a ``successor_artifacts_dir``.
+    """
+    if kind not in SUCCESSOR_KINDS:
+        return False
+    refs = adopted_destination_refs(receipt)
+    successor_dir = (refs or {}).get("successor_artifacts_dir")
+    return isinstance(successor_dir, str) and bool(successor_dir)
+
+
 def write_held_locked(staged_id: str, reason: str, *, artifacts_dir: str) -> None:
     from sase.axe.run_agent_exec_staged_monitor import cleanup_staged_monitor_handoff
     from sase.axe.run_agent_exec_staged_retention import retain_dead_staged_origin
@@ -183,6 +200,7 @@ __all__ = [
     "SUCCESSOR_KINDS",
     "StagedRecoveryResult",
     "adopted_destination_refs",
+    "adopted_stage_needs_delivery",
     "classify_receipt",
     "read_run_metadata",
     "write_adopted_locked",
