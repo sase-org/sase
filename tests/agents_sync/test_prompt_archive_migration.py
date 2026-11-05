@@ -80,6 +80,9 @@ def _install_scan_binding(
     import sase.core.rust as rust
 
     real_require = rust.require_rust_binding
+    # Synthetic blocks must carry the live rules version: a block recorded under
+    # an older version is stale and no longer enforced.
+    rules_version = real_require("attachment_scanner_rules_version")()
 
     def require_binding(name: str):
         if name == "attachment_scan_file":
@@ -99,16 +102,16 @@ def _install_scan_binding(
                             "kind": "credential_pattern",
                             "rule_id": "synthetic-marker",
                             "line": 1,
-                            "rules_version": 2,
+                            "rules_version": rules_version,
                         },
                         "bytes_scanned": len(data),
-                        "rules_version": 2,
+                        "rules_version": rules_version,
                     }
                 return {
                     "outcome": "clean",
                     "hit": None,
                     "bytes_scanned": len(data),
-                    "rules_version": 2,
+                    "rules_version": rules_version,
                 }
 
             return scan

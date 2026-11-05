@@ -45,15 +45,21 @@ def _install_marker_scanner(
     monkeypatch: pytest.MonkeyPatch,
     *,
     blocked_marker: bytes = MARKER,
-    rules_version: int = 2,
+    rules_version: int | None = None,
 ) -> dict[str, object]:
     import sase.core.rust as rust
 
     real_require = rust.require_rust_binding
+    # Default to the live rules version: a block recorded under an older
+    # version is stale and no longer enforced.
     scanner_state: dict[str, object] = {
         "blocked": True,
         "blocked_marker": blocked_marker,
-        "rules_version": rules_version,
+        "rules_version": (
+            sase_core_rs.attachment_scanner_rules_version()
+            if rules_version is None
+            else rules_version
+        ),
     }
 
     def require_binding(name: str):
@@ -205,7 +211,9 @@ def test_stale_prompt_archive_block_is_rescanned_and_superseded(
     assert not blocked.published
     assert blocked.protection_status == "blocked"
 
-    scanner["rules_version"] = 2
+    current_rules_version = sase_core_rs.attachment_scanner_rules_version()
+    assert current_rules_version > 1
+    scanner["rules_version"] = current_rules_version
     scanner["blocked"] = False
     republished = publish_prompt_archive(
         "worker",
@@ -232,7 +240,7 @@ def test_stale_prompt_archive_block_is_rescanned_and_superseded(
     superseded = ledger["superseded"]
     assert isinstance(superseded, list) and len(superseded) == 1
     entry = superseded[0]
-    assert entry["superseded_by_rules_version"] == 2
+    assert entry["superseded_by_rules_version"] == current_rules_version
     assert entry["reason"] == "rescanned_clean"
 
     verify = tmp_path / "verify-republished-prompt"

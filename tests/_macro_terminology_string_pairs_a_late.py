@@ -58,7 +58,14 @@ STRING_PAIRS: set[tuple[str, str]] = {
     ),
     ("tests/agent_scan_golden/fixture_builder.py", '"raw_xprompt.md"'),
     ("tests/agents_sync/inventory_fixtures.py", '"raw_xprompt.md"'),
-    ("tests/agents_sync/test_deferred_prompt_archive.py", '"raw_xprompt.md"'),
+    (
+        "tests/agents_sync/test_deferred_prompt_archive/test_acknowledgment.py",
+        '"raw_xprompt.md"',
+    ),
+    (
+        "tests/agents_sync/test_deferred_prompt_archive/test_full_sync.py",
+        '"raw_xprompt.md"',
+    ),
     ("tests/agents_sync/test_inventory.py", '"raw_xprompt.md"'),
     ("tests/agents_sync/test_prompt_archive.py", '"raw_xprompt.md"'),
     ("tests/agents_sync/test_prompt_archive_objects.py", '"raw_xprompt.md"'),
