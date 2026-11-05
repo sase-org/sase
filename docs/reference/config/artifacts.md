@@ -81,11 +81,14 @@ predicates to `0` leaves a policy that selects nothing.
 
 `keep_recent_run_months` drives `sase artifact prune-runs`, which previews old terminal
 `artifacts/ace-run/` directories plus empty month/day/run shards outside sase's TUI
-startup watch window. Deletion is currently preview-only: `--apply` fails closed before
-removing run directories, empty shards, or artifact-index rows. The preview protects
-recent months, incomplete runs, referenced agent names or paths, artifact-file
-producers, and runs tied to non-closed beads. `empty_shard_removal_budget` bounds how
-many empty shard directories one preview lists.
+startup watch window. The command is a dry run unless `--apply` is passed; with
+`--apply` the selection moves into journaled, restorable trash instead of being deleted,
+re-verifying every protection immediately before each move. `--snapshot` restricts the
+apply to runs listed in a review snapshot, and `trash_grace_days` is how long a
+quarantined batch stays restorable (`sase artifact trash restore runs:<batch_id>`). The
+preview protects recent months, incomplete runs, referenced agent names or paths,
+artifact-file producers, and runs tied to non-closed beads. `empty_shard_removal_budget`
+bounds how many empty shard directories one preview lists.
 
 Source: `src/sase/config/core.py`, `src/sase/core/artifact_capture_policy.py`,
 `src/sase/core/artifact_file_retention.py`,

@@ -255,8 +255,10 @@ def test_public_long_options_are_alphabetical_and_have_short_aliases() -> None:
         "--json",
         "--keep-recent-months",
         "--limit",
+        "--notify",
         "--project",
         "--projects-root",
+        "--snapshot",
     ]
     assert _long_options(subcommands.choices["reclaim"]) == [
         "--apply",
@@ -298,8 +300,12 @@ def test_public_long_options_are_alphabetical_and_have_short_aliases() -> None:
     assert _long_options(trash_subcommands.choices["purge"]) == [
         "--all",
         "--json",
+        "--projects-root",
     ]
-    assert _long_options(trash_subcommands.choices["restore"]) == ["--json"]
+    assert _long_options(trash_subcommands.choices["restore"]) == [
+        "--json",
+        "--projects-root",
+    ]
     for child in subcommands.choices.values():
         for action in child._actions:
             long_options = [

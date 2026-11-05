@@ -30,22 +30,22 @@ Options:
 
 Subcommands:
 
-| Subcommand                 | Summary                                                         |
-| -------------------------- | --------------------------------------------------------------- |
-| `sase artifact create`     | Store a file as an explicit artifact for the current agent      |
-| `sase artifact doctor`     | Inspect, repair, and verify the artifact index                  |
-| `sase artifact link`       | Add, list, remove, and suggest typed artifact links             |
-| `sase artifact list`       | List indexed artifacts (pretty table by default, JSON with -j)  |
-| `sase artifact open`       | Open a resolved artifact reference with an appropriate viewer   |
-| `sase artifact pane`       | Inspect compiled Artifacts pane contracts and capabilities      |
-| `sase artifact path`       | Print the absolute filesystem path for an artifact reference    |
-| `sase artifact prune`      | Plan retention and optionally move selected rows to trash       |
-| `sase artifact prune-runs` | Plan retention and optionally remove old ace-run directories    |
-| `sase artifact read`       | Print an artifact after recording an audited read               |
-| `sase artifact reclaim`    | Replace stored automatic rows with verified VCS references      |
-| `sase artifact show`       | Show artifact metadata, resolution details, and consumption     |
-| `sase artifact stats`      | Report artifact-store economics and default retention selection |
-| `sase artifact trash`      | List, permanently purge, or restore artifact trash              |
+| Subcommand                 | Summary                                                             |
+| -------------------------- | ------------------------------------------------------------------- |
+| `sase artifact create`     | Store a file as an explicit artifact for the current agent          |
+| `sase artifact doctor`     | Inspect, repair, and verify the artifact index                      |
+| `sase artifact link`       | Add, list, remove, and suggest typed artifact links                 |
+| `sase artifact list`       | List indexed artifacts (pretty table by default, JSON with -j)      |
+| `sase artifact open`       | Open a resolved artifact reference with an appropriate viewer       |
+| `sase artifact pane`       | Inspect compiled Artifacts pane contracts and capabilities          |
+| `sase artifact path`       | Print the absolute filesystem path for an artifact reference        |
+| `sase artifact prune`      | Plan retention and optionally move selected rows to trash           |
+| `sase artifact prune-runs` | Plan retention and optionally move old ace-run directories to trash |
+| `sase artifact read`       | Print an artifact after recording an audited read                   |
+| `sase artifact reclaim`    | Replace stored automatic rows with verified VCS references          |
+| `sase artifact show`       | Show artifact metadata, resolution details, and consumption         |
+| `sase artifact stats`      | Report artifact-store economics and default retention selection     |
+| `sase artifact trash`      | List, permanently purge, or restore artifact trash                  |
 
 ## `sase artifact create`
 
@@ -428,23 +428,25 @@ Options:
 
 ```text
 usage: sase artifact prune-runs [-h] [-a] [-i INDEX_PATH] [-j] [-m N] [-l N]
-                                [-p PROJECT] [-r PROJECTS_ROOT]
+                                [-n] [-p PROJECT] [-r PROJECTS_ROOT] [-s FP]
 ```
 
-Plan removal of old per-run ace-run artifact directories and empty out-of-range month/day shards. This command is a dry run unless --apply is passed; recent months, referenced agents, incomplete runs, and runs tied to non-closed beads are protected.
+Plan reclamation of old per-run ace-run artifact directories and empty out-of-range month/day shards. This command is a dry run unless --apply is passed; with --apply the selection moves into restorable trash for artifacts.retention.trash_grace_days. Recent months, referenced agents, incomplete runs, and runs tied to non-closed beads are protected.
 
 Options:
 
-| Option                                              | Description                                                                                   | Default |
-| --------------------------------------------------- | --------------------------------------------------------------------------------------------- | ------- |
-| `-a`, `--apply`                                     | Remove selected run directories and empty out-of-range shards                                 | `false` |
-| `-h`, `--help`                                      | show this help message and exit                                                               | —       |
-| `-i INDEX_PATH`, `--index-path INDEX_PATH`          | Agent artifact SQLite index to de-index after deletion                                        | —       |
-| `-j`, `--json`                                      | Emit one machine-readable plan and execution envelope                                         | `false` |
-| `-m N`, `--keep-recent-months N`                    | Keep the newest N calendar months whole (default: artifacts.retention.keep_recent_run_months) | —       |
-| `-l N`, `--limit N`                                 | Maximum run directories to select (0 means unlimited)                                         | —       |
-| `-p PROJECT`, `--project PROJECT`                   | Only prune a project by display name, alias, or canonical key                                 | —       |
-| `-r PROJECTS_ROOT`, `--projects-root PROJECTS_ROOT` | SASE projects root to scan (default: ~/.sase/projects)                                        | —       |
+| Option                                              | Description                                                                                               | Default |
+| --------------------------------------------------- | --------------------------------------------------------------------------------------------------------- | ------- |
+| `-a`, `--apply`                                     | Move selected run directories into restorable trash (restorable for artifacts.retention.trash_grace_days) | `false` |
+| `-h`, `--help`                                      | show this help message and exit                                                                           | —       |
+| `-i INDEX_PATH`, `--index-path INDEX_PATH`          | Agent artifact SQLite index to de-index after quarantine                                                  | —       |
+| `-j`, `--json`                                      | Emit one machine-readable plan and execution envelope                                                     | `false` |
+| `-m N`, `--keep-recent-months N`                    | Keep the newest N calendar months whole (default: artifacts.retention.keep_recent_run_months)             | —       |
+| `-l N`, `--limit N`                                 | Maximum run directories to select (0 means unlimited)                                                     | —       |
+| `-n`, `--notify`                                    | Post the trash result notification and retire live preview rows (only with --apply)                       | `false` |
+| `-p PROJECT`, `--project PROJECT`                   | Only prune a project by display name, alias, or canonical key                                             | —       |
+| `-r PROJECTS_ROOT`, `--projects-root PROJECTS_ROOT` | SASE projects root to scan (default: ~/.sase/projects)                                                    | —       |
+| `-s FP`, `--snapshot FP`                            | Restrict --apply to the intersection of the fresh plan and the review snapshot FP (requires --apply)      | —       |
 
 ## `sase artifact read`
 
@@ -533,7 +535,7 @@ Options:
 usage: sase artifact trash [-h] {list,purge,restore} ...
 ```
 
-Manage restorable artifact trash. Bare `sase artifact trash` defaults to `sase artifact trash list`.
+Manage restorable artifact trash: trashed artifact files and journaled ACE-run batches. Bare `sase artifact trash` defaults to `sase artifact trash list`.
 
 Bare `sase artifact trash` defaults to `sase artifact trash list`.
 
@@ -568,36 +570,40 @@ Options:
 ### `sase artifact trash purge`
 
 ```text
-usage: sase artifact trash purge [-h] [-a] [-j]
+usage: sase artifact trash purge [-h] [-a] [-j] [-r PROJECTS_ROOT]
 ```
 
-Permanently delete trash entries. This is the only irreversible artifact operation: purged entries cannot be restored. Without --all, only entries older than artifacts.retention.trash_grace_days are deleted.
+Permanently delete trash entries and expired ACE-run batches. This is the only irreversible artifact operation: purged entries cannot be restored. Without --all, only entries older than artifacts.retention.trash_grace_days are deleted. Run batches re-verify protections first: a batch item that gained a reference is restored instead of deleted, and unreadable protections block only the run part.
 
 Options:
 
-| Option         | Description                                                | Default |
-| -------------- | ---------------------------------------------------------- | ------- |
-| `-a`, `--all`  | Ignore the grace period and permanently delete every entry | `false` |
-| `-h`, `--help` | show this help message and exit                            | —       |
-| `-j`, `--json` | Emit one machine-readable purge result                     | `false` |
+| Option                                              | Description                                                     | Default |
+| --------------------------------------------------- | --------------------------------------------------------------- | ------- |
+| `-a`, `--all`                                       | Ignore the grace period and permanently delete every entry      | `false` |
+| `-h`, `--help`                                      | show this help message and exit                                 | —       |
+| `-j`, `--json`                                      | Emit one machine-readable purge result                          | `false` |
+| `-r PROJECTS_ROOT`, `--projects-root PROJECTS_ROOT` | SASE projects root holding the runs (default: ~/.sase/projects) | —       |
 
 ### `sase artifact trash restore`
 
 ```text
-usage: sase artifact trash restore [-h] [-j] reference
+usage: sase artifact trash restore [-h] [-j] [-r PROJECTS_ROOT] reference
 ```
+
+Restore a trashed artifact file by entry id or file reference, or a journaled ACE-run batch with runs:<batch_id>.
 
 Options:
 
-| Option         | Description                              | Default |
-| -------------- | ---------------------------------------- | ------- |
-| `-h`, `--help` | show this help message and exit          | —       |
-| `-j`, `--json` | Emit one machine-readable restore result | `false` |
+| Option                                              | Description                                                         | Default |
+| --------------------------------------------------- | ------------------------------------------------------------------- | ------- |
+| `-h`, `--help`                                      | show this help message and exit                                     | —       |
+| `-j`, `--json`                                      | Emit one machine-readable restore result                            | `false` |
+| `-r PROJECTS_ROOT`, `--projects-root PROJECTS_ROOT` | SASE projects root to restore runs into (default: ~/.sase/projects) | —       |
 
 Arguments:
 
-| Argument    | Description                               |
-| ----------- | ----------------------------------------- |
-| `reference` | Trash entry id or file artifact reference |
+| Argument    | Description                                                 |
+| ----------- | ----------------------------------------------------------- |
+| `reference` | Trash entry id, file artifact reference, or runs:<batch_id> |
 
 Related: [CLI command groups](index.md).

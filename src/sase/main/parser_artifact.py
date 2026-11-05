@@ -352,25 +352,30 @@ def register_artifact_parser(subparsers: argparse._SubParsersAction) -> None:
 
     prune_runs_parser = artifact_subparsers.add_parser(
         "prune-runs",
-        help="Plan retention and optionally remove old ace-run directories",
+        help="Plan retention and optionally move old ace-run directories to trash",
         description=(
-            "Plan removal of old per-run ace-run artifact directories and "
+            "Plan reclamation of old per-run ace-run artifact directories and "
             "empty out-of-range month/day shards. This command is a dry run "
-            "unless --apply is passed; recent months, referenced agents, "
-            "incomplete runs, and runs tied to non-closed beads are protected."
+            "unless --apply is passed; with --apply the selection moves into "
+            "restorable trash for artifacts.retention.trash_grace_days. "
+            "Recent months, referenced agents, incomplete runs, and runs "
+            "tied to non-closed beads are protected."
         ),
     )
     prune_runs_parser.add_argument(
         "-a",
         "--apply",
         action="store_true",
-        help="Remove selected run directories and empty out-of-range shards",
+        help=(
+            "Move selected run directories into restorable trash "
+            "(restorable for artifacts.retention.trash_grace_days)"
+        ),
     )
     prune_runs_parser.add_argument(
         "-i",
         "--index-path",
         default=None,
-        help="Agent artifact SQLite index to de-index after deletion",
+        help="Agent artifact SQLite index to de-index after quarantine",
     )
     prune_runs_parser.add_argument(
         "-j",
@@ -398,6 +403,15 @@ def register_artifact_parser(subparsers: argparse._SubParsersAction) -> None:
         help="Maximum run directories to select (0 means unlimited)",
     )
     prune_runs_parser.add_argument(
+        "-n",
+        "--notify",
+        action="store_true",
+        help=(
+            "Post the trash result notification and retire live preview rows "
+            "(only with --apply)"
+        ),
+    )
+    prune_runs_parser.add_argument(
         "-p",
         "--project",
         default=None,
@@ -408,6 +422,16 @@ def register_artifact_parser(subparsers: argparse._SubParsersAction) -> None:
         "--projects-root",
         default=None,
         help="SASE projects root to scan (default: ~/.sase/projects)",
+    )
+    prune_runs_parser.add_argument(
+        "-s",
+        "--snapshot",
+        default=None,
+        metavar="FP",
+        help=(
+            "Restrict --apply to the intersection of the fresh plan and the "
+            "review snapshot FP (requires --apply)"
+        ),
     )
 
     read_parser = artifact_subparsers.add_parser(
@@ -559,7 +583,8 @@ def register_artifact_parser(subparsers: argparse._SubParsersAction) -> None:
         "trash",
         help="List, permanently purge, or restore artifact trash",
         description=(
-            "Manage restorable artifact trash. Bare `sase artifact trash` "
+            "Manage restorable artifact trash: trashed artifact files and "
+            "journaled ACE-run batches. Bare `sase artifact trash` "
             "defaults to `sase artifact trash list`."
         ),
     )
@@ -591,10 +616,13 @@ def register_artifact_parser(subparsers: argparse._SubParsersAction) -> None:
         "purge",
         help="Permanently delete trash entries past the grace period",
         description=(
-            "Permanently delete trash entries. This is the only irreversible "
-            "artifact operation: purged entries cannot be restored. Without "
-            "--all, only entries older than "
-            "artifacts.retention.trash_grace_days are deleted."
+            "Permanently delete trash entries and expired ACE-run batches. "
+            "This is the only irreversible artifact operation: purged "
+            "entries cannot be restored. Without --all, only entries older "
+            "than artifacts.retention.trash_grace_days are deleted. Run "
+            "batches re-verify protections first: a batch item that gained a "
+            "reference is restored instead of deleted, and unreadable "
+            "protections block only the run part."
         ),
     )
     trash_purge_parser.add_argument(
@@ -609,10 +637,20 @@ def register_artifact_parser(subparsers: argparse._SubParsersAction) -> None:
         action="store_true",
         help="Emit one machine-readable purge result",
     )
+    trash_purge_parser.add_argument(
+        "-r",
+        "--projects-root",
+        default=None,
+        help="SASE projects root holding the runs (default: ~/.sase/projects)",
+    )
 
     trash_restore_parser = trash_subparsers.add_parser(
         "restore",
         help="Restore one trash entry's payload and complete index row",
+        description=(
+            "Restore a trashed artifact file by entry id or file reference, "
+            "or a journaled ACE-run batch with runs:<batch_id>."
+        ),
     )
     trash_restore_parser.add_argument(
         "-j",
@@ -621,8 +659,14 @@ def register_artifact_parser(subparsers: argparse._SubParsersAction) -> None:
         help="Emit one machine-readable restore result",
     )
     trash_restore_parser.add_argument(
+        "-r",
+        "--projects-root",
+        default=None,
+        help="SASE projects root to restore runs into (default: ~/.sase/projects)",
+    )
+    trash_restore_parser.add_argument(
         "reference",
-        help="Trash entry id or file artifact reference",
+        help="Trash entry id, file artifact reference, or runs:<batch_id>",
     )
 
 

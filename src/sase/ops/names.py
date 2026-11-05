@@ -23,6 +23,8 @@ AGENT_PERSIST_HIJACK = "agent.persist-hijack"
 AGENT_REVERT = "agent.revert"
 AGENT_CLEANUP = "agent.cleanup"
 
+ARTIFACT_PRUNE_RUNS = "artifact.prune-runs"
+
 AXE_BGCMD = "axe.bgcmd"
 
 BEAD_ISSUE = "bead.issue"
@@ -63,6 +65,7 @@ __all__ = [
     "AGENT_PERSIST_DIRECTIVE",
     "AGENT_PERSIST_HIJACK",
     "AGENT_REVERT",
+    "ARTIFACT_PRUNE_RUNS",
     "AXE_BGCMD",
     "BEAD_ISSUE",
     "BEAD_MUTATE",

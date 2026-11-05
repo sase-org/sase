@@ -293,8 +293,10 @@ into `check_error`. Whenever the preview finds candidates or protection problems
 job upserts an Axe `ViewReport` notification that names the preview command
 (`sase artifact prune-runs`). The notification is deduplicated by a fingerprint of the
 findings, so an unchanged preview adds a `+1` note to the existing notification rather
-than a new one. Artifact-run deletion is currently preview-only; apply requests fail
-closed before any run directory, empty shard, or artifact-index row is removed.
+than a new one. Confirming the preview quarantines the reviewed runs into journaled,
+restorable trash (`sase artifact prune-runs --apply`, optionally restricted with
+`--snapshot`); protections are re-verified before every move, and unattended apply paths
+still refuse.
 
 ## Related
 

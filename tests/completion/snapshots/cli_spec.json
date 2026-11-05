@@ -6685,7 +6685,7 @@
           {
             "aliases": [],
             "default_child": null,
-            "description_digest": "4d62af2c66ea912c",
+            "description_digest": "76c958f521113c35",
             "hidden": false,
             "mutex_groups": [],
             "name": "prune-runs",
@@ -6788,6 +6788,22 @@
               },
               {
                 "choices": null,
+                "default": "False",
+                "dest": "notify",
+                "hidden": false,
+                "kind": null,
+                "metavar": null,
+                "repeatable": false,
+                "required": false,
+                "strings": [
+                  "-n",
+                  "--notify"
+                ],
+                "takes_value": false,
+                "value_hint": null
+              },
+              {
+                "choices": null,
                 "default": null,
                 "dest": "project",
                 "hidden": false,
@@ -6817,6 +6833,22 @@
                 ],
                 "takes_value": true,
                 "value_hint": "path"
+              },
+              {
+                "choices": null,
+                "default": null,
+                "dest": "snapshot",
+                "hidden": false,
+                "kind": null,
+                "metavar": "FP",
+                "repeatable": false,
+                "required": false,
+                "strings": [
+                  "-s",
+                  "--snapshot"
+                ],
+                "takes_value": true,
+                "value_hint": "text"
               }
             ],
             "path": [
@@ -7285,7 +7317,7 @@
               {
                 "aliases": [],
                 "default_child": null,
-                "description_digest": "4227377d09d85001",
+                "description_digest": "c28a318c68b5649e",
                 "hidden": false,
                 "mutex_groups": [],
                 "name": "purge",
@@ -7337,6 +7369,22 @@
                     ],
                     "takes_value": false,
                     "value_hint": null
+                  },
+                  {
+                    "choices": null,
+                    "default": null,
+                    "dest": "projects_root",
+                    "hidden": false,
+                    "kind": "dir",
+                    "metavar": null,
+                    "repeatable": false,
+                    "required": false,
+                    "strings": [
+                      "-r",
+                      "--projects-root"
+                    ],
+                    "takes_value": true,
+                    "value_hint": "path"
                   }
                 ],
                 "path": [
@@ -7353,7 +7401,7 @@
               {
                 "aliases": [],
                 "default_child": null,
-                "description_digest": "616c555c93b3d57f",
+                "description_digest": "065f84af1104f54e",
                 "hidden": false,
                 "mutex_groups": [],
                 "name": "restore",
@@ -7389,6 +7437,22 @@
                     ],
                     "takes_value": false,
                     "value_hint": null
+                  },
+                  {
+                    "choices": null,
+                    "default": null,
+                    "dest": "projects_root",
+                    "hidden": false,
+                    "kind": "dir",
+                    "metavar": null,
+                    "repeatable": false,
+                    "required": false,
+                    "strings": [
+                      "-r",
+                      "--projects-root"
+                    ],
+                    "takes_value": true,
+                    "value_hint": "path"
                   }
                 ],
                 "path": [

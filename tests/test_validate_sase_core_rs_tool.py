@@ -483,3 +483,38 @@ def test_validate_sase_core_rs_requires_prompt_archive_bindings() -> None:
         assert not validator._validate_bindings(
             module_with_required_bindings(validator, missing={binding})
         )
+
+
+def test_validate_sase_core_rs_requires_run_trash_bindings() -> None:
+    validator = load_validate_sase_core_rs()
+    bindings = {
+        "agent_artifact_run_trash_wire_schema_version",
+        "quarantine_agent_artifact_runs",
+        "list_agent_artifact_run_trash",
+        "restore_agent_artifact_run_trash",
+        "purge_agent_artifact_run_trash",
+    }
+
+    assert bindings <= set(validator.REQUIRED_BINDINGS)
+    for binding in bindings:
+        assert not validator._validate_bindings(
+            module_with_required_bindings(validator, missing={binding})
+        )
+
+
+def test_validate_sase_core_rs_run_trash_wire_schema() -> None:
+    from sase.core.agent_artifact_run_trash import (
+        AGENT_ARTIFACT_RUN_TRASH_WIRE_SCHEMA_VERSION,
+    )
+
+    validator = load_validate_sase_core_rs()
+    assert (
+        validator.EXPECTED_AGENT_ARTIFACT_RUN_TRASH_WIRE_SCHEMA_VERSION
+        == AGENT_ARTIFACT_RUN_TRASH_WIRE_SCHEMA_VERSION
+    )
+    assert validator._validate_agent_artifact_run_trash_wire_schema(
+        SimpleNamespace(agent_artifact_run_trash_wire_schema_version=lambda: 1)
+    )
+    assert not validator._validate_agent_artifact_run_trash_wire_schema(
+        SimpleNamespace(agent_artifact_run_trash_wire_schema_version=lambda: 999)
+    )

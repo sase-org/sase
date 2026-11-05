@@ -3,7 +3,6 @@
 
 from __future__ import annotations
 
-import hashlib
 import json
 from datetime import datetime
 from uuid import uuid4
@@ -12,6 +11,7 @@ from sase.chops import ChopReport
 from sase.chops.builtin import BuiltinChopRuntime, builtin_chop, run_builtin_chop
 from sase.chops.sdk import ChopResultBuilder
 from sase.config import get_artifact_retention_keep_recent_run_months
+from sase.core.agent_artifact_run_prune_review import preview_fingerprint
 from sase.core.agent_artifact_run_retention import (
     AceRunRetentionPlan,
     AceRunRetentionPolicy,
@@ -100,7 +100,7 @@ def _notify_actionable_preview(plan: AceRunRetentionPlan) -> None:
             "report": json.dumps(_preview_report(plan).to_dict(), sort_keys=True),
             "preview_command": _PREVIEW_COMMAND,
         },
-        dedup_key=f"artifact_run_prune:{_preview_fingerprint(plan)}",
+        dedup_key=f"artifact_run_prune:{preview_fingerprint(plan)}",
     )
     upsert_notification(
         notification,
@@ -173,31 +173,6 @@ def _preview_report(plan: AceRunRetentionPlan) -> ChopReport:
     report.text(f"Review command: {_PREVIEW_COMMAND}", tone="muted")
     report.text("Deletion is currently preview-only.", tone="muted")
     return report
-
-
-def _preview_fingerprint(plan: AceRunRetentionPlan) -> str:
-    payload = {
-        "selected": [
-            {
-                "project": item.project,
-                "timestamp": item.timestamp,
-                "artifact_dir": item.artifact_dir,
-                "size_bytes": item.size_bytes,
-            }
-            for item in plan.selected
-        ],
-        "empty_shards": [
-            {
-                "project": shard.project,
-                "kind": shard.kind,
-                "path": shard.path,
-            }
-            for shard in plan.empty_out_of_range_shards
-        ],
-        "sources_unavailable": list(plan.sources_unavailable),
-    }
-    encoded = json.dumps(payload, sort_keys=True, separators=(",", ":")).encode("utf-8")
-    return hashlib.sha256(encoded).hexdigest()[:16]
 
 
 def _human_size(size_bytes: int | None) -> str:

@@ -51,7 +51,7 @@ from sase.core.agent_scan_wire import (
     AgentArtifactRecordWire,
     AgentArtifactScanOptionsWire,
 )
-from sase.core.paths import is_valid_sase_project_name
+from sase.core.paths import is_valid_sase_project_name, sase_projects_dir
 from sase.core.rust import require_rust_binding
 
 
@@ -542,6 +542,69 @@ def _record_bead_ids(record: AgentArtifactRecordWire) -> frozenset[str]:
     )
 
 
+def recent_month_names(now: datetime, keep_recent_months: int) -> tuple[str, ...]:
+    """Sorted trailing ``YYYYMM`` month names kept whole by retention.
+
+    Shared by the preview plan and the trash quarantine so both sides
+    protect the same recent window.
+    """
+
+    return tuple(sorted(_recent_month_names(now, keep_recent_months)))
+
+
+def protection_reasons_for_dirs(
+    artifact_dirs: Sequence[Path | str],
+    protections: AceRunProtectionSnapshot,
+    *,
+    projects_root: Path | str | None = None,
+) -> dict[str, list[str]]:
+    """Map each normalized artifact dir to its preview-predicate reasons.
+
+    Uses the same per-candidate protection inputs as the preview plan, so
+    quarantine re-verification cannot disagree with the preview. Reasons
+    follow the preview convention; an empty list means the dir looks
+    eligible right now. Directories that do not parse as ACE-run paths are
+    reported with ``("invalid_run_path",)``.
+    """
+
+    root = (
+        Path(projects_root).expanduser()
+        if projects_root is not None
+        else sase_projects_dir()
+    )
+    dirs = tuple(Path(item).expanduser() for item in artifact_dirs)
+    continuation_reasons: dict[str, tuple[str, ...]] = {}
+    continuation_unavailable = False
+    try:
+        continuation_plan = plan_continuation_run_retention(dirs, projects_root=root)
+    except ValueError:
+        continuation_unavailable = True
+    else:
+        continuation_reasons = continuation_retention.continuation_reasons_by_dir(
+            continuation_plan
+        )
+    records, scan_error = _scan_records(root, dirs)
+    reasons_by_dir: dict[str, list[str]] = {}
+    for artifact_dir in dirs:
+        normalized_dir = _normalized_path(artifact_dir)
+        info = parse_agent_artifact_path(artifact_dir, projects_root=root)
+        if info is None:
+            reasons_by_dir[normalized_dir] = ["invalid_run_path"]
+            continue
+        item_reasons = _protection_reasons(
+            project=info.project_name,
+            timestamp=info.timestamp,
+            artifact_dir=artifact_dir,
+            record=records.get(normalized_dir),
+            protections=protections,
+            scan_unavailable=scan_error is not None,
+            continuation_unavailable=continuation_unavailable,
+            continuation_reasons=continuation_reasons.get(normalized_dir, ()),
+        )
+        reasons_by_dir[normalized_dir] = _dedupe(item_reasons)
+    return reasons_by_dir
+
+
 def _recent_month_names(now: datetime, keep_recent_months: int) -> frozenset[str]:
     count = max(1, keep_recent_months)
     year = now.year
@@ -608,4 +671,6 @@ __all__ = [
     "apply_ace_run_retention",
     "collect_ace_run_retention_protections",
     "plan_ace_run_retention",
+    "protection_reasons_for_dirs",
+    "recent_month_names",
 ]

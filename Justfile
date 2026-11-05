@@ -504,6 +504,12 @@ _lint-patch-stitch-terminology: _setup
 # sase-1r5.1.3 consumed CredentialRetry in the SDD store clone and sase-1r5.1.4
 # consumed CredentialRetryBudget in network git and the lease fetch, so the rows
 # sase-1r5.1.2 added for the adopters are dropped.
+# sase-1rd.2 exported the ACE-run trash facade, review snapshots, and the review
+# payload; sase-1rd.3 (preview notification) consumes the snapshot writer, the
+# payload encoder, and the snapshot dir through the chop, and sase-1rd.4
+# (review modal) consumes the payload parser, the review dataclasses, and the
+# snapshot item through the modal and its view model. Drop each row once its
+# phase lands a real consumer (or re-key it onto a still-open bead).
 # Never put a comment
 # line inside the continued command below: just joins the lines, so the comment
 # would swallow every later argument.
@@ -517,6 +523,14 @@ _lint-symvision *args: _setup
         --epic-symbol "sase-1qz.6(strip_hijack_launch_directives)" \
         --epic-symbol "sase-1qz.6.1.5(hijack_recovery_reconcile)" \
         --epic-symbol "sase-1qz.6.1.5(hijack_recovery_reconcile_wire_schema_version)" \
+        --epic-symbol "sase-1rd.3(write_snapshot)" \
+        --epic-symbol "sase-1rd.3(encode_run_prune_review)" \
+        --epic-symbol "sase-1rd.3(snapshot_dir)" \
+        --epic-symbol "sase-1rd.4(parse_run_prune_review)" \
+        --epic-symbol "sase-1rd.4(RunPruneReview)" \
+        --epic-symbol "sase-1rd.4(RunPruneReviewCounts)" \
+        --epic-symbol "sase-1rd.4(RunPruneProjectAggregate)" \
+        --epic-symbol "sase-1rd.4(RunPruneSnapshotItem)" \
         {{ args }}
 
 # Check Python file line counts (private, extracted for per-stage wrapping)

@@ -407,6 +407,7 @@ _VALUE_HINT_TABLE: Final[dict[str, str]] = dict.fromkeys(
         "turn_stop_status",
         "since",
         "size",
+        "snapshot",
         "source",
         "ssh_target",
         "start_status",
