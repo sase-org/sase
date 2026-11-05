@@ -91,7 +91,7 @@ class RecoveryInheritanceError(RuntimeError):
     """A required recovery transfer failed validation before execution."""
 
 
-class RecoveryBootstrapError(RecoveryInheritanceError):
+class _RecoveryBootstrapError(RecoveryInheritanceError):
     """A typed bootstrap stop before provider execution.
 
     The child boot raises this (instead of a bare
@@ -585,24 +585,24 @@ def encode_recovery_descriptor(descriptor: Mapping[str, Any]) -> str:
 def decode_recovery_descriptor(raw: str | None) -> dict[str, Any]:
     """Decode a reservation descriptor, failing closed when absent.
 
-    Raises :class:`RecoveryBootstrapError` when the descriptor is missing,
+    Raises :class:`_RecoveryBootstrapError` when the descriptor is missing,
     malformed, or names no usable reservation, so the child boot stops
     before the provider executes.
     """
     if not isinstance(raw, str) or not raw.strip():
-        raise RecoveryBootstrapError(
+        raise _RecoveryBootstrapError(
             "missing_descriptor",
             f"recovery requires the reservation descriptor ({RECOVERY_DESCRIPTOR_ENV} is missing)",
         )
     try:
         payload = json.loads(raw)
     except json.JSONDecodeError as exc:
-        raise RecoveryBootstrapError(
+        raise _RecoveryBootstrapError(
             "missing_descriptor",
             f"recovery descriptor payload is not valid JSON: {exc}",
         ) from exc
     if not isinstance(payload, Mapping) or not payload:
-        raise RecoveryBootstrapError(
+        raise _RecoveryBootstrapError(
             "missing_descriptor",
             "recovery descriptor payload names no reservation",
         )
@@ -621,7 +621,7 @@ def decode_recovery_descriptor(raw: str | None) -> dict[str, Any]:
         if not descriptor.get(key)
     ]
     if missing:
-        raise RecoveryBootstrapError(
+        raise _RecoveryBootstrapError(
             "missing_descriptor",
             "recovery descriptor is missing required fields: " + ", ".join(missing),
         )
@@ -629,7 +629,7 @@ def decode_recovery_descriptor(raw: str | None) -> dict[str, Any]:
 
 
 @dataclass(frozen=True)
-class BootstrapObservation:
+class _BootstrapObservation:
     """Child-side facts the bootstrap gate proves before provider execution.
 
     ``parent_repos``/``child_repos`` map opened-repository identities to
@@ -684,7 +684,7 @@ def collect_bootstrap_observation(
     effort: str | None,
     explicit_autonomy_selection: str | None = None,
     launch_identity: str | None = None,
-) -> BootstrapObservation:
+) -> _BootstrapObservation:
     """Collect the child-side facts the bootstrap gate must prove.
 
     Reads the predecessor's live ``agent_meta.json`` (goal, bead, permission
@@ -729,7 +729,7 @@ def collect_bootstrap_observation(
         ).as_dict()
     except RecoveryInheritanceError:
         lineage = None
-    return BootstrapObservation(
+    return _BootstrapObservation(
         successor_name=successor_name,
         process_token=process_token,
         project=project,
@@ -765,7 +765,7 @@ def enforce_recovery_bootstrap(
     *,
     child_artifacts_dir: str,
     descriptor: Mapping[str, Any],
-    observation: BootstrapObservation,
+    observation: _BootstrapObservation,
 ) -> dict[str, Any]:
     """Prove required inheritance in the child before provider execution.
 
@@ -773,7 +773,7 @@ def enforce_recovery_bootstrap(
     bead claim, permission scope, baseline fingerprints, repository
     identities, and effective model/effort against it. Persists the
     versioned ack via :func:`write_recovery_ack` only after every check
-    holds and returns it. Raises :class:`RecoveryBootstrapError` (with a
+    holds and returns it. Raises :class:`_RecoveryBootstrapError` (with a
     machine-readable ``code``) on the first failure; the caller must not
     invoke the provider afterwards.
     """
@@ -792,7 +792,7 @@ def enforce_recovery_bootstrap(
             explicit_autonomy_selection=observation.explicit_autonomy_selection,
         )
     except RecoveryInheritanceError as exc:
-        raise RecoveryBootstrapError("scope_missing", str(exc)) from exc
+        raise _RecoveryBootstrapError("scope_missing", str(exc)) from exc
     transferred = _require_bootstrap_inventory(observation)
     _require_bootstrap_baseline(observation)
     effective_target = _require_bootstrap_model(resolved, observation)
@@ -805,7 +805,7 @@ def enforce_recovery_bootstrap(
             parent_meta=observation.parent_meta, child_meta=child_meta
         )
     except RecoveryInheritanceError as exc:
-        raise RecoveryBootstrapError("verdict_carryover", str(exc)) from exc
+        raise _RecoveryBootstrapError("verdict_carryover", str(exc)) from exc
     ack = _build_bootstrap_ack(
         goal=observation.predecessor_goal,
         bead=observation.predecessor_bead,
@@ -829,13 +829,13 @@ def enforce_recovery_bootstrap(
 
 
 def _require_bootstrap_identity(
-    descriptor: Mapping[str, Any], observation: BootstrapObservation
+    descriptor: Mapping[str, Any], observation: _BootstrapObservation
 ) -> None:
     """Prove the child is the reservation's exact attempt."""
     if not observation.launch_identity or (
         observation.launch_identity != descriptor.get("launch_identity")
     ):
-        raise RecoveryBootstrapError(
+        raise _RecoveryBootstrapError(
             "identity_mismatch",
             "recovery requires the child's launch identity to match the "
             f"reservation ({observation.launch_identity!r} != "
@@ -844,14 +844,14 @@ def _require_bootstrap_identity(
     if not observation.successor_name or (
         observation.successor_name != descriptor.get("reserved_successor_name")
     ):
-        raise RecoveryBootstrapError(
+        raise _RecoveryBootstrapError(
             "identity_mismatch",
             "recovery requires the reserved successor identity "
             f"({observation.successor_name!r} != "
             f"{descriptor.get('reserved_successor_name')!r})",
         )
     if not observation.project or observation.project != descriptor.get("project"):
-        raise RecoveryBootstrapError(
+        raise _RecoveryBootstrapError(
             "workspace_mismatch",
             "recovery requires the held project "
             f"({observation.project!r} != {descriptor.get('project')!r})",
@@ -859,14 +859,14 @@ def _require_bootstrap_identity(
     if not observation.workspace_dir or not _same_path(
         observation.workspace_dir, descriptor.get("workspace_dir")
     ):
-        raise RecoveryBootstrapError(
+        raise _RecoveryBootstrapError(
             "workspace_mismatch",
             "recovery requires the exact held workspace directory "
             f"({observation.workspace_dir!r} != {descriptor.get('workspace_dir')!r})",
         )
     expected_num = descriptor.get("workspace_num")
     if not isinstance(observation.workspace_num, int) or observation.workspace_num <= 0:
-        raise RecoveryBootstrapError(
+        raise _RecoveryBootstrapError(
             "workspace_mismatch",
             "recovery requires the held positive workspace number, "
             f"got {observation.workspace_num!r}",
@@ -876,36 +876,36 @@ def _require_bootstrap_identity(
         and expected_num > 0
         and observation.workspace_num != expected_num
     ):
-        raise RecoveryBootstrapError(
+        raise _RecoveryBootstrapError(
             "workspace_mismatch",
             "recovery requires the held workspace number "
             f"({observation.workspace_num!r} != {expected_num!r})",
         )
     expected_lineage = _decode_lineage_payload(descriptor.get("lineage"))
     if not isinstance(observation.lineage, Mapping) or not observation.lineage:
-        raise RecoveryBootstrapError(
+        raise _RecoveryBootstrapError(
             "identity_mismatch",
             "recovery requires the reservation lineage in the child boot",
         )
     if dict(observation.lineage) != dict(expected_lineage):
-        raise RecoveryBootstrapError(
+        raise _RecoveryBootstrapError(
             "identity_mismatch",
             "recovery lineage does not match the reservation "
             f"({dict(observation.lineage)!r} != {dict(expected_lineage)!r})",
         )
 
 
-def _require_bootstrap_goal(observation: BootstrapObservation) -> None:
+def _require_bootstrap_goal(observation: _BootstrapObservation) -> None:
     """Prove the child bound the predecessor's goal (not a caller value)."""
     if not (
         isinstance(observation.predecessor_goal, str)
         and observation.predecessor_goal.strip()
     ):
-        raise RecoveryBootstrapError(
+        raise _RecoveryBootstrapError(
             "goal_mismatch", "recovery requires the predecessor's bound goal"
         )
     if observation.goal != observation.predecessor_goal:
-        raise RecoveryBootstrapError(
+        raise _RecoveryBootstrapError(
             "goal_mismatch",
             "recovery requires the host to bind the same goal "
             f"(predecessor {observation.predecessor_goal!r}, "
@@ -913,25 +913,25 @@ def _require_bootstrap_goal(observation: BootstrapObservation) -> None:
         )
 
 
-def _require_bootstrap_bead(observation: BootstrapObservation) -> None:
+def _require_bootstrap_bead(observation: _BootstrapObservation) -> None:
     """Prove the child's bead claim matches the predecessor's (or its lack)."""
     predecessor_bead = observation.predecessor_bead
     if predecessor_bead is not None and str(predecessor_bead).strip():
         if observation.bead != predecessor_bead:
-            raise RecoveryBootstrapError(
+            raise _RecoveryBootstrapError(
                 "bead_mismatch",
                 "recovery requires transfer of the predecessor's bead claim "
                 f"(predecessor {predecessor_bead!r}, successor {observation.bead!r})",
             )
     elif observation.bead is not None and str(observation.bead).strip():
-        raise RecoveryBootstrapError(
+        raise _RecoveryBootstrapError(
             "bead_mismatch",
             "recovery successor claims a bead the predecessor never held "
             f"({observation.bead!r})",
         )
 
 
-def _require_bootstrap_baseline(observation: BootstrapObservation) -> None:
+def _require_bootstrap_baseline(observation: _BootstrapObservation) -> None:
     """Prove the child's baseline fingerprints equal the predecessor's."""
     problems = list(observation.baseline_diagnostics or [])
     if observation.parent_baseline is None:
@@ -948,23 +948,23 @@ def _require_bootstrap_baseline(observation: BootstrapObservation) -> None:
             "a fresh snapshot of the predecessor's dirty tree is never allowed"
         )
     if problems:
-        raise RecoveryBootstrapError(
+        raise _RecoveryBootstrapError(
             "baseline_mismatch",
             "recovery requires the predecessor's finalizer baseline: "
             + "; ".join(problems),
         )
 
 
-def _require_bootstrap_inventory(observation: BootstrapObservation) -> int:
+def _require_bootstrap_inventory(observation: _BootstrapObservation) -> int:
     """Prove every opened-repository obligation transferred by identity."""
     if observation.predecessor_inventory_missing or observation.parent_repos is None:
-        raise RecoveryBootstrapError(
+        raise _RecoveryBootstrapError(
             "inventory_mismatch",
             "recovery requires the predecessor's opened-repository inventory; "
             "a missing inventory must not pass as an empty one",
         )
     if observation.child_repos is None:
-        raise RecoveryBootstrapError(
+        raise _RecoveryBootstrapError(
             "inventory_mismatch",
             "recovery requires the successor's opened-repository inventory",
         )
@@ -983,7 +983,7 @@ def _require_bootstrap_inventory(observation: BootstrapObservation) -> int:
     if moved:
         problems.append("opened-repository workspace moved: " + ", ".join(moved))
     if problems:
-        raise RecoveryBootstrapError(
+        raise _RecoveryBootstrapError(
             "inventory_mismatch",
             "recovery requires all opened-repository obligations: "
             + "; ".join(problems),
@@ -992,7 +992,7 @@ def _require_bootstrap_inventory(observation: BootstrapObservation) -> int:
 
 
 def _require_bootstrap_model(
-    descriptor: Mapping[str, Any], observation: BootstrapObservation
+    descriptor: Mapping[str, Any], observation: _BootstrapObservation
 ) -> str:
     """Prove the child's effective model equals the pinned target."""
     from sase.agent.hijack.recover_target import require_concrete_target
@@ -1000,12 +1000,12 @@ def _require_bootstrap_model(
 
     pinned = descriptor.get("concrete_target")
     if not isinstance(pinned, str) or not pinned.strip():
-        raise RecoveryBootstrapError(
+        raise _RecoveryBootstrapError(
             "model_mismatch", "recovery descriptor names no pinned target"
         )
     base = (observation.model or "").strip()
     if not base:
-        raise RecoveryBootstrapError(
+        raise _RecoveryBootstrapError(
             "model_mismatch", "recovery successor reports no effective model"
         )
     embedded_effort: str | None = None
@@ -1025,7 +1025,7 @@ def _require_bootstrap_model(
         effective = require_concrete_target(candidate, source="successor bootstrap")
         expected = require_concrete_target(pinned, source="reservation descriptor")
     except RecoveryRefusal as exc:
-        raise RecoveryBootstrapError("model_mismatch", str(exc)) from exc
+        raise _RecoveryBootstrapError("model_mismatch", str(exc)) from exc
     if effective != expected:
         expected_effort = expected.rpartition("@")[2] if "@" in expected else ""
         effective_effort = effective.rpartition("@")[2] if "@" in effective else ""
@@ -1034,7 +1034,7 @@ def _require_bootstrap_model(
             if expected_effort or effective_effort
             else ""
         )
-        raise RecoveryBootstrapError(
+        raise _RecoveryBootstrapError(
             "model_mismatch",
             f"recovery requires the pinned effective model ({effective!r} != "
             f"{expected!r}){detail}",
@@ -1286,8 +1286,6 @@ __all__ = [
     "RECOVERY_LINEAGE_ENV",
     "RECOVERY_LINEAGE_META_KEY",
     "RECOVERY_STRICT_ENV",
-    "BootstrapObservation",
-    "RecoveryBootstrapError",
     "RecoveryInheritanceError",
     "RecoveryLineage",
     "build_recovery_descriptor",

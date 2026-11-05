@@ -23,8 +23,8 @@ from sase.agent.hijack.recovery_successor import (
     BOOTSTRAP_ACK_SCHEMA_VERSION,
     RECOVERY_DESCRIPTOR_ENV,
     RECOVERY_LINEAGE_ENV,
-    BootstrapObservation,
-    RecoveryBootstrapError,
+    _BootstrapObservation,
+    _RecoveryBootstrapError,
     RecoveryInheritanceError,
     _build_bootstrap_ack,
     build_recovery_descriptor,
@@ -109,7 +109,7 @@ def _parent_child(tmp_path: Path) -> tuple[Path, Path]:
     return parent, child
 
 
-def _observation(**overrides: Any) -> BootstrapObservation:
+def _observation(**overrides: Any) -> _BootstrapObservation:
     base: dict[str, Any] = {
         "successor_name": "acme--4",
         "process_token": "tok-1",
@@ -145,7 +145,7 @@ def _observation(**overrides: Any) -> BootstrapObservation:
         "lineage": _lineage(),
     }
     base.update(overrides)
-    return BootstrapObservation(**base)
+    return _BootstrapObservation(**base)
 
 
 def _mock_inherit(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -168,19 +168,19 @@ class TestDescriptorRoundTrip:
         )
 
     def test_missing_raw_raises_typed(self) -> None:
-        with pytest.raises(RecoveryBootstrapError) as excinfo:
+        with pytest.raises(_RecoveryBootstrapError) as excinfo:
             decode_recovery_descriptor(None)
 
         assert excinfo.value.code == "missing_descriptor"
 
     def test_malformed_payload_raises_typed(self) -> None:
-        with pytest.raises(RecoveryBootstrapError) as excinfo:
+        with pytest.raises(_RecoveryBootstrapError) as excinfo:
             decode_recovery_descriptor("{oops")
 
         assert excinfo.value.code == "missing_descriptor"
 
     def test_incomplete_descriptor_raises_typed(self) -> None:
-        with pytest.raises(RecoveryBootstrapError) as excinfo:
+        with pytest.raises(_RecoveryBootstrapError) as excinfo:
             decode_recovery_descriptor(json.dumps({"hijack_id": "hij-1"}))
 
         assert excinfo.value.code == "missing_descriptor"
@@ -264,7 +264,7 @@ class TestEnforceFailures:
         monkeypatch: pytest.MonkeyPatch,
         overrides: dict[str, Any],
         descriptor_overrides: dict[str, Any] | None = None,
-    ) -> RecoveryBootstrapError:
+    ) -> _RecoveryBootstrapError:
         _mock_inherit(monkeypatch)
         parent, child = _parent_child(tmp_path)
         descriptor = _descriptor(**(descriptor_overrides or {}))
@@ -274,7 +274,7 @@ class TestEnforceFailures:
         def fake_provider() -> None:
             provider_calls.append("ran")
 
-        with pytest.raises(RecoveryBootstrapError) as excinfo:
+        with pytest.raises(_RecoveryBootstrapError) as excinfo:
             enforce_recovery_bootstrap(
                 child_artifacts_dir=str(child),
                 descriptor=descriptor,
@@ -474,7 +474,7 @@ class TestEnforceFailures:
     ) -> None:
         _mock_inherit(monkeypatch)
         parent, child = _parent_child(tmp_path)
-        with pytest.raises(RecoveryBootstrapError) as excinfo:
+        with pytest.raises(_RecoveryBootstrapError) as excinfo:
             enforce_recovery_bootstrap(
                 child_artifacts_dir=str(child),
                 descriptor={},
@@ -725,7 +725,7 @@ class TestStrictBootstrapEntry:
             meta={"reasoning_effort": "high"},
         )
         provider_calls: list[str] = []
-        with pytest.raises(RecoveryBootstrapError) as excinfo:
+        with pytest.raises(_RecoveryBootstrapError) as excinfo:
             _enforce_strict_recovery_bootstrap(state, info)  # type: ignore[arg-type]
 
         assert excinfo.value.code == "goal_mismatch"

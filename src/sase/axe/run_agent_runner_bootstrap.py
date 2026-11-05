@@ -536,8 +536,8 @@ def _enforce_strict_recovery_bootstrap(
     and effective model -- and validates it against the reservation
     descriptor the executor bound before dispatch. The versioned ack is
     persisted only after every required bootstrap effect finished. Any
-    failure raises :class:`RecoveryBootstrapError` so the runner records a
-    typed stop and never invokes the provider. Non-recovery boots return
+    failure raises a coded :class:`RecoveryInheritanceError` subclass so the
+    runner records a typed stop and never invokes the provider. Non-recovery boots return
     ``None`` without touching the provider path.
     """
     from sase.agent.hijack.recovery_successor import RECOVERY_STRICT_ENV

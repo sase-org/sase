@@ -31,6 +31,7 @@ from typing import Any
 
 import pytest
 
+from sase.agent._agent_session_attach_types import AgentSessionAttachLaunchPlan
 from sase.agent.hijack import ledger as ledger_module
 from sase.agent.hijack import preview as preview_module
 from sase.agent.hijack.recover import recover_hijacked_agent
@@ -48,6 +49,7 @@ from sase.agent.hijack.recovery_successor import (
     enforce_recovery_bootstrap,
 )
 from sase.core import paths as paths_module
+from sase.llm_provider.commit_finalizer_inheritance import commit_inheritance_source
 
 _BASELINE_FILENAME = "commit_finalizer_baseline.json"
 _LINKED_FILENAME = "opened_linked_workspaces.json"
@@ -101,6 +103,10 @@ class _Transaction:
         self.state_root = tmp_path / ".sase"
         self.parent = tmp_path / "parent"
         self.parent.mkdir()
+        # The session root is the attach parent used for naming; it is not
+        # the hijacked predecessor whose repository responsibility transfers.
+        self.session_root = tmp_path / "session-root"
+        self.session_root.mkdir()
         self.workspace_dir = tmp_path / "ws3"
         self.workspace_dir.mkdir()
         self.linked_repo = tmp_path / "linked" / "sase-core"
@@ -283,9 +289,12 @@ class _Transaction:
                 target = str(kwargs["descriptor"]["concrete_target"])
                 target_provider, _, target_model = target.partition("/")
                 target_model, _, target_effort = target_model.partition("@")
+                # Same source the runner's strict gate reads: the attach
+                # plan's actual predecessor, not its session-root parent.
+                parent_artifacts_dir = commit_inheritance_source(kwargs["plan"])[0]
                 observation = collect_bootstrap_observation(
                     child_artifacts_dir=str(successor_dir),
-                    parent_artifacts_dir=str(self.parent),
+                    parent_artifacts_dir=parent_artifacts_dir,
                     successor_name="acme--4",
                     process_token=self.token,
                     project=str(kwargs["project_name"]),
@@ -327,6 +336,9 @@ class _Transaction:
         assert kwargs["descriptor"]["launch_identity"]
         assert kwargs["descriptor"]["reserved_successor_name"] == "acme--4"
         assert kwargs["extra_env"][RECOVERY_STRICT_ENV] == "1"
+        assert kwargs["plan"].parent_artifacts_dir == str(self.session_root)
+        assert kwargs["plan"].predecessor_artifacts_dir == str(self.parent)
+        assert kwargs["plan"].predecessor_name == "acme--3"
         assert RECOVERY_LINEAGE_ENV in kwargs["extra_env"]
         assert RECOVERY_LAUNCH_IDENTITY_ENV in kwargs["extra_env"]
         assert RECOVERY_DESCRIPTOR_ENV in kwargs["extra_env"]
@@ -383,14 +395,30 @@ class _Transaction:
 
         return RecoveryDeps(
             load_subject=load_subject,
-            resolve_session_plan=lambda session_base, project_name: SimpleNamespace(
-                agent_name="acme--4"
-            ),
+            resolve_session_plan=lambda session_base, project_name: txn.session_plan(),
             spawn_successor=self._spawn,
             terminate_successor=terminate_successor,
             admission_spawn_coordinator=False,
             settle_timeout_seconds=5.0,
             settle_poll_seconds=0.02,
+        )
+
+    def session_plan(self) -> AgentSessionAttachLaunchPlan:
+        """The real attach plan a live ``acme`` session would resolve."""
+        return AgentSessionAttachLaunchPlan(
+            parent_arg="acme",
+            suffix_arg="@",
+            parent_name="acme--0",
+            parent_base="acme",
+            parent_timestamp="20261105000000",
+            parent_artifacts_dir=str(self.session_root),
+            role_suffix="--4",
+            agent_name="acme--4",
+            agent_session_role="feedback",
+            parent_agent_session_member_name="acme--0",
+            parent_agent_session_role_suffix="--0",
+            parent_needs_rename=False,
+            parent_project_name="proj",
         )
 
     def recover(self, **kwargs: Any) -> Any:
