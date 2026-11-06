@@ -298,7 +298,10 @@ def _apply_hijack_custody(
     from sase.agent.hijack.custody import expire_hijack_hold, hijacked_at_exceeds_ttl
 
     state = str(record.get("state") or "")
-    if state in {"requested", "stopping", "resolving"}:
+    if state in {"requested", "stopping"}:
+        return False, held_ttl_days
+    if state == "resolving":
+        _reconcile_resolving_record(record)
         return False, held_ttl_days
     if state != "held":
         return False, held_ttl_days
@@ -326,6 +329,36 @@ def _apply_hijack_custody(
             "cyan",
         )
     return True, held_ttl_days
+
+
+def _reconcile_resolving_record(record: dict[str, Any]) -> None:
+    """Best-effort reconcile of one resolving hijack record.
+
+    Runs the idempotent recovery reconciliation (adopt the proven
+    successor, repair settlement, or return to held when no successor
+    exists). Never releases the claim: ``keep_resolving`` and
+    ``retain_with_error`` retain custody, and even a successful return to
+    held keeps the held claim until its TTL expires. All failures fail
+    closed to retention so two cleanup processes cannot duplicate a launch
+    or prematurely release a workspace. Also drains one bounded pending
+    settled-projection repair by authoritative id lookup, never a
+    ``settled/`` scan.
+    """
+    try:
+        from sase.agent.hijack.recover_reconcile import (
+            reconcile_recovery,
+            repair_pending_settlements,
+        )
+    except Exception:
+        return
+    try:
+        reconcile_recovery(record)
+    except Exception:
+        pass
+    try:
+        repair_pending_settlements(limit=1)
+    except Exception:
+        return
 
 
 def _staged_origin_retains_claim(project_file: str, claim: WorkspaceClaim) -> bool:

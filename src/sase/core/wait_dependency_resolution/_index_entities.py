@@ -100,6 +100,33 @@ def _is_superseded_failed_handoff_turn_member(
     return False
 
 
+def _is_superseded_hijack_predecessor(
+    candidate: ArtifactCandidate,
+    *,
+    names_in_generation: set[str],
+) -> bool:
+    """Return whether a resolved hijack predecessor is superseded.
+
+    A hijacked member with ``recovery.state == resolved`` hands its
+    session verdict to ``recovery.successor`` once that successor is
+    present in the generation (or excluded as the waiter itself). Pending
+    or expired hijacks stay parked: they never count as superseded. A
+    missing successor or a successor cycle keeps the predecessor blocking,
+    matching pipe-wait handling of absent follow-ups.
+    """
+    if not candidate.has_done_marker:
+        return False
+    outcome = candidate.outcome
+    if not isinstance(outcome, str) or outcome.strip().lower() != "hijacked":
+        return False
+    if candidate.hijack_recovery_state != "resolved":
+        return False
+    successor = candidate.hijack_successor
+    if not successor:
+        return False
+    return successor in names_in_generation
+
+
 class WaitDependencyEntityQueries:
     named: dict[str, WaitCandidate]
     workflows: dict[str, list[ArtifactCandidate]]
@@ -376,7 +403,9 @@ class WaitDependencyEntityQueries:
         monitor or gate. A failed agent turn is superseded when a monitor
         or gate parented to it launched a follow-up that is present: the
         follow-up lane carries the session's verdict, and the failed turn
-        stays ``failed`` on disk.
+        stays ``failed`` on disk. A hijacked predecessor with a resolved
+        recovery successor is superseded the same way: the successor lane
+        carries the verdict once the successor member is present.
         """
         names_in_generation = {
             candidate.name for candidate in candidates
@@ -393,6 +422,10 @@ class WaitDependencyEntityQueries:
             and not _is_superseded_failed_handoff_turn_member(
                 candidate,
                 candidates=candidates,
+                names_in_generation=names_in_generation,
+            )
+            and not _is_superseded_hijack_predecessor(
+                candidate,
                 names_in_generation=names_in_generation,
             )
         )

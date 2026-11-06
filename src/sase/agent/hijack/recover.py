@@ -229,6 +229,9 @@ def _resume_existing_resolution(
 ) -> RecoveryResult:
     """Resume the CAS-bound admission bundle without creating another request."""
     current = dict(record)
+    reconciled = _reconcile_before_resume(current, seams=seams)
+    if reconciled is not None:
+        return reconciled
     result = current_resolution_result(current, RESULT_ALREADY_RESOLVING)
     try:
         observation = resume_recovery_admission(
@@ -293,6 +296,62 @@ def _resume_existing_resolution(
         message=result.message,
         detail=detail,
     )
+
+
+def _reconcile_before_resume(
+    record: Mapping[str, Any],
+    *,
+    seams: RecoveryDeps | None = None,
+) -> RecoveryResult | None:
+    """Run one bounded reconcile before resuming a resolving record.
+
+    Returns a terminal result when reconciliation adopted the proven
+    successor or returned the record to held; returns ``None`` when the
+    reservation must stay resolving and the caller should resume admission.
+    Failures fail closed to ``None`` so a broken observer never releases
+    custody or duplicates a launch.
+    """
+    from sase.agent.hijack.recover_reconcile import (
+        ReconcileDeps,
+        gather_reconcile_facts,
+        reconcile_recovery,
+        repair_settled_projection,
+    )
+
+    _ = (ReconcileDeps, gather_reconcile_facts, repair_settled_projection)
+    try:
+        outcome = reconcile_recovery(record, deps=seams)
+    except Exception:
+        return None
+    action_taken = str(outcome.get("action_taken") or "none")
+    decided = outcome.get("record")
+    current = (
+        dict(decided)
+        if isinstance(decided, Mapping) and decided
+        else reload_record(str(record.get("hijack_id") or ""), record)
+    )
+    if action_taken == "adopted":
+        return current_resolution_result(current, RESULT_ALREADY_RESOLVED)
+    if action_taken == "returned_to_held":
+        return RecoveryResult(
+            kind=RESULT_ERROR,
+            hijack_id=clean_string(current.get("hijack_id")),
+            revision=record_revision(current),
+            action=clean_string(current.get("resolution_action")),
+            successor=clean_string(current.get("reserved_successor_name")),
+            launch_identity=clean_string(current.get("launch_identity")),
+            admission_request_id=clean_string(current.get("admission_request_id")),
+            concrete_target=clean_string(current.get("concrete_target_model")),
+            model_changed=current.get("model_changed")
+            if isinstance(current.get("model_changed"), bool)
+            else None,
+            message=str(outcome.get("message") or "Recovery returned to held"),
+            detail={
+                "code": str(outcome.get("code") or "returned_to_held"),
+                "reconciled": True,
+            },
+        )
+    return None
 
 
 __all__ = [

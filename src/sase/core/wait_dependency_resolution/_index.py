@@ -31,6 +31,7 @@ from ._artifact_state import (
     turn_member_kind_for_meta,
     waiting_marker_crossed_dependency_barrier,
 )
+from ._hijack_follow import hijack_successor_for_done
 from ._index_queries import WaitDependencyIndexQueries
 from ._json_io import read_json_dict
 from ._submitted_plans import (
@@ -274,6 +275,9 @@ class WaitDependencyIndex(WaitDependencyIndexQueries):
         timestamp = artifact_dir.name
 
         identity = artifact_row_identity(meta)
+        hijack_named_successor, hijack_named_state = hijack_successor_for_done(
+            done_data
+        )
         name = identity.name
         if name is not None:
             self._record_named_candidate(
@@ -288,6 +292,8 @@ class WaitDependencyIndex(WaitDependencyIndexQueries):
                     artifact_dir=str(artifact_dir),
                     outcome=outcome,
                     has_done_marker=has_done_marker,
+                    hijack_successor=hijack_named_successor,
+                    hijack_recovery_state=hijack_named_state,
                 ),
             )
 
@@ -342,6 +348,7 @@ class WaitDependencyIndex(WaitDependencyIndexQueries):
         recorded_epic_ids, legacy_epic_bead_id, is_epic_worker = (
             _epic_follow_facts_from_meta(meta)
         )
+        hijack_successor, hijack_recovery_state = hijack_successor_for_done(done_data)
         artifact = ArtifactCandidate(
             name=name if name is not None else str(meta.get("workflow_name") or ""),
             timestamp=timestamp,
@@ -371,6 +378,8 @@ class WaitDependencyIndex(WaitDependencyIndexQueries):
             recorded_epic_ids=recorded_epic_ids,
             legacy_epic_bead_id=legacy_epic_bead_id,
             is_epic_worker=is_epic_worker,
+            hijack_successor=hijack_successor,
+            hijack_recovery_state=hijack_recovery_state,
         )
         if project_name:
             self.artifacts[(project_name, timestamp)] = artifact

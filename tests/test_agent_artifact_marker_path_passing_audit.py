@@ -522,6 +522,15 @@ _REVIEWED_PATH_PASSING_CONTEXTS: dict[str, PathPassingReview] = {
             "downstream. No marker is written."
         ),
     ),
+    "src/sase/agent/hijack/recover_reconcile.py:_read_meta": PathPassingReview(
+        exemption=(
+            "Read-only reconciliation observation: the reserved successor's "
+            "agent_meta.json is read for workspace, lineage, and process "
+            "identity evidence; a missing or unreadable meta yields no "
+            "successor proof and reconciliation retains custody. No marker "
+            "is written."
+        ),
+    ),
     "src/sase/history/chat_fork/common.py:fork_source_hijack_status": PathPassingReview(
         exemption=(
             "Read-only transcript framing: done.json is inspected to classify "

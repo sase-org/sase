@@ -11,6 +11,10 @@ from sase.core.agent_tribe import (
 )
 from sase.plan_chain import planner_row_name
 
+from ._hijack_follow import (
+    follow_hijack_successor_chain,
+    hijack_follow_is_parked,
+)
 from ._index_entities import WaitDependencyEntityQueries
 from ._index_fork_queries import WaitDependencyForkQueries
 from ._index_identity_queries import WaitDependencyIdentityQueries
@@ -390,19 +394,24 @@ class WaitDependencyCandidateQueries(
                 is not None
             )
 
+        resolved_name = self._follow_hijack_successor(name)
+        if resolved_name is None:
+            return False
         candidates = [
             candidate
             for candidate in (
-                self.clan_candidate(name, exclude_artifact_dir=exclude_artifact_dir),
+                self.clan_candidate(
+                    resolved_name, exclude_artifact_dir=exclude_artifact_dir
+                ),
                 self.agent_session_candidate(
-                    name, exclude_artifact_dir=exclude_artifact_dir
+                    resolved_name, exclude_artifact_dir=exclude_artifact_dir
                 ),
                 self.workflow_candidate(
-                    name,
+                    resolved_name,
                     exclude_artifact_dir=exclude_artifact_dir,
                 ),
-                self.named.get(name),
-                self._planner_row_candidate(name),
+                self.named.get(resolved_name),
+                self._planner_row_candidate(resolved_name),
             )
             if candidate is not None
         ]
@@ -415,6 +424,46 @@ class WaitDependencyCandidateQueries(
             and latest.is_resolved
             and latest.is_done
         )
+
+    def _follow_hijack_successor(self, name: str) -> str | None:
+        """Follow a resolved hijack successor chain for a name wait.
+
+        Returns the final wait target, or ``None`` when the chain parks
+        (pending/expired hijack), misses (no successor member), or cycles,
+        matching pipe-wait handling of absent follow-ups.
+        """
+        final, parked, reason = follow_hijack_successor_chain(
+            name, self._resolved_hijack_successor_for_name
+        )
+        if parked:
+            return None
+        if reason == "missing":
+            return None
+        return final
+
+    def _resolved_hijack_successor_for_name(self, name: str) -> str | None:
+        """Return the resolved recovery successor for *name*, if followed."""
+        named = self.named.get(name)
+        if named is not None:
+            if named.hijack_recovery_state == "resolved" and named.hijack_successor:
+                return named.hijack_successor
+            if named.hijack_successor and hijack_follow_is_parked(
+                named.hijack_recovery_state
+            ):
+                return None
+            return None
+        for candidate in self.artifacts_by_dir.values():
+            if candidate.name != name:
+                continue
+            if candidate.hijack_recovery_state == "resolved":
+                if candidate.hijack_successor:
+                    return candidate.hijack_successor
+                return None
+            if candidate.hijack_successor and hijack_follow_is_parked(
+                candidate.hijack_recovery_state
+            ):
+                return None
+        return None
 
     def hood_status(
         self,
@@ -446,6 +495,11 @@ class WaitDependencyCandidateQueries(
     ) -> tuple[ArtifactCandidate, ...]:
         if name.startswith("@"):
             return ()
+
+        followed = self._follow_hijack_successor(name)
+        if followed is None:
+            return ()
+        name = followed
 
         entities = [
             entity

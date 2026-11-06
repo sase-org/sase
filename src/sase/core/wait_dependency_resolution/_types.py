@@ -29,6 +29,8 @@ class WaitCandidate:
     artifact_dir: str = ""
     outcome: str | None = None
     has_done_marker: bool = False
+    hijack_successor: str | None = None
+    hijack_recovery_state: str | None = None
 
 
 @dataclass(frozen=True)
@@ -69,6 +71,12 @@ class ArtifactCandidate:
     recorded_epic_ids: tuple[str, ...] = ()
     legacy_epic_bead_id: str | None = None
     is_epic_worker: bool = False
+    # Hijack recovery following: the resolved ``recovery.successor`` for an
+    # ``outcome: hijacked`` marker plus its ``recovery.state``. Only
+    # ``resolved`` successors are followed; pending/expired hijacks stay
+    # parked. Populated from ``done.json`` at index time (no extra I/O).
+    hijack_successor: str | None = None
+    hijack_recovery_state: str | None = None
 
 
 @dataclass(frozen=True)
