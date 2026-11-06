@@ -522,7 +522,7 @@ _REVIEWED_PATH_PASSING_CONTEXTS: dict[str, PathPassingReview] = {
             "downstream. No marker is written."
         ),
     ),
-    "src/sase/agent/hijack/recover_reconcile.py:_read_meta": PathPassingReview(
+    "src/sase/agent/hijack/_recover_reconcile_observation.py:_read_meta": PathPassingReview(
         exemption=(
             "Read-only reconciliation observation: the reserved successor's "
             "agent_meta.json is read for workspace, lineage, and process "
