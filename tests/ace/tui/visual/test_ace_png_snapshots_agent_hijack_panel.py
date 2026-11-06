@@ -253,3 +253,51 @@ async def test_agent_hijack_panel_long_name_png_snapshot(
         resolved=True,
         long_name=True,
     )
+
+
+_INSTRUCT_BAR_TEXT = (
+    "%model:claude/opus@high\n"
+    "#fork:visual-recovery\n"
+    "\n"
+    "**Hijack continuation.** The user stopped `visual-recovery` "
+    "(`claude/opus@high`) because it stopped making progress. "
+    "Inspect `git status` and `git diff` before acting.\n"
+    "\n"
+    "Do the task.\n"
+)
+
+
+async def test_agent_hijack_instruct_bar_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: Any,
+) -> None:
+    from sase.ace.tui.widgets.prompt_input_bar import PromptInputBar
+    from tests.ace.tui.visual._ace_png_snapshot_helpers import (
+        patches,
+        patch_startup_loaders,
+        wait_for_startup,
+        wait_for_state,
+    )
+
+    patch_startup_loaders(monkeypatch)
+    async with AcePage(query='"visual"', patches=patches(), size=(80, 24)) as page:
+        await wait_for_startup(page)
+        await page.app.mount(
+            PromptInputBar(
+                initial_value=_INSTRUCT_BAR_TEXT,
+                initial_cursor=(2, 0),
+                id="prompt-input-bar",
+            )
+        )
+        bar = page.app.query_one("#prompt-input-bar", PromptInputBar)
+        await wait_for_state(
+            page,
+            lambda: bar.active_text_area().has_focus,
+            description="instruct-bar focus",
+        )
+        await wait_for_visual_idle(page)
+        ace_png_visual.assert_page_png(
+            page,
+            "agent_hijack_instruct_bar_80x24",
+            title="Agent Hijack pre-filled Instruct bar",
+        )

@@ -80,10 +80,14 @@ def open_hijack_recovery_panel(app: Any, agent: Agent) -> None:
             navigate_to_patch_tab(app, patch_name, current.project_file or "")
             return
         if result == f"{_RESULT_PREFIX}instruct":
-            app.notify("Instruct is coming soon", severity="information")
+            from ._hijack_prompt_bar import open_hijack_instruct_bar
+
+            open_hijack_instruct_bar(app, current, dict(record))
             return
         if result == f"{_RESULT_PREFIX}edit":
-            app.notify("Edit is coming soon", severity="information")
+            from ._hijack_prompt_bar import open_hijack_edit_bar
+
+            open_hijack_edit_bar(app, current, dict(record))
             return
         if result == f"{_RESULT_PREFIX}view":
             _open_recovery_diff(app, current, record)

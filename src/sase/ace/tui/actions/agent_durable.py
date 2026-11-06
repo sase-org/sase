@@ -137,6 +137,7 @@ def submit_agent_recovery(
     project_file: str,
     display_name: str,
     model: str | None = None,
+    prompt: str | None = None,
     on_complete: Callable[[TrackedProcCompletion[Any]], None] | None = None,
 ) -> bool:
     """Submit one CAS-pinned recovery action through a durable proc."""
@@ -148,6 +149,8 @@ def submit_agent_recovery(
     }
     if model:
         payload["model"] = model
+    if prompt is not None:
+        payload["prompt"] = prompt
     submitted = app._submit_durable_proc(
         sase_command_argv("agent", "persist-recover"),
         operation=AGENT_PERSIST_RECOVER,

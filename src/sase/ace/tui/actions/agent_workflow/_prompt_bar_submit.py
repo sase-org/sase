@@ -40,6 +40,15 @@ class PromptBarSubmitMixin:
             return
 
         prompt = event.value
+        try:
+            from ..agents._hijack_prompt_bar import (
+                handle_hijack_prompt_submitted,
+            )
+
+            if handle_hijack_prompt_submitted(self, prompt):
+                return
+        except Exception:
+            pass
         if not prompt:
             # A multi-pane single submit with an empty pane is dropped by the
             # widget without posting, so an empty value here is always a
@@ -70,6 +79,12 @@ class PromptBarSubmitMixin:
             self._handle_approve_prompt_cancelled()
             return
 
+        try:
+            from ..agents._hijack_prompt_bar import clear_hijack_prompt_context
+
+            clear_hijack_prompt_context(self)
+        except Exception:
+            pass
         if event.keep_bar:
             # Per-pane cancel in a multi-pane stack: the widget already removed
             # the pane and kept the bar mounted, so just record that pane's text
