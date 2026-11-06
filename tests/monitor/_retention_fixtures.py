@@ -247,6 +247,46 @@ def pending_retention_record(artifacts_dir: str) -> dict | None:
     return json.loads(path.read_text(encoding="utf-8"))
 
 
+def write_monitor_baselines(
+    artifacts_dir: str,
+    repos: list[tuple[str, Path]],
+    *,
+    capture_fingerprints: bool = False,
+) -> None:
+    """Write a finalizer baseline covering *repos*."""
+    import json
+
+    from sase.llm_provider.commit_finalizer_baseline import FINALIZER_BASELINE_FILENAME
+    from sase.llm_provider.commit_finalizer_git import normalize_path
+    from sase.llm_provider.commit_finalizer_git_status import dirty_path_fingerprints
+
+    payload = {
+        "schema_version": 1,
+        "repositories": [
+            {
+                "repo_id": repo_id,
+                "path": normalize_path(str(path)),
+                "kind": "primary" if repo_id == "primary" else "linked",
+                "name": repo_id,
+                "scope": "run_start",
+                "captured_at": "2026-01-01T00:00:00+00:00",
+                "fingerprints": {
+                    dirty_path: list(fingerprint)
+                    for dirty_path, fingerprint in dirty_path_fingerprints(
+                        str(path)
+                    ).items()
+                }
+                if capture_fingerprints
+                else {},
+            }
+            for repo_id, path in repos
+        ],
+    }
+    (Path(artifacts_dir) / FINALIZER_BASELINE_FILENAME).write_text(
+        json.dumps(payload), encoding="utf-8"
+    )
+
+
 def fail_fresh_python_c(exc: BaseException):
     """Return a ``subprocess.run`` wrapper that fails ``python -c`` attempts."""
     real_run = subprocess.run
