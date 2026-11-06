@@ -100,7 +100,7 @@ def collect_monitor_repo_observations(
     """
     starter = meta.get("monitor_starter_artifacts_dir")
     starter_dir = starter if isinstance(starter, str) and starter.strip() else None
-    same_workspace = _starter_same_workspace(meta, starter_dir, checkout_dir)
+    same_workspace = starter_same_workspace(meta, starter_dir, checkout_dir)
     by_path: dict[str, dict[str, Any]] = {}
     origin_ids: set[str] = set()
     discovery_errors: list[str] = []
@@ -174,7 +174,7 @@ def collect_monitor_repo_observations(
     return ordered, sorted(origin_ids), evidence_dir, tuple(discovery_errors)
 
 
-def _starter_same_workspace(
+def starter_same_workspace(
     meta: dict[str, Any],
     starter_dir: str | None,
     checkout_dir: str | None,
@@ -631,4 +631,5 @@ __all__ = [
     "has_transfer_proof",
     "monitor_owner_timestamp",
     "observe_checkout_dir",
+    "starter_same_workspace",
 ]
