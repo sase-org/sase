@@ -28,6 +28,9 @@ REPLAY_APPLY_ACTION_APPLY = "apply"
 REPLAY_APPLY_ACTION_REFUSE = "refuse"
 REPLAY_APPLY_ACTION_ALREADY_COMPLETE = "already_complete"
 
+PUBLICATION_REBASE_ACTION_RESOLVE_UPSTREAM = "resolve_upstream"
+PUBLICATION_REBASE_ACTION_ESCALATE = "escalate"
+
 REPLAY_HOOD_ACTION_MERGE = "merge"
 REPLAY_HOOD_ACTION_REFUSE = "refuse"
 
@@ -52,6 +55,12 @@ _REPLAY_APPLY_ACTIONS = frozenset(
         REPLAY_APPLY_ACTION_APPLY,
         REPLAY_APPLY_ACTION_REFUSE,
         REPLAY_APPLY_ACTION_ALREADY_COMPLETE,
+    }
+)
+_PUBLICATION_REBASE_ACTIONS = frozenset(
+    {
+        PUBLICATION_REBASE_ACTION_RESOLVE_UPSTREAM,
+        PUBLICATION_REBASE_ACTION_ESCALATE,
     }
 )
 _REPLAY_HOOD_ACTIONS = frozenset({REPLAY_HOOD_ACTION_MERGE, REPLAY_HOOD_ACTION_REFUSE})
@@ -87,6 +96,14 @@ class ReplayApplyDecision:
     schema_version: int
     action: str
     reason: str
+
+
+@dataclass(frozen=True)
+class PublicationRebaseConflictDecision:
+    schema_version: int
+    action: str
+    paths: tuple[str, ...]
+    reasons: tuple[str, ...]
 
 
 def classify_replay_paths(
@@ -233,4 +250,36 @@ def decide_replay_apply(
         schema_version=require_int(raw, "schema_version"),
         action=action,
         reason=require_str_field(raw, "reason"),
+    )
+
+
+def decide_publication_rebase_conflict(
+    paths: Sequence[str],
+) -> PublicationRebaseConflictDecision:
+    """Decide whether a publication rebase conflict resolves upstream or escalates.
+
+    ``resolve_upstream`` means every conflicted path is a regenerable index
+    page the next pass rewrites from manifests, so the caller may take the
+    upstream side. ``escalate`` names the offending paths in ``reasons``.
+    """
+
+    binding = require_rust_binding("decide_publication_rebase_conflict")
+    raw = binding(
+        {
+            "schema_version": PUBLICATION_RECOVERY_WIRE_SCHEMA_VERSION,
+            "paths": list(paths),
+        }
+    )
+    if not isinstance(raw, dict):
+        raise RuntimeError("sase_core_rs returned a non-dict rebase conflict decision")
+    action = require_str_field(raw, "action")
+    if action not in _PUBLICATION_REBASE_ACTIONS:
+        raise RuntimeError(
+            f"sase_core_rs returned an unknown rebase conflict action: {action}"
+        )
+    return PublicationRebaseConflictDecision(
+        schema_version=require_int(raw, "schema_version"),
+        action=action,
+        paths=require_str_tuple(raw, "paths"),
+        reasons=require_str_tuple(raw, "reasons"),
     )

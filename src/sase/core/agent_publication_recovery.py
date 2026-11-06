@@ -64,6 +64,8 @@ from sase.core.agent_publication_recovery_publication import (
     classify_stale_publication_request,
 )
 from sase.core.agent_publication_recovery_replay import (
+    PUBLICATION_REBASE_ACTION_ESCALATE,
+    PUBLICATION_REBASE_ACTION_RESOLVE_UPSTREAM,
     REPLAY_APPLY_ACTION_ALREADY_COMPLETE,
     REPLAY_APPLY_ACTION_APPLY,
     REPLAY_APPLY_ACTION_REFUSE,
@@ -77,6 +79,7 @@ from sase.core.agent_publication_recovery_replay import (
     REPLAY_PATH_BROWSING,
     REPLAY_PATH_OWNER_CONTENT,
     REPLAY_PATH_UNKNOWN,
+    PublicationRebaseConflictDecision,
     ReplayApplyDecision,
     ReplayByteDivergenceDecision,
     ReplayHoodMergeDecision,
@@ -309,6 +312,14 @@ def decide_replay_apply(
     )
 
 
+def decide_publication_rebase_conflict(
+    paths: Sequence[str],
+) -> PublicationRebaseConflictDecision:
+    """Decide whether a publication rebase conflict resolves upstream or escalates."""
+    _sync_replay_patchables()
+    return replay_impl.decide_publication_rebase_conflict(paths)
+
+
 __all__ = [
     "DeferredPromptDecision",
     "PROMPT_STATUS_ALREADY_ARCHIVED",
@@ -332,9 +343,12 @@ __all__ = [
     "PUBLICATION_LIFECYCLE_ACTIVE",
     "PUBLICATION_LIFECYCLE_QUARANTINED",
     "PUBLICATION_LIFECYCLE_RETIRED",
+    "PUBLICATION_REBASE_ACTION_ESCALATE",
+    "PUBLICATION_REBASE_ACTION_RESOLVE_UPSTREAM",
     "PUBLICATION_RECOVERY_WIRE_SCHEMA_VERSION",
     "PUBLICATION_SCOPE_LINKED",
     "PUBLICATION_SCOPE_REVISION",
+    "PublicationRebaseConflictDecision",
     "STALE_REPAIR_ACTION_LINKED",
     "STALE_REPAIR_ACTION_REPAIRED",
     "STALE_REPAIR_ACTION_UNCHANGED",
@@ -368,6 +382,7 @@ __all__ = [
     "classify_replay_paths",
     "classify_stale_publication_request",
     "decide_publication_failure_accounting",
+    "decide_publication_rebase_conflict",
     "decide_publication_request_completion",
     "decide_replay_apply",
     "decide_replay_byte_divergence",

@@ -22,6 +22,8 @@ from sase.core.agent_publication_recovery import (
     PUBLICATION_KIND_RUN,
     PUBLICATION_KIND_SESSION,
     PUBLICATION_LIFECYCLE_ACTIVE,
+    PUBLICATION_REBASE_ACTION_ESCALATE,
+    PUBLICATION_REBASE_ACTION_RESOLVE_UPSTREAM,
     PUBLICATION_RECOVERY_WIRE_SCHEMA_VERSION,
     PUBLICATION_SCOPE_LINKED,
     REPLAY_APPLY_ACTION_APPLY,
@@ -39,6 +41,7 @@ from sase.core.agent_publication_recovery import (
     classify_replay_paths,
     classify_stale_publication_request,
     decide_publication_failure_accounting,
+    decide_publication_rebase_conflict,
     decide_publication_request_completion,
     decide_replay_apply,
     decide_replay_byte_divergence,
@@ -629,6 +632,28 @@ def test_replay_byte_divergence_uses_merge_base_before_prefix_rules() -> None:
         b"base\r\n", b"upstream\r\nchange", b"base\r\n"
     )
     assert upstream_change.action == REPLAY_BYTES_KEEP_PREVIOUS
+
+
+def test_publication_rebase_conflict_resolves_apollo_index_pages() -> None:
+    decision = decide_publication_rebase_conflict(
+        ["README.md", "users/bbugyi200/README.md"]
+    )
+
+    assert decision.schema_version == PUBLICATION_RECOVERY_WIRE_SCHEMA_VERSION
+    assert decision.action == PUBLICATION_REBASE_ACTION_RESOLVE_UPSTREAM
+    assert decision.paths == ("README.md", "users/bbugyi200/README.md")
+    assert decision.reasons == ()
+
+
+def test_publication_rebase_conflict_escalates_mixed_owner_content() -> None:
+    decision = decide_publication_rebase_conflict(
+        ["README.md", "agents/alice.athena.foo/chat.md"]
+    )
+
+    assert decision.action == PUBLICATION_REBASE_ACTION_ESCALATE
+    assert decision.paths == ("README.md", "agents/alice.athena.foo/chat.md")
+    assert len(decision.reasons) == 1
+    assert "agents/alice.athena.foo/chat.md" in decision.reasons[0]
 
 
 def test_replay_apply_admits_verified_backup_and_refuses_head_drift() -> None:
