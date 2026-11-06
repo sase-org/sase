@@ -500,9 +500,9 @@ _lint-patch-stitch-terminology: _setup
 # sase-1qz.6.1.4.1.5 (settlement) observes the versioned ack through
 # read_recovery_ack instead of parent-side synthesis. The bare ack
 # constructor is private to recovery_successor (require/enforce own the
-# only production construction paths); the observation shape and the typed
-# bootstrap failure stay allow-listed on the still-open parent epic
-# sase-1qz.6.1.4.1 for reconcile/CLI consumers or land-agent cleanup.
+# only production construction paths), and the sase-1qz.6.1.4.1 land
+# privatized the in-file-only observation shape and typed bootstrap failure,
+# so no sase-1qz.6.1.4.1 rows remain.
 # sase-1pj.7.1.1 exported the shared workspace-retention adapter; sase-1pj.7.1.2
 # (monitor-retention) consumed settle_stranded_workspace and its request
 # types by routing every monitor terminal claim disposal through the adapter,
