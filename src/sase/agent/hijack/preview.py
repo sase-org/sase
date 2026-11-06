@@ -10,7 +10,11 @@ from pathlib import Path
 from typing import Any
 
 from sase.agent.hijack import ledger
-from sase.agent.hijack.config import agent_hijack_config, build_alias_candidates
+from sase.agent.hijack.config import (
+    AgentHijackConfig,
+    agent_hijack_config,
+    build_alias_candidates,
+)
 from sase.agent.hijack.core import (
     assemble_hijack_recovery_preview,
     continuation_wire_schema_version,
@@ -111,7 +115,7 @@ def hijack_recovery_preview(agent_or_name: object) -> RecoveryPreview:
     header = _recovery_header(record)
     model_target = _concrete_model_target(record)
     lineage_to_rung = _lineage_to_rung(meta)
-    config = agent_hijack_config()
+    config: AgentHijackConfig = agent_hijack_config()
     escalation = hijack_escalation_target(
         {
             "schema_version": escalation_wire_schema_version(),
@@ -140,9 +144,80 @@ def hijack_recovery_preview(agent_or_name: object) -> RecoveryPreview:
             "continue_target": model_target,
         }
     )
+    wire = _with_release_rows(wire, record, state)
     return _preview_from_wire(
         wire, record=record, artifacts_dir=artifacts_dir, state=state
     )
+
+
+#: Display facts for the Python-owned release rows, in menu order.
+_RELEASE_ROW_DETAILS = (
+    ("restart", "Restart", "same prompt, same name, fresh workspace"),
+    ("edit", "Edit", "edit the prompt; nothing is released until submit"),
+    ("dismiss", "Dismiss", "snapshot first, then workspace released"),
+)
+
+_RELEASE_FROM_STATES = frozenset({"held", "expired"})
+
+
+def _with_release_rows(
+    wire: Mapping[str, Any],
+    record: Mapping[str, Any],
+    state: str,
+) -> dict[str, Any]:
+    """Fill in the restart/edit/dismiss rows the core leaves unavailable.
+
+    The Rust preview owns keep-work availability; release availability depends
+    on the Python restart planner (fan-out, container, disabled provider) and
+    the ledger state, so this phase patches those rows here. The same patched
+    preview powers ``sase agent recover``, the TUI panel, and the release
+    transaction's own availability check.
+    """
+    patched = dict(wire)
+    raw_actions = wire.get("actions")
+    actions: list[dict[str, Any]] = [
+        dict(item)
+        for item in (raw_actions if isinstance(raw_actions, list) else [])
+        if isinstance(item, Mapping)
+    ]
+    by_action = {str(item.get("action") or ""): item for item in actions}
+    for name, label, detail in _RELEASE_ROW_DETAILS:
+        available, reason = _release_row_availability(name, record, state)
+        row = by_action.get(name)
+        if row is None:
+            row = {"action": name}
+            actions.append(row)
+            by_action[name] = row
+        row["available"] = available
+        row["reason"] = reason
+        row["label"] = label
+        row["detail"] = detail if available else ""
+        row.setdefault("target", None)
+    patched["actions"] = actions
+    return patched
+
+
+def _release_row_availability(
+    name: str,
+    record: Mapping[str, Any],
+    state: str,
+) -> tuple[bool, str | None]:
+    """Return ``(available, reason)`` for one release row.
+
+    Restart availability runs the restart planner, whose refusals become the
+    disabled-row reason; edit and dismiss only need a releasable state.
+    """
+    if state not in _RELEASE_FROM_STATES:
+        if state == "resolving":
+            return False, "already being resolved"
+        return False, f"release recovery is not available in {state}"
+    if name == "restart":
+        from sase.agent.hijack.recover_release import restart_availability_reason
+
+        reason = restart_availability_reason(record)
+        if reason is not None:
+            return False, reason
+    return True, None
 
 
 def build_hijack_continuation_prompt(

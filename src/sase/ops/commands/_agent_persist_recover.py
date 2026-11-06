@@ -8,6 +8,7 @@ from typing import Any
 
 from sase.agent.hijack.recover import recover_hijacked_agent
 from sase.agent.hijack.recover_common import RecoveryResult
+from sase.agent.hijack.recover_release import RELEASE_ACTIONS, recover_release_action
 from sase.agents.cli_recover import recovery_exit_code
 from sase.ops.cli import load_request
 from sase.ops.commands.common import OperationCommandResult
@@ -20,25 +21,52 @@ def run_persist_recover(args: argparse.Namespace) -> OperationCommandResult:
     payload = dict(request.payload)
     name = _required_string(payload, "name")
     action = _required_string(payload, "action")
-    if action not in {"continue", "escalate"}:
-        raise ValueError("persist-recover action must be 'continue' or 'escalate'")
+    if action not in {"continue", "escalate", "dismiss", "restart"}:
+        raise ValueError(
+            "persist-recover action must be 'continue', 'escalate', "
+            "'restart', or 'dismiss'"
+        )
     expected_hijack_id = _required_string(payload, "expected_hijack_id")
     expected_revision = payload.get("expected_revision")
     if isinstance(expected_revision, bool) or not isinstance(expected_revision, int):
         raise ValueError("persist-recover requires an integer expected_revision")
     model = _optional_string(payload, "model")
     prompt = _optional_string(payload, "prompt")
-    if prompt is not None and action != "continue":
-        raise ValueError("persist-recover prompt is supported only with continue")
+    if prompt is not None and action not in {"continue", "restart"}:
+        raise ValueError(
+            "persist-recover prompt is supported only with continue or restart"
+        )
+    if model is not None and action in RELEASE_ACTIONS:
+        raise ValueError(
+            "persist-recover model is supported only with continue or escalate"
+        )
+    discard_without_snapshot = payload.get("discard_without_snapshot", False)
+    if discard_without_snapshot not in (False, True):
+        raise ValueError("persist-recover discard_without_snapshot must be a boolean")
+    if discard_without_snapshot and action not in RELEASE_ACTIONS:
+        raise ValueError(
+            "persist-recover discard_without_snapshot is supported only "
+            "with restart or dismiss"
+        )
 
-    result = recover_hijacked_agent(
-        name,
-        action=action,
-        model=model,
-        prompt=prompt,
-        expected_hijack_id=expected_hijack_id,
-        expected_revision=expected_revision,
-    )
+    if action in RELEASE_ACTIONS:
+        result = recover_release_action(
+            name,
+            action=action,
+            prompt=prompt,
+            discard_without_snapshot=bool(discard_without_snapshot),
+            expected_hijack_id=expected_hijack_id,
+            expected_revision=expected_revision,
+        )
+    else:
+        result = recover_hijacked_agent(
+            name,
+            action=action,
+            model=model,
+            prompt=prompt,
+            expected_hijack_id=expected_hijack_id,
+            expected_revision=expected_revision,
+        )
     exit_code = recovery_exit_code(result)
     message = result.message or _default_message(result)
     return OperationCommandResult(

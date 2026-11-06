@@ -1,4 +1,4 @@
-{"count": 3697, "rev": "90824a9073e6", "schema": "sase.footprint.catalog/1"}
+{"count": 3698, "rev": "45a1246287c7", "schema": "sase.footprint.catalog/1"}
 {"area": "automation", "id": "auto:axe.agent_waits", "kind": "auto", "label": "Resolve agent wait dependencies within seconds of completion", "ns": "auto", "parent": null, "src": "sase/default_config.yml"}
 {"area": "automation", "id": "auto:axe.agent_waits.wait_checks", "kind": "auto", "label": "Resolve agent wait dependencies and write ready.json when satisfied", "ns": "auto", "parent": "auto:axe.agent_waits", "src": "sase/default_config.yml"}
 {"area": "automation", "id": "auto:axe.checks", "kind": "auto", "label": "Poll slower PR-submission and workspace-claim checks on a five-minute cadence", "ns": "auto", "parent": null, "src": "sase/default_config.yml"}
@@ -222,8 +222,9 @@
 {"area": "cli.agent", "id": "cli:agent.prompts.validate#show_warnings", "kind": "option", "label": "Option --show_warnings of cli:agent.prompts.validate", "ns": "cli", "parent": "cli:agent.prompts.validate", "src": "sase/main/parser_agent.py:register_agent_parser"}
 {"area": "cli.agent", "id": "cli:agent.readopt", "kind": "command", "label": "Retry a held staged handoff after its obligations are satisfied", "ns": "cli", "parent": null, "src": "sase/main/parser_agent.py:register_agent_parser"}
 {"area": "cli.agent", "id": "cli:agent.readopt#json", "kind": "option", "label": "Option --json of cli:agent.readopt", "ns": "cli", "parent": "cli:agent.readopt", "src": "sase/main/parser_agent.py:register_agent_parser"}
-{"area": "cli.agent", "id": "cli:agent.recover", "kind": "command", "label": "Continue a hijacked agent in its held workspace", "ns": "cli", "parent": null, "src": "sase/main/parser_agent.py:register_agent_parser"}
+{"area": "cli.agent", "id": "cli:agent.recover", "kind": "command", "label": "Recover a hijacked agent: keep, restart, or dismiss its work", "ns": "cli", "parent": null, "src": "sase/main/parser_agent.py:register_agent_parser"}
 {"area": "cli.agent", "id": "cli:agent.recover#action", "kind": "option", "label": "Option --action of cli:agent.recover", "ns": "cli", "parent": "cli:agent.recover", "src": "sase/main/parser_agent.py:register_agent_parser"}
+{"area": "cli.agent", "id": "cli:agent.recover#discard_without_snapshot", "kind": "option", "label": "Option --discard_without_snapshot of cli:agent.recover", "ns": "cli", "parent": "cli:agent.recover", "src": "sase/main/parser_agent.py:register_agent_parser"}
 {"area": "cli.agent", "id": "cli:agent.recover#dry_run", "kind": "option", "label": "Option --dry_run of cli:agent.recover", "ns": "cli", "parent": "cli:agent.recover", "src": "sase/main/parser_agent.py:register_agent_parser"}
 {"area": "cli.agent", "id": "cli:agent.recover#json", "kind": "option", "label": "Option --json of cli:agent.recover", "ns": "cli", "parent": "cli:agent.recover", "src": "sase/main/parser_agent.py:register_agent_parser"}
 {"area": "cli.agent", "id": "cli:agent.recover#model", "kind": "option", "label": "Option --model of cli:agent.recover", "ns": "cli", "parent": "cli:agent.recover", "src": "sase/main/parser_agent.py:register_agent_parser"}

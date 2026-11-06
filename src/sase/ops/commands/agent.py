@@ -68,9 +68,11 @@ def add_agent_operation_parsers(subparsers: argparse._SubParsersAction) -> None:
         "persist-recover",
         help="Resolve a hijacked agent from a private request sidecar",
         description=(
-            "Run one pinned keep-work recovery from a private request sidecar. "
-            "The name, action, preview identity, and optional target or edited "
-            "prompt come from the request. This operation stays alive if its "
+            "Run one pinned hijack recovery from a private request sidecar. "
+            "The name, action, preview identity, and optional target or prompt "
+            "come from the request. Keep-work actions relaunch in the held "
+            "workspace; restart and dismiss verify the recovery snapshot "
+            "before releasing it. This operation stays alive if its "
             "initiating interface closes."
         ),
     )

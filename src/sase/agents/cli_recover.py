@@ -38,6 +38,7 @@ from sase.agent.hijack.recover_common import (
     RESULT_UNCERTAIN,
     RecoveryResult,
 )
+from sase.agent.hijack.recover_release import RELEASE_ACTIONS, recover_release_action
 from sase.agent.hijack.recover_target import RecoveryRefusal, resolve_effective_target
 
 PreviewFn = Callable[[object], RecoveryPreview]
@@ -49,23 +50,32 @@ def handle_agents_recover(
     *,
     preview_fn: PreviewFn | None = None,
     recover_fn: RecoverFn | None = None,
+    release_fn: RecoverFn | None = None,
     console: Console | None = None,
     err_console: Console | None = None,
 ) -> int:
-    """Render the read-only menu or run one keep-work resolution."""
+    """Render the read-only menu or run one recovery resolution."""
     name = str(args.name)
     action = getattr(args, "action", None)
     dry_run = bool(getattr(args, "dry_run", False))
     as_json = bool(getattr(args, "json", False))
     model = getattr(args, "model", None)
     prompt_path = getattr(args, "prompt_file", None)
+    discard_without_snapshot = bool(getattr(args, "discard_without_snapshot", False))
     out = console or Console()
     err = err_console or Console(stderr=True)
     load_preview = preview_fn or hijack_recovery_preview
     recover = recover_fn or recover_hijacked_agent
+    release = release_fn or recover_release_action
 
     try:
-        _validate_options(action, dry_run=dry_run, model=model, prompt_path=prompt_path)
+        _validate_options(
+            action,
+            dry_run=dry_run,
+            model=model,
+            prompt_path=prompt_path,
+            discard_without_snapshot=discard_without_snapshot,
+        )
         prompt = _read_prompt_file(prompt_path) if prompt_path else None
     except (OSError, UnicodeError, ValueError) as exc:
         return _report_input_error(
@@ -107,6 +117,59 @@ def handle_agents_recover(
         else:
             out.print(render_recovery_menu(preview))
         return 0
+
+    if str(action) in RELEASE_ACTIONS:
+        menu_action = "edit" if prompt is not None else str(action)
+        row = preview.action(menu_action)
+        if row is None:
+            return _report_error(
+                name,
+                f"Recovery action {action!r} is not available in this version",
+                code="unsupported_action",
+                exit_code=2,
+                as_json=as_json,
+                err=err,
+                mode="recovery",
+                action=action,
+                preview=preview,
+            )
+        if not row.available:
+            return _report_error(
+                name,
+                f"Recovery action {menu_action!r} is unavailable"
+                + (f": {row.reason}" if row.reason else ""),
+                code="action_unavailable",
+                exit_code=2,
+                as_json=as_json,
+                err=err,
+                mode="recovery",
+                action=action,
+                preview=preview,
+            )
+        try:
+            result = release(
+                name,
+                action=str(action),
+                prompt=prompt,
+                discard_without_snapshot=discard_without_snapshot,
+                expected_hijack_id=preview.hijack_id,
+                expected_revision=preview.revision,
+            )
+        except Exception as exc:
+            return _report_error(
+                name,
+                f"Recovery operation failed: {exc}",
+                code="operation_error",
+                exit_code=1,
+                as_json=as_json,
+                err=err,
+                mode="recovery",
+                action=action,
+                preview=preview,
+            )
+        return _report_result(
+            name, str(action), result, as_json=as_json, out=out, err=err
+        )
 
     row = preview.action(str(action))
     if row is None:
@@ -208,13 +271,26 @@ def handle_agents_recover(
             preview=preview,
         )
 
+    return _report_result(name, str(action), result, as_json=as_json, out=out, err=err)
+
+
+def _report_result(
+    name: str,
+    action: str,
+    result: RecoveryResult,
+    *,
+    as_json: bool,
+    out: Console,
+    err: Console,
+) -> int:
+    """Render one recovery result with the shared exit contract."""
     exit_code = recovery_exit_code(result)
     message = result.message or default_result_message(result)
     if as_json:
         print(
             json.dumps(
                 result_envelope(
-                    name, str(action), result, exit_code=exit_code, message=message
+                    name, action, result, exit_code=exit_code, message=message
                 ),
                 indent=2,
                 sort_keys=True,
@@ -233,17 +309,38 @@ def _validate_options(
     dry_run: bool,
     model: object,
     prompt_path: object,
+    discard_without_snapshot: bool,
 ) -> None:
-    if action is None and (dry_run or model is not None or prompt_path is not None):
-        raise ValueError("--dry-run, --model, and --prompt-file require --action")
+    if action is None and (
+        dry_run
+        or model is not None
+        or prompt_path is not None
+        or discard_without_snapshot
+    ):
+        raise ValueError(
+            "--dry-run, --model, --prompt-file, and --discard-without-snapshot "
+            "require --action"
+        )
     if dry_run and action is None:
         raise ValueError("--dry-run requires --action so it can preview one action")
-    if prompt_path and action != "continue":
-        raise ValueError("--prompt-file is supported only with --action continue")
+    if dry_run and action in {"dismiss", "restart"}:
+        raise ValueError(
+            "--dry-run is supported only with keep-work actions "
+            "(--action continue or --action escalate)"
+        )
+    if prompt_path and action not in {"continue", "restart"}:
+        raise ValueError(
+            "--prompt-file is supported only with --action continue or --action restart"
+        )
     if model is not None and action not in {"continue", "escalate"}:
         raise ValueError("--model requires --action continue or --action escalate")
     if model is not None and (not isinstance(model, str) or not model.strip()):
         raise ValueError("--model requires a non-empty concrete model target")
+    if discard_without_snapshot and action not in {"dismiss", "restart"}:
+        raise ValueError(
+            "--discard-without-snapshot is supported only with --action restart "
+            "or --action dismiss"
+        )
 
 
 def _read_prompt_file(path_value: object) -> str:

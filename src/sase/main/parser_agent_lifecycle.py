@@ -196,16 +196,19 @@ def register_agent_recover_parser(agents_sub: argparse._SubParsersAction) -> Non
     """Register the 'sase agent recover' subcommand."""
     recover_parser = agents_sub.add_parser(
         "recover",
-        help="Continue a hijacked agent in its held workspace",
+        help="Recover a hijacked agent: keep, restart, or dismiss its work",
         description=(
-            "Preview or resolve a hijacked agent while keeping its workspace. "
-            "Without --action, print the shared recovery menu. The supported "
-            "actions are continue and escalate; --prompt-file with continue "
-            "supplies the full edited continuation prompt (Instruct). Restart "
-            "and dismiss are shown as unavailable until their release phase. "
-            "Recovery remains available when the hijack ingress flag is off. "
-            "Exit 0 means menu, queued, or launched; 2 means refused with no "
-            "new recovery; 1 means an operation error."
+            "Preview or resolve a held hijack. Without --action, print the shared "
+            "recovery menu. Keep-the-work actions (continue, escalate) relaunch in "
+            "the held workspace; --prompt-file with continue supplies the full "
+            "edited continuation prompt (Instruct). Release actions verify the "
+            "recovery snapshot first: restart relaunches the same prompt under "
+            "the same name in a fresh workspace (--prompt-file relaunches an "
+            "edited prompt instead, the Edit backend), and dismiss retires the "
+            "row and releases the workspace. Recovery remains available when "
+            "the hijack ingress flag is off. Exit 0 means menu, queued, or "
+            "launched; 2 means refused with no new recovery; 1 means an "
+            "operation error."
         ),
         epilog=(
             "examples:\n"
@@ -214,22 +217,34 @@ def register_agent_recover_parser(agents_sub: argparse._SubParsersAction) -> Non
             "  sase agent recover -a continue -n sase-7f.2\n"
             "  sase agent recover -a continue -p /tmp/continue.md -m opus@high "
             "sase-7f.2\n"
-            "  sase agent recover -a escalate -j sase-7f.2"
+            "  sase agent recover -a escalate -j sase-7f.2\n"
+            "  sase agent recover -a restart sase-7f.2\n"
+            "  sase agent recover -a restart -p /tmp/edited.md sase-7f.2\n"
+            "  sase agent recover -a dismiss sase-7f.2"
         ),
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     recover_parser.add_argument(
         "-a",
         "--action",
-        choices=("continue", "escalate"),
+        choices=("continue", "dismiss", "escalate", "restart"),
         metavar="ACTION",
-        help="Resolve with continue or escalate (without this, print the menu)",
+        help="Resolve the hijack (without this, print the menu)",
+    )
+    recover_parser.add_argument(
+        "-D",
+        "--discard-without-snapshot",
+        action="store_true",
+        help=(
+            "DANGEROUS: release a hijacked workspace with restart or dismiss "
+            "even when the recovery snapshot fails; uncommitted work may be lost"
+        ),
     )
     recover_parser.add_argument(
         "-n",
         "--dry-run",
         action="store_true",
-        help="Preview one action without changing the ledger or launching",
+        help="Preview one keep-work action without changing the ledger",
     )
     recover_parser.add_argument(
         "-j",
@@ -251,8 +266,9 @@ def register_agent_recover_parser(agents_sub: argparse._SubParsersAction) -> Non
         "--prompt-file",
         metavar="PATH",
         help=(
-            "Use this full edited continuation prompt with continue (Instruct); "
-            "read and validate it before claiming recovery"
+            "Use this full edited prompt: the continuation prompt with continue "
+            "(Instruct), or the relaunched prompt with restart (Edit); read and "
+            "validate it before claiming recovery"
         ),
     )
     recover_parser.add_argument(

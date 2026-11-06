@@ -10,6 +10,7 @@ from collections.abc import Callable
 from rich.console import Console
 from rich.text import Text
 
+from sase.agent.hijack.custody import held_record_for_agent
 from sase.agent.restart import (
     AgentRestartError,
     AgentRestartOutcome,
@@ -51,6 +52,11 @@ def handle_agents_restart(
 ) -> int:
     """Preview, confirm, and run a named-agent restart."""
     name: str = args.name
+    hijacked = held_record_for_agent(name)
+    if hijacked is not None:
+        return _handle_hijacked_restart(
+            args, hijacked, console=console, err_console=err_console
+        )
     as_json = bool(getattr(args, "json", False))
     dry_run = bool(getattr(args, "dry_run", False))
     assume_yes = bool(getattr(args, "yes", False))
@@ -146,6 +152,120 @@ def handle_agents_restart(
     else:
         out.print(render_receipt_panel(plan, outcome))
     return 0
+
+
+def _handle_hijacked_restart(
+    args: argparse.Namespace,
+    hijacked: dict[str, object],
+    *,
+    console: Console | None = None,
+    err_console: Console | None = None,
+) -> int:
+    """Run the snapshot-verified restart resolution for a hijacked agent."""
+    import json as json_module
+
+    from sase.agent.hijack.preview import hijack_recovery_preview
+    from sase.agent.hijack.recover_release import recover_release_action
+    from sase.agents._recover_render import result_envelope
+
+    name: str = args.name
+    as_json = bool(getattr(args, "json", False))
+    dry_run = bool(getattr(args, "dry_run", False))
+    model = getattr(args, "model", None)
+    out = console or Console()
+    err = err_console or Console(stderr=True)
+    if model is not None:
+        message = (
+            f"Agent '{name}' is hijacked; restart reuses its stored prompt. "
+            f"Use sase agent recover {name} -a escalate -m MODEL for a "
+            "different model."
+        )
+        if as_json:
+            print(
+                json_module.dumps(
+                    {"ok": False, "action": "restart", "error": message},
+                    indent=2,
+                    sort_keys=True,
+                )
+            )
+        else:
+            err.print(Text(message, style="yellow"))
+        return 2
+    try:
+        preview = hijack_recovery_preview(name)
+    except Exception as exc:
+        message = f"Could not preview hijack recovery for {name!r}: {exc}"
+        if as_json:
+            print(
+                json_module.dumps(
+                    {"ok": False, "action": "restart", "error": message},
+                    indent=2,
+                    sort_keys=True,
+                )
+            )
+        else:
+            err.print(Text(message, style="bold red"))
+        return 1
+    if dry_run:
+        if as_json:
+            print(
+                json_module.dumps(
+                    {
+                        "ok": True,
+                        "action": "restart",
+                        "hijack_id": preview.hijack_id,
+                        "revision": preview.revision,
+                        "state": preview.state,
+                        "actions": preview.to_dict()["actions"],
+                    },
+                    indent=2,
+                    sort_keys=True,
+                )
+            )
+        else:
+            from sase.agents._recover_render import render_recovery_menu
+
+            out.print(render_recovery_menu(preview, selected_action="restart"))
+        return 0
+    try:
+        result = recover_release_action(
+            name,
+            action="restart",
+            expected_hijack_id=preview.hijack_id,
+            expected_revision=preview.revision,
+        )
+    except Exception as exc:
+        message = f"Restart operation failed: {exc}"
+        if as_json:
+            print(
+                json_module.dumps(
+                    {"ok": False, "action": "restart", "error": message},
+                    indent=2,
+                    sort_keys=True,
+                )
+            )
+        else:
+            err.print(Text(message, style="bold red"))
+        return 1
+    from sase.agents.cli_recover import recovery_exit_code
+
+    exit_code = recovery_exit_code(result)
+    message = result.message or "Hijack recovery did not complete."
+    if as_json:
+        print(
+            json_module.dumps(
+                result_envelope(
+                    name, "restart", result, exit_code=exit_code, message=message
+                ),
+                indent=2,
+                sort_keys=True,
+            )
+        )
+    elif exit_code == 0:
+        out.print(Text(message, style="bold #FF5FAF"))
+    else:
+        err.print(Text(message, style="bold yellow" if exit_code == 2 else "bold red"))
+    return exit_code
 
 
 def _planning_error(

@@ -75,6 +75,19 @@ from .recovery_admission import (
     observe_recovery_admission,
     resume_recovery_admission,
 )
+from ._release_effects import (
+    ReleaseEffectDeps,
+    dismiss_resolved,
+    restart_resolved,
+)
+from ._release_snapshot import ensure_recovery_snapshot
+from .recover_release import (
+    RELEASE_ACTIONS,
+    ReleaseDeps,
+    recover_release_action,
+    restart_availability_reason,
+    restart_replacement_conflicts,
+)
 
 HIJACK_RUNNER_CAPABILITY = "hijack"
 
@@ -86,7 +99,10 @@ __all__ = [
     "HijackRecoveryRefusal",
     "InheritanceEvidence",
     "KEEP_WORK_ACTIONS",
+    "RELEASE_ACTIONS",
     "RECOVERY_LAUNCH_IDENTITY_ENV",
+    "ReleaseDeps",
+    "ReleaseEffectDeps",
     "RESULT_ALREADY_RESOLVED",
     "RESULT_ALREADY_RESOLVING",
     "RESULT_ERROR",
@@ -126,8 +142,14 @@ __all__ = [
     "new_requested_record",
     "resolving_record_for_workspace",
     "observe_recovery_admission",
+    "dismiss_resolved",
+    "ensure_recovery_snapshot",
     "read_recovery_ack",
     "recover_hijacked_agent",
+    "recover_release_action",
+    "restart_availability_reason",
+    "restart_replacement_conflicts",
+    "restart_resolved",
     "require_recovery_inheritance",
     "rollback_recovery_preparation",
     "resume_recovery_admission",

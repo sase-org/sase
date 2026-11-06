@@ -3588,7 +3588,7 @@
           {
             "aliases": [],
             "default_child": null,
-            "description_digest": "9549c2c55900a1ee",
+            "description_digest": "bb39650e7947a985",
             "hidden": false,
             "mutex_groups": [],
             "name": "recover",
@@ -3612,7 +3612,9 @@
               {
                 "choices": [
                   "continue",
-                  "escalate"
+                  "dismiss",
+                  "escalate",
+                  "restart"
                 ],
                 "default": null,
                 "dest": "action",
@@ -3626,6 +3628,22 @@
                   "--action"
                 ],
                 "takes_value": true,
+                "value_hint": null
+              },
+              {
+                "choices": null,
+                "default": "False",
+                "dest": "discard_without_snapshot",
+                "hidden": false,
+                "kind": null,
+                "metavar": null,
+                "repeatable": false,
+                "required": false,
+                "strings": [
+                  "-D",
+                  "--discard-without-snapshot"
+                ],
+                "takes_value": false,
                 "value_hint": null
               },
               {

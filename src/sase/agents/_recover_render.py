@@ -190,7 +190,7 @@ def render_recovery_menu(
 
     groups: tuple[tuple[str, tuple[str, ...]], ...] = (
         ("KEEP THE WORK", ("escalate", "continue", "instruct")),
-        ("START OVER", ("restart",)),
+        ("START OVER", ("restart", "edit")),
         ("INSPECT OR LEAVE", ("view_diff", "shell", "dismiss")),
     )
     rows = {item.action: item for item in preview.actions}

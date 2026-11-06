@@ -398,6 +398,29 @@ def _snapshot_roots(record: dict[str, Any]) -> list[str]:
     return roots
 
 
+#: Ledger states whose workspace is still held from the CLI's view: the row
+#: is dead but the claim, node, and evidence stay until a release resolution.
+RELEASE_HELD_RECORD_STATES = frozenset({"held", "resolving", "expired"})
+
+
+def held_record_for_agent(agent_name: str) -> dict[str, Any] | None:
+    """Return the workspace-held hijack record for *agent_name*, if any.
+
+    ``sase agent restart`` and ``sase agent kill`` consult this before their
+    normal paths: a hijacked target routes through the release recovery
+    resolutions instead of the live-agent flows.
+    """
+    try:
+        record = record_for_agent(agent_name=agent_name)
+    except Exception:
+        return None
+    if not isinstance(record, dict):
+        return None
+    if str(record.get("state") or "") in RELEASE_HELD_RECORD_STATES:
+        return record
+    return None
+
+
 def _merge_record_fields(hijack_id: str, fields: dict[str, Any]) -> None:
     from sase.agent.hijack import ledger
 
@@ -413,9 +436,11 @@ def _merge_record_fields(hijack_id: str, fields: dict[str, Any]) -> None:
 __all__ = [
     "ACTIVE_CUSTODY_STATES",
     "HIJACK_EVENT_EXPIRE",
+    "RELEASE_HELD_RECORD_STATES",
     "USER_PARKED_RECOVERY_STATES",
     "expire_hijack_hold",
     "format_diff_summary",
+    "held_record_for_agent",
     "hijack_retains_claim",
     "hijack_skips_claim_release",
     "hijacked_at_exceeds_ttl",

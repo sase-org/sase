@@ -531,6 +531,12 @@ _REVIEWED_PATH_PASSING_CONTEXTS: dict[str, PathPassingReview] = {
             "is written."
         ),
     ),
+    "src/sase/agent/hijack/_release_settle.py:_check_predecessor_outcome": PathPassingReview(
+        exemption=(
+            "Read-only release settlement guard: done.json is checked before "
+            "the ledger transition so a non-hijack outcome is never rewritten."
+        ),
+    ),
     "src/sase/agent/hijack/recover_reconcile.py:_adopt_proven_successor": PathPassingReview(
         lifecycle_coverage=(
             "Adopts the proven successor: the successor's agent_meta.json "

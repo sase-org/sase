@@ -109,11 +109,16 @@ def test_recover_parser_has_sorted_public_options_and_supported_actions() -> Non
     assert args.dry_run is True
     assert args.json is True
     assert args.model == "sonnet@high"
-    assert option_help.index("--action") < option_help.index("--dry-run")
+    assert option_help.index("--action") < option_help.index(
+        "--discard-without-snapshot"
+    )
+    assert option_help.index("--discard-without-snapshot") < option_help.index(
+        "--dry-run"
+    )
     assert option_help.index("--dry-run") < option_help.index("--json")
     assert option_help.index("--json") < option_help.index("--model")
     assert option_help.index("--model") < option_help.index("--prompt-file")
-    assert "Restart and dismiss are shown as unavailable" in help_text
+    assert "Release actions verify the recovery snapshot first" in help_text
 
 
 def test_bare_recover_renders_grouped_menu_and_disabled_reasons() -> None:
