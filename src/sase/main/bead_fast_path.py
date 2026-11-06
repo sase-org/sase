@@ -50,9 +50,11 @@ def try_handle_bead_fast_path(argv: list[str]) -> int | None:
     # The Rust close fast path does not yet expose the classification fields
     # needed for truthful close/already-closed/noted/cascade rendering, and the
     # Rust create fast path cannot resolve the acting SASE agent that
-    # ``handle_bead_create`` records as the bead's creator. ``epic-symbols``
+    # ``handle_bead_create`` records as the bead's creator. The Rust open
+    # fast path cannot resolve the acting SASE agent that
+    # ``handle_bead_open`` records as the opener, either. ``epic-symbols``
     # is a Python working-tree scan, not a bead-store query.
-    if argv[0] in {"close", "create", "epic-symbols", "task-type"}:
+    if argv[0] in {"close", "create", "epic-symbols", "open", "task-type"}:
         return None
     if argv[0] == "update" and _update_uses_python_note_surface(argv):
         return None

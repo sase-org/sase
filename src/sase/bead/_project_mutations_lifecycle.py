@@ -68,8 +68,15 @@ class BeadProjectMutationLifecycleMixin:
         self._refresh_db_from_jsonl()
         return closed
 
-    def open(self, issue_id: str) -> tuple[Issue, list[Issue]]:
-        """Reopen an issue and every closed ancestor above it."""
+    def open(
+        self, issue_id: str, *, author: str | None = None
+    ) -> tuple[Issue, list[Issue]]:
+        """Reopen an issue and every closed ancestor above it.
+
+        ``author`` names the acting opener on every ``IssueOpened`` event,
+        falling back to the store owner; reopening an already-open bead is
+        a no-op (``changed`` false on the recorded outcome).
+        """
         from sase.core import bead_mutation_facade as rust_beads
         from sase.core.bead_wire import issues_from_list
 
@@ -77,6 +84,7 @@ class BeadProjectMutationLifecycleMixin:
             self.beads_dir,
             issue_id,
             now=self._current_time(),
+            author=author,
         )
         self._record_mutation_outcome(outcome)
         reopened_ancestors = issues_from_list(outcome.get("issues", []))

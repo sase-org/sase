@@ -59,7 +59,8 @@ def handle_bead_open(args: argparse.Namespace) -> None:
         bead_context=bead_context,
     ) as mutation:
         try:
-            issue, reopened_ancestors = mutation.project.open(issue_id)
+            author = resolve_mutation_author(mutation.project)
+            issue, reopened_ancestors = mutation.project.open(issue_id, author=author)
         except KeyError:
             from sase.bead.assigned_near_miss import annotate_not_found_message
 
@@ -74,7 +75,12 @@ def handle_bead_open(args: argparse.Namespace) -> None:
         except ValueError as exc:
             print(f"Error: {exc}", file=sys.stderr)
             sys.exit(1)
-        mutation.commit(require_mutation_commit_message("open", [issue.id]))
+        changed = bool(mutation.project.last_mutation_outcome.get("changed", True))
+        if changed:
+            mutation.commit(require_mutation_commit_message("open", [issue.id]))
+    if not changed:
+        print(f"· Already open: {issue.id} — {issue.title}")
+        return
     print(f"○ Opened: {issue.id} — {issue.title}")
     for ancestor in reopened_ancestors:
         print(f"○ Reopened ancestor: {ancestor.id} — {ancestor.title}")

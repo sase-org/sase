@@ -397,10 +397,16 @@ def open_issue(
     issue_id: str,
     *,
     now: str | None = None,
+    author: str | None = None,
 ) -> tuple[Issue, dict[str, Any]]:
+    """Reopen a bead, recording ``author`` on every ``IssueOpened`` event.
+
+    ``None`` (the default) falls back to the store owner, exactly as close
+    does. Reopening an already-open bead is a no-op (``changed`` false).
+    """
     _guard_bead_store_write(beads_dir, "open")
     binding = require_rust_binding("bead_open")
-    payload = _call_issue_operation(binding, str(beads_dir), issue_id, now)
+    payload = _call_issue_operation(binding, str(beads_dir), issue_id, now, author)
     return _issue_payload(payload), payload
 
 
