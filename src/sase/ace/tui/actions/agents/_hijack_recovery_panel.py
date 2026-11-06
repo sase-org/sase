@@ -292,7 +292,7 @@ def _patch_choice(app: Any, agent: Agent) -> AgentActionChoice | None:
     except Exception:
         summary = None
     from ._agent_enter_builders import patch_target
-    from ._agent_enter_action import _choice_for_enter_target
+    from ._agent_enter_action import choice_for_enter_target
 
     target = patch_target(
         patch_name=patch_name,
@@ -301,7 +301,7 @@ def _patch_choice(app: Any, agent: Agent) -> AgentActionChoice | None:
         scope_agent=agent,
     )
     return replace(
-        _choice_for_enter_target(target),
+        choice_for_enter_target(target),
         hotkey="p",
         inline_detail=True,
         action_target=target.patch_name,

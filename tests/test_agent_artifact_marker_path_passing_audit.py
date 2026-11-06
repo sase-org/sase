@@ -454,21 +454,21 @@ _REVIEWED_PATH_PASSING_CONTEXTS: dict[str, PathPassingReview] = {
             "restoring loop state; no marker is written."
         ),
     ),
-    "src/sase/agent/hijack/preview.py:_load_recovery_context": PathPassingReview(
+    "src/sase/agent/hijack/_preview_recovery.py:_load_recovery_context": PathPassingReview(
         exemption=(
             "Read-only recovery preview: agent_meta.json and done.json are "
             "observed to resolve the predecessor's ledger record; no artifact "
             "marker is written."
         ),
     ),
-    "src/sase/agent/hijack/preview.py:build_hijack_continuation_prompt": PathPassingReview(
+    "src/sase/agent/hijack/_preview_prompt.py:build_hijack_continuation_prompt": PathPassingReview(
         exemption=(
             "Read-only continuation preparation: raw_prompt.md, agent_meta.json, "
             "the transcript, and fork history are read for prompt assembly; "
             "shadow measurement recording is disabled and no marker is written."
         ),
     ),
-    "src/sase/agent/hijack/preview.py:validate_hijack_continuation_prompt": PathPassingReview(
+    "src/sase/agent/hijack/_preview_prompt.py:validate_hijack_continuation_prompt": PathPassingReview(
         exemption=(
             "Read-only held-state edit validation: agent_meta.json, the transcript, "
             "and fork history are read to validate the prepared prompt; fork-history "

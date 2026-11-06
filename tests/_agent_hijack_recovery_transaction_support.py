@@ -14,7 +14,8 @@ import pytest
 
 from sase.agent._agent_session_attach_types import AgentSessionAttachLaunchPlan
 from sase.agent.hijack import ledger as ledger_module
-from sase.agent.hijack import preview as preview_module
+from sase.agent.hijack import _preview_prompt as prompt_module
+from sase.agent.hijack import _preview_recovery as preview_module
 from sase.agent.hijack.recover import recover_hijacked_agent
 from sase.agent.hijack.recover_common import (
     RECOVERY_LAUNCH_IDENTITY_ENV,
@@ -40,6 +41,13 @@ def _install_deterministic_inputs(monkeypatch: pytest.MonkeyPatch) -> None:
     """Pin the model ladder, alias candidates, and provider availability."""
     monkeypatch.setattr(
         preview_module,
+        "agent_hijack_config",
+        lambda: SimpleNamespace(
+            escalation_ladder=("@large", "@xlarge"), successor_context="fork"
+        ),
+    )
+    monkeypatch.setattr(
+        prompt_module,
         "agent_hijack_config",
         lambda: SimpleNamespace(
             escalation_ladder=("@large", "@xlarge"), successor_context="fork"

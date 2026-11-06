@@ -10,6 +10,8 @@ from typing import Any
 import pytest
 
 from sase.agent.hijack import preview as preview_module
+from sase.agent.hijack import _preview_prompt as prompt_module
+from sase.agent.hijack import _preview_recovery as recovery_module
 from tests._agent_hijack_recover_helpers import (
     Flow,
     record as make_record,
@@ -45,19 +47,26 @@ def _artifacts(tmp_path: Path) -> tuple[Path, dict[str, Any]]:
 
 def _install_real_preview_inputs(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
-        preview_module,
+        recovery_module,
         "agent_hijack_config",
         lambda: SimpleNamespace(
             escalation_ladder=("@large", "@xlarge"), successor_context="fork"
         ),
     )
     monkeypatch.setattr(
-        preview_module,
+        recovery_module,
         "build_alias_candidates",
         lambda ladder: {
             "@large": ["claude/opus@high"],
             "@xlarge": ["claude/opus@xhigh"],
         },
+    )
+    monkeypatch.setattr(
+        prompt_module,
+        "agent_hijack_config",
+        lambda: SimpleNamespace(
+            escalation_ladder=("@large", "@xlarge"), successor_context="fork"
+        ),
     )
 
 

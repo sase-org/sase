@@ -242,10 +242,16 @@ class TestLineageKeys:
         assert "outcome" not in agent_meta
 
     def test_preview_reads_alias_key(self) -> None:
-        from sase.agent.hijack.preview import _lineage_to_rung
+        from sase.agent.hijack import _preview_recovery
 
-        assert _lineage_to_rung({"recovery_lineage": {"to_rung": "@l1"}}) == "@l1"
-        assert _lineage_to_rung({"hijack_lineage": {"to_rung": "@l2"}}) == "@l2"
+        assert (
+            _preview_recovery._lineage_to_rung({"recovery_lineage": {"to_rung": "@l1"}})
+            == "@l1"
+        )
+        assert (
+            _preview_recovery._lineage_to_rung({"hijack_lineage": {"to_rung": "@l2"}})
+            == "@l2"
+        )
 
 
 class TestStrictBootstrapEntry:

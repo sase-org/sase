@@ -386,7 +386,7 @@ class AgentEnterActionMixin:
         if len(targets) == 1:
             self._run_agent_enter_target(targets[0], agent_identity=identity)
             return
-        choices = tuple(_choice_for_enter_target(item) for item in targets)
+        choices = tuple(choice_for_enter_target(item) for item in targets)
         title = (
             f"Act on {resolution.scope_title}"
             if resolution.scope_title
@@ -438,7 +438,7 @@ def _split_enter_badge(
     return (badge, None)
 
 
-def _choice_for_enter_target(target: AgentEnterTarget):  # type: ignore[no-untyped-def]
+def choice_for_enter_target(target: AgentEnterTarget):  # type: ignore[no-untyped-def]
     """Map one Enter target to its chooser view model."""
     from ...modals.agent_action_chooser_modal import AgentActionChoice
     from sase.gate_turn.state import GATE_GLYPH

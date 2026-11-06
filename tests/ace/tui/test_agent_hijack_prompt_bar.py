@@ -7,10 +7,6 @@ from types import SimpleNamespace
 from typing import Any
 
 from sase.ace.tui.actions.agents import _hijack_prompt_bar as hijack_bar
-from sase.ace.tui.actions.agents._hijack_prompt_bar import (
-    HijackPromptBarContext,
-    guidance_cursor_for_prompt,
-)
 from sase.ace.tui.actions.agent_durable import submit_agent_recovery
 from sase.ace.tui.models.agent import Agent, AgentType
 
@@ -66,7 +62,7 @@ class _App:
         self.saved_cancelled: list[str] = []
         self.refreshed = 0
         self._agents_with_children = [_agent()]
-        self._hijack_prompt_context: HijackPromptBarContext | None = None
+        self._hijack_prompt_context: hijack_bar._HijackPromptBarContext | None = None
         self._prompt_context: Any = object()
         self._prompt_session: Any = None
 
@@ -103,7 +99,7 @@ class _App:
 
 def _hijack_app(action: str) -> _App:
     app = _App()
-    app._hijack_prompt_context = HijackPromptBarContext(
+    app._hijack_prompt_context = hijack_bar._HijackPromptBarContext(
         action=action,
         hijack_id="h-123",
         expected_revision=4,
@@ -118,12 +114,12 @@ def _hijack_app(action: str) -> _App:
 
 def test_guidance_cursor_with_fork_line() -> None:
     text = "%model:claude/opus@high\n#fork:sase-demo.1\n\n**Hijack continuation.**\n"
-    assert guidance_cursor_for_prompt(text) == (2, 0)
+    assert hijack_bar._guidance_cursor_for_prompt(text) == (2, 0)
 
 
 def test_guidance_cursor_without_fork_line() -> None:
     text = "%model:claude/opus@high\n\n**Hijack continuation.**\n"
-    assert guidance_cursor_for_prompt(text) == (1, 0)
+    assert hijack_bar._guidance_cursor_for_prompt(text) == (1, 0)
 
 
 def test_instruct_submit_runs_continue_with_edited_prompt() -> None:
@@ -166,7 +162,7 @@ def test_edit_mount_releases_nothing_before_submit(monkeypatch: Any) -> None:
     assert len(app.mounted) == 1
     assert app.submissions == []
     assert app.unmounted_cancel == 1  # old bar detached, nothing dismissed
-    context = hijack_bar.get_hijack_prompt_context(app)
+    context = hijack_bar._get_hijack_prompt_context(app)
     assert context is not None and context.action == "restart"
     bar = app.mounted[0]
     assert bar._initial_value == "raw prompt"
@@ -217,14 +213,14 @@ def test_instruct_mount_prefills_continuation_with_guidance_cursor(
     bar = app.mounted[0]
     assert bar._initial_value == prompt
     assert bar._initial_cursor == (2, 0)
-    context = hijack_bar.get_hijack_prompt_context(app)
+    context = hijack_bar._get_hijack_prompt_context(app)
     assert context is not None and context.action == "continue"
 
 
 def test_cancel_clears_context_without_recovery_proc() -> None:
     app = _hijack_app("continue")
     hijack_bar.clear_hijack_prompt_context(app)
-    assert hijack_bar.get_hijack_prompt_context(app) is None
+    assert hijack_bar._get_hijack_prompt_context(app) is None
     assert app.submissions == []
 
 

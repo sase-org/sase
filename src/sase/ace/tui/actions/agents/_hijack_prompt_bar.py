@@ -29,7 +29,7 @@ _EDIT_ACTION = "restart"
 
 
 @dataclass
-class HijackPromptBarContext:
+class _HijackPromptBarContext:
     """One hijack prompt-bar session owned by the TUI."""
 
     action: str
@@ -42,7 +42,7 @@ class HijackPromptBarContext:
     session_id: str | None = None
 
 
-def guidance_cursor_for_prompt(text: str) -> tuple[int, int]:
+def _guidance_cursor_for_prompt(text: str) -> tuple[int, int]:
     """Return the zero-based cursor for the empty guidance line.
 
     The continuation prompt leads with ``%model:``, an optional ``#fork:``
@@ -65,10 +65,10 @@ def guidance_cursor_for_prompt(text: str) -> tuple[int, int]:
     return (0, 0)
 
 
-def get_hijack_prompt_context(app: object) -> HijackPromptBarContext | None:
+def _get_hijack_prompt_context(app: object) -> _HijackPromptBarContext | None:
     """Return the live hijack prompt-bar context, if any."""
     context = getattr(app, "_hijack_prompt_context", None)
-    if isinstance(context, HijackPromptBarContext):
+    if isinstance(context, _HijackPromptBarContext):
         return context
     return None
 
@@ -115,7 +115,7 @@ def open_hijack_instruct_bar(app: Any, agent: Any, record: dict[str, Any]) -> No
             current,
             dict(record),
             initial_text=text,
-            initial_cursor=guidance_cursor_for_prompt(text),
+            initial_cursor=_guidance_cursor_for_prompt(text),
             hijack_action=_INSTRUCT_ACTION,
         )
 
@@ -295,7 +295,7 @@ def _mount_hijack_bar(
         ),
         prompt_origin="typed",
     )
-    app._hijack_prompt_context = HijackPromptBarContext(  # type: ignore[attr-defined]
+    app._hijack_prompt_context = _HijackPromptBarContext(  # type: ignore[attr-defined]
         action=hijack_action,
         hijack_id=str(record.get("hijack_id") or ""),
         expected_revision=int(record.get("revision") or 0),
@@ -317,7 +317,7 @@ def handle_hijack_prompt_submitted(app: Any, prompt_text: str) -> bool:
     Returns True when a hijack context owned the submit (the caller must
     not fall through to the normal launch path).
     """
-    context = get_hijack_prompt_context(app)
+    context = _get_hijack_prompt_context(app)
     if context is None:
         return False
     if not prompt_text.strip():
@@ -435,7 +435,7 @@ def handle_hijack_prompt_submitted(app: Any, prompt_text: str) -> bool:
     return True
 
 
-def _find_hijack_agent(app: Any, context: HijackPromptBarContext) -> Any | None:
+def _find_hijack_agent(app: Any, context: _HijackPromptBarContext) -> Any | None:
     agents = getattr(app, "_agents_with_children", None) or getattr(
         app, "_agents", None
     )
@@ -458,10 +458,7 @@ def _find_hijack_agent(app: Any, context: HijackPromptBarContext) -> Any | None:
 
 
 __all__ = [
-    "HijackPromptBarContext",
     "clear_hijack_prompt_context",
-    "get_hijack_prompt_context",
-    "guidance_cursor_for_prompt",
     "handle_hijack_prompt_submitted",
     "open_hijack_edit_bar",
     "open_hijack_instruct_bar",

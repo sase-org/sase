@@ -7,6 +7,8 @@ from pathlib import Path
 from typing import Any
 
 from sase.agent.hijack import preview as recovery
+from sase.agent.hijack import _preview_prompt as prompt_impl
+from sase.agent.hijack import _preview_recovery as recovery_impl
 
 
 def _record(artifacts: Path, *, state: str = "held") -> dict[str, Any]:
@@ -42,7 +44,7 @@ def _install_preview_fakes(monkeypatch: Any) -> list[dict[str, Any]]:
     requests: list[dict[str, Any]] = []
 
     monkeypatch.setattr(
-        recovery,
+        recovery_impl,
         "agent_hijack_config",
         lambda: type(
             "Config",
@@ -51,19 +53,19 @@ def _install_preview_fakes(monkeypatch: Any) -> list[dict[str, Any]]:
         )(),
     )
     monkeypatch.setattr(
-        recovery,
+        recovery_impl,
         "build_alias_candidates",
         lambda ladder: {
             "@large": ["claude/opus@high"],
             "@xlarge": ["claude/opus@xhigh"],
         },
     )
-    monkeypatch.setattr(recovery, "escalation_wire_schema_version", lambda: 1)
+    monkeypatch.setattr(recovery_impl, "escalation_wire_schema_version", lambda: 1)
     monkeypatch.setattr(
-        recovery, "hijack_recovery_preview_wire_schema_version", lambda: 1
+        recovery_impl, "hijack_recovery_preview_wire_schema_version", lambda: 1
     )
     monkeypatch.setattr(
-        recovery,
+        recovery_impl,
         "hijack_escalation_target",
         lambda request: {
             "schema_version": 1,
@@ -102,7 +104,7 @@ def _install_preview_fakes(monkeypatch: Any) -> list[dict[str, Any]]:
             ],
         }
 
-    monkeypatch.setattr(recovery, "assemble_hijack_recovery_preview", assemble)
+    monkeypatch.setattr(recovery_impl, "assemble_hijack_recovery_preview", assemble)
     return requests
 
 
@@ -199,10 +201,10 @@ def test_continuation_falls_back_to_brief_when_expanded_fork_exceeds_budget(
             "target_prompt_bytes": 800_000,
         }
 
-    monkeypatch.setattr(recovery, "continuation_wire_schema_version", lambda: 1)
-    monkeypatch.setattr(recovery, "hijack_continuation_prompt", make_prompt)
-    monkeypatch.setattr(recovery, "build_fork_injected_history", build_fork)
-    monkeypatch.setattr(recovery, "_budget_decision", decide)
+    monkeypatch.setattr(prompt_impl, "continuation_wire_schema_version", lambda: 1)
+    monkeypatch.setattr(prompt_impl, "hijack_continuation_prompt", make_prompt)
+    monkeypatch.setattr(prompt_impl, "build_fork_injected_history", build_fork)
+    monkeypatch.setattr(prompt_impl, "_budget_decision", decide)
 
     result = recovery.build_hijack_continuation_prompt(_record(artifacts))
 
@@ -224,19 +226,19 @@ def test_continuation_keeps_fork_when_budget_preflight_fits(
     (artifacts / "chat.md").write_text("partial transcript", encoding="utf-8")
     (artifacts / "agent_meta.json").write_text("{}", encoding="utf-8")
     _install_preview_fakes(monkeypatch)
-    monkeypatch.setattr(recovery, "continuation_wire_schema_version", lambda: 1)
+    monkeypatch.setattr(prompt_impl, "continuation_wire_schema_version", lambda: 1)
     monkeypatch.setattr(
-        recovery,
+        prompt_impl,
         "hijack_continuation_prompt",
         lambda request: (
             f"%model:{request['model_target']}\n#fork:worker\nFRAME\nDo the task."
         ),
     )
     monkeypatch.setattr(
-        recovery, "build_fork_injected_history", lambda *_args, **_kwargs: "HISTORY"
+        prompt_impl, "build_fork_injected_history", lambda *_args, **_kwargs: "HISTORY"
     )
     monkeypatch.setattr(
-        recovery,
+        prompt_impl,
         "_budget_decision",
         lambda *_args, **_kwargs: {"kind": "fits", "target_prompt_bytes": 800_000},
     )
@@ -259,7 +261,7 @@ def test_real_continuation_adapter_falls_back_for_an_oversized_fork(
     )
     (artifacts / "agent_meta.json").write_text("{}", encoding="utf-8")
     monkeypatch.setattr(
-        recovery,
+        recovery_impl,
         "agent_hijack_config",
         lambda: type(
             "Config",
@@ -268,7 +270,12 @@ def test_real_continuation_adapter_falls_back_for_an_oversized_fork(
         )(),
     )
     monkeypatch.setattr(
-        recovery,
+        prompt_impl,
+        "agent_hijack_config",
+        lambda: type("Config", (), {"successor_context": "fork"})(),
+    )
+    monkeypatch.setattr(
+        recovery_impl,
         "build_alias_candidates",
         lambda ladder: {
             "@large": ["claude/opus@high"],
