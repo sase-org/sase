@@ -93,6 +93,8 @@ def _run(runtime: BuiltinChopRuntime) -> ChopResultBuilder:
         _notify_actionable_preview(plan)
 
     reason = _reason_for(plan)
+    if reason is None and purge and purge.blocked_reason == "busy":
+        reason = "prune_in_progress"
     result = runtime.emit_summary(
         {
             "candidates": plan.counts.candidates,

@@ -401,7 +401,9 @@ def test_artifact_run_prune_busy_trash_lock_skips_notification(
     run_builtin_chop("artifact_run_prune", ["--context", str(context_path)])
 
     assert notifications == []
-    assert json.loads(result_path.read_text(encoding="utf-8"))["status"] == "ok"
+    result = json.loads(result_path.read_text(encoding="utf-8"))
+    assert result["status"] == "no_op"
+    assert result["reason"] == "prune_in_progress"
 
 
 def test_artifact_run_prune_supersedes_stale_preview_key(
@@ -491,6 +493,53 @@ def test_artifact_run_prune_real_store_repeat_appends_aware_plus_one(
     plus_one = notification.plus_ones[0]
     _assert_configured_aware_timestamp(plus_one.timestamp)
     assert plus_one.note == "Still available: 2.0 KiB across 1 runs."
+
+
+def test_artifact_run_prune_real_store_supersedes_changed_preview(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    from sase.core.agent_artifact_run_prune_review import (
+        load_snapshot,
+        parse_run_prune_review,
+    )
+
+    script = importlib.import_module("sase.scripts.sase_chop_artifact_run_prune")
+    monkeypatch.setattr(
+        script,
+        "load_project_ref_display_snapshot",
+        lambda **_kwargs: SimpleNamespace(
+            label_for_ref=lambda _project: "Pretty Project"
+        ),
+    )
+    first_plan = _retention_plan(
+        selected=(_selected_item(tmp_path),), reclaimable_bytes=2048
+    )
+    second_plan = _retention_plan(
+        selected=(_selected_item(tmp_path),),
+        empty_shards=(_empty_shard(tmp_path),),
+        reclaimable_bytes=2048,
+    )
+
+    script._notify_actionable_preview(first_plan)
+    first = load_notifications()[0]
+    script._notify_actionable_preview(second_plan)
+
+    notifications = load_notifications()
+    assert len(notifications) == 1
+    current = notifications[0]
+    assert current.id != first.id
+    assert current.dedup_key == (
+        f"artifact_run_prune:{script.preview_fingerprint(second_plan)}"
+    )
+    archived = {row.id: row for row in load_notifications(include_dismissed=True)}
+    assert archived[first.id].dismissed
+    review = parse_run_prune_review(current.action_data)
+    assert review is not None
+    snapshot = load_snapshot(review.fingerprint)
+    assert snapshot is not None
+    assert snapshot.empty_shard_count == 1
+    assert snapshot.items[0].artifact_dir == first_plan.selected[0].artifact_dir
 
 
 def test_artifact_run_prune_real_store_protection_warning_deduplicates(
