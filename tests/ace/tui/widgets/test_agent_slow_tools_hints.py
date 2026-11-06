@@ -67,12 +67,12 @@ def test_completed_slow_tools_get_hint_markers_and_report_specs(
 
     plain = text.plain
     lines = [line for line in plain.splitlines() if "just " in line]
-    assert "✘ [12] code" in plain
-    assert "✔ [13] code" in plain
+    assert "✔ [12] code" in plain
+    assert "✘ [13] code" in plain
     assert lines[0].index("Bash") == lines[1].index("Bash")
     assert state.hint_counter == 14
-    failed_report_path = state.hint_mappings[12]
-    success_report_path = state.hint_mappings[13]
+    success_report_path = state.hint_mappings[12]
+    failed_report_path = state.hint_mappings[13]
     assert failed_report_path.startswith(str(tmp_path / ".sase" / "tool_call_reports"))
     assert success_report_path.startswith(str(tmp_path / ".sase" / "tool_call_reports"))
     failed_spec = state.tool_call_reports[failed_report_path]

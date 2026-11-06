@@ -366,23 +366,29 @@ def _select_sourced_slow_tool_calls(
 def _select_visible_slow_tool_calls(
     slow_calls: tuple[_SourcedSlowToolCall, ...],
 ) -> tuple[_SourcedSlowToolCall, ...]:
+    """Return the visible rows in running-first, newest-first display order.
+
+    Selection still keeps the newest calls when the section is capped; only
+    the rendered order changes. ``slow_calls`` arrives in ascending start-time
+    order from :func:`_select_sourced_slow_tool_calls`.
+    """
     if len(slow_calls) <= MAX_VISIBLE_SLOW_TOOL_CALLS:
-        return slow_calls
-
-    running = tuple(item for item in slow_calls if item.slow_call.is_running)
-    if len(running) >= MAX_VISIBLE_SLOW_TOOL_CALLS:
-        visible = running[-MAX_VISIBLE_SLOW_TOOL_CALLS:]
+        visible = slow_calls
     else:
-        remaining_slots = MAX_VISIBLE_SLOW_TOOL_CALLS - len(running)
-        non_running = tuple(
-            item for item in slow_calls if not item.slow_call.is_running
-        )
-        visible = (
-            *running,
-            *non_running[-remaining_slots:],
-        )
+        running = tuple(item for item in slow_calls if item.slow_call.is_running)
+        if len(running) >= MAX_VISIBLE_SLOW_TOOL_CALLS:
+            visible = running[-MAX_VISIBLE_SLOW_TOOL_CALLS:]
+        else:
+            remaining_slots = MAX_VISIBLE_SLOW_TOOL_CALLS - len(running)
+            non_running = tuple(
+                item for item in slow_calls if not item.slow_call.is_running
+            )
+            visible = (
+                *running,
+                *non_running[-remaining_slots:],
+            )
 
-    return tuple(sorted(visible, key=_sourced_slow_tool_call_sort_key))
+    return tuple(sorted(visible, key=_slow_tool_call_display_sort_key))
 
 
 def _sourced_slow_tool_call_sort_key(
@@ -392,6 +398,18 @@ def _sourced_slow_tool_call_sort_key(
         item.slow_call.started_at,
         item.source_index,
         item.slow_call.entry.line_number,
+    )
+
+
+def _slow_tool_call_display_sort_key(
+    item: _SourcedSlowToolCall,
+) -> tuple[int, float, int, int]:
+    """Order running calls first, then newest ``started_at`` within each group."""
+    return (
+        0 if item.slow_call.is_running else 1,
+        -item.slow_call.started_at.timestamp(),
+        item.source_index,
+        -item.slow_call.entry.line_number,
     )
 
 

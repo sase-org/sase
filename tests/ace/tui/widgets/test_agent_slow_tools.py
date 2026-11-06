@@ -171,6 +171,10 @@ def test_slow_tools_section_overflow_points_to_llm_calls_timeline() -> None:
     assert "call 2" in plain
     assert f"call {MAX_VISIBLE_SLOW_TOOL_CALLS + 1}" in plain
     assert "+ 2 more · full timeline in LLM Calls" in plain
+    assert plain.index(f"call {MAX_VISIBLE_SLOW_TOOL_CALLS + 1}") < plain.index(
+        "call 2"
+    )
+    assert plain.index("call 2") < plain.index("+ 2 more · full timeline in LLM Calls")
 
 
 def test_slow_tools_section_keeps_running_call_when_capped() -> None:
@@ -205,6 +209,12 @@ def test_slow_tools_section_keeps_running_call_when_capped() -> None:
     assert "completed 2" in plain
     assert f"completed {MAX_VISIBLE_SLOW_TOOL_CALLS}" in plain
     assert "+ 1 more · full timeline in LLM Calls" in plain
+    assert plain.index("running long") < plain.index(
+        f"completed {MAX_VISIBLE_SLOW_TOOL_CALLS}"
+    )
+    assert plain.index(f"completed {MAX_VISIBLE_SLOW_TOOL_CALLS}") < plain.index(
+        "completed 2"
+    )
 
 
 def test__slow_tool_overflow_hint_decks_on_with_keys() -> None:
@@ -266,7 +276,7 @@ def test_slow_tools_section_renders_source_chips_and_agent_count() -> None:
     assert "gh pr checks --watch" in plain
 
 
-def test_slow_tools_section_orders_by_start_time_across_sources() -> None:
+def test_slow_tools_section_orders_running_then_newest_first_across_sources() -> None:
     text = Text()
 
     append_slow_tool_calls_section(
@@ -305,8 +315,56 @@ def test_slow_tools_section_orders_by_start_time_across_sources() -> None:
     )
 
     plain = text.plain
-    assert plain.index("completed early") < plain.index("running middle")
     assert plain.index("running middle") < plain.index("completed late")
+    assert plain.index("completed late") < plain.index("completed early")
+
+
+def test_slow_tools_section_orders_running_then_newest_first_uncapped() -> None:
+    text = Text()
+    completed = tuple(
+        _entry(
+            tool_use_id=f"completed_{index}",
+            duration_ms=20_000,
+            recorded_at=f"2026-07-03T14:00:{index:02d}+00:00",
+            tool_input_summary={"command": f"completed {index}"},
+        )
+        for index in range(1, 6)
+    )
+    running = _entry(
+        tool_use_id="running",
+        status="pending",
+        duration_ms=None,
+        recorded_at="2026-07-03T14:00:02+00:00",
+        tool_input_summary={"command": "running older"},
+    )
+    incomplete = _entry(
+        tool_use_id="incomplete",
+        status="pending",
+        duration_ms=None,
+        recorded_at="2026-07-03T14:00:06+00:00",
+        tool_input_summary={"command": "did not complete newest"},
+    )
+
+    append_slow_tool_calls_section(
+        text,
+        sources=(
+            _source(*completed, running, active=True),
+            _source(
+                incomplete,
+                end_reference=datetime(2026, 7, 3, 14, 0, 45, tzinfo=UTC),
+            ),
+        ),
+        agent=SimpleNamespace(status="RUNNING", stop_time=None),
+        now=datetime(2026, 7, 3, 14, 1, tzinfo=UTC),
+    )
+
+    plain = text.plain
+    assert plain.index("running older") < plain.index("did not complete newest")
+    assert plain.index("did not complete newest") < plain.index("completed 5")
+    assert plain.index("completed 5") < plain.index("completed 4")
+    assert plain.index("completed 4") < plain.index("completed 3")
+    assert plain.index("completed 3") < plain.index("completed 2")
+    assert plain.index("completed 2") < plain.index("completed 1")
 
 
 def test_slow_tools_section_ties_use_source_order() -> None:

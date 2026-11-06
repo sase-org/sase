@@ -309,7 +309,8 @@ selections.
   resolves on its normal schedule. An agent whose only artifact context is a read still
   gets `SASE CONTEXT` and an `ARTIFACTS` lane.
 - **Slow tool calls**: The metadata header lists tool calls that took 20 seconds or
-  longer, ordered by start time and capped at 8 rows (an overflow line points to the
+  longer, with running calls first and the rest newest-first by start time, capped at 8
+  rows (the cap drops the oldest calls; an overflow line points to the
   full [LLM Calls panel](agents-deck-panels.md#agents-tab-llm-calls-panel) timeline via `p` then `t`). Level
   1 is a compact triage table: every row keeps its timestamp, state, tool, duration, and
   a short path-, query-, or command-aware digest, while a dim tail reports that full
