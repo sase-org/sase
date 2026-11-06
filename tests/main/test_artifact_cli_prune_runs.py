@@ -345,6 +345,8 @@ def test_prune_runs_notify_failure_keeps_exit_0(
 
     assert exit_code == 0
     assert "notification failed" in capsys.readouterr().err
+    rows = load_notifications(include_dismissed=True)
+    assert all(not row.dismissed for row in rows)
 
 
 def test_prune_runs_apply_text_reports_batch_and_restore_hint(
@@ -389,6 +391,102 @@ def test_prune_runs_emits_typed_operation_result(
     assert stored["success"] is True
     assert stored["payload"]["quarantined"] == 1
     assert stored["payload"]["blocked_reason"] is None
+    assert stored["payload"]["index_errors"] == []
+
+
+def test_prune_runs_notify_blocked_keeps_preview(
+    monkeypatch: Any,
+    capsys: Any,
+    tmp_path: Path,
+) -> None:
+    projects_root = tmp_path / "projects"
+    old = _terminal_run(projects_root, "20260501000000")
+    monkeypatch.setattr(
+        prune_runs_cli,
+        "collect_ace_run_retention_protections",
+        lambda **_kwargs: AceRunProtectionSnapshot(
+            sources_unavailable=("plans sidecar",)
+        ),
+    )
+    preview = Notification(
+        id="preview-blocked",
+        timestamp="2026-09-12T12:00:00+00:00",
+        sender="axe",
+        notes=["ACE run pruning preview is available"],
+        tags=normalize_notification_tags(("artifact-retention", "ace-run", "preview")),
+        action="ViewReport",
+        action_data={},
+        dedup_key="artifact_run_prune:blockedpreview",
+    )
+    upsert_notification(
+        preview,
+        plus_one_note="Still previewing 1 run dir.",
+        plus_one_timestamp="2026-09-12T12:00:00+00:00",
+    )
+
+    exit_code = prune_runs_cli.handle_prune_runs(
+        _args(projects_root, apply=True, notify=True)
+    )
+
+    payload = json.loads(capsys.readouterr().out)
+    assert exit_code == 1
+    assert payload["blocked"] is True
+    assert old.exists()
+    rows = {row.dedup_key: row for row in load_notifications(include_dismissed=True)}
+    assert rows["artifact_run_prune:blockedpreview"].dismissed is False
+    result_keys = [key for key in rows if key and key.startswith("artifact_run_trash:")]
+    assert result_keys
+    assert rows[result_keys[0]].dismissed is False
+
+
+def test_prune_runs_errors_are_not_json_blocked(
+    monkeypatch: Any,
+    capsys: Any,
+    tmp_path: Path,
+) -> None:
+    from sase.core.agent_artifact_run_trash import AceRunTrashQuarantineResult
+
+    projects_root = tmp_path / "projects"
+    _terminal_run(projects_root, "20260501000000")
+    _empty_protections(monkeypatch)
+
+    def _partial(*_args: object, **_kwargs: object) -> AceRunTrashQuarantineResult:
+        return AceRunTrashQuarantineResult(
+            batch_id="run-partial",
+            status="partial",
+            requested=1,
+            quarantined=1,
+            kept=0,
+            not_reviewed=0,
+            errors=1,
+            bytes_quarantined=12,
+            blocked_reason=None,
+            items=(),
+            kept_by_reason={},
+            removed_empty_shards=0,
+            journal_path="",
+            deindexed=0,
+            index_errors=("deindex after quarantine failed: boom",),
+            restorable_until="2026-11-19T00:00:00+00:00",
+            created_at="2026-11-05T00:00:00+00:00",
+        )
+
+    monkeypatch.setattr(prune_runs_cli, "quarantine_ace_runs", _partial)
+    result_path = tmp_path / "result.json"
+    monkeypatch.setenv("SASE_PROC_RESULT_PATH", str(result_path))
+
+    exit_code = prune_runs_cli.handle_prune_runs(_args(projects_root, apply=True))
+
+    payload = json.loads(capsys.readouterr().out)
+    assert exit_code == 1
+    assert payload["blocked"] is False
+    assert payload["execution"]["index_errors"] == [
+        "deindex after quarantine failed: boom"
+    ]
+    stored = json.loads(result_path.read_text(encoding="utf-8"))
+    assert stored["payload"]["index_errors"] == [
+        "deindex after quarantine failed: boom"
+    ]
 
 
 def test_prune_runs_fingerprint_matches_chop_preview(

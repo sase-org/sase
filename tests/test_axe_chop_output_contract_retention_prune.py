@@ -34,6 +34,8 @@ __all__ = [
     "test_artifact_run_prune_busy_trash_lock_skips_notification",
     "test_artifact_run_prune_emits_noop_summary",
     "test_artifact_run_prune_notifies_when_protection_sources_are_unavailable",
+    "test_artifact_run_prune_preview_uses_configured_grace_days",
+    "test_artifact_run_prune_preview_uses_project_unavailable_label",
     "test_artifact_run_prune_purges_before_plan_and_snapshot",
     "test_artifact_run_prune_supersedes_stale_preview_key",
     "test_artifact_run_prune_upserts_actionable_preview_notification",
@@ -132,7 +134,8 @@ def test_artifact_run_prune_upserts_actionable_preview_notification(
         script,
         "load_project_ref_display_snapshot",
         lambda **_kwargs: SimpleNamespace(
-            label_for_ref=lambda _project: "Pretty Project"
+            display_snapshot={"proj": "Pretty Project"},
+            label_for_ref=lambda _project: "Pretty Project",
         ),
     )
     monkeypatch.setattr(
@@ -213,7 +216,8 @@ def test_artifact_run_prune_notifies_when_protection_sources_are_unavailable(
         script,
         "load_project_ref_display_snapshot",
         lambda **_kwargs: SimpleNamespace(
-            label_for_ref=lambda _project: "Pretty Project"
+            display_snapshot={"proj": "Pretty Project"},
+            label_for_ref=lambda _project: "Pretty Project",
         ),
     )
     monkeypatch.setattr(
@@ -276,7 +280,8 @@ def test_artifact_run_prune_purges_before_plan_and_snapshot(
         script,
         "load_project_ref_display_snapshot",
         lambda **_kwargs: SimpleNamespace(
-            label_for_ref=lambda _project: "Pretty Project"
+            display_snapshot={"proj": "Pretty Project"},
+            label_for_ref=lambda _project: "Pretty Project",
         ),
     )
     monkeypatch.setattr(
@@ -350,7 +355,8 @@ def test_artifact_run_prune_supersedes_stale_preview_key(
         script,
         "load_project_ref_display_snapshot",
         lambda **_kwargs: SimpleNamespace(
-            label_for_ref=lambda _project: "Pretty Project"
+            display_snapshot={"proj": "Pretty Project"},
+            label_for_ref=lambda _project: "Pretty Project",
         ),
     )
     monkeypatch.setattr(
@@ -362,3 +368,43 @@ def test_artifact_run_prune_supersedes_stale_preview_key(
     script._notify_actionable_preview(plan)
 
     assert captured[0][1]["supersedes"] == "old-preview"
+
+
+def test_artifact_run_prune_preview_uses_configured_grace_days(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    script = importlib.import_module("sase.scripts.sase_chop_artifact_run_prune")
+    plan = retention_plan(
+        selected=(retention_selected_item(tmp_path),), reclaimable_bytes=2048
+    )
+    monkeypatch.setattr(script, "get_artifact_retention_trash_grace_days", lambda: 3)
+    monkeypatch.setattr(
+        script,
+        "load_project_ref_display_snapshot",
+        lambda **_kwargs: SimpleNamespace(display_snapshot={"proj": "Pretty Project"}),
+    )
+    notes = script._notification_notes(plan)
+    assert any("3 days" in note for note in notes)
+    assert all("14 days" not in note for note in notes)
+    report = script._preview_report(plan)
+    serialized = json.dumps(report.to_dict())
+    assert "3 days" in serialized
+    assert "14 days" not in serialized
+
+
+def test_artifact_run_prune_preview_uses_project_unavailable_label(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    script = importlib.import_module("sase.scripts.sase_chop_artifact_run_prune")
+    plan = retention_plan(
+        selected=(retention_selected_item(tmp_path),), reclaimable_bytes=2048
+    )
+    monkeypatch.setattr(
+        script,
+        "load_project_ref_display_snapshot",
+        lambda **_kwargs: SimpleNamespace(display_snapshot={}),
+    )
+    report = json.dumps(script._preview_report(plan).to_dict())
+    assert "Project unavailable" in report

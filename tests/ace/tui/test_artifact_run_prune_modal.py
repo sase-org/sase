@@ -348,3 +348,52 @@ async def test_completion_reports_success_and_failure() -> None:
             ),
         ]
         assert app.refreshed == 2
+
+
+async def test_consequence_uses_configured_grace_days(
+    ready_snapshot: None,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        "sase.config.get_artifact_retention_trash_grace_days",
+        lambda: 3,
+    )
+    modal = ArtifactRunPruneModal(
+        _review(),
+        _notification(),
+        now=datetime(2026, 11, 5, 11, 33, tzinfo=UTC),
+    )
+    app = _PilotApp(modal)
+
+    async with app.run_test(size=(100, 32)) as pilot:
+        await _wait_ready(pilot, modal)
+        assert modal._grace_days == 3
+        consequence = modal._consequence_text()
+        assert "3 days" in consequence
+        assert "14 days" not in consequence
+
+
+async def test_completion_warns_on_index_errors() -> None:
+    modal = ArtifactRunPruneModal(_review(), _notification())
+    app = _PilotApp(modal)
+    async with app.run_test(size=(100, 32)) as pilot:
+        await pilot.pause()
+        modal._on_complete(
+            SimpleNamespace(
+                success=True,
+                message="ok",
+                payload={
+                    "quarantined": 1,
+                    "bytes": 2048,
+                    "kept": 0,
+                    "restorable_until": "2026-11-19T12:00:00+00:00",
+                    "index_errors": ["deindex failed"],
+                },
+            )
+        )
+        assert app.notifications == [
+            (
+                "🧹 Moved 1 ACE run to trash · 2.0 KiB · restorable until Nov 19 · 0 kept · 1 index error(s)",
+                "warning",
+            )
+        ]

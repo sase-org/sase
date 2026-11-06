@@ -21,13 +21,13 @@ from sase.core.agent_artifact_run_prune_review import (
     RunPruneReviewCounts,
     RunPruneSnapshot,
     RunPruneSnapshotItem,
+    human_size,
 )
 from sase.core.time import local_now
 from sase.notifications import Notification, load_notification_report
 
 from ..models.artifact_run_prune_review_view import (
     build_artifact_run_prune_review_view,
-    human_size,
 )
 from .notification_modal_palette import (
     PANE_ACCENT,
@@ -70,6 +70,7 @@ class ArtifactRunPruneModal(ModalScreen[None]):
         self._now = now or local_now()
         self._display_snapshot: Mapping[str, str] = {}
         self._snapshot_exists: bool | None = None
+        self._grace_days: int | None = None
         self._is_running = False
         self._view = build_artifact_run_prune_review_view(
             review,
@@ -91,8 +92,7 @@ class ArtifactRunPruneModal(ModalScreen[None]):
                 yield Static(self._project_table(68), id="prune-review-projects")
                 yield Static(self._state_banner(), id="prune-review-state")
                 yield Static(
-                    "Archived agent records stay listed; pruned run directories "
-                    "remain restorable for 14 days.",
+                    self._consequence_text(),
                     id="prune-review-consequence",
                 )
             with Horizontal(id="prune-review-buttons"):
@@ -134,7 +134,9 @@ class ArtifactRunPruneModal(ModalScreen[None]):
             cached_project_display_snapshot,
         )
 
-        def load() -> tuple[bool, Mapping[str, str]]:
+        def load() -> tuple[bool, Mapping[str, str], int]:
+            from sase.config import get_artifact_retention_trash_grace_days
+
             try:
                 snapshot = load_snapshot(self._review.fingerprint)
             except Exception:
@@ -143,13 +145,22 @@ class ArtifactRunPruneModal(ModalScreen[None]):
                 display_snapshot = cached_project_display_snapshot()
             except Exception:
                 display_snapshot = ProjectDisplaySnapshot()
-            return _snapshot_matches_review(snapshot, self._review), display_snapshot
+            try:
+                grace_days = get_artifact_retention_trash_grace_days()
+            except Exception:
+                grace_days = 14
+            return (
+                _snapshot_matches_review(snapshot, self._review),
+                display_snapshot,
+                grace_days,
+            )
 
-        snapshot_exists, display_snapshot = await asyncio.to_thread(load)
+        snapshot_exists, display_snapshot, grace_days = await asyncio.to_thread(load)
         if not self.is_mounted:
             return
         self._snapshot_exists = snapshot_exists
         self._display_snapshot = display_snapshot
+        self._grace_days = grace_days
         # Proc projections can change while the background snapshot check runs.
         self._is_running = _prune_is_running(self.app)
         self._refresh_render()
@@ -281,6 +292,9 @@ class ArtifactRunPruneModal(ModalScreen[None]):
                 self._project_table(width)
             )
             self.query_one("#prune-review-state", Static).update(self._state_banner())
+            self.query_one("#prune-review-consequence", Static).update(
+                self._consequence_text()
+            )
             move = self.query_one("#prune-review-move", Button)
             move.label = self._confirm_label()
             move.disabled = self._view.state != "READY"
@@ -300,6 +314,13 @@ class ArtifactRunPruneModal(ModalScreen[None]):
             # compose has not mounted the widgets yet; the initial values above
             # are already valid and on_mount performs the first full refresh.
             return
+
+    def _consequence_text(self) -> str:
+        days = 14 if self._grace_days is None else self._grace_days
+        return (
+            "Archived agent records stay listed; pruned run directories "
+            f"remain restorable for {days} days."
+        )
 
     def _focus_cancel(self) -> None:
         try:
@@ -416,7 +437,12 @@ class ArtifactRunPruneModal(ModalScreen[None]):
             if until:
                 message += f" · restorable until {until}"
             message += f" · {kept:,} kept"
-            self.app.notify(message, severity="information")
+            index_errors = fields.get("index_errors") or ()
+            if isinstance(index_errors, list | tuple) and index_errors:
+                message += f" · {len(index_errors)} index error(s)"
+                self.app.notify(message, severity="warning")
+            else:
+                self.app.notify(message, severity="information")
         else:
             fields = payload if isinstance(payload, Mapping) else {}
             reason = (

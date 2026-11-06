@@ -15,11 +15,14 @@ from sase.chops.builtin import BuiltinChopRuntime, builtin_chop, run_builtin_cho
 from sase.chops.sdk import ChopResultBuilder
 from sase.config import (
     get_artifact_retention_keep_recent_run_months,
+    get_artifact_retention_trash_grace_days,
 )
 from sase.core.agent_artifact_run_prune_review import (
     build_review,
     encode_run_prune_review,
+    human_size,
     preview_fingerprint,
+    project_label_or_unavailable,
     write_snapshot,
 )
 from sase.core.agent_artifact_run_retention import (
@@ -175,13 +178,16 @@ def _notification_notes(plan: AceRunRetentionPlan) -> list[str]:
             "Press Enter for details.",
         ]
     return [
-        f"{_human_size(plan.reclaimable_bytes)} of old ACE runs can be pruned",
+        f"{human_size(plan.reclaimable_bytes)} of old ACE runs can be pruned",
         (
             f"{counts.selected:,} runs · {len(build_review(plan).projects)} projects · "
             f"older than {_month_label(build_review(plan).first_kept_month)} · "
             f"{counts.protected:,} protected"
         ),
-        "Press Enter to review — runs move to a 14-day restorable trash.",
+        (
+            "Press Enter to review — runs move to restorable trash for "
+            f"{get_artifact_retention_trash_grace_days()} days."
+        ),
     ]
 
 
@@ -189,7 +195,7 @@ def _plus_one_note(plan: AceRunRetentionPlan) -> str:
     if plan.sources_unavailable:
         return f"Still paused: {len(plan.sources_unavailable)} protection sources are unreadable."
     return (
-        f"Still available: {_human_size(plan.reclaimable_bytes)} across "
+        f"Still available: {human_size(plan.reclaimable_bytes)} across "
         f"{plan.counts.selected:,} runs."
     )
 
@@ -204,13 +210,13 @@ def _preview_report(plan: AceRunRetentionPlan) -> ChopReport:
     else:
         report.headline(
             f"{counts.selected:,} old ACE runs · "
-            f"{_human_size(plan.reclaimable_bytes)} reclaimable",
+            f"{human_size(plan.reclaimable_bytes)} reclaimable",
             tone="info",
         )
     report.kv(
         {
             "Runs": f"{counts.selected:,}",
-            "Reclaimable": _human_size(plan.reclaimable_bytes),
+            "Reclaimable": human_size(plan.reclaimable_bytes),
             "Projects": str(len(review.projects)),
             "Protected": f"{counts.protected:,}",
             "Keeping": f"newest {plan.policy.keep_recent_months} months",
@@ -224,9 +230,9 @@ def _preview_report(plan: AceRunRetentionPlan) -> ChopReport:
         for project in review.projects:
             rows.row(
                 (
-                    display.label_for_ref(project.project) or project.project,
+                    project_label_or_unavailable(display, project.project),
                     f"{project.runs:,}",
-                    _human_size(project.bytes),
+                    human_size(project.bytes),
                     f"{_format_timestamp(project.oldest)} – "
                     f"{_format_timestamp(project.newest)}",
                 )
@@ -238,7 +244,7 @@ def _preview_report(plan: AceRunRetentionPlan) -> ChopReport:
             shard_project = shard.project or "-"
             rows.row(
                 (
-                    display.label_for_ref(shard_project) or shard_project,
+                    project_label_or_unavailable(display, shard_project),
                     shard.kind,
                     shard.path,
                 )
@@ -247,7 +253,11 @@ def _preview_report(plan: AceRunRetentionPlan) -> ChopReport:
         report.text("Press Enter for details.", tone="muted")
     else:
         report.text(
-            "Enter: review and move to trash (restorable 14 days)", tone="muted"
+            (
+                "Enter: review and move to trash (restorable "
+                f"{get_artifact_retention_trash_grace_days()} days)"
+            ),
+            tone="muted",
         )
         report.text(f"CLI: {_PREVIEW_COMMAND} --apply", tone="muted")
     return report
@@ -276,17 +286,6 @@ def _write_last_preview_key(directory: Path, value: str) -> None:
         except OSError:
             pass
         raise
-
-
-def _human_size(size_bytes: int | None) -> str:
-    if size_bytes is None:
-        return "-"
-    value = float(size_bytes)
-    for unit in ("B", "KiB", "MiB", "GiB", "TiB"):
-        if value < 1024 or unit == "TiB":
-            return f"{int(value)} {unit}" if unit == "B" else f"{value:.1f} {unit}"
-        value /= 1024
-    return f"{size_bytes} B"
 
 
 def _format_timestamp(timestamp: str) -> str:

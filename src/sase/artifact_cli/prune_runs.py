@@ -17,7 +17,9 @@ from sase.chops import ChopReport
 from sase.config import get_artifact_retention_keep_recent_run_months
 from sase.core.agent_artifact_run_prune_review import (
     RunPruneSnapshot,
+    human_size,
     load_snapshot,
+    project_label_or_unavailable,
 )
 from sase.core.agent_artifact_run_retention import (
     AceRunRetentionPlan,
@@ -127,10 +129,7 @@ def handle_prune_runs(args: argparse.Namespace) -> int:
     payload = {
         "schema_version": ARTIFACT_PRUNE_RUNS_SCHEMA_VERSION,
         "mode": "apply" if apply else "dry_run",
-        "blocked": bool(
-            execution is not None
-            and (execution.blocked_reason is not None or execution.errors > 0)
-        ),
+        "blocked": bool(execution is not None and execution.blocked_reason is not None),
         "plan": plan.to_json_dict(),
         "execution": None if execution is None else execution.to_json_dict(),
         "snapshot": snapshot_block,
@@ -211,7 +210,7 @@ def _emit_typed_result(execution: AceRunTrashQuarantineResult) -> None:
     else:
         message = (
             f"Moved {execution.quarantined} run dirs "
-            f"({_human_size(execution.bytes_quarantined)} Quarantined) to trash "
+            f"({human_size(execution.bytes_quarantined)} Quarantined) to trash "
             f"as batch {execution.batch_id}."
         )
     emit_artifact_prune_runs_result(
@@ -225,6 +224,7 @@ def _emit_typed_result(execution: AceRunTrashQuarantineResult) -> None:
             "kept_by_reason": dict(execution.kept_by_reason),
             "restorable_until": execution.restorable_until,
             "blocked_reason": execution.blocked_reason,
+            "index_errors": list(execution.index_errors),
         },
     )
 
@@ -234,14 +234,14 @@ def _notify_result(
     *,
     projects: ProjectRefDisplaySnapshot,
 ) -> None:
-    """Upsert the result row and retire live preview rows.
+    """Publish the result row, then retire live preview rows.
 
+    Previews stay when the apply is blocked or the result upsert fails.
     Notification write failures are logged to stderr and never change the
-    exit code.
+    exit code or the filesystem outcome.
     """
 
     try:
-        _dismiss_live_previews()
         notification = _result_notification(execution, projects=projects)
         upsert_notification(
             notification,
@@ -253,6 +253,9 @@ def _notify_result(
         )
     except Exception as exc:  # noqa: BLE001 - notify must not fail the apply.
         print(f"Warning: prune-runs notification failed: {exc}", file=sys.stderr)
+        return
+    if execution.blocked_reason is None:
+        _dismiss_live_previews()
 
 
 def _dismiss_live_previews() -> None:
@@ -283,14 +286,14 @@ def _result_notification(
     else:
         headline = (
             f"Moved {execution.quarantined} ACE runs to trash "
-            f"({_human_size(execution.bytes_quarantined)})"
+            f"({human_size(execution.bytes_quarantined)})"
         )
     report = ChopReport(title="ACE runs moved to trash")
     report.headline(headline, tone="warn" if partial else "ok")
     report.kv(
         {
             "Runs": f"{execution.quarantined}",
-            "Size": _human_size(execution.bytes_quarantined),
+            "Size": human_size(execution.bytes_quarantined),
             "Batch": execution.batch_id,
             "Restorable until": execution.restorable_until,
             "Kept": f"{execution.kept}",
@@ -311,9 +314,9 @@ def _result_notification(
         ):
             rows.row(
                 (
-                    projects.display_snapshot.label_for(key),
+                    project_label_or_unavailable(projects, key),
                     f"{rollup['runs']}",
-                    _human_size(rollup["bytes"]),
+                    human_size(rollup["bytes"]),
                 )
             )
     if execution.kept_by_reason:
@@ -341,7 +344,7 @@ def _result_notification(
             headline,
             (
                 f"{execution.quarantined} runs "
-                f"({_human_size(execution.bytes_quarantined)}) in batch "
+                f"({human_size(execution.bytes_quarantined)}) in batch "
                 f"{execution.batch_id}; restorable until "
                 f"{execution.restorable_until}; {execution.kept} kept."
             ),
@@ -380,7 +383,7 @@ def _print_text_result(
     console.print(
         Panel(
             f"Moved {execution.quarantined} run dirs "
-            f"({_human_size(execution.bytes_quarantined)}) to trash "
+            f"({human_size(execution.bytes_quarantined)}) to trash "
             f"· batch {execution.batch_id} "
             f"· restorable until {execution.restorable_until}",
             title="ACE Run Trash",
@@ -424,7 +427,7 @@ def _print_plan(
         run_table.add_row(
             projects.display_snapshot.label_for(item.project),
             item.timestamp,
-            _human_size(item.size_bytes),
+            human_size(item.size_bytes),
             item.reason,
             item.artifact_dir,
         )
@@ -432,7 +435,7 @@ def _print_plan(
         run_table.add_row("[dim]none[/dim]", "-", "-", "-", "-")
     title = (
         f"TUI Run Prune Plan ({plan.counts.selected} run dirs selected, "
-        f"{_human_size(plan.reclaimable_bytes)} reclaimable"
+        f"{human_size(plan.reclaimable_bytes)} reclaimable"
         f"{f', {plan.counts.truncated} truncated' if plan.counts.truncated else ''})"
     )
     console.print(Panel(run_table, title=title, border_style="cyan"))
@@ -459,17 +462,6 @@ def _print_plan(
             border_style="cyan",
         )
     )
-
-
-def _human_size(size_bytes: int | None) -> str:
-    if size_bytes is None:
-        return "-"
-    value = float(size_bytes)
-    for unit in ("B", "KiB", "MiB", "GiB", "TiB"):
-        if value < 1024 or unit == "TiB":
-            return f"{int(value)} {unit}" if unit == "B" else f"{value:.1f} {unit}"
-        value /= 1024
-    return f"{size_bytes} B"
 
 
 __all__ = ["ARTIFACT_PRUNE_RUNS_SCHEMA_VERSION", "handle_prune_runs"]

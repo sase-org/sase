@@ -70,7 +70,8 @@ def _stub_retention_plan(
         script,
         "load_project_ref_display_snapshot",
         lambda **_kwargs: SimpleNamespace(
-            label_for_ref=lambda _project: "Pretty Project"
+            display_snapshot={"proj": "Pretty Project"},
+            label_for_ref=lambda _project: "Pretty Project",
         ),
     )
 
@@ -153,7 +154,8 @@ def test_artifact_run_prune_real_store_supersedes_changed_preview(
         script,
         "load_project_ref_display_snapshot",
         lambda **_kwargs: SimpleNamespace(
-            label_for_ref=lambda _project: "Pretty Project"
+            display_snapshot={"proj": "Pretty Project"},
+            label_for_ref=lambda _project: "Pretty Project",
         ),
     )
     first_plan = retention_plan(

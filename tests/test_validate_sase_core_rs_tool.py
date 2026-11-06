@@ -513,6 +513,13 @@ def test_validate_sase_core_rs_run_trash_wire_schema() -> None:
         == AGENT_ARTIFACT_RUN_TRASH_WIRE_SCHEMA_VERSION
     )
     assert validator._validate_agent_artifact_run_trash_wire_schema(
+        SimpleNamespace(
+            agent_artifact_run_trash_wire_schema_version=lambda: (
+                AGENT_ARTIFACT_RUN_TRASH_WIRE_SCHEMA_VERSION
+            )
+        )
+    )
+    assert not validator._validate_agent_artifact_run_trash_wire_schema(
         SimpleNamespace(agent_artifact_run_trash_wire_schema_version=lambda: 1)
     )
     assert not validator._validate_agent_artifact_run_trash_wire_schema(

@@ -8,6 +8,7 @@ from typing import Any
 from sase.agent.hijack.core import (
     hijack_recovery_effective_target,
     hijack_recovery_execution_wire_schema_version,
+    strip_hijack_launch_directives,
 )
 from sase.agent.hijack.recover_common import (
     KEEP_WORK_ACTIONS,
@@ -214,6 +215,18 @@ def resolve_effective_target(
     )
     prompt_model: str | None = None
     if edited is not None:
+        try:
+            cleaned = strip_hijack_launch_directives(edited)
+        except Exception as exc:
+            raise RecoveryRefusal(
+                "invalid_prompt",
+                f"Instruct prompt directives do not parse: {exc}",
+            ) from exc
+        if not cleaned.strip():
+            raise RecoveryRefusal(
+                "missing_prompt",
+                "The replacement prompt has no task content outside launch directives",
+            )
         conflicts = conflicting_launch_directives(edited)
         if conflicts:
             raise RecoveryRefusal(

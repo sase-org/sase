@@ -48,7 +48,7 @@ EXPECTED_FOOTPRINT_WIRE_SCHEMA_VERSION = 1
 # ACE-run trash wire version. Keep in lockstep with
 # sase_core::agent_artifact_run_trash::AGENT_ARTIFACT_RUN_TRASH_WIRE_SCHEMA_VERSION
 # and sase.core.agent_artifact_run_trash.AGENT_ARTIFACT_RUN_TRASH_WIRE_SCHEMA_VERSION.
-EXPECTED_AGENT_ARTIFACT_RUN_TRASH_WIRE_SCHEMA_VERSION = 1
+EXPECTED_AGENT_ARTIFACT_RUN_TRASH_WIRE_SCHEMA_VERSION = 2
 
 # Keep in lockstep with tools/_release_watch_decide.py and sase-core.
 EXPECTED_RELEASE_STEWARD_WIRE_SCHEMA_VERSION = 2

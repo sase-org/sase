@@ -19,6 +19,23 @@ _RECOVERABLE_DELIVERY = frozenset(
 _CAPTURE_NEEDS_RECOVERY = "needs_recovery"
 
 
+def collect_one_continuation_run(
+    physical_dir: Path | str,
+    *,
+    artifact_dir: str | None = None,
+    projects_root: Path | str | None = None,
+) -> dict[str, Any]:
+    """Read continuation identity from *physical_dir* under a logical dir key.
+
+    *artifact_dir* is the original ACE-run identity. Trash collection passes
+    the live logical path while reading bytes from the quarantined copy.
+    """
+
+    physical = Path(physical_dir).expanduser()
+    normalized = artifact_dir or _normalized_path(physical)
+    return _collect_one_run(physical, normalized, projects_root=projects_root)
+
+
 def _collect_continuation_retention_runs(
     artifact_dirs: Sequence[Path | str],
     *,
@@ -255,6 +272,7 @@ def _normalized_path(path: Path | str) -> str:
 
 __all__ = [
     "CONTINUATION_PORTABLE_LABEL_PREFIX",
+    "collect_one_continuation_run",
     "continuation_reasons_by_dir",
     "continuation_unavailable_sources",
     "plan_continuation_run_retention",

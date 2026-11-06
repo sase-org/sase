@@ -7,7 +7,11 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Literal
 
-from sase.core.agent_artifact_run_prune_review import RunPruneReview
+from sase.core.agent_artifact_run_prune_review import (
+    RunPruneReview,
+    human_size,
+    project_label_or_unavailable,
+)
 
 _ReviewState = Literal["CHECKING", "READY", "BLOCKED", "SNAPSHOT_MISSING", "RUNNING"]
 
@@ -105,18 +109,6 @@ def build_artifact_run_prune_review_view(
     )
 
 
-def human_size(size_bytes: int | None) -> str:
-    """Format bytes with the existing KiB/MiB/GiB convention."""
-    if size_bytes is None:
-        return "-"
-    value = float(size_bytes)
-    for unit in ("B", "KiB", "MiB", "GiB", "TiB"):
-        if value < 1024 or unit == "TiB":
-            return f"{int(value)} {unit}" if unit == "B" else f"{value:.1f} {unit}"
-        value /= 1024
-    return f"{size_bytes} B"
-
-
 def _format_run_date(timestamp: str) -> str:
     """Format a run timestamp such as ``20260707T12...`` as ``Jul 7``."""
     try:
@@ -127,12 +119,7 @@ def _format_run_date(timestamp: str) -> str:
 
 
 def _project_label(project: str, display_snapshot: Mapping[str, str]) -> str:
-    if project not in display_snapshot:
-        return "Project unavailable"
-    label = display_snapshot[project]
-    if not isinstance(label, str) or not label.strip():
-        return "Project unavailable"
-    return label.strip()
+    return project_label_or_unavailable(display_snapshot, project)
 
 
 def _month_label(month: str) -> str:

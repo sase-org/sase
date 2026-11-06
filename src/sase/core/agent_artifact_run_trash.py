@@ -43,11 +43,12 @@ from sase.core.agent_artifact_run_retention_models import (
 from sase.core.agent_artifact_shards import (
     iter_startup_ace_run_shard_watch_paths,
 )
+from sase.core.continuation_retention import collect_one_continuation_run
 from sase.core.paths import sase_home
 from sase.core.rust import require_rust_binding
 
 
-AGENT_ARTIFACT_RUN_TRASH_WIRE_SCHEMA_VERSION = 1
+AGENT_ARTIFACT_RUN_TRASH_WIRE_SCHEMA_VERSION = 2
 
 
 def _run_trash_root() -> Path:
@@ -109,6 +110,7 @@ class AceRunTrashItemOutcome:
     reasons: tuple[str, ...] = ()
     detail: str | None = None
     bytes: int = 0
+    original_path: str = ""
 
     def to_json_dict(self) -> dict[str, Any]:
         return {
@@ -119,18 +121,22 @@ class AceRunTrashItemOutcome:
             "reasons": list(self.reasons),
             "detail": self.detail,
             "bytes": self.bytes,
+            "original_path": self.original_path,
         }
 
     @classmethod
     def from_json_dict(cls, payload: Mapping[str, Any]) -> AceRunTrashItemOutcome:
+        original_path = str(payload.get("original_path") or "")
+        artifact_dir = str(payload.get("artifact_dir") or original_path or "")
         return cls(
-            artifact_dir=str(payload.get("artifact_dir") or ""),
+            artifact_dir=artifact_dir,
             project=str(payload.get("project") or ""),
             timestamp=str(payload.get("timestamp") or ""),
             outcome=str(payload.get("outcome") or ""),
             reasons=tuple(str(reason) for reason in payload.get("reasons") or ()),
             detail=(None if payload.get("detail") is None else str(payload["detail"])),
             bytes=int(payload.get("bytes") or 0),
+            original_path=original_path,
         )
 
 
@@ -620,6 +626,17 @@ def purge_ace_run_trash(
         "sources_unavailable": sources_unavailable,
         "protected_dirs": sorted(protections.protected_dirs),
         "protected_timestamps": sorted(protections.protected_timestamps),
+        "protected_agent_names": sorted(protections.protected_agent_names),
+        "non_closed_bead_ids_by_project": {
+            project: sorted(ids)
+            for project, ids in sorted(
+                protections.non_closed_bead_ids_by_project.items()
+            )
+        },
+        "continuation_runs": _continuation_runs_for_purge(
+            projects_root=resolved_projects_root,
+            trash_root=root,
+        ),
     }
     raw = _call_binding("purge_agent_artifact_run_trash", request)
     restored_dirs = tuple(str(path) for path in raw.get("restored_dirs") or ())
@@ -651,6 +668,127 @@ def purge_ace_run_trash(
         reindexed=reindexed,
         index_errors=tuple(index_errors),
     )
+
+
+def _is_real_dir(path: Path) -> bool:
+    try:
+        return path.is_dir() and not path.is_symlink()
+    except OSError:
+        return False
+
+
+def _iter_timestamp_run_dirs(workflow_root: Path) -> list[Path]:
+    found: list[Path] = []
+    if not _is_real_dir(workflow_root):
+        return found
+    try:
+        month_entries = sorted(workflow_root.iterdir(), key=lambda path: path.name)
+    except OSError:
+        return found
+    for month in month_entries:
+        if not _is_real_dir(month) or len(month.name) != 6 or not month.name.isdigit():
+            continue
+        try:
+            day_entries = sorted(month.iterdir(), key=lambda path: path.name)
+        except OSError:
+            continue
+        for day in day_entries:
+            if not _is_real_dir(day) or len(day.name) != 2 or not day.name.isdigit():
+                continue
+            try:
+                run_entries = sorted(day.iterdir(), key=lambda path: path.name)
+            except OSError:
+                continue
+            for stamp in run_entries:
+                if (
+                    not _is_real_dir(stamp)
+                    or len(stamp.name) != 14
+                    or not stamp.name.isdigit()
+                    or not stamp.name.startswith(month.name)
+                    or stamp.name[6:8] != day.name
+                ):
+                    continue
+                found.append(stamp)
+    return found
+
+
+def _iter_live_ace_run_dirs(projects_root: Path) -> list[Path]:
+    found: list[Path] = []
+    if not _is_real_dir(projects_root):
+        return found
+    try:
+        projects = sorted(projects_root.iterdir(), key=lambda path: path.name)
+    except OSError:
+        return found
+    for project in projects:
+        if not _is_real_dir(project):
+            continue
+        found.extend(
+            _iter_timestamp_run_dirs(project / "artifacts" / ACE_RUN_WORKFLOW_DIR)
+        )
+    return found
+
+
+def _iter_trash_run_identities(
+    trash_root: Path, projects_root: Path
+) -> list[tuple[Path, Path]]:
+    pairs: list[tuple[Path, Path]] = []
+    if not _is_real_dir(trash_root):
+        return pairs
+    try:
+        batches = sorted(trash_root.iterdir(), key=lambda path: path.name)
+    except OSError:
+        return pairs
+    for batch in batches:
+        runs_root = batch / "runs"
+        if not _is_real_dir(batch) or not _is_real_dir(runs_root):
+            continue
+        try:
+            projects = sorted(runs_root.iterdir(), key=lambda path: path.name)
+        except OSError:
+            continue
+        for project_dir in projects:
+            if not _is_real_dir(project_dir):
+                continue
+            for physical in _iter_timestamp_run_dirs(project_dir):
+                logical = (
+                    projects_root
+                    / project_dir.name
+                    / "artifacts"
+                    / ACE_RUN_WORKFLOW_DIR
+                    / physical.parent.parent.name
+                    / physical.parent.name
+                    / physical.name
+                )
+                pairs.append((physical, logical))
+    return pairs
+
+
+def _continuation_runs_for_purge(
+    *,
+    projects_root: Path,
+    trash_root: Path,
+) -> list[dict[str, Any]]:
+    """Collect continuation observations; live identity wins over trash bytes."""
+
+    observations: dict[str, dict[str, Any]] = {}
+    for live_dir in _iter_live_ace_run_dirs(projects_root):
+        key = _normalized_dir(live_dir)
+        observations[key] = collect_one_continuation_run(
+            live_dir,
+            artifact_dir=key,
+            projects_root=projects_root,
+        )
+    for physical, logical in _iter_trash_run_identities(trash_root, projects_root):
+        key = _normalized_dir(logical)
+        if key in observations:
+            continue
+        observations[key] = collect_one_continuation_run(
+            physical,
+            artifact_dir=key,
+            projects_root=projects_root,
+        )
+    return list(observations.values())
 
 
 __all__ = [

@@ -27,6 +27,8 @@ from sase.core.agent_artifact_run_trash import ReviewedRunSet
 from sase.core.paths import sase_home
 from sase.core.time import get_timezone
 
+PROJECT_UNAVAILABLE_LABEL = "Project unavailable"
+
 
 RUN_PRUNE_REVIEW_SCHEMA_VERSION = 1
 RUN_PRUNE_SNAPSHOT_SCHEMA_VERSION = 1
@@ -517,7 +519,42 @@ def parse_run_prune_review(
         return None
 
 
+def human_size(size_bytes: int | None) -> str:
+    """Format bytes with the existing KiB/MiB/GiB convention."""
+
+    if size_bytes is None:
+        return "-"
+    value = float(size_bytes)
+    for unit in ("B", "KiB", "MiB", "GiB", "TiB"):
+        if value < 1024 or unit == "TiB":
+            return f"{int(value)} {unit}" if unit == "B" else f"{value:.1f} {unit}"
+        value /= 1024
+    return f"{size_bytes} B"
+
+
+def project_label_or_unavailable(display: object, project: str | None) -> str:
+    """Return a registered project label, else ``Project unavailable``."""
+
+    if not project:
+        return PROJECT_UNAVAILABLE_LABEL
+    snapshot = getattr(display, "display_snapshot", display)
+    try:
+        known = project in snapshot  # type: ignore[operator]
+    except TypeError:
+        return PROJECT_UNAVAILABLE_LABEL
+    if not known:
+        return PROJECT_UNAVAILABLE_LABEL
+    try:
+        label = snapshot[project]  # type: ignore[index]
+    except (KeyError, TypeError, IndexError):
+        return PROJECT_UNAVAILABLE_LABEL
+    if not isinstance(label, str) or not label.strip():
+        return PROJECT_UNAVAILABLE_LABEL
+    return label.strip()
+
+
 __all__ = [
+    "PROJECT_UNAVAILABLE_LABEL",
     "RUN_PRUNE_REVIEW_ACTION_DATA_KEY",
     "RUN_PRUNE_REVIEW_SCHEMA_VERSION",
     "RUN_PRUNE_SNAPSHOT_SCHEMA_VERSION",
@@ -528,8 +565,10 @@ __all__ = [
     "RunPruneSnapshotItem",
     "build_review",
     "encode_run_prune_review",
+    "human_size",
     "load_snapshot",
     "parse_run_prune_review",
     "preview_fingerprint",
+    "project_label_or_unavailable",
     "write_snapshot",
 ]
