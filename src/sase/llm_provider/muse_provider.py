@@ -49,7 +49,10 @@ from ._subprocess import (
     start_interrupt_monitor,
     stream_and_parse_muse_json_output,
 )
-from ._wait_guard import log_wait_guard as _log_wait_guard
+from ._wait_guard import (
+    log_wait_guard as _log_wait_guard,
+    staged_handoff_blocks_continuation,
+)
 from ._wait_signals import ends_with_wait_claim
 from .base import LLMProvider
 from .model_manifest import (
@@ -472,7 +475,12 @@ class MuseProvider(LLMProvider):
             # or fail loudly rather than recording the wait as success. An
             # accepted declaration ends the turn: continuing would restart
             # Muse from scratch and could change a tree the host accepted.
-            if ends_with_wait_claim(content):
+            # A durable staged handoff likewise leaves completion to the
+            # host; retrying the provider could collide with declared work.
+            if (
+                ends_with_wait_claim(content)
+                and not staged_handoff_blocks_continuation()
+            ):
                 current_signature = final_submission_signature()
                 if (
                     current_signature is not None

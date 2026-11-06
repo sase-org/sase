@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Iterator
+from collections.abc import Iterator, Mapping
 from contextlib import ExitStack, contextmanager
 import dataclasses
 from datetime import UTC, datetime
@@ -117,12 +117,17 @@ def write_staged_handoff_response(
     response: str,
     *,
     artifacts_dir: str | None = None,
+    partial: bool = False,
 ) -> Path:
     """Persist the ordinary provider response for the active staged handoff.
 
     Finalizer declaration recovery may replace the invocation result. Keeping
     the ordinary response under the staged ID lets the planner chat retain the
     model's actual final answer without confusing it with recovery output.
+
+    ``partial`` marks a best-effort reply persisted after a provider failure:
+    the starter's last reply is incomplete and the follow-up prompt must say
+    so. Ordinary success paths leave it ``False``.
     """
     root = artifacts_root(artifacts_dir)
     with acquire_handoff_locks(root):
@@ -132,14 +137,14 @@ def write_staged_handoff_response(
                 "cannot persist provider response for a different staged handoff"
             )
         path = root / STAGED_HANDOFF_RESPONSE_FILENAME
-        write_json_marker_atomic(
-            path,
-            {
-                "schema_version": 1,
-                "staged_id": staged_id,
-                "response": response,
-            },
-        )
+        payload: dict[str, Any] = {
+            "schema_version": 1,
+            "staged_id": staged_id,
+            "response": response,
+        }
+        if partial:
+            payload["partial"] = True
+        write_json_marker_atomic(path, payload)
         return path
 
 
@@ -164,6 +169,88 @@ def read_staged_handoff_response(
             f"malformed staged handoff provider response {path.name}: response is not text"
         )
     return response
+
+
+PROVIDER_FAILURE_FILENAME = ".sase_provider_failure.json"
+
+
+def read_provider_failure_record(
+    artifacts_dir: str | None = None,
+) -> dict[str, Any] | None:
+    """Return the provider-failure record, or ``None`` when absent.
+
+    Malformed state is a refusal, not absence: a corrupt failure record must
+    not silently become an adoptable reply.
+    """
+    root = artifacts_root(artifacts_dir)
+    path = root / PROVIDER_FAILURE_FILENAME
+    if not path_exists(path):
+        return None
+    return read_json_object(path, label="provider failure record")
+
+
+def staged_response_is_partial(
+    staged_id: str,
+    *,
+    artifacts_dir: str | None = None,
+) -> bool:
+    """Return whether the persisted staged response is marked partial."""
+    root = artifacts_root(artifacts_dir)
+    path = root / STAGED_HANDOFF_RESPONSE_FILENAME
+    if not path_exists(path):
+        return False
+    payload = read_json_object(path, label="staged handoff provider response")
+    if payload.get("schema_version") != 1 or payload.get("staged_id") != staged_id:
+        raise StagedHandoffError(
+            f"malformed staged handoff provider response {path.name}: identity mismatch"
+        )
+    return payload.get("partial") is True
+
+
+def build_provider_failure_fallback_response(
+    failure: Mapping[str, Any],
+) -> str:
+    """Synthesize an adoptable reply from a provider-failure record.
+
+    The text cites the failure record and states the starter's last reply is
+    incomplete, so any follow-up prompt carrying it says so.
+    """
+    provider = failure.get("provider")
+    provider_label = provider if isinstance(provider, str) and provider else "unknown"
+    recorded_at = failure.get("recorded_at")
+    when = (
+        recorded_at if isinstance(recorded_at, str) and recorded_at else "unknown time"
+    )
+    error = failure.get("error")
+    error_text = (
+        error if isinstance(error, str) and error.strip() else "(no error detail)"
+    )
+    return (
+        "[Staged reply recovered from the provider failure record: "
+        f"provider {provider_label!r} failed after staging (recorded at {when}). "
+        "The starter's last reply is incomplete; continue from the staged "
+        f"state, not from a complete answer. Provider error: {error_text}]"
+    )
+
+
+def read_staged_response_or_failure_fallback(
+    staged_id: str,
+    *,
+    artifacts_dir: str | None = None,
+) -> str | None:
+    """Return the staged response, falling back to the failure record.
+
+    Stages stranded before the partial-response persistence existed carry only
+    ``.sase_provider_failure.json``. Synthesizing a marked fallback from that
+    record makes them re-adoptable without inventing a complete reply.
+    """
+    response = read_staged_handoff_response(staged_id, artifacts_dir=artifacts_dir)
+    if response is not None:
+        return response
+    failure = read_provider_failure_record(artifacts_dir)
+    if failure is None:
+        return None
+    return build_provider_failure_fallback_response(failure)
 
 
 def discard_staged_handoff(artifacts_dir: str | None = None) -> None:

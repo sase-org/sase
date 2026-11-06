@@ -250,6 +250,129 @@ def test_provider_failure_finalizes_staged(tmp_path: Path, monkeypatch) -> None:
     assert "provider down" in recorded["error"]
 
 
+def test_provider_error_after_stage_persists_partial_response(
+    tmp_path: Path, monkeypatch
+) -> None:
+    """An error after a valid stage leaves a marked partial staged response."""
+    from sase.agent.staged_handoff import (
+        read_staged_handoff_response,
+        read_staged_response_or_failure_fallback,
+        staged_response_is_partial,
+        write_staged_handoff,
+    )
+    from sase.llm_provider._invoke_errors import (
+        finalize_staged_after_provider_error,
+    )
+
+    artifacts = tmp_path / "artifacts"
+    artifacts.mkdir()
+    monkeypatch.setenv("SASE_AGENT", "1")
+    record = _record(tmp_path)
+    write_staged_handoff(record, artifacts_dir=str(artifacts))
+
+    provider = MagicMock()
+    with patch("sase.finalizers.run_finalizers") as finalizers:
+        finalize_staged_after_provider_error(
+            provider=provider,
+            query="processed",
+            error_content="provider down: network error",
+            model_tier="large",
+            suppress_output=True,
+            model_override=None,
+            artifacts_dir=str(artifacts),
+            options=None,
+            execution_provider_label="muse",
+        )
+    assert finalizers.called
+    staged_id = str(record["staged_id"])
+    persisted = read_staged_handoff_response(staged_id, artifacts_dir=str(artifacts))
+    assert persisted is not None
+    assert "last reply is incomplete" in persisted
+    assert "network error" in persisted
+    assert staged_response_is_partial(staged_id, artifacts_dir=str(artifacts)) is True
+    assert (
+        read_staged_response_or_failure_fallback(
+            staged_id, artifacts_dir=str(artifacts)
+        )
+        == persisted
+    )
+
+
+def test_failure_record_only_stage_is_adoptable(tmp_path: Path, monkeypatch) -> None:
+    """A stage stranded with only a failure record yields a fallback reply."""
+    import json as _json
+
+    from sase.agent.staged_handoff import (
+        read_staged_handoff_response,
+        read_staged_response_or_failure_fallback,
+        write_staged_handoff,
+    )
+
+    artifacts = tmp_path / "artifacts"
+    artifacts.mkdir()
+    monkeypatch.setenv("SASE_AGENT", "1")
+    record = _record(tmp_path)
+    write_staged_handoff(record, artifacts_dir=str(artifacts))
+    staged_id = str(record["staged_id"])
+    assert read_staged_handoff_response(staged_id, artifacts_dir=str(artifacts)) is None
+    (artifacts / ".sase_provider_failure.json").write_text(
+        _json.dumps(
+            {
+                "schema_version": 1,
+                "recorded_at": "2026-11-06T10:00:00Z",
+                "provider": "muse",
+                "error": "network error after staging",
+            }
+        ),
+        encoding="utf-8",
+    )
+    fallback = read_staged_response_or_failure_fallback(
+        staged_id, artifacts_dir=str(artifacts)
+    )
+    assert fallback is not None
+    assert "network error after staging" in fallback
+    assert "'muse'" in fallback
+    assert "last reply is incomplete" in fallback
+
+
+def test_real_response_wins_over_failure_record(tmp_path: Path, monkeypatch) -> None:
+    """A persisted real response is never shadowed by the failure fallback."""
+    import json as _json
+
+    from sase.agent.staged_handoff import (
+        read_staged_response_or_failure_fallback,
+        write_staged_handoff,
+        write_staged_handoff_response,
+    )
+
+    artifacts = tmp_path / "artifacts"
+    artifacts.mkdir()
+    monkeypatch.setenv("SASE_AGENT", "1")
+    record = _record(tmp_path)
+    write_staged_handoff(record, artifacts_dir=str(artifacts))
+    staged_id = str(record["staged_id"])
+    write_staged_handoff_response(
+        staged_id, "ordinary final response", artifacts_dir=str(artifacts)
+    )
+    (artifacts / ".sase_provider_failure.json").write_text(
+        _json.dumps(
+            {
+                "schema_version": 1,
+                "recorded_at": "2026-11-06T10:00:00Z",
+                "provider": "muse",
+                "error": "late failure",
+            }
+        ),
+        encoding="utf-8",
+    )
+    assert (
+        read_staged_response_or_failure_fallback(
+            staged_id, artifacts_dir=str(artifacts)
+        )
+        == "ordinary final response"
+    )
+
+
 def test_provider_failure_skips_finalizers_when_finalizer_owned(
     tmp_path: Path, monkeypatch
 ) -> None:

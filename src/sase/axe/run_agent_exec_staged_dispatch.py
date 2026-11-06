@@ -14,8 +14,10 @@ from sase.agent.staged_handoff import (
     StagedHandoffError,
     StagedRecoveryAttempt,
     acquire_adoption_lock,
+    build_provider_failure_fallback_response,
     ensure_recovery_context_locked,
     read_adoption_receipt,
+    read_provider_failure_record,
     read_staged_successor,
     read_staged_handoff,
     read_staged_handoff_response,
@@ -50,6 +52,27 @@ def _read_run_metadata(artifacts_dir: str) -> dict[str, Any]:
     return read_json_object(
         Path(artifacts_dir) / "agent_meta.json", label="agent metadata"
     )
+
+
+def _adoptable_staged_response(
+    staged_id: str,
+    *,
+    artifacts_dir: str,
+) -> str | None:
+    """Return the staged response, falling back to the failure record.
+
+    The response read goes through this module's ``read_staged_handoff_response``
+    global so existing test seams keep working. Stages stranded with only
+    ``.sase_provider_failure.json`` synthesize a marked fallback reply so they
+    stay re-adoptable.
+    """
+    response = read_staged_handoff_response(staged_id, artifacts_dir=artifacts_dir)
+    if response is not None:
+        return response
+    failure = read_provider_failure_record(artifacts_dir)
+    if failure is None:
+        return None
+    return build_provider_failure_fallback_response(failure)
 
 
 def _normalize_adopter_result(
@@ -514,7 +537,7 @@ def dispatch_completed_staged_handoff(
             staged_record, artifacts_dir=artifacts_dir, run_metadata=run_metadata
         )
 
-        response = read_staged_handoff_response(staged_id, artifacts_dir=artifacts_dir)
+        response = _adoptable_staged_response(staged_id, artifacts_dir=artifacts_dir)
         if response is None:
             reason = (
                 "ordinary provider response was not persisted for this staged handoff"

@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from sase.agent._staged_handoff_store import (
     HANDOFF_LOCK_FILENAME,
+    PROVIDER_FAILURE_FILENAME,
     STAGED_HANDOFF_FILENAME,
     STAGED_HANDOFF_RECEIPT_FILENAME,
     STAGED_HANDOFF_RESPONSE_FILENAME,
@@ -17,11 +18,15 @@ from sase.agent._staged_handoff_store import (
     HostStageIdentity,
     StagedHandoffError,
     acquire_handoff_locks,
+    build_provider_failure_fallback_response,
     discard_staged_handoff,
+    read_provider_failure_record,
     read_staged_handoff,
     read_staged_handoff_response,
+    read_staged_response_or_failure_fallback,
     release_staging_reservation,
     release_staging_reservation_locked,
+    staged_response_is_partial,
     write_staged_handoff_response,
 )
 from sase.agent._staged_handoff_admission import (
@@ -71,6 +76,7 @@ from sase.agent._staged_handoff_successor import (
 
 __all__ = [
     "HANDOFF_LOCK_FILENAME",
+    "PROVIDER_FAILURE_FILENAME",
     "RECOVERY_CONTEXT_FILENAME",
     "STAGED_HANDOFF_FILENAME",
     "STAGED_HANDOFF_RECEIPT_FILENAME",
@@ -100,9 +106,13 @@ __all__ = [
     "occupying_handoff_names",
     "read_adoption_receipt",
     "read_recovery_context",
+    "build_provider_failure_fallback_response",
+    "read_provider_failure_record",
     "read_staged_handoff",
     "read_staged_handoff_response",
+    "read_staged_response_or_failure_fallback",
     "receipt_authorizes",
+    "staged_response_is_partial",
     "receipt_may_replace",
     "recovery_context_path",
     "release_staging_reservation_locked",

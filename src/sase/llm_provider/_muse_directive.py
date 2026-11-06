@@ -58,7 +58,14 @@ def _muse_single_turn_directive() -> str:
         "and correct."
     )
     inline_rule = "Run everything else inline."
-    wait_rule = "Never end your turn to wait."
+    wait_rule = (
+        "Never end your turn to wait. Wait for handoff commands such as "
+        "`sase monitor start`, `sase plan propose`, `sase pipe`, and "
+        "`sase questions` to exit. When they report Staged, finish through "
+        "`/sase_final`, submitting only if the context requires it. Do not "
+        "wait for the staged successor, gate, or monitored command: the host "
+        "starts it after this turn ends and finalizers settle."
+    )
     return (
         "SASE single-turn instructions for Muse Code: this session is exactly "
         "one turn, and nothing can wake you after you end it. "

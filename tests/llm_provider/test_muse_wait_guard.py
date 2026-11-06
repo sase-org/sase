@@ -337,6 +337,58 @@ def test_muse_two_cycles_use_real_timer_without_suppress(
     assert result.content == ("The check is still running, so I'll wait.\n\nAll done.")
 
 
+def test_muse_staged_handoff_does_not_continue_wait_claim(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """A durable stage leaves completion to the host instead of retrying."""
+    from sase.agent.staged_handoff import (
+        build_plan_staged_record,
+        write_staged_handoff,
+    )
+
+    monkeypatch.delenv("SASE_MUSE_MAX_WAIT_CONTINUATIONS", raising=False)
+    monkeypatch.setenv("SASE_ARTIFACTS_DIR", str(tmp_path))
+    monkeypatch.setenv("SASE_AGENT", "1")
+    record = build_plan_staged_record(
+        plan_file=str(tmp_path / "plan.md"),
+        original_file=str(tmp_path / "scratch.md"),
+        dirty_obligations_at_stage=[],
+    )
+    write_staged_handoff(record, artifacts_dir=str(tmp_path))
+
+    provider = MuseProvider()
+    calls = {"n": 0}
+
+    def _fake_run(
+        args: list[str],
+        suppress_output: bool,
+        session_id: str | None = None,
+    ) -> tuple[str, str, int, dict[str, int]]:
+        del args, suppress_output, session_id
+        calls["n"] += 1
+        return ("Started the check; I'll wait for it to finish.", "", 0, _usage())
+
+    with (
+        patch("sase.llm_provider.muse_provider.provider_timer"),
+        patch.object(MuseProvider, "_run_subprocess", side_effect=_fake_run),
+    ):
+        result = provider.invoke(
+            "original task", model_tier="large", suppress_output=True
+        )
+
+    assert calls["n"] == 1
+    assert result.content == "Started the check; I'll wait for it to finish."
+
+
+def test_muse_directive_finishes_staging_through_finalization() -> None:
+    from sase.llm_provider._muse_directive import _muse_single_turn_directive
+
+    directive = _muse_single_turn_directive()
+    assert "Staged" in directive
+    assert "/sase_final" in directive
+    assert "after this turn ends" in directive
+
+
 def test_muse_wait_claim_after_accepted_declaration_returns(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:

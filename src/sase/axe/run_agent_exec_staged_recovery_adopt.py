@@ -7,7 +7,9 @@ from pathlib import Path
 from typing import Any
 
 from sase.agent.staged_handoff import (
+    build_provider_failure_fallback_response,
     ensure_recovery_context_locked,
+    read_provider_failure_record,
     read_staged_handoff_response,
 )
 from sase.axe._run_agent_exec_staged_recovery_shared import (
@@ -20,6 +22,27 @@ from sase.axe.run_agent_exec_staged_custody import (
     mark_custody_transferred,
     persist_origin_custody,
 )
+
+
+def _adoptable_staged_response(
+    staged_id: str,
+    *,
+    artifacts_dir: str,
+) -> str | None:
+    """Return the staged response, falling back to the failure record.
+
+    The response read goes through this module's ``read_staged_handoff_response``
+    global so existing test seams keep working. Stages stranded with only
+    ``.sase_provider_failure.json`` synthesize a marked fallback reply so they
+    stay re-adoptable.
+    """
+    response = read_staged_handoff_response(staged_id, artifacts_dir=artifacts_dir)
+    if response is not None:
+        return response
+    failure = read_provider_failure_record(artifacts_dir)
+    if failure is None:
+        return None
+    return build_provider_failure_fallback_response(failure)
 
 
 def _split_adopter_result(
@@ -76,7 +99,7 @@ def adopt_with_live_continuation_locked(
     persist_origin_custody(
         staged_record, artifacts_dir=artifacts_dir, run_metadata=run_metadata
     )
-    response = read_staged_handoff_response(staged_id, artifacts_dir=artifacts_dir)
+    response = _adoptable_staged_response(staged_id, artifacts_dir=artifacts_dir)
     if response is None:
         reason = "ordinary provider response was not persisted for this staged handoff"
         write_held_locked(staged_id, reason, artifacts_dir=artifacts_dir)
@@ -206,7 +229,7 @@ def adopt_gate_detached_locked(
     persist_origin_custody(
         staged_record, artifacts_dir=artifacts_dir, run_metadata=run_metadata
     )
-    response = read_staged_handoff_response(staged_id, artifacts_dir=artifacts_dir)
+    response = _adoptable_staged_response(staged_id, artifacts_dir=artifacts_dir)
     if response is None:
         reason = "ordinary provider response was not persisted for this staged handoff"
         write_held_locked(staged_id, reason, artifacts_dir=artifacts_dir)
@@ -293,7 +316,7 @@ def adopt_monitor_detached_locked(
     persist_origin_custody(
         staged_record, artifacts_dir=artifacts_dir, run_metadata=run_metadata
     )
-    response = read_staged_handoff_response(staged_id, artifacts_dir=artifacts_dir)
+    response = _adoptable_staged_response(staged_id, artifacts_dir=artifacts_dir)
     if response is None:
         reason = "ordinary provider response was not persisted for this staged handoff"
         write_held_locked(staged_id, reason, artifacts_dir=artifacts_dir)
