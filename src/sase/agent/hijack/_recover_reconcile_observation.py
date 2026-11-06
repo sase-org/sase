@@ -181,9 +181,10 @@ def _observe_successor(
         recorded_request=recorded_request,
     )
     # ``name_only`` means the observer found a bare name without launch or
-    # process identity. An absent observation means nothing was observed.
+    # process identity. An absent or proven-not-dispatched observation means
+    # nothing was observed beyond the reservation itself.
     name_only = bool(
-        kind not in {"absent", "queued"}
+        kind not in {"absent", "queued", "not_dispatched"}
         and (observed_name or reserved_name)
         and not observed_launch
         and observed_pid is None
@@ -239,6 +240,35 @@ def successor_artifacts_dir(
     return clean_string(getattr(found, "artifacts_dir", None))
 
 
+#: Admission journal proof that the reserved request never dispatched.
+#: Shared with the resume path so there is one definition of "not dispatched".
+NOT_DISPATCHED_ADMISSION_STATES = frozenset({"missing", "cancelled", "rejected"})
+
+
+def admission_proves_not_dispatched(admission: Mapping[str, Any] | None) -> bool:
+    """Return whether the journal proves the request never dispatched.
+
+    Positive proof only: ``missing``, ``cancelled``, or terminally
+    failed/rejected ``launch_error``. An unreadable (``None``) or
+    ``uncertain`` journal stays uncertain.
+    """
+    if not isinstance(admission, Mapping):
+        return False
+    state = clean_string(admission.get("state")) or ""
+    if state in NOT_DISPATCHED_ADMISSION_STATES:
+        return True
+    if state == "launch_error":
+        receipt_state = clean_string(admission.get("receipt_state")) or ""
+        if receipt_state in {"failed", "rejected"}:
+            return True
+        receipt = admission.get("receipt")
+        if isinstance(receipt, Mapping):
+            receipt_state = clean_string(receipt.get("state")) or ""
+            if receipt_state in {"failed", "rejected"}:
+                return True
+    return False
+
+
 def _successor_kind(
     *,
     record: Mapping[str, Any],
@@ -258,6 +288,13 @@ def _successor_kind(
             and admission_request != recorded_request
         ):
             return "mismatched"
+        # Proven-absent launches return to held through Rust: the journal
+        # proves the reserved request is missing, cancelled, or terminally
+        # failed/rejected, and no ack, child metadata, or successor
+        # artifacts exist. Unreadable or uncertain journals stay uncertain.
+        if admission_proves_not_dispatched(admission):
+            if ack is None and meta is None and not _successor_completed(artifacts_dir):
+                return "not_dispatched"
         if state in {"submitted", "reserved", "waiting", "checking", "eligible"}:
             return "queued"
         if state in {"missing", "mismatch"} and not recorded_launch:

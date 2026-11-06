@@ -222,6 +222,12 @@ def cleanup_stale_running_entries(
     released_count = 0
     held_ttl_days: int | None = None
 
+    # Reconcile every resolving record once per sweep, whoever holds the
+    # claim, then drain pending settlement repairs even when no resolving
+    # record remains. Both are fail-closed and best-effort.
+    _reconcile_all_resolving_records(log_fn=log_fn)
+    _drain_pending_settlement_repairs()
+
     for project_file in _get_all_project_files():
         claims = get_claimed_workspaces(project_file)
 
@@ -303,6 +309,8 @@ def cleanup_stale_running_entries(
                     continue
             if pending_retention_retains_claim(project_file, claim):
                 continue
+            if _resolving_workspace_retains_claim(project_file, claim):
+                continue
 
             released = release_workspace(
                 project_file,
@@ -365,7 +373,7 @@ def _apply_hijack_custody(
     if state in {"requested", "stopping"}:
         return False, held_ttl_days
     if state == "resolving":
-        _reconcile_resolving_record(record)
+        _reconcile_resolving_record(record, log_fn=log_fn)
         return False, held_ttl_days
     if state != "held":
         return False, held_ttl_days
@@ -395,7 +403,11 @@ def _apply_hijack_custody(
     return True, held_ttl_days
 
 
-def _reconcile_resolving_record(record: dict[str, Any]) -> None:
+def _reconcile_resolving_record(
+    record: dict[str, Any],
+    *,
+    log_fn: Callable[[str, str | None], None] | None = None,
+) -> None:
     """Best-effort reconcile of one resolving hijack record.
 
     Runs the idempotent recovery reconciliation (adopt the proven
@@ -404,25 +416,93 @@ def _reconcile_resolving_record(record: dict[str, Any]) -> None:
     ``retain_with_error`` retain custody, and even a successful return to
     held keeps the held claim until its TTL expires. All failures fail
     closed to retention so two cleanup processes cannot duplicate a launch
-    or prematurely release a workspace. Also drains one bounded pending
-    settled-projection repair by authoritative id lookup, never a
-    ``settled/`` scan.
+    or prematurely release a workspace.
     """
     try:
-        from sase.agent.hijack.recover_reconcile import (
-            reconcile_recovery,
-            repair_pending_settlements,
+        from sase.agent.hijack.recover_reconcile import reconcile_recovery
+    except Exception:
+        return
+    try:
+        decision = reconcile_recovery(record)
+    except Exception:
+        return
+    if log_fn is None or not isinstance(decision, dict):
+        return
+    try:
+        outcome = str(decision.get("outcome") or "")
+        if outcome != "retain_with_error":
+            return
+        code = str(decision.get("code") or "retain")
+        message = str(decision.get("message") or "").strip()
+        hijack_id = str(record.get("hijack_id") or "unknown")
+        detail = f": {message}" if message else ""
+        log_fn(f"Hijack {hijack_id} retains workspace ({code}{detail})", "yellow")
+    except Exception:
+        return
+
+
+def _reconcile_all_resolving_records(
+    *,
+    log_fn: Callable[[str, str | None], None] | None = None,
+) -> None:
+    """Reconcile every active resolving record once per sweep.
+
+    Active records are few, so iterating ``list_active_records`` is
+    acceptable; scanning ``settled/`` is not. Fail-closed and best-effort.
+    """
+    try:
+        from sase.agent.hijack.ledger import list_active_records
+    except Exception:
+        return
+    try:
+        records = list_active_records()
+    except Exception:
+        return
+    for record in records:
+        try:
+            if not isinstance(record, dict):
+                continue
+            if str(record.get("state") or "") != "resolving":
+                continue
+            _reconcile_resolving_record(record, log_fn=log_fn)
+        except Exception:
+            continue
+
+
+def _drain_pending_settlement_repairs() -> None:
+    """Drain a bounded batch of pending repairs once per sweep.
+
+    Runs whether or not any resolving record exists, by authoritative id
+    lookup, never a ``settled/`` scan.
+    """
+    try:
+        from sase.agent.hijack.recover_reconcile import repair_pending_settlements
+    except Exception:
+        return
+    try:
+        repair_pending_settlements(limit=20)
+    except Exception:
+        return
+
+
+def _resolving_workspace_retains_claim(
+    project_file: str, claim: WorkspaceClaim
+) -> bool:
+    """Return whether a resolving recovery pins this workspace.
+
+    Matches by project plus workspace so a claim held by the predecessor
+    pid, the reserved successor pid, or a dead successor is never released
+    by the generic stale-release path while its record is resolving.
+    """
+    try:
+        from sase.agent.hijack.custody import resolving_record_for_workspace
+
+        return (
+            resolving_record_for_workspace(project_file, claim.workspace_num)
+            is not None
         )
     except Exception:
-        return
-    try:
-        reconcile_recovery(record)
-    except Exception:
-        pass
-    try:
-        repair_pending_settlements(limit=1)
-    except Exception:
-        return
+        return True
 
 
 def _get_all_project_files() -> list[str]:

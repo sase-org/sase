@@ -38,7 +38,14 @@ USER_PARKED_RECOVERY_STATES = frozenset({"pending", "expired"})
 def matching_active_record(
     project_file: str, claim: WorkspaceClaim
 ) -> dict[str, Any] | None:
-    """Return the active hijack record for *claim*, if one still holds it."""
+    """Return the active hijack record for *claim*, if one still holds it.
+
+    A ``resolving`` record pins its ``(project_file, workspace_num)`` pair
+    for the whole settlement window, whoever currently holds the claim:
+    the predecessor pid, the reserved successor pid, or a dead successor.
+    Requested/held records keep exact pid matching so unrelated later
+    occupants of a released workspace are unaffected.
+    """
     wanted_project = str(project_file)
     wanted_workspace = int(claim.workspace_num)
     wanted_pid = int(claim.pid)
@@ -53,6 +60,10 @@ def matching_active_record(
             continue
         if workspace != wanted_workspace:
             continue
+        if str(record.get("state") or "") == "resolving":
+            if _resolving_claim_matches(record, claim):
+                return record
+            continue
         expected = record.get("expected_claim_owner_pid")
         if expected is None:
             expected = record.get("pid")
@@ -63,6 +74,59 @@ def matching_active_record(
             continue
         return record
     return None
+
+
+def resolving_record_for_workspace(
+    project_file: str, workspace_num: int
+) -> dict[str, Any] | None:
+    """Return the active ``resolving`` record for a workspace, if any."""
+    wanted_project = str(project_file)
+    try:
+        wanted_workspace = int(workspace_num)
+    except (TypeError, ValueError):
+        return None
+    for record in list_active_records():
+        if str(record.get("state") or "") != "resolving":
+            continue
+        if str(record.get("project_file") or "") != wanted_project:
+            continue
+        try:
+            workspace = int(record.get("workspace_num"))  # type: ignore[arg-type]
+        except (TypeError, ValueError):
+            continue
+        if workspace == wanted_workspace:
+            return record
+    return None
+
+
+def _resolving_claim_matches(record: dict[str, Any], claim: WorkspaceClaim) -> bool:
+    """Return whether *claim* belongs to a resolving recovery workspace.
+
+    The workspace pair is authoritative. The pid is accepted when it is the
+    predecessor's expected owner, the recorded successor pid, or — when the
+    record carries launch identity or a reserved successor name — any live
+    occupant of the pinned workspace. The latter covers the deferred-dispatch
+    window where the claim already moved to the successor pid before
+    reconciliation adopts it. Records without any launch/successor evidence
+    keep exact matching so a bare resolving row cannot pin a foreign claim.
+    """
+    try:
+        wanted_pid = int(claim.pid)
+    except (TypeError, ValueError):
+        return False
+    for key in ("expected_claim_owner_pid", "pid", "successor_pid"):
+        try:
+            candidate = record.get(key)
+            if candidate is not None and int(candidate) == wanted_pid:  # type: ignore[arg-type]
+                return True
+        except (TypeError, ValueError):
+            continue
+    has_launch_evidence = bool(
+        str(record.get("launch_identity") or "").strip()
+        or str(record.get("admission_request_id") or "").strip()
+        or str(record.get("reserved_successor_name") or "").strip()
+    )
+    return has_launch_evidence
 
 
 def hijack_retains_claim(project_file: str, claim: WorkspaceClaim) -> bool:
@@ -358,4 +422,5 @@ __all__ = [
     "matching_active_record",
     "record_for_agent",
     "recovery_is_user_parked",
+    "resolving_record_for_workspace",
 ]

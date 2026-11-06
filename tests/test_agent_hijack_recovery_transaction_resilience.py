@@ -129,8 +129,9 @@ def test_crash_after_cas_resumes_the_same_attempt_without_a_child(
 
     # The fresh resolver re-dispatches the same durable attempt exactly
     # once; settlement stays with reconciliation, so the record resolves
-    # nothing yet and no duplicate request or child may appear.
-    assert resumed.kind == "already_resolving"
+    # nothing yet and no duplicate request or child may appear. The resume
+    # reports the dispatch (exit 0), not a refusal.
+    assert resumed.kind == "launched"
     assert resumed.admission_request_id == request_id
     assert resumed.launch_identity == launch_identity
     assert len(txn.bundles()) == 1
@@ -140,7 +141,7 @@ def test_crash_after_cas_resumes_the_same_attempt_without_a_child(
 
     again = txn.recover(action="continue")
 
-    assert again.kind == "already_resolving"
+    assert again.kind == "launched"
     assert again.admission_request_id == request_id
     assert len(txn.bundles()) == 1
     assert len(txn.children()) == 1
@@ -162,7 +163,7 @@ def test_uncertain_spawn_keeps_resolving_and_resumes_the_same_request(
 
     resumed = txn.recover(action="continue")
 
-    assert resumed.kind == "already_resolving"
+    assert resumed.kind == "queued"
     assert resumed.admission_request_id == first.admission_request_id
     assert resumed.launch_identity == first.launch_identity
     assert resumed.detail["admission"]["state"] == "dispatching"

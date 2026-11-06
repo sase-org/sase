@@ -21,6 +21,7 @@ from .custody import (
     hijack_retains_claim,
     hijack_skips_claim_release,
     matching_active_record,
+    resolving_record_for_workspace,
 )
 from .ledger import (
     HijackLedgerConflict,
@@ -123,6 +124,7 @@ __all__ = [
     "mark_stopping_if_requested",
     "matching_active_record",
     "new_requested_record",
+    "resolving_record_for_workspace",
     "observe_recovery_admission",
     "read_recovery_ack",
     "recover_hijacked_agent",

@@ -55,7 +55,6 @@ from sase.agent.hijack.recover_common import (
     clean_string,
     code_detail,
     current_resolution_result,
-    fail_to_held,
     new_launch_identity,
     predecessor_concrete_target,
     record_revision,
@@ -142,6 +141,12 @@ def recover_hijacked_agent(
         )
     state = clean_string(record.get("state")) or ""
     if state == "resolved":
+        try:
+            from sase.agent.hijack.recover_reconcile import repair_settled_projection
+
+            repair_settled_projection(record)
+        except Exception:
+            pass
         return current_resolution_result(record, RESULT_ALREADY_RESOLVED)
     if state == "resolving":
         if expected_revision is not None and expected_revision != revision:
@@ -227,7 +232,13 @@ def _resume_existing_resolution(
     *,
     seams: RecoveryDeps | None = None,
 ) -> RecoveryResult:
-    """Resume the CAS-bound admission bundle without creating another request."""
+    """Resume the CAS-bound admission bundle without creating another request.
+
+    The return-to-held decision comes from Rust: when the admission journal
+    proves the reserved request never dispatched, reconciliation (via
+    ``_reconcile_before_resume`` and the post-resume check below) returns
+    the record to held. There is no standalone Python predicate.
+    """
     current = dict(record)
     reconciled = _reconcile_before_resume(current, seams=seams)
     if reconciled is not None:
@@ -243,46 +254,119 @@ def _resume_existing_resolution(
         )
     except Exception as exc:  # noqa: BLE001 - keep the reservation for repair
         observation = {"state": "uncertain", "message": str(exc)}
-    detail = {**dict(result.detail), "admission": dict(observation)}
+    if not isinstance(observation, Mapping):
+        observation = {"state": "uncertain", "message": str(observation)}
+    observation = dict(observation)
+    # Route a proven not-dispatched admission through Rust reconciliation so
+    # the held decision (including dead-resolver and minimum-age gates) is
+    # owned by the core. Uses the single shared observer definition.
+    try:
+        from sase.agent.hijack._recover_reconcile_observation import (
+            admission_proves_not_dispatched,
+        )
+        from sase.agent.hijack.recover_reconcile import reconcile_recovery
+
+        if admission_proves_not_dispatched(observation):
+            rerun = reconcile_recovery(current, deps=seams)
+            if isinstance(rerun, Mapping) and str(rerun.get("outcome") or "") == (
+                "return_to_held"
+            ):
+                current = reload_record(str(current.get("hijack_id") or ""), current)
+                if clean_string(current.get("state")) == "held":
+                    request_id = clean_string(
+                        record.get("admission_request_id")
+                    ) or clean_string(current.get("admission_request_id"))
+                    if request_id:
+                        remove_prepared_recovery_descriptor(request_id)
+                    return RecoveryResult(
+                        kind=RESULT_ERROR,
+                        hijack_id=result.hijack_id,
+                        revision=record_revision(current),
+                        action=result.action,
+                        successor=result.successor,
+                        launch_identity=result.launch_identity,
+                        admission_request_id=result.admission_request_id,
+                        concrete_target=result.concrete_target,
+                        model_changed=result.model_changed,
+                        message=str(
+                            rerun.get("message")
+                            or observation.get("message")
+                            or "recovery admission was never dispatched"
+                        ),
+                        detail={
+                            **dict(result.detail),
+                            "admission": dict(observation),
+                            "code": str(rerun.get("code") or "not_dispatched"),
+                            "launch_stage": str(observation.get("state") or ""),
+                            "reconciled": True,
+                        },
+                    )
+    except Exception:
+        pass
     phase = str(observation.get("state") or "")
-    receipt_state = str(observation.get("receipt_state") or "")
-    definitely_not_dispatched = phase == "cancelled" or (
-        phase == "launch_error" and receipt_state in {"failed", "rejected"}
+    in_flight = bool(observation.get("in_flight")) or phase in {
+        "submitted",
+        "reserved",
+        "waiting",
+        "checking",
+        "eligible",
+        "dispatching",
+        "queued",
+    }
+    launched = phase in {"launched", "dispatched"} or (
+        not in_flight
+        and clean_string(observation.get("identity")) is not None
+        and not admission_proves_not_dispatched(observation)
+        if isinstance(observation, Mapping)
+        else False
     )
-    if definitely_not_dispatched:
-        message = str(observation.get("message") or "recovery admission was cancelled")
-        request_id = clean_string(current.get("admission_request_id"))
-        fail_to_held(current, message)
-        current = reload_record(str(current.get("hijack_id") or ""), current)
-        if clean_string(current.get("state")) == "held":
-            if request_id:
-                remove_prepared_recovery_descriptor(request_id)
-            return RecoveryResult(
-                kind=RESULT_ERROR,
-                hijack_id=result.hijack_id,
-                revision=record_revision(current),
-                action=result.action,
-                successor=result.successor,
-                launch_identity=result.launch_identity,
-                admission_request_id=result.admission_request_id,
-                concrete_target=result.concrete_target,
-                model_changed=result.model_changed,
-                message=message,
-                detail={**detail, "code": "launch_failed", "launch_stage": phase},
-            )
+    if in_flight or phase in {"queued"}:
         return RecoveryResult(
-            kind=RESULT_UNCERTAIN,
+            kind=RESULT_QUEUED,
             hijack_id=result.hijack_id,
-            revision=record_revision(current),
+            revision=result.revision,
             action=result.action,
             successor=result.successor,
             launch_identity=result.launch_identity,
             admission_request_id=result.admission_request_id,
             concrete_target=result.concrete_target,
             model_changed=result.model_changed,
-            message="Admission is terminal but held custody could not be restored",
-            detail=detail,
+            message=str(observation.get("message") or result.message),
+            detail={**dict(result.detail), "admission": dict(observation)},
         )
+    if launched:
+        return RecoveryResult(
+            kind=RESULT_LAUNCHED,
+            hijack_id=result.hijack_id,
+            revision=result.revision,
+            action=result.action,
+            successor=result.successor,
+            launch_identity=result.launch_identity,
+            admission_request_id=result.admission_request_id,
+            concrete_target=result.concrete_target,
+            model_changed=result.model_changed,
+            message=str(observation.get("message") or result.message),
+            detail={**dict(result.detail), "admission": dict(observation)},
+        )
+    detail = {**dict(result.detail), "admission": dict(observation)}
+    # Surface the latest reconcile code/message instead of discarding it.
+    try:
+        from sase.agent.hijack._recover_reconcile_observation import (
+            gather_reconcile_facts,
+        )
+        from sase.agent.hijack.core import hijack_recovery_reconcile
+
+        facts = gather_reconcile_facts(current, deps=seams)
+        decision = hijack_recovery_reconcile(dict(current), dict(facts))
+        if isinstance(decision, Mapping):
+            detail = {
+                **detail,
+                "reconcile_outcome": decision.get("outcome"),
+                "reconcile_code": decision.get("code"),
+                "reconcile_message": decision.get("message"),
+            }
+    except Exception:
+        pass
     return RecoveryResult(
         kind=result.kind,
         hijack_id=result.hijack_id,
@@ -311,14 +395,8 @@ def _reconcile_before_resume(
     Failures fail closed to ``None`` so a broken observer never releases
     custody or duplicates a launch.
     """
-    from sase.agent.hijack.recover_reconcile import (
-        ReconcileDeps,
-        gather_reconcile_facts,
-        reconcile_recovery,
-        repair_settled_projection,
-    )
+    from sase.agent.hijack.recover_reconcile import reconcile_recovery
 
-    _ = (ReconcileDeps, gather_reconcile_facts, repair_settled_projection)
     try:
         outcome = reconcile_recovery(record, deps=seams)
     except Exception:

@@ -365,6 +365,19 @@ def settle_recovery(
             f"Recovery settlement requires a resolving record (state {state!r})",
         )
     _check_predecessor_outcome(current)
+    # Register the pending repair before the settle CAS so a crash between
+    # the ledger move to settled/ and the done.json write is repaired by a
+    # later sweep. Clear it after the done.json write succeeds.
+    if hijack_id:
+        try:
+            from sase.agent.hijack._recover_reconcile_pending import (
+                add_pending_repair,
+                clear_pending_repair,
+            )
+
+            add_pending_repair(hijack_id)
+        except Exception:
+            pass
     advance = advance_fn or _cas_advance
     event: dict[str, Any] = {
         "event": "complete_resolution",
@@ -383,12 +396,24 @@ def settle_recovery(
     if admission_identity:
         event["admission_identity"] = admission_identity
     updated = dict(advance(current, event))
-    (write_done_fn or _write_predecessor_settlement)(
-        updated,
-        action=action,
-        successor_name=successor_name,
-        launch_identity=launch_identity,
-    )
+    try:
+        (write_done_fn or _write_predecessor_settlement)(
+            updated,
+            action=action,
+            successor_name=successor_name,
+            launch_identity=launch_identity,
+        )
+    except Exception:
+        raise
+    if hijack_id:
+        try:
+            from sase.agent.hijack._recover_reconcile_pending import (
+                clear_pending_repair,
+            )
+
+            clear_pending_repair(hijack_id)
+        except Exception:
+            pass
     return updated
 
 

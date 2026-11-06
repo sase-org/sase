@@ -183,16 +183,33 @@ def _adopt_proven_successor(
         }
     add_pending_repair(hijack_id)
     action = clean_string(record.get("resolution_action")) or "continue"
+    artifacts = successor_artifacts_dir(record, deps=deps)
+    successor_pid = record_pid(record.get("successor_pid"))
+    successor_token = clean_string(record.get("successor_process_identity_token"))
+    if successor_pid is None or not successor_token:
+        try:
+            from sase.history.chat_fork.common import load_json_object
+            from pathlib import Path as _Path
+
+            if artifacts:
+                meta = load_json_object(_Path(artifacts) / "agent_meta.json")
+                if isinstance(meta, Mapping) and meta:
+                    observed_pid = record_pid(meta.get("pid"))
+                    observed_token = clean_string(meta.get("process_identity"))
+                    if successor_pid is None and observed_pid is not None:
+                        successor_pid = observed_pid
+                    if not successor_token and observed_token:
+                        successor_token = observed_token
+        except Exception:
+            pass
     try:
         settled = settle_recovery(
             dict(record),
             action=action,
             successor_name=successor,
-            successor_pid=record_pid(record.get("successor_pid")),
-            successor_process_identity_token=clean_string(
-                record.get("successor_process_identity_token")
-            ),
-            successor_artifacts_dir=successor_artifacts_dir(record, deps=deps),
+            successor_pid=successor_pid,
+            successor_process_identity_token=successor_token,
+            successor_artifacts_dir=artifacts,
             inheritance_acknowledged=True,
             launch_identity=clean_string(record.get("launch_identity"))
             or clean_string(decision.get("launch_identity")),
@@ -224,12 +241,24 @@ def _return_to_held(
     hijack_id = clean_string(record.get("hijack_id")) or ""
     message = clean_string(decision.get("message")) or "No successor owns the work"
     fail_to_held(dict(record), message)
+    reloaded = reload_record(hijack_id, record)
+    if clean_string(reloaded.get("state")) != "held":
+        return {
+            "outcome": "retain_with_error",
+            "code": "held_cas_lost",
+            "message": (
+                "Return to held lost its CAS; the record is still "
+                f"{clean_string(reloaded.get('state')) or 'resolving'}"
+            ),
+            "action_taken": "none",
+            "record": reloaded,
+        }
     return {
         "outcome": str(decision.get("outcome") or ""),
         "code": decision.get("code"),
         "message": decision.get("message"),
         "action_taken": "returned_to_held",
-        "record": reload_record(hijack_id, record),
+        "record": reloaded,
     }
 
 

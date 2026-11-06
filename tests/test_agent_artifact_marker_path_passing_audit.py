@@ -531,6 +531,16 @@ _REVIEWED_PATH_PASSING_CONTEXTS: dict[str, PathPassingReview] = {
             "is written."
         ),
     ),
+    "src/sase/agent/hijack/recover_reconcile.py:_adopt_proven_successor": PathPassingReview(
+        lifecycle_coverage=(
+            "Adopts the proven successor: the successor's agent_meta.json "
+            "is read only for pid and process_identity evidence, and the "
+            "predecessor done.json recovery fields are written through "
+            "settle_recovery, which delegates to the reviewed "
+            "_write_predecessor_settlement atomic write plus Tier 1 "
+            "artifact index refresh."
+        ),
+    ),
     "src/sase/history/chat_fork/common.py:fork_source_hijack_status": PathPassingReview(
         exemption=(
             "Read-only transcript framing: done.json is inspected to classify "

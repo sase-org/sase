@@ -19,9 +19,20 @@ def _pending_repairs_path() -> Path:
     return sase_subdir(LEDGER_DIRNAME) / _PENDING_REPAIRS_FILENAME
 
 
+def _pending_lock_path() -> Path:
+    return _pending_repairs_path().with_suffix(".json.lock")
+
+
 def read_pending_repairs() -> list[str]:
     try:
-        payload = json.loads(_pending_repairs_path().read_text(encoding="utf-8"))
+        from sase.notification_gates.durability import file_lock
+
+        path = _pending_repairs_path()
+        try:
+            with file_lock(_pending_lock_path(), timeout=5.0):
+                payload = json.loads(path.read_text(encoding="utf-8"))
+        except Exception:
+            payload = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, ValueError):
         return []
     if not isinstance(payload, list):
@@ -36,23 +47,47 @@ def read_pending_repairs() -> list[str]:
 def add_pending_repair(hijack_id: str) -> None:
     if not hijack_id:
         return
-    pending = read_pending_repairs()
-    if hijack_id not in pending:
-        pending.append(hijack_id)
     try:
-        _pending_repairs_path().parent.mkdir(parents=True, exist_ok=True)
-        _pending_repairs_path().write_text(
-            json.dumps(pending[-_PENDING_REPAIRS_LIMIT:]), encoding="utf-8"
-        )
+        from sase.notification_gates.durability import atomic_write_json, file_lock
+
+        path = _pending_repairs_path()
+        path.parent.mkdir(parents=True, exist_ok=True)
+        with file_lock(_pending_lock_path(), timeout=10.0):
+            try:
+                current = json.loads(path.read_text(encoding="utf-8"))
+            except (OSError, ValueError):
+                current = []
+            pending: list[str] = []
+            if isinstance(current, list):
+                for entry in current:
+                    if isinstance(entry, str) and entry and entry not in pending:
+                        pending.append(entry)
+            if hijack_id not in pending:
+                pending.append(hijack_id)
+            atomic_write_json(path, pending[-_PENDING_REPAIRS_LIMIT:])
     except OSError:
+        LOG.warning("could not track pending recovery repair", exc_info=True)
+    except Exception:
         LOG.warning("could not track pending recovery repair", exc_info=True)
 
 
 def clear_pending_repair(hijack_id: str) -> None:
     if not hijack_id:
         return
-    pending = [entry for entry in read_pending_repairs() if entry != hijack_id]
     try:
-        _pending_repairs_path().write_text(json.dumps(pending), encoding="utf-8")
+        from sase.notification_gates.durability import atomic_write_json, file_lock
+
+        path = _pending_repairs_path()
+        with file_lock(_pending_lock_path(), timeout=10.0):
+            try:
+                current = json.loads(path.read_text(encoding="utf-8"))
+            except (OSError, ValueError):
+                return
+            if not isinstance(current, list):
+                return
+            pending = [entry for entry in current if entry != hijack_id]
+            atomic_write_json(path, pending)
     except OSError:
+        pass
+    except Exception:
         pass

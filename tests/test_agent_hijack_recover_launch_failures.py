@@ -81,7 +81,7 @@ class TestQueuedAndFailedLaunches:
         deps.load_subject = lambda _agent: make_subject(flow.ledger.current)
 
         resumed = flow.recover(deps=deps)
-        assert resumed.kind == "already_resolving"
+        assert resumed.kind == "queued"
         assert resumed.admission_request_id == first.admission_request_id
         assert resumed.detail["admission"]["state"] == "dispatching"
         assert flow.log == ["spawn"]

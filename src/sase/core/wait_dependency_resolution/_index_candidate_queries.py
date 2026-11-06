@@ -441,6 +441,37 @@ class WaitDependencyCandidateQueries(
             return None
         return final
 
+    def _hijack_parked_for_name(self, name: str) -> bool:
+        """Return whether *name* is a parked hijack predecessor.
+
+        Pending and expired hijacks stay parked whether or not a successor
+        name was recorded. Only a ``resolved`` recovery follows its
+        successor.
+        """
+        named = self.named.get(name)
+        if named is not None:
+            if named.hijack_successor or named.hijack_recovery_state is not None:
+                if hijack_follow_is_parked(named.hijack_recovery_state):
+                    return True
+                if named.hijack_recovery_state in {"pending", "expired"}:
+                    return True
+                return False
+        newest: ArtifactCandidate | None = None
+        for candidate in self.artifacts_by_dir.values():
+            if candidate.name != name:
+                continue
+            if candidate.hijack_successor is None and (
+                candidate.hijack_recovery_state is None
+            ):
+                continue
+            if newest is None or candidate.timestamp > newest.timestamp:
+                newest = candidate
+        if newest is None:
+            return False
+        if hijack_follow_is_parked(newest.hijack_recovery_state):
+            return True
+        return newest.hijack_recovery_state in {"pending", "expired"}
+
     def _resolved_hijack_successor_for_name(self, name: str) -> str | None:
         """Return the resolved recovery successor for *name*, if followed."""
         named = self.named.get(name)
@@ -452,17 +483,22 @@ class WaitDependencyCandidateQueries(
             ):
                 return None
             return None
+        newest: ArtifactCandidate | None = None
         for candidate in self.artifacts_by_dir.values():
             if candidate.name != name:
                 continue
-            if candidate.hijack_recovery_state == "resolved":
-                if candidate.hijack_successor:
-                    return candidate.hijack_successor
-                return None
-            if candidate.hijack_successor and hijack_follow_is_parked(
-                candidate.hijack_recovery_state
-            ):
-                return None
+            if newest is None or candidate.timestamp > newest.timestamp:
+                newest = candidate
+        if newest is None:
+            return None
+        if newest.hijack_recovery_state == "resolved":
+            if newest.hijack_successor:
+                return newest.hijack_successor
+            return None
+        if newest.hijack_successor and hijack_follow_is_parked(
+            newest.hijack_recovery_state
+        ):
+            return None
         return None
 
     def hood_status(
@@ -496,6 +532,10 @@ class WaitDependencyCandidateQueries(
         if name.startswith("@"):
             return ()
 
+        # Pending and expired hijacks stay parked: they are neither resolved
+        # nor failed, even when no successor name was recorded.
+        if self._hijack_parked_for_name(name):
+            return ()
         followed = self._follow_hijack_successor(name)
         if followed is None:
             return ()

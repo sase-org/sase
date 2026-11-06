@@ -325,3 +325,71 @@ def test_cli_recovery_keeps_fake_provider_work_in_both_repositories(
     assert done["recovery"]["state"] == "resolved"
     assert done["recovery"]["action"] in {"continue", "escalate", "instruct"}
     assert done["recovery"]["model_changed"] is changed
+
+
+def test_settlement_cli_escalate_without_model_uses_preview_target(
+    capsys: Any,
+) -> None:
+    calls: dict[str, Any] = {}
+
+    def recover(name: str, **kwargs: Any) -> RecoveryResult:
+        calls.update(kwargs)
+        return RecoveryResult(
+            kind="queued",
+            hijack_id="h-123",
+            revision=8,
+            action="escalate",
+            successor="acme--4",
+            concrete_target="claude/opus@xhigh",
+            model_changed=True,
+            message="queued acme--4",
+        )
+
+    code = handle_agents_recover(
+        _args(action="escalate", json=True),
+        preview_fn=lambda _name: _preview(),
+        recover_fn=recover,
+    )
+
+    payload = json.loads(capsys.readouterr().out)
+    assert code == 0
+    assert calls["model"] is None
+    assert calls["expected_hijack_id"] == "h-123"
+    assert payload["result"]["kind"] == "queued"
+    assert payload["target"] == "claude/opus@xhigh"
+
+
+def test_settlement_cli_queued_and_resume_kinds_exit_zero(capsys: Any) -> None:
+    from sase.agents.cli_recover import recovery_exit_code
+
+    for kind in ("queued", "launched", "already_resolved"):
+        result = RecoveryResult(kind=kind, hijack_id="h-123", revision=8)
+        assert recovery_exit_code(result) == 0
+    refused = RecoveryResult(kind="refused", hijack_id="h-123", revision=8)
+    assert recovery_exit_code(refused) == 2
+
+    def recover_queued(name: str, **kwargs: Any) -> RecoveryResult:
+        return RecoveryResult(
+            kind="queued",
+            hijack_id="h-123",
+            revision=8,
+            action="escalate",
+            successor="acme--4",
+            message="still queued",
+        )
+
+    code = handle_agents_recover(
+        _args(action="escalate", json=True),
+        preview_fn=lambda _name: _preview(),
+        recover_fn=recover_queued,
+    )
+    payload = json.loads(capsys.readouterr().out)
+    assert code == 0
+    assert payload["result"]["kind"] == "queued"
+
+    # persist-recover shares the executor and exit mapping, so JSON agrees.
+    from sase.ops.commands._agent_persist_recover import _result_payload
+
+    queued = RecoveryResult(kind="queued", hijack_id="h-123", revision=8)
+    assert recovery_exit_code(queued) == 0
+    assert _result_payload("escalate", queued)["status"] == "queued"
