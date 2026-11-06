@@ -10,6 +10,9 @@ from sase.agents_sync.io import AgentsSyncFormatError
 from sase.agents_sync.targets import resolve_sync_targets
 from sase.agents_sync.v2_io import owner_manifest_path, read_owner_manifest
 from sase.agents_sync.v2_models import V2ProjectIdentity
+from sase.agents_sync.publication_diverged_replay import (
+    read_diverged_replay_marker,
+)
 from sase.config import require_agent_owner_identity
 from sase.core.project_lifecycle_wire import (
     ProjectRecordWire,
@@ -66,9 +69,20 @@ def _sidecar_state(
         "project": project,
         "sidecar_path": str(sidecar_path),
     }
+    diverged_marker = read_diverged_replay_marker(project_key)
+    marker_state = {
+        "diverged_replay": diverged_marker is not None,
+        "diverged_replay_head": diverged_marker.head if diverged_marker else None,
+        "diverged_replay_upstream": (
+            diverged_marker.upstream if diverged_marker else None
+        ),
+        "diverged_replay_paths": (
+            list(diverged_marker.paths) if diverged_marker else []
+        ),
+    }
     try:
         if not (sidecar_path / ".git").exists():
-            return {**base, "status": "missing"}
+            return {**base, **marker_state, "status": "missing"}
         git_dir_result = _sidecar_git(
             sidecar_path, ["rev-parse", "--git-dir"], timeout=10.0
         )
@@ -88,9 +102,15 @@ def _sidecar_state(
             sidecar_path, ("artifacts",), untracked_only=False
         )
     except Exception as exc:  # noqa: BLE001 - doctor never fails on sidecar state.
-        return {**base, "status": "unavailable", "error": str(exc)[:200]}
+        return {
+            **base,
+            **marker_state,
+            "status": "unavailable",
+            "error": str(exc)[:200],
+        }
     return {
         **base,
+        **marker_state,
         "status": "ok",
         "ahead": ahead,
         "behind": behind,

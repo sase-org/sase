@@ -20,6 +20,10 @@ from sase.agents_sync._commit_publication_transaction_types import (
     PublicationTransactionHooks,
     REPOSITORY_FAILURE_SCOPE,
 )
+from sase.agents_sync.publication_diverged_replay import (
+    PUBLICATION_REBASE_FAILURE_STAGE,
+    pull_agents_rebase_with_recovery,
+)
 from sase.core.agent_identity_facade import AgentIdentitySnapshot, AgentOwnerIdentity
 
 
@@ -39,6 +43,7 @@ def retry_rejected_publication(
     inventory: ProjectHoodInventory,
     prepared: tuple[AgentPublicationOutboxItem, ...],
     committed: bool,
+    commit_parent: str,
     pushed: subprocess.CompletedProcess[str],
     item_errors: tuple[str, ...],
     *,
@@ -87,6 +92,17 @@ def retry_rejected_publication(
             )
         else:
             push_message = git_sync.agents_git_error("git push failed", pushed)
+        if committed:
+            drop_error = _drop_unacknowledged_pass_commit(
+                target,
+                git_runner,
+                commit_parent,
+                op_prefix="agents_sync.commit_publish_drop_failed_push",
+            )
+            if drop_error is not None:
+                push_message = f"{push_message}; {drop_error}"
+        if timer is not None and (not committed or drop_error is None):
+            timer.pass_commit_parent = None
         return DrainResult(
             item_errors=item_errors,
             error=push_message,
@@ -98,21 +114,22 @@ def retry_rejected_publication(
         already_reset = False
 
     if committed and not already_reset:
-        dropped = git_runner(
-            target.sidecar_path,
-            ["reset", "--hard", "HEAD^"],
-            op="agents_sync.commit_publish_retry_drop",
+        drop_error = _drop_unacknowledged_pass_commit(
+            target,
+            git_runner,
+            commit_parent,
+            op_prefix="agents_sync.commit_publish_retry_drop",
         )
-        if dropped.returncode != 0:
+        if drop_error is not None:
             return DrainResult(
                 item_errors=item_errors,
-                error=git_sync.agents_git_error(
-                    "could not prepare rejected publication for retry", dropped
-                ),
+                error=f"could not prepare rejected publication for retry: {drop_error}",
                 error_keys=prepared_keys,
                 failure_scope=REPOSITORY_FAILURE_SCOPE,
                 failure_stage="push",
             )
+    if timer is not None:
+        timer.pass_commit_parent = None
     cleanup_error = git_sync.clean_publication_worktree(
         target.sidecar_path,
         git_runner,
@@ -125,11 +142,19 @@ def retry_rejected_publication(
             failure_scope=REPOSITORY_FAILURE_SCOPE,
             failure_stage="cleanup",
         )
-    repulled = git_sync.pull_agents_rebase(
-        target.sidecar_path, git_runner, "agents_sync.commit_publish_retry_pull"
+    pull_result = pull_agents_rebase_with_recovery(
+        target.sidecar_path,
+        git_runner,
+        "agents_sync.commit_publish_retry_pull",
+        project_key=target.project_key,
     )
+    repulled = pull_result.process
     if repulled.returncode != 0:
-        cleanup = git_sync.abort_agents_rebase(target.sidecar_path, git_runner)
+        cleanup = (
+            None
+            if pull_result.failure_stage == PUBLICATION_REBASE_FAILURE_STAGE
+            else git_sync.abort_agents_rebase(target.sidecar_path, git_runner)
+        )
         return DrainResult(
             item_errors=item_errors,
             error=git_sync.agents_git_error(
@@ -137,7 +162,7 @@ def retry_rejected_publication(
             ),
             error_keys=prepared_keys,
             failure_scope=REPOSITORY_FAILURE_SCOPE,
-            failure_stage="pull_rebase",
+            failure_stage=pull_result.failure_stage or "pull_rebase",
         )
     # Upstream may have changed: rebuild shared indexes from fresh upstream
     # plus the local selected snapshots instead of reusing stale validation.
@@ -172,6 +197,23 @@ def retry_rejected_publication(
     retry_keys = tuple(item.logical_key for item in retry_prepared)
     if not retry_prepared:
         return DrainResult(item_errors=all_item_errors)
+    retry_parent = git_runner(
+        target.sidecar_path,
+        ["rev-parse", "HEAD"],
+        op="agents_sync.commit_publish_retry_parent",
+    )
+    if retry_parent.returncode != 0 or not retry_parent.stdout.strip():
+        return DrainResult(
+            item_errors=all_item_errors,
+            error=git_sync.agents_git_error(
+                "could not identify retry publication commit parent", retry_parent
+            ),
+            error_keys=retry_keys,
+            failure_scope=REPOSITORY_FAILURE_SCOPE,
+            failure_stage="retry_commit",
+        )
+    if timer is not None:
+        timer.pass_commit_parent = retry_parent.stdout.strip()
     if timer is not None:
         with timer.record_stage("retry_commit"):
             retry_commit = git_sync.commit_agents_payload_if_dirty(
@@ -197,6 +239,7 @@ def retry_rejected_publication(
             failure_scope=REPOSITORY_FAILURE_SCOPE,
             failure_stage="retry_commit",
         )
+    retry_committed = retry_commit
     if timer is not None:
         with timer.record_stage("retry_push"):
             retry_push = git_runner(
@@ -232,6 +275,7 @@ def retry_rejected_publication(
             stderr=retry_push.stderr or "",
             affected_requests=_affected_request_identities(retry_keys),
         )
+        retry_drop_error: str | None = None
         if second.rejection.classification in (
             REJECTED_SECRET_SCAN,
             REJECTED_REPOSITORY_RULE,
@@ -252,6 +296,17 @@ def retry_rejected_publication(
             retry_message = git_sync.agents_git_error(
                 "git push retry failed", retry_push
             )
+            if retry_committed:
+                retry_drop_error = _drop_unacknowledged_pass_commit(
+                    target,
+                    git_runner,
+                    retry_parent.stdout.strip(),
+                    op_prefix="agents_sync.commit_publish_retry_drop_failed_push",
+                )
+                if retry_drop_error is not None:
+                    retry_message = f"{retry_message}; {retry_drop_error}"
+        if timer is not None and (not retry_committed or retry_drop_error is None):
+            timer.pass_commit_parent = None
         return DrainResult(
             item_errors=all_item_errors,
             error=retry_message,
@@ -259,6 +314,8 @@ def retry_rejected_publication(
             failure_scope=REPOSITORY_FAILURE_SCOPE,
             failure_stage="retry_push",
         )
+    if timer is not None:
+        timer.pass_commit_parent = None
     acked_retry_keys, gate_errors, parked_keys, newly_parked_keys, newly_details = (
         acknowledge_completed(
             target,
@@ -287,3 +344,23 @@ def retry_rejected_publication(
         parked_keys=parked_keys,
         newly_parked_keys=newly_parked_keys,
     )
+
+
+def _drop_unacknowledged_pass_commit(
+    target: ProjectTarget,
+    git_runner: GitRunner,
+    expected_parent: str,
+    *,
+    op_prefix: str,
+) -> str | None:
+    from sase.agents_sync import git_sync
+
+    error = git_sync.drop_unacknowledged_agents_commit(
+        target.sidecar_path,
+        expected_parent,
+        git_runner,
+        op_prefix=op_prefix,
+    )
+    if error is not None:
+        return error
+    return git_sync.clean_publication_worktree(target.sidecar_path, git_runner)

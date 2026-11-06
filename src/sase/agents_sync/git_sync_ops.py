@@ -22,6 +22,7 @@ from sase.agents_sync._git_sync_ops_payload import (
     AGENTS_SYNC_AUTO_COMMIT_TYPE,
     clean_agents_payload_worktree,
     commit_agents_payload_if_dirty,
+    drop_unacknowledged_agents_commit,
 )
 
 __all__ = [
@@ -35,6 +36,7 @@ __all__ = [
     "clean_agents_payload_worktree",
     "coerce_owner",
     "commit_agents_payload_if_dirty",
+    "drop_unacknowledged_agents_commit",
     "configured_agents_lock_timeout",
     "ensure_agents_clone",
     "is_agents_non_fast_forward",

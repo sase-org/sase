@@ -51,6 +51,9 @@ class DrainTiming:
     alarm_stage: str | None = None
     alarm_keys: tuple[tuple[str, str], ...] | None = None
     active_keys: tuple[tuple[str, str], ...] = ()
+    # Captured before the publication payload commit. Exception cleanup uses
+    # it to remove only a commit created by this unacknowledged pass.
+    pass_commit_parent: str | None = None
     lock_wait_seconds: float = 0.0
     git_op_counts: dict[str, int] = field(default_factory=dict)
     runs_scanned: int = 0

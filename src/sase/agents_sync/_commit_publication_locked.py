@@ -168,6 +168,14 @@ def publish_queued_locked(
                 if timer is not None
                 else cleanup_base
             )
+            drop_error = None
+            if timer is not None and timer.pass_commit_parent is not None:
+                drop_error = git_sync.drop_unacknowledged_agents_commit(
+                    target.sidecar_path,
+                    timer.pass_commit_parent,
+                    cleanup_runner,
+                    op_prefix="agents_sync.interrupted_pass_drop",
+                )
             if timer is not None:
                 with timer.record_stage("cleanup"):
                     with bounded_cleanup_alarm(budget):
@@ -183,6 +191,12 @@ def publish_queued_locked(
                         cleanup_runner,
                         remaining_timeout=budget.remaining_timeout,
                     )
+            if drop_error is not None:
+                cleanup_error = (
+                    f"could not drop interrupted publication commit: {drop_error}"
+                    if cleanup_error is None
+                    else f"{cleanup_error}; could not drop interrupted publication commit: {drop_error}"
+                )
         except PublicationCleanupTimedOut as cleanup_exc:
             cleanup_error = str(cleanup_exc) or type(cleanup_exc).__name__
         except BaseException as cleanup_exc:
@@ -193,6 +207,20 @@ def publish_queued_locked(
             exc.add_note(f"publication cleanup also failed: {cleanup_error}")
         raise
     else:
+        drop_error = None
+        if (
+            result.error is not None
+            and timer is not None
+            and timer.pass_commit_parent is not None
+        ):
+            drop_error = git_sync.drop_unacknowledged_agents_commit(
+                target.sidecar_path,
+                timer.pass_commit_parent,
+                runner,
+                op_prefix="agents_sync.failed_pass_drop_retry",
+            )
+            if drop_error is None:
+                timer.pass_commit_parent = None
         if timer is not None:
             with timer.record_stage("cleanup"):
                 cleanup_error = git_sync.clean_publication_worktree(
@@ -201,6 +229,12 @@ def publish_queued_locked(
         else:
             cleanup_error = git_sync.clean_publication_worktree(
                 target.sidecar_path, runner
+            )
+        if drop_error is not None:
+            cleanup_error = (
+                f"could not drop failed publication commit: {drop_error}"
+                if cleanup_error is None
+                else f"{cleanup_error}; could not drop failed publication commit: {drop_error}"
             )
     if cleanup_error is None:
         return result

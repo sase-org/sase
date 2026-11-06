@@ -212,6 +212,19 @@ def check_agent_publication_outbox(
         stale_requested_revision_count=len(stale_lines),
         stale_requested_revisions=stale_lines,
     )
+    diverged_replays = tuple(
+        state
+        for state in data.get("sidecar_states", ())
+        if state.get("diverged_replay")
+    )
+    diverged_lines = tuple(
+        (
+            f"{state['project']}: unpublished commit {state['diverged_replay_head']} "
+            "is parked after conflicts in "
+            f"{', '.join(state['diverged_replay_paths']) or '(unknown paths)'}"
+        )
+        for state in diverged_replays
+    )
     if errors:
         visible_errors = errors[:_MAX_DETAIL_ROWS]
         return DiagnosticCheck(
@@ -230,7 +243,13 @@ def check_agent_publication_outbox(
             },
         )
 
-    if problems or manifest_problems or migration_notices or stale_lines:
+    if (
+        problems
+        or manifest_problems
+        or migration_notices
+        or stale_lines
+        or diverged_replays
+    ):
         visible_problems = problems[:_MAX_DETAIL_ROWS]
         remaining_detail_rows = _MAX_DETAIL_ROWS - len(visible_problems)
         visible_manifest_problems = manifest_problems[:remaining_detail_rows]
@@ -238,6 +257,8 @@ def check_agent_publication_outbox(
         visible_notices = tuple(migration_notices[:remaining_detail_rows])
         remaining_detail_rows -= len(visible_notices)
         visible_stale = tuple(stale_lines[:remaining_detail_rows])
+        remaining_detail_rows -= len(visible_stale)
+        visible_diverged = tuple(diverged_lines[:remaining_detail_rows])
         quarantined_count = sum(problem.quarantined for problem in problems)
         retired_count = sum(problem.retired for problem in problems)
         stalled_count = sum(problem.stalled for problem in problems)
@@ -262,6 +283,11 @@ def check_agent_publication_outbox(
                 if stale_lines
                 else ()
             ),
+            *(
+                (f"{len(diverged_replays)} parked diverged replay(s)",)
+                if diverged_replays
+                else ()
+            ),
         ]
         breakdown = ", ".join(breakdown_parts) or "needs attention"
         commands = tuple(
@@ -279,12 +305,22 @@ def check_agent_publication_outbox(
                 f"Run `{command}` to review {purpose}; apply only after checking its report."
                 for command, purpose in stale_commands
             ),
+            *(
+                (
+                    "Review 'Stale-replay recovery' in "
+                    "docs/contribute/agents-sidecar-sync.md, then run the report "
+                    "command shown in the notification for each parked project.",
+                )
+                if diverged_replays
+                else ()
+            ),
         )
         attention_count = (
             len(problems)
             + len(manifest_problems)
             + len(migration_notices)
             + len(stale_lines)
+            + len(diverged_replays)
         )
         remediation = (
             "; run " + " and ".join(f"`{command}`" for command in sorted(commands))
@@ -305,6 +341,7 @@ def check_agent_publication_outbox(
                 *(problem.detail() for problem in visible_manifest_problems),
                 *visible_notices,
                 *visible_stale,
+                *visible_diverged,
             ),
             next_steps=next_steps,
             data={
@@ -314,6 +351,7 @@ def check_agent_publication_outbox(
                     or len(manifest_problems) > len(visible_manifest_problems)
                     or len(migration_notices) > len(visible_notices)
                     or len(stale_lines) > len(visible_stale)
+                    or len(diverged_lines) > len(visible_diverged)
                 ),
             },
         )

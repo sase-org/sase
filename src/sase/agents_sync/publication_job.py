@@ -24,6 +24,11 @@ from sase.agents_sync.publication_doorbell import (
     ring_publication_doorbell,
     write_publication_heartbeat,
 )
+from sase.agents_sync.publication_diverged_replay import (
+    PUBLICATION_REBASE_FAILURE_STAGE,
+    active_diverged_replay_marker,
+    read_diverged_replay_marker,
+)
 from sase.agents_sync.publication_outbox import AgentPublicationOutboxItem
 from sase.agents_sync.publication_outbox_models import publication_sort_key
 from sase.agents_sync.referenced_by_outbox import list_referenced_by_requests
@@ -149,7 +154,8 @@ def _run_publication_job(
                     "oldest_parked_age_seconds": _oldest_parked_age(deferred_parked),
                     "last_outcome": "deferred_budget",
                 }
-                _safe_ring(deferred_key)
+                if read_diverged_replay_marker(deferred_key) is None:
+                    _safe_ring(deferred_key)
             break
         target = targets.get(project_key)
         if target is None:
@@ -157,7 +163,8 @@ def _run_publication_job(
             summary.diagnostics.append(
                 f"{project_key}: no usable agents publication target"
             )
-            _safe_ring(project_key)
+            if read_diverged_replay_marker(project_key) is None:
+                _safe_ring(project_key)
             missing_active = _safe_active_items(project_key)
             missing_parked = _parked_items(missing_active)
             missing_parked_count = len(missing_parked)
@@ -183,7 +190,8 @@ def _run_publication_job(
                 outcome="error",
             )
             summary.diagnostics.append(f"{project_key}: {result.error}")
-            _safe_ring(project_key)
+            if read_diverged_replay_marker(project_key) is None:
+                _safe_ring(project_key)
         summary.hood_drained += result.hood_drained
         summary.link_drained += result.link_drained
         summary.referenced_by_drained += result.referenced_by_drained
@@ -207,7 +215,7 @@ def _run_publication_job(
             or result.deferred
             or result.retained_hints
             or result.claim_unfinished
-        ):
+        ) and not result.outcome.startswith("diverged_replay"):
             _safe_ring(project_key)
         summary.project_stats[project_key] = {
             "active_count": active_count,
@@ -258,6 +266,13 @@ def _drain_project(
     from sase.agents_sync.referenced_by_publication import drain_referenced_by_requests
 
     project_key = target.project_key
+    parked_marker = active_diverged_replay_marker(
+        project_key,
+        target.sidecar_path,
+        git_runner,
+    )
+    if parked_marker is not None:
+        return _ProjectPass(deferred=True, outcome="diverged_replay_parked")
     claim = claim_publication_hints(project_key)
     result = _ProjectPass()
     try:
@@ -291,6 +306,11 @@ def _drain_project(
                 git_runner=git_runner,
             )
             result.hood_drained += outcome.drained
+            if outcome.failure_stage == PUBLICATION_REBASE_FAILURE_STAGE:
+                result.deferred = True
+                result.outcome = "diverged_replay"
+                stop_for_repository_failure = True
+                break
             diagnostic = outcome.error or outcome.skip_reason
             if _is_lock_busy(outcome):
                 result.lock_busy = True
@@ -324,6 +344,10 @@ def _drain_project(
             result.retained_hints.extend(
                 _claim_hints_for_work(claim, hood_keys=unattempted)
             )
+
+        if result.outcome == "diverged_replay":
+            finish_hint_claim(claim, retain=result.retained_hints)
+            return result
 
         link_agents = _hinted_link_agents(claim)
         if link_agents and time.monotonic() < deadline:

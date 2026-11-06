@@ -20,6 +20,7 @@ from sase.agents_sync.git_sync_ops import (
     coerce_owner as _coerce_owner,
     commit_agents_payload_if_dirty,
     configured_agents_lock_timeout,
+    drop_unacknowledged_agents_commit,
     ensure_agents_clone,
     is_agents_non_fast_forward,
     pull_agents_rebase,

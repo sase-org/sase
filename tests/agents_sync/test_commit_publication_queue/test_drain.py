@@ -15,10 +15,12 @@ from sase.agents_sync.commit_publication_transaction import DrainResult
 from sase.agents_sync.git import run_git
 from sase.agents_sync.inventory import ProjectHoodInventory
 from sase.agents_sync.models import ProjectTarget
+from sase.agents_sync import publication_diverged_replay
 from sase.agents_sync.publication_outbox import (
     AgentPublicationOutboxItem,
     enqueue_agent_publication,
 )
+from sase.agents_sync.publication_timing import DrainTiming
 from sase.agents_sync.v2_io import (
     apply_payload_atomic,
     owner_manifest_path,
@@ -141,6 +143,105 @@ def test_failed_targeted_publish_cleans_uncommitted_payload(
     assert git(target.sidecar_path, "status", "--short").stdout == ""
 
 
+def _enqueue_unacknowledged_request() -> AgentPublicationOutboxItem:
+    return enqueue_agent_publication(
+        AgentPublicationOutboxItem(
+            project_key="proj",
+            project="Project",
+            local_agent="foo",
+            global_agent="alice.athena.foo",
+            primary_revision="a" * 40,
+            local_hood="foo",
+        )
+    )
+
+
+def _make_pass_commit(target: ProjectTarget, timer: DrainTiming | None) -> bytes:
+    parent = git(target.sidecar_path, "rev-parse", "HEAD").stdout.strip()
+    if timer is not None:
+        timer.pass_commit_parent = parent
+    object_path = (
+        target.sidecar_path / "files" / "objects" / "sha256" / "aa" / "saved.bin"
+    )
+    object_path.parent.mkdir(parents=True, exist_ok=True)
+    object_path.write_bytes(b"preserve this object\n")
+    (target.sidecar_path / "README.md").write_text("# Generated index\n")
+    git(target.sidecar_path, "add", "README.md")
+    git(target.sidecar_path, "commit", "-m", "publication pass")
+    return object_path.read_bytes()
+
+
+def test_failed_push_drops_only_the_pass_commit_and_preserves_objects(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("SASE_HOME", str(tmp_path / "state"))
+    target, _remote = setup_target(tmp_path)
+    item = _enqueue_unacknowledged_request()
+    timer = DrainTiming(project_key="proj")
+
+    def failed_pass(_target, _owner, _runner, _requests, *, timer, **_kwargs):
+        _make_pass_commit(target, timer)
+        return DrainResult(
+            error="git push failed: network unavailable",
+            error_keys=(item.logical_key,),
+            failure_scope="repository",
+            failure_stage="push",
+        )
+
+    monkeypatch.setattr(publication_locked, "publish_queued_transaction", failed_pass)
+    result = publication_locked.publish_queued_locked(
+        target,
+        AgentOwnerIdentity("alice", "athena"),
+        run_git,
+        timer=timer,
+        selected_keys=(item.logical_key,),
+    )
+
+    assert result.error == "git push failed: network unavailable"
+    assert (
+        git(target.sidecar_path, "rev-list", "--count", "@{upstream}..HEAD").stdout
+        == "0\n"
+    )
+    assert (target.sidecar_path / "files/objects/sha256/aa/saved.bin").read_bytes() == (
+        b"preserve this object\n"
+    )
+
+
+def test_interrupted_pass_drops_its_commit_before_cleanup(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("SASE_HOME", str(tmp_path / "state"))
+    target, _remote = setup_target(tmp_path)
+    item = _enqueue_unacknowledged_request()
+    timer = DrainTiming(project_key="proj")
+
+    def interrupted_pass(_target, _owner, _runner, _requests, *, timer, **_kwargs):
+        _make_pass_commit(target, timer)
+        raise RuntimeError("publication timed out after commit")
+
+    monkeypatch.setattr(
+        publication_locked, "publish_queued_transaction", interrupted_pass
+    )
+    with pytest.raises(RuntimeError, match="publication timed out"):
+        publication_locked.publish_queued_locked(
+            target,
+            AgentOwnerIdentity("alice", "athena"),
+            run_git,
+            timer=timer,
+            selected_keys=(item.logical_key,),
+        )
+
+    assert (
+        git(target.sidecar_path, "rev-list", "--count", "@{upstream}..HEAD").stdout
+        == "0\n"
+    )
+    assert (target.sidecar_path / "files/objects/sha256/aa/saved.bin").read_bytes() == (
+        b"preserve this object\n"
+    )
+
+
 def test_large_backlog_builds_one_inventory_and_publishes_each_hood_once(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -249,7 +350,7 @@ def test_large_backlog_builds_one_inventory_and_publishes_each_hood_once(
 
     monkeypatch.setattr(git_sync, "clean_publication_worktree", clean)
     monkeypatch.setattr(
-        git_sync,
+        publication_diverged_replay,
         "pull_agents_rebase",
         pull,
     )

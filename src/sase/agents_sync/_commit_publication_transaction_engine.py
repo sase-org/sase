@@ -22,6 +22,10 @@ from sase.agents_sync._commit_publication_transaction_types import (
     PublicationTransactionHooks,
     REPOSITORY_FAILURE_SCOPE,
 )
+from sase.agents_sync.publication_diverged_replay import (
+    PUBLICATION_REBASE_FAILURE_STAGE,
+    pull_agents_rebase_with_recovery,
+)
 from sase.core.agent_identity_facade import AgentIdentitySnapshot, AgentOwnerIdentity
 
 
@@ -61,22 +65,33 @@ def publish_queued_transaction(
     logical_keys = tuple(item.logical_key for item in requests)
     if timer is not None:
         with timer.record_stage("pull_rebase"):
-            pulled = git_sync.pull_agents_rebase(
-                target.sidecar_path, git_runner, "agents_sync.commit_publish_pull"
+            pull_result = pull_agents_rebase_with_recovery(
+                target.sidecar_path,
+                git_runner,
+                "agents_sync.commit_publish_pull",
+                project_key=target.project_key,
             )
     else:
-        pulled = git_sync.pull_agents_rebase(
-            target.sidecar_path, git_runner, "agents_sync.commit_publish_pull"
+        pull_result = pull_agents_rebase_with_recovery(
+            target.sidecar_path,
+            git_runner,
+            "agents_sync.commit_publish_pull",
+            project_key=target.project_key,
         )
+    pulled = pull_result.process
     if pulled.returncode != 0:
-        cleanup = git_sync.abort_agents_rebase(target.sidecar_path, git_runner)
+        cleanup = (
+            None
+            if pull_result.failure_stage == PUBLICATION_REBASE_FAILURE_STAGE
+            else git_sync.abort_agents_rebase(target.sidecar_path, git_runner)
+        )
         return DrainResult(
             error=git_sync.agents_git_error(
                 "git pull --rebase failed", pulled, cleanup
             ),
             error_keys=logical_keys,
             failure_scope=REPOSITORY_FAILURE_SCOPE,
-            failure_stage="pull_rebase",
+            failure_stage=pull_result.failure_stage or "pull_rebase",
         )
 
     identity = AgentIdentitySnapshot(owner)
@@ -97,6 +112,22 @@ def publish_queued_transaction(
                 git_runner=git_runner,
                 requested_hoods=requested_hoods,
             )
+    commit_parent = git_runner(
+        target.sidecar_path,
+        ["rev-parse", "HEAD"],
+        op="agents_sync.commit_publish_parent",
+    )
+    if commit_parent.returncode != 0 or not commit_parent.stdout.strip():
+        return DrainResult(
+            error=git_sync.agents_git_error(
+                "could not identify publication commit parent", commit_parent
+            ),
+            error_keys=logical_keys,
+            failure_scope=REPOSITORY_FAILURE_SCOPE,
+            failure_stage="commit",
+        )
+    if timer is not None:
+        timer.pass_commit_parent = commit_parent.stdout.strip()
     if timer is not None:
         _record_inventory_counters(timer, inventory)
 
@@ -196,6 +227,8 @@ def publish_queued_transaction(
             op="agents_sync.commit_publish_push",
         )
     if pushed.returncode == 0:
+        if timer is not None:
+            timer.pass_commit_parent = None
         acked_keys, gate_errors, parked_keys, newly_parked_keys, newly_details = (
             acknowledge_completed(
                 target,
@@ -228,6 +261,7 @@ def publish_queued_transaction(
         inventory,
         prepared,
         committed,
+        commit_parent.stdout.strip(),
         pushed,
         item_errors,
         hooks=hooks,

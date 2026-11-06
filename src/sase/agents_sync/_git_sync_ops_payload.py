@@ -108,6 +108,41 @@ def commit_agents_payload_if_dirty(
     return True
 
 
+def drop_unacknowledged_agents_commit(
+    repo: Path,
+    expected_parent: str,
+    git_runner: GitRunner,
+    *,
+    op_prefix: str = "agents_sync.drop_unacknowledged_commit",
+) -> str | None:
+    """Drop exactly one pass-created commit while leaving its files in the tree.
+
+    The caller then runs normal publication cleanup, which removes regenerated
+    index pages and prompt archives. Files under ``files/objects`` are outside
+    that cleanup and remain available for the next publication pass.
+    """
+
+    head = git_runner(repo, ["rev-parse", "HEAD"], op=f"{op_prefix}.head")
+    if head.returncode != 0 or not head.stdout.strip():
+        return agents_git_error("could not inspect unacknowledged commit", head)
+    current_head = head.stdout.strip()
+    if current_head == expected_parent:
+        return None
+    parent = git_runner(repo, ["rev-parse", "HEAD^"], op=f"{op_prefix}.parent")
+    if parent.returncode != 0 or parent.stdout.strip() != expected_parent:
+        return "refused to drop a commit that is not directly above this pass's parent"
+    reset = git_runner(
+        repo,
+        ["reset", "--mixed", expected_parent],
+        op=f"{op_prefix}.reset",
+    )
+    if reset.returncode != 0:
+        return agents_git_error(
+            "could not drop unacknowledged publication commit", reset
+        )
+    return None
+
+
 def _candidate_rejection_blocked(
     lookup: object,
     scope: PublicationProtectionScope | None,

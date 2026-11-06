@@ -511,9 +511,6 @@ _lint-patch-stitch-terminology: _setup
 # sase-1r5.1.3 consumed CredentialRetry in the SDD store clone and sase-1r5.1.4
 # consumed CredentialRetryBudget in network git and the lease fetch, so the rows
 # sase-1r5.1.2 added for the adopters are dropped.
-# sase-1rg.1 (pub-policy) exported the publication rebase-conflict decision;
-# sase-1rg.2 (pub-heal) consumes it in the publication job's shared rebase
-# helper. Drop the row once that phase lands its real consumer.
 # sase-1rd.2 exported the ACE-run trash facade, review snapshots, and the review
 # payload; sase-1rd.3 (preview notification) consumes the snapshot writer, the
 # payload encoder, and the snapshot dir through the chop, and sase-1rd.4
@@ -543,7 +540,6 @@ _lint-symvision *args: _setup
         --epic-symbol "sase-1rd.4(RunPruneReviewCounts)" \
         --epic-symbol "sase-1rd.4(RunPruneProjectAggregate)" \
         --epic-symbol "sase-1rd.4(RunPruneSnapshotItem)" \
-        --epic-symbol "sase-1rg.2(decide_publication_rebase_conflict)" \
         {{ args }}
 
 # Check Python file line counts (private, extracted for per-stage wrapping)

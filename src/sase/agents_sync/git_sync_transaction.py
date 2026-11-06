@@ -16,12 +16,15 @@ from sase.agents_sync.git_sync_ops import (
     clean_agents_payload_worktree,
     commit_agents_payload_if_dirty,
     is_agents_non_fast_forward,
-    pull_agents_rebase,
 )
 from sase.agents_sync.models import (
     ExportCounts,
     ProjectTarget,
     SyncOutcome,
+)
+from sase.agents_sync.publication_diverged_replay import (
+    PUBLICATION_REBASE_FAILURE_STAGE,
+    pull_agents_rebase_with_recovery,
 )
 from sase.agents_sync.prompt_archive.git_ops import (
     PUBLISHED_ARCHIVE_PATHS,
@@ -138,9 +141,19 @@ def _sync_project_transaction(
     )
     if isinstance(pending_error, str):
         return _error(target, pending_error)
-    pulled = pull_agents_rebase(repo, git_runner, "agents_sync.pull")
+    pull_result = pull_agents_rebase_with_recovery(
+        repo,
+        git_runner,
+        "agents_sync.pull",
+        project_key=target.project_key,
+    )
+    pulled = pull_result.process
     if pulled.returncode != 0:
-        cleanup = abort_agents_rebase(repo, git_runner)
+        cleanup = (
+            None
+            if pull_result.failure_stage == PUBLICATION_REBASE_FAILURE_STAGE
+            else abort_agents_rebase(repo, git_runner)
+        )
         return _error(
             target,
             agents_git_error("git pull --rebase failed", pulled, cleanup),
@@ -338,9 +351,19 @@ def _reintegrate_and_push(
                 pulled=True,
                 push_attempts=1,
             )
-    repulled = pull_agents_rebase(repo, git_runner, "agents_sync.retry_pull")
+    pull_result = pull_agents_rebase_with_recovery(
+        repo,
+        git_runner,
+        "agents_sync.retry_pull",
+        project_key=target.project_key,
+    )
+    repulled = pull_result.process
     if repulled.returncode != 0:
-        cleanup = abort_agents_rebase(repo, git_runner)
+        cleanup = (
+            None
+            if pull_result.failure_stage == PUBLICATION_REBASE_FAILURE_STAGE
+            else abort_agents_rebase(repo, git_runner)
+        )
         return _error(
             target,
             agents_git_error("git pull --rebase retry failed", repulled, cleanup),

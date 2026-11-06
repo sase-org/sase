@@ -327,6 +327,7 @@ def _record_failure(
             retired=retired_count(remaining),
             error=error,
             failure_scope=failure_scope,
+            failure_stage=failure_stage,
         )
     rows = tuple(
         {
@@ -360,6 +361,7 @@ def _record_failure(
             retired=retired_count(remaining),
             error=error,
             failure_scope=failure_scope,
+            failure_stage=failure_stage,
         )
     charges: tuple[PublicationFailureCharge, ...] = decision.charges
     retire_reason: str | None = None
@@ -381,4 +383,5 @@ def _record_failure(
         retired=retired_count(updated),
         error=error,
         failure_scope=failure_scope,
+        failure_stage=failure_stage,
     )

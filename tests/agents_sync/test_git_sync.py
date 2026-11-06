@@ -443,6 +443,7 @@ def test_missing_configured_remote_is_not_created(tmp_path: Path) -> None:
 def test_pull_rebase_conflict_is_aborted_cleanly(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    monkeypatch.setenv("SASE_HOME", str(tmp_path / ".sase"))
     remote, _seed, sidecar = setup_repo(tmp_path)
     sync_target = target(tmp_path, remote, sidecar)
     git(sidecar, "config", "user.name", "Local")
