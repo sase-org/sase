@@ -520,6 +520,12 @@ _lint-patch-stitch-terminology: _setup
 # (review modal) consumes the payload parser, the review dataclasses, and the
 # snapshot item through the modal and its view model. Drop each row once its
 # phase lands a real consumer (or re-key it onto a still-open bead).
+# sase-1qz.6.1 (keep-work recovery child epic) left AgentHijackConfig,
+# normalize_hijack_rung, and strip_hijack_launch_directives unconsumed, so the
+# sase-1qz.6.1.7 land re-keyed those rows onto sase-1qz.7 (restart with a
+# replacement prompt needs directive sanitization and rung normalization, and
+# restart/dismiss preview reasons need the validated config type). Drop each
+# row once that phase lands a real consumer.
 # Never put a comment
 # line inside the continued command below: just joins the lines, so the comment
 # would swallow every later argument.
@@ -528,9 +534,9 @@ _lint-symvision *args: _setup
     SASE_SYMVISION_BEAD_STATUS_ONLY=1 BD_COMMAND=tools/sase_bead {{ venv_bin }}/symvision src/sase \
         --exclude-decorator gate_command_entrypoint \
         --exclude-decorator builtin_chop \
-        --epic-symbol "sase-1qz.6(AgentHijackConfig)" \
-        --epic-symbol "sase-1qz.6(normalize_hijack_rung)" \
-        --epic-symbol "sase-1qz.6(strip_hijack_launch_directives)" \
+        --epic-symbol "sase-1qz.7(AgentHijackConfig)" \
+        --epic-symbol "sase-1qz.7(normalize_hijack_rung)" \
+        --epic-symbol "sase-1qz.7(strip_hijack_launch_directives)" \
         --epic-symbol "sase-1rd(snapshot_dir)" \
         --epic-symbol "sase-1rd.4(parse_run_prune_review)" \
         --epic-symbol "sase-1rd.4(RunPruneReview)" \
