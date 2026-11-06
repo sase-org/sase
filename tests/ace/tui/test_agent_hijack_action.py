@@ -7,6 +7,7 @@ from types import SimpleNamespace
 from typing import Any
 
 from sase.ace.tui.actions.agents import _hijack_action
+from sase.ace.tui.actions.agents._kill_action_flow import AgentKillActionFlowMixin
 from sase.ace.tui.actions.agents._hijack_action import AgentHijackActionMixin
 from sase.ace.tui.models.agent import Agent, AgentType
 from sase.ace.tui.models.agent_hijack_presentation import (
@@ -94,11 +95,13 @@ def test_active_ledger_records_drive_hijack_overlays_and_summary(
 ) -> None:
     artifacts_dir = tmp_path / "artifacts"
     artifacts_dir.mkdir()
-    agent = _agent()
+    agent = _agent(status="HIJACKED")
     agent.artifacts_dir = str(artifacts_dir)
     records = [
         {
+            "hijack_id": "h-held",
             "artifacts_dir": str(artifacts_dir),
+            "revision": 3,
             "state": "held",
             "repo_diffs": [
                 {"files_changed": 3, "insertions": 8, "deletions": 2},
@@ -112,6 +115,7 @@ def test_active_ledger_records_drive_hijack_overlays_and_summary(
 
     assert agent.hijack_overlay is None
     assert agent.hijack_diff_summary == "5 files +12 −3"
+    assert agent.hijack_record == records[0]
 
     records[0]["state"] = "resolving"
     apply_hijack_ledger_presentation([agent])
@@ -123,6 +127,67 @@ def test_active_ledger_records_drive_hijack_overlays_and_summary(
     apply_hijack_ledger_presentation([agent])
 
     assert agent.hijack_overlay == "hijacking"
+
+
+def test_settled_hijack_record_is_loaded_by_done_marker_id(
+    monkeypatch: Any,
+) -> None:
+    agent = _agent(status="HIJACKED")
+    agent.hijack_id = "h-expired"
+    record = {
+        "hijack_id": "h-expired",
+        "artifacts_dir": "/tmp/agent-artifacts",
+        "revision": 7,
+        "state": "expired",
+    }
+    monkeypatch.setattr("sase.agent.hijack.ledger.list_active_records", lambda: [])
+    monkeypatch.setattr(
+        "sase.agent.hijack.ledger.load_record", lambda hijack_id: record
+    )
+
+    apply_hijack_ledger_presentation([agent])
+
+    assert agent.hijack_record == record
+
+
+def test_x_on_hijacked_agent_submits_durable_dismiss(
+    monkeypatch: Any,
+) -> None:
+    agent = _agent(status="HIJACKED")
+    agent.hijack_id = "h-123"
+    agent.hijack_record = {
+        "hijack_id": "h-123",
+        "agent_name": agent.agent_name,
+        "revision": 4,
+        "state": "held",
+    }
+    dismissed: list[Agent] = []
+
+    class App(AgentKillActionFlowMixin):
+        current_tab = "agents"
+        _marked_agents: set[Any] = set()
+        _current_group_key = None
+        _agents_with_children = [agent]
+
+        def _get_selected_agent(self) -> Agent:
+            return agent
+
+        def notify(self, message: str, *, severity: str = "information") -> None:
+            del message, severity
+
+    app = App()
+    monkeypatch.setattr(
+        "sase.ace.tui.actions.agents._archive_actions.guard_archive_live_action",
+        lambda _app, _action: False,
+    )
+    monkeypatch.setattr(
+        "sase.ace.tui.actions.agents._hijack_recovery_panel.dismiss_hijacked_agent",
+        lambda _app, row: dismissed.append(row) or True,
+    )
+
+    app.action_kill_agent()
+
+    assert dismissed == [agent]
 
 
 def test_remote_hijack_ingress_copies_host_command(monkeypatch: Any) -> None:

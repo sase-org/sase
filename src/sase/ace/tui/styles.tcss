@@ -5579,6 +5579,46 @@ AgentActionChooserModal #agent-action-footer {
     text-align: center;
 }
 
+AgentActionChooserModal.hijack-recovery #agent-action-container {
+    width: 76;
+    max-width: 98%;
+    max-height: 96%;
+    padding: 0 1;
+}
+
+AgentActionChooserModal.hijack-recovery #agent-action-title {
+    text-align: left;
+}
+
+AgentActionChooserModal.hijack-recovery #agent-action-header {
+    height: 2;
+    color: $text;
+    text-wrap: nowrap;
+    text-overflow: ellipsis;
+}
+
+AgentActionChooserModal.hijack-recovery #agent-action-guidance {
+    margin-bottom: 0;
+}
+
+AgentActionChooserModal.hijack-recovery .agent-action-section.hijack-section {
+    margin-top: 0;
+}
+
+AgentActionChooserModal.hijack-recovery .agent-action-row.inline {
+    height: 1;
+    min-height: 1;
+}
+
+AgentActionChooserModal.hijack-recovery #agent-action-footer {
+    height: 2;
+    border-top: solid $primary;
+    margin-top: 0;
+    padding-top: 0;
+    text-wrap: nowrap;
+    text-overflow: ellipsis;
+}
+
 StrandedResolveModal {
     align: center middle;
 }

@@ -68,6 +68,12 @@ class AgentKillActionFlowMixin:
             self.notify("No agent selected", severity="warning")  # type: ignore[attr-defined]
             return
 
+        if agent.status == "HIJACKED":
+            from ._hijack_recovery_panel import dismiss_hijacked_agent
+
+            dismiss_hijacked_agent(self, agent)
+            return
+
         from ._remote_lifecycle import is_remote_fleet_agent
 
         if is_remote_fleet_agent(agent):

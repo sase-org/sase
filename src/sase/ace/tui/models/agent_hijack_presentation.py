@@ -39,6 +39,7 @@ def apply_hijack_ledger_presentation(agents: Iterable[Agent]) -> None:
     for agent in rows:
         agent.hijack_overlay = None
         agent.hijack_diff_summary = None
+        agent.hijack_record = None
 
     try:
         from sase.agent.hijack.ledger import list_active_records
@@ -46,9 +47,7 @@ def apply_hijack_ledger_presentation(agents: Iterable[Agent]) -> None:
         records = list_active_records()
     except Exception:
         # A stale or unreadable presentation hint cannot block the agent list.
-        return
-    if not records:
-        return
+        records = []
 
     by_artifacts_dir: dict[str, Mapping[str, Any]] = {}
     for record in records:
@@ -62,16 +61,28 @@ def apply_hijack_ledger_presentation(agents: Iterable[Agent]) -> None:
             continue
         by_artifacts_dir.setdefault(artifacts_dir, record)
 
-    if not by_artifacts_dir:
-        return
+    loaded_by_id: dict[str, dict[str, Any] | None] = {}
     for agent in rows:
         try:
             artifacts_dir = agent.get_artifacts_dir()
         except Exception:
             continue
         matched_record = by_artifacts_dir.get(artifacts_dir or "")
+        if matched_record is None and agent.status == "HIJACKED":
+            hijack_id = agent.hijack_id
+            if isinstance(hijack_id, str) and hijack_id:
+                if hijack_id not in loaded_by_id:
+                    try:
+                        from sase.agent.hijack.ledger import load_record
+
+                        loaded_by_id[hijack_id] = load_record(hijack_id)
+                    except Exception:
+                        loaded_by_id[hijack_id] = None
+                matched_record = loaded_by_id[hijack_id]
         if matched_record is None:
             continue
+        if agent.status == "HIJACKED":
+            agent.hijack_record = dict(matched_record)
         state = matched_record.get("state")
         if state in {"requested", "stopping"}:
             agent.hijack_overlay = "hijacking"

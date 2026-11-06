@@ -518,12 +518,11 @@ _lint-patch-stitch-terminology: _setup
 # through the modal and its snapshot consistency check, so those phase rows were
 # dropped after landing.
 # sase-1qz.7 (start-over and leave recovery) consumed AgentHijackConfig
-# (validated config annotation in the release preview path) and
+# (validated config annotation in the release preview path),
 # strip_hijack_launch_directives (Edit replacement-prompt sanitization), so
-# those rows were dropped after landing. normalize_hijack_rung stays
-# unconsumed: the sase-1qz.7 land re-keys it onto sase-1qz.9 (the recovery
-# panel renders rung transitions and will normalize them for display). Drop
-# it once that phase lands a real consumer.
+# those rows were dropped after landing. sase-1qz.9 now consumes
+# normalize_hijack_rung for the recovery panel's displayed model rung; its
+# temporary whitelist entry is removed here.
 # Never put a comment
 # line inside the continued command below: just joins the lines, so the comment
 # would swallow every later argument.
@@ -532,7 +531,6 @@ _lint-symvision *args: _setup
     SASE_SYMVISION_BEAD_STATUS_ONLY=1 BD_COMMAND=tools/sase_bead {{ venv_bin }}/symvision src/sase \
         --exclude-decorator gate_command_entrypoint \
         --exclude-decorator builtin_chop \
-        --epic-symbol "sase-1qz.9(normalize_hijack_rung)" \
         {{ args }}
 
 # Check Python file line counts (private, extracted for per-stage wrapping)

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from typing import Any
 
 from sase.core.agent_scan_wire_markers import FinalizerStatusSummaryWire
 
@@ -117,6 +118,10 @@ class AgentStateOperationsFields:
     hijack_overlay: str | None = field(default=None, compare=False, repr=False)
     hijack_stop_failed: bool = field(default=False, compare=False, repr=False)
     hijack_diff_summary: str | None = field(default=None, compare=False, repr=False)
+    hijack_id: str | None = field(default=None, compare=False, repr=False)
+    hijack_record: dict[str, Any] | None = field(
+        default=None, compare=False, repr=False
+    )
     hijack_expired: bool = field(default=False, compare=False, repr=False)
 
     # Tolerant finalizer-execution row summary from

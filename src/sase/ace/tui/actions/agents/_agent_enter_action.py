@@ -107,6 +107,26 @@ class AgentEnterActionMixin:
         self: Any, target: AgentEnterTarget, *, agent_identity: tuple[object, ...]
     ) -> None:
         """Run one resolved Enter target."""
+        if target.kind == "hijack":
+            agent = self._agent_enter_agent(agent_identity)
+            if agent is None:
+                self.notify("Agent is no longer visible", severity="warning")  # type: ignore[attr-defined]
+                return
+            from ._remote_lifecycle import is_remote_fleet_agent
+
+            if is_remote_fleet_agent(agent):
+                name = str(agent.agent_name or agent.cl_name or "")
+                alias = str(agent.fleet_origin_alias or "remote")
+                self.notify(  # type: ignore[attr-defined]
+                    f"Agent runs on {alias}; run `sase agent recover {name}` there",
+                    severity="information",
+                )
+                return
+            from ._hijack_recovery_panel import open_hijack_recovery_panel
+
+            open_hijack_recovery_panel(self, agent)
+            return
+
         if target.kind == "patch":
             from ._notification_navigation import navigate_to_patch_tab
 

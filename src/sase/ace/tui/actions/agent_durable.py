@@ -19,6 +19,7 @@ from sase.ops.names import (
     AGENT_DRAIN,
     AGENT_PERSIST_DIRECTIVE,
     AGENT_PERSIST_HIJACK,
+    AGENT_PERSIST_RECOVER,
     AGENT_REVERT,
     MACHINE_AGENT_ACTION,
     MACHINE_ATTENTION_ACTION,
@@ -115,6 +116,45 @@ def submit_agent_hijack(
         request_fingerprint=operation_fingerprint(AGENT_PERSIST_HIJACK, payload),
         concurrency_keys=(f"agent-hijack:{identity}",),
         proc_type="agent-hijack",
+        display_name=display_name,
+        cl_name=cl_name,
+        project_file=project_file,
+        on_complete=on_complete,
+        reload_on_complete=False,
+        notify_on_complete=False,
+    )
+    return submitted is not None
+
+
+def submit_agent_recovery(
+    app: Any,
+    *,
+    name: str,
+    hijack_id: str,
+    expected_revision: int,
+    action: str,
+    cl_name: str,
+    project_file: str,
+    display_name: str,
+    model: str | None = None,
+    on_complete: Callable[[TrackedProcCompletion[Any]], None] | None = None,
+) -> bool:
+    """Submit one CAS-pinned recovery action through a durable proc."""
+    payload: dict[str, Any] = {
+        "name": name,
+        "expected_hijack_id": hijack_id,
+        "expected_revision": int(expected_revision),
+        "action": action,
+    }
+    if model:
+        payload["model"] = model
+    submitted = app._submit_durable_proc(
+        sase_command_argv("agent", "persist-recover"),
+        operation=AGENT_PERSIST_RECOVER,
+        request=payload,
+        request_fingerprint=operation_fingerprint(AGENT_PERSIST_RECOVER, payload),
+        concurrency_keys=(f"agent-hijack-recovery:{hijack_id}",),
+        proc_type="agent-recover",
         display_name=display_name,
         cl_name=cl_name,
         project_file=project_file,

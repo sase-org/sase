@@ -149,6 +149,21 @@ def resolve_agent_enter_targets(
     scope = classify_scope(agent)
     title = scope_title(agent)
 
+    if getattr(agent, "status", None) == "HIJACKED":
+        name = getattr(agent, "agent_name", None) or title or "agent"
+        hijack_id = getattr(agent, "hijack_id", None)
+        target = AgentEnterTarget(
+            kind="hijack",
+            source="hijack",
+            key=f"hijack:{hijack_id or name}",
+            label="Recover agent",
+            detail="workspace held",
+            badge="HIJACKED",
+            badge_style="bold #FF5FAF",
+            row_identity=identity_of(agent),
+        )
+        return AgentEnterResolution(targets=(target,), scope_title=title)
+
     if scope == "clan":
         member = clan_lone_stopped_member(agent)
         targets: list[AgentEnterTarget] = []

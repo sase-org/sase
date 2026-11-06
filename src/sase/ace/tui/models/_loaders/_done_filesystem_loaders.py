@@ -245,6 +245,11 @@ def load_done_agent_for_dir(
             monitor_stop_status=status if outcome == "monitored" else None,
             gate_stop_status=status if outcome == "gated" else None,
             hijack_expired=hijack_recovery_is_expired(outcome, data.get("recovery")),
+            hijack_id=(
+                data.get("recovery", {}).get("hijack_id")
+                if isinstance(data.get("recovery"), dict)
+                else None
+            ),
         )
 
         # Retry-chain lineage from done.json (parent-side: forward pointer

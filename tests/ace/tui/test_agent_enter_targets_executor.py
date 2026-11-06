@@ -37,6 +37,48 @@ def test_executor_runs_patch_target(
     assert calls == [("demo", agent.project_file)]
 
 
+def test_enter_on_local_hijacked_agent_opens_recovery_panel(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    agent = make_agent(
+        name="held-agent", status="HIJACKED", raw_suffix="20260918010101"
+    )
+    agent.hijack_id = "h-123"
+    app = _EnterApp(agents=[agent])
+    opened: list[Agent] = []
+    monkeypatch.setattr(
+        "sase.ace.tui.actions.agents._hijack_recovery_panel.open_hijack_recovery_panel",
+        lambda _app, row: opened.append(row),
+    )
+
+    resolution = app._agent_enter_resolution(agent)
+    [target] = resolution.targets
+    assert target.kind == "hijack"
+    assert target.key == "hijack:h-123"
+    app._run_agent_enter_target(target, agent_identity=agent.identity)
+
+    assert opened == [agent]
+
+
+def test_enter_on_remote_hijacked_agent_shows_host_command() -> None:
+    agent = make_agent(
+        name="remote-held", status="HIJACKED", raw_suffix="20260918010101"
+    )
+    agent.fleet_origin_alias = "athena"
+    app = _EnterApp(agents=[agent])
+
+    resolution = app._agent_enter_resolution(agent)
+    [target] = resolution.targets
+    app._run_agent_enter_target(target, agent_identity=agent.identity)
+
+    assert app.notifies == [
+        (
+            "Agent runs on athena; run `sase agent recover remote-held` there",
+            "information",
+        )
+    ]
+
+
 def test_executor_dispatches_snapshot_hit_and_refreshes(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

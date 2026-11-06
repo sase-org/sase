@@ -298,6 +298,136 @@ async def test_chooser_guidance_names_primary_label() -> None:
         assert "PATCH" in text
 
 
+def _hijack_choice(
+    result: str,
+    label: str,
+    *,
+    pending: bool = False,
+    disabled_reason: str | None = None,
+) -> AgentActionChoice:
+    return AgentActionChoice(
+        result=result,
+        section="hijack_keep",
+        label=label,
+        detail="computing…" if pending else "same model · codex/gpt-5@high",
+        glyph="⇧",
+        glyph_style="bold #FF5FAF",
+        badge=None,
+        badge_style=None,
+        age=None,
+        hotkey="u",
+        pending=pending,
+        disabled_reason=disabled_reason,
+        inline_detail=True,
+    )
+
+
+async def test_chooser_hijack_layout_has_header_badge_and_section_subtitle() -> None:
+    async with AcePage(size=(80, 24)) as page:
+        modal = AgentActionChooserModal(
+            (
+                _hijack_choice("recover", "Escalate"),
+                _patch(),
+            ),
+            title="⏏ Recover long.agent.name",
+            title_badge="HIJACKED · ws #4",
+            header="claude/opus@high via @large\n5 files +212 −31 · last tool: Bash",
+            section_subtitles={
+                "hijack_keep": "next turn runs in workspace #4",
+            },
+            primary_result="recover",
+            footer_text="j/k move · ⏎ select · Esc decide later",
+        )
+        page.app.push_screen(modal, lambda _result: None)
+        await page.expect_modal("AgentActionChooserModal")
+        await page.wait_for(lambda _screen: "KEEP THE WORK" in _svg_text(page))
+
+        text = _svg_text(page)
+        assert "HIJACKED · ws #4" in text
+        assert "claude/opus@high via @large" in text
+        assert "KEEP THE WORK" in text
+        assert "next turn runs in workspace #4" in text
+        assert "same model · codex/gpt-5@high" in text
+
+
+async def test_chooser_pending_and_disabled_keys_do_not_select() -> None:
+    results: list[str | None] = []
+    async with AcePage() as page:
+        pending = _hijack_choice("pending", "Escalate", pending=True)
+        disabled = _hijack_choice(
+            "disabled", "Switch", disabled_reason="no different model available"
+        )
+        modal = AgentActionChooserModal((pending, disabled), title="Recover agent")
+        modal._key_to_index = {"u": 0, "c": 1}
+        page.app.push_screen(modal, results.append)
+        await page.expect_modal("AgentActionChooserModal")
+
+        await page.press("u")
+        await page.press("c")
+        await page.pause()
+
+        assert page.state["modal"] == "AgentActionChooserModal"
+        assert results == []
+
+
+async def test_chooser_arms_enter_after_recovery_panel_opens() -> None:
+    results: list[str | None] = []
+    async with AcePage() as page:
+        modal = AgentActionChooserModal(
+            (_gate(), _patch()),
+            title="Recover agent",
+            arm_delay_seconds=0.3,
+        )
+        page.app.push_screen(modal, results.append)
+        await page.expect_modal("AgentActionChooserModal")
+
+        await page.press("enter")
+        await page.pause(0.05)
+        assert page.state["modal"] == "AgentActionChooserModal"
+        assert results == []
+
+        await page.pause(0.31)
+        await page.press("enter")
+        await page.expect_no_modal()
+        assert results == ["gate:abc123"]
+
+
+async def test_chooser_updates_preview_rows_in_place() -> None:
+    results: list[str | None] = []
+    async with AcePage() as page:
+        modal = AgentActionChooserModal(
+            (
+                _hijack_choice("escalate", "Escalate", pending=True),
+                _hijack_choice("continue", "Continue", pending=True),
+            ),
+            title="Recover agent",
+            primary_result="escalate",
+        )
+        page.app.push_screen(modal, results.append)
+        await page.expect_modal("AgentActionChooserModal")
+
+        modal.update_choices(
+            (
+                _hijack_choice(
+                    "escalate",
+                    "Escalate",
+                    disabled_reason="no different model available",
+                ),
+                _hijack_choice("continue", "Continue"),
+            ),
+            primary_result="continue",
+            selected_result="continue",
+        )
+        modal.update_header("Preview ready")
+        await page.pause()
+
+        assert modal.choices[0].disabled_reason == "no different model available"
+        assert modal.selected_index == 1
+        text = _svg_text(page)
+        assert "Preview ready" in text
+        assert "⏎ again → Continue" in text
+
+
 _LONG_LABEL = "Review tale plan " + "QXZ" * 30
 _LONG_DETAIL = "some/detail/path " + "QWZ" * 30
 

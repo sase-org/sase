@@ -180,6 +180,9 @@ def build_done_agent_from_record(
         monitor_stop_status=status if outcome == "monitored" else None,
         gate_stop_status=status if outcome == "gated" else None,
         hijack_expired=hijack_recovery_is_expired(outcome, done.recovery),
+        hijack_id=getattr(done.recovery, "hijack_id", None)
+        if done.recovery is not None
+        else None,
     )
 
     if done.retried_as_timestamp:
