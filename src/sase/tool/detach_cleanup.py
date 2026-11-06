@@ -2,9 +2,9 @@
 
 ``invoke_agent`` calls :func:`stop_unjoined_detached_runs` in its ``finally``
 so an unjoined detached run never outlives the provider invocation that
-started it (contract rule 2, eager leg). A monitor handoff records its join
-before it kills the runner, so an actively joined run is never touched here;
-the worker watchdog covers whatever remains as a backstop.
+started it (contract rule 2, eager leg). An ordinary monitor handoff records
+its join before it kills the runner; a staged handoff reserves its join until
+adoption. Both protect the run from eager cleanup while the monitor owns it.
 """
 
 from __future__ import annotations
@@ -38,6 +38,18 @@ def joined_monitor_active(run: Mapping[str, Any]) -> str | None:
     return None
 
 
+def staged_join_reservation_active(run: Mapping[str, Any]) -> bool:
+    """Return whether a run carries a live staged-monitor join reservation."""
+
+    reservation = run.get("staged_join_reservation")
+    if not isinstance(reservation, Mapping):
+        return False
+    return bool(
+        str(reservation.get("staged_id") or "").strip()
+        and str(reservation.get("monitor_id") or "").strip()
+    )
+
+
 def _starter_matches(run_starter: object, current: Mapping[str, Any]) -> bool:
     """Return whether a run's starter names this runner's identity."""
 
@@ -67,7 +79,8 @@ def stop_unjoined_detached_runs(
 
     Candidates are unsettled runs attributed to this agent whose ``starter``
     matches this runner's identity and whose join is absent or names a
-    monitor that is no longer active. Each stop is requested as
+    monitor that is no longer active, provided no staged join is reserved.
+    Each stop is requested as
     ``requested_by: sase`` with the exact starter- or monitor-ended reason,
     routed through the shared owner path. Returns the number of runs
     stopped.
@@ -130,7 +143,9 @@ def _stop_unjoined_detached_runs(
             continue
         if not _starter_matches(run.get("starter"), starter):
             continue
-        if joined_monitor_active(run) is not None:
+        if joined_monitor_active(run) is not None or staged_join_reservation_active(
+            run
+        ):
             continue
         join = run.get("join")
         if (
@@ -149,4 +164,8 @@ def _stop_unjoined_detached_runs(
     return stopped
 
 
-__all__ = ["joined_monitor_active", "stop_unjoined_detached_runs"]
+__all__ = [
+    "joined_monitor_active",
+    "staged_join_reservation_active",
+    "stop_unjoined_detached_runs",
+]

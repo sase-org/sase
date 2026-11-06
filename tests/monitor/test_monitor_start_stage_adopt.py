@@ -10,6 +10,7 @@ import pytest
 
 from sase.agent.staged_handoff import read_staged_handoff
 from sase.core.staged_handoff import staged_monitor_launch_payload_schema_version
+from sase.core.tool_run import tool_run_show
 from sase.monitor.models import MonitorAlreadyRunningError, MonitorError
 from sase.monitor.start import start_monitor
 from sase.monitor.start_stage import (
@@ -30,6 +31,7 @@ from ._start_stage import (
     stage_env,
     stage_request,
 )
+from ._join_helpers import reserve_detached_run, settle_detached_run
 
 __all__ = [
     "test_nested_cwd_and_explicit_lane_freeze_workspace",
@@ -40,6 +42,7 @@ __all__ = [
     "test_staged_monitor_adoption_saves_real_response_and_exact_starter_parent",
     "test_staged_monitor_rejects_foreign_persisted_starter_before_launch",
     "test_tool_run_id_is_stable_from_stage_to_launch",
+    "test_stopped_staged_join_is_replaced_with_owned_run_at_adoption",
 ]
 
 
@@ -397,5 +400,69 @@ def test_tool_run_id_is_stable_from_stage_to_launch(
         assert record.tool_run_id == run_id
         assert record.monitor_state == "running"
         assert record.monitor_id == staged.record.monitor_id
+    finally:
+        wait_for_done(record.artifacts_dir, timeout=30.0)
+
+
+def test_stopped_staged_join_is_replaced_with_owned_run_at_adoption(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from dataclasses import replace
+
+    dirs = stage_env(tmp_path, monkeypatch)
+    original_run_id = reserve_detached_run(
+        "--", "printf", "frozen", agent="acme", owner_id="proc-staged-fallback"
+    )
+    request = replace(
+        stage_request(
+            tmp_path,
+            command="sase tool run -- printf frozen",
+            join_run_id=original_run_id,
+        ),
+        label="tool:ad-hoc (joined)",
+    )
+    staged = stage_monitor(request)
+    dirs.append(staged.record.artifacts_dir)
+    settle_detached_run(
+        original_run_id,
+        state="signaled",
+        exit_code=None,
+        terminal_cause="stop_requested",
+        owner_id="proc-staged-fallback",
+    )
+
+    record = launch_from_persisted_payload(staged.record.artifacts_dir)
+    try:
+        assert record.monitor_state == "running"
+        assert record.tool_run_id
+        assert record.tool_run_id != original_run_id
+        assert record.tool_run_joined is False
+        assert record.label == "tool:ad-hoc"
+        meta = json.loads(
+            (Path(staged.record.artifacts_dir) / "agent_meta.json").read_text()
+        )
+        assert meta["monitor_tool_run_id"] == record.tool_run_id
+        assert meta["monitor_tool_run_joined"] is False
+        assert meta["monitor_label"] == "tool:ad-hoc"
+        assert tool_run_show(record.tool_run_id)["run"]["display_argv"] == [
+            "printf",
+            "frozen",
+        ]
+        payload = load_staged_monitor_launch_payload(staged.record.artifacts_dir)
+        from sase.monitor._start_stage_adopt_context import reconstruct_launch_context
+
+        recovered = reconstruct_launch_context(
+            staged.record.artifacts_dir,
+            payload,
+            payload["workspace"]["claim_context"],
+            meta,
+        )
+        assert recovered.reserved_tool_run_id == record.tool_run_id
+        assert recovered.tool_run_joined is False
+        assert recovered.join_mode == "none"
+        assert recovered.label == "tool:ad-hoc"
+        assert (
+            tool_run_show(original_run_id)["run"].get("staged_join_reservation") is None
+        )
     finally:
         wait_for_done(record.artifacts_dir, timeout=30.0)

@@ -13,7 +13,12 @@ import pytest
 import yaml
 
 from sase.config.core import clear_config_cache
-from sase.core.tool_run import tool_run_claim, tool_run_list, tool_run_show
+from sase.core.tool_run import (
+    tool_run_claim,
+    tool_run_list,
+    tool_run_reserve_staged_join,
+    tool_run_show,
+)
 from sase.tool.argv import resolve_run_argv
 from sase.tool.detach_cleanup import stop_unjoined_detached_runs
 from sase.tool.executor import ToolRunCliRequest, execute_tool_run
@@ -478,6 +483,67 @@ def test_watchdog_preserves_run_joined_to_active_monitor(
     assert shown["state"] in ("created", "running")
 
 
+def test_watchdog_preserves_run_with_staged_join_reservation(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    import threading
+
+    import sase.tool.adopt as adopt_module
+
+    _clean_env(monkeypatch, tmp_path)
+    monkeypatch.setattr(adopt_module, "_WATCHDOG_POLL_SECONDS", 0.05)
+    dead_starter = {
+        "agent": "agent-1",
+        "pid": 2**30,
+        "boot_id": "boot-1",
+        "process_start_identity": "boot-1:1",
+    }
+    reservation = reserve_handoff_run(
+        resolve_run_argv(["--", "true"]),
+        owner_kind="proc",
+        owner_id="proc-watch-staged",
+        agent="agent-1",
+        starter=dead_starter,
+    )
+    assert reservation.reserved
+    staged = tool_run_reserve_staged_join(
+        {
+            "schema_version": 1,
+            "run_id": reservation.run_id,
+            "staged_id": "staged-watch",
+            "monitor_id": "mon-staged",
+            "agent": "agent-1",
+        }
+    )
+    assert staged.get("outcome") == "reserved"
+
+    real_sleep = time.sleep
+    polls = {"count": 0}
+
+    class _StopWatch(Exception):
+        pass
+
+    def _counting_sleep(seconds: float) -> None:
+        polls["count"] += 1
+        if polls["count"] >= 3:
+            raise _StopWatch
+        real_sleep(seconds)
+
+    monkeypatch.setattr(adopt_module.time, "sleep", _counting_sleep)
+    thread = threading.Thread(
+        target=adopt_module._watch_starter,
+        args=(reservation.run_id, dead_starter),
+        daemon=True,
+    )
+    thread.start()
+    thread.join(timeout=10)
+    assert polls["count"] >= 3
+    shown = tool_run_show(reservation.run_id)["run"]
+    assert shown.get("stop_request") is None
+    assert shown["state"] in ("created", "running")
+    assert shown.get("staged_join_reservation", {}).get("staged_id") == "staged-watch"
+
+
 def test_starter_alive_sees_through_unreaped_zombies(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
@@ -569,6 +635,38 @@ def test_cleanup_stops_only_matching_unjoined_runs(
     assert stop.get("reason") == "starter agent agent-1 ended without joining"
     assert tool_run_show(foreign.run_id)["run"].get("stop_request") is None
     assert tool_run_show(plain.run_id)["run"].get("stop_request") is None
+
+
+def test_cleanup_preserves_run_with_staged_join_reservation(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    _clean_env(monkeypatch, tmp_path)
+    _agent_env(monkeypatch, tmp_path, name="agent-1")
+    resolution = resolve_starter()
+    assert resolution.resolved and resolution.starter is not None
+    reserved = reserve_handoff_run(
+        resolve_run_argv(["--", "true"]),
+        owner_kind="proc",
+        owner_id="proc-staged-reserved",
+        agent="agent-1",
+        starter=dict(resolution.starter),
+    )
+    assert reserved.reserved
+    staged = tool_run_reserve_staged_join(
+        {
+            "schema_version": 1,
+            "run_id": reserved.run_id,
+            "staged_id": "staged-cleanup",
+            "monitor_id": "mon-cleanup",
+            "agent": "agent-1",
+        }
+    )
+    assert staged.get("outcome") == "reserved"
+
+    assert stop_unjoined_detached_runs() == 0
+    shown = tool_run_show(reserved.run_id)["run"]
+    assert shown.get("stop_request") is None
+    assert shown.get("staged_join_reservation", {}).get("staged_id") == "staged-cleanup"
 
 
 def test_cleanup_never_raises_without_agent_context(

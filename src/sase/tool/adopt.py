@@ -157,10 +157,11 @@ def _start_starter_watchdog(run_id: str, starter: dict[str, Any]) -> None:
     """Watch a starter-scoped run's starter; stop the run when it is gone.
 
     While the starter identity is live the run is left alone. Once the
-    starter is gone the run survives only while its join names an active
-    monitor; otherwise a stop is requested (``requested_by: sase``) and
-    routed through the same owner path ``sase tool stop`` uses. The thread
-    is a daemon and best effort: it never raises and never blocks exit.
+    starter is gone the run survives while its join names an active monitor
+    or its staged join reservation is live; otherwise a stop is requested
+    (``requested_by: sase``) and routed through the same owner path
+    ``sase tool stop`` uses. The thread is a daemon and best effort: it never
+    raises and never blocks exit.
     """
 
     thread = threading.Thread(
@@ -197,6 +198,14 @@ def _watch_starter(run_id: str, starter: dict[str, Any]) -> None:
             if join_id is not None:
                 # The starter is gone but a live monitor owns the follow-up:
                 # keep watching in case that monitor ends first.
+                time.sleep(_WATCHDOG_POLL_SECONDS)
+                continue
+            from sase.tool.detach_cleanup import staged_join_reservation_active
+
+            if staged_join_reservation_active(run):
+                # The staged owner has reserved this run but cannot write the
+                # ordinary join until its adoption starts. Keep it alive for
+                # that handoff; held cleanup and discard release the reserve.
                 time.sleep(_WATCHDOG_POLL_SECONDS)
                 continue
             join = run.get("join") if isinstance(run.get("join"), dict) else None

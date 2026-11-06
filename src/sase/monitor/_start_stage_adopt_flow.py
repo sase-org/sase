@@ -135,13 +135,15 @@ def _reacquire_settled_tool_run(
     """
     from sase.axe.run_agent_helpers_artifacts import update_meta_field
 
-    if context.join_mode != "none" or context.tool_run_joined:
-        return context
     run_id = context.reserved_tool_run_id
     if not run_id or context.staged_id is None:
         return context
     shown = _show_reserved_run(context.monitor_id, run_id)
     run = shown.get("run") if isinstance(shown, dict) else None
+
+    if context.join_mode == "staged" or context.tool_run_joined:
+        return _reacquire_unusable_staged_join(context, run_id, run)
+
     if not isinstance(run, dict):
         return context
     state = str(run.get("state") or "")
@@ -157,10 +159,10 @@ def _reacquire_settled_tool_run(
         return context
     if not _staged_record_still_live(context):
         return context
-    from sase.tool.handoff import owner_tags, worker_argv, worker_env_overlay
-
     fresh_run_id = _reserve_retry_tool_run(context)
     update_meta_field(context.artifacts_dir, "monitor_tool_run_id", fresh_run_id)
+    from sase.tool.handoff import owner_tags, worker_argv, worker_env_overlay
+
     return replace(
         context,
         reserved_tool_run_id=fresh_run_id,
@@ -168,6 +170,100 @@ def _reacquire_settled_tool_run(
         proc_tags=tuple(owner_tags(fresh_run_id)),
         proc_env_overlay=tuple(sorted(worker_env_overlay().items())),
     )
+
+
+def _reacquire_unusable_staged_join(
+    context: MonitorLaunchContext,
+    run_id: str,
+    run: object,
+) -> MonitorLaunchContext:
+    """Replace a missing or result-less staged join with an owned ToolRun."""
+    from sase.axe.run_agent_helpers_artifacts import update_meta_field
+
+    if _has_usable_join_result(run):
+        return context
+    if not _staged_record_still_live(context):
+        return context
+    if isinstance(run, dict):
+        diagnostics = run.get("diagnostics")
+        entries = (
+            [str(entry) for entry in diagnostics]
+            if isinstance(diagnostics, list)
+            else []
+        )
+        if any(_DISCARD_MARKER in entry for entry in entries):
+            return context
+        reservation = run.get("staged_join_reservation")
+        if (
+            isinstance(reservation, dict)
+            and str(reservation.get("staged_id") or "") == context.staged_id
+            and str(reservation.get("monitor_id") or "") == context.monitor_id
+        ):
+            _release_staged_join_reservation(context, run_id)
+
+    fresh_run_id = _reserve_retry_tool_run(context)
+    update_meta_field(context.artifacts_dir, "monitor_tool_run_id", fresh_run_id)
+    update_meta_field(context.artifacts_dir, "monitor_tool_run_joined", False)
+    replacement_label = context.label.removesuffix(" (joined)")
+    update_meta_field(context.artifacts_dir, "monitor_label", replacement_label)
+
+    from sase.tool.handoff import owner_tags, worker_argv, worker_env_overlay
+
+    return replace(
+        context,
+        request=replace(
+            context.request,
+            label=replacement_label,
+            join_run_id=None,
+        ),
+        label=replacement_label,
+        reserved_tool_run_id=fresh_run_id,
+        tool_run_joined=False,
+        join_mode="none",
+        proc_argv=tuple(worker_argv(fresh_run_id)),
+        proc_tags=tuple(owner_tags(fresh_run_id)),
+        proc_env_overlay=tuple(sorted(worker_env_overlay().items())),
+    )
+
+
+def _has_usable_join_result(run: object) -> bool:
+    """Return whether a joined run still has an outcome worth following."""
+
+    if not isinstance(run, dict):
+        return False
+    if run.get("stop_request") is not None:
+        return False
+    state = str(run.get("state") or "")
+    if state in {"created", "running"}:
+        return True
+    if not state:
+        return False
+    if str(run.get("terminal_cause") or "") == "stop_requested":
+        return False
+    return type(run.get("exit_code")) is int or type(run.get("signal")) is int
+
+
+def _release_staged_join_reservation(
+    context: MonitorLaunchContext, run_id: str
+) -> None:
+    """Release this stage's old join reservation before replacing its run."""
+
+    from sase.core.tool_run import tool_run_release_staged_join
+
+    result = tool_run_release_staged_join(
+        {
+            "schema_version": 1,
+            "run_id": run_id,
+            "staged_id": context.staged_id,
+            "monitor_id": context.monitor_id,
+        }
+    )
+    outcome = result.get("outcome") if isinstance(result, dict) else None
+    if outcome not in {"released", "not_reserved"}:
+        raise MonitorError(
+            f"could not release staged join reservation for tool run {run_id} "
+            f"before reacquiring it ({outcome or 'refused'})"
+        )
 
 
 def _staged_record_still_live(context: MonitorLaunchContext) -> bool:
@@ -219,7 +315,13 @@ def _reserve_retry_tool_run(context: MonitorLaunchContext) -> str:
     )
     words = monitor_tool_run_words(
         request.command,
-        request.execution_argv,
+        # Staged join payloads freeze the display command into
+        # ``execution_argv`` during serialization. For fallback, recover the
+        # original ``sase tool run`` words from that command instead of
+        # treating the serialized argv as a host-owned raw command.
+        None
+        if context.join_mode == "staged" or context.tool_run_joined
+        else request.execution_argv,
         proc_argv,
         unwrapped_reason,
     )
