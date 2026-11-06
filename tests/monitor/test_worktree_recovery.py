@@ -56,6 +56,25 @@ def test_monitor_snapshot_keeps_historical_path(tmp_path: Path) -> None:
     assert again == snapshot
 
 
+def test_owner_snapshots_disambiguate_shared_repo_ids(tmp_path: Path) -> None:
+    first = _init_dirty_repo(tmp_path / "first", "first dirty\n")
+    second = _init_dirty_repo(tmp_path / "second", "second dirty\n")
+    artifacts = tmp_path / "artifacts"
+    artifacts.mkdir()
+
+    paths = snapshot_owner_worktree_diffs(
+        str(artifacts),
+        (("sibling:plans", str(first)), ("sibling:plans", str(second))),
+    )
+
+    assert len(paths) == 2
+    assert paths[0] != paths[1]
+    assert Path(paths[0]).is_file()
+    assert Path(paths[1]).is_file()
+    assert "first dirty" in Path(paths[0]).read_text(encoding="utf-8")
+    assert "second dirty" in Path(paths[1]).read_text(encoding="utf-8")
+
+
 def test_owner_snapshots_cover_linked_checkouts(tmp_path: Path) -> None:
     primary = _init_dirty_repo(tmp_path / "primary", "primary dirty\n")
     linked = _init_dirty_repo(tmp_path / "linked", "linked dirty\n")

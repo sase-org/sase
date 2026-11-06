@@ -294,14 +294,17 @@ def _build_retention_owner(
 ) -> Any | None:
     """Build a concrete retention owner from monitor metadata.
 
-    Repository evidence comes from the shared discovery adapter over both
-    the monitor member's evidence dir and the starter's evidence dir, so
-    real repo IDs, opened-repo markers, and the starter baseline path are
-    preserved. There is no eight-repository cutoff: a bounded probe that
+    Repository evidence comes from the shared discovery adapter over the
+    monitor member's evidence dir plus the starter's evidence dir when the
+    starter ran in this same workspace, so real repo IDs, opened-repo
+    markers, and the starter baseline path are preserved. A starter from a
+    different workspace only contributes records inside the monitor's own
+    checkout. There is no eight-repository cutoff: a bounded probe that
     fails yields uncertainty for that known repo instead of disappearing.
-    ``evidence_artifacts_dir`` points at the starter evidence when present
-    so dirt is compared against the starter baseline, not the monitor
-    member's own baseline.
+    ``evidence_artifacts_dir`` points at the starter evidence for a
+    same-workspace starter, and dirt is compared against the merged
+    baselines from both dirs, so the starter can only fill gaps instead of
+    overriding the monitor member's own baseline.
     """
     from sase.turns.workspace_retention import (
         WorkspaceRetentionOwner,

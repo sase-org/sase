@@ -163,7 +163,7 @@ def _collect_dirt(
     positive_custody = False
     probe_errors: list[str] = list(owner.discovery_errors)
     affected: list[str] = []
-    baselines = _baseline_by_path(owner.evidence_artifacts_dir or owner.artifacts_dir)
+    baselines = _baseline_by_path(owner.artifacts_dir, owner.evidence_artifacts_dir)
 
     if not repos:
         if probe_errors:
@@ -255,16 +255,22 @@ def _relevant_repos(
 
 
 def _baseline_by_path(
-    artifacts_dir: str,
+    *artifacts_dirs: str | None,
 ) -> dict[str, dict[str, tuple[str, str | None]]]:
-    if not artifacts_dir:
-        return {}
-    records = load_finalizer_baseline_records(Path(artifacts_dir))
-    if not records:
-        return {}
+    """Merge finalizer baselines from the monitor and starter evidence dirs.
+
+    The monitor's own baselines win when both dirs record the same path, so a
+    same-workspace starter can only fill gaps instead of overriding the owner.
+    """
     by_path: dict[str, dict[str, tuple[str, str | None]]] = {}
-    for record in records:
-        by_path[normalize_path(record.path)] = dict(record.fingerprints)
+    for artifacts_dir in dict.fromkeys(artifacts_dirs):
+        if not artifacts_dir:
+            continue
+        records = load_finalizer_baseline_records(Path(artifacts_dir))
+        if not records:
+            continue
+        for record in records:
+            by_path.setdefault(normalize_path(record.path), dict(record.fingerprints))
     return by_path
 
 

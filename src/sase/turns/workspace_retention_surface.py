@@ -133,7 +133,14 @@ def notify_retained_workspace(
                 f"{owner.workspace_num}"
             ),
         )
-        upsert_notification(notification)
+        upsert_notification(
+            notification,
+            plus_one_note=(
+                "Workspace still held "
+                f"({record.policy_reason or record.terminal_reason})"
+            ),
+            plus_one_timestamp=timestamp,
+        )
     except Exception:
         log.warning("Could not publish workspace-retention notification", exc_info=True)
 

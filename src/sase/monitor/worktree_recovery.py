@@ -72,8 +72,9 @@ def snapshot_owner_worktree_diffs(
             snapshot_path = Path(artifacts_dir) / primary_locator
         else:
             safe_id = _safe_repo_id(repo_id) or f"repo-{index}"
+            digest = _checkout_digest(checkout)
             snapshot_path = (
-                Path(artifacts_dir) / WORKTREE_RECOVERY_DIR / f"{safe_id}.diff"
+                Path(artifacts_dir) / WORKTREE_RECOVERY_DIR / f"{safe_id}-{digest}.diff"
             )
         try:
             snapshot_path.parent.mkdir(parents=True, exist_ok=True)
@@ -89,6 +90,18 @@ def _safe_repo_id(repo_id: str) -> str:
         char if char.isalnum() or char in "-._" else "_" for char in repo_id.strip()
     )
     return cleaned.strip("._") or ""
+
+
+def _checkout_digest(checkout: str) -> str:
+    """Return a short stable digest so shared repo ids do not collide."""
+    import hashlib
+    import os
+
+    try:
+        canonical = os.path.realpath(os.path.expanduser(checkout))
+    except Exception:  # noqa: BLE001 - digest is best effort
+        canonical = os.path.expanduser(checkout)
+    return hashlib.sha1(canonical.encode("utf-8")).hexdigest()[:12]
 
 
 def append_worktree_recovery_hint(prompt: str, snapshot_path: str | None) -> str:

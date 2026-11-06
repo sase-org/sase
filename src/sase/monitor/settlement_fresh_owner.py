@@ -90,21 +90,31 @@ def collect_monitor_repo_observations(
 ) -> tuple[list[dict[str, Any]], list[str], str | None, tuple[str, ...]]:
     """Merge shared-discovery repos for monitor and starter evidence dirs.
 
-    Discovery exceptions become ``discovery_errors`` rather than silent
-    omission of linked repositories. The known checkout identity is kept
-    even when it is not a live directory.
+    Starter evidence is folded in only when the starter ran in this same
+    workspace (matching workspace number or checkout dir). A starter from a
+    different workspace only contributes observations inside the monitor's
+    own checkout, so terminal retention never probes the plan agent's
+    former, possibly reused, workspace. Discovery exceptions become
+    ``discovery_errors`` rather than silent omission of linked repositories.
+    The known checkout identity is kept even when it is not a live directory.
     """
     starter = meta.get("monitor_starter_artifacts_dir")
     starter_dir = starter if isinstance(starter, str) and starter.strip() else None
+    same_workspace = _starter_same_workspace(meta, starter_dir, checkout_dir)
     by_path: dict[str, dict[str, Any]] = {}
     origin_ids: set[str] = set()
     discovery_errors: list[str] = []
     for evidence in (artifacts_dir, starter_dir):
         if not evidence:
             continue
+        foreign = (
+            starter_dir is not None and evidence == starter_dir and not same_workspace
+        )
         repos, origins, error = _shared_repos(evidence, checkout_dir)
-        if error:
+        if error and not foreign:
             discovery_errors.append(f"{evidence}: {error}")
+        if foreign:
+            repos, origins = _scope_foreign_starter_repos(repos, origins, checkout_dir)
         origin_ids.update(origins)
         for repo in repos:
             key = str(repo["path"])
@@ -147,13 +157,110 @@ def collect_monitor_repo_observations(
                 "positive_custody": True,
             }
             origin_ids.add("primary")
+        for key in list(by_path):
+            if key == (existing_key or checkout_dir):
+                continue
+            repo = by_path[key]
+            if repo.get("is_primary") and _safe_norm(str(repo["path"])) != wanted:
+                by_path[key] = {**repo, "is_primary": False}
     evidence_dir = (
-        starter_dir if starter_dir and Path(starter_dir).is_dir() else artifacts_dir
+        starter_dir
+        if same_workspace and starter_dir and Path(starter_dir).is_dir()
+        else artifacts_dir
     )
     ordered = sorted(
         by_path.values(), key=lambda r: (str(r["path"]), str(r["repo_id"]))
     )
     return ordered, sorted(origin_ids), evidence_dir, tuple(discovery_errors)
+
+
+def _starter_same_workspace(
+    meta: dict[str, Any],
+    starter_dir: str | None,
+    checkout_dir: str | None,
+) -> bool:
+    """Return whether the starter evidence belongs to this workspace.
+
+    The starter ran here when its recorded workspace number matches the
+    monitor's, or when its recorded checkout matches the monitor's checkout.
+    An unreadable starter identity keeps the legacy merge so evidence is
+    never silently dropped for a workspace that cannot be told apart.
+    """
+    if not starter_dir:
+        return True
+    try:
+        raw = Path(starter_dir, "agent_meta.json").read_text(encoding="utf-8")
+    except OSError:
+        return True
+    try:
+        import json as _json
+
+        starter_meta = _json.loads(raw)
+    except ValueError:
+        return True
+    if not isinstance(starter_meta, dict):
+        return True
+    if "workspace_num" not in starter_meta and not any(
+        isinstance(starter_meta.get(key), str) and starter_meta.get(key)
+        for key in ("workspace_dir", "monitor_cwd")
+    ):
+        return True
+    monitor_num = meta.get("workspace_num")
+    starter_num = starter_meta.get("workspace_num")
+    if (
+        isinstance(monitor_num, int)
+        and not isinstance(monitor_num, bool)
+        and isinstance(starter_num, int)
+        and not isinstance(starter_num, bool)
+        and monitor_num == starter_num
+    ):
+        return True
+    if checkout_dir:
+        wanted = _safe_norm(checkout_dir)
+        for key in ("workspace_dir", "monitor_cwd"):
+            candidate = starter_meta.get(key)
+            if (
+                isinstance(candidate, str)
+                and candidate.strip()
+                and _safe_norm(candidate) == wanted
+            ):
+                return True
+    return False
+
+
+def _scope_foreign_starter_repos(
+    repos: list[dict[str, Any]],
+    origins: set[str],
+    checkout_dir: str | None,
+) -> tuple[list[dict[str, Any]], set[str]]:
+    """Keep only foreign-starter observations inside the monitor checkout.
+
+    Baseline and opened-repo records from a different workspace usually name
+    the starter's own checkout and its sibling sidecars. Those paths are
+    dropped; a record that genuinely falls inside the monitor's checkout is
+    kept without primary status.
+    """
+    if not checkout_dir:
+        return [], set()
+    wanted = _safe_norm(checkout_dir)
+    kept: list[dict[str, Any]] = []
+    kept_ids: set[str] = set()
+    for repo in repos:
+        path = str(repo.get("path") or "")
+        if not path or not _is_within(path, wanted):
+            continue
+        repo_id = str(repo.get("repo_id") or "")
+        kept_ids.add(repo_id)
+        kept.append({**repo, "is_primary": False, "path": path})
+    return kept, set(origins) & kept_ids
+
+
+def _is_within(path: str, parent_norm: str) -> bool:
+    """Return whether normalized *path* falls inside normalized *parent_norm*."""
+    import os as _os
+
+    candidate = _safe_norm(path)
+    return candidate == parent_norm or candidate.startswith(parent_norm + _os.sep)
 
 
 def fresh_owner_payload(

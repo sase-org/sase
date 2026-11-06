@@ -9,7 +9,8 @@ from __future__ import annotations
 import json
 from dataclasses import replace
 from pathlib import Path
-from unittest.mock import patch
+
+import pytest
 
 from sase.llm_provider.commit_finalizer_baseline import FINALIZER_BASELINE_FILENAME
 from sase.llm_provider.commit_finalizer_git import normalize_path
@@ -102,8 +103,11 @@ def test_session_owned_dirt_pins_and_persists_record(tmp_path: Path) -> None:
 
 
 def test_late_retention_publishes_recovery_notification(
-    tmp_path: Path,
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    monkeypatch.setenv("SASE_HOME", str(tmp_path / ".sase"))
+    from sase.notifications.store import load_notifications
+
     checkout = init_repo(tmp_path / "ws", tracked_dirty=True)
     artifacts = tmp_path / "artifacts"
     write_empty_baseline(artifacts, "primary", checkout)
@@ -111,15 +115,19 @@ def test_late_retention_publishes_recovery_notification(
     held_owner = owner(project_file, checkout, artifacts)
     held_owner = replace(held_owner, notify_on_retain=True)
 
-    with patch("sase.notifications.store.upsert_notification") as upsert:
-        result = settle_stranded_workspace(held_owner)
+    result = settle_stranded_workspace(held_owner)
 
     assert result.disposition == "retain"
-    upsert.assert_called_once()
-    notification = upsert.call_args.args[0]
-    assert "Workspace held: stranded work" in notification.notes
-    assert notification.action == "JumpToAgent"
-    assert notification.action_data["raw_suffix"] == TIMESTAMP
+    rows = load_notifications()
+    assert len(rows) == 1
+    assert "Workspace held: stranded work" in rows[0].notes
+    assert rows[0].action == "JumpToAgent"
+    assert rows[0].action_data["raw_suffix"] == TIMESTAMP
+
+    repeat = settle_stranded_workspace(held_owner)
+
+    assert repeat.disposition == "retain"
+    assert len(load_notifications()) == 1
 
 
 def test_proven_clean_releases_claim(tmp_path: Path) -> None:
