@@ -333,6 +333,7 @@ def test_stage_persists_payload_and_reconstructs(
     assert handoff["staged_id"] == staged.staged_id
     assert handoff["successor_workspace"] == "inherit"
     assert handoff["carry_allowed"] is True
+    assert handoff["payload"]["member_artifacts_dir"] == staged.record.artifacts_dir
 
 
 def test_stage_blocks_lane_and_replays_identical_request(

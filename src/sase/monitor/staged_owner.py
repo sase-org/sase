@@ -2,12 +2,14 @@
 
 A staged monitor owns a reserved ToolRun before its proc exists. Liveness
 observation looks this index up by monitor id so a short-lived CLI exit
-cannot be treated as launch failure. Launch and cleanup remove the row.
+cannot be treated as launch failure. Adoption and explicit discard remove
+the row; held cleanup preserves it for recovery.
 """
 
 from __future__ import annotations
 
 import json
+from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
 
@@ -66,11 +68,46 @@ def clear_staged_owner_index(monitor_id: str) -> None:
         return
 
 
+def staged_monitor_member_artifacts_dir(
+    monitor_id: str, staged_id: str, payload: Mapping[str, Any]
+) -> str | None:
+    """Find a staged monitor member from its owner index or frozen payload.
+
+    The payload fallback repairs stages held by older versions that removed
+    the index during failed-adoption cleanup.
+    """
+    try:
+        index = read_staged_owner_index(monitor_id)
+    except Exception:  # noqa: BLE001 - a missing index can use payload evidence.
+        index = None
+    if isinstance(index, Mapping) and index.get("staged_id") == staged_id:
+        candidate = index.get("artifacts_dir")
+        if isinstance(candidate, str) and candidate.strip():
+            return candidate.strip()
+
+    candidate = payload.get("member_artifacts_dir")
+    if isinstance(candidate, str) and candidate.strip():
+        return candidate.strip()
+    workspace = payload.get("workspace")
+    claim_context = (
+        workspace.get("claim_context") if isinstance(workspace, Mapping) else None
+    )
+    candidate = (
+        claim_context.get("artifacts_dir")
+        if isinstance(claim_context, Mapping)
+        else None
+    )
+    if isinstance(candidate, str) and candidate.strip():
+        return candidate.strip()
+    return None
+
+
 __all__ = [
     "STAGED_LAUNCH_PAYLOAD_FILENAME",
     "STAGED_OWNER_DIRNAME",
     "clear_staged_owner_index",
     "launch_payload_path",
     "read_staged_owner_index",
+    "staged_monitor_member_artifacts_dir",
     "write_staged_owner_index",
 ]

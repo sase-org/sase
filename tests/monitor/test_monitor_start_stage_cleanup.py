@@ -113,7 +113,9 @@ def test_failed_finalization_releases_monitor_resources_and_keeps_stage(
         (Path(staged.record.artifacts_dir) / "agent_meta.json").read_text()
     )
     assert meta.get("monitor_stage_held") is True
-    assert read_staged_owner_index(staged.record.monitor_id) is None
+    owner = read_staged_owner_index(staged.record.monitor_id)
+    assert owner is not None
+    assert owner["artifacts_dir"] == staged.record.artifacts_dir
     shown = tool_run_show(staged.record.tool_run_id)["run"]
     if resource == "joined":
         assert shown["state"] == "created"
@@ -240,6 +242,9 @@ def test_cleanup_at_resource_boundaries(
     assert result.member_state == "failed"
     assert result.settled_tool_run_id is None
     assert not (Path(starter) / STAGED_HANDOFF_FILENAME).exists()
+    from sase.monitor.staged_owner import read_staged_owner_index
+
+    assert read_staged_owner_index(bare.record.monitor_id) is None
     again = cleanup_staged_monitor(bare.record.artifacts_dir)
     assert again.member_state in {"failed", "staged"}
 
@@ -267,6 +272,8 @@ def test_held_cleanup_keeps_outer_record(
         "sase.monitor.start_prepare.get_monitor_tool_wrap", lambda: "verify"
     )
     dirs = stage_env(tmp_path, monkeypatch, cwd=str(root), workspace_dir=str(root))
+    from sase.monitor.staged_owner import read_staged_owner_index
+
     staged = stage_monitor(
         stage_request(tmp_path, command="true", cwd=str(root), profile="verify")
     )
@@ -276,6 +283,9 @@ def test_held_cleanup_keeps_outer_record(
     assert result.held is True
     assert result.settled_tool_run_id == run_id
     assert (Path(dirs[0]) / STAGED_HANDOFF_FILENAME).is_file()
+    owner = read_staged_owner_index(staged.record.monitor_id)
+    assert owner is not None
+    assert owner["artifacts_dir"] == staged.record.artifacts_dir
     meta = json.loads(
         (Path(staged.record.artifacts_dir) / "agent_meta.json").read_text()
     )

@@ -104,7 +104,7 @@ def cleanup_staged_monitor(
     elif run_id and not joined and mode != "ordinary" and not submitted:
         if _settle_unstarted_run(run_id, held=held):
             settled_id = run_id
-    if monitor_id:
+    if monitor_id and not held:
         clear_staged_owner_index(monitor_id)
     starter = starter_artifacts_dir or str(claim.get("starter_artifacts_dir") or "")
     if not starter and payload is not None:

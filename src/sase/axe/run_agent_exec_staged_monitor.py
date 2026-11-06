@@ -27,19 +27,16 @@ def cleanup_staged_monitor_handoff(artifacts_dir: str, *, held: bool) -> None:
     if not isinstance(monitor_id, str) or not monitor_id:
         return
     try:
-        from sase.monitor.staged_owner import read_staged_owner_index
+        from sase.monitor.staged_owner import staged_monitor_member_artifacts_dir
 
-        index = read_staged_owner_index(monitor_id)
-    except Exception:  # noqa: BLE001 - missing index means nothing to clean.
+        member_dir = staged_monitor_member_artifacts_dir(monitor_id, staged_id, payload)
+    except Exception:  # noqa: BLE001 - missing owner evidence means nothing to clean.
         return
-    if not isinstance(index, dict) or index.get("staged_id") != staged_id:
-        return
-    member_dir = index.get("artifacts_dir")
-    if not isinstance(member_dir, str) or not member_dir.strip():
+    if not member_dir:
         return
     try:
         from sase.monitor.start_stage import cleanup_staged_monitor
 
-        cleanup_staged_monitor(member_dir.strip(), held=held)
+        cleanup_staged_monitor(member_dir, held=held)
     except Exception:  # noqa: BLE001 - preserve original failure and held evidence.
         return

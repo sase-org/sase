@@ -384,17 +384,9 @@ def _adopt_monitor(
     monitor_id = payload.get("monitor_id")
     if not isinstance(monitor_id, str) or not monitor_id:
         raise StagedHandoffError("staged monitor payload has no monitor_id")
-    from sase.monitor.staged_owner import read_staged_owner_index
+    from sase.monitor.staged_owner import staged_monitor_member_artifacts_dir
 
-    member_dir: str | None = None
-    try:
-        index = read_staged_owner_index(monitor_id)
-    except Exception:  # noqa: BLE001 - missing index is a refusal, not a crash.
-        index = None
-    if isinstance(index, Mapping) and index.get("staged_id") == staged_id:
-        candidate = index.get("artifacts_dir")
-        if isinstance(candidate, str) and candidate.strip():
-            member_dir = candidate.strip()
+    member_dir = staged_monitor_member_artifacts_dir(monitor_id, staged_id, payload)
     if member_dir is None:
         raise StagedHandoffError(
             "staged monitor member is unknown for "

@@ -31,6 +31,10 @@ def test_held_staged_handoff_note_names_exact_readopt_command(tmp_path, monkeypa
         "sase.agent.staged_handoff.read_staged_handoff",
         lambda _path: {"kind": "pipe", "staged_id": "stage-1"},
     )
+    monkeypatch.setattr(
+        "sase.agent.staged_handoff.read_staged_handoff_response",
+        lambda _staged_id, **_kwargs: "persisted response",
+    )
 
     note = _held_staged_handoff_note(str(tmp_path))
 
@@ -39,6 +43,38 @@ def test_held_staged_handoff_note_names_exact_readopt_command(tmp_path, monkeypa
     assert "review--plan" in note
     assert "sase agent readopt review--plan" in note
     assert "finalizer settlement is incomplete" in note
+
+
+def test_held_staged_handoff_without_recovery_evidence_prompts_salvage(
+    tmp_path, monkeypatch
+):
+    (tmp_path / "agent_meta.json").write_text(
+        json.dumps({"name": "review--plan"}), encoding="utf-8"
+    )
+    monkeypatch.setenv("SASE_HOME", str(tmp_path / ".sase"))
+    monkeypatch.setattr(
+        "sase.agent.staged_handoff.read_adoption_receipt",
+        lambda _path: {
+            "outcome": "handoff_not_adopted",
+            "staged_id": "stage-1",
+            "reason": "staged monitor member is unknown",
+        },
+    )
+    monkeypatch.setattr(
+        "sase.agent.staged_handoff.read_staged_handoff",
+        lambda _path: {
+            "kind": "monitor",
+            "staged_id": "stage-1",
+            "payload": {"monitor_id": "monitor-1"},
+        },
+    )
+
+    note = _held_staged_handoff_note(str(tmp_path))
+
+    assert note is not None
+    assert "salvage the workspace's work" in note.lower()
+    assert "dismiss this agent" in note.lower()
+    assert "sase agent readopt" not in note
 
 
 def test_hidden_agent_forwards_silent_true(base_kwargs):

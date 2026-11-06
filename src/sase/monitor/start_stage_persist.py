@@ -446,6 +446,15 @@ def _policy_digest_hex(
 
 def _outer_handoff_payload(launch_payload: dict[str, Any]) -> dict[str, Any]:
     outer = dict(launch_payload)
+    workspace = launch_payload.get("workspace")
+    claim_context = (
+        workspace.get("claim_context") if isinstance(workspace, dict) else None
+    )
+    member_artifacts_dir = (
+        claim_context.get("artifacts_dir") if isinstance(claim_context, dict) else None
+    )
+    if isinstance(member_artifacts_dir, str) and member_artifacts_dir.strip():
+        outer["member_artifacts_dir"] = member_artifacts_dir.strip()
     intent = prepared_intent_ref(launch_payload)
     if intent:
         outer["prepared_intent_ref"] = intent

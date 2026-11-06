@@ -329,7 +329,7 @@ def adopt_monitor_detached_locked(
             origin_agent=origin_agent,
         )
     try:
-        from sase.monitor.staged_owner import read_staged_owner_index
+        from sase.monitor.staged_owner import staged_monitor_member_artifacts_dir
     except Exception as exc:  # noqa: BLE001 - missing helper holds recovery.
         reason = f"staged monitor owner index is unavailable: {exc}"
         write_held_locked(staged_id, reason, artifacts_dir=artifacts_dir)
@@ -341,15 +341,7 @@ def adopt_monitor_detached_locked(
             kind=kind,
             origin_agent=origin_agent,
         )
-    try:
-        index = read_staged_owner_index(monitor_id)
-    except Exception:  # noqa: BLE001 - missing index is a hold, not a crash.
-        index = None
-    member_dir: str | None = None
-    if isinstance(index, Mapping) and index.get("staged_id") == staged_id:
-        candidate = index.get("artifacts_dir")
-        if isinstance(candidate, str) and candidate.strip():
-            member_dir = candidate.strip()
+    member_dir = staged_monitor_member_artifacts_dir(monitor_id, staged_id, payload)
     if member_dir is None:
         reason = (
             f"staged monitor member is unknown for monitor {monitor_id!r} "

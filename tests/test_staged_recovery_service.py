@@ -313,26 +313,55 @@ def test_gate_detached_adoption_reuses_request_id(tmp_path: Path, monkeypatch) -
     assert calls == [STAGED_ID]
 
 
-def test_monitor_detached_adoption_reuses_member(tmp_path: Path, monkeypatch) -> None:
+@pytest.mark.parametrize("response_mode", ["response", "provider_failure"])
+def test_monitor_detached_adoption_reuses_member(
+    tmp_path: Path, monkeypatch, response_mode: str
+) -> None:
     monkeypatch.setenv("SASE_AGENT", "1")
+    monkeypatch.setenv("SASE_HOME", str(tmp_path / ".sase"))
     artifacts = tmp_path / "20261028120000"
     artifacts.mkdir()
     member = tmp_path / "member"
     member.mkdir()
-    write_staged_handoff(
-        _record(tmp_path, kind="monitor"), artifacts_dir=str(artifacts)
-    )
-    write_staged_handoff_response(STAGED_ID, "response", artifacts_dir=str(artifacts))
+    record = _record(tmp_path, kind="monitor")
+    payload = record["payload"]
+    assert isinstance(payload, dict)
+    payload["workspace"] = {"claim_context": {"artifacts_dir": str(member)}}
+    write_staged_handoff(record, artifacts_dir=str(artifacts))
+    if response_mode == "response":
+        write_staged_handoff_response(
+            STAGED_ID, "response", artifacts_dir=str(artifacts)
+        )
+    else:
+        (artifacts / ".sase_provider_failure.json").write_text(
+            json.dumps(
+                {
+                    "schema_version": 1,
+                    "recorded_at": "2026-10-28T12:00:00Z",
+                    "provider": "muse",
+                    "error": "network error after staging",
+                }
+            ),
+            encoding="utf-8",
+        )
     _write_meta(artifacts, pid=999999)
     _settle_ok(monkeypatch)
     monkeypatch.setattr(
         "sase.axe.run_agent_exec_staged_recovery.observe_runner",
         lambda *_a, **_k: "dead",
     )
-    monkeypatch.setattr(
-        "sase.monitor.staged_owner.read_staged_owner_index",
-        lambda _monitor_id: {"staged_id": STAGED_ID, "artifacts_dir": str(member)},
+    from sase.monitor.staged_owner import (
+        clear_staged_owner_index,
+        write_staged_owner_index,
     )
+
+    write_staged_owner_index(
+        "monitor-1",
+        staged_id=STAGED_ID,
+        artifacts_dir=str(member),
+        starter_artifacts_dir=str(artifacts),
+    )
+    clear_staged_owner_index("monitor-1")
 
     class _LaunchRecord:
         monitor_id = "monitor-1"
