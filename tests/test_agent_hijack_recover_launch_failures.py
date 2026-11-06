@@ -185,7 +185,9 @@ class TestQueuedAndFailedLaunches:
         self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
     ) -> None:
         from sase.agent.hijack.recover_common import RecoveryDeps
-        from sase.agent.hijack.recover_confirm import _make_request_non_dispatchable
+        from sase.agent.hijack._recover_confirm_rollback import (
+            _make_request_non_dispatchable,
+        )
 
         flow = self._base(monkeypatch, tmp_path)
         flow.ledger.current["state"] = "resolving"
@@ -220,7 +222,9 @@ class TestQueuedAndFailedLaunches:
     def test_rollback_restores_and_pins_the_recorded_workspace_owner(
         self, tmp_path: Path
     ) -> None:
-        from sase.agent.hijack.recover_confirm import _restore_held_workspace_custody
+        from sase.agent.hijack._recover_confirm_rollback import (
+            _restore_held_workspace_custody,
+        )
         from sase.running_field import get_claimed_workspaces
 
         project_file = tmp_path / "proj.sase"
@@ -257,7 +261,9 @@ class TestQueuedAndFailedLaunches:
     def test_rollback_reclaims_missing_fixed_workspace_for_held_owner(
         self, tmp_path: Path
     ) -> None:
-        from sase.agent.hijack.recover_confirm import _restore_held_workspace_custody
+        from sase.agent.hijack._recover_confirm_rollback import (
+            _restore_held_workspace_custody,
+        )
         from sase.running_field import get_claimed_workspaces
 
         project_file = tmp_path / "proj.sase"
@@ -289,7 +295,9 @@ class TestQueuedAndFailedLaunches:
     def test_rollback_does_not_take_a_foreign_workspace_claim(
         self, tmp_path: Path
     ) -> None:
-        from sase.agent.hijack.recover_confirm import _restore_held_workspace_custody
+        from sase.agent.hijack._recover_confirm_rollback import (
+            _restore_held_workspace_custody,
+        )
         from sase.running_field import get_claimed_workspaces
 
         project_file = tmp_path / "proj.sase"

@@ -513,7 +513,7 @@ _REVIEWED_PATH_PASSING_CONTEXTS: dict[str, PathPassingReview] = {
             "no marker is written."
         ),
     ),
-    "src/sase/agent/hijack/recover_confirm.py:_read_successor_meta": PathPassingReview(
+    "src/sase/agent/hijack/_recover_confirm_flow.py:_read_successor_meta": PathPassingReview(
         exemption=(
             "Read-only successor identity observation: the launched child's "
             "agent_meta.json is read for its pid and process_identity token to "
