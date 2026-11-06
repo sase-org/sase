@@ -8,7 +8,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from sase.ace.scheduler import stale_running_cleanup as cleanup_module
+from sase.ace.scheduler import stale_running_sweep as cleanup_module
 from sase.ace.scheduler.stale_running_cleanup import cleanup_stale_running_entries
 from sase.running_field import WorkspaceClaim
 
@@ -35,15 +35,15 @@ def test_cleanup_keeps_dead_monitor_claim_when_member_not_terminal() -> None:
     project_file = "/tmp/projects/proj/proj.sase"
     with (
         patch(
-            "sase.ace.scheduler.stale_running_cleanup._get_all_project_files",
+            "sase.ace.scheduler.stale_running_sweep._get_all_project_files",
             return_value=[project_file],
         ),
         patch(
-            "sase.ace.scheduler.stale_running_cleanup.get_claimed_workspaces",
+            "sase.ace.scheduler.stale_running_sweep.get_claimed_workspaces",
             return_value=[claim],
         ),
         patch(
-            "sase.ace.scheduler.stale_running_cleanup.is_process_running",
+            "sase.ace.scheduler.stale_running_sweep.is_process_running",
             return_value=False,
         ),
         patch(
@@ -54,7 +54,7 @@ def test_cleanup_keeps_dead_monitor_claim_when_member_not_terminal() -> None:
             "sase.monitor.store.read_monitor_marker",
             return_value=MagicMock(is_terminal=False),
         ),
-        patch("sase.ace.scheduler.stale_running_cleanup.release_workspace") as release,
+        patch("sase.ace.scheduler.stale_running_sweep.release_workspace") as release,
     ):
         assert cleanup_stale_running_entries() == 0
     release.assert_not_called()
@@ -72,15 +72,15 @@ def test_cleanup_releases_dead_monitor_claim_once_member_is_terminal() -> None:
     project_file = "/tmp/projects/proj/proj.sase"
     with (
         patch(
-            "sase.ace.scheduler.stale_running_cleanup._get_all_project_files",
+            "sase.ace.scheduler.stale_running_sweep._get_all_project_files",
             return_value=[project_file],
         ),
         patch(
-            "sase.ace.scheduler.stale_running_cleanup.get_claimed_workspaces",
+            "sase.ace.scheduler.stale_running_sweep.get_claimed_workspaces",
             return_value=[claim],
         ),
         patch(
-            "sase.ace.scheduler.stale_running_cleanup.is_process_running",
+            "sase.ace.scheduler.stale_running_sweep.is_process_running",
             return_value=False,
         ),
         patch(
@@ -91,7 +91,7 @@ def test_cleanup_releases_dead_monitor_claim_once_member_is_terminal() -> None:
             "sase.monitor.store.read_monitor_marker",
             return_value=MagicMock(is_terminal=True),
         ),
-        patch("sase.ace.scheduler.stale_running_cleanup.release_workspace") as release,
+        patch("sase.ace.scheduler.stale_running_sweep.release_workspace") as release,
     ):
         assert cleanup_stale_running_entries() == 1
     release.assert_called_once_with(
@@ -117,15 +117,15 @@ def test_cleanup_keeps_dead_gate_claim_when_member_not_terminal() -> None:
     project_file = "/tmp/projects/proj/proj.sase"
     with (
         patch(
-            "sase.ace.scheduler.stale_running_cleanup._get_all_project_files",
+            "sase.ace.scheduler.stale_running_sweep._get_all_project_files",
             return_value=[project_file],
         ),
         patch(
-            "sase.ace.scheduler.stale_running_cleanup.get_claimed_workspaces",
+            "sase.ace.scheduler.stale_running_sweep.get_claimed_workspaces",
             return_value=[claim],
         ),
         patch(
-            "sase.ace.scheduler.stale_running_cleanup.is_process_running",
+            "sase.ace.scheduler.stale_running_sweep.is_process_running",
             return_value=False,
         ),
         patch(
@@ -136,7 +136,7 @@ def test_cleanup_keeps_dead_gate_claim_when_member_not_terminal() -> None:
             "sase.gate_turn.store.read_gate_turn_marker",
             return_value=MagicMock(is_terminal=False),
         ),
-        patch("sase.ace.scheduler.stale_running_cleanup.release_workspace") as release,
+        patch("sase.ace.scheduler.stale_running_sweep.release_workspace") as release,
     ):
         assert cleanup_stale_running_entries() == 0
     release.assert_not_called()
@@ -154,15 +154,15 @@ def test_cleanup_releases_dead_gate_claim_once_member_is_terminal() -> None:
     project_file = "/tmp/projects/proj/proj.sase"
     with (
         patch(
-            "sase.ace.scheduler.stale_running_cleanup._get_all_project_files",
+            "sase.ace.scheduler.stale_running_sweep._get_all_project_files",
             return_value=[project_file],
         ),
         patch(
-            "sase.ace.scheduler.stale_running_cleanup.get_claimed_workspaces",
+            "sase.ace.scheduler.stale_running_sweep.get_claimed_workspaces",
             return_value=[claim],
         ),
         patch(
-            "sase.ace.scheduler.stale_running_cleanup.is_process_running",
+            "sase.ace.scheduler.stale_running_sweep.is_process_running",
             return_value=False,
         ),
         patch(
@@ -173,7 +173,7 @@ def test_cleanup_releases_dead_gate_claim_once_member_is_terminal() -> None:
             "sase.gate_turn.store.read_gate_turn_marker",
             return_value=MagicMock(is_terminal=True),
         ),
-        patch("sase.ace.scheduler.stale_running_cleanup.release_workspace") as release,
+        patch("sase.ace.scheduler.stale_running_sweep.release_workspace") as release,
     ):
         assert cleanup_stale_running_entries() == 1
     release.assert_called_once_with(
@@ -205,22 +205,22 @@ def test_cleanup_skip_monitor_claims_leaves_ace_monitor_claims_untouched() -> No
     project_file = "/tmp/projects/proj/proj.sase"
     with (
         patch(
-            "sase.ace.scheduler.stale_running_cleanup._get_all_project_files",
+            "sase.ace.scheduler.stale_running_sweep._get_all_project_files",
             return_value=[project_file],
         ),
         patch(
-            "sase.ace.scheduler.stale_running_cleanup.get_claimed_workspaces",
+            "sase.ace.scheduler.stale_running_sweep.get_claimed_workspaces",
             return_value=[monitor_claim, other_claim],
         ),
         patch(
-            "sase.ace.scheduler.stale_running_cleanup.is_process_running",
+            "sase.ace.scheduler.stale_running_sweep.is_process_running",
             return_value=False,
         ),
         patch(
             "sase.monitor.store.read_monitor_marker",
             return_value=MagicMock(is_terminal=True),
         ) as read_marker,
-        patch("sase.ace.scheduler.stale_running_cleanup.release_workspace") as release,
+        patch("sase.ace.scheduler.stale_running_sweep.release_workspace") as release,
     ):
         released = cleanup_stale_running_entries(skip_monitor_claims=True)
 
@@ -281,18 +281,18 @@ def test_cleanup_skip_monitor_claims_survives_unimportable_monitor_start(
     project_file = "/tmp/projects/proj/proj.sase"
     with (
         patch(
-            "sase.ace.scheduler.stale_running_cleanup._get_all_project_files",
+            "sase.ace.scheduler.stale_running_sweep._get_all_project_files",
             return_value=[project_file],
         ),
         patch(
-            "sase.ace.scheduler.stale_running_cleanup.get_claimed_workspaces",
+            "sase.ace.scheduler.stale_running_sweep.get_claimed_workspaces",
             return_value=[monitor_claim, other_claim],
         ),
         patch(
-            "sase.ace.scheduler.stale_running_cleanup.is_process_running",
+            "sase.ace.scheduler.stale_running_sweep.is_process_running",
             return_value=False,
         ),
-        patch("sase.ace.scheduler.stale_running_cleanup.release_workspace") as release,
+        patch("sase.ace.scheduler.stale_running_sweep.release_workspace") as release,
     ):
         released = cleanup_stale_running_entries(skip_monitor_claims=True)
 
@@ -341,15 +341,15 @@ def test_cleanup_releases_dead_gate_claim_after_held_ttl() -> None:
         project_file = "/tmp/projects/proj/proj.sase"
         with (
             patch(
-                "sase.ace.scheduler.stale_running_cleanup._get_all_project_files",
+                "sase.ace.scheduler.stale_running_sweep._get_all_project_files",
                 return_value=[project_file],
             ),
             patch(
-                "sase.ace.scheduler.stale_running_cleanup.get_claimed_workspaces",
+                "sase.ace.scheduler.stale_running_sweep.get_claimed_workspaces",
                 return_value=[claim],
             ),
             patch(
-                "sase.ace.scheduler.stale_running_cleanup.is_process_running",
+                "sase.ace.scheduler.stale_running_sweep.is_process_running",
                 return_value=False,
             ),
             patch(
@@ -361,7 +361,7 @@ def test_cleanup_releases_dead_gate_claim_after_held_ttl() -> None:
                 return_value=MagicMock(is_terminal=False),
             ),
             patch(
-                "sase.ace.scheduler.stale_running_cleanup.release_workspace"
+                "sase.ace.scheduler.stale_running_sweep.release_workspace"
             ) as release,
         ):
             assert cleanup_stale_running_entries() == 1
@@ -393,15 +393,15 @@ def test_cleanup_keeps_dead_gate_claim_when_held_ttl_disabled(
     project_file = "/tmp/projects/proj/proj.sase"
     with (
         patch(
-            "sase.ace.scheduler.stale_running_cleanup._get_all_project_files",
+            "sase.ace.scheduler.stale_running_sweep._get_all_project_files",
             return_value=[project_file],
         ),
         patch(
-            "sase.ace.scheduler.stale_running_cleanup.get_claimed_workspaces",
+            "sase.ace.scheduler.stale_running_sweep.get_claimed_workspaces",
             return_value=[claim],
         ),
         patch(
-            "sase.ace.scheduler.stale_running_cleanup.is_process_running",
+            "sase.ace.scheduler.stale_running_sweep.is_process_running",
             return_value=False,
         ),
         patch(
@@ -412,7 +412,7 @@ def test_cleanup_keeps_dead_gate_claim_when_held_ttl_disabled(
             "sase.gate_turn.store.read_gate_turn_marker",
             return_value=MagicMock(is_terminal=False),
         ),
-        patch("sase.ace.scheduler.stale_running_cleanup.release_workspace") as release,
+        patch("sase.ace.scheduler.stale_running_sweep.release_workspace") as release,
     ):
         assert cleanup_stale_running_entries() == 0
     release.assert_not_called()
@@ -589,15 +589,19 @@ def _run_cleanup_sweep(fixture: dict) -> int:
     """Run one stale-running sweep over the leaked claim's project file."""
     with (
         patch(
-            "sase.ace.scheduler.stale_running_cleanup._get_all_project_files",
+            "sase.ace.scheduler.stale_running_sweep._get_all_project_files",
             return_value=[fixture["project_file"]],
         ),
         patch(
-            "sase.ace.scheduler.stale_running_cleanup.is_process_running",
+            "sase.ace.scheduler.stale_running_sweep.is_process_running",
             return_value=False,
         ),
         patch(
-            "sase.ace.scheduler.stale_running_cleanup.get_workspace_directory_for_num",
+            "sase.ace.scheduler.stale_running_leak.get_workspace_directory_for_num",
+            return_value=(str(fixture["checkout"]), None),
+        ),
+        patch(
+            "sase.ace.scheduler._stale_running_shared.get_workspace_directory_for_num",
             return_value=(str(fixture["checkout"]), None),
         ),
         patch("sase.sdd.store.resolve_sdd_store", return_value=fixture["store"]),

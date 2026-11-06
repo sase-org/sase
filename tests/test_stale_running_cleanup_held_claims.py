@@ -5,10 +5,10 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from sase.ace.scheduler.stale_running_cleanup import (
+from sase.ace.scheduler.stale_running_cleanup import cleanup_stale_running_entries
+from sase.ace.scheduler.stale_running_sweep import (
     _held_claim_exceeds_ttl,
     _parse_claim_timestamp,
-    cleanup_stale_running_entries,
 )
 from sase.running_field import WorkspaceClaim
 
@@ -40,38 +40,38 @@ def _run_pinned_cleanup(
     clock = now or datetime(2026, 9, 7, 12, 0, 0)
     with (
         patch(
-            "sase.ace.scheduler.stale_running_cleanup._get_all_project_files",
+            "sase.ace.scheduler.stale_running_sweep._get_all_project_files",
             return_value=[project_file],
         ),
         patch(
-            "sase.ace.scheduler.stale_running_cleanup.get_claimed_workspaces",
+            "sase.ace.scheduler.stale_running_sweep.get_claimed_workspaces",
             return_value=[pinned],
         ),
         patch(
-            "sase.ace.scheduler.stale_running_cleanup.is_process_running",
+            "sase.ace.scheduler.stale_running_sweep.is_process_running",
             return_value=False,
         ),
         patch(
-            "sase.ace.scheduler.stale_running_cleanup._held_agent_artifacts_exist",
+            "sase.ace.scheduler.stale_running_sweep._held_agent_artifacts_exist",
             return_value=artifacts_exist,
         ),
         patch(
-            "sase.ace.scheduler.stale_running_cleanup._held_done_marker_exists",
+            "sase.ace.scheduler.stale_running_sweep._held_done_marker_exists",
             return_value=done_marker_exists,
         ),
         patch(
-            "sase.ace.scheduler.stale_running_cleanup._held_claim_ttl_days",
+            "sase.ace.scheduler.stale_running_sweep._held_claim_ttl_days",
             return_value=ttl_days,
         ),
         patch(
-            "sase.ace.scheduler.stale_running_cleanup._now",
+            "sase.ace.scheduler.stale_running_sweep._now",
             return_value=clock,
         ),
         patch(
-            "sase.ace.scheduler.stale_running_cleanup._matching_hijack_record",
+            "sase.ace.scheduler.stale_running_sweep._matching_hijack_record",
             return_value=None,
         ),
-        patch("sase.ace.scheduler.stale_running_cleanup.release_workspace") as release,
+        patch("sase.ace.scheduler.stale_running_sweep.release_workspace") as release,
     ):
         released = cleanup_stale_running_entries()
     return released, release
@@ -227,7 +227,7 @@ def test_staged_origin_retains_claim_before_and_after_receipt(
     tmp_path, monkeypatch, pinned, age, ttl
 ):
     """Pending adoption keeps custody until settlement or ownership transfer."""
-    import sase.ace.scheduler.stale_running_cleanup as cleanup
+    import sase.ace.scheduler.stale_running_sweep as cleanup
 
     artifacts = tmp_path / "origin"
     artifacts.mkdir()

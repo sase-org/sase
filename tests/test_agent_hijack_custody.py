@@ -120,22 +120,22 @@ def test_cleanup_retains_requested_hijack_without_done_json() -> None:
     claim = _claim(pinned=False)
     with (
         patch(
-            "sase.ace.scheduler.stale_running_cleanup._get_all_project_files",
+            "sase.ace.scheduler.stale_running_sweep._get_all_project_files",
             return_value=[project_file],
         ),
         patch(
-            "sase.ace.scheduler.stale_running_cleanup.get_claimed_workspaces",
+            "sase.ace.scheduler.stale_running_sweep.get_claimed_workspaces",
             return_value=[claim],
         ),
         patch(
-            "sase.ace.scheduler.stale_running_cleanup.is_process_running",
+            "sase.ace.scheduler.stale_running_sweep.is_process_running",
             return_value=False,
         ),
         patch(
-            "sase.ace.scheduler.stale_running_cleanup._matching_hijack_record",
+            "sase.ace.scheduler.stale_running_sweep._matching_hijack_record",
             return_value=_held_record(state="requested"),
         ),
-        patch("sase.ace.scheduler.stale_running_cleanup.release_workspace") as release,
+        patch("sase.ace.scheduler.stale_running_sweep.release_workspace") as release,
         patch("sase.agent.hijack.custody.expire_hijack_hold") as expire,
     ):
         released = cleanup_stale_running_entries()
@@ -151,27 +151,27 @@ def test_cleanup_retains_held_claim_younger_than_hijacked_at_ttl() -> None:
     record = _held_record(hijacked_at=now.isoformat())
     with (
         patch(
-            "sase.ace.scheduler.stale_running_cleanup._get_all_project_files",
+            "sase.ace.scheduler.stale_running_sweep._get_all_project_files",
             return_value=[project_file],
         ),
         patch(
-            "sase.ace.scheduler.stale_running_cleanup.get_claimed_workspaces",
+            "sase.ace.scheduler.stale_running_sweep.get_claimed_workspaces",
             return_value=[claim],
         ),
         patch(
-            "sase.ace.scheduler.stale_running_cleanup.is_process_running",
+            "sase.ace.scheduler.stale_running_sweep.is_process_running",
             return_value=False,
         ),
         patch(
-            "sase.ace.scheduler.stale_running_cleanup._matching_hijack_record",
+            "sase.ace.scheduler.stale_running_sweep._matching_hijack_record",
             return_value=record,
         ),
         patch(
-            "sase.ace.scheduler.stale_running_cleanup._held_claim_ttl_days",
+            "sase.ace.scheduler.stale_running_sweep._held_claim_ttl_days",
             return_value=14,
         ),
         patch("sase.agent.hijack.custody.hijacked_at_exceeds_ttl", return_value=False),
-        patch("sase.ace.scheduler.stale_running_cleanup.release_workspace") as release,
+        patch("sase.ace.scheduler.stale_running_sweep.release_workspace") as release,
         patch("sase.agent.hijack.custody.expire_hijack_hold") as expire,
     ):
         released = cleanup_stale_running_entries()
@@ -186,28 +186,28 @@ def test_cleanup_expire_snapshot_failure_keeps_the_hold() -> None:
     record = _held_record(hijacked_at="2026-08-01T12:00:00")
     with (
         patch(
-            "sase.ace.scheduler.stale_running_cleanup._get_all_project_files",
+            "sase.ace.scheduler.stale_running_sweep._get_all_project_files",
             return_value=[project_file],
         ),
         patch(
-            "sase.ace.scheduler.stale_running_cleanup.get_claimed_workspaces",
+            "sase.ace.scheduler.stale_running_sweep.get_claimed_workspaces",
             return_value=[claim],
         ),
         patch(
-            "sase.ace.scheduler.stale_running_cleanup.is_process_running",
+            "sase.ace.scheduler.stale_running_sweep.is_process_running",
             return_value=False,
         ),
         patch(
-            "sase.ace.scheduler.stale_running_cleanup._matching_hijack_record",
+            "sase.ace.scheduler.stale_running_sweep._matching_hijack_record",
             return_value=record,
         ),
         patch(
-            "sase.ace.scheduler.stale_running_cleanup._held_claim_ttl_days",
+            "sase.ace.scheduler.stale_running_sweep._held_claim_ttl_days",
             return_value=14,
         ),
         patch("sase.agent.hijack.custody.hijacked_at_exceeds_ttl", return_value=True),
         patch("sase.agent.hijack.custody.expire_hijack_hold", return_value=False),
-        patch("sase.ace.scheduler.stale_running_cleanup.release_workspace") as release,
+        patch("sase.ace.scheduler.stale_running_sweep.release_workspace") as release,
     ):
         released = cleanup_stale_running_entries()
     assert released == 0

@@ -69,13 +69,20 @@ def origin(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
 
 
 def _cleanup(monkeypatch, checkout, *, now, ttl=14):
-    import sase.ace.scheduler.stale_running_cleanup as cleanup
+    import sase.ace.scheduler._stale_running_shared as shared
+    import sase.ace.scheduler.stale_running_leak as leak
+    import sase.ace.scheduler.stale_running_sweep as cleanup
 
     monkeypatch.setattr(cleanup, "is_process_running", lambda _: False)
     monkeypatch.setattr(cleanup, "_held_claim_ttl_days", lambda: ttl)
     monkeypatch.setattr(cleanup, "_now", lambda: now)
     monkeypatch.setattr(
-        cleanup,
+        shared,
+        "get_workspace_directory_for_num",
+        lambda *_a, **_k: (str(checkout), ""),
+    )
+    monkeypatch.setattr(
+        leak,
         "get_workspace_directory_for_num",
         lambda *_a, **_k: (str(checkout), ""),
     )
@@ -216,7 +223,7 @@ def test_success_receipt_prevents_late_held_writer_from_settling_workspace(origi
 
 @pytest.mark.parametrize("race", ["before_release", "after_release"])
 def test_cleanup_expiry_preserves_successor_custody(origin, monkeypatch, race):
-    import sase.ace.scheduler.stale_running_cleanup as cleanup
+    import sase.ace.scheduler.stale_running_sweep as cleanup
 
     artifacts, checkout, project_file, claim = origin
     (checkout / "tracked.txt").write_text("held\n")

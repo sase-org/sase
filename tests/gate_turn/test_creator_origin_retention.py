@@ -337,11 +337,11 @@ def test_detached_failed_gate_pins_root_claim_and_preserves_private_linked_edits
     from sase.ace.scheduler.stale_running_cleanup import cleanup_stale_running_entries
 
     monkeypatch.setattr(
-        "sase.ace.scheduler.stale_running_cleanup._get_all_project_files",
+        "sase.ace.scheduler.stale_running_sweep._get_all_project_files",
         lambda: [project_file],
     )
     monkeypatch.setattr(
-        "sase.ace.scheduler.stale_running_cleanup.is_process_running",
+        "sase.ace.scheduler.stale_running_sweep.is_process_running",
         lambda _pid: False,
     )
     assert cleanup_stale_running_entries() == 0

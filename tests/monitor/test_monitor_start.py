@@ -389,11 +389,11 @@ def test_monitor_claim_survives_stale_cleanup_allocation_and_followup_transfer(
         ] == [(10, supervisor_pid, MONITOR_WORKSPACE_CLAIM_WORKFLOW)]
 
         monkeypatch.setattr(
-            "sase.ace.scheduler.stale_running_cleanup._get_all_project_files",
+            "sase.ace.scheduler.stale_running_sweep._get_all_project_files",
             lambda: [project_file],
         )
         monkeypatch.setattr(
-            "sase.ace.scheduler.stale_running_cleanup.is_process_running",
+            "sase.ace.scheduler.stale_running_sweep.is_process_running",
             lambda pid: pid == supervisor_pid,
         )
 

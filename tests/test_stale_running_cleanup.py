@@ -4,10 +4,8 @@ import tempfile
 from pathlib import Path
 from unittest.mock import MagicMock, call, patch
 
-from sase.ace.scheduler.stale_running_cleanup import (
-    _get_all_project_files,
-    cleanup_stale_running_entries,
-)
+from sase.ace.scheduler.stale_running_cleanup import cleanup_stale_running_entries
+from sase.ace.scheduler.stale_running_sweep import _get_all_project_files
 from sase.running_field import WorkspaceClaim
 
 
@@ -20,16 +18,16 @@ def test_cleanup_keeps_running_process_entries() -> None:
 
     with (
         patch(
-            "sase.ace.scheduler.stale_running_cleanup._get_all_project_files"
+            "sase.ace.scheduler.stale_running_sweep._get_all_project_files"
         ) as mock_get_files,
         patch(
-            "sase.ace.scheduler.stale_running_cleanup.get_claimed_workspaces"
+            "sase.ace.scheduler.stale_running_sweep.get_claimed_workspaces"
         ) as mock_get_claims,
         patch(
-            "sase.ace.scheduler.stale_running_cleanup.is_process_running"
+            "sase.ace.scheduler.stale_running_sweep.is_process_running"
         ) as mock_is_running,
         patch(
-            "sase.ace.scheduler.stale_running_cleanup.release_workspace"
+            "sase.ace.scheduler.stale_running_sweep.release_workspace"
         ) as mock_release,
     ):
         mock_get_files.return_value = [
@@ -55,15 +53,15 @@ def test_cleanup_logs_entry_without_cl_name() -> None:
 
     with (
         patch(
-            "sase.ace.scheduler.stale_running_cleanup._get_all_project_files"
+            "sase.ace.scheduler.stale_running_sweep._get_all_project_files"
         ) as mock_get_files,
         patch(
-            "sase.ace.scheduler.stale_running_cleanup.get_claimed_workspaces"
+            "sase.ace.scheduler.stale_running_sweep.get_claimed_workspaces"
         ) as mock_get_claims,
         patch(
-            "sase.ace.scheduler.stale_running_cleanup.is_process_running"
+            "sase.ace.scheduler.stale_running_sweep.is_process_running"
         ) as mock_is_running,
-        patch("sase.ace.scheduler.stale_running_cleanup.release_workspace"),
+        patch("sase.ace.scheduler.stale_running_sweep.release_workspace"),
     ):
         mock_get_files.return_value = ["/home/user/.sase/projects/proj/proj.sase"]
         mock_get_claims.return_value = claims
@@ -142,18 +140,18 @@ def test_cleanup_releases_each_dead_claim_by_identity() -> None:
 
     with (
         patch(
-            "sase.ace.scheduler.stale_running_cleanup._get_all_project_files",
+            "sase.ace.scheduler.stale_running_sweep._get_all_project_files",
             return_value=[project_file],
         ),
         patch(
-            "sase.ace.scheduler.stale_running_cleanup.get_claimed_workspaces",
+            "sase.ace.scheduler.stale_running_sweep.get_claimed_workspaces",
             return_value=claims,
         ),
         patch(
-            "sase.ace.scheduler.stale_running_cleanup.is_process_running",
+            "sase.ace.scheduler.stale_running_sweep.is_process_running",
             side_effect=lambda pid: pid == 22222,
         ),
-        patch("sase.ace.scheduler.stale_running_cleanup.release_workspace") as release,
+        patch("sase.ace.scheduler.stale_running_sweep.release_workspace") as release,
     ):
         released = cleanup_stale_running_entries()
 
@@ -201,16 +199,16 @@ def test_cleanup_skips_pinned_entries() -> None:
 
     with (
         patch(
-            "sase.ace.scheduler.stale_running_cleanup._get_all_project_files"
+            "sase.ace.scheduler.stale_running_sweep._get_all_project_files"
         ) as mock_get_files,
         patch(
-            "sase.ace.scheduler.stale_running_cleanup.get_claimed_workspaces"
+            "sase.ace.scheduler.stale_running_sweep.get_claimed_workspaces"
         ) as mock_get_claims,
         patch(
-            "sase.ace.scheduler.stale_running_cleanup.is_process_running"
+            "sase.ace.scheduler.stale_running_sweep.is_process_running"
         ) as mock_is_running,
         patch(
-            "sase.ace.scheduler.stale_running_cleanup.release_workspace"
+            "sase.ace.scheduler.stale_running_sweep.release_workspace"
         ) as mock_release,
     ):
         mock_get_files.return_value = [
