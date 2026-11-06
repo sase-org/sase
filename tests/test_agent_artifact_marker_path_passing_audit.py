@@ -506,7 +506,7 @@ _REVIEWED_PATH_PASSING_CONTEXTS: dict[str, PathPassingReview] = {
             "the Tier 1 artifact index for the same artifacts directory."
         ),
     ),
-    "src/sase/agent/hijack/recovery_successor.py:collect_bootstrap_observation": PathPassingReview(
+    "src/sase/agent/hijack/_recovery_successor_bootstrap_observation.py:collect_bootstrap_observation": PathPassingReview(
         exemption=(
             "Read-only child bootstrap audit: agent_meta.json, baseline fingerprints, "
             "and repository inventories are observed before provider execution; "

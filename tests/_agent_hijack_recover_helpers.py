@@ -394,8 +394,10 @@ class Flow:
             )
             if flow._evidence != {}:
                 from sase.agent.hijack.recovery_successor import (
-                    _build_bootstrap_ack,
                     write_recovery_ack,
+                )
+                from sase.agent.hijack._recovery_successor_inheritance import (
+                    build_bootstrap_ack,
                 )
 
                 observed = flow._evidence
@@ -425,7 +427,7 @@ class Flow:
                     lineage = json.loads(lineage)
                 provider_model, separator, effort = target.partition("@")
                 provider, _, model = provider_model.partition("/")
-                ack = _build_bootstrap_ack(
+                ack = build_bootstrap_ack(
                     goal=goal,
                     bead=bead,
                     baseline_inherited=baseline,

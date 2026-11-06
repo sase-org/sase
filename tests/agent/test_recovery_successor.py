@@ -17,7 +17,10 @@ from typing import Any
 import pytest
 
 from sase.agent.detached_child import AgentSessionAttachDirective
-from sase.agent.hijack import recovery_successor as recovery_successor_module
+from sase.agent.hijack import (
+    _recovery_successor_common as recovery_common,
+    _recovery_successor_launch as recovery_launch,
+)
 from sase.agent.hijack.recovery_successor import (
     RECOVERY_ACK_FILENAME,
     RECOVERY_LINEAGE_ENV,
@@ -71,24 +74,20 @@ def _inheritance_kwargs(**overrides: Any) -> dict[str, Any]:
 
 class TestRecoveryLineage:
     def test_round_trips_through_encode_and_decode(self) -> None:
-        lineage = recovery_successor_module._normalize_recovery_lineage(_lineage())
+        lineage = recovery_common.normalize_recovery_lineage(_lineage())
 
         assert (
-            decode_recovery_lineage(
-                recovery_successor_module._encode_recovery_lineage(lineage)
-            )
+            decode_recovery_lineage(recovery_common.encode_recovery_lineage(lineage))
             == lineage
         )
         assert lineage.as_dict() == _lineage()
 
     def test_missing_fields_raise(self) -> None:
         with pytest.raises(RecoveryInheritanceError, match="hijack_id"):
-            recovery_successor_module._normalize_recovery_lineage(
-                _lineage(hijack_id="")
-            )
+            recovery_common.normalize_recovery_lineage(_lineage(hijack_id=""))
 
         with pytest.raises(RecoveryInheritanceError, match="predecessor"):
-            recovery_successor_module._normalize_recovery_lineage({"hijack_id": "h"})
+            recovery_common.normalize_recovery_lineage({"hijack_id": "h"})
 
     def test_missing_payload_raises(self) -> None:
         with pytest.raises(RecoveryInheritanceError, match=RECOVERY_LINEAGE_ENV):
@@ -99,7 +98,7 @@ class TestRecoveryLineage:
             decode_recovery_lineage("{oops")
 
     def test_child_env_carries_lineage_and_strict_boot(self) -> None:
-        env = recovery_successor_module._recovery_child_env(_lineage())
+        env = recovery_launch._recovery_child_env(_lineage())
 
         assert json.loads(env[RECOVERY_LINEAGE_ENV]) == _lineage()
         assert env[RECOVERY_STRICT_ENV] == "1"
@@ -111,7 +110,7 @@ class TestRecoveryWorkspacePair:
             "sase.running_field.get_workspace_directory_for_num",
             lambda num, project_name, clean=False: ("/ws/3", None),
         )
-        recovery_successor_module._validate_recovery_workspace_pair(
+        recovery_launch._validate_recovery_workspace_pair(
             project_name="proj", workspace_num=3, workspace_dir="/ws/3"
         )
 
@@ -126,20 +125,20 @@ class TestRecoveryWorkspacePair:
         monkeypatch.setattr(
             "sase.running_field.get_workspace_directory_for_num", _raise
         )
-        recovery_successor_module._validate_recovery_workspace_pair(
+        recovery_launch._validate_recovery_workspace_pair(
             project_name="proj", workspace_num=3, workspace_dir="/ws/3"
         )
 
     @pytest.mark.parametrize("num", [0, -1, True, "3", None])
     def test_non_positive_numbers_raise(self, num: object) -> None:
         with pytest.raises(RecoveryInheritanceError, match="positive workspace"):
-            recovery_successor_module._validate_recovery_workspace_pair(
+            recovery_launch._validate_recovery_workspace_pair(
                 project_name="proj", workspace_num=num, workspace_dir="/ws/3"
             )
 
     def test_empty_directory_raises(self) -> None:
         with pytest.raises(RecoveryInheritanceError, match="workspace directory"):
-            recovery_successor_module._validate_recovery_workspace_pair(
+            recovery_launch._validate_recovery_workspace_pair(
                 project_name="proj", workspace_num=3, workspace_dir="  "
             )
 
@@ -149,7 +148,7 @@ class TestRecoveryWorkspacePair:
             lambda num, project_name, clean=False: ("/ws/other", None),
         )
         with pytest.raises(RecoveryInheritanceError, match="mismatch"):
-            recovery_successor_module._validate_recovery_workspace_pair(
+            recovery_launch._validate_recovery_workspace_pair(
                 project_name="proj", workspace_num=3, workspace_dir="/ws/3"
             )
 
@@ -256,20 +255,18 @@ class TestRequireRecoveryInheritance:
 
 class TestVerdictCarryover:
     def test_clean_child_passes(self) -> None:
-        recovery_successor_module._ensure_no_verdict_carryover(
+        recovery_common.ensure_no_verdict_carryover(
             parent_meta={"name": "acme--3", "outcome": "hijacked"},
             child_meta={"name": "acme--4", "recovery_lineage": _lineage()},
         )
 
     def test_missing_metas_pass(self) -> None:
-        recovery_successor_module._ensure_no_verdict_carryover(
-            parent_meta=None, child_meta=None
-        )
+        recovery_common.ensure_no_verdict_carryover(parent_meta=None, child_meta=None)
 
     @pytest.mark.parametrize("key", ["outcome", "receipts", "declarations"])
     def test_copied_keys_raise(self, key: str) -> None:
         with pytest.raises(RecoveryInheritanceError, match="must not copy"):
-            recovery_successor_module._ensure_no_verdict_carryover(
+            recovery_common.ensure_no_verdict_carryover(
                 parent_meta={"name": "acme--3", key: "hijacked"},
                 child_meta={"name": "acme--4", key: "hijacked"},
             )
@@ -639,7 +636,7 @@ class TestRecoveryLineageMetadata:
 
         monkeypatch.setenv(
             RECOVERY_LINEAGE_ENV,
-            recovery_successor_module._encode_recovery_lineage(_lineage()),
+            recovery_common.encode_recovery_lineage(_lineage()),
         )
         agent_meta: dict[str, Any] = {
             "name": "acme--4",
