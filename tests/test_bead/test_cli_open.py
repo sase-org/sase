@@ -81,3 +81,17 @@ def test_handle_bead_open_reopens_closed_ancestors(
         assert reopened_epic.resolution is None
     output = capsys.readouterr().out
     assert f"○ Reopened ancestor: {epic.id} — Epic" in output
+
+
+def test_open_parser_help_says_closed_and_not_a_viewer(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    parser = create_parser()
+    with pytest.raises(SystemExit) as excinfo:
+        parser.parse_args(["bead", "open", "-h"])
+
+    assert excinfo.value.code == 0
+    help_text = capsys.readouterr().out
+    assert "closed" in help_text
+    assert "not a viewer" in help_text
+    assert "sase bead read" in help_text

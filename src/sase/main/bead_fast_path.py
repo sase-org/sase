@@ -134,6 +134,15 @@ def execute_bead_cli(argv: list[str], *, materialize: bool = False) -> int | Non
                 return 1
             return None
 
+    if argv and argv[0] == "open" and context.bead_context is not None:
+        from sase.bead.open_agent_guard import refuse_agent_open_of_non_closed
+        from sase.bead.operation_context import read_view_for_operation_context
+
+        resolved = context.bead_context.resolved_ids
+        if resolved:
+            with read_view_for_operation_context(context.bead_context) as project:
+                refuse_agent_open_of_non_closed(project.show, resolved[0])
+
     if _is_mutating_verb(argv):
         from sase.core.state_write_guard import assert_bead_store_write_sandboxed
 

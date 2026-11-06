@@ -40,7 +40,7 @@ Quick Start:
   sase bead show <id> --format=json              Machine-readable bead detail
   sase bead show <epic-id>..                     Show an epic plus its direct children
   sase bead update <id> --status=in_progress     Claim an issue
-  sase bead open <id>                            Reopen an issue
+  sase bead open <id>                            Reopen a closed issue (not a viewer; view with read)
   sase bead snooze <id> -u 3d -r "why"           Defer a task until a wake time
   sase bead snooze <id> -u 3d -p 2               Also wake it at 2 more +1s
   sase bead snooze <id> --cancel                 Wake a snoozed task now

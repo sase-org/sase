@@ -1,4 +1,4 @@
-{"count": 3687, "rev": "3cce4e588d55", "schema": "sase.footprint.catalog/1"}
+{"count": 3687, "rev": "11e37bcb1e53", "schema": "sase.footprint.catalog/1"}
 {"area": "automation", "id": "auto:axe.agent_waits", "kind": "auto", "label": "Resolve agent wait dependencies within seconds of completion", "ns": "auto", "parent": null, "src": "sase/default_config.yml"}
 {"area": "automation", "id": "auto:axe.agent_waits.wait_checks", "kind": "auto", "label": "Resolve agent wait dependencies and write ready.json when satisfied", "ns": "auto", "parent": "auto:axe.agent_waits", "src": "sase/default_config.yml"}
 {"area": "automation", "id": "auto:axe.checks", "kind": "auto", "label": "Poll slower PR-submission and workspace-claim checks on a five-minute cadence", "ns": "auto", "parent": null, "src": "sase/default_config.yml"}
@@ -569,7 +569,7 @@
 {"area": "cli.bead", "id": "cli:bead.note#remove", "kind": "option", "label": "Option --remove of cli:bead.note", "ns": "cli", "parent": "cli:bead.note", "src": "sase/main/parser_bead.py:register_bead_parser"}
 {"area": "cli.bead", "id": "cli:bead.note#yes", "kind": "option", "label": "Option --yes of cli:bead.note", "ns": "cli", "parent": "cli:bead.note", "src": "sase/main/parser_bead.py:register_bead_parser"}
 {"area": "cli.bead", "id": "cli:bead.onboard", "kind": "command", "label": "Show quick-start guide", "ns": "cli", "parent": null, "src": "sase/main/parser_bead.py:register_bead_parser"}
-{"area": "cli.bead", "id": "cli:bead.open", "kind": "command", "label": "Reopen an issue", "ns": "cli", "parent": null, "src": "sase/main/parser_bead.py:register_bead_parser"}
+{"area": "cli.bead", "id": "cli:bead.open", "kind": "command", "label": "Reopen a closed issue (not a viewer)", "ns": "cli", "parent": null, "src": "sase/main/parser_bead.py:register_bead_parser"}
 {"area": "cli.bead", "id": "cli:bead.pages", "kind": "command", "label": "Refresh generated bead pages or print a page URL", "ns": "cli", "parent": null, "src": "sase/main/parser_bead.py:register_bead_parser"}
 {"area": "cli.bead", "id": "cli:bead.pages.refresh", "kind": "command", "label": "Reconcile generated pages from durable bead state", "ns": "cli", "parent": null, "src": "sase/main/parser_bead.py:register_bead_parser"}
 {"area": "cli.bead", "id": "cli:bead.pages.refresh#bead", "kind": "option", "label": "Option --bead of cli:bead.pages.refresh", "ns": "cli", "parent": "cli:bead.pages.refresh", "src": "sase/main/parser_bead.py:register_bead_parser"}

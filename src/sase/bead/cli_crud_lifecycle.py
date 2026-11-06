@@ -10,6 +10,7 @@ from typing import TYPE_CHECKING, Any
 from sase.bead.cli_common import (
     auto_commit_bead_store,
     bead_store_mutation,
+    get_read_view,
     resolve_bead_operation_context,
 )
 from sase.bead.cli_crud_common import (
@@ -49,6 +50,10 @@ def handle_bead_open(args: argparse.Namespace) -> None:
     from sase.bead.assigned_near_miss import refuse_if_assigned_near_miss
 
     refuse_if_assigned_near_miss([args.id, issue_id])
+    from sase.bead.open_agent_guard import refuse_agent_open_of_non_closed
+
+    with get_read_view(bead_context=bead_context) as project:
+        refuse_agent_open_of_non_closed(project.show, issue_id)
     with bead_store_mutation(
         auto_commit_bead_store,
         bead_context=bead_context,

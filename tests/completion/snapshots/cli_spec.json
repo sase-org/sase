@@ -11666,7 +11666,7 @@
           {
             "aliases": [],
             "default_child": null,
-            "description_digest": "a5e408f30487f4d2",
+            "description_digest": "779701ebb656bbd4",
             "hidden": false,
             "mutex_groups": [],
             "name": "open",

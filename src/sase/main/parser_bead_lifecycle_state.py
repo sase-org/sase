@@ -264,7 +264,16 @@ def register_bead_open_parser(
     subparsers: argparse._SubParsersAction,
 ) -> None:
     """Register ``sase bead open``."""
-    parser = subparsers.add_parser("open", help="Reopen an issue")
+    parser = subparsers.add_parser(
+        "open",
+        help="Reopen a closed issue (not a viewer)",
+        description=(
+            "Reopen a closed issue, setting its status to open and reopening "
+            "every closed ancestor above it. This is not a viewer: to view a "
+            'bead, run `sase bead read <id> -r "<why>"`.'
+        ),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
     parser.add_argument("id", help="Full or shorthand issue ID to reopen")
 
 

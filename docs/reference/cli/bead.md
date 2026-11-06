@@ -44,7 +44,7 @@ Subcommands:
 | `sase bead list`              | List issues                                                                      |
 | `sase bead note`              | Append, edit, or retract an attributed note entry                                |
 | `sase bead onboard`           | Show quick-start guide                                                           |
-| `sase bead open`              | Reopen an issue                                                                  |
+| `sase bead open`              | Reopen a closed issue (not a viewer)                                             |
 | `sase bead pages`             | Refresh generated bead pages or print a page URL                                 |
 | `sase bead read`              | Read one or more beads after recording an audited read                           |
 | `sase bead ready`             | Show unblocked task beads awaiting triage                                        |
@@ -700,6 +700,8 @@ Options:
 ```text
 usage: sase bead open [-h] id
 ```
+
+Reopen a closed issue, setting its status to open and reopening every closed ancestor above it. This is not a viewer: to view a bead, run `sase bead read <id> -r "<why>"`.
 
 Options:
 
