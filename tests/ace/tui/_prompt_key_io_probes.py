@@ -85,11 +85,11 @@ class PromptKeyIoCounts:
 #: facade alone would miss them). Function-level importers resolve through
 #: the facade module at call time and are covered by the facade patch.
 _LIST_RECORDS_BY_NAME_MODULES: tuple[str, ...] = (
+    "sase._project_display_cache",
     "sase.ace.patch.discovery",
     "sase.ace.tui.modals.project_discovery",
     "sase.agent.launch_projects",
     "sase.history.prompt_history_project_filter",
-    "sase.project_display_names",
     "sase.repo_inventory",
     "sase.workspace_provider.inventory",
     "sase.workspace_provider.occupancy_conflicts",

@@ -10,7 +10,8 @@ from unittest.mock import patch
 import pytest
 from textual.app import App, ComposeResult
 
-from sase import project_aliases, project_display_names
+from sase import _project_display_cache as display_cache
+from sase import project_aliases
 from sase.ace.tui.prompt_submission_settings import PromptSubmissionSettings
 from sase.ace.tui.widgets.prompt_input_bar import PromptInputBar
 from sase.ace.tui.widgets.macro_arg_assist import (
@@ -175,7 +176,7 @@ def registered_project_macros(
     )
     monkeypatch.setattr(project_aliases, "list_project_records", _disk_project_records)
     monkeypatch.setattr(
-        project_display_names,
+        display_cache,
         "list_project_records",
         _disk_project_records,
     )

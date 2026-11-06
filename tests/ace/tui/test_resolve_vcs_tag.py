@@ -87,7 +87,7 @@ class TestResolveVcsTag:
         """Project agent prefill tags use the configured display project name."""
         monkeypatch.setattr("sase.project_aliases._vcs_workflow_names", lambda: {"git"})
         monkeypatch.setattr(
-            "sase.project_display_names._project_display_name_map_cached",
+            "sase._project_display_labels.cached_project_display_snapshot",
             lambda _projects_root=None: {"gh_acme__widgets": "widgets"},
         )
         agent = _make_agent(

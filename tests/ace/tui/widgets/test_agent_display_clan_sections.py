@@ -283,7 +283,7 @@ def _warm_tag_catalog(monkeypatch, *pairs: tuple[str, str | None]) -> None:
 def test_prompt_entries_render_tagified_with_accents(monkeypatch) -> None:
     from rich.text import Text
 
-    from sase import project_display_names as pdn
+    from sase import _project_display_labels as pdn
     from sase.ace.tui.models._agent_clan_sections import ClanTextEntry
     from sase.ace.tui.widgets.prompt_panel._agent_display_clan_sections import (
         append_text_section,
@@ -293,7 +293,7 @@ def test_prompt_entries_render_tagified_with_accents(monkeypatch) -> None:
     monkeypatch.setattr("sase.project_aliases._vcs_workflow_names", lambda: {"gh"})
     monkeypatch.setattr(
         pdn,
-        "_project_display_name_map_cached",
+        "cached_project_display_snapshot",
         lambda *_args, **_kwargs: {"gh_acme__widgets": "widgets"},
     )
     _warm_tag_catalog(monkeypatch, ("widgets", "#C75A31"))
@@ -341,7 +341,7 @@ def test_prompt_entries_render_tagified_with_accents(monkeypatch) -> None:
 def test_prompt_entry_previews_tagify_in_triage(monkeypatch) -> None:
     from rich.text import Text
 
-    from sase import project_display_names as pdn
+    from sase import _project_display_labels as pdn
     from sase.ace.tui.models._agent_clan_sections import ClanTextEntry
     from sase.ace.tui.widgets.prompt_panel._agent_display_clan_sections import (
         append_text_section,
@@ -351,7 +351,7 @@ def test_prompt_entry_previews_tagify_in_triage(monkeypatch) -> None:
     monkeypatch.setattr("sase.project_aliases._vcs_workflow_names", lambda: {"gh"})
     monkeypatch.setattr(
         pdn,
-        "_project_display_name_map_cached",
+        "cached_project_display_snapshot",
         lambda *_args, **_kwargs: {"gh_acme__widgets": "widgets"},
     )
     _warm_tag_catalog(monkeypatch, ("widgets", "#C75A31"))

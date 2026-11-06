@@ -7,6 +7,7 @@ from pathlib import Path
 
 import pytest
 
+from sase import _project_display_cache as display_cache
 from sase import project_aliases
 from sase import project_display_names as pdn
 from sase.project_aliases import (
@@ -60,11 +61,11 @@ def test_set_project_name_locked_invalidates_display_snapshot(
         "WORKSPACE_DIR: /tmp/alpha\nNAME: a\n",
     )
     monkeypatch.setattr(
-        pdn,
+        display_cache,
         "list_project_records",
         lambda *args, **kwargs: project_aliases.list_project_records(*args, **kwargs),
     )
-    monkeypatch.setattr(pdn, "_PROJECT_DISPLAY_NAME_CACHE", None)
+    monkeypatch.setattr(display_cache, "_PROJECT_DISPLAY_NAME_CACHE", None)
 
     assert pdn.project_display_name_for("alpha", projects_root) == "alpha"
 

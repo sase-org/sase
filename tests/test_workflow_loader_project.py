@@ -24,7 +24,8 @@ def workflow_project_registry(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> Iterator[Path]:
-    from sase import project_aliases, project_display_names
+    from sase import _project_display_cache as display_cache
+    from sase import project_aliases
     from sase.macro import loader_sources
 
     projects_root = tmp_path / "sase-home" / "projects"
@@ -32,7 +33,7 @@ def workflow_project_registry(
     monkeypatch.setenv("SASE_HOME", str(projects_root.parent))
     monkeypatch.setattr(project_aliases, "list_project_records", _disk_project_records)
     monkeypatch.setattr(
-        project_display_names,
+        display_cache,
         "list_project_records",
         _disk_project_records,
     )

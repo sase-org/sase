@@ -6,7 +6,8 @@ from unittest.mock import patch
 
 import pytest
 
-from sase import project_aliases, project_display_names
+from sase import _project_display_cache as display_cache
+from sase import project_aliases
 from sase.macro import project_identity
 from sase.macro.catalog import (
     MAX_MOBILE_CONTENT_PREVIEW_CHARS,
@@ -123,7 +124,7 @@ def test_project_catalog_uses_one_canonical_namespace_for_all_project_refs(
     )
     monkeypatch.setattr(project_aliases, "list_project_records", _disk_project_records)
     monkeypatch.setattr(
-        project_display_names,
+        display_cache,
         "list_project_records",
         _disk_project_records,
     )

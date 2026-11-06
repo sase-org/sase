@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from sase import project_display_names as pdn
+from sase import _project_display_labels as pdn
 from sase.ace.tui.util.lazy_syntax import MARKDOWN_SYNTAX_HIGHLIGHT_MAX_BYTES
 from sase.ace.tui.util.macro_syntax import MACRO_TOKEN_STYLES
 
@@ -72,7 +72,7 @@ class TestAgentRawPromptRendering:
         monkeypatch.setattr("sase.project_aliases._vcs_workflow_names", lambda: {"gh"})
         monkeypatch.setattr(
             pdn,
-            "_project_display_name_map_cached",
+            "cached_project_display_snapshot",
             lambda *_args, **_kwargs: {"gh_acme__widgets": "widgets"},
         )
         panel = FakePromptPanel()

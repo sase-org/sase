@@ -7,7 +7,7 @@ from types import SimpleNamespace
 
 from rich.text import Text
 
-from sase import project_display_names as pdn
+from sase import _project_display_labels as pdn
 from sase.ace.tui.util.artifact_ref_syntax import artifact_ref_style_palette_from_theme
 from sase.ace.tui.util.macro_syntax import MACRO_TOKEN_STYLES
 
@@ -32,7 +32,7 @@ class TestAgentRawPromptHighlighting:
         monkeypatch.setattr("sase.project_aliases._vcs_workflow_names", lambda: {"gh"})
         monkeypatch.setattr(
             pdn,
-            "_project_display_name_map_cached",
+            "cached_project_display_snapshot",
             lambda *_args, **_kwargs: {"gh_acme__widgets": "widgets"},
         )
         panel = FakePromptPanel()
@@ -72,7 +72,7 @@ class TestAgentRawPromptHighlighting:
         monkeypatch.setattr("sase.project_aliases._vcs_workflow_names", lambda: {"gh"})
         monkeypatch.setattr(
             pdn,
-            "_project_display_name_map_cached",
+            "cached_project_display_snapshot",
             lambda *_args, **_kwargs: {"gh_acme__widgets": "widgets"},
         )
         monkeypatch.setattr(
@@ -152,7 +152,7 @@ class TestAgentRawPromptHighlighting:
         monkeypatch.setattr("sase.project_aliases._vcs_workflow_names", lambda: {"gh"})
         monkeypatch.setattr(
             pdn,
-            "_project_display_name_map_cached",
+            "cached_project_display_snapshot",
             lambda *_args, **_kwargs: {"gh_acme__widgets": "widgets"},
         )
         panel = FakePromptPanel()

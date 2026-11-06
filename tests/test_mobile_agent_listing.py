@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from sase import project_display_names as pdn
+from sase import _project_display_cache as display_cache
 from sase.integrations import mobile_agents
 from sase.integrations import _mobile_agent_deps as mobile_agent_deps
 from sase.integrations.mobile_agents import _list_mobile_agents
@@ -47,7 +47,7 @@ def test_list_mobile_agents_humanizes_display_subtitle_project(
 ) -> None:
     monkeypatch.setenv("SASE_HOME", str(tmp_path))
     project_display_case.write_project_layout(tmp_path / "projects")
-    monkeypatch.setattr(pdn, "_PROJECT_DISPLAY_NAME_CACHE", None)
+    monkeypatch.setattr(display_cache, "_PROJECT_DISPLAY_NAME_CACHE", None)
     monkeypatch.setattr(
         mobile_agents,
         "list_running_agents",

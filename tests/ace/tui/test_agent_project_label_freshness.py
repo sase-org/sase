@@ -8,6 +8,7 @@ from pathlib import Path
 import pytest
 from rich.text import Text
 
+from sase import _project_display_cache as display_cache
 from sase import project_display_names as pdn
 from sase.ace.tui.models._agent_clan import ClanStatusCounts, clan_project_labels
 from sase.ace.tui.models._agent_tree import project_clan_tree
@@ -19,8 +20,8 @@ _START = datetime(2026, 10, 1, 12, 0, 0)
 
 
 def _reset_display_cache(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(pdn, "_PROJECT_DISPLAY_NAME_CACHE", None)
-    monkeypatch.setattr(pdn, "_PROJECT_DISPLAY_FRESHNESS_TOKENS", None)
+    monkeypatch.setattr(display_cache, "_PROJECT_DISPLAY_NAME_CACHE", None)
+    monkeypatch.setattr(display_cache, "_PROJECT_DISPLAY_FRESHNESS_TOKENS", None)
 
 
 def _member(
@@ -66,7 +67,7 @@ def _stale_startup_container(
     root.mkdir()
     # Point the default projects dir at the fixture root so the no-arg worker
     # path below resolves exactly like the production TUI worker.
-    monkeypatch.setattr(pdn, "sase_projects_dir", lambda: root)
+    monkeypatch.setattr(display_cache, "sase_projects_dir", lambda: root)
     # Warm the convenience cache against a root that lacks the project.
     assert pdn.project_display_name_for(case.project_key) == case.project_key
 
@@ -182,9 +183,9 @@ def test_rename_by_another_process_propagates_on_refresh(
         f"PROJECT_NAME: gizmos\nWORKSPACE_DIR: {layout.workspace_dir}\n",
         encoding="utf-8",
     )
-    gen_before = pdn._HUMANIZE_CACHE_GEN
+    gen_before = display_cache._HUMANIZE_CACHE_GEN
     assert pdn.refresh_project_display_snapshot(root) is True
-    assert pdn._HUMANIZE_CACHE_GEN != gen_before
+    assert display_cache._HUMANIZE_CACHE_GEN != gen_before
     assert pdn.project_display_name_for(case.project_key, root) == "gizmos"
     assert pdn.humanize_cl_name(case.project_key, root) == "gizmos"
 
@@ -209,7 +210,7 @@ def test_running_only_churn_never_clears_caches(
     layout = case.write_project_layout(root)
 
     assert pdn.refresh_project_display_snapshot(root) is True
-    gen_before = pdn._HUMANIZE_CACHE_GEN
+    gen_before = display_cache._HUMANIZE_CACHE_GEN
     assert pdn.humanize_cl_name(case.project_key, root) == case.project_label
 
     layout.project_file.write_text(
@@ -218,7 +219,7 @@ def test_running_only_churn_never_clears_caches(
         encoding="utf-8",
     )
     assert pdn.refresh_project_display_snapshot(root) is False
-    assert pdn._HUMANIZE_CACHE_GEN == gen_before
+    assert display_cache._HUMANIZE_CACHE_GEN == gen_before
     assert pdn.project_display_name_for(case.project_key, root) == case.project_label
 
 
@@ -237,14 +238,14 @@ def test_unchanged_token_skips_inventory_read(
     assert pdn.refresh_project_display_snapshot(root) is True
 
     calls = 0
-    real_list = pdn.list_project_records
+    real_list = display_cache.list_project_records
 
     def _counting(*args: object, **kwargs: object):  # type: ignore[no-untyped-def]
         nonlocal calls
         calls += 1
         return real_list(*args, **kwargs)
 
-    monkeypatch.setattr(pdn, "list_project_records", _counting)
+    monkeypatch.setattr(display_cache, "list_project_records", _counting)
     assert pdn.refresh_project_display_snapshot(root) is False
     assert calls == 0
 
@@ -269,12 +270,12 @@ def test_failed_inventory_read_keeps_labels_and_retries(
         encoding="utf-8",
     )
 
-    real_list = pdn.list_project_records
+    real_list = display_cache.list_project_records
 
     def _fail(*_args: object, **_kwargs: object):  # type: ignore[no-untyped-def]
         raise RuntimeError("inventory unavailable")
 
-    monkeypatch.setattr(pdn, "list_project_records", _fail)
+    monkeypatch.setattr(display_cache, "list_project_records", _fail)
     assert pdn.refresh_project_display_snapshot(root) is False
     assert pdn.project_display_name_for(case.project_key, root) == case.project_label
 
@@ -285,7 +286,7 @@ def test_failed_inventory_read_keeps_labels_and_retries(
         calls += 1
         return real_list(*args, **kwargs)
 
-    monkeypatch.setattr(pdn, "list_project_records", _counting)
+    monkeypatch.setattr(display_cache, "list_project_records", _counting)
     # The failed attempt kept the old token, so the next call retries the load.
     assert pdn.refresh_project_display_snapshot(root) is False
     assert calls == 1

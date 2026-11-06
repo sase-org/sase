@@ -28,9 +28,9 @@ from tests.conftest import redirect_sase_home
 @pytest.fixture
 def _reset_display_name_cache(monkeypatch: pytest.MonkeyPatch) -> None:
     """Clear the module-level, mtime-keyed display-name cache before a test."""
-    import sase.project_display_names as pdn
+    from sase import _project_display_cache as display_cache
 
-    monkeypatch.setattr(pdn, "_PROJECT_DISPLAY_NAME_CACHE", None)
+    monkeypatch.setattr(display_cache, "_PROJECT_DISPLAY_NAME_CACHE", None)
 
 
 @pytest.mark.usefixtures("_reset_display_name_cache")

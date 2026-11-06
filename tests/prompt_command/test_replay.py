@@ -220,7 +220,7 @@ def test_show_markdown_humanizes_vcs_refs_but_raw_stays_exact(
 ) -> None:
     monkeypatch.setattr("sase.project_aliases._vcs_workflow_names", lambda: {"gh"})
     monkeypatch.setattr(
-        "sase.project_display_names._project_display_name_map_cached",
+        "sase._project_display_labels.cached_project_display_snapshot",
         lambda _projects_root=None: {"gh_acme__widgets": "widgets"},
     )
     text = "#gh:gh_acme__widgets fix the parser"
@@ -242,7 +242,7 @@ def test_copy_humanizes_vcs_refs(
 ) -> None:
     monkeypatch.setattr("sase.project_aliases._vcs_workflow_names", lambda: {"gh"})
     monkeypatch.setattr(
-        "sase.project_display_names._project_display_name_map_cached",
+        "sase._project_display_labels.cached_project_display_snapshot",
         lambda _projects_root=None: {"gh_acme__widgets": "widgets"},
     )
     text = "#gh:gh_acme__widgets fix the parser"

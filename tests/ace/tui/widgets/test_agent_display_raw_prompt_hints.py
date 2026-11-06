@@ -6,7 +6,7 @@ import os
 from datetime import datetime
 from pathlib import Path
 
-from sase import project_display_names as pdn
+from sase import _project_display_labels as pdn
 from sase.ace.tui.util.artifact_ref_syntax import artifact_ref_style_palette_from_theme
 from sase.ace.tui.util.macro_syntax import MACRO_TOKEN_STYLES
 from sase.ace.tui.widgets.prompt_panel._agent_display_state import HeaderHintState
@@ -75,7 +75,7 @@ class TestAgentRawPromptHintMode:
         monkeypatch.setattr("sase.project_aliases._vcs_workflow_names", lambda: {"gh"})
         monkeypatch.setattr(
             pdn,
-            "_project_display_name_map_cached",
+            "cached_project_display_snapshot",
             lambda *_args, **_kwargs: {"gh_acme__widgets": "widgets"},
         )
         panel = FakePromptPanel()

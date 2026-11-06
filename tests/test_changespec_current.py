@@ -158,7 +158,7 @@ def test_patch_current_humanizes_plain_and_markdown_not_json(
     capsys: Any,
 ) -> None:
     monkeypatch.setattr(
-        "sase.project_display_names._project_display_name_map_cached",
+        "sase._project_display_labels.cached_project_display_snapshot",
         lambda _projects_root=None: {"gh_acme__widgets": "widgets"},
     )
     cs = _cs(

@@ -103,7 +103,7 @@ async def test_warmed_message_rebuilds_cold_detail_text(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """A real app re-renders cold ``#`` detail as ``+`` once warm."""
-    import sase.project_display_names as display_names
+    import sase._project_display_labels as display_names
     import sase.project_tags.catalog as tag_catalog_module
     from sase.project_tags.catalog import ProjectTagCatalog, ProjectTagTarget
     from textual.app import App, ComposeResult
@@ -111,7 +111,7 @@ async def test_warmed_message_rebuilds_cold_detail_text(
 
     monkeypatch.setattr(
         display_names,
-        "_project_display_name_map_cached",
+        "cached_project_display_snapshot",
         lambda _root=None: {"sase": "sase"},
     )
     tag_catalog_module._CATALOG_CACHE = None  # noqa: SLF001

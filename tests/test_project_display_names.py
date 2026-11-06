@@ -12,6 +12,7 @@ from sase.core.project_lifecycle_wire import (
     PROJECT_LIFECYCLE_WIRE_SCHEMA_VERSION,
     ProjectRecordWire,
 )
+from sase import _project_display_cache as display_cache
 from sase import project_display_names as pdn
 from tests._project_display_case import ProjectDisplayCase
 
@@ -45,8 +46,10 @@ def test_project_display_name_for_resolves_and_falls_back(
     root.mkdir()
     records = [project_display_case.project_record(), _record("plain")]
 
-    monkeypatch.setattr(pdn, "list_project_records", lambda *_a, **_kw: records)
-    monkeypatch.setattr(pdn, "_PROJECT_DISPLAY_NAME_CACHE", None)
+    monkeypatch.setattr(
+        display_cache, "list_project_records", lambda *_a, **_kw: records
+    )
+    monkeypatch.setattr(display_cache, "_PROJECT_DISPLAY_NAME_CACHE", None)
 
     assert (
         pdn.project_display_name_for(project_display_case.project_key, root)
@@ -125,7 +128,7 @@ def test_project_ref_display_loader_uses_one_inventory_read(
         calls += 1
         return [record]
 
-    monkeypatch.setattr(pdn, "list_project_records", load_records)
+    monkeypatch.setattr(display_cache, "list_project_records", load_records)
 
     refs = pdn.load_project_ref_display_snapshot(tmp_path / "projects")
 
@@ -147,7 +150,9 @@ def test_supplied_snapshot_helpers_do_not_reload_lifecycle_inventory(
         calls += 1
         return [_record("gh_acme__widgets", "widgets")]
 
-    monkeypatch.setattr(pdn, "list_project_records", fake_list_project_records)
+    monkeypatch.setattr(
+        display_cache, "list_project_records", fake_list_project_records
+    )
     monkeypatch.setattr("sase.project_aliases._vcs_workflow_names", lambda: {"gh"})
     snapshot = pdn.load_project_display_snapshot(tmp_path / "projects")
     agent = SimpleNamespace(
@@ -192,7 +197,7 @@ def test_snapshot_load_failure_falls_back_to_canonical_key(
     def fail_inventory(*_args: object, **_kwargs: object) -> list[ProjectRecordWire]:
         raise RuntimeError("inventory unavailable")
 
-    monkeypatch.setattr(pdn, "list_project_records", fail_inventory)
+    monkeypatch.setattr(display_cache, "list_project_records", fail_inventory)
 
     snapshot = pdn.load_project_display_snapshot(tmp_path / "projects")
     refs = pdn.load_project_ref_display_snapshot(tmp_path / "projects")
@@ -214,8 +219,10 @@ def test_humanize_cl_name_rewrites_exact_key_and_prefix(
     root.mkdir()
     records = [_record("gh_acme__widgets", "widgets")]
 
-    monkeypatch.setattr(pdn, "list_project_records", lambda *_a, **_kw: records)
-    monkeypatch.setattr(pdn, "_PROJECT_DISPLAY_NAME_CACHE", None)
+    monkeypatch.setattr(
+        display_cache, "list_project_records", lambda *_a, **_kw: records
+    )
+    monkeypatch.setattr(display_cache, "_PROJECT_DISPLAY_NAME_CACHE", None)
 
     assert pdn.humanize_cl_name("gh_acme__widgets", root) == "widgets"
     assert (
@@ -235,8 +242,10 @@ def test_humanize_cl_name_prefers_longest_project_key(
         _record("gh_acme__widgets_extra", "widgets_extra"),
     ]
 
-    monkeypatch.setattr(pdn, "list_project_records", lambda *_a, **_kw: records)
-    monkeypatch.setattr(pdn, "_PROJECT_DISPLAY_NAME_CACHE", None)
+    monkeypatch.setattr(
+        display_cache, "list_project_records", lambda *_a, **_kw: records
+    )
+    monkeypatch.setattr(display_cache, "_PROJECT_DISPLAY_NAME_CACHE", None)
 
     assert (
         pdn.humanize_cl_name("gh_acme__widgets_extra_fix_button", root)
@@ -251,16 +260,18 @@ def test_humanize_cl_name_unknown_and_empty_map_noop(
     root = tmp_path / "projects"
     root.mkdir()
 
-    monkeypatch.setattr(pdn, "list_project_records", lambda *_a, **_kw: [])
-    monkeypatch.setattr(pdn, "_PROJECT_DISPLAY_NAME_CACHE", None)
+    monkeypatch.setattr(display_cache, "list_project_records", lambda *_a, **_kw: [])
+    monkeypatch.setattr(display_cache, "_PROJECT_DISPLAY_NAME_CACHE", None)
 
     assert pdn.humanize_cl_name("gh_acme__widgets_fix_button", root) == (
         "gh_acme__widgets_fix_button"
     )
 
     records = [_record("gh_acme__widgets", "widgets")]
-    monkeypatch.setattr(pdn, "list_project_records", lambda *_a, **_kw: records)
-    monkeypatch.setattr(pdn, "_PROJECT_DISPLAY_NAME_CACHE", None)
+    monkeypatch.setattr(
+        display_cache, "list_project_records", lambda *_a, **_kw: records
+    )
+    monkeypatch.setattr(display_cache, "_PROJECT_DISPLAY_NAME_CACHE", None)
 
     assert pdn.humanize_cl_name("other_fix_button", root) == "other_fix_button"
 
@@ -273,8 +284,10 @@ def test_humanize_cl_names_in_text_rewrites_tokens_but_not_paths(
     root.mkdir()
     records = [_record("gh_acme__widgets", "widgets")]
 
-    monkeypatch.setattr(pdn, "list_project_records", lambda *_a, **_kw: records)
-    monkeypatch.setattr(pdn, "_PROJECT_DISPLAY_NAME_CACHE", None)
+    monkeypatch.setattr(
+        display_cache, "list_project_records", lambda *_a, **_kw: records
+    )
+    monkeypatch.setattr(display_cache, "_PROJECT_DISPLAY_NAME_CACHE", None)
 
     text = (
         "Sync done for gh_acme__widgets_fix_button_1: "
@@ -295,8 +308,10 @@ def test_humanize_safe_stem_rewrites_exact_match(
     root.mkdir()
     records = [_record("gh_acme__widgets", "widgets")]
 
-    monkeypatch.setattr(pdn, "list_project_records", lambda *_a, **_kw: records)
-    monkeypatch.setattr(pdn, "_PROJECT_DISPLAY_NAME_CACHE", None)
+    monkeypatch.setattr(
+        display_cache, "list_project_records", lambda *_a, **_kw: records
+    )
+    monkeypatch.setattr(display_cache, "_PROJECT_DISPLAY_NAME_CACHE", None)
 
     assert pdn.humanize_safe_stem("gh_acme__widgets", root) == "widgets"
 
@@ -309,8 +324,10 @@ def test_humanize_safe_stem_rewrites_joined_prefixes(
     root.mkdir()
     records = [_record("gh_acme__widgets", "widgets")]
 
-    monkeypatch.setattr(pdn, "list_project_records", lambda *_a, **_kw: records)
-    monkeypatch.setattr(pdn, "_PROJECT_DISPLAY_NAME_CACHE", None)
+    monkeypatch.setattr(
+        display_cache, "list_project_records", lambda *_a, **_kw: records
+    )
+    monkeypatch.setattr(display_cache, "_PROJECT_DISPLAY_NAME_CACHE", None)
 
     assert (
         pdn.humanize_safe_stem("gh_acme__widgets-ace_run-260707", root)
@@ -330,8 +347,10 @@ def test_humanize_safe_stem_matches_sanitized_hyphenated_keys(
     root.mkdir()
     records = [_record("gh_sase-org__sase", "sase")]
 
-    monkeypatch.setattr(pdn, "list_project_records", lambda *_a, **_kw: records)
-    monkeypatch.setattr(pdn, "_PROJECT_DISPLAY_NAME_CACHE", None)
+    monkeypatch.setattr(
+        display_cache, "list_project_records", lambda *_a, **_kw: records
+    )
+    monkeypatch.setattr(display_cache, "_PROJECT_DISPLAY_NAME_CACHE", None)
 
     assert (
         pdn.humanize_safe_stem("gh_sase_org__sase-ace_run-260707_011513", root)
@@ -347,8 +366,10 @@ def test_humanize_safe_stem_unknown_noop(
     root.mkdir()
     records = [_record("gh_acme__widgets", "widgets")]
 
-    monkeypatch.setattr(pdn, "list_project_records", lambda *_a, **_kw: records)
-    monkeypatch.setattr(pdn, "_PROJECT_DISPLAY_NAME_CACHE", None)
+    monkeypatch.setattr(
+        display_cache, "list_project_records", lambda *_a, **_kw: records
+    )
+    monkeypatch.setattr(display_cache, "_PROJECT_DISPLAY_NAME_CACHE", None)
 
     assert (
         pdn.humanize_safe_stem("gh_other__widgets-ace_run-260707", root)
@@ -367,8 +388,10 @@ def test_humanize_safe_stem_prefers_longest_safe_key(
         _record("gh_acme__widgets_extra", "widgets_extra"),
     ]
 
-    monkeypatch.setattr(pdn, "list_project_records", lambda *_a, **_kw: records)
-    monkeypatch.setattr(pdn, "_PROJECT_DISPLAY_NAME_CACHE", None)
+    monkeypatch.setattr(
+        display_cache, "list_project_records", lambda *_a, **_kw: records
+    )
+    monkeypatch.setattr(display_cache, "_PROJECT_DISPLAY_NAME_CACHE", None)
 
     assert (
         pdn.humanize_safe_stem("gh_acme__widgets_extra_fix_button-260707", root)
@@ -399,8 +422,10 @@ def test_fresh_load_and_invalidation_observe_nested_name_change(
             )
         ]
 
-    monkeypatch.setattr(pdn, "list_project_records", fake_list_project_records)
-    monkeypatch.setattr(pdn, "_PROJECT_DISPLAY_NAME_CACHE", None)
+    monkeypatch.setattr(
+        display_cache, "list_project_records", fake_list_project_records
+    )
+    monkeypatch.setattr(display_cache, "_PROJECT_DISPLAY_NAME_CACHE", None)
 
     assert pdn.project_display_name_for("gh_acme__widgets", root) == "widgets"
     root_mtime = root.stat().st_mtime_ns
@@ -431,21 +456,21 @@ def test_refresh_first_population_counts_as_change(
 ) -> None:
     root = tmp_path / "projects"
     root.mkdir()
-    monkeypatch.setattr(pdn, "_PROJECT_DISPLAY_NAME_CACHE", None)
-    monkeypatch.setattr(pdn, "_PROJECT_DISPLAY_FRESHNESS_TOKENS", None)
+    monkeypatch.setattr(display_cache, "_PROJECT_DISPLAY_NAME_CACHE", None)
+    monkeypatch.setattr(display_cache, "_PROJECT_DISPLAY_FRESHNESS_TOKENS", None)
 
     assert pdn.refresh_project_display_snapshot(root) is True
     assert pdn.project_display_name_for("missing", root) == "missing"
 
     calls = 0
-    real_list = pdn.list_project_records
+    real_list = display_cache.list_project_records
 
     def _counting(*args: object, **kwargs: object) -> list[ProjectRecordWire]:
         nonlocal calls
         calls += 1
         return real_list(*args, **kwargs)
 
-    monkeypatch.setattr(pdn, "list_project_records", _counting)
+    monkeypatch.setattr(display_cache, "list_project_records", _counting)
     assert pdn.refresh_project_display_snapshot(root) is False
     assert calls == 0
 
@@ -457,8 +482,8 @@ def test_refresh_reload_advances_humanize_generation_only_on_label_change(
 ) -> None:
     root = tmp_path / "projects"
     root.mkdir()
-    monkeypatch.setattr(pdn, "_PROJECT_DISPLAY_NAME_CACHE", None)
-    monkeypatch.setattr(pdn, "_PROJECT_DISPLAY_FRESHNESS_TOKENS", None)
+    monkeypatch.setattr(display_cache, "_PROJECT_DISPLAY_NAME_CACHE", None)
+    monkeypatch.setattr(display_cache, "_PROJECT_DISPLAY_FRESHNESS_TOKENS", None)
     layout = project_display_case.write_project_layout(root)
 
     assert pdn.refresh_project_display_snapshot(root) is True
@@ -467,21 +492,21 @@ def test_refresh_reload_advances_humanize_generation_only_on_label_change(
         == project_display_case.project_label
     )
 
-    gen_before = pdn._HUMANIZE_CACHE_GEN
+    gen_before = display_cache._HUMANIZE_CACHE_GEN
     layout.project_file.write_text(
         layout.project_file.read_text(encoding="utf-8")
         + "\nRUNNING:\n  #1 | 123 | run | demo\n",
         encoding="utf-8",
     )
     assert pdn.refresh_project_display_snapshot(root) is False
-    assert pdn._HUMANIZE_CACHE_GEN == gen_before
+    assert display_cache._HUMANIZE_CACHE_GEN == gen_before
 
     layout.project_file.write_text(
         f"PROJECT_NAME: gizmos\nWORKSPACE_DIR: {layout.workspace_dir}\n",
         encoding="utf-8",
     )
     assert pdn.refresh_project_display_snapshot(root) is True
-    assert pdn._HUMANIZE_CACHE_GEN != gen_before
+    assert display_cache._HUMANIZE_CACHE_GEN != gen_before
     assert pdn.project_display_name_for(project_display_case.project_key, root) == (
         "gizmos"
     )
@@ -494,8 +519,8 @@ def test_refresh_failure_keeps_snapshot_and_retries(
 ) -> None:
     root = tmp_path / "projects"
     root.mkdir()
-    monkeypatch.setattr(pdn, "_PROJECT_DISPLAY_NAME_CACHE", None)
-    monkeypatch.setattr(pdn, "_PROJECT_DISPLAY_FRESHNESS_TOKENS", None)
+    monkeypatch.setattr(display_cache, "_PROJECT_DISPLAY_NAME_CACHE", None)
+    monkeypatch.setattr(display_cache, "_PROJECT_DISPLAY_FRESHNESS_TOKENS", None)
     layout = project_display_case.write_project_layout(root)
 
     assert pdn.refresh_project_display_snapshot(root) is True
@@ -507,7 +532,7 @@ def test_refresh_failure_keeps_snapshot_and_retries(
     def _fail(*_args: object, **_kwargs: object) -> list[ProjectRecordWire]:
         raise RuntimeError("inventory unavailable")
 
-    monkeypatch.setattr(pdn, "list_project_records", _fail)
+    monkeypatch.setattr(display_cache, "list_project_records", _fail)
     assert pdn.refresh_project_display_snapshot(root) is False
     assert (
         pdn.project_display_name_for(project_display_case.project_key, root)
@@ -539,8 +564,10 @@ def test_attach_project_display_names_duck_types_and_clears_fallbacks(
     )
     ignored = SimpleNamespace(project_file="/tmp/projects/ignored/ignored.sase")
 
-    monkeypatch.setattr(pdn, "list_project_records", lambda *_a, **_kw: records)
-    monkeypatch.setattr(pdn, "_PROJECT_DISPLAY_NAME_CACHE", None)
+    monkeypatch.setattr(
+        display_cache, "list_project_records", lambda *_a, **_kw: records
+    )
+    monkeypatch.setattr(display_cache, "_PROJECT_DISPLAY_NAME_CACHE", None)
 
     pdn.attach_project_display_names([widgets, equal, missing, ignored], root)
 
@@ -556,12 +583,12 @@ def test_display_snapshot_is_warm_tracks_cached_root(
 ) -> None:
     root = tmp_path / "projects"
     root.mkdir()
-    monkeypatch.setattr(pdn, "_PROJECT_DISPLAY_NAME_CACHE", None)
-    monkeypatch.setattr(pdn, "_PROJECT_DISPLAY_FRESHNESS_TOKENS", None)
+    monkeypatch.setattr(display_cache, "_PROJECT_DISPLAY_NAME_CACHE", None)
+    monkeypatch.setattr(display_cache, "_PROJECT_DISPLAY_FRESHNESS_TOKENS", None)
 
     assert pdn.project_display_snapshot_is_warm(root) is False
 
-    monkeypatch.setattr(pdn, "list_project_records", lambda *_a, **_kw: [])
+    monkeypatch.setattr(display_cache, "list_project_records", lambda *_a, **_kw: [])
     assert pdn.refresh_project_display_snapshot(root) is True
     assert pdn.project_display_snapshot_is_warm(root) is True
 

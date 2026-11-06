@@ -24,7 +24,7 @@ from tests.conftest import redirect_sase_home
 _LIST_SEAMS = (
     "sase.core.project_lifecycle_facade.list_project_records",
     "sase.project_aliases.list_project_records",
-    "sase.project_display_names.list_project_records",
+    "sase._project_display_cache.list_project_records",
     "sase.ace.tui.modals.project_discovery.list_project_records",
     "sase.macro.loader_sources.list_project_records",
 )

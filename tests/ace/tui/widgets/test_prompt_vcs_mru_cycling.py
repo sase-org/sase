@@ -143,9 +143,9 @@ async def test_cycling_inserts_humanized_configured_project_name(
     The on-disk MRU stays canonical (``#git:proj_widgets``); the real loader
     humanizes it to ``#git:widgets`` before it reaches the cycling widget.
     """
-    import sase.project_display_names as pdn
+    from sase import _project_display_cache as display_cache
 
-    monkeypatch.setattr(pdn, "_PROJECT_DISPLAY_NAME_CACHE", None)
+    monkeypatch.setattr(display_cache, "_PROJECT_DISPLAY_NAME_CACHE", None)
     sase_home = redirect_sase_home(monkeypatch, tmp_path / ".sase")
     workspace = tmp_path / "ws"
     workspace.mkdir()

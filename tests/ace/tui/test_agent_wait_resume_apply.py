@@ -93,7 +93,7 @@ def test_apply_wait_run_now_projects_notification_but_keeps_agent_identity(
     agent = make_waiting_agent(cl_name=project_display_case.patch_key)
     app = FakeWaitResumeApp()
     monkeypatch.setattr(
-        "sase.project_display_names._project_display_name_map_cached",
+        "sase._project_display_labels.cached_project_display_snapshot",
         lambda _projects_root=None: project_display_case.snapshot,
     )
 

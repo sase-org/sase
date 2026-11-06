@@ -16,7 +16,8 @@ from unittest.mock import patch
 
 import pytest
 
-from sase import project_aliases, project_display_names
+from sase import _project_display_cache as display_cache
+from sase import project_aliases
 from sase.ace.tui.actions.agent_workflow._prompt_bar_requests import (
     PromptBarRequestsMixin,
 )
@@ -514,9 +515,7 @@ def _gh_project(
         f"WORKSPACE_DIR: {workspace}\nPROJECT_STATE: enabled\nPROJECT_NAME: proj\n",
     )
     monkeypatch.setattr(project_aliases, "list_project_records", _disk_project_records)
-    monkeypatch.setattr(
-        project_display_names, "list_project_records", _disk_project_records
-    )
+    monkeypatch.setattr(display_cache, "list_project_records", _disk_project_records)
     monkeypatch.setattr(loader_sources, "list_project_records", _disk_project_records)
     return workspace
 

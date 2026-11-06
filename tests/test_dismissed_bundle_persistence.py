@@ -7,7 +7,7 @@ from unittest.mock import patch
 
 import pytest
 
-from sase import project_display_names as pdn
+from sase import _project_display_labels as pdn
 from sase.ace.dismissed_agents import (
     has_dismissed_bundle,
     load_dismissed_bundle_summaries,
@@ -64,7 +64,7 @@ def test_bundle_load_attaches_project_display_name_without_serializing_it(
     bundles_dir = tmp_path / "bundles"
     monkeypatch.setattr(
         pdn,
-        "_project_display_name_map_cached",
+        "cached_project_display_snapshot",
         lambda *_args, **_kwargs: {"gh_acme__widgets": "widgets"},
     )
     with (

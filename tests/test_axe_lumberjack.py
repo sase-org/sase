@@ -94,7 +94,7 @@ def test_log_projects_changespec_names_but_preserves_paths(
     project_display_case: ProjectDisplayCase,
 ) -> None:
     monkeypatch.setattr(
-        "sase.project_display_names._project_display_name_map_cached",
+        "sase._project_display_labels.cached_project_display_snapshot",
         lambda _projects_root=None: project_display_case.snapshot,
     )
     lumberjack = Lumberjack("test_lumberjack", lumberjack_config, axe_config)

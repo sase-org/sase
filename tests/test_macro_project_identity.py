@@ -5,6 +5,7 @@ from pathlib import Path
 
 import pytest
 
+from sase import _project_display_cache as display_cache
 from sase import project_aliases, project_display_names
 from sase.main import project_handler
 from sase.macro import loader_sources
@@ -32,9 +33,7 @@ def _clear_identity_cache() -> Iterator[None]:
 @pytest.fixture
 def _lifecycle_reader(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(project_aliases, "list_project_records", _disk_project_records)
-    monkeypatch.setattr(
-        project_display_names, "list_project_records", _disk_project_records
-    )
+    monkeypatch.setattr(display_cache, "list_project_records", _disk_project_records)
     monkeypatch.setattr(loader_sources, "list_project_records", _disk_project_records)
 
 

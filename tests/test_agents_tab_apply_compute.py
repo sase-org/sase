@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from sase import project_display_names as pdn
+from sase import _project_display_labels as pdn
 from sase.ace.tui.actions.agents._loading_compute import (
     PreparedApplyData,
     compute_apply_loaded_agents,
@@ -26,7 +26,7 @@ def test_compute_apply_attaches_project_display_names_to_dismissed_loader_object
     )
     monkeypatch.setattr(
         pdn,
-        "_project_display_name_map_cached",
+        "cached_project_display_snapshot",
         lambda *_args, **_kwargs: {"gh_acme__widgets": "widgets"},
     )
 
