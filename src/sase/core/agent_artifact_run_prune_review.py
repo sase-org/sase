@@ -66,7 +66,7 @@ def preview_fingerprint(plan: AceRunRetentionPlan) -> str:
     return hashlib.sha256(encoded).hexdigest()[:16]
 
 
-def snapshot_dir() -> Path:
+def _snapshot_dir() -> Path:
     """Return the directory holding run-prune snapshot files."""
 
     return sase_home() / "artifact_retention" / "run_prune_snapshots"
@@ -77,7 +77,7 @@ def _snapshot_path(fingerprint: str) -> Path:
         c not in "0123456789abcdef" for c in fingerprint.lower()
     ):
         raise ValueError(f"invalid run-prune snapshot fingerprint: {fingerprint!r}")
-    return snapshot_dir() / f"{fingerprint.lower()}.json"
+    return _snapshot_dir() / f"{fingerprint.lower()}.json"
 
 
 @dataclass(frozen=True)
@@ -251,7 +251,7 @@ def write_snapshot(
 def _gc_snapshots(*, keep: Path) -> None:
     """Keep the newest snapshots; never delete the one just written."""
 
-    directory = snapshot_dir()
+    directory = _snapshot_dir()
     try:
         candidates = sorted(directory.glob("*.json"))
     except OSError:
@@ -531,6 +531,5 @@ __all__ = [
     "load_snapshot",
     "parse_run_prune_review",
     "preview_fingerprint",
-    "snapshot_dir",
     "write_snapshot",
 ]

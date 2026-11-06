@@ -8,12 +8,12 @@ from typing import Any
 from sase.core.agent_artifact_run_prune_review import (
     RUN_PRUNE_REVIEW_SCHEMA_VERSION,
     RunPruneReview,
+    _snapshot_dir,
     build_review,
     encode_run_prune_review,
     load_snapshot,
     parse_run_prune_review,
     preview_fingerprint,
-    snapshot_dir,
     write_snapshot,
 )
 from sase.core.agent_artifact_run_retention_models import (
@@ -103,7 +103,7 @@ def test_write_and_load_snapshot_round_trip(monkeypatch: Any, tmp_path: Path) ->
     plan = _plan()
     fingerprint, path = write_snapshot(plan)
 
-    assert path == snapshot_dir() / f"{fingerprint}.json"
+    assert path == _snapshot_dir() / f"{fingerprint}.json"
     snapshot = load_snapshot(fingerprint)
     assert snapshot is not None
     assert snapshot.fingerprint == fingerprint
@@ -125,7 +125,7 @@ def test_load_snapshot_returns_none_for_missing_or_invalid(
     assert load_snapshot("0123456789abcdef") is None
     assert load_snapshot("not-a-fingerprint") is None
     assert load_snapshot("") is None
-    bad = snapshot_dir() / ("0" * 16 + ".json")
+    bad = _snapshot_dir() / ("0" * 16 + ".json")
     bad.parent.mkdir(parents=True, exist_ok=True)
     bad.write_text("not json", encoding="utf-8")
     assert load_snapshot("0" * 16) is None
@@ -160,7 +160,7 @@ def test_snapshot_gc_keeps_newest_eight(monkeypatch: Any, tmp_path: Path) -> Non
         )
         kept.append(fingerprint)
     assert len(set(kept)) == len(kept)
-    survivors = {path.stem for path in snapshot_dir().glob("*.json")}
+    survivors = {path.stem for path in _snapshot_dir().glob("*.json")}
     assert len(survivors) == 8
     # The newest snapshots survive; the just-written one is never deleted.
     assert kept[-1] in survivors

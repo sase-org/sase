@@ -534,7 +534,6 @@ _lint-symvision *args: _setup
         --epic-symbol "sase-1qz.7(AgentHijackConfig)" \
         --epic-symbol "sase-1qz.7(normalize_hijack_rung)" \
         --epic-symbol "sase-1qz.7(strip_hijack_launch_directives)" \
-        --epic-symbol "sase-1rd(snapshot_dir)" \
         {{ args }}
 
 # Check Python file line counts (private, extracted for per-stage wrapping)
