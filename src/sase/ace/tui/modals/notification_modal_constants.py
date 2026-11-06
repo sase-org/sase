@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass
 
 from rich.cells import cell_len
@@ -55,6 +56,35 @@ ACTION_ICONS: dict[str | None, str] = {
 def notification_icon(action: str | None, icon: str | None) -> str:
     """Return a notification's authored icon or its per-action default."""
     return icon or ACTION_ICONS.get(action, ACTION_ICONS[None])
+
+
+def notification_icon_for_action_data(
+    action: str | None,
+    icon: str | None,
+    action_data: Mapping[str, str],
+) -> str:
+    """Use the prune affordance for report rows carrying a review payload."""
+    if action == "ViewReport" and action_data.get("run_prune_review"):
+        return "🧹"
+    return notification_icon(action, icon)
+
+
+def notification_action_badge(
+    action: str | None,
+    action_data: Mapping[str, str],
+) -> str:
+    """Return a context-specific row badge when a report has a review payload."""
+    if action == "ViewReport" and action_data.get("run_prune_review"):
+        return "[prune]"
+    return ACTION_BADGES.get(action, "")
+
+
+def notification_has_prune_review(
+    action: str | None,
+    action_data: Mapping[str, str],
+) -> bool:
+    """Return whether this report row carries the prune-review affordance."""
+    return action == "ViewReport" and bool(action_data.get("run_prune_review"))
 
 
 HEADER_ID_PREFIX = "hdr:"
@@ -178,11 +208,18 @@ GATE_HINT_FRAGMENTS: tuple[_NotificationHintFragment, ...] = (
     _NotificationHintFragment("+", "+1", _HINT_PRIORITY_PLUS_ONE),
     _NotificationHintFragment("q", "close", _HINT_PRIORITY_CLOSE),
 )
+PRUNE_HINT_FRAGMENTS = tuple(
+    _NotificationHintFragment("Enter", "prune", fragment.priority)
+    if fragment.key == "Enter"
+    else fragment
+    for fragment in DEFAULT_HINT_FRAGMENTS
+)
 
 _HINT_VARIANT_FRAGMENTS: dict[str, tuple[_NotificationHintFragment, ...]] = {
     "default": DEFAULT_HINT_FRAGMENTS,
     "question": QUESTION_HINT_FRAGMENTS,
     "gate": GATE_HINT_FRAGMENTS,
+    "prune": PRUNE_HINT_FRAGMENTS,
 }
 
 _HINT_FRAGMENT_SEPARATOR = "  "

@@ -513,10 +513,10 @@ _lint-patch-stitch-terminology: _setup
 # sase-1r5.1.2 added for the adopters are dropped.
 # sase-1rd.2 exported the ACE-run trash facade, review snapshots, and the review
 # payload; sase-1rd.3 (preview notification) consumes the snapshot writer, the
-# payload encoder, and the snapshot dir through the chop, and sase-1rd.4
-# (review modal) consumes the payload parser, the review dataclasses, and the
-# snapshot item through the modal and its view model. Drop each row once its
-# phase lands a real consumer (or re-key it onto a still-open bead).
+# payload encoder, and the snapshot dir through the chop. sase-1rd.4 (review
+# modal) now consumes the payload parser, review dataclasses, and snapshot item
+# through the modal and its snapshot consistency check, so those phase rows were
+# dropped after landing.
 # sase-1qz.6.1 (keep-work recovery child epic) left AgentHijackConfig,
 # normalize_hijack_rung, and strip_hijack_launch_directives unconsumed, so the
 # sase-1qz.6.1.7 land re-keyed those rows onto sase-1qz.7 (restart with a
@@ -535,11 +535,6 @@ _lint-symvision *args: _setup
         --epic-symbol "sase-1qz.7(normalize_hijack_rung)" \
         --epic-symbol "sase-1qz.7(strip_hijack_launch_directives)" \
         --epic-symbol "sase-1rd(snapshot_dir)" \
-        --epic-symbol "sase-1rd.4(parse_run_prune_review)" \
-        --epic-symbol "sase-1rd.4(RunPruneReview)" \
-        --epic-symbol "sase-1rd.4(RunPruneReviewCounts)" \
-        --epic-symbol "sase-1rd.4(RunPruneProjectAggregate)" \
-        --epic-symbol "sase-1rd.4(RunPruneSnapshotItem)" \
         {{ args }}
 
 # Check Python file line counts (private, extracted for per-stage wrapping)

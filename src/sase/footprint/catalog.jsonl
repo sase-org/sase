@@ -1,4 +1,4 @@
-{"count": 3696, "rev": "89ce3c2fdf33", "schema": "sase.footprint.catalog/1"}
+{"count": 3697, "rev": "90824a9073e6", "schema": "sase.footprint.catalog/1"}
 {"area": "automation", "id": "auto:axe.agent_waits", "kind": "auto", "label": "Resolve agent wait dependencies within seconds of completion", "ns": "auto", "parent": null, "src": "sase/default_config.yml"}
 {"area": "automation", "id": "auto:axe.agent_waits.wait_checks", "kind": "auto", "label": "Resolve agent wait dependencies and write ready.json when satisfied", "ns": "auto", "parent": "auto:axe.agent_waits", "src": "sase/default_config.yml"}
 {"area": "automation", "id": "auto:axe.checks", "kind": "auto", "label": "Poll slower PR-submission and workspace-claim checks on a five-minute cadence", "ns": "auto", "parent": null, "src": "sase/default_config.yml"}
@@ -3539,6 +3539,7 @@
 {"area": "modals", "id": "view:modal.artifact_file_selection", "kind": "modal", "label": "Artifact file selection dialog", "ns": "view", "parent": null, "src": "ace/tui/modals/artifact_files_modal.py:ArtifactFileSelectionModal"}
 {"area": "modals", "id": "view:modal.artifact_link", "kind": "modal", "label": "Artifact link dialog", "ns": "view", "parent": null, "src": "ace/tui/modals/artifact_link_modal.py:ArtifactLinkModal"}
 {"area": "modals", "id": "view:modal.artifact_links_panel", "kind": "modal", "label": "Artifact links panel dialog", "ns": "view", "parent": null, "src": "ace/tui/modals/artifact_links_panel_modal.py:ArtifactLinksPanelModal"}
+{"area": "modals", "id": "view:modal.artifact_run_prune", "kind": "modal", "label": "Artifact run prune dialog", "ns": "view", "parent": null, "src": "ace/tui/modals/artifact_run_prune_modal.py:ArtifactRunPruneModal"}
 {"area": "modals", "id": "view:modal.axe_entry_editor", "kind": "modal", "label": "Axe entry editor dialog", "ns": "view", "parent": null, "src": "ace/tui/modals/axe_entry_editor_modal.py:AxeEntryEditorModal"}
 {"area": "modals", "id": "view:modal.axe_new_entry_identity", "kind": "modal", "label": "Axe new entry identity dialog", "ns": "view", "parent": null, "src": "ace/tui/modals/axe_add_modals.py:AxeNewEntryIdentityModal"}
 {"area": "modals", "id": "view:modal.bead_close", "kind": "modal", "label": "Bead close dialog", "ns": "view", "parent": null, "src": "ace/tui/modals/bead_close_modal.py:BeadCloseModal"}

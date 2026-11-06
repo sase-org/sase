@@ -122,6 +122,11 @@ def _missing_error_report_message(notification: Notification) -> str:
 
 def handle_view_report(app: object, notification: Notification) -> bool:
     """Load and open a structured notification report."""
+    from ._notification_report_reviews import open_notification_report_review
+
+    if open_notification_report_review(app, notification):
+        return True
+
     from sase.ace.tui.modals.report_modal import ReportModal
     from sase.notifications import load_notification_report
 

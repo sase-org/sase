@@ -13,6 +13,7 @@ if TYPE_CHECKING:
     # are used (via the dynamic __getattr__ lazy export below) and flags them
     # as dead public code.
     from .add_macro_modal import AddMacroModal as AddMacroModal
+    from .artifact_run_prune_modal import ArtifactRunPruneModal as ArtifactRunPruneModal
     from .axe_add_modals import (
         validate_axe_new_entry_identity as validate_axe_new_entry_identity,
     )
@@ -109,6 +110,7 @@ __all__ = [
     "AgentWorkspaceTmuxSelection",
     "build_agent_workspace_tmux_choices",
     "ArtifactFileSelectionModal",
+    "ArtifactRunPruneModal",
     "ArtifactFileSelectionResult",
     "AgentCleanupAction",
     "AgentCleanupCustomModal",

@@ -13,7 +13,14 @@ from rich.console import Console
 from sase.ace.tui.actions.agents._notification_handlers import handle_view_report
 from sase.ace.tui.modals.notification_modal import NotificationModal
 from sase.ace.tui.modals.notification_modal_report import NotificationReportMixin
+from sase.ace.tui.modals.artifact_run_prune_modal import ArtifactRunPruneModal
 from sase.ace.tui.modals.report_modal import ReportModal
+from sase.core.agent_artifact_run_prune_review import (
+    RunPruneProjectAggregate,
+    RunPruneReview,
+    RunPruneReviewCounts,
+    encode_run_prune_review,
+)
 from sase.notifications import Notification, NotificationPlusOne
 
 
@@ -239,3 +246,81 @@ def test_view_report_dispatch_warns_once_for_failed_load() -> None:
     assert app.notices == [
         ("Unable to open report: report source is missing", "warning")
     ]
+
+
+def _prune_review_payload() -> str:
+    return encode_run_prune_review(
+        RunPruneReview(
+            fingerprint="0123456789abcdef",
+            captured_at="2026-11-05T11:00:00+00:00",
+            keep_recent_months=2,
+            first_kept_month="2026-09",
+            counts=RunPruneReviewCounts(
+                candidates=2,
+                selected=1,
+                protected=1,
+                empty_shards=0,
+            ),
+            reclaimable_bytes=1024,
+            projects=(
+                RunPruneProjectAggregate(
+                    project="project-key",
+                    runs=1,
+                    bytes=1024,
+                    oldest="20260701000000",
+                    newest="20260701000000",
+                ),
+            ),
+            unavailable_sources=(),
+            unavailable_source_count=0,
+        )
+    )
+
+
+def test_view_report_dispatch_opens_prune_review_before_report() -> None:
+    app = _DispatchApp()
+    notification = _notification(
+        action_data={
+            "report": json.dumps(_document()),
+            "run_prune_review": _prune_review_payload(),
+        }
+    )
+
+    handled = handle_view_report(app, notification)
+
+    assert handled is True
+    assert len(app.screens) == 1
+    assert isinstance(app.screens[0], ArtifactRunPruneModal)
+    assert app.notices == []
+
+
+def test_malformed_prune_review_falls_through_to_report() -> None:
+    app = _DispatchApp()
+    notification = _notification(
+        action_data={
+            "report": json.dumps(_document()),
+            "run_prune_review": "not json",
+        }
+    )
+
+    handled = handle_view_report(app, notification)
+
+    assert handled is True
+    assert isinstance(app.screens[0], ReportModal)
+
+
+def test_prune_review_row_uses_prune_icon_and_badge() -> None:
+    notification = _notification(
+        action_data={
+            "report": json.dumps(_document()),
+            "run_prune_review": _prune_review_payload(),
+        }
+    )
+    notification.icon = "!"
+    modal = NotificationModal([notification])
+
+    row = _render_plain(modal._create_styled_label(notification))
+
+    assert "🧹" in row
+    assert "[prune]" in row
+    assert "[report]" not in row

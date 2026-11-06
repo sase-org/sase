@@ -272,6 +272,9 @@ def _format_notification_toast(n: Notification) -> tuple[str, Severity]:
         return (f"Axe: {_markup_safe(note)}" if note else "Axe errors", "error")
 
     if action == "ViewReport":
+        if n.action_data.get("run_prune_review"):
+            message = _markup_safe(note) if note else "ACE run pruning preview is ready"
+            return (f"🧹 {message}", "information")
         return (_markup_safe(note) if note else "Report available", "information")
 
     if action in {"JumpToPatch", "JumpToChangeSpec"}:  # legacy compatibility alias

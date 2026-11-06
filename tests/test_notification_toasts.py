@@ -16,6 +16,18 @@ from tests._notification_toasts_helpers import _make, _plain
 
 
 class TestFormatNotificationToast:
+    def test_prune_review_notification_uses_prune_icon(self) -> None:
+        notification = _make(
+            action="ViewReport",
+            notes=["1.2 GiB of old ACE runs can be pruned"],
+            action_data={"run_prune_review": "{}"},
+        )
+
+        message, severity = _format_notification_toast(notification)
+
+        assert _plain(message) == "🧹 1.2 GiB of old ACE runs can be pruned"
+        assert severity == "information"
+
     def test_plan_approval_uses_original_plan_file_basename(self) -> None:
         n = _make(
             action="PlanApproval",

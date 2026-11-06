@@ -8268,6 +8268,96 @@ ReportModal #report-footer {
     padding-top: 1;
 }
 
+/* ===== ACE Run Prune Review ===== */
+
+ArtifactRunPruneModal {
+    align: center middle;
+}
+
+ArtifactRunPruneModal > #prune-review-container {
+    width: 95%;
+    max-width: 140;
+    height: 88%;
+    max-height: 42;
+    border: thick $warning;
+    background: $surface;
+    padding: 1 2;
+}
+
+ArtifactRunPruneModal > #prune-review-container.prune-review--blocked {
+    border: thick $error;
+}
+
+ArtifactRunPruneModal > #prune-review-container.prune-review--snapshot_missing,
+ArtifactRunPruneModal > #prune-review-container.prune-review--running {
+    border: thick $warning;
+}
+
+ArtifactRunPruneModal #prune-review-title {
+    height: auto;
+    text-align: center;
+}
+
+ArtifactRunPruneModal #prune-review-freshness {
+    height: 1;
+    text-align: center;
+    color: $text-muted;
+    margin-bottom: 1;
+}
+
+ArtifactRunPruneModal #prune-review-scroll {
+    height: 1fr;
+    min-height: 5;
+    scrollbar-gutter: stable;
+}
+
+ArtifactRunPruneModal #prune-review-hero {
+    height: auto;
+    text-align: center;
+    margin-bottom: 1;
+}
+
+ArtifactRunPruneModal #prune-review-window {
+    height: auto;
+    color: $text-muted;
+    text-align: center;
+    margin-bottom: 1;
+}
+
+ArtifactRunPruneModal #prune-review-projects {
+    height: auto;
+}
+
+ArtifactRunPruneModal #prune-review-state {
+    height: auto;
+    margin-top: 1;
+    text-align: center;
+}
+
+ArtifactRunPruneModal #prune-review-consequence {
+    height: auto;
+    margin-top: 1;
+    text-align: center;
+    color: $text-muted;
+}
+
+ArtifactRunPruneModal #prune-review-buttons {
+    height: auto;
+    margin-top: 1;
+    align: center middle;
+}
+
+ArtifactRunPruneModal #prune-review-buttons Button {
+    margin: 0 1;
+}
+
+ArtifactRunPruneModal #prune-review-footer {
+    height: 1;
+    margin-top: 1;
+    text-align: center;
+    color: $text-muted;
+}
+
 /* ===== Word Definition Modal Styling ===== */
 
 WordDefinitionModal {

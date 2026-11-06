@@ -55,7 +55,7 @@ def agents_bindings(km: KeymapRegistry) -> Sections:
                 (d(a.show_help), "Show this help"),
                 (
                     d(a.show_notifications),
-                    "All unread notifications (Enter opens; d debugs)",
+                    "All unread notifications (Enter opens or prunes; d debugs)",
                 ),
                 (d(a.dismiss_toasts), "Dismiss toasts"),
                 (d(a.stop_axe_and_quit), "Quit / restart menu"),

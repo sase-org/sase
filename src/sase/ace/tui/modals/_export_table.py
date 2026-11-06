@@ -50,6 +50,10 @@ _LAZY_EXPORTS = {
         ".artifact_files_modal",
         "ArtifactFileSelectionModal",
     ),
+    "ArtifactRunPruneModal": (
+        ".artifact_run_prune_modal",
+        "ArtifactRunPruneModal",
+    ),
     "ArtifactFileSelectionResult": (
         ".artifact_files_modal",
         "ArtifactFileSelectionResult",

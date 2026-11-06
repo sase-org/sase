@@ -25,11 +25,12 @@ from sase.project_display_names import (
 )
 
 from .notification_modal_constants import (
-    ACTION_BADGES,
     HEADER_ID_PREFIX,
     NOTIFICATION_HINT_FALLBACK_WIDTH,
+    notification_action_badge,
+    notification_has_prune_review,
     notification_hint_text,
-    notification_icon,
+    notification_icon_for_action_data,
 )
 
 from .notification_section_render import (
@@ -89,7 +90,9 @@ class NotificationOptionMixin(KeyedPaneEntryJumpMixin[int]):
         else:
             text.append("  ", style="")
 
-        text.append(f"{notification_icon(notification.action, notification.icon)} ")
+        text.append(
+            f"{notification_icon_for_action_data(notification.action, notification.icon, notification.action_data)} "
+        )
 
         chip = gate_chip_from_action_data(notification.action_data)
         if chip is not None:
@@ -127,7 +130,10 @@ class NotificationOptionMixin(KeyedPaneEntryJumpMixin[int]):
 
         text.append(f"  {format_relative_time(notification.timestamp)}", style="dim")
 
-        badge = ACTION_BADGES.get(notification.action, "")
+        badge = notification_action_badge(
+            notification.action,
+            notification.action_data,
+        )
         if badge:
             badge_style = "dim" if notification.muted else "bold #00D7FF"
             text.append(f"  {badge}", style=badge_style)
@@ -295,9 +301,13 @@ class NotificationOptionMixin(KeyedPaneEntryJumpMixin[int]):
                 footer.update(f"JUMP ' {action}  <esc> cancel")
             return
 
-        if (
-            notification := self._get_highlighted_notification()
-        ) is not None and notification.action == "UserQuestion":
+        notification = self._get_highlighted_notification()
+        if notification is not None and notification_has_prune_review(
+            notification.action,
+            notification.action_data,
+        ):
+            variant = "prune"
+        elif notification is not None and notification.action == "UserQuestion":
             variant = "question"
         elif notification is not None and notification.action in _GATE_HINT_ACTIONS:
             variant = "gate"

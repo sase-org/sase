@@ -15,7 +15,7 @@ from sase.ace.tui.modals.notification_modal_footer import NotificationHintFooter
 
 from tests._notification_modal_helpers import _make_notification
 
-_VARIANTS = ("default", "question", "gate")
+_VARIANTS = ("default", "question", "gate", "prune")
 
 
 def test_hint_variants_fit_modal_content_width_at_120_columns() -> None:
@@ -126,6 +126,28 @@ def test_update_hint_footer_selects_default_variant() -> None:
     assert footer.updated is not None
     assert cell_len(footer.updated) <= NOTIFICATION_HINT_FALLBACK_WIDTH
     assert "Enter: select" in footer.updated
+
+
+def test_update_hint_footer_selects_prune_variant() -> None:
+    modal = NotificationModal(
+        [
+            _make_notification(
+                "n1",
+                action="ViewReport",
+                action_data={"run_prune_review": "{}"},
+            )
+        ]
+    )
+    footer = _RecordingFooter()
+    modal._get_highlighted_notification = (  # type: ignore[method-assign]
+        lambda: modal._notifications[0]
+    )
+    modal.query_one = lambda *args, **kwargs: footer  # type: ignore[method-assign]
+
+    modal._update_hint_footer()
+
+    assert footer.updated is not None
+    assert "Enter: prune" in footer.updated
 
 
 class _RecordingHintFooter(NotificationHintFooter):

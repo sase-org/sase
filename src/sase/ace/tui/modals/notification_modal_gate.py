@@ -28,7 +28,7 @@ from sase.notifications import Notification, format_relative_until
 
 from .gate_input_panel_model import option_input_count_label
 from .gate_primary_footer import primary_action_badge_for_label
-from .notification_modal_constants import ACTION_BADGES
+from .notification_modal_constants import notification_action_badge
 from .notification_modal_plus_ones import plus_one_evidence_renderables
 from .notification_modal_palette import (
     PANE_ACCENT,
@@ -132,7 +132,10 @@ class NotificationSummaryMixin:
         grid = Table.grid(expand=True, padding=(0, 1))
         grid.add_column(ratio=1)
         grid.add_column(justify="right")
-        badge = ACTION_BADGES.get(notification.action, "")
+        badge = notification_action_badge(
+            notification.action,
+            notification.action_data,
+        )
         grid.add_row(
             Text(notification.sender, style="bold"),
             Text(badge, style=f"bold {PANE_ACCENT}") if badge else Text(""),

@@ -426,6 +426,18 @@ def _get_project_display_snapshot(
         return cached
 
 
+def cached_project_display_snapshot(
+    projects_root: Path | str | None = None,
+) -> ProjectDisplaySnapshot:
+    """Return the managed display snapshot, loading it only when it is cold.
+
+    Long-lived UI callers should invoke this from a worker when the cache may
+    need its initial inventory read, then keep the returned immutable value
+    for the surface they are rendering.
+    """
+    return _get_project_display_snapshot(projects_root)
+
+
 def project_display_snapshot_is_warm(
     projects_root: Path | str | None = None,
 ) -> bool:
@@ -677,6 +689,7 @@ __all__ = [
     "ProjectDisplaySnapshot",
     "ProjectRefDisplaySnapshot",
     "attach_project_display_names",
+    "cached_project_display_snapshot",
     "humanize_cl_names_in_text",
     "humanize_cl_name",
     "humanize_safe_stem",
