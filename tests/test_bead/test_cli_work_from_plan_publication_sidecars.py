@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 import subprocess
 
@@ -77,6 +78,16 @@ def test_plan_file_launch_pushes_split_plans_archive_and_bead_link(
     )
     source = project_dir / "rollout.md"
     source.write_text(EPIC_PLAN, encoding="utf-8")
+    decision_sheet = source.with_name(f"{source.stem}.plan-decisions.json")
+    decision_sheet.write_text(
+        json.dumps(
+            {
+                "schema": 1,
+                "definitions": [{"id": "grouping", "prompt": "Choose grouping"}],
+            }
+        ),
+        encoding="utf-8",
+    )
 
     result = work_from_plan_file(
         str(source),
@@ -90,6 +101,11 @@ def test_plan_file_launch_pushes_split_plans_archive_and_bead_link(
     _git(tmp_path, "clone", str(plans_remote), str(observer))
     archived = observer / "202607" / "rollout.md"
     assert archived.is_file()
+    archived_sheet = archived.with_name("rollout.plan-decisions.json")
+    assert archived_sheet.is_file()
+    assert json.loads(archived_sheet.read_text(encoding="utf-8")) == json.loads(
+        decision_sheet.read_text(encoding="utf-8")
+    )
     frontmatter, _body, _had_frontmatter = parse_frontmatter(
         archived.read_text(encoding="utf-8")
     )
@@ -97,6 +113,19 @@ def test_plan_file_launch_pushes_split_plans_archive_and_bead_link(
     subjects = _git_output(observer, "log", "--format=%s").splitlines()
     assert "Archive approved plan rollout" in subjects
     assert "Link approved epic plan to its bead: rollout" in subjects
+    archive_commit = _git_output(
+        observer,
+        "log",
+        "--format=%H",
+        "--grep=^Archive approved plan rollout$",
+        "-1",
+    )
+    archive_commit_files = _git_output(
+        observer, "show", "--format=", "--name-only", archive_commit
+    ).splitlines()
+    assert "202607/rollout.md" in archive_commit_files
+    assert "202607/rollout.plan-decisions.json" in archive_commit_files
+    assert _git_output(plans, "status", "--porcelain") == ""
 
 
 @pytest.mark.usefixtures("fake_cli_work_macros")

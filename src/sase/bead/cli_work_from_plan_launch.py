@@ -113,11 +113,14 @@ def work_from_plan_file_locked(
             capacity=capacity,
         )
     with timer.stage("archived_plan_commit", written=archive_result.written):
+        from sase._plan_archive_approval import archive_commit_paths
+
         archive_committed = not archive_result.written or hooks.commit_plan_file(
             store,
             workspace_dir=workspace_dir,
             plan_path=archived_path,
             message=f"Archive approved plan {archived_path.stem}",
+            paths=archive_commit_paths(archived_path),
         )
     if not archive_committed:
         raise error_with_resume(

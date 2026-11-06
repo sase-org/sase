@@ -18,6 +18,7 @@ class _CommitPlanFile(Protocol):
         workspace_dir: Path,
         plan_path: Path,
         message: str,
+        paths: list[Path] | None = None,
     ) -> bool: ...
 
 

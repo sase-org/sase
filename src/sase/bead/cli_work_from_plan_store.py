@@ -379,6 +379,7 @@ def commit_plan_file(
     workspace_dir: Path,
     plan_path: Path,
     message: str,
+    paths: list[Path] | None = None,
     already_locked: bool = False,
 ) -> bool:
     from sase.sdd.files import commit_sdd_store_files
@@ -388,7 +389,7 @@ def commit_plan_file(
         commit_sdd_store_files(
             commit_store,
             message,
-            paths=[plan_path],
+            paths=paths if paths is not None else [plan_path],
             push_after_commit=False,
             already_locked=already_locked,
         )

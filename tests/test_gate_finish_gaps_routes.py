@@ -320,7 +320,7 @@ def test_freeze_never_overwrites_existing_sibling(tmp_path: Path) -> None:
 def test_archive_copies_plan_and_commits_sibling(tmp_path: Path) -> None:
     from sase._plan_archive_approval import (
         _ApprovedPlanArchive,
-        _archive_commit_paths,
+        archive_commit_paths,
         archive_approved_plan,
     )
     from sase.sdd.plan_decision_freeze import sibling_path_for_plan
@@ -386,7 +386,7 @@ def test_archive_copies_plan_and_commits_sibling(tmp_path: Path) -> None:
     # The archive commit covers the copy plus its frozen-decisions sibling.
     assert len(commits) == 1
     assert commits[0][1]["paths"] == [expected, sibling]
-    assert _archive_commit_paths(expected) == [expected, sibling]
+    assert archive_commit_paths(expected) == [expected, sibling]
 
 
 def _guard_markers() -> tuple[list[dict], list[dict]]:
