@@ -13,7 +13,7 @@ Reference for `sase agent`. Run `sase agent --help` for the exact output on this
 
 ```text
 usage: sase agent [-h]
-                  {archive,artifacts,auto-restart,drain,hijack,hold,index,kill,list,load,names,persist-cleanup,persist-directive,persist-hijack,prompts,readopt,restart,revert,search,show,sync,tab,tribe,wait} ...
+                  {archive,artifacts,auto-restart,drain,hijack,hold,index,kill,list,load,names,persist-cleanup,persist-directive,persist-hijack,persist-recover,prompts,readopt,recover,restart,revert,search,show,sync,tab,tribe,wait} ...
 ```
 
 Inspect and manage agents across projects. Running bare `sase agent` delegates to `sase agent list`.
@@ -44,8 +44,10 @@ Subcommands:
 | `sase agent persist-cleanup`   | Persist kill, dismiss, or save cleanup from a private request sidecar                                    |
 | `sase agent persist-directive` | Persist an agent directive update from a private request sidecar                                         |
 | `sase agent persist-hijack`    | Hijack a stalled agent from a private request sidecar                                                    |
+| `sase agent persist-recover`   | Resolve a hijacked agent from a private request sidecar                                                  |
 | `sase agent prompts`           | Inspect and validate canonical prompt persistence                                                        |
 | `sase agent readopt`           | Retry a held staged handoff after its obligations are satisfied                                          |
+| `sase agent recover`           | Continue a hijacked agent in its held workspace                                                          |
 | `sase agent restart`           | Stop a named agent and immediately relaunch its stored prompt                                            |
 | `sase agent revert`            | Execute a previously previewed agent commit revert                                                       |
 | `sase agent search`            | Search the agent catalog or archive                                                                      |
@@ -762,6 +764,22 @@ Options:
 | `-Q PATH`, `--request-path PATH` | Private versioned operation request sidecar. Defaults to $SASE_PROC_REQUEST_PATH when that environment variable is set. | —       |
 | `-R PATH`, `--result-path PATH`  | Private versioned typed result sidecar. Defaults to $SASE_PROC_RESULT_PATH when that environment variable is set.       | —       |
 
+## `sase agent persist-recover`
+
+```text
+usage: sase agent persist-recover [-h] [-Q PATH] [-R PATH]
+```
+
+Run one pinned keep-work recovery from a private request sidecar. The name, action, preview identity, and optional target or edited prompt come from the request. This operation stays alive if its initiating interface closes.
+
+Options:
+
+| Option                           | Description                                                                                                             | Default |
+| -------------------------------- | ----------------------------------------------------------------------------------------------------------------------- | ------- |
+| `-h`, `--help`                   | show this help message and exit                                                                                         | —       |
+| `-Q PATH`, `--request-path PATH` | Private versioned operation request sidecar. Defaults to $SASE_PROC_REQUEST_PATH when that environment variable is set. | —       |
+| `-R PATH`, `--result-path PATH`  | Private versioned typed result sidecar. Defaults to $SASE_PROC_RESULT_PATH when that environment variable is set.       | —       |
+
 ## `sase agent prompts`
 
 ```text
@@ -878,6 +896,31 @@ Arguments:
 | Argument | Description                                               |
 | -------- | --------------------------------------------------------- |
 | `agent`  | Originating agent or session with exactly one staged turn |
+
+## `sase agent recover`
+
+```text
+usage: sase agent recover [-h] [-a ACTION] [-n] [-j] [-m MODEL] [-p PATH] NAME
+```
+
+Preview or resolve a hijacked agent while keeping its workspace. Without --action, print the shared recovery menu. The supported actions are continue and escalate; --prompt-file with continue supplies the full edited continuation prompt (Instruct). Restart and dismiss are shown as unavailable until their release phase. Recovery remains available when the hijack ingress flag is off. Exit 0 means menu, queued, or launched; 2 means refused with no new recovery; 1 means an operation error.
+
+Options:
+
+| Option                          | Description                                                                                                      | Default |
+| ------------------------------- | ---------------------------------------------------------------------------------------------------------------- | ------- |
+| `-a ACTION`, `--action ACTION`  | Resolve with continue or escalate (without this, print the menu) (choices: `continue`, `escalate`)               | —       |
+| `-n`, `--dry-run`               | Preview one action without changing the ledger or launching                                                      | `false` |
+| `-h`, `--help`                  | show this help message and exit                                                                                  | —       |
+| `-j`, `--json`                  | Emit one stable JSON envelope on stdout and nothing else                                                         | `false` |
+| `-m MODEL`, `--model MODEL`     | Pin a concrete target for continue or escalate; a continue prompt's %model: is overridden by this value          | —       |
+| `-p PATH`, `--prompt-file PATH` | Use this full edited continuation prompt with continue (Instruct); read and validate it before claiming recovery | —       |
+
+Arguments:
+
+| Argument | Description                           |
+| -------- | ------------------------------------- |
+| `name`   | Name of the hijacked agent to recover |
 
 ## `sase agent restart`
 

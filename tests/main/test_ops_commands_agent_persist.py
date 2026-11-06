@@ -168,3 +168,76 @@ def test_agent_persist_cleanup_applies_json_identities(
     assert loaded.success is True
     assert loaded.payload is not None
     assert loaded.payload["action"] == "dismiss"
+
+
+def test_agent_persist_recover_uses_pinned_request_sidecar(
+    monkeypatch: Any, tmp_path: Path
+) -> None:
+    from sase.agent.hijack.recover_common import RecoveryResult
+    from sase.ops.names import AGENT_PERSIST_RECOVER
+
+    request_path = tmp_path / "recover-req.json"
+    result_path = tmp_path / "recover-res.json"
+    write_operation_request(
+        request_path,
+        DurableOperationRequest(
+            operation=AGENT_PERSIST_RECOVER,
+            payload={
+                "name": "sase-7f.2",
+                "action": "escalate",
+                "model": "claude/opus@xhigh",
+                "expected_hijack_id": "h-123",
+                "expected_revision": 7,
+            },
+        ),
+    )
+    captured: dict[str, Any] = {}
+
+    def recover(name: str, **kwargs: Any) -> RecoveryResult:
+        captured["name"] = name
+        captured.update(kwargs)
+        return RecoveryResult(
+            kind="queued",
+            hijack_id="h-123",
+            revision=8,
+            action="escalate",
+            successor="sase-7f.3",
+            concrete_target="claude/opus@xhigh",
+            model_changed=True,
+            message="queued recovery",
+        )
+
+    monkeypatch.setattr(
+        "sase.ops.commands._agent_persist_recover.recover_hijacked_agent", recover
+    )
+    args = create_parser().parse_args(
+        [
+            "agent",
+            "persist-recover",
+            "-Q",
+            str(request_path),
+            "-R",
+            str(result_path),
+        ]
+    )
+    monkeypatch.setenv("SASE_PROC_ID", "proc-recover")
+
+    assert handle_agent_operation(args) == 0
+    assert captured == {
+        "name": "sase-7f.2",
+        "action": "escalate",
+        "model": "claude/opus@xhigh",
+        "prompt": None,
+        "expected_hijack_id": "h-123",
+        "expected_revision": 7,
+    }
+    loaded = read_operation_result(
+        result_path,
+        expected_operation=AGENT_PERSIST_RECOVER,
+        expected_proc_id="proc-recover",
+    )
+    assert loaded.success is True
+    assert loaded.payload is not None
+    assert loaded.payload["status"] == "queued"
+    assert loaded.payload["concrete_target"] == "claude/opus@xhigh"
+    assert loaded.payload["successor"] == "sase-7f.3"

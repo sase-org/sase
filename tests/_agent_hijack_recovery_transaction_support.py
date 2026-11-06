@@ -118,12 +118,29 @@ class Transaction:
         ledger_module.create_record(self._record())
 
     def _write_fixture_files(self) -> None:
-        modified = self.linked_repo / "notes.md"
-        modified.write_text("# fixture change\n\nPredecessor work.\n", encoding="utf-8")
-        digest = hashlib.sha256(modified.read_bytes()).hexdigest()
+        primary_modified = self.workspace_dir / "notes.md"
+        primary_modified.write_text(
+            "# primary fixture change\n\nPredecessor primary work.\n",
+            encoding="utf-8",
+        )
+        linked_modified = self.linked_repo / "notes.md"
+        linked_modified.write_text(
+            "# linked fixture change\n\nPredecessor linked work.\n",
+            encoding="utf-8",
+        )
         fingerprints = {
-            str(self.workspace_dir): {"notes.md": [digest, None]},
-            str(self.linked_repo): {"notes.md": [digest, None]},
+            str(self.workspace_dir): {
+                "notes.md": [
+                    hashlib.sha256(primary_modified.read_bytes()).hexdigest(),
+                    None,
+                ]
+            },
+            str(self.linked_repo): {
+                "notes.md": [
+                    hashlib.sha256(linked_modified.read_bytes()).hexdigest(),
+                    None,
+                ]
+            },
         }
         repos = {
             "schema_version": 3,
@@ -305,6 +322,14 @@ class Transaction:
                 "goal": ack.get("goal"),
                 "bead": ack.get("bead"),
                 "model": ack.get("concrete_target"),
+                "workspace_num": kwargs["workspace_num"],
+                "workspace_dir": kwargs["workspace_dir"],
+                "primary_work": (Path(kwargs["workspace_dir"]) / "notes.md").read_text(
+                    encoding="utf-8"
+                ),
+                "linked_work": (self.linked_repo / "notes.md").read_text(
+                    encoding="utf-8"
+                ),
             }
         )
 

@@ -3059,6 +3059,73 @@
           },
           {
             "aliases": [],
+            "default_child": null,
+            "description_digest": "8d4c503554c26ef9",
+            "hidden": false,
+            "mutex_groups": [],
+            "name": "persist-recover",
+            "options": [
+              {
+                "choices": null,
+                "default": null,
+                "dest": "help",
+                "hidden": false,
+                "kind": null,
+                "metavar": null,
+                "repeatable": false,
+                "required": false,
+                "strings": [
+                  "-h",
+                  "--help"
+                ],
+                "takes_value": false,
+                "value_hint": null
+              },
+              {
+                "choices": null,
+                "default": null,
+                "dest": "operation_request_path",
+                "hidden": false,
+                "kind": "path",
+                "metavar": "PATH",
+                "repeatable": false,
+                "required": false,
+                "strings": [
+                  "-Q",
+                  "--request-path"
+                ],
+                "takes_value": true,
+                "value_hint": "path"
+              },
+              {
+                "choices": null,
+                "default": null,
+                "dest": "operation_result_path",
+                "hidden": false,
+                "kind": "path",
+                "metavar": "PATH",
+                "repeatable": false,
+                "required": false,
+                "strings": [
+                  "-R",
+                  "--result-path"
+                ],
+                "takes_value": true,
+                "value_hint": "path"
+              }
+            ],
+            "path": [
+              "agent",
+              "persist-recover"
+            ],
+            "positionals": [],
+            "run_policy": [],
+            "stdin": false,
+            "subcommands": [],
+            "writes": false
+          },
+          {
+            "aliases": [],
             "default_child": "list",
             "description_digest": "9ce93ce8bd473ce7",
             "hidden": false,
@@ -3511,6 +3578,135 @@
                 "nargs": null,
                 "required": true,
                 "value_hint": null
+              }
+            ],
+            "run_policy": [],
+            "stdin": false,
+            "subcommands": [],
+            "writes": false
+          },
+          {
+            "aliases": [],
+            "default_child": null,
+            "description_digest": "9549c2c55900a1ee",
+            "hidden": false,
+            "mutex_groups": [],
+            "name": "recover",
+            "options": [
+              {
+                "choices": null,
+                "default": null,
+                "dest": "help",
+                "hidden": false,
+                "kind": null,
+                "metavar": null,
+                "repeatable": false,
+                "required": false,
+                "strings": [
+                  "-h",
+                  "--help"
+                ],
+                "takes_value": false,
+                "value_hint": null
+              },
+              {
+                "choices": [
+                  "continue",
+                  "escalate"
+                ],
+                "default": null,
+                "dest": "action",
+                "hidden": false,
+                "kind": null,
+                "metavar": "ACTION",
+                "repeatable": false,
+                "required": false,
+                "strings": [
+                  "-a",
+                  "--action"
+                ],
+                "takes_value": true,
+                "value_hint": null
+              },
+              {
+                "choices": null,
+                "default": "False",
+                "dest": "dry_run",
+                "hidden": false,
+                "kind": null,
+                "metavar": null,
+                "repeatable": false,
+                "required": false,
+                "strings": [
+                  "-n",
+                  "--dry-run"
+                ],
+                "takes_value": false,
+                "value_hint": null
+              },
+              {
+                "choices": null,
+                "default": "False",
+                "dest": "json",
+                "hidden": false,
+                "kind": null,
+                "metavar": null,
+                "repeatable": false,
+                "required": false,
+                "strings": [
+                  "-j",
+                  "--json"
+                ],
+                "takes_value": false,
+                "value_hint": null
+              },
+              {
+                "choices": null,
+                "default": null,
+                "dest": "model",
+                "hidden": false,
+                "kind": "model",
+                "metavar": "MODEL",
+                "repeatable": false,
+                "required": false,
+                "strings": [
+                  "-m",
+                  "--model"
+                ],
+                "takes_value": true,
+                "value_hint": null
+              },
+              {
+                "choices": null,
+                "default": null,
+                "dest": "prompt_file",
+                "hidden": false,
+                "kind": "path",
+                "metavar": "PATH",
+                "repeatable": false,
+                "required": false,
+                "strings": [
+                  "-p",
+                  "--prompt-file"
+                ],
+                "takes_value": true,
+                "value_hint": "path"
+              }
+            ],
+            "path": [
+              "agent",
+              "recover"
+            ],
+            "positionals": [
+              {
+                "choices": null,
+                "dest": "name",
+                "is_remainder": false,
+                "kind": null,
+                "metavar": "NAME",
+                "nargs": null,
+                "required": true,
+                "value_hint": "text"
               }
             ],
             "run_policy": [],

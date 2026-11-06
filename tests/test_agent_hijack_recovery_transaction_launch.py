@@ -18,6 +18,33 @@ def _ack_for(txn: Transaction, child: Path) -> dict[str, Any]:
     return dict(ack)
 
 
+def _assert_inherited_work(txn: Transaction, child: Path, ack: dict[str, Any]) -> None:
+    """Prove the fake provider received and inherited both repository changes."""
+    assert ack["workspace_num"] == 3
+    assert ack["workspace_dir"] == str(txn.workspace_dir)
+    assert ack["goal"] == "goal-1"
+    assert ack["bead"] == "sase-1"
+    assert ack["scope_verified"] is True
+    assert ack["baselines_verified"] is True
+    assert ack["inventory_verified"] is True
+    assert ack["lineage"]["hijack_id"] == "h-123"
+    assert ack["lineage"]["predecessor"] == "acme--3"
+    provider = txn.provider_calls[-1]
+    assert provider["workspace_num"] == 3
+    assert provider["workspace_dir"] == str(txn.workspace_dir)
+    assert provider["primary_work"] == (
+        "# primary fixture change\n\nPredecessor primary work.\n"
+    )
+    assert provider["linked_work"] == (
+        "# linked fixture change\n\nPredecessor linked work.\n"
+    )
+    for filename in (
+        "commit_finalizer_baseline.json",
+        "opened_linked_workspaces.json",
+    ):
+        assert (child / filename).read_bytes() == (txn.parent / filename).read_bytes()
+
+
 def test_continue_full_transaction_launches_with_real_policy_and_persistence(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -35,6 +62,7 @@ def test_continue_full_transaction_launches_with_real_policy_and_persistence(
     assert len(txn.children()) == 1
     child = txn.children()[0]
     ack = _ack_for(txn, child)
+    _assert_inherited_work(txn, child, ack)
     assert ack["launch_identity"] == result.launch_identity
     assert ack["successor_name"] == "acme--4"
     assert ack["concrete_target"] == "claude/opus@high"
@@ -57,6 +85,10 @@ def test_continue_full_transaction_launches_with_real_policy_and_persistence(
             "goal": "goal-1",
             "bead": "sase-1",
             "model": "claude/opus@high",
+            "workspace_num": 3,
+            "workspace_dir": str(txn.workspace_dir),
+            "primary_work": "# primary fixture change\n\nPredecessor primary work.\n",
+            "linked_work": "# linked fixture change\n\nPredecessor linked work.\n",
         }
     ]
     assert txn.spawned_prompts[0].startswith("%model:claude/opus@high")
@@ -88,6 +120,8 @@ def test_escalate_full_transaction_pins_changed_model(
     assert result.model_changed is True
     child = txn.children()[0]
     ack = _ack_for(txn, child)
+    _assert_inherited_work(txn, child, ack)
+    assert ack["lineage"]["to_rung"] == "claude/opus@xhigh"
     assert ack["concrete_target"] == "claude/opus@xhigh"
     assert ack["effort"] == "xhigh"
     assert txn.provider_calls[0]["model"] == "claude/opus@xhigh"
@@ -117,6 +151,7 @@ def test_instruct_edited_prompt_with_explicit_model_launches(
     assert txn.spawned_prompts[0].startswith("%model:claude/sonnet@low")
     child = txn.children()[0]
     ack = _ack_for(txn, child)
+    _assert_inherited_work(txn, child, ack)
     assert ack["model"] == "sonnet"
     assert ack["effort"] == "low"
     assert ack["goal"] == "goal-1"

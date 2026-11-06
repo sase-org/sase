@@ -147,13 +147,24 @@ class TestEffectiveTargets:
         assert target.concrete_target == "claude/sonnet@high"
         assert target.prompt.startswith("%model:claude/sonnet@high")
 
-    def test_continue_rejects_escalate_options(self) -> None:
-        with pytest.raises(RecoveryRefusal, match="takes no"):
+    def test_escalate_accepts_explicit_concrete_override(self) -> None:
+        target = resolve_effective_target(
+            action="escalate",
+            record=_record(Path("/tmp/x")),
+            preview_action=self._row(target="claude/opus@xhigh"),
+            model_override="claude/sonnet@high",
+        )
+        assert target.action == "escalate"
+        assert target.concrete_target == "claude/sonnet@high"
+        assert target.model_changed is True
+
+    def test_escalate_rejects_replacement_prompt(self) -> None:
+        with pytest.raises(RecoveryRefusal, match="replacement prompt"):
             resolve_effective_target(
                 action="escalate",
                 record=_record(Path("/tmp/x")),
                 preview_action=self._row(target="claude/opus@xhigh"),
-                model_override="claude/sonnet@high",
+                prompt_text="Continue with another approach.",
             )
 
     def test_instruct_requires_prompt(self) -> None:

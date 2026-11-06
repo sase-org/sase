@@ -115,6 +115,11 @@ def handle_agent_command(args: argparse.Namespace) -> None:
 
         sys.exit(handle_agent_operation(args))
 
+    if sub == "persist-recover":
+        from sase.ops.commands.agent import handle_agent_operation
+
+        sys.exit(handle_agent_operation(args))
+
     if sub == "prompts":
         from sase.agents.cli_prompts import handle_agents_prompts
 
@@ -129,6 +134,11 @@ def handle_agent_command(args: argparse.Namespace) -> None:
         from sase.agents.cli_readopt import handle_agent_readopt
 
         sys.exit(handle_agent_readopt(args))
+
+    if sub == "recover":
+        from sase.agents.cli_recover import handle_agents_recover
+
+        sys.exit(handle_agents_recover(args))
 
     if sub == "search":
         from sase.agents.cli_search import handle_agents_search
@@ -148,7 +158,7 @@ def handle_agent_command(args: argparse.Namespace) -> None:
     print(
         "Usage: sase agent "
         "{archive,artifacts,auto-restart,drain,hijack,hold,index,kill,list,load,names,"
-        "persist-cleanup,persist-directive,persist-hijack,prompts,restart,"
-        "revert,search,show,sync,tab,tribe,wait}"
+        "persist-cleanup,persist-directive,persist-hijack,persist-recover,prompts,"
+        "readopt,recover,restart,revert,search,show,sync,tab,tribe,wait}"
     )
     sys.exit(1)

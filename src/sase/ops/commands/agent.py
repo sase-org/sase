@@ -17,6 +17,7 @@ from sase.ops.commands._agent_directive import (
     run_persist_directive,
 )
 from sase.ops.commands._agent_persist_hijack import run_persist_hijack
+from sase.ops.commands._agent_persist_recover import run_persist_recover
 from sase.ops.commands._agent_revert import (
     run_revert,
     serialize_bulk_revert_preview as serialize_bulk_revert_preview,
@@ -28,6 +29,7 @@ from sase.ops.names import (
     AGENT_DRAIN,
     AGENT_PERSIST_DIRECTIVE,
     AGENT_PERSIST_HIJACK,
+    AGENT_PERSIST_RECOVER,
     AGENT_REVERT,
 )
 
@@ -61,6 +63,18 @@ def add_agent_operation_parsers(subparsers: argparse._SubParsersAction) -> None:
         ),
     )
     add_operation_io_flags(hijack)
+
+    recover = subparsers.add_parser(
+        "persist-recover",
+        help="Resolve a hijacked agent from a private request sidecar",
+        description=(
+            "Run one pinned keep-work recovery from a private request sidecar. "
+            "The name, action, preview identity, and optional target or edited "
+            "prompt come from the request. This operation stays alive if its "
+            "initiating interface closes."
+        ),
+    )
+    add_operation_io_flags(recover)
 
     persist = subparsers.add_parser(
         "persist-directive",
@@ -109,6 +123,12 @@ def handle_agent_operation(args: argparse.Namespace) -> int:
         return run_and_finish(
             operation=AGENT_PERSIST_HIJACK,
             body=lambda: run_persist_hijack(args),
+            args=args,
+        )
+    if sub == "persist-recover":
+        return run_and_finish(
+            operation=AGENT_PERSIST_RECOVER,
+            body=lambda: run_persist_recover(args),
             args=args,
         )
     if sub == "revert":

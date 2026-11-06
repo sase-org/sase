@@ -20,6 +20,7 @@ AGENT_CLI_UPDATE = "agent-cli.update"
 AGENT_DRAIN = "agent.drain"
 AGENT_PERSIST_DIRECTIVE = "agent.persist-directive"
 AGENT_PERSIST_HIJACK = "agent.persist-hijack"
+AGENT_PERSIST_RECOVER = "agent.persist-recover"
 AGENT_REVERT = "agent.revert"
 AGENT_CLEANUP = "agent.cleanup"
 
@@ -64,6 +65,7 @@ __all__ = [
     "AGENT_DRAIN",
     "AGENT_PERSIST_DIRECTIVE",
     "AGENT_PERSIST_HIJACK",
+    "AGENT_PERSIST_RECOVER",
     "AGENT_REVERT",
     "ARTIFACT_PRUNE_RUNS",
     "AXE_BGCMD",

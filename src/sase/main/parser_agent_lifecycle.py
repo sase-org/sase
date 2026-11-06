@@ -192,6 +192,76 @@ def register_agent_kill_parser(agents_sub: argparse._SubParsersAction) -> None:
     )
 
 
+def register_agent_recover_parser(agents_sub: argparse._SubParsersAction) -> None:
+    """Register the 'sase agent recover' subcommand."""
+    recover_parser = agents_sub.add_parser(
+        "recover",
+        help="Continue a hijacked agent in its held workspace",
+        description=(
+            "Preview or resolve a hijacked agent while keeping its workspace. "
+            "Without --action, print the shared recovery menu. The supported "
+            "actions are continue and escalate; --prompt-file with continue "
+            "supplies the full edited continuation prompt (Instruct). Restart "
+            "and dismiss are shown as unavailable until their release phase. "
+            "Recovery remains available when the hijack ingress flag is off. "
+            "Exit 0 means menu, queued, or launched; 2 means refused with no "
+            "new recovery; 1 means an operation error."
+        ),
+        epilog=(
+            "examples:\n"
+            "  sase agent recover sase-7f.2\n"
+            "  sase agent recover -a escalate sase-7f.2\n"
+            "  sase agent recover -a continue -n sase-7f.2\n"
+            "  sase agent recover -a continue -p /tmp/continue.md -m opus@high "
+            "sase-7f.2\n"
+            "  sase agent recover -a escalate -j sase-7f.2"
+        ),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    recover_parser.add_argument(
+        "-a",
+        "--action",
+        choices=("continue", "escalate"),
+        metavar="ACTION",
+        help="Resolve with continue or escalate (without this, print the menu)",
+    )
+    recover_parser.add_argument(
+        "-n",
+        "--dry-run",
+        action="store_true",
+        help="Preview one action without changing the ledger or launching",
+    )
+    recover_parser.add_argument(
+        "-j",
+        "--json",
+        action="store_true",
+        help="Emit one stable JSON envelope on stdout and nothing else",
+    )
+    recover_parser.add_argument(
+        "-m",
+        "--model",
+        metavar="MODEL",
+        help=(
+            "Pin a concrete target for continue or escalate; a continue prompt's "
+            "%%model: is overridden by this value"
+        ),
+    )
+    recover_parser.add_argument(
+        "-p",
+        "--prompt-file",
+        metavar="PATH",
+        help=(
+            "Use this full edited continuation prompt with continue (Instruct); "
+            "read and validate it before claiming recovery"
+        ),
+    )
+    recover_parser.add_argument(
+        "name",
+        metavar="NAME",
+        help="Name of the hijacked agent to recover",
+    )
+
+
 def register_agent_show_parser(agents_sub: argparse._SubParsersAction) -> None:
     """Register the 'sase agent show' subcommand."""
     show_parser = agents_sub.add_parser(

@@ -159,11 +159,11 @@ def resolve_effective_target(
 ) -> RecoveryTarget:
     """Resolve a concrete target through the Rust-owned shared policy.
 
-    The public CLI action remains ``continue`` when it carries an explicit
-    model or edited prompt; those cases adapt internally to Instruct. The
-    selected target is also written into an edited prompt so the launched
-    invocation uses the exact provider, model, and effort pinned in the
-    recovery record.
+    Continue with an explicit model or edited prompt adapts internally to
+    Instruct. Escalate may also carry an explicit concrete model override;
+    Rust validates it through the same target policy, while the ledger keeps
+    the requested action as ``escalate``. Edited targets are written into the
+    prompt so launch uses the exact provider, model, and effort selected here.
     """
     normalized = clean_string(action) or ""
     if normalized not in KEEP_WORK_ACTIONS:
@@ -177,7 +177,8 @@ def resolve_effective_target(
     customized_continue = normalized == "continue" and (
         explicit_model is not None or edited is not None
     )
-    customized = normalized == "instruct" or customized_continue
+    customized_escalate = normalized == "escalate" and explicit_model is not None
+    customized = normalized == "instruct" or customized_continue or customized_escalate
     available = bool((preview_action or {}).get("available", False))
     if not available and not customized:
         reason = clean_string((preview_action or {}).get("reason"))
@@ -200,14 +201,16 @@ def resolve_effective_target(
         )
     if normalized == "continue" and edited is not None and not edited.strip():
         raise RecoveryRefusal("missing_prompt", "The replacement prompt is empty")
-    if normalized == "escalate" and (explicit_model is not None or edited is not None):
+    if normalized == "escalate" and edited is not None:
         raise RecoveryRefusal(
             "incompatible_options",
-            "Escalate takes no model override or replacement prompt",
+            "Escalate takes no replacement prompt",
         )
 
     internal_action = (
-        "instruct" if normalized == "instruct" or customized_continue else normalized
+        "instruct"
+        if normalized == "instruct" or customized_continue or customized_escalate
+        else normalized
     )
     prompt_model: str | None = None
     if edited is not None:
@@ -253,7 +256,7 @@ def resolve_effective_target(
                 "invalid_prompt", f"Could not pin the Instruct prompt model: {exc}"
             ) from exc
     return RecoveryTarget(
-        action="instruct" if is_instruct else normalized,
+        action="instruct" if is_instruct and normalized != "escalate" else normalized,
         concrete_target=target_value,
         model_changed=bool(result.get("model_changed")),
         prompt=prepared_prompt,
