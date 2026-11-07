@@ -32,6 +32,20 @@ from tests.ace.tui.visual.png_diff import AcePngSnapshotFixture
 pytestmark = pytest.mark.visual
 
 
+@pytest.fixture(autouse=True)
+def _pin_capacity_machine_label(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Pin the machine label so capacity goldens never depend on the hostname.
+
+    The shared startup pin covers ``sase.core.local_machine`` only; the
+    capacity report reads its own module binding, so pin it too (same value
+    the goldens were captured with).
+    """
+    monkeypatch.setattr(
+        "sase.core.runner_slots._machine_capacity.local_machine_label",
+        lambda: "athena",
+    )
+
+
 async def _capture_inspector(
     ace_png_visual: AcePngSnapshotFixture,
     monkeypatch: pytest.MonkeyPatch,

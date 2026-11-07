@@ -125,6 +125,11 @@ async def test_agent_session_gate_turns_narrow_png_snapshot(
         await wait_for_svg_contains(page, "cleanup")
         await stabilize_toast_frame(page)
         await select_navigable_main_card(page, "reply")
+        # The footer shows the focused card's key hints. Wait for the reply
+        # card's hint so a late focus settle cannot capture a stale footer.
+        # ("-K" and "jump" are separate SVG text nodes, so match "jump" alone;
+        # the screen's other "jump" text is the uppercase JUMP header.)
+        await wait_for_svg_contains(page, "jump")
 
         assert_page_svg_contains(page, "visual-family")
         assert_page_svg_contains(page, "⋔")
