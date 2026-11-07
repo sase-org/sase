@@ -168,6 +168,9 @@ warning.
 
 ### Enter: act on an agent
 
+`Enter` on a `HIJACKED` row opens its
+[recovery panel](agents-tab-modes.md#hijack-recovery-panel).
+
 `Enter` on an Agents-tab row opens that agent node's pending gate (every gate kind,
 including plan, question, sudo, launch, HITL, and custom gates), jumps to its Patch, or
 — when more than one target applies — opens a one-keypress chooser. One target runs

@@ -45,8 +45,10 @@ rebuildable status without offering a reclaim command; it is not one of the
 managed-temp reaping, proc runtime cleanup, [tool run](glossary.md#tool-run) retention,
 ACE-run artifact retention (the same owner as `sase artifact prune-runs`), and workspace
 Git object compaction. It exits `1` when any owner step is blocked, fails, or cannot
-report a trustworthy result, and `0` otherwise. Because ACE-run deletion is currently
-preview-only, the artifact-run step reports `blocked` under `--apply`.
+report a trustworthy result, and `0` otherwise. The artifact-run step remains blocked
+under `--apply` because unattended run pruning is refused. Reviewed run cleanup uses
+[`sase artifact prune-runs`](artifact-references.md#run-directory-retention) to move
+runs into restorable trash.
 
 Indexed artifact-file retention is a separate owner from ACE-run directory preview. The
 hourly `artifact_retention` housekeeping job enforces `artifacts.retention` against the

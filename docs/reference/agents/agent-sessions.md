@@ -78,13 +78,12 @@ requests. See
 [Command-backed interaction gates](../automation/notification-gates.md#command-backed-interaction-gates-1).
 
 `sase pipe '<prompt>'` hands work to the next session member in the same workspace and
-claim, after the calling turn ends. The [handoff mode](#handoff-completion) determines
-whether the command ends that turn immediately or stages the request for host
-completion. The successor gets the next free numeric suffix (role `feedback`) by
-default, or an explicit `--name TOKEN` suffix (role: the token itself), per the suffix
-table above. Every host-composed successor inherits autonomy structurally from its
-predecessor's live record; an explicit `%auto` in agent-authored follow-up text can only
-narrow. See
+claim, after the calling turn ends. The command stages its request for
+[host completion](#handoff-completion). The successor gets the next free numeric suffix
+(role `feedback`) by default, or an explicit `--name TOKEN` suffix (role: the token
+itself), per the suffix table above. Every host-composed successor inherits autonomy
+structurally from its predecessor's live record; an explicit `%auto` in agent-authored
+follow-up text can only narrow. See
 [Monitors: Pipe vs. monitor](../automation/monitor-operations.md#pipe-vs-monitor).
 
 SASE resolves `parent` to the newest visible matching agent or session member in the
@@ -207,6 +206,60 @@ failed handoff can leave a [held workspace](workspaces.md#held-workspaces) when 
 still needs recovery. Successful re-adoption that transfers the original workspace
 settles that hold; a delayed failed-adoption callback does not recreate it. A successor
 that launches in a different workspace leaves the original hold unresolved.
+
+### Hijack recovery
+
+Hijacking stops a local agent while retaining its numbered workspace, uncommitted work,
+Agents-tab row, and recovery evidence. It is available for `RUNNING`, `STARTING`, and
+`RETRYING` agent turns launched with hijack support, when the `agent_hijack` beta flag
+is enabled. Finalizing turns, home-mode turns, remote rows, monitors, gates, named
+processes, clan containers, and bulk selections are ineligible. A remote agent must be
+hijacked on its owning host. See [Feature flags](../config/feature-flags.md) for flag
+controls.
+
+`sase agent hijack NAME` waits for the process tree to stop and verifies that it is dead
+before reporting `HIJACKED`. The workspace stays held, and the stop captures repository
+diffs, snapshots, model details, and recent tool context. A refusal exits `2`; a failed
+stop or operational error exits `1`; a completed hijack exits `0`.
+
+`sase agent recover NAME` displays the recovery menu without launching anything. The
+menu includes the held workspace, model, elapsed time, captured changes, and action
+availability. Recovery of an existing hijack remains available when the beta flag is
+disabled. The [CLI reference](../cli/agent.md#sase-agent-recover) lists exact options.
+
+| Action   | Result                                                                                                                     |
+| -------- | -------------------------------------------------------------------------------------------------------------------------- |
+| Continue | Launch a successor in the held workspace using the recorded concrete model and effort.                                     |
+| Escalate | Keep the workspace and select a different model through the configured escalation ladder.                                  |
+| Instruct | Edit the continuation prompt before continuing; the CLI accepts the full prompt through Continue's prompt-file option.     |
+| Restart  | Verify recovery snapshots, release the workspace, and relaunch the stored prompt under the same name in a fresh workspace. |
+| Edit     | Submit a replacement prompt through Restart's prompt-file option after snapshot verification.                              |
+| Dismiss  | Verify recovery snapshots, retire the row, and release the held workspace without launching a successor.                   |
+
+Continue and Escalate support a dry-run preview. A supplied continuation prompt is the
+complete prompt, not just extra guidance. A concrete model override takes precedence
+over its model directive. SASE validates the prompt before claiming recovery; duplicate
+or stale submissions cannot launch a second successor. A queued result means recovery
+was admitted but may still be waiting for capacity. The ledger remains resolving until
+the successor has verified ownership and inherited its context, or reconciliation has
+established another outcome.
+
+The successor inherits the same goal, any bead claim, repository responsibilities,
+commit-finalizer baseline, and autonomy ceiling. Missing inheritance evidence prevents
+provider execution. Its context includes the predecessor's transcript by default, or a
+brief with the transcript path when configured. Model selection and context settings are
+in [Agent configuration](../config/agents.md). Successful recovery marks the predecessor
+`CONTINUED` or `ESCALATED`; session waits follow the recovery successor. An unresolved
+hijack needs input and does not count as successful completion.
+
+Restart, Edit, and Dismiss verify or refresh snapshots against the current primary and
+recorded opened repositories before release. A snapshot failure keeps the workspace
+held. The CLI's explicit discard-without-snapshot option bypasses that protection and
+can lose uncommitted work. Once a hold has expired and its workspace has been released,
+Continue, Escalate, and Instruct are unavailable; the menu still offers eligible release
+actions. See [Held workspaces](workspaces.md#held-workspaces) for retention and expiry,
+and [the recovery panel](../tui/agents-tab-modes.md#hijack-recovery-panel) for TUI
+actions.
 
 ### Session detail folding
 

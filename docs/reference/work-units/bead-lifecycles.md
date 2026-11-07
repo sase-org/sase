@@ -36,6 +36,11 @@ be set through `update --status` either — snoozing requires a wake time, so
 way `update --status=closed` points at `sase bead close`. See
 [Snoozing a Task Bead](bead-triage.md#snoozing-a-task-bead) for the full workflow.
 
+When an agent invokes `sase bead open`, the target must be closed; any other status
+exits `2` before mutation and points to `sase bead read` for inspection. A human opening
+an already-open bead gets an `Already open` result without a new commit. A successful
+reopen records the acting opener on the bead and any reopened ancestors.
+
 Every new close records a typed `resolution`: `done`, `canceled`, or `superseded`.
 Normal closes default to `done`; `close_reason` remains optional free text for the human
 explanation. Closing an already-closed bead is a verified no-op: the command succeeds

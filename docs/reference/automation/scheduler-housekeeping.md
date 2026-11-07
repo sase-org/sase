@@ -301,6 +301,19 @@ unattended apply paths still refuse. The hourly job permanently purges batches a
 configured `artifacts.retention.trash_grace_days` period; runs that gain a protection
 reference are restored instead.
 
+The review panel shows the snapshot age, selected run count and bytes, protected count,
+retained month window, and project totals. A preview older than 24 hours is marked
+stale; apply still rechecks the captured selection. `r` opens the full report, `y`
+confirms **Move to trash**, and `n` or `Esc` cancels. Confirmation is disabled while the
+snapshot is being checked, when it is missing, when protection data is unavailable, or
+while pruning is already running. Cancel has initial focus.
+
+Confirmation starts a durable proc using the snapshot fingerprint, so closing the TUI
+does not cancel the operation. Its result reports moved, kept, and failed runs and any
+index errors. See
+[Run directory retention](../artifact-references.md#run-directory-retention) for batch
+restoration and purge behavior.
+
 ## Related
 
 - [Default scheduler routines](scheduler-default-routines.md)

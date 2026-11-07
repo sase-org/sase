@@ -419,6 +419,43 @@ includes dangling refs, stale projections, durable-versus-aggregate counts, read
 counts, derived coverage, and relation/origin totals; see
 [Artifact Links](artifact-links.md#health-and-recovery).
 
+### Run directory retention
+
+`sase artifact prune-runs` handles complete agent-run directories separately from
+indexed artifact files. Its default is a preview. Explicit apply moves eligible runs to
+journaled batches under `~/.sase/trash/ace-run/`, then removes their active index
+entries. Archived agent records remain listed. Moving bytes to trash does not free disk
+space; permanent purge does.
+
+The preview preserves recent calendar months, incomplete or active runs, referenced
+runs, continuation ancestry, runs tied to non-closed beads, and symlinked directories.
+Unavailable protection data blocks apply. The
+[hourly housekeeping job](automation/scheduler-housekeeping.md#housekeeping-1-hour-interval)
+publishes review snapshots and purges expired batches; it does not apply an unreviewed
+prune plan.
+
+Applying a review snapshot uses only the intersection of the captured selection and a
+fresh eligible plan. Newly eligible runs are excluded, and reviewed runs that are no
+longer eligible are kept with a reason. A missing snapshot refuses apply. Results
+distinguish moved, kept, and failed runs and report index errors separately; an accepted
+operation is not proof that every reviewed run moved. The generic
+`sase disk reap --apply` path cannot apply run pruning.
+
+| Trash operation                               | Run-batch behavior                                                                                   |
+| --------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| `sase artifact trash list`                    | Lists artifact-file entries and run batches, including the batch identifier and restore deadline.    |
+| `sase artifact trash restore runs:<batch_id>` | Restores the batch's run directories and reindexes restored runs.                                    |
+| `sase artifact trash purge`                   | Permanently removes batches older than the configured grace period after checking protections again. |
+| `sase artifact trash purge --all`             | Ignores the age threshold while retaining the run-protection checks.                                 |
+
+Purge restores runs that gained protection instead of deleting them. Unreadable
+protection sources block the run-batch portion of purge. Restoration reports destination
+collisions and index errors separately. The grace period comes from
+[Artifact retention configuration](config/artifacts.md); exact options are in the
+[Artifact CLI reference](cli/artifact.md).
+
+### Indexed artifact-file retention
+
 `stats`, `prune`, `reclaim`, and opt-in automatic retention use one shared protection
 collector. It unions IDs found in persistent ProjectSpec and SDD text with canonical
 fragment-free `file:` IDs recorded in the consumption ledger, then passes the

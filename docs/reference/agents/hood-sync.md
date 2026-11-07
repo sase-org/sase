@@ -327,9 +327,12 @@ the request is ten minutes old. In both modes, the prompt's agents-sidecar publi
 completes before its back-reference drain begins. `sase agent sync` is the explicit
 recovery command for queued requests a commit could not immediately resolve and the
 full-reconciliation command for hoods with no recent commit. A non-fast-forward
-rejection triggers one pull/recompute/commit/push retry. Conflicted rebases are aborted
-and reported; a failure in one project does not prevent the others from running. The
-Updates pane's `a` action is sase's TUI equivalent for all enabled projects.
+rejection triggers one pull/recompute/commit/push retry. Conflicts confined to
+regenerable browsing and index pages can be resolved automatically after preserving the
+pre-rebase HEAD in a recovery ref. Conflicts involving prompts, artifacts, owner
+content, archive objects, or unknown paths require manual recovery. A failure in one
+project does not prevent the others from running. The Updates pane's `a` action is
+sase's TUI equivalent for all enabled projects.
 
 Use `--json` to audit the complete schema-version-2 result. Each project reports the
 legacy publication counters (`exported`, `export_refreshed`) plus v2 publication counts
@@ -411,6 +414,15 @@ sase agent sync --retry-quarantined -p project-alias
 Do not delete or hand-edit either publication outbox. `--retry-quarantined` clears the
 quarantine flag for both hood and Referenced By requests and gives them a fresh retry
 budget before running the normal full reconciliation.
+
+### Withheld publication
+
+Publication protection can withhold a run or hood when its content is blocked or cannot
+be verified. The request stays in the outbox with a parked reason, timestamps, and
+scanner-rules version; parking does not consume retry attempts. Parked requests become
+eligible for another check after one hour or when the scanner-rules version changes.
+Other eligible publication work continues. Cached scans made under a different rules
+version are not accepted as current verification.
 
 ### Outbox diagnostics
 
@@ -613,8 +625,11 @@ Textual event loop.
   `--retry-quarantined` alone.
 - A general push or fetch failure leaves local agent history intact. Fix
   credentials/connectivity and retry.
-- A rebase conflict is aborted before the command returns. If it involves one
-  unpublished replay commit against an advanced upstream, the
+- A rebase conflict that cannot be resolved from regenerable pages is aborted and
+  reported with its conflicted paths. Background publication parks the unchanged local
+  HEAD/upstream pair for up to one hour and emits a recovery notification. A changed
+  pair clears the park. For an unpublished replay commit against an advanced upstream,
+  the
   [stale-replay recovery runbook](../../contribute/agents-sidecar-sync.md#stale-replay-recovery)
   describes the required preflight, backup, and explicit apply procedure. Other
   conflicts need review before retrying publication.
