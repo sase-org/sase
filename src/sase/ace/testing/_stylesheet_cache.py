@@ -116,7 +116,7 @@ def seed_fast_stylesheet(app: AceApp) -> FastStylesheetSeed | None:
     # ``css_path`` populated would make Textual read the files again and mark
     # the stylesheet dirty, forcing the parse the cache exists to avoid.
     app.css_path = []
-    _drop_pending_initial_css_refresh(app)
+    _restyle_instead_of_initial_css_refresh(app)
     return FastStylesheetSeed(key=key, original_css_path=original_css_path, hit=True)
 
 
@@ -202,15 +202,27 @@ def _hydrate(snapshot: _StylesheetSnapshot) -> Stylesheet:
     return stylesheet
 
 
-def _drop_pending_initial_css_refresh(app: AceApp) -> None:
+def _restyle_instead_of_initial_css_refresh(app: AceApp) -> None:
+    """Swap Textual's queued initial ``refresh_css`` for a parse-free restyle.
+
+    That refresh runs right after the app composes. Its reparse is redundant
+    with the seeded snapshot, but its restyle is not: it gives the App its
+    ``color`` rule and re-applies every mounted widget's styles, discarding
+    any visual style a widget cached before the App was styled. Dropping it
+    left the App unstyled until after its first Resize, so under load the
+    screen could paint first and widgets kept a transparent foreground; the
+    top bar's dim ``inbox:`` label then rendered in the background color.
+    """
     callbacks = getattr(app, "_next_callbacks", None)
     if not isinstance(callbacks, list):
         return
-    app._next_callbacks = [
-        callback
-        for callback in callbacks
-        if not _is_initial_css_refresh_callback(app, callback)
-    ]
+    for callback_message in callbacks:
+        if _is_initial_css_refresh_callback(app, callback_message):
+            callback_message.callback = partial(_restyle_from_seeded_stylesheet, app)
+
+
+def _restyle_from_seeded_stylesheet(app: AceApp) -> None:
+    app.stylesheet.update(app, animate=False)
 
 
 def _is_initial_css_refresh_callback(app: AceApp, callback_message: Any) -> bool:

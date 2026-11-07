@@ -160,7 +160,7 @@ def patch_row(
         left.cell_len + gap + suffix.cell_len
         > widget._target_width + _LIVE_HINT_PATCH_SLACK
     ):
-        return False
+        return _decline_unpainted_row(widget, agent)
 
     new_option = assemble_padded_option(
         left, suffix, width=widget._target_width, option_id=option_id
@@ -191,10 +191,24 @@ def patch_row(
         # single-row mutation.
         widget.replace_option_prompt_at_index(row, new_option.prompt)
     except (AttributeError, IndexError):
-        return False
+        return _decline_unpainted_row(widget, agent)
     finally:
         widget._programmatic_update = False
     return True
+
+
+def _decline_unpainted_row(widget: Any, agent: Any) -> bool:
+    """Decline a patch whose fresh render never reached the visible row.
+
+    The render already cached that row under its new key, so a later patch
+    would peek a hit and treat the stale prompt as current; drop the entry.
+    Also drop the panel-owner paint snapshot: the rows still match it, so
+    the owner's fallback rebuild would otherwise skip the stale panel (an
+    overlay-only change such as a stranded flag that widens a clan row).
+    """
+    widget._agent_render_cache.invalidate_agent(agent.identity)
+    widget._panel_paint_key = None
+    return False
 
 
 def patch_runtime_suffix_row(widget: Any, agent_idx: int, now: datetime) -> bool:

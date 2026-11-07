@@ -438,3 +438,34 @@ async def test_ace_page_fast_stylesheet_cache_hydrates_mutable_data_per_app() ->
         assert len(page.app.stylesheet.source) == source_count
         assert page.app.stylesheet.rules
         assert page.app.stylesheet.rules_map
+
+
+async def test_ace_page_fast_stylesheet_cache_styles_app_before_widgets_mount(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A cache hit styles the App before composed widgets can paint, like a miss.
+
+    Textual's queued initial ``refresh_css`` styles the App right after it
+    starts. A hit skips that refresh's reparse but must keep its restyle:
+    otherwise a widget that paints before the App has its ``color`` rule
+    (under load, during startup) caches a transparent foreground, and its
+    default-colored text (the top bar's dim ``inbox:`` label) renders in the
+    background color for the rest of the capture.
+    """
+    from sase.ace.tui.widgets.notification_indicator import NotificationIndicator
+
+    foreground_alpha_at_mount: list[float] = []
+
+    def paint_on_mount(self: NotificationIndicator) -> None:
+        foreground_alpha_at_mount.append(self.visual_style.foreground.a)
+
+    monkeypatch.setattr(
+        NotificationIndicator, "on_mount", paint_on_mount, raising=False
+    )
+    clear_fast_stylesheet_cache()
+    async with AcePage():
+        pass
+    async with AcePage():
+        assert fast_stylesheet_cache_stats().hits == 1
+
+    assert foreground_alpha_at_mount == [1.0, 1.0]

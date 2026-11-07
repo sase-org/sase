@@ -56,6 +56,7 @@ from tests._ace_testing_startup import (
     test_ace_page_fast_stylesheet_cache_invalidates_changed_css_path,
     test_ace_page_fast_stylesheet_cache_still_applies_rules,
     test_ace_page_fast_stylesheet_cache_hydrates_mutable_data_per_app,
+    test_ace_page_fast_stylesheet_cache_styles_app_before_widgets_mount,
 )
 
 from tests._ace_testing_group import (
@@ -123,6 +124,7 @@ __all__ = [
     "test_ace_page_fast_stylesheet_cache_invalidates_changed_css_path",
     "test_ace_page_fast_stylesheet_cache_still_applies_rules",
     "test_ace_page_fast_stylesheet_cache_hydrates_mutable_data_per_app",
+    "test_ace_page_fast_stylesheet_cache_styles_app_before_widgets_mount",
     "test_ace_page_group_reuses_page_and_resets_prompt_without_history",
     "test_ace_page_group_rejects_overlapping_checkouts",
     "test_ace_page_group_reports_reset_hook_leaks",

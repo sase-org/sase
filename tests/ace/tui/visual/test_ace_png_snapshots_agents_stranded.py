@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterator
 from dataclasses import replace
 from datetime import UTC, datetime
 
@@ -9,7 +10,11 @@ import pytest
 from rich.text import Text
 
 from sase.ace.testing import AcePage
+from sase.ace.tui.actions.agents._loading_bead_warmup import _AgentBeadWarmupResults
+from sase.ace.tui.models import agent_stranded
 from sase.ace.tui.models.agent import Agent, AgentType
+from sase.ace.tui.models.agent_bead import _BEAD_DISPLAY_CACHE
+from sase.ace.tui.models.agent_wait_beads import _WAIT_BEAD_STATUS_CACHE
 from sase.ace.tui.models._agent_tree_fold import agent_fold_key
 from sase.bead.stranded import StrandedReport
 from sase.core.stranded_work_facade import StrandedWorkReport, StrandedWorkVerdict
@@ -30,6 +35,27 @@ from tests.ace.tui.visual.png_diff import AcePngSnapshotFixture
 pytestmark = pytest.mark.visual
 
 _NOW = datetime(2026, 10, 1, 12, 0)
+
+
+def _clear_row_overlay_caches() -> None:
+    agent_stranded._STRANDED_REPORT_CACHE.clear()
+    _WAIT_BEAD_STATUS_CACHE.clear()
+    _BEAD_DISPLAY_CACHE.clear()
+
+
+@pytest.fixture(autouse=True)
+def _isolate_row_overlay_caches() -> Iterator[None]:
+    """Keep one capture's warm row overlays out of later tests' first paint.
+
+    These caches are process-global, and these fixtures share agent and bead
+    identities. Without this, a stranded report or wait-bead status left by
+    an earlier test in the same xdist worker is already warm when the next
+    test's Agents rows first paint, so CI's worker grouping decides which
+    flags, wait counts, and panel widths a capture shows.
+    """
+    _clear_row_overlay_caches()
+    yield
+    _clear_row_overlay_caches()
 
 
 def _agents() -> list[Agent]:
@@ -227,8 +253,6 @@ async def test_agents_stranded_rows_and_clan_png_snapshot(
         await page.expect_state("tab", "agents")
         await wait_for_visual_idle(page)
 
-        from sase.ace.tui.models import agent_stranded
-
         monkeypatch.setattr(
             page.app,
             "_schedule_bead_confirmation_warmup",
@@ -265,8 +289,6 @@ async def test_agents_stranded_nested_chain_png_snapshot(
         await page.press("shift+tab")
         await page.expect_state("tab", "agents")
         await wait_for_visual_idle(page)
-
-        from sase.ace.tui.models import agent_stranded
 
         monkeypatch.setattr(
             page.app,
@@ -343,8 +365,6 @@ async def test_agents_stranded_detail_png_snapshots(
         await page.expect_state("tab", "agents")
         await wait_for_visual_idle(page)
 
-        from sase.ace.tui.models import agent_stranded
-
         monkeypatch.setattr(
             page.app, "_schedule_bead_confirmation_warmup", lambda **_: None
         )
@@ -392,7 +412,6 @@ async def test_agents_stranded_resolve_modal_png_snapshot(
         await wait_for_visual_idle(page)
 
         from sase.ace.tui.modals.stranded_resolve_modal import StrandedResolveModal
-        from sase.ace.tui.models import agent_stranded
         from sase.ace.tui.models.stranded_resolve import build_stranded_resolve_view
         from sase.ace.tui.widgets._agent_jump_legend import jump_legend_title
         from sase.ace.tui.widgets import AgentJumpPanel
@@ -427,8 +446,33 @@ async def test_agents_stranded_resolve_modal_png_snapshot(
             titles={leaf_id: "Live proof"},
             generated_at=generated,
         )
+        # Publish the report the way the bead warmup does. Settle the startup
+        # warmup first: its off-thread store read would otherwise overwrite
+        # this report. Then hand the changed project to the UI-thread apply
+        # leg. The stranded flag widens the clan row past an in-place patch,
+        # so the leg must fall back to a real panel repaint; a bare full
+        # refresh would see unchanged rows and keep the pre-report row.
+        app = page.app
+        await wait_for_state(
+            page,
+            lambda: (
+                not (
+                    app._bead_warmup_scan_scheduled
+                    or app._bead_warmup_scan_running
+                    or app._bead_warmup_async_tasks
+                )
+            ),
+            description="startup bead warmup settled",
+        )
         agent_stranded._STRANDED_REPORT_CACHE.set("visual", report, "visual-store")
-        page.app._refresh_agents_display(list_changed=True)
+        app._apply_bead_warmup_results(
+            _AgentBeadWarmupResults(
+                bead_display_results={},
+                wait_bead_status_identities=set(),
+                stranded_changed_projects=frozenset({"visual"}),
+            )
+        )
+        await wait_for_svg_contains(page, "⚐1")
         await wait_for_visual_idle(page)
         # The modal leaves the Agents screen visible underneath it. Its clan
         # jump map is populated asynchronously, so wait for its complete

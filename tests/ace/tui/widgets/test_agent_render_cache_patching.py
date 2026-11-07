@@ -387,6 +387,36 @@ async def test_patch_agent_row_repaints_on_visible_change(
 
 
 @pytest.mark.asyncio
+async def test_width_growth_decline_leaves_the_stale_row_to_a_rebuild() -> None:
+    """A row too wide to patch in place must not look painted afterwards.
+
+    The caller falls back to a panel rebuild, which skips panels whose rows
+    and paint snapshot are unchanged; an overlay-only change (a stranded
+    flag on a clan row) keeps both, so the decline must drop the snapshot.
+    """
+    app = _Harness()
+    async with app.run_test() as pilot:
+        widget = app.query_one(AgentList)
+        a = _agent()
+        widget.update_list([a], current_idx=0)
+        await pilot.pause()
+        row = _agent_row_index(widget, 0)
+        before = widget.get_option_at_index(row).prompt
+        widget._panel_paint_key = ("painted",)
+
+        a.cl_name = "wide" * widget._target_width
+        assert widget.patch_agent_row(0) is False
+
+        assert widget.get_option_at_index(row).prompt is before
+        assert widget._panel_paint_key is None
+        # The unpainted render is not left in the cache, so a retry cannot
+        # peek it and report the stale row as current.
+        widget._panel_paint_key = ("painted",)
+        assert widget.patch_agent_row(0) is False
+        assert widget._panel_paint_key is None
+
+
+@pytest.mark.asyncio
 async def test_patch_clan_row_removes_final_unread_chip_without_rebuild() -> None:
     app = _Harness()
     async with app.run_test() as pilot:

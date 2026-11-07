@@ -559,6 +559,10 @@ class PanelPatchMixin:
             wait_dependency_counts=wait_dependency_counts,
         )
         if not ok:
+            # ``widget._agents`` already holds the new row object, so the
+            # caller's fallback rebuild would find the panel's rows and paint
+            # inputs unchanged and keep the stale prompt. Drop the snapshot.
+            widget._panel_paint_key = None
             self._record_display_patch_trace(
                 display_cost="row_patch",
                 fallback_reason="width_growth",
