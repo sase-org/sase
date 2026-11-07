@@ -17,17 +17,29 @@ from sase.monitor.continuation_delivery import (
     DELIVERY_ARTIFACTS_ENV,
     DELIVERY_IDENTITY_ENV,
     DELIVERY_KEY_ENV,
+    _ContinuationDeliveryFencedError,
     adopt_ordinary_continuation_delivery,
     claim_ordinary_continuation_dispatch,
+    continuation_delivery_env,
+    mark_ordinary_continuation_terminal,
 )
-from sase.monitor.delivery import load_delivery_record
+from sase.monitor.delivery import (
+    load_delivery_record,
+    new_delivery_record,
+    persist_delivery_record,
+    transition_delivery,
+)
 
 from ._continuation_delivery import continuation_delivery_sandbox  # noqa: F401
 
 __all__ = [
     "test_budget_refusal_marks_adopted_delivery_needs_attention",
+    "test_fenced_error_survives_pickle_round_trip",
+    "test_fenced_receiver_refusal_names_monitor_reason_and_identity",
     "test_illegal_skip_of_dispatching_is_rejected",
     "test_invoke_adopts_before_fake_provider",
+    "test_non_fencing_adoption_refusal_keeps_original_error",
+    "test_other_receiver_refusal_names_owner",
     "test_receiver_adopts_before_provider_invocation",
     "test_resume_adoption_decision_preserves_acknowledged_records",
     "test_schema_version_used_by_transition_request",
@@ -65,6 +77,99 @@ def test_receiver_adopts_before_provider_invocation(
 
     with pytest.raises(ValueError, match="cannot allocate intruder--1"):
         adopt_ordinary_continuation_delivery(agent_name="intruder--1")
+
+
+def test_fenced_receiver_refusal_names_monitor_reason_and_identity(
+    tmp_path: Path,
+) -> None:
+    artifacts = tmp_path / "monitor"
+    artifacts.mkdir()
+    claim = claim_ordinary_continuation_dispatch(
+        str(artifacts),
+        monitor_id="monitor-1",
+        result_id="result-1",
+        branch="failed",
+        selected_action="continue",
+        reserved_identity="acme--1",
+    )
+    reason = (
+        "receiver ownership is ambiguous: dispatching receiver acme--1 has no "
+        "live process"
+    )
+    mark_ordinary_continuation_terminal(
+        str(artifacts),
+        claim.key,
+        "needs_attention",
+        selected_action="continue",
+        reason=reason,
+    )
+    env = continuation_delivery_env(str(artifacts), claim.key, "acme--1")
+
+    with pytest.raises(_ContinuationDeliveryFencedError) as excinfo:
+        adopt_ordinary_continuation_delivery(env=env)
+
+    error = excinfo.value
+    assert isinstance(error, ValueError)
+    message = str(error)
+    assert "monitor monitor-1 branch failed" in message
+    assert "needs_attention" in message
+    assert reason in message
+    assert "receiver acme--1" in message
+    assert "provider was not invoked" in message
+    assert "`sase monitor show monitor-1`" in message
+    assert (error.disposition, error.reason, error.identity) == (
+        "needs_attention",
+        reason,
+        "acme--1",
+    )
+    stored = load_delivery_record(artifacts, claim.key)
+    assert stored is not None
+    assert stored["disposition"] == "needs_attention"
+
+
+def test_other_receiver_refusal_names_owner(tmp_path: Path) -> None:
+    artifacts = tmp_path / "monitor"
+    artifacts.mkdir()
+    claim = claim_ordinary_continuation_dispatch(
+        str(artifacts),
+        monitor_id="monitor-1",
+        result_id="result-1",
+        branch="failed",
+        selected_action="continue",
+        reserved_identity="acme--1",
+    )
+    env = continuation_delivery_env(str(artifacts), claim.key, "acme--1")
+    adopted = adopt_ordinary_continuation_delivery(env=env)
+    assert adopted is not None
+    assert adopted["disposition"] == "acknowledged"
+
+    with pytest.raises(_ContinuationDeliveryFencedError) as excinfo:
+        adopt_ordinary_continuation_delivery(env=env, agent_name="intruder--1")
+
+    message = str(excinfo.value)
+    assert "is acknowledged, owned by receiver acme--1" in message
+    assert "receiver intruder--1 cannot adopt it" in message
+    assert "cannot allocate intruder--1" in message
+    again = adopt_ordinary_continuation_delivery(env=env)
+    assert again is not None
+    assert again["acknowledged_by"] == "acme--1"
+
+
+def test_non_fencing_adoption_refusal_keeps_original_error(tmp_path: Path) -> None:
+    artifacts = tmp_path / "monitor"
+    artifacts.mkdir()
+    key = {"monitor_id": "monitor-1", "result_id": "result-1", "branch": "failed"}
+    record = new_delivery_record(key, selected_action="continue")
+    persist_delivery_record(
+        artifacts,
+        transition_delivery(record, "reserved", reserved_identity="acme--1"),
+    )
+    env = continuation_delivery_env(str(artifacts), key, "acme--1")
+
+    with pytest.raises(ValueError, match="must pass through dispatching") as excinfo:
+        adopt_ordinary_continuation_delivery(env=env)
+
+    assert not isinstance(excinfo.value, _ContinuationDeliveryFencedError)
 
 
 def test_invoke_adopts_before_fake_provider(
@@ -257,3 +362,12 @@ def test_schema_version_used_by_transition_request() -> None:
     }
     cancelled = transition_continuation_delivery(payload)
     assert cancelled["disposition"] == "cancelled"
+
+
+def test_fenced_error_survives_pickle_round_trip() -> None:
+    import pickle
+
+    error = _ContinuationDeliveryFencedError("fenced", disposition="needs_attention")
+    restored = pickle.loads(pickle.dumps(error))
+    assert isinstance(restored, _ContinuationDeliveryFencedError)
+    assert str(restored) == "fenced"

@@ -53,16 +53,21 @@ successful resume returns the same acknowledged successor. Supplying `-k/--check
 or `-m/--model` creates an immutable manual-recovery branch only when the original
 delivery was not already acknowledged. Concurrent receiver adoption is revalidated under
 the delivery lock before any undelivered branch is fenced, so an acknowledged delivery
-is never overwritten. A dispatching branch whose launch receipts or process identity
-cannot prove the receiver uninvoked is recorded as `needs_attention` instead of spawning
-another successor. When settlement recorded a follow-up as `not-launchable` only because
-the starter had not settled in time, resume first repairs that missing parent link.
-Ineligible monitors — still running, stopped or lost, fire-and-forget, owned by host
-completion, or already delivered, among others — make `resume` exit `2` and print the
-precise eligible resume command to stderr when one exists; with `-j`, the JSON result
-carries `code` and `suggested_command` fields. If the starter settled but its
-continuation capture failed, the `not-launchable` error names that capture failure and
-gives the `-k FILE` / `-m MODEL` resume command.
+is never overwritten. Settlement records each spawned receiver's pid and process
+identity as its launch receipt, so a receiver that is still booting or queued for a
+runner slot counts as live. Only a dispatching branch whose recorded receiver process is
+gone is recorded as `needs_attention`, with a reason naming that receiver, instead of
+spawning another successor. `sase monitor list` and `show`, and agent stop and dismiss,
+run this same terminal-delivery reconciliation. A receiver whose delivery was fenced
+exits before invoking its provider, and its error names the fence reason. When
+settlement recorded a follow-up as `not-launchable` only because the starter had not
+settled in time, resume first repairs that missing parent link. Ineligible monitors —
+still running, stopped or lost, fire-and-forget, owned by host completion, or already
+delivered, among others — make `resume` exit `2` and print the precise eligible resume
+command to stderr when one exists; with `-j`, the JSON result carries `code` and
+`suggested_command` fields. If the starter settled but its continuation capture failed,
+the `not-launchable` error names that capture failure and gives the `-k FILE` /
+`-m MODEL` resume command.
 
 Terminal settlement checks for uncommitted work before releasing the monitor's
 workspace. A failed, missing, or degraded follow-up can leave the original checkout

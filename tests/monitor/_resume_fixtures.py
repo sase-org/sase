@@ -181,14 +181,25 @@ def _terminal_monitor(
     return monitor_dir, MonitorRecord.from_record(record_from_disk(monitor_dir)), meta
 
 
-def _fake_spawn(captured: list[dict[str, Any]]) -> Any:
+# Above Linux's PID_MAX_LIMIT (2**22) and macOS's pid ceiling, so the launch
+# receipt a fake spawn leaves behind can never name a live process.
+DEAD_RECEIVER_PID = 4_242_425
+
+
+def _fake_spawn(
+    captured: list[dict[str, Any]],
+    *,
+    pid: int = DEAD_RECEIVER_PID,
+    artifacts_dir: str = "",
+) -> Any:
     def fake_spawn(**kwargs: Any) -> AgentLaunchResult:
         captured.append(kwargs)
         return AgentLaunchResult(
-            pid=1111,
+            pid=pid,
             workspace_num=3,
             workspace_dir="/tmp/work",
             output_path="/tmp/out.txt",
+            artifacts_dir=artifacts_dir,
             agent_name="acme--1",
         )
 

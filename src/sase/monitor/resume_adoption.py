@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Iterable, Mapping
 from hashlib import sha256
 import json
 from pathlib import Path
@@ -23,6 +23,7 @@ from .delivery import (
     transition_delivery,
     write_delivery_record_locked,
 )
+from .delivery_receipts import load_receiver_launch, receiver_launch_alive
 from .identity import supervisor_is_alive
 from .models import MonitorRecord
 from .resume_delivery_state import delivery_identity
@@ -98,7 +99,6 @@ def apply_resume_adoption(
             }
         )
         branch = str(decision.get("selected_branch") or requested_branch)
-        reason = f"{MANUAL_SUPERSEDE_REASON_PREFIX} branch {branch}"
         for key in decision.get("fence_keys") or []:
             if not isinstance(key, Mapping):
                 continue
@@ -108,7 +108,7 @@ def apply_resume_adoption(
             updated = transition_delivery(
                 current_record,
                 "needs_attention",
-                reason=reason,
+                reason=_fence_reason(kind, branch, decision, current_record),
             )
             write_delivery_record_locked(artifacts_dir, updated)
         maybe_crash("after_resume_fence")
@@ -151,6 +151,27 @@ def apply_resume_adoption(
                     or None
                 )
         return decision, reused, checkpoint_ref
+
+
+def _fence_reason(
+    kind: str,
+    branch: str,
+    decision: Mapping[str, Any],
+    fenced: Mapping[str, Any],
+) -> str:
+    """Return the ``needs_attention`` reason recorded on one fenced delivery."""
+
+    if kind == "manual_revision":
+        return f"{MANUAL_SUPERSEDE_REASON_PREFIX} branch {branch}"
+    # An ordinary reconcile only fences stale receivers: the spawn was
+    # recorded but no proof shows the receiver's process alive.
+    reason = str(decision.get("reason") or "receiver ownership is ambiguous")
+    disposition = str(fenced.get("disposition") or "active")
+    identity = delivery_identity(fenced)
+    subject = (
+        f"{disposition} receiver {identity}" if identity else f"{disposition} delivery"
+    )
+    return f"{reason}: {subject} has no live process"
 
 
 def _persist_manual_intent_revision(
@@ -306,9 +327,28 @@ def _manual_revision_fingerprint(
     return f"sha256:{sha256(encoded).hexdigest()}"
 
 
-def receiver_is_live(project_name: str, identity: str) -> bool:
-    """Return True when *identity* resolves to a live receiver process."""
-    if not project_name or not identity:
+def receiver_is_live(
+    project_name: str,
+    identity: str,
+    *,
+    artifacts_dir: str | Path | None = None,
+    keys: Iterable[Mapping[str, Any]] = (),
+) -> bool:
+    """Return True when *identity* resolves to a live receiver process.
+
+    With the monitor's *artifacts_dir* and delivery *keys*, a spawn-time
+    launch receipt for one of those keys whose recorded process is still
+    alive also proves the receiver live, even before it boots and becomes
+    resolvable by name.
+    """
+    if not identity:
+        return False
+    if artifacts_dir is not None and any(
+        receiver_launch_alive(load_receiver_launch(artifacts_dir, key), identity)
+        for key in keys
+    ):
+        return True
+    if not project_name:
         return False
     ctx = _try_resolve_agent(project_name, identity)
     if ctx is None:
@@ -333,17 +373,24 @@ def collect_receiver_proofs(
         if not branch:
             continue
         identity = delivery_identity(delivery)
-        discoverable = False
         process_alive = False
         spawn_recorded = bool(delivery.get("workspace_identity"))
         if identity:
-            ctx = _try_resolve_agent(record.project_name, identity)
-            if ctx is not None:
+            # The spawn-time launch receipt names the receiver's own pid, so
+            # it proves a receiver that is still booting (not yet resolvable
+            # by name) alive. With no receipt, name resolution alone decides.
+            receipt = load_receiver_launch(record.artifacts_dir, key)
+            if receipt is not None and receipt.get("identity") == identity:
                 spawn_recorded = True
-                process_alive = _receiver_process_alive(ctx)
-                discoverable = process_alive
+                process_alive = receiver_launch_alive(receipt, identity)
+            if not process_alive:
+                ctx = _try_resolve_agent(record.project_name, identity)
+                if ctx is not None:
+                    spawn_recorded = True
+                    process_alive = _receiver_process_alive(ctx)
             if followup_agent == identity and followup_outcome == "launched":
                 spawn_recorded = True
+        discoverable = process_alive
         proofs.append(
             {
                 "branch": branch,

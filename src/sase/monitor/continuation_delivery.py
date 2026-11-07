@@ -14,6 +14,7 @@ from sase.monitor.delivery import (
     apply_delivery_transition,
     claim_dispatch_slot,
     delivery_key,
+    load_delivery_record,
 )
 from sase.core.runner_slots import inheritable_queue_weight
 from sase.macro.queue_directive import (
@@ -35,6 +36,34 @@ _TERMINAL_NO_SPAWN = frozenset(
 
 class _InjectedDeliveryCrash(BaseException):
     """Test-only injected crash that must not be handled as a launch error."""
+
+
+class _ContinuationDeliveryFencedError(ValueError):
+    """A receiver's reserved delivery was fenced before it could adopt it.
+
+    Raised instead of invoking the provider when the stored delivery record
+    is already terminal (``needs_attention``, ``cancelled``,
+    ``nonlaunchable``, ``settled``) or is owned by a different receiver.
+    """
+
+    def __init__(
+        self,
+        message: str,
+        *,
+        monitor_id: str = "",
+        branch: str = "",
+        disposition: str = "",
+        reason: str | None = None,
+        identity: str = "",
+        owner: str | None = None,
+    ) -> None:
+        super().__init__(message)
+        self.monitor_id = monitor_id
+        self.branch = branch
+        self.disposition = disposition
+        self.reason = reason
+        self.identity = identity
+        self.owner = owner
 
 
 @dataclass(frozen=True, slots=True)
@@ -137,7 +166,9 @@ def adopt_ordinary_continuation_delivery(
     """Adopt the reserved delivery key before provider invocation.
 
     Idempotent for the reserved receiver. A different identity cannot adopt
-    the key and must not invoke a provider.
+    the key and must not invoke a provider. A refusal because the stored
+    record is terminal or owned by another receiver raises
+    :class:`_ContinuationDeliveryFencedError`, naming why it was fenced.
     """
 
     runtime = env or os.environ
@@ -154,20 +185,73 @@ def adopt_ordinary_continuation_delivery(
     key = json.loads(raw_key)
     if not isinstance(key, dict):
         raise ValueError("continuation delivery key must be a JSON object")
-    record = apply_delivery_transition(
-        artifacts_dir,
-        {
-            "monitor_id": str(key["monitor_id"]),
-            "result_id": str(key["result_id"]),
-            "branch": str(key["branch"]),
-        },
-        "acknowledged",
-        selected_action="continue",
-        reserved_identity=identity,
-        acknowledged_by=identity,
-    )
+    exact_key = {
+        "monitor_id": str(key["monitor_id"]),
+        "result_id": str(key["result_id"]),
+        "branch": str(key["branch"]),
+    }
+    try:
+        record = apply_delivery_transition(
+            artifacts_dir,
+            exact_key,
+            "acknowledged",
+            selected_action="continue",
+            reserved_identity=identity,
+            acknowledged_by=identity,
+        )
+    except ValueError as exc:
+        fenced = _fenced_delivery_error(artifacts_dir, exact_key, identity, exc)
+        if fenced is None:
+            raise
+        raise fenced from exc
     maybe_crash("after_adopt")
     return record
+
+
+def _fenced_delivery_error(
+    artifacts_dir: str,
+    key: Mapping[str, str],
+    identity: str,
+    exc: ValueError,
+) -> _ContinuationDeliveryFencedError | None:
+    """Explain a refused adoption whose stored record fences this receiver."""
+
+    try:
+        stored = load_delivery_record(artifacts_dir, key)
+    except Exception:  # noqa: BLE001 - keep the original refusal on bad reads
+        return None
+    if stored is None:
+        return None
+    disposition = str(stored.get("disposition") or "")
+    owner = _delivery_owner(stored)
+    if disposition not in _TERMINAL_NO_SPAWN and not (owner and owner != identity):
+        return None
+    raw_reason = stored.get("disposition_reason")
+    reason = raw_reason if isinstance(raw_reason, str) and raw_reason else None
+    disposition = disposition or "unknown"
+    monitor_id = key["monitor_id"]
+    state = f"{disposition} ({reason})" if reason else disposition
+    if owner and owner != identity:
+        state = f"{state}, owned by receiver {owner}"
+    return _ContinuationDeliveryFencedError(
+        f"continuation delivery for monitor {monitor_id} branch {key['branch']} "
+        f"is {state}; receiver {identity} cannot adopt it, so the provider was "
+        f"not invoked. Inspect with `sase monitor show {monitor_id}`. [{exc}]",
+        monitor_id=monitor_id,
+        branch=key["branch"],
+        disposition=disposition,
+        reason=reason,
+        identity=identity,
+        owner=owner,
+    )
+
+
+def _delivery_owner(record: Mapping[str, Any]) -> str | None:
+    for field in ("acknowledged_by", "reserved_identity"):
+        value = record.get(field)
+        if isinstance(value, str) and value.strip():
+            return value.strip()
+    return None
 
 
 def continuation_delivery_env(

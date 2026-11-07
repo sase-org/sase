@@ -364,7 +364,7 @@ def _has_transfer_proof(artifacts_dir: str, meta: dict[str, Any], agent: str) ->
             matching.append(record)
     if not matching:
         return False
-    if not _receiver_is_live(artifacts_dir, meta, agent):
+    if not _receiver_is_live(artifacts_dir, meta, agent, matching):
         return False
     if not _successor_owns_workspace_claim(artifacts_dir, meta):
         return False
@@ -501,7 +501,12 @@ def _delivery_names_agent(record: dict[str, Any], agent: str) -> bool:
     return identity == agent
 
 
-def _receiver_is_live(artifacts_dir: str, meta: dict[str, Any], agent: str) -> bool:
+def _receiver_is_live(
+    artifacts_dir: str,
+    meta: dict[str, Any],
+    agent: str,
+    deliveries: list[dict[str, Any]],
+) -> bool:
     from sase.monitor.resume_adoption import receiver_is_live
     from sase.turns.settlement import project_name_from_artifacts_dir
 
@@ -509,8 +514,14 @@ def _receiver_is_live(artifacts_dir: str, meta: dict[str, Any], agent: str) -> b
     if not isinstance(project_name, str) or not project_name.strip():
         project_name = project_name_from_artifacts_dir(artifacts_dir)
     if not isinstance(project_name, str) or not project_name.strip():
-        return False
-    return receiver_is_live(project_name, agent)
+        # Without a project only the spawn-time launch receipt can prove life.
+        project_name = ""
+    return receiver_is_live(
+        project_name,
+        agent,
+        artifacts_dir=artifacts_dir,
+        keys=[item["key"] for item in deliveries if isinstance(item.get("key"), dict)],
+    )
 
 
 def _successor_owns_workspace_claim(artifacts_dir: str, meta: dict[str, Any]) -> bool:

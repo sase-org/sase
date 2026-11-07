@@ -51,6 +51,7 @@ from .continuation_delivery import (
     queue_launch_prefix,
 )
 from .delivery import update_delivery_workspace
+from .delivery_receipts import mark_receiver_spawned
 
 from .followup_prompt import compose_followup_prompt
 from .followup_continuation import (
@@ -422,9 +423,12 @@ def launch_followup_agent(
         )
         maybe_crash("after_spawn")
         if claim_key is not None:
-            update_delivery_workspace(
+            mark_receiver_spawned(
                 artifacts_dir,
                 claim_key,
+                identity=frozen_name,
+                pid=result.pid,
+                receiver_artifacts_dir=result.artifacts_dir or None,
                 workspace_identity=workspace_dir,
             )
         return result

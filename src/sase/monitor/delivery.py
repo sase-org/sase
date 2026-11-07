@@ -397,12 +397,17 @@ def persist_host_completion_receipt(
     return payload
 
 
-def _record_path(artifacts_dir: str | Path, key: Mapping[str, Any]) -> Path:
-    name = (
+def delivery_record_filename(key: Mapping[str, Any]) -> str:
+    """Return the filesystem-safe file name for one delivery *key*."""
+
+    return (
         f"{_safe(key['monitor_id'])}__{_safe(key['result_id'])}__"
         f"{_safe(key['branch'])}.json"
     )
-    return _delivery_dir(artifacts_dir) / name
+
+
+def _record_path(artifacts_dir: str | Path, key: Mapping[str, Any]) -> Path:
+    return _delivery_dir(artifacts_dir) / delivery_record_filename(key)
 
 
 def _safe(value: object) -> str:
@@ -433,6 +438,7 @@ __all__ = [
     "claim_dispatch_slot",
     "decide_resume_adoption",
     "delivery_key",
+    "delivery_record_filename",
     "delivery_store_lock",
     "load_delivery_record",
     "load_delivery_records",
