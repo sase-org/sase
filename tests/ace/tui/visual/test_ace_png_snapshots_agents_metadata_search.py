@@ -46,9 +46,10 @@ async def test_agents_metadata_search_typing_and_committed_png_snapshots(
         )
 
         # The sticky header keeps identity fields out of the search corpus,
-        # so search a body term ("prompt" hits the section title and the
-        # empty notice) rather than the detached agent name.
-        await page.press("comma", "slash", "p", "r", "o", "m", "p", "t")
+        # so search a body term ("t" hits the Context card title and the
+        # empty notice; the AGENT PROMPT heading only renders when prompt
+        # content exists) rather than the detached agent name.
+        await page.press("comma", "slash", "t")
         await page.wait_for(
             lambda _state: (
                 page.app._agent_metadata_search.mode == "typing"

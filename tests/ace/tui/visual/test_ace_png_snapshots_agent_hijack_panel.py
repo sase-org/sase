@@ -10,12 +10,9 @@ from xml.etree import ElementTree
 import pytest
 
 from sase.ace.testing import AcePage
-from sase.ace.tui.actions.agents._hijack_recovery_panel import (
-    _apply_preview,
-    _header_from_record,
-    _initial_choices,
-    _preview_header,
-    _title_badge,
+from sase.ace.tui.actions.agents import (
+    _hijack_recovery_panel_impl as panel_helpers,
+    _hijack_recovery_preview as preview_helpers,
 )
 from sase.ace.tui.models.agent import Agent, AgentType
 from sase.ace.tui.modals.agent_action_chooser_modal import AgentActionChooserModal
@@ -148,21 +145,21 @@ async def _capture_panel(
     )
     agent = _agent(record, name=name)
     app = SimpleNamespace(_resolve_agent_cl_name=lambda _agent: "visual-recovery")
-    choices = _initial_choices(app, agent, record)
-    header = _header_from_record(record)
+    choices = panel_helpers._initial_choices(app, agent, record)
+    header = panel_helpers._header_from_record(record)
     primary = (
         "hijack:escalate" if any(c.result == "hijack:escalate" for c in choices) else ""
     )
     if resolved:
         preview = _preview(switch=switch, restart_disabled=restart_disabled)
-        choices = _apply_preview(choices, preview)
-        header = _preview_header(preview.header, record)
+        choices = preview_helpers._apply_preview(choices, preview)
+        header = preview_helpers._preview_header(preview.header, record)
         if record["state"] == "expired":
             primary = ""
     modal = AgentActionChooserModal(
         choices,
         title=f"⏏ Recover {name}",
-        title_badge=_title_badge(agent, record),
+        title_badge=panel_helpers._title_badge(agent, record),
         header=header,
         section_subtitles={
             "hijack_keep": "next turn runs in workspace #4",

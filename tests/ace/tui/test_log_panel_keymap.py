@@ -320,15 +320,15 @@ def test_keymap_registry_load_warms_defaults_before_first_keypress(
         def fail(*_args: object, **_kwargs: object) -> None:
             raise AssertionError("keypress-time registry load must stay in-memory")
 
-        monkeypatch.setattr(Path, "read_text", fail)
-        monkeypatch.setattr(Path, "write_text", fail)
+        with monkeypatch.context() as blocked:
+            blocked.setattr(Path, "read_text", fail)
+            blocked.setattr(Path, "write_text", fail)
 
-        load_keymap_registry({})
+            load_keymap_registry({})
     finally:
         # Restore the normal post-startup (warm) state for later tests.
-        # Undo the blocks first: teardown would do it anyway, and undoing
-        # twice is a no-op, so the re-warm below reads the real file.
-        monkeypatch.undo()
+        # Exiting the context above already lifted the blocks, so the
+        # re-warm below reads the real file.
         _builtin_keymaps_config.cache_clear()
         load_keymap_registry({})
 
