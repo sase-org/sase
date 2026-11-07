@@ -760,6 +760,12 @@ test-visual-contention *args: _setup-visual (_header "test-visual-contention")
 # Override the CPU list, worker count, or repeat count with
 # SASE_CONTENTION_CPUS, SASE_CONTENTION_WORKERS, and SASE_CONTENTION_REPEAT.
 #
+# A whole-suite soak (no paths or node IDs) shards collection: each worker
+# collects and runs only its own share of the test files
+# (tests/_contention_shards.py). Whole collection on every worker needed about
+# 1 GB per worker and OOM-killed the 16 GB CI runner mid-collection. Explicit
+# paths or an explicit SASE_PYTEST_DIST keep whole collection on every worker.
+#
 # Every soak also runs a diagnostic sampler (tests/_contention_sampler.py) off
 # the pinned CPUs: each SASE_CONTENTION_SAMPLE_SECONDS (default 15) it prints a
 # `[contention-diag]` line -- soak RSS/PSS by role, host and cgroup memory, PSI,

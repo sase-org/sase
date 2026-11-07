@@ -68,10 +68,17 @@ class ControllerProgress:
     """The controller's progress record, written at a bounded rate."""
 
     def __init__(
-        self, directory: Path, *, clock: Callable[[], float] = time.time
+        self,
+        directory: Path,
+        *,
+        clock: Callable[[], float] = time.time,
+        sharded: bool = False,
     ) -> None:
         self._directory = directory
         self._clock = clock
+        # Workers that collected the same selection report the same count;
+        # sharded workers each report their own part of it.
+        self._sharded = sharded
         self._pid = os.getpid()
         self._configured_at = clock()
         self._session_started_at: float | None = None
@@ -97,7 +104,11 @@ class ControllerProgress:
             "workers_configured": self._workers_configured,
             "collection": {
                 "workers_finished": len(self._collected),
-                "items": max(self._collected.values(), default=0),
+                "items": (
+                    sum(self._collected.values())
+                    if self._sharded
+                    else max(self._collected.values(), default=0)
+                ),
                 "first_at": self._collection_first_at,
                 "last_at": self._collection_last_at,
             },
@@ -130,7 +141,9 @@ class ControllerProgress:
     def pytest_configure_node(self, node: Any) -> None:
         self._workers_configured += 1
         node.workerinput[WORKERINPUT_KEY] = str(self._directory)
-        self._persist()
+        # Forced: nothing else writes before a worker finishes collecting, so a
+        # throttled write here left the record one worker short all collection.
+        self._persist(force=True)
 
     def pytest_sessionstart(self) -> None:
         self._session_started_at = self._clock()
@@ -347,14 +360,16 @@ def register_worker_progress(
         pass
 
 
-def register_controller_progress(config: pytest.Config) -> None:
+def register_controller_progress(
+    config: pytest.Config, *, sharded: bool = False
+) -> None:
     """Arm the controller's progress record, consuming the request."""
     # Popped like the failure record: nested pytest runs must not inherit it.
     directory = os.environ.pop(DIAGNOSTICS_ENV, None)
     if not directory:
         return
     config.pluginmanager.register(
-        ControllerProgress(Path(directory)), CONTROLLER_PLUGIN_NAME
+        ControllerProgress(Path(directory), sharded=sharded), CONTROLLER_PLUGIN_NAME
     )
     # Piped stdout is block-buffered until the first test reports, so a soak
     # that dies while its workers are still collecting printed nothing at all.

@@ -11,7 +11,8 @@ starves the machine, so its failures are not evidence about what a scoped run
 should have selected, and must not be recorded as if they were.
 
 The same plugin arms the soak's diagnostic progress records
-(`tests._contention_progress`) when the harness asks for them.
+(`tests._contention_progress`) and its sharded collection
+(`tests._contention_shards`) when the harness asks for them.
 """
 
 from __future__ import annotations
@@ -25,6 +26,10 @@ from tests._contention import FAILURES_ENV, write_failures
 from tests._contention_progress import (
     register_controller_progress,
     register_worker_progress,
+)
+from tests._contention_shards import (
+    register_controller_shards,
+    register_worker_shards,
 )
 
 
@@ -64,10 +69,13 @@ class ContentionFailureRecorder:
 def pytest_configure(config: pytest.Config) -> None:
     if os.environ.get("PYTEST_XDIST_WORKER"):
         # Workers report to the controller; only the controller writes the
-        # failure record. A worker only keeps its own diagnostic progress.
+        # failure record. A worker only keeps its own diagnostic progress and
+        # collects its own shard.
+        register_worker_shards(config)
         register_worker_progress(config)
         return
-    register_controller_progress(config)
+    sharded = register_controller_shards(config) is not None
+    register_controller_progress(config, sharded=sharded)
     # Popped, not read: tests in this suite spawn their own pytest
     # subprocesses, and an inherited request would have them overwrite this
     # repeat's record.

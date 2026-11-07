@@ -775,6 +775,15 @@ Override the pinned CPU list, the worker count, and the repeat count with
 so pass paths or node IDs; the tally is what turns "it went green once" into a
 before/after measurement a fix can be falsified by.
 
+A whole-suite soak (no paths or node IDs) shards collection: each worker collects,
+imports, and runs only its own disjoint share of the test files, split with the master
+gate's balancer (`tests/_test_shards.py`, LPT over `tests/shard_timings.json`). Every
+xdist worker otherwise holds the whole collection, about 1 GB each on the default lane,
+and 26 of them were OOM-killed mid-collection on a 16 GB CI runner. Explicit paths, and
+an explicit `SASE_PYTEST_DIST`, keep whole collection on every worker, so a restricted
+soak still spreads its tests across the full pool. The shard map is written to
+`.pytest_cache/sase-contention/shards.json`.
+
 Per-repeat failure records land in `.pytest_cache/sase-contention/repeat-NN.json`, so a
 finished soak can be re-read without re-running it.
 

@@ -28,10 +28,13 @@ from tests._contention import (  # noqa: E402
     DIAGNOSTICS_DIRNAME,
     DIAGNOSTICS_ENV,
     FAILURES_ENV,
+    SHARD_MAP_FILENAME,
+    SHARDS_ENV,
     format_tally,
     progress_directory,
     read_failures,
     tally_failures,
+    write_shard_map,
 )
 from tests._contention_sampler import start_sampler  # noqa: E402
 from tests._suite_gate import descendant_exemption  # noqa: E402
@@ -71,6 +74,7 @@ from tests._test_shards import (  # noqa: E402
     SHARD_ENV,
     ShardError,
     ShardSpec,
+    assign_shards,
     discover_test_files,
     format_shard_summary,
     load_shard_timings,
@@ -1199,8 +1203,46 @@ def _contention_artifact_directory() -> Path:
     return directory
 
 
+def _contention_shards(
+    args: list[str], worker_count: int
+) -> list[tuple[str, ...]] | None:
+    """Each worker's share of the test files for a whole-suite soak, or ``None``.
+
+    Every xdist worker otherwise collects, and keeps, the whole selection: the
+    default lane measured about 1 GB per worker, so 26 workers needed about
+    26 GB before the first test ran and were OOM-killed mid-collection on a
+    16 GB runner. Shards keep the selection, the worker count, and the pinned
+    CPUs, and divide only what each worker imports. The split is the master
+    gate's (LPT over the committed timing table), so shards finish together.
+
+    ``None`` -- every worker collects everything, as before -- whenever the
+    caller chose the scope: an explicit path or node ID is meant to be spread
+    across every worker, and an explicit ``SASE_PYTEST_DIST`` names the xdist
+    distribution to use, which needs every worker to collect the same items.
+    """
+    if _pytest_args_contain_selector(args) or os.environ.get(PYTEST_DIST_ENV):
+        return None
+    files = [
+        path
+        for path in discover_test_files(REPO_ROOT)
+        if not any(
+            path == visual or path.startswith(f"{visual}/")
+            for visual in VISUAL_TEST_PATHS
+        )
+    ]
+    try:
+        bins = assign_shards(
+            files, worker_count, load_shard_timings(REPO_ROOT / DEFAULT_TIMINGS_PATH)
+        )
+    except ShardError:
+        return None
+    return [shard.files for shard in bins]
+
+
 def _contention_environment(
-    failures_path: Path, progress_path: Path | None = None
+    failures_path: Path,
+    progress_path: Path | None = None,
+    shard_map: Path | None = None,
 ) -> dict[str, str]:
     """The child environment for one soak repeat.
 
@@ -1218,6 +1260,8 @@ def _contention_environment(
     }
     if progress_path is not None:
         environment[DIAGNOSTICS_ENV] = str(progress_path)
+    if shard_map is not None:
+        environment[SHARDS_ENV] = str(shard_map)
     return environment
 
 
@@ -1246,15 +1290,28 @@ def _run_contention(args: list[str]) -> int:
         serial=False,
     )
     artifacts = _contention_artifact_directory()
+    shards = _contention_shards(args, worker_count)
+    shard_map: Path | None = None
+    if shards is not None:
+        shard_map = artifacts / SHARD_MAP_FILENAME
+        write_shard_map(shard_map, shards)
     scratch_root = _prepare_pytest_tmpdir()
     _sanitize_pytest_environment()
     os.chdir(REPO_ROOT)
 
     print(
         f"contention soak: {repeat_count} repeat(s), {worker_count} workers, "
-        f"dist={distribution_mode}",
+        f"dist={'sharded' if shards is not None else distribution_mode}",
         flush=True,
     )
+    if shards is not None and shard_map is not None:
+        sizes = [len(files) for files in shards]
+        print(
+            f"contention shards: each worker collects and runs its own "
+            f"{min(sizes)}-{max(sizes)} of {sum(sizes)} test files "
+            f"({_repo_relative(shard_map)})",
+            flush=True,
+        )
     # Started after the artifact directory was cleared, so the evidence of this
     # soak survives into the upload; outcome-neutral, and optional.
     diagnostics = artifacts / DIAGNOSTICS_DIRNAME
@@ -1277,7 +1334,7 @@ def _run_contention(args: list[str]) -> int:
                 flush=True,
             )
             environment = _contention_environment(
-                failures_path, progress_directory(diagnostics, index)
+                failures_path, progress_directory(diagnostics, index), shard_map
             )
             try:
                 returncode = subprocess.run(command, env=environment).returncode

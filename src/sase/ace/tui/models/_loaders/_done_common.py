@@ -3,7 +3,7 @@
 from pathlib import Path
 from typing import Any
 
-from sase.ace.revert_agent import agent_is_reverted
+from sase.ace.revert_agent_marker import agent_is_reverted
 
 from ..agent import Agent
 

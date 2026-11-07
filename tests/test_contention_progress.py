@@ -93,6 +93,30 @@ def test_controller_records_workers_collection_boundary_and_progress(
     assert record["exitstatus"] == 1
 
 
+@pytest.mark.parametrize(("sharded", "items"), [(False, 3), (True, 5)])
+def test_controller_counts_every_configured_worker_and_its_selection(
+    tmp_path: Path, sharded: bool, items: int
+) -> None:
+    progress = ControllerProgress(tmp_path, sharded=sharded)
+    first, second = _Node("gw0"), _Node("gw1")
+
+    # Back to back, inside the write throttle: the record must still say two,
+    # since nothing else writes until a worker finishes collecting.
+    progress.pytest_configure_node(first)
+    progress.pytest_configure_node(second)
+    record = read_json(tmp_path / CONTROLLER_PROGRESS_FILENAME)
+    assert record is not None and record["workers_configured"] == 2
+
+    # Whole collection: every worker reports the selection. Sharded: each
+    # reports its own part, and the selection is their sum.
+    progress.pytest_xdist_node_collection_finished(first, ["a", "b", "c"])
+    progress.pytest_xdist_node_collection_finished(
+        second, ["a", "b", "c"] if not sharded else ["d", "e"]
+    )
+    record = read_json(tmp_path / CONTROLLER_PROGRESS_FILENAME)
+    assert record is not None and record["collection"]["items"] == items
+
+
 def test_worker_record_marks_a_finished_node_idle(tmp_path: Path) -> None:
     progress = WorkerProgress(tmp_path, "gw2")
     path = tmp_path / "worker-gw2.json"

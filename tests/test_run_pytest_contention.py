@@ -21,9 +21,11 @@ from tests import _contention_plugin as contention_plugin
 from tests._contention import (
     DIAGNOSTICS_ENV,
     FAILURES_ENV,
+    SHARDS_ENV,
     NodeTally,
     format_tally,
     read_failures,
+    read_shard_map,
     tally_failures,
     write_failures,
 )
@@ -32,6 +34,7 @@ from tests._run_pytest_fixtures import (
     load_run_pytest,
 )
 from tests._test_selection_health_store import RECORD_ENV, STORE_ENV
+from tests._test_shards import discover_test_files
 
 
 pytestmark = pytest.mark.contract
@@ -188,6 +191,78 @@ def test_repeat_count_and_selector_subset_are_honoured(
     # Each repeat gets its own record, so the tally can attribute a node to one.
     paths = {repeat.env[FAILURES_ENV] for repeat in recorded}
     assert len(paths) == 2
+
+
+def test_a_whole_suite_soak_gives_each_worker_its_own_shard_of_the_files(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Every worker collecting everything is what OOM-killed the hosted soak."""
+    runner = load_run_pytest()
+    monkeypatch.setenv(STORE_ENV, str(tmp_path / "health-store"))
+    monkeypatch.setenv(runner.CONTENTION_REPEAT_ENV, "2")
+    monkeypatch.delenv(runner.CONTENTION_WORKERS_ENV, raising=False)
+    monkeypatch.delenv(runner.PYTEST_DIST_ENV, raising=False)
+    monkeypatch.delenv("SASE_PYTEST_WORKERS", raising=False)
+    recorded = _install_fake_repeats(runner, monkeypatch, tmp_path, [(0, ()), (0, ())])
+
+    assert runner.main(["contention"]) == 0
+
+    # The soak's shape is unchanged: same width, same selection, same CPUs.
+    shard_map = tmp_path / "contention-artifacts" / "shards.json"
+    for repeat in recorded:
+        assert repeat.command[3:5] == ["-n", str(runner.DEFAULT_CONTENTION_WORKERS)]
+        assert "--ignore=tests/ace/tui/visual" in repeat.command
+        marker = len(repeat.command) - 1 - repeat.command[::-1].index("-m")
+        assert repeat.command[marker + 1] == runner.FAST_MARKER_EXPRESSION
+        assert repeat.env[SHARDS_ENV] == str(shard_map)
+    assert SHARDS_ENV not in os.environ
+    shards = read_shard_map(shard_map)
+    assert len(shards) == runner.DEFAULT_CONTENTION_WORKERS
+    assert all(shards)
+    # Disjoint and exhaustive over the selection the lane collects.
+    assigned = [name for files in shards for name in files]
+    expected = {
+        name
+        for name in discover_test_files(ROOT)
+        if not name.startswith(
+            tuple(f"{visual}/" for visual in runner.VISUAL_TEST_PATHS)
+        )
+    }
+    assert len(assigned) == len(set(assigned))
+    assert set(assigned) == expected
+    output = capsys.readouterr().out
+    assert f"{runner.DEFAULT_CONTENTION_WORKERS} workers, dist=sharded" in output
+    assert "contention shards: each worker collects and runs its own" in output
+
+
+@pytest.mark.parametrize(
+    ("args", "distribution"),
+    [(["--", "tests/test_agent_lanes.py"], None), ([], "loadfile")],
+    ids=["explicit-path", "explicit-distribution"],
+)
+def test_a_caller_chosen_scope_keeps_whole_collection_on_every_worker(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    args: list[str],
+    distribution: str | None,
+) -> None:
+    """A subset is meant to spread over every worker; a named dist needs it."""
+    runner = load_run_pytest()
+    monkeypatch.setenv(STORE_ENV, str(tmp_path / "health-store"))
+    monkeypatch.setenv(runner.CONTENTION_REPEAT_ENV, "1")
+    if distribution is None:
+        monkeypatch.delenv(runner.PYTEST_DIST_ENV, raising=False)
+    else:
+        monkeypatch.setenv(runner.PYTEST_DIST_ENV, distribution)
+    recorded = _install_fake_repeats(runner, monkeypatch, tmp_path, [(0, ())])
+
+    assert runner.main(["contention", *args]) == 0
+
+    assert SHARDS_ENV not in recorded[0].env
+    assert not (tmp_path / "contention-artifacts" / "shards.json").exists()
+    assert f"--dist={distribution or 'worksteal'}" in recorded[0].command
+    assert f"dist={distribution or 'worksteal'}" in capsys.readouterr().out
 
 
 def test_red_soak_returns_the_first_repeat_exit_status(

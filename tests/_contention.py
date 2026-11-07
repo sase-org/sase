@@ -41,9 +41,46 @@ WORKER_PROGRESS_PREFIX = "worker-"
 KILLS_FILENAME = "kills.jsonl"
 
 
+#: The per-worker collection shards the harness hands the controller for a
+#: whole-suite soak. Written by `tools/run_pytest contention`, read by
+#: `tests._contention_shards`; the format lives here for the same reason the
+#: progress format does.
+SHARDS_ENV = "SASE_CONTENTION_SHARDS"
+SHARD_MAP_FILENAME = "shards.json"
+#: Bumped only if the on-disk shape changes. Unlike a failure record, a
+#: mismatched shard map is an error: guessing would collect a file twice or
+#: never.
+SHARD_MAP_SCHEMA = 1
+
+
 def progress_directory(diagnostics: Path, repeat: int) -> Path:
     """Where one repeat's controller and workers record their progress."""
     return diagnostics / PROGRESS_DIRNAME / f"repeat-{repeat:02d}"
+
+
+def write_shard_map(path: Path, shards: Sequence[Sequence[str]]) -> None:
+    """Record which repository-relative test files each worker collects."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    payload = {
+        "schema": SHARD_MAP_SCHEMA,
+        "shards": [sorted(files) for files in shards],
+    }
+    path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+
+
+def read_shard_map(path: Path) -> tuple[tuple[str, ...], ...]:
+    """The shards ``write_shard_map`` recorded; ``ValueError`` if unusable."""
+    payload = read_json(path)
+    if payload is None or payload.get("schema") != SHARD_MAP_SCHEMA:
+        raise ValueError(f"no usable contention shard map at {path}")
+    shards = payload.get("shards")
+    if (
+        not isinstance(shards, list)
+        or not shards
+        or not all(isinstance(files, list) for files in shards)
+    ):
+        raise ValueError(f"malformed contention shard map at {path}")
+    return tuple(tuple(str(name) for name in files) for files in shards)
 
 
 def write_json_atomic(path: Path, payload: Mapping[str, Any]) -> None:
