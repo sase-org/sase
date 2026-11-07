@@ -29,6 +29,9 @@ Running bucket when it handed off to a successor.
 | Status            | Presentation                  | Description                                                                                                      |
 | ----------------- | ----------------------------- | ---------------------------------------------------------------------------------------------------------------- |
 | **RUNNING**       | Gold                          | Agent subprocess is executing                                                                                    |
+| **HIJACKING…**    | Bold hijack accent            | Hijack is stopping the process tree; the workspace remains claimed                                              |
+| **RECOVERING…**   | Bold hijack accent            | A keep-work recovery is resolving while the workspace stays held                                                 |
+| **HIJACKED**      | Bold pink (`#FF5FAF`)         | Process stopped and workspace held for recovery; belongs to the Stopped bucket                                  |
 | **QUEUED**        | Cornflower blue               | Cleared dependency, bead, and time waits; parked for runner capacity                                             |
 | **WAITING**       | Amethyst/purple               | Paused on a dependency, bead, or time wait; `?N` marks unknown targets; matching bead tokens follow agent tokens |
 | **WAITING INPUT** | Gate accent; legacy dim       | Workflow is paused at a human-in-the-loop (HITL) step                                                            |
@@ -40,6 +43,8 @@ Running bucket when it handed off to a successor.
 | **EPIC APPROVED** | Grey on the settled gate turn | Epic approval was durably accepted; creation is being attempted and no epic ID has been back-filled yet          |
 | **QUESTION**      | Gate accent; legacy dim       | Agent is asking the user a question (via `/sase_questions`)                                                      |
 | **ANSWERED**      | Grey on the settled gate turn | The answer was accepted and a successor is being launched                                                        |
+| **ESCALATED**     | Grey on the settled turn      | Hijacked turn continued in the same workspace with a different model                                             |
+| **CONTINUED**     | Grey on the settled turn      | Hijacked turn continued in the same workspace with the same model                                                |
 | **SUDO**          | Gate accent                   | An agent's [sudo request](../automation/sudo.md) is waiting for review; it settles as `SUDOED` or `DENIED`                     |
 | **RETRYING**      | Orange                        | Agent hit a retryable error and is in a countdown before retrying                                                |
 
@@ -134,6 +139,13 @@ A Done-bucket owner row whose bead is stranded reads `STRANDED ⚐` in bold ambe
 buckets keep their louder word and append `⚐`. This overlay is presentation only:
 buckets, counts, filters, and dismissal are unchanged, like `FINALIZING`. See
 [Stranded beads](../work-units/bead-lifecycles.md#stranded-beads).
+
+Hijacked runs use a separate durable overlay: `HIJACKING…` appears while the stop is in
+progress and `RECOVERING…` while a resolution is in flight. Once the process tree is
+verified stopped, **HIJACKED** appears in the Stopped bucket with the ⏏ glyph. An expired
+hold adds `· workspace released`. `ESCALATED` and `CONTINUED` are grey predecessor
+statuses after a keep-work successor launches; they distinguish a model change from a
+same-model continuation.
 
 Monitor turns are the exception to this status table's success-oriented labels: a
 gate-approved epic monitor uses `EPIC APPROVED` as its start label and `EPIC CREATED` as

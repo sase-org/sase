@@ -29,16 +29,9 @@ def _agent(*, status: str = "RUNNING") -> Agent:
     )
 
 
-def test_agent_can_offer_hijack_requires_flag_and_live_workspace(
-    monkeypatch: Any,
-) -> None:
-    monkeypatch.setattr(_hijack_action, "_agent_hijack_enabled", lambda: True)
-
+def test_agent_can_offer_hijack_requires_live_workspace() -> None:
     assert _hijack_action.agent_can_offer_hijack(_agent())
     assert not _hijack_action.agent_can_offer_hijack(_agent(status="DONE"))
-
-    monkeypatch.setattr(_hijack_action, "_agent_hijack_enabled", lambda: False)
-    assert not _hijack_action.agent_can_offer_hijack(_agent())
 
 
 def test_hijack_submission_shows_pending_and_stop_failed_rows(
@@ -60,7 +53,6 @@ def test_hijack_submission_shows_pending_and_stop_failed_rows(
             del list_changed, defer_detail
 
     app = App()
-    monkeypatch.setattr(_hijack_action, "_agent_hijack_enabled", lambda: True)
     monkeypatch.setattr(
         "sase.ace.tui.actions.agents._roster_generation.notify_roster_status_mutation",
         lambda _app: None,
@@ -202,7 +194,6 @@ def test_remote_hijack_ingress_copies_host_command(monkeypatch: Any) -> None:
             notifications.append(message)
 
     app = App()
-    monkeypatch.setattr(_hijack_action, "_agent_hijack_enabled", lambda: True)
     monkeypatch.setattr(
         "sase.ace.tui.actions.clipboard.schedule_copy_delivery",
         lambda _owner, value, **kwargs: copied.append((value, kwargs)),

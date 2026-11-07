@@ -9,16 +9,6 @@ if TYPE_CHECKING:
     from ...models import Agent
 
 
-def _agent_hijack_enabled() -> bool:
-    """Return whether the Agent Hijack beta ingress is enabled."""
-    from sase.feature_flags import FeatureFlag, current_flags
-
-    try:
-        return bool(current_flags().enabled(FeatureFlag.agent_hijack))
-    except Exception:
-        return False
-
-
 def agent_can_offer_hijack(agent: Agent | None) -> bool:
     """Return whether a local live row is a plausible hijack target.
 
@@ -26,7 +16,7 @@ def agent_can_offer_hijack(agent: Agent | None) -> bool:
     process, runner metadata, lifecycle, and workspace records. This cheap
     row predicate only decides whether the contextual TUI affordance appears.
     """
-    if agent is None or not _agent_hijack_enabled():
+    if agent is None:
         return False
     from ...models.agent import AgentType
 
@@ -48,7 +38,7 @@ def agent_can_offer_hijack(agent: Agent | None) -> bool:
 
 def agent_hijack_ingress_available(agent: Agent | None) -> bool:
     """Return whether leader ingress can act locally or guide a remote user."""
-    if agent is None or not _agent_hijack_enabled():
+    if agent is None:
         return False
     from ._remote_lifecycle import is_remote_fleet_agent
 
@@ -65,9 +55,6 @@ class AgentHijackActionMixin:
         if agent is None:
             getter = getattr(self, "_get_selected_agent", None)
             agent = getter() if callable(getter) else None
-        if not _agent_hijack_enabled():
-            self.notify("Agent hijack is disabled", severity="warning")  # type: ignore[attr-defined]
-            return False
         from ._remote_lifecycle import is_remote_fleet_agent
 
         if agent is not None and is_remote_fleet_agent(agent):

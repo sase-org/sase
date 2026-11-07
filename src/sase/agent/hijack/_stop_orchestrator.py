@@ -47,16 +47,6 @@ class HijackStopResult:
     reason: str | None = None
 
 
-def _hijack_stop_enabled() -> bool:
-    """Return whether hijack ingress is enabled by the beta flag."""
-    from sase.feature_flags import FeatureFlag, current_flags
-
-    try:
-        return bool(current_flags().enabled(FeatureFlag.agent_hijack))
-    except Exception:
-        return False
-
-
 def _new_hijack_id(agent_name: str) -> str:
     """Return a filesystem-safe unique id for one hijack attempt."""
     cleaned = "".join(
@@ -79,16 +69,6 @@ def stop_agent_for_hijack(
     with nothing changed, and 1 means stop failed or an error occurred.
     """
     deps = deps or StopDeps()
-    if not _hijack_stop_enabled():
-        return HijackStopResult(
-            status="refused",
-            message=(
-                "Agent hijack is disabled; enable the agent_hijack flag to use "
-                "`sase agent hijack`. Already-hijacked agents stay recoverable."
-            ),
-            exit_code=_EXIT_REFUSED,
-            reason="flag_disabled",
-        )
     target = resolve_target(name, deps=deps)
     if target is None:
         return HijackStopResult(

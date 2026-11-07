@@ -156,7 +156,7 @@ def mode_sections(km: KeymapRegistry) -> Sections:
                 ),
                 (
                     key_sequence_display(lm.prefix, sk(lm.keys, "hijack_agent")),
-                    "Hijack selected agent (agent_hijack flag)",
+                    "Hijack selected agent",
                 ),
                 (f"{d(lm.prefix)}{d(sk(lm.keys, 'runners'))}", "Show runners info"),
                 (

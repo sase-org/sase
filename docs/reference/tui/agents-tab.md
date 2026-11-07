@@ -166,6 +166,24 @@ confirmation modal. A gate whose decision started executing under the cancel com
 with an error toast. A gate that is already settling keeps the "waiting for a decision"
 warning.
 
+### Hijack a running agent and recover its work
+
+Use `,k` on an eligible running local agent, choose **h Hijack instead** in the `x`
+confirmation, or run `sase agent hijack NAME`. The TUI offers the action only for a live
+agent turn with a numbered workspace. On remote rows, `,k` copies the command to run on
+the owning host. SASE verifies the process tree stopped before showing **⏏ HIJACKED**;
+the row and workspace claim remain until recovery or expiry.
+
+`Enter` opens the hijack recovery panel. Its keep-work actions run the next turn in the
+same workspace: `u` escalates (or switches models at the top rung), `c` continues on the
+same concrete model, and `i` lets you add instructions before continuing. `r` restarts
+from the original prompt in a fresh workspace. `e` edits the prompt and releases the held
+workspace only when you submit. `d` dismisses after a verified recovery snapshot; `v`
+shows the diff, `t` opens a shell in the held workspace, and `Esc` leaves the run held.
+Pressing `x` on a HIJACKED row also runs snapshot-verified dismissal. See
+[Agent statuses](agent-statuses.md#agent-statuses-1) and
+[Held workspaces](../agents/workspaces.md#held-workspaces).
+
 ### Enter: act on an agent
 
 `Enter` on a local `HIJACKED` row opens its

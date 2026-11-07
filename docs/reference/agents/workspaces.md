@@ -386,6 +386,15 @@ lives at `diagnostics/workspace_retention.json` in the turn's artifacts. Diff ca
 best-effort; an absent diff does not mean the held checkout is clean. Late holds from
 monitor or gate settlement also send a `workspace-held` notification.
 
+An Agent Hijack keeps its numbered workspace claim pinned after the process stops. The
+TUI shows **⏏ HIJACKED** and lets you continue in that workspace, restart in a fresh
+workspace, or dismiss. A keep-work successor inherits the held claim and repository
+obligations. Restart and dismissal take a verified snapshot before releasing the claim.
+The hijack hold uses `workspace.held_claim_ttl_days` (14 days by default), measured from
+`hijacked_at` rather than the original run start. Before expiry releases the workspace,
+cleanup verifies or refreshes snapshots for the primary repository and recorded linked
+or sidecar repositories. A snapshot failure leaves the claim held.
+
 For a saved handoff, repair the reported cause before
 [re-adopting it](agent-sessions.md#handoff-recovery). Held-work details name
 `sase agent readopt` when that command is eligible. For a terminal monitor that is

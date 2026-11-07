@@ -62,6 +62,18 @@ finalizer instance, showing how the node's host-owned finalizers ran). A deck is
 presentation only and owns no agent data; `Ctrl+N`/`Ctrl+P` cycle the focused deck panel
 through the decks, and the `p` picker jumps to one (`m`, `f`, `t`, `n`).
 
+## Agent Hijack {#agent-hijack}
+
+_Also known as: hijack, hijacked agent._
+
+An Agent Hijack stops a running agent turn while retaining its workspace claim, agent
+node, and recovery evidence. The turn settles as `hijacked` and appears as **⏏
+HIJACKED** in the Stopped bucket; waiters stay parked while the workspace is held. The
+user resolves the hijack exactly once by continuing in the same workspace (possibly with
+a different model), starting over after a recovery snapshot, or dismissing after a
+recovery snapshot. It never resumes the killed process. A hijack is distinct from a
+kill, auto-restart, `sase agent hold`, `sase pipe`, and the `STALLED` wait label.
+
 ## Agent Hood {#agent-hood}
 
 _Also known as: hood, agent neighborhood._

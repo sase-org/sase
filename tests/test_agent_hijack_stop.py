@@ -34,9 +34,6 @@ _WS = 4
 def hijack_home(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     home = tmp_path / "sase-home"
     monkeypatch.setenv("SASE_HOME", str(home))
-    monkeypatch.setattr(
-        "sase.agent.hijack._stop_orchestrator._hijack_stop_enabled", lambda: True
-    )
     return home
 
 
@@ -134,20 +131,6 @@ def _hijack_ids(home: Path) -> list[str]:
         for path in root.glob("*.json")
         if path.name != "settled" and not path.name.endswith(".lock")
     )
-
-
-def test_flag_disabled_refuses_without_changing_anything(
-    hijack_home: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    monkeypatch.setattr(
-        "sase.agent.hijack._stop_orchestrator._hijack_stop_enabled", lambda: False
-    )
-    result = stop_agent_for_hijack(_AGENT, deps=_deps(tmp_path / "artifacts"))
-    assert result.status == "refused"
-    assert result.exit_code == 2
-    assert result.reason == "flag_disabled"
-    assert result.hijack_id is None
-    assert _hijack_ids(hijack_home) == []
 
 
 def test_unknown_agent_is_refused(
