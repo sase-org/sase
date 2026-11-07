@@ -22,6 +22,7 @@ from sase.ace.tui.actions.agent_workflow._types import (
     begin_prompt_session,
 )
 
+from tests._sync_io_guard import forbid_sync_file_io
 from tests.ace.tui._kill_and_edit_last_launch_helpers import (
     _FakeAgent,
     _context,
@@ -268,25 +269,22 @@ def test_inflight_bulk_record_mounts_per_unit_prompts() -> None:
     ]
 
 
-def test_inflight_handler_does_no_synchronous_disk_or_proc_store_work(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
+def test_inflight_handler_does_no_synchronous_disk_or_proc_store_work() -> None:
     app = _DispatchApp()
     record = push_launch_record(
         app, proc_ids=("p1",), prompt="p", context=_context("demo")
     )
     assert record is not None
 
-    def fail_disk(*_args: object, **_kwargs: object) -> None:
-        raise AssertionError("in-flight ,X must not touch disk or the proc store")
-
-    monkeypatch.setattr("os.stat", fail_disk)
-    monkeypatch.setattr("os.listdir", fail_disk)
-    monkeypatch.setattr("pathlib.Path.exists", fail_disk)
-    monkeypatch.setattr("pathlib.Path.is_dir", fail_disk)
-    monkeypatch.setattr("pathlib.Path.read_text", fail_disk)
-
-    app._kill_and_edit_last_launch()
+    with forbid_sync_file_io(
+        "os.stat",
+        "os.listdir",
+        "pathlib.Path.exists",
+        "pathlib.Path.is_dir",
+        "pathlib.Path.read_text",
+        reason="in-flight ,X must not touch disk or the proc store",
+    ):
+        app._kill_and_edit_last_launch()
 
     assert record.state.value == "kill_pending"
     assert app.edit_calls

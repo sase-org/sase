@@ -2,11 +2,7 @@
 
 from __future__ import annotations
 
-import builtins
 from datetime import datetime, timedelta
-import os
-from pathlib import Path
-from typing import Any
 
 import pytest
 
@@ -21,6 +17,7 @@ from sase.ace.tui.models.node_finder import (
     node_finder_kind,
     node_finder_name,
 )
+from tests._sync_io_guard import forbid_sync_file_io
 from tests.ace.tui._member_jump_navigation_helpers import make_agent
 
 
@@ -65,7 +62,7 @@ def _monitor() -> Agent:
     )
 
 
-def test_tier0_is_pure_for_every_node_kind(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_tier0_is_pure_for_every_node_kind() -> None:
     """Rendering never opens or stats an artifact, even for output previews."""
 
     turn = make_agent("session--code", session="session", role="code")
@@ -118,17 +115,16 @@ def test_tier0_is_pure_for_every_node_kind(monkeypatch: pytest.MonkeyPatch) -> N
     # becomes a hard failure.
     render_node_finder_preview(rows[0], snapshot, "")
 
-    def fail(*_args: Any, **_kwargs: Any) -> Any:
-        raise AssertionError("Tier 0 preview performed I/O")
-
-    monkeypatch.setattr(builtins, "open", fail)
-    monkeypatch.setattr(os, "stat", fail)
-    monkeypatch.setattr(os, "scandir", fail)
-    monkeypatch.setattr(Path, "stat", fail)
-
-    for row in rows:
-        rendered = render_node_finder_preview(row, snapshot, "query")
-        assert rendered.plain
+    with forbid_sync_file_io(
+        "builtins.open",
+        "os.stat",
+        "os.scandir",
+        "pathlib.Path.stat",
+        reason="Tier 0 preview performed I/O",
+    ):
+        for row in rows:
+            rendered = render_node_finder_preview(row, snapshot, "query")
+            assert rendered.plain
 
 
 def test_tier0_renders_session_clan_and_monitor_sections() -> None:

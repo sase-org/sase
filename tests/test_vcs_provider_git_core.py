@@ -278,7 +278,9 @@ def test_git_apply_patches_success(mock_exists: MagicMock, mock_run: MagicMock) 
     assert mock_run.call_args[0][0] == ["git", "apply", "/tmp/a.patch", "/tmp/b.patch"]
 
 
-@patch("os.path.exists", side_effect=[True, False])
+# Keyed on the path, not a ``[True, False]`` side_effect list: os.path.exists is
+# process-wide, and coverage's tracer may call it mid-test, eating the values.
+@patch("os.path.exists", side_effect=lambda path: path != "/tmp/missing.patch")
 def test_git_apply_patches_missing_file(mock_exists: MagicMock) -> None:
     """Test BareGitPlugin.vcs_apply_patches when a file is missing."""
     plugin = BareGitPlugin()

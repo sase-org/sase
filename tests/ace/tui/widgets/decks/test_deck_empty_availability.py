@@ -12,6 +12,7 @@ from sase.ace.tui.widgets.decks.availability import (
 )
 from sase.ace.tui.widgets.decks.empty_state import deck_empty_state
 from sase.ace.tui.widgets.decks.model import DeckId
+from tests._sync_io_guard import forbid_sync_file_io
 from tests.ace.tui.widgets._agent_display_helpers import make_agent
 
 
@@ -62,19 +63,16 @@ def test_files_probe_empty_kinds() -> None:
     assert probe_files_deck(proc, attempt_number=None) == DeckAvailability(False, 0)
 
 
-def test_files_probe_no_io(monkeypatch) -> None:
-    import os
-    from pathlib import Path
-
-    def _raise(*args: object, **kwargs: object) -> object:
-        raise AssertionError("probe performed I/O")
-
-    monkeypatch.setattr(os, "stat", _raise)
-    monkeypatch.setattr("builtins.open", _raise)
-    monkeypatch.setattr(Path, "read_text", _raise)
+def test_files_probe_no_io() -> None:
     agent = make_agent(status="RUNNING")
-    probe_files_deck(agent, attempt_number=None)
-    probe_tools_deck(agent, attempt_number=None)
+    with forbid_sync_file_io(
+        "os.stat",
+        "builtins.open",
+        "pathlib.Path.read_text",
+        reason="probe performed I/O",
+    ):
+        probe_files_deck(agent, attempt_number=None)
+        probe_tools_deck(agent, attempt_number=None)
 
 
 def test_tools_probe_empty_kinds() -> None:

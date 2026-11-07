@@ -2,11 +2,8 @@
 
 from __future__ import annotations
 
-import builtins
 import json
 from pathlib import Path
-
-import pytest
 
 from sase.ace.tui.agent_completion import (
     collect_agent_wait_status_maps,
@@ -32,6 +29,7 @@ from sase.core.wait_epic_follow_view import (
     epic_follow_views,
 )
 from tests._enrich_agent_helpers import make_agent as make_loader_agent
+from tests._sync_io_guard import forbid_sync_file_io
 
 from .widgets._agent_display_helpers import make_agent
 from .widgets._agent_render_cache_helpers import agent as render_agent
@@ -289,39 +287,34 @@ def test_satisfied_resolved_armed_target_without_stage_matches_today() -> None:
     assert wait_dependencies_satisfied(waiter, maps.buckets) is True
 
 
-def test_no_io_in_follow_status_paths(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
+def test_no_io_in_follow_status_paths() -> None:
     """Counts, satisfied, and the shared view never touch the filesystem."""
-    blocked = AssertionError("filesystem access in follow status path")
-    monkeypatch.setattr(Path, "exists", lambda self: (_ for _ in ()).throw(blocked))
-    monkeypatch.setattr(
-        Path, "open", lambda self, *a, **k: (_ for _ in ()).throw(blocked)
-    )
-    monkeypatch.setattr(
-        builtins, "open", lambda *a, **k: (_ for _ in ()).throw(blocked)
-    )
+    with forbid_sync_file_io(
+        "pathlib.Path.exists",
+        "pathlib.Path.open",
+        "builtins.open",
+        reason="filesystem access in follow status path",
+    ):
+        waiter = make_agent(
+            status="WAITING",
+            waiting_for=["planner"],
+            waiting_for_beads=["sase-7k"],
+            wait_for_epics_of=["planner"],
+            wait_epic_follows=[
+                EpicFollowView(
+                    target="planner",
+                    state="following",
+                    epic_ids=("sase-7k",),
+                    added_bead_ids=("sase-7k",),
+                )
+            ],
+        )
+        maps = collect_agent_wait_status_maps([waiter])
+        snapshot = _snapshot(("sase-7k", "in_progress", False))
 
-    waiter = make_agent(
-        status="WAITING",
-        waiting_for=["planner"],
-        waiting_for_beads=["sase-7k"],
-        wait_for_epics_of=["planner"],
-        wait_epic_follows=[
-            EpicFollowView(
-                target="planner",
-                state="following",
-                epic_ids=("sase-7k",),
-                added_bead_ids=("sase-7k",),
-            )
-        ],
-    )
-    maps = collect_agent_wait_status_maps([waiter])
-    snapshot = _snapshot(("sase-7k", "in_progress", False))
-
-    assert epic_follow_views(waiter)[0].target == "planner"
-    assert authored_wait_beads(waiter) == []
-    assert "sase-7k" in describe_epic_follow(epic_follow_views(waiter)[0])
-    assert wait_dependencies_satisfied(waiter, maps.buckets) is False
-    counts = wait_dependency_status_counts(waiter, maps, snapshot)
-    assert counts.follows.in_progress == 1
+        assert epic_follow_views(waiter)[0].target == "planner"
+        assert authored_wait_beads(waiter) == []
+        assert "sase-7k" in describe_epic_follow(epic_follow_views(waiter)[0])
+        assert wait_dependencies_satisfied(waiter, maps.buckets) is False
+        counts = wait_dependency_status_counts(waiter, maps, snapshot)
+        assert counts.follows.in_progress == 1

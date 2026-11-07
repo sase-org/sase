@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from pathlib import Path
 from unittest.mock import patch
-import os
 
 from sase.ace.tui.widgets.prompt_path_inventory import (
     MAX_PROMPT_PATH_ROWS,
@@ -14,6 +13,8 @@ from sase.ace.tui.widgets.prompt_path_inventory import (
     revalidate_prompt_path_snapshot,
 )
 from sase.ace.tui.widgets.prompt_text_area import PromptTextArea
+
+from tests._sync_io_guard import forbid_sync_file_io
 
 from ._completion_helpers import CompletionTestApp
 
@@ -108,11 +109,13 @@ async def test_at_keystroke_does_not_stat_or_scan() -> None:
     app = CompletionTestApp()
     async with app.run_test() as pilot:
         text_area = app.query_one(PromptTextArea)
-        fail = AssertionError("keystroke path touched the filesystem")
 
         with (
-            patch.object(os, "stat", side_effect=fail),
-            patch.object(os, "scandir", side_effect=fail),
+            forbid_sync_file_io(
+                "os.stat",
+                "os.scandir",
+                reason="keystroke path touched the filesystem",
+            ),
             patch.object(type(text_area), "run_worker"),
         ):
             await pilot.press("@")

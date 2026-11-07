@@ -16,6 +16,7 @@ from sase.ace.tui.modals.snippets_panel import (
     SnippetsPanel,
 )
 from sase.ace.tui.modals.snippets_panel_load import SnippetsPanelInitialLoad
+from tests._sync_io_guard import forbid_sync_file_io
 from tests.ace.tui.modals.snippets_panel_test_helpers import (
     SnippetsPaneTestApp,
     SnippetsPanelTestApp,
@@ -441,15 +442,16 @@ async def test_jk_navigation_does_not_stat_or_parse_config(
     async with app.run_test(size=(120, 40)) as pilot:
         await wait_for(pilot, lambda: not panel._loading)
 
-        def fail_io(*_a: object, **_k: object) -> object:
-            raise AssertionError("snippet j/k must not touch disk")
-
-        monkeypatch.setattr("pathlib.Path.stat", fail_io)
-        monkeypatch.setattr("pathlib.Path.read_text", fail_io)
-        monkeypatch.setattr("pathlib.Path.read_bytes", fail_io)
-        monkeypatch.setattr("pathlib.Path.glob", fail_io)
         first = panel._current_trigger
-        await pilot.press("j")
-        await wait_for(pilot, lambda: panel._current_trigger != first)
-        await pilot.press("k")
-        await wait_for(pilot, lambda: panel._current_trigger == first)
+        with forbid_sync_file_io(
+            "pathlib.Path.stat",
+            "pathlib.Path.read_text",
+            "pathlib.Path.read_bytes",
+            "pathlib.Path.glob",
+            reason="snippet j/k must not touch disk",
+            any_thread=True,
+        ):
+            await pilot.press("j")
+            await wait_for(pilot, lambda: panel._current_trigger != first)
+            await pilot.press("k")
+            await wait_for(pilot, lambda: panel._current_trigger == first)

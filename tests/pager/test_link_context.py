@@ -18,6 +18,7 @@ from sase.pager.link_context import (
     merge_link_context,
     workspace_link_context,
 )
+from tests._sync_io_guard import forbid_sync_file_io
 
 
 def _write_checkout_marker(
@@ -275,16 +276,21 @@ def test_merge_link_context_does_not_normalize_or_stat_paths(
         raise AssertionError("merge_link_context must stay in memory")
 
     monkeypatch.setattr("sase.pager.link_context._existing_dir", boom)
-    monkeypatch.setattr(Path, "resolve", boom)
-    monkeypatch.setattr(Path, "exists", boom)
-    monkeypatch.setattr(Path, "is_dir", boom)
-    monkeypatch.setattr(Path, "expanduser", boom)
-    monkeypatch.setattr(Path, "stat", boom)
 
-    merged = merge_link_context(
-        (LinkAnchor(directory=alias, workspace_num=3),),
-        LinkResolutionContext(anchors=(LinkAnchor(directory=first, workspace_num=9),)),
-    )
+    with forbid_sync_file_io(
+        "pathlib.Path.resolve",
+        "pathlib.Path.exists",
+        "pathlib.Path.is_dir",
+        "pathlib.Path.expanduser",
+        "pathlib.Path.stat",
+        reason="merge_link_context must stay in memory",
+    ):
+        merged = merge_link_context(
+            (LinkAnchor(directory=alias, workspace_num=3),),
+            LinkResolutionContext(
+                anchors=(LinkAnchor(directory=first, workspace_num=9),)
+            ),
+        )
 
     assert merged is not None
     assert merged.anchors == (
