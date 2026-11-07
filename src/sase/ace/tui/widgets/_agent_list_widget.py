@@ -12,6 +12,7 @@ from __future__ import annotations
 from datetime import datetime
 
 from rich.text import Text
+from textual.geometry import Size
 from textual.widgets import OptionList
 from textual.widgets.option_list import DuplicateID, Option
 
@@ -206,6 +207,43 @@ class AgentList(AgentListRailMixin, AgentListBase):
             self.scroll_to_highlight()
         finally:
             self._programmatic_update = False
+
+    def _size_updated(
+        self,
+        size: Size,
+        virtual_size: Size,
+        container_size: Size,
+        layout: bool = True,
+    ) -> bool:
+        """Keep an on-screen highlighted row on screen when the list resizes.
+
+        Textual only clamps the scroll offset on a resize. When the viewport
+        shrinks (a sibling panel grows, or a screen bar takes a row from the
+        column), a highlighted row at its bottom edge slides out of view. It
+        stays out until something re-scrolls it, in practice the next
+        refresh's highlight pass, so whether the selection stayed visible
+        depended on which of the two landed first. Re-scrolling here, in the
+        layout pass that resized the list and before the screen repaints,
+        keeps the selection visible in every frame. A highlight the user had
+        already scrolled away from is left where it is.
+        """
+        was_visible = self._highlight_in_viewport()
+        resized = super()._size_updated(size, virtual_size, container_size, layout)
+        if was_visible and not self._highlight_in_viewport():
+            self.scroll_to_highlight()
+        return resized
+
+    def _highlight_in_viewport(self) -> bool:
+        """Whether the highlighted row's first line is inside the scroll window."""
+        row = self.highlighted
+        if row is None:
+            return False
+        # Every AgentList option paints one line, so the row index stands in
+        # when the line cache was cleared and has not been rebuilt yet.
+        line = self._line_cache.index_to_line.get(row, row)
+        top = int(self.scroll_y)
+        height = self.container_size.height - self.scrollbar_size_horizontal
+        return top <= line < top + height
 
     def clear_highlight(self) -> None:
         """Clear highlight silently without moving the scroll viewport."""

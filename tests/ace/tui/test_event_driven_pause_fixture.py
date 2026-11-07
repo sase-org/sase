@@ -70,6 +70,15 @@ def test_fixture_patch_can_be_overridden_per_test(
 
 
 def test_fixture_patch_does_not_leak_from_previous_test() -> None:
-    assert _LEAK_SENTINEL is not None
-    assert Pilot.pause is not _LEAK_SENTINEL
+    """No earlier test's ``Pilot.pause`` override survives into this one.
+
+    This must hold in any order: ``tools/run_pytest`` distributes with
+    ``--dist worksteal``, so the override test above can run later or on
+    another worker. The fixture wraps whatever ``Pilot.pause`` is when it
+    runs, so a leaked override from any earlier test on this worker would
+    sit under the wrapper instead of the real pause.
+    """
     assert Pilot.pause is not _ORIGINAL_PILOT_PAUSE
+    assert getattr(Pilot.pause, "__wrapped__", None) is _ORIGINAL_PILOT_PAUSE
+    if _LEAK_SENTINEL is not None:  # the override test already ran here
+        assert Pilot.pause is not _LEAK_SENTINEL
