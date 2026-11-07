@@ -422,7 +422,7 @@ counts, derived coverage, and relation/origin totals; see
 ### Run directory retention
 
 `sase artifact prune-runs` handles complete agent-run directories separately from
-indexed artifact files. Its default is a preview. Explicit apply moves eligible runs to
+indexed artifact files. Its default is a preview. `--apply` moves eligible runs to
 journaled batches under `~/.sase/trash/ace-run/`, then removes their active index
 entries. Archived agent records remain listed. Moving bytes to trash does not free disk
 space; permanent purge does.
@@ -434,12 +434,13 @@ Unavailable protection data blocks apply. The
 publishes review snapshots and purges expired batches; it does not apply an unreviewed
 prune plan.
 
-Applying a review snapshot uses only the intersection of the captured selection and a
-fresh eligible plan. Newly eligible runs are excluded, and reviewed runs that are no
-longer eligible are kept with a reason. A missing snapshot refuses apply. Results
-distinguish moved, kept, and failed runs and report index errors separately; an accepted
-operation is not proof that every reviewed run moved. The generic
-`sase disk reap --apply` path cannot apply run pruning.
+A review snapshot records which runs were selected; it does not copy their contents.
+Applying with `--snapshot` uses only runs in both that selection and a fresh eligible
+plan. Newly eligible runs are excluded, and reviewed runs that are no longer eligible
+are kept with a reason. A missing snapshot refuses apply. Without `--snapshot`, apply
+uses the fresh selection. Results distinguish moved, kept, and failed runs and report
+index errors separately; an accepted operation is not proof that every reviewed run
+moved. The generic `sase disk reap --apply` path cannot apply run pruning.
 
 | Trash operation                               | Run-batch behavior                                                                                   |
 | --------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
@@ -448,9 +449,11 @@ operation is not proof that every reviewed run moved. The generic
 | `sase artifact trash purge`                   | Permanently removes batches older than the configured grace period after checking protections again. |
 | `sase artifact trash purge --all`             | Ignores the age threshold while retaining the run-protection checks.                                 |
 
-Purge restores runs that gained protection instead of deleting them. Unreadable
-protection sources block the run-batch portion of purge. Restoration reports destination
-collisions and index errors separately. The grace period comes from
+The listed restore deadline is when a batch becomes eligible for automatic purge;
+restoration remains possible until it is actually purged. Purge restores runs that
+gained protection instead of deleting them. Unreadable protection sources block the
+run-batch portion of purge. Restoration reports destination collisions and index errors
+separately. The grace period comes from
 [Artifact retention configuration](config/artifacts.md); exact options are in the
 [Artifact CLI reference](cli/artifact.md).
 

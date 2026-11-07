@@ -168,7 +168,7 @@ warning.
 
 ### Enter: act on an agent
 
-`Enter` on a `HIJACKED` row opens its
+`Enter` on a local `HIJACKED` row opens its
 [recovery panel](agents-tab-modes.md#hijack-recovery-panel).
 
 `Enter` on an Agents-tab row opens that agent node's pending gate (every gate kind,

@@ -78,12 +78,13 @@ requests. See
 [Command-backed interaction gates](../automation/notification-gates.md#command-backed-interaction-gates-1).
 
 `sase pipe '<prompt>'` hands work to the next session member in the same workspace and
-claim, after the calling turn ends. The command stages its request for
-[host completion](#handoff-completion). The successor gets the next free numeric suffix
-(role `feedback`) by default, or an explicit `--name TOKEN` suffix (role: the token
-itself), per the suffix table above. Every host-composed successor inherits autonomy
-structurally from its predecessor's live record; an explicit `%auto` in agent-authored
-follow-up text can only narrow. See
+claim, after the calling turn ends. The command stages its request; the caller then
+finishes through `/sase_final` before [host completion](#handoff-completion) can start
+the successor. The successor gets the next free numeric suffix (role `feedback`) by
+default, or an explicit `--name TOKEN` suffix (role: the token itself), per the suffix
+table above. Every host-composed successor inherits autonomy structurally from its
+predecessor's live record; an explicit `%auto` in agent-authored follow-up text can only
+narrow. See
 [Monitors: Pipe vs. monitor](../automation/monitor-operations.md#pipe-vs-monitor).
 
 SASE resolves `parent` to the newest visible matching agent or session member in the
@@ -218,12 +219,13 @@ hijacked on its owning host. See [Feature flags](../config/feature-flags.md) for
 controls.
 
 `sase agent hijack NAME` waits for the process tree to stop and verifies that it is dead
-before reporting `HIJACKED`. The workspace stays held, and the stop captures repository
-diffs, snapshots, model details, and recent tool context. A refusal exits `2`; a failed
+before reporting `HIJACKED`. The workspace stays held while SASE attempts to capture
+repository diffs, snapshots, model details, and recent tool context. Capture failures
+can leave snapshots pending even after a successful stop. A refusal exits `2`; a failed
 stop or operational error exits `1`; a completed hijack exits `0`.
 
-`sase agent recover NAME` displays the recovery menu without launching anything. The
-menu includes the held workspace, model, elapsed time, captured changes, and action
+`sase agent recover NAME` prints a read-only recovery menu without launching anything.
+The menu includes the held workspace, model, elapsed time, captured changes, and action
 availability. Recovery of an existing hijack remains available when the beta flag is
 disabled. The [CLI reference](../cli/agent.md#sase-agent-recover) lists exact options.
 
@@ -233,7 +235,7 @@ disabled. The [CLI reference](../cli/agent.md#sase-agent-recover) lists exact op
 | Escalate | Keep the workspace and select a different model through the configured escalation ladder.                                  |
 | Instruct | Edit the continuation prompt before continuing; the CLI accepts the full prompt through Continue's prompt-file option.     |
 | Restart  | Verify recovery snapshots, release the workspace, and relaunch the stored prompt under the same name in a fresh workspace. |
-| Edit     | Submit a replacement prompt through Restart's prompt-file option after snapshot verification.                              |
+| Edit     | Use a replacement prompt for Restart; snapshots are verified before workspace release.                                     |
 | Dismiss  | Verify recovery snapshots, retire the row, and release the held workspace without launching a successor.                   |
 
 Continue and Escalate support a dry-run preview. A supplied continuation prompt is the
@@ -244,22 +246,25 @@ was admitted but may still be waiting for capacity. The ledger remains resolving
 the successor has verified ownership and inherited its context, or reconciliation has
 established another outcome.
 
-The successor inherits the same goal, any bead claim, repository responsibilities,
-commit-finalizer baseline, and autonomy ceiling. Missing inheritance evidence prevents
-provider execution. Its context includes the predecessor's transcript by default, or a
-brief with the transcript path when configured. Model selection and context settings are
-in [Agent configuration](../config/agents.md). Successful recovery marks the predecessor
-`CONTINUED` or `ESCALATED`; session waits follow the recovery successor. An unresolved
-hijack needs input and does not count as successful completion.
+Continue, Escalate, and Instruct preserve the goal, any bead claim, repository
+responsibilities, commit-finalizer baseline (the recorded starting repository contents),
+and maximum permitted autonomy. Missing inheritance evidence prevents provider
+execution. By default, the successor receives the predecessor's transcript. SASE uses a
+brief instead when configured, when the transcript is unavailable, or when the
+transcript exceeds the continuation budget; the brief includes its path when available.
+Model selection and context settings are in [Agent configuration](../config/agents.md).
+A successful continuation marks the predecessor `CONTINUED` or `ESCALATED`; session
+waits follow the recovery successor. An unresolved hijack needs input and does not count
+as successful completion.
 
-Restart, Edit, and Dismiss verify or refresh snapshots against the current primary and
-recorded opened repositories before release. A snapshot failure keeps the workspace
-held. The CLI's explicit discard-without-snapshot option bypasses that protection and
-can lose uncommitted work. Once a hold has expired and its workspace has been released,
-Continue, Escalate, and Instruct are unavailable; the menu still offers eligible release
-actions. See [Held workspaces](workspaces.md#held-workspaces) for retention and expiry,
-and [the recovery panel](../tui/agents-tab-modes.md#hijack-recovery-panel) for TUI
-actions.
+Restart, Edit, and Dismiss verify or refresh snapshots against the current contents of
+the held workspace's primary repository and recorded opened repositories before release.
+A snapshot failure keeps an existing hold in place. The CLI's explicit
+discard-without-snapshot option permits release after capture failures and can lose
+uncommitted work. Once a hold has expired and its workspace has been released, Continue,
+Escalate, and Instruct are unavailable; the menu still offers eligible release actions.
+See [Held workspaces](workspaces.md#held-workspaces) for retention and expiry, and
+[the recovery panel](../tui/agents-tab-modes.md#hijack-recovery-panel) for TUI actions.
 
 ### Session detail folding
 

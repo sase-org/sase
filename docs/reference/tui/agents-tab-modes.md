@@ -261,19 +261,19 @@ hiding them.
 
 ## Hijack recovery panel
 
-With the `agent_hijack` beta flag enabled, `,k` hijacks an eligible focused agent and
-the kill dialog offers **Hijack**. The row stays visible while its process stops and
-its workspace is retained. The action is unavailable for bulk selections. Eligibility
-and recovery ownership are documented under
+With the `agent_hijack` beta flag enabled, the default `,k` binding hijacks an eligible
+focused agent and the kill dialog offers **Hijack**. The row stays visible while its
+process stops and its workspace is retained. The action is unavailable for bulk
+selections. Eligibility and recovery ownership are documented under
 [Hijack recovery](../agents/agent-sessions.md#hijack-recovery).
 
 The pink `⏏ HIJACKED` row belongs to the Stopped bucket. Operations show `HIJACKING…`
 while stopping and `RECOVERING…` while resolving recovery. An expired hijack adds
-`workspace released`. After recovery, the predecessor reads `CONTINUED` or `ESCALATED`
-in cyan; the successor determines when the session finishes.
+`workspace released`. After Continue, Instruct, or Escalate, the predecessor reads
+`CONTINUED` or `ESCALATED` in cyan; the successor determines when the session finishes.
 
-`Enter` on a `HIJACKED` row opens the recovery panel. Its header shows the workspace,
-model, run duration, time since hijack, captured diff totals, and last tool. Model
+`Enter` on a local `HIJACKED` row opens the recovery panel. Its header shows the
+workspace, model, run duration, time since hijack, captured diff totals, and last tool. Model
 choices initially show `computing…`; unavailable choices show their refusal reason.
 
 | Choice | Effect |
@@ -283,15 +283,15 @@ choices initially show `computing…`; unavailable choices show their refusal re
 | **Instruct** | Open the continuation prompt in the prompt bar, with the cursor at the guidance line. |
 | **Restart** | Relaunch the original prompt in a fresh workspace after snapshot verification. |
 | **Edit** | Open the original prompt for editing; submit runs snapshot-verified restart with the replacement prompt. |
-| **View diff** | Open the recovery diff in the pager without resolving the hijack. |
-| **Shell** | Open tmux in the held workspace without resolving the hijack. |
+| **View diff** | Open current repository diffs, or saved snapshot references when no diff is available, in the pager. |
+| **Shell** | Open tmux at the recorded workspace path without resolving the hijack. |
 | **Dismiss** | Verify the snapshot, dismiss the row, and release the workspace. |
 
 `j`/`k` select a row, `Enter` activates it, and `Esc` leaves recovery pending. Instruct
 and Edit release nothing when the prompt bar opens. Canceling leaves the agent hijacked
 and saves the draft through prompt history. Submitting uses a durable recovery operation
 that continues if the TUI closes. `x` on a hijacked row also uses snapshot-verified
-dismissal. Expired holds omit the choices that require keeping the workspace.
+dismissal. Expired holds omit Continue, Escalate, and Instruct.
 
 ## Bang Mode (`!` prefix) {#bang-mode-prefix-1}
 

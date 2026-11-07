@@ -419,10 +419,13 @@ budget before running the normal full reconciliation.
 
 Publication protection can withhold a run or hood when its content is blocked or cannot
 be verified. The request stays in the outbox with a parked reason, timestamps, and
-scanner-rules version; parking does not consume retry attempts. Parked requests become
-eligible for another check after one hour or when the scanner-rules version changes.
-Other eligible publication work continues. Cached scans made under a different rules
-version are not accepted as current verification.
+scanner-rules version. Background processing temporarily skips parked requests without
+consuming retry attempts. A request becomes eligible for another background check one
+hour after its last check or when the scanner-rules version changes; enqueueing fresh
+work for that request also clears the park. Explicit `sase agent sync` bypasses this
+delay. Eligibility permits another check, not automatic publication of blocked content.
+Other eligible publication work continues. Publication requires a complete, clean scan
+of the bytes being copied.
 
 ### Outbox diagnostics
 
@@ -627,9 +630,10 @@ Textual event loop.
   credentials/connectivity and retry.
 - A rebase conflict that cannot be resolved from regenerable pages is aborted and
   reported with its conflicted paths. Background publication parks the unchanged local
-  HEAD/upstream pair for up to one hour and emits a recovery notification. A changed
-  pair clears the park. For an unpublished replay commit against an advanced upstream,
-  the
+  HEAD/upstream pair (the local and tracked remote commits) for up to one hour and emits
+  a recovery notification. A changed pair clears the park; expiration allows another
+  attempt without resolving the conflict itself. For an unpublished replay commit
+  against an advanced upstream, the
   [stale-replay recovery runbook](../../contribute/agents-sidecar-sync.md#stale-replay-recovery)
   describes the required preflight, backup, and explicit apply procedure. Other
   conflicts need review before retrying publication.

@@ -39,7 +39,8 @@ way `update --status=closed` points at `sase bead close`. See
 When an agent invokes `sase bead open`, the target must be closed; any other status
 exits `2` before mutation and points to `sase bead read` for inspection. A human opening
 an already-open bead gets an `Already open` result without a new commit. A successful
-reopen records the acting opener on the bead and any reopened ancestors.
+reopen records the acting opener in the reopen events for the bead and any reopened
+ancestors.
 
 Every new close records a typed `resolution`: `done`, `canceled`, or `superseded`.
 Normal closes default to `done`; `close_reason` remains optional free text for the human
