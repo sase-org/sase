@@ -107,6 +107,12 @@ def collect_ace_run_retention_protections(
         timestamps=timestamps,
         scanned=scanned,
     )
+    _collect_hijack_hold_refs(
+        dirs=dirs,
+        agent_names=agent_names,
+        timestamps=timestamps,
+        scanned=scanned,
+    )
 
     return AceRunProtectionSnapshot(
         protected_dirs=frozenset(dirs),
@@ -355,6 +361,33 @@ def _scan_state_refs(
                 scanned=scanned,
                 required=False,
             )
+
+
+def _collect_hijack_hold_refs(
+    *,
+    dirs: set[str],
+    agent_names: set[str],
+    timestamps: set[str],
+    scanned: set[str],
+) -> None:
+    """Protect runs an unresolved Agent Hijack still needs for recovery.
+
+    Restart, Edit, and the keep-work actions read the hijacked run's prompt,
+    transcript, and markers from its artifacts directory, so the run stays
+    out of retention until the hijack resolves or is dismissed.
+    """
+    from sase.agent.hijack.ledger import LEDGER_DIRNAME, list_recoverable_records
+
+    for record in list_recoverable_records():
+        artifacts_dir = record.get("artifacts_dir")
+        if isinstance(artifacts_dir, str) and artifacts_dir:
+            _collect_text_refs(
+                artifacts_dir,
+                dirs=dirs,
+                agent_names=agent_names,
+                timestamps=timestamps,
+            )
+    scanned.add(str(sase_home() / LEDGER_DIRNAME))
 
 
 def _scan_text_file(

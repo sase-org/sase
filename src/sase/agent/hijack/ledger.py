@@ -258,6 +258,25 @@ def list_active_records() -> list[dict[str, Any]]:
     return records
 
 
+def list_recoverable_records() -> list[dict[str, Any]]:
+    """Load every record whose hijacked run can still be recovered.
+
+    That is every active record plus settled ``expired`` holds: an expired
+    hold has released its workspace claim but still offers Restart, Edit,
+    View, and Dismiss, which read the hijacked run's artifacts directory.
+    """
+    records = list_active_records()
+    try:
+        settled_paths = tuple(_hijack_settled_dir().glob("*.json"))
+    except OSError:
+        return records
+    for path in settled_paths:
+        payload = read_hijack_record_payload(path)
+        if payload is not None and payload.get("state") == "expired":
+            records.append(payload)
+    return records
+
+
 def load_record_by_artifacts_dir(artifacts_dir: str) -> dict[str, Any] | None:
     """Return the active record whose ``artifacts_dir`` matches, if any."""
     wanted = str(artifacts_dir)

@@ -73,11 +73,16 @@ def test_expired_hijack_shows_workspace_released_hint() -> None:
 
 
 @pytest.mark.parametrize("status", ["ESCALATED", "CONTINUED"])
-def test_resolved_hijack_statuses_use_answered_cyan(status: str) -> None:
+def test_resolved_hijack_statuses_use_settled_answered_grey(status: str) -> None:
     left, _, _ = format_agent_option(agent(status=status), 0, is_selected=False)
+    settled_answered = gate_status_style(
+        gate_status_pair("QUESTION", "ANSWERED"),
+        gate_state="answered",
+        accent="#5FD7FF",
+    )
 
     assert any(
-        span.style == "bold #5FD7FF"
+        span.style == settled_answered
         for span in left.spans
         if left.plain[span.start : span.end] == status
     )

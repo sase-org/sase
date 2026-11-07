@@ -102,7 +102,7 @@ def _wait_for(path: Path, process: subprocess.Popen[str], timeout: float = 8.0) 
             return
         if process.poll() is not None:
             raise AssertionError(f"fakey exited before creating {path}")
-        time.sleep(0.02)
+        time.sleep(0.02)  # sase-test-wait: poll for the fakey-written signal file
     raise AssertionError(f"fakey did not create {path} before timeout")
 
 

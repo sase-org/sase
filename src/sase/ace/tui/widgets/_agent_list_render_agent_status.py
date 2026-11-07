@@ -30,6 +30,7 @@ from ..models.agent_status import (
     HIJACKED_COLOR,
     HIJACKED_GLYPH,
     HIJACKED_STATUS,
+    RESOLVED_HIJACK_STYLE,
     RUNNING_COLOR,
     STOPPED_COLOR,
     STOPPED_GLYPH,
@@ -208,7 +209,7 @@ def append_agent_row_status(
     elif agent.status == "DONE":
         text.append(display_status, style="bold #5FD75F")  # Green
     elif agent.status in {"ESCALATED", "CONTINUED"}:
-        text.append(display_status, style="bold #5FD7FF")  # ANSWERED cyan
+        text.append(display_status, style=RESOLVED_HIJACK_STYLE)
     elif agent.status == STOPPED_STATUS:
         text.append(
             f"{STOPPED_GLYPH} {display_status}",

@@ -205,8 +205,7 @@ def register_agent_recover_parser(agents_sub: argparse._SubParsersAction) -> Non
             "recovery snapshot first: restart relaunches the same prompt under "
             "the same name in a fresh workspace (--prompt-file relaunches an "
             "edited prompt instead, the Edit backend), and dismiss retires the "
-            "row and releases the workspace. Recovery remains available when "
-            "the hijack ingress flag is off. Exit 0 means menu, queued, or "
+            "row and releases the workspace. Exit 0 means menu, queued, or "
             "launched; 2 means refused with no new recovery; 1 means an "
             "operation error."
         ),

@@ -152,15 +152,15 @@ _MACRO_DOCS_ALLOWLIST: set[tuple[str, str]] = {
     ("mkdocs.yml", "'xprompt.md': 'macros.md'"),
     (
         "sase/memory/glossary.md",
-        "LLM Calls; Machine Tab; Macro (xprompt); Macro Invocation (smack, macro reference, macro",
+        "Manifest (instruction manifest); Job (Chop); LLM Calls; Machine Tab; Macro (xprompt);",
     ),
     (
         "AGENTS.md",
-        "LLM Calls; Machine Tab; Macro (xprompt); Macro Invocation (smack, macro reference, macro",
+        "Manifest (instruction manifest); Job (Chop); LLM Calls; Machine Tab; Macro (xprompt);",
     ),
     (
         "CLAUDE.md",
-        "LLM Calls; Machine Tab; Macro (xprompt); Macro Invocation (smack, macro reference, macro",
+        "Manifest (instruction manifest); Job (Chop); LLM Calls; Machine Tab; Macro (xprompt);",
     ),
     ("sase/memory/glossary/macro.md", "- xprompt"),
     (

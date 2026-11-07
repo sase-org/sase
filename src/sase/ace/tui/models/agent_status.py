@@ -14,6 +14,9 @@ STOPPED_GLYPH = "Ø"
 HIJACKED_STATUS = "HIJACKED"
 HIJACKED_COLOR = "#FF5FAF"
 HIJACKED_GLYPH = "⏏"
+# ESCALATED / CONTINUED settle a resolved hijack in the same grey as a
+# settled gate turn (ANSWERED): the successor turn carries the work.
+RESOLVED_HIJACK_STYLE = "#9E9E9E"
 
 # Statuses that indicate an agent is dismissable (shows "x dismiss" in footer).
 DISMISSABLE_STATUSES = {

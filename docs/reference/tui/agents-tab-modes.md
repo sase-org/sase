@@ -261,16 +261,15 @@ hiding them.
 
 ## Hijack recovery panel
 
-With the `agent_hijack` beta flag enabled, the default `,k` binding hijacks an eligible
-focused agent and the kill dialog offers **Hijack**. The row stays visible while its
-process stops and its workspace is retained. The action is unavailable for bulk
-selections. Eligibility and recovery ownership are documented under
-[Hijack recovery](../agents/agent-sessions.md#hijack-recovery).
+The default `,k` binding hijacks an eligible focused agent, and the kill dialog offers
+**Hijack**. The row stays visible while its process stops and its workspace is retained.
+The action is unavailable for bulk selections. Eligibility and recovery ownership are
+documented under [Hijack recovery](../agents/agent-sessions.md#hijack-recovery).
 
 The pink `⏏ HIJACKED` row belongs to the Stopped bucket. Operations show `HIJACKING…`
 while stopping and `RECOVERING…` while resolving recovery. An expired hijack adds
 `workspace released`. After Continue, Instruct, or Escalate, the predecessor reads
-`CONTINUED` or `ESCALATED` in cyan; the successor determines when the session finishes.
+`CONTINUED` or `ESCALATED` in grey; the successor determines when the session finishes.
 
 `Enter` on a local `HIJACKED` row opens the recovery panel. Its header shows the
 workspace, model, run duration, time since hijack, captured diff totals, and last tool. Model

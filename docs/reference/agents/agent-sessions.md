@@ -212,11 +212,9 @@ that launches in a different workspace leaves the original hold unresolved.
 
 Hijacking stops a local agent while retaining its numbered workspace, uncommitted work,
 Agents-tab row, and recovery evidence. It is available for `RUNNING`, `STARTING`, and
-`RETRYING` agent turns launched with hijack support, when the `agent_hijack` beta flag
-is enabled. Finalizing turns, home-mode turns, remote rows, monitors, gates, named
-processes, clan containers, and bulk selections are ineligible. A remote agent must be
-hijacked on its owning host. See [Feature flags](../config/feature-flags.md) for flag
-controls.
+`RETRYING` agent turns launched with hijack support. Finalizing turns, home-mode turns,
+remote rows, monitors, gates, named processes, clan containers, and bulk selections are
+ineligible. A remote agent must be hijacked on its owning host.
 
 `sase agent hijack NAME` waits for the process tree to stop and verifies that it is dead
 before reporting `HIJACKED`. The workspace stays held while SASE attempts to capture
@@ -226,8 +224,8 @@ stop or operational error exits `1`; a completed hijack exits `0`.
 
 `sase agent recover NAME` prints a read-only recovery menu without launching anything.
 The menu includes the held workspace, model, elapsed time, captured changes, and action
-availability. Recovery of an existing hijack remains available when the beta flag is
-disabled. The [CLI reference](../cli/agent.md#sase-agent-recover) lists exact options.
+availability. The [CLI reference](../cli/agent.md#sase-agent-recover) lists exact
+options.
 
 | Action   | Result                                                                                                                     |
 | -------- | -------------------------------------------------------------------------------------------------------------------------- |

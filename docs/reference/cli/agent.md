@@ -904,7 +904,7 @@ usage: sase agent recover [-h] [-a ACTION] [-D] [-n] [-j] [-m MODEL] [-p PATH]
                           NAME
 ```
 
-Preview or resolve a held hijack. Without --action, print the shared recovery menu. Keep-the-work actions (continue, escalate) relaunch in the held workspace; --prompt-file with continue supplies the full edited continuation prompt (Instruct). Release actions verify the recovery snapshot first: restart relaunches the same prompt under the same name in a fresh workspace (--prompt-file relaunches an edited prompt instead, the Edit backend), and dismiss retires the row and releases the workspace. Recovery remains available when the hijack ingress flag is off. Exit 0 means menu, queued, or launched; 2 means refused with no new recovery; 1 means an operation error.
+Preview or resolve a held hijack. Without --action, print the shared recovery menu. Keep-the-work actions (continue, escalate) relaunch in the held workspace; --prompt-file with continue supplies the full edited continuation prompt (Instruct). Release actions verify the recovery snapshot first: restart relaunches the same prompt under the same name in a fresh workspace (--prompt-file relaunches an edited prompt instead, the Edit backend), and dismiss retires the row and releases the workspace. Exit 0 means menu, queued, or launched; 2 means refused with no new recovery; 1 means an operation error.
 
 Options:
 

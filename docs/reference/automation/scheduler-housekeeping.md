@@ -285,7 +285,9 @@ symlink safety check, and empty-shard walk run in the Rust run-retention owner. 
 preview keeps the newest `artifacts.retention.keep_recent_run_months` calendar months
 whole and protects runs that are incomplete, running, waiting, or asking a question;
 runs referenced by artifact-file rows, text refs, agent names, or continuation ancestry;
-runs tied to non-closed beads; and symlinked run directories. If continuation retention
+runs tied to non-closed beads; runs an unresolved
+[Agent Hijack](../agents/agent-sessions.md#hijack-recovery) still holds for recovery,
+including expired holds; and symlinked run directories. If continuation retention
 planning fails, every candidate is protected (`continuation_unavailable`) instead of the
 job crashing. The summary reports `candidates`, `selected` run directories,
 `empty_shards` outside sase's TUI startup watch window, reclaimable `bytes`,
