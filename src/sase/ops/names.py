@@ -25,6 +25,7 @@ AGENT_REVERT = "agent.revert"
 AGENT_CLEANUP = "agent.cleanup"
 
 ARTIFACT_PRUNE_RUNS = "artifact.prune-runs"
+ARTIFACT_PRUNE_RUNS_PREVIEW = "artifact.prune-runs-preview"
 
 AXE_BGCMD = "axe.bgcmd"
 
@@ -68,6 +69,7 @@ __all__ = [
     "AGENT_PERSIST_RECOVER",
     "AGENT_REVERT",
     "ARTIFACT_PRUNE_RUNS",
+    "ARTIFACT_PRUNE_RUNS_PREVIEW",
     "AXE_BGCMD",
     "BEAD_ISSUE",
     "BEAD_MUTATE",

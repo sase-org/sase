@@ -29,6 +29,11 @@ from sase.notifications import Notification, load_notification_report
 from ..models.artifact_run_prune_review_view import (
     build_artifact_run_prune_review_view,
 )
+from ._artifact_run_prune_recheck import (
+    PRUNE_CONCURRENCY_KEY,
+    prune_is_running,
+    submit_run_prune_recheck,
+)
 from .notification_modal_palette import (
     PANE_ACCENT,
     PANE_ANSWERED,
@@ -36,8 +41,6 @@ from .notification_modal_palette import (
     PANE_MUTED,
     PANE_WARN,
 )
-
-_PRUNE_CONCURRENCY_KEY = "artifact-run-prune"
 
 
 class ArtifactRunPruneModal(ModalScreen[None]):
@@ -104,12 +107,12 @@ class ArtifactRunPruneModal(ModalScreen[None]):
                 )
                 yield Button("Cancel", id="prune-review-cancel")
             yield Static(
-                "y move to trash · r full report · n/esc cancel",
+                self._footer_text(),
                 id="prune-review-footer",
             )
 
     def on_mount(self) -> None:
-        self._is_running = _prune_is_running(self.app)
+        self._is_running = prune_is_running(self.app)
         self._refresh_render()
         self.call_after_refresh(self._focus_cancel)
         from sase.ace.tui.util.pump_tasks import spawn_pump_free_task
@@ -162,7 +165,7 @@ class ArtifactRunPruneModal(ModalScreen[None]):
         self._display_snapshot = display_snapshot
         self._grace_days = grace_days
         # Proc projections can change while the background snapshot check runs.
-        self._is_running = _prune_is_running(self.app)
+        self._is_running = prune_is_running(self.app)
         self._refresh_render()
 
     def _title(self) -> Text:
@@ -181,9 +184,25 @@ class ArtifactRunPruneModal(ModalScreen[None]):
         hero.append(" projects")
         return hero
 
-    def _confirm_label(self) -> str:
+    def _move_label(self) -> str:
         count = self._review.counts.selected
         return f"🧹 Move {count:,} {_run_word(count)} to trash"
+
+    def _confirm_label(self) -> str:
+        state = self._view.state
+        if state == "BLOCKED":
+            return "↻ Re-check protections"
+        if state == "SNAPSHOT_MISSING":
+            return "↻ Refresh preview"
+        return self._move_label()
+
+    def _footer_text(self) -> str:
+        state = self._view.state
+        if state == "READY":
+            return "y move to trash · r full report · n/esc cancel"
+        if state in {"BLOCKED", "SNAPSHOT_MISSING"}:
+            return "y re-check now · r full report · n/esc cancel"
+        return "r full report · n/esc cancel"
 
     def _project_table(self, width: int) -> Group:
         wide = width >= 96
@@ -239,14 +258,21 @@ class ArtifactRunPruneModal(ModalScreen[None]):
                     "\nProtection evidence is unavailable.",
                     style=PANE_ERROR,
                 )
+            message.append(
+                "\nPress y to re-check now; the hourly preview also re-checks.",
+                style=PANE_MUTED,
+            )
         elif state == "SNAPSHOT_MISSING":
             message = Text(
-                "This preview is no longer available. The next hourly preview, or "
-                "sase artifact prune-runs, will refresh it.",
+                "This preview is no longer available. Press y to refresh it now, "
+                "or wait for the next hourly preview.",
                 style=f"bold {PANE_WARN}",
             )
         elif state == "RUNNING":
-            message = Text("A prune is already running.", style=f"bold {PANE_WARN}")
+            message = Text(
+                "A prune or re-check is already running.",
+                style=f"bold {PANE_WARN}",
+            )
         elif state == "READY":
             message = Text(
                 "✓ Protections will be re-checked before each run moves.",
@@ -297,8 +323,19 @@ class ArtifactRunPruneModal(ModalScreen[None]):
             )
             move = self.query_one("#prune-review-move", Button)
             move.label = self._confirm_label()
-            move.disabled = self._view.state != "READY"
-            move.variant = "warning" if self._view.state == "READY" else "default"
+            confirmable = self._view.state in {
+                "READY",
+                "BLOCKED",
+                "SNAPSHOT_MISSING",
+            }
+            move.disabled = not confirmable
+            if self._view.state == "READY":
+                move.variant = "warning"
+            elif confirmable:
+                move.variant = "primary"
+            else:
+                move.variant = "default"
+            self.query_one("#prune-review-footer", Static).update(self._footer_text())
             panel = self.query_one("#prune-review-container", Container)
             for state in (
                 "checking",
@@ -362,9 +399,25 @@ class ArtifactRunPruneModal(ModalScreen[None]):
         self.app.push_screen(ReportModal(report))
 
     def action_confirm(self) -> None:
-        if self._view.state != "READY":
+        state = self._view.state
+        if state == "CHECKING":
+            self.app.notify(
+                "Still checking this preview — try again in a moment.",
+                severity="warning",
+            )
             return
-        if _prune_is_running(self.app):
+        if state == "RUNNING":
+            self.app.notify(
+                "ACE run pruning is already running.",
+                severity="warning",
+            )
+            return
+        if state in {"BLOCKED", "SNAPSHOT_MISSING"}:
+            submit_run_prune_recheck(self)
+            return
+        if state != "READY":
+            return
+        if prune_is_running(self.app):
             self._is_running = True
             self._refresh_render()
             self.app.notify("ACE run pruning is already running", severity="warning")
@@ -395,7 +448,7 @@ class ArtifactRunPruneModal(ModalScreen[None]):
             operation=ARTIFACT_PRUNE_RUNS,
             request=durable_request_payload(snapshot=fingerprint),
             request_fingerprint=durable_fingerprint(ARTIFACT_PRUNE_RUNS, fingerprint),
-            concurrency_keys=(_PRUNE_CONCURRENCY_KEY,),
+            concurrency_keys=(PRUNE_CONCURRENCY_KEY,),
             label="Prune ACE runs",
             display_name="Prune ACE runs",
             duplicate_message="ACE run pruning is already running",
@@ -458,21 +511,6 @@ class ArtifactRunPruneModal(ModalScreen[None]):
         refresh = getattr(self.app, "_refresh_notification_count", None)
         if callable(refresh):
             refresh()
-
-
-def _prune_is_running(app: object) -> bool:
-    projection_getter = getattr(app, "_effective_proc_projection", None)
-    try:
-        projection = projection_getter() if callable(projection_getter) else None
-        if projection is None:
-            projection = getattr(app, "_proc_projection", None)
-        scope_conflict = getattr(projection, "scope_conflict", None)
-        return (
-            callable(scope_conflict)
-            and scope_conflict((_PRUNE_CONCURRENCY_KEY,)) is not None
-        )
-    except Exception:
-        return False
 
 
 def _snapshot_matches_review(

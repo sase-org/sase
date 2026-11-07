@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import Mapping
 
 from sase.ops.cli import emit_operation_result
-from sase.ops.names import ARTIFACT_PRUNE_RUNS
+from sase.ops.names import ARTIFACT_PRUNE_RUNS, ARTIFACT_PRUNE_RUNS_PREVIEW
 
 
 def emit_artifact_prune_runs_result(
@@ -24,4 +24,23 @@ def emit_artifact_prune_runs_result(
     )
 
 
-__all__ = ["emit_artifact_prune_runs_result"]
+def emit_artifact_prune_runs_preview_result(
+    *,
+    success: bool,
+    message: str,
+    payload: Mapping[str, object] | None = None,
+) -> None:
+    """Write a typed prune-runs-preview result when a result path is configured."""
+    emit_operation_result(
+        operation=ARTIFACT_PRUNE_RUNS_PREVIEW,
+        success=success,
+        message=message,
+        error=None if success else message,
+        payload=payload,
+    )
+
+
+__all__ = [
+    "emit_artifact_prune_runs_preview_result",
+    "emit_artifact_prune_runs_result",
+]

@@ -425,7 +425,9 @@ counts, derived coverage, and relation/origin totals; see
 indexed artifact files. Its default is a preview. `--apply` moves eligible runs to
 journaled batches under `~/.sase/trash/ace-run/`, then removes their active index
 entries. Archived agent records remain listed. Moving bytes to trash does not free disk
-space; permanent purge does.
+space; permanent purge does. `--publish-preview` re-checks protections and publishes the
+inbox prune preview the same way the hourly housekeeping job does; it does not purge
+trash.
 
 The preview preserves recent calendar months, incomplete or active runs, referenced
 runs, continuation ancestry, runs tied to non-closed beads, and symlinked directories.

@@ -7,6 +7,8 @@ import json
 from pathlib import Path
 from typing import Any
 
+import pytest
+
 import sase.artifact_cli.prune_runs as prune_runs_cli
 from sase.core.agent_artifact_index_lifecycle_mutations import (
     upsert_agent_artifact_index_artifacts,
@@ -29,18 +31,28 @@ def _args(
     json_output: bool = True,
     snapshot: str | None = None,
     notify: bool = False,
+    publish_preview: bool = False,
+    keep_recent_months: int | None = 2,
+    limit: int | None = None,
+    project: str | None = None,
 ) -> argparse.Namespace:
     return argparse.Namespace(
         apply=apply,
         index_path=None,
         json=json_output,
-        keep_recent_months=2,
-        limit=None,
+        keep_recent_months=keep_recent_months,
+        limit=limit,
         notify=notify,
-        project=None,
+        project=project,
         projects_root=str(projects_root),
+        publish_preview=publish_preview,
         snapshot=snapshot,
     )
+
+
+def _publish_args(projects_root: Path, **kwargs: Any) -> argparse.Namespace:
+    kwargs.setdefault("keep_recent_months", None)
+    return _args(projects_root, publish_preview=True, **kwargs)
 
 
 def _terminal_run(projects_root: Path, timestamp: str) -> Path:
@@ -300,6 +312,11 @@ def test_prune_runs_notify_writes_result_and_retires_previews(
         plus_one_note="Still previewing 1 run dir.",
         plus_one_timestamp="2026-09-12T12:00:00+00:00",
     )
+    from sase.core.agent_artifact_run_prune_review import snapshot_dir
+
+    key_path = snapshot_dir() / "last_preview_dedup_key"
+    key_path.parent.mkdir(parents=True, exist_ok=True)
+    key_path.write_text("artifact_run_prune:deadbeefdeadbeef:abcd1234\n")
 
     exit_code = prune_runs_cli.handle_prune_runs(
         _args(projects_root, apply=True, notify=True)
@@ -309,6 +326,7 @@ def test_prune_runs_notify_writes_result_and_retires_previews(
     capsys.readouterr()
     rows = {row.dedup_key: row for row in load_notifications(include_dismissed=True)}
     assert rows["artifact_run_prune:deadbeefdeadbeef"].dismissed is True
+    assert not key_path.exists()
     batch_id = next(
         key for key in rows if key and key.startswith("artifact_run_trash:")
     ).removeprefix("artifact_run_trash:")
@@ -492,10 +510,10 @@ def test_prune_runs_errors_are_not_json_blocked(
 def test_prune_runs_fingerprint_matches_chop_preview(
     monkeypatch: Any, tmp_path: Path
 ) -> None:
-    from sase.core.agent_artifact_run_prune_review import preview_fingerprint
-    from sase.scripts.sase_chop_artifact_run_prune import (
+    from sase.core.agent_artifact_run_prune_publish import (
         _preview_report as _chop_report,
     )
+    from sase.core.agent_artifact_run_prune_review import preview_fingerprint
 
     projects_root = tmp_path / "projects"
     _terminal_run(projects_root, "20260501000000")
@@ -536,3 +554,134 @@ def test_prune_runs_fingerprint_matches_chop_preview(
         ).hexdigest()[:16]
     )
     assert _chop_report(plan).title == "ACE run pruning preview"
+
+
+@pytest.mark.parametrize(
+    ("kwargs", "flag"),
+    [
+        ({"apply": True}, "--apply"),
+        ({"snapshot": "0123456789abcdef"}, "--snapshot"),
+        ({"project": "proj"}, "--project"),
+        ({"limit": 5}, "--limit"),
+        ({"keep_recent_months": 3}, "--keep-recent-months"),
+    ],
+)
+def test_publish_preview_rejects_incompatible_flags(
+    monkeypatch: Any,
+    capsys: Any,
+    tmp_path: Path,
+    kwargs: dict[str, Any],
+    flag: str,
+) -> None:
+    projects_root = tmp_path / "projects"
+    old = _terminal_run(projects_root, "20260501000000")
+    _empty_protections(monkeypatch)
+
+    exit_code = prune_runs_cli.handle_prune_runs(_publish_args(projects_root, **kwargs))
+
+    assert exit_code == 2
+    err = capsys.readouterr().err
+    assert "cannot be combined" in err
+    assert flag in err
+    assert old.exists()
+
+
+def test_publish_preview_json_emits_typed_result(
+    monkeypatch: Any,
+    capsys: Any,
+    tmp_path: Path,
+) -> None:
+    projects_root = tmp_path / "projects"
+    _terminal_run(projects_root, "20260501000000")
+    _empty_protections(monkeypatch)
+    result_path = tmp_path / "result.json"
+    monkeypatch.setenv("SASE_PROC_RESULT_PATH", str(result_path))
+
+    exit_code = prune_runs_cli.handle_prune_runs(_publish_args(projects_root))
+
+    payload = json.loads(capsys.readouterr().out)
+    assert exit_code == 0
+    assert payload["mode"] == "publish_preview"
+    assert payload["execution"] is None
+    publish = payload["publish"]
+    assert publish["selected"] == 1
+    assert publish["unavailable_count"] == 0
+    assert publish["unavailable_sources"] == []
+    assert publish["notification_action"] in {"created", "plus_oned"}
+    assert publish["fingerprint"]
+    stored = json.loads(result_path.read_text(encoding="utf-8"))
+    assert stored["operation"] == "artifact.prune-runs-preview"
+    assert stored["success"] is True
+    assert stored["payload"]["fingerprint"] == publish["fingerprint"]
+    assert stored["message"] == "Published inbox preview"
+    rows = [
+        row
+        for row in load_notifications(include_dismissed=False)
+        if (row.dedup_key or "").startswith("artifact_run_prune:")
+    ]
+    assert len(rows) == 1
+    assert rows[0].dedup_key is not None
+    assert rows[0].dedup_key.count(":") == 2
+
+
+def test_publish_preview_blocked_still_succeeds(
+    monkeypatch: Any,
+    capsys: Any,
+    tmp_path: Path,
+) -> None:
+    projects_root = tmp_path / "projects"
+    _terminal_run(projects_root, "20260501000000")
+    monkeypatch.setattr(
+        prune_runs_cli,
+        "collect_ace_run_retention_protections",
+        lambda **_kwargs: AceRunProtectionSnapshot(
+            sources_unavailable=("plans sidecar",)
+        ),
+    )
+
+    exit_code = prune_runs_cli.handle_prune_runs(_publish_args(projects_root))
+
+    payload = json.loads(capsys.readouterr().out)
+    assert exit_code == 0
+    assert payload["mode"] == "publish_preview"
+    assert payload["blocked"] is True
+    publish = payload["publish"]
+    assert publish["unavailable_count"] == 1
+    assert publish["unavailable_sources"] == ["plans sidecar"]
+    assert publish["notification_action"] == "created"
+
+
+def test_publish_preview_text_reports_published_preview(
+    monkeypatch: Any,
+    capsys: Any,
+    tmp_path: Path,
+) -> None:
+    projects_root = tmp_path / "projects"
+    _terminal_run(projects_root, "20260501000000")
+    _empty_protections(monkeypatch)
+
+    exit_code = prune_runs_cli.handle_prune_runs(
+        _publish_args(projects_root, json_output=False)
+    )
+
+    out = capsys.readouterr().out
+    assert exit_code == 0
+    assert "Published inbox preview" in out
+
+
+def test_publish_preview_nothing_to_prune_retires(
+    monkeypatch: Any,
+    capsys: Any,
+    tmp_path: Path,
+) -> None:
+    projects_root = tmp_path / "projects"
+    projects_root.mkdir()
+    _empty_protections(monkeypatch)
+
+    exit_code = prune_runs_cli.handle_prune_runs(
+        _publish_args(projects_root, json_output=False)
+    )
+
+    out = capsys.readouterr().out
+    assert exit_code == 0
+    assert "Retired stale previews (nothing to prune)" in out

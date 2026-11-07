@@ -428,25 +428,27 @@ Options:
 
 ```text
 usage: sase artifact prune-runs [-h] [-a] [-i INDEX_PATH] [-j] [-m N] [-l N]
-                                [-n] [-p PROJECT] [-r PROJECTS_ROOT] [-s FP]
+                                [-n] [-p PROJECT] [-r PROJECTS_ROOT] [-P]
+                                [-s FP]
 ```
 
 Plan reclamation of old per-run ace-run artifact directories and empty out-of-range month/day shards. This command is a dry run unless --apply is passed; with --apply the selection moves into restorable trash for artifacts.retention.trash_grace_days. Recent months, referenced agents, incomplete runs, and runs tied to non-closed beads are protected.
 
 Options:
 
-| Option                                              | Description                                                                                               | Default |
-| --------------------------------------------------- | --------------------------------------------------------------------------------------------------------- | ------- |
-| `-a`, `--apply`                                     | Move selected run directories into restorable trash (restorable for artifacts.retention.trash_grace_days) | `false` |
-| `-h`, `--help`                                      | show this help message and exit                                                                           | —       |
-| `-i INDEX_PATH`, `--index-path INDEX_PATH`          | Agent artifact SQLite index to de-index after quarantine                                                  | —       |
-| `-j`, `--json`                                      | Emit one machine-readable plan and execution envelope                                                     | `false` |
-| `-m N`, `--keep-recent-months N`                    | Keep the newest N calendar months whole (default: artifacts.retention.keep_recent_run_months)             | —       |
-| `-l N`, `--limit N`                                 | Maximum run directories to select (0 means unlimited)                                                     | —       |
-| `-n`, `--notify`                                    | Post the trash result notification and retire live preview rows (only with --apply)                       | `false` |
-| `-p PROJECT`, `--project PROJECT`                   | Only prune a project by display name, alias, or canonical key                                             | —       |
-| `-r PROJECTS_ROOT`, `--projects-root PROJECTS_ROOT` | SASE projects root to scan (default: ~/.sase/projects)                                                    | —       |
-| `-s FP`, `--snapshot FP`                            | Restrict --apply to the intersection of the fresh plan and the review snapshot FP (requires --apply)      | —       |
+| Option                                              | Description                                                                                                                              | Default |
+| --------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- | ------- |
+| `-a`, `--apply`                                     | Move selected run directories into restorable trash (restorable for artifacts.retention.trash_grace_days)                                | `false` |
+| `-h`, `--help`                                      | show this help message and exit                                                                                                          | —       |
+| `-i INDEX_PATH`, `--index-path INDEX_PATH`          | Agent artifact SQLite index to de-index after quarantine                                                                                 | —       |
+| `-j`, `--json`                                      | Emit one machine-readable plan and execution envelope                                                                                    | `false` |
+| `-m N`, `--keep-recent-months N`                    | Keep the newest N calendar months whole (default: artifacts.retention.keep_recent_run_months)                                            | —       |
+| `-l N`, `--limit N`                                 | Maximum run directories to select (0 means unlimited)                                                                                    | —       |
+| `-n`, `--notify`                                    | Post the trash result notification and retire live preview rows (only with --apply)                                                      | `false` |
+| `-p PROJECT`, `--project PROJECT`                   | Only prune a project by display name, alias, or canonical key                                                                            | —       |
+| `-r PROJECTS_ROOT`, `--projects-root PROJECTS_ROOT` | SASE projects root to scan (default: ~/.sase/projects)                                                                                   | —       |
+| `-P`, `--publish-preview`                           | Re-check protections and publish the result as the inbox prune preview, exactly like the hourly housekeeping job (does not purge trash). | `false` |
+| `-s FP`, `--snapshot FP`                            | Restrict --apply to the intersection of the fresh plan and the review snapshot FP (requires --apply)                                     | —       |
 
 ## `sase artifact read`
 

@@ -15,6 +15,10 @@ from rich.table import Table
 
 from sase.chops import ChopReport
 from sase.config import get_artifact_retention_keep_recent_run_months
+from sase.core.agent_artifact_run_prune_publish import (
+    end_run_prune_preview_episode,
+    publish_run_prune_preview,
+)
 from sase.core.agent_artifact_run_prune_review import (
     RunPruneSnapshot,
     human_size,
@@ -35,12 +39,11 @@ from sase.core.agent_artifact_run_trash import (
 )
 from sase.core.time import get_timezone
 from sase.notifications.models import Notification, normalize_notification_tags
-from sase.notifications.store import (
-    load_notifications,
-    mark_dismissed,
-    upsert_notification,
+from sase.notifications.store import upsert_notification
+from sase.ops.commands.artifact import (
+    emit_artifact_prune_runs_preview_result,
+    emit_artifact_prune_runs_result,
 )
-from sase.ops.commands.artifact import emit_artifact_prune_runs_result
 from sase.project_display_names import (
     ProjectRefDisplaySnapshot,
     load_project_ref_display_snapshot,
@@ -50,14 +53,23 @@ from sase.project_display_names import (
 ARTIFACT_PRUNE_RUNS_SCHEMA_VERSION = 2
 
 _RESULT_TAGS = ("artifact-retention", "ace-run", "trash")
-_PREVIEW_DEDUP_PREFIX = "artifact_run_prune:"
 _PREVIEW_SENDER = "axe"
 _RESULT_COLOR_COMPLETE = "#2E9E5B"
 _RESULT_COLOR_PARTIAL = "#C98A1B"
+_PUBLISH_PREVIEW_CONFLICTS = (
+    ("apply", "--apply"),
+    ("keep_recent_months", "--keep-recent-months"),
+    ("limit", "--limit"),
+    ("project", "--project"),
+    ("snapshot", "--snapshot"),
+)
 
 
 def handle_prune_runs(args: argparse.Namespace) -> int:
     """Plan ACE-run retention and quarantine on explicit ``--apply``."""
+
+    if bool(getattr(args, "publish_preview", False)):
+        return _handle_publish_preview(args)
 
     snapshot_fp = getattr(args, "snapshot", None)
     apply = bool(getattr(args, "apply", False))
@@ -148,6 +160,94 @@ def handle_prune_runs(args: argparse.Namespace) -> int:
         return 0
     if execution.blocked_reason is not None or execution.errors > 0:
         return 1
+    return 0
+
+
+def _handle_publish_preview(args: argparse.Namespace) -> int:
+    """Re-check protections and publish the hourly inbox preview."""
+
+    conflicts = [
+        flag
+        for attr, flag in _PUBLISH_PREVIEW_CONFLICTS
+        if getattr(args, attr, None) not in (None, False)
+    ]
+    if conflicts:
+        print(
+            "Error: --publish-preview cannot be combined with "
+            + ", ".join(conflicts)
+            + "; a published preview must use the global hourly policy.",
+            file=sys.stderr,
+        )
+        return 2
+
+    projects_root = (
+        Path(args.projects_root).expanduser()
+        if getattr(args, "projects_root", None)
+        else None
+    )
+    projects = load_project_ref_display_snapshot(projects_root=projects_root)
+    policy = AceRunRetentionPolicy(
+        now=datetime.now(get_timezone()),
+        keep_recent_months=get_artifact_retention_keep_recent_run_months(),
+        projects_root=projects_root,
+    )
+    index_path = (
+        Path(args.index_path).expanduser()
+        if getattr(args, "index_path", None)
+        else None
+    )
+    protections = collect_ace_run_retention_protections(
+        projects_root=projects_root,
+        artifact_index_path=index_path,
+    )
+    plan = plan_ace_run_retention(policy, protections=protections)
+    try:
+        outcome = publish_run_prune_preview(plan)
+    except Exception as exc:  # noqa: BLE001 - surface publish failures as exit 1.
+        message = f"publish-preview failed: {exc}"
+        emit_artifact_prune_runs_preview_result(
+            success=False,
+            message=message,
+            payload={"error": str(exc)},
+        )
+        print(f"Error: {message}", file=sys.stderr)
+        return 1
+
+    publish_block = {
+        "fingerprint": outcome.fingerprint,
+        "selected": outcome.selected,
+        "bytes": outcome.bytes,
+        "unavailable_count": len(outcome.unavailable_sources),
+        "unavailable_sources": list(outcome.unavailable_sources[:6]),
+        "notification_action": outcome.action,
+    }
+    if outcome.action in ("retired", "none"):
+        message = "Retired stale previews (nothing to prune)"
+    else:
+        message = "Published inbox preview"
+    emit_artifact_prune_runs_preview_result(
+        success=True,
+        message=message,
+        payload=publish_block,
+    )
+    payload = {
+        "schema_version": ARTIFACT_PRUNE_RUNS_SCHEMA_VERSION,
+        "mode": "publish_preview",
+        "blocked": bool(plan.sources_unavailable),
+        "plan": plan.to_json_dict(),
+        "execution": None,
+        "snapshot": None,
+        "publish": publish_block,
+    }
+    if bool(getattr(args, "json", False)):
+        json.dump(payload, sys.stdout, indent=2)
+        sys.stdout.write("\n")
+    else:
+        console = Console()
+        _print_plan(plan, projects=projects, console=console)
+        for source in plan.sources_unavailable:
+            console.print(f"[yellow]Protection source unavailable:[/yellow] {source}")
+        console.print(message)
     return 0
 
 
@@ -255,24 +355,13 @@ def _notify_result(
         print(f"Warning: prune-runs notification failed: {exc}", file=sys.stderr)
         return
     if execution.blocked_reason is None:
-        _dismiss_live_previews()
-
-
-def _dismiss_live_previews() -> None:
-    try:
-        rows = load_notifications(include_dismissed=True)
-    except Exception as exc:  # noqa: BLE001 - dismissal is best effort.
-        print(f"Warning: cannot list notifications to retire: {exc}", file=sys.stderr)
-        return
-    for row in rows:
-        if row.dismissed or row.sender != _PREVIEW_SENDER:
-            continue
-        if not (row.dedup_key or "").startswith(_PREVIEW_DEDUP_PREFIX):
-            continue
         try:
-            mark_dismissed(row.id)
-        except Exception as exc:  # noqa: BLE001 - keep retiring the rest.
-            print(f"Warning: cannot dismiss preview {row.id}: {exc}", file=sys.stderr)
+            end_run_prune_preview_episode()
+        except Exception as exc:  # noqa: BLE001 - dismissal is best effort.
+            print(
+                f"Warning: cannot retire live prune previews: {exc}",
+                file=sys.stderr,
+            )
 
 
 def _result_notification(

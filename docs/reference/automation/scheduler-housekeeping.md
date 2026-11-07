@@ -294,21 +294,25 @@ job crashing. The summary reports `candidates`, `selected` run directories,
 `protected`, and `unavailable` protection sources; any unavailable source turns the run
 into `check_error`. Whenever the preview finds candidates or protection problems, the
 job writes a review snapshot and upserts an actionable Axe `ViewReport` notification.
-The notification is deduplicated by a fingerprint of the findings, so an unchanged
-preview adds a `+1` note to the existing notification; a changed preview retires the
-stale row. Enter opens the snapshot review, and confirming it quarantines the reviewed
-runs into journaled, restorable trash (`sase artifact prune-runs --apply`, optionally
-restricted with `--snapshot`). Protections are re-verified before every move, and
-unattended apply paths still refuse. The hourly job permanently purges batches after the
-configured `artifacts.retention.trash_grace_days` period; runs that gain a protection
-reference are restored instead.
+The notification is episode-deduplicated: a repeat of the current preview adds a `+1`
+note; any change, including a return to an earlier fingerprint, starts a fresh row and
+retires older preview rows; a clean nothing-to-prune run retires them too. Enter opens
+the snapshot review. In a ready review, `y` quarantines the reviewed runs into
+journaled, restorable trash (`sase artifact prune-runs --apply`, optionally restricted
+with `--snapshot`). When protections were unreadable or the snapshot is missing, `y`
+starts a durable re-check that republishes the preview
+(`sase artifact prune-runs --publish-preview`). Protections are re-verified before every
+move, and unattended apply paths still refuse. The hourly job permanently purges batches
+after the configured `artifacts.retention.trash_grace_days` period; runs that gain a
+protection reference are restored instead.
 
 The review panel shows the snapshot age, selected run count and bytes, protected count,
 retained month window, and project totals. A preview older than 24 hours is marked
-stale; apply still rechecks the captured selection. `r` opens the full report, `y`
-confirms **Move to trash**, and `n` or `Esc` cancels. Confirmation is disabled while the
-snapshot is being checked, when it is missing, when protection data is unavailable, or
-while pruning is already running. Cancel has initial focus.
+stale; apply still rechecks the captured selection. `r` opens the full report. In a
+ready review, `y` confirms **Move to trash**. When protections were unreadable or the
+snapshot is missing, `y` starts a re-check that republishes the preview. `n` or `Esc`
+cancels. Confirmation is disabled while the snapshot is being checked or while a prune
+or re-check is already running. Cancel has initial focus.
 
 Confirmation starts a background process using the snapshot's selection identifier
 (fingerprint), so closing the TUI does not cancel the operation. Its result reports

@@ -118,6 +118,7 @@ async def test_preview_dispatch_quarantine_and_restore_round_trip(
     import importlib
 
     chop = importlib.import_module("sase.scripts.sase_chop_artifact_run_prune")
+    publish = importlib.import_module("sase.core.agent_artifact_run_prune_publish")
     prune_cli = importlib.import_module("sase.artifact_cli.prune_runs")
     trash_cli = importlib.import_module("sase.artifact_cli.trash")
     monkeypatch.setattr(
@@ -126,7 +127,7 @@ async def test_preview_dispatch_quarantine_and_restore_round_trip(
         lambda **_kwargs: protections,
     )
     monkeypatch.setattr(
-        chop,
+        publish,
         "load_project_ref_display_snapshot",
         lambda **_kwargs: ProjectRefDisplaySnapshot(),
     )

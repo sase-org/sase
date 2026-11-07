@@ -140,10 +140,12 @@ def _notification() -> Notification:
     )
 
 
-def _patch_review_loader(monkeypatch: pytest.MonkeyPatch) -> None:
+def _patch_review_loader(
+    monkeypatch: pytest.MonkeyPatch, *, blocked: bool = False
+) -> None:
     monkeypatch.setattr(
         "sase.core.agent_artifact_run_prune_review.load_snapshot",
-        lambda _fingerprint: _snapshot(_review()),
+        lambda _fingerprint: _snapshot(_review(blocked=blocked)),
     )
     monkeypatch.setattr(
         "sase.project_display_names.cached_project_display_snapshot",
@@ -165,7 +167,7 @@ async def _capture(
     size: tuple[int, int],
     blocked: bool = False,
 ) -> None:
-    _patch_review_loader(monkeypatch)
+    _patch_review_loader(monkeypatch, blocked=blocked)
     patch_startup_loaders(monkeypatch, agents=[])
 
     async with AcePage(query='"visual"', size=size, patches=patches()) as page:
@@ -182,6 +184,8 @@ async def _capture(
         assert_page_svg_contains(page, "snapshot · 33m ago")
         if blocked:
             assert_page_svg_contains(page, "Protection sources are unreadable")
+            assert_page_svg_contains(page, "Re-check protections")
+            assert_page_svg_contains(page, "y re-check now")
         else:
             assert_page_svg_contains(page, "Move 2,634 runs to trash")
             assert_page_svg_contains(page, "sase")

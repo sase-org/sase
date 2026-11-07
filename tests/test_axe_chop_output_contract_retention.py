@@ -25,10 +25,15 @@ from tests.test_axe_chop_output_contract_retention_prune import (
 )
 from tests.test_axe_chop_output_contract_retention_prune_real_store import (
     test_artifact_run_prune_real_store_empty_shards_only_preview_notifies,
+    test_artifact_run_prune_real_store_incident_recurrence_starts_fresh_episode,
+    test_artifact_run_prune_real_store_legacy_key_self_heals,
+    test_artifact_run_prune_real_store_nothing_to_prune_retires_and_clears_key,
     test_artifact_run_prune_real_store_protection_warning_deduplicates,
+    test_artifact_run_prune_real_store_publish_lock_serializes_concurrent_calls,
     test_artifact_run_prune_real_store_reclaimable_preview_uses_aware_timestamps,
     test_artifact_run_prune_real_store_repeat_appends_aware_plus_one,
     test_artifact_run_prune_real_store_supersedes_changed_preview,
+    test_artifact_run_prune_real_store_user_dismissal_is_respected,
 )
 
 __test__ = False
@@ -41,10 +46,15 @@ __all__ = [
     "test_artifact_run_prune_preview_uses_project_unavailable_label",
     "test_artifact_run_prune_purges_before_plan_and_snapshot",
     "test_artifact_run_prune_real_store_empty_shards_only_preview_notifies",
+    "test_artifact_run_prune_real_store_incident_recurrence_starts_fresh_episode",
+    "test_artifact_run_prune_real_store_legacy_key_self_heals",
+    "test_artifact_run_prune_real_store_nothing_to_prune_retires_and_clears_key",
     "test_artifact_run_prune_real_store_protection_warning_deduplicates",
+    "test_artifact_run_prune_real_store_publish_lock_serializes_concurrent_calls",
     "test_artifact_run_prune_real_store_reclaimable_preview_uses_aware_timestamps",
     "test_artifact_run_prune_real_store_repeat_appends_aware_plus_one",
     "test_artifact_run_prune_real_store_supersedes_changed_preview",
+    "test_artifact_run_prune_real_store_user_dismissal_is_respected",
     "test_artifact_run_prune_supersedes_stale_preview_key",
     "test_artifact_run_prune_upserts_actionable_preview_notification",
     "test_epic_launch_flush_emits_noop_summary",

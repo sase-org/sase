@@ -1,4 +1,4 @@
-{"count": 3698, "rev": "45a1246287c7", "schema": "sase.footprint.catalog/1"}
+{"count": 3699, "rev": "837ae8cb884f", "schema": "sase.footprint.catalog/1"}
 {"area": "automation", "id": "auto:axe.agent_waits", "kind": "auto", "label": "Resolve agent wait dependencies within seconds of completion", "ns": "auto", "parent": null, "src": "sase/default_config.yml"}
 {"area": "automation", "id": "auto:axe.agent_waits.wait_checks", "kind": "auto", "label": "Resolve agent wait dependencies and write ready.json when satisfied", "ns": "auto", "parent": "auto:axe.agent_waits", "src": "sase/default_config.yml"}
 {"area": "automation", "id": "auto:axe.checks", "kind": "auto", "label": "Poll slower PR-submission and workspace-claim checks on a five-minute cadence", "ns": "auto", "parent": null, "src": "sase/default_config.yml"}
@@ -355,6 +355,7 @@
 {"area": "cli.artifact", "id": "cli:artifact.prune-runs#notify", "kind": "option", "label": "Option --notify of cli:artifact.prune-runs", "ns": "cli", "parent": "cli:artifact.prune-runs", "src": "sase/main/parser_artifact.py:register_artifact_parser"}
 {"area": "cli.artifact", "id": "cli:artifact.prune-runs#project", "kind": "option", "label": "Option --project of cli:artifact.prune-runs", "ns": "cli", "parent": "cli:artifact.prune-runs", "src": "sase/main/parser_artifact.py:register_artifact_parser"}
 {"area": "cli.artifact", "id": "cli:artifact.prune-runs#projects_root", "kind": "option", "label": "Option --projects_root of cli:artifact.prune-runs", "ns": "cli", "parent": "cli:artifact.prune-runs", "src": "sase/main/parser_artifact.py:register_artifact_parser"}
+{"area": "cli.artifact", "id": "cli:artifact.prune-runs#publish_preview", "kind": "option", "label": "Option --publish_preview of cli:artifact.prune-runs", "ns": "cli", "parent": "cli:artifact.prune-runs", "src": "sase/main/parser_artifact.py:register_artifact_parser"}
 {"area": "cli.artifact", "id": "cli:artifact.prune-runs#snapshot", "kind": "option", "label": "Option --snapshot of cli:artifact.prune-runs", "ns": "cli", "parent": "cli:artifact.prune-runs", "src": "sase/main/parser_artifact.py:register_artifact_parser"}
 {"area": "cli.artifact", "id": "cli:artifact.read", "kind": "command", "label": "Print an artifact after recording an audited read", "ns": "cli", "parent": null, "src": "sase/main/parser_artifact.py:register_artifact_parser"}
 {"area": "cli.artifact", "id": "cli:artifact.read#format", "kind": "option", "label": "Option --format of cli:artifact.read", "ns": "cli", "parent": "cli:artifact.read", "src": "sase/main/parser_artifact.py:register_artifact_parser"}

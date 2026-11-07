@@ -424,6 +424,16 @@ def register_artifact_parser(subparsers: argparse._SubParsersAction) -> None:
         help="SASE projects root to scan (default: ~/.sase/projects)",
     )
     prune_runs_parser.add_argument(
+        "-P",
+        "--publish-preview",
+        action="store_true",
+        help=(
+            "Re-check protections and publish the result as the inbox prune "
+            "preview, exactly like the hourly housekeeping job (does not "
+            "purge trash)."
+        ),
+    )
+    prune_runs_parser.add_argument(
         "-s",
         "--snapshot",
         default=None,

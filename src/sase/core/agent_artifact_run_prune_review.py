@@ -68,10 +68,16 @@ def preview_fingerprint(plan: AceRunRetentionPlan) -> str:
     return hashlib.sha256(encoded).hexdigest()[:16]
 
 
-def _snapshot_dir() -> Path:
+def snapshot_dir() -> Path:
     """Return the directory holding run-prune snapshot files."""
 
     return sase_home() / "artifact_retention" / "run_prune_snapshots"
+
+
+def _snapshot_dir() -> Path:
+    """Return the directory holding run-prune snapshot files."""
+
+    return snapshot_dir()
 
 
 def _snapshot_path(fingerprint: str) -> Path:
@@ -570,5 +576,6 @@ __all__ = [
     "parse_run_prune_review",
     "preview_fingerprint",
     "project_label_or_unavailable",
+    "snapshot_dir",
     "write_snapshot",
 ]

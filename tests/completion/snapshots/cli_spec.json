@@ -6899,7 +6899,7 @@
           {
             "aliases": [],
             "default_child": null,
-            "description_digest": "76c958f521113c35",
+            "description_digest": "6aaba1b4c8284530",
             "hidden": false,
             "mutex_groups": [],
             "name": "prune-runs",
@@ -7047,6 +7047,22 @@
                 ],
                 "takes_value": true,
                 "value_hint": "path"
+              },
+              {
+                "choices": null,
+                "default": "False",
+                "dest": "publish_preview",
+                "hidden": false,
+                "kind": null,
+                "metavar": null,
+                "repeatable": false,
+                "required": false,
+                "strings": [
+                  "-P",
+                  "--publish-preview"
+                ],
+                "takes_value": false,
+                "value_hint": null
               },
               {
                 "choices": null,

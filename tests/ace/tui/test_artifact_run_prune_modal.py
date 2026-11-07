@@ -8,11 +8,13 @@ from typing import Any
 
 import pytest
 from textual.app import App, ComposeResult
-from textual.widgets import Static
+from textual.widgets import Button, Static
 
 from sase.ace.testing.wait import wait_for
+from sase.ace.tui.modals._artifact_run_prune_recheck import _on_recheck_complete
 from sase.ace.tui.modals.artifact_run_prune_modal import ArtifactRunPruneModal
 from sase.ace.tui.modals.report_modal import ReportModal
+from sase.ops.names import ARTIFACT_PRUNE_RUNS, ARTIFACT_PRUNE_RUNS_PREVIEW
 from sase.core.agent_artifact_run_prune_review import (
     RunPruneProjectAggregate,
     RunPruneReview,
@@ -158,6 +160,14 @@ async def test_ready_confirmation_submits_one_durable_proc(
         await _wait_ready(pilot, modal)
         assert modal._view.state == "READY"
         assert modal.query_one("#prune-review-cancel").has_focus
+        move = modal.query_one("#prune-review-move", Button)
+        assert str(move.label) == "🧹 Move 1 run to trash"
+        assert move.disabled is False
+        assert move.variant == "warning"
+        assert (
+            modal.query_one("#prune-review-footer", Static).render().plain
+            == "y move to trash · r full report · n/esc cancel"
+        )
 
         await pilot.press("y")
 
@@ -173,7 +183,7 @@ async def test_ready_confirmation_submits_one_durable_proc(
             "--notify",
             "--json",
         ]
-        assert kwargs["operation"] == "artifact.prune-runs"
+        assert kwargs["operation"] == ARTIFACT_PRUNE_RUNS
         assert kwargs["request"] == {"snapshot": "0123456789abcdef"}
         assert kwargs["request_fingerprint"].startswith("sha256:")
         assert kwargs["concurrency_keys"] == ("artifact-run-prune",)
@@ -187,46 +197,93 @@ async def test_ready_confirmation_submits_one_durable_proc(
         ]
 
 
-@pytest.mark.parametrize(
-    ("review_blocked", "snapshot_exists", "projection", "expected"),
-    [
-        (True, True, None, "BLOCKED"),
-        (False, False, None, "SNAPSHOT_MISSING"),
-        (False, True, "running", "RUNNING"),
-    ],
-)
-async def test_non_ready_states_never_submit(
+def _patch_snapshot(
     monkeypatch: pytest.MonkeyPatch,
-    review_blocked: bool,
-    snapshot_exists: bool,
-    projection: str | None,
-    expected: str,
+    *,
+    review: RunPruneReview,
+    snapshot_exists: bool = True,
 ) -> None:
     monkeypatch.setattr(
         "sase.core.agent_artifact_run_prune_review.load_snapshot",
-        lambda _fingerprint: (
-            _snapshot(_review(blocked=review_blocked)) if snapshot_exists else None
-        ),
+        lambda _fingerprint: _snapshot(review) if snapshot_exists else None,
     )
     monkeypatch.setattr(
         "sase.project_display_names.cached_project_display_snapshot",
         lambda: {},
     )
-    modal = ArtifactRunPruneModal(_review(blocked=review_blocked), _notification())
+
+
+def _assert_recheck_submission(app: _PilotApp) -> None:
+    assert len(app.submissions) == 1
+    argv, kwargs = app.submissions[0]
+    assert argv == [
+        "sase",
+        "artifact",
+        "prune-runs",
+        "--publish-preview",
+        "--json",
+    ]
+    assert kwargs["operation"] == ARTIFACT_PRUNE_RUNS_PREVIEW
+    assert "nonce" in kwargs["request"]
+    assert kwargs["request_fingerprint"].startswith("sha256:")
+    assert kwargs["concurrency_keys"] == ("artifact-run-prune",)
+    assert kwargs["label"] == "Re-check ACE run prune"
+    assert kwargs["display_name"] == "Re-check ACE run prune"
+    assert kwargs["duplicate_message"] == "ACE run pruning is already running"
+    assert kwargs["reload_on_complete"] is False
+    assert kwargs["notify_on_complete"] is False
+    assert app.notifications == [
+        ("↻ Re-checking ACE run prune protections…", "information")
+    ]
+
+
+async def test_blocked_confirm_submits_recheck(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    review = _review(blocked=True)
+    _patch_snapshot(monkeypatch, review=review)
+    modal = ArtifactRunPruneModal(review, _notification())
     app = _PilotApp(modal)
-    if projection == "running":
-        app._proc_projection = SimpleNamespace(scope_conflict=lambda _scopes: object())
 
     async with app.run_test(size=(100, 32)) as pilot:
-        await wait_for(pilot, lambda: modal._view.state == expected)
-        assert modal._view.state == expected
-
+        await wait_for(pilot, lambda: modal._view.state == "BLOCKED")
+        move = modal.query_one("#prune-review-move", Button)
+        assert str(move.label) == "↻ Re-check protections"
+        assert move.disabled is False
+        assert move.variant == "primary"
+        assert (
+            modal.query_one("#prune-review-footer", Static).render().plain
+            == "y re-check now · r full report · n/esc cancel"
+        )
         await pilot.press("y")
 
-        assert app.submissions == []
+    _assert_recheck_submission(app)
 
 
-async def test_snapshot_that_no_longer_matches_preview_cannot_be_confirmed(
+async def test_snapshot_missing_confirm_submits_recheck(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    review = _review()
+    _patch_snapshot(monkeypatch, review=review, snapshot_exists=False)
+    modal = ArtifactRunPruneModal(review, _notification())
+    app = _PilotApp(modal)
+
+    async with app.run_test(size=(100, 32)) as pilot:
+        await wait_for(pilot, lambda: modal._view.state == "SNAPSHOT_MISSING")
+        move = modal.query_one("#prune-review-move", Button)
+        assert str(move.label) == "↻ Refresh preview"
+        assert move.disabled is False
+        assert move.variant == "primary"
+        assert (
+            modal.query_one("#prune-review-footer", Static).render().plain
+            == "y re-check now · r full report · n/esc cancel"
+        )
+        await pilot.press("y")
+
+    _assert_recheck_submission(app)
+
+
+async def test_snapshot_that_no_longer_matches_preview_submits_recheck(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     review = _review()
@@ -253,7 +310,58 @@ async def test_snapshot_that_no_longer_matches_preview_cannot_be_confirmed(
         await _wait_ready(pilot, modal)
         assert modal._view.state == "SNAPSHOT_MISSING"
         await pilot.press("y")
+
+    _assert_recheck_submission(app)
+
+
+async def test_running_warns_and_does_not_submit(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    review = _review()
+    _patch_snapshot(monkeypatch, review=review)
+    modal = ArtifactRunPruneModal(review, _notification())
+    app = _PilotApp(modal)
+    app._proc_projection = SimpleNamespace(scope_conflict=lambda _scopes: object())
+
+    async with app.run_test(size=(100, 32)) as pilot:
+        await wait_for(pilot, lambda: modal._view.state == "RUNNING")
+        move = modal.query_one("#prune-review-move", Button)
+        assert move.disabled is True
+        assert (
+            modal.query_one("#prune-review-footer", Static).render().plain
+            == "r full report · n/esc cancel"
+        )
+        await pilot.press("y")
+
         assert app.submissions == []
+        assert app.notifications == [("ACE run pruning is already running.", "warning")]
+
+
+async def test_checking_warns_and_does_not_submit(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    async def _skip_load(_self: ArtifactRunPruneModal) -> None:
+        return None
+
+    monkeypatch.setattr(ArtifactRunPruneModal, "_load_snapshot_state", _skip_load)
+    modal = ArtifactRunPruneModal(_review(), _notification())
+    app = _PilotApp(modal)
+
+    async with app.run_test(size=(100, 32)) as pilot:
+        await wait_for(pilot, lambda: modal._view.state == "CHECKING")
+        move = modal.query_one("#prune-review-move", Button)
+        assert str(move.label) == "🧹 Move 1 run to trash"
+        assert move.disabled is True
+        assert (
+            modal.query_one("#prune-review-footer", Static).render().plain
+            == "r full report · n/esc cancel"
+        )
+        await pilot.press("y")
+
+        assert app.submissions == []
+        assert app.notifications == [
+            ("Still checking this preview — try again in a moment.", "warning")
+        ]
 
 
 async def test_report_opens_on_top_and_returns_to_review(
@@ -397,3 +505,85 @@ async def test_completion_warns_on_index_errors() -> None:
                 "warning",
             )
         ]
+
+
+class _RecheckHost:
+    def __init__(self) -> None:
+        self.notifications: list[tuple[str, str]] = []
+        self.refreshed = 0
+
+    def notify(self, message: str, *, severity: str = "information") -> None:
+        self.notifications.append((message, severity))
+
+    def _refresh_notification_count(self) -> None:
+        self.refreshed += 1
+
+
+def test_recheck_completion_toasts_actionable_preview() -> None:
+    host = _RecheckHost()
+    _on_recheck_complete(
+        host,
+        SimpleNamespace(
+            success=True,
+            payload={"selected": 3, "bytes": 2048, "unavailable_count": 0},
+        ),
+    )
+    assert host.notifications == [
+        (
+            "🧹 Protections re-checked — a fresh preview is ready: "
+            "3 runs · 2.0 KiB. Open it from the inbox.",
+            "information",
+        )
+    ]
+    assert host.refreshed == 1
+
+
+def test_recheck_completion_toasts_still_paused() -> None:
+    host = _RecheckHost()
+    _on_recheck_complete(
+        host,
+        SimpleNamespace(
+            success=True,
+            payload={
+                "selected": 0,
+                "bytes": 0,
+                "unavailable_count": 2,
+                "unavailable_sources": ["body:beads", "body:plans"],
+            },
+        ),
+    )
+    assert host.notifications == [
+        (
+            "🧹 Still paused: 2 protection sources are unreadable "
+            "(body:beads). See the proc log.",
+            "error",
+        )
+    ]
+    assert host.refreshed == 1
+
+
+def test_recheck_completion_toasts_nothing_to_prune() -> None:
+    host = _RecheckHost()
+    _on_recheck_complete(
+        host,
+        SimpleNamespace(
+            success=True,
+            payload={"selected": 0, "bytes": 0, "unavailable_count": 0},
+        ),
+    )
+    assert host.notifications == [
+        ("🧹 Protections re-checked — nothing to prune.", "information")
+    ]
+    assert host.refreshed == 1
+
+
+def test_recheck_completion_toasts_proc_failure() -> None:
+    host = _RecheckHost()
+    _on_recheck_complete(
+        host,
+        SimpleNamespace(success=False, error="boom", message=None, payload=None),
+    )
+    assert host.notifications == [
+        ("🧹 Re-check failed: boom. See the proc log.", "error")
+    ]
+    assert host.refreshed == 1

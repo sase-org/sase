@@ -30,6 +30,52 @@ from tests._axe_chop_output_contract_helpers import (
     write_output_contract_context,
 )
 
+
+def _publish_mod():
+    return importlib.import_module("sase.core.agent_artifact_run_prune_publish")
+
+
+def _capture_upsert(monkeypatch: pytest.MonkeyPatch) -> list[Any]:
+    captured: list[Any] = []
+    publish = _publish_mod()
+
+    def upsert(notification: Any, **kwargs: Any) -> SimpleNamespace:
+        captured.append((notification, kwargs))
+        return SimpleNamespace(action="created", id=notification.id)
+
+    monkeypatch.setattr(publish, "upsert_notification", upsert)
+    return captured
+
+
+def _stub_publish_io(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    *,
+    last_key: str | None = None,
+) -> None:
+    publish = _publish_mod()
+    monkeypatch.setattr(
+        publish,
+        "write_snapshot",
+        lambda *_args, **_kwargs: (
+            "deadbeefdeadbeef",
+            tmp_path / "deadbeefdeadbeef.json",
+        ),
+    )
+    monkeypatch.setattr(publish, "_read_last_preview_key", lambda _directory: last_key)
+    monkeypatch.setattr(publish, "_write_last_preview_key", lambda *_args: None)
+    monkeypatch.setattr(publish, "_live_preview_rows", lambda: [])
+    monkeypatch.setattr(publish, "mark_many_dismissed", lambda *_args, **_kwargs: 0)
+    monkeypatch.setattr(
+        publish,
+        "load_project_ref_display_snapshot",
+        lambda **_kwargs: SimpleNamespace(
+            display_snapshot={"proj": "Pretty Project"},
+            label_for_ref=lambda _project: "Pretty Project",
+        ),
+    )
+
+
 __all__ = [
     "test_artifact_run_prune_busy_trash_lock_skips_notification",
     "test_artifact_run_prune_emits_noop_summary",
@@ -51,7 +97,6 @@ def test_artifact_run_prune_emits_noop_summary(
     result_path = tmp_path / "result.json"
     context_path = write_output_contract_context(tmp_path, result_path)
     plan = retention_plan()
-    notifications: list[Any] = []
     monkeypatch.setattr(
         script,
         "collect_ace_run_retention_protections",
@@ -65,11 +110,7 @@ def test_artifact_run_prune_emits_noop_summary(
         "purge_ace_run_trash",
         lambda *_args, **_kwargs: retention_purge_result(),
     )
-    monkeypatch.setattr(
-        script,
-        "upsert_notification",
-        lambda notification, **kwargs: notifications.append((notification, kwargs)),
-    )
+    notifications = _capture_upsert(monkeypatch)
 
     run_builtin_chop("artifact_run_prune", ["--context", str(context_path)])
 
@@ -106,7 +147,6 @@ def test_artifact_run_prune_upserts_actionable_preview_notification(
         empty_shards=(retention_empty_shard(tmp_path),),
         reclaimable_bytes=2048,
     )
-    notifications: list[Any] = []
     monkeypatch.setattr(
         script,
         "collect_ace_run_retention_protections",
@@ -120,29 +160,8 @@ def test_artifact_run_prune_upserts_actionable_preview_notification(
         "purge_ace_run_trash",
         lambda *_args, **_kwargs: retention_purge_result(),
     )
-    monkeypatch.setattr(
-        script,
-        "write_snapshot",
-        lambda *_args, **_kwargs: (
-            "deadbeefdeadbeef",
-            tmp_path / "deadbeefdeadbeef.json",
-        ),
-    )
-    monkeypatch.setattr(script, "_read_last_preview_key", lambda _directory: None)
-    monkeypatch.setattr(script, "_write_last_preview_key", lambda *_args: None)
-    monkeypatch.setattr(
-        script,
-        "load_project_ref_display_snapshot",
-        lambda **_kwargs: SimpleNamespace(
-            display_snapshot={"proj": "Pretty Project"},
-            label_for_ref=lambda _project: "Pretty Project",
-        ),
-    )
-    monkeypatch.setattr(
-        script,
-        "upsert_notification",
-        lambda notification, **kwargs: notifications.append((notification, kwargs)),
-    )
+    _stub_publish_io(monkeypatch, tmp_path)
+    notifications = _capture_upsert(monkeypatch)
 
     run_builtin_chop("artifact_run_prune", ["--context", str(context_path)])
 
@@ -190,7 +209,6 @@ def test_artifact_run_prune_notifies_when_protection_sources_are_unavailable(
         reclaimable_bytes=0,
         sources_unavailable=("beads: unreadable",),
     )
-    notifications: list[Any] = []
     monkeypatch.setattr(
         script,
         "collect_ace_run_retention_protections",
@@ -204,27 +222,8 @@ def test_artifact_run_prune_notifies_when_protection_sources_are_unavailable(
         "purge_ace_run_trash",
         lambda *_args, **_kwargs: retention_purge_result(),
     )
-    monkeypatch.setattr(
-        script,
-        "write_snapshot",
-        lambda *_args, **_kwargs: (
-            "deadbeefdeadbeef",
-            tmp_path / "deadbeefdeadbeef.json",
-        ),
-    )
-    monkeypatch.setattr(
-        script,
-        "load_project_ref_display_snapshot",
-        lambda **_kwargs: SimpleNamespace(
-            display_snapshot={"proj": "Pretty Project"},
-            label_for_ref=lambda _project: "Pretty Project",
-        ),
-    )
-    monkeypatch.setattr(
-        script,
-        "upsert_notification",
-        lambda notification, **kwargs: notifications.append((notification, kwargs)),
-    )
+    _stub_publish_io(monkeypatch, tmp_path)
+    notifications = _capture_upsert(monkeypatch)
 
     run_builtin_chop("artifact_run_prune", ["--context", str(context_path)])
 
@@ -266,18 +265,19 @@ def test_artifact_run_prune_purges_before_plan_and_snapshot(
         "plan_ace_run_retention",
         lambda *_args, **_kwargs: events.append("plan") or plan,
     )
+    publish = _publish_mod()
     monkeypatch.setattr(
-        script,
+        publish,
         "write_snapshot",
         lambda *_args, **_kwargs: (
             events.append("snapshot")
             or ("deadbeefdeadbeef", tmp_path / "deadbeefdeadbeef.json")
         ),
     )
-    monkeypatch.setattr(script, "_read_last_preview_key", lambda _directory: None)
-    monkeypatch.setattr(script, "_write_last_preview_key", lambda *_args: None)
+    monkeypatch.setattr(publish, "_read_last_preview_key", lambda _directory: None)
+    monkeypatch.setattr(publish, "_write_last_preview_key", lambda *_args: None)
     monkeypatch.setattr(
-        script,
+        publish,
         "load_project_ref_display_snapshot",
         lambda **_kwargs: SimpleNamespace(
             display_snapshot={"proj": "Pretty Project"},
@@ -285,9 +285,11 @@ def test_artifact_run_prune_purges_before_plan_and_snapshot(
         ),
     )
     monkeypatch.setattr(
-        script,
+        publish,
         "upsert_notification",
-        lambda *_args, **_kwargs: events.append("notify"),
+        lambda *_args, **_kwargs: (
+            events.append("notify") or SimpleNamespace(action="created", id="n1")
+        ),
     )
     result_path = tmp_path / "result.json"
     context_path = write_output_contract_context(tmp_path, result_path)
@@ -305,7 +307,7 @@ def test_artifact_run_prune_busy_trash_lock_skips_notification(
     plan = retention_plan(
         selected=(retention_selected_item(tmp_path),), reclaimable_bytes=2048
     )
-    notifications: list[object] = []
+    notifications = _capture_upsert(monkeypatch)
     monkeypatch.setattr(
         script, "collect_ace_run_retention_protections", lambda **_kw: object()
     )
@@ -316,11 +318,6 @@ def test_artifact_run_prune_busy_trash_lock_skips_notification(
     )
     monkeypatch.setattr(
         script, "plan_ace_run_retention", lambda *_args, **_kwargs: plan
-    )
-    monkeypatch.setattr(
-        script,
-        "upsert_notification",
-        lambda *args, **kwargs: notifications.append(args),
     )
     result_path = tmp_path / "result.json"
     context_path = write_output_contract_context(tmp_path, result_path)
@@ -337,35 +334,14 @@ def test_artifact_run_prune_supersedes_stale_preview_key(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
-    script = importlib.import_module("sase.scripts.sase_chop_artifact_run_prune")
+    publish = _publish_mod()
     plan = retention_plan(
         selected=(retention_selected_item(tmp_path),), reclaimable_bytes=2048
     )
-    captured: list[tuple[object, dict[str, object]]] = []
-    monkeypatch.setattr(
-        script,
-        "write_snapshot",
-        lambda *_args, **_kwargs: ("deadbeefdeadbeef", tmp_path / "snapshot.json"),
-    )
-    monkeypatch.setattr(
-        script, "_read_last_preview_key", lambda _directory: "old-preview"
-    )
-    monkeypatch.setattr(script, "_write_last_preview_key", lambda *_args: None)
-    monkeypatch.setattr(
-        script,
-        "load_project_ref_display_snapshot",
-        lambda **_kwargs: SimpleNamespace(
-            display_snapshot={"proj": "Pretty Project"},
-            label_for_ref=lambda _project: "Pretty Project",
-        ),
-    )
-    monkeypatch.setattr(
-        script,
-        "upsert_notification",
-        lambda notification, **kwargs: captured.append((notification, kwargs)),
-    )
+    _stub_publish_io(monkeypatch, tmp_path, last_key="old-preview")
+    captured = _capture_upsert(monkeypatch)
 
-    script._notify_actionable_preview(plan)
+    publish.publish_run_prune_preview(plan)
 
     assert captured[0][1]["supersedes"] == "old-preview"
 
@@ -374,20 +350,20 @@ def test_artifact_run_prune_preview_uses_configured_grace_days(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
-    script = importlib.import_module("sase.scripts.sase_chop_artifact_run_prune")
+    publish = _publish_mod()
     plan = retention_plan(
         selected=(retention_selected_item(tmp_path),), reclaimable_bytes=2048
     )
-    monkeypatch.setattr(script, "get_artifact_retention_trash_grace_days", lambda: 3)
+    monkeypatch.setattr(publish, "get_artifact_retention_trash_grace_days", lambda: 3)
     monkeypatch.setattr(
-        script,
+        publish,
         "load_project_ref_display_snapshot",
         lambda **_kwargs: SimpleNamespace(display_snapshot={"proj": "Pretty Project"}),
     )
-    notes = script._notification_notes(plan)
+    notes = publish._notification_notes(plan)
     assert any("3 days" in note for note in notes)
     assert all("14 days" not in note for note in notes)
-    report = script._preview_report(plan)
+    report = publish._preview_report(plan)
     serialized = json.dumps(report.to_dict())
     assert "3 days" in serialized
     assert "14 days" not in serialized
@@ -397,14 +373,14 @@ def test_artifact_run_prune_preview_uses_project_unavailable_label(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
-    script = importlib.import_module("sase.scripts.sase_chop_artifact_run_prune")
+    publish = _publish_mod()
     plan = retention_plan(
         selected=(retention_selected_item(tmp_path),), reclaimable_bytes=2048
     )
     monkeypatch.setattr(
-        script,
+        publish,
         "load_project_ref_display_snapshot",
         lambda **_kwargs: SimpleNamespace(display_snapshot={}),
     )
-    report = json.dumps(script._preview_report(plan).to_dict())
+    report = json.dumps(publish._preview_report(plan).to_dict())
     assert "Project unavailable" in report

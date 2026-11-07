@@ -258,6 +258,7 @@ def test_public_long_options_are_alphabetical_and_have_short_aliases() -> None:
         "--notify",
         "--project",
         "--projects-root",
+        "--publish-preview",
         "--snapshot",
     ]
     assert _long_options(subcommands.choices["reclaim"]) == [
