@@ -16,9 +16,11 @@ without launching pytest.
 from __future__ import annotations
 
 import json
-from collections.abc import Iterable, Sequence
+import os
+from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 
 
 #: Names the file `tests._contention_plugin` writes one repeat's failures to.
@@ -26,6 +28,38 @@ FAILURES_ENV = "SASE_CONTENTION_FAILURES"
 #: Bumped only if the on-disk shape changes; a mismatch is read as no record,
 #: because a stale soak artifact is never worth failing a diagnostic run over.
 FAILURES_SCHEMA = 1
+
+#: The per-repeat diagnostic progress directory the harness hands the
+#: controller. `tests._contention_progress` writes it and
+#: `tests._contention_sampler` reads it; neither may import the other's runtime
+#: (the sampler must not pay for importing pytest), so the format lives here.
+DIAGNOSTICS_ENV = "SASE_CONTENTION_DIAGNOSTICS"
+DIAGNOSTICS_DIRNAME = "diagnostics"
+PROGRESS_DIRNAME = "progress"
+CONTROLLER_PROGRESS_FILENAME = "controller.json"
+WORKER_PROGRESS_PREFIX = "worker-"
+KILLS_FILENAME = "kills.jsonl"
+
+
+def progress_directory(diagnostics: Path, repeat: int) -> Path:
+    """Where one repeat's controller and workers record their progress."""
+    return diagnostics / PROGRESS_DIRNAME / f"repeat-{repeat:02d}"
+
+
+def write_json_atomic(path: Path, payload: Mapping[str, Any]) -> None:
+    """Replace ``path`` whole, so a concurrent reader never sees half a record."""
+    temporary = path.with_name(f".{path.name}.{os.getpid()}.tmp")
+    temporary.write_text(json.dumps(payload, sort_keys=True), encoding="utf-8")
+    os.replace(temporary, path)
+
+
+def read_json(path: Path) -> dict[str, Any] | None:
+    """A JSON object from ``path``, or ``None`` when absent or unreadable."""
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+    return payload if isinstance(payload, dict) else None
 
 
 @dataclass(frozen=True)

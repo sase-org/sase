@@ -759,6 +759,13 @@ test-visual-contention *args: _setup-visual (_header "test-visual-contention")
 #
 # Override the CPU list, worker count, or repeat count with
 # SASE_CONTENTION_CPUS, SASE_CONTENTION_WORKERS, and SASE_CONTENTION_REPEAT.
+#
+# Every soak also runs a diagnostic sampler (tests/_contention_sampler.py) off
+# the pinned CPUs: each SASE_CONTENTION_SAMPLE_SECONDS (default 15) it prints a
+# `[contention-diag]` line -- soak RSS/PSS by role, host and cgroup memory, PSI,
+# OOM counters, scratch, /tmp, and workspace headroom, collection and test progress --
+# and records the sender of any SIGTERM/SIGINT/SIGHUP that reaches the soak.
+# Records land in .pytest_cache/sase-contention/diagnostics/.
 [positional-arguments]
 test-contention *args: _setup (_header "test-contention")
     @printf "\n---------- Running default-lane pytest contention harness... ----------\n"

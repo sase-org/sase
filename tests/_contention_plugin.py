@@ -9,6 +9,9 @@ record with its own handful of node IDs.
 Nothing here touches the durable selection-health store. A soak deliberately
 starves the machine, so its failures are not evidence about what a scoped run
 should have selected, and must not be recorded as if they were.
+
+The same plugin arms the soak's diagnostic progress records
+(`tests._contention_progress`) when the harness asks for them.
 """
 
 from __future__ import annotations
@@ -19,6 +22,10 @@ from pathlib import Path
 import pytest
 
 from tests._contention import FAILURES_ENV, write_failures
+from tests._contention_progress import (
+    register_controller_progress,
+    register_worker_progress,
+)
 
 
 class ContentionFailureRecorder:
@@ -56,8 +63,11 @@ class ContentionFailureRecorder:
 
 def pytest_configure(config: pytest.Config) -> None:
     if os.environ.get("PYTEST_XDIST_WORKER"):
-        # Workers report to the controller; only the controller writes.
+        # Workers report to the controller; only the controller writes the
+        # failure record. A worker only keeps its own diagnostic progress.
+        register_worker_progress(config)
         return
+    register_controller_progress(config)
     # Popped, not read: tests in this suite spawn their own pytest
     # subprocesses, and an inherited request would have them overwrite this
     # repeat's record.

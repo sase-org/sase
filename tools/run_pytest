@@ -9,6 +9,7 @@ import json
 import os
 import pwd
 import shutil
+import signal
 import stat
 import subprocess
 import sys
@@ -24,11 +25,15 @@ if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
 from tests._contention import (  # noqa: E402
+    DIAGNOSTICS_DIRNAME,
+    DIAGNOSTICS_ENV,
     FAILURES_ENV,
     format_tally,
+    progress_directory,
     read_failures,
     tally_failures,
 )
+from tests._contention_sampler import start_sampler  # noqa: E402
 from tests._suite_gate import descendant_exemption  # noqa: E402
 from tests._suite_gate_budget import (  # noqa: E402
     automatic_worker_range,
@@ -152,6 +157,11 @@ CONTENTION_REPEAT_ENV = "SASE_CONTENTION_REPEAT"
 #: flakes deterministic; the default lane copies the ratio rather than guessing.
 DEFAULT_CONTENTION_WORKERS = 26
 DEFAULT_CONTENTION_REPEAT = 3
+#: Seconds between the soak's diagnostic resource samples
+#: (`tests._contention_sampler`): often enough to show a curve, rarely enough
+#: that sampling is not part of the load it measures.
+CONTENTION_SAMPLE_SECONDS_ENV = "SASE_CONTENTION_SAMPLE_SECONDS"
+DEFAULT_CONTENTION_SAMPLE_SECONDS = 15
 #: Per-repeat failure records, kept after the run so a soak can be re-read
 #: without re-running it. `.pytest_cache` is already the suite's diagnostic
 #: scratch space (see `.pytest_cache/sase-visual/`).
@@ -1189,7 +1199,9 @@ def _contention_artifact_directory() -> Path:
     return directory
 
 
-def _contention_environment(failures_path: Path) -> dict[str, str]:
+def _contention_environment(
+    failures_path: Path, progress_path: Path | None = None
+) -> dict[str, str]:
     """The child environment for one soak repeat.
 
     The gate is disabled rather than leased: the soak exists to oversubscribe a
@@ -1198,12 +1210,15 @@ def _contention_environment(failures_path: Path) -> dict[str, str]:
     recording is disabled for the same reason -- a deliberately starved run is
     not evidence about what a scoped run should have selected.
     """
-    return {
+    environment = {
         **os.environ,
         "SASE_TEST_GATE_DISABLED": "1",
         HEALTH_DISABLED_ENV: "1",
         FAILURES_ENV: str(failures_path),
     }
+    if progress_path is not None:
+        environment[DIAGNOSTICS_ENV] = str(progress_path)
+    return environment
 
 
 def _run_contention(args: list[str]) -> int:
@@ -1219,6 +1234,9 @@ def _run_contention(args: list[str]) -> int:
     repeat_count = _positive_environment_int(
         CONTENTION_REPEAT_ENV, DEFAULT_CONTENTION_REPEAT
     )
+    sample_seconds = _positive_environment_int(
+        CONTENTION_SAMPLE_SECONDS_ENV, DEFAULT_CONTENTION_SAMPLE_SECONDS
+    )
     distribution_mode = _configured_distribution_mode()
     command = _pytest_command(
         CONTENTION_MODE,
@@ -1228,7 +1246,7 @@ def _run_contention(args: list[str]) -> int:
         serial=False,
     )
     artifacts = _contention_artifact_directory()
-    _prepare_pytest_tmpdir()
+    scratch_root = _prepare_pytest_tmpdir()
     _sanitize_pytest_environment()
     os.chdir(REPO_ROOT)
 
@@ -1237,31 +1255,53 @@ def _run_contention(args: list[str]) -> int:
         f"dist={distribution_mode}",
         flush=True,
     )
+    # Started after the artifact directory was cleared, so the evidence of this
+    # soak survives into the upload; outcome-neutral, and optional.
+    diagnostics = artifacts / DIAGNOSTICS_DIRNAME
+    sampler = start_sampler(
+        diagnostics,
+        root_pid=os.getpid(),
+        paths={"scratch": scratch_root, "tmp": Path("/tmp"), "workspace": REPO_ROOT},
+        interval=sample_seconds,
+        cwd=REPO_ROOT,
+    )
     repeats: list[tuple[str, ...]] = []
     red_repeats: list[int] = []
     first_failure = 0
     started = time.monotonic()
-    for index in range(1, repeat_count + 1):
-        failures_path = artifacts / f"repeat-{index:02d}.json"
-        print(
-            f"\n---------- contention repeat {index}/{repeat_count} ----------",
-            flush=True,
-        )
-        try:
-            returncode = subprocess.run(
-                command, env=_contention_environment(failures_path)
-            ).returncode
-        except KeyboardInterrupt:
-            # A soak is long enough that an operator interrupting it still
-            # wants the tally for the repeats that did finish.
-            print("\ncontention soak interrupted", file=sys.stderr, flush=True)
-            red_repeats.append(index)
-            first_failure = first_failure or int(pytest.ExitCode.INTERRUPTED)
-            break
-        repeats.append(read_failures(failures_path))
-        if returncode != 0:
-            red_repeats.append(index)
-            first_failure = first_failure or returncode
+    try:
+        for index in range(1, repeat_count + 1):
+            failures_path = artifacts / f"repeat-{index:02d}.json"
+            print(
+                f"\n---------- contention repeat {index}/{repeat_count} ----------",
+                flush=True,
+            )
+            environment = _contention_environment(
+                failures_path, progress_directory(diagnostics, index)
+            )
+            try:
+                returncode = subprocess.run(command, env=environment).returncode
+            except KeyboardInterrupt:
+                # A soak is long enough that an operator interrupting it still
+                # wants the tally for the repeats that did finish.
+                print("\ncontention soak interrupted", file=sys.stderr, flush=True)
+                red_repeats.append(index)
+                first_failure = first_failure or int(pytest.ExitCode.INTERRUPTED)
+                break
+            if returncode < 0:
+                print(
+                    f"contention repeat {index}: pytest was killed by "
+                    f"{_signal_name(-returncode)}",
+                    file=sys.stderr,
+                    flush=True,
+                )
+            repeats.append(read_failures(failures_path))
+            if returncode != 0:
+                red_repeats.append(index)
+                first_failure = first_failure or returncode
+    finally:
+        if sampler is not None:
+            sampler.stop()
 
     print(
         "\n"
@@ -1274,7 +1314,16 @@ def _run_contention(args: list[str]) -> int:
         flush=True,
     )
     print(f"per-repeat failure records: {_repo_relative(artifacts)}", flush=True)
+    if sampler is not None:
+        print(f"contention diagnostics: {_repo_relative(diagnostics)}", flush=True)
     return first_failure
+
+
+def _signal_name(signum: int) -> str:
+    try:
+        return signal.Signals(signum).name
+    except ValueError:
+        return f"signal {signum}"
 
 
 def main(argv: list[str] | None = None) -> int:

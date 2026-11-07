@@ -19,6 +19,7 @@ import pytest
 
 from tests import _contention_plugin as contention_plugin
 from tests._contention import (
+    DIAGNOSTICS_ENV,
     FAILURES_ENV,
     NodeTally,
     format_tally,
@@ -38,6 +39,23 @@ pytestmark = pytest.mark.contract
 ROOT = Path(__file__).resolve().parents[1]
 
 
+class FakeSampler:
+    """Stands in for `tests._contention_sampler.start_sampler` and its handle."""
+
+    def __init__(self, *, available: bool = True) -> None:
+        self.available = available
+        self.starts: list[dict[str, Any]] = []
+        self.stops = 0
+
+    def start(self, out: Path, **kwargs: Any) -> FakeSampler | None:
+        self.starts.append({"out": out, **kwargs})
+        return self if self.available else None
+
+    def stop(self) -> int:
+        self.stops += 1
+        return 0
+
+
 class RecordedRepeat:
     """One intercepted repeat: the command, its environment, and its verdict."""
 
@@ -55,6 +73,7 @@ def _install_fake_repeats(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
     outcomes: list[tuple[int, tuple[str, ...] | None]],
+    sampler: FakeSampler | None = None,
 ) -> list[RecordedRepeat]:
     """Stand in for the pytest subprocess each repeat launches.
 
@@ -80,6 +99,8 @@ def _install_fake_repeats(
         return _Result(returncode)
 
     monkeypatch.setattr(runner.subprocess, "run", _fake_run)
+    # Diagnostics have their own tests; these never start a real sampler.
+    monkeypatch.setattr(runner, "start_sampler", (sampler or FakeSampler()).start)
     return recorded
 
 
@@ -344,3 +365,105 @@ def test_only_the_controller_registers_the_recorder(
     assert registered == ["sase-contention-recorder"]
     # Popped, so nested pytest subprocesses cannot overwrite the record.
     assert FAILURES_ENV not in os.environ
+
+
+def test_each_repeat_gets_its_own_progress_record_and_one_sampler_watches_all(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    runner = load_run_pytest()
+    monkeypatch.setenv(STORE_ENV, str(tmp_path / "health-store"))
+    monkeypatch.setenv(runner.CONTENTION_REPEAT_ENV, "2")
+    monkeypatch.delenv(runner.CONTENTION_SAMPLE_SECONDS_ENV, raising=False)
+    sampler = FakeSampler()
+    recorded = _install_fake_repeats(
+        runner, monkeypatch, tmp_path, [(0, ()), (0, ())], sampler
+    )
+
+    assert runner.main(["contention"]) == 0
+
+    diagnostics = tmp_path / "contention-artifacts" / "diagnostics"
+    assert len(sampler.starts) == 1 and sampler.stops == 1
+    start = sampler.starts[0]
+    assert start["out"] == diagnostics
+    assert start["root_pid"] == os.getpid()
+    assert start["interval"] == runner.DEFAULT_CONTENTION_SAMPLE_SECONDS
+    assert set(start["paths"]) == {"scratch", "tmp", "workspace"}
+    assert start["paths"]["scratch"] == tmp_path / "scratch"
+    assert [repeat.env[DIAGNOSTICS_ENV] for repeat in recorded] == [
+        str(diagnostics / "progress" / "repeat-01"),
+        str(diagnostics / "progress" / "repeat-02"),
+    ]
+    # The request rides the child environment only, never this process's.
+    assert DIAGNOSTICS_ENV not in os.environ
+    assert "contention diagnostics:" in capsys.readouterr().out
+
+
+def test_an_unavailable_sampler_changes_neither_the_run_nor_its_exit_status(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    runner = load_run_pytest()
+    monkeypatch.setenv(STORE_ENV, str(tmp_path / "health-store"))
+    monkeypatch.setenv(runner.CONTENTION_REPEAT_ENV, "1")
+    _install_fake_repeats(
+        runner,
+        monkeypatch,
+        tmp_path,
+        [(5, ("tests/t.py::test_red",))],
+        FakeSampler(available=False),
+    )
+
+    assert runner.main(["contention"]) == 5
+    output = capsys.readouterr().out
+    assert "1/1  tests/t.py::test_red  (repeats 1)" in output
+    assert "contention diagnostics:" not in output
+
+
+def test_a_signalled_repeat_is_named_and_keeps_its_exit_status(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    runner = load_run_pytest()
+    monkeypatch.setenv(STORE_ENV, str(tmp_path / "health-store"))
+    monkeypatch.setenv(runner.CONTENTION_REPEAT_ENV, "2")
+    sampler = FakeSampler()
+    _install_fake_repeats(
+        runner, monkeypatch, tmp_path, [(-15, None), (1, ("tests/t.py::x",))], sampler
+    )
+
+    assert runner.main(["contention"]) == -15
+    captured = capsys.readouterr()
+    assert "contention repeat 1: pytest was killed by SIGTERM" in captured.err
+    assert "red repeats: 1,2" in captured.out
+    assert sampler.stops == 1
+
+
+def test_an_interrupted_soak_still_stops_its_sampler(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    runner = load_run_pytest()
+    monkeypatch.setenv(STORE_ENV, str(tmp_path / "health-store"))
+    monkeypatch.setenv(runner.CONTENTION_REPEAT_ENV, "3")
+    sampler = FakeSampler()
+    _install_fake_repeats(runner, monkeypatch, tmp_path, [(0, ())], sampler)
+
+    def _interrupted(_command: list[str], **_kwargs: object) -> None:
+        raise KeyboardInterrupt
+
+    monkeypatch.setattr(runner.subprocess, "run", _interrupted)
+
+    assert runner.main(["contention"]) == int(pytest.ExitCode.INTERRUPTED)
+    assert sampler.stops == 1
+
+
+@pytest.mark.parametrize("value", ["0", "soon"])
+def test_invalid_sample_interval_is_a_usage_error(
+    monkeypatch: pytest.MonkeyPatch, value: str
+) -> None:
+    runner = load_run_pytest()
+    monkeypatch.setenv(runner.CONTENTION_SAMPLE_SECONDS_ENV, value)
+
+    def _unexpected_start(*_args: object, **_kwargs: object) -> None:
+        raise AssertionError("the soak started diagnostics despite a bad interval")
+
+    monkeypatch.setattr(runner, "start_sampler", _unexpected_start)
+
+    assert runner.main(["contention"]) == int(pytest.ExitCode.USAGE_ERROR)
