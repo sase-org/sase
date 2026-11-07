@@ -128,6 +128,52 @@ class TestPlanFollowupCoderPrompt:
             label="Full coder prompt",
         )
 
+    def test_stamped_decisions_block_is_single_disabled_region(self, tmp_path) -> None:
+        """A stamped ask stays literal in one disabled region of the prompt."""
+        from pathlib import Path as _Path
+
+        stamped = """---
+tier: tale
+title: Keymap help overlay
+goal: Pressing ? shows bindings.
+size: small
+decisions:
+  literal:
+    ask: "Should +sase #gh:other/repo %model:x @some/path stay literal?"
+    default: true
+    answer: true
+decided_by: reviewer
+decided_via: telegram
+---
+# Plan
+
+> [!decision] literal Do it.
+"""
+        plan_file = _Path(write_plan_file(tmp_path))
+        plan_file.write_text(stamped, encoding="utf-8")
+        approval = PlanApprovalResult(action="approve", plan_file=str(plan_file))
+        _, state, _ = run_plan_approval(
+            tmp_path,
+            approval=approval,
+            agent_model="opus",
+            agent_llm_provider="claude",
+        )
+        prompt = state.current_prompt
+        assert prompt.count("%macros_enabled:false") == 1
+        assert prompt.count("%macros_enabled:true") == 1
+        assert "Reviewer decisions for this plan" in prompt
+        assert "+sase" in prompt
+        assert "#gh:sase" in prompt
+        assert "@plan.md" in prompt
+        assert "%model:@small" in prompt
+        # The live refs stay outside the single disabled region.
+        region_start = prompt.index("%macros_enabled:false")
+        region_end = prompt.index("%macros_enabled:true")
+        outside = prompt[:region_start] + prompt[region_end:]
+        assert "#gh:sase" in outside
+        assert "@plan.md" in outside
+        assert "%model:@small" in outside
+
 
 def _approve_coder_prompt(
     tmp_path,

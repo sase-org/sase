@@ -84,6 +84,7 @@ decisions:
 
 __all__ = [
     "AUTO_TALE",
+    "LITERAL_TALE",
     "MEMORY_TALE",
     "PENDING_TALE",
     "tale_path",
@@ -93,6 +94,7 @@ __all__ = [
     "test_pending_plan_yields_no_coder_block",
     "test_reviewer_block_helper_fails_open",
     "test_reviewer_block_helper_prefers_archived_copy",
+    "test_reviewer_block_keeps_ask_literal",
     "test_reviewer_coder_block_names_branch_and_default",
 ]
 
@@ -155,7 +157,93 @@ def test_reviewer_block_helper_prefers_archived_copy(tmp_path: Path) -> None:
     from sase.axe.run_agent_exec_plan_accept import _reviewer_decisions_block
 
     block = _reviewer_decisions_block(plan_result, plan_path, tmp_path)
-    assert block.startswith("\n\nReviewer decisions for this plan")
+    assert block.startswith(
+        "\n\n%macros_enabled:false\nReviewer decisions for this plan"
+    )
+    assert block.rstrip().endswith("%macros_enabled:true")
+
+
+LITERAL_TALE = """---
+tier: tale
+title: Keymap help overlay
+goal: Pressing ? shows bindings.
+size: small
+decisions:
+  literal:
+    ask: "Should +sase #gh:other/repo %model:x @some/path stay literal?"
+    default: true
+    answer: true
+decided_by: reviewer
+decided_via: telegram
+---
+# Plan
+
+> [!decision] literal Do it.
+"""
+
+
+def test_reviewer_block_keeps_ask_literal(tmp_path: Path) -> None:
+    """Planner-authored ask syntax stays inert inside the coder prompt."""
+    from types import SimpleNamespace as _NS
+    from unittest.mock import patch as _patch
+
+    from sase.axe.run_agent_exec_plan_accept import _reviewer_decisions_block
+    from sase.macro._disabled_regions import strip_disabled_region_markers
+    from sase.macro.directives import extract_prompt_directives
+    from sase.project_accents import PROJECT_ACCENTS
+    from sase.project_tags import ProjectTagCatalog, build_targets
+    from sase.project_tags import expand_project_tags_with_catalog
+    from tests._project_tags_helpers import make_project_record
+    from tests.test_wraps_all import _FakeExecutor, _make_workflow
+
+    plan_path = tmp_path / "plan.md"
+    plan_path.write_text(LITERAL_TALE, encoding="utf-8")
+    plan_result = _NS(saved_plan_path=str(plan_path), plan_file=str(plan_path))
+    block = _reviewer_decisions_block(plan_result, plan_path, tmp_path)
+    assert block.startswith("\n\n%macros_enabled:false\n")
+    assert block.rstrip().endswith("%macros_enabled:true")
+
+    prompt = (
+        "#gh:sase @plan.md\n\n"
+        "The above plan has been reviewed and approved. "
+        f"Implement it now.{block}\n"
+    )
+    context_line = (
+        'Context: "Should +sase #gh:other/repo %model:x @some/path stay literal?"'
+    )
+    assert context_line in prompt
+
+    def _detect(project_file: str) -> str:
+        return "gh" if "sase" in project_file else "git"
+
+    catalog = ProjectTagCatalog(
+        targets=tuple(
+            build_targets(
+                [make_project_record("sase")],
+                detect_workflow_type=_detect,
+                get_display_name=lambda _key: "GitHub",
+            )
+        ),
+        accent_palette=tuple(PROJECT_ACCENTS),
+    )
+    assert expand_project_tags_with_catalog(prompt, catalog) == prompt
+
+    wf_gh = _make_workflow("gh", wraps_all=True)
+    executor = _FakeExecutor({"gh": wf_gh})
+    with _patch(
+        "sase.macro.loader.get_all_workflows",
+        return_value={"gh": wf_gh},
+    ):
+        expanded, embedded, _ = executor._expand_embedded_workflows_in_prompt(prompt)
+    assert len(embedded) == 1
+    assert embedded[0].workflow_name == "gh"
+    assert "#gh:other/repo" in expanded
+
+    _, directives = extract_prompt_directives(prompt)
+    assert directives.model is None
+
+    stripped = strip_disabled_region_markers(prompt)
+    assert context_line in stripped
 
 
 def test_reviewer_block_helper_fails_open(tmp_path: Path) -> None:

@@ -112,8 +112,14 @@ def _reviewer_decisions_block(
     Reads the stamped durable plan; phase coders additionally inherit their
     epic's accepted sheet. Fails open to ``""`` so a decision failure can
     never block a coder launch.
+
+    The block quotes planner-authored frontmatter text, so it must reach the
+    coder literally: it is wrapped in a disabled region so project tags,
+    macro refs, directives, and file refs inside an ``ask`` are never
+    expanded.
     """
     try:
+        from sase.macro._disabled_regions import wrap_disabled_region
         from sase.sdd.plan_decision_handoff import (
             coder_decisions_block,
             epic_decision_context,
@@ -140,7 +146,7 @@ def _reviewer_decisions_block(
         except Exception:
             continue
         if block.strip():
-            return f"\n\n{block}"
+            return f"\n\n{wrap_disabled_region(block)}"
     return ""
 
 

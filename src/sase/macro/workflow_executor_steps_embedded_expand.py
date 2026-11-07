@@ -200,10 +200,15 @@ class EmbeddedWorkflowExpandMixin:
 
         vcs_entries = [p for p in pending if p.workflow.has_tag(MacroTag.vcs)]
         if len(vcs_entries) > 1:
-            names = ", ".join(f"#{p.name}" for p in vcs_entries)
+            vcs_refs = ", ".join(
+                prompt[p.match_start : p.match_end] for p in vcs_entries
+            )
             raise WorkflowExecutionError(
-                f"Multiple VCS-tagged workflows in one prompt: {names}. "
-                "At most one VCS workflow is allowed per prompt."
+                f"Multiple VCS-tagged workflows in one prompt: {vcs_refs}. "
+                "At most one VCS workflow is allowed per prompt. "
+                "Note that project tags (+name) expand into VCS workflow refs, "
+                "so a project tag in prose counts too; keep literal text in a "
+                "fenced block or a %macros_enabled:false region."
             )
 
         # ── Phase 3: Pre-step execution ──────────────────────────────────

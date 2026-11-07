@@ -108,10 +108,15 @@ def test_multiple_wraps_all_raises_error() -> None:
         "sase.macro.loader.get_all_workflows",
         return_value={"git": wf_git, "spy": wf_spy},
     ):
-        with pytest.raises(WorkflowExecutionError, match="Multiple VCS-tagged"):
+        with pytest.raises(WorkflowExecutionError, match="Multiple VCS-tagged") as exc:
             executor._expand_embedded_workflows_in_prompt(
                 "#git:main #spy:cl123 Do something"
             )
+    message = str(exc.value)
+    assert "#git:main" in message
+    assert "#spy:cl123" in message
+    assert "+name" in message
+    assert "%macros_enabled:false" in message
 
 
 def test_multiple_wraps_all_allowed_across_multi_prompt_segments() -> None:
