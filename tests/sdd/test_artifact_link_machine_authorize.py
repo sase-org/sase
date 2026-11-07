@@ -312,7 +312,7 @@ def test_outbox_drain_skips_primary_owned_root(
     )
     monkeypatch.setattr(
         "sase.sdd._artifact_link_outbox_drain._entry_is_eligible",
-        lambda _entry: True,
+        lambda _entry, _evidence_index: True,
     )
     before = _worktree_snapshot(plans)
     before_head = _git_output(plans, "rev-parse", "HEAD")
@@ -361,7 +361,7 @@ def test_outbox_drain_skips_primary_owned_bead_root(
     )
     monkeypatch.setattr(
         "sase.sdd._artifact_link_outbox_drain._entry_is_eligible",
-        lambda _entry: True,
+        lambda _entry, _evidence_index: True,
     )
     before = _worktree_snapshot(beads)
 

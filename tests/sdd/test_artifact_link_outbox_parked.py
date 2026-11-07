@@ -226,3 +226,81 @@ def test_sweep_marks_parked_documents_swept(
 
 def test_parked_recheck_constant_is_one_day() -> None:
     assert PARKED_RECHECK_SECONDS == 24 * 60 * 60
+
+
+def _park(operation_id: str, *, parked_at: float) -> None:
+    queued = append_artifact_link_outbox_event(
+        project_key=PROJECT_KEY,
+        agent_name="machine",
+        run_id="parked-drain",
+        event=_put(operation_id, target="bead:sase-164"),
+    )
+    rewrite_artifact_link_outbox_without_ids(
+        PROJECT_KEY, drained_ids={queued.id}, dropped=[]
+    )
+    append_artifact_link_parked_entries(
+        PROJECT_KEY,
+        (parked_entry_from_outbox(queued, reasons=("outcome absent",), now=parked_at),),
+    )
+
+
+def test_parked_recheck_persists_last_checked_and_throttles_the_next_drain(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    redirect_sase_home(monkeypatch, tmp_path / ".sase")
+    store = ArtifactLinkStore(project_key=PROJECT_KEY, sidecar_roots={})
+    _park("a" * 32, parked_at=1.0)
+    checks = 0
+
+    def _not_local(_store: object, _entry: object) -> bool:
+        nonlocal checks
+        checks += 1
+        return False
+
+    monkeypatch.setattr(
+        "sase.sdd._artifact_link_outbox_drain._parked_endpoints_are_local",
+        _not_local,
+    )
+    first_now = 1.0 + PARKED_RECHECK_SECONDS + 5.0
+
+    _sync_drain(store, now=first_now)
+
+    assert checks == 1
+    [item] = read_artifact_link_parked_entries(PROJECT_KEY)
+    assert item.last_checked_at == first_now
+    assert item.parked_at == 1.0
+
+    _sync_drain(store, now=first_now + 60.0)
+
+    assert checks == 1
+    [item] = read_artifact_link_parked_entries(PROJECT_KEY)
+    assert item.last_checked_at == first_now
+
+
+def test_parked_recheck_keeps_an_entry_parked_concurrently(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    redirect_sase_home(monkeypatch, tmp_path / ".sase")
+    store = ArtifactLinkStore(project_key=PROJECT_KEY, sidecar_roots={})
+    _park("a" * 32, parked_at=1.0)
+    now = 1.0 + PARKED_RECHECK_SECONDS + 5.0
+
+    def _park_another_then_not_local(_store: object, _entry: object) -> bool:
+        # Another drain parks a new operation while this recheck is running.
+        _park("b" * 32, parked_at=now)
+        return False
+
+    monkeypatch.setattr(
+        "sase.sdd._artifact_link_outbox_drain._parked_endpoints_are_local",
+        _park_another_then_not_local,
+    )
+
+    _sync_drain(store, now=now)
+
+    parked = {
+        item.entry.id: item for item in read_artifact_link_parked_entries(PROJECT_KEY)
+    }
+    assert set(parked) == {"a" * 32, "b" * 32}
+    assert parked["a" * 32].last_checked_at == now

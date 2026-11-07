@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import pytest
 
 from tests.sdd._artifact_link_event_store_test_helpers import row as make_row
@@ -161,3 +163,46 @@ def test_covers_row_caches_alias_resolution_failure(
     assert snapshot.covers_row(aliased) is False
     assert snapshot.covers_row(direct) is True
     assert len(calls) == 1
+
+
+def test_pending_candidates_read_the_outbox_once(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from sase.sdd import _artifact_link_outbox_io as outbox_io
+    from sase.sdd._artifact_link_event_store import ArtifactLinkEventStoreAdapter
+    from sase.sdd.artifact_link_outbox import append_artifact_link_outbox_entry
+    from tests._conftest_environment import redirect_sase_home
+
+    redirect_sase_home(monkeypatch, tmp_path / ".sase")
+    project_key = "gh_sase-org__sase"
+    queued = [
+        append_artifact_link_outbox_entry(
+            project_key=project_key,
+            agent_name="reader",
+            run_id="run-1",
+            row=make_row(target=f"plan:202608/{name}.md"),
+            now=created_at,
+        )
+        for name, created_at in (("kept", 100.0), ("excluded", 50.0))
+    ]
+    original = outbox_io._read_outbox_records_unlocked
+    reads = 0
+
+    def _counting(path: Path, key: str):  # type: ignore[no-untyped-def]
+        nonlocal reads
+        reads += 1
+        return original(path, key)
+
+    monkeypatch.setattr(outbox_io, "_read_outbox_records_unlocked", _counting)
+    adapter = ArtifactLinkEventStoreAdapter(project_key, {})
+
+    candidates, stats = adapter._pending_candidates(
+        now=130.0,
+        exclude_operation_ids=(queued[1].id,),
+    )
+
+    assert reads == 1
+    assert [candidate.tier for candidate in candidates] == ["pending"]
+    assert stats.count == 1
+    assert stats.oldest_age_seconds == 30.0

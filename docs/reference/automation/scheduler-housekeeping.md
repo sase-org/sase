@@ -256,14 +256,21 @@ since published; parks operations whose bead endpoints are removed, absent, or f
 onto a replayable parked ledger (re-checked at most once every 24 hours); reconciles
 cross-workspace local aggregates; and repairs dangling refs from Git rename history. A
 document counts as swept once each of its derived candidates is durable or parked, so an
-error on one document no longer holds back the rest of its chunk. Counters include
-`bead_projection_failed`, `parked_new`, `parked_total`, and `transient`. A hard bead
-projection failure this tick sets status `check_error` with reason
-`bead_projection_failed` even if traversal completed; parked operations alone are not an
-error. A large derivation backlog converges over several hourly ticks instead of
-rescanning the full corpus each time. Run `sase axe job run artifact_link_backfill` for
-an immediate pass. The link model and doctor counters are documented in
-[Artifact Links](../artifact-links.md).
+error on one document no longer holds back the rest of its chunk. The drain moves
+never-published rows of long-finished agents into the dropped audit at most once per 24
+hours per project, and every project in a tick shares one agent catalog build for that
+check. Each drain logs per-phase timings
+(`drain phases: read=… evidence=… eligibility=… catalog=… publish=… rewrite=…`).
+Reconcile starts only when its learned duration fits the remaining budget; the first
+project of a tick always reconciles. Drain or reconcile work deferred for budget is
+logged as a warning, and that project goes first on the next tick. Counters include
+`bead_projection_failed`, `parked_new`, `parked_total`, `transient`, and
+`stale_checked_projects`. A hard bead projection failure this tick sets status
+`check_error` with reason `bead_projection_failed` even if traversal completed; parked
+operations alone are not an error. A large derivation backlog converges over several
+hourly ticks instead of rescanning the full corpus each time. Run
+`sase axe job run artifact_link_backfill` for an immediate pass. The link model and
+doctor counters are documented in [Artifact Links](../artifact-links.md).
 
 The `artifact_retention` job owns indexed artifact-file retention. It runs the same
 bounded pass that used to sit on every agent finalization: plan with

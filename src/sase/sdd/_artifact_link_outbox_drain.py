@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Iterable, Mapping
+from collections.abc import Iterable
 from dataclasses import dataclass
 from pathlib import Path
 import time
@@ -12,10 +12,14 @@ from sase.sdd._artifact_link_authorize import (
     probe_machine_writable_sidecar_root,
     sidecar_root_not_machine_writable_message,
 )
+from sase.sdd._artifact_link_outbox_drain_support import (
+    AgentTerminalTimes,
+    DrainDeadlineExceeded as _DrainDeadline,
+    check_drain_deadline as _check_deadline,
+)
 from sase.sdd._artifact_link_outbox_io import (
     append_artifact_link_outbox_event as _append_artifact_link_outbox_event,
-    inspect_artifact_link_outbox as _inspect_artifact_link_outbox,
-    read_artifact_link_outbox_entries as _read_artifact_link_outbox_entries,
+    read_artifact_link_outbox_queue as _read_artifact_link_outbox_queue,
     rewrite_artifact_link_outbox_without_ids as _rewrite_without_ids,
 )
 from sase.sdd._artifact_link_outbox_types import (
@@ -31,10 +35,12 @@ from sase.sdd.artifact_link_event_publisher import (
 )
 from sase.sdd.artifact_link_store import ArtifactLinkStore, resolve_artifact_link_store
 
-_TERMINAL_AGENT_STATES = frozenset({"completed", "failed", "stopped", "dismissed"})
-_TERMINAL_AGENT_STATUSES = frozenset({"DONE", "FAILED", "STOPPED", "CANCELED"})
 _SECONDS_PER_DAY = 24 * 60 * 60
 _DEFAULT_RETENTION_DAYS = 90
+# The agent catalog build can take tens of seconds; never start one with
+# less than this much of the caller's deadline left.
+_STALE_CATALOG_MIN_HEADROOM_SECONDS = 60.0
+_STALE_DROP_DEFERRED_DIAGNOSTIC = "deferred stale terminal drop: insufficient budget"
 
 
 @dataclass(frozen=True, slots=True)
@@ -70,6 +76,17 @@ class _ArtifactLinkOutboxDrainReport:
     publication_error: str | None = None
     skip_diagnostics: tuple[str, ...] = ()
     deferred: bool = False
+    stale_checked: bool = False
+    phase_seconds: tuple[tuple[str, float], ...] = ()
+
+
+@dataclass(frozen=True, slots=True)
+class _StaleTerminalDecision:
+    """Outcome of one stale-terminal evaluation over ineligible entries."""
+
+    stale: tuple[_ArtifactLinkOutboxEntry, ...] = ()
+    checked: bool = False
+    diagnostics: tuple[str, ...] = ()
 
 
 def drain_artifact_link_outbox(
@@ -81,12 +98,18 @@ def drain_artifact_link_outbox(
     push_after_commit: bool | str | None = "async",
     deadline: float | None = None,
     now: float | None = None,
+    terminal_times: AgentTerminalTimes | None = None,
 ) -> _ArtifactLinkOutboxDrainReport:
     """Replay publishable read-link rows into sidecar indexes.
 
     When *agent_name* or *agent_names* is provided, only those agents' entries
     are considered for publication. Other entries remain queued. Supplying
     both selectors is an error.
+
+    The outbox is parsed once and release evidence is loaded once, so a drain
+    costs O(rows + evidence lines). *terminal_times* lets several drains
+    share one lazily built agent catalog; ``None`` builds a private one only
+    if some ineligible row is old enough to be dropped.
     """
 
     from sase.sdd._artifact_link_event_project import (
@@ -103,56 +126,86 @@ def drain_artifact_link_outbox(
     selected_names = frozenset(agent_names) if agent_names is not None else None
     link_store = store or resolve_artifact_link_store()
     observed_at = float(time.time() if now is None else now)
+    phases: dict[str, float] = {}
     _requeue_ready_parked_entries(link_store, now=observed_at)
-    stats = _inspect_artifact_link_outbox(link_store.project_key)
+    phase_started = time.monotonic()
+    queue = _read_artifact_link_outbox_queue(link_store.project_key)
+    phases["read"] = time.monotonic() - phase_started
     parked_total = _inspect_parked(link_store.project_key).parked
-    entries = _read_artifact_link_outbox_entries(link_store.project_key)
+    entries = queue.entries
     if not entries:
         return _ArtifactLinkOutboxDrainReport(
             queued=0,
             selected_queued=0,
             selected_retained=0,
-            retained_legacy=stats.legacy_queued,
-            retained_invalid=stats.invalid_queued,
+            retained_legacy=queue.legacy_queued,
+            retained_invalid=queue.invalid_queued,
             parked_total=parked_total,
+            stale_checked=drop_stale_terminal,
+            phase_seconds=tuple(phases.items()),
         )
-    selected, retained = _partition_selected(
+    selected, _unselected = _partition_selected(
         entries,
         agent_name=agent_name,
         agent_names=selected_names,
     )
-    if deadline is not None and time.monotonic() >= deadline:
+
+    def _deferred_report() -> _ArtifactLinkOutboxDrainReport:
         return _ArtifactLinkOutboxDrainReport(
             queued=len(entries),
             retained=len(entries),
             selected_queued=len(selected),
             selected_retained=len(selected),
-            retained_legacy=stats.legacy_queued,
-            retained_invalid=stats.invalid_queued,
+            retained_legacy=queue.legacy_queued,
+            retained_invalid=queue.invalid_queued,
             parked_total=parked_total,
             skip_diagnostics=(BEAD_PROJECTION_DEFERRED_DIAGNOSTIC,),
             deferred=True,
+            phase_seconds=tuple(phases.items()),
         )
 
-    terminal_cutoff = _terminal_cutoff() if drop_stale_terminal else None
-    terminal_finished = (
-        _terminal_agent_finished_times(selected) if terminal_cutoff is not None else {}
-    )
-    stale, candidates = _partition_stale_terminal(
-        selected,
-        terminal_cutoff=terminal_cutoff,
-        terminal_finished=terminal_finished,
-    )
-    publishable, unpublished = _partition_publishable(candidates)
-    retained.extend(unpublished)
-    retained.extend(stale)
-    writable_entries, unauthorized, skip_diagnostics = (
-        _partition_machine_writable_entries(link_store, publishable)
-    )
-    retained.extend(unauthorized)
+    if deadline is not None and time.monotonic() >= deadline:
+        return _deferred_report()
 
-    event_drainable, event_only = _partition_event_drainable(writable_entries)
-    retained.extend(event_only)
+    try:
+        phase_started = time.monotonic()
+        evidence_index = _load_evidence_index(link_store.project_key, selected)
+        phases["evidence"] = time.monotonic() - phase_started
+
+        phase_started = time.monotonic()
+        eligible: list[_ArtifactLinkOutboxEntry] = []
+        ineligible: list[_ArtifactLinkOutboxEntry] = []
+        for index, entry in enumerate(selected):
+            _check_deadline(deadline, index)
+            if _entry_is_eligible(entry, evidence_index):
+                eligible.append(entry)
+            else:
+                ineligible.append(entry)
+        phases["eligibility"] = time.monotonic() - phase_started
+
+        stale_decision = _StaleTerminalDecision()
+        if drop_stale_terminal:
+            stale_decision = _stale_terminal_entries(
+                ineligible,
+                now=observed_at,
+                deadline=deadline,
+                terminal_times=(
+                    terminal_times
+                    if terminal_times is not None
+                    else AgentTerminalTimes()
+                ),
+                phases=phases,
+            )
+        _check_deadline(deadline, 0)
+    except _DrainDeadline:
+        return _deferred_report()
+    stale = list(stale_decision.stale)
+
+    phase_started = time.monotonic()
+    writable_entries, _unauthorized, skip_diagnostics = (
+        _partition_machine_writable_entries(link_store, eligible)
+    )
+    event_drainable, _event_only = _partition_event_drainable(writable_entries)
     event_report = publish_artifact_link_events(
         link_store,
         (entry.event for entry in event_drainable if entry.event is not None),
@@ -183,13 +236,7 @@ def drain_artifact_link_outbox(
         if event_key in drainable_by_key
     ]
     parked_new = _append_parked_entries(link_store.project_key, parked_records)
-    retained.extend(
-        entry
-        for entry in event_drainable
-        if (key := _entry_event_key(entry)) not in published_event_keys
-        and key not in parked_event_keys
-        and key not in quarantined_event_keys
-    )
+    phases["publish"] = time.monotonic() - phase_started
     event_skip_diagnostics = event_report.skip_diagnostics
     settled_event_keys = (
         published_event_keys | parked_event_keys | quarantined_event_keys
@@ -208,11 +255,14 @@ def drain_artifact_link_outbox(
         if _entry_event_key(entry) in quarantined_event_keys
     )
 
-    _rewrite_without_ids(
-        link_store.project_key,
-        settled_event_keys=settled_event_keys,
-        dropped=stale,
-    )
+    if settled_event_keys or stale or queue.has_duplicate_ids:
+        phase_started = time.monotonic()
+        _rewrite_without_ids(
+            link_store.project_key,
+            settled_event_keys=settled_event_keys,
+            dropped=stale,
+        )
+        phases["rewrite"] = time.monotonic() - phase_started
     parked_total = _inspect_parked(link_store.project_key).parked
     return _ArtifactLinkOutboxDrainReport(
         queued=len(entries),
@@ -230,8 +280,8 @@ def drain_artifact_link_outbox(
         retained=(
             len(entries) - drained_count - len(stale) - parked_count - quarantined_count
         ),
-        retained_legacy=stats.legacy_queued,
-        retained_invalid=stats.invalid_queued,
+        retained_legacy=queue.legacy_queued,
+        retained_invalid=queue.invalid_queued,
         dropped=len(stale),
         parked_new=parked_new,
         parked_total=parked_total,
@@ -250,8 +300,14 @@ def drain_artifact_link_outbox(
         changed_indexes=(),
         event_paths=event_report.event_paths,
         publication_error=event_report.publication_error,
-        skip_diagnostics=(*skip_diagnostics, *event_skip_diagnostics),
+        skip_diagnostics=(
+            *stale_decision.diagnostics,
+            *skip_diagnostics,
+            *event_skip_diagnostics,
+        ),
         deferred=event_report.deferred,
+        stale_checked=stale_decision.checked,
+        phase_seconds=tuple(phases.items()),
     )
 
 
@@ -273,39 +329,61 @@ def _partition_selected(
     return selected, retained
 
 
-def _partition_stale_terminal(
+def _load_evidence_index(
+    project_key: str,
     entries: Iterable[_ArtifactLinkOutboxEntry],
+) -> frozenset[tuple[str, str]]:
+    """Load release evidence once, only if some entry actually needs it."""
+
+    if all(_entry_is_trusted_machine_event(entry) for entry in entries):
+        return frozenset()
+    from sase.sdd.artifact_link_release_evidence import (
+        load_artifact_link_release_evidence_index,
+    )
+
+    try:
+        return load_artifact_link_release_evidence_index(project_key)
+    except Exception:  # noqa: BLE001 - unresolved evidence keeps rows queued.
+        return frozenset()
+
+
+def _stale_terminal_entries(
+    ineligible: Iterable[_ArtifactLinkOutboxEntry],
     *,
-    terminal_cutoff: float | None,
-    terminal_finished: Mapping[str, float],
-) -> tuple[list[_ArtifactLinkOutboxEntry], list[_ArtifactLinkOutboxEntry]]:
-    stale: list[_ArtifactLinkOutboxEntry] = []
-    active: list[_ArtifactLinkOutboxEntry] = []
-    for entry in entries:
-        finished_at = terminal_finished.get(entry.agent_name)
-        if (
-            terminal_cutoff is not None
-            and finished_at is not None
-            and finished_at <= terminal_cutoff
-            and not _entry_is_eligible(entry)
-        ):
-            stale.append(entry)
-        else:
-            active.append(entry)
-    return stale, active
+    now: float,
+    deadline: float | None,
+    terminal_times: AgentTerminalTimes,
+    phases: dict[str, float],
+) -> _StaleTerminalDecision:
+    """Pick never-publishable rows whose terminal agent aged past retention.
 
+    An agent finishes after it records its rows, so a row created after the
+    cutoff can never be stale; only older rows need the agent catalog, and
+    with none of them the catalog is never consulted at all.
+    """
 
-def _partition_publishable(
-    entries: Iterable[_ArtifactLinkOutboxEntry],
-) -> tuple[list[_ArtifactLinkOutboxEntry], list[_ArtifactLinkOutboxEntry]]:
-    publishable: list[_ArtifactLinkOutboxEntry] = []
-    retained: list[_ArtifactLinkOutboxEntry] = []
-    for entry in entries:
-        if _entry_is_eligible(entry):
-            publishable.append(entry)
-        else:
-            retained.append(entry)
-    return publishable, retained
+    cutoff = _terminal_cutoff(now)
+    if cutoff is None:
+        return _StaleTerminalDecision(checked=True)
+    candidates = [entry for entry in ineligible if entry.created_at <= cutoff]
+    if not candidates:
+        return _StaleTerminalDecision(checked=True)
+    if (
+        not terminal_times.built
+        and deadline is not None
+        and deadline - time.monotonic() < _STALE_CATALOG_MIN_HEADROOM_SECONDS
+    ):
+        return _StaleTerminalDecision(diagnostics=(_STALE_DROP_DEFERRED_DIAGNOSTIC,))
+    phase_started = time.monotonic()
+    finished = terminal_times.finished_times(entry.agent_name for entry in candidates)
+    phases["catalog"] = time.monotonic() - phase_started
+    stale = tuple(
+        entry
+        for entry in candidates
+        if (finished_at := finished.get(entry.agent_name)) is not None
+        and finished_at <= cutoff
+    )
+    return _StaleTerminalDecision(stale=stale, checked=terminal_times.ok)
 
 
 def _partition_machine_writable_entries(
@@ -380,30 +458,24 @@ def _partition_event_drainable(
     return drainable, retained
 
 
-def _entry_is_eligible(entry: _ArtifactLinkOutboxEntry) -> bool:
+def _entry_is_eligible(
+    entry: _ArtifactLinkOutboxEntry,
+    evidence_index: frozenset[tuple[str, str]],
+) -> bool:
     """Return whether *entry*'s own recording run earned release evidence.
 
     Eligibility is bound to the exact ``(run_id, agent_name)`` that recorded
     this entry -- an agent name or agent-session publication elsewhere is not
     sufficient, so a read-only neighbor's queued rows never ride along on a
-    sibling run's real commit.
+    sibling run's real commit. *evidence_index* is the drain's one-shot load
+    of validated release-evidence pairs.
     """
 
     if _entry_is_trusted_machine_event(entry):
         return True
-
-    from sase.sdd.artifact_link_release_evidence import (
-        artifact_link_run_has_release_evidence,
-    )
-
-    try:
-        return artifact_link_run_has_release_evidence(
-            project_key=entry.project_key,
-            run_id=entry.run_id,
-            agent_id=entry.agent_name,
-        )
-    except Exception:  # noqa: BLE001 - unresolved evidence stays queued.
+    if not entry.run_id or not entry.agent_name:
         return False
+    return (entry.run_id, entry.agent_name) in evidence_index
 
 
 def _entry_is_trusted_machine_event(entry: _ArtifactLinkOutboxEntry) -> bool:
@@ -422,7 +494,7 @@ def _entry_is_trusted_machine_event(entry: _ArtifactLinkOutboxEntry) -> bool:
     }
 
 
-def _terminal_cutoff() -> float | None:
+def _terminal_cutoff(now: float) -> float | None:
     try:
         from sase.config import get_artifact_retention_max_age_days
 
@@ -431,61 +503,35 @@ def _terminal_cutoff() -> float | None:
         days = _DEFAULT_RETENTION_DAYS
     if days <= 0:
         return None
-    return time.time() - (days * _SECONDS_PER_DAY)
-
-
-def _terminal_agent_finished_times(
-    entries: Iterable[_ArtifactLinkOutboxEntry],
-) -> dict[str, float]:
-    names = {entry.agent_name for entry in entries}
-    if not names:
-        return {}
-    try:
-        from sase.agents.catalog import build_agent_catalog_snapshot
-
-        snapshot = build_agent_catalog_snapshot()
-    except Exception:  # noqa: BLE001 - failing closed preserves the queue.
-        return {}
-    result: dict[str, float] = {}
-    for row in snapshot.rows:
-        if row.name not in names:
-            continue
-        state = (row.state or "").casefold()
-        status = (row.status or "").upper()
-        if (
-            state not in _TERMINAL_AGENT_STATES
-            and status not in _TERMINAL_AGENT_STATUSES
-        ):
-            continue
-        if row.finished_at is not None:
-            result[row.name] = float(row.finished_at)
-    return result
+    return now - (days * _SECONDS_PER_DAY)
 
 
 def _requeue_ready_parked_entries(store: ArtifactLinkStore, *, now: float) -> None:
-    """Move parked operations whose endpoints are now local back onto the queue."""
+    """Move parked operations whose endpoints are now local back onto the queue.
+
+    Every recheck persists its ``last_checked_at`` so the 24h throttle holds
+    across drains; the ledger update re-reads under its lock so an entry
+    parked concurrently by another drain is never lost.
+    """
 
     from sase.sdd._artifact_link_outbox_parked import (
         PARKED_RECHECK_SECONDS,
-        ArtifactLinkParkedEntry,
         read_artifact_link_parked_entries as _read_parked_entries,
-        rewrite_artifact_link_parked_entries as _rewrite_parked_entries,
-        touch_parked_checked_at as _touch_parked_checked_at,
+        update_artifact_link_parked_entries as _update_parked_entries,
     )
 
     parked = _read_parked_entries(store.project_key)
     if not parked:
         return
-    kept: list[ArtifactLinkParkedEntry] = []
+    touched: dict[str, float] = {}
     requeued_ids: list[str] = []
     for item in parked:
         if now - item.last_checked_at < PARKED_RECHECK_SECONDS:
-            kept.append(item)
             continue
         if item.entry.event is None or not _parked_endpoints_are_local(
             store, item.entry
         ):
-            kept.append(_touch_parked_checked_at(item, now=now))
+            touched[item.entry.id] = now
             continue
         _append_artifact_link_outbox_event(
             project_key=store.project_key,
@@ -496,8 +542,12 @@ def _requeue_ready_parked_entries(store: ArtifactLinkStore, *, now: float) -> No
             check_parked=False,
         )
         requeued_ids.append(item.entry.id)
-    if requeued_ids or len(kept) != len(parked):
-        _rewrite_parked_entries(store.project_key, kept)
+    if touched or requeued_ids:
+        _update_parked_entries(
+            store.project_key,
+            touched=touched,
+            removed=requeued_ids,
+        )
 
 
 def _parked_endpoints_are_local(

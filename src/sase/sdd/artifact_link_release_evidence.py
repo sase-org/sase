@@ -79,42 +79,50 @@ def record_artifact_link_release_evidence(
     return evidence
 
 
-def artifact_link_run_has_release_evidence(
-    *,
+def load_artifact_link_release_evidence_index(
     project_key: str,
-    run_id: str,
-    agent_id: str,
-) -> bool:
-    """Return whether *agent_id*'s *run_id* has verified release evidence.
+) -> frozenset[tuple[str, str]]:
+    """Return every validated ``(run_id, agent_id)`` pair with release evidence.
 
-    A blank ``run_id`` or ``agent_id`` never qualifies: legacy queue rows
-    recorded before this contract existed carry no run evidence and stay
-    local rather than being assumed eligible.
+    Reads the evidence JSONL once under its shared lock, so a caller checking
+    many queued rows pays O(evidence lines) once instead of one file read per
+    row. Each record is validated against its own ids, which matches the
+    per-query check because the validator is a pure per-record test (schema,
+    run/agent binding, non-empty ``qualifying_repo_ids``). A missing or
+    unreadable file yields an empty index: nothing is released. A blank
+    ``run_id`` or ``agent_id`` never qualifies: legacy queue rows recorded
+    before this contract existed carry no run evidence and stay local rather
+    than being assumed eligible.
     """
 
-    if not run_id or not agent_id:
-        return False
+    return frozenset(
+        pair
+        for line in _read_release_evidence_lines(project_key)
+        if (pair := _validated_evidence_pair(line)) is not None
+    )
+
+
+def _read_release_evidence_lines(project_key: str) -> list[str]:
     path = _release_evidence_path(project_key)
-    with locked_file(path.with_suffix(".lock"), fcntl.LOCK_SH):
-        if not path.is_file():
-            return False
-        try:
-            lines = path.read_text(encoding="utf-8").splitlines()
-        except OSError:
-            return False
-    for line in lines:
-        if not line.strip():
-            continue
-        try:
-            data = json.loads(line)
-        except json.JSONDecodeError:
-            continue
-        if not isinstance(data, dict):
-            continue
-        if str(data.get("run_id") or "") != run_id:
-            continue
-        if str(data.get("agent_id") or "") != agent_id:
-            continue
+    try:
+        with locked_file(path.with_suffix(".lock"), fcntl.LOCK_SH):
+            if not path.is_file():
+                return []
+            return path.read_text(encoding="utf-8").splitlines()
+    except OSError:
+        return []
+
+
+def _validated_evidence_pair(line: str) -> tuple[str, str] | None:
+    if not line.strip():
+        return None
+    try:
+        data = json.loads(line)
+    except json.JSONDecodeError:
+        return None
+    if not isinstance(data, dict):
+        return None
+    try:
         evidence = ArtifactLinkReleaseEvidence(
             run_id=str(data.get("run_id") or ""),
             agent_id=str(data.get("agent_id") or ""),
@@ -123,20 +131,24 @@ def artifact_link_run_has_release_evidence(
             ),
             recorded_at=str(data.get("recorded_at") or ""),
         )
-        try:
-            _validate_release_evidence(
-                evidence,
-                expected_run_id=run_id,
-                expected_agent_id=agent_id,
-            )
-        except (TypeError, ValueError, RuntimeError):
-            continue
-        return True
-    return False
+    except TypeError:
+        # One malformed line must not void the whole index.
+        return None
+    if not evidence.run_id or not evidence.agent_id:
+        return None
+    try:
+        _validate_release_evidence(
+            evidence,
+            expected_run_id=evidence.run_id,
+            expected_agent_id=evidence.agent_id,
+        )
+    except (TypeError, ValueError, RuntimeError):
+        return None
+    return evidence.run_id, evidence.agent_id
 
 
 __all__ = [
     "ARTIFACT_LINK_RELEASE_EVIDENCE_FILENAME",
-    "artifact_link_run_has_release_evidence",
+    "load_artifact_link_release_evidence_index",
     "record_artifact_link_release_evidence",
 ]

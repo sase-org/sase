@@ -15,6 +15,12 @@ Job 1 is resumable: a per-project checkpoint of already-swept refs persists
 across ticks under a bounded per-tick time budget, so a long tail of
 pre-existing documents converges over several hours without redoing already
 -processed work, and logs how many documents remain for the next tick.
+
+Job 2's stale-terminal drop runs at most once per day per project and shares
+one lazily built agent catalog across every project in a run. Job 3 starts
+only when its decaying duration estimate fits in the remaining budget (the
+first project of a tick always runs it). A project whose drain or reconcile
+work was deferred for budget goes first on the next tick.
 """
 
 from __future__ import annotations
@@ -36,6 +42,13 @@ from sase.sdd.artifact_link_backfill import (
     reconcile_and_repair_artifact_links,
     run_artifact_link_backfill_batch,
 )
+from sase.scripts._artifact_link_backfill_schedule import (
+    SCHEDULE_FILENAME,
+    BackfillSchedule,
+    read_backfill_schedule,
+    write_backfill_schedule,
+)
+from sase.sdd._artifact_link_outbox_drain_support import AgentTerminalTimes
 from sase.sdd.artifact_link_outbox import drain_artifact_link_outbox
 from sase.sdd._artifact_link_publication_retry import (
     ArtifactLinkPublicationRetryDetail,
@@ -63,6 +76,8 @@ _SWEEP_WORK_BUDGET_SECONDS = 45.0
 # Bounds the whole chop, well under the axe-configured 300s timeout, so a
 # slowdown degrades into a logged deferral instead of a silent SIGKILL.
 _CHOP_WORK_BUDGET_SECONDS = 240.0
+_DRAIN_PHASES = ("read", "evidence", "eligibility", "catalog", "publish", "rewrite")
+_RECONCILE_CUT_SHORT_DIAGNOSTIC = "reconcile deadline expired"
 
 
 def _enabled_project_records() -> list[ProjectRecordWire]:
@@ -254,6 +269,7 @@ class _Totals:
     reconciled: int = 0
     repaired_renames: int = 0
     deferred_projects: int = 0
+    stale_checked_projects: int = 0
     bead_projection_failed: int = 0
     parked_new: int = 0
     parked_total: int = 0
@@ -276,6 +292,29 @@ def _log_project_stage(
     runtime: BuiltinChopRuntime, project_key: str, stage: str
 ) -> None:
     runtime.log.info(f"[{_CHOP}] {project_key}: {stage}")
+
+
+def _drain_phase_line(
+    project_key: str, report: object, *, catalog_built_before: bool
+) -> str:
+    """Render one drain's per-phase timings for the chop log.
+
+    ``catalog`` reads ``skipped`` when the drain never consulted the agent
+    catalog and ``shared`` when an earlier project in this run built it.
+    """
+
+    phases = dict(getattr(report, "phase_seconds", ()) or ())
+    parts: list[str] = []
+    for name in _DRAIN_PHASES:
+        value = phases.get(name)
+        if value is None:
+            rendered = "skipped"
+        elif name == "catalog" and catalog_built_before:
+            rendered = "shared"
+        else:
+            rendered = f"{value:.2f}s"
+        parts.append(f"{name}={rendered}")
+    return f"[{_CHOP}] {project_key}: drain phases: " + " ".join(parts)
 
 
 def _publication_detail_line(detail: ArtifactLinkPublicationRetryDetail) -> str:
@@ -346,7 +385,16 @@ def _run_project(
     chop_deadline: float,
     state_path: Path,
     runtime: BuiltinChopRuntime,
-) -> None:
+    terminal_times: AgentTerminalTimes,
+    schedule: BackfillSchedule,
+    first_project: bool,
+) -> bool:
+    """Run one project's jobs; return whether budget deferred any of its work.
+
+    The sweep-backlog early return is not a deferral: the sweep simply has
+    more documents left for later ticks.
+    """
+
     started = time.monotonic()
     runtime.log.info(f"[{_CHOP}] {project_key}: starting")
     elapsed: dict[str, float] = {}
@@ -394,7 +442,7 @@ def _run_project(
         totals.warnings.append(f"{project_key}: could not resolve link store: {exc}")
         elapsed["store_resolution"] = time.monotonic() - resolve_started
         _log_project_done(runtime, project_key, elapsed, started)
-        return
+        return False
     elapsed["store_resolution"] = time.monotonic() - resolve_started
 
     if time.monotonic() < deadline:
@@ -424,7 +472,7 @@ def _run_project(
             )
             totals.projects += 1
             _log_project_done(runtime, project_key, elapsed, started)
-            return
+            return False
 
     if time.monotonic() >= chop_deadline:
         totals.deferred_projects += 1
@@ -432,13 +480,33 @@ def _run_project(
             f"{project_key}: deferred outbox drain and reconcile/repair past job budget"
         )
         _log_project_done(runtime, project_key, elapsed, started)
-        return
+        return True
 
     _log_project_stage(runtime, project_key, "drain")
     drain_started = time.monotonic()
     drain_deferred = False
+    stale_deferred = False
+    stale_due = schedule.stale_drop_due(project_key, now=time.time())
+    catalog_built_before = terminal_times.built
     try:
-        outbox_report = drain_artifact_link_outbox(store=store, deadline=chop_deadline)
+        outbox_report = drain_artifact_link_outbox(
+            store=store,
+            deadline=chop_deadline,
+            drop_stale_terminal=stale_due,
+            terminal_times=terminal_times,
+        )
+        runtime.log.info(
+            _drain_phase_line(
+                project_key,
+                outbox_report,
+                catalog_built_before=catalog_built_before,
+            )
+        )
+        if bool(getattr(outbox_report, "stale_checked", False)):
+            schedule.record_stale_checked(project_key, now=time.time())
+            totals.stale_checked_projects += 1
+        elif stale_due:
+            stale_deferred = True
         totals.outbox_drained += outbox_report.drained
         totals.outbox_dropped += outbox_report.dropped
         totals.parked_new += int(getattr(outbox_report, "parked_new", 0) or 0)
@@ -470,10 +538,23 @@ def _run_project(
             )
         totals.projects += 1
         _log_project_done(runtime, project_key, elapsed, started)
-        return
+        return True
+
+    estimate = schedule.reconcile_estimate(project_key)
+    remaining = chop_deadline - time.monotonic()
+    if not first_project and remaining < estimate:
+        totals.deferred_projects += 1
+        totals.warnings.append(
+            f"{project_key}: deferred reconcile/repair: "
+            f"needs ~{estimate:.0f}s, {remaining:.0f}s left"
+        )
+        totals.projects += 1
+        _log_project_done(runtime, project_key, elapsed, started)
+        return True
 
     _log_project_stage(runtime, project_key, "reconcile")
     reconcile_started = time.monotonic()
+    reconcile_deferred = False
     try:
         reconcile_report = reconcile_and_repair_artifact_links(
             store,
@@ -492,28 +573,40 @@ def _run_project(
                 f"{project_key}: deferred {reconcile_report.deferred_refs} "
                 "dangling-ref repairs past job budget"
             )
+        reconcile_deferred = reconcile_report.deferred_refs > 0 or any(
+            _RECONCILE_CUT_SHORT_DIAGNOSTIC in str(item)
+            for item in reconcile_report.skip_diagnostics
+        )
+        if not reconcile_deferred:
+            schedule.record_reconcile(project_key, time.monotonic() - reconcile_started)
     except Exception as exc:  # noqa: BLE001 - continue with the other projects.
         totals.warnings.append(f"{project_key}: reconcile/repair failed: {exc}")
     elapsed["reconcile_repair"] = time.monotonic() - reconcile_started
 
     totals.projects += 1
     _log_project_done(runtime, project_key, elapsed, started)
+    return stale_deferred or reconcile_deferred
 
 
 @builtin_chop("artifact_link_backfill")
 def _run(runtime: BuiltinChopRuntime) -> ChopResultBuilder:
     state_path = Path(runtime.context.state_dir) / _STATE_FILENAME
     cursor_path = Path(runtime.context.state_dir) / _CURSOR_FILENAME
+    schedule_path = Path(runtime.context.state_dir) / SCHEDULE_FILENAME
     records = _rotate_records(_enabled_project_records(), _read_cursor(cursor_path))
     swept = _read_state(state_path)
     live_keys = {record.project_name for record in records}
     for stale_key in set(swept) - live_keys:
         del swept[stale_key]
+    schedule = read_backfill_schedule(schedule_path)
+    schedule.prune(live_keys)
+    terminal_times = AgentTerminalTimes()
 
     totals = _Totals()
     deadline = time.monotonic() + _SWEEP_WORK_BUDGET_SECONDS
     chop_deadline = time.monotonic() + _CHOP_WORK_BUDGET_SECONDS
     last_started: str | None = None
+    first_deferred: str | None = None
     for index, record in enumerate(records):
         assert record.workspace_dir is not None
         if time.monotonic() >= chop_deadline:
@@ -525,7 +618,7 @@ def _run(runtime: BuiltinChopRuntime) -> ChopResultBuilder:
             )
             break
         last_started = record.project_name
-        _run_project(
+        deferred = _run_project(
             record.project_name,
             record.workspace_dir,
             swept=swept,
@@ -534,14 +627,26 @@ def _run(runtime: BuiltinChopRuntime) -> ChopResultBuilder:
             chop_deadline=chop_deadline,
             state_path=state_path,
             runtime=runtime,
+            terminal_times=terminal_times,
+            schedule=schedule,
+            first_project=index == 0,
         )
+        if deferred and first_deferred is None:
+            first_deferred = record.project_name
 
     try:
         _write_state(state_path, swept)
     except Exception as exc:  # noqa: BLE001 - retry on the next tick.
         totals.warnings.append(f"failed to persist sweep checkpoint: {exc}")
     try:
-        _write_cursor(cursor_path, _next_cursor_after(records, last_started))
+        write_backfill_schedule(schedule_path, schedule)
+    except Exception as exc:  # noqa: BLE001 - retry on the next tick.
+        totals.warnings.append(f"failed to persist backfill schedule: {exc}")
+    try:
+        _write_cursor(
+            cursor_path,
+            first_deferred or _next_cursor_after(records, last_started),
+        )
     except Exception as exc:  # noqa: BLE001 - fairness retries on the next tick.
         totals.warnings.append(f"failed to persist project cursor: {exc}")
 
@@ -584,6 +689,7 @@ def _run(runtime: BuiltinChopRuntime) -> ChopResultBuilder:
             "reconciled": totals.reconciled,
             "repaired_renames": totals.repaired_renames,
             "deferred_projects": totals.deferred_projects,
+            "stale_checked_projects": totals.stale_checked_projects,
         },
         reason=reason,
     )

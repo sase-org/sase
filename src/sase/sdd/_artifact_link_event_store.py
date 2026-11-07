@@ -307,11 +307,10 @@ class ArtifactLinkEventStoreAdapter:
         exclude_operation_ids: Iterable[str],
     ) -> tuple[tuple[ArtifactLinkEventCandidate, ...], _ArtifactLinkPendingStats]:
         from sase.sdd.artifact_link_outbox import (
-            pending_artifact_link_outbox_event_created_at,
-            pending_artifact_link_outbox_events,
+            pending_artifact_link_outbox_snapshot,
         )
 
-        events = pending_artifact_link_outbox_events(
+        events, created_at = pending_artifact_link_outbox_snapshot(
             self.project_key,
             exclude_operation_ids=exclude_operation_ids,
         )
@@ -323,16 +322,7 @@ class ArtifactLinkEventStoreAdapter:
             )
             for event in events
         )
-        return (
-            candidates,
-            _pending_stats(
-                pending_artifact_link_outbox_event_created_at(
-                    self.project_key,
-                    exclude_operation_ids=exclude_operation_ids,
-                ),
-                now=now,
-            ),
-        )
+        return candidates, _pending_stats(created_at, now=now)
 
 
 def reduce_artifact_link_event_inputs(

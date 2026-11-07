@@ -15,7 +15,7 @@ import pytest
 from sase.agents_sync._commit_publication_types import CommitPublicationOutcome
 from sase.agents_sync.publication_outbox import list_agent_publications
 from sase.sdd.artifact_link_release_evidence import (
-    artifact_link_run_has_release_evidence,
+    load_artifact_link_release_evidence_index,
 )
 from sase.sdd.artifact_link_store import ArtifactLinkStore
 from sase.workflows.commit.checkpoint import CommitCheckpoint
@@ -218,13 +218,8 @@ def test_publication_step_records_release_evidence_for_this_run(
         lambda **_kwargs: drained.append("outbox"),
     )
 
-    assert (
-        artifact_link_run_has_release_evidence(
-            project_key="gh_sase-org__sase",
-            run_id="260908_120000",
-            agent_id="worker",
-        )
-        is False
+    assert ("260908_120000", "worker") not in (
+        load_artifact_link_release_evidence_index("gh_sase-org__sase")
     )
 
     assert run_agent_publication_step(
@@ -235,10 +230,8 @@ def test_publication_step_records_release_evidence_for_this_run(
     )
 
     assert drained == ["outbox"]
-    assert artifact_link_run_has_release_evidence(
-        project_key="gh_sase-org__sase",
-        run_id="260908_120000",
-        agent_id="worker",
+    assert ("260908_120000", "worker") in (
+        load_artifact_link_release_evidence_index("gh_sase-org__sase")
     )
 
 

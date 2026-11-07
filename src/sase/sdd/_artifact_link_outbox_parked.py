@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections import Counter
-from collections.abc import Iterable, Mapping, Sequence
+from collections.abc import Collection, Iterable, Mapping, Sequence
 from dataclasses import dataclass, replace
 import fcntl
 import json
@@ -27,7 +27,7 @@ _PARKED_REASON_KEYS = ("foreign", "removed", "absent")
 
 
 @dataclass(frozen=True, slots=True)
-class ArtifactLinkParkedEntry:
+class _ArtifactLinkParkedEntry:
     """One parked outbox operation plus the typed reasons that parked it."""
 
     entry: ArtifactLinkOutboxEntry
@@ -82,7 +82,7 @@ def artifact_link_outbox_parked_path(project_key: str) -> Path:
 
 def read_artifact_link_parked_entries(
     project_key: str,
-) -> tuple[ArtifactLinkParkedEntry, ...]:
+) -> tuple[_ArtifactLinkParkedEntry, ...]:
     """Read valid parked ledger entries, skipping malformed JSONL rows."""
 
     path = artifact_link_outbox_parked_path(project_key)
@@ -93,7 +93,7 @@ def read_artifact_link_parked_entries(
 def find_parked_outbox_entry(
     project_key: str,
     operation_id: str,
-) -> ArtifactLinkParkedEntry | None:
+) -> _ArtifactLinkParkedEntry | None:
     """Return the parked entry for *operation_id*, if one exists."""
 
     token = f'"{operation_id}"'
@@ -139,7 +139,7 @@ def parked_artifact_link_keys(project_key: str) -> frozenset[tuple[str, str, str
 
 def append_artifact_link_parked_entries(
     project_key: str,
-    entries: Sequence[ArtifactLinkParkedEntry],
+    entries: Sequence[_ArtifactLinkParkedEntry],
 ) -> int:
     """Append newly parked operations, skipping ids already on the ledger.
 
@@ -168,15 +168,36 @@ def append_artifact_link_parked_entries(
     return written
 
 
-def rewrite_artifact_link_parked_entries(
+def update_artifact_link_parked_entries(
     project_key: str,
-    entries: Iterable[ArtifactLinkParkedEntry],
+    *,
+    touched: Mapping[str, float],
+    removed: Collection[str],
 ) -> None:
-    """Replace the parked ledger with *entries*."""
+    """Persist recheck timestamps and drop requeued ids, keeping all else.
 
+    The ledger is re-read under its exclusive lock, so an entry parked by a
+    concurrent drain after the caller's own read survives untouched.
+    """
+
+    if not touched and not removed:
+        return
+    removed_ids = frozenset(removed)
     path = artifact_link_outbox_parked_path(project_key)
-    lines = [json.dumps(item.to_json_dict(), sort_keys=True) for item in entries]
     with locked_file(path.with_suffix(".lock"), fcntl.LOCK_EX):
+        current = _read_parked_entries_unlocked(path, project_key)
+        lines = [
+            json.dumps(
+                (
+                    replace(item, last_checked_at=float(touched[item.entry.id]))
+                    if item.entry.id in touched
+                    else item
+                ).to_json_dict(),
+                sort_keys=True,
+            )
+            for item in current
+            if item.entry.id not in removed_ids
+        ]
         _write_parked_lines(path, lines)
 
 
@@ -186,11 +207,11 @@ def parked_entry_from_outbox(
     reasons: Sequence[str],
     endpoints: Sequence[Mapping[str, Any]] = (),
     now: float | None = None,
-) -> ArtifactLinkParkedEntry:
+) -> _ArtifactLinkParkedEntry:
     """Build a parked ledger record from an active outbox entry."""
 
     parked_at = float(time.time() if now is None else now)
-    return ArtifactLinkParkedEntry(
+    return _ArtifactLinkParkedEntry(
         entry=entry,
         parked_at=parked_at,
         last_checked_at=parked_at,
@@ -199,27 +220,17 @@ def parked_entry_from_outbox(
     )
 
 
-def touch_parked_checked_at(
-    item: ArtifactLinkParkedEntry,
-    *,
-    now: float,
-) -> ArtifactLinkParkedEntry:
-    """Return *item* with an updated last-checked timestamp."""
-
-    return replace(item, last_checked_at=float(now))
-
-
 def _read_parked_entries_unlocked(
     path: Path,
     project_key: str,
-) -> tuple[ArtifactLinkParkedEntry, ...]:
+) -> tuple[_ArtifactLinkParkedEntry, ...]:
     if not path.is_file():
         return ()
     try:
         lines = path.read_text(encoding="utf-8").splitlines()
     except OSError:
         return ()
-    entries: list[ArtifactLinkParkedEntry] = []
+    entries: list[_ArtifactLinkParkedEntry] = []
     seen: set[str] = set()
     for line in lines:
         if not line.strip():
@@ -235,7 +246,7 @@ def _read_parked_entries_unlocked(
 def _parked_entry_from_line(
     line: str,
     project_key: str,
-) -> ArtifactLinkParkedEntry | None:
+) -> _ArtifactLinkParkedEntry | None:
     try:
         payload = json.loads(line)
     except json.JSONDecodeError:
@@ -265,7 +276,7 @@ def _parked_entry_from_line(
         if isinstance(endpoints, list)
         else ()
     )
-    return ArtifactLinkParkedEntry(
+    return _ArtifactLinkParkedEntry(
         entry=entry,
         parked_at=float(parked_at),
         last_checked_at=float(last_checked_at),
@@ -274,7 +285,7 @@ def _parked_entry_from_line(
     )
 
 
-def _reason_keys_for(item: ArtifactLinkParkedEntry) -> tuple[str, ...]:
+def _reason_keys_for(item: _ArtifactLinkParkedEntry) -> tuple[str, ...]:
     kinds: list[str] = []
     for endpoint in item.endpoints:
         kind = _outcome_kind(endpoint.get("outcome"))
@@ -331,7 +342,6 @@ def _fsync_directory(path: Path) -> None:
 
 __all__ = [
     "PARKED_RECHECK_SECONDS",
-    "ArtifactLinkParkedEntry",
     "append_artifact_link_parked_entries",
     "artifact_link_outbox_parked_path",
     "find_parked_outbox_entry",
@@ -339,6 +349,5 @@ __all__ = [
     "parked_artifact_link_keys",
     "parked_entry_from_outbox",
     "read_artifact_link_parked_entries",
-    "rewrite_artifact_link_parked_entries",
-    "touch_parked_checked_at",
+    "update_artifact_link_parked_entries",
 ]

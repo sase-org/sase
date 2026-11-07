@@ -124,7 +124,7 @@ def test_agent_names_drain_parses_the_outbox_once_for_all_selected_agents(
             qualifying_repo_ids=(str(repo),),
         )
 
-    original_read = outbox_drain._read_artifact_link_outbox_entries
+    original_read = outbox_drain._read_artifact_link_outbox_queue
     parses = 0
 
     def counted_read(project_key: str):
@@ -132,9 +132,7 @@ def test_agent_names_drain_parses_the_outbox_once_for_all_selected_agents(
         parses += 1
         return original_read(project_key)
 
-    monkeypatch.setattr(
-        outbox_drain, "_read_artifact_link_outbox_entries", counted_read
-    )
+    monkeypatch.setattr(outbox_drain, "_read_artifact_link_outbox_queue", counted_read)
     report = drain_artifact_link_outbox(
         store=store,
         agent_names=("reader-one", "reader-two"),

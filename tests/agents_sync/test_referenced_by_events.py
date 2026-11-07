@@ -5,6 +5,7 @@ from __future__ import annotations
 from contextlib import contextmanager
 import json
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
@@ -20,6 +21,7 @@ from sase.agents_sync.referenced_by_outbox import (
     enqueue_referenced_by_request,
     list_referenced_by_requests,
 )
+from sase.sdd._artifact_link_outbox_drain_support import AgentTerminalTimes
 from sase.sdd.artifact_link_event_publisher import artifact_link_machine_run_id
 from sase.sdd.artifact_link_outbox import (
     drain_artifact_link_outbox,
@@ -139,13 +141,22 @@ def test_commit_cites_events_drain_for_publication_agent_and_survive_stale_drop(
         agent_id="alice.athena.worker",
         qualifying_repo_ids=(str(repo),),
     )
-    monkeypatch.setattr(
-        "sase.sdd._artifact_link_outbox_drain._terminal_agent_finished_times",
-        lambda _entries: {"alice.athena.worker": 0.0},
+    terminal_times = AgentTerminalTimes(
+        snapshot_builder=lambda: SimpleNamespace(
+            rows=[
+                SimpleNamespace(
+                    name="alice.athena.worker",
+                    state="completed",
+                    status="DONE",
+                    finished_at=0.0,
+                )
+            ]
+        )
     )
+    # A cutoff past every queued row: only release evidence keeps them.
     monkeypatch.setattr(
         "sase.sdd._artifact_link_outbox_drain._terminal_cutoff",
-        lambda: 10.0,
+        lambda now: now + 3600.0,
     )
 
     report = drain_artifact_link_outbox(
@@ -153,6 +164,7 @@ def test_commit_cites_events_drain_for_publication_agent_and_survive_stale_drop(
         agent_name="alice.athena.worker",
         drop_stale_terminal=True,
         push_after_commit=False,
+        terminal_times=terminal_times,
     )
 
     assert report.drained == 1

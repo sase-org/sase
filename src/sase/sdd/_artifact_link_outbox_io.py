@@ -54,6 +54,16 @@ class _ArtifactLinkOutboxStats:
 
 
 @dataclass(frozen=True, slots=True)
+class _ArtifactLinkOutboxQueue:
+    """One consistent outbox read: queued events plus drain-relevant counts."""
+
+    entries: tuple[_ArtifactLinkOutboxEntry, ...] = ()
+    legacy_queued: int = 0
+    invalid_queued: int = 0
+    has_duplicate_ids: bool = False
+
+
+@dataclass(frozen=True, slots=True)
 class _ArtifactLinkOutboxRecord:
     """One physical outbox line plus its parse/classification result."""
 
@@ -286,33 +296,58 @@ def convert_legacy_artifact_link_outbox_entries(
         )
 
 
-def pending_artifact_link_outbox_events(
-    project_key: str,
-    *,
-    exclude_operation_ids: Iterable[str] = (),
-) -> tuple[dict[str, Any], ...]:
-    """Return queued schema-v2 events for local pending-link overlays."""
+def read_artifact_link_outbox_queue(project_key: str) -> _ArtifactLinkOutboxQueue:
+    """Return queued event entries and drain counts from one outbox parse.
 
-    excluded = _excluded_operation_ids(exclude_operation_ids)
-    return tuple(
-        dict(entry.event)
-        for entry in read_artifact_link_outbox_entries(project_key)
-        if entry.event is not None and entry.id not in excluded
+    Duplicate detection compares entry ids only, never per-row digests, so the
+    read stays O(rows) without a Rust digest call per row.
+    """
+
+    records = _read_outbox_records(project_key)
+    entries: list[_ArtifactLinkOutboxEntry] = []
+    legacy_queued = 0
+    invalid_queued = 0
+    seen_ids: set[str] = set()
+    has_duplicate_ids = False
+    for record in records:
+        if record.kind == "legacy_row":
+            legacy_queued += 1
+        elif record.kind == "invalid":
+            invalid_queued += 1
+        if record.kind != "event" or record.entry is None:
+            continue
+        entries.append(record.entry)
+        if record.entry.id in seen_ids:
+            has_duplicate_ids = True
+        seen_ids.add(record.entry.id)
+    return _ArtifactLinkOutboxQueue(
+        entries=tuple(entries),
+        legacy_queued=legacy_queued,
+        invalid_queued=invalid_queued,
+        has_duplicate_ids=has_duplicate_ids,
     )
 
 
-def pending_artifact_link_outbox_event_created_at(
+def pending_artifact_link_outbox_snapshot(
     project_key: str,
     *,
     exclude_operation_ids: Iterable[str] = (),
-) -> tuple[float, ...]:
-    """Return queue timestamps for pending schema-v2 event entries."""
+) -> tuple[tuple[dict[str, Any], ...], tuple[float, ...]]:
+    """Return queued schema-v2 events and their queue timestamps.
+
+    Both tuples come from one outbox read, index-aligned, so a pending-link
+    overlay and its queue-age stats always describe the same queue state.
+    """
 
     excluded = _excluded_operation_ids(exclude_operation_ids)
-    return tuple(
-        entry.created_at
+    pending = [
+        entry
         for entry in read_artifact_link_outbox_entries(project_key)
         if entry.event is not None and entry.id not in excluded
+    ]
+    return (
+        tuple(dict(entry.event) for entry in pending if entry.event is not None),
+        tuple(entry.created_at for entry in pending),
     )
 
 
@@ -612,8 +647,8 @@ __all__ = [
     "append_artifact_link_outbox_event",
     "convert_legacy_artifact_link_outbox_entries",
     "inspect_artifact_link_outbox",
-    "pending_artifact_link_outbox_event_created_at",
-    "pending_artifact_link_outbox_events",
+    "pending_artifact_link_outbox_snapshot",
     "read_artifact_link_outbox_entries",
+    "read_artifact_link_outbox_queue",
     "rewrite_artifact_link_outbox_without_ids",
 ]

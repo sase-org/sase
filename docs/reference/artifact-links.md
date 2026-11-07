@@ -340,9 +340,11 @@ configured remote.
 An audited agent `read` updates the local reduced view and appends a replayable event to
 the outbox until the agent's published identity can satisfy document ownership. The
 commit workflow and hourly backfill retry those events. Rows for terminal agents that
-remain unpublished for 90 days leave the live queue and enter the dropped audit.
-Publication commits isolate only canonical event and marker paths, leaving unrelated or
-pre-existing sidecar dirt for the normal declaration workflow.
+remain unpublished for 90 days leave the live queue and enter the dropped audit. The
+backfill checks for such rows at most once per day per project, so a drop can land up to
+a day after that mark. Publication commits isolate only canonical event and marker
+paths, leaving unrelated or pre-existing sidecar dirt for the normal declaration
+workflow.
 
 ## Related
 

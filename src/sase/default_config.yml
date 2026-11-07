@@ -1837,7 +1837,10 @@ axe:
             and the dangling-ref repair pass driven by git rename history. The derivation sweep is
             resumable via a per-project checkpoint of already-swept refs, so a large backlog converges
             over several ticks instead of rescanning every document every hour; a document is swept once
-            each candidate is durable or parked. A hard bead projection failure this tick is
+            each candidate is durable or parked. The drain drops never-published rows of long-finished
+            agents at most once per day per project and logs per-phase timings; reconcile starts only
+            when its learned duration fits the remaining budget, and a project whose work was deferred
+            goes first on the next tick. A hard bead projection failure this tick is
             check_error with reason bead_projection_failed; parked operations alone are not an error.
         - name: artifact_retention
           script: sase_job_artifact_retention
