@@ -242,7 +242,7 @@ def test_create_bypass_prints_reason(
 ) -> None:
     import sase.project_onboarding.human_only as human_only
 
-    human_only._emitted_bypass_reasons.clear()
+    monkeypatch.setattr(human_only, "_emitted_bypass_reasons", set())
     monkeypatch.setenv("SASE_AGENT", "1")
     monkeypatch.setenv("SASE_PROJECT_CREATE_BYPASS", "repair-create")
     monkeypatch.delenv("SASE_GATE_COMMAND", raising=False)

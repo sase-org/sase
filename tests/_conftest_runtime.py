@@ -285,6 +285,75 @@ def _clear_lazy_syntax_caches_if_loaded() -> None:
             cache.clear()
 
 
+def _clear_project_display_caches_if_loaded() -> None:
+    """Drop project display snapshots and freshness tokens from earlier tests.
+
+    Both maps are keyed by each test's isolated projects root, so without a
+    reset they keep growing across the suite (hundreds of stale homes per
+    worker) and a later test can inherit an earlier test's snapshot. The
+    humanize memo is retired the same way an invalidation retires it.
+    """
+    import sys
+
+    module = sys.modules.get("sase._project_display_cache")
+    if module is None:
+        return
+    lock = getattr(module, "_PROJECT_DISPLAY_NAME_CACHE_LOCK", None)
+    if lock is None:
+        return
+    with lock:
+        for name in (
+            "_PROJECT_DISPLAY_NAME_CACHE",
+            "_PROJECT_DISPLAY_FRESHNESS_TOKENS",
+        ):
+            cache = getattr(module, name, None)
+            if isinstance(cache, dict):
+                cache.clear()
+    bump = getattr(module, "_bump_humanize_cache", None)
+    if callable(bump):
+        bump()
+
+
+def _clear_tui_session_memos_if_loaded() -> None:
+    """Drop TUI process memos that otherwise carry one test's session into the next.
+
+    - prebuilt deck bodies: rendered strips for an earlier test's cards;
+    - stranded-toast baselines: a later test's first report would toast as
+      a transition instead of setting its quiet baseline;
+    - the gate-notification index: an identity memo that pins an earlier
+      test's notification snapshot;
+    - pending footprint hits: unflushed counts that a later test's flusher
+      would write under its own home.
+    """
+    import sys
+
+    deferred = sys.modules.get("sase.ace.tui.widgets.decks.panel_view_deferred")
+    if deferred is not None:
+        prebuilt = getattr(deferred, "_prebuilt_bodies", None)
+        if isinstance(prebuilt, dict):
+            prebuilt.clear()
+
+    toasts = sys.modules.get("sase.ace.tui.actions.agents._stranded_toasts")
+    if toasts is not None:
+        seen = getattr(toasts, "_SEEN_LEAVES", None)
+        if isinstance(seen, dict):
+            seen.clear()
+
+    enter_index = sys.modules.get("sase.ace.tui.actions.agents._agent_enter_index")
+    if enter_index is not None:
+        for name in ("_INDEX_CACHE_REF", "_INDEX_CACHE"):
+            if hasattr(enter_index, name):
+                setattr(enter_index, name, None)
+
+    footprint = sys.modules.get("sase.footprint._tui")
+    if footprint is not None:
+        counts = getattr(footprint, "_COUNTS", None)
+        counts_lock = getattr(footprint, "_LOCK", None)
+        if isinstance(counts, dict) and counts_lock is not None:
+            with counts_lock:
+                counts.clear()
+
+
 def _capture_derived_config_cache_helpers() -> tuple[object, object, object]:
     """Bind the real cached helpers before tests replace their names."""
     from sase.llm_provider import config as llm_provider_config
@@ -359,6 +428,8 @@ def _reset_derived_config_caches() -> None:
     _clear_notification_snapshot_cache_if_loaded()
     _clear_associated_plan_sheet_caches_if_loaded()
     _clear_lazy_syntax_caches_if_loaded()
+    _clear_project_display_caches_if_loaded()
+    _clear_tui_session_memos_if_loaded()
     _drain_config_token_refresh()
     config_core.clear_config_cache()
     for cached in _derived_config_cache_helpers():

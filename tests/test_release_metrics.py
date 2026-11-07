@@ -13,11 +13,16 @@ import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
 SCRIPT = ROOT / "tools" / "_release_metrics.py"
+TOOLS_DIR = str(ROOT / "tools")
+
+# Once per process, not per test: re-inserting on every test grows sys.path,
+# which the global-leak gate reports as poisoning.
+if TOOLS_DIR not in sys.path:
+    sys.path.insert(0, TOOLS_DIR)
 
 
 @pytest.fixture
 def metrics():
-    sys.path.insert(0, str(ROOT / "tools"))
     loader = SourceFileLoader("release_metrics_test_module", str(SCRIPT))
     spec = importlib.util.spec_from_file_location(
         "release_metrics_test_module", SCRIPT, loader=loader
@@ -465,7 +470,6 @@ def test_pypi_history_requires_timestamps_digests_and_yank_state(metrics) -> Non
 
 
 def test_commit_range_reader_subtracts_base_reachability_without_compare_cap() -> None:
-    sys.path.insert(0, str(ROOT / "tools"))
     from _release_watch_facts import ReleaseFactsReader
 
     reader = object.__new__(ReleaseFactsReader)
@@ -517,7 +521,6 @@ def test_job_reads_retry_transient_github_server_errors(metrics, monkeypatch) ->
 
 
 def test_tag_history_includes_commit_timestamp_for_burned_version_metric() -> None:
-    sys.path.insert(0, str(ROOT / "tools"))
     from _release_watch_facts import ReleaseFactsReader
 
     reader = object.__new__(ReleaseFactsReader)

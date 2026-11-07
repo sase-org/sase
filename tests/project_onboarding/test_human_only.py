@@ -11,8 +11,10 @@ from sase.project_onboarding.human_only import detect_actor
 import sase.project_onboarding.human_only as human_only
 
 
-def _reset_bypass() -> None:
-    human_only._emitted_bypass_reasons.clear()
+@pytest.fixture(autouse=True)
+def _fresh_bypass_reasons(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Each test sees an empty print-once memo, restored at teardown."""
+    monkeypatch.setattr(human_only, "_emitted_bypass_reasons", set())
 
 
 class TestDetectActor:
@@ -44,7 +46,6 @@ class TestDetectActor:
         assert detect_actor({"SASE_AGENT": "1", "SASE_GATE_COMMAND": "0"}) == "agent"
 
     def test_bypass_permits_human_and_prints_once(self) -> None:
-        _reset_bypass()
         stderr = StringIO()
         env = {"SASE_AGENT": "1", "SASE_PROJECT_CREATE_BYPASS": "repair-setup"}
         assert detect_actor(env, stderr=stderr) == "human"

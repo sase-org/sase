@@ -95,6 +95,20 @@ def public_prober(monkeypatch: pytest.MonkeyPatch):
     set_remote_visibility_prober(None)
 
 
+@pytest.fixture(autouse=True)
+def _fresh_fetch_memos(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Give each test its own fetch and materialization memos.
+
+    ``_clear_fetch_cache`` empties them mid-test; patching fresh sets keeps
+    those per-test temp-path keys from outliving the test.
+    """
+    from sase.bead.attachments.git_store import reads as _reads_mod
+    from sase.bead.attachments.upload import discovery as _disc
+
+    monkeypatch.setattr(_reads_mod, "_FETCHED_REPOS", set())
+    monkeypatch.setattr(_disc, "_PUBLIC_MATERIALIZATION_ATTEMPTED", set())
+
+
 def _clear_fetch_cache() -> None:
     try:
         from sase.bead.attachments.git_store import reads as _reads_mod

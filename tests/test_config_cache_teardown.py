@@ -59,6 +59,44 @@ def test_reset_derived_caches_clears_originals_while_names_are_patched(
     assert original.cache_info().currsize == 0
 
 
+def test_reset_derived_caches_drops_cross_test_session_memos(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Memos keyed by one test's homes or session must start cold next test."""
+    from collections import OrderedDict
+
+    from sase import _project_display_cache as display_cache
+    from sase.ace.tui.actions.agents import _agent_enter_index as enter_index
+    from sase.ace.tui.actions.agents import _stranded_toasts
+    from sase.ace.tui.widgets.decks import panel_view_deferred
+    from sase.footprint import _tui as footprint_tui
+
+    names = {"/tmp/test-home/.sase/projects": object()}
+    tokens = {"/tmp/test-home/.sase/projects": ("token",)}
+    prebuilt = OrderedDict({("digest", 80, "style"): ((), 1, ())})
+    seen = {"demo": frozenset({"sase-demo.1"})}
+    counts = {("tui:app.app.focus_next", "key"): 2}
+    monkeypatch.setattr(display_cache, "_PROJECT_DISPLAY_NAME_CACHE", names)
+    monkeypatch.setattr(display_cache, "_PROJECT_DISPLAY_FRESHNESS_TOKENS", tokens)
+    monkeypatch.setattr(panel_view_deferred, "_prebuilt_bodies", prebuilt)
+    monkeypatch.setattr(_stranded_toasts, "_SEEN_LEAVES", seen)
+    monkeypatch.setattr(enter_index, "_INDEX_CACHE_REF", object())
+    monkeypatch.setattr(enter_index, "_INDEX_CACHE", object())
+    monkeypatch.setattr(footprint_tui, "_COUNTS", counts)
+    generation = display_cache._HUMANIZE_CACHE_GEN
+
+    _reset_derived_config_caches()
+
+    assert names == {}
+    assert tokens == {}
+    assert display_cache._HUMANIZE_CACHE_GEN == generation + 1
+    assert prebuilt == {}
+    assert seen == {}
+    assert enter_index._INDEX_CACHE_REF is None
+    assert enter_index._INDEX_CACHE is None
+    assert counts == {}
+
+
 def test_drain_config_token_refresh_joins_worker_and_advances_epoch() -> None:
     """Drain invalidates the generation and waits for the daemon to exit."""
     now = [10.0]

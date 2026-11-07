@@ -32,7 +32,9 @@ def _production_paths(
     monkeypatch.setattr(
         "sase.core.paths.require_pytest_sandbox_root", lambda **_kwargs: None
     )
-    _paths._REGISTERED_MANAGED_TMP_ROOTS.clear()
+    # A fresh memo per test: clearing the process-wide set would leave this
+    # test's roots behind for the next test.
+    monkeypatch.setattr(_paths, "_REGISTERED_MANAGED_TMP_ROOTS", set())
 
 
 def test_writer_root_is_reaped_from_a_foreign_environment(

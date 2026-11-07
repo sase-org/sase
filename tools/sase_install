@@ -24,15 +24,17 @@ from collections.abc import Callable, Mapping
 from pathlib import Path
 from typing import TextIO
 
-sys.path.insert(0, str(Path(__file__).resolve().parent))
+_TOOLS_DIR = str(Path(__file__).resolve().parent)
+if _TOOLS_DIR not in sys.path:
+    sys.path.insert(0, _TOOLS_DIR)
 
-import _sase_install_core as install_core
-import _sase_install_env as install_env
-import _sase_install_plan as install_plan
-import _sase_install_pypi as install_pypi
-import _sase_install_run as install_run
-import _sase_install_state as install_state
-import _sase_install_ui as install_ui
+import _sase_install_core as install_core  # noqa: E402
+import _sase_install_env as install_env  # noqa: E402
+import _sase_install_plan as install_plan  # noqa: E402
+import _sase_install_pypi as install_pypi  # noqa: E402
+import _sase_install_run as install_run  # noqa: E402
+import _sase_install_state as install_state  # noqa: E402
+import _sase_install_ui as install_ui  # noqa: E402
 
 
 EXIT_OK = 0
