@@ -16,8 +16,9 @@ def describe_files_nav(panel: Any) -> str:
 
     Reports the live scroll position and extent plus the durable
     navigation state (pending index, retry counter, generation and
-    confirmed flag) so the next CI timeout names the stall instead of
-    just the wait.
+    confirmed flag), the spread reserve, its content/anchor generations
+    and whether a Textual layout request is still pending, so the next
+    CI timeout names the stall instead of just the wait.
     """
     try:
         panel_index = int(getattr(panel, "_panel_index", 0))
@@ -55,15 +56,23 @@ def describe_files_nav(panel: Any) -> str:
         reserve = int(getattr(spread, "_section_layout_reserve", 0) or 0)
         reserve_on = bool(getattr(spread, "_section_layout_reserve_enabled", False))
         real_height = int(getattr(spread, "_section_real_content_height", 0) or 0)
+        layout = (
+            f"section_gen={getattr(spread, '_section_generation', None)} "
+            f"anchor_gen={getattr(spread, '_section_anchor_generation', None)} "
+            f"layout_pending={getattr(spread, '_layout_required', None)} "
+            f"layout_updates={getattr(spread, '_layout_updates', None)}"
+        )
     except Exception:
         reserve = "<unreadable>"  # type: ignore[assignment]
         reserve_on = "<unreadable>"  # type: ignore[assignment]
         real_height = "<unreadable>"  # type: ignore[assignment]
+        layout = "layout=<unreadable>"
     return (
         f"files_nav: scroll_y={scroll_y} max_scroll_y={max_scroll_y} "
         f"pending={pending_repr} retry={retry} "
         f"generation={generation} confirmed={confirmed} "
-        f"reserve={reserve} reserve_on={reserve_on} real_h={real_height}"
+        f"reserve={reserve} reserve_on={reserve_on} real_h={real_height} "
+        f"{layout}"
     )
 
 

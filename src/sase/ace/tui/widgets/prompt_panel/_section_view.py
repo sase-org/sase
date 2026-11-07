@@ -317,9 +317,22 @@ class SectionViewMixin(Static):
         return True
 
     def refresh_section_layout_reserve(self) -> None:
-        """Remeasure auto-height so a live trailing reserve can expand extent."""
+        """Remeasure auto-height so a live trailing reserve can expand extent.
+
+        Textual keys its box-model cache by a layout counter that
+        ``refresh(layout=True)`` advances only when no layout is already
+        pending. A screen reflow can measure this view after an earlier
+        request but before the view's idle posts that request; the
+        pending layout then reuses the cached height and never calls
+        ``get_content_height``. Drop the cached box model so this
+        remeasure always reaches the next layout.
+        """
         try:
             self.clear_cached_dimensions()
+        except Exception:
+            pass
+        try:
+            self._box_model_cache.clear()
         except Exception:
             pass
         try:

@@ -8,6 +8,7 @@ navigation. Uses real widgets and controlled callback ordering.
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
@@ -66,6 +67,40 @@ async def _ready_spread_panel(tmp_path: Path, pilot: Any, detail: Any) -> Any:
     await wait_for(
         pilot,
         lambda: len(getattr(panel.file_view, "_file_list", ())) > 1,
+    )
+    return panel
+
+
+async def _wait_for_files(
+    pilot: Any, panel: Any, predicate: Callable[[], bool]
+) -> None:
+    """``wait_for`` that names the Files spread layout state on timeout."""
+    try:
+        await wait_for(pilot, predicate)
+    except AssertionError as exc:
+        raise AssertionError(
+            f"{exc}\nanchor1={panel._files_anchor_row(1)!r} {describe_files_nav(panel)}"
+        ) from exc
+
+
+async def _ready_reserved_spread(tmp_path: Path, pilot: Any, detail: Any) -> Any:
+    """Return a spread panel whose paged→spread restore enabled its reserve.
+
+    The restore runs on a later refresh than the anchor publish. Waiting
+    for its flag and the extent it measures fixes the ordering: the
+    caller starts from the restored state instead of racing the restore.
+    """
+    panel = await _ready_spread_panel(tmp_path, pilot, detail)
+    spread = panel.files_spread_view
+    scroll = panel.query_one("#agent-deck-panel-0-files-scroll", VerticalScroll)
+    await _wait_for_files(
+        pilot,
+        panel,
+        lambda: (
+            bool(spread._section_layout_reserve_enabled)
+            and panel._files_anchor_row(1) is not None
+            and int(scroll.max_scroll_y) >= int(panel._files_anchor_row(1) or 0)
+        ),
     )
     return panel
 
@@ -343,7 +378,7 @@ async def test_trailing_reserve_remeasures_when_flag_already_enabled(
         detail.update_display(agent)
         await pilot.pause()
         detail.show_deck(0, DeckId.FILES)
-        panel = await _ready_spread_panel(tmp_path, pilot, detail)
+        panel = await _ready_reserved_spread(tmp_path, pilot, detail)
         spread = panel.files_spread_view
         scroll = panel.query_one("#agent-deck-panel-0-files-scroll", VerticalScroll)
         real_height = spread.get_content_height
@@ -359,10 +394,10 @@ async def test_trailing_reserve_remeasures_when_flag_already_enabled(
         spread.get_content_height = _without_reserve  # type: ignore[method-assign]
         try:
             spread._section_layout_reserve_enabled = False
-            spread.clear_cached_dimensions()
-            spread.refresh(layout=True)
-            await wait_for(
+            spread.refresh_section_layout_reserve()
+            await _wait_for_files(
                 pilot,
+                panel,
                 lambda: (
                     panel._files_anchor_row(1) is not None
                     and int(scroll.max_scroll_y) < int(panel._files_anchor_row(1) or 0)
@@ -404,3 +439,49 @@ async def test_trailing_reserve_remeasures_when_flag_already_enabled(
             f"navigation did not land: scroll_y={int(scroll.scroll_y)} "
             f"anchor={live_anchor}"
         )
+
+
+async def test_reserve_remeasure_survives_pending_measured_layout(
+    tmp_path: Path,
+) -> None:
+    """A reserve remeasure must not be lost behind a measured pending layout.
+
+    sase-1qd: under coverage load a sibling layout let a screen reflow
+    measure the reserved spread for its pending layout request before
+    the spread's own idle posted that request. Textual advances its
+    box-model cache key only for a new request, so a later
+    ``clear_cached_dimensions()`` plus ``refresh(layout=True)`` reused
+    the reserved height and ``max_scroll_y`` never shrank. Run that
+    interleave synchronously, then remeasure without the reserve.
+    """
+    agent = _make_two_file_agent(tmp_path)
+    app = _DetailApp()
+    async with app.run_test(size=(160, 40)) as pilot:
+        await pilot.pause()
+        detail = app.query_one("#agent-detail-panel", AgentDetail)
+        detail.update_display(agent)
+        await pilot.pause()
+        detail.show_deck(0, DeckId.FILES)
+        panel = await _ready_reserved_spread(tmp_path, pilot, detail)
+        spread = panel.files_spread_view
+        scroll = panel.query_one("#agent-deck-panel-0-files-scroll", VerticalScroll)
+        await _wait_for_files(pilot, panel, lambda: not spread._layout_required)
+        anchor = panel._files_anchor_row(1)
+        assert anchor is not None and anchor > 0, f"anchor={anchor!r}"
+        assert int(scroll.max_scroll_y) >= anchor, describe_files_nav(panel)
+        # The spread requests layout; a sibling's layout clears the scroll
+        # arrangement and a screen reflow measures the spread before the
+        # spread's idle posts its own still-pending request.
+        spread.refresh(layout=True)
+        scroll._clear_arrangement_cache()
+        app.screen._refresh_layout()
+        assert spread._layout_required, describe_files_nav(panel)
+        assert int(scroll.max_scroll_y) >= anchor, describe_files_nav(panel)
+        spread._section_layout_reserve_enabled = False
+        spread.refresh_section_layout_reserve()
+        await _wait_for_files(
+            pilot,
+            panel,
+            lambda: int(scroll.max_scroll_y) < int(panel._files_anchor_row(1) or 0),
+        )
+        assert spread._section_layout_reserve == 0, describe_files_nav(panel)
