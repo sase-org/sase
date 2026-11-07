@@ -2,7 +2,11 @@
 
 from __future__ import annotations
 
+import ast
+import gc
 import json
+import weakref
+from collections.abc import Iterator
 from datetime import UTC, date, datetime
 from pathlib import Path
 from typing import Any
@@ -146,6 +150,67 @@ def test_in_flight_orphan_warning_does_not_fail_main(tmp_path: Path) -> None:
     rendered = tool.format_finding(findings[0], tmp_path)
     assert rendered.startswith("warning: ")
     assert "rule 8:" in rendered
+
+
+def test_run_checks_drops_each_parsed_tree_before_the_next(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # Holding every parsed src/ tree at once peaked near 1.7 GB inside a
+    # contention-soak worker. Rules 3 and 4 must share one streaming parse.
+    tool = _load_tool()
+    src = tmp_path / "src" / "sase"
+    files = [
+        _write(
+            src / "consumer.py",
+            "from sase.feature_flags import FeatureFlag\n"
+            "\n"
+            "def use() -> object:\n"
+            "    return FeatureFlag.demo_flag\n",
+        ),
+        _write(
+            src / "bindings.py",
+            "from sase.feature_flags.snapshot import current_flags\n"
+            "\n"
+            "FLAGS = current_flags()\n",
+        ),
+        *(_write(src / f"plain_{index}.py", "VALUE = 1\n") for index in range(4)),
+    ]
+    real_iter = tool.iter_parsed_python_files
+    live: list[weakref.ref[ast.AST]] = []
+    parsed = 0
+    max_live = 0
+
+    def tracking_iter(paths: Any) -> Iterator[tuple[Path, ast.AST]]:
+        nonlocal parsed, max_live
+        for path, tree in real_iter(paths):
+            gc.collect()
+            live[:] = [ref for ref in live if ref() is not None]
+            live.append(weakref.ref(tree))
+            parsed += 1
+            max_live = max(max_live, len(live))
+            yield path, tree
+
+    monkeypatch.setattr(tool, "iter_parsed_python_files", tracking_iter)
+    defs = definitions(demo_flag("demo_flag"), demo_flag("other_flag"))
+
+    findings = tool.run_checks(
+        repo_root=tmp_path,
+        definitions=defs,
+        schema_document=_schema_document(defs),
+        python_files=files,
+        config_files=[],
+        static_only=True,
+    )
+
+    assert parsed == len(files)
+    # The caller's loop variable still holds the previous tree while the
+    # next one is parsed, so two may be alive; never all of them.
+    assert max_live <= 2
+    assert [(finding.rule, finding.path) for finding in findings] == [
+        (3, None),
+        (4, files[1]),
+    ]
+    assert "'other_flag'" in findings[0].message
 
 
 def test_empty_registry_full_check_with_no_flag_beads_passes(tmp_path: Path) -> None:

@@ -36,7 +36,7 @@ import json
 import os
 import subprocess
 import sys
-from collections.abc import Mapping, Sequence
+from collections.abc import Iterable, Iterator, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import UTC, date, datetime
 from pathlib import Path
@@ -269,31 +269,31 @@ def _is_feature_flag_expr(node: ast.AST) -> bool:
     return isinstance(node, ast.Attribute) and node.attr == "FeatureFlag"
 
 
-def _file_references_key(tree: ast.AST, key: str) -> bool:
+def _referenced_flag_keys(tree: ast.AST) -> set[object]:
+    """Return every key *tree* reads through a recognized flag-reference shape.
+
+    One walk collects all keys, so a file is visited once no matter how many
+    flags are registered.
+    """
+    keys: set[object] = set()
     for node in ast.walk(tree):
-        if (
-            isinstance(node, ast.Attribute)
-            and node.attr == key
-            and _is_feature_flag_expr(node.value)
-        ):
-            return True
-        if (
-            isinstance(node, ast.Subscript)
-            and _is_feature_flag_expr(node.value)
-            and isinstance(node.slice, ast.Constant)
-            and node.slice.value == key
-        ):
-            return True
-        if (
+        if isinstance(node, ast.Attribute):
+            if _is_feature_flag_expr(node.value):
+                keys.add(node.attr)
+        elif isinstance(node, ast.Subscript):
+            if _is_feature_flag_expr(node.value) and isinstance(
+                node.slice, ast.Constant
+            ):
+                keys.add(node.slice.value)
+        elif (
             isinstance(node, ast.Call)
             and isinstance(node.func, ast.Attribute)
             and node.func.attr == "enabled"
             and node.args
             and isinstance(node.args[0], ast.Constant)
-            and node.args[0].value == key
         ):
-            return True
-    return False
+            keys.add(node.args[0].value)
+    return keys
 
 
 def _is_reference_excluded(path: Path, repo_root: Path) -> bool:
@@ -301,39 +301,44 @@ def _is_reference_excluded(path: Path, repo_root: Path) -> bool:
     return rel in REFERENCE_EXCLUDED_RELPATHS or path.name == "check_feature_flags"
 
 
-def parse_python_files(files: Sequence[Path]) -> list[tuple[Path, ast.AST]]:
-    """Parse *files*, skipping unreadable or syntactically invalid sources."""
-    trees: list[tuple[Path, ast.AST]] = []
+def iter_parsed_python_files(files: Iterable[Path]) -> Iterator[tuple[Path, ast.AST]]:
+    """Parse *files* one at a time, skipping unreadable or invalid sources.
+
+    Callers must not retain the trees: every tree of ``src/`` held at once
+    peaks near 1.7 GB, which the whole-suite contention soak cannot afford.
+    """
     for path in files:
         try:
             source = path.read_text(encoding="utf-8")
-            trees.append((path, ast.parse(source, filename=str(path))))
+            tree = ast.parse(source, filename=str(path))
         except (OSError, SyntaxError):
             continue
-    return trees
+        yield path, tree
+
+
+def _missing_reference_findings(
+    definitions: Mapping[str, FeatureFlagDefinition],
+    referenced: set[object],
+) -> list[Finding]:
+    return [
+        Finding(3, f"feature flag {key!r} has no non-test reference")
+        for key in sorted(definitions)
+        if key not in referenced
+    ]
 
 
 def check_references(
     definitions: Mapping[str, FeatureFlagDefinition],
-    files: Sequence[Path] | None = None,
+    files: Sequence[Path],
     *,
     repo_root: Path,
-    trees: Sequence[tuple[Path, ast.AST]] | None = None,
 ) -> list[Finding]:
     """Rule 3: every registered key is read from at least one non-test file."""
-    parsed = list(trees) if trees is not None else parse_python_files(files or ())
-    usable = [
-        (path, tree)
-        for path, tree in parsed
-        if not _is_reference_excluded(path, repo_root)
-    ]
-
-    findings: list[Finding] = []
-    for key in sorted(definitions):
-        if any(_file_references_key(tree, key) for _, tree in usable):
-            continue
-        findings.append(Finding(3, f"feature flag {key!r} has no non-test reference"))
-    return findings
+    referenced: set[object] = set()
+    for path, tree in iter_parsed_python_files(files):
+        if not _is_reference_excluded(path, repo_root):
+            referenced.update(_referenced_flag_keys(tree))
+    return _missing_reference_findings(definitions, referenced)
 
 
 def _call_name(node: ast.Call) -> str | None:
@@ -418,25 +423,26 @@ def _import_time_resolution_calls(tree: ast.AST) -> list[ast.Call]:
     return found
 
 
-def check_import_time(
-    files: Sequence[Path] | None = None,
-    *,
-    trees: Sequence[tuple[Path, ast.AST]] | None = None,
-) -> list[Finding]:
-    """Rule 4: flags are not resolved while a module is importing."""
-    parsed = list(trees) if trees is not None else parse_python_files(files or ())
+def _import_time_findings(path: Path, tree: ast.AST) -> list[Finding]:
     findings: list[Finding] = []
-    for path, tree in parsed:
-        for call in _import_time_resolution_calls(tree):
-            name = _call_name(call) or "unknown"
-            findings.append(
-                Finding(
-                    4,
-                    f"feature flag resolved at module import time ({name})",
-                    path=path,
-                    line_number=call.lineno,
-                )
+    for call in _import_time_resolution_calls(tree):
+        name = _call_name(call) or "unknown"
+        findings.append(
+            Finding(
+                4,
+                f"feature flag resolved at module import time ({name})",
+                path=path,
+                line_number=call.lineno,
             )
+        )
+    return findings
+
+
+def check_import_time(files: Sequence[Path]) -> list[Finding]:
+    """Rule 4: flags are not resolved while a module is importing."""
+    findings: list[Finding] = []
+    for path, tree in iter_parsed_python_files(files):
+        findings.extend(_import_time_findings(path, tree))
     return findings
 
 
@@ -910,15 +916,15 @@ def run_checks(
             schema_path=resolved_schema_path,
         )
     )
-    parsed_python = parse_python_files(resolved_python)
-    findings.extend(
-        check_references(
-            resolved_definitions,
-            repo_root=repo_root,
-            trees=parsed_python,
-        )
-    )
-    findings.extend(check_import_time(trees=parsed_python))
+    # Rules 3 and 4 share one streaming parse that never retains the trees.
+    referenced: set[object] = set()
+    import_time_findings: list[Finding] = []
+    for path, tree in iter_parsed_python_files(resolved_python):
+        if not _is_reference_excluded(path, repo_root):
+            referenced.update(_referenced_flag_keys(tree))
+        import_time_findings.extend(_import_time_findings(path, tree))
+    findings.extend(_missing_reference_findings(resolved_definitions, referenced))
+    findings.extend(import_time_findings)
     findings.extend(check_repo_config(resolved_definitions, resolved_config))
     if static_only:
         return findings
