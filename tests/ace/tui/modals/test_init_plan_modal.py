@@ -18,6 +18,7 @@ from tests.ace.tui._plugins_browser_pane_helpers import _render
 from .projects_pane_init_test_helpers import (
     danger_payload,
     mixed_all_payload,
+    sidecar_terminal_payload,
     single_update_payload,
     tty_blocked_payload,
 )
@@ -92,6 +93,22 @@ def test_terminal_button_absent_without_tty_blockers() -> None:
     assert modal._show_terminal is False
 
 
+def test_sidecar_terminal_payload_notes_skip_and_offers_terminal() -> None:
+    scope = InitScope.for_projects(("love",), ("love",))
+    payload = sidecar_terminal_payload()
+    modal = InitPlanModal(scope, payload)
+    rendered = _render(init_plan_renderable(scope, payload, show_diffs=False))
+
+    assert "Sidecar repository creation needs a terminal" in rendered
+    assert "y skips it; t runs it interactively" in rendered
+    assert init_plan_confirm_label(scope, payload) == (
+        "Initialize love · skip terminal steps (y)"
+    )
+    assert modal._show_terminal is True
+    assert modal._runnable == 1
+    assert modal._skip_terminal_on_confirm() is True
+
+
 async def test_terminal_button_shown_and_dismisses_with_terminal_decision() -> None:
     scope = InitScope.for_projects(("sase",), ("sase",))
     payload = tty_blocked_payload()
@@ -111,6 +128,47 @@ async def test_terminal_button_shown_and_dismisses_with_terminal_decision() -> N
         await page.press("t")
         await page.pause()
         assert results == [InitPlanDecision(action="terminal")]
+
+
+async def test_sidecar_terminal_button_is_primary_focused_and_t_dismisses() -> None:
+    scope = InitScope.for_projects(("love",), ("love",))
+    payload = sidecar_terminal_payload()
+    results: list[InitPlanDecision | None] = []
+    async with AcePage() as page:
+        modal = InitPlanModal(scope, payload)
+        page.app.push_screen(modal, results.append)
+        await page.expect_modal("InitPlanModal")
+        await page.wait_for(lambda _s: len(modal.query("#init-plan-terminal")) > 0)
+
+        terminal_button = modal.query_one("#init-plan-terminal", Button)
+        confirm = modal.query_one("#init-plan-confirm", Button)
+        assert "Run in terminal" in str(terminal_button.label)
+        assert terminal_button.variant == "primary"
+        assert confirm.variant == "default"
+        assert "skip terminal steps" in str(confirm.label)
+        assert modal.focused is terminal_button
+        assert "y skip terminal steps" in (
+            modal.query_one("#init-plan-container").border_subtitle
+        )
+
+        await page.press("t")
+        await page.pause()
+        assert results == [InitPlanDecision(action="terminal")]
+
+
+async def test_sidecar_terminal_y_still_applies() -> None:
+    scope = InitScope.for_projects(("love",), ("love",))
+    payload = sidecar_terminal_payload()
+    results: list[InitPlanDecision | None] = []
+    async with AcePage() as page:
+        modal = InitPlanModal(scope, payload)
+        page.app.push_screen(modal, results.append)
+        await page.expect_modal("InitPlanModal")
+        await page.wait_for(lambda _s: len(modal.query("#init-plan-confirm")) > 0)
+
+        await page.press("y")
+        await page.pause()
+        assert results == [InitPlanDecision(action="apply")]
 
 
 async def test_terminal_key_is_noop_without_tty_blockers() -> None:

@@ -35,6 +35,20 @@ _OPTIONAL_HIDDEN_SIDECAR_ROLES = frozenset(
     }
 )
 
+#: Sidecar roles whose missing remotes are advisory (a warning, no action)
+#: rather than planner drift. The planner and the non-interactive runner
+#: must use the same predicate so they cannot disagree.
+_ADVISORY_MISSING_SIDECAR_ROLES = frozenset({ATTACHMENTS_PRIVATE_SIDECAR_ROLE})
+
+
+def _sidecar_missing_is_drift(role: str) -> bool:
+    """Return whether a missing sidecar remote is planner drift.
+
+    ``attachments-private`` is advisory. Every other configured sidecar,
+    including agents and public attachments, needs a terminal to create.
+    """
+    return role not in _ADVISORY_MISSING_SIDECAR_ROLES
+
 
 def run_configured_sidecars(
     args: argparse.Namespace,
@@ -80,6 +94,7 @@ def run_configured_sidecars(
             print(line, file=sys.stderr)
     stdin: TextIO = getattr(args, "_init_stdin", None) or sys.stdin
     if missing and getattr(args, "onboarding", False) and not stdin.isatty():
+        deferred = list(getattr(args, "_init_deferred", ()))
         deferred_document_roles = False
         for role, preflight in missing.items():
             print(
@@ -88,10 +103,16 @@ def run_configured_sidecars(
                 "interactively to create it",
                 file=sys.stderr,
             )
+            if _sidecar_missing_is_drift(role):
+                deferred.append(
+                    f"{preflight.provider} sidecar repository {preflight.repo}"
+                )
             if role in _OPTIONAL_HIDDEN_SIDECAR_ROLES:
                 selected_roles.discard(role)
             else:
                 deferred_document_roles = True
+        if deferred:
+            args._init_deferred = tuple(deferred)
         if deferred_document_roles:
             return 0
 
@@ -495,7 +516,7 @@ def plan_sidecar_actions(
         roots[spec.role] = root
         clone_exists = (root / ".git").is_dir() or is_bare_sidecar_clone(root)
         needs_connection = not clone_exists and spec.role not in recorded_roles
-        if needs_connection and spec.role == ATTACHMENTS_PRIVATE_SIDECAR_ROLE:
+        if needs_connection and not _sidecar_missing_is_drift(spec.role):
             warnings.append(
                 "optional private attachment store attachments-private is not set up; "
                 "attachments stay local-only — run `sase repo init` to create it"

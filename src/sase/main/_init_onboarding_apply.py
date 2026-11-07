@@ -53,6 +53,20 @@ def _plan_may_create_sidecar_repo(plan: InitPlan) -> bool:
     )
 
 
+def _deferred_sidecar_notice(
+    command: str,
+    deferred: Sequence[str],
+    args: argparse.Namespace,
+) -> str:
+    names = ", ".join(deferred)
+    key = getattr(args, "_init_project_name", None)
+    if isinstance(key, str) and key.strip():
+        hint = f"run `sase init -p {key.strip()}` or `sase repo init` interactively"
+    else:
+        hint = "run `sase repo init` interactively"
+    return f"init {command}: sidecar creation needs a terminal: {names}; {hint}"
+
+
 def _apply_args(
     args: argparse.Namespace,
     spec: InitCommandSpec,
@@ -121,9 +135,8 @@ def run_changed_plans(
                 )
             skipped = True
             continue
-        exit_code = spec.run(
-            _apply_args(args, spec, input_func=input_func, stdin=stdin)
-        )
+        apply_args = _apply_args(args, spec, input_func=input_func, stdin=stdin)
+        exit_code = spec.run(apply_args)
         if exit_code != 0:
             console.print()
             console.print(
@@ -131,6 +144,14 @@ def run_changed_plans(
                 style="red",
             )
             return InitRunResult(exit_code, "failed")
+        deferred = tuple(getattr(apply_args, "_init_deferred", ()) or ())
+        if deferred:
+            console.print()
+            console.print(
+                _deferred_sidecar_notice(plan.command, deferred, apply_args),
+                style="yellow",
+            )
+            skipped = True
         if plan.command == "config":
             config_changed_since_plan = True
 

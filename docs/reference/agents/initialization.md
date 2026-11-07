@@ -254,9 +254,12 @@ any recorded sidecar that is still public while the primary is private (see
 `project.sidecar_visibility`).
 
 When non-interactive bare `sase init --yes` discovers a missing sidecar remote, it
-writes the project wiring, reports the missing repository, and leaves creation for a
-later interactive `sase repo init`. This keeps automated onboarding and post-commit
-hooks non-blocking without allowing `--yes` to authorize remote creation.
+writes the project wiring, reports the missing repository as needs attention, and leaves
+creation for a later interactive `sase repo init`. The bare form still exits `0`; `-p` /
+`--all` batches exit `1` like any other needs-attention project. The optional
+`attachments-private` store stays advisory: a missing remote is a warning, not needs
+attention. This keeps automated onboarding and post-commit hooks non-blocking without
+allowing `--yes` to authorize remote creation.
 
 Managed projects also resolve an implicit public `<project>--agents` sidecar unless
 project configuration disables it, sets `default_linked_repos: false`, or supplies an

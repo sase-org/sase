@@ -77,9 +77,10 @@ class InitProjectPlan:
         return any(planner.blockers for planner in self.planners)
 
     @property
-    def requires_tty(self) -> bool:
+    def needs_terminal(self) -> bool:
         return any(
-            planner.requires_tty for planner in self.planners if planner.blockers
+            planner.requires_tty and (planner.blockers or planner.has_changes)
+            for planner in self.planners
         )
 
     @property
@@ -169,14 +170,14 @@ def _join_planner_labels(labels: Sequence[str]) -> str:
     return f"{', '.join(items[:-1])}, and {items[-1]}"
 
 
-def tty_blocked_projects(payload: InitCheckPayload) -> tuple[InitProjectPlan, ...]:
-    """Return the projects held by at least one TTY-only blocker."""
-    return tuple(project for project in payload.projects if project.requires_tty)
+def terminal_projects(payload: InitCheckPayload) -> tuple[InitProjectPlan, ...]:
+    """Return the projects that need an interactive terminal to finish."""
+    return tuple(project for project in payload.projects if project.needs_terminal)
 
 
-def has_tty_blocked_projects(payload: InitCheckPayload) -> bool:
-    """Whether any project in the payload is held by a TTY-only blocker."""
-    return any(project.requires_tty for project in payload.projects)
+def has_terminal_projects(payload: InitCheckPayload) -> bool:
+    """Whether any project in the payload needs an interactive terminal."""
+    return any(project.needs_terminal for project in payload.projects)
 
 
 def current_init_toast(payload: InitCheckPayload) -> str:
@@ -318,7 +319,7 @@ __all__ = [
     "InitProjectPlan",
     "bounded_output_tail",
     "current_init_toast",
-    "has_tty_blocked_projects",
+    "has_terminal_projects",
     "parse_init_check_payload",
-    "tty_blocked_projects",
+    "terminal_projects",
 ]

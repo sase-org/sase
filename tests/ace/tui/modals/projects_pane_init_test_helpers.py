@@ -201,6 +201,65 @@ def danger_payload() -> InitCheckPayload:
     )
 
 
+def sidecar_terminal_payload(name: str = "love") -> InitCheckPayload:
+    """Repo planner with terminal-only sidecar creation and no blockers."""
+    return check_payload(
+        project_plan(
+            name,
+            display_name=name,
+            status="needs_attention",
+            planners=(
+                planner_row("config", label="Config", summary="Current"),
+                planner_row("memory", label="Memory", summary="Current"),
+                planner_row(
+                    "repo",
+                    label="Repos",
+                    summary="create sidecar repositories",
+                    has_changes=True,
+                    requires_tty=True,
+                    actions=(
+                        action_row(
+                            path="plans",
+                            operation="create",
+                            detail=(
+                                "create or connect the provider plans "
+                                "sidecar repository"
+                            ),
+                        ),
+                    ),
+                ),
+                planner_row("skills", label="Skills", summary="Current"),
+            ),
+        )
+    )
+
+
+def machine_offer_payload(name: str = "sase") -> InitCheckPayload:
+    """Machine planner offering enrollment, which also needs a terminal."""
+    return check_payload(
+        project_plan(
+            name,
+            display_name=name,
+            status="needs_attention",
+            planners=(
+                planner_row(
+                    "machine",
+                    label="Machine",
+                    summary="offer enrollment",
+                    has_changes=True,
+                    requires_tty=True,
+                    actions=(
+                        action_row(
+                            path="remote machine enrollment",
+                            operation="validate",
+                        ),
+                    ),
+                ),
+            ),
+        )
+    )
+
+
 def tty_blocked_payload() -> InitCheckPayload:
     """TTY-held plan that offers the run-in-terminal valve."""
     return check_payload(

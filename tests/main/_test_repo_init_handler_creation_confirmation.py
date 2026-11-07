@@ -21,7 +21,7 @@ from tests.main._repo_init_handler_creation_helpers import (
 import argparse
 from io import StringIO
 
-from sase.main.init_onboarding import run_init_onboarding
+from sase.main.init_onboarding import _run_init_onboarding_result, run_init_onboarding
 from sase.main.init_registry import InitCommandSpec
 
 
@@ -444,10 +444,14 @@ def test_noninteractive_bare_init_defers_missing_sidecar_creation(
     )
     spec = InitCommandSpec("repo", "Repos", plan_repo_init, run_repo_init)
 
-    assert run_init_onboarding(args, specs=(spec,), stdin=StringIO()) == 0
+    result = _run_init_onboarding_result(args, specs=(spec,), stdin=StringIO())
+    assert result.exit_code == 0
+    assert result.status == "needs_attention"
 
     config = (tmp_path / "sase" / "sase.yml").read_text(encoding="utf-8")
-    stderr = capsys.readouterr().err
+    captured = capsys.readouterr()
     assert "      research:\n" in config
-    assert "acme/widget--research is missing" in stderr
-    assert "run `sase repo init` interactively" in stderr
+    assert "acme/widget--research is missing" in captured.err
+    assert "run `sase repo init` interactively" in captured.err
+    assert "sidecar creation needs a terminal" in captured.out
+    assert "GitHub sidecar repository acme/widget--research" in captured.out

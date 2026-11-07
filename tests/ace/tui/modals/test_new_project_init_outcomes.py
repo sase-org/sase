@@ -8,10 +8,14 @@ from typing import Any
 
 import pytest
 
+from sase.ace.tui.modals.init_plan_modal import InitPlanModal
 from sase.ace.tui.modals.new_project_apply import NewProjectInitHost
 from sase.ace.tui.modals.new_project_ready import NewProjectReady
 from sase.ace.tui.modals.projects_pane_init import InitScope
-from sase.ace.tui.modals.projects_pane_init_flow import ProjectsInitFlowController
+from sase.ace.tui.modals.projects_pane_init_flow import (
+    ProjectsInitFlowController,
+    _apply_payload_from_output,
+)
 from sase.ace.tui.modals.projects_pane_init_payload import InitCheckPayload
 from tests.ace.tui._projects_pane_init_flow_helpers import (
     _completion,
@@ -20,6 +24,7 @@ from tests.ace.tui._projects_pane_init_flow_helpers import (
 from tests.ace.tui.modals.projects_pane_init_test_helpers import (
     check_payload,
     project_plan,
+    sidecar_terminal_payload,
 )
 from sase.ace.tui.modals.new_project_review import NewProjectReview
 from tests.ace.tui.modals.test_new_project_apply import _result
@@ -226,6 +231,48 @@ async def _start_wizard_init_handoff(
     await pilot.pause()
     assert submitted
     return submitted
+
+
+async def test_wizard_needs_attention_keeps_init_available(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    app, modal = _make_add_flow(monkeypatch)
+    monkeypatch.setattr(
+        NewProjectReview,
+        "start_check",
+        lambda self, document: self.show_document(document),
+    )
+    async with app.run_test(size=(120, 40)) as pilot:
+        submitted = await _start_wizard_init_handoff(pilot, app, modal)
+        _args, kwargs, handle = submitted[0]
+        payload = sidecar_terminal_payload("gh_sase-org__new")
+        kwargs["on_complete"](_completion(handle.proc_id, payload))
+        await pilot.pause()
+        await pilot.pause()
+
+        assert isinstance(app.screen, InitPlanModal)
+        assert app.screen._show_terminal is True
+
+        await pilot.press("y")
+        await pilot.pause()
+        assert len(submitted) == 2
+        _apply_args, apply_kwargs, apply_handle = submitted[1]
+        apply_payload = _apply_payload_from_output(
+            "Initialization summary: 1 checked, 1 needs attention",
+            1,
+        )
+        apply_kwargs["on_complete"](
+            _completion(
+                apply_handle.proc_id,
+                apply_payload,
+                proc_type="init-apply",
+                message=apply_payload.message,
+            )
+        )
+        await pilot.pause()
+        assert modal._state.stage == "ready"
+        ready = modal.query_one(NewProjectReady)
+        assert ready._needs_init is True
 
 
 async def test_wizard_init_success_marks_initialized(

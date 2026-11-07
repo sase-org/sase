@@ -82,11 +82,13 @@ account, and the first available owner.
 4. **Progress.** The operation runs as a durable background process (a proc). `Space`
    toggles its raw log. `Esc` closes the wizard while the operation continues in Procs.
    If onboarding offers `sase init`, its separate initialization preview requires
-   confirmation before applying.
+   confirmation before applying. Sidecar repository creation finishes in a terminal
+   (`t` on that preview); `y` skips those terminal-only steps.
 5. **Ready.** `Enter` shows the project in Projects. `+` or `=` opens a prompt on its
    `+tag`; submit that prompt to launch an agent. `c` makes it current when it is
-   launchable. If initialization was cancelled or failed, `i` offers initialization
-   again. `Esc` closes and returns the result to Projects.
+   launchable. If initialization was cancelled, failed, or left terminal-only work
+   unfinished, `i` offers initialization again. `Esc` closes and returns the result to
+   Projects.
 6. **Failed.** `r` returns to Review and checks the plan again; press `y` there to retry
    applying. `b` returns to Review with the last plan. `t` runs the apply command in a
    terminal, then checks the plan again. If repository creation succeeded before later
@@ -127,16 +129,21 @@ that and does not open a modal. Otherwise an initialization-plan preview shows t
 apply argv, per-planner rows with the CLI's glyph vocabulary, and warnings and blockers
 verbatim. The memory step may commit and push generated project memory; that warning is
 shown with the same prominence as the CLI prompt. Confirm runs exactly one
-`sase init … --yes` proc into the Procs tab and refreshes the pane in place. If the plan
-has TTY-only blockers, `t` suspends sase's TUI into interactive `sase init` for the
-blocked subset. `Enter` still means enable; initialization is never implicit.
+`sase init … --yes` proc into the Procs tab and refreshes the pane in place. `y` skips
+terminal-only steps such as sidecar repository creation. When the plan has those steps
+(or TTY-only blockers), `t` is the primary action and suspends sase's TUI into
+interactive `sase init` for the projects that need a terminal. A needs-attention apply
+toasts that you should run init again and press `t`. `Enter` still means enable;
+initialization is never implicit.
 
-The preview's own keys are listed on its border: `y` runs the plan, `d` toggles full
-file diffs on and off, `t` hands the run to a real terminal when the plan has TTY-only
-blockers (the row and key appear only then), and `Esc`, `q`, or `n` cancels. `Ctrl+D` /
-`Ctrl+U` scroll a long preview. The run button is disabled outright when no project in
-scope has a changed, runnable planner, and a plan whose runnable planners would
-overwrite or delete a file is styled as a danger confirmation rather than a neutral one.
+The preview's own keys are listed on its border: `y` runs the plan (skipping
+terminal-only steps when any are pending), `d` toggles full file diffs on and off,
+`t` hands the run to a real terminal when the plan has terminal-only steps (the row
+and key appear only then, and that button is focused first), and `Esc`, `q`, or `n`
+cancels. `Ctrl+D` / `Ctrl+U` scroll a long preview. The run button is disabled
+outright when no project in scope has a changed, runnable planner, and a plan whose
+runnable planners would overwrite or delete a file is styled as a danger confirmation
+rather than a neutral one.
 
 The current project — the same one the status-row `project: +<name>` chip names — is
 marked on three surfaces at once, all in that project's accent color: a `+` in the row

@@ -15,6 +15,7 @@ from .projects_pane_init_payload import (
     InitCheckPayload,
     InitPlannerRow,
     InitProjectPlan,
+    has_terminal_projects,
 )
 
 _OPERATION_GLYPHS: dict[str, tuple[str, str]] = {
@@ -54,6 +55,10 @@ _ALL_SCOPE_NOTE = (
 _HELD_NOTE = "Held projects are left unchanged."
 _TRUNCATED_NOTE = "… remaining actions omitted"
 _TTY_SUFFIX = " (needs a terminal)"
+_TERMINAL_STEP_NOTE = "This step needs a terminal. y skips it; t runs it interactively."
+_REPO_TERMINAL_STEP_NOTE = (
+    "Sidecar repository creation needs a terminal. y skips it; t runs it interactively."
+)
 
 
 def init_plan_title(scope: InitScope, payload: InitCheckPayload) -> str:
@@ -67,10 +72,13 @@ def init_plan_title(scope: InitScope, payload: InitCheckPayload) -> str:
 
 
 def init_plan_confirm_label(scope: InitScope, payload: InitCheckPayload) -> str:
-    """Return the primary button label."""
+    """Return the confirm button label."""
     if runnable_project_count(payload) == 0:
         return "Nothing runnable"
-    return f"{init_plan_title(scope, payload)} (y)"
+    title = init_plan_title(scope, payload)
+    if has_terminal_projects(payload):
+        return f"{title} · skip terminal steps (y)"
+    return f"{title} (y)"
 
 
 def runnable_project_count(payload: InitCheckPayload) -> int:
@@ -92,11 +100,17 @@ def init_plan_is_danger(payload: InitCheckPayload) -> bool:
     return False
 
 
-def init_plan_border_subtitle(*, show_diffs: bool, show_terminal: bool = False) -> str:
+def init_plan_border_subtitle(
+    *,
+    show_diffs: bool,
+    show_terminal: bool = False,
+    skip_terminal: bool = False,
+) -> str:
     """Return the modal border subtitle for the current diff-toggle state."""
+    run = "y skip terminal steps" if skip_terminal else "y run"
     diff = "d hide diffs" if show_diffs else "d diff"
     terminal = " · t run in terminal" if show_terminal else ""
-    return f"y run · {diff}{terminal} · esc cancel"
+    return f"{run} · {diff}{terminal} · esc cancel"
 
 
 def init_plan_renderable(
@@ -214,7 +228,15 @@ def _project_section(
             if planner.requires_tty:
                 line.append(_TTY_SUFFIX, style="dim")
             parts.append(line)
+        if planner.requires_tty and planner.has_changes and not planner.blockers:
+            parts.append(Text(f"    {_terminal_step_note(planner)}", style="yellow"))
     return parts
+
+
+def _terminal_step_note(planner: InitPlannerRow) -> str:
+    if planner.name == "repo":
+        return _REPO_TERMINAL_STEP_NOTE
+    return _TERMINAL_STEP_NOTE
 
 
 def _project_rule(project: InitProjectPlan) -> Rule:

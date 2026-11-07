@@ -23,7 +23,7 @@ from .init_plan_modal_rendering import (
     runnable_project_count,
 )
 from .projects_pane_init import InitScope
-from .projects_pane_init_payload import InitCheckPayload, has_tty_blocked_projects
+from .projects_pane_init_payload import InitCheckPayload, has_terminal_projects
 
 InitPlanAction = Literal["apply", "terminal"]
 
@@ -59,7 +59,7 @@ class InitPlanModal(ModalScreen[InitPlanDecision | None]):
             ConfirmKind.DANGER if init_plan_is_danger(payload) else ConfirmKind.NEUTRAL
         )
         self._runnable = runnable_project_count(payload)
-        self._show_terminal = has_tty_blocked_projects(payload)
+        self._show_terminal = has_terminal_projects(payload)
         self._title = init_plan_title(scope, payload)
 
     def compose(self) -> ComposeResult:
@@ -69,7 +69,9 @@ class InitPlanModal(ModalScreen[InitPlanDecision | None]):
         ) as dialog:
             dialog.border_title = self._build_border_title()
             dialog.border_subtitle = init_plan_border_subtitle(
-                show_diffs=self._show_diffs, show_terminal=self._show_terminal
+                show_diffs=self._show_diffs,
+                show_terminal=self._show_terminal,
+                skip_terminal=self._skip_terminal_on_confirm(),
             )
             with VerticalScroll(id="init-plan-preview-scroll") as preview_scroll:
                 preview_scroll.border_title = "Initialization plan"
@@ -86,6 +88,7 @@ class InitPlanModal(ModalScreen[InitPlanDecision | None]):
                     yield Button(
                         "Run in terminal (t)",
                         id="init-plan-terminal",
+                        variant="primary",
                     )
                 yield Button(
                     "Cancel (n)",
@@ -94,6 +97,11 @@ class InitPlanModal(ModalScreen[InitPlanDecision | None]):
                 )
 
     def on_mount(self) -> None:
+        if self._show_terminal:
+            try:
+                self.query_one("#init-plan-terminal", Button).focus()
+            except Exception:
+                pass
         self.call_after_refresh(self._sync_preview_scroll_hint)
 
     def on_resize(self, _event: events.Resize) -> None:
@@ -119,7 +127,14 @@ class InitPlanModal(ModalScreen[InitPlanDecision | None]):
     def _confirm_button_variant(self) -> ButtonVariant:
         if self._runnable == 0:
             return "default"
-        return "error" if self._kind is ConfirmKind.DANGER else "primary"
+        if self._kind is ConfirmKind.DANGER:
+            return "error"
+        if self._show_terminal:
+            return "default"
+        return "primary"
+
+    def _skip_terminal_on_confirm(self) -> bool:
+        return self._show_terminal and self._runnable > 0
 
     def _cancel_button_variant(self) -> ButtonVariant:
         return "primary" if self._kind is ConfirmKind.DANGER else "default"
@@ -158,7 +173,9 @@ class InitPlanModal(ModalScreen[InitPlanDecision | None]):
             self.query_one(
                 "#init-plan-container", Container
             ).border_subtitle = init_plan_border_subtitle(
-                show_diffs=self._show_diffs, show_terminal=self._show_terminal
+                show_diffs=self._show_diffs,
+                show_terminal=self._show_terminal,
+                skip_terminal=self._skip_terminal_on_confirm(),
             )
         except Exception:
             pass

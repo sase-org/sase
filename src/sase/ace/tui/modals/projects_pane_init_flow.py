@@ -34,16 +34,17 @@ from .projects_pane_init_payload import (
     bounded_output_tail,
     current_init_toast,
     parse_init_check_payload,
-    tty_blocked_projects,
+    terminal_projects,
 )
 
 _DUPLICATE_MESSAGE = "A project initialization is already running."
 _INIT_SCOPE = "sase-init"
 _COUNT_RE = re.compile(r"^(\d+)\s+(.+)$")
-_InitApplyKind = Literal["success", "current", "partial", "failure"]
+_InitApplyKind = Literal["success", "current", "attention", "partial", "failure"]
 _APPLY_SEVERITY: dict[_InitApplyKind, str] = {
     "success": "information",
     "current": "information",
+    "attention": "warning",
     "partial": "warning",
     "failure": "error",
 }
@@ -205,12 +206,12 @@ class ProjectsInitFlowController:
             self._run_init_in_terminal(payload)
 
     def _run_init_in_terminal(self, payload: InitCheckPayload) -> None:
-        blocked = tty_blocked_projects(payload)
-        if not blocked:
+        pending = terminal_projects(payload)
+        if not pending:
             return
         terminal_scope = InitScope.for_projects(
-            [project.name for project in blocked],
-            [project.display_name or project.name for project in blocked],
+            [project.name for project in pending],
+            [project.display_name or project.name for project in pending],
         )
         argv = terminal_scope.terminal_argv()
         cwd = init_cwd()
@@ -450,8 +451,20 @@ def _apply_payload_from_output(output: str, returncode: int) -> _InitApplyPayloa
             ),
             returncode=returncode,
         )
-    if returncode == 0 and initialized == 0:
-        kind: _InitApplyKind = "current"
+    needs = counts.get("needs attention", 0)
+    failed = counts.get("failed", 0)
+    unavailable = counts.get("unavailable", 0)
+    kind: _InitApplyKind
+    if (
+        needs > 0
+        and failed == 0
+        and unavailable == 0
+        and not counts.get("cancelled")
+        and not counts.get("deployment failed")
+    ):
+        kind = "attention"
+    elif returncode == 0 and initialized == 0:
+        kind = "current"
     elif returncode == 0:
         kind = "success"
     elif initialized > 0:
@@ -511,6 +524,11 @@ def _format_apply_toast(
         bits.append("cancelled")
     if counts.get("deployment failed"):
         bits.append("deployment failed")
+    if kind == "attention":
+        prefix = " · ".join(bits) if bits else "needs attention"
+        return (
+            f"{prefix} — run init again and press t to finish in a terminal · see Procs"
+        )
     if bits:
         return " · ".join(bits) + " — see Procs"
     if kind == "current":

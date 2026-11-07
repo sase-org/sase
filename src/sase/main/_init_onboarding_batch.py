@@ -51,6 +51,8 @@ def working_directory(path: Path) -> Iterator[None]:
 def project_args(
     args: argparse.Namespace,
     batch_context: InitOnboardingBatchContext | None = None,
+    *,
+    project_name: str | None = None,
 ) -> argparse.Namespace:
     """Return a fresh namespace for one project in a batch run."""
     fresh_args = copy.copy(args)
@@ -63,6 +65,8 @@ def project_args(
         fresh_args.json = False
     if batch_context is not None:
         fresh_args._init_onboarding_context = batch_context
+    if project_name:
+        fresh_args._init_project_name = project_name
     for marker in (
         "_project_memory_opt_in_prepared",
         "_project_config_changed",

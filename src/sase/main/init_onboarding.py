@@ -250,7 +250,11 @@ def run_init_onboarding_all(
                 try:
                     with working_directory(target.workspace_dir):
                         result = _run_init_onboarding_result(
-                            project_args(args, batch_context),
+                            project_args(
+                                args,
+                                batch_context,
+                                project_name=target.project_name,
+                            ),
                             specs=specs,
                             input_func=input_func,
                             stdin=stdin,

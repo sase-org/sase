@@ -10,12 +10,13 @@ import pytest
 from sase.main.init_plan import INIT_CHECK_JSON_SCHEMA_VERSION
 from sase.ace.tui.modals.projects_pane_init_payload import (
     InitCheckPayloadError,
-    has_tty_blocked_projects,
+    has_terminal_projects,
     parse_init_check_payload,
-    tty_blocked_projects,
+    terminal_projects,
 )
 
 from .projects_pane_init_test_helpers import (
+    action_row,
     check_payload,
     planner_row,
     project_plan,
@@ -26,7 +27,7 @@ from .projects_pane_init_test_helpers import (
 )
 
 
-def test_tty_blocked_projects_selects_only_requires_tty_holds() -> None:
+def test_terminal_projects_selects_tty_holds_and_tty_changes() -> None:
     blocked = project_plan(
         "sase",
         status="failed",
@@ -40,19 +41,53 @@ def test_tty_blocked_projects_selects_only_requires_tty_holds() -> None:
             ),
         ),
     )
+    sidecar = project_plan(
+        "love",
+        status="needs_attention",
+        planners=(
+            planner_row(
+                "repo",
+                has_changes=True,
+                requires_tty=True,
+                actions=(action_row(operation="create"),),
+            ),
+        ),
+    )
+    machine = project_plan(
+        "notes",
+        status="needs_attention",
+        planners=(
+            planner_row(
+                "machine",
+                has_changes=True,
+                requires_tty=True,
+                actions=(action_row(operation="validate"),),
+            ),
+        ),
+    )
+    idle_tty = project_plan(
+        "idle",
+        planners=(planner_row("machine", requires_tty=True),),
+    )
     drifted = project_plan(
         "beta",
         status="needs_attention",
         planners=(planner_row("memory", has_changes=True),),
     )
     current = project_plan("gamma")
-    payload = check_payload(blocked, drifted, current, status="blocked")
+    payload = check_payload(
+        blocked, sidecar, machine, idle_tty, drifted, current, status="blocked"
+    )
 
-    assert tty_blocked_projects(payload) == (blocked,)
-    assert has_tty_blocked_projects(payload) is True
+    assert terminal_projects(payload) == (blocked, sidecar, machine)
+    assert has_terminal_projects(payload) is True
+    assert blocked.needs_terminal is True
+    assert sidecar.needs_terminal is True
+    assert machine.needs_terminal is True
+    assert idle_tty.needs_terminal is False
 
 
-def test_has_tty_blocked_projects_is_false_without_tty_blockers() -> None:
+def test_has_terminal_projects_is_false_without_terminal_work() -> None:
     drifted = project_plan(
         "beta",
         status="needs_attention",
@@ -60,8 +95,8 @@ def test_has_tty_blocked_projects_is_false_without_tty_blockers() -> None:
     )
     payload = check_payload(drifted, status="drift")
 
-    assert tty_blocked_projects(payload) == ()
-    assert has_tty_blocked_projects(payload) is False
+    assert terminal_projects(payload) == ()
+    assert has_terminal_projects(payload) is False
 
 
 def test_parse_current_payload(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -133,7 +168,7 @@ def test_parse_drifted_payload_is_distinct_from_blocked() -> None:
     assert drift_payload.projects[0].changed_runnable
     assert not drift_payload.projects[0].held
     assert blocked_payload.projects[0].held
-    assert blocked_payload.projects[0].requires_tty
+    assert blocked_payload.projects[0].needs_terminal
     assert not blocked_payload.projects[0].changed_runnable
 
 
