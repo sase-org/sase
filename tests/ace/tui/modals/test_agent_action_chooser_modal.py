@@ -376,7 +376,7 @@ async def test_chooser_arms_enter_after_recovery_panel_opens() -> None:
         modal = AgentActionChooserModal(
             (_gate(), _patch()),
             title="Recover agent",
-            arm_delay_seconds=0.3,
+            arm_delay_seconds=30.0,
         )
         page.app.push_screen(modal, results.append)
         await page.expect_modal("AgentActionChooserModal")
@@ -386,7 +386,11 @@ async def test_chooser_arms_enter_after_recovery_panel_opens() -> None:
         assert page.state["modal"] == "AgentActionChooserModal"
         assert results == []
 
-        await page.pause(0.31)
+        # Age the mount stamp past the arm window instead of sleeping through a
+        # short one: a loaded host could otherwise spend the whole window
+        # before the first Enter arrives and arm it early.
+        assert modal._mounted_at is not None
+        modal._mounted_at -= 30.0
         await page.press("enter")
         await page.expect_no_modal()
         assert results == ["gate:abc123"]

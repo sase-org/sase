@@ -6,7 +6,7 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class _ValueFingerprint:
     kind: str
     length: int | None
@@ -26,7 +26,7 @@ class _ValueFingerprint:
         return payload
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class _CacheFingerprint:
     hits: int
     misses: int

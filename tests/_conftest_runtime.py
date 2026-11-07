@@ -245,6 +245,46 @@ def _clear_notification_snapshot_cache_if_loaded() -> None:
         invalidate()
 
 
+def _clear_associated_plan_sheet_caches_if_loaded() -> None:
+    """Drop accepted-plan sheets and their signatures keyed by test plan paths.
+
+    Plan enrichment memoizes each plan file's sheet and its signature by path.
+    Tests write those plans under per-test temp directories, so a leftover
+    signature would let a later test reuse a sheet it never loaded.
+    """
+    import sys
+
+    module = sys.modules.get("sase.ace.tui.models._agent_associated_plan_summary")
+    if module is None:
+        return
+    for name in ("_ASSOCIATED_PLAN_SHEET_CACHE", "_ASSOCIATED_PLAN_SHEET_SIGNATURES"):
+        cache = getattr(module, name, None)
+        if isinstance(cache, dict):
+            cache.clear()
+
+
+def _clear_lazy_syntax_caches_if_loaded() -> None:
+    """Drop syntax-highlight render caches warmed by earlier tests.
+
+    These bounded caches hold highlighted text and rendered segments for
+    whatever file content earlier tests displayed, so later tests would
+    otherwise start on a hit or a miss depending on test order.
+    """
+    import sys
+
+    module = sys.modules.get("sase.ace.tui.util.lazy_syntax")
+    if module is None:
+        return
+    for name in (
+        "_segment_cache_by_content_and_style",
+        "_measurement_cache_by_content_and_style",
+        "_highlight_cache_by_content",
+    ):
+        cache = getattr(module, name, None)
+        if isinstance(cache, dict):
+            cache.clear()
+
+
 def _capture_derived_config_cache_helpers() -> tuple[object, object, object]:
     """Bind the real cached helpers before tests replace their names."""
     from sase.llm_provider import config as llm_provider_config
@@ -317,6 +357,8 @@ def _reset_derived_config_caches() -> None:
     _clear_notification_tab_style_caches_if_loaded()
     _clear_notification_delivery_caches_if_loaded()
     _clear_notification_snapshot_cache_if_loaded()
+    _clear_associated_plan_sheet_caches_if_loaded()
+    _clear_lazy_syntax_caches_if_loaded()
     _drain_config_token_refresh()
     config_core.clear_config_cache()
     for cached in _derived_config_cache_helpers():

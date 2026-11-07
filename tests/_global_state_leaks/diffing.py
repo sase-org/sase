@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections import Counter
+from collections.abc import Mapping
 
 from tests._global_state_leaks.fingerprints import (
     LIVE_CONFIG_TOKEN_REFRESH_THREADS_GLOBAL,
@@ -22,7 +23,7 @@ def _diff_snapshots(before: _Snapshot, after: _Snapshot) -> _Diff:
     cooling_counts: Counter[str] = Counter()
     invalidation_counts: Counter[str] = Counter()
 
-    for name in sorted(set(before.globals) | set(after.globals)):
+    for name in _changed_names(before.globals, after.globals):
         before_value = before.globals.get(name)
         after_value = after.globals.get(name)
         classification = _classify_global_change(name, before_value, after_value)
@@ -47,7 +48,7 @@ def _diff_snapshots(before: _Snapshot, after: _Snapshot) -> _Diff:
             )
         )
 
-    for name in sorted(set(before.caches) | set(after.caches)):
+    for name in _changed_names(before.caches, after.caches):
         before_cache = before.caches.get(name)
         after_cache = after.caches.get(name)
         classification = _classify_cache_change(before_cache, after_cache)
@@ -85,6 +86,30 @@ def _diff_snapshots(before: _Snapshot, after: _Snapshot) -> _Diff:
         cooling_counts=dict(cooling_counts),
         invalidation_counts=dict(invalidation_counts),
     )
+
+
+def _changed_names(
+    before: Mapping[str, object], after: Mapping[str, object]
+) -> list[str]:
+    """Sorted names whose fingerprints differ, including one-sided names.
+
+    Unchanged names classify as ``"none"``, so filtering them here (identity
+    first, then the same equality the classifiers apply) changes no result
+    while skipping the sort and per-name classification of the thousands of
+    globals a test leaves alone.
+    """
+    changed = [
+        name
+        for name, after_value in after.items()
+        if name not in before
+        or (
+            (before_value := before[name]) is not after_value
+            and before_value != after_value
+        )
+    ]
+    changed.extend(name for name in before if name not in after)
+    changed.sort()
+    return changed
 
 
 def _classify_global_change(
