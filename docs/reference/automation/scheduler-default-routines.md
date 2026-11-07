@@ -64,13 +64,25 @@ not convoy it behind a shared 10-second tick.
 
 Primary sidecar convergence, isolated from wait resolution:
 
-| Job                 | Description                                                            |
-| ------------------- | ---------------------------------------------------------------------- |
-| `sidecar_auto_sync` | Fetch/fast-forward opted-in primary sidecar clones (plans, beads, ...) |
+| Job                 | Description                                                                                  |
+| ------------------- | -------------------------------------------------------------------------------------------- |
+| `sidecar_auto_sync` | Fetch/fast-forward opted-in primary sidecar clones (plans, beads, ...); connect new projects |
 
 The routine interval provides the 30-second cadence. The per-job `2m` timeout stays.
 After a `beads`-role refresh, the job touches that project's completion pulse so
 `agent_waits` re-evaluates bead waits on its next 2-second tick.
+
+Each tick also runs a connect leg. An enabled project that has no materialized SDD store
+record on this machine (it is registered, but no agent has launched there yet) gets the
+connect-only step a first launch performs (see
+[First Launch On A New Machine](../../contribute/sdd-storage.md#first-launch-on-a-new-machine)).
+The leg connects at most one project per tick. It starts a connect only while at least
+60 seconds of the job's 90-second work budget remain, and otherwise counts the project
+as `deferred`. A connect that fails, for example because a required sidecar does not
+exist remotely yet, backs off exponentially up to 30 minutes. An unmanaged or
+non-remote-backed project is rechecked every 5 minutes. The summary counts `connected`
+and `connect_failed`. A connect failure does not change the job's status, because
+`artifact_run_prune` already reports the resulting protection gap.
 
 `bead_claim_checks` and `wait_checks` both ship with an `fs` trigger watching the
 per-project completion pulse

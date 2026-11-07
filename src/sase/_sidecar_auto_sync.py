@@ -6,6 +6,11 @@ fetches and fast-forwards a materialized clone that is clean, attached, and
 strictly behind its configured remote; dirty, detached, diverged, mismatched,
 missing, or busy clones are left untouched and reported. It never mutates the
 primary repository itself.
+
+A missing role clone of an already-connected project is only reported here.
+Connecting a whole project that has never been connected on this machine is
+the separate connect-only first-use step in ``sase._sidecar_auto_connect``,
+which the ``sidecar_auto_sync`` chop runs alongside this synchronizer.
 """
 
 from __future__ import annotations

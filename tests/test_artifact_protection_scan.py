@@ -6,6 +6,7 @@ import pytest
 
 from sase._repo_inventory_models import RepoInventory, RepoRecord
 from sase.core.artifact_file_protection import collect_protected_artifact_ids
+from sase.sdd.store import write_sdd_store_record
 
 
 def _record(
@@ -282,8 +283,55 @@ def test_missing_required_sidecar_is_unavailable_but_research_is_optional(
 
     result = collect_protected_artifact_ids()
 
+    # The fixture primary has no SDD store record: never connected here.
+    assert result.sources_unavailable == (
+        "sase:beads (sidecars not connected on this machine)",
+    )
+    assert not any(
+        source.startswith("sase:research") for source in result.sources_unavailable
+    )
+
+
+def test_connected_project_with_a_missing_clone_keeps_the_bare_label(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    projects = tmp_path / "projects"
+    plans = tmp_path / "plans"
+    projects.mkdir()
+    plans.mkdir()
+    write_sdd_store_record(
+        tmp_path,
+        {
+            "storage": "separate_repo",
+            "provider": "github",
+            "remote_url": "https://example.test/sase--plans.git",
+            "discovery": "found",
+        },
+    )
+    inventory = RepoInventory(
+        (
+            _record("sase", tmp_path, kind="primary"),
+            _record("plans", plans),
+            _record("beads", tmp_path / "missing-beads", exists=False),
+        )
+    )
+    monkeypatch.setattr(
+        "sase.core.artifact_file_protection.sase_projects_dir",
+        lambda: projects,
+    )
+    monkeypatch.setattr(
+        "sase.core.artifact_file_protection.collect_repo_inventory",
+        lambda: inventory,
+    )
+    monkeypatch.setattr(
+        "sase.core.artifact_file_protection.default_artifact_consumption_log_path",
+        lambda: tmp_path / "missing-consumption.jsonl",
+    )
+
+    result = collect_protected_artifact_ids()
+
     assert result.sources_unavailable == ("sase:beads",)
-    assert "sase:research" not in result.sources_unavailable
 
 
 def test_consumption_adds_only_canonical_file_ids_and_retains_overlap_evidence(

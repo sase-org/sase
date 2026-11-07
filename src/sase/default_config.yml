@@ -1495,7 +1495,8 @@ axe:
       description: |-
         Fetch and fast-forward opted-in primary sidecar clones
 
-        Runs every thirty seconds so sidecar clones converge without delaying agent wait resolution. Only the
+        Runs every thirty seconds so sidecar clones converge without delaying agent wait resolution, and connects
+        the sidecars of enabled projects registered on this machine that no agent has launched in yet. Only the
         sidecar_auto_sync job belongs here; agent dependency resolution lives in agent_waits.
       interval: 30
       jobs:
@@ -1514,7 +1515,11 @@ axe:
             non-diverged clone with a matching remote is fetched and fast-forwarded; dirty, detached, diverged,
             mismatched, missing, or busy clones are left untouched and reported. Bounded work budget and persistent
             per-role backoff keep one unhealthy clone from stalling the rest. After a beads-role refresh, touches
-            the project's completion pulse so agent_waits re-evaluates bead waits on its next 2 s tick.
+            the project's completion pulse so agent_waits re-evaluates bead waits on its next 2 s tick. An enabled,
+            SASE-managed project with no SDD store record on this machine (registered, never launched here) gets the
+            connect-only step its first agent launch would run, because artifact-run retention needs its beads and
+            plans sidecars as protection sources. At most one project connects per tick, only while 60 s of the work
+            budget remain; a failed connect backs off exponentially without changing the job's status.
     publication:
       description: |-
         Drain durable agent publication work in the background

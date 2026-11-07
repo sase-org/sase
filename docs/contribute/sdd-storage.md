@@ -181,6 +181,17 @@ records the local materialization, but never creates a missing remote repository
 a no-op when the project is not sase-managed, is not a project directory, already has a
 materialized record, or uses a provider policy that is not remote-backed.
 
+A project can also be registered on a machine without any agent launching there, for
+example through `sase project add`. For an enabled, sase-managed project in that state,
+the `sidecar_auto_sync` scheduler job performs the same connect-only step as a backstop
+and logs `Connected existing SDD sidecars for <project>`. It connects at most one
+project per tick (see the
+[`sidecar_sync` routine](../reference/automation/scheduler-default-routines.md#sidecarsync-30-second-interval)).
+The backstop matters because artifact-run retention needs every enabled project's beads
+and plans sidecars as protection sources. Until they are connected, retention reports
+`<project>:<role> (sidecars not connected on this machine)` as an unavailable source and
+refuses to purge.
+
 A required sidecar that does not exist remotely stops the launch with the remedy named
 directly — run `sase repo init` in the project root to create it — instead of an opaque
 clone failure. The agents sidecar is the one exception: a missing agents repository

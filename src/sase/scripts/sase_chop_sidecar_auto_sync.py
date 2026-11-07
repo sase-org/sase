@@ -5,8 +5,9 @@ The generic backstop half of primary-sidecar auto-sync: it scans every
 enabled project and every ``auto_sync`` sidecar role (plans, beads, research,
 and arbitrary custom roles), preferring roles with a pending sync hint but
 otherwise re-checking each role only every ``_BACKSTOP_INTERVAL_SECONDS``.
-Only ``sase._sidecar_auto_sync.sync_primary_sidecar_role`` touches a clone,
-and only to fetch and fast-forward a clean, attached, non-diverged checkout.
+Only ``sase._sidecar_auto_sync.sync_primary_sidecar_role`` touches an
+existing clone, and only to fetch and fast-forward a clean, attached,
+non-diverged checkout.
 
 Projects with a live, unresolved bead waiter are hinted into the ``beads``
 role every tick, unblocking waiters even when a project has not opted that
@@ -15,6 +16,13 @@ fetch/fast-forward, so this implicit coverage is strictly less invasive than
 the managed-integration waiter refresh path it replaces. A pending hint left
 by a verified bead publication or launch claim also forces one beads-role
 convergence, even without the ``auto_sync`` opt-in.
+
+Individual missing role clones are only reported, never cloned. A whole
+project that is enabled and SASE-managed but not yet connected on this
+machine (registered, never launched here) is different: the connect leg in
+``sase._sidecar_auto_connect`` gives it the same connect-only first-use
+connection that its first agent launch would, at most one project per tick.
+Artifact-run retention needs those sidecars as protection sources.
 """
 
 from __future__ import annotations
@@ -27,6 +35,7 @@ from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
+from sase._sidecar_auto_connect import ConnectLegResult, run_connect_leg
 from sase._sidecar_auto_sync import (
     SidecarSyncResult,
     auto_sync_roles,
@@ -309,9 +318,12 @@ def _summary(
     failed: int = 0,
     backed_off: int = 0,
     deferred: int = 0,
+    connect: ConnectLegResult | None = None,
     goals_published: int = 0,
     reason: str | None = None,
 ) -> ChopResultBuilder:
+    # Connect failures only count; the retention chop reports the coverage gap.
+    connect = connect or ConnectLegResult()
     return runtime.emit_summary(
         {
             "targets": targets,
@@ -321,7 +333,9 @@ def _summary(
             "skipped": skipped,
             "failed": failed,
             "backed_off": backed_off,
-            "deferred": deferred,
+            "deferred": deferred + connect.deferred,
+            "connected": connect.connected,
+            "connect_failed": connect.failed,
             "goals_published": goals_published,
         },
         reason=reason,
@@ -448,26 +462,39 @@ def _run(runtime: BuiltinChopRuntime) -> ChopResultBuilder:
             )
         )
 
+    now = _utc_now()
+    state_path = Path(runtime.context.state_dir) / _BACKOFF_STATE_FILENAME
+    schedule_state = _read_schedule_state(state_path)
+    work_deadline = time.monotonic() + _WORK_BUDGET_SECONDS
+
+    # Runs before the no-targets return so a project without auto_sync roles
+    # still gets connected.
+    connect = run_connect_leg(
+        records,
+        schedule_state=schedule_state,
+        now=now,
+        work_deadline=work_deadline,
+        backoff_entry=lambda previous: _next_backoff_entry(previous, now=now),
+        backstop_entry=lambda: _next_backstop_entry(now=now),
+        log=runtime.log,
+    )
+    live_keys = {target.schedule_key for target in targets} | connect.pending_keys
+    stale_keys = [key for key in schedule_state if key not in live_keys]
+    for stale_key in stale_keys:
+        del schedule_state[stale_key]
+    if stale_keys or connect.state_changed:
+        _persist_schedule_state(runtime, state_path, schedule_state)
+
     if not targets:
         goals_published = _publish_pending_goals_outboxes(runtime, records)
         return _summary(
             runtime,
             targets=0,
+            connect=connect,
             goals_published=goals_published,
             reason="no_auto_sync_roles",
         )
 
-    now = _utc_now()
-    state_path = Path(runtime.context.state_dir) / _BACKOFF_STATE_FILENAME
-    schedule_state = _read_schedule_state(state_path)
-    live_keys = {target.schedule_key for target in targets}
-    stale_keys = [key for key in schedule_state if key not in live_keys]
-    for stale_key in stale_keys:
-        del schedule_state[stale_key]
-    if stale_keys:
-        _persist_schedule_state(runtime, state_path, schedule_state)
-
-    work_deadline = time.monotonic() + _WORK_BUDGET_SECONDS
     refreshed = up_to_date = missing = skipped = failed = backed_off = deferred = 0
 
     for target in sorted(targets, key=lambda item: item.schedule_key):
@@ -549,6 +576,7 @@ def _run(runtime: BuiltinChopRuntime) -> ChopResultBuilder:
         failed=failed,
         backed_off=backed_off,
         deferred=deferred,
+        connect=connect,
         goals_published=goals_published,
         reason=reason,
     )

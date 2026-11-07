@@ -9,6 +9,7 @@ import re
 
 from sase._repo_inventory_models import RepoRecord
 from sase.core.artifact_consumption import default_artifact_consumption_log_path
+from sase.core._sidecar_protection_label import unavailable_sidecar_label
 from sase.core.artifact_consumption_query import summarize_artifact_consumption
 from sase.core.paths import sase_projects_dir
 from sase.repo_inventory import collect_repo_inventory
@@ -73,10 +74,11 @@ def collect_protected_artifact_ids() -> ProtectedArtifactIds:
     except Exception as exc:
         unavailable.add(f"repository inventory: {exc}")
     else:
-        project_names = sorted(
-            {record.project for record in inventory.records if record.kind == "primary"}
-        )
-        for project in project_names:
+        primaries: dict[str, RepoRecord] = {}
+        for record in inventory.records:
+            if record.kind == "primary":
+                primaries.setdefault(record.project, record)
+        for project in sorted(primaries):
             records = tuple(
                 record
                 for record in inventory.records
@@ -85,7 +87,9 @@ def collect_protected_artifact_ids() -> ProtectedArtifactIds:
             for role in _REQUIRED_SIDECAR_ROLES:
                 root = _live_sidecar_root(records, role)
                 if root is None:
-                    unavailable.add(f"{project}:{role}")
+                    unavailable.add(
+                        unavailable_sidecar_label(project, role, primaries[project])
+                    )
                     continue
                 _scan_root(
                     root,

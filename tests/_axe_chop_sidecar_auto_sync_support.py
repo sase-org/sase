@@ -8,6 +8,7 @@ a single module live in that module instead.
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from io import StringIO
 from pathlib import Path
 from types import SimpleNamespace
@@ -15,13 +16,20 @@ from unittest.mock import MagicMock
 
 import pytest
 
+import sase._sidecar_auto_connect as sidecar_auto_connect
+from sase._sidecar_auto_connect import ConnectLegResult, run_connect_leg
 import sase.scripts.sase_chop_sidecar_auto_sync as sidecar_sync_chop
 from sase.axe.chop_script_context import ChopScriptContext
 from sase.chops.builtin import BuiltinChopRuntime
 from sase.chops.sdk import ChopLogger
 
 
-def make_runtime(tmp_path: Path) -> BuiltinChopRuntime:
+def make_runtime(
+    tmp_path: Path,
+    *,
+    stdout: StringIO | None = None,
+    stderr: StringIO | None = None,
+) -> BuiltinChopRuntime:
     return BuiltinChopRuntime(
         name="sidecar_auto_sync",
         context=ChopScriptContext(
@@ -34,7 +42,7 @@ def make_runtime(tmp_path: Path) -> BuiltinChopRuntime:
             all_patches_file=str(tmp_path / "all.json"),
             filtered_patches_file=str(tmp_path / "filtered.json"),
         ),
-        log=ChopLogger(stdout=StringIO(), stderr=StringIO()),
+        log=ChopLogger(stdout=stdout or StringIO(), stderr=stderr or StringIO()),
     )
 
 
@@ -98,10 +106,39 @@ def configure_sidecar_sync(
         sidecar_sync_chop, "_maintain_hidden_sidecar_clones", lambda *a, **k: 0
     )
     monkeypatch.setattr(sidecar_sync_chop, "_prune_bead_push_logs", lambda *a, **k: 0)
+    # The connect leg clones real sidecars for unconnected projects (and these
+    # fixture projects carry no store record); the connect-leg tests re-enable
+    # it with ``enable_connect_leg``.
+    monkeypatch.setattr(
+        sidecar_sync_chop, "run_connect_leg", lambda *a, **k: ConnectLegResult()
+    )
+
+
+def enable_connect_leg(
+    monkeypatch: pytest.MonkeyPatch,
+    *,
+    connected_projects: set[str],
+    auto_connect: Callable[[str, int], bool],
+) -> None:
+    """Restore the real connect leg over stubbed store and connect seams.
+
+    ``connected_projects`` holds the names of fixture primaries (their
+    directory names) that already have a materialized store record; it is
+    read on every check, so a fake connect can add to it.
+    """
+
+    monkeypatch.setattr(sidecar_sync_chop, "run_connect_leg", run_connect_leg)
+    monkeypatch.setattr(
+        sidecar_auto_connect,
+        "sdd_store_connected",
+        lambda primary: Path(primary).name in connected_projects,
+    )
+    monkeypatch.setattr(sidecar_auto_connect, "auto_connect_sdd_store", auto_connect)
 
 
 __all__ = [
     "configure_sidecar_sync",
+    "enable_connect_leg",
     "make_project",
     "make_runtime",
 ]

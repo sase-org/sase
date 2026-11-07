@@ -8,7 +8,12 @@ import pytest
 
 from sase.sdd._auto_init import auto_connect_sdd_store
 from sase.sdd._sidecar_init import _SidecarInitOutcome, SidecarInitSpec
-from sase.sdd.store import SddMaterializationError, write_sdd_store_record
+from sase.sdd._store_records import sdd_store_record_path
+from sase.sdd.store import (
+    SddMaterializationError,
+    sdd_store_connected,
+    write_sdd_store_record,
+)
 from tests.main.repo_init_handler_helpers import _mark_managed_project, _preflight
 
 
@@ -179,3 +184,82 @@ def test_missing_agents_sidecar_is_dropped_with_a_warning(
     assert auto_connect_sdd_store(tmp_path, 1) is True
     assert calls == [(specs[0],)]
     assert "sase repo init" in capsys.readouterr().err
+
+
+def test_second_call_after_a_concurrent_connect_is_a_safe_noop(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    provider_patch,
+) -> None:
+    """The sidecar_auto_sync connect leg and a first launch can race.
+
+    Whichever connects first writes the store record; the other call then
+    sees a materialized record and returns True without preflighting or
+    initializing anything again.
+    """
+
+    _mark_managed_project(tmp_path)
+    provider_patch("github")
+    specs = (SidecarInitSpec(role="plans"),)
+    monkeypatch.setattr(
+        "sase.main._repo_init_config.configured_sidecar_specs",
+        lambda _root: specs,
+    )
+    monkeypatch.setattr(
+        "sase.sdd._sidecar_init.preflight_sidecars",
+        lambda *_args: {"plans": _preflight("plans", status="found")},
+    )
+    initialized: list[tuple[SidecarInitSpec, ...]] = []
+
+    def concurrent_launch_connects(
+        _root: Path,
+        _workspace: int,
+        selected: tuple[SidecarInitSpec, ...],
+        *,
+        creation_authorized: dict[str, bool] | None = None,
+        publish_sidecar_changes: bool = True,
+    ) -> _SidecarInitOutcome:
+        initialized.append(selected)
+        write_sdd_store_record(
+            tmp_path,
+            {
+                "storage": "separate_repo",
+                "provider": "github",
+                "remote_url": "https://example.test/widget--plans.git",
+                "discovery": "found",
+            },
+        )
+        return _outcome(tmp_path, selected)
+
+    monkeypatch.setattr(
+        "sase.sdd._sidecar_init.initialize_sidecars", concurrent_launch_connects
+    )
+
+    assert auto_connect_sdd_store(tmp_path, 1) is True
+
+    monkeypatch.setattr(
+        "sase.sdd._sidecar_init.preflight_sidecars",
+        lambda *_args: pytest.fail("must not preflight an already-connected store"),
+    )
+    assert auto_connect_sdd_store(tmp_path, 1) is True
+    assert initialized == [specs]
+
+
+def test_sdd_store_connected_reports_connected_unconnected_and_unknown(
+    tmp_path: Path,
+) -> None:
+    assert sdd_store_connected(tmp_path) is False
+
+    write_sdd_store_record(
+        tmp_path,
+        {
+            "storage": "separate_repo",
+            "provider": "github",
+            "remote_url": "https://example.test/widget--plans.git",
+            "discovery": "found",
+        },
+    )
+    assert sdd_store_connected(tmp_path) is True
+
+    sdd_store_record_path(tmp_path).write_text("not json", encoding="utf-8")
+    assert sdd_store_connected(tmp_path) is None

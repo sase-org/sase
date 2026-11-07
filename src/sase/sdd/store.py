@@ -19,6 +19,7 @@ from sase.sdd._store_materialization import (
 )
 from sase.sdd._store_records import (
     delete_sdd_store_record,
+    is_materialized_record,
     normalize_sdd_store_record,
     read_sdd_store_record,
     write_sdd_store_record,
@@ -87,6 +88,7 @@ __all__ = [
     "resolve_sdd_dir",
     "resolve_sdd_kind_dir",
     "resolve_sdd_store",
+    "sdd_store_connected",
     "write_sdd_store_record",
 ]
 
@@ -123,6 +125,23 @@ def resolve_sdd_store(
         workspace_num,
         primary_workspace_resolver=resolver,
     )
+
+
+def sdd_store_connected(primary_workspace_dir: str | Path) -> bool | None:
+    """Return whether this machine is connected to the project's SDD store.
+
+    True when the primary checkout carries a materialized store record (a
+    first launch, ``sase repo init``, or the ``sidecar_auto_sync`` connect leg
+    wrote it), False when it carries none, and None when a record exists but
+    this process cannot read it. Costs one cached stat; never touches the
+    network.
+    """
+
+    try:
+        record = read_sdd_store_record(primary_workspace_dir)
+    except (OSError, SddMaterializationError):
+        return None
+    return is_materialized_record(record)
 
 
 def materialized_sdd_clone(primary_workspace_dir: str | Path) -> Path | None:

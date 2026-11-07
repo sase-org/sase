@@ -16,6 +16,7 @@ from sase.core.agent_artifact_paths import (
 from sase.core.agent_artifact_run_retention_models import AceRunProtectionSnapshot
 from sase.core.artifact_file_explicit import read_artifact_file_index
 from sase.core.continuation_retention import CONTINUATION_PORTABLE_LABEL_PREFIX
+from sase.core._sidecar_protection_label import unavailable_sidecar_label
 from sase.core.paths import sase_home, sase_projects_dir
 from sase.repo_inventory import collect_repo_inventory
 
@@ -77,14 +78,11 @@ def collect_ace_run_retention_protections(
         unavailable.add(f"repository inventory: {exc}")
         repo_inventory = RepoInventory(())
 
-    primary_projects = sorted(
-        {
-            record.project
-            for record in repo_inventory.records
-            if record.kind == "primary" and record.project
-        }
-    )
-    for project in primary_projects:
+    primaries: dict[str, RepoRecord] = {}
+    for record in repo_inventory.records:
+        if record.kind == "primary" and record.project:
+            primaries.setdefault(record.project, record)
+    for project in sorted(primaries):
         records = tuple(
             record
             for record in repo_inventory.records
@@ -93,6 +91,7 @@ def collect_ace_run_retention_protections(
         _collect_project_sidecar_refs(
             project,
             records,
+            primary=primaries[project],
             dirs=dirs,
             agent_names=agent_names,
             timestamps=timestamps,
@@ -128,6 +127,7 @@ def _collect_project_sidecar_refs(
     project: str,
     records: tuple[RepoRecord, ...],
     *,
+    primary: RepoRecord,
     dirs: set[str],
     agent_names: set[str],
     timestamps: set[str],
@@ -138,7 +138,7 @@ def _collect_project_sidecar_refs(
     for role in _REQUIRED_SIDECAR_ROLES:
         sidecar = _live_sidecar_root(records, role)
         if sidecar is None:
-            unavailable.add(f"{project}:{role}")
+            unavailable.add(unavailable_sidecar_label(project, role, primary))
             continue
         if role == "beads":
             non_closed[project] = _collect_bead_issue_refs(
