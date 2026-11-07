@@ -17,13 +17,19 @@ from textual.containers import VerticalScroll
 from textual.widgets import Static
 
 from ..prompt_panel._section_view import SectionViewMixin
+from .delivery_hold import CardDocumentDeliveryHoldMixin
 from .main_document import CardDocument
 from .main_view_blocks import CardDocumentViewBlocksMixin, sync_scrollbar_position
 from .model import DeckId, RenderMode, resolve_active_card
 from .separators import card_separator_for
 
 
-class CardDocumentView(CardDocumentViewBlocksMixin, SectionViewMixin, Static):
+class CardDocumentView(
+    CardDocumentDeliveryHoldMixin,
+    CardDocumentViewBlocksMixin,
+    SectionViewMixin,
+    Static,
+):
     """One card-document view that lives inside a VerticalScroll."""
 
     def __init__(self, deck: DeckId = DeckId.MAIN, **kwargs: Any) -> None:
@@ -41,6 +47,7 @@ class CardDocumentView(CardDocumentViewBlocksMixin, SectionViewMixin, Static):
         self._spread_scroll_generation: int = 0
         self._spread_land_confirmed: bool = False
         self._init_block_view_state()
+        self._init_delivery_hold_state()
 
     @property
     def deck(self) -> DeckId:
@@ -101,6 +108,16 @@ class CardDocumentView(CardDocumentViewBlocksMixin, SectionViewMixin, Static):
         except Exception:
             pass
         return 0
+
+    def adopt_spread_active(self, card_id: str) -> None:
+        """Record the reader's scroll-derived spread card as the view's own."""
+        document = self._document
+        if (
+            self._render_mode is RenderMode.SPREAD
+            and document is not None
+            and document.card(card_id) is not None
+        ):
+            self._active_card = card_id
 
     def spread_active_card(self) -> str | None:
         """Return the spread active card from scroll, or first while not ready."""
@@ -243,6 +260,8 @@ class CardDocumentView(CardDocumentViewBlocksMixin, SectionViewMixin, Static):
         document = self._document
         if document is None or document.card(card_id) is None:
             return None
+        # Explicit navigation owns the scroll from here on.
+        self.release_spread_hold()
         self._spread_pending_card = card_id
         self._spread_retry_count = 0
         self._spread_land_confirmed = False
@@ -348,6 +367,7 @@ class CardDocumentView(CardDocumentViewBlocksMixin, SectionViewMixin, Static):
         """Show ``document`` with ``preferred_card`` and ``mode``."""
         if mode is RenderMode.SPREAD:
             return self._show_document_spread(document)
+        self.release_spread_hold()
         try:
             blocks_enabled = block_mode is not None and not document.partial
         except Exception:
@@ -495,6 +515,7 @@ class CardDocumentView(CardDocumentViewBlocksMixin, SectionViewMixin, Static):
 
     def _show_document_spread(self, document: CardDocument) -> str | None:
         previous_active = self._active_card
+        was_spread = self._render_mode is RenderMode.SPREAD
         self.prepare_section_document((document.subject, "spread"))
         try:
             accent = self._spread_accent()
@@ -521,6 +542,7 @@ class CardDocumentView(CardDocumentViewBlocksMixin, SectionViewMixin, Static):
         if is_new_subject:
             self._previous_subject = document.subject
             self._subject_seen = True
+            self.release_spread_hold()
         try:
             if not document.partial:
                 self._reconcile_block_cursors(
@@ -529,12 +551,30 @@ class CardDocumentView(CardDocumentViewBlocksMixin, SectionViewMixin, Static):
         except Exception:
             pass
         if not document.cards:
+            self.release_spread_hold()
             self._apply_section_content(Text(""), None, layout=True)
             self._document = document
             self._active_card = None
             self._render_mode = RenderMode.SPREAD
             self._last_render_key = render_key
             return None
+        # A same-subject Main re-delivery re-renders under a parked reader:
+        # measure their anchor-relative row before the old anchors clear.
+        hold_card = (
+            previous_active
+            if (
+                self._deck is DeckId.MAIN
+                and was_spread
+                and not is_new_subject
+                and self._spread_pending_card is None
+                and previous_active is not None
+                and document.card(previous_active) is not None
+            )
+            else None
+        )
+        restore_offset = (
+            self._delivery_restore_offset(hold_card) if hold_card is not None else None
+        )
         parts: list[Any] = []
         for index, card in enumerate(document.cards):
             if index > 0:
@@ -557,10 +597,14 @@ class CardDocumentView(CardDocumentViewBlocksMixin, SectionViewMixin, Static):
                 self._active_card = pending
             elif previous_active in document.card_ids:
                 # A same-subject document refresh (including a growing live
-                # Reply) can shift card anchor rows while preserving the
-                # reader's scroll offset. Keep the selected card identity;
-                # scroll events will derive a new card if the reader moves.
+                # Reply) can shift card anchor rows. Keep the selected card
+                # identity and hold it while the re-render's layout clamp
+                # and any follow landing settle, restoring a parked reader's
+                # anchor-relative row; scroll events derive a new card only
+                # once the reader moves after that.
                 self._active_card = previous_active
+                if hold_card is not None:
+                    self.hold_spread_selection(hold_card, restore_offset=restore_offset)
             else:
                 derived = self.spread_active_card()
                 if derived is not None:
@@ -570,6 +614,24 @@ class CardDocumentView(CardDocumentViewBlocksMixin, SectionViewMixin, Static):
         if pending is not None and document.card(pending) is not None:
             self._schedule_spread_scroll(self._spread_scroll_generation)
         return self._active_card
+
+    def _delivery_restore_offset(self, card_id: str) -> int | None:
+        """Return the parked reader's row relative to ``card_id``'s anchor.
+
+        ``None`` when another owner moves the scroll (bottom pin, an
+        in-flight follow landing) or the old anchors were never measured.
+        """
+        carried = self.carried_spread_restore(card_id)
+        if carried is not None:
+            return carried
+        try:
+            if bool(self.is_pinned_to_bottom):
+                return None
+        except Exception:
+            return None
+        if self._block_spread_pending is not None:
+            return None
+        return self.spread_reader_offset(card_id)
 
     def _publish_section_layout(
         self,

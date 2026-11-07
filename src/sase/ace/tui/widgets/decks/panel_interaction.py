@@ -82,12 +82,38 @@ class DeckPanelInteractionMixin:
                         pass
                 return
             try:
+                held = getattr(self.main_view, "delivery_hold_card", None)
+            except Exception:
+                held = None
+            if held is not None:
+                # A background re-delivery owns this scroll (its layout
+                # clamp, follow landing or anchor restore), so it is not a
+                # card choice: keep the held card until layout settles.
+                if held != self._main_active_card:
+                    self._main_active_card = held
+                    try:
+                        self.refresh_chrome()
+                    except Exception:
+                        pass
+                else:
+                    try:
+                        self._refresh_chrome_if_scope_changed()  # type: ignore[attr-defined]
+                    except Exception:
+                        pass
+                return
+            try:
                 derived = self._main_spread_active()
             except Exception:
                 derived = None
             if derived is not None and derived != self._main_active_card:
                 # The here-card changed, so the scope key moved: refresh.
                 self._main_active_card = derived
+                try:
+                    # Keep the view's selection in step with the reader so a
+                    # later re-delivery preserves this card, not a stale one.
+                    self.main_view.adopt_spread_active(derived)
+                except Exception:
+                    pass
                 try:
                     self.refresh_chrome()
                 except Exception:
@@ -113,6 +139,11 @@ class DeckPanelInteractionMixin:
             self._sync_spread_block_cursor_from_scroll()
         except Exception:
             pass
+
+    def spread_hold_released(self, deck: DeckId | None) -> None:
+        """Re-derive the here-card when the reader scrolled during a hold."""
+        if deck is DeckId.MAIN:
+            self._on_main_scroll_y(0.0, 0.0)
 
     def _sync_spread_block_cursor_from_scroll(self) -> None:
         """Recompute the spread block cursor from the scroll position."""

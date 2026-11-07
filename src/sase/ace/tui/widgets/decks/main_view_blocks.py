@@ -341,19 +341,31 @@ class CardDocumentViewBlocksMixin:
         """Classify the current spread position before new content is applied."""
         if getattr(self, "_spread_pending_card", None) is not None:
             return SpreadFollowState.PARKED
-        if self._block_spread_pending is not None:
+        state: SpreadFollowState | None
+        if bool(getattr(self, "delivery_restore_pending", False)):
+            # The previous delivery's anchor restore has not applied yet, so
+            # the reader has not moved: reuse the classification taken
+            # before that delivery instead of reading the stale scroll.
+            state = getattr(self, "delivery_restore_follow_state", None)
+        elif self._block_spread_pending is not None:
             return None
-        try:
-            scroll = self.parent  # type: ignore[attr-defined]
-            if not isinstance(scroll, VerticalScroll):
+        else:
+            try:
+                scroll = self.parent  # type: ignore[attr-defined]
+                if not isinstance(scroll, VerticalScroll):
+                    return None
+                state = classify_spread_follow(
+                    scroll_y=float(scroll.scroll_y),
+                    landing_target=self.spread_landing_target(card),
+                    real_bottom=self._real_bottom(),
+                )
+            except Exception:
                 return None
-            return classify_spread_follow(
-                scroll_y=float(scroll.scroll_y),
-                landing_target=self.spread_landing_target(card),
-                real_bottom=self._real_bottom(),
-            )
+        try:
+            self.record_spread_follow_state(state)  # type: ignore[attr-defined]
         except Exception:
-            return None
+            pass
+        return state
 
     def park_block_cursor(self, card_id: str) -> BlockCursor | None:
         """Stop following ``card_id`` while preserving its active and known blocks."""
@@ -369,6 +381,12 @@ class CardDocumentViewBlocksMixin:
 
     def scroll_to_block(self, block_id: str, *, _attempt: int = 0) -> bool:
         """Top-align ``block_id`` with the block-aware reserve (bounded retry)."""
+        if _attempt == 0:
+            # Explicit block navigation owns the scroll from here on.
+            try:
+                self.release_spread_hold()  # type: ignore[attr-defined]
+            except Exception:
+                pass
         try:
             self.enable_section_layout_reserve(include_blocks=True)  # type: ignore[attr-defined]
         except Exception:

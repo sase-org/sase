@@ -183,6 +183,14 @@ class DeckPanelDocumentBlocksMixin(DeckPanelDocumentRailMixin):
                 view._active_card = card.card_id  # type: ignore[attr-defined]
             except Exception:
                 pass
+            if deck is DeckId.MAIN:
+                # The chat-log landing can rest above the card's own anchor
+                # (a short Reply lands at row 0, under Context). Its scroll is
+                # not a card choice: hold the landed card until it settles.
+                try:
+                    view.hold_spread_selection(card.card_id)  # type: ignore[attr-defined]
+                except Exception:
+                    pass
             try:
                 self.refresh_chrome()  # type: ignore[attr-defined]
             except Exception:

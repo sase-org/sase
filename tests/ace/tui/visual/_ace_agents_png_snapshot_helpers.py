@@ -216,37 +216,18 @@ def _main_card_selection_state(
     except Exception:
         stored_active = None
     try:
-        in_flight = panel.main_view._spread_pending_card is not None
+        view = panel.main_view
+        # Explicit navigation and a background delivery's selection hold both
+        # still own the scroll; the frame is not settled until they release.
+        in_flight = (
+            view._spread_pending_card is not None or view.delivery_hold_card is not None
+        )
     except Exception:
         in_flight = True
     return ready, view_active, stored_active, in_flight
 
 
-def _redrive_main_card_selection(
-    detail: AgentDetail, panel_index: int, card_id: str
-) -> bool:
-    """Re-issue the spread scroll to ``card_id`` after a background steal.
-
-    A same-subject Main re-delivery can clamp the scroll offset while no
-    navigation is in flight; the scroll watcher then derives the top card and
-    overwrites the stored selection even though the view still shows the
-    selected card. Re-issuing the generation-guarded scroll restores the
-    user's selection the way a repeated keypress would. Returns whether a
-    scroll was (re-)scheduled.
-    """
-    try:
-        panel = detail.deck_area.panel(panel_index)
-    except Exception:
-        return False
-    try:
-        return panel.main_view.scroll_to_card(card_id) is not None
-    except Exception:
-        return False
-
-
-def _main_card_diagnostics(
-    detail: AgentDetail, panel_index: int, *, redrives: int
-) -> str:
+def _main_card_diagnostics(detail: AgentDetail, panel_index: int) -> str:
     """Describe spread landing state for a failed Main-card readiness wait."""
     try:
         panel = detail.deck_area.panel(panel_index)
@@ -259,15 +240,15 @@ def _main_card_diagnostics(
             f"view_active={view.active_card_id!r}; "
             f"spread_active={view.spread_active_card()!r}; "
             f"pending={getattr(view, '_spread_pending_card', None)!r}; "
+            f"delivery_hold={getattr(view, 'delivery_hold_card', None)!r}; "
             f"scroll_y={getattr(scroll, 'scroll_y', None)!r}; "
             f"max_scroll_y={getattr(scroll, 'max_scroll_y', None)!r}; "
             f"anchor_rows={rows!r}; "
             f"anchor_generation={getattr(view, '_section_anchor_generation', None)!r}/"
-            f"{getattr(view, '_section_generation', None)!r}; "
-            f"redrives={redrives}"
+            f"{getattr(view, '_section_generation', None)!r}"
         )
     except Exception as exc:
-        return f"unavailable ({exc!r}); redrives={redrives}"
+        return f"unavailable ({exc!r})"
 
 
 async def _wait_main_card_visibly_applied(
@@ -282,16 +263,15 @@ async def _wait_main_card_visibly_applied(
     """Wait until the Main view's painted header shows ``card_id`` selected.
 
     The cheap semantic facts (applied generation, view selection, stored
-    selection) gate the painted-header proof so a slow frame export cannot
-    starve the pump under load. When those facts settle on a different card
-    with no navigation in flight — a background re-delivery stole the
-    selection — the scroll is re-driven instead of waiting out a state that
-    will never arrive. The total budget is unchanged; exhaustion still fails
-    with the spread-landing diagnostics.
+    selection, no navigation or delivery hold in flight) gate the
+    painted-header proof so a slow frame export cannot starve the pump under
+    load. The selection is never re-driven: a same-subject background
+    re-delivery keeps the reader's card (sase-1ln), so a card that settles
+    elsewhere is a product regression and fails with the spread-landing
+    diagnostics instead of being masked.
     """
     loop = asyncio.get_running_loop()
     deadline = loop.time() + timeout
-    redrives = 0
     while True:
         ready, view_active, stored_active, in_flight = _main_card_selection_state(
             detail, panel_index
@@ -305,14 +285,11 @@ async def _wait_main_card_visibly_applied(
         if settled and _main_card_header_visible(page, detail, panel_index, card_id):
             return
         if loop.time() >= deadline:
-            state = _main_card_diagnostics(detail, panel_index, redrives=redrives)
+            state = _main_card_diagnostics(detail, panel_index)
             raise AssertionError(
                 f"Timed out after {timeout:.2f}s waiting for {description}; "
                 f"Main card diagnostics: {state}"
             )
-        if not in_flight and (view_active != card_id or stored_active != card_id):
-            if _redrive_main_card_selection(detail, panel_index, card_id):
-                redrives += 1
         await page.pause(0)
         # Poll cheap semantic facts; the painted-header export runs on match.
         await asyncio.sleep(0.01)  # sase-test-wait: poll spread selection state
