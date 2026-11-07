@@ -6,7 +6,11 @@ from datetime import datetime
 from types import SimpleNamespace
 from typing import Any
 
-from sase.ace.tui.actions.agents import _hijack_recovery_panel as panel
+from sase.ace.tui.actions.agents import (
+    _hijack_recovery_panel as panel,
+    _hijack_recovery_panel_impl as panel_helpers,
+    _hijack_recovery_preview as preview_helpers,
+)
 from sase.ace.tui.actions.agent_durable import submit_agent_recovery
 from sase.ace.tui.models.agent import Agent, AgentType
 
@@ -78,7 +82,7 @@ def test_panel_choices_are_grouped_and_patch_is_last() -> None:
     agent = _agent()
     app = _App()
 
-    choices = panel._initial_choices(app, agent, agent.hijack_record or {})
+    choices = panel_helpers._initial_choices(app, agent, agent.hijack_record or {})
 
     assert [choice.hotkey for choice in choices] == [
         "u",
@@ -109,17 +113,19 @@ def test_panel_choices_are_grouped_and_patch_is_last() -> None:
 
 def test_expired_panel_has_release_actions_without_keep_work_primary() -> None:
     agent = _agent(state="expired", expired=True)
-    choices = panel._initial_choices(_App(), agent, agent.hijack_record or {})
+    choices = panel_helpers._initial_choices(_App(), agent, agent.hijack_record or {})
 
     hotkeys = {choice.hotkey for choice in choices}
     assert hotkeys == {"r", "e", "v", "t", "d", "p"}
     assert all(choice.section != "hijack_keep" for choice in choices)
-    assert panel._title_badge(agent, agent.hijack_record or {}).endswith("released")
+    assert panel_helpers._title_badge(agent, agent.hijack_record or {}).endswith(
+        "released"
+    )
 
 
 def test_preview_updates_target_and_disabled_reasons() -> None:
     agent = _agent()
-    choices = panel._initial_choices(_App(), agent, agent.hijack_record or {})
+    choices = panel_helpers._initial_choices(_App(), agent, agent.hijack_record or {})
     actions = {
         "escalate": SimpleNamespace(
             label="Switch",
@@ -138,7 +144,7 @@ def test_preview_updates_target_and_disabled_reasons() -> None:
     }
     preview = SimpleNamespace(state="held", action=lambda name: actions.get(name))
 
-    updated = panel._apply_preview(choices, preview)
+    updated = preview_helpers._apply_preview(choices, preview)
 
     assert updated[0].glyph == "↔"
     assert updated[0].disabled_reason == "no different model available"
@@ -155,8 +161,8 @@ def test_cached_preview_is_keyed_by_hijack_revision(monkeypatch: Any) -> None:
         lambda current: calls.append(current) or preview,
     )
 
-    assert panel._cached_preview_for_record(record) is preview
-    assert panel._cached_preview_for_record(record) is preview
+    assert preview_helpers._cached_preview_for_record(record) is preview
+    assert preview_helpers._cached_preview_for_record(record) is preview
     assert len(calls) == 1
 
 
