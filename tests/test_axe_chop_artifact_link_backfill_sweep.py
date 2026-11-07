@@ -7,6 +7,8 @@ from types import SimpleNamespace
 
 import pytest
 
+import sase.scripts._artifact_link_backfill_jobs as backfill_jobs
+import sase.scripts._artifact_link_backfill_state as backfill_state
 import sase.scripts.sase_chop_artifact_link_backfill as backfill_chop
 from sase.sdd.artifact_link_backfill import (
     _ArtifactLinkBackfillReport,
@@ -28,12 +30,12 @@ def test_runs_every_job_and_aggregates_totals(
         backfill_chop, "_enabled_project_records", lambda: [_project(tmp_path)]
     )
     monkeypatch.setattr(
-        backfill_chop,
+        backfill_jobs,
         "resolve_machine_artifact_link_store",
         lambda project_key, primary_checkout, **_kwargs: object(),
     )
     monkeypatch.setattr(
-        backfill_chop,
+        backfill_jobs,
         "run_artifact_link_backfill_batch",
         lambda store, **kwargs: (
             _ArtifactLinkBackfillReport(scanned=3, persisted=2, remaining=1),
@@ -41,14 +43,14 @@ def test_runs_every_job_and_aggregates_totals(
         ),
     )
     monkeypatch.setattr(
-        backfill_chop,
+        backfill_jobs,
         "drain_artifact_link_outbox",
         lambda store=None, **_kwargs: SimpleNamespace(
             drained=4, dropped=1, deferred=False
         ),
     )
     monkeypatch.setattr(
-        backfill_chop,
+        backfill_jobs,
         "reconcile_and_repair_artifact_links",
         lambda store, **_kwargs: _ArtifactLinkReconcileReport(repaired_renames=2),
     )
@@ -64,7 +66,7 @@ def test_runs_every_job_and_aggregates_totals(
     assert result.counters["reconciled"] == 1
     assert result.counters["repaired_renames"] == 2
 
-    state = (tmp_path / "state" / backfill_chop._STATE_FILENAME).read_text(
+    state = (tmp_path / "state" / backfill_state.STATE_FILENAME).read_text(
         encoding="utf-8"
     )
     assert "plan:202608/a.md" in state
@@ -84,7 +86,7 @@ def test_publication_retry_runs_before_store_resolution_and_reports_counts(
         assert kwargs["deadline"] is not None
         return (object(),), ("plans: diagnostic",)
 
-    monkeypatch.setattr(backfill_chop, "machine_document_sidecar_roots", _roots)
+    monkeypatch.setattr(backfill_jobs, "machine_document_sidecar_roots", _roots)
 
     def _sweep(roots: object, **kwargs: object) -> SimpleNamespace:
         order.append("retry")
@@ -107,23 +109,23 @@ def test_publication_retry_runs_before_store_resolution_and_reports_counts(
         return object()
 
     monkeypatch.setattr(
-        backfill_chop, "sweep_artifact_link_publication_retries", _sweep
+        backfill_jobs, "sweep_artifact_link_publication_retries", _sweep
     )
-    monkeypatch.setattr(backfill_chop, "resolve_machine_artifact_link_store", _resolve)
+    monkeypatch.setattr(backfill_jobs, "resolve_machine_artifact_link_store", _resolve)
     monkeypatch.setattr(
-        backfill_chop,
+        backfill_jobs,
         "run_artifact_link_backfill_batch",
         lambda store, **kwargs: (_ArtifactLinkBackfillReport(), frozenset()),
     )
     monkeypatch.setattr(
-        backfill_chop,
+        backfill_jobs,
         "drain_artifact_link_outbox",
         lambda store=None, **_kwargs: SimpleNamespace(
             drained=0, dropped=0, deferred=False
         ),
     )
     monkeypatch.setattr(
-        backfill_chop,
+        backfill_jobs,
         "reconcile_and_repair_artifact_links",
         lambda store, **_kwargs: _ArtifactLinkReconcileReport(),
     )
@@ -150,7 +152,7 @@ def test_checkpoint_survives_across_ticks(
         backfill_chop, "_enabled_project_records", lambda: [_project(tmp_path)]
     )
     monkeypatch.setattr(
-        backfill_chop,
+        backfill_jobs,
         "resolve_machine_artifact_link_store",
         lambda project_key, primary_checkout, **_kwargs: object(),
     )
@@ -169,16 +171,16 @@ def test_checkpoint_survives_across_ticks(
         seen_already_swept.append(already_swept)
         return _ArtifactLinkBackfillReport(), already_swept | {"plan:202608/a.md"}
 
-    monkeypatch.setattr(backfill_chop, "run_artifact_link_backfill_batch", _fake_batch)
+    monkeypatch.setattr(backfill_jobs, "run_artifact_link_backfill_batch", _fake_batch)
     monkeypatch.setattr(
-        backfill_chop,
+        backfill_jobs,
         "drain_artifact_link_outbox",
         lambda store=None, **_kwargs: SimpleNamespace(
             drained=0, dropped=0, deferred=False
         ),
     )
     monkeypatch.setattr(
-        backfill_chop,
+        backfill_jobs,
         "reconcile_and_repair_artifact_links",
         lambda store, **_kwargs: _ArtifactLinkReconcileReport(),
     )
@@ -196,17 +198,17 @@ def test_bead_projection_failed_marks_check_error(
         backfill_chop, "_enabled_project_records", lambda: [_project(tmp_path)]
     )
     monkeypatch.setattr(
-        backfill_chop,
+        backfill_jobs,
         "resolve_machine_artifact_link_store",
         lambda project_key, primary_checkout, **_kwargs: object(),
     )
     monkeypatch.setattr(
-        backfill_chop,
+        backfill_jobs,
         "run_artifact_link_backfill_batch",
         lambda store, **kwargs: (_ArtifactLinkBackfillReport(), frozenset()),
     )
     monkeypatch.setattr(
-        backfill_chop,
+        backfill_jobs,
         "drain_artifact_link_outbox",
         lambda store=None, **_kwargs: SimpleNamespace(
             drained=0,
@@ -221,7 +223,7 @@ def test_bead_projection_failed_marks_check_error(
         ),
     )
     monkeypatch.setattr(
-        backfill_chop,
+        backfill_jobs,
         "reconcile_and_repair_artifact_links",
         lambda store, **_kwargs: _ArtifactLinkReconcileReport(),
     )
@@ -240,17 +242,17 @@ def test_parked_operations_alone_are_not_check_error(
         backfill_chop, "_enabled_project_records", lambda: [_project(tmp_path)]
     )
     monkeypatch.setattr(
-        backfill_chop,
+        backfill_jobs,
         "resolve_machine_artifact_link_store",
         lambda project_key, primary_checkout, **_kwargs: object(),
     )
     monkeypatch.setattr(
-        backfill_chop,
+        backfill_jobs,
         "run_artifact_link_backfill_batch",
         lambda store, **kwargs: (_ArtifactLinkBackfillReport(), frozenset()),
     )
     monkeypatch.setattr(
-        backfill_chop,
+        backfill_jobs,
         "drain_artifact_link_outbox",
         lambda store=None, **_kwargs: SimpleNamespace(
             drained=0,
@@ -267,7 +269,7 @@ def test_parked_operations_alone_are_not_check_error(
         ),
     )
     monkeypatch.setattr(
-        backfill_chop,
+        backfill_jobs,
         "reconcile_and_repair_artifact_links",
         lambda store, **_kwargs: _ArtifactLinkReconcileReport(),
     )

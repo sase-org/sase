@@ -7,6 +7,8 @@ from types import SimpleNamespace
 
 import pytest
 
+import sase.scripts._artifact_link_backfill_jobs as backfill_jobs
+import sase.scripts._artifact_link_backfill_state as backfill_state
 import sase.scripts.sase_chop_artifact_link_backfill as backfill_chop
 from sase.sdd.artifact_link_backfill import (
     _ArtifactLinkBackfillReport,
@@ -28,7 +30,7 @@ def test_later_jobs_defer_after_sweep_budget(
         backfill_chop, "_enabled_project_records", lambda: [_project(tmp_path)]
     )
     monkeypatch.setattr(
-        backfill_chop,
+        backfill_jobs,
         "resolve_machine_artifact_link_store",
         lambda project_key, primary_checkout, **_kwargs: object(),
     )
@@ -50,14 +52,14 @@ def test_later_jobs_defer_after_sweep_budget(
             already_swept | {"plan:202608/a.md"},
         )
 
-    monkeypatch.setattr(backfill_chop, "run_artifact_link_backfill_batch", _fake_batch)
+    monkeypatch.setattr(backfill_jobs, "run_artifact_link_backfill_batch", _fake_batch)
     monkeypatch.setattr(
-        backfill_chop,
+        backfill_jobs,
         "drain_artifact_link_outbox",
         lambda store=None, **_kwargs: pytest.fail("outbox should defer"),
     )
     monkeypatch.setattr(
-        backfill_chop,
+        backfill_jobs,
         "reconcile_and_repair_artifact_links",
         lambda store, **_kwargs: pytest.fail("reconcile should defer"),
     )
@@ -69,7 +71,7 @@ def test_later_jobs_defer_after_sweep_budget(
     assert result.counters["sweep_remaining"] == 1
     assert result.counters["outbox_drained"] == 0
     assert result.counters["deferred_projects"] == 0
-    state = (tmp_path / "state" / backfill_chop._STATE_FILENAME).read_text(
+    state = (tmp_path / "state" / backfill_state.STATE_FILENAME).read_text(
         encoding="utf-8"
     )
     assert "plan:202608/a.md" in state
@@ -81,17 +83,17 @@ def test_chop_stops_starting_projects_past_the_chop_budget(
     projects = [_project(tmp_path, name=name) for name in ("p1", "p2", "p3")]
     monkeypatch.setattr(backfill_chop, "_enabled_project_records", lambda: projects)
     monkeypatch.setattr(
-        backfill_chop,
+        backfill_jobs,
         "resolve_machine_artifact_link_store",
         lambda project_key, primary_checkout, **_kwargs: object(),
     )
     monkeypatch.setattr(
-        backfill_chop,
+        backfill_jobs,
         "run_artifact_link_backfill_batch",
         lambda store, **kwargs: (_ArtifactLinkBackfillReport(), frozenset()),
     )
     monkeypatch.setattr(
-        backfill_chop,
+        backfill_jobs,
         "drain_artifact_link_outbox",
         lambda store=None, **_kwargs: SimpleNamespace(
             drained=0, dropped=0, deferred=False
@@ -106,7 +108,7 @@ def test_chop_stops_starting_projects_past_the_chop_budget(
         return _ArtifactLinkReconcileReport()
 
     monkeypatch.setattr(
-        backfill_chop, "reconcile_and_repair_artifact_links", _reconcile
+        backfill_jobs, "reconcile_and_repair_artifact_links", _reconcile
     )
 
     runtime, stdout, stderr = _runtime_with_logs(tmp_path)
@@ -130,17 +132,17 @@ def test_per_project_progress_is_logged(
         lambda: [_project(tmp_path, name="proj")],
     )
     monkeypatch.setattr(
-        backfill_chop,
+        backfill_jobs,
         "resolve_machine_artifact_link_store",
         lambda project_key, primary_checkout, **_kwargs: object(),
     )
     monkeypatch.setattr(
-        backfill_chop,
+        backfill_jobs,
         "run_artifact_link_backfill_batch",
         lambda store, **kwargs: (_ArtifactLinkBackfillReport(), frozenset()),
     )
     monkeypatch.setattr(
-        backfill_chop,
+        backfill_jobs,
         "drain_artifact_link_outbox",
         lambda store=None, **_kwargs: SimpleNamespace(
             drained=0, dropped=0, deferred=False
@@ -157,7 +159,7 @@ def test_per_project_progress_is_logged(
         return _ArtifactLinkReconcileReport()
 
     monkeypatch.setattr(
-        backfill_chop,
+        backfill_jobs,
         "reconcile_and_repair_artifact_links",
         _fake_reconcile,
     )
@@ -185,17 +187,17 @@ def test_chop_passes_budget_through_and_warns_on_deferred_refs(
         lambda: [_project(tmp_path, name="proj")],
     )
     monkeypatch.setattr(
-        backfill_chop,
+        backfill_jobs,
         "resolve_machine_artifact_link_store",
         lambda project_key, primary_checkout, **_kwargs: object(),
     )
     monkeypatch.setattr(
-        backfill_chop,
+        backfill_jobs,
         "run_artifact_link_backfill_batch",
         lambda store, **kwargs: (_ArtifactLinkBackfillReport(), frozenset()),
     )
     monkeypatch.setattr(
-        backfill_chop,
+        backfill_jobs,
         "drain_artifact_link_outbox",
         lambda store=None, **_kwargs: SimpleNamespace(
             drained=0, dropped=0, deferred=False
@@ -210,7 +212,7 @@ def test_chop_passes_budget_through_and_warns_on_deferred_refs(
         return _ArtifactLinkReconcileReport(deferred_refs=4)
 
     monkeypatch.setattr(
-        backfill_chop, "reconcile_and_repair_artifact_links", _reconcile
+        backfill_jobs, "reconcile_and_repair_artifact_links", _reconcile
     )
 
     runtime, _stdout, stderr = _runtime_with_logs(tmp_path)
@@ -234,7 +236,7 @@ def test_chop_forwards_chop_deadline_to_sweep_persist_and_drain(
         lambda: [_project(tmp_path, name="proj")],
     )
     monkeypatch.setattr(
-        backfill_chop,
+        backfill_jobs,
         "resolve_machine_artifact_link_store",
         lambda project_key, primary_checkout, **_kwargs: object(),
     )
@@ -251,10 +253,10 @@ def test_chop_forwards_chop_deadline_to_sweep_persist_and_drain(
         drain_kwargs.append(dict(kwargs))
         return SimpleNamespace(drained=0, dropped=0, deferred=False)
 
-    monkeypatch.setattr(backfill_chop, "run_artifact_link_backfill_batch", _fake_batch)
-    monkeypatch.setattr(backfill_chop, "drain_artifact_link_outbox", _fake_drain)
+    monkeypatch.setattr(backfill_jobs, "run_artifact_link_backfill_batch", _fake_batch)
+    monkeypatch.setattr(backfill_jobs, "drain_artifact_link_outbox", _fake_drain)
     monkeypatch.setattr(
-        backfill_chop,
+        backfill_jobs,
         "reconcile_and_repair_artifact_links",
         lambda store, **_kwargs: _ArtifactLinkReconcileReport(),
     )
@@ -276,17 +278,17 @@ def test_deferred_drain_skips_reconcile_and_counts_the_project(
         lambda: [_project(tmp_path, name="proj")],
     )
     monkeypatch.setattr(
-        backfill_chop,
+        backfill_jobs,
         "resolve_machine_artifact_link_store",
         lambda project_key, primary_checkout, **_kwargs: object(),
     )
     monkeypatch.setattr(
-        backfill_chop,
+        backfill_jobs,
         "run_artifact_link_backfill_batch",
         lambda store, **kwargs: (_ArtifactLinkBackfillReport(), frozenset()),
     )
     monkeypatch.setattr(
-        backfill_chop,
+        backfill_jobs,
         "drain_artifact_link_outbox",
         lambda store=None, **_kwargs: SimpleNamespace(
             drained=0,
@@ -296,7 +298,7 @@ def test_deferred_drain_skips_reconcile_and_counts_the_project(
         ),
     )
     monkeypatch.setattr(
-        backfill_chop,
+        backfill_jobs,
         "reconcile_and_repair_artifact_links",
         lambda store, **_kwargs: pytest.fail("reconcile should defer"),
     )

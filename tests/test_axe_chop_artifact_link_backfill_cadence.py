@@ -8,6 +8,8 @@ from types import SimpleNamespace
 
 import pytest
 
+import sase.scripts._artifact_link_backfill_jobs as backfill_jobs
+import sase.scripts._artifact_link_backfill_state as backfill_state
 import sase.scripts.sase_chop_artifact_link_backfill as backfill_chop
 from sase.scripts._artifact_link_backfill_schedule import (
     DEFAULT_RECONCILE_ESTIMATE_SECONDS,
@@ -36,14 +38,14 @@ def _patch_projects(
     projects = [_project(tmp_path, name=name) for name in names]
     monkeypatch.setattr(backfill_chop, "_enabled_project_records", lambda: projects)
     monkeypatch.setattr(
-        backfill_chop,
+        backfill_jobs,
         "resolve_machine_artifact_link_store",
         lambda project_key, primary_checkout, **_kwargs: SimpleNamespace(
             project_key=project_key
         ),
     )
     monkeypatch.setattr(
-        backfill_chop,
+        backfill_jobs,
         "run_artifact_link_backfill_batch",
         lambda store, **kwargs: (_ArtifactLinkBackfillReport(), frozenset()),
     )
@@ -129,9 +131,9 @@ def test_chop_drops_stale_daily_shares_one_catalog_and_logs_phases(
             phase_seconds=phases,
         )
 
-    monkeypatch.setattr(backfill_chop, "drain_artifact_link_outbox", _fake_drain)
+    monkeypatch.setattr(backfill_jobs, "drain_artifact_link_outbox", _fake_drain)
     monkeypatch.setattr(
-        backfill_chop,
+        backfill_jobs,
         "reconcile_and_repair_artifact_links",
         lambda store, **_kwargs: _ArtifactLinkReconcileReport(),
     )
@@ -169,7 +171,7 @@ def test_reconcile_waits_for_headroom_unless_first_and_cursor_goes_to_deferred(
         BackfillSchedule(reconcile_seconds={"p1": 500.0, "p2": 500.0}),
     )
     monkeypatch.setattr(
-        backfill_chop,
+        backfill_jobs,
         "drain_artifact_link_outbox",
         lambda **_kwargs: SimpleNamespace(
             drained=0, dropped=0, deferred=False, stale_checked=True
@@ -183,7 +185,7 @@ def test_reconcile_waits_for_headroom_unless_first_and_cursor_goes_to_deferred(
         return _ArtifactLinkReconcileReport()
 
     monkeypatch.setattr(
-        backfill_chop, "reconcile_and_repair_artifact_links", _reconcile
+        backfill_jobs, "reconcile_and_repair_artifact_links", _reconcile
     )
 
     runtime, _stdout, stderr = _runtime_with_logs(tmp_path)
@@ -195,7 +197,7 @@ def test_reconcile_waits_for_headroom_unless_first_and_cursor_goes_to_deferred(
     assert result.counters["deferred_projects"] == 1
     assert "p2: deferred reconcile/repair: needs ~500s, 240s left" in stderr.getvalue()
     cursor = json.loads(
-        (tmp_path / "state" / backfill_chop._CURSOR_FILENAME).read_text(
+        (tmp_path / "state" / backfill_state.CURSOR_FILENAME).read_text(
             encoding="utf-8"
         )
     )
@@ -215,14 +217,14 @@ def test_cut_short_reconcile_keeps_its_estimate_and_defers_the_project(
         BackfillSchedule(reconcile_seconds={"p1": 50.0}),
     )
     monkeypatch.setattr(
-        backfill_chop,
+        backfill_jobs,
         "drain_artifact_link_outbox",
         lambda **_kwargs: SimpleNamespace(
             drained=0, dropped=0, deferred=False, stale_checked=True
         ),
     )
     monkeypatch.setattr(
-        backfill_chop,
+        backfill_jobs,
         "reconcile_and_repair_artifact_links",
         lambda store, **_kwargs: _ArtifactLinkReconcileReport(
             skip_diagnostics=(
@@ -240,7 +242,7 @@ def test_cut_short_reconcile_keeps_its_estimate_and_defers_the_project(
     assert schedule.reconcile_seconds["p1"] == 50.0
     assert "p2" in schedule.reconcile_seconds
     cursor = json.loads(
-        (tmp_path / "state" / backfill_chop._CURSOR_FILENAME).read_text(
+        (tmp_path / "state" / backfill_state.CURSOR_FILENAME).read_text(
             encoding="utf-8"
         )
     )

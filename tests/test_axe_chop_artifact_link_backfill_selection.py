@@ -7,6 +7,8 @@ from types import SimpleNamespace
 
 import pytest
 
+import sase.scripts._artifact_link_backfill_jobs as backfill_jobs
+import sase.scripts._artifact_link_backfill_state as backfill_state
 import sase.scripts.sase_chop_artifact_link_backfill as backfill_chop
 from sase.core.project_lifecycle_wire import ProjectRecordWire
 from sase.sdd.artifact_link_backfill import (
@@ -107,10 +109,10 @@ def test_project_cursor_starts_after_last_started_project() -> None:
         for name in ("p1", "p2", "p3")
     ]
 
-    rotated = backfill_chop._rotate_records(records, "p2")
+    rotated = backfill_state.rotate_records(records, "p2")
 
     assert [record.project_name for record in rotated] == ["p2", "p3", "p1"]
-    assert backfill_chop._next_cursor_after(rotated, "p2") == "p3"
+    assert backfill_state.next_cursor_after(rotated, "p2") == "p3"
 
 
 def test_resolves_the_machine_store_with_the_project_key_and_primary_checkout(
@@ -125,21 +127,21 @@ def test_resolves_the_machine_store_with_the_project_key_and_primary_checkout(
         calls.append((project_key, primary_checkout))
         return object()
 
-    monkeypatch.setattr(backfill_chop, "resolve_machine_artifact_link_store", _resolve)
+    monkeypatch.setattr(backfill_jobs, "resolve_machine_artifact_link_store", _resolve)
     monkeypatch.setattr(
-        backfill_chop,
+        backfill_jobs,
         "run_artifact_link_backfill_batch",
         lambda store, **kwargs: (_ArtifactLinkBackfillReport(), frozenset()),
     )
     monkeypatch.setattr(
-        backfill_chop,
+        backfill_jobs,
         "drain_artifact_link_outbox",
         lambda store=None, **_kwargs: SimpleNamespace(
             drained=0, dropped=0, deferred=False
         ),
     )
     monkeypatch.setattr(
-        backfill_chop,
+        backfill_jobs,
         "reconcile_and_repair_artifact_links",
         lambda store, **_kwargs: _ArtifactLinkReconcileReport(),
     )
@@ -163,21 +165,21 @@ def test_a_broken_project_is_recorded_and_does_not_stop_the_sweep(
             raise RuntimeError("no project here")
         return object()
 
-    monkeypatch.setattr(backfill_chop, "resolve_machine_artifact_link_store", _resolve)
+    monkeypatch.setattr(backfill_jobs, "resolve_machine_artifact_link_store", _resolve)
     monkeypatch.setattr(
-        backfill_chop,
+        backfill_jobs,
         "run_artifact_link_backfill_batch",
         lambda store, **kwargs: (_ArtifactLinkBackfillReport(), frozenset()),
     )
     monkeypatch.setattr(
-        backfill_chop,
+        backfill_jobs,
         "drain_artifact_link_outbox",
         lambda store=None, **_kwargs: SimpleNamespace(
             drained=0, dropped=0, deferred=False
         ),
     )
     monkeypatch.setattr(
-        backfill_chop,
+        backfill_jobs,
         "reconcile_and_repair_artifact_links",
         lambda store, **_kwargs: _ArtifactLinkReconcileReport(),
     )

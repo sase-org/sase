@@ -8,7 +8,7 @@ from types import SimpleNamespace
 
 import pytest
 
-import sase.scripts.sase_chop_artifact_link_backfill as backfill_chop
+import sase.scripts._artifact_link_backfill_jobs as backfill_jobs
 from sase.axe.chop_script_context import ChopScriptContext
 from sase.chops.builtin import BuiltinChopRuntime
 from sase.chops.sdk import ChopLogger
@@ -18,12 +18,12 @@ from sase.core.project_lifecycle_wire import ProjectRecordWire
 @pytest.fixture(autouse=True)
 def _default_no_publication_retry(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
-        backfill_chop,
+        backfill_jobs,
         "machine_document_sidecar_roots",
         lambda *_args, **_kwargs: ((), ()),
     )
     monkeypatch.setattr(
-        backfill_chop,
+        backfill_jobs,
         "sweep_artifact_link_publication_retries",
         lambda *_args, **_kwargs: SimpleNamespace(
             attempted=0,
