@@ -24,6 +24,30 @@ from tests.ace.tui._statistics_pane_helpers import (
 )
 
 
+@pytest.fixture(autouse=True)
+def _serve_cards_for_the_fake_catalog(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Answer the pane's evidence-card fetches for this module's fake rows.
+
+    Selecting a Footprint row fetches its card in a thread worker. These tests
+    feed the pane a fake report (``cli.bead``, ``cli:bead.list``) that the
+    real catalog does not contain, so the real fetch raises ``unknown
+    feature``. That error surfaced only when the worker was still running at
+    app teardown -- routinely on a loaded host -- so its outcome depended on
+    scheduling rather than on the behavior under test.
+    """
+    import sase.ace.tui.modals.statistics_pane_footprint as footprint_render
+
+    def card(target: tuple[str, str], **_kwargs: object) -> dict[str, Any]:
+        kind, name = target
+        if kind == "area":
+            area = _area_card()
+            area["row"] = {**area["row"], "id": name, "label": name, "area": name}
+            return area
+        return _feature_card(id=name)
+
+    monkeypatch.setattr(footprint_render, "fetch_footprint_card", card)
+
+
 async def test_footprint_view_cycles_actor_and_lens(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

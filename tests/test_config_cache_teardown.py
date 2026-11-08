@@ -15,6 +15,7 @@ import pytest
 from sase.config import core as config_core
 from sase.config.core import current_config_token
 from tests._config_cache_helpers import _reset_config_token_cache
+from tests._load_tolerant import LOAD_TOLERANT_TIMEOUT
 from tests._conftest_runtime import (
     _drain_config_token_refresh,
     _reset_derived_config_caches,
@@ -95,6 +96,46 @@ def test_reset_derived_caches_drops_cross_test_session_memos(
     assert enter_index._INDEX_CACHE_REF is None
     assert enter_index._INDEX_CACHE is None
     assert counts == {}
+
+
+def test_reset_derived_caches_retires_artifacts_tab_descriptors(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A later test must neither inherit nor receive an earlier test's tabs.
+
+    The descriptors are served from a process-wide cache that a daemon thread
+    refreshes; a refresh still running when its test ends must not publish
+    into the next test's cache either.
+    """
+    from sase.ace.tui import artifact_tabs
+
+    started = threading.Event()
+    release = threading.Event()
+
+    def blocked_build() -> tuple[object, ...]:
+        started.set()
+        assert release.wait(timeout=LOAD_TOLERANT_TIMEOUT)
+        return ()
+
+    monkeypatch.setattr(artifact_tabs, "_build_artifacts_subtabs", blocked_build)
+    epoch = artifact_tabs._ARTIFACTS_TAB_CACHE_EPOCH
+    artifact_tabs._ARTIFACTS_TAB_CACHE = (("earlier-test",), ())
+    artifact_tabs._schedule_artifacts_subtabs_refresh(
+        ("earlier-test-refresh",), cache_epoch=epoch
+    )
+    refresher = artifact_tabs._ARTIFACTS_TAB_REFRESH_THREAD
+    assert refresher is not None
+    assert started.wait(timeout=LOAD_TOLERANT_TIMEOUT)
+
+    try:
+        _reset_derived_config_caches()
+        assert artifact_tabs._ARTIFACTS_TAB_CACHE is None
+        assert artifact_tabs._ARTIFACTS_TAB_CACHE_EPOCH > epoch
+    finally:
+        release.set()
+        refresher.join(timeout=LOAD_TOLERANT_TIMEOUT)
+    assert not refresher.is_alive()
+    assert artifact_tabs._ARTIFACTS_TAB_CACHE is None
 
 
 def test_drain_config_token_refresh_joins_worker_and_advances_epoch() -> None:

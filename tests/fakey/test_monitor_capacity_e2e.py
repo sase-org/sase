@@ -28,6 +28,7 @@ import sase.procs.spawn as spawn_module
 from sase.procs.settlement import settle_named_proc
 from sase.macro.directives import extract_prompt_directives
 
+from tests._load_tolerant import LOAD_TOLERANT_TIMEOUT
 from tests.fakey._runner_slot_harness import (
     _Agent,
     _RunnerSlotFakeyHarness,
@@ -133,8 +134,13 @@ def test_weight_two_land_agent_session_retains_one_claim_through_real_dispatch_a
     """
     import tests.fakey._runner_slot_harness as harness_module
 
-    monkeypatch.setattr(harness_module, "_WAIT_TIMEOUT", 5.0)
-    monkeypatch.setattr(harness_module, "_FAKEY_RELEASE_TIMEOUT", 5.0)
+    # Every wait below ends on its own condition, and every fakey is released
+    # explicitly; both bounds only detect a hang, so they are sized for a
+    # loaded host. The release bound spans several such waits.
+    monkeypatch.setattr(harness_module, "_WAIT_TIMEOUT", LOAD_TOLERANT_TIMEOUT)
+    monkeypatch.setattr(
+        harness_module, "_FAKEY_RELEASE_TIMEOUT", 2 * LOAD_TOLERANT_TIMEOUT
+    )
     harness = _RunnerSlotFakeyHarness(tmp_path, monkeypatch, cap=2)
     monkeypatch.delenv("SASE_AGENT_NAME", raising=False)
     write_project_file(_MONITOR_PROJECT, workspace_dir=str(harness.workspace))

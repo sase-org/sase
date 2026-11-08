@@ -17,7 +17,10 @@ from sase.ace.hooks.processes import is_process_running
 from sase.monitor.supervise import run_supervisor
 from sase.running_field import get_claimed_workspaces
 
+from tests._load_tolerant import LOAD_TOLERANT_TIMEOUT
+
 from ._supervise import (
+    HOLD_SECONDS,
     _make_member,
     _restore_signal_handlers,
     _run_supervisor_subprocess,
@@ -33,7 +36,7 @@ def test_run_supervisor_kills_the_whole_process_group_on_timeout(
     tmp_path: Path,
 ) -> None:
     pidfile = tmp_path / "grandchild.pid"
-    command = f"sh -c 'sleep 30 & echo $! > {pidfile}; wait'"
+    command = f"sh -c 'sleep {HOLD_SECONDS} & echo $! > {pidfile}; wait'"
     artifacts_dir, _ = _make_member(tmp_path, command=command, timeout_seconds=0.3)
 
     completed = _run_supervisor_subprocess(artifacts_dir)
@@ -68,7 +71,7 @@ def test_run_supervisor_times_out_continuous_output(
 def test_run_supervisor_times_out_after_partial_line(tmp_path: Path) -> None:
     artifacts_dir, _ = _make_member(
         tmp_path,
-        command="sh -c 'printf partial; sleep 30'",
+        command=f"sh -c 'printf partial; sleep {HOLD_SECONDS}'",
         # Long enough for spawn+printf under load; the child still sleeps 30s
         # so this remains a timeout, not a completion.
         timeout_seconds=3.0,
@@ -103,7 +106,7 @@ def test_run_supervisor_completes_when_grandchild_holds_stdout(
     tmp_path: Path,
 ) -> None:
     pidfile = tmp_path / "grandchild.pid"
-    command = f"sh -c 'sleep 30 & echo $! > {pidfile}; echo parent done'"
+    command = f"sh -c 'sleep {HOLD_SECONDS} & echo $! > {pidfile}; echo parent done'"
     artifacts_dir, _ = _make_member(tmp_path, command=command, timeout_seconds=30.0)
 
     try:
@@ -122,7 +125,7 @@ def test_run_supervisor_completes_when_grandchild_holds_stdout(
 def test_run_supervisor_times_out_after_child_closes_stdio(tmp_path: Path) -> None:
     artifacts_dir, _ = _make_member(
         tmp_path,
-        command="sh -c 'exec >/dev/null 2>&1; sleep 30'",
+        command=f"sh -c 'exec >/dev/null 2>&1; sleep {HOLD_SECONDS}'",
         timeout_seconds=0.2,
     )
 
@@ -136,7 +139,7 @@ def test_run_supervisor_times_out_after_child_closes_stdio(tmp_path: Path) -> No
 def test_run_supervisor_idle_timeout_fires_after_output_stalls(tmp_path: Path) -> None:
     artifacts_dir, _ = _make_member(
         tmp_path,
-        command="sh -c 'echo started; sleep 30'",
+        command=f"sh -c 'echo started; sleep {HOLD_SECONDS}'",
         timeout_seconds=30.0,
         idle_timeout_seconds=0.2,
     )
@@ -157,16 +160,17 @@ def test_run_supervisor_idle_timeout_fires_after_output_stalls(tmp_path: Path) -
 def test_run_supervisor_chatty_command_does_not_hit_idle_timeout(
     tmp_path: Path,
 ) -> None:
+    # Ticks every 0.1 s for three idle windows, so the run only completes if
+    # each tick resets the idle clock. ``sh`` emits its first tick without an
+    # interpreter start-up that a starved host could stretch past the window.
     command = (
-        f'{shlex.quote(sys.executable)} -u -c "import sys, time; '
-        "[(sys.stdout.write('tick\\\\n'), sys.stdout.flush(), time.sleep(0.05)) "
-        'for _ in range(4)]"'
+        "sh -c 'i=0; while [ $i -lt 30 ]; do echo tick; sleep 0.1; i=$((i+1)); done'"
     )
     artifacts_dir, _ = _make_member(
         tmp_path,
         command=command,
-        timeout_seconds=5.0,
-        idle_timeout_seconds=0.2,
+        timeout_seconds=LOAD_TOLERANT_TIMEOUT,
+        idle_timeout_seconds=1.0,
     )
 
     exit_status = run_supervisor(artifacts_dir)

@@ -24,6 +24,10 @@ from sase.testing.usage_synthetic import (
     _SyntheticUsageProvider,
 )
 from sase.llm_provider.usage.types import validate_observation
+from tests.llm_provider._probe_deadlines import (
+    PROBE_HANG_GUARD_SECONDS,
+    hang_deadlines,
+)
 
 
 def _pid_alive(pid: int) -> bool:
@@ -38,7 +42,7 @@ def test_synthetic_fourth_provider_collects_without_core_changes(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.delenv("SASE_FEATURE_FLAGS", raising=False)
-    context = default_probe_context("synth", deadline_seconds=20)
+    context = default_probe_context("synth", deadline_seconds=PROBE_HANG_GUARD_SECONDS)
     result = run_usage_probe(
         context,
         isolate=True,
@@ -163,7 +167,7 @@ def test_secret_canary_exception_is_not_in_observation(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
     monkeypatch.delenv("SASE_FEATURE_FLAGS", raising=False)
-    context = default_probe_context("synth", deadline_seconds=20)
+    context = default_probe_context("synth", deadline_seconds=PROBE_HANG_GUARD_SECONDS)
     result = run_usage_probe(
         context,
         isolate=True,
@@ -185,7 +189,7 @@ def test_empty_worker_stdout_carries_bounded_stderr_diagnostic(
 ) -> None:
     monkeypatch.delenv("SASE_FEATURE_FLAGS", raising=False)
     caplog.set_level(logging.WARNING, logger="sase.llm_provider.usage.probe")
-    context = default_probe_context("synth", deadline_seconds=20)
+    context = default_probe_context("synth", deadline_seconds=PROBE_HANG_GUARD_SECONDS)
 
     result = run_usage_probe(
         context,
@@ -218,18 +222,21 @@ def test_descendant_processes_are_reaped(
     # This test proves descendant cleanup after timeout. Give a cold isolated
     # worker time to import the provider and write the PID file; the hanging-
     # plugin test covers the tighter production deadline path.
-    context = default_probe_context("synth", deadline_seconds=5)
-    result = run_usage_probe(
-        context,
-        isolate=True,
-        plugin_spec=SYNTHETIC_PLUGIN_SPEC,
-        env={
-            SYNTHETIC_MODE_ENV: "descendants",
-            SYNTHETIC_PIDFILE_ENV: str(pidfile),
-        },
-    )
-    assert result.observation is not None
-    assert result.observation["reason_code"] == "timeout"
+    for deadline_seconds in hang_deadlines(5.0):
+        context = default_probe_context("synth", deadline_seconds=deadline_seconds)
+        result = run_usage_probe(
+            context,
+            isolate=True,
+            plugin_spec=SYNTHETIC_PLUGIN_SPEC,
+            env={
+                SYNTHETIC_MODE_ENV: "descendants",
+                SYNTHETIC_PIDFILE_ENV: str(pidfile),
+            },
+        )
+        assert result.observation is not None
+        assert result.observation["reason_code"] == "timeout"
+        if pidfile.exists():
+            break
     child_pid = int(pidfile.read_text(encoding="utf-8"))
     assert not _pid_alive(child_pid)
 

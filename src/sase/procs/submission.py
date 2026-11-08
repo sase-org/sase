@@ -303,15 +303,7 @@ def _launch_reserved(
     if ack_error is not None:
         terminate_supervisor(supervisor)
         _wait_for_terminal(proc.proc_id, timeout=_LAUNCH_SETTLE_SECONDS)
-        current = get_proc(proc.proc_id) or proc
-        if current.status not in TERMINAL_PROC_STATUSES:
-            settle_named_proc(
-                proc.proc_id,
-                supervisor_id=current.supervisor_id or _starter_supervisor_id(),
-                status="error",
-                message=ack_error,
-                termination_reason="launch-failure",
-            )
+        _settle_failed_start(get_proc(proc.proc_id) or proc, ack_error)
         raise ProcSubmitError(ack_error)
 
     current = get_proc(proc.proc_id) or proc
@@ -346,23 +338,34 @@ def _raise_start_hook_error(
     """Terminate and settle a supervisor whose caller start hook failed."""
     terminate_supervisor(supervisor)
     _wait_for_terminal(proc.proc_id, timeout=_LAUNCH_SETTLE_SECONDS)
-    current = get_proc(proc.proc_id) or proc
     message = (
         str(exc)
         if isinstance(exc, ProcSubmitError)
         else f"could not finish proc start: {_one_line(exc)}"
     )
-    if current.status not in TERMINAL_PROC_STATUSES:
-        settle_named_proc(
-            proc.proc_id,
-            supervisor_id=current.supervisor_id or _starter_supervisor_id(),
-            status="error",
-            message=message,
-            termination_reason="launch-failure",
-        )
+    _settle_failed_start(get_proc(proc.proc_id) or proc, message)
     if isinstance(exc, ProcSubmitError):
         raise exc
     raise ProcSubmitError(message) from exc
+
+
+def _settle_failed_start(current: Proc, message: str) -> None:
+    """Record a launch failure unless the supervisor already owns the settlement.
+
+    A terminated supervisor that began settling has frozen its own observation,
+    and a launch-failure observation would conflict with it. On a loaded host
+    that settlement can outlast ``_LAUNCH_SETTLE_SECONDS``; the live supervisor
+    still finishes it, and reconciliation settles the row if it dies first.
+    """
+    if current.status in TERMINAL_PROC_STATUSES or current.status == "settling":
+        return
+    settle_named_proc(
+        current.proc_id,
+        supervisor_id=current.supervisor_id or _starter_supervisor_id(),
+        status="error",
+        message=message,
+        termination_reason="launch-failure",
+    )
 
 
 def _should_reconcile(proc: Proc) -> bool:

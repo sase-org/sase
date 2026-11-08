@@ -354,6 +354,26 @@ def _clear_tui_session_memos_if_loaded() -> None:
                 counts.clear()
 
 
+def _clear_artifacts_tab_cache_if_loaded() -> None:
+    """Drop the process-wide Artifacts tab descriptors and retire their refresher.
+
+    ``resolve_artifacts_subtabs`` serves its last descriptors immediately and
+    rebuilds them on a daemon thread when the provider source token changes,
+    so without a reset one test's provider discovery (or a refresh thread it
+    started that publishes after its patches are gone) answers a later test's
+    first lookup. The reset bumps the cache epoch, which also stops an
+    in-flight refresh from publishing into the next test.
+    """
+    import sys
+
+    module = sys.modules.get("sase.ace.tui.artifact_tabs")
+    if module is None:
+        return
+    reset = getattr(module, "reset_artifacts_subtabs_cache", None)
+    if callable(reset):
+        reset()
+
+
 def _capture_derived_config_cache_helpers() -> tuple[object, object, object]:
     """Bind the real cached helpers before tests replace their names."""
     from sase.llm_provider import config as llm_provider_config
@@ -430,6 +450,7 @@ def _reset_derived_config_caches() -> None:
     _clear_lazy_syntax_caches_if_loaded()
     _clear_project_display_caches_if_loaded()
     _clear_tui_session_memos_if_loaded()
+    _clear_artifacts_tab_cache_if_loaded()
     _drain_config_token_refresh()
     config_core.clear_config_cache()
     for cached in _derived_config_cache_helpers():

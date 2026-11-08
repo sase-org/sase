@@ -19,6 +19,7 @@ import sase.procs.spawn as spawn_module
 from sase.procs.settlement import settle_named_proc
 from sase.macro.directives import extract_prompt_directives
 
+from tests._load_tolerant import LOAD_TOLERANT_TIMEOUT
 from tests.fakey._monitor_capacity_helpers import make_bootstrap_popen
 from tests.fakey._runner_slot_harness import _Agent, _RunnerSlotFakeyHarness
 from tests.monitor._fixtures import (
@@ -37,7 +38,9 @@ def test_zero_weight_wait_monitor_followup_reenters_full_host_admission(
     """The monitor is free, but its weight-2 successor waits for real capacity."""
     import tests.fakey._runner_slot_harness as harness_module
 
-    monkeypatch.setattr(harness_module, "_WAIT_TIMEOUT", 5.0)
+    # Every wait below ends on its own condition; the bound only detects a
+    # hang, so it is sized for a loaded host.
+    monkeypatch.setattr(harness_module, "_WAIT_TIMEOUT", LOAD_TOLERANT_TIMEOUT)
     # Follow-up dispatch has a bounded 60-second starter-settle window; keep
     # the already-admitted filler alive through that production wait.
     monkeypatch.setattr(harness_module, "_FAKEY_RELEASE_TIMEOUT", 90.0)

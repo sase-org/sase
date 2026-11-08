@@ -15,6 +15,10 @@ import pytest
 
 from sase.llm_provider.grok import GrokProvider
 from sase.llm_provider.usage.probe import default_probe_context, run_usage_probe
+from tests.llm_provider._probe_deadlines import (
+    PROBE_HANG_GUARD_SECONDS,
+    hang_deadlines,
+)
 
 _FIXTURE = (
     Path(__file__).resolve().parent / "fixtures" / "usage_probe" / "grok_acp_cli.py"
@@ -40,7 +44,7 @@ def _run_grok_probe(
     *,
     mode: str = "native",
     version: str = _NATIVE_VERSION,
-    deadline_seconds: float = 5.0,
+    deadline_seconds: float = PROBE_HANG_GUARD_SECONDS,
     result_wrap: str | None = None,
 ) -> tuple[dict[str, Any], list[dict[str, Any]], list[list[str]]]:
     messages_path = tmp_path / "messages.jsonl"
@@ -632,29 +636,32 @@ def test_grok_usage_probe_reaps_descendant_processes(tmp_path: Path) -> None:
         "SASE_FAKE_GROK_MODE": "descendants",
         "SASE_FAKE_GROK_CHILD_PID": str(pidfile),
     }
-    now = time.time()
-    context = default_probe_context(
-        "grok", now=now, deadline_seconds=3.0, executable=str(fake)
-    )
-    probe_result = run_usage_probe(
-        context,
-        isolate=True,
-        plugin_spec={"kind": "entry_point", "name": "grok"},
-        now=now,
-        env=env,
-    )
-    result = probe_result.observation
-    assert result is not None
-    assert result["outcome"] == "error"
-    assert result["reason_code"] == "timeout"
-    deadline = time.time() + 2.0
     pid_text = ""
-    while time.time() < deadline:
-        if pidfile.exists():
-            pid_text = pidfile.read_text(encoding="utf-8").strip()
-            if pid_text:
-                break
-        time.sleep(0.05)  # sase-test-wait: pidfile from descendant grok child
+    for deadline_seconds in hang_deadlines(3.0):
+        now = time.time()
+        context = default_probe_context(
+            "grok", now=now, deadline_seconds=deadline_seconds, executable=str(fake)
+        )
+        probe_result = run_usage_probe(
+            context,
+            isolate=True,
+            plugin_spec={"kind": "entry_point", "name": "grok"},
+            now=now,
+            env=env,
+        )
+        result = probe_result.observation
+        assert result is not None
+        assert result["outcome"] == "error"
+        assert result["reason_code"] == "timeout"
+        deadline = time.time() + 2.0
+        while time.time() < deadline:
+            if pidfile.exists():
+                pid_text = pidfile.read_text(encoding="utf-8").strip()
+                if pid_text:
+                    break
+            time.sleep(0.05)  # sase-test-wait: pidfile from descendant grok child
+        if pid_text:
+            break
     assert pid_text
     child_pid = int(pid_text)
     assert not _pid_alive(child_pid)

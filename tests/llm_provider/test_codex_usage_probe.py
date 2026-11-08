@@ -13,6 +13,10 @@ from sase.llm_provider.codex import CodexProvider
 from sase.llm_provider.usage.codex_collector import collect_codex_usage
 from sase.llm_provider.usage.probe import default_probe_context, run_usage_probe
 from sase.llm_provider.usage.types import validate_observation
+from tests.llm_provider._probe_deadlines import (
+    PROBE_HANG_GUARD_SECONDS,
+    hang_deadlines,
+)
 
 _FIXTURE = (
     Path(__file__).resolve().parent
@@ -48,7 +52,7 @@ def _context(
     *,
     mode: str,
     monkeypatch: pytest.MonkeyPatch,
-    deadline_seconds: float = 8.0,
+    deadline_seconds: float = PROBE_HANG_GUARD_SECONDS,
     context_id: str = "ctx-1",
     account_generation: int = 1,
 ):
@@ -316,12 +320,17 @@ def test_descendant_processes_are_reaped(
 ) -> None:
     pidfile = tmp_path / "child.pid"
     monkeypatch.setenv("SASE_CODEX_APP_SERVER_PIDFILE", str(pidfile))
-    context = _context(
-        mode="descendants", monkeypatch=monkeypatch, deadline_seconds=1.5
-    )
-    observation = collect_codex_usage(context)
-    assert observation["outcome"] == "error"
-    assert observation["reason_code"] == "timeout"
+    for deadline_seconds in hang_deadlines(1.5):
+        context = _context(
+            mode="descendants",
+            monkeypatch=monkeypatch,
+            deadline_seconds=deadline_seconds,
+        )
+        observation = collect_codex_usage(context)
+        assert observation["outcome"] == "error"
+        assert observation["reason_code"] == "timeout"
+        if pidfile.exists():
+            break
     child_pid = int(pidfile.read_text(encoding="utf-8"))
     assert not _pid_alive(child_pid)
 
@@ -367,7 +376,7 @@ def test_registered_hook_runs_through_isolated_probe(
     monkeypatch.delenv("SASE_FEATURE_FLAGS", raising=False)
     monkeypatch.setenv("SASE_CODEX_APP_SERVER_MODE", "multi_bucket")
     monkeypatch.setenv("SASE_CODEX_PATH", str(_FIXTURE))
-    context = default_probe_context("codex", deadline_seconds=8)
+    context = default_probe_context("codex", deadline_seconds=PROBE_HANG_GUARD_SECONDS)
     result = run_usage_probe(
         context,
         isolate=True,

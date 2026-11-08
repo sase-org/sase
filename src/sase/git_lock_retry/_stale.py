@@ -42,6 +42,11 @@ def try_remove_stale_index_lock(
         return False
     lock_path = Path(resolved)
     snapshot = policy.snapshot_lock_path(lock_path)
+    if snapshot is None:
+        # No lock to remove. Skip the owner probe: on Linux it reads every
+        # process's /proc fds and environment, which took seconds on a loaded
+        # host and ran on every agents-sync payload clean.
+        return False
     remaining = (
         min(DEFAULT_GIT_LOCK_RECOVERY_WAIT_CAP_SECONDS, probe_timeout)
         if probe_timeout is not None

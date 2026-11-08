@@ -29,7 +29,10 @@ from sase.agents_sync.publication_cleanup import PublicationCleanupBudget
 from sase.agents_sync.publication_outbox import list_agent_publications
 from sase.core import agent_publication_recovery as recovery
 from sase.core.agent_identity_facade import AgentOwnerIdentity
-from tests.agents_sync.commit_publication_fixtures import setup_target
+from tests.agents_sync.commit_publication_fixtures import (
+    BlockedStageAlarm,
+    setup_target,
+)
 
 _BINDING = "default_publication_cleanup_timeout"
 _MISSING = (
@@ -230,26 +233,22 @@ def test_policy_lookup_failure_preserves_drain_timeout_attribution(
     target, _remote = _configure_target(monkeypatch, tmp_path, owner)
     timings: list = []
     monkeypatch.setattr(publication_drain, "emit_drain_timing", timings.append)
+    alarm = BlockedStageAlarm(monkeypatch)
 
     def blocked_render(*_args: Any, **_kwargs: Any):
+        alarm.expire()
         time.sleep(30)  # sase-test-wait: exceeds the drain timeout
 
     monkeypatch.setattr(publication_locked, "publish_agent_hood", blocked_render)
-    monkeypatch.setattr(
-        publication_drain,
-        "_configured_publication_drain_timeout",
-        lambda: 1.0,
-    )
     lookups = _raise_missing(monkeypatch)
 
-    started = time.perf_counter()
     outcome = publish_committed_agent_hood(
         "foo--code",
         "a" * 40,
         project="Project",
         git_runner=run_git,
     )
-    elapsed = time.perf_counter() - started
+    elapsed = alarm.seconds_since_block()
 
     assert elapsed < 5.0
     assert lookups == [_BINDING]
@@ -278,8 +277,10 @@ def test_a_smaller_rust_cap_bounds_a_stalled_cleanup_family(
     timings: list = []
     monkeypatch.setattr(publication_drain, "emit_drain_timing", timings.append)
     _patch_cleanup_binding(monkeypatch, lambda: 0.25)
+    alarm = BlockedStageAlarm(monkeypatch)
 
     def blocked_render(*_args: Any, **_kwargs: Any):
+        alarm.expire()
         time.sleep(30)  # sase-test-wait: exceeds the drain timeout
 
     calls = {"count": 0}
@@ -296,11 +297,6 @@ def test_a_smaller_rust_cap_bounds_a_stalled_cleanup_family(
         git_sync_transaction,
         "clean_agents_payload_worktree",
         stalled_agents_cleanup,
-    )
-    monkeypatch.setattr(
-        publication_drain,
-        "_configured_publication_drain_timeout",
-        lambda: 1.0,
     )
 
     outcome = publish_committed_agent_hood(

@@ -14,10 +14,16 @@ from tests._visual_capture_helpers import (
     _session,
     make_png,
 )
+from tests._load_tolerant import LOAD_TOLERANT_TIMEOUT
 from tests.ace.tui.visual._visual_capture import hash_file_tree
 
 
 _ROOT = Path(__file__).resolve().parents[1]
+# A hang detector for a whole nested pytest session (an xdist controller plus
+# two workers, each importing the repo conftest). That start-up is CPU-bound,
+# so under the contention soak's per-process CPU share it legitimately runs
+# past a single load-tolerant wait.
+_NESTED_PYTEST_TIMEOUT = 3 * LOAD_TOLERANT_TIMEOUT
 
 
 def _capture_pytest_env(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -129,7 +135,7 @@ def test_pytester_xdist_project_merges_worker_local_records(
             capture_dir,
             extra=("-n", "2", "--dist=loadfile"),
         ),
-        timeout=60,
+        timeout=_NESTED_PYTEST_TIMEOUT,
     )
 
     result.assert_outcomes(passed=2)
@@ -188,7 +194,7 @@ def test_pytester_ordinary_failure_still_fails_and_keeps_goldens(
 
     result = pytester.runpytest_subprocess(
         *_capture_args(capture_dir, scope="targeted"),
-        timeout=60,
+        timeout=_NESTED_PYTEST_TIMEOUT,
     )
 
     result.assert_outcomes(failed=1)

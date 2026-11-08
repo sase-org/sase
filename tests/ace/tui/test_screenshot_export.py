@@ -20,6 +20,24 @@ from sase.ace.tui.screenshot_export import (
     reserve_export_paths,
     screenshot_request_dir,
 )
+from tests._load_tolerant import LOAD_TOLERANT_TIMEOUT
+
+
+@pytest.fixture
+def load_tolerant_screenshot_settle(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Give a real ``AcePage`` export a hang-detector settle budget.
+
+    The production 3 s budget bounds a user-visible export, and the stalled-
+    refresh tests below shrink it on purpose. Tests that drive a real Textual
+    app only need its frames to converge eventually: under the contention soak
+    one refresh acknowledgement alone can outlast 3 s, which turned a passing
+    export into a convergence timeout.
+    """
+    monkeypatch.setattr(
+        screenshot_export_module,
+        "_SCREENSHOT_SETTLE_TIMEOUT_SECONDS",
+        LOAD_TOLERANT_TIMEOUT,
+    )
 
 
 class _SettlingExportApp(ScreenshotExportMixin):
@@ -269,6 +287,7 @@ def test_export_protocol_writes_done_and_error_markers(tmp_path: Path) -> None:
     assert not second.pending.exists()
 
 
+@pytest.mark.usefixtures("load_tolerant_screenshot_settle")
 async def test_app_export_body_writes_svg_and_done(tmp_path: Path) -> None:
     async with AcePage() as page:
         paths = await page.app._run_screenshot_export(tmp_path)
@@ -511,6 +530,7 @@ async def test_projected_detail_hydration_counts_as_visual_work() -> None:
     assert workers == ["_projected_record_hydration_tasks:hydrate-selected-agent"]
 
 
+@pytest.mark.usefixtures("load_tolerant_screenshot_settle")
 async def test_app_export_body_tolerates_signal_task_refresh_wait_error(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -528,6 +548,7 @@ async def test_app_export_body_tolerates_signal_task_refresh_wait_error(
     assert "<svg" in paths.svg.read_text(encoding="utf-8")
 
 
+@pytest.mark.usefixtures("load_tolerant_screenshot_settle")
 async def test_app_export_body_tolerates_signal_task_refresh_request_error(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -550,6 +571,7 @@ async def test_app_export_body_tolerates_signal_task_refresh_request_error(
     assert (tmp_path / "screen_1.error").exists()
 
 
+@pytest.mark.usefixtures("load_tolerant_screenshot_settle")
 async def test_app_export_body_tolerates_signal_task_prepare_error(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -567,17 +589,14 @@ async def test_app_export_body_tolerates_signal_task_prepare_error(
     assert "<svg" in paths.svg.read_text(encoding="utf-8")
 
 
-async def test_signal_schedule_spawns_export_task(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    monkeypatch.setattr(
-        screenshot_export_module, "_SCREENSHOT_SETTLE_TIMEOUT_SECONDS", 10.0
-    )
+@pytest.mark.usefixtures("load_tolerant_screenshot_settle")
+async def test_signal_schedule_spawns_export_task(tmp_path: Path) -> None:
+    done = tmp_path / "screen_1.done"
+    error = tmp_path / "screen_1.error"
     async with AcePage() as page:
         page.app._screenshot_export_request_dir = tmp_path
         page.app._schedule_screenshot_export_from_signal()
-        await page.wait_for(
-            lambda _state: (tmp_path / "screen_1.done").exists(), timeout=15.0
-        )
+        await page.wait_for(lambda _state: done.exists() or error.exists())
+        assert not error.exists(), error.read_text(encoding="utf-8")
 
     assert (tmp_path / "screen_1.svg").exists()

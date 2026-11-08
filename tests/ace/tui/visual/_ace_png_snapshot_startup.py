@@ -22,6 +22,7 @@ from sase.config.loading import load_default_config
 from sase.llm_provider import launch_default_peek
 from sase.memory.read_log import MemoryReadEvent
 from sase.skills.use_log import SkillUseEvent
+from tests._load_tolerant import LOAD_TOLERANT_TIMEOUT
 
 # Default visual-suite inbox: one Gates chip and one General chip. Goldens of
 # unrelated surfaces still show this badge, so startup waits for the exact
@@ -539,5 +540,5 @@ async def wait_for_startup(page: AcePage) -> None:
                 == _badge_body(expected_badge)
             )
         ),
-        timeout=15.0,
+        timeout=LOAD_TOLERANT_TIMEOUT,
     )

@@ -13,6 +13,7 @@ from types import SimpleNamespace
 import pytest
 
 from sase.history import command_line as history_store
+from tests._load_tolerant import LOAD_TOLERANT_TIMEOUT
 
 __all__ = [
     "test_empty_panel_escape_follows_the_hide_panel_binding",
@@ -194,7 +195,10 @@ async def test_grammar_ready_refreshes_open_empty_panel_without_a_keystroke(
     release_grammar = threading.Event()
 
     def _wait_for_grammar_release() -> object:
-        assert release_grammar.wait(timeout=5.0)
+        # A hang detector, not a speed bound: the test holds the loader
+        # blocked across an escape and a reopen, which a contended worker
+        # can stretch past several seconds before ``release_grammar.set()``.
+        assert release_grammar.wait(timeout=LOAD_TOLERANT_TIMEOUT)
         return object()
 
     monkeypatch.setattr(
@@ -214,10 +218,12 @@ async def test_grammar_ready_refreshes_open_empty_panel_without_a_keystroke(
                     lambda _state: page.app._command_line_grammar_loading is True
                 )
 
-                # The escape press races a blocked grammar worker; 1s is too
-                # tight under parallel-check load (observed TimeoutError on a
-                # loaded gate while isolated reruns pass in ~2s).
-                await asyncio.wait_for(page.press("escape"), timeout=5.0)
+                # The escape press races a blocked grammar worker; this bound
+                # only detects a wedged press (1s and then 5s were both too
+                # tight under parallel-check and contention-soak load).
+                await asyncio.wait_for(
+                    page.press("escape"), timeout=LOAD_TOLERANT_TIMEOUT
+                )
                 await page.expect_no_modal()
                 assert first.is_attached is False
 

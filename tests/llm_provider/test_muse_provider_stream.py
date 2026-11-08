@@ -19,6 +19,7 @@ from pathlib import Path
 import pytest
 
 from sase.llm_provider._subprocess_muse import MUSE_USAGE_ERROR_NOTE
+from tests._load_tolerant import LOAD_TOLERANT_TIMEOUT
 
 from ._muse_provider_helpers import (
     _READ_TOOL_FIXTURE,
@@ -281,11 +282,16 @@ def test_muse_stream_framing_under_provider_timer_in_a_pty() -> None:
     )
     os.close(slave_fd)
     output = bytearray()
-    deadline = time.monotonic() + 5
+    # A hang guard, not a speed bound: the child imports sase before it
+    # renders anything, which takes far longer than its 0.75s of sleeps on a
+    # CPU-starved runner.
+    deadline = time.monotonic() + LOAD_TOLERANT_TIMEOUT
     try:
         while process.poll() is None or select.select([master_fd], [], [], 0)[0]:
             remaining = deadline - time.monotonic()
-            assert remaining > 0, "provider_timer PTY probe exceeded five seconds"
+            assert remaining > 0, (
+                f"provider_timer PTY probe exceeded {LOAD_TOLERANT_TIMEOUT:g} seconds"
+            )
             readable, _, _ = select.select([master_fd], [], [], min(remaining, 0.1))
             if readable:
                 try:

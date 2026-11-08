@@ -16,6 +16,7 @@ from sase.testing.usage_synthetic import (
     SYNTHETIC_MODE_ENV,
     SYNTHETIC_PLUGIN_SPEC,
 )
+from tests.llm_provider._probe_deadlines import PROBE_HANG_GUARD_SECONDS
 
 
 @pytest.fixture
@@ -31,8 +32,10 @@ def test_runner_collects_synthetic_provider(
     monkeypatch.delenv(SYNTHETIC_MODE_ENV, raising=False)
     results = _run_admitted_refresh(
         {
-            "batch_deadline_seconds": 8,
-            "provider_deadline_seconds": 6,
+            # Hang guards: this test asserts a successful collection, and the
+            # isolated worker's start-up shares these deadlines.
+            "batch_deadline_seconds": PROBE_HANG_GUARD_SECONDS + 10,
+            "provider_deadline_seconds": PROBE_HANG_GUARD_SECONDS,
             "max_concurrent": 3,
             "plugin_specs": {"synth": SYNTHETIC_PLUGIN_SPEC},
             "providers": [

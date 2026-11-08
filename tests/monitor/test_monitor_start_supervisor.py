@@ -291,7 +291,7 @@ def test_start_monitor_reparents_the_supervisor_before_return(
     finally:
         if record.pid is not None:
             os.kill(record.pid, signal.SIGTERM)
-        wait_for_done(record.artifacts_dir, timeout=10.0)
+        wait_for_done(record.artifacts_dir)
 
 
 @pytest.mark.skipif(not Path("/proc").is_dir(), reason="/proc ancestry is required")
@@ -332,7 +332,7 @@ def test_ppid_walk_teardown_of_starter_descendants_leaves_monitor_running(
 
     _signal_descendants(os.getpid(), signal.SIGTERM)
 
-    done = wait_for_done(record.artifacts_dir, timeout=10.0)
+    done = wait_for_done(record.artifacts_dir)
     assert done["monitor_state"] == "completed"
     live_reply = Path(record.artifacts_dir, "live_reply.md").read_text()
     assert "survived teardown" in live_reply
@@ -377,10 +377,10 @@ def test_sighup_to_supervisor_does_not_stop_the_monitor(
     )
 
     assert record.pid is not None
-    wait_for_path(ready_file, timeout=10.0)
+    wait_for_path(ready_file)
     os.kill(record.pid, signal.SIGHUP)
 
-    done = wait_for_done(record.artifacts_dir, timeout=10.0)
+    done = wait_for_done(record.artifacts_dir)
     assert done["monitor_state"] == "completed"
     live_reply = Path(record.artifacts_dir, "live_reply.md").read_text()
     assert "ready" in live_reply

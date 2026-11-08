@@ -12,6 +12,7 @@ import pytest
 from sase._interruptions import PublicationDrainTimedOut
 from sase.agents_sync import _commit_publication_drain as publication_drain
 from sase.sdd._git import SddGitCommandTimeout, run_sdd_git
+from tests._load_tolerant import LOAD_TOLERANT_TIMEOUT
 
 GH013_SECRET = "SYNTHETIC-REMOTE-SECRET-7f3a9c2e"
 
@@ -60,37 +61,51 @@ def test_streaming_transfer_succeeds_while_progress_continues(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    # The stall window must exceed the child's longest gap between progress
+    # lines, start-up included, on a CPU-starved runner, while the transfer
+    # spans two windows so it only succeeds because each progress line resets
+    # the stall timer. A shell child starts in milliseconds; the former Python
+    # child could spend the whole old 0.15s window just starting.
+    stall_seconds = 0.5
+    progress_lines = 20
     seen_args: list[list[str]] = []
     script = (
-        "import sys, time\n"
-        "for index in range(6):\n"
-        "    sys.stderr.write(f'Counting objects: {index}\\r')\n"
-        "    sys.stderr.flush()\n"
-        "    time.sleep(0.05)\n"
-        "sys.stdout.write('done')\n"
+        "i=0\n"
+        f'while [ "$i" -lt {progress_lines} ]; do\n'
+        "  printf 'Counting objects: %s\\r' \"$i\" >&2\n"
+        "  sleep 0.05\n"
+        "  i=$((i + 1))\n"
+        "done\n"
+        "printf done\n"
     )
 
     def command(args: list[str]) -> list[str]:
         seen_args.append(args)
-        return [sys.executable, "-c", script]
+        return ["sh", "-c", script]
 
-    monkeypatch.setenv("SASE_SDD_GIT_NETWORK_TRANSFER_CEILING", "2")
+    # The transfer ceiling is not under test; keep it to a hang guard.
+    monkeypatch.setenv(
+        "SASE_SDD_GIT_NETWORK_TRANSFER_CEILING", str(LOAD_TOLERANT_TIMEOUT)
+    )
     monkeypatch.setattr("sase.sdd._git_runner.sdd_git_command", command)
 
+    started = time.monotonic()
     result = run_sdd_git(
         ["clone", "source", "target"],
         cwd=tmp_path,
         op="test.clone",
-        timeout=0.15,
+        timeout=stall_seconds,
         check=True,
         capture_output=True,
         text=True,
     )
+    elapsed = time.monotonic() - started
 
     assert result.returncode == 0
     assert result.stdout == "done"
-    assert "Counting objects: 5" in result.stderr
+    assert f"Counting objects: {progress_lines - 1}" in result.stderr
     assert seen_args == [["clone", "--progress", "source", "target"]]
+    assert elapsed > stall_seconds  # it outlived a stall window
 
 
 def test_streaming_transfer_aborts_after_progress_stalls(

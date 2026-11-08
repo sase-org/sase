@@ -10,6 +10,7 @@ from sase.ace.tui.widgets.single_line_vim_text_area import SingleLineVimTextArea
 from sase.ace.tui.widgets.vim_text_area import VimTextArea
 
 from . import settle as settle_helpers
+from .wait import DEFAULT_WAIT_TIMEOUT
 from .wait import wait_for as wait_for_pilot
 
 
@@ -125,7 +126,7 @@ class PromptPage:
         self,
         predicate: Callable[[], bool],
         *,
-        timeout: float = 5.0,
+        timeout: float = DEFAULT_WAIT_TIMEOUT,
     ) -> None:
         """Poll until predicate returns True, or raise."""
         await wait_for_pilot(self._pilot, predicate, timeout=timeout)

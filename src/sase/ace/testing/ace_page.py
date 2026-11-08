@@ -20,7 +20,7 @@ from ._stylesheet_cache import (
 )
 from . import settle as settle_helpers
 from .fixtures import DEFAULT_PATCHES
-from .wait import _poll_until
+from .wait import DEFAULT_WAIT_TIMEOUT, _poll_until
 
 AceStartupPolicy = Literal["fast", "real"]
 
@@ -313,12 +313,13 @@ class AcePage:
                 )
             )
             if self._wait_for_startup_state:
-                deadline = asyncio.get_running_loop().time() + 15.0
+                deadline = asyncio.get_running_loop().time() + DEFAULT_WAIT_TIMEOUT
                 paused = False
                 while not self._app._mount_state_loads_done:
                     if asyncio.get_running_loop().time() >= deadline:
                         raise AssertionError(
-                            "AcePage startup state did not load within 15 seconds"
+                            "AcePage startup state did not load within"
+                            f" {DEFAULT_WAIT_TIMEOUT:g} seconds"
                         )
                     await settle_helpers.settle_pilot(self._pilot)
                     paused = True
@@ -454,7 +455,7 @@ class AcePage:
         key: str,
         value: Any,
         *,
-        timeout: float = 5.0,
+        timeout: float = DEFAULT_WAIT_TIMEOUT,
     ) -> None:
         """Poll state until state[key] == value, or raise AssertionError.
 
@@ -486,7 +487,9 @@ class AcePage:
             clock=app._loop.time if app._loop is not None else None,
         )
 
-    async def expect_modal(self, name: str, *, timeout: float = 5.0) -> None:
+    async def expect_modal(
+        self, name: str, *, timeout: float = DEFAULT_WAIT_TIMEOUT
+    ) -> None:
         """Assert that the named modal is currently shown."""
         await self.expect_state("modal", name, timeout=timeout)
         app = self.app
@@ -502,11 +505,13 @@ class AcePage:
             clock=app._loop.time if app._loop is not None else None,
         )
 
-    async def expect_no_modal(self, *, timeout: float = 5.0) -> None:
+    async def expect_no_modal(self, *, timeout: float = DEFAULT_WAIT_TIMEOUT) -> None:
         """Assert that no modal is currently shown."""
         await self.expect_state("modal", None, timeout=timeout)
 
-    async def expect_screen_contains(self, text: str, *, timeout: float = 5.0) -> None:
+    async def expect_screen_contains(
+        self, text: str, *, timeout: float = DEFAULT_WAIT_TIMEOUT
+    ) -> None:
         """Poll screen until text is found, or raise AssertionError."""
         app = self.app
 
@@ -523,7 +528,7 @@ class AcePage:
         )
 
     async def expect_screen_not_contains(
-        self, text: str, *, timeout: float = 5.0
+        self, text: str, *, timeout: float = DEFAULT_WAIT_TIMEOUT
     ) -> None:
         """Poll screen until text is absent, or raise AssertionError."""
         app = self.app
@@ -544,7 +549,7 @@ class AcePage:
         self,
         predicate: Callable[[dict[str, Any]], bool],
         *,
-        timeout: float = 5.0,
+        timeout: float = DEFAULT_WAIT_TIMEOUT,
         timeout_message: Callable[[], str] | None = None,
     ) -> None:
         """Poll state until predicate(state) returns True, or raise."""

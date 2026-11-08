@@ -17,6 +17,7 @@ from sase.agents_sync import (
 from sase.agents_sync import (
     _commit_publication_transaction_steps as transaction_steps,
     git_sync_transaction,
+    publication_cleanup,
 )
 from sase.agents_sync.commit_publication import publish_committed_agent_hood
 from sase.agents_sync.git import run_git
@@ -31,9 +32,12 @@ from sase.agents_sync.v2_models import (
 )
 from sase.core.agent_identity_facade import AgentOwnerIdentity
 from tests.agents_sync.commit_publication_fixtures import (
+    BlockedStageAlarm,
     fulfilled_completion,
     setup_target,
 )
+from tests._load_tolerant import LOAD_TOLERANT_TIMEOUT
+from tests._sched_clock import SchedulerAdjustedClock
 
 
 def _publish_readme(owner: AgentOwnerIdentity):
@@ -85,32 +89,29 @@ def test_blocked_render_is_bounded_and_leaves_the_request_queued(
     target, _remote = _configure_target(monkeypatch, tmp_path, owner)
     timings = []
     monkeypatch.setattr(publication_drain, "emit_drain_timing", timings.append)
+    alarm = BlockedStageAlarm(monkeypatch)
 
     def blocked_render(*_args, **_kwargs):
+        alarm.expire()
         time.sleep(30)  # sase-test-wait: exceeds the drain timeout
         raise AssertionError("blocked render should have been interrupted")
 
     monkeypatch.setattr(publication_locked, "publish_agent_hood", blocked_render)
-    monkeypatch.setattr(
-        publication_drain,
-        "_configured_publication_drain_timeout",
-        lambda: 1.0,
-    )
 
-    started = time.perf_counter()
     outcome = publish_committed_agent_hood(
         "foo--code",
         "a" * 40,
         project="Project",
         git_runner=run_git,
     )
-    elapsed = time.perf_counter() - started
+    elapsed = alarm.seconds_since_block()
 
     assert elapsed < 5.0
     assert outcome.queued
     assert not outcome.published
     assert outcome.error is not None and "did not complete within" in outcome.error
     assert timings and timings[-1].alarm_fired
+    assert timings[-1].alarm_stage == "hood_publish:foo"
     assert timings[-1].outcome == "timeout"
 
     queued = list_agent_publications("proj")
@@ -143,7 +144,10 @@ def test_manifest_timeout_cleans_regenerable_paths_and_preserves_objects(
         object_path.write_bytes(b"append-only object")
         return _publish_readme(owner)(_target, repo, agent, **kwargs)
 
+    alarm = BlockedStageAlarm(monkeypatch)
+
     def blocked_manifest(*_args, **_kwargs):
+        alarm.expire()
         time.sleep(30)  # sase-test-wait: exceeds the drain timeout
 
     monkeypatch.setattr(publication_locked, "publish_agent_hood", publish_with_scratch)
@@ -152,10 +156,13 @@ def test_manifest_timeout_cleans_regenerable_paths_and_preserves_objects(
         "read_owner_manifest",
         blocked_manifest,
     )
+    # What cleanup removes and keeps is under test here, not its one-second
+    # budget (the bounded-cleanup tests below own that). A loaded runner can
+    # spend that second before both path families are cleaned.
     monkeypatch.setattr(
-        publication_drain,
-        "_configured_publication_drain_timeout",
-        lambda: 5.0,
+        publication_cleanup,
+        "default_publication_cleanup_timeout",
+        lambda: LOAD_TOLERANT_TIMEOUT,
     )
 
     outcome = publish_committed_agent_hood(
@@ -241,16 +248,15 @@ def test_after_a_blocked_render_a_later_drain_retries_and_succeeds(
 ) -> None:
     owner = AgentOwnerIdentity("alice", "athena")
     _configure_target(monkeypatch, tmp_path, owner)
+    # The retry drain keeps this hang-guard budget: it must succeed, so the
+    # budget only has to catch a hang.
+    alarm = BlockedStageAlarm(monkeypatch)
 
     def blocked_render(*_args, **_kwargs):
+        alarm.expire()
         time.sleep(30)  # sase-test-wait: exceeds the drain timeout
 
     monkeypatch.setattr(publication_locked, "publish_agent_hood", blocked_render)
-    monkeypatch.setattr(
-        publication_drain,
-        "_configured_publication_drain_timeout",
-        lambda: 1.0,
-    )
 
     first = publish_committed_agent_hood(
         "foo--code",
@@ -263,11 +269,6 @@ def test_after_a_blocked_render_a_later_drain_retries_and_succeeds(
 
     monkeypatch.setattr(
         publication_locked, "publish_agent_hood", _publish_readme(owner)
-    )
-    monkeypatch.setattr(
-        publication_drain,
-        "_configured_publication_drain_timeout",
-        lambda: 5.0,
     )
     monkeypatch.setattr(
         "sase.agents_sync.publication_completion.publication_request_completion",
@@ -321,6 +322,21 @@ def test_blocked_render_with_young_index_lock_is_bounded(
     monkeypatch.setattr(publication_drain, "emit_drain_timing", timings.append)
 
     sidecar = target.sidecar_path
+    alarm = BlockedStageAlarm(monkeypatch)
+    # Time each worktree clean without the run-queue wait: with a lock present
+    # the owner probe walks every process in /proc, which a CPU-starved runner
+    # stretches well past the budget though the probe itself never sleeps.
+    clean_seconds: list[float] = []
+    real_clean = git_sync.clean_publication_worktree
+
+    def timed_clean(*args, **kwargs):
+        clock = SchedulerAdjustedClock()
+        try:
+            return real_clean(*args, **kwargs)
+        finally:
+            clean_seconds.append(clock.elapsed())
+
+    monkeypatch.setattr(git_sync, "clean_publication_worktree", timed_clean)
 
     def blocked_render_with_lock(*_args, **_kwargs):
         git_dir = sidecar / ".git"
@@ -329,26 +345,21 @@ def test_blocked_render_with_young_index_lock_is_bounded(
             (git_dir / "index.lock").write_bytes(b"test contention")
         except OSError:
             pass
+        alarm.expire()
         time.sleep(30)  # sase-test-wait: exceeds the drain timeout
         raise AssertionError("blocked render should have been interrupted")
 
     monkeypatch.setattr(
         publication_locked, "publish_agent_hood", blocked_render_with_lock
     )
-    monkeypatch.setattr(
-        publication_drain,
-        "_configured_publication_drain_timeout",
-        lambda: 1.0,
-    )
 
-    started = time.perf_counter()
     outcome = publish_committed_agent_hood(
         "foo--code",
         "a" * 40,
         project="Project",
         git_runner=run_git,
     )
-    elapsed = time.perf_counter() - started
+    elapsed = alarm.seconds_since_block()
 
     assert elapsed < 5.0, f"contention cleanup overran: {elapsed:.2f}s"
     assert outcome.queued
@@ -358,7 +369,9 @@ def test_blocked_render_with_young_index_lock_is_bounded(
     assert timings[-1].outcome == "timeout"
     # Shared 1s cleanup cap: post-alarm cleanup must not approach the old
     # 14s backoff+age-wait.
-    cleanup_seconds = timings[-1].stage_durations.get("cleanup", 0.0)
+    assert "cleanup" in timings[-1].stage_durations
+    assert len(clean_seconds) == 2  # pre-transaction clean, exception cleanup
+    cleanup_seconds = clean_seconds[-1]
     assert cleanup_seconds < 2.0, f"cleanup took {cleanup_seconds:.2f}s"
 
     queued = list_agent_publications("proj")
@@ -379,11 +392,6 @@ def test_blocked_render_with_young_index_lock_is_bounded(
         pass
     monkeypatch.setattr(
         publication_locked, "publish_agent_hood", _publish_readme(owner)
-    )
-    monkeypatch.setattr(
-        publication_drain,
-        "_configured_publication_drain_timeout",
-        lambda: 5.0,
     )
     monkeypatch.setattr(
         "sase.agents_sync.publication_completion.publication_request_completion",
@@ -412,8 +420,10 @@ def test_stalled_cleanup_does_not_replace_render_timeout(
     target, _remote = _configure_target(monkeypatch, tmp_path, owner)
     timings: list = []
     monkeypatch.setattr(publication_drain, "emit_drain_timing", timings.append)
+    alarm = BlockedStageAlarm(monkeypatch)
 
     def blocked_render(*_args, **_kwargs):
+        alarm.expire()
         time.sleep(30)  # sase-test-wait: exceeds the drain timeout
 
     calls = {"count": 0}
@@ -421,9 +431,7 @@ def test_stalled_cleanup_does_not_replace_render_timeout(
     def stalled_agents_cleanup(repo, git_runner, **_kwargs):
         calls["count"] += 1
         if calls["count"] == 1:
-            # Initial payload_clean before the transaction must succeed
-            # quickly so the timeout fires in hood_publish, not here.
-            return None
+            return None  # the pre-transaction payload clean
         time.sleep(5)  # sase-test-wait: stalled cleanup must be bounded
         return "agents cleanup stalled"
 
@@ -433,20 +441,14 @@ def test_stalled_cleanup_does_not_replace_render_timeout(
         "clean_agents_payload_worktree",
         stalled_agents_cleanup,
     )
-    monkeypatch.setattr(
-        publication_drain,
-        "_configured_publication_drain_timeout",
-        lambda: 1.0,
-    )
 
-    started = time.perf_counter()
     outcome = publish_committed_agent_hood(
         "foo--code",
         "a" * 40,
         project="Project",
         git_runner=run_git,
     )
-    elapsed = time.perf_counter() - started
+    elapsed = alarm.seconds_since_block()
 
     assert elapsed < 5.0, f"stalled cleanup overran: {elapsed:.2f}s"
     assert outcome.queued and not outcome.published

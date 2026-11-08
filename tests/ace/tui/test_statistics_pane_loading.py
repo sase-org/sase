@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import asyncio
-import time
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -31,6 +30,7 @@ from tests.ace.tui._statistics_pane_helpers import (
     wait_statistics_settled as _wait_statistics_settled,
 )
 from tests._project_display_case import ProjectDisplayCase
+from tests._sched_clock import SchedulerAdjustedClock
 
 
 async def test_statistics_loads_only_after_its_tab_becomes_active(
@@ -238,11 +238,14 @@ async def test_auto_refresh_soak_keeps_event_loop_and_message_pump_responsive(
         assert pane._code_complete is True
         assert all(call[0] == "projects" for call in calls[projects_calls:])
 
+        # The one-frame bound is about the handler's own work and blocking, so
+        # leave out time the event-loop thread spent waiting for a CPU: on the
+        # contention lane that wait alone exceeds a frame.
         samples: list[float] = []
         for _ in range(20):
-            started = time.perf_counter()
+            clock = SchedulerAdjustedClock()
             pane.action_cycle_group()
-            samples.append((time.perf_counter() - started) * 1000.0)
+            samples.append(clock.elapsed() * 1000.0)
         samples.sort()
         group_p95 = samples[max(0, int(round(0.95 * (len(samples) - 1))))]
         assert group_p95 < 16.0

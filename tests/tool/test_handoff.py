@@ -25,6 +25,7 @@ from sase.tool.handoff import (
     worker_argv,
     worker_env_overlay,
 )
+from tests._load_tolerant import LOAD_TOLERANT_TIMEOUT
 
 
 def _clean_env(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> Path:
@@ -168,17 +169,27 @@ def test_handoff_end_to_end_settles_through_proc(
     _clean_env(monkeypatch, tmp_path)
     from sase.procs import read_procs, wait_for_proc
 
-    started = time.monotonic()
-    code = execute_tool_run(_handoff_request("--", "sh", "-c", "sleep 2; exit 7"))
-    elapsed = time.monotonic() - started
+    # The command cannot exit until the test creates the release file, so a
+    # run still unsettled when the handoff returns proves the handoff did not
+    # wait for the command, however slowly a loaded host launches it. The
+    # loop's own 60s cap keeps a regressed, waiting handoff from hanging.
+    release = tmp_path / "release"
+    script = (
+        'i=0; while [ ! -e "$1" ] && [ "$i" -lt 600 ]; do '
+        "sleep 0.1; i=$((i + 1)); done; exit 7"
+    )
+    code = execute_tool_run(
+        _handoff_request("--", "sh", "-c", script, "sh", str(release))
+    )
     assert code == 0
-    assert elapsed < 2.0
     captured = capsys.readouterr()
     run_id = None
     for line in captured.out.splitlines():
         if line.startswith("sase tool run "):
             run_id = line.split("sase tool run ")[1].strip().split()[0]
     assert run_id
+    assert tool_run_show(run_id)["run"]["state"] in ("created", "running")
+    release.touch()
     # Exactly one ToolRun and one proc tagged to it.
     listed = tool_run_list({"schema_version": 1, "limit": 10})
     assert len(listed.get("runs") or []) == 1
@@ -187,10 +198,10 @@ def test_handoff_end_to_end_settles_through_proc(
     assert len(tagged) == 1
     proc = tagged[0]
     assert proc.proc_id
-    finished_proc = wait_for_proc(proc.proc_id, timeout=30)
+    finished_proc = wait_for_proc(proc.proc_id, timeout=LOAD_TOLERANT_TIMEOUT)
     assert finished_proc.status in ("error", "success", "killed")
     # Poll the run until it settles (worker finish or reconcile).
-    deadline = time.monotonic() + 30
+    deadline = time.monotonic() + LOAD_TOLERANT_TIMEOUT
     shown = None
     while time.monotonic() < deadline:
         shown = tool_run_show(run_id)

@@ -26,6 +26,7 @@ from sase.tool.handoff import (
 from sase.tool.liveness import current_boot_id, reconcile_unsettled_tool_runs
 from sase.tool.owner import owner_retention
 from sase.tool.query import ToolShowCliRequest, handle_show
+from tests._load_tolerant import LOAD_TOLERANT_TIMEOUT
 from tests.tool._settlement_helpers import (
     claim,
     clean_env,
@@ -194,7 +195,39 @@ def _submit_worker(
     return run_id, proc_id
 
 
-def _settled_run(run_id: str, *, timeout: float = 60.0) -> dict[str, Any]:
+def _timed_out_claimed_worker(
+    tmp_path: Path, words: tuple[str, ...], *, idle: bool
+) -> tuple[str, Proc]:
+    """Return a run whose worker claimed it before the supervisor's budget fired.
+
+    The rows under test time out a *running* command. The supervisor starts
+    the budget when it spawns the worker, and on a loaded host the worker's
+    interpreter start-up alone can outlast a one-second budget: it is killed
+    before it claims the run, which stays ``created``. That is a missed
+    precondition, not the settlement under test, so only that case is
+    resubmitted with a doubled budget. A claimed run is returned at once and
+    must settle on its own.
+    """
+
+    seconds = 1
+    while True:
+        run_id, proc_id = _submit_worker(
+            tmp_path,
+            words,
+            timeout_seconds=None if idle else seconds,
+            idle_timeout_seconds=seconds if idle else None,
+        )
+        proc = wait_for_proc(proc_id, timeout=seconds + LOAD_TOLERANT_TIMEOUT)
+        if get_run(run_id)["state"] != "created":
+            return run_id, proc
+        seconds *= 2
+        if seconds > LOAD_TOLERANT_TIMEOUT:
+            pytest.fail(f"worker never claimed {run_id} before its budget fired")
+
+
+def _settled_run(
+    run_id: str, *, timeout: float = LOAD_TOLERANT_TIMEOUT
+) -> dict[str, Any]:
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
         run = get_run(run_id)
@@ -207,8 +240,9 @@ def _settled_run(run_id: str, *, timeout: float = 60.0) -> dict[str, Any]:
 def test_total_timeout_settles_signaled_timeout(tmp_path: Path) -> None:
     """Row 5: a real supervisor's total timeout is a timeout, not a bare signal."""
 
-    run_id, proc_id = _submit_worker(tmp_path, ("--", "sleep", "30"), timeout_seconds=1)
-    proc = wait_for_proc(proc_id, timeout=60)
+    run_id, proc = _timed_out_claimed_worker(
+        tmp_path, ("--", "sleep", "30"), idle=False
+    )
     assert _result_reason(proc) == "total-timeout"
     run = _settled_run(run_id)
     assert run["state"] == "signaled"
@@ -222,12 +256,11 @@ def test_total_timeout_settles_signaled_timeout(tmp_path: Path) -> None:
 
 
 def test_idle_timeout_settles_signaled_timeout(tmp_path: Path) -> None:
-    run_id, proc_id = _submit_worker(
+    run_id, proc = _timed_out_claimed_worker(
         tmp_path,
         ("--", "sh", "-c", "echo started; sleep 30"),
-        idle_timeout_seconds=1,
+        idle=True,
     )
-    proc = wait_for_proc(proc_id, timeout=60)
     assert _result_reason(proc) == "idle-timeout"
     run = _settled_run(run_id)
     assert run["state"] == "signaled"

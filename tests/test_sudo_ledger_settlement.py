@@ -25,6 +25,7 @@ from sase.sudo.execution_state import SudoExecutionState
 from sase.sudo.finalize_notifications import VIEW_ERROR_REPORT_ACTION
 from sase.sudo.gate import build_sudo_gate_request
 from sase.sudo.manifest import selected_sudo_manifest
+from tests._load_tolerant import LOAD_TOLERANT_TIMEOUT
 from tests._sudo_gate_helpers import (
     _incident_request,
     _oversized_runner_ledger,
@@ -240,8 +241,14 @@ def test_sudo_answer_waits_for_concurrent_reclaimer_without_failure(
     import sase.gate_turn.settlement as settlement_module
 
     monkeypatch.setattr(settlement_module, "FOLLOWUP_LOCK_TIMEOUT_SECONDS", 0.05)
+    # The answer must wait out the reclaimer's launch rather than fail. That
+    # wait ends when the reclaimer releases the lock; its bound (like the
+    # thread hand-off waits below) only detects a hang, so it is sized for a
+    # loaded host rather than for an idle one.
     monkeypatch.setattr(
-        settlement_module, "CREATOR_LIVE_FOLLOWUP_LOCK_TIMEOUT_SECONDS", 1.0
+        settlement_module,
+        "CREATOR_LIVE_FOLLOWUP_LOCK_TIMEOUT_SECONDS",
+        LOAD_TOLERANT_TIMEOUT,
     )
     monkeypatch.setattr(
         "sase.notification_gates.executor.has_controlling_tty", lambda: True
@@ -286,7 +293,7 @@ def test_sudo_answer_waits_for_concurrent_reclaimer_without_failure(
     def execute_then_wait_for_reclaimer(*args: Any, **kwargs: Any) -> Any:
         result = real_execute(*args, **kwargs)
         answer_written.set()
-        assert launch_started.wait(timeout=2)
+        assert launch_started.wait(timeout=LOAD_TOLERANT_TIMEOUT)
         return result
 
     monkeypatch.setattr(
@@ -295,7 +302,7 @@ def test_sudo_answer_waits_for_concurrent_reclaimer_without_failure(
 
     def reclaim() -> None:
         try:
-            assert answer_written.wait(timeout=2)
+            assert answer_written.wait(timeout=LOAD_TOLERANT_TIMEOUT)
             settlement_module.settle_gate_turn(
                 record, gate_state="answered", reason="gate answered"
             )
@@ -308,7 +315,7 @@ def test_sudo_answer_waits_for_concurrent_reclaimer_without_failure(
         payload = _apply_sudo_receipt(gate, envelope)
     finally:
         release_launch.set()
-        reclaim_thread.join(timeout=2)
+        reclaim_thread.join(timeout=LOAD_TOLERANT_TIMEOUT)
 
     assert not reclaim_thread.is_alive()
     assert thread_errors == []

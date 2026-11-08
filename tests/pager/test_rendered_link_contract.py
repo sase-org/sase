@@ -12,6 +12,7 @@ from pathlib import Path
 
 import pytest
 
+from sase.ace.testing.wait import wait_for
 from sase.artifact_refs import ArtifactRefDocumentOwner
 from sase.pager.adapters import document_from_paths
 from sase.pager.app import SasePager
@@ -48,6 +49,7 @@ from tests.pager._rendered_link_pilot import (
     settle,
     wait_for_notification,
 )
+from tests._load_tolerant import LOAD_TOLERANT_TIMEOUT
 from tests.artifact_refs.helpers import context as make_artifact_context
 
 
@@ -209,7 +211,13 @@ async def test_file_backed_home_path_hint_uses_filesystem_resolution(
         assert screen.document is document
         label = label_for(screen, "~/.ssh/config")
         await press_hint(pilot, label.hint)
-        assert screen.document is not document
+        # Following the link resolves and loads the file off the message pump;
+        # the fixed settle pause is a scheduling guess a loaded host overruns.
+        await wait_for(
+            pilot,
+            lambda: screen.document is not document,
+            timeout=LOAD_TOLERANT_TIMEOUT,
+        )
         section = screen.document.sections[0]
         assert str(home_config.resolve()) in (
             section.identity + (section.subject_ref or "")
@@ -220,8 +228,11 @@ async def test_file_backed_home_path_hint_uses_filesystem_resolution(
         assert screen._back_trail
 
         await pilot.press("backspace")
-        await settle(pilot)
-        assert screen.document is document
+        await wait_for(
+            pilot,
+            lambda: screen.document is document,
+            timeout=LOAD_TOLERANT_TIMEOUT,
+        )
 
 
 async def test_screenshot_hosted_urls_copy_the_exact_destination(

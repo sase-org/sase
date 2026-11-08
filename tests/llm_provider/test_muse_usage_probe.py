@@ -16,6 +16,7 @@ import pytest
 from sase.llm_provider.muse import MuseProvider
 from sase.llm_provider.usage import muse as muse_usage
 from sase.llm_provider.usage.probe import default_probe_context, run_usage_probe
+from tests.llm_provider._probe_deadlines import PROBE_HANG_GUARD_SECONDS
 
 _FIXTURE = (
     Path(__file__).resolve().parent / "fixtures" / "usage_probe" / "muse_msp_cli.py"
@@ -79,7 +80,7 @@ def _run_muse_probe(
     mode: str = "native",
     usage: object | None = None,
     mint_after_polls: int = 2,
-    deadline_seconds: float = 8.0,
+    deadline_seconds: float = PROBE_HANG_GUARD_SECONDS,
     working_directory: str | None = None,
     in_process: pytest.MonkeyPatch | None = None,
 ) -> tuple[dict[str, Any], list[dict[str, Any]], list[dict[str, Any]]]:
@@ -218,7 +219,7 @@ def test_muse_usage_probe_missed_mint_is_a_timeout_not_absence(
         fake,
         tmp_path,
         mode="never_mint",
-        deadline_seconds=60.0,
+        deadline_seconds=PROBE_HANG_GUARD_SECONDS,
         in_process=monkeypatch,
     )
     methods = _methods(messages)
@@ -369,7 +370,7 @@ def test_muse_usage_probe_schema_fingerprint_drift_warns_and_proceeds(
         monkeypatch.setenv(name, value)
     now = time.time()
     context = default_probe_context(
-        "muse", now=now, deadline_seconds=8.0, executable=str(fake)
+        "muse", now=now, deadline_seconds=PROBE_HANG_GUARD_SECONDS, executable=str(fake)
     )
     with caplog.at_level(logging.WARNING, logger="sase.llm_provider.usage.muse"):
         result = run_usage_probe(
@@ -389,7 +390,9 @@ def test_muse_provider_probe_resolves_the_executable_from_sase_muse_path(
         monkeypatch.setenv(name, value)
     monkeypatch.setenv("SASE_MUSE_PATH", str(fake))
     now = time.time()
-    context = default_probe_context("muse", now=now, deadline_seconds=8.0)
+    context = default_probe_context(
+        "muse", now=now, deadline_seconds=PROBE_HANG_GUARD_SECONDS
+    )
     assert context.executable is None
     result = run_usage_probe(
         context, isolate=False, plugin=MuseProvider(), now=now

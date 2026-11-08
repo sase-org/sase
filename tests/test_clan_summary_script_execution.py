@@ -5,8 +5,11 @@ from __future__ import annotations
 import json
 import os
 import signal
+import subprocess
 import time
+import types
 from pathlib import Path
+from typing import Any
 
 import pytest
 from rich.text import Text
@@ -16,6 +19,7 @@ from tests._clan_summary_persistence_helpers import (
     extract_clan_meta,
     write_script,
 )
+from tests._load_tolerant import LOAD_TOLERANT_TIMEOUT
 from tests.plan_validation_helpers import VALID_EPIC_PLAN
 
 
@@ -211,6 +215,37 @@ def _spy_killpg(monkeypatch: pytest.MonkeyPatch) -> list[int]:
     return signals
 
 
+def _start_budget_once_ready(
+    monkeypatch: pytest.MonkeyPatch, script_name: str, ready: Path
+) -> None:
+    """Hand the runner its summary process only after *ready* exists.
+
+    The runner's timeout starts when ``Popen`` returns. On a loaded host the
+    script's interpreter can still be starting when a sub-second budget ends,
+    so SIGTERM lands before the script's handler exists and the default action
+    ends it without the escalation under test. Waiting for the script's own
+    readiness marker starts the budget with the handler in place.
+    """
+
+    real_popen = subprocess.Popen
+
+    def popen(args: Any, *rest: Any, **kwargs: Any) -> subprocess.Popen[bytes]:
+        process = real_popen(args, *rest, **kwargs)
+        if any(Path(str(arg)).name == script_name for arg in args):
+            deadline = time.monotonic() + LOAD_TOLERANT_TIMEOUT
+            while (
+                not ready.exists()
+                and process.poll() is None
+                and time.monotonic() < deadline
+            ):
+                time.sleep(0.01)  # sase-test-wait: summary script handler readiness
+        return process
+
+    gated = types.SimpleNamespace(**vars(subprocess))
+    gated.Popen = popen
+    monkeypatch.setattr("sase.axe.clan_summary_script.subprocess", gated)
+
+
 @pytest.mark.skipif(os.name != "posix", reason="process-group SIGTERM/SIGKILL")
 def test_timed_out_summary_script_exits_on_sigterm_without_sigkill(
     tmp_path: Path,
@@ -263,11 +298,14 @@ def test_timed_out_summary_script_escalates_to_sigkill_when_sigterm_is_ignored(
 ) -> None:
     workspace_dir = tmp_path / "workspace"
     workspace_dir.mkdir()
+    ready = tmp_path / "sigterm-ignored"
     write_script(
         workspace_dir / "make_summary",
+        "import pathlib\n"
         "import signal\n"
         "import time\n"
         "signal.signal(signal.SIGTERM, signal.SIG_IGN)\n"
+        f"pathlib.Path({str(ready)!r}).touch()\n"
         "time.sleep(30)\n",
     )
     monkeypatch.setattr(
@@ -278,6 +316,7 @@ def test_timed_out_summary_script_escalates_to_sigkill_when_sigterm_is_ignored(
         "sase.axe.clan_summary_script.CLAN_SUMMARY_KILL_GRACE_SECONDS",
         0.3,
     )
+    _start_budget_once_ready(monkeypatch, "make_summary", ready)
     signals = _spy_killpg(monkeypatch)
     started = time.monotonic()
 
@@ -288,6 +327,7 @@ def test_timed_out_summary_script_escalates_to_sigkill_when_sigterm_is_ignored(
     )
 
     elapsed = time.monotonic() - started
+    assert ready.exists(), "summary script never installed its SIGTERM handler"
     assert "clan_summary" not in meta
     assert signal.SIGTERM in signals
     assert signal.SIGKILL in signals

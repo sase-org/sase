@@ -34,10 +34,17 @@ from pathlib import Path
 
 import pytest
 
+from tests._load_tolerant import LOAD_TOLERANT_TIMEOUT
+
 
 pytest_plugins = ["pytester"]
 
 _ROOT = Path(__file__).resolve().parents[1]
+# A hang detector for the whole nested pytest session, which imports the repo
+# conftest and the ACE TUI. That start-up is CPU-bound, so under the contention
+# soak's per-process CPU share it legitimately runs past a single load-tolerant
+# wait.
+_NESTED_PYTEST_TIMEOUT = 3 * LOAD_TOLERANT_TIMEOUT
 
 _LEAKING_NODE_ID = (
     str(_ROOT / "tests/test_run_pytest_tmpdir.py")
@@ -66,6 +73,6 @@ def test_prepare_pytest_tmpdir_leak_does_not_break_a_later_scratch_read(
         _LEAKING_NODE_ID,
         _MAIN_DRIVEN_LEAKING_NODE_ID,
         _DOWNSTREAM_NODE_ID,
-        timeout=60,
+        timeout=_NESTED_PYTEST_TIMEOUT,
     )
     result.assert_outcomes(passed=3)

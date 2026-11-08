@@ -29,6 +29,10 @@ from tests.git_lock_test_helpers import (
 def _make_repo_and_lock(tmp_path: Path) -> Path:
     git_dir = tmp_path / ".git"
     git_dir.mkdir()
+    return _make_lock_in(git_dir)
+
+
+def _make_lock_in(git_dir: Path) -> Path:
     lock_path = git_dir / "index.lock"
     lock_path.write_bytes(b"locked")
     return lock_path
@@ -644,3 +648,27 @@ def test_try_remove_stale_index_lock_requires_age_and_absent_owner(
     assert lock_path.exists()
     assert try_remove_stale_index_lock(tmp_path, owner_probe=absent_owner_facts) is True
     assert not lock_path.exists()
+
+
+def test_try_remove_stale_index_lock_skips_the_owner_probe_without_a_lock(
+    tmp_path: Path,
+) -> None:
+    """No lock file means nothing to remove, so the costly owner probe never runs.
+
+    The Linux probe walks every process's /proc fds; agents-sync calls this on
+    every payload clean, almost always without a lock.
+    """
+    (tmp_path / ".git").mkdir()
+    probes: list[Path | None] = []
+
+    def recording_probe(**kwargs: object) -> dict[str, object]:
+        probes.append(kwargs.get("lock_path"))  # type: ignore[arg-type]
+        return absent_owner_facts()
+
+    assert try_remove_stale_index_lock(tmp_path, owner_probe=recording_probe) is False
+    assert probes == []
+
+    lock_path = _make_lock_in(tmp_path / ".git")
+    age_git_index_lock(lock_path)
+    assert try_remove_stale_index_lock(tmp_path, owner_probe=recording_probe) is True
+    assert len(probes) == 1

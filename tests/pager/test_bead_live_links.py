@@ -7,6 +7,7 @@ from pathlib import Path
 import pytest
 from textual.widgets import Static
 
+from sase.ace.testing.wait import wait_for
 from sase.bead.model import Issue, IssueType
 from sase.bead.project import BeadProject
 from sase.pager.app import SasePager
@@ -125,6 +126,16 @@ def test_resolve_link_reports_missing_beads_without_materializing_store(
     assert all(call["materialize"] is False for call in calls)
 
 
+async def _wait_for_title(pilot: object, screen: PagerScreen, title: str) -> None:
+    """Wait for a followed link's live bead document to replace the page.
+
+    Following a link resolves the bead off the pump, so a fixed pause is a
+    scheduling guess that a contended worker overruns.
+    """
+    await wait_for(pilot, lambda: screen.document.title == title)
+    assert screen.document.title == title
+
+
 def _hint_for_target(screen: PagerScreen, ref: str) -> str:
     layer = screen._label_layer
     assert layer is not None
@@ -166,19 +177,13 @@ async def test_pager_follows_bead_links_and_preserves_trail(
         await pilot.pause()
 
         await pilot.press(_hint_for_target(screen, f"bead:{second.id}"))
-        await pilot.pause(0.2)
-        await pilot.pause(0.2)
-
-        assert screen.document.title == f"{second.id} · Pager second"
+        await _wait_for_title(pilot, screen, f"{second.id} · Pager second")
         assert screen._back_trail
         assert screen._forward_trail == []
         assert f"bead:{third.id}" in screen.document.sections[0].plain_text
 
         await pilot.press(_hint_for_target(screen, f"bead:{third.id}"))
-        await pilot.pause(0.2)
-        await pilot.pause(0.2)
-
-        assert screen.document.title == f"{third.id} · Pager third"
+        await _wait_for_title(pilot, screen, f"{third.id} · Pager third")
 
         await pilot.press("backspace")
         await pilot.pause()

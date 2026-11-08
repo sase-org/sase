@@ -26,16 +26,23 @@ from sase.continuation_capture.rollout import (
 from sase.monitor.transaction import MONITOR_GO_MARKER
 from sase.running_field import WorkspaceClaim
 
+from tests._load_tolerant import LOAD_TOLERANT_TIMEOUT
+
 from ._fixtures import make_starter_agent, write_project_file
 
-# A hard liveness deadline for the supervisor child process: it must not
-# still be alive this long after every node in scope arranges a 30s hold
-# (sleep 30, or an infinite echo loop) for a descendant or pipe-EOF wait.
-# Less than half the 30s hold so a reintroduced wait still fails
-# deterministically, with headroom for host scheduling pressure. Do not
-# raise it to quiet a failure -- a child still alive at this deadline is a
-# real hang.
-_NO_HANG_TIMEOUT = 15.0
+# A hard liveness deadline for the supervisor child process: it must not still
+# be alive this long after every node in scope arranges a HOLD_SECONDS hold
+# (``sleep HOLD_SECONDS``, or an infinite echo loop) for a descendant or
+# pipe-EOF wait. It is the load-tolerant hang guard because the child imports
+# sase before it supervises anything, and at the contention soak's CPU share
+# that start-up alone can take tens of seconds.
+_NO_HANG_TIMEOUT = LOAD_TOLERANT_TIMEOUT
+
+# How long a descendant in these tests holds a pipe or the process group. More
+# than twice the liveness deadline, so a reintroduced wait on the hold still
+# fails deterministically. Do not shrink it or raise the deadline past half of
+# it to quiet a failure -- a child still alive at the deadline is a real hang.
+HOLD_SECONDS = 5 * int(_NO_HANG_TIMEOUT)
 
 _SUPERVISOR_DRIVER_SETUP_FAILURE = 91
 

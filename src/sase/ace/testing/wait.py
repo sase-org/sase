@@ -24,6 +24,16 @@ from . import settle as settle_helpers
 _BACKOFF_AFTER_MISSES = 3
 _BACKOFF_SECONDS = 0.001
 
+# Default bound for every condition wait in this package (``wait_for``, the
+# ``AcePage`` ``expect_*`` waiters, and ``AcePage`` startup). These bounds are
+# hang detectors, not speed assertions: under the default-lane contention soak
+# (26 xdist workers pinned to two CPUs) a Textual pump turn or an off-pump
+# worker can legitimately take tens of seconds to reach a state that is
+# immediate on an idle machine. The value mirrors
+# ``tests/_load_tolerant.LOAD_TOLERANT_TIMEOUT``. A caller whose deadline is
+# itself the behavior under test passes its own ``timeout``.
+DEFAULT_WAIT_TIMEOUT = 60.0
+
 
 async def _poll_until[T](
     predicate: Callable[[], T | None],
@@ -71,7 +81,7 @@ async def wait_for(
     pilot: Any,
     predicate: Callable[[], bool],
     *,
-    timeout: float = 5.0,
+    timeout: float = DEFAULT_WAIT_TIMEOUT,
 ) -> None:
     """Poll *predicate* via event-driven settling until it returns True.
 

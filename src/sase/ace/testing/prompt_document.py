@@ -26,6 +26,8 @@ from rich.text import Text
 from sase.ace.tui.widgets.prompt_panel import AgentPromptPanel
 from sase.ace.tui.widgets.renderable_text import renderable_to_text
 
+from .wait import DEFAULT_WAIT_TIMEOUT
+
 if TYPE_CHECKING:
     from .ace_page import AcePage
 
@@ -67,7 +69,7 @@ async def set_agent_prompt_document(
     page: AcePage,
     content: str,
     *,
-    timeout: float = 5.0,
+    timeout: float = DEFAULT_WAIT_TIMEOUT,
 ) -> AgentPromptPanel:
     """Pin the Agents metadata document to *content* and return its panel.
 

@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import stat
 import sys
+from dataclasses import replace
 from pathlib import Path
 from typing import Any
 
@@ -304,3 +305,63 @@ def test_legacy_rows_still_reconcile_without_settlement(
     assert reconciled[0].status == "error"
     assert reconciled[0].lifecycle != PROC_LIFECYCLE_NAMED_PROC
     assert reconciled[0].settled_at is None
+
+
+def test_start_hook_failure_leaves_a_supervisor_settlement_in_progress_alone(
+    monkeypatch: Any, tmp_path: Path
+) -> None:
+    """A failed start never proposes a launch failure over a settling supervisor.
+
+    On a loaded host the terminated supervisor can still be settling when the
+    starter's settle window closes. Its frozen killed/stop observation owns the
+    row, so a competing launch-failure settlement would be refused by the store
+    and would replace the caller's ProcSubmitError with that refusal.
+    """
+    from sase.procs import submission
+
+    monkeypatch.setenv("SASE_HOME", str(tmp_path / "home"))
+    terminated: list[bool] = []
+    real_terminate = submission.terminate_supervisor
+    real_get_proc = submission.get_proc
+    starter_settlements: list[str] = []
+
+    def _terminate(supervisor: Any) -> None:
+        terminated.append(True)
+        real_terminate(supervisor)
+
+    def _get_proc(proc_id: str) -> Proc | None:
+        row = real_get_proc(proc_id)
+        if terminated and row is not None:
+            return replace(row, status="settling")
+        return row
+
+    def _fail_hook(proc: Proc) -> None:
+        raise ProcSubmitError("claim refused")
+
+    monkeypatch.setattr(submission, "terminate_supervisor", _terminate)
+    monkeypatch.setattr(submission, "_wait_for_terminal", lambda *_a, **_k: None)
+    monkeypatch.setattr(submission, "get_proc", _get_proc)
+    monkeypatch.setattr(
+        submission,
+        "settle_named_proc",
+        lambda proc_id, **_kwargs: starter_settlements.append(proc_id),
+    )
+    request = ProcSubmitRequest(
+        argv=[sys.executable, "-c", "import time; time.sleep(20)"],
+        label="Hook failure",
+        cwd=tmp_path,
+        origin="test",
+    )
+
+    with pytest.raises(ProcSubmitError, match="claim refused"):
+        submit_proc_request(request, after_ack=_fail_hook)
+
+    assert terminated
+    assert starter_settlements == []
+    # The terminated supervisor settles its own row.
+    (row,) = [proc for proc in read_procs() if proc.label == "Hook failure"]
+    assert wait_for_proc(row.proc_id, timeout=60).status not in {
+        "pending",
+        "running",
+        "settling",
+    }

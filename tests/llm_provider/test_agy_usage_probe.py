@@ -18,6 +18,10 @@ from sase.llm_provider.agy import AgyProvider
 from sase.llm_provider.usage.agy import _USAGE_ARGV
 from sase.llm_provider.usage.probe import default_probe_context, run_usage_probe
 from sase.llm_provider.usage.refresh import eligible_usage_providers
+from tests.llm_provider._probe_deadlines import (
+    PROBE_HANG_GUARD_SECONDS,
+    hang_deadlines,
+)
 from tests.llm_provider._provider_config_helpers import mock_provider_config
 
 _FIXTURE = (
@@ -61,7 +65,7 @@ def _epoch(value: str) -> float:
     return datetime.fromisoformat(value.replace("Z", "+00:00")).timestamp()
 
 
-def _wait_for_path(path: Path, *, timeout: float = 5.0) -> None:
+def _wait_for_path(path: Path, *, timeout: float = PROBE_HANG_GUARD_SECONDS) -> None:
     deadline = time.time() + timeout
     while time.time() < deadline:
         if path.exists():
@@ -110,7 +114,7 @@ def _run_agy_probe(
     version: str = "1.2.7",
     version_exit: str = "0",
     payload: dict[str, Any] | None = None,
-    deadline_seconds: float = 5.0,
+    deadline_seconds: float = PROBE_HANG_GUARD_SECONDS,
     executable: str | None = None,
 ) -> tuple[dict[str, Any], list[dict[str, Any]], float]:
     argv_path = tmp_path / "argv.jsonl"
@@ -292,7 +296,10 @@ def test_agy_usage_probe_auth_prompt_is_logged_out_fast(tmp_path: Path) -> None:
     result, _, elapsed = _run_agy_probe(fake, tmp_path, mode="auth_prompt")
     assert result["outcome"] == "unauthenticated"
     assert result["reason_code"] == "logged_out"
-    assert elapsed < 4.0
+    # The fake prints the auth prompt and then hangs, so "fast" means the probe
+    # returned on the prompt instead of waiting out its deadline. Interpreter
+    # start-up on a starved host is not part of that claim.
+    assert elapsed < PROBE_HANG_GUARD_SECONDS / 2
     pid = int((tmp_path / "agy.pid").read_text(encoding="utf-8").strip())
     assert not _pid_alive(pid)
     assert _process_group_gone(pid)
@@ -302,10 +309,16 @@ def test_agy_usage_probe_hang_is_timeout_and_reaps_child(
     tmp_path: Path,
 ) -> None:
     fake = _make_fake_agy(tmp_path)
-    result, _, _ = _run_agy_probe(fake, tmp_path, mode="hang", deadline_seconds=3.0)
-    assert result["outcome"] == "error"
-    assert result["reason_code"] == "timeout"
-    pid = int((tmp_path / "agy.pid").read_text(encoding="utf-8").strip())
+    pidfile = tmp_path / "agy.pid"
+    for deadline_seconds in hang_deadlines(3.0):
+        result, _, _ = _run_agy_probe(
+            fake, tmp_path, mode="hang", deadline_seconds=deadline_seconds
+        )
+        assert result["outcome"] == "error"
+        assert result["reason_code"] == "timeout"
+        if pidfile.exists():
+            break
+    pid = int(pidfile.read_text(encoding="utf-8").strip())
     assert not _pid_alive(pid)
     assert _process_group_gone(pid)
 

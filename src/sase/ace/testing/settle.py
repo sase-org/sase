@@ -13,10 +13,10 @@ PilotPause = Callable[[Any, float | None], Awaitable[None]]
 
 _TEXTUAL_PILOT_PAUSE: PilotPause = Pilot.pause
 
-#: Backstop for the frame barrier below. It has to be generous enough that a
-#: heavily contended worker never trips it — the bounded waiters in
-#: ``wait.py`` already time out at 5s and report a useful message — and it
-#: exists only so a wedged app cannot outlive the run itself.
+#: Backstop for the frame barrier below. It exists only so a wedged app cannot
+#: outlive the run itself: on expiry the barrier returns instead of failing,
+#: and the bounded waiters in ``wait.py`` keep polling until their own
+#: ``DEFAULT_WAIT_TIMEOUT`` and report a useful message.
 _REFRESH_TIMEOUT_SECONDS = 15.0
 
 
