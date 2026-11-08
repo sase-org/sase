@@ -184,5 +184,5 @@ def test_leader_j_double_miss_skips_trailing_tab_refresh(status: str) -> None:
 
     assert app._handle_leader_key("j") is True
     assert app.current_idx == 0
-    assert app.notifications == ["No unread completed or stopped agents"]
+    assert app.notifications == ["No unread completed, stopped, or stranded agents"]
     assert app.current_tab_refresh_calls == 0

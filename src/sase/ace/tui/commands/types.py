@@ -224,6 +224,7 @@ class CommandContext:
     agents_archive_active: bool = False
     completed_agent_count: int = 0
     stopped_agent_count: int = 0
+    stranded_agent_count: int = 0
     unread_completed_agent_count: int = 0
     has_live_launch_record: bool = False
     runner_count: int = 0

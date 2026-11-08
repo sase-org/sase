@@ -304,6 +304,18 @@ def _stopped_agent_count(app: AceApp) -> int:  # type: ignore[no-untyped-def]
     return sum(1 for a in agents if is_stopped_agent(a))
 
 
+def _stranded_agent_count(app: AceApp) -> int:  # type: ignore[no-untyped-def]
+    from sase.ace.tui.models.agent_stranded import stranded_leaf_verdict
+
+    agents = getattr(app, "_agents", [])
+    return sum(
+        1
+        for agent in agents
+        if not getattr(agent, "is_clan_container", False)
+        and stranded_leaf_verdict(agent) is not None
+    )
+
+
 def _unread_completed_agent_count(app: AceApp) -> int:  # type: ignore[no-untyped-def]
     agents = getattr(app, "_agents", [])
     unread_ids: set[object] = getattr(app, "_unread_completed_agent_ids", set())
@@ -447,6 +459,7 @@ def extract_command_context(app: AceApp) -> CommandContext:  # type: ignore[no-u
 
     completed = _completed_agent_count(app) if tab == "agents" else 0
     stopped = _stopped_agent_count(app) if tab == "agents" else 0
+    stranded = _stranded_agent_count(app) if tab == "agents" else 0
     unread_completed = _unread_completed_agent_count(app) if tab == "agents" else 0
     can_jump = _can_jump_to_patch(app, agent) if tab == "agents" else False
     enter_available = _agent_enter_available(app, agent) if tab == "agents" else False
@@ -516,6 +529,7 @@ def extract_command_context(app: AceApp) -> CommandContext:  # type: ignore[no-u
         mark_count=mark_count,
         completed_agent_count=completed,
         stopped_agent_count=stopped,
+        stranded_agent_count=stranded,
         unread_completed_agent_count=unread_completed,
         has_live_launch_record=_has_live_launch_record(app),
         runner_count=_runner_count(app),

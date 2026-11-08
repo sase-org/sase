@@ -377,6 +377,12 @@ def _stranded_verdict_for_agent(agent: Agent) -> StrandedWorkVerdict | None:
     return _verdict_index(stranded_project_key_for_agent(agent)).get(bead_id)
 
 
+def stranded_leaf_verdict(agent: Agent) -> StrandedWorkVerdict | None:
+    """Return the cached stranded verdict for a real agent row."""
+    verdict = _stranded_verdict_for_agent(agent)
+    return verdict if verdict is not None and verdict.state == "stranded" else None
+
+
 def _clan_wave_member_key(agent: Agent) -> str:
     return (
         f"{agent.agent_type.value}:{agent.cl_name}:"
@@ -492,6 +498,7 @@ __all__ = [
     "force_stranded_refresh",
     "should_resolve_stranded_report",
     "stranded_count_for_agents",
+    "stranded_leaf_verdict",
     "stranded_project_key_for_agent",
     "stranded_project_keys",
     "warm_stranded_work_reports",

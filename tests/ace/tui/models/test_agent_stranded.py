@@ -220,6 +220,41 @@ def test_agent_view_resolves_phase_task_and_waiter_states() -> None:
     assert agent_stranded.stranded_count_for_agents((phase, waiter)) == 1
 
 
+def test_stranded_leaf_verdict_filters_blocked_missing_and_cold_cache() -> None:
+    from dataclasses import replace
+
+    def owner(bead_id: str) -> Agent:
+        return replace(
+            Agent(
+                agent_type=AgentType.RUNNING,
+                cl_name=bead_id,
+                project_file="/tmp/demo/demo.sase",
+                status="DONE",
+                start_time=datetime(2026, 10, 1, 12, 0),
+                agent_name=bead_id,
+            ),
+            phase_bead_id=bead_id,
+        )
+
+    stranded = owner("sase-demo.1")
+    blocked = owner("sase-demo.2")
+    missing = owner("sase-demo.3")
+    agent_stranded._STRANDED_REPORT_CACHE.set(
+        "demo",
+        _snapshot(
+            _verdict("sase-demo.1", "stranded"),
+            _verdict("sase-demo.2", "blocked"),
+        ),
+        "test",
+    )
+
+    assert agent_stranded.stranded_leaf_verdict(stranded).state == "stranded"  # type: ignore[union-attr]
+    assert agent_stranded.stranded_leaf_verdict(blocked) is None
+    assert agent_stranded.stranded_leaf_verdict(missing) is None
+    agent_stranded._STRANDED_REPORT_CACHE.clear()
+    assert agent_stranded.stranded_leaf_verdict(stranded) is None
+
+
 def _clan_container(*, name: str, members: list[Agent] | None = None) -> Agent:
     container = Agent(
         agent_type=AgentType.RUNNING,

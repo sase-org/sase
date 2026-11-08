@@ -852,7 +852,8 @@ jq -c 'select(.action == ",u" or .action == ",j" or .action == ",J")' \
 ```
 
 A `,j` that falls back records `fallback: true` on its single `leader.unread_jump` span,
-whose duration then includes the stopped jump.
+whose duration then includes the stopped jump. When that misses too, the same span
+records `stranded_fallback: true`, and its duration includes the stranded jump.
 
 Note: an off-tab `,j` that switches Agents tabs records its paint under the
 `agents_tab_switch` action, not `,j` — the switch starts its own sample. The

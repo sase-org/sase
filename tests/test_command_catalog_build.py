@@ -319,7 +319,10 @@ def test_jump_to_next_unread_done_agent_leader_command_is_agents_only() -> None:
     catalog = build_command_catalog(_registry())
     spec = next(c for c in catalog if c.id == "leader.jump_to_next_unread_done_agent")
 
-    assert spec.label == "Jump to next unread completed agent (else next stopped)"
+    assert (
+        spec.label
+        == "Jump to next unread completed agent (else stopped, else stranded)"
+    )
     assert spec.key_display == ",j"
     assert spec.tabs == ("agents",)
     assert spec.executor.kind == "leader_mode_key"

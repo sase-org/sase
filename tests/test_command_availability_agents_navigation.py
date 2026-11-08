@@ -77,13 +77,18 @@ def test_agent_cleanup_panel_visible_without_agent_context() -> None:
     )
 
 
-def test_jump_to_next_unread_done_agent_requires_unread_or_stopped_agent() -> None:
+def test_jump_to_next_unread_done_agent_requires_unread_stopped_or_stranded_agent() -> (
+    None
+):
     catalog = _catalog_by_id()
     spec = catalog["leader.jump_to_next_unread_done_agent"]
     assert not is_command_available(
         spec,
         CommandContext(
-            tab="agents", unread_completed_agent_count=0, stopped_agent_count=0
+            tab="agents",
+            unread_completed_agent_count=0,
+            stopped_agent_count=0,
+            stranded_agent_count=0,
         ),
     )
     assert is_command_available(
@@ -91,6 +96,13 @@ def test_jump_to_next_unread_done_agent_requires_unread_or_stopped_agent() -> No
     )
     assert is_command_available(
         spec, CommandContext(tab="agents", stopped_agent_count=1)
+    )
+    assert is_command_available(
+        spec, CommandContext(tab="agents", stranded_agent_count=1)
+    )
+    stopped_spec = catalog["leader.jump_to_next_stopped_agent"]
+    assert not is_command_available(
+        stopped_spec, CommandContext(tab="agents", stranded_agent_count=1)
     )
     assert not is_command_available(
         spec,
@@ -100,7 +112,8 @@ def test_jump_to_next_unread_done_agent_requires_unread_or_stopped_agent() -> No
     )
 
     assert not is_command_available(
-        spec, CommandContext(tab="services", stopped_agent_count=1)
+        spec,
+        CommandContext(tab="services", stopped_agent_count=1, stranded_agent_count=1),
     )
 
 

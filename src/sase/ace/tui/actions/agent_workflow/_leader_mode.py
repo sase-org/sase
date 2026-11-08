@@ -275,14 +275,19 @@ class LeaderModeMixin:
                 with LeaderModeMixin._leader_unread_span(self, ",j") as trace:
                     hit = self._jump_to_next_unread_done_agent()  # type: ignore[attr-defined]
                     fell_back = not hit
+                    stranded_fallback = False
                     if fell_back:
-                        # Try the stopped jump before toasting on a double miss.
+                        # Try stopped, then stranded, before toasting on a triple miss.
                         hit = self._jump_to_next_stopped_agent()  # type: ignore[attr-defined]
+                        if not hit:
+                            stranded_fallback = True
+                            hit = self._jump_to_next_stranded_agent()  # type: ignore[attr-defined]
                     trace["fallback"] = fell_back
+                    trace["stranded_fallback"] = stranded_fallback
                 if not hit:
-                    self.notify("No unread completed or stopped agents")  # type: ignore[attr-defined]
-                # Both jumps paint their own highlight with detail behind
-                # the debouncer; no trailing refresh, even on a double miss.
+                    self.notify("No unread completed, stopped, or stranded agents")  # type: ignore[attr-defined]
+                # All three jumps paint their own highlight with detail behind
+                # the debouncer; no trailing refresh, even on a triple miss.
             LeaderModeMixin._finish_leader_perf(self)
             return True
 

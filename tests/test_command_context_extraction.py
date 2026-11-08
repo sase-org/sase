@@ -4,6 +4,9 @@ from __future__ import annotations
 
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
+from dataclasses import replace
+
+import pytest
 
 from sase.ace.testing import make_patch
 from sase.ace.tui.commands import extract_command_context
@@ -11,10 +14,64 @@ from sase.ace.tui.commands.context import (
     _completed_agent_count,
     _selected_axe_slot_states,
     _stopped_agent_count,
+    _stranded_agent_count,
     _unread_completed_agent_count,
 )
 from sase.ace.tui.widgets.artifacts.patch_entry import patch_row_target
 from sase.ace.tui.widgets.bgcmd_list import BgCmdItem, LumberjackItem
+
+
+@pytest.fixture(autouse=True)
+def _clear_stranded_cache():
+    from sase.ace.tui.models import agent_stranded
+
+    agent_stranded._STRANDED_REPORT_CACHE.clear()
+    yield
+    agent_stranded._STRANDED_REPORT_CACHE.clear()
+
+
+def test_stranded_agent_count_uses_cached_leaf_verdicts_only() -> None:
+    from sase.ace.tui.models import agent_stranded
+    from sase.ace.tui.models.agent import Agent, AgentType
+    from sase.bead.stranded import StrandedReport
+    from sase.core.stranded_work_facade import StrandedWorkReport, StrandedWorkVerdict
+    from datetime import datetime
+
+    def owner(bead_id: str) -> Agent:
+        return replace(
+            Agent(
+                agent_type=AgentType.RUNNING,
+                cl_name=bead_id,
+                project_file="/tmp/projects/demo/demo.sase",
+                status="DONE",
+                start_time=datetime(2026, 10, 1, 12, 0),
+                agent_name=bead_id,
+            ),
+            phase_bead_id=bead_id,
+        )
+
+    stranded = owner("sase-demo.1")
+    blocked = owner("sase-demo.2")
+    missing = owner("sase-demo.3")
+    clan = replace(owner("clan"), is_clan_container=True)
+    report = StrandedWorkReport(
+        verdicts=(
+            StrandedWorkVerdict(bead_id="sase-demo.1", kind="phase", state="stranded"),
+            StrandedWorkVerdict(bead_id="sase-demo.2", kind="phase", state="blocked"),
+        ),
+        stranded_ids=("sase-demo.1",),
+        blocked_ids=("sase-demo.2",),
+    )
+    agent_stranded._STRANDED_REPORT_CACHE.set(
+        "demo", StrandedReport(report=report, titles={}, generated_at=1.0), "test"
+    )
+
+    assert (
+        _stranded_agent_count(
+            SimpleNamespace(_agents=[stranded, blocked, missing, clan])
+        )
+        == 1
+    )  # type: ignore[arg-type]
 
 
 def _make_app_stub(

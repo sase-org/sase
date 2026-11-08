@@ -172,16 +172,18 @@ def test_leader_jump_span(_trace_file: Path) -> None:
     span = _one_span(_trace_file, "leader.unread_jump")
     assert span["action"] == ",j"
     assert span["fallback"] is False
+    assert span["stranded_fallback"] is False
     assert app.jump_unread_count == 1
     assert app.jump_stopped_count == 0
 
 
 @pytest.mark.parametrize("stopped_hit", [True, False])
 def test_leader_jump_fallback_span(_trace_file: Path, stopped_hit: bool) -> None:
-    """Leader ,j includes its stopped fallback in a single jump span."""
+    """Leader ,j records stopped and stranded fallbacks in one jump span."""
     app = _FakeApp(current_tab="agents")
     app.jump_unread_result = False
     app.jump_stopped_result = stopped_hit
+    app.jump_stranded_result = False
 
     assert app._handle_leader_key("j") is True
 
@@ -190,3 +192,5 @@ def test_leader_jump_fallback_span(_trace_file: Path, stopped_hit: bool) -> None
     assert span["fallback"] is True
     assert app.jump_unread_count == 1
     assert app.jump_stopped_count == 1
+    assert app.jump_stranded_count == (0 if stopped_hit else 1)
+    assert span["stranded_fallback"] is not stopped_hit

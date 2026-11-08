@@ -148,8 +148,12 @@ shortcuts for the currently loaded agent list; global entries such as `,m` and `
 behave the same from other tabs. Unread-completed actions operate on terminal rows that
 are loaded in the Agents tab; `,j` can reveal a direct member hidden by a collapsed
 clan. When no unread completed agent can be reached, `,j` falls back to the `,J`
-stopped-agent jump and toasts only when neither jump finds a target. Help is not a leader
-command: press the app-level `?` to open the Help modal.
+stopped-agent jump. When no stopped agent exists either, `,j` jumps to stranded rows,
+most recently stranded first. These are owner rows that show `STRANDED ⚐` or a leaf
+`⚐`, and that `stranded:true` matches; see [stranded beads](../work-units/bead-lifecycles.md#stranded-beads).
+Repeated `,j` presses cycle through stranded rows from newest to oldest, then wrap.
+It toasts only when all three tiers miss. Help is not a leader command: press the
+app-level `?` to open the Help modal.
 
 Here, "stopped" means a row in the Agents header's **Stopped** bucket, such as a pending
 `PLAN`, `TALE`, `EPIC`, `QUESTION`, or custom gate awaiting user action. Terminal rows

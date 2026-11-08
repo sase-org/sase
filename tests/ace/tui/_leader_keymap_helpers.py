@@ -53,6 +53,8 @@ class _FakeApp(LeaderModeMixin, PatchMixin):
         self.jump_unread_result = True
         self.jump_stopped_count = 0
         self.jump_stopped_result = True
+        self.jump_stranded_count = 0
+        self.jump_stranded_result = True
         self.full_history_refresh_count = 0
         self.refresh_panel_opens: list[dict[str, object]] = []
         self.mark_all_unread_count = 0
@@ -117,6 +119,10 @@ class _FakeApp(LeaderModeMixin, PatchMixin):
     def _jump_to_next_stopped_agent(self) -> bool:
         self.jump_stopped_count += 1
         return self.jump_stopped_result
+
+    def _jump_to_next_stranded_agent(self) -> bool:
+        self.jump_stranded_count += 1
+        return self.jump_stranded_result
 
     def action_refresh_agents_full_history(self) -> None:
         self.full_history_refresh_count += 1

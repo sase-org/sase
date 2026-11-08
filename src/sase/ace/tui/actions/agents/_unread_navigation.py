@@ -1,12 +1,13 @@
-"""Time-ordered unread and stopped-agent navigation helpers."""
+"""Time-ordered unread, stopped, and stranded-agent navigation helpers."""
 
 from __future__ import annotations
 
 from collections.abc import Callable
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
 
 from sase.agent.status_buckets import is_pending_plan_review_status
+from sase.core.time import to_local
 
 from ...models.agent_status import (
     is_stopped_agent,
@@ -25,6 +26,8 @@ if TYPE_CHECKING:
     from ...models import Agent
     from ...models.agent import AgentType
 
+from ...models.agent_stranded import stranded_leaf_verdict
+
 
 def _stopped_agent_jump_time(agent: Agent) -> datetime | None:
     """Return the best timestamp for ordering stopped-agent jumps."""
@@ -32,6 +35,14 @@ def _stopped_agent_jump_time(agent: Agent) -> datetime | None:
         return max(agent.plan_times)
     if agent.status == "QUESTION" and agent.questions_times:
         return max(agent.questions_times)
+    return agent.stop_time or agent.start_time
+
+
+def _stranded_agent_jump_time(agent: Agent) -> datetime | None:
+    """Return the cached stranding time, falling back to the agent time."""
+    verdict = stranded_leaf_verdict(agent)
+    if verdict is not None and verdict.since is not None:
+        return to_local(datetime.fromtimestamp(verdict.since, tz=UTC))
     return agent.stop_time or agent.start_time
 
 
@@ -154,6 +165,15 @@ class AgentUnreadNavigationMixin(
         if hit:
             land_stopped_jump_on_main_context(self)
         return hit
+
+    def _jump_to_next_stranded_agent(self) -> bool:
+        """Move focus through stranded rows, including collapsed-clan members."""
+        return self._jump_to_next_matching_agent_by_time(
+            predicate=lambda agent: stranded_leaf_verdict(agent) is not None,
+            after_select=None,
+            time_for_agent=_stranded_agent_jump_time,
+            include_collapsed_clan_members=True,
+        )
 
     def _jump_to_next_matching_agent_by_time(
         self,
