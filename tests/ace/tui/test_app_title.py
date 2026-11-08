@@ -7,13 +7,13 @@ best-effort, git-aware refinement applied off-thread during ``on_mount``.
 
 from __future__ import annotations
 
-import asyncio
 from types import SimpleNamespace
 
 import pytest
 from textual.pilot import Pilot
 
 import sase
+from sase.ace.testing import wait_for
 from sase.ace.tui.app import AceApp
 from sase.ace.tui.util.app_version import (
     format_app_title,
@@ -133,12 +133,13 @@ def test_host_display_version_normalizes_unknown_sentinel_to_none(
 
 
 async def _wait_for_mount_state_loads(app: AceApp, pilot: Pilot[None]) -> None:
-    """Poll until the title write's barrier fires, or fail with a clear message."""
-    deadline = asyncio.get_running_loop().time() + 15.0
-    while not app._mount_state_loads_done:
-        if asyncio.get_running_loop().time() >= deadline:
-            raise AssertionError("mount state loads did not finish within 15 seconds")
-        await pilot.pause()
+    """Poll until the title write's barrier fires.
+
+    The bound is a hang detector, not a speed assertion: deferred mount
+    loads include off-pump disk work that is immediate on an idle
+    machine and tens of seconds under the default-lane contention soak.
+    """
+    await wait_for(pilot, lambda: app._mount_state_loads_done)
 
 
 async def test_on_mount_refines_title_to_resolved_version(

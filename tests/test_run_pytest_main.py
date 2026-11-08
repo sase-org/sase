@@ -56,9 +56,13 @@ def test_pinned_env_vars_cover_every_lane_switch_main_writes() -> None:
 def test_ambient_mode_env_vars_name_the_switch_the_contention_harness_exports() -> None:
     runner = load_run_pytest()
     assert runner.HEALTH_DISABLED_ENV in AMBIENT_MODE_ENV_VARS
-    assert runner._contention_environment(Path("failures.json")).keys() >= {
-        runner.HEALTH_DISABLED_ENV
+    assert runner.CONTENTION_ACTIVE_ENV in AMBIENT_MODE_ENV_VARS
+    child_env = runner._contention_environment(Path("failures.json"))
+    assert child_env.keys() >= {
+        runner.HEALTH_DISABLED_ENV,
+        runner.CONTENTION_ACTIVE_ENV,
     }
+    assert child_env[runner.CONTENTION_ACTIVE_ENV] == "1"
 
 
 def test_sanitizes_commit_workflow_environment(

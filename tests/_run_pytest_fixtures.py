@@ -62,6 +62,11 @@ GATE_EXEMPTION_ENV_VARS: tuple[str, ...] = (
 # test starts from the recording-enabled default; the tests that describe the
 # disabled case set the variable themselves.
 #
+# SASE_CONTENTION_ACTIVE is the same kind of child-env marker: a soak exports
+# it so nested `main(["contention"])` cannot rmtree the parent record. Tests
+# that describe a top-level soak must not inherit it, or they write under
+# `nested/<pid>/` and miss the assertions on the artifact root.
+#
 # SASE_TEST_SHARD is the master gate's own ambient switch: this suite can run
 # *as* one of its shards, in which case the workflow's own SASE_TEST_SHARD is
 # still set in the environment these tests inherit. Cleared for the same
@@ -71,6 +76,7 @@ GATE_EXEMPTION_ENV_VARS: tuple[str, ...] = (
 AMBIENT_MODE_ENV_VARS: tuple[str, ...] = (
     "SASE_TEST_SELECTION_HEALTH_DISABLED",
     "SASE_TEST_SHARD",
+    "SASE_CONTENTION_ACTIVE",
 )
 
 

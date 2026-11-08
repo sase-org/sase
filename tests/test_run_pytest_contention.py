@@ -77,6 +77,16 @@ class RecordedRepeat:
             write_failures(Path(self.env[FAILURES_ENV]), failures)
 
 
+def _isolate_contention_artifacts(
+    runner: Any, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> Path:
+    """Keep ``main(["contention"])`` off the live soak's artifact directory."""
+    artifacts = tmp_path / "contention-artifacts"
+    monkeypatch.setenv(runner.PYTEST_TMPDIR_ENV, str(tmp_path / "scratch"))
+    monkeypatch.setattr(runner, "CONTENTION_ARTIFACT_DIRECTORY", artifacts)
+    return artifacts
+
+
 def _install_fake_repeats(
     runner: Any,
     monkeypatch: pytest.MonkeyPatch,
@@ -91,10 +101,7 @@ def _install_fake_repeats(
     which is what a hard crash leaves behind.
     """
     recorded: list[RecordedRepeat] = []
-    monkeypatch.setenv(runner.PYTEST_TMPDIR_ENV, str(tmp_path / "scratch"))
-    monkeypatch.setattr(
-        runner, "CONTENTION_ARTIFACT_DIRECTORY", tmp_path / "contention-artifacts"
-    )
+    _isolate_contention_artifacts(runner, monkeypatch, tmp_path)
 
     class _Result:
         def __init__(self, returncode: int) -> None:
@@ -175,9 +182,11 @@ def test_repeat_runs_neither_lease_the_gate_nor_record_health(
     for repeat in recorded:
         assert repeat.env["SASE_TEST_GATE_DISABLED"] == "1"
         assert repeat.env[runner.HEALTH_DISABLED_ENV] == "1"
+        assert repeat.env[runner.CONTENTION_ACTIVE_ENV] == "1"
         assert RECORD_ENV not in repeat.env
         assert "-p" in repeat.command
         assert runner.CONTENTION_PLUGIN_MODULE in repeat.command
+    assert runner.CONTENTION_ACTIVE_ENV not in os.environ
 
 
 def test_repeats_run_hypothesis_with_the_profile_hosted_ci_uses(
@@ -646,6 +655,9 @@ def test_interrupted_failure_reports_stay_separate_from_completed_tally(
     runner = load_run_pytest()
     monkeypatch.setenv(STORE_ENV, str(tmp_path / "health-store"))
     monkeypatch.setenv(runner.CONTENTION_REPEAT_ENV, "1")
+    _isolate_contention_artifacts(runner, monkeypatch, tmp_path)
+    monkeypatch.setattr(runner, "start_sampler", FakeSampler().start)
+    monkeypatch.setattr(runner, "_contention_shards", lambda *_a, **_k: None)
 
     def _interrupted(_command: list[str], **kwargs: Any) -> SimpleNamespace:
         failures_path = Path(kwargs["env"][FAILURES_ENV])
@@ -665,6 +677,34 @@ def test_interrupted_failure_reports_stay_separate_from_completed_tally(
     assert "0 node(s) failed across 0 completed repeat(s) of 1 requested" in output
     assert "partial failure evidence (excluded from the completed tally)" in output
     assert "[call] tests/t.py::test_before_cancel: AssertionError" in output
+
+
+def test_nested_contention_does_not_clear_a_parent_soak_record(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """In-process nested soaks must not rmtree the live parent artifact dir."""
+    runner = load_run_pytest()
+    parent = _isolate_contention_artifacts(runner, monkeypatch, tmp_path)
+    parent.mkdir(parents=True, exist_ok=True)
+    marker = parent / "repeat-01.json"
+    marker.write_text("parent-record\n", encoding="utf-8")
+    monkeypatch.setenv(STORE_ENV, str(tmp_path / "health-store"))
+    monkeypatch.setenv(runner.CONTENTION_REPEAT_ENV, "1")
+    monkeypatch.setenv(runner.CONTENTION_ACTIVE_ENV, "1")
+    monkeypatch.setattr(runner, "start_sampler", FakeSampler().start)
+    monkeypatch.setattr(runner, "_contention_shards", lambda *_a, **_k: None)
+
+    def _complete(_command: list[str], **kwargs: Any) -> SimpleNamespace:
+        write_failures(Path(kwargs["env"][FAILURES_ENV]), ())
+        return SimpleNamespace(returncode=0)
+
+    monkeypatch.setattr(runner.subprocess, "run", _complete)
+
+    assert runner.main(["contention"]) == 0
+    assert marker.read_text(encoding="utf-8") == "parent-record\n"
+    nested = parent / "nested" / str(os.getpid())
+    assert (nested / "repeat-01.json").is_file()
+    assert marker.parent == parent
 
 
 def test_missing_record_after_zero_exit_is_not_a_clean_repeat(

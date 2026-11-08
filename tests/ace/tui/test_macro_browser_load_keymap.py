@@ -34,6 +34,7 @@ from sase.macro.models import InputArg, InputType
 from sase.macro.prompt_frontmatter import PromptFrontmatter
 from sase.macro.workflow_models import Workflow, WorkflowStep
 
+from tests._load_tolerant import LOAD_TOLERANT_TIMEOUT
 from tests.ace.tui._plugins_browser_pane_helpers import _core_versions
 
 
@@ -189,7 +190,8 @@ async def test_enter_returns_while_macro_file_read_is_blocked(
         try:
             assert pane.action_edit_macro() is None
             assert await asyncio.wait_for(
-                asyncio.to_thread(started.wait, 10.0), timeout=11.0
+                asyncio.to_thread(started.wait, LOAD_TOLERANT_TIMEOUT),
+                timeout=LOAD_TOLERANT_TIMEOUT + 1.0,
             )
             heartbeat = asyncio.Event()
             asyncio.get_running_loop().call_soon(heartbeat.set)
@@ -201,7 +203,6 @@ async def test_enter_returns_while_macro_file_read_is_blocked(
                     bool(page.app.query("#prompt-input-bar"))
                     and bool(page.app.query("PromptTextArea"))
                 ),
-                timeout=10.0,
             )
 
         await page.expect_no_modal()

@@ -174,6 +174,10 @@ CONTENTION_HYPOTHESIS_PROFILE = "ci"
 #: that sampling is not part of the load it measures.
 CONTENTION_SAMPLE_SECONDS_ENV = "SASE_CONTENTION_SAMPLE_SECONDS"
 DEFAULT_CONTENTION_SAMPLE_SECONDS = 15
+#: Set on every soak child so an in-process nested `main(["contention"])`
+#: (harness tests in this suite) cannot `rmtree` the parent soak's records.
+#: Nested soaks write under ``<artifacts>/nested/<pid>/`` instead.
+CONTENTION_ACTIVE_ENV = "SASE_CONTENTION_ACTIVE"
 #: Per-repeat failure records, kept after the run so a soak can be re-read
 #: without re-running it. `.pytest_cache` is already the suite's diagnostic
 #: scratch space (see `.pytest_cache/sase-visual/`).
@@ -1203,9 +1207,17 @@ def _contention_artifact_directory() -> Path:
     """A cleared directory for this soak's per-repeat failure records.
 
     Cleared, because a stale ``repeat-04.json`` from a longer previous soak
-    would otherwise be read as this soak's fourth repeat.
+    would otherwise be read as this soak's fourth repeat. A nested soak
+    (``SASE_CONTENTION_ACTIVE`` already set) must not clear the parent
+    directory: harness tests in this suite call ``main(["contention"])``
+    in-process, and ``rmtree`` of the live parent record loses the outer
+    tally.
     """
-    directory = REPO_ROOT / CONTENTION_ARTIFACT_DIRECTORY
+    root = REPO_ROOT / CONTENTION_ARTIFACT_DIRECTORY
+    if os.environ.get(CONTENTION_ACTIVE_ENV):
+        directory = root / "nested" / str(os.getpid())
+    else:
+        directory = root
     shutil.rmtree(directory, ignore_errors=True)
     directory.mkdir(parents=True, exist_ok=True)
     return directory
@@ -1265,6 +1277,7 @@ def _contention_environment(
         "SASE_TEST_GATE_DISABLED": "1",
         HEALTH_DISABLED_ENV: "1",
         FAILURES_ENV: str(failures_path),
+        CONTENTION_ACTIVE_ENV: "1",
     }
     if progress_path is not None:
         environment[DIAGNOSTICS_ENV] = str(progress_path)

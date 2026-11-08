@@ -46,6 +46,7 @@ def test_require_rust_extension_raises_when_missing(
         raise ImportError(f"No module named {name!r}")
 
     monkeypatch.setattr(importlib, "import_module", _missing)
+    monkeypatch.setattr("sase.core.rust.install_context", lambda **_: "checkout_venv")
     with pytest.raises(ImportError) as excinfo:
         require_rust_extension()
     message = str(excinfo.value)
