@@ -23,6 +23,7 @@ class TerminalBlocker:
     dependency: str
     artifact_dir: str
     outcome: str
+    blocker_name: str | None = None
 
 
 @dataclass(frozen=True)

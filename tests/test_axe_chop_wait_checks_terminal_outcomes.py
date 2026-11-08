@@ -254,7 +254,10 @@ def test_terminal_blocked_waiter_upserts_one_notification(
     assert str(waiter_dir) in notification.files
     assert str(dependency_dir) in notification.files
     assert any("never self-resolve" in note for note in notification.notes)
-    assert any("Waiter: waiter-cl" in note for note in notification.notes)
+    # No agent_meta.json: the Waiter label falls back to the directory name,
+    # never to waiting.json's cl_name.
+    assert any(f"Waiter: {waiter_dir.name}" in note for note in notification.notes)
+    assert not any("Waiter: waiter-cl" in note for note in notification.notes)
     assert any(
         f"Blocked on foo: {dependency_dir} (failed)" in note
         for note in notification.notes
@@ -263,8 +266,237 @@ def test_terminal_blocked_waiter_upserts_one_notification(
     assert plus_one_badge(notification.plus_one_count) == "+1"
     assert len(notification.plus_ones) == 1
     assert "Still blocked on foo" in notification.plus_ones[0].note
-    for query in ("waiter-cl", "foo", "failed", str(dependency_dir)):
+    for query in (waiter_dir.name, "foo", "failed", str(dependency_dir)):
         assert list_notification_infos(query=query, include_dismissed=True)
+
+
+def test_terminal_blocked_waiter_names_agent_not_project_key(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    """F8: an ace(run) waiter names its agent, never its project key."""
+    waiter_dir = make_waiting_agent(tmp_path, "foo")
+    waiting_path = waiter_dir / "waiting.json"
+    waiting_data = json.loads(waiting_path.read_text(encoding="utf-8"))
+    waiting_data["cl_name"] = "gh_proj__repo"
+    waiting_path.write_text(json.dumps(waiting_data), encoding="utf-8")
+    (waiter_dir / "agent_meta.json").write_text(
+        json.dumps({"name": "sase-1ra.8", "cl_name": "gh_proj__repo"}),
+        encoding="utf-8",
+    )
+    make_agent(
+        tmp_path,
+        "proj",
+        "20260506010101",
+        "foo",
+        done=True,
+        outcome="failed",
+    )
+
+    run_wait_checks(tmp_path, monkeypatch)
+
+    assert not (waiter_dir / "ready.json").exists()
+    notifications = load_notifications()
+    assert len(notifications) == 1
+    notes = notifications[0].notes
+    assert any("Waiter: sase-1ra.8" in note for note in notes)
+    assert not any("gh_proj__repo" in note for note in notes)
+
+
+def test_terminal_blocked_waiter_falls_back_to_dir_name(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    """F8: missing or malformed agent_meta falls back to the directory name."""
+    waiter_dir = make_waiting_agent(tmp_path, "foo")
+    (waiter_dir / "agent_meta.json").write_text("{not-json", encoding="utf-8")
+    make_agent(
+        tmp_path,
+        "proj",
+        "20260506010101",
+        "foo",
+        done=True,
+        outcome="failed",
+    )
+
+    run_wait_checks(tmp_path, monkeypatch)
+
+    notifications = load_notifications()
+    assert len(notifications) == 1
+    notes = notifications[0].notes
+    assert any(f"Waiter: {waiter_dir.name}" in note for note in notes)
+    assert not any("Waiter: waiter-cl" in note for note in notes)
+
+
+def test_terminal_blocked_names_session_blocker_agent(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    """F8: a session dependency also names its blocking member agent."""
+    waiter_dir = make_waiting_agent(tmp_path, "sase-1ra.7")
+    (waiter_dir / "agent_meta.json").write_text(
+        json.dumps({"name": "sase-1ra.8"}),
+        encoding="utf-8",
+    )
+    root_dir = make_agent(
+        tmp_path,
+        "proj",
+        "20261104180113",
+        "sase-1ra.7--plan",
+        workflow_name="sase-1ra.7",
+        agent_session="sase-1ra.7",
+        role_suffix="--plan",
+        done=True,
+        outcome="failed",
+    )
+    assert root_dir.name == "20261104180113"
+    mon_dir = make_agent(
+        tmp_path,
+        "proj",
+        "20261104185106",
+        "sase-1ra.7--mon",
+        workflow_name="sase-1ra.7",
+        agent_session="sase-1ra.7",
+        role_suffix="--mon",
+        parent_timestamp="20261104180113",
+        extra_meta={
+            "agent_session_role": "monitor",
+            "monitor_state": "failed",
+        },
+    )
+    (mon_dir / "done.json").write_text(
+        json.dumps({"outcome": "monitored", "monitor_state": "failed"}),
+        encoding="utf-8",
+    )
+    (mon_dir / "staged_monitor_launch.json").write_text(
+        json.dumps({"dummy": True}),
+        encoding="utf-8",
+    )
+
+    run_wait_checks(tmp_path, monkeypatch)
+
+    assert not (waiter_dir / "ready.json").exists()
+    notifications = load_notifications()
+    assert len(notifications) == 1
+    notes = notifications[0].notes
+    assert any("Waiter: sase-1ra.8" in note for note in notes)
+    assert any(
+        f"Blocked on sase-1ra.7 (sase-1ra.7--mon): {mon_dir}" in note for note in notes
+    )
+
+
+def _make_failed_session_pair(tmp_path: Path, **mon_extra: object) -> tuple[Path, Path]:
+    """Build the athena sase-1ra.7 shape: failed root plus failed monitor."""
+    root_dir = make_agent(
+        tmp_path,
+        "proj",
+        "20261104180113",
+        "sase-1ra.7--plan",
+        workflow_name="sase-1ra.7",
+        agent_session="sase-1ra.7",
+        role_suffix="--plan",
+        done=True,
+        outcome="failed",
+    )
+    assert root_dir.name == "20261104180113"
+    meta = {"agent_session_role": "monitor", "monitor_state": "failed"}
+    meta.update(mon_extra)  # type: ignore[typeddict-item]
+    mon_dir = make_agent(
+        tmp_path,
+        "proj",
+        "20261104185106",
+        "sase-1ra.7--mon",
+        workflow_name="sase-1ra.7",
+        agent_session="sase-1ra.7",
+        role_suffix="--mon",
+        parent_timestamp="20261104180113",
+        extra_meta=meta,  # type: ignore[arg-type]
+    )
+    (mon_dir / "done.json").write_text(
+        json.dumps({"outcome": "monitored", "monitor_state": "failed"}),
+        encoding="utf-8",
+    )
+    (mon_dir / "staged_monitor_launch.json").write_text(
+        json.dumps({"dummy": True}),
+        encoding="utf-8",
+    )
+    return root_dir, mon_dir
+
+
+def _point_closed_bead(monkeypatch: object, bead_id: str) -> None:
+    import sase.scripts._chop_wait_checks_run_waiters as waiters
+
+    def closed_for_project(project: str) -> frozenset[str]:
+        assert project == "proj"
+        return frozenset({bead_id})
+
+    monkeypatch.setattr(  # type: ignore[attr-defined]
+        waiters, "closed_bead_ids_for_project", closed_for_project
+    )
+
+
+def test_silent_waiter_mixed_agent_and_bead_notifies(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    """F9: a failed session parks no waiter silently, even when bead half closed."""
+    _make_failed_session_pair(tmp_path)
+    _point_closed_bead(monkeypatch, "sase-1ra.7")
+    waiter_dir = make_waiting_agent(
+        tmp_path,
+        "sase-1ra.7",
+        suffix="20261104180116",
+        wait_for_beads=["sase-1ra.7"],
+    )
+    (waiter_dir / "agent_meta.json").write_text(
+        json.dumps({"name": "sase-1ra.8"}),
+        encoding="utf-8",
+    )
+
+    run_wait_checks(tmp_path, monkeypatch)
+
+    assert not (waiter_dir / "ready.json").exists()
+    notifications = load_notifications()
+    assert len(notifications) == 1
+    notification = notifications[0]
+    assert notification.dedup_key == f"wait_checks:terminal-blocked:{waiter_dir}"
+    assert any("Waiter: sase-1ra.8" in note for note in notification.notes)
+    assert any(
+        "Blocked on sase-1ra.7 (sase-1ra.7--mon)" in note for note in notification.notes
+    )
+
+
+def test_silent_waiter_dropped_followup_still_notifies(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    """F9 near variant: a monitor with a dropped follow-up still blocks."""
+    _make_failed_session_pair(
+        tmp_path,
+        monitor_followup_outcome="dropped",
+    )
+    _point_closed_bead(monkeypatch, "sase-1ra.7")
+    waiter_dir = make_waiting_agent(
+        tmp_path,
+        "sase-1ra.7",
+        suffix="20261104180117",
+        wait_for_beads=["sase-1ra.7"],
+    )
+    (waiter_dir / "agent_meta.json").write_text(
+        json.dumps({"name": "sase-1ra.9"}),
+        encoding="utf-8",
+    )
+
+    run_wait_checks(tmp_path, monkeypatch)
+
+    assert not (waiter_dir / "ready.json").exists()
+    notifications = load_notifications()
+    assert len(notifications) == 1
+    assert any("Waiter: sase-1ra.9" in note for note in notifications[0].notes)
+    assert any(
+        "Blocked on sase-1ra.7 (sase-1ra.7--mon)" in note
+        for note in notifications[0].notes
+    )
 
 
 def test_later_resolved_waiter_does_not_notify(

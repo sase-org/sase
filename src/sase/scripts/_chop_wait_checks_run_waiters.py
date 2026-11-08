@@ -450,10 +450,15 @@ def process_one_waiter(
             status.blocked_on,
             self_artifact_dir=waiting_marker.waiting_path.parent,
         )
+        bead_ids = {bead_id for bead_id in wait_for_beads if isinstance(bead_id, str)}
+        agent_names = {name for name in waiting_for if isinstance(name, str)}
+        for dependency in wait_for_artifacts:
+            if isinstance(dependency, dict):
+                name = dependency.get("name")
+                if isinstance(name, str) and name:
+                    agent_names.add(name)
         for blocker in found_blockers:
-            if blocker.dependency in {
-                bead_id for bead_id in wait_for_beads if isinstance(bead_id, str)
-            }:
+            if blocker.dependency in bead_ids and blocker.dependency not in agent_names:
                 continue
             upsert_terminal_blocked_wait_notification(
                 waiting_marker,

@@ -224,7 +224,9 @@ def test_followed_epic_land_failure_notifies(
     row = rows[0]
     assert row.dedup_key == f"wait_checks:epic-follow-land-failed:{waiter_dir}:sase-7k"
     assert row.plus_one_count == 1
-    assert any("Waiter: waiter-cl" in note for note in row.notes)
+    # No agent_meta.json: the Waiter label falls back to the directory name.
+    assert any(f"Waiter: {waiter_dir.name}" in note for note in row.notes)
+    assert not any("Waiter: waiter-cl" in note for note in row.notes)
     assert any("sase-7k" in note and "failed" in note for note in row.notes)
     assert any("sase-7k.land" in note for note in row.notes)
     assert str(waiter_dir) in row.files

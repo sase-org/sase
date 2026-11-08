@@ -80,6 +80,7 @@ def terminal_blockers(
                     dependency=label,
                     artifact_dir=candidate.artifact_dir,
                     outcome=outcome,
+                    blocker_name=candidate.name or None,
                 )
             )
 
@@ -103,6 +104,7 @@ def terminal_blockers(
                     dependency=label,
                     artifact_dir=candidate.artifact_dir,
                     outcome=candidate.outcome,
+                    blocker_name=candidate.name or None,
                 )
             )
 
@@ -124,6 +126,7 @@ def terminal_blockers(
                     dependency=name,
                     artifact_dir=candidate.artifact_dir,
                     outcome=candidate.outcome,
+                    blocker_name=candidate.name or None,
                 )
             )
 
@@ -139,13 +142,20 @@ def upsert_terminal_blocked_wait_notification(
     waiter_name = _waiting_agent_label(waiting_data, waiter_dir)
     timestamp = datetime.now(get_timezone()).isoformat()
     recovery = _monitor_not_launchable_recovery(blocker.artifact_dir)
+    if blocker.blocker_name and blocker.blocker_name != blocker.dependency:
+        blocked_line = (
+            f"Blocked on {blocker.dependency} ({blocker.blocker_name}): "
+            f"{blocker.artifact_dir} ({blocker.outcome})"
+        )
+    else:
+        blocked_line = (
+            f"Blocked on {blocker.dependency}: {blocker.artifact_dir} "
+            f"({blocker.outcome})"
+        )
     notes = [
         "Wait dependency can never self-resolve",
         f"Waiter: {waiter_name}",
-        (
-            f"Blocked on {blocker.dependency}: {blocker.artifact_dir} "
-            f"({blocker.outcome})"
-        ),
+        blocked_line,
         (
             "Kill and relaunch the waiter, or intentionally clear the wait "
             "once the dependency state is understood."
@@ -316,10 +326,30 @@ def _string_value(value: object) -> str | None:
     return value if isinstance(value, str) and value else None
 
 
+def _waiting_agent_name(waiter_dir: Path) -> str | None:
+    """Return the waiter's agent name from its ``agent_meta.json``.
+
+    Returns ``None`` when the file is missing, unreadable, or carries no
+    non-empty string ``name``. Never returns ``cl_name`` or any other
+    project directory key: the meta ``name`` is the agent identity, while
+    ``cl_name`` is the project key for ordinary ``ace(run)`` agents.
+    """
+    try:
+        data = _read_json_dict(waiter_dir / "agent_meta.json")
+    except Exception:
+        return None
+    if not isinstance(data, dict):
+        return None
+    name = data.get("name")
+    if isinstance(name, str) and name.strip():
+        return name.strip()
+    return None
+
+
 def _waiting_agent_label(waiting_data: Mapping[str, Any], waiter_dir: Path) -> str:
-    cl_name = waiting_data.get("cl_name")
-    if isinstance(cl_name, str) and cl_name:
-        return cl_name
+    name = _waiting_agent_name(waiter_dir)
+    if name:
+        return name
     return waiter_dir.name
 
 
@@ -465,6 +495,9 @@ def upsert_epic_follow_blocked_notification(
             "No resume command is known; inspect the target agent's "
             "epic launch and relaunch it if needed."
         )
+    cl_name = waiting_data.get("cl_name")
+    if not isinstance(cl_name, str) or not cl_name:
+        cl_name = waiter_dir.name
     notification = Notification(
         id=str(uuid4()),
         timestamp=timestamp,
@@ -476,7 +509,7 @@ def upsert_epic_follow_blocked_notification(
         tags=normalize_notification_tags(["wait", "blocked", "epic-follow"]),
         action="JumpToAgent",
         action_data={
-            "cl_name": waiter_name,
+            "cl_name": cl_name,
             "raw_suffix": waiter_dir.name,
         },
         dedup_key=epic_follow_blocked_dedup_key(str(waiter_dir), decision.target),
