@@ -169,6 +169,15 @@ async def test_startup_update_toast_appears_once_in_tui(
         "get_cached_update_status",
         lambda **_kwargs: status,
     )
+    # The 12s production toast timeout is a UX deadline, not the
+    # once-per-session behavior under test. Under the contention soak a
+    # ``pause()`` can process that timer after a ~10s loop stall and
+    # empty ``_notifications`` before the duplicate-show assertion.
+    monkeypatch.setattr(
+        update_toast,
+        "_TOAST_TIMEOUT_SECONDS",
+        _REAL_STARTUP_TOAST_TIMEOUT,
+    )
 
     async with AcePage(query='"toast"', startup_policy="real") as page:
         # Hang guard for a whole real startup: the toast lands only after the

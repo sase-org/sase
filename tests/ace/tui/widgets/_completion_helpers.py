@@ -5,6 +5,7 @@ from __future__ import annotations
 from collections.abc import Iterator, Mapping
 from contextlib import ExitStack, contextmanager
 from pathlib import Path
+from typing import Any
 from unittest.mock import patch
 
 import pytest
@@ -12,6 +13,7 @@ from textual.app import App, ComposeResult
 
 from sase import _project_display_cache as display_cache
 from sase import project_aliases
+from sase.ace.testing import wait_for
 from sase.ace.tui.prompt_submission_settings import PromptSubmissionSettings
 from sase.ace.tui.widgets.prompt_input_bar import PromptInputBar
 from sase.ace.tui.widgets.macro_arg_assist import (
@@ -136,6 +138,30 @@ class CatalogCompletionTestApp(CompletionTestApp):
         del schedule
         self.requested_projects.append(project)
         return build_macro_assist_entries(project=project)
+
+
+async def wait_for_canonical_catalog_project(
+    pilot: Any,
+    text_area: Any,
+    app: CatalogCompletionTestApp,
+    project: str,
+    *,
+    drop_priors: bool = False,
+) -> None:
+    """Pump until the prompt's catalog project is *project*.
+
+    Soft-completion timers can request the global catalog (``None``) while
+    the prompt is still empty. Those lookups are not the namespace
+    regression this suite asserts; the VCS tag / prompt-context path must
+    still canonicalize to *project* before the key under test is pressed.
+    Pass ``drop_priors=True`` to discard those empty-text lookups.
+    """
+    await wait_for(
+        pilot,
+        lambda: text_area._macro_arg_assist_project_from_text() == project,
+    )
+    if drop_priors:
+        app.requested_projects.clear()
 
 
 @contextmanager

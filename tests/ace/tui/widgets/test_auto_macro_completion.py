@@ -20,6 +20,7 @@ from ._completion_helpers import (
     CatalogCompletionTestApp,
     CompletionTestApp,
     registered_project_macros,
+    wait_for_canonical_catalog_project,
 )
 
 _PROJECT_ENTRIES_PATH = (
@@ -417,6 +418,9 @@ async def test_vcs_tag_project_namespace_opens_project_macro_menu(
             ta = app.query_one(PromptTextArea)
             ta.load_text("#git:proj #proj")
             ta.cursor_location = (0, len("#git:proj #proj"))
+            await wait_for_canonical_catalog_project(
+                pilot, ta, app, "proj", drop_priors=True
+            )
 
             await pilot.press("/")
 
@@ -429,6 +433,7 @@ async def test_vcs_tag_project_namespace_opens_project_macro_menu(
             # not be offered either.
             ta.load_text("#git:proj #gh_org__proj")
             ta.cursor_location = (0, len("#git:proj #gh_org__proj"))
+            await wait_for_canonical_catalog_project(pilot, ta, app, "proj")
 
             await pilot.press("/")
 
@@ -464,6 +469,9 @@ async def test_prompt_context_project_key_opens_same_project_macro_menu(
             )
             ta.load_text("#proj")
             ta.cursor_location = (0, len("#proj"))
+            await wait_for_canonical_catalog_project(
+                pilot, ta, app, "proj", drop_priors=True
+            )
 
             await pilot.press("/")
 

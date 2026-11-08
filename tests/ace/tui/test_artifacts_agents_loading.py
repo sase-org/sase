@@ -99,7 +99,15 @@ async def _agent_first_page_paints_before_full_extension(
             assert pending is True
             assert match_count is None
 
-            assert full_started.wait(timeout=LOAD_TOLERANT_TIMEOUT)
+            # Hang detector, not a speed assertion. ``run_worker`` and the
+            # pump-free full-extension task both need the event loop; a
+            # synchronous ``Event.wait()`` here stalled the loop for 60s
+            # under the default-lane contention soak and the full load
+            # never started.
+            await page.wait_for(
+                lambda _state: full_started.is_set(),
+                timeout=LOAD_TOLERANT_TIMEOUT,
+            )
             assert requested_limits[:2] == [AGENTS_FIRST_PAGE_LIMIT, None]
 
             release_full.set()

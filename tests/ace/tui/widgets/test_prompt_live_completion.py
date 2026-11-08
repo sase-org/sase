@@ -26,6 +26,7 @@ from ._completion_helpers import (
     CatalogCompletionTestApp,
     CompletionTestApp,
     registered_project_macros,
+    wait_for_canonical_catalog_project,
 )
 
 
@@ -497,6 +498,9 @@ async def test_soft_macro_suggestion_uses_canonical_project_namespace(
 
             ta.load_text("#proj/r")
             ta.cursor_location = (0, 7)
+            await wait_for_canonical_catalog_project(
+                pilot, ta, app, "proj", drop_priors=True
+            )
             await _compute_soft_now(ta)
             subtitle = _subtitle_text(bar)
 
