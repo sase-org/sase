@@ -174,7 +174,7 @@ def test_startup_sigterm_settles_stopped_without_running_command(
         return
     record = results[0]
 
-    done = _wait_for_done(record.artifacts_dir, timeout=10.0)
+    done = _wait_for_done(record.artifacts_dir)
     assert done["monitor_state"] in {"stopped", "failed"}
     assert not sentinel.exists()
 

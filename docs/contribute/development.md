@@ -787,6 +787,12 @@ soak still spreads its tests across the full pool. The shard map is written to
 Per-repeat failure records land in `.pytest_cache/sase-contention/repeat-NN.json`, so a
 finished soak can be re-read without re-running it.
 
+Every repeat runs Hypothesis with its built-in `ci` profile (no per-example deadline, no
+`too_slow` health check, derandomized), the profile GitHub Actions already selects
+through `CI`. Without it a local soak fails property tests on wall-clock heuristics that
+measure the deliberate starvation rather than the code. An explicit
+`--hypothesis-profile` after `--` still wins.
+
 This lane is an opt-in diagnostic and is deliberately kept out of every governed path:
 it takes no suite-gate lease, writes nothing to the durable selection-health store, and
 is unreachable from `just check` and `just check-full`. A deliberately starved run is

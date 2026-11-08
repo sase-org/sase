@@ -161,6 +161,13 @@ CONTENTION_REPEAT_ENV = "SASE_CONTENTION_REPEAT"
 #: flakes deterministic; the default lane copies the ratio rather than guessing.
 DEFAULT_CONTENTION_WORKERS = 26
 DEFAULT_CONTENTION_REPEAT = 3
+#: Hypothesis' built-in `ci` profile (no per-example deadline, no `too_slow`
+#: health check, derandomized). GitHub Actions selects it implicitly through
+#: `CI`/`GITHUB_ACTIONS`, so the hosted contention job already runs it; a local
+#: soak would otherwise fail property tests on wall-clock heuristics that
+#: measure the deliberate CPU starvation instead of the code. Passed ahead of
+#: the caller's arguments so an explicit `--hypothesis-profile` still wins.
+CONTENTION_HYPOTHESIS_PROFILE = "ci"
 #: Seconds between the soak's diagnostic resource samples
 #: (`tests._contention_sampler`): often enough to show a curve, rarely enough
 #: that sampling is not part of the load it measures.
@@ -1284,7 +1291,12 @@ def _run_contention(args: list[str]) -> int:
     distribution_mode = _configured_distribution_mode()
     command = _pytest_command(
         CONTENTION_MODE,
-        ["-p", CONTENTION_PLUGIN_MODULE, *args],
+        [
+            "-p",
+            CONTENTION_PLUGIN_MODULE,
+            f"--hypothesis-profile={CONTENTION_HYPOTHESIS_PROFILE}",
+            *args,
+        ],
         worker_count=worker_count,
         distribution_mode=distribution_mode,
         serial=False,

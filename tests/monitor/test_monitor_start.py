@@ -224,7 +224,7 @@ def test_start_monitor_persists_next_action_intent_after_ack(
                 os.kill(record.pid, signal.SIGTERM)
             except ProcessLookupError:
                 pass
-        wait_for_done(record.artifacts_dir, timeout=10.0)
+        wait_for_done(record.artifacts_dir)
 
 
 def test_start_monitor_without_metadata_workspace_num_claims_the_cwd_checkout(
@@ -280,7 +280,7 @@ def test_start_monitor_without_metadata_workspace_num_claims_the_cwd_checkout(
                 os.kill(record.pid, signal.SIGTERM)
             except ProcessLookupError:
                 pass
-        wait_for_done(record.artifacts_dir, timeout=10.0)
+        wait_for_done(record.artifacts_dir)
 
 
 def test_start_monitor_adopts_dead_lane_claim_when_parent_pid_is_stale(
@@ -335,7 +335,7 @@ def test_start_monitor_adopts_dead_lane_claim_when_parent_pid_is_stale(
                 os.kill(record.pid, signal.SIGTERM)
             except ProcessLookupError:
                 pass
-        wait_for_done(record.artifacts_dir, timeout=10.0)
+        wait_for_done(record.artifacts_dir)
 
 
 def test_monitor_claim_survives_stale_cleanup_allocation_and_followup_transfer(
@@ -477,7 +477,7 @@ def test_monitor_claim_survives_stale_cleanup_allocation_and_followup_transfer(
                 os.kill(record.pid, signal.SIGTERM)
             except ProcessLookupError:
                 pass
-        wait_for_done(record.artifacts_dir, timeout=10.0)
+        wait_for_done(record.artifacts_dir)
 
 
 def test_start_monitor_refuses_a_numbered_cwd_claimed_by_another_live_agent(

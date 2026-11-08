@@ -126,7 +126,7 @@ def test_owner_cleanup_stops_monitor_child_and_suppresses_followup(
         }
     )
     assert success is True, message
-    done = wait_for_done(record.artifacts_dir, timeout=10.0)
+    done = wait_for_done(record.artifacts_dir)
     assert done["monitor_state"] == "stopped"
     deadline = time.monotonic() + 5
     while is_process_running(supervisor) and time.monotonic() < deadline:

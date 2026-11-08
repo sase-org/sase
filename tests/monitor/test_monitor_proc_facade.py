@@ -182,7 +182,7 @@ def test_stop_uses_the_proc_service_and_suppresses_followup(
     proc = get_proc(record.monitor_id)
     assert proc is not None
     assert proc.status == "killed"
-    done = wait_for_done(record.artifacts_dir, timeout=10.0)
+    done = wait_for_done(record.artifacts_dir)
     assert done["monitor_state"] == "stopped"
     meta = json.loads((Path(record.artifacts_dir) / "agent_meta.json").read_text())
     assert meta.get("monitor_followup_outcome") in {None, "suppressed"}
@@ -247,7 +247,7 @@ def test_background_grandchild_and_resistant_group_are_stopped(
         grandchild_pid = int(grandchild.read_text(encoding="utf-8"))
         stopped = stop_monitor(record)
         assert stopped.monitor_state == "stopped"
-        wait_for_done(record.artifacts_dir, timeout=10.0)
+        wait_for_done(record.artifacts_dir)
         deadline = time.monotonic() + 5
         while is_process_running(grandchild_pid) and time.monotonic() < deadline:
             time.sleep(0.05)  # sase-test-wait: poll monitor group cleanup
@@ -387,7 +387,7 @@ def test_incident_save_chat_history_crash_recovers_completed_result(
     )
 
     reconcile_running_procs()
-    done = wait_for_done(record.artifacts_dir, timeout=15.0)
+    done = wait_for_done(record.artifacts_dir)
     finished = get_proc(record.monitor_id)
     assert finished is not None
     assert finished.status == "success"

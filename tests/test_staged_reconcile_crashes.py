@@ -163,7 +163,7 @@ def test_monitor_submit_survives_process_death_and_scheduler_reuses_proc(
 
     _crash_process(submit_and_die)
     assert read_adoption_receipt(str(origin)) is None
-    wait_for_done(staged.record.artifacts_dir, timeout=30)
+    wait_for_done(staged.record.artifacts_dir)
     proc = get_proc(staged.record.monitor_id)
     assert proc is not None
     assert effect.read_text() == "x"

@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import threading
 from pathlib import Path
+from typing import Any
 from unittest.mock import patch
 
 import pytest
@@ -27,6 +29,7 @@ from sase.config import (
     EffectiveRunnerLimitSnapshot,
     TemporaryRunnerLimitOverride,
 )
+from tests._load_tolerant import LOAD_TOLERANT_TIMEOUT
 from tests._models_panel_helpers import (
     ModelsPanelTestApp,
     StyledModelsPanelTestApp,
@@ -156,6 +159,53 @@ async def test_title_footer_and_chooser_show_effective_and_configured_limits(
         note = pilot.app.screen.query_one("#runner-limit-action-note", Static).content
         assert "Capacity is measured in weighted agent units" in note
         assert "%queue(capacity=N)" in note
+
+
+async def test_runner_row_repaints_when_its_snapshot_lands_after_the_provider_rows(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The runner snapshot loads on its own worker, racing the provider snapshot.
+
+    When the provider snapshot rebuilds the rows first -- routine on a loaded
+    host -- the runner row must still repaint from the runner snapshot that
+    lands afterwards instead of keeping the configured limit it captured.
+    """
+    patch_alias_views(monkeypatch, [make_alias_view("default", "default")])
+    snapshot = _snapshot(override=_override())
+    _patch_snapshot(monkeypatch, snapshot)
+    release = threading.Event()
+
+    def _held_load(_self: ModelsPanel) -> tuple[EffectiveRunnerLimitSnapshot, bool]:
+        release.wait(LOAD_TOLERANT_TIMEOUT)
+        return snapshot, False
+
+    monkeypatch.setattr(
+        ModelsPanel, "_load_effective_runner_limit_snapshot", _held_load
+    )
+    provider_rows_built: list[bool] = []
+    apply_provider_snapshot = ModelsPanel._apply_provider_snapshot
+
+    def _recording_apply(self: ModelsPanel, *args: Any, **kwargs: Any) -> None:
+        apply_provider_snapshot(self, *args, **kwargs)
+        provider_rows_built.append(bool(kwargs.get("update_rows", True)))
+
+    monkeypatch.setattr(ModelsPanel, "_apply_provider_snapshot", _recording_apply)
+
+    try:
+        async with ModelsPanelTestApp().run_test() as pilot:
+            panel = ModelsPanel()
+            pilot.app.push_screen(panel)
+            await wait_for(pilot, lambda: any(provider_rows_built))
+            assert panel._runner_limit_snapshot is not snapshot
+            assert "configured" in _runner_limit_row_text(panel)
+
+            release.set()
+            await wait_for(pilot, lambda: panel._runner_limit_snapshot is snapshot)
+            await pilot.pause()
+
+            assert "override · 42m left" in _runner_limit_row_text(panel)
+    finally:
+        release.set()
 
 
 async def test_chooser_hides_clear_and_describes_chezmoi() -> None:

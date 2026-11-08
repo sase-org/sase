@@ -176,7 +176,7 @@ def test_reserved_join_that_settles_before_adoption_is_consumed(
     record = launch_from_persisted_payload(staged.record.artifacts_dir)
     assert tool_run_show(run_id)["run"]["join"]["id"] == record.monitor_id
     assert record.tool_run_id == run_id
-    done = wait_for_done(record.artifacts_dir, timeout=30.0)
+    done = wait_for_done(record.artifacts_dir)
     assert done["monitor_state"] == "completed"
 
 
@@ -300,7 +300,7 @@ def test_held_cleanup_keeps_outer_record(
     assert record.monitor_state == "running"
     assert record.tool_run_id
     assert record.tool_run_id != run_id
-    done = wait_for_done(record.artifacts_dir, timeout=30.0)
+    done = wait_for_done(record.artifacts_dir)
     assert done["monitor_state"] == "completed"
 
 
@@ -314,10 +314,10 @@ def test_launch_from_persisted_payload_runs(
     try:
         assert record.monitor_state == "running"
         assert record.pid is not None
-        done = wait_for_done(record.artifacts_dir, timeout=30.0)
+        done = wait_for_done(record.artifacts_dir)
         assert done["monitor_state"] == "completed"
     except Exception:
-        wait_for_done(record.artifacts_dir, timeout=10.0)
+        wait_for_done(record.artifacts_dir)
         raise
 
 
@@ -328,8 +328,8 @@ def test_immediate_start_still_launches(
     record = start_monitor(stage_request(tmp_path))
     try:
         assert record.monitor_state == "running"
-        done = wait_for_done(record.artifacts_dir, timeout=30.0)
+        done = wait_for_done(record.artifacts_dir)
         assert done["monitor_state"] == "completed"
     except Exception:
-        wait_for_done(record.artifacts_dir, timeout=10.0)
+        wait_for_done(record.artifacts_dir)
         raise

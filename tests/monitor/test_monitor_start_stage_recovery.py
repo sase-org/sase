@@ -84,7 +84,7 @@ def test_finished_proc_is_reused_without_second_submit(
 
     record = launch_from_persisted_payload(staged.record.artifacts_dir)
     assert record.monitor_state == "running"
-    wait_for_done(record.artifacts_dir, timeout=30.0)
+    wait_for_done(record.artifacts_dir)
 
     _set_member_staged(staged.record.artifacts_dir)
     monkeypatch.setattr("sase.monitor.start_launch.submit_proc_request", _refuse_submit)
@@ -130,7 +130,7 @@ def test_active_proc_is_adopted_not_duplicated(
         assert relaunched.pid == record.pid
     finally:
         stop_monitor(record)
-        wait_for_done(record.artifacts_dir, timeout=30.0)
+        wait_for_done(record.artifacts_dir)
         assert get_proc(staged.record.monitor_id) is not None
 
 
@@ -142,7 +142,7 @@ def test_fingerprint_mismatch_refuses_without_second_launch(
     dirs.append(staged.record.artifacts_dir)
 
     launch_from_persisted_payload(staged.record.artifacts_dir)
-    wait_for_done(staged.record.artifacts_dir, timeout=30.0)
+    wait_for_done(staged.record.artifacts_dir)
 
     payload_path = launch_payload_path(staged.record.artifacts_dir)
     payload = json.loads(payload_path.read_text(encoding="utf-8"))
@@ -406,4 +406,4 @@ def test_concurrent_adopt_yields_one_proc(
     finally:
         if record is not None:
             stop_monitor(record)
-            wait_for_done(record.artifacts_dir, timeout=30.0)
+            wait_for_done(record.artifacts_dir)

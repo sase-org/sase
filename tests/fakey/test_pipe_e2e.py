@@ -23,6 +23,7 @@ from sase.core.agent_artifact_paths import iter_agent_artifact_dirs
 from sase.core.paths import sase_home
 from sase.main.pipe_handler import handle_pipe_command
 
+from tests._load_tolerant import LOAD_TOLERANT_TIMEOUT
 from tests.fakey.harness import (
     FakeyBarrier,
     FakeyRetryHarness,
@@ -30,7 +31,13 @@ from tests.fakey.harness import (
     successful_attempt,
 )
 
-_PIPE_TIMEOUT = 30.0
+#: Hang guard for one pipeline stage (a successor appearing).
+_PIPE_TIMEOUT = LOAD_TOLERANT_TIMEOUT
+#: Hang guard for a join that spans the parent's finish plus a whole successor
+#: run. Unloaded that window costs about 3.8 CPU-seconds across the test process
+#: and its fakey children; at the contention soak's 1/13-1/20 CPU share that is
+#: 50-75 s, so the single-stage guard is smaller than the work it waits for.
+_SUCCESSOR_RUN_FINISH_TIMEOUT = 3 * LOAD_TOLERANT_TIMEOUT
 
 
 def _hanging_success(reply: str, barrier: FakeyBarrier) -> dict[str, object]:
@@ -174,7 +181,7 @@ def test_default_pipe_creates_agent_session_member_with_fork_and_shared_workspac
     try:
         assert _pipe(monkeypatch, harness.artifacts, "continue the work") == 0
         parent_hang.open()
-        result = handle.finish()
+        result = handle.finish(timeout=_SUCCESSOR_RUN_FINISH_TIMEOUT)
     finally:
         parent_hang.open()
         runner_signals.reset_killed()
@@ -242,7 +249,7 @@ def test_fresh_named_model_pipe_skips_fork_and_records_model(
             == 0
         )
         parent_hang.open()
-        result = handle.finish()
+        result = handle.finish(timeout=_SUCCESSOR_RUN_FINISH_TIMEOUT)
     finally:
         parent_hang.open()
         runner_signals.reset_killed()

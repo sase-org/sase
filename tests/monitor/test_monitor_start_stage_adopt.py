@@ -402,7 +402,7 @@ def test_tool_run_id_is_stable_from_stage_to_launch(
         assert record.monitor_state == "running"
         assert record.monitor_id == staged.record.monitor_id
     finally:
-        wait_for_done(record.artifacts_dir, timeout=30.0)
+        wait_for_done(record.artifacts_dir)
 
 
 def test_stopped_staged_join_is_replaced_with_owned_run_at_adoption(
@@ -466,4 +466,4 @@ def test_stopped_staged_join_is_replaced_with_owned_run_at_adoption(
             tool_run_show(original_run_id)["run"].get("staged_join_reservation") is None
         )
     finally:
-        wait_for_done(record.artifacts_dir, timeout=30.0)
+        wait_for_done(record.artifacts_dir)

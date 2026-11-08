@@ -11,8 +11,11 @@ from sase.ace.tui.actions import update_toast
 from sase.ace.tui.actions.update_toast import UpdateToastMixin
 from sase.ace.tui.widgets.update_accents import UPDATE_GLYPH
 
+from tests._load_tolerant import LOAD_TOLERANT_TIMEOUT
 from tests.ace.tui._update_toast_helpers import _status
 from tests.ace.tui.visual._ace_png_snapshot_helpers import patch_startup_loaders
+
+_REAL_STARTUP_TOAST_TIMEOUT = 3 * LOAD_TOLERANT_TIMEOUT
 
 
 def test_show_startup_update_toast_is_once_per_session() -> None:
@@ -151,10 +154,15 @@ async def test_startup_update_toast_appears_once_in_tui(
 ) -> None:
     patch_startup_loaders(monkeypatch)
     status = _status()
+    # Commit previews (git and GitHub queries against the installed
+    # components) and the Rust prebuild are not what this test asserts; left
+    # on, they ran real subprocesses and network calls on the toast path.
     monkeypatch.setattr(
         update_toast,
         "_load_update_toast_config",
-        lambda: update_toast._UpdateToastConfig(startup_toast=True),
+        lambda: update_toast._UpdateToastConfig(
+            startup_toast=True, incoming_commits_enabled=False, prebuild_rust=False
+        ),
     )
     monkeypatch.setattr(
         update_toast,
@@ -163,7 +171,14 @@ async def test_startup_update_toast_appears_once_in_tui(
     )
 
     async with AcePage(query='"toast"', startup_policy="real") as page:
-        await page.wait_for(lambda _s: bool(list(page.app._notifications)))
+        # Hang guard for a whole real startup: the toast lands only after the
+        # deferred maintenance chain, about 3 CPU-seconds from test start
+        # unloaded -- 50-90 s at the contention soak's CPU share, past the
+        # single-wait default.
+        await page.wait_for(
+            lambda _s: bool(list(page.app._notifications)),
+            timeout=_REAL_STARTUP_TOAST_TIMEOUT,
+        )
         notifications = list(page.app._notifications)
         assert len(notifications) == 1
         assert notifications[0].title == f"{UPDATE_GLYPH} Updates available"

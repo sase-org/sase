@@ -43,7 +43,7 @@ def _stop_and_wait(record) -> None:  # noqa: ANN001
             except ProcessLookupError:
                 pass
     finally:
-        wait_for_done(record.artifacts_dir, timeout=10.0)
+        wait_for_done(record.artifacts_dir)
 
 
 def test_cwd_nested_inside_lane_workspace_inherits_claim_and_records_root(

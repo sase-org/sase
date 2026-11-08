@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, cast, overload
+from dataclasses import replace
+from typing import TYPE_CHECKING, Any, cast, overload
 
 from rich.text import Text
 from textual.widgets import OptionList
@@ -52,10 +53,12 @@ class ModelsPanelDisplayOptionsMixin:
     if TYPE_CHECKING:
         _active_bucket: str | None
         _bucket_by_name: dict[str, BucketView]
+        _effort_snapshot: Any
         _hidden_refresh_pending: bool
         _host_visible: bool
         _jump_rendered_row_ids: tuple[str, ...] | None
         _row_by_id: dict[str, ModelsPanelDisplayRow]
+        _runner_limit_snapshot: Any
         _top_rows: list[ModelsPanelDisplayRow]
         _updating_highlight: bool
         _views: list[AliasView]
@@ -342,11 +345,32 @@ class ModelsPanelDisplayOptionsMixin:
             self._hidden_refresh_pending = True
             return
         option_list = self.query_one("#models-panel-list", OptionList)
+        self._recapture_setting_rows()
         self._sync_bucket_index()
         option_list.clear_options()
         option_list.add_options(self._render_current_options())
         self._restore_highlight(option_list, keep)
         self._update_context()
+
+    def _recapture_setting_rows(self) -> None:
+        """Point the effort and runner-capacity rows at the current snapshots.
+
+        Each row captures its snapshot when ``_top_rows`` is built, but those
+        snapshots load (and are rewritten) on their own workers. Whichever lands
+        after the provider snapshot rebuilt ``_top_rows`` would otherwise keep
+        painting the row captured before it, and countdown ticks only repaint.
+        In-memory only: no I/O on this render path.
+        """
+        self._top_rows = [
+            replace(row, snapshot=self._effort_snapshot)
+            if isinstance(row, DefaultEffortSettingRow)
+            and row.snapshot is not self._effort_snapshot
+            else replace(row, snapshot=self._runner_limit_snapshot)
+            if isinstance(row, RunnerLimitSettingRow)
+            and row.snapshot is not self._runner_limit_snapshot
+            else row
+            for row in self._top_rows
+        ]
 
     def _restore_highlight(
         self, option_list: OptionList, preferred: str | None

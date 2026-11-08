@@ -203,20 +203,28 @@ def test_sigterm_leaves_run_running(
     previous_hup = signal_module.getsignal(signal_module.SIGHUP)
     stop_fired = threading.Event()
 
+    def _follower_is_waiting() -> bool:
+        # The follower swaps in its own SIGTERM handler immediately before
+        # its bounded wait. Signalling earlier lands on whatever handler the
+        # process already had (the default would kill the worker), and the
+        # launch before that swap can take well over a fixed sleep on a
+        # loaded host.
+        if signal_module.getsignal(signal_module.SIGTERM) is previous_term:
+            return False
+        try:
+            rows = _rows()
+        except Exception:  # noqa: BLE001 - the main thread owns the store.
+            return False
+        return any(row.get("launch_mode") == "handoff" for row in rows)
+
     def _kill_after_launch() -> None:
+        # Hang guard only: the run's soft ceiling (60 s) bounds the follower.
         deadline = time.monotonic() + 60
         while time.monotonic() < deadline and not stop_fired.is_set():
-            try:
-                rows = _rows()
-            except Exception:  # noqa: BLE001 - the main thread owns the store.
-                rows = []
-            if any(row.get("launch_mode") == "handoff" for row in rows):
-                break
-            time.sleep(0.2)  # sase-test-wait: follower reservation handshake
-        time.sleep(2.0)  # sase-test-wait: follower is inside its bounded wait
-        if stop_fired.is_set():
-            return
-        os.kill(os.getpid(), signal_module.SIGTERM)
+            if _follower_is_waiting():
+                os.kill(os.getpid(), signal_module.SIGTERM)
+                return
+            time.sleep(0.05)  # sase-test-wait: follower installs its handler
 
     killer = threading.Thread(target=_kill_after_launch, daemon=True)
     try:

@@ -174,6 +174,37 @@ def test_repeat_runs_neither_lease_the_gate_nor_record_health(
         assert runner.CONTENTION_PLUGIN_MODULE in repeat.command
 
 
+def test_repeats_run_hypothesis_with_the_profile_hosted_ci_uses(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """A local soak must not trip wall-clock health checks CI never runs.
+
+    The hosted job inherits Hypothesis' `ci` profile from `GITHUB_ACTIONS`; a
+    local soak has no such variable, and its default profile's `too_slow`
+    check failed a pure property test on a 2.8 s scheduler stall.
+    """
+    runner = load_run_pytest()
+    monkeypatch.setenv(STORE_ENV, str(tmp_path / "health-store"))
+    monkeypatch.setenv(runner.CONTENTION_REPEAT_ENV, "1")
+    monkeypatch.setenv(runner.CONTENTION_WORKERS_ENV, "4")
+    recorded = _install_fake_repeats(runner, monkeypatch, tmp_path, [(0, ())])
+
+    assert (
+        runner.main(
+            ["contention", "--", "--hypothesis-profile=default", "tests/test_a.py"]
+        )
+        == 0
+    )
+    (repeat,) = recorded
+    lane_flag = f"--hypothesis-profile={runner.CONTENTION_HYPOTHESIS_PROFILE}"
+    assert runner.CONTENTION_HYPOTHESIS_PROFILE == "ci"
+    assert lane_flag in repeat.command
+    # The caller's own profile comes later on the command line, so it wins.
+    assert repeat.command.index(lane_flag) < repeat.command.index(
+        "--hypothesis-profile=default"
+    )
+
+
 def test_repeat_count_and_selector_subset_are_honoured(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
