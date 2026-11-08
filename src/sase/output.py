@@ -231,7 +231,12 @@ def _one_shot_provider_timer(
 
         def _update_timer() -> None:
             while not stop_event.wait(_PROVIDER_TIMER_INTERVAL_SECONDS):
-                live.update(_get_timer_text())
+                try:
+                    live.update(_get_timer_text())
+                except Exception:
+                    # A display glitch must not kill the timer thread: tests
+                    # and callers observe the named thread until stop_event.
+                    continue
 
         timer_thread = threading.Thread(
             target=_update_timer,
@@ -254,7 +259,10 @@ def _one_shot_provider_timer(
             final_text.append("✅ ", style="bold green")
             final_text.append(message, style="bold")
             final_text.append(f" completed in {elapsed_str}", style="green")
-            live.update(final_text)
+            try:
+                live.update(final_text)
+            except Exception:
+                pass
             # Give a moment to show the final message
             time.sleep(_PROVIDER_TIMER_COMPLETION_DISPLAY_SECONDS)
 

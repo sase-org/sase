@@ -1,10 +1,12 @@
 """Tests for sase.output module."""
 
 import threading
+import time
 from io import StringIO
 from unittest.mock import patch
 
 from rich.console import Console
+from rich.live import Live
 
 from sase.output import (
     escape_markup,
@@ -14,6 +16,52 @@ from sase.output import (
     print_prompt_and_response,
     print_workflow_header,
 )
+from tests._load_tolerant import LOAD_TOLERANT_TIMEOUT
+
+
+def _provider_timer_threads(
+    existing_ids: set[int | None],
+) -> list[threading.Thread]:
+    return [
+        thread
+        for thread in threading.enumerate()
+        if thread.name == "sase-provider-timer"
+        and thread.ident not in existing_ids
+        and thread.is_alive()
+    ]
+
+
+def _wait_for_provider_timer_thread(
+    existing_ids: set[int | None],
+    *,
+    timeout: float = LOAD_TOLERANT_TIMEOUT,
+) -> threading.Thread:
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        threads = _provider_timer_threads(existing_ids)
+        if len(threads) == 1:
+            return threads[0]
+        time.sleep(0.01)  # sase-test-wait: provider timer thread start under soak
+    raise AssertionError(
+        f"sase-provider-timer never appeared within {timeout}s; "
+        f"live={_provider_timer_threads(existing_ids)!r}"
+    )
+
+
+def _wait_until_provider_timer_threads_stop(
+    existing_ids: set[int | None],
+    *,
+    timeout: float = LOAD_TOLERANT_TIMEOUT,
+) -> None:
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        if not _provider_timer_threads(existing_ids):
+            return
+        time.sleep(0.01)  # sase-test-wait: provider timer thread join under soak
+    raise AssertionError(
+        f"sase-provider-timer still live after {timeout}s; "
+        f"live={_provider_timer_threads(existing_ids)!r}"
+    )
 
 
 def test_print_prompt_and_response_only_response() -> None:
@@ -58,17 +106,28 @@ def test_provider_timer_stops_background_thread() -> None:
 
     with patch("sase.output.time.sleep", return_value=None):
         with provider_timer("Short operation"):
-            timer_threads = [
-                thread
-                for thread in threading.enumerate()
-                if thread.name == "sase-provider-timer"
-                and thread.ident not in existing_thread_ids
-            ]
-            assert len(timer_threads) == 1
-            timer_thread = timer_threads[0]
+            timer_thread = _wait_for_provider_timer_thread(existing_thread_ids)
 
     assert timer_thread is not None
+    _wait_until_provider_timer_threads_stop(existing_thread_ids)
     assert not timer_thread.is_alive()
+
+
+def test_provider_timer_thread_survives_live_update_errors() -> None:
+    """A Live.update exception must not kill the named timer thread."""
+    existing_thread_ids = {thread.ident for thread in threading.enumerate()}
+    with (
+        patch("sase.output._PROVIDER_TIMER_INTERVAL_SECONDS", 0),
+        patch.object(Live, "update", side_effect=RuntimeError("display boom")),
+        patch("sase.output.time.sleep", return_value=None),
+        provider_timer("Short operation"),
+    ):
+        timer_thread = _wait_for_provider_timer_thread(existing_thread_ids)
+        deadline = time.monotonic() + 0.2
+        while time.monotonic() < deadline:
+            assert timer_thread.is_alive()
+            time.sleep(0.01)  # sase-test-wait: tight update-error loop stays alive
+    _wait_until_provider_timer_threads_stop(existing_thread_ids)
 
 
 # Additional edge case tests
@@ -144,14 +203,7 @@ def test_provider_timer_exception_propagates_and_thread_stops() -> None:
             assert str(exc) == "boom"
         else:  # pragma: no cover - the timer must not swallow errors
             raise AssertionError("expected ValueError to propagate")
-        timer_threads = [
-            thread
-            for thread in threading.enumerate()
-            if thread.name == "sase-provider-timer"
-            and thread.ident not in existing_thread_ids
-            and thread.is_alive()
-        ]
-        assert timer_threads == []
+        _wait_until_provider_timer_threads_stop(existing_thread_ids)
 
 
 def test_provider_timer_nested_entry_raises() -> None:

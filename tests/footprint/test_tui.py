@@ -144,20 +144,11 @@ def test_all_spool_io_happens_off_the_loop_thread(
     assert all(name == _tui.FLUSH_THREAD_NAME for name, _ in calls)
 
 
-def test_bump_microbench_stays_within_two_microseconds(
-    footprint_home: Path,
-) -> None:
-    # The Full CI 3.12 leg runs tests under branch coverage. Measure in a child
-    # interpreter without coverage's subprocess hooks so the 2 µs contract
-    # remains about the product's event-loop path, not Python tracing.
-    child_env = os.environ.copy()
-    for name in tuple(child_env):
-        if name.startswith(("COV_CORE_", "COVERAGE_")):
-            child_env.pop(name)
-    child_env["SASE_FOOTPRINT"] = "test"
-    script = """
+_BUMP_MICROBENCH_SCRIPT = """
 import json
+import os
 import sys
+import threading
 import time
 
 if sys.gettrace() is not None:
@@ -165,20 +156,59 @@ if sys.gettrace() is not None:
 
 from sase.footprint import _tui
 
+hog_stop = threading.Event()
+if os.environ.get("SASE_FOOTPRINT_MICROBENCH_HOG") == "1":
+    if hasattr(os, "sched_setaffinity"):
+        cpus = os.sched_getaffinity(0)
+        if cpus:
+            os.sched_setaffinity(0, {next(iter(cpus))})
+
+    def _hog() -> None:
+        while not hog_stop.is_set():
+            pass
+
+    threading.Thread(target=_hog, name="sase-bump-microbench-hog", daemon=True).start()
+
 feature = "tui:app.dismiss_toasts"
 for _ in range(200):
     _tui.bump(feature, "key")
 iterations = 5000
 samples = []
 for _ in range(5):
-    start = time.perf_counter()
+    start_wall = time.perf_counter()
+    start_cpu = time.thread_time()
     for _ in range(iterations):
         _tui.bump(feature, "key")
-    samples.append((time.perf_counter() - start) / iterations)
-print(json.dumps({"best": min(samples)}))
+    samples.append(
+        (
+            (time.perf_counter() - start_wall) / iterations,
+            (time.thread_time() - start_cpu) / iterations,
+        )
+    )
+hog_stop.set()
+print(
+    json.dumps(
+        {
+            "best_wall": min(wall for wall, _ in samples),
+            "best_cpu": min(cpu for _, cpu in samples),
+        }
+    )
+)
 """
+
+
+def _bump_microbench_child_env() -> dict[str, str]:
+    child_env = os.environ.copy()
+    for name in tuple(child_env):
+        if name.startswith(("COV_CORE_", "COVERAGE_")):
+            child_env.pop(name)
+    child_env["SASE_FOOTPRINT"] = "test"
+    return child_env
+
+
+def _run_bump_microbench_child(child_env: dict[str, str]) -> dict[str, float]:
     result = subprocess.run(
-        [sys.executable, "-c", script],
+        [sys.executable, "-c", _BUMP_MICROBENCH_SCRIPT],
         capture_output=True,
         check=False,
         env=child_env,
@@ -186,8 +216,41 @@ print(json.dumps({"best": min(samples)}))
         timeout=30,
     )
     assert result.returncode == 0, result.stderr
-    best = float(json.loads(result.stdout)["best"])
-    assert best <= 2e-6, f"best bump cost {best * 1e6:.3f} µs"
+    payload = json.loads(result.stdout)
+    return {
+        "best_wall": float(payload["best_wall"]),
+        "best_cpu": float(payload["best_cpu"]),
+    }
+
+
+def test_bump_microbench_stays_within_two_microseconds(
+    footprint_home: Path,
+) -> None:
+    # The Full CI 3.12 leg runs tests under branch coverage. Measure in a child
+    # interpreter without coverage's subprocess hooks so the 2 µs contract
+    # remains about the product's event-loop path, not Python tracing.
+    payload = _run_bump_microbench_child(_bump_microbench_child_env())
+    best = payload["best_cpu"]
+    assert best <= 2e-6, (
+        f"best bump cost {best * 1e6:.3f} µs (wall {payload['best_wall'] * 1e6:.3f} µs)"
+    )
+
+
+@pytest.mark.skipif(
+    not hasattr(os, "sched_setaffinity"),
+    reason="requires sched_setaffinity to pin the hog onto the bumping CPU",
+)
+def test_bump_microbench_uses_thread_cpu_time_under_a_busy_sibling(
+    footprint_home: Path,
+) -> None:
+    """Scheduler delay inflates wall time; the 2 µs contract is thread CPU."""
+    child_env = _bump_microbench_child_env()
+    child_env["SASE_FOOTPRINT_MICROBENCH_HOG"] = "1"
+    payload = _run_bump_microbench_child(child_env)
+    assert payload["best_cpu"] <= 2e-6, (
+        f"best bump cost {payload['best_cpu'] * 1e6:.3f} µs "
+        f"(wall {payload['best_wall'] * 1e6:.3f} µs)"
+    )
 
 
 def test_mode_off_discards_counts(
