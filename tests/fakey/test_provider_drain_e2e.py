@@ -59,10 +59,11 @@ def _wait_for_json(
     path: Path,
     predicate: Callable[[dict[str, Any]], bool],
     *,
-    timeout: float = 30.0,
+    timeout: float = _DRAIN_WAIT_TIMEOUT,
 ) -> dict[str, Any]:
     deadline = time.monotonic() + timeout
     last_error: Exception | None = None
+    last_payload: dict[str, Any] | None = None
     while time.monotonic() < deadline:
         if path.is_file():
             try:
@@ -70,10 +71,14 @@ def _wait_for_json(
             except (OSError, json.JSONDecodeError) as exc:
                 last_error = exc
             else:
-                if isinstance(payload, dict) and predicate(payload):
-                    return payload
+                if isinstance(payload, dict):
+                    last_payload = payload
+                    if predicate(payload):
+                        return payload
         time.sleep(0.01)  # sase-test-wait: poll for the child-written JSON
     suffix = f": {last_error}" if last_error is not None else ""
+    if last_payload is not None:
+        suffix += f"; last payload={last_payload!r}"
     raise AssertionError(f"timed out waiting for matching JSON in {path}{suffix}")
 
 

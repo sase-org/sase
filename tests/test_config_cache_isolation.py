@@ -25,12 +25,17 @@ from sase.config.core import (
 )
 from sase.core.paths import machine_name_path
 from tests._config_cache_helpers import _reset_config_token_cache
+from tests._load_tolerant import LOAD_TOLERANT_TIMEOUT
 
 
 pytest_plugins = ["pytester"]
 
 _ROOT = Path(__file__).resolve().parents[1]
 _THIS_FILE = str(Path(__file__).resolve())
+# Nested pytest of two nodes still imports the repo conftest. That start-up is
+# CPU-bound, so under the contention soak's per-process CPU share it
+# legitimately runs past a single load-tolerant wait.
+_NESTED_PYTEST_TIMEOUT = 3 * LOAD_TOLERANT_TIMEOUT
 
 
 def _write_user_config(global_dir: Path, content: dict) -> None:
@@ -118,7 +123,7 @@ def test_blocked_refresh_worker_does_not_poison_a_later_config_read(
         str(_ROOT),
         f"{_THIS_FILE}::test_poisoner_leaves_blocked_refresh_worker",
         f"{_THIS_FILE}::test_victim_first_reads_use_only_successor_patched_paths",
-        timeout=60,
+        timeout=_NESTED_PYTEST_TIMEOUT,
     )
     result.assert_outcomes(passed=2)
 

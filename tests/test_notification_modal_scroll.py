@@ -55,8 +55,7 @@ async def test_uppercase_g_reaches_detail_bottom_from_real_input_path(
 
         modal.query_one(focus_selector).focus()
         scroll.scroll_to(y=min(100, scroll.max_scroll_y - 1), animate=False)
-        await pilot.pause()
-        assert 0 < scroll.scroll_y < scroll.max_scroll_y
+        await wait_for(pilot, lambda: 0 < scroll.scroll_y < scroll.max_scroll_y)
 
         bottom = MagicMock(wraps=modal.action_scroll_file_bottom)
         top = MagicMock(wraps=modal.action_scroll_file_top)
@@ -64,9 +63,7 @@ async def test_uppercase_g_reaches_detail_bottom_from_real_input_path(
         modal.action_scroll_file_top = top  # type: ignore[method-assign]
 
         pilot.app.post_message(events.Key(key, character))
-        await pilot.pause()
-
-        assert scroll.scroll_y == scroll.max_scroll_y
+        await wait_for(pilot, lambda: scroll.scroll_y == scroll.max_scroll_y)
         assert modal._get_selected_index() == 0
         assert pilot.app.screen is modal
         assert dismissed == []
@@ -92,13 +89,10 @@ async def test_lowercase_g_reaches_detail_top_from_real_input_path(
         await wait_for(pilot, lambda: scroll.max_scroll_y > 0)
 
         scroll.scroll_to(y=min(100, scroll.max_scroll_y), animate=False)
-        await pilot.pause()
-        assert scroll.scroll_y > 0
+        await wait_for(pilot, lambda: scroll.scroll_y > 0)
 
         pilot.app.post_message(events.Key("g", "g"))
-        await pilot.pause()
-
-        assert scroll.scroll_y == 0
+        await wait_for(pilot, lambda: scroll.scroll_y == 0)
         assert modal._get_selected_index() == 0
         assert pilot.app.screen is modal
 

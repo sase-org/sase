@@ -11,6 +11,8 @@ from pathlib import Path
 
 import pytest
 
+from tests._load_tolerant import LOAD_TOLERANT_TIMEOUT
+
 
 def _environment(state_dir: Path, **values: str) -> dict[str, str]:
     env = {
@@ -223,19 +225,19 @@ def test_signal_and_wait_for_form_a_deterministic_barrier(tmp_path: Path) -> Non
         assert process.stdin is not None
         process.stdin.write("prompt")
         process.stdin.close()
-        deadline = time.monotonic() + 2
+        deadline = time.monotonic() + LOAD_TOLERANT_TIMEOUT
         while not started.exists() and time.monotonic() < deadline:
             time.sleep(min(0.01, max(0.0, deadline - time.monotonic())))
         assert started.exists()
         assert process.poll() is None
         release.touch()
-        assert process.wait(timeout=2) == 0
+        assert process.wait(timeout=LOAD_TOLERANT_TIMEOUT) == 0
         assert process.stdout is not None
         assert process.stdout.read() == "released\n"
     finally:
         if process.poll() is None:
             process.kill()
-            process.wait(timeout=2)
+            process.wait(timeout=LOAD_TOLERANT_TIMEOUT)
 
 
 @pytest.mark.skipif(os.name != "posix", reason="SIGTERM behavior is POSIX-specific")
@@ -258,12 +260,12 @@ def test_sigterm_during_barrier_exits_cleanly(tmp_path: Path) -> None:
     try:
         assert process.stdin is not None
         process.stdin.close()
-        deadline = time.monotonic() + 2
+        deadline = time.monotonic() + LOAD_TOLERANT_TIMEOUT
         while not started.exists() and time.monotonic() < deadline:
             time.sleep(min(0.01, max(0.0, deadline - time.monotonic())))
         assert started.exists()
         process.send_signal(signal.SIGTERM)
-        assert process.wait(timeout=2) == 143
+        assert process.wait(timeout=LOAD_TOLERANT_TIMEOUT) == 143
         assert process.stderr is not None
         assert "Traceback" not in process.stderr.read()
         record = json.loads((state / "invocation-1.json").read_text())
@@ -271,4 +273,4 @@ def test_sigterm_during_barrier_exits_cleanly(tmp_path: Path) -> None:
     finally:
         if process.poll() is None:
             process.kill()
-            process.wait(timeout=2)
+            process.wait(timeout=LOAD_TOLERANT_TIMEOUT)
