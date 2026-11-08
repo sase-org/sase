@@ -31,7 +31,10 @@ from sase.ace.update_receipt import (
 )
 from sase.dev_update.models import RepoCommit, RepoCommitLog, RepoDiffStat
 from sase.updates import OutdatedComponent, UpdateStatus
+from tests._load_tolerant import LOAD_TOLERANT_TIMEOUT
 from tests.ace.tui.visual._ace_png_snapshot_helpers import patch_startup_loaders
+
+_REAL_POST_UPDATE_TOAST_TIMEOUT = 3 * LOAD_TOLERANT_TIMEOUT
 
 
 def _receipt(*, created_at: float | None = None) -> UpdateToastReceipt:
@@ -520,9 +523,21 @@ async def test_post_update_toast_appears_once_and_suppresses_available_toast(
         "get_cached_update_status",
         lambda **_kwargs: _status(),
     )
+    # The 10s production toast timeout is a UX deadline, not the
+    # once-per-session suppression under test. Under the contention soak,
+    # AcePage enter / pause() can process that timer after a loop stall and
+    # empty ``_notifications`` before wait_for observes the toast.
+    monkeypatch.setattr(
+        post_update_toast,
+        "_TOAST_TIMEOUT_SECONDS",
+        _REAL_POST_UPDATE_TOAST_TIMEOUT,
+    )
 
     async with AcePage(query='"toast"') as page:
-        await page.wait_for(lambda _s: bool(list(page.app._notifications)))
+        await page.wait_for(
+            lambda _s: bool(list(page.app._notifications)),
+            timeout=_REAL_POST_UPDATE_TOAST_TIMEOUT,
+        )
         await page.pause()
         notifications = list(page.app._notifications)
         assert len(notifications) == 1
