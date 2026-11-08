@@ -68,7 +68,8 @@ async def test_panel_escape_keeps_draft_across_reopen(
             await page.pause()
             await page.press("escape")
             await page.expect_modal("CommandLineScreen")
-            await asyncio.wait_for(page.press("escape"), timeout=5.0)
+            # Hang detector: 5s was too tight under the contention soak.
+            await asyncio.wait_for(page.press("escape"), timeout=LOAD_TOLERANT_TIMEOUT)
             await page.expect_no_modal()
             assert screen.is_attached is False
             page.app.action_open_command_line()
@@ -101,7 +102,10 @@ async def test_empty_panel_semicolon_hops_to_palette_and_back(
             old_screen = page.app.screen
             assert isinstance(old_screen, CommandLineScreen)
 
-            await asyncio.wait_for(page.press("semicolon"), timeout=5.0)
+            # Hang detector: 5s was too tight under the contention soak.
+            await asyncio.wait_for(
+                page.press("semicolon"), timeout=LOAD_TOLERANT_TIMEOUT
+            )
             await page.expect_modal("CommandPaletteModal")
             assert old_screen.is_attached is False
 
@@ -134,7 +138,8 @@ async def test_empty_panel_escape_follows_the_hide_panel_binding(
             page.app.action_open_command_line()
             await page.expect_modal("CommandLineScreen")
 
-            await asyncio.wait_for(page.press("escape"), timeout=5.0)
+            # Hang detector: 5s was too tight under the contention soak.
+            await asyncio.wait_for(page.press("escape"), timeout=LOAD_TOLERANT_TIMEOUT)
             await page.expect_modal("CommandLineScreen")
 
 

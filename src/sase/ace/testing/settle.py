@@ -6,17 +6,21 @@ import asyncio
 from collections.abc import Awaitable, Callable
 from typing import Any
 
-from textual.pilot import Pilot
+from textual.pilot import Pilot, WaitForScreenTimeout
 
 
 PilotPause = Callable[[Any, float | None], Awaitable[None]]
 
 _TEXTUAL_PILOT_PAUSE: PilotPause = Pilot.pause
 
-#: Backstop for the frame barrier below. It exists only so a wedged app cannot
-#: outlive the run itself: on expiry the barrier returns instead of failing,
-#: and the bounded waiters in ``wait.py`` keep polling until their own
-#: ``DEFAULT_WAIT_TIMEOUT`` and report a useful message.
+#: Backstop for the pending-message drain and the frame barrier below. It
+#: exists only so a wedged app cannot outlive the run itself: on expiry the
+#: barrier returns instead of failing, and the bounded waiters in ``wait.py``
+#: keep polling until their own ``DEFAULT_WAIT_TIMEOUT`` and report a useful
+#: message. Textual's ``Pilot.pause(0)`` waits on ``_wait_for_screen`` for up
+#: to 30s and raises ``WaitForScreenTimeout`` if the pump is still busy; under
+#: the default-lane contention soak that stall is a scheduling delay, not a
+#: deadlock.
 _REFRESH_TIMEOUT_SECONDS = 15.0
 
 
@@ -40,9 +44,18 @@ async def settle_pilot(
     """
 
     pause = _TEXTUAL_PILOT_PAUSE if _pilot_pause is None else _pilot_pause
-    await pause(pilot, 0)
+    await _pause_without_wedging(pause, pilot)
     await _wait_for_frame(pilot.app)
-    await pause(pilot, 0)
+    await _pause_without_wedging(pause, pilot)
+
+
+async def _pause_without_wedging(pause: PilotPause, pilot: Any) -> None:
+    """Run Textual's zero-delay pause without failing a slow message pump."""
+
+    try:
+        await asyncio.wait_for(pause(pilot, 0), _REFRESH_TIMEOUT_SECONDS)
+    except (TimeoutError, WaitForScreenTimeout):
+        return
 
 
 async def _wait_for_frame(app: Any) -> None:

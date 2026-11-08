@@ -6,6 +6,7 @@ import asyncio
 
 import pytest
 from textual.app import App, ComposeResult
+from textual.pilot import WaitForScreenTimeout
 from textual.widget import Widget
 
 from sase.ace.testing.settle import pause_until_cpu_idle, settle_pilot
@@ -110,6 +111,41 @@ async def test_settle_pilot_bounds_a_frame_barrier_that_never_resolves(
     )
 
     assert app.wait_calls == 1
+
+
+async def test_settle_pilot_returns_when_wait_for_screen_times_out() -> None:
+    async def raise_wait_for_screen(_pilot: object, _delay: float | None) -> None:
+        raise WaitForScreenTimeout(
+            "Timed out while waiting for widgets to process pending messages."
+        )
+
+    app = _WedgedApp(is_running=False)
+
+    await asyncio.wait_for(
+        settle_pilot(_WedgedPilot(app), _pilot_pause=raise_wait_for_screen),
+        timeout=5,
+    )
+
+    assert app.wait_calls == 0
+
+
+async def test_settle_pilot_bounds_a_pause_that_never_resolves(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        "sase.ace.testing.settle._REFRESH_TIMEOUT_SECONDS", 0.01, raising=True
+    )
+
+    async def hang_pause(_pilot: object, _delay: float | None) -> None:
+        await asyncio.Event().wait()
+
+    app = _WedgedApp(is_running=False)
+
+    await asyncio.wait_for(
+        settle_pilot(_WedgedPilot(app), _pilot_pause=hang_pause), timeout=5
+    )
+
+    assert app.wait_calls == 0
 
 
 async def test_pause_until_cpu_idle_uses_textual_cpu_idle_boundary(

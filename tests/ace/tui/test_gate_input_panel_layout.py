@@ -140,12 +140,23 @@ async def test_tab_reaches_every_field_and_scrolls_it_into_view() -> None:
         if focused.id in body_ids:
             assert body.region.contains_region(focused.region)
 
+        last_id = focused.id
         for _ in range(total_steps):
             await pilot.press("tab")
-            await pilot.pause()
+
+            def focus_moved(previous: str = last_id) -> bool:
+                current = panel.focused
+                return (
+                    current is not None
+                    and current.id is not None
+                    and current.id != previous
+                )
+
+            await wait_for(pilot, focus_moved)
             focused = panel.focused
             assert focused is not None and focused.id is not None
             seen.add(focused.id)
+            last_id = focused.id
             if focused.id in body_ids:
                 assert body.region.contains_region(focused.region), (
                     f"{focused.id} outside body {focused.region} vs {body.region}"

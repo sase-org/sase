@@ -362,8 +362,22 @@ class AcePage:
             _stop_ace_app_proc_observer(app)
 
     async def press(self, *keys: str) -> None:
-        """Press one or more keys via the pilot."""
-        await self._pilot.press(*keys)
+        """Press one or more keys via the pilot.
+
+        The bound is a hang detector: ``Pilot.press`` waits for Textual idle,
+        which under the default-lane contention soak can stall for tens of
+        seconds without being a deadlock. Callers that wrap this coroutine
+        with a tighter ``asyncio.wait_for`` still win.
+        """
+        try:
+            await asyncio.wait_for(
+                self._pilot.press(*keys), timeout=DEFAULT_WAIT_TIMEOUT
+            )
+        except TimeoutError as exc:
+            raise AssertionError(
+                "AcePage.press did not settle within"
+                f" {DEFAULT_WAIT_TIMEOUT:g} seconds; keys={keys!r}"
+            ) from exc
 
     async def pause(self, delay: float | None = None) -> None:
         """Let Textual settle, or sleep for an explicitly requested delay.

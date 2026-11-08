@@ -28,9 +28,15 @@ from sase.completion.model import (
     OptionSpec,
     PositionalSpec,
 )
+from tests._load_tolerant import LOAD_TOLERANT_TIMEOUT
 
 zsh = shutil.which("zsh")
 pytestmark = pytest.mark.skipif(zsh is None, reason="zsh is not on PATH")
+
+# Hang detector for interactive zsh startup, TAB completion, and ZLE capture.
+# Under the default-lane contention soak a fresh zsh can take tens of seconds
+# to reach READY> or print the capture marker.
+_PTY_HANG_TIMEOUT = LOAD_TOLERANT_TIMEOUT
 
 
 class _CompletionCapture(NamedTuple):
@@ -597,11 +603,11 @@ def _pty_capture_completion(
         os.execvpe("zsh", ["zsh", "-i"], env)
     screen = b""
     try:
-        _read_until(fd, b"READY>", timeout=8.0)
+        _read_until(fd, b"READY>", timeout=_PTY_HANG_TIMEOUT)
         os.write(fd, typed.encode() + b"\t" * taps + b"\x18\x02")
-        screen = _read_until(fd, marker.encode(), timeout=5.0)
+        screen = _read_until(fd, marker.encode(), timeout=_PTY_HANG_TIMEOUT)
         screen += _read_for(fd, 0.2)
-        deadline = time.monotonic() + 5.0
+        deadline = time.monotonic() + _PTY_HANG_TIMEOUT
         while time.monotonic() < deadline:
             if capture_path.exists():
                 payload = capture_path.read_text(encoding="utf-8").splitlines()
@@ -649,7 +655,7 @@ def _read_for(fd: int, seconds: float) -> bytes:
     return buf
 
 
-def _read_until(fd: int, needle: bytes, timeout: float = 5.0) -> bytes:
+def _read_until(fd: int, needle: bytes, timeout: float = _PTY_HANG_TIMEOUT) -> bytes:
     buf = b""
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
