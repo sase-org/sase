@@ -99,7 +99,7 @@ def test_plan_github_reports_every_configured_sidecar_without_writing(
     )
     monkeypatch.setattr(
         "sase.main.repo_init_handler._configured_sidecar_specs",
-        lambda _root: specs,
+        lambda _root, **_kwargs: specs,
     )
 
     plan = plan_repo_init(_args(tmp_path))
@@ -207,7 +207,7 @@ repos:
     )
     monkeypatch.setattr(
         "sase.main.repo_init_handler._configured_sidecar_specs",
-        lambda _root: (SidecarInitSpec(role="agents"),),
+        lambda _root, **_kwargs: (SidecarInitSpec(role="agents"),),
     )
 
     plan = plan_repo_init(_args(tmp_path))
@@ -245,7 +245,7 @@ def test_plan_does_not_materialize_recorded_lazy_sidecar_for_check(
     )
     monkeypatch.setattr(
         "sase.main.repo_init_handler._configured_sidecar_specs",
-        lambda _root: specs,
+        lambda _root, **_kwargs: specs,
     )
 
     plan = plan_repo_init(_args(tmp_path))
@@ -275,7 +275,7 @@ def test_plan_reports_pending_bead_state_adoption(
     )
     monkeypatch.setattr(
         "sase.main.repo_init_handler._configured_sidecar_specs",
-        lambda _root: specs,
+        lambda _root, **_kwargs: specs,
     )
 
     plan = plan_repo_init(_args(tmp_path))
@@ -535,7 +535,7 @@ def test_plan_skips_agents_sidecar_without_a_resolvable_project_key(
     )
     monkeypatch.setattr(
         "sase.main.repo_init_handler._configured_sidecar_specs",
-        lambda _root: specs,
+        lambda _root, **_kwargs: specs,
     )
 
     plan = plan_repo_init(_args(tmp_path))
@@ -602,3 +602,101 @@ def test_missing_attachments_private_plans_warning_not_action(
     assert requires_tty is False
     assert any("attachments-private is not set up" in warning for warning in warnings)
     assert any("attachments stay local-only" in warning for warning in warnings)
+
+
+def _mark_github_managed_project(tmp_path: Path) -> None:
+    _mark_project(tmp_path)
+    subprocess.run(
+        [
+            "git",
+            "remote",
+            "add",
+            "origin",
+            "https://github.com/acme/widget.git",
+        ],
+        cwd=tmp_path,
+        check=True,
+    )
+
+
+def test_plan_new_project_previews_newly_declared_research_sidecar(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A brand-new managed project previews research creation without writing."""
+    _mark_github_managed_project(tmp_path)
+    monkeypatch.setenv("SASE_HOME", str(tmp_path / "state"))
+    monkeypatch.setattr(
+        "sase.bead.project_name.infer_project_name_from_cwd",
+        lambda _root: "gh_acme__widget",
+    )
+    monkeypatch.setattr(
+        "sase.main.repo_init_handler._project_provider_sdd_policy",
+        lambda _root: "separate_repo",
+    )
+    monkeypatch.setattr(
+        "sase.main.repo_init_handler._primary_repo_visibility",
+        lambda _root: None,
+    )
+
+    before = (tmp_path / "sase" / "sase.yml").read_bytes()
+
+    plan = plan_repo_init(_args(tmp_path))
+
+    assert any(
+        action.detail == "create or connect the provider research sidecar repository"
+        for action in plan.actions
+    )
+    assert plan.requires_tty is True
+    assert (tmp_path / "sase" / "sase.yml").read_bytes() == before
+
+
+def test_plan_upgrade_previews_research_declaration_and_creation(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Declaring research also previews its creation in the same plan."""
+    _mark_github_managed_project(tmp_path)
+    (tmp_path / "sase" / "sase.yml").write_text(
+        """\
+is_sase_managed: true
+repos:
+  sidecar:
+    builtin:
+      plans:
+        auto_clone: true
+        auto_sync: true
+        ref:
+          use: builtin@plan
+      beads:
+        auto_sync: true
+      agents:
+        description: Hidden sidecar that stores commit-associated sase agent data.
+""",
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("SASE_HOME", str(tmp_path / "state"))
+    monkeypatch.setattr(
+        "sase.bead.project_name.infer_project_name_from_cwd",
+        lambda _root: "gh_acme__widget",
+    )
+    monkeypatch.setattr(
+        "sase.main.repo_init_handler._project_provider_sdd_policy",
+        lambda _root: "separate_repo",
+    )
+    monkeypatch.setattr(
+        "sase.main.repo_init_handler._primary_repo_visibility",
+        lambda _root: None,
+    )
+
+    plan = plan_repo_init(_args(tmp_path))
+
+    assert any(
+        action.path.name == "sase.yml" and "research" in action.detail
+        for action in plan.actions
+    )
+    assert any(
+        action.detail == "create or connect the provider research sidecar repository"
+        for action in plan.actions
+    )
+    assert plan.requires_tty is True

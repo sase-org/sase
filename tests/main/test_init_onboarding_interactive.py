@@ -236,7 +236,7 @@ def test_bare_onboarding_requires_resource_confirmation_even_with_yes(
     )
     monkeypatch.setattr(
         "sase.main.repo_init_handler._configured_sidecar_specs",
-        lambda _root: sidecars,
+        lambda _root, **_kwargs: sidecars,
     )
     monkeypatch.setattr(
         "sase.sdd._sidecar_init.preflight_sidecars",

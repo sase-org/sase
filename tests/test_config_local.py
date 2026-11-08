@@ -147,3 +147,53 @@ def test_load_macros_by_source_includes_local_config(tmp_path: Path) -> None:
     ]
     assert len(local_sources) == 1
     assert local_sources[0][1]["my_prompt"] == "local prompt content"
+
+
+def test_load_merged_config_for_local_path_override_replaces_only_local_layer(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A pending local override wins without reading that file from disk."""
+    from sase.config.core import load_merged_config_for_local_path
+
+    global_dir = tmp_path / "global"
+    global_dir.mkdir()
+    (global_dir / "sase.yml").write_text(
+        yaml.dump({"shared": "user", "from_user": "user"})
+    )
+    monkeypatch.setattr("sase.config.core.CONFIG_DIR", global_dir)
+    monkeypatch.setattr("sase.config.core._load_default_config", lambda: {})
+    monkeypatch.setattr("sase.config.core._load_plugin_configs", lambda: [])
+
+    local_path = tmp_path / "proj" / "sase" / "sase.yml"
+    local_path.parent.mkdir(parents=True)
+    local_path.write_text(yaml.dump({"shared": "disk", "from_disk": "disk"}))
+
+    seen: list[Path] = []
+    from sase.config import core as config_core
+
+    real_loader = config_core._load_yaml_file
+
+    def recording_loader(path: Path) -> dict | None:
+        seen.append(path)
+        return real_loader(path)
+
+    monkeypatch.setattr("sase.config.core._load_yaml_file", recording_loader)
+
+    merged = load_merged_config_for_local_path(
+        local_path,
+        local_config_override={"shared": "override", "from_override": "override"},
+    )
+
+    assert merged["shared"] == "override"
+    assert merged["from_override"] == "override"
+    assert merged["from_user"] == "user"
+    assert "from_disk" not in merged
+    assert local_path not in seen
+
+    # A later default call still reads the file from disk.
+    seen.clear()
+    reread = load_merged_config_for_local_path(local_path)
+
+    assert reread["shared"] == "disk"
+    assert reread["from_disk"] == "disk"
+    assert local_path in seen

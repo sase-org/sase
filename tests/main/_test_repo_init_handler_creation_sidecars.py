@@ -32,7 +32,7 @@ def test_existing_sidecar_initializes_without_creation_prompt(
     )
     monkeypatch.setattr(
         "sase.main.repo_init_handler._configured_sidecar_specs",
-        lambda _root: specs,
+        lambda _root, **_kwargs: specs,
     )
     monkeypatch.setattr(
         "sase.sdd._sidecar_init.preflight_sidecars",
@@ -77,7 +77,7 @@ def test_public_sidecar_prompt_defaults_yes_and_names_public(
     )
     monkeypatch.setattr(
         "sase.main.repo_init_handler._configured_sidecar_specs",
-        lambda _root: specs,
+        lambda _root, **_kwargs: specs,
     )
     monkeypatch.setattr(
         "sase.sdd._sidecar_init.preflight_sidecars",
@@ -130,7 +130,7 @@ def test_public_sidecar_refused_when_beads_private(
     )
     monkeypatch.setattr(
         "sase.main.repo_init_handler._configured_sidecar_specs",
-        lambda _root: specs,
+        lambda _root, **_kwargs: specs,
     )
     monkeypatch.setattr(
         "sase.sdd._sidecar_init.preflight_sidecars",
@@ -182,7 +182,7 @@ def test_private_primary_forces_private_sidecar_creation(
     )
     monkeypatch.setattr(
         "sase.main.repo_init_handler._configured_sidecar_specs",
-        lambda _root: specs,
+        lambda _root, **_kwargs: specs,
     )
     monkeypatch.setattr(
         "sase.main.repo_init_handler._primary_repo_visibility",
@@ -261,7 +261,7 @@ def test_private_primary_rerun_without_missing_sidecars_stays_quiet(
     )
     monkeypatch.setattr(
         "sase.main.repo_init_handler._configured_sidecar_specs",
-        lambda _root: specs,
+        lambda _root, **_kwargs: specs,
     )
     monkeypatch.setattr(
         "sase.main.repo_init_handler._primary_repo_visibility",
@@ -303,7 +303,7 @@ def test_unverifiable_primary_creates_private_sidecars_without_config_rewrite(
     )
     monkeypatch.setattr(
         "sase.main.repo_init_handler._configured_sidecar_specs",
-        lambda _root: specs,
+        lambda _root, **_kwargs: specs,
     )
     monkeypatch.setattr(
         "sase.main.repo_init_handler._primary_repo_visibility",
@@ -353,7 +353,7 @@ def test_private_primary_plan_declares_private_sidecars(
     )
     monkeypatch.setattr(
         "sase.main.repo_init_handler._configured_sidecar_specs",
-        lambda _root: specs,
+        lambda _root, **_kwargs: specs,
     )
     monkeypatch.setattr(
         "sase.main.repo_init_handler._primary_repo_visibility",

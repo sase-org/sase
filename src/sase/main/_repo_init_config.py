@@ -41,7 +41,9 @@ class ConfigUpdate:
         return self.error is None and self.updated_text != self.current_text
 
 
-def configured_sidecar_specs(project_root: Path) -> tuple[SidecarInitSpec, ...]:
+def configured_sidecar_specs(
+    project_root: Path, *, pending_config_text: str | None = None
+) -> tuple[SidecarInitSpec, ...]:
     """Resolve the enabled sidecar specifications for ``project_root``."""
 
     from sase._linked_repo_config import (
@@ -60,17 +62,53 @@ def configured_sidecar_specs(project_root: Path) -> tuple[SidecarInitSpec, ...]:
     from sase.sdd._sidecar_init import SidecarInitSpec
 
     primary = project_root.expanduser().resolve(strict=False)
-    config = resolution_config(str(primary), None)
-    entries = merged_sidecar_entries_from_config(
-        config,
-        primary_workspace_dir=str(primary),
-    )
-    entries = inject_default_linked_repos(
-        entries,
-        primary_workspace_dir=str(primary),
-        local_config=read_project_local_config(str(primary)),
-        config=config,
-    )
+    if pending_config_text is None:
+        config = resolution_config(str(primary), None)
+        entries = merged_sidecar_entries_from_config(
+            config,
+            primary_workspace_dir=str(primary),
+        )
+        entries = inject_default_linked_repos(
+            entries,
+            primary_workspace_dir=str(primary),
+            local_config=read_project_local_config(str(primary)),
+            config=config,
+        )
+    else:
+        from sase._linked_repo_config_keys import LINKED_REPO_DECLARED_BY_KEY
+        from sase._yaml_safe import yaml_safe_load
+        from sase.config.core import load_merged_config_for_local_path
+        from sase.content_layout import (
+            resolve_project_config_read_path,
+            resolve_project_config_write_path,
+        )
+
+        try:
+            parsed = yaml_safe_load(pending_config_text)
+        except Exception:
+            parsed = {}
+        local_config: Mapping[str, Any] = parsed if isinstance(parsed, Mapping) else {}
+        try:
+            local_path = resolve_project_config_read_path(primary)
+        except Exception:
+            local_path = None
+        if local_path is None:
+            local_path = resolve_project_config_write_path(primary)
+        config = load_merged_config_for_local_path(
+            local_path,
+            linked_repo_origin_key=LINKED_REPO_DECLARED_BY_KEY,
+            local_config_override=local_config,
+        )
+        entries = merged_sidecar_entries_from_config(
+            config,
+            primary_workspace_dir=str(primary),
+        )
+        entries = inject_default_linked_repos(
+            entries,
+            primary_workspace_dir=str(primary),
+            local_config=local_config,
+            config=config,
+        )
 
     specs: list[SidecarInitSpec] = []
     for entry in entries:

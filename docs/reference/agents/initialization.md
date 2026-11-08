@@ -231,9 +231,11 @@ An existing entry for any of those roles is preserved verbatim, including
 `disabled: true`; disabling research is the project-local opt-out. The unpinned research
 entry derives `<owner>/<project>--research` from the primary GitHub repository, and the
 beads entry likewise derives `<owner>/<project>--beads`. The write uses SASE's
-comment-preserving configuration editor. The same initializer adds `/sase/repos/` to the
-tracked root `.gitignore`; those two project-file changes use the normal
-commit/pull/push path unless `--no-commit` is supplied.
+comment-preserving configuration editor. The same run initializes the sidecars it just
+declared, and `--check`/`--diff` already preview creating a newly declared sidecar such
+as research. The same initializer adds `/sase/repos/` to the tracked root `.gitignore`;
+those two project-file changes use the normal commit/pull/push path unless `--no-commit`
+is supplied.
 
 For each enabled sidecar, provider discovery runs before materialization. A missing
 remote gets its own default-no prompt naming the visibility, provider, full repository

@@ -21,6 +21,7 @@ import importlib.resources
 import logging
 import threading
 import time
+from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
 
@@ -607,6 +608,7 @@ def load_merged_config_for_local_path(
     local_path: Path | None,
     *,
     linked_repo_origin_key: str | None = None,
+    local_config_override: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Load config with an explicitly selected project-local layer.
 
@@ -621,6 +623,17 @@ def load_merged_config_for_local_path(
     if _plugin_configs_cache is None:
         _plugin_configs_cache = _load_plugin_configs()
 
+    yaml_loader = _load_yaml_file
+    if local_config_override is not None and local_path is not None:
+        override = dict(local_config_override)
+
+        def _override_loader(path: Path) -> dict[str, Any] | None:
+            if path == local_path:
+                return dict(override)
+            return _load_yaml_file(path)
+
+        yaml_loader = _override_loader
+
     return merge_config_sources(
         default_config=_default_config_cache,
         plugin_configs=_plugin_configs_cache,
@@ -628,7 +641,7 @@ def load_merged_config_for_local_path(
         overlay_paths=_get_overlay_paths(),
         selected_identity_snapshot=get_agent_owner_config_snapshot(),
         local_path=local_path,
-        yaml_loader=_load_yaml_file,
+        yaml_loader=yaml_loader,
         linked_repo_origin_key=linked_repo_origin_key,
     )
 

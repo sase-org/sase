@@ -47,7 +47,7 @@ def test_missing_custom_private_sidecar_requires_fresh_confirmation(
     )
     monkeypatch.setattr(
         "sase.main.repo_init_handler._configured_sidecar_specs",
-        lambda _root: specs,
+        lambda _root, **_kwargs: specs,
     )
     monkeypatch.setattr(
         "sase.sdd._sidecar_init.preflight_sidecars",
@@ -108,7 +108,7 @@ def test_missing_agents_sidecar_requires_loud_role_specific_confirmation(
     )
     monkeypatch.setattr(
         "sase.main.repo_init_handler._configured_sidecar_specs",
-        lambda _root: specs,
+        lambda _root, **_kwargs: specs,
     )
     monkeypatch.setattr(
         "sase.sdd._sidecar_init.preflight_sidecars",
@@ -173,7 +173,7 @@ def test_declined_agents_sidecar_continues_other_sidecars(
     )
     monkeypatch.setattr(
         "sase.main.repo_init_handler._configured_sidecar_specs",
-        lambda _root: specs,
+        lambda _root, **_kwargs: specs,
     )
     monkeypatch.setattr(
         "sase.sdd._sidecar_init.preflight_sidecars",
@@ -244,7 +244,7 @@ def test_declined_attachments_private_sidecar_continues_other_sidecars(
     )
     monkeypatch.setattr(
         "sase.main.repo_init_handler._configured_sidecar_specs",
-        lambda _root: specs,
+        lambda _root, **_kwargs: specs,
     )
     monkeypatch.setattr(
         "sase.sdd._sidecar_init.preflight_sidecars",
@@ -303,7 +303,7 @@ def test_non_tty_refuses_only_agents_creation_and_explains_rerun(
     )
     monkeypatch.setattr(
         "sase.main.repo_init_handler._configured_sidecar_specs",
-        lambda _root: specs,
+        lambda _root, **_kwargs: specs,
     )
     monkeypatch.setattr(
         "sase.sdd._sidecar_init.preflight_sidecars",
@@ -353,7 +353,7 @@ def test_declined_sidecar_creation_does_not_materialize(
     )
     monkeypatch.setattr(
         "sase.main.repo_init_handler._configured_sidecar_specs",
-        lambda _root: specs,
+        lambda _root, **_kwargs: specs,
     )
     monkeypatch.setattr(
         "sase.sdd._sidecar_init.preflight_sidecars",
@@ -385,7 +385,7 @@ def test_non_tty_and_yes_cannot_authorize_sidecar_creation(
     )
     monkeypatch.setattr(
         "sase.main.repo_init_handler._configured_sidecar_specs",
-        lambda _root: specs,
+        lambda _root, **_kwargs: specs,
     )
     monkeypatch.setattr(
         "sase.sdd._sidecar_init.preflight_sidecars",
@@ -418,7 +418,7 @@ def test_noninteractive_bare_init_defers_missing_sidecar_creation(
     )
     monkeypatch.setattr(
         "sase.main.repo_init_handler._configured_sidecar_specs",
-        lambda _root: specs,
+        lambda _root, **_kwargs: specs,
     )
     monkeypatch.setattr(
         "sase.sdd._sidecar_init.preflight_sidecars",

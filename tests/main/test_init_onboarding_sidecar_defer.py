@@ -42,7 +42,7 @@ def _patch_missing_sidecars(
     )
     monkeypatch.setattr(
         "sase.main.repo_init_handler._configured_sidecar_specs",
-        lambda _root: specs,
+        lambda _root, **_kwargs: specs,
     )
     monkeypatch.setattr(
         "sase.sdd._sidecar_init.preflight_sidecars",

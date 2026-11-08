@@ -113,6 +113,11 @@ def run_repo_init(args: argparse.Namespace) -> int:
         print(
             f"{_COMMAND_LABEL}: updated {config_update.path} with repos.sidecar {roles}"
         )
+        from sase._linked_repo_identity import reset_repo_identity_caches
+
+        # Later sidecar resolution in this process must see the declarations
+        # just written, not the pre-write config cached during planning.
+        reset_repo_identity_caches()
 
     try:
         policy = _project_provider_sdd_policy(project_root)
@@ -220,8 +225,17 @@ def plan_repo_init(args: argparse.Namespace) -> InitPlan:
         from sase.sdd._sidecar_visibility import apply_primary_visibility_policy
         from sase.sdd.store import SddMaterializationError
 
+        if config_update.error is not None:
+            pending_config_text = None
+        elif config_update.changed:
+            pending_config_text = config_update.updated_text
+        else:
+            pending_config_text = None
         specs = apply_primary_visibility_policy(
-            _configured_sidecar_specs(project_root), primary
+            _configured_sidecar_specs(
+                project_root, pending_config_text=pending_config_text
+            ),
+            primary,
         ).specs
         try:
             sidecar_actions, sidecar_warnings, sidecar_requires_tty = (
@@ -302,8 +316,12 @@ def _plan_sidecar_actions(
     )
 
 
-def _configured_sidecar_specs(project_root: Path) -> tuple[SidecarInitSpec, ...]:
-    return _configured_sidecar_specs_impl(project_root)
+def _configured_sidecar_specs(
+    project_root: Path, *, pending_config_text: str | None = None
+) -> tuple[SidecarInitSpec, ...]:
+    return _configured_sidecar_specs_impl(
+        project_root, pending_config_text=pending_config_text
+    )
 
 
 def _explicit_sidecar_config_update(

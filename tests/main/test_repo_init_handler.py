@@ -343,7 +343,7 @@ def test_materialized_store_refreshes_present_sidecars_and_preserves_lazy_ones(
     )
     monkeypatch.setattr(
         "sase.main.repo_init_handler._configured_sidecar_specs",
-        lambda _root: specs,
+        lambda _root, **_kwargs: specs,
     )
     monkeypatch.setattr(
         "sase.sdd._sidecar_init.initialize_materialized_sidecars",
@@ -373,7 +373,7 @@ def test_preflight_unavailable_fails_before_materialization(
     )
     monkeypatch.setattr(
         "sase.main.repo_init_handler._configured_sidecar_specs",
-        lambda _root: specs,
+        lambda _root, **_kwargs: specs,
     )
     monkeypatch.setattr(
         "sase.sdd._sidecar_init.preflight_sidecars",
@@ -401,7 +401,7 @@ def test_repo_init_check_is_read_only_and_does_not_preflight(
     )
     monkeypatch.setattr(
         "sase.main.repo_init_handler._configured_sidecar_specs",
-        lambda _root: (SidecarInitSpec(role="plans"),),
+        lambda _root, **_kwargs: (SidecarInitSpec(role="plans"),),
     )
     monkeypatch.setattr(
         "sase.sdd._sidecar_init.preflight_sidecars",
@@ -545,3 +545,73 @@ def test_default_config_update_ignores_private_primary_flag(tmp_path: Path) -> N
     assert default.updated_text == flagged_off.updated_text
     assert default.added_roles == flagged_off.added_roles
     assert "visibility" not in default.updated_text
+
+
+def test_repo_init_first_run_creates_newly_declared_research_sidecar(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """One run declares research and creates its sidecar without a rerun."""
+    from sase.main._repo_init_config import configured_sidecar_specs
+    from tests.main.repo_init_handler_helpers import (
+        _outcome,
+        _patch_agents_project_key,
+        _preflight,
+    )
+
+    _mark_managed_project(tmp_path)
+    subprocess.run(
+        [
+            "git",
+            "remote",
+            "add",
+            "origin",
+            "https://github.com/acme/widget.git",
+        ],
+        cwd=tmp_path,
+        check=True,
+    )
+    _patch_agents_project_key(tmp_path, monkeypatch)
+    monkeypatch.setattr(
+        "sase.main.repo_init_handler._project_provider_sdd_policy",
+        lambda _root: "separate_repo",
+    )
+    monkeypatch.setattr(
+        "sase.main.repo_init_handler._primary_repo_visibility",
+        lambda _root: None,
+    )
+    preflighted: list[tuple[str, ...]] = []
+    initialized: list[tuple[str, ...]] = []
+
+    def fake_preflight(
+        _root: Path, _workspace: int, specs: tuple[SidecarInitSpec, ...]
+    ) -> dict[str, object]:
+        preflighted.append(tuple(spec.role for spec in specs))
+        return {
+            spec.role: _preflight(
+                spec.role, status="found", repo=f"acme/widget--{spec.role}"
+            )
+            for spec in specs
+        }
+
+    def fake_initialize(
+        _root: Path,
+        _workspace: int,
+        selected: tuple[SidecarInitSpec, ...],
+        **_kwargs: object,
+    ) -> object:
+        initialized.append(tuple(spec.role for spec in selected))
+        return _outcome(tmp_path, selected)
+
+    monkeypatch.setattr("sase.sdd._sidecar_init.preflight_sidecars", fake_preflight)
+    monkeypatch.setattr("sase.sdd._sidecar_init.initialize_sidecars", fake_initialize)
+
+    # The onboarding coordinator plans before anything is written; populate
+    # the pre-write resolution cache the way that planning did pre-fix.
+    assert plan_repo_init(_args(tmp_path)).has_changes is True
+    configured_sidecar_specs(tmp_path)
+
+    assert run_repo_init(_args(tmp_path)) == 0
+
+    assert any("research" in roles for roles in preflighted)
+    assert any("research" in roles for roles in initialized)
