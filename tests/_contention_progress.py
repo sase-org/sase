@@ -190,6 +190,7 @@ class WorkerProgress:
         self._record: dict[str, Any] = {
             "worker": worker_id,
             "pid": os.getpid(),
+            "start_time_ticks": _self_start_time_ticks(),
             "nodeid": None,
             "started_at": None,
             "finished_at": None,
@@ -227,6 +228,16 @@ def _stat_fields(pid: int) -> tuple[int, int] | None:
         raw = Path(f"/proc/{pid}/stat").read_text(encoding="utf-8")
         fields = raw[raw.rindex(")") + 2 :].split()
         return int(fields[1]), int(fields[2])
+    except (OSError, ValueError, IndexError):
+        return None
+
+
+def _self_start_time_ticks() -> int | None:
+    """The kernel start tick distinguishes this PID from a later reuse."""
+    try:
+        raw = Path("/proc/self/stat").read_text(encoding="utf-8")
+        fields = raw[raw.rindex(")") + 2 :].split()
+        return int(fields[19])
     except (OSError, ValueError, IndexError):
         return None
 

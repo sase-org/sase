@@ -34,6 +34,7 @@ class ProcStat:
     pgrp: int
     comm: str
     state: str
+    start_time_ticks: int
     threads: int
     rss_bytes: int
     major_faults: int
@@ -48,6 +49,7 @@ def parse_stat(pid: int, raw: str) -> ProcStat:
         pgrp=int(fields[2]),
         comm=raw[raw.index("(") + 1 : close],
         state=fields[0],
+        start_time_ticks=int(fields[19]),
         threads=int(fields[17]),
         rss_bytes=int(fields[21]) * PAGE_SIZE,
         major_faults=int(fields[9]),

@@ -27,7 +27,9 @@ from typing import Any
 FAILURES_ENV = "SASE_CONTENTION_FAILURES"
 #: Bumped only if the on-disk shape changes; a mismatch is read as no record,
 #: because a stale soak artifact is never worth failing a diagnostic run over.
-FAILURES_SCHEMA = 1
+FAILURES_SCHEMA = 2
+FAILURE_RECORD_LIMIT = 500
+FAILURE_DETAIL_LIMIT = 3_000
 
 #: The per-repeat diagnostic progress directory the harness hands the
 #: controller. `tests._contention_progress` writes it and
@@ -109,11 +111,186 @@ class NodeTally:
     repeats: tuple[int, ...]
 
 
-def write_failures(path: Path, failures: Iterable[str]) -> None:
-    """Record one repeat's failing node IDs where the harness will read them."""
+@dataclass(frozen=True)
+class FailureRecord:
+    """One repeat's durable failure reports and whether pytest finished."""
+
+    complete: bool
+    reports: tuple[Mapping[str, Any], ...]
+    reports_seen: int
+    reports_written: int
+    reports_omitted: int
+    reports_unwritten: int
+    exitstatus: int | None
+
+    @property
+    def nodeids(self) -> tuple[str, ...]:
+        return tuple(
+            sorted(
+                {
+                    str(report["nodeid"])
+                    for report in self.reports
+                    if report.get("nodeid")
+                }
+            )
+        )
+
+
+def _failure_line(payload: Mapping[str, Any]) -> str:
+    return json.dumps(payload, sort_keys=True, separators=(",", ":")) + "\n"
+
+
+def start_failure_record(path: Path) -> None:
+    """Create a partial-record marker before pytest starts running tests."""
     path.parent.mkdir(parents=True, exist_ok=True)
-    payload = {"schema": FAILURES_SCHEMA, "failures": sorted(set(failures))}
-    path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+    temporary = path.with_name(f".{path.name}.{os.getpid()}.tmp")
+    temporary.write_text(
+        _failure_line({"schema": FAILURES_SCHEMA, "kind": "started"}),
+        encoding="utf-8",
+    )
+    os.replace(temporary, path)
+
+
+def append_failure_report(
+    path: Path,
+    *,
+    nodeid: str,
+    phase: str,
+    detail: str,
+    detail_truncated: bool = False,
+) -> None:
+    """Append one bounded report as soon as the controller receives it."""
+    payload = {
+        "schema": FAILURES_SCHEMA,
+        "kind": "report",
+        "nodeid": nodeid,
+        "phase": phase,
+        "detail": detail[:FAILURE_DETAIL_LIMIT],
+        "detail_truncated": detail_truncated or len(detail) > FAILURE_DETAIL_LIMIT,
+    }
+    with path.open("a", encoding="utf-8") as handle:
+        handle.write(_failure_line(payload))
+        handle.flush()
+
+
+def finish_failure_record(
+    path: Path,
+    *,
+    exitstatus: int | None,
+    reports_seen: int,
+    reports_written: int,
+    reports_omitted: int,
+    reports_unwritten: int,
+) -> None:
+    """Mark the repeat complete only after pytest reaches session finish."""
+    payload = {
+        "schema": FAILURES_SCHEMA,
+        "kind": "complete",
+        "exitstatus": exitstatus,
+        "reports_seen": reports_seen,
+        "reports_written": reports_written,
+        "reports_omitted": reports_omitted,
+        "reports_unwritten": reports_unwritten,
+    }
+    with path.open("a", encoding="utf-8") as handle:
+        handle.write(_failure_line(payload))
+        handle.flush()
+
+
+def write_failures(path: Path, failures: Iterable[str]) -> None:
+    """Write a completed failure record for tests and synthetic harness results."""
+    nodeids = sorted(set(failures))
+    start_failure_record(path)
+    written = min(len(nodeids), FAILURE_RECORD_LIMIT)
+    for nodeid in nodeids[:written]:
+        append_failure_report(path, nodeid=nodeid, phase="call", detail="")
+    finish_failure_record(
+        path,
+        exitstatus=1 if nodeids else 0,
+        reports_seen=len(nodeids),
+        reports_written=written,
+        reports_omitted=max(0, len(nodeids) - written),
+        reports_unwritten=0,
+    )
+
+
+def read_failure_record(path: Path) -> FailureRecord | None:
+    """Read complete or interrupted evidence; ignore a torn final JSON line."""
+    try:
+        lines = path.read_text(encoding="utf-8").splitlines()
+    except OSError:
+        return None
+    started = False
+    last_kind: str | None = None
+    reports: list[Mapping[str, Any]] = []
+    completion: Mapping[str, Any] | None = None
+    for line in lines:
+        try:
+            payload = json.loads(line)
+        except ValueError:
+            continue
+        if not isinstance(payload, dict) or payload.get("schema") != FAILURES_SCHEMA:
+            continue
+        kind = payload.get("kind")
+        if kind == "started" and not started:
+            started = True
+        elif kind == "report" and started:
+            nodeid, phase = payload.get("nodeid"), payload.get("phase")
+            if not isinstance(nodeid, str) or not isinstance(phase, str):
+                continue
+            if len(reports) < FAILURE_RECORD_LIMIT:
+                detail = payload.get("detail", "")
+                reports.append(
+                    {
+                        "nodeid": nodeid,
+                        "phase": phase,
+                        "detail": str(detail)[:FAILURE_DETAIL_LIMIT],
+                        "detail_truncated": bool(payload.get("detail_truncated")),
+                    }
+                )
+        elif kind == "complete" and started:
+            completion = payload
+        else:
+            continue
+        last_kind = str(kind)
+    if not started:
+        return None
+    complete = last_kind == "complete" and completion is not None
+
+    def count_field(name: str, default: int) -> int:
+        if not complete or completion is None:
+            return default
+        try:
+            return max(0, int(completion.get(name, default)))
+        except (TypeError, ValueError):
+            return default
+
+    reports_seen = (
+        count_field("reports_seen", len(reports)) if complete else len(reports)
+    )
+    reports_written = (
+        count_field("reports_written", len(reports)) if complete else len(reports)
+    )
+    reports_omitted = (
+        count_field("reports_omitted", max(0, reports_seen - len(reports)))
+        if complete
+        else max(0, reports_seen - len(reports))
+    )
+    reports_unwritten = count_field("reports_unwritten", 0) if complete else 0
+    raw_exitstatus = completion.get("exitstatus") if complete else None
+    try:
+        exitstatus = None if raw_exitstatus is None else int(raw_exitstatus)
+    except (TypeError, ValueError):
+        exitstatus = None
+    return FailureRecord(
+        complete=complete,
+        reports=tuple(reports),
+        reports_seen=reports_seen,
+        reports_written=reports_written,
+        reports_omitted=reports_omitted,
+        reports_unwritten=reports_unwritten,
+        exitstatus=exitstatus,
+    )
 
 
 def read_failures(path: Path) -> tuple[str, ...]:
@@ -123,31 +300,24 @@ def read_failures(path: Path) -> tuple[str, ...]:
     repeat -- the harness tracks that from the exit status -- but it contributes
     no nodes, which is the honest answer rather than a fabricated one.
     """
-    try:
-        raw = path.read_text(encoding="utf-8")
-    except OSError:
-        return ()
-    try:
-        payload = json.loads(raw)
-    except ValueError:
-        return ()
-    if not isinstance(payload, dict) or payload.get("schema") != FAILURES_SCHEMA:
-        return ()
-    failures = payload.get("failures")
-    if not isinstance(failures, list):
-        return ()
-    return tuple(sorted({str(nodeid) for nodeid in failures}))
+    record = read_failure_record(path)
+    return () if record is None or not record.complete else record.nodeids
 
 
-def tally_failures(repeats: Sequence[Sequence[str]]) -> tuple[NodeTally, ...]:
+def tally_failures(
+    repeats: Sequence[Sequence[str]], *, repeat_indices: Sequence[int] | None = None
+) -> tuple[NodeTally, ...]:
     """Fold per-repeat failure sets into one tally, worst node first.
 
     Ordered by failure count descending and then by node ID, so the frequent
     nodes -- the ones worth attributing a mechanism to -- head the report and
     the order is stable across runs.
     """
+    indices = tuple(repeat_indices or range(1, len(repeats) + 1))
+    if len(indices) != len(repeats):
+        raise ValueError("repeat_indices must match the number of completed repeats")
     occurrences: dict[str, list[int]] = {}
-    for index, failures in enumerate(repeats, start=1):
+    for index, failures in zip(indices, repeats, strict=True):
         for nodeid in dict.fromkeys(failures):
             occurrences.setdefault(nodeid, []).append(index)
     return tuple(
@@ -167,6 +337,7 @@ def format_tally(
     repeat_count: int,
     red_repeats: Sequence[int],
     duration: float | None = None,
+    completed_repeat_count: int | None = None,
 ) -> str:
     """Render the end-of-soak report, including when nothing failed.
 
@@ -176,10 +347,21 @@ def format_tally(
     """
     elapsed = "" if duration is None else f" in {duration:.1f}s"
     red = ",".join(str(index) for index in red_repeats) or "none"
-    lines = [
-        f"contention tally: {len(tallies)} node(s) failed across "
-        f"{repeat_count} repeat(s){elapsed}; red repeats: {red}",
-    ]
+    completed = (
+        repeat_count if completed_repeat_count is None else completed_repeat_count
+    )
+    if completed == repeat_count:
+        headline = (
+            f"contention tally: {len(tallies)} node(s) failed across "
+            f"{repeat_count} repeat(s){elapsed}; red repeats: {red}"
+        )
+    else:
+        headline = (
+            f"contention tally: {len(tallies)} node(s) failed across "
+            f"{completed} completed repeat(s) of {repeat_count} requested"
+            f"{elapsed}; red repeats: {red}"
+        )
+    lines = [headline]
     if not tallies:
         lines.append("  no node failed in any repeat")
         return "\n".join(lines)

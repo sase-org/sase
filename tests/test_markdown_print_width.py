@@ -18,6 +18,7 @@ from __future__ import annotations
 import ast
 import json
 import re
+from dataclasses import dataclass
 from pathlib import Path
 
 import pytest
@@ -33,8 +34,6 @@ from sase.markdown_width import (
 from sase.markdown_wrap import MIN_PROSE_WRAP_WIDTH
 
 _REPO_ROOT = Path(__file__).resolve().parents[1]
-_SRC_ROOT = _REPO_ROOT / "src" / "sase"
-_WIDTH_AUTHORITY = _SRC_ROOT / "markdown_width.py"
 
 # Names a module-level prose-width constant would plausibly take. A constant
 # matching one of these may not be bound to a bare integer literal anywhere
@@ -56,26 +55,163 @@ _PRINT_WIDTH_FLAG_RE = re.compile(r"--print-width")
 _PROSE_WRAP_FLAG_RE = re.compile(r"--prose-wrap")
 
 
-def _width_aware_modules() -> list[Path]:
-    """Return the modules that have declared themselves prose-width-aware.
+@dataclass(frozen=True)
+class _SourceGuardFindings:
+    """Violations collected by one read, parse, and AST walk per source file."""
 
-    Scanning every module under ``src/`` for inline width literals would be the
-    flaky whole-repo grep this suite is meant to avoid: ``Console(width=120)``
-    in TUI code and every unrelated numeric comparison would trip it. Importing
-    ``sase.markdown_width`` is the narrow, self-declared signal that a module
-    wraps prose, so these are the modules held to the stricter standard.
+    width_aware_modules: tuple[str, ...]
+    print_width_flags: tuple[str, ...]
+    prose_wrap_flags: tuple[str, ...]
+    module_width_literals: tuple[str, ...]
+    import_time_snapshots: tuple[str, ...]
+    function_default_snapshots: tuple[str, ...]
+    width_aware_call_literals: tuple[str, ...]
+    width_aware_length_thresholds: tuple[str, ...]
+
+
+def _scan_source_guards(
+    repo_root: Path = _REPO_ROOT,
+) -> _SourceGuardFindings:
+    """Scan source policy once instead of repeating whole-tree AST walks.
+
+    This intentionally has no cache: callers that change a temporary source
+    tree get fresh results, and the ordinary policy test calls it once per run.
     """
-    modules = [
-        path
-        for path in sorted(_SRC_ROOT.rglob("*.py"))
-        if path != _WIDTH_AUTHORITY
-        and "markdown_width" in path.read_text(encoding="utf-8")
-    ]
-    assert modules, (
-        "no module imports sase.markdown_width — the inline-width guards below "
-        "would pass vacuously"
+    src_root = repo_root / "src" / "sase"
+    width_authority = src_root / "markdown_width.py"
+    print_width_flags: list[str] = []
+    prose_wrap_flags: list[str] = []
+    module_width_literals: list[str] = []
+    import_time_snapshots: list[str] = []
+    function_default_snapshots: list[str] = []
+    width_aware_call_literals: list[str] = []
+    width_aware_length_thresholds: list[str] = []
+    width_aware_modules: list[str] = []
+
+    for path in sorted(src_root.rglob("*.py")):
+        text = path.read_text(encoding="utf-8")
+        is_authority = path == width_authority
+        is_width_aware = not is_authority and "markdown_width" in text
+        relative = path.relative_to(repo_root).as_posix()
+
+        if is_width_aware:
+            width_aware_modules.append(relative)
+        if not is_authority:
+            if _PRINT_WIDTH_FLAG_RE.search(text):
+                print_width_flags.append(relative)
+            if _PROSE_WRAP_FLAG_RE.search(text):
+                prose_wrap_flags.append(relative)
+
+        tree = ast.parse(text)
+        if not is_authority:
+            for node in tree.body:
+                if isinstance(node, ast.Assign):
+                    if not isinstance(node.value, ast.Constant) or not isinstance(
+                        node.value.value, int
+                    ):
+                        continue
+                    targets = node.targets
+                    value = node.value
+                elif isinstance(node, ast.AnnAssign) and node.value is not None:
+                    if not isinstance(node.value, ast.Constant) or not isinstance(
+                        node.value.value, int
+                    ):
+                        continue
+                    targets = [node.target]
+                    value = node.value
+                else:
+                    continue
+
+                for target in targets:
+                    if not isinstance(target, ast.Name):
+                        continue
+                    if target.id in _ALLOWED_LITERAL_CONSTANTS:
+                        continue
+                    if _WIDTH_CONSTANT_RE.match(target.id):
+                        module_width_literals.append(
+                            f"{relative}:{value.lineno} {target.id}"
+                        )
+
+            for node in tree.body:
+                if isinstance(node, ast.Assign):
+                    targets: list[ast.expr] = list(node.targets)
+                    value = node.value
+                elif isinstance(node, ast.AnnAssign) and node.value is not None:
+                    targets = [node.target]
+                    value = node.value
+                else:
+                    continue
+                source = _references_a_width_source(value)
+                if source is None:
+                    continue
+                names = [
+                    target.id for target in targets if isinstance(target, ast.Name)
+                ] or ["<binding>"]
+                import_time_snapshots.append(
+                    f"{relative}:{node.lineno} {names[0]} = {source}"
+                )
+
+        for node in ast.walk(tree):
+            if isinstance(node, ast.FunctionDef | ast.AsyncFunctionDef):
+                defaults = [
+                    default
+                    for default in (*node.args.defaults, *node.args.kw_defaults)
+                    if default is not None
+                ]
+                for default in defaults:
+                    source = _references_a_width_source(default)
+                    if source is not None:
+                        function_default_snapshots.append(
+                            f"{relative}:{default.lineno} {node.name}(... = {source})"
+                        )
+
+            if not is_width_aware:
+                continue
+            if isinstance(node, ast.Call):
+                for keyword in node.keywords:
+                    if keyword.arg is None or "width" not in keyword.arg:
+                        continue
+                    if isinstance(keyword.value, ast.Constant) and isinstance(
+                        keyword.value.value, int
+                    ):
+                        width_aware_call_literals.append(
+                            f"{relative}:{keyword.value.lineno} {keyword.arg}="
+                            f"{keyword.value.value}"
+                        )
+            if not isinstance(node, ast.Compare):
+                continue
+            left = node.left
+            if not (
+                isinstance(left, ast.Call)
+                and isinstance(left.func, ast.Name)
+                and left.func.id == "len"
+            ):
+                continue
+            if not all(
+                isinstance(op, ast.Gt | ast.GtE | ast.Lt | ast.LtE) for op in node.ops
+            ):
+                continue
+            for comparator in node.comparators:
+                if (
+                    isinstance(comparator, ast.Constant)
+                    and isinstance(comparator.value, int)
+                    and not isinstance(comparator.value, bool)
+                    and comparator.value >= MIN_PROSE_WRAP_WIDTH
+                ):
+                    width_aware_length_thresholds.append(
+                        f"{relative}:{comparator.lineno} len(...) vs {comparator.value}"
+                    )
+
+    return _SourceGuardFindings(
+        width_aware_modules=tuple(width_aware_modules),
+        print_width_flags=tuple(print_width_flags),
+        prose_wrap_flags=tuple(prose_wrap_flags),
+        module_width_literals=tuple(module_width_literals),
+        import_time_snapshots=tuple(import_time_snapshots),
+        function_default_snapshots=tuple(function_default_snapshots),
+        width_aware_call_literals=tuple(width_aware_call_literals),
+        width_aware_length_thresholds=tuple(width_aware_length_thresholds),
     )
-    return modules
 
 
 def _prettier_config() -> dict[str, object]:
@@ -142,198 +278,103 @@ def test_justfile_declares_no_prose_width() -> None:
     assert not _PROSE_WRAP_FLAG_RE.search(justfile)
 
 
-@pytest.mark.parametrize("flag_re", [_PRINT_WIDTH_FLAG_RE, _PROSE_WRAP_FLAG_RE])
-def test_only_the_width_authority_builds_prettier_flags(
-    flag_re: re.Pattern[str],
+def test_source_width_policy_scans_match_their_individual_regressions(
+    tmp_path: Path,
 ) -> None:
-    """No module under src/ may assemble its own prettier prose flags."""
-    offenders = [
-        path.relative_to(_REPO_ROOT).as_posix()
-        for path in sorted(_SRC_ROOT.rglob("*.py"))
-        if path != _WIDTH_AUTHORITY and flag_re.search(path.read_text(encoding="utf-8"))
-    ]
+    """The optimized combined scan still catches each former guard shape."""
+    src_root = tmp_path / "src" / "sase"
+    src_root.mkdir(parents=True)
+    (src_root / "markdown_width.py").write_text(
+        "DEFAULT_MARKDOWN_PRINT_WIDTH = 88\n", encoding="utf-8"
+    )
+    offender = src_root / "width_consumer.py"
+    offender.write_text(
+        """import markdown_width
+# --print-width
+# --prose-wrap
+_MARKDOWN_PRINT_WIDTH = 120
+CACHED = markdown_width.markdown_print_width()
 
-    assert not offenders, (
-        f"these modules re-declare a prettier prose flag instead of calling "
-        f"prettier_markdown_argv(): {offenders}"
+def render(width=markdown_width.markdown_print_width()):
+    wrap(text, max_width=121)
+    if len(text) > 122:
+        pass
+""",
+        encoding="utf-8",
     )
 
+    findings = _scan_source_guards(tmp_path)
 
-def test_only_the_width_authority_binds_a_width_to_an_integer_literal() -> None:
-    """Every other prose-width constant must derive from the authority."""
-    offenders: list[str] = []
-    for path in sorted(_SRC_ROOT.rglob("*.py")):
-        if path == _WIDTH_AUTHORITY:
-            continue
-        tree = ast.parse(path.read_text(encoding="utf-8"))
-        for node in tree.body:
-            if not isinstance(node, ast.Assign):
-                continue
-            if not isinstance(node.value, ast.Constant) or not isinstance(
-                node.value.value, int
-            ):
-                continue
-            for target in node.targets:
-                if not isinstance(target, ast.Name):
-                    continue
-                if target.id in _ALLOWED_LITERAL_CONSTANTS:
-                    continue
-                if _WIDTH_CONSTANT_RE.match(target.id):
-                    offenders.append(
-                        f"{path.relative_to(_REPO_ROOT).as_posix()}:{node.lineno} "
-                        f"{target.id}"
-                    )
-
-    assert not offenders, (
-        f"these constants re-fork the prose width instead of deriving from "
-        f"DEFAULT_MARKDOWN_PRINT_WIDTH: {offenders}"
+    assert findings.width_aware_modules == ("src/sase/width_consumer.py",)
+    assert findings.print_width_flags == ("src/sase/width_consumer.py",)
+    assert findings.prose_wrap_flags == ("src/sase/width_consumer.py",)
+    assert findings.module_width_literals == (
+        "src/sase/width_consumer.py:4 _MARKDOWN_PRINT_WIDTH",
+    )
+    assert findings.import_time_snapshots == (
+        "src/sase/width_consumer.py:5 CACHED = markdown_print_width",
+    )
+    assert findings.function_default_snapshots == (
+        "src/sase/width_consumer.py:7 render(... = markdown_print_width)",
+    )
+    assert findings.width_aware_call_literals == (
+        "src/sase/width_consumer.py:8 max_width=121",
+    )
+    assert findings.width_aware_length_thresholds == (
+        "src/sase/width_consumer.py:9 len(...) vs 122",
     )
 
-
-def test_no_module_snapshots_the_width_at_import_time() -> None:
-    """No module-level name may be bound to a resolved prose width.
-
-    This is the guard that makes the configurable width actually configurable:
-    ``_FRONTMATTER_WRAP_WIDTH = markdown_print_width()`` is syntactically clean
-    and silently ignores config forever after the module is imported.
-    """
-    offenders: list[str] = []
-    for path in sorted(_SRC_ROOT.rglob("*.py")):
-        if path == _WIDTH_AUTHORITY:
-            continue
-        tree = ast.parse(path.read_text(encoding="utf-8"))
-        for node in tree.body:
-            if isinstance(node, ast.Assign):
-                targets: list[ast.expr] = list(node.targets)
-                value = node.value
-            elif isinstance(node, ast.AnnAssign) and node.value is not None:
-                targets = [node.target]
-                value = node.value
-            else:
-                continue
-            source = _references_a_width_source(value)
-            if source is None:
-                continue
-            names = [
-                target.id for target in targets if isinstance(target, ast.Name)
-            ] or ["<binding>"]
-            offenders.append(
-                f"{path.relative_to(_REPO_ROOT).as_posix()}:{node.lineno} "
-                f"{names[0]} = {source}"
-            )
-
-    assert not offenders, (
-        f"these module-level bindings snapshot the prose width at import time "
-        f"instead of resolving it per call: {offenders}"
+    offender.write_text(
+        "import markdown_width\n\ndef render(width=None):\n    return width\n",
+        encoding="utf-8",
     )
+    clean_findings = _scan_source_guards(tmp_path)
+    assert clean_findings.print_width_flags == ()
+    assert clean_findings.prose_wrap_flags == ()
+    assert clean_findings.module_width_literals == ()
+    assert clean_findings.import_time_snapshots == ()
+    assert clean_findings.function_default_snapshots == ()
+    assert clean_findings.width_aware_call_literals == ()
+    assert clean_findings.width_aware_length_thresholds == ()
 
 
-def test_no_function_parameter_defaults_to_the_width() -> None:
-    """A default argument is evaluated once at ``def`` time.
+def test_source_modules_preserve_markdown_width_policy() -> None:
+    """Check every source invariant with one whole-tree AST scan."""
+    findings = _scan_source_guards()
 
-    That is the same import-time snapshot wearing a different hat, and it is
-    exactly the shape ``prettier_markdown_argv`` used to have.
-    """
-    offenders: list[str] = []
-    for path in sorted(_SRC_ROOT.rglob("*.py")):
-        tree = ast.parse(path.read_text(encoding="utf-8"))
-        for node in ast.walk(tree):
-            if not isinstance(node, ast.FunctionDef | ast.AsyncFunctionDef):
-                continue
-            defaults = [
-                default
-                for default in (*node.args.defaults, *node.args.kw_defaults)
-                if default is not None
-            ]
-            for default in defaults:
-                source = _references_a_width_source(default)
-                if source is None:
-                    continue
-                offenders.append(
-                    f"{path.relative_to(_REPO_ROOT).as_posix()}:{default.lineno} "
-                    f"{node.name}(... = {source})"
-                )
-
-    assert not offenders, (
-        f"these parameter defaults freeze the prose width at def time; take "
-        f"`int | None = None` and resolve inside instead: {offenders}"
+    assert findings.width_aware_modules, (
+        "no module imports sase.markdown_width — the inline-width guards below "
+        "would pass vacuously"
     )
-
-
-def test_no_width_aware_module_passes_an_inline_width_literal() -> None:
-    """A width may not be re-forked as a bare ``width=<int>`` call argument.
-
-    The constant scan above only sees module-level bindings, which is how
-    ``textwrap.fill(description, width=118)`` in the generated-skill renderer
-    survived the unification and had to be caught by a failing golden instead.
-    """
-    offenders: list[str] = []
-    for path in _width_aware_modules():
-        tree = ast.parse(path.read_text(encoding="utf-8"))
-        for node in ast.walk(tree):
-            if not isinstance(node, ast.Call):
-                continue
-            for keyword in node.keywords:
-                if keyword.arg is None or "width" not in keyword.arg:
-                    continue
-                if isinstance(keyword.value, ast.Constant) and isinstance(
-                    keyword.value.value, int
-                ):
-                    offenders.append(
-                        f"{path.relative_to(_REPO_ROOT).as_posix()}:"
-                        f"{keyword.value.lineno} {keyword.arg}="
-                        f"{keyword.value.value}"
-                    )
-
-    assert not offenders, (
-        f"these calls hardcode a width instead of deriving it from "
-        f"markdown_print_width(): {offenders}"
+    assert not findings.print_width_flags, (
+        "these modules re-declare a prettier prose flag instead of calling "
+        f"prettier_markdown_argv(): {list(findings.print_width_flags)}"
     )
-
-
-def test_no_width_aware_module_compares_a_length_to_an_inline_literal() -> None:
-    """A line-length threshold must derive from the authority too.
-
-    ``len(f"description: {description}") > 120`` is the other shape the
-    constant scan misses: a width used as a comparison threshold rather than
-    bound to a name.
-
-    Only *ordering* comparisons against a value at or above the wrap floor
-    count. ``len(issues) == 1`` is a cardinality check, not a width, and a
-    prose width can never be below ``MIN_PROSE_WRAP_WIDTH``.
-    """
-    offenders: list[str] = []
-    for path in _width_aware_modules():
-        tree = ast.parse(path.read_text(encoding="utf-8"))
-        for node in ast.walk(tree):
-            if not isinstance(node, ast.Compare):
-                continue
-            left = node.left
-            if not (
-                isinstance(left, ast.Call)
-                and isinstance(left.func, ast.Name)
-                and left.func.id == "len"
-            ):
-                continue
-            if not all(
-                isinstance(op, ast.Gt | ast.GtE | ast.Lt | ast.LtE) for op in node.ops
-            ):
-                continue
-            for comparator in node.comparators:
-                if (
-                    isinstance(comparator, ast.Constant)
-                    and isinstance(comparator.value, int)
-                    and not isinstance(comparator.value, bool)
-                    and comparator.value >= MIN_PROSE_WRAP_WIDTH
-                ):
-                    offenders.append(
-                        f"{path.relative_to(_REPO_ROOT).as_posix()}:"
-                        f"{comparator.lineno} len(...) vs {comparator.value}"
-                    )
-
-    assert not offenders, (
-        f"these length thresholds hardcode a width instead of deriving it "
-        f"from markdown_print_width(): {offenders}"
+    assert not findings.prose_wrap_flags, (
+        "these modules re-declare a prettier prose flag instead of calling "
+        f"prettier_markdown_argv(): {list(findings.prose_wrap_flags)}"
+    )
+    assert not findings.module_width_literals, (
+        "these constants re-fork the prose width instead of deriving from "
+        f"DEFAULT_MARKDOWN_PRINT_WIDTH: {list(findings.module_width_literals)}"
+    )
+    assert not findings.import_time_snapshots, (
+        "these module-level bindings snapshot the width at import time instead "
+        f"of resolving it per call: {list(findings.import_time_snapshots)}"
+    )
+    assert not findings.function_default_snapshots, (
+        "these parameter defaults freeze the prose width at def time; take "
+        f"`int | None = None` and resolve inside instead: "
+        f"{list(findings.function_default_snapshots)}"
+    )
+    assert not findings.width_aware_call_literals, (
+        "these calls hardcode a width instead of deriving it from "
+        f"markdown_print_width(): {list(findings.width_aware_call_literals)}"
+    )
+    assert not findings.width_aware_length_thresholds, (
+        "these length thresholds hardcode a width instead of deriving it "
+        f"from markdown_print_width(): "
+        f"{list(findings.width_aware_length_thresholds)}"
     )
 
 

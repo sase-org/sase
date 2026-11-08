@@ -32,9 +32,13 @@ from tests._contention import (
 )
 from tests._contention_procfs import ProcFS, parse_stat, scan_usage, soak_tree
 from tests._contention_sampler import (
+    POST_ROOT_OBSERVATION_LIMIT,
+    SAMPLER_REAP_TIMEOUT_SECONDS,
+    SAMPLER_STOP_TIMEOUT_SECONDS,
     SAMPLES_FILENAME,
     SIGNALS_FILENAME,
     Sampler,
+    SamplerHandle,
     read_progress,
 )
 
@@ -51,10 +55,14 @@ def _stat_line(
     threads: int = 1,
     rss_pages: int = 0,
     major_faults: int = 0,
+    start_time_ticks: int | None = None,
+    pgrp: int | None = None,
 ) -> str:
+    start = pid * 10 if start_time_ticks is None else start_time_ticks
+    group = ppid if pgrp is None else pgrp
     return (
-        f"{pid} ({comm}) S {ppid} {ppid} 0 0 -1 0 0 0 {major_faults} 0 0 0 0 0 "
-        f"20 0 {threads} 0 0 0 {rss_pages} 0\n"
+        f"{pid} ({comm}) S {ppid} {group} 0 0 -1 0 0 0 {major_faults} 0 0 0 0 0 "
+        f"20 0 {threads} 0 {start} 0 {rss_pages}\n"
     )
 
 
@@ -122,7 +130,13 @@ def _sampler(tmp_path: Path, procfs: ProcFS) -> tuple[Sampler, io.StringIO]:
 def test_stat_parsing_survives_spaces_and_parentheses_in_comm() -> None:
     stat = parse_stat(7, _stat_line(7, 3, "py (x) y", threads=9, rss_pages=2))
 
-    assert (stat.ppid, stat.pgrp, stat.comm, stat.threads) == (3, 3, "py (x) y", 9)
+    assert (
+        stat.ppid,
+        stat.pgrp,
+        stat.comm,
+        stat.start_time_ticks,
+        stat.threads,
+    ) == (3, 3, "py (x) y", 70, 9)
     assert stat.rss_bytes == 2 * os.sysconf("SC_PAGE_SIZE")
 
 
@@ -172,6 +186,134 @@ def test_sample_reports_role_memory_host_cgroup_and_progress(tmp_path: Path) -> 
     assert json.loads(stored[-1])["kind"] == "sample"
 
 
+def test_final_root_death_sample_counts_only_identity_checked_survivors(
+    tmp_path: Path,
+) -> None:
+    procfs = _fake_host(tmp_path)
+    sampler, _ = _sampler(tmp_path, procfs)
+    sampler.sample()
+
+    # The parent and controller exited; their already observed worker and test
+    # child survive and have been reparented. An unrelated member of the same
+    # process group is not run membership evidence.
+    for pid in (100, 101):
+        directory = procfs.root / str(pid)
+        for name in ("stat", "cmdline", "smaps_rollup"):
+            path = directory / name
+            if path.exists():
+                path.unlink()
+        directory.rmdir()
+    (procfs.root / "102" / "stat").write_text(
+        _stat_line(102, 1, "python3", start_time_ticks=1020, pgrp=100)
+    )
+    (procfs.root / "103" / "stat").write_text(
+        _stat_line(103, 102, "sase", start_time_ticks=1030, pgrp=100)
+    )
+    (procfs.root / "200" / "stat").write_text(
+        _stat_line(200, 1, "sshd", start_time_ticks=2000, pgrp=100)
+    )
+
+    record = sampler.sample(reason="final: soak parent exited")
+
+    assert record["root_alive"] is False
+    assert record["membership"] == "observed-survivors"
+    assert record["post_root_observations"] == 1
+    assert record["soak"]["procs"] == 2
+    assert {record["top_rss"][i]["pid"] for i in range(2)} == {102, 103}
+
+
+def test_reused_pid_is_not_counted_as_an_observed_survivor(tmp_path: Path) -> None:
+    procfs = _fake_host(tmp_path)
+    sampler, _ = _sampler(tmp_path, procfs)
+    sampler.sample()
+
+    for pid in (100, 101):
+        directory = procfs.root / str(pid)
+        for name in ("stat", "cmdline", "smaps_rollup"):
+            path = directory / name
+            if path.exists():
+                path.unlink()
+        directory.rmdir()
+    # PID 102 now names a different process, despite sharing the old parent
+    # and process group IDs. The old test child 103 remains the same process.
+    (procfs.root / "102" / "stat").write_text(
+        _stat_line(102, 1, "replacement", start_time_ticks=999_999, pgrp=100)
+    )
+    (procfs.root / "103" / "stat").write_text(
+        _stat_line(103, 102, "sase", start_time_ticks=1030, pgrp=100)
+    )
+
+    record = sampler.sample(reason="final: soak parent exited")
+
+    assert record["soak"]["procs"] == 1
+    assert record["top_rss"][0]["pid"] == 103
+
+
+def test_root_death_observation_is_bounded(tmp_path: Path) -> None:
+    procfs = _fake_host(tmp_path)
+    sampler, _ = _sampler(tmp_path, procfs)
+    sampler.sample()
+    root = procfs.root / "100"
+    for name in ("stat", "cmdline", "smaps_rollup"):
+        (root / name).unlink()
+    root.rmdir()
+
+    records = [
+        sampler.sample(reason="root exited")
+        for _ in range(POST_ROOT_OBSERVATION_LIMIT + 1)
+    ]
+
+    assert records[0]["soak"]["procs"] == 3
+    assert records[POST_ROOT_OBSERVATION_LIMIT - 1]["soak"]["procs"] == 3
+    assert records[-1]["soak"]["procs"] == 0
+    assert records[-1]["post_root_observations"] == POST_ROOT_OBSERVATION_LIMIT
+
+
+def test_missing_process_start_time_is_not_used_as_membership(
+    tmp_path: Path,
+) -> None:
+    procfs = _fake_host(tmp_path)
+    raw = _stat_line(103, 102, "sase")
+    close = raw.rindex(")")
+    fields = raw[close + 2 :].split()
+    fields.pop(19)
+    missing_start = f"103 (sase) {' '.join(fields)}\n"
+    (procfs.root / "103" / "stat").write_text(missing_start)
+    sampler, _ = _sampler(tmp_path, procfs)
+
+    record = sampler.sample()
+
+    assert procfs.stat(103) is None
+    assert record["soak"]["procs"] == 3
+
+
+def test_sampler_reaping_uses_explicit_wait_limits() -> None:
+    class _Process:
+        def __init__(self) -> None:
+            self.stdin = io.BytesIO()
+            self.wait_timeouts: list[float] = []
+            self.killed = False
+
+        def wait(self, *, timeout: float) -> int:
+            self.wait_timeouts.append(timeout)
+            if len(self.wait_timeouts) == 1:
+                raise subprocess.TimeoutExpired("sampler", timeout)
+            return 0
+
+        def kill(self) -> None:
+            self.killed = True
+
+    process = _Process()
+    result = SamplerHandle(process).stop()
+
+    assert result == 0
+    assert process.killed is True
+    assert process.wait_timeouts == [
+        SAMPLER_STOP_TIMEOUT_SECONDS,
+        SAMPLER_REAP_TIMEOUT_SECONDS,
+    ]
+
+
 def test_missing_proc_and_cgroup_fields_degrade_to_unknown(tmp_path: Path) -> None:
     sampler, stream = _sampler(
         tmp_path, _fake_host(tmp_path, with_optional_fields=False)
@@ -201,6 +343,7 @@ def test_signal_names_a_sender_that_exited_and_the_test_its_worker_ran(
         {
             "worker": "gw3",
             "pid": 102,
+            "start_time_ticks": 1020,
             "nodeid": "tests/t.py::test_kills_its_group",
             "started_at": time.time() - 30,
             "finished_at": None,

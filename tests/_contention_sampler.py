@@ -69,6 +69,12 @@ PRINT_LIMIT = 30
 #: right after signalling can still be named from the sample before.
 LAST_SEEN_SECONDS = 120.0
 LAST_SEEN_LIMIT = 512
+# After the parent exits, one signal-time observation and one final sample are
+# enough to identify surviving members. The sampler never waits for or kills
+# test workers; its parent reaps only this sampler with bounded waits below.
+POST_ROOT_OBSERVATION_LIMIT = 2
+SAMPLER_STOP_TIMEOUT_SECONDS = 10.0
+SAMPLER_REAP_TIMEOUT_SECONDS = 5.0
 BYTE_PEAKS = frozenset(
     {
         "soak_rss",
@@ -161,6 +167,11 @@ class Sampler:
         self.paths = dict(paths)
         self.procfs = procfs
         self.stream = stream
+        root = procfs.stat(root_pid)
+        self.root_start_time_ticks = root.start_time_ticks if root is not None else None
+        self.root_alive = self.root_start_time_ticks is not None
+        self.post_root_observations = 0
+        self.membership = "descendants"
         self.started = time.monotonic()
         self.samples = 0
         self.signals = 0
@@ -194,6 +205,10 @@ class Sampler:
             "kind": "header",
             "at": time.time(),
             "root_pid": self.root_pid,
+            "root_start_time_ticks": self.root_start_time_ticks,
+            "post_root_observation_limit": POST_ROOT_OBSERVATION_LIMIT,
+            "sampler_stop_timeout_seconds": SAMPLER_STOP_TIMEOUT_SECONDS,
+            "sampler_reap_timeout_seconds": SAMPLER_REAP_TIMEOUT_SECONDS,
             "sampler_pid": os.getpid(),
             "python": platform.python_version(),
             "kernel": platform.release(),
@@ -216,8 +231,67 @@ class Sampler:
         return record
 
     def _tree(self) -> tuple[dict[int, ProcStat], dict[int, int]]:
+        if (
+            not self.root_alive
+            and self.post_root_observations >= POST_ROOT_OBSERVATION_LIMIT
+        ):
+            return {}, {}
         stats = self.procfs.all_stats()
-        return stats, soak_tree(stats, self.root_pid, exclude=os.getpid())
+        root = stats.get(self.root_pid)
+        if root is None:
+            root = self.procfs.stat(self.root_pid)
+            if root is not None:
+                stats[root.pid] = root
+        if (
+            root is not None
+            and self.root_start_time_ticks is not None
+            and root.start_time_ticks == self.root_start_time_ticks
+        ):
+            self.root_alive = True
+            self.post_root_observations = 0
+            self.membership = "descendants"
+            return stats, soak_tree(stats, self.root_pid, exclude=os.getpid())
+
+        self.root_alive = False
+        self.membership = "observed-survivors"
+        if self.post_root_observations >= POST_ROOT_OBSERVATION_LIMIT:
+            return stats, {}
+        self.post_root_observations += 1
+        return stats, self._survivor_tree(stats)
+
+    def _survivor_tree(self, stats: Mapping[int, ProcStat]) -> dict[int, int]:
+        """Only keep prior run members with the same PID and kernel start tick.
+
+        Descendants of a surviving, identity-checked member are also in the
+        run-owned tree. Process-group membership alone is never evidence.
+        """
+        children: dict[int, list[int]] = {}
+        for stat in stats.values():
+            children.setdefault(stat.ppid, []).append(stat.pid)
+
+        depths: dict[int, int] = {}
+        pending: list[tuple[int, int]] = []
+        reused_pids: set[int] = set()
+        for pid, known in self.last_seen.items():
+            stat = stats.get(pid)
+            if stat is None:
+                continue
+            if stat.start_time_ticks != known.get("start_time_ticks"):
+                reused_pids.add(pid)
+                continue
+            depth = known.get("depth")
+            if isinstance(depth, int) and pid != os.getpid():
+                depths[pid] = depth
+                pending.append((pid, depth))
+
+        while pending:
+            parent, depth = pending.pop()
+            for child in children.get(parent, ()):
+                if child == os.getpid() or child in depths or child in reused_pids:
+                    continue
+                depths[child] = depth + 1
+                pending.append((child, depth + 1))
+        return depths
 
     def _peak(self, key: str, value: object, *, lowest: bool = False) -> None:
         if not isinstance(value, (int, float)):
@@ -255,6 +329,10 @@ class Sampler:
             "reason": reason,
             "at": time.time(),
             "elapsed": self._elapsed(),
+            "root_alive": self.root_alive,
+            "root_start_time_ticks": self.root_start_time_ticks,
+            "post_root_observations": self.post_root_observations,
+            "membership": self.membership,
             "soak": {"procs": len(depths), **totals, "by_role": roles},
             "top_rss": [
                 {"pid": pid, "role": name, "rss": rss}
@@ -289,10 +367,20 @@ class Sampler:
         elapsed = self._elapsed()
         for pid, depth in depths.items():
             known = self.last_seen.get(pid)
-            cmdline = known.get("cmdline") if known else self.procfs.cmdline(pid)
+            same_process = (
+                known is not None
+                and known.get("start_time_ticks") == stats[pid].start_time_ticks
+            )
+            cmdline = (
+                known.get("cmdline")
+                if same_process and known
+                else self.procfs.cmdline(pid)
+            )
             self.last_seen[pid] = {
                 "comm": stats[pid].comm,
                 "ppid": stats[pid].ppid,
+                "start_time_ticks": stats[pid].start_time_ticks,
+                "depth": depth,
                 "role": role(depth),
                 "cmdline": cmdline,
                 "seen_at": elapsed,
@@ -392,11 +480,35 @@ class Sampler:
         stats, depths = self._tree()
         progress = read_progress(self.out / PROGRESS_DIRNAME) or {}
         workers = progress.get("workers") or {}
+
+        def matching_worker(pid: int) -> Mapping[str, Any] | None:
+            worker = workers.get(pid)
+            if not isinstance(worker, Mapping):
+                return None
+            stat = stats.get(pid)
+            known = self.last_seen.get(pid)
+            start_time_ticks = (
+                stat.start_time_ticks
+                if stat is not None
+                else known.get("start_time_ticks")
+                if known is not None
+                else None
+            )
+            worker_start = worker.get("start_time_ticks")
+            if (
+                not isinstance(start_time_ticks, int)
+                or not isinstance(worker_start, int)
+                or start_time_ticks != worker_start
+            ):
+                return None
+            return worker
+
         chain: list[dict[str, Any]] = []
         pid = int(info.si_pid)
         while pid > 0 and len(chain) < 8 and all(item["pid"] != pid for item in chain):
             stat = stats.get(pid) or self.procfs.stat(pid)
-            worker = (workers.get(pid) or {}).get("worker")
+            worker_record = matching_worker(pid)
+            worker = worker_record.get("worker") if worker_record else None
             if stat is not None:
                 chain.append(
                     {
@@ -404,6 +516,7 @@ class Sampler:
                         "comm": stat.comm,
                         "role": role(depths[pid]) if pid in depths else "outside soak",
                         "worker": worker,
+                        "start_time_ticks": stat.start_time_ticks,
                         "cmdline": self.procfs.cmdline(pid),
                     }
                 )
@@ -419,6 +532,7 @@ class Sampler:
                     "comm": known["comm"],
                     "role": known["role"],
                     "worker": worker,
+                    "start_time_ticks": known["start_time_ticks"],
                     "cmdline": known["cmdline"],
                     "gone": True,
                     "last_seen_elapsed": known["seen_at"],
@@ -426,7 +540,8 @@ class Sampler:
             )
             pid = known["ppid"]
         sender_worker = next(
-            (workers[item["pid"]] for item in chain if item["pid"] in workers), None
+            (record for item in chain if (record := matching_worker(item["pid"]))),
+            None,
         )
         now = time.time()
         record = {
@@ -438,6 +553,8 @@ class Sampler:
             "sender_pid": info.si_pid,
             "sender_uid": info.si_uid,
             "sender_in_soak": info.si_pid in depths,
+            "root_alive": self.root_alive,
+            "post_root_observations": self.post_root_observations,
             "sender_chain": chain,
             "sender_worker": sender_worker,
             "soak_procs": len(depths),
@@ -571,7 +688,7 @@ class SamplerHandle:
 
     process: subprocess.Popen[bytes]
 
-    def stop(self, timeout: float = 10.0) -> int | None:
+    def stop(self, timeout: float = SAMPLER_STOP_TIMEOUT_SECONDS) -> int | None:
         """Ask the sampler to finish, and reap it. Never raises."""
         try:
             if self.process.stdin is not None:
@@ -584,7 +701,7 @@ class SamplerHandle:
             # It blocks SIGTERM by design; only this run's own sampler is killed.
             self.process.kill()
             try:
-                return self.process.wait(timeout=5)
+                return self.process.wait(timeout=SAMPLER_REAP_TIMEOUT_SECONDS)
             except subprocess.TimeoutExpired:
                 return None
 

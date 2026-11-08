@@ -28,11 +28,12 @@ from tests._contention import (  # noqa: E402
     DIAGNOSTICS_DIRNAME,
     DIAGNOSTICS_ENV,
     FAILURES_ENV,
+    FailureRecord,
     SHARD_MAP_FILENAME,
     SHARDS_ENV,
     format_tally,
     progress_directory,
-    read_failures,
+    read_failure_record,
     tally_failures,
     write_shard_map,
 )
@@ -1335,6 +1336,9 @@ def _run_contention(args: list[str]) -> int:
         cwd=REPO_ROOT,
     )
     repeats: list[tuple[str, ...]] = []
+    repeat_indices: list[int] = []
+    partial_records: dict[int, FailureRecord | None] = {}
+    incomplete_repeats: list[int] = []
     red_repeats: list[int] = []
     first_failure = 0
     started = time.monotonic()
@@ -1354,6 +1358,13 @@ def _run_contention(args: list[str]) -> int:
                 # A soak is long enough that an operator interrupting it still
                 # wants the tally for the repeats that did finish.
                 print("\ncontention soak interrupted", file=sys.stderr, flush=True)
+                record = read_failure_record(failures_path)
+                if record is not None and record.complete:
+                    repeats.append(record.nodeids)
+                    repeat_indices.append(index)
+                else:
+                    incomplete_repeats.append(index)
+                    partial_records[index] = record
                 red_repeats.append(index)
                 first_failure = first_failure or int(pytest.ExitCode.INTERRUPTED)
                 break
@@ -1364,7 +1375,23 @@ def _run_contention(args: list[str]) -> int:
                     file=sys.stderr,
                     flush=True,
                 )
-            repeats.append(read_failures(failures_path))
+            record = read_failure_record(failures_path)
+            if record is not None and record.complete:
+                repeats.append(record.nodeids)
+                repeat_indices.append(index)
+            else:
+                # A missing or partial record cannot prove a clean repeat,
+                # including when the child unexpectedly returned zero.
+                incomplete_repeats.append(index)
+                partial_records[index] = record
+                if returncode == 0:
+                    returncode = int(pytest.ExitCode.INTERNAL_ERROR)
+                    print(
+                        f"contention repeat {index}: no completed failure record; "
+                        "treating the repeat as incomplete",
+                        file=sys.stderr,
+                        flush=True,
+                    )
             if returncode != 0:
                 red_repeats.append(index)
                 first_failure = first_failure or returncode
@@ -1375,13 +1402,38 @@ def _run_contention(args: list[str]) -> int:
     print(
         "\n"
         + format_tally(
-            tally_failures(repeats),
+            tally_failures(repeats, repeat_indices=repeat_indices),
             repeat_count=repeat_count,
             red_repeats=red_repeats,
             duration=time.monotonic() - started,
+            completed_repeat_count=len(repeats),
         ),
         flush=True,
     )
+    if incomplete_repeats:
+        print(
+            "partial failure evidence (excluded from the completed tally):",
+            flush=True,
+        )
+        for index in incomplete_repeats:
+            record = partial_records[index]
+            if record is None:
+                print(f"  repeat {index}: no readable failure record", flush=True)
+                continue
+            print(
+                f"  repeat {index}: {record.reports_seen} report(s) observed, "
+                f"{record.reports_written} stored, {record.reports_omitted} omitted, "
+                f"{record.reports_unwritten} write failure(s)",
+                flush=True,
+            )
+            for report in record.reports:
+                detail = str(report.get("detail", "")).strip().splitlines()
+                excerpt = detail[0][:240] if detail else ""
+                print(
+                    f"    [{report.get('phase', '?')}] {report.get('nodeid', '?')}"
+                    + (f": {excerpt}" if excerpt else ""),
+                    flush=True,
+                )
     print(f"per-repeat failure records: {_repo_relative(artifacts)}", flush=True)
     if sampler is not None:
         print(f"contention diagnostics: {_repo_relative(diagnostics)}", flush=True)
