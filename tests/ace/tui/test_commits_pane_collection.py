@@ -16,6 +16,7 @@ from sase.ace.tui.widgets.artifacts.commits_collection import (
     AuthoritativeCommitSnapshot,
     snapshot_covers,
 )
+from sase.ace.tui.widgets.artifacts.query_session import ArtifactQuerySession
 from sase.ace.tui.widgets.single_line_vim_text_area import SingleLineVimTextArea
 from sase.core.time import get_timezone
 import sase.ace.tui.widgets.artifacts.commits as commits_module
@@ -159,15 +160,15 @@ async def test_unlimited_commits_status_follows_backend_coverage_without_a_query
         bar = pane.query_one(CommitFilterBar)
         status = bar.query_one("#commit-filter-status", Static)
         editor = bar.query_one("#commit-filter-input", SingleLineVimTextArea)
+        coverage = "capped" if capped else "exact"
         await page.wait_for(
             lambda _state: (
                 pane.result is not None
                 and len(pane.result.commits) == expected_count
-                and ("capped" in status.content.plain) is capped
+                and status.content.plain == coverage
             )
         )
 
-        coverage = "capped" if capped else "exact"
         marker = "+" if capped else ""
         assert status.content.plain == coverage
         assert pane.query_one("#stitches-position", Static).content.plain == (
@@ -176,6 +177,45 @@ async def test_unlimited_commits_status_follows_backend_coverage_without_a_query
         assert "limit:" not in editor.text
         assert "limit:" not in pane._build_info().plain
         assert not any(chip.startswith("limit:") for chip in pane._filter_chips())
+
+
+async def test_collection_apply_keeps_exact_status_when_query_session_misses(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    result = _result_with_commit_count(41)
+    monkeypatch.setattr(
+        "sase.config.load_merged_config",
+        lambda: {
+            "ace": {
+                "artifacts": {
+                    "stitches": {"default_query": "sidecar:false since:24h limit:all"}
+                }
+            }
+        },
+    )
+    monkeypatch.setattr(commits_module, "run_vcs_log", lambda **_kwargs: result)
+    monkeypatch.setattr(commits_module, "load_commit_diff_text", lambda _spec: "")
+    monkeypatch.setattr(
+        ArtifactQuerySession,
+        "result",
+        lambda *_args, **_kwargs: None,
+    )
+
+    async with AcePage(initial_tab="patches") as page:
+        await page.press(page.artifacts_digit("stitches"))
+        pane = page.query_one_widget("#artifacts-stitches-pane", CommitsPane)
+        bar = pane.query_one(CommitFilterBar)
+        status = bar.query_one("#commit-filter-status", Static)
+        await page.wait_for(
+            lambda _state: (
+                pane.result is not None
+                and len(pane.result.commits) == 41
+                and status.content.plain == "exact"
+            )
+        )
+        assert pane.query_one("#stitches-position", Static).content.plain == (
+            "[1/41]  ·  "
+        )
 
 
 async def test_explicit_limit_truncates_and_remains_visible(

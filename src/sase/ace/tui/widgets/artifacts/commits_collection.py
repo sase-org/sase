@@ -133,6 +133,7 @@ class CommitsCollectionMixin(_MixinBase):
             values: CommitLogFilterValues,
             *,
             resolve_fresh_bounds: bool = False,
+            query_result: ArtifactQueryResult | None = None,
         ) -> VcsLogResult: ...
 
         def _refresh_info(self) -> None: ...
@@ -335,7 +336,11 @@ class CommitsCollectionMixin(_MixinBase):
             query_index=query_index,
             relation_index=relation_index,
         )
-        displayed = self._filtered_result(result, spec.filters)
+        displayed = self._filtered_result(
+            result,
+            spec.filters,
+            query_result=initial_query_result,
+        )
         self._display_result(displayed)
         if not self._filter_session_open:
             self._set_result_status(

@@ -9,7 +9,10 @@ from textual.worker import Worker
 
 from sase.ace.tui.util.debounce import DetailPanelDebouncer
 from sase.ace.tui.widgets.filter_bar import FilterBar
-from sase.core.query_profile_corpus_facade import ArtifactQueryIndex
+from sase.core.query_profile_corpus_facade import (
+    ArtifactQueryIndex,
+    ArtifactQueryResult,
+)
 from sase.vcs_log.filter_query import (
     CommitFilterQueryError,
     commit_repo_matches,
@@ -159,6 +162,7 @@ class CommitsFilteringMixin(_MixinBase):
         values: CommitLogFilterValues,
         *,
         resolve_fresh_bounds: bool = False,
+        query_result: ArtifactQueryResult | None = None,
     ) -> VcsLogResult:
         del resolve_fresh_bounds
         self._query_result_pending = False
@@ -170,11 +174,14 @@ class CommitsFilteringMixin(_MixinBase):
         )
         repo_names = frozenset(repo.name for repo in repos)
         query_index = self._query_index_for_result(result)
-        query_result = (
-            None
-            if query_index is None
-            else self._query_session.result(self._row_query_string(values), query_index)
-        )
+        if query_result is None:
+            query_result = (
+                None
+                if query_index is None
+                else self._query_session.result(
+                    self._row_query_string(values), query_index
+                )
+            )
         if query_result is None:
             self._query_result_pending = query_index is not None
             matched_row_ids: frozenset[str] | None = None
