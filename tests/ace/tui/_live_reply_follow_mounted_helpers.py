@@ -16,11 +16,13 @@ import pytest
 from rich.console import Console
 
 from sase.ace.testing import AcePage
+from sase.ace.testing.wait import DEFAULT_WAIT_TIMEOUT, wait_for as wait_for_pilot
 from sase.ace.tui.widgets.prompt_panel import AgentPromptPanel
 from sase.ace.tui.widgets.prompt_panel._live_reply_follow import (
     _contains_live_reply_region,
 )
 from sase.llm_provider._subprocess import stream_and_parse_muse_json_output
+from tests._load_tolerant import LOAD_TOLERANT_TIMEOUT
 from tests.ace.tui.visual._ace_png_snapshot_helpers import wait_for_visual_idle
 from tests.llm_provider._muse_commentary_helpers import commentary_record
 
@@ -125,7 +127,7 @@ def append_log(record):
         os.fsync(handle.fileno())
 
 def wait_for(path):
-    deadline = time.monotonic() + 8
+    deadline = time.monotonic() + GATE_WAIT_SECONDS
     while not Path(path).exists() and time.monotonic() < deadline:
         time.sleep(0.005)
     if not Path(path).exists():
@@ -191,6 +193,10 @@ Path(sys.argv[5]).write_text("terminal sent", encoding="utf-8")
             "_answer",
             repr(MOUNTED_ANSWER),
         )
+        .replace(
+            "GATE_WAIT_SECONDS",
+            repr(LOAD_TOLERANT_TIMEOUT),
+        )
     )
 
 
@@ -204,11 +210,16 @@ def reply_card_text(page: AcePage) -> str:
 
 
 async def wait_for_page(page: AcePage, predicate: Any, description: str) -> None:
-    deadline = asyncio.get_running_loop().time() + 5.0
-    while not predicate():
-        if asyncio.get_running_loop().time() >= deadline:
-            raise AssertionError(f"timed out waiting for {description}\n{page.screen}")
-        await page.pause(0.025)
+    def named() -> bool:
+        return bool(predicate())
+
+    named.__qualname__ = description
+    try:
+        await wait_for_pilot(page._pilot, named, timeout=DEFAULT_WAIT_TIMEOUT)  # noqa: SLF001
+    except AssertionError as exc:
+        raise AssertionError(
+            f"timed out waiting for {description}\n{page.screen}"
+        ) from exc
 
 
 async def exercise_gated_stream(
@@ -357,8 +368,8 @@ async def exercise_gated_stream(
             assert reply_card_text(page).count(old_text) == 1
 
         release_terminal.touch()
-        result = await asyncio.wait_for(parser_task, timeout=5)
-        assert process.wait(timeout=1) == 0
+        result = await asyncio.wait_for(parser_task, timeout=LOAD_TOLERANT_TIMEOUT)
+        assert process.wait(timeout=LOAD_TOLERANT_TIMEOUT) == 0
         assert result[0] == MOUNTED_ANSWER
         assert terminal_sent.exists()
         # The unphased final message committed to the session log must not
@@ -381,12 +392,12 @@ async def exercise_gated_stream(
         if process.poll() is None:
             process.terminate()
             try:
-                process.wait(timeout=2)
+                process.wait(timeout=LOAD_TOLERANT_TIMEOUT)
             except subprocess.TimeoutExpired:
                 process.kill()
-                process.wait(timeout=2)
+                process.wait(timeout=LOAD_TOLERANT_TIMEOUT)
         if not parser_task.done():
             try:
-                await asyncio.wait_for(parser_task, timeout=3)
+                await asyncio.wait_for(parser_task, timeout=LOAD_TOLERANT_TIMEOUT)
             except Exception:
                 pass

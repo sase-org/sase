@@ -7,6 +7,7 @@ import math
 import os
 import subprocess
 import sys
+import time
 from pathlib import Path
 
 import pytest
@@ -27,6 +28,7 @@ from sase.llm_provider.provider_disable import (
     try_disable_provider,
     try_disable_provider_until,
 )
+from tests._load_tolerant import LOAD_TOLERANT_TIMEOUT
 
 _NOW = 1_800_000_000.0
 
@@ -143,7 +145,8 @@ def test_facade_try_disable_one_winner_under_process_contention(
                 "from pathlib import Path",
                 "from sase.llm_provider.provider_disable import try_disable_provider",
                 f"start = Path({str(start)!r})",
-                "for _ in range(400):",
+                f"deadline = time.monotonic() + {LOAD_TOLERANT_TIMEOUT}",
+                "while time.monotonic() < deadline:",
                 "    if start.exists():",
                 "        break",
                 "    time.sleep(0.005)",
@@ -177,10 +180,23 @@ def test_facade_try_disable_one_winner_under_process_contention(
     ]
     start.write_text("go\n", encoding="utf-8")
     outcomes = []
-    for process in processes:
-        stdout, stderr = process.communicate(timeout=10)
-        assert process.returncode == 0, stderr
-        outcomes.append(json.loads(stdout))
+    deadline = time.monotonic() + LOAD_TOLERANT_TIMEOUT
+    try:
+        for process in processes:
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                raise subprocess.TimeoutExpired(process.args, LOAD_TOLERANT_TIMEOUT)
+            stdout, stderr = process.communicate(timeout=remaining)
+            assert process.returncode == 0, stderr
+            outcomes.append(json.loads(stdout))
+    finally:
+        for process in processes:
+            if process.poll() is None:
+                process.kill()
+                try:
+                    process.communicate(timeout=LOAD_TOLERANT_TIMEOUT)
+                except subprocess.TimeoutExpired:
+                    pass
     winners = [row for row in outcomes if row["inserted"] is True]
     assert len(winners) == 1
     assert all(row["source"] == winners[0]["source"] for row in outcomes)

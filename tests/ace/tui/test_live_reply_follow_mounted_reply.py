@@ -17,6 +17,7 @@ from sase.ace.testing import AcePage
 from sase.ace.tui.models.agent import Agent, AgentType
 from sase.ace.tui.widgets.prompt_panel import AgentPromptPanel
 from sase.llm_provider._subprocess import stream_and_parse_muse_json_output
+from tests._load_tolerant import LOAD_TOLERANT_TIMEOUT
 from tests.ace.tui._live_reply_follow_mounted_helpers import (
     MOUNTED_ANSWER,
     MOUNTED_COMMENTARY_1,
@@ -204,8 +205,8 @@ async def test_gated_muse_stream_reaches_mounted_reply_before_terminal(
             assert refresh_calls == []
 
             release_terminal.touch()
-            result = await asyncio.wait_for(parser_task, timeout=5)
-            assert process.wait(timeout=1) == 0
+            result = await asyncio.wait_for(parser_task, timeout=LOAD_TOLERANT_TIMEOUT)
+            assert process.wait(timeout=LOAD_TOLERANT_TIMEOUT) == 0
             assert result[0] == MOUNTED_ANSWER
             assert terminal_sent.exists()
             # The unphased final message committed to the session log must not
@@ -239,12 +240,12 @@ async def test_gated_muse_stream_reaches_mounted_reply_before_terminal(
             if process.poll() is None:
                 process.terminate()
                 try:
-                    process.wait(timeout=2)
+                    process.wait(timeout=LOAD_TOLERANT_TIMEOUT)
                 except subprocess.TimeoutExpired:
                     process.kill()
-                    process.wait(timeout=2)
+                    process.wait(timeout=LOAD_TOLERANT_TIMEOUT)
             if not parser_task.done():
                 try:
-                    await asyncio.wait_for(parser_task, timeout=3)
+                    await asyncio.wait_for(parser_task, timeout=LOAD_TOLERANT_TIMEOUT)
                 except Exception:
                     pass

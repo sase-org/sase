@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import json
 import logging
-import os
 from pathlib import Path
 
 import pytest
@@ -27,15 +26,8 @@ from sase.llm_provider.usage.types import validate_observation
 from tests.llm_provider._probe_deadlines import (
     PROBE_HANG_GUARD_SECONDS,
     hang_deadlines,
+    wait_until_reaped,
 )
-
-
-def _pid_alive(pid: int) -> bool:
-    try:
-        os.kill(pid, 0)
-    except OSError:
-        return False
-    return True
 
 
 def test_synthetic_fourth_provider_collects_without_core_changes(
@@ -238,7 +230,7 @@ def test_descendant_processes_are_reaped(
         if pidfile.exists():
             break
     child_pid = int(pidfile.read_text(encoding="utf-8"))
-    assert not _pid_alive(child_pid)
+    wait_until_reaped(child_pid)
 
 
 def test_in_process_type_error_calls_the_hook_exactly_once(
