@@ -130,6 +130,26 @@ def test_provider_timer_thread_survives_live_update_errors() -> None:
     _wait_until_provider_timer_threads_stop(existing_thread_ids)
 
 
+def test_provider_timer_thread_starts_before_live_enter() -> None:
+    """The named timer thread exists before Live takes stdout."""
+    existing_thread_ids = {thread.ident for thread in threading.enumerate()}
+    seen_during_enter: list[threading.Thread] = []
+    original_enter = Live.__enter__
+
+    def tracking_enter(self: Live) -> Live:
+        seen_during_enter.extend(_provider_timer_threads(existing_thread_ids))
+        return original_enter(self)
+
+    with (
+        patch.object(Live, "__enter__", tracking_enter),
+        patch("sase.output.time.sleep", return_value=None),
+        provider_timer("Short operation"),
+    ):
+        _wait_for_provider_timer_thread(existing_thread_ids)
+    _wait_until_provider_timer_threads_stop(existing_thread_ids)
+    assert seen_during_enter, "sase-provider-timer must start before Live.__enter__"
+
+
 # Additional edge case tests
 def test_print_workflow_header_without_tag() -> None:
     """Test workflow header without tag."""

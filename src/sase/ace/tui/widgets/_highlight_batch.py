@@ -5,8 +5,8 @@ A cycle edit (``ctrl+n`` / ``ctrl+p``) otherwise pays for one full
 again from the glossary and repo-mention context refreshes, and again from
 the queued ``Changed`` / ``SelectionChanged`` echoes. This mixin batches the
 synchronous builds (one build per :meth:`_highlight_batch` block) and makes
-the queued echoes no-ops when their inputs have not changed since the last
-run.
+the queued echoes no-ops when their inputs have not changed since the batch
+flush, including the terminal ``TextArea._build_highlight_map`` call.
 """
 
 from __future__ import annotations
@@ -38,6 +38,7 @@ class HighlightBatchMixin(_MixinBase):
     if TYPE_CHECKING:
         _highlight_batch_depth: int
         _highlight_batch_pending: bool
+        _highlight_echo_key: tuple[Any, ...] | None
         _prompt_context_refresh_key: tuple[Any, ...] | None
 
         text: str
@@ -48,6 +49,7 @@ class HighlightBatchMixin(_MixinBase):
     def __init__(self, *args: Any, **kwargs: Any) -> None:
         self._highlight_batch_depth = 0
         self._highlight_batch_pending = False
+        self._highlight_echo_key = None
         self._prompt_context_refresh_key = None
         super().__init__(*args, **kwargs)
 
@@ -64,12 +66,19 @@ class HighlightBatchMixin(_MixinBase):
                 if self._highlight_batch_pending:
                     self._highlight_batch_pending = False
                     super()._build_highlight_map()
+                    self._highlight_echo_key = self._prompt_completion_context_key()
                     self.refresh()
 
     def _build_highlight_map(self) -> None:
         if getattr(self, "_highlight_batch_depth", 0) > 0:
             self._highlight_batch_pending = True
             return
+        echo_key = getattr(self, "_highlight_echo_key", None)
+        if echo_key is not None:
+            key = self._prompt_completion_context_key()
+            if key is not None and key == echo_key:
+                return
+            self._highlight_echo_key = None
         super()._build_highlight_map()
 
     def _on_prompt_completion_context_changed(self) -> None:

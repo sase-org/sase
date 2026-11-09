@@ -225,46 +225,51 @@ def _one_shot_provider_timer(
         text.append(f" [{elapsed_str}]", style="cyan")
         return text
 
-    # Use Rich Live to update the timer in place
-    with Live(_get_timer_text(), refresh_per_second=2, console=console) as live:
-        stop_event = threading.Event()
+    # Start the named thread before Live.__enter__ so callers can observe it
+    # even while Live is taking the stdout FileProxy. Live itself stays on
+    # this thread so stream writes still reassemble through Rich's proxy.
+    stop_event = threading.Event()
+    live_box: list[Live] = []
 
-        def _update_timer() -> None:
-            while not stop_event.wait(_PROVIDER_TIMER_INTERVAL_SECONDS):
-                try:
-                    live.update(_get_timer_text())
-                except Exception:
-                    # A display glitch must not kill the timer thread: tests
-                    # and callers observe the named thread until stop_event.
-                    continue
-
-        timer_thread = threading.Thread(
-            target=_update_timer,
-            name="sase-provider-timer",
-            daemon=True,
-        )
-        timer_thread.start()
-
-        try:
-            # Yield control back to the caller
-            yield
-
-        finally:
-            stop_event.set()
-            timer_thread.join(timeout=_PROVIDER_TIMER_JOIN_TIMEOUT_SECONDS)
-            # Final update with the total elapsed time
-            elapsed = time.time() - start_time
-            elapsed_str = _format_elapsed(elapsed)
-            final_text = Text()
-            final_text.append("✅ ", style="bold green")
-            final_text.append(message, style="bold")
-            final_text.append(f" completed in {elapsed_str}", style="green")
+    def _update_timer() -> None:
+        while not stop_event.wait(_PROVIDER_TIMER_INTERVAL_SECONDS):
+            if not live_box:
+                continue
             try:
-                live.update(final_text)
+                live_box[0].update(_get_timer_text())
             except Exception:
-                pass
-            # Give a moment to show the final message
-            time.sleep(_PROVIDER_TIMER_COMPLETION_DISPLAY_SECONDS)
+                # A display glitch must not kill the timer thread: tests
+                # and callers observe the named thread until stop_event.
+                continue
+
+    timer_thread = threading.Thread(
+        target=_update_timer,
+        name="sase-provider-timer",
+        daemon=True,
+    )
+    timer_thread.start()
+    try:
+        with Live(_get_timer_text(), refresh_per_second=2, console=console) as live:
+            live_box.append(live)
+            try:
+                yield
+            finally:
+                stop_event.set()
+                timer_thread.join(timeout=_PROVIDER_TIMER_JOIN_TIMEOUT_SECONDS)
+                elapsed = time.time() - start_time
+                elapsed_str = _format_elapsed(elapsed)
+                final_text = Text()
+                final_text.append("✅ ", style="bold green")
+                final_text.append(message, style="bold")
+                final_text.append(f" completed in {elapsed_str}", style="green")
+                try:
+                    live.update(final_text)
+                except Exception:
+                    pass
+                time.sleep(_PROVIDER_TIMER_COMPLETION_DISPLAY_SECONDS)
+    finally:
+        stop_event.set()
+        timer_thread.join(timeout=_PROVIDER_TIMER_JOIN_TIMEOUT_SECONDS)
 
 
 class _ReusableProviderTimer(contextlib.AbstractContextManager[None]):

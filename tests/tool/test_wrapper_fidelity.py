@@ -13,7 +13,7 @@ import time
 import pytest
 
 from sase.config.core import clear_config_cache
-from sase.core.process_identity import process_identity_token
+from sase.core.process_identity import process_identity_matches, process_identity_token
 from sase.core.tool_run import (
     tool_run_begin,
     tool_run_list,
@@ -22,6 +22,7 @@ from sase.core.tool_run import (
 from sase.tool.executor import ToolRunCliRequest, execute_tool_run
 from sase.tool.executor_process import should_merge_streams
 from sase.tool.liveness import current_boot_id, reconcile_unsettled_tool_runs
+from tests._load_tolerant import LOAD_TOLERANT_TIMEOUT
 
 
 SASE = Path(__file__).resolve().parents[2] / ".venv" / "bin" / "sase"
@@ -118,9 +119,11 @@ def _wait_pidfile(pidfile: Path, timeout: float = 20.0) -> int:
     raise AssertionError("fixture child did not report its pid")
 
 
-def _alive(pid: int) -> bool:
+def _alive(pid: int, identity: str | None = None) -> bool:
     """Return whether *pid* is a living process (a zombie counts as dead)."""
 
+    if identity and not process_identity_matches(pid, identity):
+        return False
     try:
         stat = Path(f"/proc/{pid}/stat").read_text(encoding="utf-8")
     except OSError:
@@ -130,6 +133,20 @@ def _alive(pid: int) -> bool:
     except IndexError:
         return True
     return state != "Z"
+
+
+def _wait_until_dead(
+    pid: int,
+    identity: str | None = None,
+    *,
+    timeout: float = LOAD_TOLERANT_TIMEOUT,
+) -> None:
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        if not _alive(pid, identity):
+            return
+        time.sleep(0.05)  # sase-test-wait: group SIGKILL lands under soak
+    raise AssertionError(f"pid {pid} still alive after {timeout}s")
 
 
 def _kill_pid(pid: int) -> None:
@@ -211,6 +228,7 @@ def test_owner_child_shares_wrapper_group_and_group_kill_leaves_no_survivors(
     try:
         run = _wait_running(env)
         child_pid = _wait_pidfile(pidfile)
+        child_identity = process_identity_token(child_pid)
         # The child joins the wrapper's own process group so the owner's
         # killpg reaches the whole tree.
         assert os.getpgid(child_pid) == wrapper.pid
@@ -218,17 +236,17 @@ def test_owner_child_shares_wrapper_group_and_group_kill_leaves_no_survivors(
         assert observed["child_pgid"] == wrapper.pid
         os.killpg(wrapper.pid, signal.SIGTERM)
         time.sleep(1.0)  # sase-test-wait: TERM is ignored, nothing exits yet
-        assert _alive(child_pid)
+        assert _alive(child_pid, child_identity)
         assert wrapper.poll() is None
         # Pass the 5 s supervisor grace: the wrapper must skip its own
         # SIGKILL escalation under a live owner, so the child survives until
         # the owner itself escalates.
         time.sleep(4.5)  # sase-test-wait: outlast TERM_ESCALATE_SECONDS
-        assert _alive(child_pid)
+        assert _alive(child_pid, child_identity)
         assert wrapper.poll() is None
         os.killpg(wrapper.pid, signal.SIGKILL)
-        wrapper.wait(timeout=5)
-        assert not _alive(child_pid)
+        wrapper.wait(timeout=LOAD_TOLERANT_TIMEOUT)
+        _wait_until_dead(child_pid, child_identity)
         lost = _wait_state(str(run["run_id"]), "lost")
         assert lost["child_pgid"] == wrapper.pid
     finally:
