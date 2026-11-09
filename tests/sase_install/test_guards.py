@@ -21,6 +21,7 @@ def test_agent_env_refuses_with_placeholder_text(tmp_path: Path) -> None:
     assert "won't run inside a SASE agent" in err
     assert "just install-venv" in err
     assert "SASE_GLOBAL_INSTALL_BYPASS" in err
+    assert "SASE_GLOBAL_INSTALL_BYPASS='<reason>' just install-dev -y" in err
 
 
 def test_monitor_id_refuses_for_pypi_mode(tmp_path: Path) -> None:
@@ -30,6 +31,7 @@ def test_monitor_id_refuses_for_pypi_mode(tmp_path: Path) -> None:
     assert exit_code == 2
     assert out == ""
     assert "just install won't run inside a SASE agent" in err
+    assert "SASE_GLOBAL_INSTALL_BYPASS='<reason>' just install -y" in err
 
 
 def test_empty_bypass_still_refuses(tmp_path: Path) -> None:

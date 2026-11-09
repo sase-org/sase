@@ -64,9 +64,10 @@ for the full comparison.
 they refuse with exit 2, because they would replace the `sase` binary every running
 agent depends on. The refusal points at `just install-venv` for workspace repairs. If
 the human genuinely asked for a global reinstall, the agent proposes it through
-`/sase_gate`, and the approved run carries a reason in
-`SASE_GLOBAL_INSTALL_BYPASS='<reason>'` (the installer prints a one-line note naming
-that reason). Agents never set the bypass on their own authority.
+`/sase_gate` whose command runs
+`SASE_GLOBAL_INSTALL_BYPASS='<reason>' just install-dev -y`. Gate commands run without a
+terminal, and the installer refuses any non-dry-run without one unless it gets `-y`.
+Agents never set the bypass on their own authority.
 
 ## Verification Commands
 

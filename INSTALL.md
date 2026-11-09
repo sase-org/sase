@@ -83,6 +83,9 @@ broken tool env). Day-to-day updates once installed belong to `sase update` (see
 [Keeping SASE up to date](#keeping-sase-up-to-date)), which maintains the install in
 exactly the shape `install-dev` creates. Preview any global install first with `-n`
 (`just install-dev -n`); repeat runs are no-ops when the install is already current.
+Without a terminal (a script, cron job, or gate command), every run except `-n` needs
+`-y`. This is true even when the run would be a no-op, because the refusal comes before
+the no-op shortcut.
 
 `just install` and `just install-dev` are human-only: they refuse inside a SASE agent or
 monitor (exit 2), because they replace the global `sase` every agent and the scheduler

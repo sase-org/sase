@@ -75,12 +75,15 @@ def agent_guard(env: Mapping[str, str] | None = None) -> AgentGuard:
 
 def agent_refusal_text(prog: str) -> str:
     """Render the human-only refusal block for *prog*."""
+    command = f"{BYPASS_ENV_VAR}='<reason>' {prog} -y"
+    pad = " " * 36
     return (
         f"\u2717 {prog} won't run inside a SASE agent \u2014 it replaces "
         "the global `sase` that every agent and the scheduler run.\n"
         "  repair this workspace's .venv      just install-venv\n"
-        "  the user asked for a reinstall     propose it with /sase_gate "
-        f"and {BYPASS_ENV_VAR}='<reason>'"
+        "  the user asked for a reinstall     propose a /sase_gate whose command runs\n"
+        f"{pad}{command}\n"
+        f"{pad}(gate commands have no terminal, so -y is required)"
     )
 
 
