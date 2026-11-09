@@ -26,6 +26,7 @@ from sase.running_field import WorkspaceClaim, get_claimed_workspaces
 from sase.core.paths import sase_projects_dir
 
 from ._fixtures import (
+    POLL_TIMEOUT,
     make_starter_agent,
     record_from_disk,
     wait_for_done,
@@ -341,6 +342,22 @@ def test_incident_save_chat_history_crash_recovers_completed_result(
         timestamp="20260812130000",
         settle_starter=True,
     )
+    meta_path = Path(record.artifacts_dir) / "agent_meta.json"
+    result_id: object = None
+    persisted_deadline = time.monotonic() + POLL_TIMEOUT
+    while time.monotonic() < persisted_deadline:
+        try:
+            result_id = json.loads(meta_path.read_text(encoding="utf-8")).get(
+                "continuation_monitor_result_id"
+            )
+        except (OSError, json.JSONDecodeError):
+            result_id = None
+        if isinstance(result_id, str) and result_id.startswith("result:"):
+            break
+        time.sleep(0.05)  # sase-test-wait: await persisted result before crash deadline
+    else:
+        pytest.fail("monitor result was not persisted before the startup guard expired")
+
     deadline = time.monotonic() + 15
     proc = None
     while time.monotonic() < deadline:
@@ -359,9 +376,7 @@ def test_incident_save_chat_history_crash_recovers_completed_result(
             f"(status={status!r} pid={None if proc is None else proc.pid})"
         )
     meta = json.loads((Path(record.artifacts_dir) / "agent_meta.json").read_text())
-    result_id = meta["continuation_monitor_result_id"]
-    assert isinstance(result_id, str)
-    assert result_id.startswith("result:")
+    assert meta["continuation_monitor_result_id"] == result_id
     monkeypatch.delenv("SASE_PROC_SETTLEMENT_FAIL_SAVE_CHAT_HISTORY", raising=False)
 
     launches: list[str] = []

@@ -19,6 +19,9 @@ SCRIPT_NAMES: dict[str, str] = {
 }
 
 ZSH_PROBE_TIMEOUT_SECONDS = 5.0
+# Compilation is a required file operation that can wait behind other work on
+# small CPU allocations. Keep interactive shell probes on their shorter bound.
+ZSH_COMPILE_TIMEOUT_SECONDS = 30.0
 _ZSH_PROBE_BEGIN = "__SASE_COMPLETION_PROBE_BEGIN__"
 _ZSH_PROBE_END = "__SASE_COMPLETION_PROBE_END__"
 
@@ -507,6 +510,7 @@ __all__ = [
     "ForeignInstallError",
     "SUPPORTED_SHELLS",
     "TargetChoice",
+    "ZSH_COMPILE_TIMEOUT_SECONDS",
     "ZSH_PROBE_TIMEOUT_SECONDS",
     "detect_shell",
     "fpath_hint_line",

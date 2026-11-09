@@ -15,10 +15,11 @@ from threading import Event
 import pytest
 
 # Approve+commit runs two hashed option commands, each a fresh Python that
-# imports sase.plan_gate. The coverage-leg xdist load can spend more than 5s
-# on that pair before _archive_plan_for_approval runs, so archive-start waits
-# must watch the executor future and budget for subprocess import cost.
-ARCHIVE_START_TIMEOUT_SECONDS = 30.0
+# imports sase.plan_gate. Under the full pinned xdist load, subprocess startup
+# and plan validation can exceed 30s before _archive_plan_for_approval runs.
+# This is only the startup guard; the held archive still has its own 5s release
+# deadline and callers keep their existing post-release completion deadlines.
+ARCHIVE_START_TIMEOUT_SECONDS = 60.0
 
 
 def wait_for_archive_start(

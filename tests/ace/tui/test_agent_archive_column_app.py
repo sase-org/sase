@@ -85,6 +85,7 @@ def _archive_expand_timeout(app: Any, *, timeout: float = 5.0) -> str:
     view = getattr(app, "_agents_archive_view", None)
     archive = getattr(view, "archive", None) if view is not None else None
     controller = getattr(app, "_agents_archive_controller", None)
+    focused = getattr(app, "focused", None)
     return (
         f"wait_for() timed out after {timeout}s — archive"
         f" selected_key={getattr(archive, 'selected_key', None)!r}"
@@ -93,6 +94,8 @@ def _archive_expand_timeout(app: Any, *, timeout: float = 5.0) -> str:
         f" generation={getattr(controller, 'generation', None)!r}"
         f" refreshing={getattr(controller, 'refreshing', None)!r}"
         f" status={getattr(controller, 'status', None)!r}"
+        f" focused_widget={type(focused).__name__ if focused is not None else None}"
+        f" focused_id={getattr(focused, 'id', None)!r}"
     )
 
 
@@ -154,6 +157,7 @@ async def test_archive_replaces_the_inbox_column_and_keys_navigate_it(
         assert app.query_one("#archive-column", ArchiveColumn).display
         assert not app.query_one("#agent-list-container").display
         archive_list = app.query_one("#archive-list", ArchiveList)
+        assert app.focused is archive_list
         keys = archive_list.item_keys
         assert _prompt(archive_list, "banner:day:2026-10-10").startswith("▾ Today")
         assert _prompt(archive_list, "banner:day:2026-10-09").startswith("▾ Yesterday")

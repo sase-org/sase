@@ -56,21 +56,26 @@ async def test_plan_worker_is_cancelled_and_late_result_ignored_on_unmount(
 
     def blocked(*args: object, **kwargs: object) -> object:
         entered.set()
-        release.wait(timeout=5)
+        release.wait()
         return original(*args, **kwargs)
 
     async with AcePage() as page:
-        modal = ConfigEditModal(view, field=view.fields_by_path["timezone"])
-        await open_config_edit_modal(page, modal)
-        modal.query_one("#config-edit-input", SingleLineVimTextArea).text = "UTC"
-        with patch.object(cem, "plan_config_edit", side_effect=blocked):
-            modal.action_confirm()
-            await page.wait_for(lambda _screen: entered.is_set())
-            worker = modal._plan_worker
-            assert worker is not None
-            modal.dismiss(None)
-            await page.expect_no_modal()
-            await page.wait_for(lambda _screen: worker.is_cancelled)
+        try:
+            modal = ConfigEditModal(view, field=view.fields_by_path["timezone"])
+            await open_config_edit_modal(page, modal)
+            modal.query_one("#config-edit-input", SingleLineVimTextArea).text = "UTC"
+            with patch.object(cem, "plan_config_edit", side_effect=blocked):
+                modal.action_confirm()
+                await page.wait_for(lambda _screen: entered.is_set())
+                worker = modal._plan_worker
+                assert worker is not None
+                modal.dismiss(None)
+                await page.expect_no_modal()
+                await page.wait_for(lambda _screen: worker.is_cancelled)
+                release.set()
+                await page.pause()
+                assert modal._plan is None
+        finally:
+            # Keep the worker blocked until cancellation is observed, and always
+            # release it before AcePage tears down if an assertion fails.
             release.set()
-            await page.pause()
-            assert modal._plan is None

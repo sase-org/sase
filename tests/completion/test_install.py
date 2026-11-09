@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+import subprocess
 from pathlib import Path
 
 import pytest
@@ -31,6 +32,10 @@ from sase.completion.install_stamp import (
     write_stamp,
 )
 from sase.completion.runtime_cache import RuntimeGrammarStatus, ensure_cached_grammar
+from sase.completion.install_targets import (
+    ZSH_COMPILE_TIMEOUT_SECONDS,
+    ZSH_PROBE_TIMEOUT_SECONDS,
+)
 
 
 def _emit(shell: str) -> tuple[str, str]:
@@ -47,6 +52,30 @@ def _expected(shells: tuple[str, ...] | list[str]):
 
 def _zcompile(path: Path) -> None:
     zwc_path(path).write_text("zwc\n", encoding="utf-8")
+
+
+def test_zcompile_uses_bounded_compile_timeout(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from sase.completion.install_scripts import _zcompile_script
+
+    timeouts: list[float] = []
+
+    def fake_run(
+        *_args: object,
+        timeout: float,
+        **_kwargs: object,
+    ) -> subprocess.CompletedProcess[str]:
+        timeouts.append(timeout)
+        return subprocess.CompletedProcess(args=[], returncode=0, stdout="", stderr="")
+
+    monkeypatch.setattr("sase.completion.install_scripts.subprocess.run", fake_run)
+
+    _zcompile_script(tmp_path / "_sase", zsh="/usr/bin/zsh")
+
+    assert timeouts == [ZSH_COMPILE_TIMEOUT_SECONDS]
+    assert ZSH_COMPILE_TIMEOUT_SECONDS > ZSH_PROBE_TIMEOUT_SECONDS
 
 
 def _install(tmp_path: Path, *, shell: str = "zsh", **kwargs: object):

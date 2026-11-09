@@ -17,6 +17,7 @@ from typing import Any
 from ...models.agent_archive_view import (
     AGENTS_VIEW_ARCHIVE,
     AGENTS_VIEW_INBOX,
+    ARCHIVE_SECTION_PULSE,
     ARCHIVE_STATUS_ALREADY_INBOX,
     ARCHIVE_STATUS_ALREADY_OPEN,
     ARCHIVE_STATUS_OPENED,
@@ -90,6 +91,38 @@ def _sync_archive_chrome(owner: Any) -> None:
         log.debug("archive chrome sync failed", exc_info=True)
 
 
+def _focus_archive_section_after_refresh(owner: Any) -> None:
+    """Move widget focus into the section selected by the Archive state."""
+
+    def focus_section() -> None:
+        state = agents_archive_view_state(owner)
+        if (
+            state.active_view != AGENTS_VIEW_ARCHIVE
+            or getattr(owner, "current_tab", "agents") != "agents"
+        ):
+            return
+        widget_id = (
+            "#archive-pulse"
+            if state.archive.focused_section == ARCHIVE_SECTION_PULSE
+            else "#archive-list"
+        )
+        try:
+            owner.query_one(widget_id).focus()
+        except Exception:
+            # Focus is a best-effort UI handoff; Archive state remains the
+            # source of truth when a lightweight owner has no mounted widget.
+            log.debug("could not focus the active Archive section", exc_info=True)
+
+    after_refresh = getattr(owner, "call_after_refresh", None)
+    if callable(after_refresh):
+        try:
+            after_refresh(focus_section)
+            return
+        except Exception:
+            log.debug("could not schedule Archive section focus", exc_info=True)
+    focus_section()
+
+
 def open_agents_archive_view(owner: Any) -> ArchiveViewOutcome:
     """Open the Archive with its parked state (the pure ``,a`` toggle seam).
 
@@ -101,6 +134,7 @@ def open_agents_archive_view(owner: Any) -> ArchiveViewOutcome:
         from ._archive_controller import request_archive_view_load
 
         request_archive_view_load(owner)
+        _focus_archive_section_after_refresh(owner)
         return ArchiveViewOutcome(
             status=ARCHIVE_STATUS_ALREADY_OPEN,
             view=state.active_view,
@@ -116,6 +150,7 @@ def open_agents_archive_view(owner: Any) -> ArchiveViewOutcome:
     request_archive_view_load(owner)
     restore_archive_parking(owner)
     _sync_archive_chrome(owner)
+    _focus_archive_section_after_refresh(owner)
     return ArchiveViewOutcome(
         status=ARCHIVE_STATUS_OPENED,
         view=state.active_view,
@@ -168,6 +203,7 @@ def open_agents_archive_view_with_query(
     request_archive_view_load(owner)
     restore_archive_parking(owner)
     _sync_archive_chrome(owner)
+    _focus_archive_section_after_refresh(owner)
     return ArchiveViewOutcome(
         status=ARCHIVE_STATUS_OPENED,
         view=state.active_view,

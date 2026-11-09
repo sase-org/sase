@@ -14,7 +14,7 @@ from typing import TYPE_CHECKING
 from sase.completion.install_models import ExpectedCompletion, ZcompileFn
 from sase.completion.install_targets import (
     CompletionInstallError,
-    ZSH_PROBE_TIMEOUT_SECONDS,
+    ZSH_COMPILE_TIMEOUT_SECONDS,
 )
 
 if TYPE_CHECKING:
@@ -112,7 +112,7 @@ def _emit_script(shell: str, spec: object) -> str:
 def _zcompile_script(
     path: Path,
     *,
-    timeout: float = ZSH_PROBE_TIMEOUT_SECONDS,
+    timeout: float = ZSH_COMPILE_TIMEOUT_SECONDS,
     zsh: str | None = None,
 ) -> None:
     """``zcompile`` *path*. Mandatory for zsh; not an optimization."""

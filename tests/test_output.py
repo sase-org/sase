@@ -20,47 +20,47 @@ from tests._load_tolerant import LOAD_TOLERANT_TIMEOUT
 
 
 def _provider_timer_threads(
-    existing_ids: set[int | None],
+    existing_threads: set[threading.Thread],
 ) -> list[threading.Thread]:
     return [
         thread
         for thread in threading.enumerate()
         if thread.name == "sase-provider-timer"
-        and thread.ident not in existing_ids
+        and thread not in existing_threads
         and thread.is_alive()
     ]
 
 
 def _wait_for_provider_timer_thread(
-    existing_ids: set[int | None],
+    existing_threads: set[threading.Thread],
     *,
     timeout: float = LOAD_TOLERANT_TIMEOUT,
 ) -> threading.Thread:
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
-        threads = _provider_timer_threads(existing_ids)
+        threads = _provider_timer_threads(existing_threads)
         if len(threads) == 1:
             return threads[0]
         time.sleep(0.01)  # sase-test-wait: provider timer thread start under soak
     raise AssertionError(
         f"sase-provider-timer never appeared within {timeout}s; "
-        f"live={_provider_timer_threads(existing_ids)!r}"
+        f"live={_provider_timer_threads(existing_threads)!r}"
     )
 
 
 def _wait_until_provider_timer_threads_stop(
-    existing_ids: set[int | None],
+    existing_threads: set[threading.Thread],
     *,
     timeout: float = LOAD_TOLERANT_TIMEOUT,
 ) -> None:
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
-        if not _provider_timer_threads(existing_ids):
+        if not _provider_timer_threads(existing_threads):
             return
         time.sleep(0.01)  # sase-test-wait: provider timer thread join under soak
     raise AssertionError(
         f"sase-provider-timer still live after {timeout}s; "
-        f"live={_provider_timer_threads(existing_ids)!r}"
+        f"live={_provider_timer_threads(existing_threads)!r}"
     )
 
 
@@ -101,52 +101,50 @@ def test_provider_timer_long_duration() -> None:
 
 def test_provider_timer_stops_background_thread() -> None:
     """Stops the timer thread when the context exits."""
-    existing_thread_ids = {thread.ident for thread in threading.enumerate()}
+    existing_threads = set(threading.enumerate())
     timer_thread: threading.Thread | None = None
 
-    with patch("sase.output.time.sleep", return_value=None):
-        with provider_timer("Short operation"):
-            timer_thread = _wait_for_provider_timer_thread(existing_thread_ids)
+    with provider_timer("Short operation"):
+        timer_thread = _wait_for_provider_timer_thread(existing_threads)
 
     assert timer_thread is not None
-    _wait_until_provider_timer_threads_stop(existing_thread_ids)
+    _wait_until_provider_timer_threads_stop(existing_threads)
     assert not timer_thread.is_alive()
 
 
 def test_provider_timer_thread_survives_live_update_errors() -> None:
     """A Live.update exception must not kill the named timer thread."""
-    existing_thread_ids = {thread.ident for thread in threading.enumerate()}
+    existing_threads = set(threading.enumerate())
     with (
-        patch("sase.output._PROVIDER_TIMER_INTERVAL_SECONDS", 0),
+        patch("sase.output._PROVIDER_TIMER_INTERVAL_SECONDS", 0.01),
         patch.object(Live, "update", side_effect=RuntimeError("display boom")),
-        patch("sase.output.time.sleep", return_value=None),
+        patch("sase.output._PROVIDER_TIMER_COMPLETION_DISPLAY_SECONDS", 0),
         provider_timer("Short operation"),
     ):
-        timer_thread = _wait_for_provider_timer_thread(existing_thread_ids)
+        timer_thread = _wait_for_provider_timer_thread(existing_threads)
         deadline = time.monotonic() + 0.2
         while time.monotonic() < deadline:
             assert timer_thread.is_alive()
             time.sleep(0.01)  # sase-test-wait: tight update-error loop stays alive
-    _wait_until_provider_timer_threads_stop(existing_thread_ids)
+    _wait_until_provider_timer_threads_stop(existing_threads)
 
 
 def test_provider_timer_thread_starts_before_live_enter() -> None:
     """The named timer thread exists before Live takes stdout."""
-    existing_thread_ids = {thread.ident for thread in threading.enumerate()}
+    existing_threads = set(threading.enumerate())
     seen_during_enter: list[threading.Thread] = []
     original_enter = Live.__enter__
 
     def tracking_enter(self: Live) -> Live:
-        seen_during_enter.extend(_provider_timer_threads(existing_thread_ids))
+        seen_during_enter.extend(_provider_timer_threads(existing_threads))
         return original_enter(self)
 
     with (
         patch.object(Live, "__enter__", tracking_enter),
-        patch("sase.output.time.sleep", return_value=None),
         provider_timer("Short operation"),
     ):
-        _wait_for_provider_timer_thread(existing_thread_ids)
-    _wait_until_provider_timer_threads_stop(existing_thread_ids)
+        _wait_for_provider_timer_thread(existing_threads)
+    _wait_until_provider_timer_threads_stop(existing_threads)
     assert seen_during_enter, "sase-provider-timer must start before Live.__enter__"
 
 
@@ -203,7 +201,7 @@ def test_print_workflow_header_with_brackets() -> None:
 
 def test_provider_timer_reusable_across_sequential_cycles() -> None:
     """One timer object survives a second provider cycle."""
-    with patch("sase.output.time.sleep", return_value=None):
+    with patch("sase.output._PROVIDER_TIMER_COMPLETION_DISPLAY_SECONDS", 0):
         timer = provider_timer("Short operation")
         with timer:
             pass
@@ -213,9 +211,9 @@ def test_provider_timer_reusable_across_sequential_cycles() -> None:
 
 def test_provider_timer_exception_propagates_and_thread_stops() -> None:
     """An exception inside the block propagates and the timer thread stops."""
-    existing_thread_ids = {thread.ident for thread in threading.enumerate()}
+    existing_threads = set(threading.enumerate())
     timer = provider_timer("Short operation")
-    with patch("sase.output.time.sleep", return_value=None):
+    with patch("sase.output._PROVIDER_TIMER_COMPLETION_DISPLAY_SECONDS", 0):
         try:
             with timer:
                 raise ValueError("boom")
@@ -223,14 +221,14 @@ def test_provider_timer_exception_propagates_and_thread_stops() -> None:
             assert str(exc) == "boom"
         else:  # pragma: no cover - the timer must not swallow errors
             raise AssertionError("expected ValueError to propagate")
-        _wait_until_provider_timer_threads_stop(existing_thread_ids)
+        _wait_until_provider_timer_threads_stop(existing_threads)
 
 
 def test_provider_timer_nested_entry_raises() -> None:
     """Entering an active timer object raises RuntimeError."""
     import pytest
 
-    with patch("sase.output.time.sleep", return_value=None):
+    with patch("sase.output._PROVIDER_TIMER_COMPLETION_DISPLAY_SECONDS", 0):
         timer = provider_timer("Short operation")
         with timer:
             with pytest.raises(RuntimeError, match="already active"):
