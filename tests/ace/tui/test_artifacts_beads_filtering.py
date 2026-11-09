@@ -50,6 +50,21 @@ from sase.vcs_provider import IssueWire
 from tests.ace.tui._artifacts_beads_helpers import snapshot
 
 
+async def _open_bead_filter(page: AcePage, pane: ArtifactsBeadsPane) -> BeadFilterBar:
+    """Slash-open the Beads filter and wait until the bar is actually editing."""
+
+    await page.press("/")
+    await page.wait_for(
+        lambda _state: pane.query_one(BeadFilterBar)._editing,  # type: ignore[attr-defined]
+        timeout_message=lambda: (
+            "wait_for() timed out waiting for Beads filter edit —"
+            f" session_open={pane._filter_session_open!r}"
+            f" editing={pane.query_one(BeadFilterBar)._editing!r}"  # type: ignore[attr-defined]
+        ),
+    )
+    return pane.query_one(BeadFilterBar)
+
+
 class _BeadFilterBarApp(App[None]):
     ENABLE_COMMAND_PALETTE = False
 
@@ -493,8 +508,7 @@ async def test_hide_closed_default_is_visible_and_clearable(
             not in pane.entry_targets()
         )
 
-        await page.press("/")
-        assert bar._editing  # type: ignore[attr-defined]
+        bar = await _open_bead_filter(page, pane)
         bar.set_query("")
         bar.post_message(BeadFilterBar.Submitted(""))
         await page.wait_for(lambda _state: not bar._editing)  # type: ignore[attr-defined]
@@ -551,7 +565,7 @@ async def test_committing_bead_query_updates_idle_bar(
         bar = pane.query_one(BeadFilterBar)
         display = bar.query_one("#bead-filter-display", Static)
 
-        await page.press("/")
+        bar = await _open_bead_filter(page, pane)
         bar.set_query("tier:epic")
         bar.post_message(BeadFilterBar.Submitted("tier:epic"))
         await page.wait_for(lambda _state: not bar._editing)  # type: ignore[attr-defined]
@@ -580,7 +594,7 @@ async def test_changing_project_scope_keeps_idle_bead_bar_in_sync(
         bar = pane.query_one(BeadFilterBar)
         display = bar.query_one("#bead-filter-display", Static)
 
-        await page.press("/")
+        bar = await _open_bead_filter(page, pane)
         bar.set_query("tier:epic")
         bar.post_message(BeadFilterBar.Submitted("tier:epic"))
         await page.wait_for(lambda _state: not bar._editing)  # type: ignore[attr-defined]
@@ -611,7 +625,7 @@ async def test_bead_bar_geometry_is_unchanged_between_idle_and_editing(
         idle_region = option_list.region
         assert idle_region.height > 0
 
-        await page.press("/")
+        await _open_bead_filter(page, pane)
         await page.pause()
         assert option_list.region == idle_region
 

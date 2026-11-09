@@ -67,10 +67,11 @@ async def test_paused_watchdog_emits_no_stall_while_loop_blocked(
         asyncio.get_running_loop(),
         threshold_seconds=0.05,
         poll_interval_seconds=0.01,
+        hitch_threshold_seconds=10.0,
     )
     try:
-        watchdog.start()
         watchdog.pause()
+        watchdog.start()
         # Block the loop well past the threshold while paused.
         time.sleep(0.2)  # sase-test-wait: intentional loop block
         # Let the watchdog thread poll several times during the paused block.
@@ -215,6 +216,27 @@ def test_subscribe_returns_false_without_watchdog() -> None:
     app = _FakeApp(with_signals=True)
 
     assert subscribe_watchdog_to_suspend_signals(app, None) is False
+
+
+@pytest.mark.asyncio
+async def test_paused_watchdog_drops_in_flight_stall_and_hitch_records(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    path = tmp_path / "tui_stalls.jsonl"
+    monkeypatch.setattr(tui_telemetry, "TUI_STALLS_JSONL", str(path))
+    clock = FakeClock()
+    watchdog = _EventLoopStallWatchdog(
+        asyncio.get_running_loop(),
+        threshold_seconds=0.05,
+        poll_interval_seconds=0.01,
+        hitch_threshold_seconds=0.05,
+        monotonic=clock.monotonic,
+    )
+    watchdog.pause()
+    watchdog._record_hitch(clock.monotonic(), 0.2)
+    watchdog._record_stall(clock.monotonic(), 0.2)
+    assert not path.exists()
 
 
 async def _wait_for_path(path: Path) -> None:

@@ -524,6 +524,12 @@ async def test_pulse_selection_and_click() -> None:
         await pilot.pause()
         assert ("pulse", None) in app.messages
 
+        column.set_section(ARCHIVE_SECTION_PULSE)
+        await pilot.pause()
+        await pilot.press("enter")
+        await pilot.pause()
+        assert app.messages.count(("pulse", None)) == 2
+
 
 async def test_state_pushed_before_mount_is_flushed_on_mount() -> None:
     column = ArchiveColumn(id="archive-column")

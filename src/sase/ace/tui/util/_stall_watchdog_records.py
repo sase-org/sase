@@ -76,6 +76,8 @@ class StallRecordMixin:
         detected_by: str = "loop_gap",
     ) -> None:
         with self._lock:
+            if self._pause_depth > 0:
+                return
             if self._in_hitch:
                 return
             self._in_hitch = True
@@ -141,6 +143,8 @@ class StallRecordMixin:
 
     def _record_pump_hitch(self, now_mono: float, stall_seconds: float) -> None:
         with self._lock:
+            if self._pause_depth > 0:
+                return
             if self._pump_in_hitch:
                 return
             self._pump_in_hitch = True
@@ -227,6 +231,8 @@ class StallRecordMixin:
 
     def _record_stall(self, now_mono: float, stall_seconds: float) -> None:
         with self._lock:
+            if self._pause_depth > 0:
+                return
             if self._in_stall:
                 return
             self._in_stall = True
@@ -268,6 +274,8 @@ class StallRecordMixin:
 
     def _record_pump_stall(self, now_mono: float, stall_seconds: float) -> None:
         with self._lock:
+            if self._pause_depth > 0:
+                return
             if self._pump_in_stall:
                 return
             self._pump_in_stall = True

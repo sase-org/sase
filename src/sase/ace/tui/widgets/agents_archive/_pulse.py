@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from textual.events import Click
+from textual.events import Click, Key
 from textual.message import Message
 from textual.widgets import Static
 
@@ -12,6 +12,8 @@ from ._rows import format_pulse
 
 class ArchivePulse(Static):
     """``⌂ Inbox · N [R… W… U…] · M needs you``; Enter, ``l``, or click returns."""
+
+    can_focus = True
 
     class Activated(Message):
         """The pulse was clicked: return to the parked Inbox."""
@@ -41,6 +43,13 @@ class ArchivePulse(Static):
 
     def on_click(self, event: Click) -> None:
         event.stop()
+        self.post_message(self.Activated())
+
+    def on_key(self, event: Key) -> None:
+        if not self._selected or event.key not in {"enter", "return"}:
+            return
+        event.stop()
+        event.prevent_default()
         self.post_message(self.Activated())
 
 

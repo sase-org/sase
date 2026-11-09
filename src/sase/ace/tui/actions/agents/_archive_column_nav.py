@@ -285,6 +285,11 @@ def archive_activate_key(owner: Any, key: str) -> None:
     """Enter or a click on a list item: highlight it, then activate it."""
     if not archive_detail_owns_panel(owner):
         return
+    # J then Enter must return to Inbox. A list activation must not yank
+    # pulse focus onto a row and stay on Archive.
+    if column_archive(owner).focused_section == ARCHIVE_SECTION_PULSE:
+        _return_to_inbox(owner)
+        return
     _set_cursor(owner, key, from_widget=True)
     dispatch_archive_intent(owner, INTENT_ACTIVATE)
 

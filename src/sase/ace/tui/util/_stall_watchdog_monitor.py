@@ -195,6 +195,10 @@ class EventLoopStallWatchdog(StallRecordMixin):
         """Start the daemon watchdog thread."""
         if self._thread is not None:
             return
+        with self._lock:
+            now_mono = self._monotonic()
+            self._last_progress_mono = now_mono
+            self._last_poll_mono = now_mono
         self._thread = threading.Thread(
             target=self._run,
             name="sase-tui-stall-watchdog",
@@ -276,6 +280,13 @@ class EventLoopStallWatchdog(StallRecordMixin):
         with self._lock:
             self._pause_depth += 1
             self._last_progress_mono = self._monotonic()
+            self._last_poll_mono = self._last_progress_mono
+            self._ping_pending = False
+            self._in_hitch = False
+            self._hitch_started_mono = None
+            self._hitch_was_recorded = False
+            self._in_stall = False
+            self._stall_started_mono = None
             self._reset_pump_state_locked()
 
     def resume(self) -> None:

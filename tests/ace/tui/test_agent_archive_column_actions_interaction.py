@@ -134,6 +134,17 @@ async def test_list_cursor_echo_does_not_steal_pulse_focus() -> None:
     assert owner._agents_archive_view.active_view == AGENTS_VIEW_INBOX
 
 
+async def test_list_activation_while_pulse_focused_returns_to_inbox() -> None:
+    harness = await opened()
+    owner = harness.owner
+    route_archive_key(owner, INTENT_SWITCH_SECTION)
+    assert harness.archive.focused_section == ARCHIVE_SECTION_PULSE
+
+    _widget_item_activated(owner, selection_key(harness))
+
+    assert owner._agents_archive_view.active_view == AGENTS_VIEW_INBOX
+
+
 async def test_widget_cursor_events_update_state_without_echoing_back() -> None:
     harness = await opened()
     owner = harness.owner

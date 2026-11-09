@@ -100,6 +100,8 @@ class ArchiveColumn(Vertical):
         on_pulse = section == ARCHIVE_SECTION_PULSE
         self.archive_pulse.set_selected(on_pulse)
         self.archive_list.set_class(on_pulse, "-dimmed")
+        if on_pulse:
+            self.archive_pulse.focus()
 
     def set_pulse(self, pulse: ArchiveInboxPulse) -> None:
         if not self._children_ready:
