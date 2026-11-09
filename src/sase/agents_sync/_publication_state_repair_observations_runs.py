@@ -225,10 +225,13 @@ def _locate_dismissed_bundles_for_run(
     try:
         summaries = query_summaries(
             root,
+            project_name=target.project_key,
+            agent_names={local_name} if local_name else None,
+            source_run_ids={source_run_id},
             limit=_DISMISSED_CANDIDATE_LIMIT + 1,
         )
-    except (OSError, RuntimeError, ValueError, ImportError):
-        return (), None
+    except (OSError, RuntimeError, ValueError, ImportError) as exc:
+        return (), f"dismissed index lookup failed: {exc}"
     if summaries is None:
         return (), None
     if len(summaries) > _DISMISSED_CANDIDATE_LIMIT:
@@ -332,14 +335,13 @@ def filesystem_observations_for_run(
     bundles, bundle_error = _locate_dismissed_bundles_for_run(
         target, record.source_run_id, record.local_name
     )
-    if bundle_error is not None and not observations:
+    if bundle_error is not None:
         observations.append(
             AgentRunStateRawObservationWire(
                 source=AGENT_RUN_STATE_EVIDENCE_DISMISSED,
                 read_status=AGENT_RUN_STATE_OBSERVATION_UNREADABLE,
             )
         )
-        return tuple(observations), bundle_error
     for bundle_path in bundles:
         status, payload = read_bounded_json(bundle_path)
         if status != AGENT_RUN_STATE_OBSERVATION_PRESENT or payload is None:
@@ -364,7 +366,7 @@ def filesystem_observations_for_run(
                 read_status=AGENT_RUN_STATE_OBSERVATION_MISSING,
             )
         )
-    return tuple(observations), None
+    return tuple(observations), bundle_error
 
 
 def classify_artifact_state(

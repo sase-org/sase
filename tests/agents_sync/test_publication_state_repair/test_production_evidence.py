@@ -188,6 +188,35 @@ def test_production_malformed_and_mismatched_markers_stay_unresolved(
     assert remote_state(remote, "alice.athena.foo.mismatch") == "active"
 
 
+def test_incomplete_dismissal_lookup_with_artifact_dir_stays_unresolved(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    home = _install_home(tmp_path, monkeypatch)
+    timestamp = "20260723135000"
+    run_id = _run_id(timestamp)
+    _write_artifact(home, timestamp=timestamp, name="foo.job", outcome=None)
+    _rebuild_index(home)
+    remote, sync_target = setup_repair(
+        _work(tmp_path), runs=[("foo", "foo.job", run_id, "active")]
+    )
+
+    monkeypatch.setattr(
+        "sase.ace.dismissed_bundle_index.query_summaries",
+        lambda *_args, **_kwargs: [object()] * 65,
+    )
+
+    report = repair_project_run_states(sync_target, OWNER, apply=True)
+
+    assert report.error is None
+    assert report.changed == 0
+    assert report.live == 0
+    assert report.unresolved == 1
+    assert any(
+        "dismissed index lookup is incomplete" in item for item in report.diagnostics
+    )
+    assert remote_state(remote, "alice.athena.foo.job") == "active"
+
+
 def test_production_stopped_and_failed_markers(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

@@ -36,10 +36,11 @@ def _write_dismissed_bundle(
     home: Path,
     *,
     timestamp: str,
-    agent_name: str,
+    agent_name: str | None,
     cl_name: str,
     run_id: str,
     extra: dict[str, object] | None = None,
+    index: bool = True,
 ) -> Path:
     root = home / "dismissed_bundles"
     root.mkdir(parents=True, exist_ok=True)
@@ -63,8 +64,9 @@ def _write_dismissed_bundle(
     if extra:
         payload.update(extra)
     path.write_text(json.dumps(payload), encoding="utf-8")
-    rebuild_index(root)
-    assert upsert_bundle_summary(root, path, payload)
+    if index:
+        rebuild_index(root)
+        assert upsert_bundle_summary(root, path, payload)
     return path
 
 
@@ -83,6 +85,78 @@ def test_dismissed_bundle_with_distinct_patch_name_repairs(
     )
     remote, sync_target = setup_repair(
         _work(tmp_path), runs=[("foo", "foo.job", run_id, "active")]
+    )
+
+    report = repair_project_run_states(sync_target, OWNER, apply=True)
+
+    assert report.error is None
+    assert report.changed == 1
+    assert remote_state(remote, "alice.athena.foo.job") == "dismissed"
+
+
+def test_dismissed_lookup_finds_target_after_more_than_sixty_four_unrelated_bundles(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    home = install_repair_home(tmp_path, monkeypatch)
+    root = home / "dismissed_bundles"
+    for index in range(70):
+        _write_dismissed_bundle(
+            home,
+            timestamp=f"202607231710{index:02d}",
+            agent_name=f"unrelated.{index}",
+            cl_name="OtherPatch",
+            run_id=f"unrelated-run-{index}",
+            index=False,
+        )
+    timestamp = "20260723171999"
+    run_id = repair_run_id(timestamp)
+    _write_dismissed_bundle(
+        home,
+        timestamp=timestamp,
+        agent_name="foo.job",
+        cl_name="SomePatch",
+        run_id=run_id,
+        index=False,
+    )
+    rebuild_index(root)
+    remote, sync_target = setup_repair(
+        _work(tmp_path), runs=[("foo", "foo.job", run_id, "active")]
+    )
+
+    report = repair_project_run_states(sync_target, OWNER, apply=True)
+
+    assert report.error is None
+    assert report.changed == 1
+    assert remote_state(remote, "alice.athena.foo.job") == "dismissed"
+
+
+def test_dismissed_lookup_uses_run_id_when_agent_name_was_reused(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    home = install_repair_home(tmp_path, monkeypatch)
+    root = home / "dismissed_bundles"
+    target_timestamp = "20260723172000"
+    target_run_id = repair_run_id(target_timestamp)
+    stale_timestamp = "20260723172001"
+    _write_dismissed_bundle(
+        home,
+        timestamp=stale_timestamp,
+        agent_name="foo.job",
+        cl_name="SomePatch",
+        run_id=repair_run_id(stale_timestamp),
+        index=False,
+    )
+    _write_dismissed_bundle(
+        home,
+        timestamp=target_timestamp,
+        agent_name=None,
+        cl_name="SomePatch",
+        run_id=target_run_id,
+        index=False,
+    )
+    rebuild_index(root)
+    remote, sync_target = setup_repair(
+        _work(tmp_path), runs=[("foo", "foo.job", target_run_id, "active")]
     )
 
     report = repair_project_run_states(sync_target, OWNER, apply=True)

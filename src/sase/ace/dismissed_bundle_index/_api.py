@@ -104,6 +104,8 @@ def query_summaries(
     root: Path,
     *,
     suffixes: set[str] | None = None,
+    agent_names: set[str] | None = None,
+    source_run_ids: set[str] | None = None,
     cl_name: str | None = None,
     project_name: str | None = None,
     top_level_only: bool = False,
@@ -115,6 +117,10 @@ def query_summaries(
 
     request = {
         "suffixes": sorted(suffixes) if suffixes is not None else None,
+        "agent_names": sorted(agent_names) if agent_names is not None else None,
+        "source_run_ids": (
+            sorted(source_run_ids) if source_run_ids is not None else None
+        ),
         "cl_name": cl_name,
         "project_name": project_name,
         "top_level_only": top_level_only,
