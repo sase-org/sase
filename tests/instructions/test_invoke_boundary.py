@@ -10,6 +10,7 @@ from __future__ import annotations
 import ast
 import json
 import os
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
@@ -86,30 +87,78 @@ def _invoke_calls(path: Path) -> list[tuple[str, int, ast.Call]]:
     return found
 
 
-def test_only_boundary_calls_provider_invoke() -> None:
-    """No root ``*.invoke`` call lives outside the boundary or allowlist."""
+@dataclass(frozen=True)
+class _InvokeSnapshot:
+    """Every root ``*.invoke`` call site found by one whole-tree scan."""
+
+    offenders: tuple[str, ...]
+    seen: frozenset[str]
+
+
+def _scan_invoke_calls(repo_root: Path = ROOT) -> _InvokeSnapshot:
+    """Collect invoke call sites with one read, parse, and walk per file.
+
+    This intentionally has no cache: callers that point it at a temporary
+    source tree get fresh results, and the ordinary policy tests share one
+    scan through the module-scoped fixture below instead of each repeating
+    the whole-tree walk.
+    """
+    src = SRC if repo_root == ROOT else repo_root / "src" / "sase"
     offenders: list[str] = []
-    for path in sorted(SRC.rglob("*.py")):
-        rel = str(path.relative_to(ROOT))
+    seen: set[str] = set()
+    for path in sorted(src.rglob("*.py")):
+        rel = str(path.relative_to(repo_root))
         for function, lineno, _node in _invoke_calls(path):
             if rel == BOUNDARY_REL:
                 continue
-            if f"{rel}:{function}" in ALLOWLIST:
-                continue
-            offenders.append(f"{rel}:{function}:{lineno}")
-    assert offenders == []
+            seen.add(f"{rel}:{function}")
+            if f"{rel}:{function}" not in ALLOWLIST:
+                offenders.append(f"{rel}:{function}:{lineno}")
+    return _InvokeSnapshot(offenders=tuple(offenders), seen=frozenset(seen))
 
 
-def test_allowlist_entries_still_exist() -> None:
+@pytest.fixture(scope="module")
+def _invoke_snapshot() -> _InvokeSnapshot:
+    return _scan_invoke_calls()
+
+
+def test_only_boundary_calls_provider_invoke(
+    _invoke_snapshot: _InvokeSnapshot,
+) -> None:
+    """No root ``*.invoke`` call lives outside the boundary or allowlist."""
+    assert list(_invoke_snapshot.offenders) == []
+
+
+def test_allowlist_entries_still_exist(_invoke_snapshot: _InvokeSnapshot) -> None:
     """Every allowlist entry still names a real ``*.invoke`` call site."""
-    seen: set[str] = set()
-    for path in sorted(SRC.rglob("*.py")):
-        rel = str(path.relative_to(ROOT))
-        for function, _lineno, _node in _invoke_calls(path):
-            if rel != BOUNDARY_REL:
-                seen.add(f"{rel}:{function}")
-    missing = sorted(entry for entry in ALLOWLIST if entry not in seen)
+    missing = sorted(entry for entry in ALLOWLIST if entry not in _invoke_snapshot.seen)
     assert missing == []
+
+
+def test_shared_invoke_scan_matches_individual_regressions(
+    tmp_path: Path,
+) -> None:
+    """The shared scan still flags an off-boundary invoke and a stale entry."""
+    src = tmp_path / "src" / "sase"
+    src.mkdir(parents=True)
+    (src / "off_boundary.py").write_text(
+        "class P:\n"
+        "    def invoke(self, prompt: str) -> None:\n"
+        "        pass\n"
+        "\n"
+        "def run(provider: P) -> None:\n"
+        "    provider.invoke('hi')\n",
+        encoding="utf-8",
+    )
+    (src / "clean.py").write_text("VALUE = 1\n", encoding="utf-8")
+
+    snapshot = _scan_invoke_calls(tmp_path)
+
+    assert snapshot.offenders == ("src/sase/off_boundary.py:run:6",)
+    assert "src/sase/off_boundary.py:run" in snapshot.seen
+    assert all(not site.startswith("src/sase/clean.py") for site in snapshot.seen)
+    assert "src/sase/off_boundary.py:invoke" not in snapshot.seen
+    assert "src/sase/does_not_exist:run" not in snapshot.seen
 
 
 @pytest.mark.parametrize(("relpath", "purpose"), sorted(BOUNDARY_CALLERS.items()))
