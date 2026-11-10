@@ -265,7 +265,7 @@ _REVIEWED_DIR_OPERATION_CONTEXTS: dict[str, DirOpReview] = {
             "directory."
         ),
     ),
-    "src/sase/workspace_provider/_utils_checkout.py:_remove_corrupt_checkout": DirOpReview(
+    "src/sase/workspace_provider/_utils_checkout_clone.py:_remove_corrupt_checkout": DirOpReview(
         exemption=(
             "Rescues the sidecar clones of a corrupt numbered workspace checkout, "
             "then moves the checkout aside for background deletion, falling back "

@@ -277,7 +277,11 @@ def test_checkout_replacement_rescues_linked_clones(
             "sase._linked_repo_workspaces.move_aside_for_background_delete",
             lambda *_args, **_kwargs: None,
         )
-        _utils_checkout._remove_corrupt_checkout(str(workspace), WORKSPACE_NUM)
+        from sase.workspace_provider._utils_checkout_clone import (
+            _remove_corrupt_checkout,
+        )
+
+        _remove_corrupt_checkout(str(workspace), WORKSPACE_NUM)
     else:
         _git(workspace, "init", "-b", "main")
         _git(workspace, "config", "user.email", "test@example.com")
@@ -295,8 +299,7 @@ def test_checkout_replacement_rescues_linked_clones(
             lambda *_args, **_kwargs: None,
         )
         monkeypatch.setattr(
-            _utils_checkout,
-            "ensure_workspace_checkout",
+            "sase.workspace_provider._utils_checkout_workspace.ensure_workspace_checkout",
             lambda *_args, **_kwargs: "fresh",
         )
         monkeypatch.setattr(

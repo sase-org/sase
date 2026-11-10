@@ -285,7 +285,7 @@ class TestRecreateEndToEnd:
                     side_effect=[forced, None],
                 ),
                 patch(
-                    "sase.workspace_provider._utils_checkout.ensure_workspace_checkout",
+                    "sase.workspace_provider._utils_checkout_workspace.ensure_workspace_checkout",
                     side_effect=_adjacent_ensure,
                 ),
                 patch("sase.sdd.store.ensure_workspace_sdd_clone"),
