@@ -45,7 +45,7 @@ def remote_supports_detached_execution(
     """Return whether ``host`` advertises detached sudo execution."""
     runner = subprocess.run if command_runner is None else command_runner
     require_ssh_target(host)
-    contract = _probe_contract(host, command_runner=runner)
+    contract = probe_remote_sudo_contract(host, command_runner=runner)
     return DETACHED_EXECUTION_CAPABILITY in contract.capabilities
 
 
@@ -61,7 +61,7 @@ def run_remote_sudo(
     """Authenticate and execute a sealed sudo manifest on ``host`` over SSH."""
     runner = subprocess.run if command_runner is None else command_runner
     require_ssh_target(host)
-    _probe_contract(host, command_runner=runner)
+    probe_remote_sudo_contract(host, command_runner=runner)
     remote_paths = coerce_paths(paths)
     manifest_bytes = json.dumps(dict(manifest), sort_keys=True).encode("utf-8") + b"\n"
     staged = False
@@ -101,7 +101,7 @@ def run_remote_sudo_detached(
     """Authenticate on the remote TTY and start a remote detached executor."""
     runner = subprocess.run if command_runner is None else command_runner
     require_ssh_target(host)
-    contract = _probe_contract(host, command_runner=runner)
+    contract = probe_remote_sudo_contract(host, command_runner=runner)
     if DETACHED_EXECUTION_CAPABILITY not in contract.capabilities:
         raise GateError(
             "detach_unsupported",
@@ -155,13 +155,20 @@ def run_remote_sudo_detached(
         raise
 
 
-def _probe_contract(host: str, *, command_runner: CommandRunner) -> RemoteSudoContract:
+def probe_remote_sudo_contract(
+    host: str,
+    *,
+    command_runner: CommandRunner,
+    batch: bool = False,
+) -> RemoteSudoContract:
+    """Return the target-side sudo exec contract advertised by ``host``."""
     completed = run_ssh(
         "remote_sudo_unavailable",
         command_runner,
         ssh_argv(
             host,
             encode_target_sase_command("sase", "sudo", "exec", "--contract"),
+            batch=batch,
         ),
         kwargs={
             "check": False,
@@ -333,6 +340,7 @@ def _run_target_exec_detached(
 
 
 __all__ = [
+    "probe_remote_sudo_contract",
     "remote_supports_detached_execution",
     "run_remote_sudo",
     "run_remote_sudo_detached",

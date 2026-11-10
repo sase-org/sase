@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import errno
+import hashlib
 import os
+import shutil
 import signal
 import subprocess
 from io import BytesIO
@@ -20,6 +22,7 @@ from sase.sudo.ssh import (
     remote_supports_detached_execution,
     run_remote_sudo,
     run_remote_sudo_detached,
+    snapshot_remote_executables,
     wait_for_remote_sudo_ledger,
 )
 from sase.sudo.ssh_detached import _probe_remote_executor_liveness
@@ -626,3 +629,39 @@ def test_unavailable_cli_message_omits_password_and_bounds_output() -> None:
     assert "could not reach sudo target 'apollo'" in transport_message
     assert "Connection refused" in transport_message
     assert "login environment" not in transport_message
+
+
+def test_snapshot_remote_executables_uses_batch_mode(tmp_path: Path) -> None:
+    fake = FakeOpenSSHEndpoint(tmp_path)
+    executable = shutil.which("true")
+    assert executable is not None
+    expected = hashlib.sha256(Path(executable).read_bytes()).hexdigest()
+
+    result = snapshot_remote_executables("target", [executable], command_runner=fake)
+
+    assert result.by_path()[executable].sha256 == expected
+    assert result.host_facts["platform"]
+    assert any("-o" in argv and "BatchMode=yes" in argv for argv in fake.calls)
+    assert any("--snapshot" in command for command in fake.joined)
+    assert all("-t" not in argv for argv in fake.calls)
+
+
+def test_snapshot_remote_executables_requires_capability(tmp_path: Path) -> None:
+    fake = FakeOpenSSHEndpoint(tmp_path, capabilities=("detached_execution",))
+
+    with pytest.raises(GateError) as excinfo:
+        snapshot_remote_executables("target", ["/usr/sbin/scutil"], command_runner=fake)
+
+    assert excinfo.value.code == "remote_snapshot_unavailable"
+    assert "upgrade sase on target" in str(excinfo.value)
+
+
+def test_snapshot_remote_executables_unreachable_target(tmp_path: Path) -> None:
+    fake = FakeOpenSSHEndpoint(tmp_path)
+    fake.unreachable = True
+
+    with pytest.raises(GateError) as excinfo:
+        snapshot_remote_executables("target", ["/usr/sbin/scutil"], command_runner=fake)
+
+    assert excinfo.value.code == "remote_snapshot_unavailable"
+    assert "must be online when the request is created" in str(excinfo.value)

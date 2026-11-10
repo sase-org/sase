@@ -2,21 +2,21 @@
 
 from __future__ import annotations
 
-import hashlib
 import os
 import re
-import stat
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
 from sase.notification_gates.models import GATE_TURN_DEFAULT_TIMEOUT_SECONDS, GateError
+from sase.sudo.snapshot import ExecutableSnapshot, snapshot_executable
 
 SUDO_REQUEST_SCHEMA_VERSION = 1
 
 _ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.-]{0,63}$")
 _ENV_KEY_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
+_SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
 _FORBIDDEN_ENV_KEYS = frozenset(
     {
         "DYLD_INSERT_LIBRARIES",
@@ -49,6 +49,35 @@ _INTERACTIVE_TOOLS = frozenset(
 )
 _SHELLS = frozenset({"bash", "dash", "fish", "sh", "zsh"})
 _CREDENTIAL_WORDS = ("password", "passwd", "passphrase", "secret", "token")
+
+
+@dataclass(frozen=True)
+class _ParsedCommand:
+    """One command after argv validation and before executable snapshot."""
+
+    id: str
+    argv: tuple[str, ...]
+    why: str
+    timeout_seconds: float | None
+    shell: bool
+    declared_sha256: object
+    target: str
+
+
+@dataclass(frozen=True)
+class _LoadedSudoRequest:
+    """Parsed sudo request fields before executable hashes are bound."""
+
+    reason: str
+    commands: tuple[_ParsedCommand, ...]
+    run_as: str
+    cwd: str
+    env: dict[str, str]
+    gate_timeout_seconds: int
+    stop_on_failure: bool
+    output_to_agent: str
+    machine: str | None
+    next_prompt: str | None
 
 
 @dataclass(frozen=True)
@@ -106,8 +135,70 @@ class SudoRequest:
         }
 
 
-def normalize_sudo_request(value: object) -> SudoRequest:
+def sudo_request_machine(value: object) -> str | None:
+    """Return the normalized machine field without snapshotting executables."""
+    if isinstance(value, SudoRequest):
+        return value.machine
+    if not isinstance(value, Mapping):
+        raise GateError("invalid_sudo_request", "request", "request must be an object")
+    return _normalize_machine(value.get("machine"))
+
+
+def sudo_request_executable_paths(value: object) -> tuple[str, ...]:
+    """Return unique argv0 paths after parsing commands, without hashing."""
+    if isinstance(value, SudoRequest):
+        return _unique_argv0(
+            tuple(
+                _ParsedCommand(
+                    id=command.id,
+                    argv=command.argv,
+                    why=command.why,
+                    timeout_seconds=command.timeout_seconds,
+                    shell=command.shell,
+                    declared_sha256=command.executable_sha256,
+                    target=f"commands[{index}]",
+                )
+                for index, command in enumerate(value.commands)
+            )
+        )
+    return _unique_argv0(_load_sudo_request(value).commands)
+
+
+def normalize_sudo_request(
+    value: object,
+    *,
+    snapshots: Mapping[str, ExecutableSnapshot] | None = None,
+    accept_declared_hashes: bool = False,
+) -> SudoRequest:
     """Validate and normalize one stdin sudo request object."""
+    if isinstance(value, SudoRequest):
+        return value
+    loaded = _load_sudo_request(value)
+    return _bind_executable_snapshots(
+        loaded,
+        snapshots=snapshots,
+        accept_declared_hashes=accept_declared_hashes,
+    )
+
+
+def contains_credential_shape(value: object) -> bool:
+    """Return whether *value* contains credential-shaped keys or values."""
+    if isinstance(value, Mapping):
+        for key, item in value.items():
+            lowered = str(key).lower()
+            if any(word in lowered for word in _CREDENTIAL_WORDS):
+                return True
+            if contains_credential_shape(item):
+                return True
+    elif isinstance(value, list | tuple):
+        return any(contains_credential_shape(item) for item in value)
+    elif isinstance(value, str):
+        lowered = value.lower()
+        return any(f"{word}=" in lowered for word in _CREDENTIAL_WORDS)
+    return False
+
+
+def _load_sudo_request(value: object) -> _LoadedSudoRequest:
     data = _json_object(value, "request")
     unknown = set(data) - {
         "schema_version",
@@ -153,23 +244,7 @@ def normalize_sudo_request(value: object) -> SudoRequest:
     )
     stop_on_failure = _stop_on_failure(data)
     output_to_agent = _output_to_agent(data)
-    machine = data.get("machine")
-    if machine is not None:
-        if not isinstance(machine, str):
-            raise GateError(
-                "invalid_sudo_request",
-                "machine",
-                "machine must be a string",
-            )
-        machine = machine.strip()
-        if machine in {"", "local"}:
-            machine = None
-        elif any(ord(ch) < 32 or ch.isspace() for ch in machine):
-            raise GateError(
-                "invalid_sudo_request",
-                "machine",
-                "machine must not contain whitespace or control characters",
-            )
+    machine = _normalize_machine(data.get("machine"))
     next_prompt = data.get("next_prompt")
     next_value = data.get("next")
     if next_prompt is None and isinstance(next_value, Mapping):
@@ -177,7 +252,7 @@ def normalize_sudo_request(value: object) -> SudoRequest:
     if next_prompt is not None:
         next_prompt = _required_text(next_prompt, "next_prompt")
     commands = _commands(data.get("commands"), default_timeout=default_timeout)
-    return SudoRequest(
+    return _LoadedSudoRequest(
         reason=reason,
         commands=commands,
         run_as=run_as,
@@ -191,28 +266,132 @@ def normalize_sudo_request(value: object) -> SudoRequest:
     )
 
 
-def contains_credential_shape(value: object) -> bool:
-    """Return whether *value* contains credential-shaped keys or values."""
-    if isinstance(value, Mapping):
-        for key, item in value.items():
-            lowered = str(key).lower()
-            if any(word in lowered for word in _CREDENTIAL_WORDS):
-                return True
-            if contains_credential_shape(item):
-                return True
-    elif isinstance(value, list | tuple):
-        return any(contains_credential_shape(item) for item in value)
-    elif isinstance(value, str):
-        lowered = value.lower()
-        return any(f"{word}=" in lowered for word in _CREDENTIAL_WORDS)
-    return False
+def _bind_executable_snapshots(
+    loaded: _LoadedSudoRequest,
+    *,
+    snapshots: Mapping[str, ExecutableSnapshot] | None,
+    accept_declared_hashes: bool,
+) -> SudoRequest:
+    commands = tuple(
+        _bind_command_snapshot(
+            command,
+            snapshots=snapshots,
+            accept_declared_hashes=accept_declared_hashes,
+        )
+        for command in loaded.commands
+    )
+    return SudoRequest(
+        reason=loaded.reason,
+        commands=commands,
+        run_as=loaded.run_as,
+        cwd=loaded.cwd,
+        env=loaded.env,
+        gate_timeout_seconds=loaded.gate_timeout_seconds,
+        stop_on_failure=loaded.stop_on_failure,
+        output_to_agent=loaded.output_to_agent,
+        machine=loaded.machine,
+        next_prompt=loaded.next_prompt,
+    )
+
+
+def _bind_command_snapshot(
+    command: _ParsedCommand,
+    *,
+    snapshots: Mapping[str, ExecutableSnapshot] | None,
+    accept_declared_hashes: bool,
+) -> _SudoCommand:
+    if accept_declared_hashes and snapshots is None:
+        declared = command.declared_sha256
+        if not isinstance(declared, str) or not _SHA256_RE.fullmatch(declared):
+            raise GateError(
+                "unsnapshotshotted_executable",
+                f"{command.target}.executable_sha256",
+                "remote sudo commands require a 64-hex executable_sha256",
+            )
+        return _SudoCommand(
+            id=command.id,
+            argv=command.argv,
+            why=command.why,
+            timeout_seconds=command.timeout_seconds,
+            shell=command.shell,
+            executable_sha256=declared,
+        )
+    argv0 = command.argv[0]
+    if snapshots is not None:
+        result = snapshots.get(argv0)
+        if result is None:
+            raise GateError(
+                "unsnapshotshotted_executable",
+                f"{command.target}.argv[0]",
+                "target did not snapshot this executable",
+            )
+    else:
+        result = snapshot_executable(argv0)
+    if result.error_code:
+        raise GateError(
+            result.error_code,
+            f"{command.target}.argv[0]",
+            result.message or "cannot snapshot executable",
+        )
+    executable_sha256 = result.sha256
+    if not isinstance(executable_sha256, str):
+        raise GateError(
+            "unsnapshotshotted_executable",
+            f"{command.target}.argv[0]",
+            "cannot snapshot executable",
+        )
+    declared = command.declared_sha256
+    if declared is not None and declared != executable_sha256:
+        raise GateError(
+            "snapshot_mismatch",
+            f"{command.target}.executable_sha256",
+            "sudo command executable no longer matches the reviewed snapshot",
+        )
+    return _SudoCommand(
+        id=command.id,
+        argv=command.argv,
+        why=command.why,
+        timeout_seconds=command.timeout_seconds,
+        shell=command.shell,
+        executable_sha256=executable_sha256,
+    )
+
+
+def _normalize_machine(value: object) -> str | None:
+    if value is None:
+        return None
+    if not isinstance(value, str):
+        raise GateError(
+            "invalid_sudo_request",
+            "machine",
+            "machine must be a string",
+        )
+    machine = value.strip()
+    if machine in {"", "local"}:
+        return None
+    if any(ord(ch) < 32 or ch.isspace() for ch in machine):
+        raise GateError(
+            "invalid_sudo_request",
+            "machine",
+            "machine must not contain whitespace or control characters",
+        )
+    return machine
+
+
+def _unique_argv0(commands: Sequence[_ParsedCommand]) -> tuple[str, ...]:
+    paths: list[str] = []
+    for command in commands:
+        argv0 = command.argv[0]
+        if argv0 not in paths:
+            paths.append(argv0)
+    return tuple(paths)
 
 
 def _commands(
     value: object,
     *,
     default_timeout: float | None,
-) -> tuple[_SudoCommand, ...]:
+) -> tuple[_ParsedCommand, ...]:
     if not isinstance(value, list) or not value:
         raise GateError(
             "invalid_sudo_request",
@@ -220,7 +399,7 @@ def _commands(
             "commands must be a non-empty array",
         )
     commands = tuple(
-        _command(item, index, default_timeout=default_timeout)
+        _parse_command(item, index, default_timeout=default_timeout)
         for index, item in enumerate(value)
     )
     ids = [command.id for command in commands]
@@ -234,12 +413,12 @@ def _commands(
     return commands
 
 
-def _command(
+def _parse_command(
     value: object,
     index: int,
     *,
     default_timeout: float | None,
-) -> _SudoCommand:
+) -> _ParsedCommand:
     target = f"commands[{index}]"
     data = _json_object(value, target)
     unknown = set(data) - {
@@ -275,21 +454,14 @@ def _command(
         f"{target}.timeout_seconds",
     )
     shell = bool(data.get("shell", False))
-    executable_sha256 = _executable_sha256(argv[0], target)
-    declared_sha256 = data.get("executable_sha256")
-    if declared_sha256 is not None and declared_sha256 != executable_sha256:
-        raise GateError(
-            "snapshot_mismatch",
-            f"{target}.executable_sha256",
-            "sudo command executable no longer matches the reviewed snapshot",
-        )
-    return _SudoCommand(
+    return _ParsedCommand(
         id=command_id,
         argv=argv,
         why=why,
         timeout_seconds=timeout_seconds,
         shell=shell,
-        executable_sha256=executable_sha256,
+        declared_sha256=data.get("executable_sha256"),
+        target=target,
     )
 
 
@@ -322,41 +494,6 @@ def _reject_unsafe_argv(argv: tuple[str, ...], target: str) -> None:
                 f"{target}.argv",
                 "credential-shaped argv values are not accepted",
             )
-
-
-def _executable_sha256(value: str, target: str) -> str:
-    path = Path(value)
-    if not path.is_absolute():
-        raise GateError(
-            "unsnapshotshotted_executable",
-            f"{target}.argv[0]",
-            "sudo command executables must be absolute paths",
-        )
-    try:
-        st = path.stat()
-    except OSError as exc:
-        raise GateError(
-            "unsnapshotshotted_executable",
-            f"{target}.argv[0]",
-            f"cannot snapshot executable: {exc}",
-        ) from exc
-    if not stat.S_ISREG(st.st_mode):
-        raise GateError(
-            "unsnapshotshotted_executable",
-            f"{target}.argv[0]",
-            "sudo command executable must be a regular file",
-        )
-    if os.access(path, os.W_OK):
-        raise GateError(
-            "agent_writable_executable",
-            f"{target}.argv[0]",
-            "sudo command executable is writable by this agent",
-        )
-    digest = hashlib.sha256()
-    with path.open("rb") as handle:
-        for block in iter(lambda: handle.read(1024 * 1024), b""):
-            digest.update(block)
-    return digest.hexdigest()
 
 
 def _env(value: object) -> dict[str, str]:
@@ -507,4 +644,6 @@ __all__ = [
     "SudoRequest",
     "contains_credential_shape",
     "normalize_sudo_request",
+    "sudo_request_executable_paths",
+    "sudo_request_machine",
 ]

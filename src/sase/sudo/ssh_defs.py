@@ -11,6 +11,7 @@ CommandRunner = Callable[..., subprocess.CompletedProcess[Any]]
 
 CONTRACT_SCHEMA_VERSION = 1
 DETACHED_EXECUTION_CAPABILITY = "detached_execution"
+EXECUTABLE_SNAPSHOT_CAPABILITY = "executable_snapshot"
 REMOTE_BASE = "/tmp"
 REMOTE_EXECUTOR_DEATH_GRACE_SECONDS = 1.0
 REMOTE_POLL_MAX_SECONDS = 2.0
@@ -31,9 +32,11 @@ PRE_SPAWN_REMOTE_ERROR_CODES = frozenset(
     {
         "detach_unsupported",
         "invalid_ssh_target",
+        "remote_snapshot_unavailable",
         "remote_sudo_contract_mismatch",
         "remote_sudo_stage_failed",
         "remote_sudo_unavailable",
+        "snapshot_mismatch",
         "ssh_unavailable",
     }
 )
@@ -80,6 +83,7 @@ class RemoteExecutorLiveness:
 __all__ = [
     "CONTRACT_SCHEMA_VERSION",
     "DETACHED_EXECUTION_CAPABILITY",
+    "EXECUTABLE_SNAPSHOT_CAPABILITY",
     "LIVENESS_DEAD",
     "LIVENESS_UNKNOWN",
     "PRE_SPAWN_REMOTE_ERROR_CODES",

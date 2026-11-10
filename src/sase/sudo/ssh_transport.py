@@ -52,8 +52,16 @@ def require_ssh_target(host: str) -> None:
         raise GateError("invalid_ssh_target", "ssh_target", str(exc)) from exc
 
 
-def ssh_argv(host: str, remote_command: str, *, tty: bool = False) -> list[str]:
+def ssh_argv(
+    host: str,
+    remote_command: str,
+    *,
+    tty: bool = False,
+    batch: bool = False,
+) -> list[str]:
     argv = ["ssh"]
+    if batch:
+        argv.extend(["-o", "BatchMode=yes"])
     if tty:
         argv.append("-t")
     argv.append(host)

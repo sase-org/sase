@@ -180,6 +180,7 @@ def _load_sudo_request_modal_data(notification: Notification) -> SudoRequestModa
         machine=_target_label(sudo_payload),
         manifest_sha256=_str_field(sudo_payload, "manifest_sha256", default=""),
         risk_badges=_str_tuple(sudo_payload.get("risk_badges")),
+        tcc_warning=_tcc_warning(sudo_payload),
         requester=notification_origin_agent(notification),
         project=_project(notification, envelope),
         expires_at=sudo_request_expires_at(envelope),
@@ -459,6 +460,13 @@ def _manifest_timeout(manifest: Mapping[str, Any]) -> int:
         if timeout:
             values.append(timeout)
     return max(values) if values else 0
+
+
+def _tcc_warning(sudo_payload: Mapping[str, Any]) -> str | None:
+    from sase.sudo.snapshot import tcc_warning
+
+    target = sudo_payload.get("target")
+    return tcc_warning(target if isinstance(target, Mapping) else None)
 
 
 def _target_label(sudo_payload: Mapping[str, Any]) -> str | None:

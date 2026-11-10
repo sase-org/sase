@@ -11,8 +11,10 @@ from typing import Any
 _REAL_RUN = subprocess.run
 
 _FAKE_REMOTE_SASE = r"""#!/usr/bin/env python3
+import hashlib
 import json
 import os
+import stat
 import sys
 import time
 from pathlib import Path
@@ -25,6 +27,73 @@ if args[:2] == ["sudo", "exec"] and "--contract" in args:
         if item
     ]
     print(json.dumps({"schema_version": 1, "capabilities": caps}))
+    raise SystemExit(0)
+
+if args[:2] == ["sudo", "exec"] and "--snapshot" in args:
+    raw = os.environ.get("SASE_FAKE_SNAPSHOT_JSON")
+    if raw:
+        sys.stdout.write(raw if raw.endswith("\n") else raw + "\n")
+        raise SystemExit(0)
+    paths = []
+    idx = 0
+    while idx < len(args):
+        if args[idx] == "--snapshot" and idx + 1 < len(args):
+            paths.append(args[idx + 1])
+            idx += 2
+            continue
+        idx += 1
+    facts_raw = os.environ.get("SASE_FAKE_HOST_FACTS")
+    host_facts = (
+        json.loads(facts_raw)
+        if facts_raw
+        else {"platform": sys.platform, "full_disk_access": None}
+    )
+    executables = []
+    for path in paths:
+        entry = {
+            "path": path,
+            "sha256": None,
+            "error_code": None,
+            "message": None,
+        }
+        if not path.startswith("/"):
+            entry["error_code"] = "unsnapshotshotted_executable"
+            entry["message"] = "sudo command executables must be absolute paths"
+        else:
+            location = Path(path)
+            try:
+                st = location.stat()
+            except OSError as exc:
+                entry["error_code"] = "unsnapshotshotted_executable"
+                entry["message"] = f"cannot snapshot executable: {exc}"
+            else:
+                if not stat.S_ISREG(st.st_mode):
+                    entry["error_code"] = "unsnapshotshotted_executable"
+                    entry["message"] = (
+                        "sudo command executable must be a regular file"
+                    )
+                elif os.access(path, os.W_OK):
+                    entry["error_code"] = "agent_writable_executable"
+                    entry["message"] = (
+                        "sudo command executable is writable by this agent"
+                    )
+                else:
+                    digest = hashlib.sha256()
+                    with location.open("rb") as handle:
+                        for block in iter(lambda: handle.read(1024 * 1024), b""):
+                            digest.update(block)
+                    entry["sha256"] = digest.hexdigest()
+        executables.append(entry)
+    print(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "kind": "sase_sudo_executable_snapshot",
+                "host_facts": host_facts,
+                "executables": executables,
+            }
+        )
+    )
     raise SystemExit(0)
 
 
@@ -118,6 +187,11 @@ def openssh_join_remote_argv(argv: list[str]) -> tuple[bool, str, str]:
         if flag == "-t":
             tty = True
             continue
+        if flag == "-o":
+            if not rest:
+                raise AssertionError("ssh -o missing value")
+            rest.pop(0)
+            continue
         raise AssertionError(f"unsupported ssh flag {flag!r}")
     if not rest:
         raise AssertionError("ssh argv is missing a host")
@@ -165,7 +239,10 @@ class FakeOpenSSHEndpoint:
         self,
         root: Path,
         *,
-        capabilities: tuple[str, ...] = ("detached_execution",),
+        capabilities: tuple[str, ...] = (
+            "detached_execution",
+            "executable_snapshot",
+        ),
         login_provides_sase: bool = True,
     ) -> None:
         self.root = root

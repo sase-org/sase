@@ -137,6 +137,13 @@ def _register_exec(subparsers: argparse._SubParsersAction) -> None:
     parser.add_argument("--handshake", metavar="PATH", help=argparse.SUPPRESS)
     parser.add_argument("--ledger", metavar="PATH", help=argparse.SUPPRESS)
     parser.add_argument("--manifest", metavar="PATH", help=argparse.SUPPRESS)
+    parser.add_argument(
+        "--snapshot",
+        action="append",
+        default=None,
+        metavar="PATH",
+        help=argparse.SUPPRESS,
+    )
 
 
 def _register_request(subparsers: argparse._SubParsersAction) -> None:

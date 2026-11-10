@@ -62,12 +62,14 @@ from sase.sudo.runner import (
     run_sudo_runner_file,
     runner_supports_detached_execution,
 )
+from sase.sudo.snapshot import tcc_warning
 from sase.sudo.ssh import (
     PRE_SPAWN_REMOTE_ERROR_CODES,
     allocate_remote_sudo_paths,
     remote_supports_detached_execution,
     run_remote_sudo,
 )
+from sase.sudo.ssh_snapshot import reverify_remote_command_snapshots
 
 _DETACH_FALLBACK_NOTICE = (
     "installed sase_sudo_runner does not advertise detached_execution; "
@@ -112,13 +114,20 @@ def handle_sudo_command(args: argparse.Namespace) -> int:
 
 def _exec(args: argparse.Namespace) -> int:
     """Target-side manifest execution entrypoint for SSH handoffs."""
+    snapshot_paths = getattr(args, "snapshot", None)
+    if snapshot_paths:
+        from sase.sudo.snapshot import executable_snapshot_payload
+
+        emit_json(executable_snapshot_payload(list(snapshot_paths)))
+        return 0
     if bool(getattr(args, "contract", False)):
-        capabilities: list[str] = []
+        capabilities: list[str] = ["executable_snapshot"]
         try:
             if runner_supports_detached_execution():
                 capabilities.append("detached_execution")
         except GateError:
             pass
+        capabilities.sort()
         emit_json(
             {
                 "capabilities": capabilities,
@@ -270,6 +279,18 @@ def _approve(
     target = payload.get("target")
     remote = isinstance(target, Mapping) and bool(target.get("remote"))
     host = str(target.get("host") or "") if isinstance(target, Mapping) else ""
+    facts = reverify_remote_command_snapshots(payload, selected_command_ids)
+    warning_target: Mapping[str, Any] | None
+    if facts is not None and isinstance(target, Mapping):
+        warning_target = {
+            **dict(target),
+            "snapshot": {"host_facts": facts, "taken_on": "target"},
+        }
+    else:
+        warning_target = target if isinstance(target, Mapping) else None
+    warning = tcc_warning(warning_target)
+    if warning:
+        print(f"sase sudo: {warning}", file=sys.stderr)
     with execution_lock(bundle.root):
         existing = claim_execution_record(bundle.root, gate_id=gate_id)
         if existing is not None:

@@ -63,6 +63,13 @@ def test_sudo_finalize_is_hidden_but_parseable() -> None:
     assert args.json is True
 
 
+def test_sudo_exec_snapshot_args_are_parseable() -> None:
+    args = _parse("exec", "--snapshot", "/bin/true", "--snapshot", "/usr/sbin/scutil")
+
+    assert args.sudo_subcommand == "exec"
+    assert args.snapshot == ["/bin/true", "/usr/sbin/scutil"]
+
+
 def test_sudo_exec_detach_args_are_parseable() -> None:
     args = _parse(
         "exec",

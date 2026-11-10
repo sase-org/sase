@@ -5,7 +5,7 @@ from __future__ import annotations
 from sase.notification_gates.kind_validation.resources import read_gate_resource
 from sase.notification_gates.models import GateError, GateSpec, stamp_schema_dialect
 from sase.sudo.core import DEFAULT_SUDO_CORE
-from sase.sudo.models import normalize_sudo_request
+from sase.sudo.models import normalize_sudo_request, sudo_request_machine
 from sase.sudo.target import resolve_sudo_target
 
 APPROVE_OPTION_ID = "approve"
@@ -27,7 +27,12 @@ def _validate_payload(spec: GateSpec) -> None:
         raise GateError(
             "invalid_sudo_payload", "payload.sudo", "sudo payload is required"
         )
-    request = normalize_sudo_request(sudo_payload.get("request"))
+    raw_request = sudo_payload.get("request")
+    target = resolve_sudo_target(sudo_request_machine(raw_request))
+    request = normalize_sudo_request(
+        raw_request,
+        accept_declared_hashes=target.remote,
+    )
     manifest = sudo_payload.get("manifest")
     if not isinstance(manifest, dict):
         raise GateError(
@@ -35,7 +40,6 @@ def _validate_payload(spec: GateSpec) -> None:
             "payload.sudo.manifest",
             "sudo manifest is required",
         )
-    target = resolve_sudo_target(request.machine)
     expected_manifest = DEFAULT_SUDO_CORE.validate_manifest(
         {
             "schema_version": 1,

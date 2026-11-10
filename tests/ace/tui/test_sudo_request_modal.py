@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from dataclasses import replace
 from pathlib import Path
 
 from textual.app import App
@@ -135,3 +136,21 @@ async def test_sudo_modal_details_and_deny_feedback() -> None:
             feedback="Prefer a safer dry run",
         )
     ]
+
+
+async def test_sudo_modal_context_includes_tcc_warning() -> None:
+    modal = SudoRequestModal(
+        replace(
+            _data(),
+            tcc_warning=(
+                "macOS TCC: SSH sessions on mac lack Full Disk Access. "
+                'Root writes will fail with "Operation not permitted".'
+            ),
+        )
+    )
+    async with _ModalHost().run_test() as pilot:
+        pilot.app.push_screen(modal)
+        await pilot.pause()
+        context = str(modal._context_text())
+        assert "Warning" in context
+        assert "Full Disk Access" in context

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import copy
+import hashlib
 import io
 import json
 from pathlib import Path
@@ -20,8 +21,13 @@ from sase.sudo import cli as sudo_cli
 from sase.sudo.gate import APPROVE_OPTION_ID, DENY_OPTION_ID, build_sudo_gate_request
 from sase.sudo.manifest import selected_sudo_manifest
 from sase.sudo.models import normalize_sudo_request
+from sase.sudo.snapshot import ExecutableSnapshot, tcc_warning
+from sase.sudo.ssh_snapshot import _RemoteExecutableSnapshot
 from tests._sudo_gate_helpers import _multi_command_request, _request
 from tests.monitor._fixtures import make_starter_agent, write_project_file
+
+_REMOTE_HASH = "ab" * 32
+_SCUTIL = "/usr/sbin/scutil"
 
 _DEFAULT_GATE_TIMEOUT_SECONDS = int(GATE_TURN_DEFAULT_TIMEOUT_SECONDS)
 
@@ -206,3 +212,207 @@ def test_sudo_answer_command_option_does_not_clobber_root_command() -> None:
     assert args.command == "sudo"
     assert args.sudo_subcommand == "answer"
     assert args.sudo_command == ["refresh"]
+
+
+def _remote_snapshot(
+    path: str,
+    *,
+    sha256: str | None = _REMOTE_HASH,
+    error_code: str | None = None,
+    message: str | None = None,
+    platform: str = "linux",
+    full_disk_access: bool | None = None,
+) -> _RemoteExecutableSnapshot:
+    return _RemoteExecutableSnapshot(
+        host_facts={"full_disk_access": full_disk_access, "platform": platform},
+        executables=(
+            ExecutableSnapshot(
+                path=path,
+                sha256=sha256,
+                error_code=error_code,
+                message=message,
+            ),
+        ),
+    )
+
+
+def _patch_remote_snapshot(
+    monkeypatch: pytest.MonkeyPatch, snapshot: _RemoteExecutableSnapshot
+) -> list[tuple[str, tuple[str, ...]]]:
+    calls: list[tuple[str, tuple[str, ...]]] = []
+
+    def fake(host: str, paths: object, **_kwargs: object) -> _RemoteExecutableSnapshot:
+        calls.append((host, tuple(str(path) for path in paths)))  # type: ignore[arg-type]
+        return snapshot
+
+    monkeypatch.setattr("sase.sudo.gate.snapshot_remote_executables", fake)
+    return calls
+
+
+def test_remote_sudo_request_uses_target_hash_for_missing_local_binary(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _patch_remote_snapshot(monkeypatch, _remote_snapshot(_SCUTIL, platform="darwin"))
+    request = _request()
+    request["machine"] = "mac"
+    request["commands"][0]["argv"] = [_SCUTIL]
+
+    spec = build_sudo_gate_request(request)
+    sudo = spec["payload"]["sudo"]
+
+    assert sudo["request"]["commands"][0]["executable_sha256"] == _REMOTE_HASH
+    assert sudo["target"]["snapshot"]["taken_on"] == "target"
+    assert sudo["target"]["snapshot"]["host_facts"]["platform"] == "darwin"
+    preview = next(
+        resource["content"]
+        for resource in spec["resources"]
+        if resource["path"] == "sudo-request.md"
+    )
+    assert "Target facts: platform=darwin" in preview
+
+
+def test_remote_sudo_request_rejects_target_writable_executable(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    local = _request()["commands"][0]["argv"][0]
+    _patch_remote_snapshot(
+        monkeypatch,
+        _remote_snapshot(
+            local,
+            sha256=None,
+            error_code="agent_writable_executable",
+            message="sudo command executable is writable by this agent",
+        ),
+    )
+    request = _request()
+    request["machine"] = "mac"
+
+    with pytest.raises(GateError) as excinfo:
+        build_sudo_gate_request(request)
+
+    assert excinfo.value.code == "agent_writable_executable"
+
+
+def test_remote_sudo_request_fails_when_target_is_unreachable(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def boom(host: str, paths: object, **_kwargs: object) -> _RemoteExecutableSnapshot:
+        del host, paths
+        raise GateError(
+            "remote_snapshot_unavailable",
+            "ssh",
+            "could not snapshot executables on 'mac'; "
+            "the target must be online when the request is created",
+        )
+
+    monkeypatch.setattr("sase.sudo.gate.snapshot_remote_executables", boom)
+    request = _request()
+    request["machine"] = "mac"
+    request["commands"][0]["argv"] = [_SCUTIL]
+
+    with pytest.raises(GateError) as excinfo:
+        build_sudo_gate_request(request)
+
+    assert excinfo.value.code == "remote_snapshot_unavailable"
+
+
+def test_remote_sudo_request_declared_hash_mismatch(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _patch_remote_snapshot(monkeypatch, _remote_snapshot(_SCUTIL))
+    request = _request()
+    request["machine"] = "mac"
+    request["commands"][0]["argv"] = [_SCUTIL]
+    request["commands"][0]["executable_sha256"] = "cd" * 32
+
+    with pytest.raises(GateError) as excinfo:
+        build_sudo_gate_request(request)
+
+    assert excinfo.value.code == "snapshot_mismatch"
+
+
+def test_local_sudo_request_still_hashes_locally() -> None:
+    request = _request()
+    executable = request["commands"][0]["argv"][0]
+    spec = build_sudo_gate_request(request)
+    sudo = spec["payload"]["sudo"]
+    expected = hashlib.sha256(Path(executable).read_bytes()).hexdigest()
+
+    assert sudo["request"]["commands"][0]["executable_sha256"] == expected
+    assert sudo["target"]["snapshot"]["taken_on"] == "local"
+    assert sudo["target"]["remote"] is False
+
+
+def test_validate_remote_sudo_spec_does_not_ssh_or_hash_locally(
+    gate_home: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    del gate_home
+    calls: list[str] = []
+    _patch_remote_snapshot(monkeypatch, _remote_snapshot(_SCUTIL, platform="darwin"))
+    request = _request()
+    request["machine"] = "mac"
+    request["commands"][0]["argv"] = [_SCUTIL]
+    spec = build_sudo_gate_request(request)
+
+    def boom(*_args: object, **_kwargs: object) -> object:
+        calls.append("ssh")
+        raise AssertionError("validation must not snapshot remotely")
+
+    def local_boom(*_args: object, **_kwargs: object) -> object:
+        calls.append("local")
+        raise AssertionError("validation must not hash locally")
+
+    monkeypatch.setattr("sase.sudo.gate.snapshot_remote_executables", boom)
+    monkeypatch.setattr("sase.sudo.snapshot.snapshot_executable", local_boom)
+    monkeypatch.setattr("sase.sudo.models.snapshot_executable", local_boom)
+
+    create_gate(spec)
+
+    assert calls == []
+
+
+def test_preview_warns_for_darwin_without_full_disk_access(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _patch_remote_snapshot(
+        monkeypatch,
+        _remote_snapshot(_SCUTIL, platform="darwin", full_disk_access=False),
+    )
+    request = _request()
+    request["machine"] = "mac"
+    request["commands"][0]["argv"] = [_SCUTIL]
+    spec = build_sudo_gate_request(request)
+    preview = next(
+        resource["content"]
+        for resource in spec["resources"]
+        if resource["path"] == "sudo-request.md"
+    )
+
+    assert "full_disk_access=no" in preview
+    assert "macOS TCC" in preview
+    assert "Allow full disk access for remote users" in preview
+
+
+def test_preview_omits_tcc_warning_for_linux_and_missing_facts() -> None:
+    spec = build_sudo_gate_request(_request())
+    preview = next(
+        resource["content"]
+        for resource in spec["resources"]
+        if resource["path"] == "sudo-request.md"
+    )
+    assert "macOS TCC" not in preview
+    assert tcc_warning({"remote": False, "host": "athena"}) is None
+    assert (
+        tcc_warning(
+            {
+                "remote": True,
+                "host": "mac",
+                "snapshot": {
+                    "taken_on": "target",
+                    "host_facts": {"platform": "linux", "full_disk_access": None},
+                },
+            }
+        )
+        is None
+    )

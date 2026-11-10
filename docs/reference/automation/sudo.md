@@ -16,8 +16,9 @@ request before authenticating in a real terminal with the host's normal PAM prom
 A sudo request moves through four steps:
 
 1. An agent finishes all non-root preparation, then pipes one JSON request to
-   `sase sudo request`. SASE validates it, snapshots the SHA-256 of every executable,
-   seals the reviewed command manifest, and creates a `sudo` gate backed by a
+   `sase sudo request`. SASE validates it, snapshots the SHA-256 of every executable on
+   the host that will run the commands, seals the reviewed command manifest, and creates
+   a `sudo` gate backed by a
    [gate turn](notification-gates.md#gate-turns-and-continuation). The turn shows the
    `SUDO` status. With
    [staged handoffs](../agents/agent-sessions.md#handoff-completion), the command
@@ -46,8 +47,10 @@ package. SASE looks for it next to the running Python interpreter first, then on
 
 Agents must do all non-root preparation first, then batch the root work into one
 `sase sudo request` JSON object on stdin. Each command needs a stable `id`, an exact
-`argv` array whose executable is an absolute path, and a short `why` that explains why
-root is needed.
+`argv` array whose executable is an absolute path on the execution host, and a short
+`why` that explains why root is needed. SASE snapshots and write-guards that executable
+on the host that will run it, so a remote request may name binaries that exist only on
+the target.
 
 | Field                  | Default           | Meaning                                                                |
 | ---------------------- | ----------------- | ---------------------------------------------------------------------- |
@@ -89,7 +92,7 @@ interactive root programs. Request validation enforces that boundary and rejects
   `vim`, `nano`, `less`, `more`, `top`, and `htop`), plus any command with a bare `-c`
   argument;
 - executables that are relative, missing, not a regular file, or writable by the
-  requesting user;
+  requesting user on the execution host;
 - credential-shaped data: argv or environment values containing `password=`, `passwd=`,
   `passphrase=`, `secret=`, or `token=`, and environment keys containing those words;
 - loader and askpass variables: `LD_*`, `DYLD_*`, `PYTHONPATH`, `PYTHONINSPECT`,
@@ -233,16 +236,24 @@ enrolled alias resolves to its recorded SSH handoff target, which defaults to th
 itself (`sase machine show ALIAS` prints it). Any other value must be a valid SSH
 destination and is shown to the reviewer as an unenrolled host.
 
+The target must be reachable over SSH, with a sase that advertises the
+`executable_snapshot` capability, when the request is created. Request-time snapshot SSH
+uses `BatchMode` and does not attach a TTY. If the target is offline or its sase is too
+old to snapshot, `sase sudo request` fails with `remote_snapshot_unavailable`.
+
 Review still happens on the controller. On approval, the controller:
 
-1. checks that `ssh <target>` running `sase sudo exec --contract` through the account's
+1. re-snapshots the selected executables on the target and compares them with the hashes
+   captured at request time; a mismatch or target-side snapshot error leaves the gate
+   pending;
+2. checks that `ssh <target>` running `sase sudo exec --contract` through the account's
    noninteractive login shell reports a compatible contract;
-2. stages the sealed manifest in a private temporary file under the target's `/tmp`;
-3. runs `ssh -t <target>` attached to the reviewer's `/dev/tty` with
+3. stages the sealed manifest in a private temporary file under the target's `/tmp`;
+4. runs `ssh -t <target>` attached to the reviewer's `/dev/tty` with
    `sase sudo exec --detach ...` through that same login shell, so the target's own
    runner prompts for authentication on the controlling terminal even when parent
    `--json` stdout is a pipe, then starts a remote detached executor;
-4. starts a local finalize proc that polls the target's JSON ledger, validates it, and
+5. starts a local finalize proc that polls the target's JSON ledger, validates it, and
    removes the staged files after settlement.
 
 Target-side SASE invocations — the contract probe and both synchronous and detached
@@ -263,6 +274,32 @@ If the target does not advertise detached sudo execution yet, approval falls bac
 older foreground SSH path and keeps the terminal attached until the remote ledger is
 available.
 
+Remote gates created before target-side snapshots existed have no `snapshot` marker and
+skip approval-time re-verification: their stored hashes were taken on the controller.
+
+### macOS targets and Full Disk Access
+
+On macOS, a reviewed command can run as root and still fail with
+`Operation not permitted`. That is a TCC Full Disk Access denial, not SIP and not a sase
+fault. SSH sessions need System Settings → General → Sharing → Remote Login ⓘ → "Allow
+full disk access for remote users". The unified log signature looks like
+`System Policy: ... deny(1) file-write-create`.
+
+SASE probes Full Disk Access by reading
+`/Library/Application Support/com.apple.TCC/TCC.db`. When that probe is denied, the
+request preview, review modal, and approval stderr warn before the reviewer
+authenticates. After a failed command whose output contains `Operation not permitted`,
+the successor ledger result includes an additive `hints` entry that names the failed
+command IDs and tells the agent to ask Bryan rather than work around the denial.
+
+A pre-flight check from any SSH session:
+
+```bash
+ssh -o BatchMode=yes <host> head -c1 '/Library/Application Support/com.apple.TCC/TCC.db'
+```
+
+`Operation not permitted` means Full Disk Access is missing.
+
 ## Policy Rationale
 
 The sudo request flow replaces standing passwordless sudo with an explicit review and
@@ -271,10 +308,15 @@ bounded command output, and runner ledger. It never records the password, passwo
 length, password digest, PAM transcript, attempt count, or any derived credential
 material.
 
-Commands are hash-bound from review to execution. Bundle-owned option commands are
-rehashed immediately before execution, and the sudo runner verifies the manifest hash
-before running anything. After a batch settles, the runner invalidates the sudo
-timestamp so approval does not create reusable ambient privilege.
+Commands are hash-bound from review to execution on the host that runs them. At request
+time, SASE snapshots each argv0 on that host (locally, or over SSH with
+`sase sudo exec --snapshot`). Staging and creation re-hash local executables and
+compare; for remote requests they accept the declared 64-hex hashes without touching the
+local filesystem or making an SSH call. Approval re-snapshots remote executables on the
+target and compares them with the reviewed hashes before staging a manifest. The sudo
+runner then verifies the sealed manifest hash before running anything. After a batch
+settles, the runner invalidates the sudo timestamp so approval does not create reusable
+ambient privilege.
 
 ## Recovery
 

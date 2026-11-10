@@ -14,6 +14,7 @@ from sase.notification_gates.entrypoints import (
 )
 from sase.sudo.manifest import selected_sudo_manifest
 from sase.sudo.receipt import validate_sudo_receipt
+from sase.sudo.snapshot import tcc_failure_hint
 
 
 def sudo_approve_command_script() -> str:
@@ -58,17 +59,21 @@ def sudo_approve_entrypoint() -> NoReturn:
         selected_command_ids=command_ids,
         manifest=subset,
     )
-    print(
-        json.dumps(
-            {
-                "status": "approved",
-                "command_ids": list(command_ids),
-                "receipt": normalized,
-                "ledger": normalized.get("entries", []),
-            },
-            sort_keys=True,
-        )
+    ledger = normalized.get("entries", [])
+    result: dict[str, object] = {
+        "status": "approved",
+        "command_ids": list(command_ids),
+        "receipt": normalized,
+        "ledger": ledger,
+    }
+    target_payload = sudo_payload.get("target")
+    hint = tcc_failure_hint(
+        target_payload if isinstance(target_payload, dict) else None,
+        ledger if isinstance(ledger, list) else None,
     )
+    if hint is not None:
+        result["hints"] = [hint]
+    print(json.dumps(result, sort_keys=True))
     raise SystemExit(0)
 
 

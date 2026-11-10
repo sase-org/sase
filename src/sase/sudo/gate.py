@@ -11,7 +11,14 @@ from uuid import uuid4
 from sase.notification_gates.models import GATE_REQUEST_SCHEMA_VERSION
 from sase.sudo.commands import sudo_approve_command_script, sudo_deny_command_script
 from sase.sudo.core import DEFAULT_SUDO_CORE, SudoCoreBinding
-from sase.sudo.models import SudoRequest, normalize_sudo_request
+from sase.sudo.models import (
+    SudoRequest,
+    normalize_sudo_request,
+    sudo_request_executable_paths,
+    sudo_request_machine,
+)
+from sase.sudo.snapshot import host_facts, tcc_warning
+from sase.sudo.ssh_snapshot import snapshot_remote_executables
 from sase.sudo.target import SudoExecutionTarget, resolve_sudo_target
 
 APPROVE_OPTION_ID = "approve"
@@ -28,9 +35,8 @@ def build_sudo_gate_request(
     core: SudoCoreBinding = DEFAULT_SUDO_CORE,
 ) -> dict[str, Any]:
     """Return a v3 gate-turn request for one normalized sudo request."""
-    request = value if isinstance(value, SudoRequest) else normalize_sudo_request(value)
+    request, target, target_payload = _normalize_build_request(value)
     request_id = request_id or f"sudo-{uuid4()}"
-    target = resolve_sudo_target(request.machine)
     manifest = core.validate_manifest(_manifest(request, request_id, target))
     manifest_sha256 = core.manifest_sha256(manifest)
     risk_badges = core.risk_badges(manifest)
@@ -53,7 +59,7 @@ def build_sudo_gate_request(
                 "manifest": manifest,
                 "manifest_sha256": manifest_sha256,
                 "risk_badges": list(risk_badges),
-                "target": _target_payload(target),
+                "target": target_payload,
             }
         },
         "presentation": {
@@ -81,7 +87,9 @@ def build_sudo_gate_request(
             {
                 "path": "sudo-request.md",
                 "role": "preview",
-                "content": _preview(request, manifest_sha256, risk_badges),
+                "content": _preview(
+                    request, manifest_sha256, risk_badges, target_payload
+                ),
             },
         ],
         "shell": {
@@ -99,6 +107,26 @@ def build_sudo_gate_request(
             },
         },
     }
+
+
+def _normalize_build_request(
+    value: Mapping[str, Any] | SudoRequest,
+) -> tuple[SudoRequest, SudoExecutionTarget, dict[str, Any]]:
+    raw: object = value.to_dict() if isinstance(value, SudoRequest) else value
+    machine = sudo_request_machine(raw)
+    target = resolve_sudo_target(machine)
+    if target.remote:
+        remote = snapshot_remote_executables(
+            target.host, sudo_request_executable_paths(raw)
+        )
+        request = normalize_sudo_request(raw, snapshots=remote.by_path())
+        facts = dict(remote.host_facts)
+        taken_on = "target"
+    else:
+        request = normalize_sudo_request(raw)
+        facts = host_facts()
+        taken_on = "local"
+    return request, target, _target_payload(target, taken_on=taken_on, host_facts=facts)
 
 
 def _manifest(
@@ -133,7 +161,12 @@ def _manifest_command(command: Any) -> dict[str, Any]:
     return payload
 
 
-def _target_payload(target: SudoExecutionTarget) -> dict[str, Any]:
+def _target_payload(
+    target: SudoExecutionTarget,
+    *,
+    taken_on: str,
+    host_facts: Mapping[str, Any],
+) -> dict[str, Any]:
     return {
         "host": target.host,
         "requested_machine": target.requested_machine,
@@ -141,6 +174,7 @@ def _target_payload(target: SudoExecutionTarget) -> dict[str, Any]:
         "enrolled": target.enrolled,
         "remote": target.remote,
         "unenrolled": target.unenrolled,
+        "snapshot": {"taken_on": taken_on, "host_facts": dict(host_facts)},
     }
 
 
@@ -218,7 +252,10 @@ def _notes(request: SudoRequest, risk_badges: tuple[str, ...]) -> list[str]:
 
 
 def _preview(
-    request: SudoRequest, manifest_sha256: str, risk_badges: tuple[str, ...]
+    request: SudoRequest,
+    manifest_sha256: str,
+    risk_badges: tuple[str, ...],
+    target_payload: Mapping[str, Any] | None = None,
 ) -> str:
     lines = [
         "# Sudo Request",
@@ -227,12 +264,21 @@ def _preview(
         f"Run as: `{request.run_as}`",
         f"Working directory: `{request.cwd}`",
         f"Target: `{request.machine or 'local'}`",
-        f"Manifest SHA-256: `{manifest_sha256}`",
-        f"Risk: {', '.join(risk_badges) or 'none'}",
-        "",
-        "Commands:",
-        "",
     ]
+    facts_line = _target_facts_line(target_payload)
+    if facts_line is not None:
+        lines.append(facts_line)
+    lines.extend(
+        [
+            f"Manifest SHA-256: `{manifest_sha256}`",
+            f"Risk: {', '.join(risk_badges) or 'none'}",
+            "",
+        ]
+    )
+    warning = tcc_warning(target_payload)
+    if warning:
+        lines.extend([f"> {warning}", ""])
+    lines.extend(["Commands:", ""])
     for command in request.commands:
         lines.extend(
             [
@@ -247,6 +293,28 @@ def _preview(
             ]
         )
     return "\n".join(lines).rstrip() + "\n"
+
+
+def _target_facts_line(target_payload: Mapping[str, Any] | None) -> str | None:
+    if not isinstance(target_payload, Mapping):
+        return None
+    snapshot = target_payload.get("snapshot")
+    if not isinstance(snapshot, Mapping):
+        return None
+    facts = snapshot.get("host_facts")
+    if not isinstance(facts, Mapping):
+        return None
+    platform = facts.get("platform")
+    if not isinstance(platform, str) or not platform:
+        return None
+    fda = facts.get("full_disk_access")
+    if fda is True:
+        fda_text = "yes"
+    elif fda is False:
+        fda_text = "no"
+    else:
+        fda_text = "n/a"
+    return f"Target facts: platform={platform}, full_disk_access={fda_text}"
 
 
 __all__ = [

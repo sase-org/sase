@@ -50,6 +50,7 @@ class SudoRequestModalData:
     machine: str | None
     manifest_sha256: str
     risk_badges: tuple[str, ...]
+    tcc_warning: str | None = None
     requester: str | None = None
     project: str | None = None
     expires_at: str | None = None
@@ -272,6 +273,11 @@ class SudoRequestModal(
         for label, value in rows:
             text.append(f"{label:<12}", style="dim")
             text.append(str(value))
+            text.append("\n")
+        warning = self._data.tcc_warning
+        if warning:
+            text.append(f"{'Warning':<12}", style="dim")
+            text.append(warning, style="bold #FFAF5F")
             text.append("\n")
         return text
 

@@ -151,6 +151,7 @@ def test_sudo_notification_loader_projects_verified_manifest(
     assert data.env == (("LC_ALL", "C"),)
     assert data.project == "sase"
     assert data.expires_at is not None
+    assert data.tcc_warning is None
 
 
 async def test_sudo_run_uses_terminal_handoff_not_durable_proc(

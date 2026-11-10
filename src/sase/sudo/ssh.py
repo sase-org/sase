@@ -1,8 +1,9 @@
 """SSH relay for machine-targeted sudo authentication.
 
 Compatibility facade: the implementation now lives in the sibling modules
-``ssh_defs``, ``ssh_paths``, ``ssh_transport``, ``ssh_exec``, and
-``ssh_detached``. New code should import the owning submodule directly.
+``ssh_defs``, ``ssh_paths``, ``ssh_transport``, ``ssh_exec``,
+``ssh_snapshot``, and ``ssh_detached``. New code should import the owning
+submodule directly.
 """
 
 from __future__ import annotations
@@ -15,6 +16,7 @@ from sase.sudo.ssh_exec import (
     run_remote_sudo_detached,
 )
 from sase.sudo.ssh_paths import allocate_remote_sudo_paths
+from sase.sudo.ssh_snapshot import snapshot_remote_executables
 
 __all__ = [
     "CommandRunner",
@@ -24,5 +26,6 @@ __all__ = [
     "remote_supports_detached_execution",
     "run_remote_sudo",
     "run_remote_sudo_detached",
+    "snapshot_remote_executables",
     "wait_for_remote_sudo_ledger",
 ]

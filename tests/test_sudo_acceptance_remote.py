@@ -14,7 +14,9 @@ from sase.notification_gates.durability import read_json_object
 from sase.notification_gates.service import create_gate
 from sase.sudo.cli import handle_sudo_command
 from sase.sudo.gate import build_sudo_gate_request
+from sase.sudo.ssh_snapshot import snapshot_remote_executables
 from tests._sudo_acceptance_helpers import _request, _runner_ledger
+from tests._sudo_ssh_fake import FakeOpenSSHEndpoint
 
 
 def test_remote_finalize_headless_streams_output_and_settles_once(
@@ -257,3 +259,26 @@ def test_remote_finalize_uncertain_error_keeps_recovery_state(
     assert state is not None
     assert state.remote_handoff == remote_paths
     assert remote_dir.is_dir()
+
+
+def test_remote_request_snapshots_executables_over_ssh(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fake = FakeOpenSSHEndpoint(tmp_path)
+    monkeypatch.setattr(
+        "sase.sudo.gate.snapshot_remote_executables",
+        lambda host, paths, **kwargs: snapshot_remote_executables(
+            host, paths, command_runner=fake
+        ),
+    )
+    request = _request()
+    request["machine"] = "mac"
+    spec = build_sudo_gate_request(request)
+    sudo = spec["payload"]["sudo"]
+    executable = request["commands"][0]["argv"][0]
+
+    assert sudo["target"]["snapshot"]["taken_on"] == "target"
+    assert sudo["request"]["commands"][0]["executable_sha256"]
+    assert any("--snapshot" in command for command in fake.joined)
+    assert executable in sudo["request"]["commands"][0]["argv"]

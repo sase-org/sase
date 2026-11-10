@@ -3,8 +3,11 @@
 from __future__ import annotations
 
 import argparse
+import errno
+import hashlib
 import json
 import os
+import shutil
 import signal
 from pathlib import Path
 from typing import Any
@@ -17,6 +20,7 @@ from sase.notification_gates.service import create_gate
 from sase.sudo import cli as sudo_cli
 from sase.sudo.cli import handle_sudo_command
 from sase.sudo.gate import build_sudo_gate_request
+from sase.sudo.snapshot import host_facts, snapshot_executable
 from tests._sudo_gate_helpers import _request, _runner_ledger
 
 
@@ -321,7 +325,112 @@ def test_sudo_exec_contract_advertises_detached_runner(
 
     payload = json.loads(capsys.readouterr().out)
     assert payload["schema_version"] == 1
-    assert payload["capabilities"] == ["detached_execution"]
+    assert payload["capabilities"] == ["detached_execution", "executable_snapshot"]
+
+
+def test_sudo_exec_snapshot_hashes_regular_file(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    del tmp_path
+    executable = shutil.which("true")
+    assert executable is not None
+    parser = argparse.ArgumentParser(prog="sase")
+    register_sudo_parser(parser.add_subparsers(dest="command"))
+    args = parser.parse_args(["sudo", "exec", "--snapshot", executable])
+
+    assert handle_sudo_command(args) == 0
+
+    payload = json.loads(capsys.readouterr().out)
+    expected = hashlib.sha256(Path(executable).read_bytes()).hexdigest()
+    assert payload["schema_version"] == 1
+    assert payload["kind"] == "sase_sudo_executable_snapshot"
+    assert payload["executables"] == [
+        {
+            "error_code": None,
+            "message": None,
+            "path": executable,
+            "sha256": expected,
+        }
+    ]
+
+
+@pytest.mark.parametrize(
+    ("path", "code"),
+    [
+        ("relative", "unsnapshotshotted_executable"),
+        ("/no/such/sudo-executable", "unsnapshotshotted_executable"),
+        ("/tmp", "unsnapshotshotted_executable"),
+    ],
+)
+def test_sudo_exec_snapshot_reports_unsnapshotshotted_paths(
+    path: str,
+    code: str,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    parser = argparse.ArgumentParser(prog="sase")
+    register_sudo_parser(parser.add_subparsers(dest="command"))
+    args = parser.parse_args(["sudo", "exec", "--snapshot", path])
+
+    assert handle_sudo_command(args) == 0
+
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["executables"][0]["error_code"] == code
+    assert payload["executables"][0]["sha256"] is None
+
+
+def test_sudo_exec_snapshot_reports_writable_executable(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    path = tmp_path / "agent-writable"
+    path.write_bytes(b"#!/bin/sh\n")
+    path.chmod(0o755)
+    parser = argparse.ArgumentParser(prog="sase")
+    register_sudo_parser(parser.add_subparsers(dest="command"))
+    args = parser.parse_args(["sudo", "exec", "--snapshot", str(path)])
+
+    assert handle_sudo_command(args) == 0
+
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["executables"][0]["error_code"] == "agent_writable_executable"
+    assert payload["executables"][0]["sha256"] is None
+
+
+def test_host_facts_probe_results(monkeypatch: pytest.MonkeyPatch) -> None:
+    del monkeypatch
+    assert host_facts(platform="linux") == {
+        "full_disk_access": None,
+        "platform": "linux",
+    }
+    assert host_facts(platform="darwin", tcc_probe=lambda: None) == {
+        "full_disk_access": True,
+        "platform": "darwin",
+    }
+
+    def eperm() -> None:
+        raise PermissionError(errno.EPERM, "denied")
+
+    def other() -> None:
+        raise PermissionError(errno.EACCES, "denied")
+
+    def missing() -> None:
+        raise FileNotFoundError("missing")
+
+    assert host_facts(platform="darwin", tcc_probe=eperm) == {
+        "full_disk_access": False,
+        "platform": "darwin",
+    }
+    assert host_facts(platform="darwin", tcc_probe=other)["full_disk_access"] is None
+    assert host_facts(platform="darwin", tcc_probe=missing)["full_disk_access"] is None
+
+
+def test_snapshot_executable_matches_cli_payload() -> None:
+    executable = shutil.which("true")
+    assert executable is not None
+    result = snapshot_executable(executable)
+    assert result.error_code is None
+    assert result.sha256 == hashlib.sha256(Path(executable).read_bytes()).hexdigest()
 
 
 def test_sudo_exec_detach_writes_handshake_file(

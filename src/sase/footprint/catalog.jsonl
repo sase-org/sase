@@ -1,4 +1,4 @@
-{"count": 3699, "rev": "172f19a4d661", "schema": "sase.footprint.catalog/1"}
+{"count": 3700, "rev": "de2dddc85c8f", "schema": "sase.footprint.catalog/1"}
 {"area": "automation", "id": "auto:axe.agent_waits", "kind": "auto", "label": "Resolve agent wait dependencies within seconds of completion", "ns": "auto", "parent": null, "src": "sase/default_config.yml"}
 {"area": "automation", "id": "auto:axe.agent_waits.wait_checks", "kind": "auto", "label": "Resolve agent wait dependencies and write ready.json when satisfied", "ns": "auto", "parent": "auto:axe.agent_waits", "src": "sase/default_config.yml"}
 {"area": "automation", "id": "auto:axe.checks", "kind": "auto", "label": "Poll slower PR-submission and workspace-claim checks on a five-minute cadence", "ns": "auto", "parent": null, "src": "sase/default_config.yml"}
@@ -1862,6 +1862,7 @@
 {"area": "cli.sudo", "id": "cli:sudo.exec#handshake", "kind": "option", "label": "Option --handshake of cli:sudo.exec", "ns": "cli", "parent": "cli:sudo.exec", "src": "sase/main/parser_sudo.py:register_sudo_parser"}
 {"area": "cli.sudo", "id": "cli:sudo.exec#ledger", "kind": "option", "label": "Option --ledger of cli:sudo.exec", "ns": "cli", "parent": "cli:sudo.exec", "src": "sase/main/parser_sudo.py:register_sudo_parser"}
 {"area": "cli.sudo", "id": "cli:sudo.exec#manifest", "kind": "option", "label": "Option --manifest of cli:sudo.exec", "ns": "cli", "parent": "cli:sudo.exec", "src": "sase/main/parser_sudo.py:register_sudo_parser"}
+{"area": "cli.sudo", "id": "cli:sudo.exec#snapshot", "kind": "option", "label": "Option --snapshot of cli:sudo.exec", "ns": "cli", "parent": "cli:sudo.exec", "src": "sase/main/parser_sudo.py:register_sudo_parser"}
 {"area": "cli.sudo", "id": "cli:sudo.finalize", "kind": "command", "label": "sase sudo finalize", "ns": "cli", "parent": null, "src": "sase/main/parser_sudo.py:register_sudo_parser"}
 {"area": "cli.sudo", "id": "cli:sudo.finalize#json", "kind": "option", "label": "Option --json of cli:sudo.finalize", "ns": "cli", "parent": "cli:sudo.finalize", "src": "sase/main/parser_sudo.py:register_sudo_parser"}
 {"area": "cli.sudo", "id": "cli:sudo.finalize#operation_request_path", "kind": "option", "label": "Option --operation_request_path of cli:sudo.finalize", "ns": "cli", "parent": "cli:sudo.finalize", "src": "sase/main/parser_sudo.py:register_sudo_parser"}
