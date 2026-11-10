@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from sase.ace.testing import wait_for
 from tests.ace.tui._plan_decision_ace_shared import plan_decision_definitions
+from tests._sync_io_guard import forbid_sync_file_io
 
 __all__ = [
     "test_plan_section_render_path_no_stat_no_validate",
@@ -367,10 +368,6 @@ def test_plan_section_render_path_no_stat_no_validate(monkeypatch, tmp_path) -> 
 
     _ASSOCIATED_PLAN_SHEET_CACHE[str(plan)] = ({"rows": []}, "reviewer", "tui")
     summary = type("S", (), {"actual_path": str(plan)})()
-    monkeypatch.setattr(
-        "os.stat",
-        lambda *a, **k: (_ for _ in ()).throw(AssertionError("stat on render path")),
-    )
     import sase.sdd.plan_validate as validate_mod
 
     monkeypatch.setattr(
@@ -380,9 +377,10 @@ def test_plan_section_render_path_no_stat_no_validate(monkeypatch, tmp_path) -> 
             AssertionError("validate on render path")
         ),
     )
-    sheet, by, via = section._load_plan_sheet(summary)  # type: ignore[arg-type]
+    with forbid_sync_file_io("os.stat", reason="plan section render path stats files"):
+        sheet, by, via = section._load_plan_sheet(summary)  # type: ignore[arg-type]
+        # Miss returns no sheet without touching disk.
+        missing = type("S", (), {"actual_path": str(tmp_path / "missing.md")})()
+        assert section._load_plan_sheet(missing)[0] is None  # type: ignore[arg-type]
     assert sheet == {"rows": []}
     assert by == "reviewer"
-    # Miss returns no sheet without touching disk.
-    missing = type("S", (), {"actual_path": str(tmp_path / "missing.md")})()
-    assert section._load_plan_sheet(missing)[0] is None  # type: ignore[arg-type]

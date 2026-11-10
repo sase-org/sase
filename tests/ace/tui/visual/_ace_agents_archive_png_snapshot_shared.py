@@ -154,6 +154,14 @@ async def open_archive(
     note_inbox_applied_for_archive(page.app, load_state=complete_load())
     open_agents_archive_view(page.app)
     await _wait_for_rows(page)
+    archive_list = page.app.query_one("#archive-list", ArchiveList)
+    archive_list.focus()
+    await page.wait_for(
+        lambda _state: archive_list.has_focus,
+        timeout_message=lambda: (
+            "Archive list focus did not settle after opening Archive"
+        ),
+    )
     await settle_archive_detail(page)
     await wait_for_visual_idle(page)
 
