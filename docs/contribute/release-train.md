@@ -211,7 +211,8 @@ unreadable evidence never satisfies a gate.
 `tools/release_watch` reads GitHub and PyPI facts, asks the Rust core for a decision,
 and reports its state, evidence, proposed train action, and escalation. Run it from the
 repository's Python environment with `sase_core_rs` built from `sase-core-revision.txt`
-and authenticated `gh` access:
+and authenticated `gh` access; GitHub reads retry up to three times with bounded backoff
+after HTTP 5xx responses or command timeouts:
 
 ```bash
 .venv/bin/python tools/release_watch --once

@@ -182,6 +182,60 @@ def test_empty_paginated_read_is_distinct_from_failed_read() -> None:
         GithubTransport("sase-org/sase", runner=failed_runner).pages("releases")
 
 
+def test_github_transport_retries_transient_server_error_with_bounded_backoff() -> None:
+    calls = 0
+    delays: list[float] = []
+
+    def runner(argv: list[str], **_kwargs: Any) -> subprocess.CompletedProcess[str]:
+        nonlocal calls
+        calls += 1
+        if calls < 3:
+            return subprocess.CompletedProcess(argv, 1, "", "HTTP 502 Bad Gateway")
+        return subprocess.CompletedProcess(argv, 0, '{"ok": true}', "")
+
+    result = GithubTransport("sase-org/sase", runner=runner, sleep=delays.append).json(
+        "repos/sase-org/sase"
+    )
+
+    assert result == {"ok": True}
+    assert calls == 3
+    assert delays == [0.25, 0.5]
+
+
+def test_github_transport_retries_timeout_and_reports_exhaustion() -> None:
+    calls = 0
+    delays: list[float] = []
+
+    def runner(argv: list[str], **_kwargs: Any) -> subprocess.CompletedProcess[str]:
+        nonlocal calls
+        calls += 1
+        raise subprocess.TimeoutExpired(argv, timeout=1)
+
+    with pytest.raises(ReleaseTransportError, match="timed out after 3 attempts"):
+        GithubTransport("sase-org/sase", runner=runner, sleep=delays.append).json(
+            "repos/sase-org/sase"
+        )
+
+    assert calls == 3
+    assert delays == [0.25, 0.5]
+
+
+def test_github_transport_does_not_retry_non_server_errors() -> None:
+    calls = 0
+
+    def runner(argv: list[str], **_kwargs: Any) -> subprocess.CompletedProcess[str]:
+        nonlocal calls
+        calls += 1
+        return subprocess.CompletedProcess(argv, 1, "", "HTTP 403 Forbidden")
+
+    with pytest.raises(ReleaseTransportError, match="403"):
+        GithubTransport("sase-org/sase", runner=runner, sleep=lambda _delay: None).json(
+            "repos/sase-org/sase"
+        )
+
+    assert calls == 1
+
+
 def test_pypi_inventory_keeps_yanks_and_digest_identity() -> None:
     payload = {
         "releases": {

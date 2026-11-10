@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import subprocess
 import time
 import urllib.error
@@ -21,8 +22,13 @@ from urllib.parse import urlencode
 
 
 GH_TIMEOUT_SECONDS = 20.0
+GH_ATTEMPTS = 3
+GH_RETRY_INITIAL_DELAY_SECONDS = 0.25
+GH_RETRY_MAX_DELAY_SECONDS = 2.0
 PYPI_TIMEOUT_SECONDS = 15.0
 PYPI_ATTEMPTS = 3
+
+_GITHUB_SERVER_ERROR = re.compile(r"\b5\d\d\b")
 
 
 class ReleaseTransportError(RuntimeError):
@@ -66,11 +72,15 @@ class GithubTransport:
         runner: Runner = run_process,
         executable: str = "gh",
         timeout: float = GH_TIMEOUT_SECONDS,
+        attempts: int = GH_ATTEMPTS,
+        sleep: Sleep = time.sleep,
     ) -> None:
         self.repo = repo
         self.runner = runner
         self.executable = executable
         self.timeout = timeout
+        self.attempts = max(1, attempts)
+        self.sleep = sleep
 
     def _env(self) -> dict[str, str]:
         return {
@@ -102,18 +112,33 @@ class GithubTransport:
         if paginate:
             argv.extend(["--paginate", "--slurp"])
         argv.extend(["--header", f"Accept: {accept}", path])
-        try:
-            result = self.runner(argv, timeout=self.timeout, env=self._env())
-        except (OSError, subprocess.SubprocessError) as exc:
-            raise ReleaseTransportError(path, f"GitHub read failed: {exc}") from exc
-        if result.returncode:
-            details = (result.stderr or result.stdout or "").strip().replace("\n", " ")
-            raise ReleaseTransportError(
-                path,
-                f"gh api exited {result.returncode}"
-                + (f": {details[:400]}" if details else ""),
-            )
-        return result.stdout or ""
+        delay = GH_RETRY_INITIAL_DELAY_SECONDS
+        for attempt in range(1, self.attempts + 1):
+            try:
+                result = self.runner(argv, timeout=self.timeout, env=self._env())
+            except (subprocess.TimeoutExpired, TimeoutError) as exc:
+                if attempt == self.attempts:
+                    raise ReleaseTransportError(
+                        path,
+                        f"GitHub read timed out after {self.attempts} attempts: {exc}",
+                    ) from exc
+            except (OSError, subprocess.SubprocessError) as exc:
+                raise ReleaseTransportError(path, f"GitHub read failed: {exc}") from exc
+            else:
+                if not result.returncode:
+                    return result.stdout or ""
+                details = (
+                    (result.stderr or result.stdout or "").strip().replace("\n", " ")
+                )
+                message = f"gh api exited {result.returncode}"
+                if details:
+                    message += f": {details[:400]}"
+                if attempt == self.attempts or not _GITHUB_SERVER_ERROR.search(details):
+                    raise ReleaseTransportError(path, message)
+            if attempt < self.attempts:
+                self.sleep(delay)
+                delay = min(delay * 2, GH_RETRY_MAX_DELAY_SECONDS)
+        raise AssertionError("unreachable")
 
     def json(
         self,
@@ -227,6 +252,9 @@ class PypiTransport:
 
 
 __all__ = [
+    "GH_ATTEMPTS",
+    "GH_RETRY_INITIAL_DELAY_SECONDS",
+    "GH_RETRY_MAX_DELAY_SECONDS",
     "GH_TIMEOUT_SECONDS",
     "PYPI_ATTEMPTS",
     "PYPI_TIMEOUT_SECONDS",
