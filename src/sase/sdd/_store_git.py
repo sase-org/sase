@@ -7,12 +7,17 @@ from pathlib import Path
 import subprocess
 
 from sase._git_remote import git_remotes_match
+from sase._git_worktree import require_worktree_root
 from sase.sdd._store_types import SddStore
 
 _logger = logging.getLogger(__name__)
 
 
 def set_sdd_origin(workspace_sdd: Path, remote_url: str) -> None:
+    from sase.sdd._sidecar_bare import is_bare_sidecar_clone
+
+    if not is_bare_sidecar_clone(workspace_sdd):
+        require_worktree_root(workspace_sdd)
     current = git_remote_url(workspace_sdd)
     if current is not None and current.strip() == remote_url.strip():
         return

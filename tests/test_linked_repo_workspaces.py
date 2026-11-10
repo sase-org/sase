@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+import subprocess
 
 import pytest
 
@@ -143,7 +144,9 @@ def test_materialize_creates_fresh_linked_clone(
 
     def ensure_clone(_primary: str, _num: int, path: str) -> str:
         ensured.append(path)
-        (Path(path) / ".git" / "info").mkdir(parents=True, exist_ok=True)
+        Path(path).mkdir(parents=True, exist_ok=True)
+        subprocess.run(["git", "init", "-q", path], check=True)
+        (Path(path) / ".git/info/exclude").write_text("")
         return path
 
     monkeypatch.setattr(
@@ -163,7 +166,7 @@ def test_materialize_creates_fresh_linked_clone(
     assert result == str(target.resolve())
     assert ensured == [str(target.resolve())]
     host_exclude = host / ".git" / "info" / "exclude"
-    assert "/sase/repos/" in host_exclude.read_text(encoding="utf-8").splitlines()
+    assert not host_exclude.exists()
     clone_exclude = target / ".git" / "info" / "exclude"
     assert clone_exclude.read_text(encoding="utf-8").splitlines() == [
         ".sase/",

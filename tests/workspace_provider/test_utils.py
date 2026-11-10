@@ -2,6 +2,7 @@
 
 import json
 import os
+import subprocess
 import tempfile
 from pathlib import Path
 from unittest.mock import MagicMock, patch
@@ -78,6 +79,7 @@ class TestManagedOriginReconciliation:
         checkout = tmp_path / "checkout"
         primary.mkdir()
         checkout.mkdir()
+        subprocess.run(["git", "init", "-q", str(checkout)], check=True)
         marker_dir = checkout / ".sase"
         marker_dir.mkdir()
         (marker_dir / "checkout.json").write_text(

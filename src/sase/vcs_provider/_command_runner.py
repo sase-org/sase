@@ -28,6 +28,10 @@ class CommandRunner:
         """Run a subprocess command and return a :class:`CommandOutput`."""
         git_env, git_stdin = _non_interactive_git_options(cmd)
         try:
+            if cmd[:2] == ["git", "push"]:
+                from sase.workspace_provider.push_guard import require_push_identity
+
+                require_push_identity(cwd)
 
             def attempt() -> subprocess.CompletedProcess[str]:
                 return subprocess.run(

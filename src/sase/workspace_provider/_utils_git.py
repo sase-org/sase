@@ -14,6 +14,7 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import unquote, urlparse
 
+from sase._git_worktree import require_worktree_root
 from sase.git_lock_retry import run_with_git_lock_retry
 
 
@@ -164,6 +165,7 @@ def remote_urls_match(actual: str, expected: str, *, cwd: str) -> bool:
 
 
 def set_origin_url(cwd: str, origin_url: str) -> subprocess.CompletedProcess[str]:
+    require_worktree_root(cwd)
     result, _outcome = run_with_git_lock_retry(
         lambda: subprocess.run(
             ["git", "remote", "set-url", "origin", origin_url],
@@ -185,6 +187,7 @@ def set_origin_push_url(
     new_url: str,
     old_url: str,
 ) -> subprocess.CompletedProcess[str]:
+    require_worktree_root(cwd)
     result, _outcome = run_with_git_lock_retry(
         lambda: subprocess.run(
             ["git", "remote", "set-url", "--push", "origin", new_url, old_url],

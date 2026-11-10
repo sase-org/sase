@@ -284,16 +284,24 @@ def test_git_reword_add_tag_log_fails(mock_run: MagicMock) -> None:
 @patch("sase.vcs_provider._command_runner.subprocess.run")
 def test_git_mail_bare_remote_push_only(mock_run: MagicMock) -> None:
     """Test BareGitPlugin.vcs_mail pushes without PR creation for bare remotes."""
-    mock_run.return_value = MagicMock(returncode=0, stdout="", stderr="")
+
+    def fake_run(cmd, **kwargs):  # type: ignore[no-untyped-def]
+        if cmd == ["git", "rev-parse", "--show-toplevel"]:
+            return MagicMock(returncode=0, stdout="/workspace\n", stderr="")
+        if cmd[:3] == ["git", "remote", "get-url"]:
+            return MagicMock(returncode=0, stdout="/remote.git\n", stderr="")
+        return MagicMock(returncode=0, stdout="", stderr="")
+
+    mock_run.side_effect = fake_run
 
     plugin = BareGitPlugin()
     success, error = plugin.vcs_mail("feature-branch", "/workspace")
 
     assert success is True
     assert error is None
-    # Should only call push, no gh pr commands
-    assert mock_run.call_count == 1
-    assert mock_run.call_args_list[0][0][0] == [
+    # Identity reads precede publication; no gh PR commands are invoked.
+    assert all(call.args[0][0] == "git" for call in mock_run.call_args_list)
+    assert mock_run.call_args_list[-1].args[0] == [
         "git",
         "push",
         "-u",

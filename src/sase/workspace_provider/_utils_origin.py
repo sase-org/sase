@@ -12,6 +12,7 @@ from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
 
+from sase._git_worktree import is_worktree_root, require_worktree_root
 from sase.workspace_provider._utils_git import (
     command_output as _command_output,
     git_command_error as _git_command_error,
@@ -35,6 +36,8 @@ def heal_clone_origin_if_needed(
     primary_workspace_dir: str,
     target_checkout_dir: str,
 ) -> None:
+    require_worktree_root(target_checkout_dir)
+    require_worktree_root(primary_workspace_dir)
     target_result = _run_git_remote_get_url(target_checkout_dir)
     target_url = target_result.stdout.strip() if target_result.returncode == 0 else ""
     points_at_primary = bool(
@@ -109,6 +112,8 @@ def _verified_managed_marker(
     if marker_match is None:
         return None
     marker_checkout_dir, marker = marker_match
+    if not _same_path(Path(marker_checkout_dir), Path(checkout_dir)):
+        return None
     marker_primary_dir = marker.primary_workspace_dir.rstrip("/")
     if not marker_primary_dir:
         raise RuntimeError(
@@ -313,6 +318,8 @@ def reconcile_managed_checkout_origin(
     remotes, and non-stale origin configuration are left untouched.
     """
     checkout_dir = os.path.abspath(checkout_dir)
+    if not is_worktree_root(checkout_dir):
+        return False
     verified_marker = _verified_managed_marker(
         checkout_dir,
         primary_workspace_dir=primary_workspace_dir,
@@ -330,6 +337,7 @@ def reconcile_managed_checkout_origin(
     else:
         resolved_primary_dir, identity_verified = verified_marker
 
+    require_worktree_root(resolved_primary_dir)
     request = _build_managed_origin_request(
         checkout_dir,
         resolved_primary_dir,

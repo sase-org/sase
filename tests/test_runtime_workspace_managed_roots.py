@@ -45,6 +45,14 @@ from sase.workspace_provider.store import WorkspaceStore
 from sase.workspace_provider.utils import ensure_workspace_checkout
 
 
+def _healthy_git_run(argv: list[str], **kwargs: object) -> MagicMock:
+    if argv == ["git", "rev-parse", "--show-toplevel"]:
+        return MagicMock(returncode=0, stdout=f"{kwargs['cwd']}\n", stderr="")
+    if argv[:3] == ["git", "remote", "get-url"]:
+        return MagicMock(returncode=0, stdout="https://github.com/u/r.git\n", stderr="")
+    return MagicMock(returncode=0, stdout="", stderr="")
+
+
 # ── compatibility: legacy #1 maps to primary ─────────────────────────
 
 
@@ -124,9 +132,7 @@ class TestManagedRootMaterialization:
         tmp_path: Path,
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
-        mock_run.return_value = MagicMock(
-            returncode=0, stdout="https://github.com/u/r.git\n"
-        )
+        mock_run.side_effect = _healthy_git_run
         monkeypatch.setenv("XDG_STATE_HOME", str(tmp_path / "state"))
         monkeypatch.delenv("SASE_WORKSPACE_ROOT", raising=False)
 
@@ -156,11 +162,10 @@ class TestManagedRootMaterialization:
         primary.mkdir()
         sibling = tmp_path / "repo_2"
         sibling.mkdir()
-        # Pretend the sibling already exists as a healthy git clone so
-        # ensure_git_clone_at short-circuits without subprocess.
+        # Model a healthy existing clone, including its bounded root probe.
         with patch(
             "sase.workspace_provider.utils.subprocess.run",
-            return_value=MagicMock(returncode=0, stdout=""),
+            side_effect=_healthy_git_run,
         ):
             result = ensure_workspace_checkout(
                 str(primary) + "/",
@@ -188,9 +193,7 @@ class TestRestartSafeResolution:
         can rebuild ``(project, workspace_num)`` -> ``checkout_dir`` after
         a process restart without consulting any extra state.
         """
-        mock_run.return_value = MagicMock(
-            returncode=0, stdout="https://github.com/u/r.git\n"
-        )
+        mock_run.side_effect = _healthy_git_run
         monkeypatch.setenv("XDG_STATE_HOME", str(tmp_path / "state"))
         monkeypatch.delenv("SASE_WORKSPACE_ROOT", raising=False)
         primary = tmp_path / "repo"
@@ -213,21 +216,11 @@ class TestRestartSafeResolution:
         managed_root = tmp_path / "managed"
         config = {"workspace": {"root": str(managed_root), "project_key": "k"}}
 
-        def fake_run(argv: list[str], **_: object) -> MagicMock:
-            if argv == ["git", "remote", "get-url", "origin"]:
-                return MagicMock(
-                    returncode=0,
-                    stdout="https://github.com/example/project.git\n",
-                    stderr="",
-                )
-            # Materialize the target dir on ``git clone`` so the marker
-            # write sees an on-disk checkout.
-            if argv == ["git", "remote", "get-url", "origin"]:
-                return MagicMock(returncode=0, stdout="git@example.com:k/repo.git\n")
-            if len(argv) >= 4 and argv[0] == "git" and argv[1] == "clone":
-                target = argv[3].rstrip("/")
-                os.makedirs(target, exist_ok=True)
-            return MagicMock(returncode=0, stdout="", stderr="")
+        def fake_run(argv: list[str], **kwargs: object) -> MagicMock:
+            # Materialize the target dir so the marker writer sees the checkout.
+            if len(argv) >= 4 and argv[:2] == ["git", "clone"]:
+                os.makedirs(argv[3].rstrip("/"), exist_ok=True)
+            return _healthy_git_run(argv, **kwargs)
 
         with patch(
             "sase.workspace_provider.utils.subprocess.run", side_effect=fake_run

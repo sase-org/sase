@@ -19,9 +19,12 @@ class TestEnsureWorkspaceCheckout:
     def test_adjacent_compat_matches_ensure_git_clone(
         self, mock_run: MagicMock, tmp_path: Path
     ) -> None:
-        mock_run.return_value = MagicMock(
-            returncode=0, stdout="https://github.com/u/r.git\n"
-        )
+        def run(cmd: list[str], **kwargs: object) -> MagicMock:
+            if cmd == ["git", "rev-parse", "--show-toplevel"]:
+                return MagicMock(returncode=0, stdout=str(kwargs["cwd"]))
+            return MagicMock(returncode=0, stdout="https://github.com/u/r.git\n")
+
+        mock_run.side_effect = run
         primary = str(tmp_path / "repo") + "/"
         os.makedirs(primary)
         config = {"workspace": {"root": "adjacent"}}
@@ -36,9 +39,12 @@ class TestEnsureWorkspaceCheckout:
         tmp_path: Path,
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
-        mock_run.return_value = MagicMock(
-            returncode=0, stdout="https://github.com/u/r.git\n"
-        )
+        def run(cmd: list[str], **kwargs: object) -> MagicMock:
+            if cmd == ["git", "rev-parse", "--show-toplevel"]:
+                return MagicMock(returncode=0, stdout=str(kwargs["cwd"]))
+            return MagicMock(returncode=0, stdout="https://github.com/u/r.git\n")
+
+        mock_run.side_effect = run
         primary = str(tmp_path / "repo") + "/"
         os.makedirs(primary)
         config = {"workspace": {"root": "adjacent"}}
@@ -62,9 +68,12 @@ class TestEnsureWorkspaceCheckout:
         tmp_path: Path,
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
-        mock_run.return_value = MagicMock(
-            returncode=0, stdout="https://github.com/u/r.git\n"
-        )
+        def run(cmd: list[str], **kwargs: object) -> MagicMock:
+            if cmd == ["git", "rev-parse", "--show-toplevel"]:
+                return MagicMock(returncode=0, stdout=str(kwargs["cwd"]))
+            return MagicMock(returncode=0, stdout="https://github.com/u/r.git\n")
+
+        mock_run.side_effect = run
         monkeypatch.setenv("XDG_STATE_HOME", str(tmp_path / "state"))
         monkeypatch.delenv("SASE_WORKSPACE_ROOT", raising=False)
         primary = str(tmp_path / "repo") + "/"
@@ -82,9 +91,12 @@ class TestEnsureWorkspaceCheckout:
         tmp_path: Path,
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
-        mock_run.return_value = MagicMock(
-            returncode=0, stdout="https://github.com/u/r.git\n"
-        )
+        def run(cmd: list[str], **kwargs: object) -> MagicMock:
+            if cmd == ["git", "rev-parse", "--show-toplevel"]:
+                return MagicMock(returncode=0, stdout=str(kwargs["cwd"]))
+            return MagicMock(returncode=0, stdout="https://github.com/u/r.git\n")
+
+        mock_run.side_effect = run
         monkeypatch.setenv("XDG_STATE_HOME", str(tmp_path / "state"))
         monkeypatch.delenv("SASE_WORKSPACE_ROOT", raising=False)
         primary = str(tmp_path / "repo") + "/"

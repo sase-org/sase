@@ -42,6 +42,10 @@ class TestEnsureGitCloneAt:
         set_url_calls: list[list[str]] = []
 
         def run(cmd: list[str], *, cwd: str, **_kwargs: object) -> MagicMock:
+            if cmd == ["git", "rev-parse", "--show-toplevel"]:
+                return MagicMock(
+                    returncode=0, stdout=str(Path(cwd).resolve()), stderr=""
+                )
             if cmd == ["git", "status"] and Path(cwd).resolve() == target.resolve():
                 return MagicMock(returncode=0, stdout="", stderr="")
             if cmd == ["git", "remote", "get-url", "origin"]:
@@ -90,6 +94,10 @@ class TestEnsureGitCloneAt:
         primary_url = "git@github.com:u/r.git"
 
         def run(cmd: list[str], *, cwd: str, **_kwargs: object) -> MagicMock:
+            if cmd == ["git", "rev-parse", "--show-toplevel"]:
+                return MagicMock(
+                    returncode=0, stdout=str(Path(cwd).resolve()), stderr=""
+                )
             if cmd == ["git", "status"] and Path(cwd).resolve() == target.resolve():
                 return MagicMock(returncode=0, stdout="", stderr="")
             if cmd == ["git", "remote", "get-url", "origin"]:
@@ -124,6 +132,10 @@ class TestEnsureGitCloneAt:
         primary_url = "git@github.com:u/r.git"
 
         def run(cmd: list[str], *, cwd: str, **_kwargs: object) -> MagicMock:
+            if cmd == ["git", "rev-parse", "--show-toplevel"]:
+                return MagicMock(
+                    returncode=0, stdout=str(Path(cwd).resolve()), stderr=""
+                )
             if cmd == ["git", "status"] and Path(cwd).resolve() == target.resolve():
                 return MagicMock(returncode=0, stdout="", stderr="")
             if cmd == ["git", "remote", "get-url", "origin"]:
@@ -161,6 +173,10 @@ class TestEnsureGitCloneAt:
         set_push_url_calls: list[list[str]] = []
 
         def run(cmd: list[str], *, cwd: str, **_kwargs: object) -> MagicMock:
+            if cmd == ["git", "rev-parse", "--show-toplevel"]:
+                return MagicMock(
+                    returncode=0, stdout=str(Path(cwd).resolve()), stderr=""
+                )
             if cmd == ["git", "status"] and Path(cwd).resolve() == target.resolve():
                 return MagicMock(returncode=0, stdout="", stderr="")
             if cmd == ["git", "remote", "get-url", "origin"]:
@@ -208,6 +224,10 @@ class TestEnsureGitCloneAt:
         primary_url = "git@github.com:u/r.git"
 
         def run(cmd: list[str], *, cwd: str, **_kwargs: object) -> MagicMock:
+            if cmd == ["git", "rev-parse", "--show-toplevel"]:
+                return MagicMock(
+                    returncode=0, stdout=str(Path(cwd).resolve()), stderr=""
+                )
             if cmd == ["git", "status"] and Path(cwd).resolve() == target.resolve():
                 return MagicMock(returncode=0, stdout="", stderr="")
             if cmd == ["git", "remote", "get-url", "origin"]:
@@ -243,6 +263,10 @@ class TestEnsureGitCloneAt:
         target.mkdir()
 
         def run(cmd: list[str], *, cwd: str, **_kwargs: object) -> MagicMock:
+            if cmd == ["git", "rev-parse", "--show-toplevel"]:
+                return MagicMock(
+                    returncode=0, stdout=str(Path(cwd).resolve()), stderr=""
+                )
             if cmd == ["git", "status"] and Path(cwd).resolve() == target.resolve():
                 return MagicMock(returncode=0, stdout="", stderr="")
             if cmd == ["git", "remote", "get-url", "origin"]:
@@ -318,17 +342,31 @@ class TestEnsureGitCloneAt:
         target.mkdir()
         real_origin = "git@github.com:sase-org/sase.git"
 
-        mock_run.side_effect = [
-            MagicMock(returncode=0, stdout="", stderr=""),  # target status
-            MagicMock(returncode=0, stdout=str(primary) + "\n", stderr=""),
-            MagicMock(returncode=0, stdout=real_origin + "\n", stderr=""),
-            MagicMock(returncode=0, stdout="", stderr=""),  # set-url
-        ]
+        results = iter(
+            [
+                MagicMock(returncode=0, stdout="", stderr=""),  # target status
+                MagicMock(returncode=0, stdout=str(primary) + "\n", stderr=""),
+                MagicMock(returncode=0, stdout=real_origin + "\n", stderr=""),
+                MagicMock(returncode=0, stdout="", stderr=""),  # set-url
+            ]
+        )
 
+        def run(cmd: list[str], *, cwd: str, **_kwargs: object) -> MagicMock:
+            if cmd == ["git", "rev-parse", "--show-toplevel"]:
+                return MagicMock(
+                    returncode=0, stdout=str(Path(cwd).resolve()), stderr=""
+                )
+            return next(results)
+
+        mock_run.side_effect = run
         result = ensure_git_clone_at(str(primary), 2, str(target))
 
         assert result == str(target)
-        commands = [call.args[0] for call in mock_run.call_args_list]
+        commands = [
+            call.args[0]
+            for call in mock_run.call_args_list
+            if call.args[0] != ["git", "rev-parse", "--show-toplevel"]
+        ]
         assert commands == [
             ["git", "status"],
             ["git", "remote", "get-url", "origin"],
@@ -346,16 +384,30 @@ class TestEnsureGitCloneAt:
         target.mkdir()
         real_origin = "git@github.com:sase-org/sase.git"
 
-        mock_run.side_effect = [
-            MagicMock(returncode=0, stdout="", stderr=""),  # target status
-            MagicMock(returncode=0, stdout=real_origin + "\n", stderr=""),
-            MagicMock(returncode=0, stdout=real_origin + "\n", stderr=""),
-        ]
+        results = iter(
+            [
+                MagicMock(returncode=0, stdout="", stderr=""),  # target status
+                MagicMock(returncode=0, stdout=real_origin + "\n", stderr=""),
+                MagicMock(returncode=0, stdout=real_origin + "\n", stderr=""),
+            ]
+        )
 
+        def run(cmd: list[str], *, cwd: str, **_kwargs: object) -> MagicMock:
+            if cmd == ["git", "rev-parse", "--show-toplevel"]:
+                return MagicMock(
+                    returncode=0, stdout=str(Path(cwd).resolve()), stderr=""
+                )
+            return next(results)
+
+        mock_run.side_effect = run
         result = ensure_git_clone_at(str(primary), 2, str(target))
 
         assert result == str(target)
-        commands = [call.args[0] for call in mock_run.call_args_list]
+        commands = [
+            call.args[0]
+            for call in mock_run.call_args_list
+            if call.args[0] != ["git", "rev-parse", "--show-toplevel"]
+        ]
         assert commands == [
             ["git", "status"],
             ["git", "remote", "get-url", "origin"],

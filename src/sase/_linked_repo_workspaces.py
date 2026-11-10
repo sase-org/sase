@@ -12,6 +12,7 @@ from typing import Any
 import uuid
 
 from sase._git_remote import git_remotes_match
+from sase._git_worktree import is_worktree_root, require_worktree_root
 from sase.detach_scope import detach_scope
 from sase._linked_repo_config import normalize_path
 from sase._linked_repo_paths import (
@@ -177,9 +178,6 @@ def materialize_linked_repo_workspace(
     location = _linked_repo_clone_location(workspace_dir)
     if location is not None:
         host_checkout, name, is_sidecar = location
-        from sase.workspace_provider.git_exclude import ensure_git_info_exclude_entry
-
-        ensure_git_info_exclude_entry(str(host_checkout), "/sase/repos/")
         if is_sidecar:
             workspace_dir = sidecar_repo_clone_dir(host_checkout, name)
         else:
@@ -196,10 +194,12 @@ def materialize_linked_repo_workspace(
         checkout_dir = ensure_git_clone_at(primary_dir, workspace_num, workspace_dir)
     from sase.workspace_provider.git_exclude import ensure_sase_git_info_excludes
 
+    require_worktree_root(checkout_dir)
     ensure_sase_git_info_excludes(checkout_dir)
     refreshed = refresh_clean_linked_checkout(checkout_dir)
     if refreshed:
         print(f"[linked-repos] {refreshed}", file=sys.stderr)
+    require_worktree_root(checkout_dir)
     try:
         from sase.sdd.store import ensure_workspace_sdd_clone
 
@@ -226,6 +226,8 @@ def refresh_clean_linked_checkout(checkout_dir: str) -> str | None:
     )
 
     path = Path(checkout_dir).expanduser()
+    if not is_worktree_root(path):
+        return None
     try:
         status = classify_git_upstream(path)
     except (
@@ -276,6 +278,11 @@ def _materialize_remote_identified_sidecar(
     """Materialize a sidecar, replacing stale clones of another remote."""
 
     target = Path(workspace_dir).expanduser()
+    if os.path.lexists(target) and not is_worktree_root(target):
+        if target.is_dir() and not target.is_symlink() and not any(target.iterdir()):
+            target.rmdir()
+        else:
+            require_worktree_root(target)
     if target.is_dir():
         origin = _git_origin_url(target)
         if origin is not None and git_remotes_match(origin, expected_remote_url):
@@ -317,6 +324,7 @@ def _materialize_remote_identified_sidecar(
 
 
 def _set_clone_origin(path: Path, current: str, expected: str) -> None:
+    require_worktree_root(path)
     if current.strip() == expected.strip():
         return
     try:

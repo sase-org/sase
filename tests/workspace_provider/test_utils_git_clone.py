@@ -34,9 +34,12 @@ class TestEnsureGitCloneAt:
     def test_creates_clone_at_explicit_target(
         self, mock_run: MagicMock, tmp_path: Path
     ) -> None:
-        mock_run.return_value = MagicMock(
-            returncode=0, stdout="https://github.com/u/r.git\n"
-        )
+        def run(cmd: list[str], **kwargs: object) -> MagicMock:
+            if cmd == ["git", "rev-parse", "--show-toplevel"]:
+                return MagicMock(returncode=0, stdout=str(kwargs["cwd"]))
+            return MagicMock(returncode=0, stdout="https://github.com/u/r.git\n")
+
+        mock_run.side_effect = run
         primary = tmp_path / "repo"
         primary.mkdir()
         target = tmp_path / "managed" / "repo_10"  # parent doesn't exist
@@ -45,9 +48,14 @@ class TestEnsureGitCloneAt:
         # Parent should have been created
         assert target.parent.is_dir()
         # 4 subprocess calls: get-url, clone, set-url, fetch
-        assert mock_run.call_count == 4
-        clone_kwargs = mock_run.call_args_list[1].kwargs
-        fetch_kwargs = mock_run.call_args_list[3].kwargs
+        commands = [
+            call
+            for call in mock_run.call_args_list
+            if call.args[0] != ["git", "rev-parse", "--show-toplevel"]
+        ]
+        assert len(commands) == 4
+        clone_kwargs = commands[1].kwargs
+        fetch_kwargs = commands[3].kwargs
         assert clone_kwargs["stdin"] is subprocess.DEVNULL
         assert clone_kwargs["env"]["GIT_TERMINAL_PROMPT"] == "0"
         assert fetch_kwargs["stdin"] is subprocess.DEVNULL
@@ -72,30 +80,15 @@ class TestEnsureGitCloneAt:
 
         assert not target.exists()
 
-    @patch("sase.workspace_provider.utils.subprocess.run")
-    def test_corrupt_target_is_replaced(
-        self, mock_run: MagicMock, tmp_path: Path
-    ) -> None:
-        # First call: git status on existing target — non-zero (corrupt)
-        # Then: get-url, clone, set-url, fetch
-        mock_run.side_effect = [
-            MagicMock(returncode=1, stdout=""),  # git status fails
-            MagicMock(returncode=0, stdout="https://github.com/u/r.git\n"),  # get-url
-            MagicMock(returncode=0, stdout=""),  # clone
-            MagicMock(returncode=0, stdout=""),  # set-url
-            MagicMock(returncode=0, stdout=""),  # fetch
-        ]
+    def test_non_checkout_contents_are_preserved(self, tmp_path: Path) -> None:
         primary = tmp_path / "repo"
         primary.mkdir()
         target = tmp_path / "repo_2"
         target.mkdir()
-        # Drop a junk file so we can confirm shutil.rmtree ran
-        (target / "stale.txt").write_text("garbage")
-
-        result = ensure_git_clone_at(str(primary) + "/", 2, str(target) + "/")
-        assert result == str(target) + "/"
-        assert not (target / "stale.txt").exists()
-        assert mock_run.call_count == 5
+        (target / "stale.txt").write_text("preserve me")
+        with pytest.raises(RuntimeError, match="not its own Git worktree"):
+            ensure_git_clone_at(str(primary), 2, str(target))
+        assert (target / "stale.txt").read_text() == "preserve me"
 
     @patch("sase.workspace_provider.utils.subprocess.run")
     def test_fresh_clone_raises_when_primary_origin_returns_failure(

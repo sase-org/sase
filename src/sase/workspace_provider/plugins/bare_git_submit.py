@@ -15,6 +15,13 @@ from sase.workspace_provider.utils import (
 
 
 def _run_git(args: list[str], *, cwd: str) -> subprocess.CompletedProcess[str]:
+    if args[:1] == ["push"]:
+        from sase.workspace_provider.push_guard import require_push_identity
+
+        try:
+            require_push_identity(cwd)
+        except RuntimeError as exc:
+            return subprocess.CompletedProcess(["git", *args], 1, "", str(exc))
     result, _ = run_with_git_lock_retry(
         lambda: subprocess.run(
             ["git", *args],
@@ -274,7 +281,7 @@ def _submit_via_local_merge(
 
     # Push
     result = _run_git(
-        ["push"],
+        ["push", "origin", default_branch],
         cwd=ws_dir,
     )
     if result.returncode != 0:

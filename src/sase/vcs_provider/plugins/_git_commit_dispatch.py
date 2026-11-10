@@ -329,6 +329,9 @@ class GitCommitDispatchMixin(CommandRunner):
         if push_out.success:
             return (True, None)
 
+        if "Refusing Git" in push_out.stderr:
+            return self._to_result(push_out, "git push")
+
         # Pull and retry
         pull_out = self._run(["git", "pull", "--no-edit"], cwd)
         if not pull_out.success:
@@ -364,6 +367,8 @@ class GitCommitDispatchMixin(CommandRunner):
                     clear_rebase_gate_state(payload)
                 return (True, None)
             last_err = push.stderr.strip() or push.stdout.strip()
+            if "Refusing Git" in last_err:
+                return (False, last_err)
             if attempt >= _PUSH_REBASE_RETRY_LIMIT:
                 break
             fetch = self._run(

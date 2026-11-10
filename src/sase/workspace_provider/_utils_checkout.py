@@ -15,6 +15,7 @@ from sase.ace.patch import (
     patch_lock,
     write_patch_atomic,
 )
+from sase._git_worktree import is_worktree_root, require_worktree_root
 from sase.git_lock_retry import run_with_git_lock_retry
 from sase.workspace_provider._utils_git import (
     command_output as _command_output,
@@ -245,6 +246,19 @@ def ensure_git_clone_at(
             )
         return target_checkout_dir
 
+    if os.path.lexists(target_checkout_dir) and not is_worktree_root(
+        target_checkout_dir
+    ):
+        target = target_checkout_dir.rstrip("/")
+        if (
+            os.path.isdir(target)
+            and not os.path.islink(target)
+            and not os.listdir(target)
+        ):
+            os.rmdir(target)
+        else:
+            require_worktree_root(target)
+
     if os.path.isdir(target_checkout_dir):
         result = subprocess.run(
             ["git", "status"],
@@ -344,7 +358,7 @@ def ensure_git_clone_at(
             stdin=subprocess.DEVNULL,
         )
     except subprocess.CalledProcessError as e:
-        if os.path.isdir(target_checkout_dir):
+        if is_worktree_root(target_checkout_dir):
             check = subprocess.run(
                 ["git", "status"],
                 cwd=target_checkout_dir,
@@ -375,11 +389,16 @@ def ensure_git_clone_at(
                     except GitObjectSharingError as share_exc:
                         raise RuntimeError(str(share_exc)) from share_exc
                 return target_checkout_dir
+        if os.path.lexists(target_checkout_dir) and not is_worktree_root(
+            target_checkout_dir
+        ):
+            require_worktree_root(target_checkout_dir)
         error_msg = f"git clone failed (exit code {e.returncode})"
         if e.stderr:
             error_msg += f": {e.stderr.strip()}"
         raise RuntimeError(error_msg) from e
 
+    require_worktree_root(target_checkout_dir)
     set_url_result = _set_origin_url(target_checkout_dir.rstrip("/"), real_url)
     if set_url_result.returncode != 0:
         detail = _command_output(set_url_result) or "unknown error"

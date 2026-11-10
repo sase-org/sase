@@ -14,6 +14,7 @@ from pathlib import Path
 import subprocess
 
 from sase._git_remote import is_http_git_remote
+from sase._git_worktree import is_bare_repository_root
 from sase.sdd._git import network_git_timeout, run_sdd_git, sdd_git_command
 from sase.sdd._store_git import git_remote_url as _git_remote_url
 from sase.sdd._store_git import same_git_remote as _same_git_remote
@@ -37,6 +38,7 @@ def is_bare_sidecar_clone(path: Path) -> bool:
         (path / "HEAD").is_file()
         and (path / "objects").is_dir()
         and not (path / ".git").exists()
+        and is_bare_repository_root(path)
     )
 
 
@@ -120,6 +122,8 @@ def _anonymous_fetch_url(configured_remote: str) -> str | None:
 def _set_public_origin(clone_dir: Path, configured_remote: str) -> None:
     """Point a public clone at the anonymous fetch URL with an SSH push URL."""
 
+    if not is_bare_sidecar_clone(clone_dir):
+        raise SddMaterializationError(f"Not a bare sidecar clone: {clone_dir}")
     fetch_url = _anonymous_fetch_url(configured_remote)
     try:
         if fetch_url is not None:

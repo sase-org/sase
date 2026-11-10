@@ -29,6 +29,10 @@ def _git_cmd_handler(stdout: str = "", *, push_rc: int = 0):  # type: ignore[no-
     def handler(*args: Any, **kwargs: Any) -> MagicMock:
         cmd: list[str] = args[0] if args else kwargs.get("cmd", [])
         if isinstance(cmd, list):
+            if cmd == ["git", "remote", "get-url", "origin"]:
+                return MagicMock(returncode=0, stdout="/remote.git", stderr="")
+            if cmd == ["git", "rev-parse", "--show-toplevel"]:
+                return MagicMock(returncode=0, stdout=str(kwargs["cwd"]), stderr="")
             if "diff" in cmd and "--cached" in cmd and "--quiet" in cmd:
                 return MagicMock(returncode=1, stdout="", stderr="")
             if "show-ref" in cmd and "--verify" in cmd:
@@ -382,6 +386,10 @@ def test_vcs_create_pull_request_resuffixes_on_branch_collision(
 
     def handler(*args: Any, **kwargs: Any) -> MagicMock:
         cmd: list[str] = args[0] if args else kwargs.get("cmd", [])
+        if cmd == ["git", "rev-parse", "--show-toplevel"]:
+            return MagicMock(returncode=0, stdout=str(kwargs["cwd"]), stderr="")
+        if cmd == ["git", "remote", "get-url", "origin"]:
+            return MagicMock(returncode=0, stdout="/remote.git", stderr="")
         if "diff" in cmd and "--cached" in cmd and "--quiet" in cmd:
             return MagicMock(returncode=1, stdout="", stderr="")  # staged changes
         if cmd[:2] == ["git", "push"]:

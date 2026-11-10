@@ -225,6 +225,9 @@ def _ensure_staging_clone(
             detail or f"git clone failed with exit code {result.returncode}"
         )
     if record.remote_url:
+        from sase._git_worktree import require_worktree_root
+
+        require_worktree_root(staging)
         current = _git_stdout(staging, ["remote", "get-url", "origin"])
         command = (
             ["remote", "set-url", "origin", record.remote_url]
