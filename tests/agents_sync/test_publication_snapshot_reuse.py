@@ -4,17 +4,26 @@ from __future__ import annotations
 
 from dataclasses import replace
 import hashlib
+import json
 from pathlib import Path
 
 import pytest
 
-from sase.agents_sync import publication_protection as protection
+from sase.agents_sync import (
+    _publication_protection_ledger as protection_ledger,
+    publication_protection as protection,
+)
+from sase.agents_sync.inventory import ProjectHoodInventory
 from sase.agents_sync._publication_snapshot_gating import (
     gate_run_files,
     merge_richer_run_files,
 )
+from sase.agents_sync.publication_snapshot import build_hood_snapshot
 from sase.agents_sync.v2_models import V2ProjectIdentity
 from sase.core.agent_identity_facade import AgentOwnerIdentity
+from tests.agents_sync.test_publication_protection._helpers import (
+    install_fake_core,
+)
 from tests.agents_sync.publication_fixtures import _run
 
 
@@ -233,3 +242,100 @@ def test_merge_reuses_matching_prior_content_without_scan_or_write(
     assert len(spies.lookups) == 2
     assert not spies.scans
     assert not spies.writes
+
+
+def test_hood_snapshot_reads_existing_protection_ledger_once(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    install_fake_core(monkeypatch)
+    import sase.core.rust as rust
+
+    require_rust_binding = rust.require_rust_binding
+
+    def require_binding(name: str):
+        if name == "attachment_scan_file":
+
+            def scan(
+                path: str,
+                _max_bytes: int,
+                _env: dict[str, str],
+                _home: str,
+                _sase_home: str,
+            ) -> dict[str, object]:
+                return {
+                    "outcome": "clean",
+                    "hit": None,
+                    "bytes_scanned": Path(path).stat().st_size,
+                    "rules_version": 2,
+                }
+
+            return scan
+        return require_rust_binding(name)
+
+    monkeypatch.setattr(rust, "require_rust_binding", require_binding)
+    projects_root = tmp_path / ".sase" / "projects"
+    monkeypatch.setattr(protection_ledger, "sase_projects_dir", lambda: projects_root)
+    protection_ledger._clear_publication_protection_ledger_cache()
+    path = projects_root / "proj" / protection.AGENT_PUBLICATION_PROTECTION_FILENAME
+    path.parent.mkdir(parents=True)
+    path.write_text(json.dumps({"schema_version": 1, "records": []}), encoding="utf-8")
+    read_count = 0
+    read_ledger = protection_ledger._read_ledger
+
+    def count_read(ledger_path: Path) -> dict[str, object]:
+        nonlocal read_count
+        read_count += 1
+        return read_ledger(ledger_path)
+
+    monkeypatch.setattr(protection_ledger, "_read_ledger", count_read)
+    owner = AgentOwnerIdentity("alice", "athena")
+    project = V2ProjectIdentity("proj", "Project")
+    inventory = ProjectHoodInventory(
+        owner,
+        "proj",
+        (
+            _run("foo.one", "21"),
+            _run("foo.two", "22"),
+            _run("foo.three", "23"),
+        ),
+    )
+    record_scan = protection.record_publication_bytes_scan
+    monkeypatch.setattr(
+        protection, "record_publication_bytes_scan", lambda *_a, **_k: None
+    )
+    previous, payload, _notes, _withheld = build_hood_snapshot(
+        tmp_path,
+        project,
+        owner,
+        "foo",
+        inventory,
+        None,
+        protection_scope=protection.PublicationProtectionScope(
+            project_key="proj",
+            repository_identity="sase-org/sase--agents",
+        ),
+    )
+    monkeypatch.setattr(protection, "record_publication_bytes_scan", record_scan)
+    for relative_path, content in payload.items():
+        destination = tmp_path / relative_path
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        destination.write_bytes(content)
+    protection_ledger._clear_publication_protection_ledger_cache()
+    read_count = 0
+
+    snapshot, _payload, _notes, _withheld = build_hood_snapshot(
+        tmp_path,
+        project,
+        owner,
+        "foo",
+        inventory,
+        previous,
+        protection_scope=protection.PublicationProtectionScope(
+            project_key="proj",
+            repository_identity="sase-org/sase--agents",
+        ),
+    )
+
+    assert len(snapshot.runs) == 3
+    assert read_count == 1

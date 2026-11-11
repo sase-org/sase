@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Iterable, Iterator
 from contextlib import contextmanager
+from dataclasses import dataclass
 import fcntl
 import json
 from pathlib import Path
@@ -31,6 +32,86 @@ from sase.core.paths import (
     sase_projects_dir,
     validate_sase_project_name,
 )
+
+_PUBLICATION_PROTECTION_LEDGER_CACHE_LIMIT = 64
+_PublicationProtectionIdentity = tuple[str, str, str]
+_PublicationProtectionLedgerSignature = tuple[int, int, int, int]
+
+
+@dataclass(frozen=True, slots=True)
+class _PublicationProtectionLedgerCacheEntry:
+    signature: _PublicationProtectionLedgerSignature
+    ledger: dict[str, object]
+    identities: frozenset[_PublicationProtectionIdentity]
+
+
+_PUBLICATION_PROTECTION_LEDGER_CACHE: dict[
+    Path, _PublicationProtectionLedgerCacheEntry
+] = {}
+
+
+def _clear_publication_protection_ledger_cache() -> None:
+    """Clear the process-local validated-ledger read cache."""
+    _PUBLICATION_PROTECTION_LEDGER_CACHE.clear()
+
+
+def _drop_publication_protection_ledger_cache_entry(path: Path) -> None:
+    _PUBLICATION_PROTECTION_LEDGER_CACHE.pop(path, None)
+
+
+def _publication_protection_ledger_signature(
+    path: Path,
+) -> _PublicationProtectionLedgerSignature:
+    stat = path.stat()
+    return (stat.st_dev, stat.st_ino, stat.st_size, stat.st_mtime_ns)
+
+
+def _publication_protection_ledger_identities(
+    ledger: dict[str, object],
+) -> frozenset[_PublicationProtectionIdentity]:
+    records = ledger.get("records")
+    if not isinstance(records, list):
+        return frozenset()
+    identities: set[_PublicationProtectionIdentity] = set()
+    for record in records:
+        if not isinstance(record, dict):
+            continue
+        repository_identity = record.get("repository_identity")
+        relative_destination = record.get("relative_destination")
+        sha256 = record.get("sha256")
+        if not isinstance(repository_identity, str):
+            continue
+        if not isinstance(relative_destination, str):
+            continue
+        if not isinstance(sha256, str):
+            continue
+        identities.add((repository_identity, relative_destination, sha256))
+    return frozenset(identities)
+
+
+def _cached_publication_protection_ledger(
+    path: Path,
+    signature: _PublicationProtectionLedgerSignature,
+) -> _PublicationProtectionLedgerCacheEntry:
+    cached = _PUBLICATION_PROTECTION_LEDGER_CACHE.get(path)
+    if cached is not None and cached.signature == signature:
+        return cached
+    _PUBLICATION_PROTECTION_LEDGER_CACHE.pop(path, None)
+    with _ledger_lock(path):
+        ledger = _read_ledger(path)
+    entry = _PublicationProtectionLedgerCacheEntry(
+        signature,
+        ledger,
+        _publication_protection_ledger_identities(ledger),
+    )
+    if (
+        path not in _PUBLICATION_PROTECTION_LEDGER_CACHE
+        and len(_PUBLICATION_PROTECTION_LEDGER_CACHE)
+        >= _PUBLICATION_PROTECTION_LEDGER_CACHE_LIMIT
+    ):
+        _clear_publication_protection_ledger_cache()
+    _PUBLICATION_PROTECTION_LEDGER_CACHE[path] = entry
+    return entry
 
 
 def _read_publication_protection_ledger(
@@ -127,13 +208,22 @@ def lookup_publication_content_record(
     if path.is_symlink() or not path.exists():
         return None
     try:
-        ledger = _read_publication_protection_ledger(project_key)
+        signature = _publication_protection_ledger_signature(path)
+        cached = _cached_publication_protection_ledger(path, signature)
+    except PublicationDrainTimedOut:
+        raise
     except RuntimeError:
+        return None
+    except FileNotFoundError:
+        return None
+    identity = _identity(repository_identity, relative_destination, sha256)
+    triple = (repository_identity, relative_destination, sha256)
+    if triple not in cached.identities:
         return None
     try:
         return publication_protection_lookup_enforced(
-            ledger,
-            _identity(repository_identity, relative_destination, sha256),
+            cached.ledger,
+            identity,
         )
     except PublicationDrainTimedOut:
         raise
@@ -234,6 +324,7 @@ def _upsert_record(
         updated = publication_protection_upsert(ledger, record)
         path.parent.mkdir(parents=True, exist_ok=True)
         atomic_write_json(path, updated)
+        _drop_publication_protection_ledger_cache_entry(path)
         return updated
 
 
@@ -262,6 +353,7 @@ def _resolve_verified_clean(
                 atomic_write_json(path, updated)
             else:
                 path.unlink(missing_ok=True)
+            _drop_publication_protection_ledger_cache_entry(path)
         return updated
 
 

@@ -45,6 +45,8 @@ MAX_MANIFEST_HOODS = 16_384
 _DIGEST_RE = re.compile(r"^[0-9a-f]{64}$")
 _RUN_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$")
 _OUTPUT_VARIABLE_KEY_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
+_VALID_COMPONENT_CACHE_LIMIT = 4096
+_VALID_COMPONENT_CACHE: dict[str, None] = {}
 
 V2_METADATA_FIELDS = frozenset(
     {
@@ -83,6 +85,8 @@ V2_METADATA_FIELDS = frozenset(
 def validate_component(value: object, *, label: str) -> str:
     if not isinstance(value, str) or not value:
         raise AgentsSyncFormatError(f"{label} must be a non-empty string")
+    if type(value) is str and value in _VALID_COMPONENT_CACHE:
+        return value
     if value in {".", ".."} or value.startswith("."):
         raise AgentsSyncFormatError(f"unsafe {label}: {value!r}")
     if len(value.encode("utf-8")) > 255:
@@ -91,7 +95,19 @@ def validate_component(value: object, *, label: str) -> str:
         raise AgentsSyncFormatError(f"unsafe {label}: {value!r}")
     if Path(value).name != value:
         raise AgentsSyncFormatError(f"unsafe {label}: {value!r}")
+    if type(value) is str:
+        if (
+            value not in _VALID_COMPONENT_CACHE
+            and len(_VALID_COMPONENT_CACHE) >= _VALID_COMPONENT_CACHE_LIMIT
+        ):
+            _clear_valid_component_cache()
+        _VALID_COMPONENT_CACHE[value] = None
     return value
+
+
+def _clear_valid_component_cache() -> None:
+    """Clear cached successful path-component validations."""
+    _VALID_COMPONENT_CACHE.clear()
 
 
 def validate_relative_path(value: object) -> str:
