@@ -68,6 +68,20 @@ WORKER_DIR_ENV = "SASE_GLOBAL_LEAK_WORKER_DIR"
 DEFAULT_REPORT_PATH = ".pytest_cache/sase-global-leaks.json"
 
 
+def _drain_config_token_refresh_after_test() -> None:
+    """Join leftover config-token refresh workers before the after-snapshot.
+
+    A drain timeout leaves the worker registered; the after-snapshot then
+    reports it as poisoning instead of turning the protocol hook into an error.
+    """
+    from tests._conftest_runtime import _drain_config_token_refresh
+
+    try:
+        _drain_config_token_refresh()
+    except RuntimeError:
+        return
+
+
 class GlobalStateLeakDetector:
     """Collect per-test global-state poisoning without changing test outcomes."""
 
@@ -107,6 +121,12 @@ class GlobalStateLeakDetector:
     ) -> Iterator[None]:
         before = _snapshot()
         yield
+        # Function-scoped autouse drain runs before monkeypatch undo. A
+        # still-running module-scoped ACE app can then restart
+        # sase-config-token-refresh. Drain again here, after every
+        # function-scoped teardown, so the after-snapshot cannot attribute
+        # that restart to the test.
+        _drain_config_token_refresh_after_test()
         after = _snapshot()
         self._observed_tests += 1
         self._worker_order += 1

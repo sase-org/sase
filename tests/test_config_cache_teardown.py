@@ -271,3 +271,25 @@ def test_prior_refresh_worker_cannot_publish_after_drain() -> None:
             assert current_config_token() == ("inline", 3)
         finally:
             release_refresh.set()
+
+
+def test_drain_joins_worker_restarted_after_previous_drain() -> None:
+    """A module-scoped ACE tick can start a new worker after autouse drain."""
+    _reset_config_token_cache()
+    try:
+        current_config_token()
+        first = config_core._current_config_token_refresh_thread
+        assert first is not None
+        _drain_config_token_refresh()
+        assert config_core._current_config_token_refresh_thread is None
+        assert not first.is_alive()
+
+        current_config_token()
+        second = config_core._current_config_token_refresh_thread
+        assert second is not None
+        assert second is not first
+        _drain_config_token_refresh()
+        assert config_core._current_config_token_refresh_thread is None
+        assert not second.is_alive()
+    finally:
+        _drain_config_token_refresh()
