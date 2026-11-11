@@ -20,6 +20,8 @@ from _release_watch_facts import (  # noqa: E402
     ReleaseFactsError,
     ReleaseFactsReader,
     _candidate_cli,
+    _check_facts,
+    _select_core_smoke,
     parse_pypi_inventory,
 )
 from _release_watch_transport import (  # noqa: E402
@@ -142,6 +144,33 @@ def _train_context(
         _pypi(manifest, conflict=conflict),
         workflows,
     )
+
+
+def test_select_core_smoke_prefers_exact_pr_check_over_prefixed_qualify_ci() -> None:
+    skipped = _check_facts(
+        "qualify-ci / release-core-floor-smoke",
+        "skipped",
+        "https://example.test/qualify-smoke",
+    )
+    exact = _check_facts(
+        "release-core-floor-smoke",
+        "success",
+        "https://example.test/pr-smoke",
+    )
+    # `_checks_for_head` returns checks sorted by name, so the prefixed
+    # qualify-ci job sorts ahead of the PR smoke check.
+    checks = sorted([skipped, exact], key=lambda item: item["name"])
+    assert checks[0] is skipped
+    assert _select_core_smoke(checks) is exact
+
+
+def test_select_core_smoke_ignores_prefixed_job_when_exact_check_is_absent() -> None:
+    skipped = _check_facts(
+        "qualify-ci / release-core-floor-smoke",
+        "skipped",
+        "https://example.test/qualify-smoke",
+    )
+    assert _select_core_smoke([skipped]) is None
 
 
 def test_github_transport_uses_pagination_timeout_and_plain_environment() -> None:

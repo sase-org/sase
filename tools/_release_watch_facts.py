@@ -190,6 +190,23 @@ def _check_facts(name: str, conclusion: str, url: str | None) -> dict[str, Any]:
     }
 
 
+_CORE_SMOKE_CHECK_NAME = "release-core-floor-smoke"
+
+
+def _select_core_smoke(checks: list[dict[str, Any]]) -> dict[str, Any] | None:
+    """Return the merge-gate published-core smoke check.
+
+    Match the exact required-check name. Substring matching would pick a
+    skipped ``qualify-ci / release-core-floor-smoke`` job from a branch
+    rehearsal ahead of the PR's own successful smoke check.
+    """
+    for check in checks:
+        name = check.get("name")
+        if isinstance(name, str) and name.lower() == _CORE_SMOKE_CHECK_NAME:
+            return check
+    return None
+
+
 def parse_pypi_inventory(name: str, payload: object) -> dict[str, Any]:
     """Validate the complete PyPI release/file listing for one package."""
     root = _mapping(payload, f"PyPI {name}")
@@ -1228,14 +1245,7 @@ class ReleaseFactsReader:
             )
         expected = master["expected_required_checks"]
         checks = self._checks_for_head(head_sha, expected)
-        core_smoke = next(
-            (
-                check
-                for check in checks
-                if "release-core-floor-smoke" in check["name"].lower()
-            ),
-            None,
-        )
+        core_smoke = _select_core_smoke(checks)
         merged_at = selected.get("merged_at")
         if merged_at is not None:
             merged_at = _iso(_utc(merged_at, f"release PR {number}.merged_at"))
