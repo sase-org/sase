@@ -537,6 +537,9 @@ def test_xdist_poisoning_fails_the_gate_and_aggregates_workers(
     assert record["worker_id"].startswith("gw")
     assert record["nodeid"].endswith("::test_poison_global_state")
     assert record["changes"][0]["name"] == "sase._LEAK_FOR_TEST"
+    output = "\n".join(result.outlines)
+    assert "test_poison_global_state" in output
+    assert "global:sase._LEAK_FOR_TEST" in output
 
 
 def test_xdist_report_only_mode_keeps_pytest_green(

@@ -89,6 +89,35 @@ def _report_summary(payload: Mapping[str, object] | None) -> Mapping[str, object
     return summary if isinstance(summary, Mapping) else {}
 
 
+def _poisoning_log_lines(
+    report: Mapping[str, object] | None, *, limit: int = 20
+) -> list[str]:
+    """Format poisoning records so CI logs name the offending nodeids."""
+    if not isinstance(report, Mapping):
+        return []
+    raw = report.get("poisoning")
+    if not isinstance(raw, list):
+        return []
+    records = [record for record in raw if isinstance(record, dict)]
+    lines: list[str] = []
+    for record in records[:limit]:
+        nodeid = str(record.get("nodeid") or "<unknown>")
+        labels: list[str] = []
+        changes = record.get("changes")
+        if isinstance(changes, list):
+            for change in changes:
+                if isinstance(change, Mapping):
+                    labels.append(
+                        f"{change.get('kind') or '?'}:{change.get('name') or '?'}"
+                    )
+        suffix = f" ({', '.join(labels)})" if labels else ""
+        lines.append(f"{nodeid}{suffix}")
+    extra = len(records) - limit
+    if extra > 0:
+        lines.append(f"... {extra} more poisoning test(s)")
+    return lines
+
+
 def _read_report_summary(path: Path) -> Mapping[str, object]:
     try:
         raw = json.loads(path.read_text(encoding="utf-8"))

@@ -21,6 +21,7 @@ from tests._global_state_leak_detector import (
     _fingerprint_environment,
     _global_fingerprint,
 )
+from tests._global_state_leaks.reporting import _poisoning_log_lines
 from tests._global_state_leaks.fingerprints import (
     LIVE_CONFIG_TOKEN_REFRESH_THREADS_GLOBAL,
     _fingerprint_list,
@@ -606,3 +607,38 @@ def test_fail_on_poison_mode_fails_pytest_on_poison(
     assert report["summary"]["poisoning_changes"] == 1
     assert report["poisoning"][0]["worker_id"] == "controller"
     assert report["poisoning"][0]["worker_order"] == 1
+    output = "\n".join(result.outlines)
+    assert "test_poison_global_state" in output
+    assert "global:sase._LEAK_FOR_TEST" in output
+
+
+def test_poisoning_log_lines_name_nodeids_and_change_kinds() -> None:
+    lines = _poisoning_log_lines(
+        {
+            "poisoning": [
+                {
+                    "nodeid": "tests/foo.py::test_a",
+                    "changes": [{"kind": "cwd", "name": "os.getcwd()"}],
+                },
+                {
+                    "nodeid": "tests/foo.py::test_b",
+                    "changes": [{"kind": "global", "name": "sase._LEAK"}],
+                },
+            ]
+        }
+    )
+    assert lines == [
+        "tests/foo.py::test_a (cwd:os.getcwd())",
+        "tests/foo.py::test_b (global:sase._LEAK)",
+    ]
+    assert _poisoning_log_lines({"poisoning": []}) == []
+    truncated = _poisoning_log_lines(
+        {
+            "poisoning": [
+                {"nodeid": f"tests/foo.py::test_{index}", "changes": []}
+                for index in range(3)
+            ]
+        },
+        limit=2,
+    )
+    assert truncated[-1] == "... 1 more poisoning test(s)"

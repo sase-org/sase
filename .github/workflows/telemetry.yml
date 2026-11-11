@@ -36,6 +36,17 @@ jobs:
           python-version: '3.13'
       - name: Run cost-attribution suite
         run: just test-cost
+      # `always()` so a red leak-detector gate still publishes the JSON
+      # that names the poisoning nodeids. The terminal summary also lists
+      # them, but truncated job logs have dropped that report twice.
+      - name: Upload global leak report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sase-global-leaks-${{ github.sha }}
+          path: .pytest_cache/sase-global-leaks.json
+          if-no-files-found: warn
+          retention-days: 14
 
   # Per-test coverage contexts are the ground-truth source the diff-scoped
   # selector unions into `just check`. This is a dedicated job, not an

@@ -56,6 +56,7 @@ from tests._global_state_leaks.models import (
 )
 from tests._global_state_leaks.reporting import (
     _combine_payloads,
+    _poisoning_log_lines,
     _read_report_summary,
     _report_summary,
     _report_with_errors,
@@ -183,6 +184,8 @@ class GlobalStateLeakDetector:
                 f"invalidation(s) filtered; report={self._report_path}"
             ),
         )
+        for line in _poisoning_log_lines(self._final_report):
+            terminalreporter.write_line(line)
         if self._blocking_failure:
             terminalreporter.write_sep(
                 "-",
