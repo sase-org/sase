@@ -292,16 +292,19 @@ The release-PR merge gate comes from the versioned N1 inventory
 (`.github/release-qualification.json`, `merge_gate.required_checks`), read from the
 steward's own master checkout — never from branch protection, whose absence is simply
 not a source. Master Gate is judged on its own jobs (every job `success`, with skipped,
-cancelled and missing jobs red), not on the PR's check list. A fresh tag with an
-unsealed draft is its own train fact: newer than the newest confirmed release, with a
-peeled SHA equal to the merged release PR's head, backed by a draft release, and with no
-`sase` file on PyPI for that version. The steward dispatches `release.yml mode=release`
-exactly once at the fresh tag, suppressed while a matching run is in flight. A sealed,
-publishable generation with no PyPI files resumes with `mode=resume` instead: a second
-`mode=release` run would hit the stash refusal. If a matching run completed without
-stashing a manifest, the workflow is broken at that tag: the version is burned through
-the abandonment path (observation plus the `[ABANDONED]` draft-title prefix), never with
-PyPI files present, and the next release comes from release-please.
+cancelled and missing jobs red), not on the PR's check list. The steward asks for a
+metadata refresh only for a stale PR head or a changed source pin, while the PR's exact
+core pin is checked against core-ensure's pick. The release-metadata sync also
+regenerates the docs release line. A fresh tag with an unsealed draft is its own train
+fact: newer than the newest confirmed release, with a peeled SHA equal to the merged
+release PR's head, backed by a draft release, and with no `sase` file on PyPI for that
+version. The steward dispatches `release.yml mode=release` exactly once at the fresh
+tag, suppressed while a matching run is in flight. A sealed, publishable generation with
+no PyPI files resumes with `mode=resume` instead: a second `mode=release` run would hit
+the stash refusal. If a matching run completed without stashing a manifest, the workflow
+is broken at that tag: the version is burned through the abandonment path (observation
+plus the `[ABANDONED]` draft-title prefix), never with PyPI files present, and the next
+release comes from release-please.
 
 Cadence is daily: at most one release merge per UTC day, after the daily core cut, and a
 burned candidate frees the slot. Actions and escalation run on the schedule; only merges

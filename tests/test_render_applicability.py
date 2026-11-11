@@ -87,6 +87,23 @@ def test_documented_pages_carry_the_single_sourced_command(
     assert tool.check(manifest_path=manifest, partial_path=partial) == []
 
 
+def test_stale_partial_fails_check_until_rerendered(tmp_path: Path) -> None:
+    tool = _load_tool()
+    old_manifest = tmp_path / "old-manifest.json"
+    old_manifest.write_text('{" . ": "0.18.1"}'.replace(" ", ""), encoding="utf-8")
+    new_manifest = tmp_path / "new-manifest.json"
+    new_manifest.write_text('{" . ": "0.19.0"}'.replace(" ", ""), encoding="utf-8")
+    partial = tmp_path / "release_announce.html"
+    tool.render(manifest_path=old_manifest, partial_path=partial)
+
+    failures = tool.check(manifest_path=new_manifest, partial_path=partial)
+    assert any("stale for manifest version 0.19.0" in failure for failure in failures)
+
+    tool.render(manifest_path=new_manifest, partial_path=partial)
+    assert tool.check(manifest_path=new_manifest, partial_path=partial) == []
+    assert "v0.19.0" in partial.read_text(encoding="utf-8")
+
+
 def test_announce_banner_renders_and_hides_from_pdf() -> None:
     body = MAIN_HTML.read_text(encoding="utf-8")
     assert "{% block announce %}" in body

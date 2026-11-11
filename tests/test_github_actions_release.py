@@ -556,3 +556,30 @@ def test_release_confirm_never_undrafts_before_every_check() -> None:
     assert "--kind confirmation" in run_text
     assert "candidate-gen${generation}-confirmation-run" in run_text
     assert "draft tag" in run_text and "refusing to un-draft" in run_text
+
+
+def test_release_every_uv_job_installs_uv_first() -> None:
+    workflow = _load_release_workflow()
+    jobs = workflow["jobs"]
+
+    offenders = []
+    for name, job in jobs.items():
+        if not isinstance(job, dict) or not isinstance(job.get("steps"), list):
+            continue
+        uv_index = None
+        setup_index = None
+        for index, step in enumerate(job["steps"]):
+            if not isinstance(step, dict):
+                continue
+            if step.get("uses", "").startswith("astral-sh/setup-uv"):
+                setup_index = index if setup_index is None else setup_index
+            run = step.get("run")
+            if isinstance(run, str) and re.search(r"(?<![\w-])uvx? ", run):
+                uv_index = index if uv_index is None else uv_index
+        if uv_index is not None and setup_index is None:
+            offenders.append(name)
+        elif (
+            uv_index is not None and setup_index is not None and setup_index > uv_index
+        ):
+            offenders.append(name)
+    assert offenders == [], f"release.yml jobs invoke uv without setup-uv: {offenders}"

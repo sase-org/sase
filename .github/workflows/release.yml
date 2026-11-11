@@ -907,6 +907,10 @@ jobs:
         with:
           ref: ${{ needs.identity.outputs.sha }}
           fetch-depth: 1
+      - uses: astral-sh/setup-uv@v4
+        with:
+          enable-cache: true
+          cache-dependency-glob: "**/pyproject.toml"
       - name: Refuse probes outside rehearse
         run: |
           set -euo pipefail
@@ -1260,6 +1264,10 @@ jobs:
         with:
           ref: ${{ needs.identity.outputs.sha }}
           fetch-depth: 1
+      - uses: astral-sh/setup-uv@v4
+        with:
+          enable-cache: true
+          cache-dependency-glob: "**/pyproject.toml"
       - name: Download the sealed manifest from the draft
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

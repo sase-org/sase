@@ -1231,10 +1231,11 @@ class ReleaseFactsReader:
             raise ReleaseFactsError(
                 f"PR/master compare has unknown status {compare_status!r}"
             )
-        # Read both values at the relevant Git identities; local files are
-        # never substituted for the PR or master revision.
+        # Read both source pins at the relevant Git identities; local files
+        # are never substituted for the PR or master revision. The PR's
+        # exact core pin is checked against core-ensure's pick by policy,
+        # so it never feeds pin_changed here.
         master_pin = self._source_pin(master["sha"])
-        master_core_pin = self._core_pin(master["sha"])
         labels = []
         for index, raw in enumerate(
             _list(selected.get("labels"), f"release PR {number}.labels")
@@ -1261,7 +1262,7 @@ class ReleaseFactsReader:
                 "checks": checks,
                 "merge_history": pr_history,
                 "stale_head": compare_status in {"ahead", "diverged"},
-                "pin_changed": source_pin != master_pin or exact_pin != master_core_pin,
+                "pin_changed": source_pin != master_pin,
                 "merged": bool(merged_at),
                 "merged_at": merged_at,
                 "url": url,

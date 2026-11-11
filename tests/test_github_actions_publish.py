@@ -30,6 +30,29 @@ def test_publish_keeps_only_release_and_metadata_jobs() -> None:
     assert "publish" not in jobs
 
 
+def test_publish_sync_release_metadata_regenerates_release_announce() -> None:
+    workflow = _load_publish_workflow()
+    sync = workflow["jobs"]["sync-release-metadata"]
+
+    run_text = _job_run_text(sync)
+    assert "uv lock" in run_text
+    # The announce render is stdlib-only and runs right after the lock
+    # refresh, before the staleness check.
+    assert "python tools/render_applicability" in run_text
+    assert run_text.index("python tools/render_applicability") > run_text.index(
+        "uv lock"
+    )
+    assert (
+        "git diff --quiet -- pyproject.toml uv.lock "
+        "docs/overrides/generated/release_announce.html" in run_text
+    )
+    assert (
+        "git add pyproject.toml uv.lock "
+        "docs/overrides/generated/release_announce.html" in run_text
+    )
+    assert "chore: sync release metadata" in run_text
+
+
 def test_publish_triggers_are_schedule_or_bare_dispatch() -> None:
     workflow = _load_publish_workflow()
     triggers = _workflow_triggers(workflow)

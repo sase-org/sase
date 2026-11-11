@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import base64
 import json
 import subprocess
 import sys
@@ -384,3 +385,147 @@ def test_candidate_attempt_gap_is_not_promoted_from_stale_evidence() -> None:
         clause for clause in report["clauses"] if clause["name"] == "exercise"
     )
     assert "omits one or more earlier attempts" in exercise["detail"]
+
+
+PR_HEAD = "a" * 40
+PR_MASTER = "b" * 40
+PR_SOURCE_PIN = "c" * 40
+PR_OTHER_SOURCE_PIN = "d" * 40
+PR_REQUIRED_CHECKS = (
+    "Conventional PR title",
+    "prepare",
+    "release-core-floor-smoke",
+)
+
+
+def _pr_b64(text: str) -> dict[str, str]:
+    raw = base64.b64encode(text.encode("utf-8")).decode("ascii")
+    wrapped = "\n".join(raw[i : i + 60] for i in range(0, len(raw), 60))
+    return {"encoding": "base64", "content": wrapped}
+
+
+def _pr_pyproject(exact: str) -> str:
+    return f'[project]\nname = "sase"\ndependencies = ["sase-core-rs=={exact}"]\n'
+
+
+class FakePrGithub:
+    """Scripted transport for the release-PR facts contract.
+
+    Serves the pulls listing, the PR/master compare, the per-SHA
+    ``sase-core-revision.txt`` and ``pyproject.toml`` contents, and the
+    head commit's check runs plus commit status.
+    """
+
+    def __init__(
+        self,
+        *,
+        pr_exact: str,
+        master_exact: str,
+        pr_source: str = PR_SOURCE_PIN,
+        master_source: str = PR_SOURCE_PIN,
+        compare: str = "behind",
+    ) -> None:
+        self.files = {
+            ("sase-core-revision.txt", PR_HEAD): pr_source + "\n",
+            ("pyproject.toml", PR_HEAD): _pr_pyproject(pr_exact),
+            ("sase-core-revision.txt", PR_MASTER): master_source + "\n",
+            ("pyproject.toml", PR_MASTER): _pr_pyproject(master_exact),
+        }
+        self.compare = compare
+
+    def json(self, endpoint: str, *, params: dict[str, object] | None = None) -> object:
+        prefix = "repos/sase-org/sase/contents/"
+        if endpoint.startswith(prefix):
+            ref = str((params or {}).get("ref", ""))
+            return _pr_b64(self.files[(endpoint[len(prefix) :], ref)])
+        if endpoint.startswith("repos/sase-org/sase/compare/"):
+            return {"status": self.compare}
+        if endpoint == f"repos/sase-org/sase/commits/{PR_HEAD}/status":
+            return {"statuses": []}
+        raise AssertionError(f"unexpected GitHub endpoint: {endpoint}")
+
+    def pages(self, path: str, *, params: dict[str, object] | None = None) -> list[Any]:
+        del params
+        if path == "repos/sase-org/sase/pulls":
+            return [
+                {
+                    "number": 322,
+                    "state": "open",
+                    "title": "chore(master): release 0.19.0",
+                    "head": {"sha": PR_HEAD, "ref": "release-please--branches--master"},
+                    "labels": [{"name": "autorelease: pending"}],
+                    "html_url": "https://github.com/sase-org/sase/pull/322",
+                    "merged_at": None,
+                }
+            ]
+        if path == f"repos/sase-org/sase/commits/{PR_HEAD}/check-runs":
+            return [
+                {
+                    "check_runs": [
+                        {
+                            "id": index + 1,
+                            "name": name,
+                            "status": "completed",
+                            "conclusion": "success",
+                            "head_sha": PR_HEAD,
+                            "completed_at": "2026-11-11T08:00:00Z",
+                            "html_url": f"https://example.test/check/{index + 1}",
+                        }
+                        for index, name in enumerate(PR_REQUIRED_CHECKS)
+                    ]
+                }
+            ]
+        raise AssertionError(f"unexpected GitHub pages: {path}")
+
+
+def _pr_master() -> dict[str, Any]:
+    return {
+        "sha": PR_MASTER,
+        "expected_required_checks": [{"name": name} for name in PR_REQUIRED_CHECKS],
+    }
+
+
+def _pr_context(
+    *,
+    pr_exact: str,
+    master_exact: str,
+    pr_source: str = PR_SOURCE_PIN,
+    master_source: str = PR_SOURCE_PIN,
+    compare: str = "behind",
+) -> dict[str, Any]:
+    github = FakePrGithub(
+        pr_exact=pr_exact,
+        master_exact=master_exact,
+        pr_source=pr_source,
+        master_source=master_source,
+        compare=compare,
+    )
+    reader = ReleaseFactsReader(github=github)
+    pr, _ = reader._release_pr_context(_pr_master())
+    assert pr is not None
+    return pr
+
+
+def test_release_pr_pin_changed_ignores_exact_core_pin() -> None:
+    pr = _pr_context(pr_exact="0.44.2", master_exact="0.43.2")
+    assert pr["exact_public_core_pin"] == "0.44.2"
+    assert pr["pin_changed"] is False
+    assert pr["stale_head"] is False
+
+
+def test_release_pr_pin_changed_when_source_pins_differ() -> None:
+    pr = _pr_context(
+        pr_exact="0.44.2",
+        master_exact="0.44.2",
+        pr_source=PR_OTHER_SOURCE_PIN,
+        master_source=PR_SOURCE_PIN,
+    )
+    assert pr["pin_changed"] is True
+    assert pr["stale_head"] is False
+
+
+@pytest.mark.parametrize("status", ["ahead", "diverged"])
+def test_release_pr_stale_head_on_ahead_and_diverged(status: str) -> None:
+    pr = _pr_context(pr_exact="0.44.2", master_exact="0.43.2", compare=status)
+    assert pr["stale_head"] is True
+    assert pr["pin_changed"] is False
