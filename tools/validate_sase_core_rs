@@ -53,6 +53,11 @@ EXPECTED_AGENT_ARTIFACT_RUN_TRASH_WIRE_SCHEMA_VERSION = 2
 # Keep in lockstep with tools/_release_watch_decide.py and sase-core.
 EXPECTED_RELEASE_STEWARD_WIRE_SCHEMA_VERSION = 2
 
+# Local-command trust wire version. Keep in lockstep with
+# sase_core::config::trust::LOCAL_COMMAND_TRUST_WIRE_SCHEMA_VERSION and
+# sase.config.local_trust.LOCAL_COMMAND_TRUST_WIRE_SCHEMA_VERSION.
+EXPECTED_LOCAL_COMMAND_TRUST_WIRE_SCHEMA_VERSION = 1
+
 REQUIRED_BINDINGS = (
     "release_steward_decide",
     "release_steward_wire_schema_version",
@@ -513,6 +518,11 @@ REQUIRED_BINDINGS = (
     "validate_staged_handoff_receipt",
     "evaluate_stage_admission",
     "staged_handoff_receipt_authorizes",
+    "local_command_trust_wire_schema_version",
+    "project_local_commands",
+    "digest_local_commands",
+    "filter_trusted_local_layer",
+    "decide_local_command_trust",
 )
 
 # Public Python compatibility symbols intentionally retained alongside the
@@ -1033,6 +1043,22 @@ def _validate_agent_artifact_run_trash_wire_schema(module: ModuleType) -> bool:
     return True
 
 
+def _validate_local_command_trust_wire_schema(module: ModuleType) -> bool:
+    try:
+        actual_version = int(module.local_command_trust_wire_schema_version())
+    except Exception as exc:
+        _error(f"local_command_trust_wire_schema_version() probe failed: {exc}")
+        return False
+    if actual_version != EXPECTED_LOCAL_COMMAND_TRUST_WIRE_SCHEMA_VERSION:
+        _error(
+            "local_command_trust_wire_schema_version() returned stale schema: "
+            f"got {actual_version}, expected "
+            f"{EXPECTED_LOCAL_COMMAND_TRUST_WIRE_SCHEMA_VERSION}"
+        )
+        return False
+    return True
+
+
 def _validate_goal_ledger_wire_schema(module: ModuleType) -> bool:
     expected = {
         "goal_ledger_wire_schema_version": 1,
@@ -1391,15 +1417,11 @@ def _validate_macro_choice_contracts(module: ModuleType) -> bool:
         _error(f"macro_argument_choice_candidates probe failed: {exc}")
         return False
     if [c.get("value") for c in out] != ["staging", "prod"]:
-        _error(
-            "macro_argument_choice_candidates probe returned stale order: "
-            f"{out!r}"
-        )
+        _error(f"macro_argument_choice_candidates probe returned stale order: {out!r}")
         valid = False
     if out and out[0].get("insertion") != "staging":
         _error(
-            "macro_argument_choice_candidates probe inserts label, not value: "
-            f"{out!r}"
+            f"macro_argument_choice_candidates probe inserts label, not value: {out!r}"
         )
         valid = False
     # Quoting structural values uses the shared insertion helper.
@@ -1424,10 +1446,7 @@ def _validate_macro_choice_contracts(module: ModuleType) -> bool:
         _error(f"macro_argument_choice_candidates quoting probe failed: {exc}")
         return False
     if not quoted or quoted[0].get("insertion") != '"a,b"':
-        _error(
-            "macro_argument_choice_candidates quoting probe stale: "
-            f"{quoted!r}"
-        )
+        _error(f"macro_argument_choice_candidates quoting probe stale: {quoted!r}")
         valid = False
     # Bool synthesizes true/false; old hints without new fields still bind.
     try:
@@ -2058,9 +2077,7 @@ def _validate_prompt_prediction_contract(module: ModuleType) -> bool:
         _error(f"prompt prediction predict probe returned {result!r}")
         valid = False
     matches = ranked.get("matches") if isinstance(ranked, dict) else None
-    first_key = (
-        matches[0].get("key") if isinstance(matches, list) and matches else None
-    )
+    first_key = matches[0].get("key") if isinstance(matches, list) and matches else None
     if not isinstance(ranked, dict) or first_key != "implement":
         _error(f"prompt prediction rank probe returned {ranked!r}")
         valid = False
@@ -2843,10 +2860,7 @@ def _validate_finalizer_status_scan_contract(module: ModuleType) -> bool:
         return False
     status = agent_meta.get("finalizer_status")
     if not isinstance(status, dict):
-        _error(
-            "finalizer_status(...) does not survive a scan: "
-            f"got {status!r}"
-        )
+        _error(f"finalizer_status(...) does not survive a scan: got {status!r}")
         return False
     if status.get("phase") != "executing":
         _error(
@@ -2862,8 +2876,7 @@ def _validate_finalizer_status_scan_contract(module: ModuleType) -> bool:
         or instances[0].get("id") != "commit"
     ):
         _error(
-            "finalizer_status(...) instances did not survive a scan: "
-            f"got {instances!r}"
+            f"finalizer_status(...) instances did not survive a scan: got {instances!r}"
         )
         return False
     return True
@@ -3774,6 +3787,8 @@ def main(argv: list[str] | None = None) -> int:
     if not _validate_footprint_wire_schema(module):
         return 1
     if not _validate_agent_artifact_run_trash_wire_schema(module):
+        return 1
+    if not _validate_local_command_trust_wire_schema(module):
         return 1
     if not _validate_gate_decision_lifecycle_contract(module):
         return 1
