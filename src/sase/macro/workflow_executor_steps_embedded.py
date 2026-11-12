@@ -36,6 +36,17 @@ from sase.macro.workflow_executor_steps_embedded_types import (  # noqa: F401
 if TYPE_CHECKING:
     from sase.macro.workflow_output import ParentStepContext, WorkflowOutputHandler
 
+
+def _retain_embedded_trust(steps: list[WorkflowStep], trust: dict[str, Any]) -> None:
+    """Copy one embedded definition's provenance onto all executable children."""
+    for step in steps:
+        if step.trust is None:
+            step.trust = dict(trust)
+        parallel = step.parallel_config
+        if parallel is not None:
+            _retain_embedded_trust(parallel.steps, trust)
+
+
 __all__ = [
     "EmbeddedWorkflowInfo",
     "EmbeddedWorkflowMixin",
@@ -93,6 +104,7 @@ class EmbeddedWorkflowMixin(EmbeddedWorkflowExpandMixin):
         is_pre_prompt_step: bool = False,
         step_index_offset: int = 0,
         embedded_workflow_name: str | None = None,
+        trust_descriptor: dict[str, Any] | None = None,
     ) -> bool:
         """Execute steps from an embedded workflow.
 
@@ -114,6 +126,8 @@ class EmbeddedWorkflowMixin(EmbeddedWorkflowExpandMixin):
             True if all steps succeeded, False if any failed.
         """
         del parent_step_name  # Unused but kept for API consistency
+        if trust_descriptor is not None:
+            _retain_embedded_trust(steps, trust_descriptor)
         total_steps = len(steps)
         has_finally_steps = any(s.finally_ for s in steps)
         hit_failure = False

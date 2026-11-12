@@ -173,13 +173,23 @@ def _local_run_blocked(run: dict[str, Any]) -> str | None:
 
     The detached runner independently resolves trust; a dispatch-time
     boolean or prefiltered mapping is never authority. User/overlay runs
-    (non-local source or no descriptor) always proceed.
+    (non-local source) proceed. An explicitly local run must carry provenance
+    whenever the authoritative flag is enabled.
     """
     if run.get("source_layer") != "local":
         return None
+    try:
+        from sase.config.local_trust_enforcement import (
+            is_local_command_trust_enabled,
+        )
+
+        if not is_local_command_trust_enabled():
+            return None
+    except Exception:
+        return "local file hook skipped without current trust"
     descriptor = run.get("trust")
     if descriptor is None:
-        return None
+        return "local file hook skipped without current trust"
     if not isinstance(descriptor, dict):
         return "local file hook skipped without current trust"
     try:

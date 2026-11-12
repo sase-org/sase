@@ -381,9 +381,10 @@ def test_merged_config_cache_is_a_single_slot(tmp_path: Path) -> None:
         result = load_merged_config()
         cached = config_cache.merged_config_cache
         assert cached is not None
-        # The key pairs the filesystem token with the constant retired
-        # legacy-syntax policy bit.
-        assert cached[0] == (config_core.current_config_token(), True)
+        # The key keeps the filesystem token and constant retired
+        # legacy-syntax policy bit ahead of the selected local snapshot facts.
+        assert cached[0][:2] == (config_core.current_config_token(), True)
+        assert cached[0][3] == "no-local-config"
         assert cached[1] is result
 
         clear_config_cache()

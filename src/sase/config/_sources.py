@@ -66,6 +66,7 @@ def _trusted_yaml_loader(
     base_loader: Any,
     local_path: Path | None,
     local_override: Mapping[str, Any] | None = None,
+    local_snapshot: Any | None = None,
 ) -> Any:
     """Wrap *base_loader* so the local layer is trust-filtered when enabled.
 
@@ -73,6 +74,10 @@ def _trusted_yaml_loader(
     filter, and merge cannot diverge. Missing local files keep the original
     loader to preserve today's missing-file merge behavior.
     """
+    if local_snapshot is not None:
+        return _filtered_local_yaml_loader(
+            base_loader, local_path, dict(local_snapshot.effective)
+        )
     if local_path is None:
         return base_loader
     if local_override is not None:
@@ -186,7 +191,20 @@ def load_merged_config() -> dict[str, Any]:
     token = core.current_config_token()
     # Retired spellings are always accepted; the constant policy bit stays
     # in the cache key for shape compatibility.
-    key = (token, True)
+    local_path = core.get_local_config_path()
+    local_snapshot = core.local_config_snapshot(local_path)
+    evaluation = local_snapshot.evaluation
+    trust_key = (
+        getattr(evaluation, "enabled", True),
+        getattr(evaluation, "trusted", False),
+        getattr(evaluation, "digest", ""),
+        getattr(evaluation, "acknowledged_digest", None),
+        getattr(evaluation, "identity", None),
+        getattr(evaluation, "logical_path", None),
+        getattr(evaluation, "policy_version", None),
+        getattr(evaluation, "status", "evaluation-error"),
+    )
+    key = (token, True, str(local_path), local_snapshot.content_key, trust_key)
     cached = cache.merged_config_cache
     if cached is not None and cached[0] == key:
         return cached[1]
@@ -196,7 +214,6 @@ def load_merged_config() -> dict[str, Any]:
         cache.plugin_configs_cache = _load_plugin_configs()
 
     generation = cache.config_cache_generation
-    local_path = core.get_local_config_path()
     result = core.merge_config_sources(
         default_config=cache.default_config_cache,
         plugin_configs=cache.plugin_configs_cache,
@@ -204,7 +221,9 @@ def load_merged_config() -> dict[str, Any]:
         overlay_paths=selected_overlay_paths(),
         selected_identity_snapshot=core.get_agent_owner_config_snapshot(),
         local_path=local_path,
-        yaml_loader=_trusted_yaml_loader(_load_yaml_file, local_path),
+        yaml_loader=_trusted_yaml_loader(
+            _load_yaml_file, local_path, local_snapshot=local_snapshot
+        ),
     )
     # A concurrent clear_config_cache() during the merge means this build is
     # already known stale; publish only when the generation held steady so a
@@ -219,6 +238,7 @@ def load_merged_config_for_local_path(
     *,
     linked_repo_origin_key: str | None = None,
     local_config_override: Mapping[str, Any] | None = None,
+    local_snapshot: Any | None = None,
 ) -> dict[str, Any]:
     """Load config with an explicitly selected project-local layer.
 
@@ -235,7 +255,7 @@ def load_merged_config_for_local_path(
     from sase.config._cache import overlay_paths
 
     yaml_loader = _trusted_yaml_loader(
-        _load_yaml_file, local_path, local_config_override
+        _load_yaml_file, local_path, local_config_override, local_snapshot
     )
     core = _facade()
     return core.merge_config_sources(

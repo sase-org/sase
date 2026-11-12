@@ -105,6 +105,7 @@ class WorkflowStep:
     finally_: bool = False
     artifact: str | None = None
     on_error: Literal["stop", "continue"] | None = None
+    trust: dict[str, Any] | None = None
 
     def is_agent_step(self) -> bool:
         """Return True if this is an agent step."""

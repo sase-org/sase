@@ -298,6 +298,7 @@ class ParallelMixin:
                     parent_step_context=parent_ctx,
                     step_index_offset=cumulative_post_offset,
                     embedded_workflow_name=info.workflow_name,
+                    trust_descriptor=info.trust,
                 )
                 if not success:
                     raise WorkflowExecutionError(

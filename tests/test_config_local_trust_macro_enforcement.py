@@ -359,3 +359,292 @@ def test_inherited_reference_step_is_blocked(
     assert "lct_tool" not in get_all_workflows()
     with pytest.raises(LocalMacroTrustError, match="trust allow"):
         process_macro_references("#lct_tool", raise_on_error=True)
+
+
+def test_off_loaded_workflow_is_blocked_after_flag_turns_on(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from sase.feature_flags import override_flags
+    from sase.macro.workflow_loader_sources import load_workflows_from_config
+
+    root, _local = _repo(
+        tmp_path,
+        monkeypatch,
+        "off-to-on",
+        {
+            "macros": {
+                "lct_tool": {
+                    "steps": [
+                        {
+                            "name": "run",
+                            "bash": f"touch {tmp_path / 'off-to-on-ran'}",
+                        }
+                    ]
+                }
+            }
+        },
+    )
+    with override_flags(local_config_command_trust=False):
+        workflow = load_workflows_from_config()["lct_tool"]
+    assert workflow.trust is not None
+    assert workflow.trust["enabled"] is False
+    with override_flags(local_config_command_trust=True):
+        with pytest.raises(WorkflowExecutionError, match="current trust"):
+            _run_bash_workflow(workflow, root / "artifacts")
+    assert not (tmp_path / "off-to-on-ran").exists()
+
+
+def test_explicit_local_workflow_without_descriptor_fails_closed(
+    tmp_path: Path,
+) -> None:
+    from sase.macro.workflow_models import Workflow, WorkflowStep
+
+    workflow = Workflow(
+        name="local-without-descriptor",
+        source_path="local_config",
+        steps=[
+            WorkflowStep(
+                name="run",
+                bash=f"touch {tmp_path / 'missing-descriptor-ran'}",
+            )
+        ],
+    )
+    with pytest.raises(WorkflowExecutionError, match="current trust"):
+        _run_bash_workflow(workflow, tmp_path / "artifacts")
+    assert not (tmp_path / "missing-descriptor-ran").exists()
+
+
+def test_macro_loader_evaluation_error_omits_local_executable(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _repo(
+        tmp_path,
+        monkeypatch,
+        "macro-evaluation-error",
+        {"macros": {"lct_tool": {"bash": "echo local"}}},
+    )
+    import sase.config.core as core
+    from sase.macro.workflow_loader_sources import load_workflows_from_config
+
+    def fail_evaluation(*_args: object, **_kwargs: object) -> object:
+        raise RuntimeError("trust binding unavailable")
+
+    monkeypatch.setattr(core, "_trusted_effective_local_layer", fail_evaluation)
+    assert "lct_tool" not in load_workflows_from_config()
+
+
+def test_macro_loader_retains_snapshot_when_file_and_ack_change(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root, local_path = _repo(
+        tmp_path,
+        monkeypatch,
+        "macro-snapshot",
+        {
+            "macros": {
+                "lct_tool": {
+                    "steps": [
+                        {"name": "run", "bash": f"touch {tmp_path / 'macro-a-ran'}"}
+                    ]
+                }
+            }
+        },
+    )
+    _identity, digest_a = _allow_current(local_path)
+    from sase.config import load_macros_by_source as load_sources
+    from sase.macro.workflow_loader_sources import load_workflows_from_config
+
+    def switch_after_load() -> list[tuple[str, dict]]:
+        sources = load_sources()
+        _write_yaml(
+            local_path,
+            {
+                "macros": {
+                    "lct_tool": {
+                        "steps": [
+                            {
+                                "name": "run",
+                                "bash": f"touch {tmp_path / 'macro-b-ran'}",
+                            }
+                        ]
+                    }
+                }
+            },
+        )
+        _allow_current(local_path)
+        return sources
+
+    monkeypatch.setattr("sase.config.load_macros_by_source", switch_after_load)
+    workflow = load_workflows_from_config()["lct_tool"]
+    assert workflow.steps[0].bash == f"touch {tmp_path / 'macro-a-ran'}"
+    assert workflow.trust is not None
+    assert workflow.trust["digest"] == digest_a
+    with pytest.raises(WorkflowExecutionError, match="current trust"):
+        _run_bash_workflow(workflow, root / "artifacts")
+    assert not (tmp_path / "macro-a-ran").exists()
+    assert not (tmp_path / "macro-b-ran").exists()
+
+
+def test_approved_sparse_override_composes_with_lower_workflow(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root, local_path = _repo(
+        tmp_path,
+        monkeypatch,
+        "sparse-approved",
+        {
+            "macros": {
+                "lct_tool": {
+                    "input": {"value": {"default": "LOCAL"}},
+                    "description": "Local metadata override",
+                }
+            }
+        },
+        {
+            "macros": {
+                "lct_tool": {
+                    "input": {"value": {"default": "USER"}},
+                    "bash": f"touch {tmp_path / 'sparse-ran'}",
+                }
+            }
+        },
+    )
+    _allow_current(local_path)
+    from sase.macro.workflow_loader_sources import load_workflows_from_config
+
+    ordinary = load_workflows_from_config()["lct_tool"]
+    namespaced = load_workflows_from_config("sparse-approved")[
+        "sparse-approved/lct_tool"
+    ]
+    direct = load_project_local_workflows(root, "sparse-approved")[
+        "sparse-approved/lct_tool"
+    ]
+    for workflow in (ordinary, namespaced, direct):
+        assert workflow.steps[0].bash == f"touch {tmp_path / 'sparse-ran'}"
+        assert workflow.inputs[0].default == "LOCAL"
+        assert workflow.trust is not None
+    _identity = ordinary.trust["identity"]
+    assert isinstance(_identity, str)
+    # Revoking the local sparse override blocks its retained inherited command.
+    _revoke(_identity)
+    with pytest.raises(WorkflowExecutionError, match="current trust"):
+        _run_bash_workflow(ordinary, root / "artifacts")
+    assert not (tmp_path / "sparse-ran").exists()
+
+
+def test_approved_sparse_steps_keep_config_list_precedence(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _root, local_path = _repo(
+        tmp_path,
+        monkeypatch,
+        "sparse-lists",
+        {"macros": {"lct_tool": {"steps": [{"name": "local", "bash": "echo local"}]}}},
+        {"macros": {"lct_tool": {"steps": [{"name": "user", "bash": "echo user"}]}}},
+    )
+    _allow_current(local_path)
+    from sase.macro.workflow_loader_sources import load_workflows_from_config
+
+    workflow = load_workflows_from_config()["lct_tool"]
+    assert [step.name for step in workflow.steps] == ["user", "local"]
+    assert all(step.trust == workflow.trust for step in workflow.steps)
+
+
+def test_embedded_pre_and_post_steps_keep_child_trust(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root, local_path = _repo(
+        tmp_path,
+        monkeypatch,
+        "embedded-retained",
+        {
+            "macros": {
+                "lct_child": {
+                    "steps": [
+                        {"name": "before", "bash": f"touch {tmp_path / 'pre-ran'}"},
+                        {"name": "content", "prompt_part": "child content"},
+                        {"name": "after", "bash": f"touch {tmp_path / 'post-ran'}"},
+                    ]
+                }
+            }
+        },
+    )
+    identity, _digest = _allow_current(local_path)
+    from sase.macro.workflow_loader_sources import load_workflows_from_config
+    from sase.macro.workflow_models import Workflow
+
+    child = load_workflows_from_config()["lct_child"]
+    parent = Workflow(name="user-parent")
+    executor = WorkflowExecutor(
+        workflow=parent,
+        args={},
+        artifacts_dir=str(root / "artifacts"),
+        hitl_override=False,
+    )
+    _revoke(identity)
+    with pytest.raises(WorkflowExecutionError, match="current trust"):
+        executor._execute_embedded_workflow_steps(
+            child.get_pre_prompt_steps(),
+            {},
+            "parent",
+            embedded_workflow_name=child.name,
+            trust_descriptor=child.trust,
+        )
+    with pytest.raises(WorkflowExecutionError, match="current trust"):
+        executor._execute_embedded_workflow_steps(
+            child.get_post_prompt_steps(),
+            {},
+            "parent",
+            embedded_workflow_name=child.name,
+            trust_descriptor=child.trust,
+        )
+    assert not (tmp_path / "pre-ran").exists()
+    assert not (tmp_path / "post-ran").exists()
+
+
+def test_parallel_embedded_post_steps_keep_child_trust_after_revoke(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root, local_path = _repo(
+        tmp_path,
+        monkeypatch,
+        "parallel-embedded",
+        {
+            "macros": {
+                "lct_child": {
+                    "steps": [
+                        {"name": "content", "prompt_part": "child content"},
+                        {
+                            "name": "after",
+                            "bash": f"touch {tmp_path / 'parallel-post-ran'}",
+                        },
+                    ]
+                }
+            }
+        },
+    )
+    identity, _digest = _allow_current(local_path)
+    from sase.macro.workflow_models import Workflow, WorkflowStep
+
+    parent = Workflow(name="user-parent")
+    executor = WorkflowExecutor(
+        workflow=parent,
+        args={},
+        artifacts_dir=str(root / "artifacts"),
+        hitl_override=False,
+    )
+    _nested, embedded = executor._pre_expand_parallel_embedded_workflows(
+        [WorkflowStep(name="nested", agent="#lct_child")]
+    )
+    assert len(embedded) == 1
+    assert embedded[0].trust is not None
+    _revoke(identity)
+    with pytest.raises(WorkflowExecutionError, match="current trust"):
+        executor._execute_embedded_workflow_steps(
+            embedded[0].post_steps,
+            embedded[0].context,
+            "parallel-parent",
+            embedded_workflow_name=embedded[0].workflow_name,
+            trust_descriptor=embedded[0].trust,
+        )
+    assert not (tmp_path / "parallel-post-ran").exists()

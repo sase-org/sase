@@ -96,12 +96,26 @@ def _trust_descriptor_from_evaluation(evaluation: Any) -> dict[str, Any]:
         "digest": getattr(evaluation, "digest", None),
         "status": getattr(evaluation, "status", None),
         "enabled": getattr(evaluation, "enabled", True),
+        "policy_version": getattr(evaluation, "policy_version", None),
     }
+
+
+def _attach_trust_to_steps(steps: list[Any], descriptor: dict[str, Any]) -> None:
+    """Retain the source descriptor on nested executable step records."""
+    for step in steps:
+        if step.trust is None:
+            step.trust = dict(descriptor)
+        parallel = getattr(step, "parallel_config", None)
+        nested = getattr(parallel, "steps", None)
+        if isinstance(nested, list):
+            _attach_trust_to_steps(nested, descriptor)
 
 
 def attach_local_trust(workflow: Workflow, evaluation: Any) -> Workflow:
     """Copy the current local trust descriptor onto *workflow*."""
-    workflow.trust = _trust_descriptor_from_evaluation(evaluation)
+    descriptor = _trust_descriptor_from_evaluation(evaluation)
+    workflow.trust = descriptor
+    _attach_trust_to_steps(workflow.steps, descriptor)
     return workflow
 
 
@@ -134,15 +148,39 @@ def blocked_local_macro_message(
     )
 
 
-def assert_workflow_local_trust(workflow: Workflow, *, step_name: str) -> None:
+def assert_workflow_local_trust(
+    workflow: Workflow,
+    *,
+    step_name: str,
+    step_trust: Mapping[str, Any] | None = None,
+) -> None:
     """Revalidate a retained local descriptor before bash/python dispatch.
 
     Changed config or revocation blocks further local execution. A command
     already started is not terminated. User-origin workflows (no descriptor)
     proceed.
     """
-    descriptor = workflow.trust
+    descriptor = step_trust or workflow.trust
     if not descriptor:
+        source = workflow.source_path or ""
+        if source == "local_config" or source.startswith("project_local_config:"):
+            try:
+                from sase.config.local_trust_enforcement import (
+                    is_local_command_trust_enabled,
+                )
+
+                if is_local_command_trust_enabled():
+                    raise WorkflowExecutionError(
+                        f"Local workflow '{workflow.name}' step '{step_name}' "
+                        "skipped without current trust"
+                    )
+            except WorkflowExecutionError:
+                raise
+            except Exception:
+                raise WorkflowExecutionError(
+                    f"Local workflow '{workflow.name}' step '{step_name}' "
+                    "skipped without current trust"
+                ) from None
         return
     try:
         from sase.config.local_trust_enforcement import validate_trust_descriptor

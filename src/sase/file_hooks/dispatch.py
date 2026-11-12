@@ -47,21 +47,6 @@ def _batch_id(
     return hashlib.sha256(encoded).hexdigest()[:24]
 
 
-def _dispatch_local_trust_descriptor() -> dict[str, object] | None:
-    """Return the trust descriptor for the dispatch-time local project, if any."""
-    try:
-        from sase.config.core import get_local_config_path
-        from sase.config.local_trust_enforcement import trust_descriptor_for_path
-
-        local_path = get_local_config_path()
-        if local_path is None:
-            return None
-        return dict(trust_descriptor_for_path(local_path))
-    except Exception:
-        logger.debug("File-hook dispatch trust descriptor failed", exc_info=True)
-        return None
-
-
 def _batch_payload(
     *,
     batch_id: str,
@@ -73,7 +58,6 @@ def _batch_payload(
     matching_events = [event.matching_event() for event in events]
     planned = match_events(list(hooks), matching_events, producer=producer)
     captured_by_match = {event.matching_event(): event for event in events}
-    local_trust = _dispatch_local_trust_descriptor()
     runs: list[dict[str, object]] = []
     for index, planned_run in enumerate(planned):
         captured = captured_by_match[planned_run.event]
@@ -87,8 +71,8 @@ def _batch_payload(
                 "timeout_seconds": planned_run.hook.timeout_seconds,
                 "source_layer": source_layer,
                 "trust": (
-                    dict(local_trust)
-                    if source_layer == "local" and local_trust is not None
+                    dict(planned_run.hook.trust)
+                    if source_layer == "local" and planned_run.hook.trust is not None
                     else None
                 ),
                 "abs_path": captured.abs_path,

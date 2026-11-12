@@ -70,6 +70,7 @@ class EmbeddedWorkflowInfo:
         context: Isolated context for the embedded workflow (args + outputs).
         workflow_name: Name of the embedded workflow.
         nested_step_name: For parallel: which nested step this belongs to.
+        trust: Descriptor for the workflow that supplied the retained steps.
     """
 
     pre_steps: list[WorkflowStep]
@@ -77,6 +78,7 @@ class EmbeddedWorkflowInfo:
     context: dict[str, Any]
     workflow_name: str
     nested_step_name: str | None = None
+    trust: dict[str, Any] | None = None
 
 
 @dataclass

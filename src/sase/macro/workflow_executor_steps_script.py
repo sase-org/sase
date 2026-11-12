@@ -120,7 +120,9 @@ class ScriptStepMixin:
 
         from sase.macro.local_trust import assert_workflow_local_trust
 
-        assert_workflow_local_trust(self.workflow, step_name=step.name)
+        assert_workflow_local_trust(
+            self.workflow, step_name=step.name, step_trust=step.trust
+        )
 
         # Render command with Jinja2 context. Interpolations are
         # shell-quoted by render_bash_template; only `| raw` opts out.
@@ -305,7 +307,9 @@ class ScriptStepMixin:
 
         from sase.macro.local_trust import assert_workflow_local_trust
 
-        assert_workflow_local_trust(self.workflow, step_name=step.name)
+        assert_workflow_local_trust(
+            self.workflow, step_name=step.name, step_trust=step.trust
+        )
 
         # Render code with Jinja2 context. Interpolations are
         # Python-literal-quoted by render_python_template; only `| tojson`

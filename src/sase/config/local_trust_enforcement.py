@@ -165,6 +165,19 @@ class LocalTrustEvaluation:
     config_path: str | None
     logical_path: str | None
     warning: str | None
+    policy_version: int = 1
+
+    def descriptor(self) -> dict[str, Any]:
+        """Return the immutable trust facts retained with executable data."""
+        return {
+            "identity": self.identity,
+            "config_path": self.config_path,
+            "logical_path": self.logical_path,
+            "digest": self.digest,
+            "status": self.status,
+            "enabled": self.enabled,
+            "policy_version": self.policy_version,
+        }
 
 
 def _deduplicated_warning(
@@ -361,6 +374,7 @@ def _evaluate_with_flag_on(
             config_path=requested_path,
             logical_path=logical,
             warning=None,
+            policy_version=projection.policy_version,
         )
     try:
         from sase.config.local_trust_management import local_trust_store_snapshot
@@ -402,6 +416,7 @@ def _evaluate_with_flag_on(
             config_path=requested_path,
             logical_path=logical,
             warning=warning,
+            policy_version=projection.policy_version,
         )
     record = snapshot.get("record") if isinstance(snapshot, dict) else None
     acknowledged = record.get("digest") if isinstance(record, dict) else None
@@ -446,6 +461,7 @@ def _evaluate_with_flag_on(
             config_path=requested_path,
             logical_path=logical,
             warning=warning,
+            policy_version=projection.policy_version,
         )
     try:
         decision = decide_local_command_trust(
@@ -491,6 +507,7 @@ def _evaluate_with_flag_on(
             config_path=requested_path,
             logical_path=logical,
             warning=warning,
+            policy_version=projection.policy_version,
         )
     if decision.trusted:
         try:
@@ -520,6 +537,7 @@ def _evaluate_with_flag_on(
             config_path=requested_path,
             logical_path=logical,
             warning=None,
+            policy_version=projection.policy_version,
         )
     try:
         filtered = filter_trusted_local_layer(
@@ -555,6 +573,7 @@ def _evaluate_with_flag_on(
         config_path=requested_path,
         logical_path=logical,
         warning=warning,
+        policy_version=projection.policy_version,
     )
 
 
@@ -567,22 +586,6 @@ def effective_local_layer(
     return evaluation.effective_layer, evaluation
 
 
-def trust_descriptor_for_path(
-    local_path: Path | None,
-    candidate: Mapping[str, Any] | None = None,
-) -> dict[str, Any]:
-    """Return a small descriptor retained with local executable definitions."""
-    evaluation = evaluate_local_trust_for_path(local_path, candidate)
-    return {
-        "identity": evaluation.identity,
-        "config_path": evaluation.config_path,
-        "logical_path": evaluation.logical_path,
-        "digest": evaluation.digest,
-        "status": evaluation.status,
-        "enabled": evaluation.enabled,
-    }
-
-
 def validate_trust_descriptor(descriptor: Mapping[str, Any]) -> bool:
     """Return whether a retained local descriptor still matches acknowledgment.
 
@@ -591,48 +594,56 @@ def validate_trust_descriptor(descriptor: Mapping[str, Any]) -> bool:
     caller-supplied boolean or a prefetched mapping.
     """
     try:
-        enabled = descriptor.get("enabled")
-        if enabled is False:
+        if not is_local_command_trust_enabled():
             return True
         identity = descriptor.get("identity")
         expected_digest = descriptor.get("digest")
+        config_path = descriptor.get("config_path")
+        logical_path = descriptor.get("logical_path")
+        policy_version = descriptor.get("policy_version")
         if not isinstance(identity, str) or not identity:
             return False
         if not isinstance(expected_digest, str) or not expected_digest:
             return False
-        from sase.config.local_trust import decide_local_command_trust
-        from sase.config.local_trust_management import local_trust_store_snapshot
-
-        with _trust_evaluation_guard():
-            snapshot = local_trust_store_snapshot(identity)
-        if not isinstance(snapshot, dict) or snapshot.get("status") != "available":
+        if not isinstance(config_path, str) or not config_path:
             return False
-        record = snapshot.get("record")
-        acknowledged = record.get("digest") if isinstance(record, dict) else None
-        acknowledged_policy = (
-            record.get("policy_version") if isinstance(record, dict) else None
-        )
-        decision = decide_local_command_trust(
-            expected_digest,
-            acknowledged if isinstance(acknowledged, str) else None,
-            acknowledged_policy_version=(
-                acknowledged_policy if isinstance(acknowledged_policy, int) else None
-            ),
-        )
-        if not decision.trusted:
+        if not isinstance(policy_version, int):
             return False
-        # The descriptor digest must still be the current on-disk digest;
-        # a same-process edit after queuing must not reuse an old approval.
-        config_path = descriptor.get("config_path")
-        if isinstance(config_path, str) and config_path:
-            current = evaluate_local_trust_for_path(Path(config_path), candidate=None)
-            if current.digest != expected_digest:
-                return False
-            return current.trusted
-        return True
+        selected = _current_selected_config_path(Path(config_path))
+        if selected is None or _canonical_path(selected) != _canonical_path(
+            Path(config_path)
+        ):
+            return False
+        current = evaluate_local_trust_for_path(Path(config_path), candidate=None)
+        return bool(
+            current.enabled
+            and current.trusted
+            and current.identity == identity
+            and current.logical_path == logical_path
+            and current.digest == expected_digest
+            and current.policy_version == policy_version
+        )
     except Exception:
         log.debug("Trust descriptor revalidation failed closed", exc_info=True)
         return False
+
+
+def _canonical_path(path: Path) -> str:
+    """Canonicalize both selected-path comparisons, including macOS aliases."""
+    return str(path.expanduser().resolve(strict=False))
+
+
+def _current_selected_config_path(path: Path) -> Path | None:
+    """Resolve the currently selected canonical/fallback config for a descriptor."""
+    root = _checkout_root_for_local_path(path)
+    if root is None:
+        return path if path.is_file() else None
+    try:
+        from sase.content_layout import resolve_project_layout
+
+        return resolve_project_layout(root).config.resolve_read("project config")
+    except Exception:
+        return None
 
 
 __all__ = [
@@ -640,6 +651,5 @@ __all__ = [
     "effective_local_layer",
     "evaluate_local_trust_for_path",
     "is_local_command_trust_enabled",
-    "trust_descriptor_for_path",
     "validate_trust_descriptor",
 ]

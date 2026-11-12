@@ -107,6 +107,7 @@ class FileHookConfig:
     timeout_seconds: float
     filters: FileHookFilters = field(default_factory=FileHookFilters)
     source_layer: str = "unknown"
+    trust: dict[str, Any] | None = None
 
     def __post_init__(self) -> None:
         """Validate values supplied directly as well as parsed YAML entries."""
@@ -274,6 +275,7 @@ def _parse_file_hook(
     *,
     source_layer: str,
     detected_project: str | None,
+    trust: dict[str, Any] | None = None,
 ) -> FileHookConfig:
     if not isinstance(item, Mapping):
         raise ValueError("each file hook must be a dictionary")
@@ -309,6 +311,7 @@ def _parse_file_hook(
         ),
         timeout_seconds=_parse_duration(item.get("timeout", "120s")),
         source_layer=source_layer,
+        trust=trust,
     )
 
 
@@ -414,19 +417,40 @@ def _trust_evaluation_for_layers(
         if layer.name != "local" or not layer.exists:
             continue
         data = layer.data if isinstance(layer.data, dict) else {}
-        if not data:
-            return None
-        if not layer.path:
-            return None
         try:
+            if not layer.path:
+                raise ValueError("local config layer has no selected path")
+            from sase.config.core import local_config_snapshot
+
+            snapshot = local_config_snapshot(Path(str(layer.path)), dict(data))
+            if snapshot.evaluation is not None:
+                return snapshot.evaluation
+            raise ValueError("local trust evaluation returned no decision")
+        except Exception as exc:
+            logger.debug("Local file-hook trust evaluation failed", exc_info=True)
             from sase.config.local_trust_enforcement import (
-                evaluate_local_trust_for_path,
+                is_local_command_trust_enabled,
             )
 
-            return evaluate_local_trust_for_path(Path(str(layer.path)), dict(data))
-        except Exception:
-            logger.debug("Local file-hook trust evaluation failed", exc_info=True)
-            return None
+            enabled = is_local_command_trust_enabled()
+            return LocalTrustEvaluation(
+                enabled=enabled,
+                trusted=not enabled,
+                effective_layer=dict(data) if not enabled else {},
+                removed_paths=(
+                    ()
+                    if not enabled
+                    else ("file_hooks", "commit_hooks", "macros", "workflows")
+                ),
+                status="flag-disabled" if not enabled else "evaluation-error",
+                reason=str(exc),
+                digest="",
+                acknowledged_digest=None,
+                identity=None,
+                config_path=str(layer.path) if layer.path else None,
+                logical_path=None,
+                warning=None,
+            )
     return None
 
 
@@ -483,10 +507,16 @@ def _load_file_hooks() -> list[FileHookConfig]:
     )
     layers = load_config_layers()
     trust_evaluation = _trust_evaluation_for_layers(layers)
+    trust_key: tuple[Any, ...]
     if trust_evaluation is not None:
         trust_key = (
             trust_evaluation.enabled,
+            trust_evaluation.trusted,
             trust_evaluation.digest,
+            trust_evaluation.acknowledged_digest,
+            trust_evaluation.identity,
+            trust_evaluation.logical_path,
+            trust_evaluation.policy_version,
             trust_evaluation.status,
         )
     else:
@@ -530,6 +560,11 @@ def _load_file_hooks() -> list[FileHookConfig]:
                 resolved_item,
                 source_layer=source_layer,
                 detected_project=detected_project,
+                trust=(
+                    trust_evaluation.descriptor()
+                    if source_layer == "local" and trust_evaluation is not None
+                    else None
+                ),
             )
             if hook.name in seen_names:
                 raise ValueError(f"duplicate hook name '{hook.name}'")

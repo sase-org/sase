@@ -16,6 +16,7 @@ from sase.config.file_hooks import (
     get_all_file_hooks,
     get_file_hook_diagnostics,
 )
+from sase.feature_flags import override_flags
 from tests._file_hooks_helpers import _layer, _registry_with_file_hook_provider
 
 
@@ -125,7 +126,8 @@ def test_loader_resolves_file_hook_provider_templates(monkeypatch: Any) -> None:
         _registry_with_file_hook_provider,
     )
 
-    hooks = _load_file_hooks()
+    with override_flags(local_config_command_trust=False):
+        hooks = _load_file_hooks()
 
     assert len(hooks) == 1
     hook = hooks[0]
@@ -281,7 +283,8 @@ def test_loader_auto_scopes_project_local_hooks(monkeypatch: Any) -> None:
     monkeypatch.setattr("sase.config.file_hooks.load_config_layers", lambda: layers)
     monkeypatch.setattr("sase.macro.loader.detect_project", lambda: "sase")
 
-    hooks = _load_file_hooks()
+    with override_flags(local_config_command_trust=False):
+        hooks = _load_file_hooks()
 
     assert hooks[0].filters.projects == ("sase",)
     assert hooks[1].filters.projects == ("other",)
@@ -295,7 +298,8 @@ def test_loader_auto_scopes_empty_project_local_filters(monkeypatch: Any) -> Non
     monkeypatch.setattr("sase.config.file_hooks.load_config_layers", lambda: layers)
     monkeypatch.setattr("sase.macro.loader.detect_project", lambda: "sase")
 
-    hooks = _load_file_hooks()
+    with override_flags(local_config_command_trust=False):
+        hooks = _load_file_hooks()
 
     assert hooks[0].filters.projects == ("sase",)
 

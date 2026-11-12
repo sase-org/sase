@@ -6,7 +6,7 @@ import time
 from dataclasses import dataclass
 from typing import Any
 
-from sase.config.core import load_merged_config_for_local_path
+from sase.config.core import load_merged_config_for_local_path_with_trust
 from sase.core.rebase_gate import (
     ConfigWire,
     ContextWire,
@@ -27,6 +27,9 @@ from sase.workflows.commit.rebase_gate_budget import (
 from sase.workflows.commit.rebase_gate_execution import execute_gate
 
 _DEFAULT_TIMEOUT_SECONDS = 10.0
+
+# Preserve the long-standing rebase loader patch point used by runtime tests.
+load_merged_config_for_local_path = load_merged_config_for_local_path_with_trust
 
 
 @dataclass(frozen=True)
@@ -129,9 +132,16 @@ def load_after_rebase_gate_settings(
     root = normalize_path(repo_root)
     try:
         with budget.measure():
-            config = load_merged_config_for_local_path(
+            loaded = load_merged_config_for_local_path(
                 local_config_path_for_repo_root(root)
             )
+            if isinstance(loaded, tuple) and len(loaded) == 2:
+                config, evaluation = loaded
+            else:
+                # Compatibility for callers that replace the loader with a
+                # mapping-only test double. Production returns one snapshot
+                # and its matching trust evaluation.
+                config, evaluation = loaded, None
     except GateBudgetExhausted:
         return None, (
             "rebase gate budget expired while loading project configuration",
@@ -186,15 +196,6 @@ def load_after_rebase_gate_settings(
             str(exc),
         )
     budget.set_timeout(timeout)
-    local_path = local_config_path_for_repo_root(root)
-    try:
-        from sase.config.local_trust_enforcement import (
-            evaluate_local_trust_for_path,
-        )
-
-        evaluation = evaluate_local_trust_for_path(local_path, candidate=None)
-    except Exception:
-        evaluation = None
     if (
         evaluation is not None
         and evaluation.enabled
@@ -225,20 +226,17 @@ def load_after_rebase_gate_settings(
     if not hook:
         return GateSettings("", timeout, None), None
     trust: dict[str, Any] | None = None
-    if evaluation is not None and evaluation.enabled and evaluation.trusted:
+    if evaluation is not None:
         effective = evaluation.effective_layer.get("commit_hooks", {})
         local_after = (
             effective.get("after_rebase", "") if isinstance(effective, dict) else ""
         )
-        if isinstance(local_after, str) and local_after.strip():
-            trust = {
-                "identity": evaluation.identity,
-                "config_path": evaluation.config_path,
-                "logical_path": evaluation.logical_path,
-                "digest": evaluation.digest,
-                "status": evaluation.status,
-                "enabled": evaluation.enabled,
-            }
+        if (
+            isinstance(local_after, str)
+            and local_after.strip()
+            and local_after.strip() == hook
+        ):
+            trust = evaluation.descriptor()
     return GateSettings(hook, timeout, trust), None
 
 

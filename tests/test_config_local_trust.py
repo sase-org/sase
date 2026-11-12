@@ -17,20 +17,15 @@ from sase.config.local_trust import (
     LOCAL_COMMAND_TRUST_POLICY_VERSION,
     LOCAL_COMMAND_TRUST_WIRE_SCHEMA_VERSION,
     decide_local_command_trust,
-    digest_local_commands,
     filter_trusted_local_layer,
-    local_command_trust_wire_schema_version,
     project_local_commands,
 )
 
 sase_core_rs = pytest.importorskip("sase_core_rs")
 
 
-def test_wire_schema_version_matches_rust() -> None:
-    """Python mirror constant tracks the Rust binding version."""
-    assert local_command_trust_wire_schema_version() == (
-        LOCAL_COMMAND_TRUST_WIRE_SCHEMA_VERSION
-    )
+def test_rust_wire_schema_version_matches_python_contract() -> None:
+    """The direct Rust binding matches the checked Python contract constant."""
     assert sase_core_rs.local_command_trust_wire_schema_version() == (
         LOCAL_COMMAND_TRUST_WIRE_SCHEMA_VERSION
     )
@@ -183,17 +178,6 @@ def test_mapping_order_does_not_change_digest() -> None:
     ).hexdigest()
     assert first.digest == expected
     assert json.loads(first.canonical_json) == first.projection
-
-
-def test_digest_binding_matches_projection_digest() -> None:
-    """Hashing the projected value directly reproduces the stored digest."""
-    out = project_local_commands(
-        {"commit_hooks": {"before": "just fix"}},
-        source="local",
-    )
-    hashed = digest_local_commands(out.projection)
-    assert hashed.digest == out.digest
-    assert hashed.canonical_json == out.canonical_json
 
 
 def test_filter_preserves_non_command_keys_and_prompt_macros() -> None:

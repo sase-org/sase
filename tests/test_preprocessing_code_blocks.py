@@ -187,7 +187,7 @@ class TestPreprocessPromptCodeBlockProtection:
         mock_directives.side_effect = lambda x, **_kw: (x, PromptDirectives())
 
         prompt = "outside text\n```\ninside block\n```\nmore outside"
-        preprocess_prompt(prompt)
+        preprocess_prompt(prompt, agent_authored=False)
 
         # Late-phase processor (command sub) should see "outside text"
         first_call_text = mock_cmd_sub.call_args[0][0]

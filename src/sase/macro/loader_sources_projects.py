@@ -236,10 +236,21 @@ def load_project_local_workflows(
         return {}
 
     try:
-        from sase.config.local_trust_enforcement import evaluate_local_trust_for_path
+        from sase.config.core import (
+            load_merged_config_for_local_path,
+            load_merged_config_for_local_path_with_trust,
+        )
 
-        evaluation = evaluate_local_trust_for_path(sase_yml, data)
-        effective = evaluation.effective_layer
+        lower_config = load_merged_config_for_local_path(None)
+        lower_raw = lower_config.get("macros")
+        lower_macros = dict(lower_raw) if isinstance(lower_raw, dict) else {}
+        composed_config, evaluation = load_merged_config_for_local_path_with_trust(
+            sase_yml,
+            local_config_override=data,
+        )
+        effective = evaluation.effective_layer if evaluation is not None else {}
+        composed_raw = composed_config.get("macros")
+        composed_macros = dict(composed_raw) if isinstance(composed_raw, dict) else {}
     except Exception:
         log.debug(
             "Local-command trust filtering failed closed for project workflows in %s",
@@ -255,11 +266,12 @@ def load_project_local_workflows(
 
     _prompt_only, executable = partition_config_macros(
         macros_data,
+        lower_macros=lower_macros,
         source=source_label,
     )
     workflows: dict[str, Workflow] = {}
     for name, value in executable.items():
-        mapping = workflow_mapping_from_macro_entry(value)
+        mapping = workflow_mapping_from_macro_entry(composed_macros.get(name, value))
         if mapping is None:
             continue
         workflow = load_workflow_from_mapping(name, mapping, source_label)

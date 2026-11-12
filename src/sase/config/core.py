@@ -19,9 +19,15 @@ back through this module rather than binding its state at import time, so
 from __future__ import annotations
 
 import importlib.resources
+import hashlib
+import json
+import logging
 import threading
 import time
+from collections.abc import Mapping
+from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 
 from sase.config._cache import (
     CONFIG_TOKEN_REFRESH_THREAD_NAME,
@@ -154,12 +160,102 @@ from sase.config.layers import (
     without_project_only_keys,
     without_retired_sdd_selectors,
 )
-from sase.config.loading import merge_config_sources
+from sase.config.loading import load_yaml_file, merge_config_sources
+from sase.config.local_trust_enforcement import (
+    effective_local_layer as _trusted_effective_local_layer,
+)
 from sase.markdown_width import DEFAULT_MARKDOWN_PRINT_WIDTH
 
 
 CONFIG_DIR = Path("~/.config/sase").expanduser()
 CHEZMOI_HOME = Path("~/.local/share/chezmoi/home").expanduser()
+
+
+@dataclass(frozen=True)
+class _LocalConfigTrustSnapshot:
+    """One decoded local config value and its trust decision."""
+
+    path: Path | None
+    candidate: dict[str, Any]
+    effective: dict[str, Any]
+    evaluation: Any | None
+    content_key: str
+
+
+def local_config_snapshot(
+    local_path: Path | None,
+    candidate: Mapping[str, Any] | None = None,
+) -> _LocalConfigTrustSnapshot:
+    """Read and evaluate the selected local file once for one config operation."""
+    if local_path is None:
+        return _LocalConfigTrustSnapshot(None, {}, {}, None, "no-local-config")
+    if candidate is None:
+        try:
+            loaded = load_yaml_file(local_path)
+        except Exception:
+            logging.getLogger(__name__).debug(
+                "Failed to read local config %s", local_path, exc_info=True
+            )
+            loaded = None
+        decoded = dict(loaded) if isinstance(loaded, Mapping) else {}
+    else:
+        decoded = dict(candidate)
+    try:
+        content = json.dumps(
+            decoded,
+            sort_keys=True,
+            separators=(",", ":"),
+            ensure_ascii=True,
+            default=repr,
+        ).encode("utf-8")
+    except Exception:
+        content = repr(decoded).encode("utf-8", errors="replace")
+    try:
+        effective, evaluation = _trusted_effective_local_layer(local_path, decoded)
+    except Exception:
+        logging.getLogger(__name__).debug(
+            "Local trust filtering failed closed", exc_info=True
+        )
+        effective, evaluation = {}, None
+    return _LocalConfigTrustSnapshot(
+        local_path,
+        decoded,
+        dict(effective),
+        evaluation,
+        hashlib.sha256(content).hexdigest(),
+    )
+
+
+def load_merged_config_for_local_path_with_trust(
+    local_path: Path | None,
+    *,
+    linked_repo_origin_key: str | None = None,
+    local_config_override: Mapping[str, Any] | None = None,
+) -> tuple[dict[str, Any], Any | None]:
+    """Return merged config and the trust verdict for its selected local layer."""
+    snapshot = local_config_snapshot(local_path, local_config_override)
+    return load_merged_config_for_local_snapshot(
+        local_path,
+        snapshot,
+        linked_repo_origin_key=linked_repo_origin_key,
+    )
+
+
+def load_merged_config_for_local_snapshot(
+    local_path: Path | None,
+    snapshot: _LocalConfigTrustSnapshot,
+    *,
+    linked_repo_origin_key: str | None = None,
+) -> tuple[dict[str, Any], Any | None]:
+    """Merge against the supplied frozen local candidate and return its verdict."""
+    from sase.config._sources import load_merged_config_for_local_path
+
+    result = load_merged_config_for_local_path(
+        local_path,
+        linked_repo_origin_key=linked_repo_origin_key,
+        local_snapshot=snapshot,
+    )
+    return result, snapshot.evaluation
 
 
 # Unlike its configured counterpart in :mod:`sase.config._settings`, this one

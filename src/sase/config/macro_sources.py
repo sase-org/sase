@@ -13,6 +13,20 @@ from sase._yaml_safe import yaml_safe_load_cached_text
 log = logging.getLogger(__name__)
 
 
+class _MacroSourceList(list[tuple[str, dict[str, Any]]]):
+    """Macro contributions plus the local snapshot that produced the last one."""
+
+    def __init__(
+        self,
+        items: list[tuple[str, dict[str, Any]]],
+        *,
+        local_snapshot: Any | None,
+    ) -> None:
+        super().__init__(items)
+        self.local_snapshot = local_snapshot
+        self.local_trust = getattr(local_snapshot, "evaluation", None)
+
+
 def _normalized_macros(
     data: dict[str, Any] | None,
     *,
@@ -36,7 +50,8 @@ def load_macros_by_source(
     overlay_paths: list[Path],
     local_path: Path | None,
     resource_files: Callable[[Any], Any],
-) -> list[tuple[str, dict[str, Any]]]:
+    local_snapshot: Any | None = None,
+) -> _MacroSourceList:
     """Load macro entries from each config source in priority order."""
     from sase.main.plugin_discovery import discover_plugin_resources, is_plugin_disabled
 
@@ -85,23 +100,23 @@ def load_macros_by_source(
             results.append((f"config_overlay:{overlay_path.name}", macros))
 
     if local_path:
-        local_config = yaml_loader(local_path)
-        if isinstance(local_config, dict):
+        if local_snapshot is None:
             try:
-                from sase.config.local_trust_enforcement import effective_local_layer
+                from sase.config.core import local_config_snapshot
 
-                effective, _evaluation = effective_local_layer(local_path, local_config)
+                local_snapshot = local_config_snapshot(local_path)
             except Exception:
                 log.debug(
-                    "Local-command trust filtering failed closed for macros in %s",
+                    "Could not capture local config trust snapshot for %s",
                     local_path,
                     exc_info=True,
                 )
-                effective = {}
-            macros = _normalized_macros(effective, source="local_config")
-        else:
-            macros = _normalized_macros(local_config, source="local_config")
+        effective = getattr(local_snapshot, "effective", {})
+        macros = _normalized_macros(
+            effective if isinstance(effective, dict) else {},
+            source="local_config",
+        )
         if macros is not None:
             results.append(("local_config", macros))
 
-    return results
+    return _MacroSourceList(results, local_snapshot=local_snapshot)

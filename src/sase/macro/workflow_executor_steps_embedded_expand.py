@@ -242,6 +242,7 @@ class EmbeddedWorkflowExpandMixin:
                     is_pre_prompt_step=True,
                     step_index_offset=running_offset,
                     embedded_workflow_name=p.name,
+                    trust_descriptor=p.workflow.trust,
                 )
                 if not success:
                     raise WorkflowExecutionError(
@@ -363,6 +364,7 @@ class EmbeddedWorkflowExpandMixin:
                         post_steps=post_steps,
                         context=p.embedded_context,
                         workflow_name=p.name,
+                        trust=p.workflow.trust,
                     )
                 )
 
@@ -375,6 +377,7 @@ class EmbeddedWorkflowExpandMixin:
                         post_steps=post_steps,
                         context=p.embedded_context,
                         workflow_name=p.name,
+                        trust=p.workflow.trust,
                     )
                 )
 

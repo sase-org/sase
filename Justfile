@@ -531,12 +531,6 @@ _lint-symvision *args: _setup
     SASE_SYMVISION_BEAD_STATUS_ONLY=1 BD_COMMAND=tools/sase_bead {{ venv_bin }}/symvision src/sase \
         --exclude-decorator gate_command_entrypoint \
         --exclude-decorator builtin_chop \
-        --epic-symbol "sase-1sb.2.1(LocalCommandDigest)" \
-        --epic-symbol "sase-1sb.2.1(LocalCommandTrustError)" \
-        --epic-symbol "sase-1sb.2.1(LocalTrustDecision)" \
-        --epic-symbol "sase-1sb.2.1(LocalTrustFilterResult)" \
-        --epic-symbol "sase-1sb.2.1(digest_local_commands)" \
-        --epic-symbol "sase-1sb.2.1(local_command_trust_wire_schema_version)" \
         {{ args }}
 
 # Check Python file line counts (private, extracted for per-stage wrapping)

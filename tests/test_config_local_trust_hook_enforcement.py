@@ -20,6 +20,7 @@ import yaml
 from sase.config import local_trust_enforcement as enforcement
 from sase.config.core import (
     clear_config_cache,
+    load_merged_config,
     load_merged_config_for_local_path,
 )
 
@@ -486,7 +487,6 @@ def test_stale_token_same_size_mtime_still_blocks(
     os.utime(local, ns=(before_stat.st_atime_ns, before_stat.st_mtime_ns))
     assert local.stat().st_size == before_stat.st_size
     assert local.stat().st_mtime_ns == before_stat.st_mtime_ns
-    clear_config_cache()
     assert (
         load_merged_config_for_local_path(local)
         .get("commit_hooks", {})
@@ -494,3 +494,169 @@ def test_stale_token_same_size_mtime_still_blocks(
         != "echo yo"
     )
     from sase.config.file_hooks import _load_file_hooks  # noqa: F401  (cache key uses digest)
+
+
+def test_merged_config_cache_refreshes_after_revoke(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _root, local = _repo(
+        tmp_path,
+        monkeypatch,
+        "merged-revoke",
+        {"commit_hooks": {"before": "echo local"}, "timezone": "UTC"},
+        {"commit_hooks": {"before": "echo user"}},
+    )
+    identity, _digest = _allow_current(local)
+    first = load_merged_config()
+    assert first["commit_hooks"]["before"] == "echo local"
+    assert first["timezone"] == "UTC"
+    _revoke(identity)
+    second = load_merged_config()
+    assert second is not first
+    assert second["commit_hooks"]["before"] == "echo user"
+    assert second["timezone"] == "UTC"
+
+
+def test_rebase_load_retains_descriptor_when_revoked_before_retry(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root, local = _repo(
+        tmp_path,
+        monkeypatch,
+        "rebase-between",
+        {"commit_hooks": {"after_rebase": "echo gate"}},
+    )
+    identity, _digest = _allow_current(local)
+    from sase.workflows.commit import rebase_gate_settings as rebase
+    from sase.workflows.commit.rebase_gate_budget import GateWorkBudget
+
+    actual_load = rebase.load_merged_config_for_local_path
+
+    def revoke_after_snapshot(path: Path | None) -> tuple[dict, object]:
+        loaded = actual_load(path)
+        _revoke(identity)
+        return loaded
+
+    monkeypatch.setattr(
+        rebase, "load_merged_config_for_local_path", revoke_after_snapshot
+    )
+    settings, warning = rebase.load_after_rebase_gate_settings(
+        str(root), GateWorkBudget()
+    )
+    assert warning is None
+    assert settings is not None
+    assert settings.hook_command == "echo gate"
+    assert settings.trust is not None
+    with patch.object(rebase, "execute_gate") as execute:
+        rebase.run_after_rebase_gate({}, str(root), settings=settings)
+    execute.assert_not_called()
+
+
+def test_local_file_hook_requires_descriptor_when_flag_is_on() -> None:
+    from sase.file_hooks.runner import _local_run_blocked
+
+    assert "current trust" in (
+        _local_run_blocked({"source_layer": "local", "trust": None}) or ""
+    )
+
+
+def test_file_hook_payload_keeps_loaded_snapshot_across_cwd_and_edit(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr("sase.macro.loader.detect_project", lambda: "hook-snapshot")
+    root, local = _repo(
+        tmp_path,
+        monkeypatch,
+        "hook-snapshot",
+        {"file_hooks": [{"name": "local-hook", "command": "touch old"}]},
+    )
+    identity, digest_a = _allow_current(local)
+    from sase.config.file_hooks import _load_file_hooks
+    from sase.file_hooks.dispatch import _batch_payload
+    from sase.file_hooks.models import CapturedFileEvent
+    from sase.file_hooks.runner import _local_run_blocked
+
+    hooks = _load_file_hooks()
+    assert len(hooks) == 1
+    assert hooks[0].trust is not None
+    assert hooks[0].trust["digest"] == digest_a
+
+    other = tmp_path / "other-project"
+    (other / ".git").mkdir(parents=True)
+    other_local = other / "sase" / "sase.yml"
+    _write_yaml(
+        other_local,
+        {"file_hooks": [{"name": "local-hook", "command": "touch other"}]},
+    )
+    _write_yaml(
+        local,
+        {"file_hooks": [{"name": "local-hook", "command": "touch new"}]},
+    )
+    _identity_b, digest_b = _allow_current(local)
+    assert digest_b != digest_a
+    monkeypatch.chdir(other)
+
+    event = CapturedFileEvent(
+        abs_path=str(root / "report.md"),
+        repo_root=str(root),
+        project="hook-snapshot",
+        repo_kind="primary",
+        sidecar_role=None,
+        rel_path="report.md",
+        op="ADD",
+    )
+    payload = _batch_payload(
+        batch_id="snapshot-test",
+        events=[event],
+        hooks=hooks,
+        commit_sha=None,
+        producer="dispatch",
+    )
+    run = payload["runs"][0]
+    assert run["trust"]["identity"] == identity
+    assert run["trust"]["digest"] == digest_a
+    assert _local_run_blocked(run) is not None
+
+
+def test_file_hook_evaluation_error_omits_local_and_keeps_user(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _repo(
+        tmp_path,
+        monkeypatch,
+        "hook-evaluation-error",
+        {"file_hooks": [{"name": "local-hook", "command": "touch local"}]},
+        {"file_hooks": [{"name": "user-hook", "command": "touch user"}]},
+    )
+    import sase.config.core as core
+    from sase.config.file_hooks import _load_file_hooks
+
+    def fail_evaluation(*_args: object, **_kwargs: object) -> object:
+        raise RuntimeError("trust binding unavailable")
+
+    monkeypatch.setattr(core, "_trusted_effective_local_layer", fail_evaluation)
+    hooks = _load_file_hooks()
+    assert [hook.name for hook in hooks] == ["user-hook"]
+
+
+def test_file_hook_queued_off_snapshot_blocks_after_flag_turns_on(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from sase.feature_flags import override_flags
+    from sase.file_hooks.runner import _local_run_blocked
+
+    _repo(
+        tmp_path,
+        monkeypatch,
+        "hook-off-queue",
+        {"file_hooks": [{"name": "local-hook", "command": "touch queued"}]},
+    )
+    from sase.config.file_hooks import _load_file_hooks
+
+    with override_flags(local_config_command_trust=False):
+        hook = _load_file_hooks()[0]
+    assert hook.trust is not None
+    assert hook.trust["enabled"] is False
+    with override_flags(local_config_command_trust=True):
+        reason = _local_run_blocked({"source_layer": "local", "trust": hook.trust})
+    assert reason is not None

@@ -185,29 +185,46 @@ def load_workflows_from_config(project: str | None = None) -> dict[str, Workflow
     )
 
     all_workflows: dict[str, Workflow] = {}
-    lower_macros: dict[str, object] = {}
     sources = load_macros_by_source()
-    local_evaluation = None
+    local_snapshot = getattr(sources, "local_snapshot", None)
+    local_evaluation = getattr(sources, "local_trust", None)
+    lower_config: dict[str, object] = {}
+    composed_local_macros: dict[str, object] = {}
     try:
-        from sase.config.core import get_local_config_path
-        from sase.config.local_trust_enforcement import evaluate_local_trust_for_path
+        from sase.config.core import (
+            load_merged_config_for_local_snapshot,
+            load_merged_config_for_local_path,
+        )
 
-        local_path = get_local_config_path()
-        if local_path is not None:
-            local_evaluation = evaluate_local_trust_for_path(local_path, None)
+        lower_config = load_merged_config_for_local_path(None)
+        if local_snapshot is not None:
+            local_config, _ = load_merged_config_for_local_snapshot(
+                local_snapshot.path, local_snapshot
+            )
+            raw_composed = local_config.get("macros")
+            if isinstance(raw_composed, dict):
+                composed_local_macros = raw_composed
     except Exception:
-        local_evaluation = None
+        # A missing composition capability cannot safely turn a sparse local
+        # override into an executable workflow.
+        composed_local_macros = {}
+    lower_raw = lower_config.get("macros")
+    lower_macros = dict(lower_raw) if isinstance(lower_raw, dict) else {}
 
     for index, (source_label, macros_data) in enumerate(sources):
         _prompt_only, executable = partition_config_macros(
             macros_data,
-            lower_macros=lower_macros,
+            lower_macros=(lower_macros if source_label == "local_config" else None),
             source=source_label,
         )
-        lower_macros = {**lower_macros, **dict(macros_data)}
         parsed: dict[str, Workflow] = {}
         for name, value in executable.items():
-            mapping = workflow_mapping_from_macro_entry(value)
+            composed = (
+                composed_local_macros.get(name, value)
+                if source_label == "local_config"
+                else value
+            )
+            mapping = workflow_mapping_from_macro_entry(composed)
             if mapping is None:
                 continue
             workflow = load_workflow_from_mapping(name, mapping, source_label)
