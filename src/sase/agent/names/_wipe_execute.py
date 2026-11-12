@@ -8,7 +8,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from sase.agent.names._common import is_process_alive
-from sase.agent.names._registry import rebuild_name_registry
+from sase.agent.names._registry import delete_registered_name, rebuild_name_registry
 from sase.agent.names._wipe_payload import read_json_object
 from sase.agent.names._wipe_plan import WipePlan
 from sase.agent.user_kill import request_user_kill
@@ -70,6 +70,16 @@ def execute_wipe_plan(plan: WipePlan) -> _WipeExecution:
         except Exception:
             pass
     notifications = _dismiss_related_notifications(plan, errors)
+
+    # Rebuild copies leftover planned reservations from the previous
+    # registry, including boot-failed launches that never claimed a name.
+    # Drop those reservations before rebuild so wipe actually frees the
+    # owner; remaining artifacts can still re-derive the name.
+    for name in sorted(plan.names):
+        try:
+            delete_registered_name(name)
+        except Exception as exc:  # noqa: BLE001 - best-effort per name
+            errors.append(f"registry reservation release failed for {name}: {exc}")
 
     registry_names_removed = set(plan.names)
     try:

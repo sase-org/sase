@@ -7,7 +7,11 @@ from unittest.mock import patch
 
 import pytest
 
-from sase.agent.names import claim_registered_name, rebuild_name_registry
+from sase.agent.names import (
+    claim_registered_name,
+    rebuild_name_registry,
+    reserve_registered_name,
+)
 from sase.bead.cli_work_cleanup_apply import prepare_selected_bead_work_force_reuse
 from sase.bead.cli_work_cleanup_selection import select_bead_work_launch
 from sase.bead.cli_work_cleanup_types import (
@@ -137,6 +141,43 @@ def test_cleanup_verify_aborts_when_selected_artifact_disappears(
             selection=selection,
             bead_assignees={},
         )
+
+
+def test_cleanup_verify_wipes_stale_planned_reservation_with_missing_dir(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    home = tmp_path / "home"
+    name = "sase-x7.4"
+    monkeypatch.setattr(Path, "home", lambda: home)
+    missing = (
+        home
+        / ".sase"
+        / "projects"
+        / "proj"
+        / "artifacts"
+        / "ace-run"
+        / "20261112052956"
+    )
+    missing.parent.mkdir(parents=True, exist_ok=True)
+    reserve_registered_name(name, missing)
+    selection = select_bead_work_launch(slots=(_slot(name),), bead_assignees={})
+    assert len(selection.destructive_targets) == 1
+    target = selection.destructive_targets[0]
+    assert (target.action, target.current_state) == ("REMOVE", "planned")
+    assert target.artifacts_dir == ""
+
+    wiped: list[tuple[str, ...]] = []
+    monkeypatch.setattr(
+        "sase.bead.cli_work_cleanup_apply.wipe_force_reuse_owners",
+        lambda names, **_kwargs: wiped.append(tuple(names)),
+    )
+    prepare_selected_bead_work_force_reuse(
+        _force_reuse_query((name,)),
+        selection=selection,
+        bead_assignees={},
+    )
+
+    assert wiped == [(name,)]
 
 
 def test_cleanup_verify_wipes_failed_owner_with_dead_retry_assignee(

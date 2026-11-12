@@ -236,7 +236,11 @@ def _fresh_cleanup_target(
         return None
     artifacts_dir = owner.get("artifacts_dir")
     if isinstance(artifacts_dir, str) and artifacts_dir:
-        return None
+        # Planned boot-failure reservations keep an artifacts_dir pointer
+        # after the directory is gone. Abort only when a concrete artifact
+        # appeared after the stale-registry preview.
+        if _scan_cleanup_target_artifact(artifacts_dir) is not None:
+            return None
     if target.action == "RELEASE":
         return target
     return classify_stale_registry_owner(

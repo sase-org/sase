@@ -138,6 +138,8 @@ def write_bead_agent_meta(
     agent_session_role: str | None = None,
     agent_clan: str | None = None,
     agent_clan_generation: str | None = None,
+    nameless: bool = False,
+    stopped_at: str | None = None,
 ) -> Path:
     """Write a fake bead-associated agent artifact under ``home``."""
     artifact_dir = (
@@ -151,10 +153,13 @@ def write_bead_agent_meta(
     )
     artifact_dir.mkdir(parents=True)
     meta: dict[str, Any] = {
-        "name": name,
         "pid": os.getpid(),
         "model": "test",
     }
+    if not nameless:
+        meta["name"] = name
+    if stopped_at is not None:
+        meta["stopped_at"] = stopped_at
     if bead_id is not None:
         meta["bead_id"] = bead_id
         if "." in bead_id:

@@ -15,7 +15,9 @@ from sase.agent.names import (
     _wipe_scan,
     find_named_agent,
     get_reserved_agent_names,
+    lookup_registered_name,
     rebuild_name_registry,
+    reserve_registered_name,
     wipe_agent_name_for_reuse,
     wipe_agent_names_for_reuse,
 )
@@ -31,6 +33,7 @@ __all__ = [
     "test_wipe_deletes_artifact_index_rows_for_removed_dirs",
     "test_wipe_dismissed_bundle_only_agent_removes_bundle_and_index",
     "test_wipe_done_agent_clears_lookup_registry_and_notifications",
+    "test_wipe_releases_planned_reservation_for_nameless_boot_failure",
     "test_wipe_retry_chain_and_bundle_descendants",
     "test_wipe_workflow_parent_removes_children_and_followups",
 ]
@@ -75,6 +78,32 @@ def test_wipe_done_agent_clears_lookup_registry_and_notifications(
         assert find_named_agent("foo") is None
         assert json.loads(history_path.read_text(encoding="utf-8"))["prompts"]
         assert load_notifications(include_dismissed=True)[0].dismissed is True
+
+
+def test_wipe_releases_planned_reservation_for_nameless_boot_failure(
+    tmp_path: Path,
+) -> None:
+    artifacts_dir = make_wipe_artifact(tmp_path, "20261112052956", "foo")
+    meta_path = artifacts_dir / "agent_meta.json"
+    meta = json.loads(meta_path.read_text(encoding="utf-8"))
+    del meta["name"]
+    del meta["workflow_name"]
+    meta["stopped_at"] = "2026-11-12T05:29:56Z"
+    meta_path.write_text(json.dumps(meta), encoding="utf-8")
+
+    with patch.object(Path, "home", return_value=tmp_path):
+        reserve_registered_name("foo", artifacts_dir)
+        assert lookup_registered_name("foo") is not None
+
+        result = wipe_agent_name_for_reuse("foo")
+
+        assert result.found is True
+        assert result.errors == ()
+        assert "foo" in result.registry_names_removed
+        assert str(artifacts_dir) in result.artifact_dirs_removed
+        assert lookup_registered_name("foo") is None
+        assert "foo" not in get_reserved_agent_names()
+        assert not artifacts_dir.exists()
 
 
 def test_wipe_deletes_artifact_index_rows_for_removed_dirs(tmp_path: Path) -> None:

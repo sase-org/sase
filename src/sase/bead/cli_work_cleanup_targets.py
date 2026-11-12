@@ -424,6 +424,11 @@ def classify_artifact_record(
             detail += " (no bead metadata; matched by agent session membership)"
         elif membership == "clan":
             detail += " (no bead metadata; matched by clan membership)"
+        elif _record_agent_name(record) is None:
+            detail += (
+                " (no agent identity metadata; boot-failed launch "
+                "owned by its registry reservation)"
+            )
         else:
             detail += " (no bead metadata; matched by registry owner name)"
     generation = str(getattr(record, "timestamp", ""))
@@ -562,6 +567,11 @@ def _require_record_association(
         if record_name and current_owner_agent_name_key(
             record_name, identity
         ) == current_owner_agent_name_key(owner_name, identity):
+            return
+        # A nameless record reached via registry membership was located
+        # through the owner's artifacts_dir pointer, so the reservation
+        # itself is the association.
+        if record_name is None and membership == "registry":
             return
     observed = ", ".join(sorted(bead_ids)) or "none"
     artifact = str(getattr(record, "artifact_dir", "")) or "unknown artifact directory"
