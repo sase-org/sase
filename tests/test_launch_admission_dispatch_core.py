@@ -9,6 +9,7 @@ import pytest
 
 from sase.agent.launch_types import AgentLaunchResult
 from sase.axe import run_agent_wait_slots
+from sase.agent.launch_admission_runtime import dispatch_agent_unit
 from sase.core.agent_launch_wire import LaunchUnitWire
 from tests._launch_admission_helpers import (
     agent_unit as _agent_unit,
@@ -45,15 +46,34 @@ def test_engine_dispatches_agent_after_empty_wait(
     assert progress.summary.launched == 1
     assert progress.summary.launch_errors == 0
     assert len(dispatched) == 1
-    replay, _ = _run_plan(
-        tmp_path,
-        _plan(_agent_unit("unit-1")),
-        request_id="req-1",
-        agent_dispatcher=dispatcher,
+
+
+def test_agent_request_marks_dispatched_prompt_as_agent_authored(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from sase.agent.launch_provenance import PROMPT_AUTHORSHIP_ENV
+
+    captured: dict[str, str] = {}
+
+    def launch_agents(
+        _prompt: str,
+        *,
+        extra_env: dict[str, str],
+        **_kwargs: object,
+    ) -> list[AgentLaunchResult]:
+        captured.update(extra_env)
+        return [_agent_result(tmp_path)]
+
+    monkeypatch.setattr("sase.agent.launcher.launch_agents_from_cwd", launch_agents)
+    ok, _identity, _error, _results, _extra = dispatch_agent_unit(
+        _agent_unit("unit-agent"),
+        "f" * 64,
+        prompt_authored_by_agent=True,
     )
-    assert replay.summary is not None
-    assert replay.summary.launched == 1
-    assert len(dispatched) == 1
+
+    assert ok
+    assert captured[PROMPT_AUTHORSHIP_ENV] == "agent"
 
 
 def test_partial_success_keeps_launched_identity(tmp_path: Path) -> None:

@@ -535,6 +535,7 @@ def test_approve_launch_response_dispatches_stored_request(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     from sase.env_contracts import SASE_LAUNCH_SUBMITTED_AT_ENV
+    from sase.agent.launch_provenance import PROMPT_AUTHORSHIP_ENV
 
     response_dir = tmp_path / "launch"
     launch_cwd = tmp_path / "workspace"
@@ -587,7 +588,10 @@ def test_approve_launch_response_dispatches_stored_request(
     assert seen == {
         "prompt": "%i(reviewer, session=foo)\nDo work",
         "cwd": launch_cwd,
-        "extra_env": {SASE_LAUNCH_SUBMITTED_AT_ENV: submitted_at},
+        "extra_env": {
+            SASE_LAUNCH_SUBMITTED_AT_ENV: submitted_at,
+            PROMPT_AUTHORSHIP_ENV: "human",
+        },
         "origin": "generated",
     }
     assert result.launched_count == 1

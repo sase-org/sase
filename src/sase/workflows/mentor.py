@@ -44,7 +44,7 @@ from sase.workflows.utils import get_cl_name_from_branch
 from sase.macro import escape_for_macro
 from sase.macro.output_validation import extract_structured_content
 from sase.macro.tags import MacroTag, get_by_tag, get_by_tag_strict
-from sase.macro.workflow_executor_utils import render_template
+from sase.macro.workflow_executor_utils import render_prompt_template
 
 log = logging.getLogger(__name__)
 
@@ -109,7 +109,7 @@ def _build_mentor_prompt(
             "The #mentor macro has no prompt_part step. "
             "Check src/sase/macros/mentor.yml."
         )
-    return render_template(prompt_part_content, context)
+    return render_prompt_template(prompt_part_content, context)
 
 
 def _build_mentor_prompt_invocation(

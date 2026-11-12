@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable
+import os
 from typing import TYPE_CHECKING, Any
 
 from sase.artifacts import convert_timestamp_to_artifacts_format
@@ -89,6 +90,11 @@ def continue_as_inprocess_successor(
     state.current_role_suffix = suffix
     if request.before_create is not None:
         request.before_create(suffix, successor_name)
+    from sase.agent.launch_provenance import PROMPT_AUTHORSHIP_ENV
+
+    # This prompt came from the current model turn even when the original
+    # agent was launched from a human-typed prompt.
+    os.environ[PROMPT_AUTHORSHIP_ENV] = "agent"
     relationships = dict(request.relationships or {})
     explicit_selection = _explicit_autonomy_selection(request.prompt)
     if (

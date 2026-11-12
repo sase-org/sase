@@ -538,6 +538,14 @@ def test_detached_successor_launch_is_reserved_once_with_saved_prompt(
     spawn.assert_called_once()
     assert spawn.call_args.kwargs["timestamp"] == "20261031010101"
     assert spawn.call_args.kwargs["prompt"] == launch_prompt
+    from sase.agent.launch_provenance import (
+        PROMPT_AUTHORSHIP_ENV,
+        PROMPT_ORIGIN_ENV,
+    )
+
+    child_env = spawn.call_args.kwargs["extra_env"]
+    assert child_env[PROMPT_AUTHORSHIP_ENV] == "agent"
+    assert child_env[PROMPT_ORIGIN_ENV] == "generated"
     monkeypatch.setenv(STAGED_SUCCESSOR_ORIGIN_DIR_ENV, str(origin))
     monkeypatch.setenv(STAGED_SUCCESSOR_ID_ENV, staged_id)
     assert mark_detached_successor_started_from_environment()

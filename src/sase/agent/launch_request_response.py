@@ -190,12 +190,18 @@ def dispatch_approved_launch_request(
 
         from sase.agent.launch_submission import LEGACY_NO_SUBMISSION_STAMP
         from sase.env_contracts import SASE_LAUNCH_SUBMITTED_AT_ENV
+        from sase.agent.launch_provenance import PROMPT_AUTHORSHIP_ENV
 
         stamp = data.get("launch_submitted_at")
+        requester = data.get("requester")
+        prompt_authored_by_agent = isinstance(requester, Mapping) and bool(
+            requester.get("SASE_AGENT")
+        )
         extra_env = {
             SASE_LAUNCH_SUBMITTED_AT_ENV: (
                 stamp if isinstance(stamp, str) else LEGACY_NO_SUBMISSION_STAMP
-            )
+            ),
+            PROMPT_AUTHORSHIP_ENV: ("agent" if prompt_authored_by_agent else "human"),
         }
         results = launcher_mod.launch_agents_from_cwd(
             prompt,

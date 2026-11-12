@@ -27,7 +27,10 @@ from sase.macro.workflow_executor_steps_embedded_types import (
     format_inline_workflow_reference_error,
     parse_workflow_reference_args,
 )
-from sase.macro.workflow_executor_utils import render_template
+from sase.macro.workflow_executor_utils import (
+    render_prompt_template,
+    render_template,
+)
 from sase.macro.workflow_models import (
     Workflow,
     WorkflowExecutionError,
@@ -271,7 +274,7 @@ class EmbeddedWorkflowExpandMixin:
             else:
                 prompt_part_content = p.workflow.get_prompt_part_content()
             if prompt_part_content:
-                prompt_part_content = render_template(
+                prompt_part_content = render_prompt_template(
                     prompt_part_content, p.embedded_context
                 )
                 is_at_line_start = (

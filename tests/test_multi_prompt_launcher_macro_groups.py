@@ -162,6 +162,7 @@ def test_launch_agents_from_cwd_segment_extra_env_shares_macro_group_counter(
 ) -> None:
     """Per-segment expansion with env still separates macro invocations."""
     from sase.env_contracts import SASE_LAUNCH_SUBMITTED_AT_ENV
+    from sase.agent.launch_provenance import PROMPT_AUTHORSHIP_ENV
     from sase.agent.launcher import launch_agents_from_cwd
 
     del mock_project, mock_history
@@ -208,16 +209,33 @@ def test_launch_agents_from_cwd_segment_extra_env_shares_macro_group_counter(
         for entry in kwargs["segment_extra_env"]
     ]
     assert stripped_env == [
-        {"SLOT": "one", SASE_LAUNCH_SUBMITTED_AT_ENV: submitted_at},
-        {"SLOT": "one", SASE_LAUNCH_SUBMITTED_AT_ENV: submitted_at},
-        {"SLOT": "two", SASE_LAUNCH_SUBMITTED_AT_ENV: submitted_at},
-        {"SLOT": "two", SASE_LAUNCH_SUBMITTED_AT_ENV: submitted_at},
+        {
+            "SLOT": "one",
+            SASE_LAUNCH_SUBMITTED_AT_ENV: submitted_at,
+            PROMPT_AUTHORSHIP_ENV: "agent",
+        },
+        {
+            "SLOT": "one",
+            SASE_LAUNCH_SUBMITTED_AT_ENV: submitted_at,
+            PROMPT_AUTHORSHIP_ENV: "agent",
+        },
+        {
+            "SLOT": "two",
+            SASE_LAUNCH_SUBMITTED_AT_ENV: submitted_at,
+            PROMPT_AUTHORSHIP_ENV: "agent",
+        },
+        {
+            "SLOT": "two",
+            SASE_LAUNCH_SUBMITTED_AT_ENV: submitted_at,
+            PROMPT_AUTHORSHIP_ENV: "agent",
+        },
     ]
     for entry in kwargs["segment_extra_env"]:
         assert entry is not None
         assert set(entry) - {"SLOT", SASE_LAUNCH_SUBMITTED_AT_ENV} == {
             "SASE_PROMPT_ORIGIN",
             "SASE_PROMPT_SOURCE_SURFACE",
+            PROMPT_AUTHORSHIP_ENV,
         }
     assert kwargs["segment_template_groups"] == [
         "macro:swarm:0",
@@ -252,6 +270,7 @@ def test_launch_agents_from_cwd_force_reuse_marker_applies_to_first_swarm_slot_o
     expanded slot would let more than one spawned agent try to consume it.
     """
     from sase.env_contracts import SASE_LAUNCH_SUBMITTED_AT_ENV
+    from sase.agent.launch_provenance import PROMPT_AUTHORSHIP_ENV
     from sase.agent.force_reuse_bead import SASE_AGENT_FORCE_REUSE_BEAD_ENV
     from sase.agent.launcher import launch_agents_from_cwd
 
@@ -300,10 +319,22 @@ def test_launch_agents_from_cwd_force_reuse_marker_applies_to_first_swarm_slot_o
         for entry in kwargs["segment_extra_env"]
     ]
     assert stripped_env == [
-        {**marker, SASE_LAUNCH_SUBMITTED_AT_ENV: submitted_at},
+        {
+            **marker,
+            SASE_LAUNCH_SUBMITTED_AT_ENV: submitted_at,
+            PROMPT_AUTHORSHIP_ENV: "agent",
+        },
         None,
-        {"SLOT": "two", SASE_LAUNCH_SUBMITTED_AT_ENV: submitted_at},
-        {"SLOT": "two", SASE_LAUNCH_SUBMITTED_AT_ENV: submitted_at},
+        {
+            "SLOT": "two",
+            SASE_LAUNCH_SUBMITTED_AT_ENV: submitted_at,
+            PROMPT_AUTHORSHIP_ENV: "agent",
+        },
+        {
+            "SLOT": "two",
+            SASE_LAUNCH_SUBMITTED_AT_ENV: submitted_at,
+            PROMPT_AUTHORSHIP_ENV: "agent",
+        },
     ]
     assert SASE_AGENT_FORCE_REUSE_BEAD_ENV in kwargs["segment_extra_env"][0]
     for entry in kwargs["segment_extra_env"][1:]:

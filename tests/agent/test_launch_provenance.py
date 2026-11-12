@@ -5,6 +5,7 @@ from __future__ import annotations
 import pytest
 
 from sase.agent.launch_provenance import (
+    PROMPT_AUTHORSHIP_ENV,
     PROMPT_ORIGIN_ENV,
     PROMPT_SOURCE_SURFACE_ENV,
     fill_launch_provenance_default,
@@ -62,6 +63,7 @@ def test_with_launch_provenance_does_not_mutate_input() -> None:
     stamped = with_launch_provenance(extra, origin="typed", source_surface="ace")
     assert extra == {"A": "b"}
     assert stamped[PROMPT_ORIGIN_ENV] == "typed"
+    assert stamped[PROMPT_AUTHORSHIP_ENV] == "human"
     assert stamped[PROMPT_SOURCE_SURFACE_ENV] == "ace"
 
 
@@ -69,6 +71,7 @@ def test_with_launch_provenance_keeps_outer_stamp() -> None:
     extra = {PROMPT_ORIGIN_ENV: "typed", PROMPT_SOURCE_SURFACE_ENV: "ace"}
     stamped = with_launch_provenance(extra, origin="generated")
     assert stamped[PROMPT_ORIGIN_ENV] == "typed"
+    assert stamped[PROMPT_AUTHORSHIP_ENV] == "human"
     assert stamped[PROMPT_SOURCE_SURFACE_ENV] == "ace"
 
 
@@ -77,12 +80,14 @@ def test_fill_default_inherits_valid_ambient() -> None:
         None, env={PROMPT_ORIGIN_ENV: "typed", PROMPT_SOURCE_SURFACE_ENV: "ace"}
     )
     assert stamped[PROMPT_ORIGIN_ENV] == "typed"
+    assert stamped[PROMPT_AUTHORSHIP_ENV] == "human"
     assert stamped[PROMPT_SOURCE_SURFACE_ENV] == "ace"
 
 
 def test_fill_default_is_generated_without_ambient() -> None:
     stamped = fill_launch_provenance_default(None, env={})
     assert stamped[PROMPT_ORIGIN_ENV] == "generated"
+    assert stamped[PROMPT_AUTHORSHIP_ENV] == "agent"
     assert stamped[PROMPT_SOURCE_SURFACE_ENV] == "unknown"
 
 
@@ -92,6 +97,15 @@ def test_fill_default_never_overwrites_explicit_stamp() -> None:
         env={PROMPT_ORIGIN_ENV: "generated"},
     )
     assert stamped[PROMPT_ORIGIN_ENV] == "typed"
+
+
+def test_explicit_prompt_authorship_survives_generated_dispatch() -> None:
+    stamped = with_launch_provenance(
+        {PROMPT_AUTHORSHIP_ENV: "human"},
+        origin="generated",
+    )
+
+    assert stamped[PROMPT_AUTHORSHIP_ENV] == "human"
 
 
 def test_read_launch_provenance_missing_is_unknown() -> None:

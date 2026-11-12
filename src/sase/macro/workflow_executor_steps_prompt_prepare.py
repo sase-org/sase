@@ -149,8 +149,11 @@ class PromptStepPrepareMixin:
         ref_contexts = prompt_ref_contexts_for_segment_vcs_refs(
             early.segment_vcs_refs, is_home_mode=False
         )
+        from sase.agent.launch_provenance import prompt_authored_by_agent
+
         expanded_prompt = preprocess_prompt_late(
             expanded_prompt,
+            agent_authored=prompt_authored_by_agent(),
             ref_contexts=ref_contexts,
             materialize_missing_roots=True,
         )

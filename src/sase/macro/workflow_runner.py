@@ -456,13 +456,13 @@ def execute_workflow(
     # Handle simple macros: convert prompt_part to prompt step so they go
     # through WorkflowExecutor (producing workflow_state.json and markers)
     if workflow.is_simple_macro():
-        from sase.macro.workflow_executor_utils import render_template
+        from sase.macro.workflow_executor_utils import render_prompt_template
         from sase.macro.workflow_models import Workflow as WfModel
 
         render_ctx = _bind_workflow_args(workflow, positional_args, named_args)
 
         content = workflow.get_prompt_part_content()
-        rendered = render_template(content, render_ctx)
+        rendered = render_prompt_template(content, render_ctx)
         workflow = WfModel(
             name=workflow.name,
             inputs=[],
@@ -628,7 +628,7 @@ def expand_workflow_for_embedding(
     Raises:
         WorkflowValidationError: If workflow not found.
     """
-    from sase.macro.workflow_executor_utils import render_template
+    from sase.macro.workflow_executor_utils import render_prompt_template
 
     workflows = get_all_workflows()
     if workflow_name not in workflows:
@@ -649,7 +649,7 @@ def expand_workflow_for_embedding(
         # Render with just the input args for now
         # The full context (with pre-step outputs) will be used at execution time
         # when the prompt_part is actually expanded
-        prompt_part_content = render_template(prompt_part_content, args)
+        prompt_part_content = render_prompt_template(prompt_part_content, args)
 
     return prompt_part_content, pre_steps, post_steps
 

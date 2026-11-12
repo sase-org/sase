@@ -14,7 +14,10 @@ from sase.macro.workflow_executor_types import (
     WorkflowSuspended,
     output_types_from_step,
 )
-from sase.macro.workflow_executor_utils import render_template
+from sase.macro.workflow_executor_utils import (
+    render_prompt_template,
+    render_template,
+)
 from sase.macro.workflow_models import (
     StepState,
     StepStatus,
@@ -302,7 +305,7 @@ class EmbeddedWorkflowMixin(EmbeddedWorkflowExpandMixin):
         # Return content, rendered with the tagged context if available.
         content = prompt_part_step.prompt_part or ""
         if content and tagged_ctx:
-            content = render_template(content, tagged_ctx)
+            content = render_prompt_template(content, tagged_ctx)
         return content, len(pre_steps)
 
     def _propagate_last_embedded_output(

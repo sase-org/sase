@@ -120,7 +120,7 @@ class ParallelMixin:
             EmbeddedWorkflowInfo list).
         """
         from sase.macro import process_macro_references
-        from sase.macro.workflow_executor_utils import render_template
+        from sase.macro.workflow_executor_utils import render_prompt_template
 
         modified_steps: list[WorkflowStep] = []
         all_embedded_workflows: list[EmbeddedWorkflowInfo] = []
@@ -132,7 +132,7 @@ class ParallelMixin:
                 continue
 
             # Full prompt expansion pipeline (same as _execute_prompt_step)
-            rendered = render_template(ns.agent, self.context)
+            rendered = render_prompt_template(ns.agent, self.context)
             expanded = process_macro_references(
                 rendered, extra_macros=self.workflow.macros
             )

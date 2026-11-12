@@ -6,6 +6,7 @@ import re
 import shlex
 from collections.abc import Mapping
 from typing import Any
+from uuid import uuid4
 
 from jinja2 import Environment, StrictUndefined
 
@@ -16,6 +17,7 @@ from sase.env_contracts import (
 from sase.macro._disabled_regions import (
     protect_disabled_regions,
     unprotect_disabled_regions,
+    wrap_disabled_region,
 )
 from sase.macro.jinja_filters import register_prompt_filters
 
@@ -212,6 +214,78 @@ def render_python_template(template: str, context: dict[str, Any]) -> str:
         The rendered Python source with every interpolation repr-quoted.
     """
     return _render_with_env(template, context, _create_python_jinja_env())
+
+
+def _wrap_model_output_values(
+    value: Any,
+    replacements: dict[str, str],
+    *,
+    nonce: str,
+) -> Any:
+    """Wrap workflow model output fields before they enter a prompt template."""
+    if isinstance(value, Mapping):
+        wrapped: dict[str, Any] = {}
+        changed = False
+        for key, item in value.items():
+            if key in {"_raw", "_response"} and isinstance(item, str):
+                placeholder = f"__SASE_MODEL_OUTPUT_{nonce}_{len(replacements)}__"
+                replacements[placeholder] = wrap_disabled_region(item)
+                wrapped[str(key)] = placeholder
+                changed = True
+            else:
+                wrapped_item = _wrap_model_output_values(
+                    item, replacements, nonce=nonce
+                )
+                wrapped[str(key)] = wrapped_item
+                changed = changed or wrapped_item is not item
+        return wrapped if changed else value
+    if isinstance(value, list):
+        wrapped_list = [
+            _wrap_model_output_values(item, replacements, nonce=nonce) for item in value
+        ]
+        return (
+            wrapped_list
+            if any(
+                wrapped_item is not item
+                for wrapped_item, item in zip(wrapped_list, value, strict=True)
+            )
+            else value
+        )
+    if isinstance(value, tuple):
+        wrapped_tuple = tuple(
+            _wrap_model_output_values(item, replacements, nonce=nonce) for item in value
+        )
+        return (
+            wrapped_tuple
+            if any(
+                wrapped_item is not item
+                for wrapped_item, item in zip(wrapped_tuple, value, strict=True)
+            )
+            else value
+        )
+    return value
+
+
+def render_prompt_template(template: str, context: dict[str, Any]) -> str:
+    """Render prompt Jinja with model output held inside disabled regions."""
+    replacements: dict[str, str] = {}
+    rendered = render_template(
+        template,
+        _wrap_model_output_values(context, replacements, nonce=uuid4().hex),
+    )
+    for placeholder, protected_value in replacements.items():
+        start = rendered.find(placeholder)
+        if start < 0:
+            continue
+        end = start + len(placeholder)
+        prefix = rendered[:start]
+        suffix = rendered[end:]
+        if prefix and not prefix.endswith("\n"):
+            prefix += "\n"
+        if suffix and not suffix.startswith("\n"):
+            suffix = "\n" + suffix
+        rendered = prefix + protected_value + suffix
+    return rendered
 
 
 def parse_bash_output(output: str) -> dict[str, Any]:

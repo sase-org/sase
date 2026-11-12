@@ -104,6 +104,7 @@ def dispatch_agent_unit(
     source_cwd: str | None = None,
     request_id: str | None = None,
     launch_submitted_at: str | None = None,
+    prompt_authored_by_agent: bool = False,
 ) -> DispatchResultWithExtra:
     """Dispatch one eligible agent through the established launch path."""
 
@@ -114,6 +115,9 @@ def dispatch_agent_unit(
         "SASE_LAUNCH_DISPATCH_FINGERPRINT": fingerprint,
         "SASE_LAUNCH_LOGICAL_ID": unit.logical_id,
     }
+    from sase.agent.launch_provenance import PROMPT_AUTHORSHIP_ENV
+
+    extra_env[PROMPT_AUTHORSHIP_ENV] = "agent" if prompt_authored_by_agent else "human"
     if launch_submitted_at is not None:
         from sase.env_contracts import SASE_LAUNCH_SUBMITTED_AT_ENV
 
@@ -174,6 +178,10 @@ def make_approved_agent_dispatcher(
         from sase.agent.launch_submission import LEGACY_NO_SUBMISSION_STAMP
 
         launch_submitted_at = LEGACY_NO_SUBMISSION_STAMP
+    requester = data.get("requester")
+    prompt_authored_by_agent = isinstance(requester, Mapping) and bool(
+        requester.get("SASE_AGENT")
+    )
     dispatch = data.get("dispatch")
     source_cwd = None
     if isinstance(dispatch, Mapping) and dispatch.get("cwd"):
@@ -190,6 +198,7 @@ def make_approved_agent_dispatcher(
             source_cwd=source_cwd,
             request_id=request_id,
             launch_submitted_at=launch_submitted_at,
+            prompt_authored_by_agent=prompt_authored_by_agent,
         )
 
     return _dispatch

@@ -99,13 +99,13 @@ def preprocess_prompt_early(
 
     # 1. Optional Jinja2 rendering (workflow variables)
     if context is not None:
-        from sase.macro.workflow_executor_utils import render_template
+        from sase.macro.workflow_executor_utils import render_prompt_template
 
         fenced_blocks: list[str] = []
         prompt = protect_fenced_blocks(prompt, fenced_blocks)
         disabled_regions: list[str] = []
         prompt = protect_disabled_regions(prompt, disabled_regions)
-        prompt = render_template(prompt, context)
+        prompt = render_prompt_template(prompt, context)
         prompt = unprotect_disabled_regions(prompt, disabled_regions)
         prompt = unprotect_fenced_blocks(prompt, fenced_blocks)
 
@@ -123,7 +123,10 @@ def preprocess_prompt_early(
     #    built into extract_prompt_directives). Preserve disabled region
     #    markers so preprocess_prompt_late can still protect their contents
     #    from command substitution and file-reference validation.
+    directive_disabled_regions: list[str] = []
+    prompt = protect_disabled_regions(prompt, directive_disabled_regions)
     prompt, directives = extract_prompt_directives(prompt, strip_disabled_markers=False)
+    prompt = unprotect_disabled_regions(prompt, directive_disabled_regions)
 
     from sase.artifact_ref_prompt_context import prompt_segment_vcs_refs
     from sase.continuation_capture import (
@@ -145,6 +148,7 @@ def preprocess_prompt_early(
 def preprocess_prompt_late(
     prompt: str,
     *,
+    agent_authored: bool = False,
     file_ref_mode: FileRefMode = "process",
     is_home_mode: bool = False,
     ref_contexts: Sequence[PromptRefContext] | None = None,
@@ -154,7 +158,7 @@ def preprocess_prompt_late(
 
     Steps:
         1. Protect fenced code blocks.
-        2. ``$(cmd)`` command substitution.
+        2. ``$(cmd)`` command substitution for human-authored prompts.
         3. ``@kind:payload`` artifact reference expansion or validation into
            portable prose (and, for explicit custom path-bound formats, path
            tokens).
@@ -167,6 +171,8 @@ def preprocess_prompt_late(
     Args:
         prompt: The prompt text (output of early phase or embedded-workflow
             expansion).
+        agent_authored: If True, skip host-side ``$(cmd)`` execution because
+            the prompt body came from an agent-generated launch.
         file_ref_mode: How to handle ``@path`` references.
         is_home_mode: If True, skip file copying for ``@`` file references.
         ref_contexts: Per-segment builtin artifact-ref resolution contexts,
@@ -201,8 +207,10 @@ def preprocess_prompt_late(
     fenced_blocks: list[str] = []
     prompt = protect_fenced_blocks(prompt, fenced_blocks)
 
-    # 2. Command substitution
-    prompt = process_command_substitution(prompt)
+    # 2. Command substitution. Macros and artifact refs remain live for
+    # agent-authored prompts; only shell execution is provenance-gated.
+    if not agent_authored:
+        prompt = process_command_substitution(prompt)
 
     # 3. Artifact references first. Built-in expansions are portable prose and
     #    are not re-parsed as ``@path`` tokens; staged_artifact_paths still
@@ -259,6 +267,7 @@ def preprocess_prompt(
     *,
     is_home_mode: bool = False,
     materialize_missing_roots: bool = False,
+    agent_authored: bool | None = None,
 ) -> PreprocessResult:
     """Apply the full preprocessing pipeline to a raw prompt.
 
@@ -270,6 +279,8 @@ def preprocess_prompt(
         is_home_mode: If True, skip file copying for ``@`` file references.
         materialize_missing_roots: If True, clone missing document sidecar
             roots cited by artifact refs before resolving them.
+        agent_authored: Whether the prompt body came from an agent. When
+            omitted, use the authorship stamp provided by the launch funnel.
 
     Returns:
         A PreprocessResult with the cleaned prompt and extracted directives.
@@ -283,8 +294,13 @@ def preprocess_prompt(
     ref_contexts = prompt_ref_contexts_for_segment_vcs_refs(
         early.segment_vcs_refs, is_home_mode=is_home_mode
     )
+    if agent_authored is None:
+        from sase.agent.launch_provenance import prompt_authored_by_agent
+
+        agent_authored = prompt_authored_by_agent()
     final_prompt = preprocess_prompt_late(
         early.prompt,
+        agent_authored=agent_authored,
         is_home_mode=is_home_mode,
         ref_contexts=ref_contexts,
         materialize_missing_roots=materialize_missing_roots,

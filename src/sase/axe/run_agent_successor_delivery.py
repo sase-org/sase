@@ -389,6 +389,13 @@ def deliver_staged_successor_detached(
                 STAGED_SUCCESSOR_ORIGIN_DIR_ENV: str(origin),
                 STAGED_SUCCESSOR_ID_ENV: staged_id,
             }
+            from sase.agent.launch_provenance import (
+                PROMPT_AUTHORSHIP_ENV,
+                PROMPT_ORIGIN_ENV,
+            )
+
+            extra_env[PROMPT_AUTHORSHIP_ENV] = "agent"
+            extra_env[PROMPT_ORIGIN_ENV] = "generated"
             attach_data = successor.get("attach_plan")
             if isinstance(attach_data, dict):
                 from sase.agent._agent_session_attach_types import (

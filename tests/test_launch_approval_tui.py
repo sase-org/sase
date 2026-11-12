@@ -211,6 +211,7 @@ def test_tui_launch_approval_approve_dispatches_stored_request(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     from sase.env_contracts import SASE_LAUNCH_SUBMITTED_AT_ENV
+    from sase.agent.launch_provenance import PROMPT_AUTHORSHIP_ENV
 
     response_dir = tmp_path / "launch"
     launch_cwd = tmp_path / "workspace"
@@ -256,7 +257,10 @@ def test_tui_launch_approval_approve_dispatches_stored_request(
     assert seen == {
         "prompt": "%i(reviewer, session=foo)\nDo work",
         "cwd": launch_cwd,
-        "extra_env": {SASE_LAUNCH_SUBMITTED_AT_ENV: "2026-10-16T20:00:00.000000Z"},
+        "extra_env": {
+            SASE_LAUNCH_SUBMITTED_AT_ENV: "2026-10-16T20:00:00.000000Z",
+            PROMPT_AUTHORSHIP_ENV: "human",
+        },
         "origin": "generated",
     }
     assert json.loads((response_dir / "launch_response.json").read_text()) == {
@@ -412,6 +416,7 @@ def test_tui_launch_approval_dispatch_failure_records_failed_response(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     from sase.env_contracts import SASE_LAUNCH_SUBMITTED_AT_ENV
+    from sase.agent.launch_provenance import PROMPT_AUTHORSHIP_ENV
 
     response_dir = tmp_path / "launch"
     launch_cwd = tmp_path / "workspace"
@@ -446,7 +451,10 @@ def test_tui_launch_approval_dispatch_failure_records_failed_response(
 
     assert seen == {
         "prompt": "%i(reviewer, session=foo)\nDo work",
-        "extra_env": {SASE_LAUNCH_SUBMITTED_AT_ENV: "2026-10-16T20:00:00.000000Z"},
+        "extra_env": {
+            SASE_LAUNCH_SUBMITTED_AT_ENV: "2026-10-16T20:00:00.000000Z",
+            PROMPT_AUTHORSHIP_ENV: "human",
+        },
         "origin": "generated",
     }
     assert json.loads((response_dir / "launch_response.json").read_text()) == {

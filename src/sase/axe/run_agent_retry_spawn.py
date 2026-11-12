@@ -294,6 +294,13 @@ def spawn_retry_agent(
         ENV_RETRY_ATTEMPT: str(handoff.retry_attempt),
         ENV_RETRY_CHAIN_ROOT_TIMESTAMP: handoff.chain_root_timestamp,
     }
+    from sase.agent.launch_provenance import (
+        PROMPT_AUTHORSHIP_ENV,
+        PROMPT_ORIGIN_ENV,
+    )
+
+    extra_env[PROMPT_AUTHORSHIP_ENV] = "agent"
+    extra_env[PROMPT_ORIGIN_ENV] = "generated"
     # Carry the fallback model selection forward to the child process.
     if handoff.use_fallback and handoff.fallback_model:
         extra_env["SASE_MODEL_OVERRIDE"] = handoff.fallback_model

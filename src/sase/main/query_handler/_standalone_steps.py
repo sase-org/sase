@@ -167,7 +167,9 @@ def execute_standalone_steps(
             from sase.llm_provider import LLMInvocationError, invoke_agent
             from sase.macro import process_macro_references
 
-            rendered_prompt = render_template(step.agent, context)
+            from sase.macro.workflow_executor_utils import render_prompt_template
+
+            rendered_prompt = render_prompt_template(step.agent, context)
             expanded_prompt = process_macro_references(rendered_prompt)
 
             # Create temp artifacts dir if not provided

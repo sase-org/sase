@@ -29,6 +29,13 @@ PROMPT_ORIGIN_ENV = "SASE_PROMPT_ORIGIN"
 #: readers; ``unknown`` when the funnel does not know.
 PROMPT_SOURCE_SURFACE_ENV = "SASE_PROMPT_SOURCE_SURFACE"
 
+#: Child environment key identifying whether the submitted prompt body was
+#: authored by a human or by an agent. Unlike ``PROMPT_ORIGIN_ENV``, this is
+#: scoped to prompt preprocessing and may change for an in-process successor.
+PROMPT_AUTHORSHIP_ENV = "SASE_PROMPT_AUTHORSHIP"
+
+PROMPT_AUTHORSHIPS = ("human", "agent")
+
 #: The only values ``prompt_origin`` may hold in ``agent_meta.json``.
 PROMPT_ORIGINS = ("typed", "generated", "unknown")
 
@@ -47,6 +54,24 @@ def normalize_prompt_source_surface(value: object) -> str:
     if isinstance(value, str) and value.strip():
         return value.strip()
     return _UNKNOWN
+
+
+def _normalize_prompt_authorship(value: object) -> str:
+    """Return a known prompt author, defaulting unknown values to agent."""
+    if isinstance(value, str) and value in PROMPT_AUTHORSHIPS:
+        return value
+    return "agent"
+
+
+def prompt_authored_by_agent(env: Mapping[str, str] | None = None) -> bool:
+    """Return whether the current prompt body was authored by an agent."""
+    ambient = os.environ if env is None else env
+    value = ambient.get(PROMPT_AUTHORSHIP_ENV)
+    # Direct human-facing preprocessing commands may have no launch envelope.
+    # Agent subprocesses always receive an explicit stamp from a launch funnel.
+    if value is None:
+        return False
+    return _normalize_prompt_authorship(value) == "agent"
 
 
 def _prompt_origin_for_launch(
@@ -94,6 +119,10 @@ def with_launch_provenance(
     )
     stamped = dict(extra_env or {})
     stamped.setdefault(PROMPT_ORIGIN_ENV, resolved_origin)
+    stamped.setdefault(
+        PROMPT_AUTHORSHIP_ENV,
+        "human" if resolved_origin == "typed" else "agent",
+    )
     # An explicitly known surface wins over an absent one, but never
     # overwrites a stamp an outer funnel already placed.
     if source_surface and stamped.get(PROMPT_SOURCE_SURFACE_ENV) in (None, _UNKNOWN):
@@ -125,6 +154,10 @@ def fill_launch_provenance_default(
             stamped[PROMPT_ORIGIN_ENV] = ambient_origin
         else:
             stamped[PROMPT_ORIGIN_ENV] = "generated"
+    if stamped.get(PROMPT_AUTHORSHIP_ENV) not in PROMPT_AUTHORSHIPS:
+        stamped[PROMPT_AUTHORSHIP_ENV] = (
+            "human" if stamped.get(PROMPT_ORIGIN_ENV) == "typed" else "agent"
+        )
     if not stamped.get(PROMPT_SOURCE_SURFACE_ENV):
         ambient_surface = ambient.get(PROMPT_SOURCE_SURFACE_ENV)
         stamped[PROMPT_SOURCE_SURFACE_ENV] = normalize_prompt_source_surface(
@@ -169,12 +202,15 @@ def stamp_segment_provenance(
 
 __all__ = [
     "PROMPT_ORIGINS",
+    "PROMPT_AUTHORSHIP_ENV",
+    "PROMPT_AUTHORSHIPS",
     "PROMPT_ORIGIN_ENV",
     "PROMPT_SOURCE_SURFACE_ENV",
     "fill_launch_provenance_default",
     "normalize_prompt_origin",
     "normalize_prompt_source_surface",
     "read_launch_provenance",
+    "prompt_authored_by_agent",
     "stamp_segment_provenance",
     "with_launch_provenance",
 ]
