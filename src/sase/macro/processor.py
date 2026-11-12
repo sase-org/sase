@@ -25,7 +25,7 @@ from sase.content import (
     content_ends_with_markdown_heading,
 )
 
-from ._exceptions import MacroError
+from ._exceptions import LocalMacroTrustError, MacroError
 from ._jinja import (
     is_jinja2_template,
     render_toplevel_jinja2,
@@ -482,6 +482,15 @@ def process_macro_references_with_catalog(
 
     if extra_macros:
         macros = {**macros, **extra_macros}
+
+    extra_names = set(extra_macros) if extra_macros else None
+    _refuse_blocked_local_macro_refs(
+        prompt,
+        macros,
+        extra_names=extra_names,
+        raise_on_error=raise_on_error,
+    )
+
     if not macros:
         return prompt  # No macros defined
 
@@ -534,7 +543,9 @@ def process_macro_references_with_catalog(
             for match in reversed(matches):
                 name = match.group(1).replace("__", "/")
 
-                # Skip if this isn't a known macro
+                # Skip if this isn't a known macro. Blocked local
+                # executables were already refused above so a remaining
+                # catalog hit is a higher-priority filesystem namesake.
                 if name not in expandable_names:
                     continue
 
@@ -677,6 +688,36 @@ def process_macro_references_with_catalog(
     prompt = unprotect_owned_code_directives(prompt, owned_blocks)
 
     return prompt
+
+
+def _refuse_blocked_local_macro_refs(
+    prompt: str,
+    macros: dict[str, Macro],
+    *,
+    extra_names: set[str] | None,
+    raise_on_error: bool,
+) -> None:
+    """Abort expansion when the prompt names a blocked local executable macro."""
+    if "#" not in prompt:
+        return
+    from sase.macro.local_trust import blocked_local_macro_message
+
+    seen: set[str] = set()
+    for ref in iter_macro_references(prompt):
+        name = ref.name
+        if name in seen:
+            continue
+        seen.add(name)
+        message = blocked_local_macro_message(
+            name,
+            catalog_item=macros.get(name),
+            extra_names=extra_names,
+        )
+        if message:
+            _abort_expansion(
+                LocalMacroTrustError(message),
+                raise_on_error=raise_on_error,
+            )
 
 
 def _abort_expansion(error: MacroError, *, raise_on_error: bool) -> NoReturn:

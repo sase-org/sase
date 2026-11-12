@@ -6194,7 +6194,7 @@
         },
         "local_config_command_trust": {
           "type": "boolean",
-          "description": "Require human acknowledgment of project-local commands before hooks run",
+          "description": "Require human acknowledgment of project-local commands before hooks or config-defined workflows run",
           "default": true,
           "deprecated": true
         },

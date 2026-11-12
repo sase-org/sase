@@ -52,6 +52,12 @@ def handle_show(args: argparse.Namespace) -> int:
 
 
 def _print_lookup_miss(miss: ShowLookupMiss) -> None:
+    from sase.macro.local_trust import blocked_local_macro_message
+
+    blocked = blocked_local_macro_message(miss.name)
+    if blocked:
+        print(blocked, file=sys.stderr)
+        return
     print(f"unknown macro: {miss.name}", file=sys.stderr)
     if not miss.suggestions:
         return

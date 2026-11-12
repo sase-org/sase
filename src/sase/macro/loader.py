@@ -45,6 +45,7 @@ from .loader_sources import (
     get_sase_package_macros_dir,
     get_macro_search_paths,
     load_project_local_macros,
+    load_project_local_workflows,
     load_project_file_macros,
 )
 from .models import Macro
@@ -74,6 +75,7 @@ __all__ = [
     "get_macro_or_workflow",
     "get_macro_search_paths",
     "load_project_local_macros",
+    "load_project_local_workflows",
     "load_project_file_macros",
     "load_project_memory_macros",
     "load_project_skills",
@@ -128,6 +130,7 @@ def get_all_project_local_prompts() -> dict[str, "Workflow"]:
         }
         for name, xp in macros.items():
             all_workflows[name] = macro_to_workflow(xp)
+        all_workflows.update(load_project_local_workflows(ws_dir, project_name))
     return all_workflows
 
 
@@ -358,14 +361,28 @@ def get_macro_or_workflow(
     Returns:
         Macro or Workflow object if found, None otherwise.
     """
+    from sase.macro.local_trust import blocked_local_macro_message
+
     # Check macros first
     macros = get_all_macros(project=project)
     if name in macros:
-        return macros[name]
+        if (
+            blocked_local_macro_message(
+                name, catalog_item=macros[name], project=project
+            )
+            is None
+        ):
+            return macros[name]
 
     # Check workflows
     workflows = get_all_workflows(project=project)
     if name in workflows:
-        return workflows[name]
+        if (
+            blocked_local_macro_message(
+                name, catalog_item=workflows[name], project=project
+            )
+            is None
+        ):
+            return workflows[name]
 
     return None

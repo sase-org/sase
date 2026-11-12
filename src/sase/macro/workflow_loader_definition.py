@@ -45,6 +45,7 @@ def namespace_workflow(project: str, workflow: Workflow) -> Workflow:
         skill_name=workflow.skill_name,
         memory_type=workflow.memory_type,
         discovery_rank=workflow.discovery_rank,
+        trust=workflow.trust,
     )
 
 

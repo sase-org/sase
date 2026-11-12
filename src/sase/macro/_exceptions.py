@@ -17,3 +17,9 @@ class DirectiveError(MacroError):
     """Raised when a prompt directive is invalid (e.g., duplicate known directive)."""
 
     pass
+
+
+class LocalMacroTrustError(MacroError):
+    """Raised when an explicit local executable macro is blocked by trust."""
+
+    pass

@@ -168,6 +168,7 @@ class Workflow:
     memory_type: MemoryType | None = None
     discovery_rank: int | None = None
     is_anonymous_workflow: bool = False
+    trust: dict[str, Any] | None = None
 
     def has_tag(self, tag: MacroTag) -> bool:
         """Check if this workflow has the given tag."""

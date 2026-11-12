@@ -4,7 +4,7 @@ import importlib.resources
 import logging
 from collections.abc import Iterator, Sequence
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import yaml  # type: ignore[import-untyped]
 
@@ -54,6 +54,9 @@ from .models import InputArg, Macro, MacroValidationError
 from .reserved_namespaces import reject_reserved_memory_namespace
 from .tags import parse_tags
 
+if TYPE_CHECKING:
+    from sase.macro.workflow_models import Workflow
+
 log = logging.getLogger(__name__)
 
 
@@ -79,6 +82,7 @@ def namespace_macro(project: str, xp: Macro) -> Macro:
         local_macros=xp.local_macros,
         memory_type=xp.memory_type,
         discovery_rank=xp.discovery_rank,
+        trust=xp.trust,
     )
 
 
@@ -322,11 +326,20 @@ def load_macros_from_config(project: str | None = None) -> dict[str, Macro]:
     Returns:
         Dictionary mapping macro name to Macro object.
     """
+    from sase.macro.local_trust import partition_config_macros
+
     all_macros: dict[str, Macro] = {}
+    lower_macros: dict[str, Any] = {}
 
     sources = load_macros_by_source()
     for index, (source_label, macros_data) in enumerate(sources):
-        parsed = parse_macro_entries(macros_data, source_label)
+        prompt_only, _executable = partition_config_macros(
+            macros_data,
+            lower_macros=lower_macros,
+            source=source_label,
+        )
+        lower_macros = {**lower_macros, **dict(macros_data)}
+        parsed = parse_macro_entries(prompt_only, source_label)
         if project and source_label == "local_config":
             parsed = {
                 f"{project}/{name}": namespace_macro(project, xp)
@@ -609,19 +622,111 @@ def load_project_local_macros(workspace_dir: Path, project: str) -> dict[str, Ma
         return {}
 
     from sase.legacy_xprompt_syntax import normalize_frontmatter_macros
+    from sase.macro.local_trust import partition_config_macros
 
+    try:
+        from sase.config.local_trust_enforcement import effective_local_layer
+
+        effective, _evaluation = effective_local_layer(sase_yml, data)
+    except Exception:
+        log.debug(
+            "Local-command trust filtering failed closed for project macros in %s",
+            sase_yml,
+            exc_info=True,
+        )
+        effective = {}
+
+    source_label = f"project_local_config:{project}"
     macros_data: dict[str, Any] = normalize_frontmatter_macros(
-        data, source=f"project_local_config:{project}"
+        effective, source=source_label
     )
     if not macros_data:
         return {}
 
-    source_label = f"project_local_config:{project}"
-    parsed = parse_macro_entries(macros_data, source_label)
+    prompt_only, _executable = partition_config_macros(
+        macros_data,
+        source=source_label,
+    )
+    parsed = parse_macro_entries(prompt_only, source_label)
     namespaced = {
         f"{project}/{name}": namespace_macro(project, xp) for name, xp in parsed.items()
     }
     return assign_discovery_rank(namespaced, RANK_PROJECT_CONFIG)
+
+
+def load_project_local_workflows(
+    workspace_dir: Path, project: str
+) -> dict[str, "Workflow"]:
+    """Load executable config macros from a project's ``sase.yml``.
+
+    Reads the selected project config directly, applies the shared trust
+    filter, and returns namespaced workflows for command-bearing entries.
+    Prompt-only macros stay in :func:`load_project_local_macros`.
+    """
+    from sase.legacy_xprompt_syntax import normalize_frontmatter_macros
+    from sase.macro.local_trust import (
+        attach_local_trust,
+        partition_config_macros,
+        workflow_mapping_from_macro_entry,
+    )
+    from sase.macro.workflow_loader_definition import (
+        load_workflow_from_mapping,
+        namespace_workflow,
+    )
+    from sase.macro.workflow_models import Workflow
+
+    sase_yml = resolve_project_config_read_path(
+        workspace_dir,
+        label=f"project config for {project}",
+    )
+    if sase_yml is None:
+        return {}
+
+    try:
+        with open(sase_yml, encoding="utf-8") as handle:
+            data = yaml.safe_load(handle)
+    except Exception as exc:
+        log.debug("Failed to load project sase.yml: %s", sase_yml, exc_info=True)
+        record_load_issue(sase_yml, exc, kind="config")
+        return {}
+
+    if not isinstance(data, dict):
+        return {}
+
+    try:
+        from sase.config.local_trust_enforcement import evaluate_local_trust_for_path
+
+        evaluation = evaluate_local_trust_for_path(sase_yml, data)
+        effective = evaluation.effective_layer
+    except Exception:
+        log.debug(
+            "Local-command trust filtering failed closed for project workflows in %s",
+            sase_yml,
+            exc_info=True,
+        )
+        return {}
+
+    source_label = f"project_local_config:{project}"
+    macros_data = normalize_frontmatter_macros(effective, source=source_label)
+    if not macros_data:
+        return {}
+
+    _prompt_only, executable = partition_config_macros(
+        macros_data,
+        source=source_label,
+    )
+    workflows: dict[str, Workflow] = {}
+    for name, value in executable.items():
+        mapping = workflow_mapping_from_macro_entry(value)
+        if mapping is None:
+            continue
+        workflow = load_workflow_from_mapping(name, mapping, source_label)
+        if workflow is None:
+            continue
+        namespaced = namespace_workflow(project, workflow)
+        attach_local_trust(namespaced, evaluation)
+        workflows[namespaced.name] = namespaced
+    return assign_discovery_rank(workflows, RANK_PROJECT_CONFIG)
 
 
 def load_project_file_macros(

@@ -238,7 +238,22 @@ def _flatten_anonymous_workflow(
         ref_text = prompt_text[1:]  # Strip leading # for legacy fallback behavior
         wf_name, positional_args, named_args = parse_workflow_reference(ref_text)
 
+    if wf_name not in prompts:
+        from sase.macro.local_trust import blocked_local_macro_message
+
+        blocked = blocked_local_macro_message(wf_name, project=project)
+        if blocked:
+            raise WorkflowExecutionError(blocked)
     if wf_name in prompts:
+        from sase.macro.local_trust import blocked_local_macro_message
+
+        blocked = blocked_local_macro_message(
+            wf_name,
+            catalog_item=prompts[wf_name],
+            project=project,
+        )
+        if blocked:
+            raise WorkflowExecutionError(blocked)
         referenced = prompts[wf_name]
         if exact_ref is not None and exact_ref.is_standalone_marker:
             if referenced.has_prompt_part():
@@ -430,7 +445,21 @@ def execute_workflow(
         # Use unified loader to get both workflows and converted macros
         prompts = get_all_prompts(project=project)
         if name not in prompts:
+            from sase.macro.local_trust import blocked_local_macro_message
+
+            blocked = blocked_local_macro_message(name, project=project)
+            if blocked:
+                raise WorkflowExecutionError(blocked)
             raise WorkflowExecutionError(f"Workflow '{name}' not found")
+        from sase.macro.local_trust import blocked_local_macro_message
+
+        blocked = blocked_local_macro_message(
+            name,
+            catalog_item=prompts[name],
+            project=project,
+        )
+        if blocked:
+            raise WorkflowExecutionError(blocked)
         workflow = prompts[name]
 
     # Create artifacts_dir early so we can write state on validation failure

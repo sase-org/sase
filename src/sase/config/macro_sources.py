@@ -86,7 +86,21 @@ def load_macros_by_source(
 
     if local_path:
         local_config = yaml_loader(local_path)
-        macros = _normalized_macros(local_config, source="local_config")
+        if isinstance(local_config, dict):
+            try:
+                from sase.config.local_trust_enforcement import effective_local_layer
+
+                effective, _evaluation = effective_local_layer(local_path, local_config)
+            except Exception:
+                log.debug(
+                    "Local-command trust filtering failed closed for macros in %s",
+                    local_path,
+                    exc_info=True,
+                )
+                effective = {}
+            macros = _normalized_macros(effective, source="local_config")
+        else:
+            macros = _normalized_macros(local_config, source="local_config")
         if macros is not None:
             results.append(("local_config", macros))
 

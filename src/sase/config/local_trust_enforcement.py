@@ -3,7 +3,8 @@
 Phase ``hook-enforcement`` activates the ``local_config_command_trust``
 sunset flag. When the flag is enabled, local command-bearing contributions
 require a current human acknowledgment; otherwise they are filtered before
-merging and before the independent file-hook loader consumes raw layers.
+merging and before the independent file-hook and config-macro loaders
+consume raw layers.
 
 ``load_config_layers()`` stays raw for provenance inspection and
 feature-flag bootstrap. This module provides the effective-local adapter

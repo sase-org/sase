@@ -69,11 +69,15 @@ managed workspaces share that identity only when the workspace registry confirms
 membership. Other checkouts are isolated by canonical checkout path.
 
 The digest covers config values, not the contents of referenced scripts, binaries, or
-standalone macro files. Review edits to those files separately. Hook enforcement runs
-under the `local_config_command_trust` sunset flag (default on): untrusted local hooks
-are omitted before merging and from file-hook loading, with a skip warning naming
-`sase config trust allow PATH`. With the flag off, local commands run in compatibility
-mode marked in `status`, and no trust records are created.
+standalone macro files. Review edits to those files separately. Enforcement runs under
+the `local_config_command_trust` sunset flag (default on): untrusted local hooks are
+omitted before merging and from file-hook loading, and untrusted executable local config
+macros are omitted from both the ordinary and namespaced loaders. Nested steps,
+references, and sparse overrides of lower-layer executable definitions are
+command-bearing; prompt-only macros remain available. Explicitly requesting a blocked
+local macro is a trust error. A skip warning names `sase config trust allow PATH`. With
+the flag off, local commands run in compatibility mode marked in `status`, and no trust
+records are created.
 
 ## Repository configuration
 

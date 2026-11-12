@@ -83,7 +83,7 @@ _FEATURE_FLAG_DEFINITIONS: dict[FeatureFlag, FeatureFlagDefinition] = {
         key=FeatureFlag.local_config_command_trust,
         kind="sunset",
         description=(
-            "Require human acknowledgment of project-local commands before hooks run"
+            "Require human acknowledgment of project-local commands before hooks or config-defined workflows run"
         ),
         bead="sase-1sc",
     ),

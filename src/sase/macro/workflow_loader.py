@@ -23,6 +23,7 @@ from sase.main.plugin_discovery import (
     macro_plugins_disabled,
 )
 from sase.macro.discovery_order import (
+    RANK_CONFIG_BASE,
     RANK_FILESYSTEM_BASE,
     RANK_PACKAGE_MACROS,
     RANK_PLUGIN,
@@ -56,6 +57,7 @@ from sase.macro.workflow_loader_parse import (
 )
 from sase.macro.workflow_loader_sources import (
     discover_workflow_files as _discover_workflow_files_impl,
+    load_workflows_from_config as _load_workflows_from_config_impl,
     load_workflows_from_files as _load_workflows_from_files_impl,
     load_workflows_from_internal as _load_workflows_from_internal_impl,
     load_workflows_from_plugins as _load_workflows_from_plugins_impl,
@@ -121,6 +123,8 @@ def _sync_source_dependencies() -> None:
     _sources.RANK_PACKAGE_MACROS = RANK_PACKAGE_MACROS
     _sources.RANK_PLUGIN = RANK_PLUGIN
     _sources.RANK_REGISTERED_PROJECT_BASE = RANK_REGISTERED_PROJECT_BASE
+    _sources.RANK_CONFIG_BASE = RANK_CONFIG_BASE
+    _sources.merge_by_discovery_order = merge_by_discovery_order
     _sources.discover_workflow_files = _discover_workflow_files
     _sources.load_workflow_from_file = _load_workflow_from_file
     _sources.namespace_workflow = _namespace_workflow
@@ -198,6 +202,11 @@ def _load_workflows_from_plugins() -> dict[str, Workflow]:
     return _load_workflows_from_plugins_impl()
 
 
+def _load_workflows_from_config(project: str | None = None) -> dict[str, Workflow]:
+    _sync_source_dependencies()
+    return _load_workflows_from_config_impl(project=project)
+
+
 def _load_workflows_from_project(project: str) -> dict[str, Workflow]:
     _sync_source_dependencies()
     return _load_workflows_from_project_impl(project)
@@ -231,6 +240,10 @@ def get_all_workflows(project: str | None = None) -> dict[str, Workflow]:
         all_workflows,
         _load_workflows_from_plugins(),
         fallback_rank=RANK_PLUGIN,
+    )
+    merge_by_discovery_order(
+        all_workflows,
+        _load_workflows_from_config(project=effective_project),
     )
 
     if effective_project:

@@ -303,6 +303,7 @@ class Macro:
     local_macros: dict[str, Macro] = field(default_factory=dict)
     memory_type: MemoryType | None = None
     discovery_rank: int | None = None
+    trust: dict[str, Any] | None = None
 
     def has_tag(self, tag: MacroTag) -> bool:
         """Check if this macro has the given tag."""
@@ -366,6 +367,7 @@ def macro_to_workflow(macro_def: Macro) -> Workflow:
         skill_name=macro_def.skill_name,
         memory_type=macro_def.memory_type,
         discovery_rank=macro_def.discovery_rank,
+        trust=macro_def.trust,
     )
 
 

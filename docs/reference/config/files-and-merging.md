@@ -60,14 +60,18 @@ mapping order do not change it. Edits to ordinary local settings do not change t
 digest. Referenced scripts, binaries, and standalone macro files are not hashed; review
 changes to those files separately.
 
-Hook enforcement is active under the `local_config_command_trust` sunset flag (default
-on). When enabled, unacknowledged local `commit_hooks` are omitted before merging, local
-file-hook entries are omitted from the independent file-hook loader, and before/after
-commit hooks, explicit-project rebase gates, and file-hook execution re-resolve trust
+Enforcement is active under the `local_config_command_trust` sunset flag (default on).
+When enabled, unacknowledged local `commit_hooks` are omitted before merging, local
+file-hook entries are omitted from the independent file-hook loader, and executable
+local config macros are omitted from the ordinary and namespaced macro loaders.
+Prompt-only local macros still load. Before/after commit hooks, explicit-project rebase
+gates, file-hook execution, and bash/python workflow steps re-resolve trust
 synchronously. User, overlay, and non-command local values still merge; blocked rebase
-hooks report skipped, never passed. A warning names the config path and
-`sase config trust allow PATH`. With the flag off, local commands run in compatibility
-mode, visibly marked in `status`, and no trust records are created.
+hooks report skipped, never passed. An explicit request for a blocked local macro raises
+a trust error rather than an unknown-macro miss or a lower-priority namesake. A warning
+names the config path and `sase config trust allow PATH`. With the flag off, local
+commands run in compatibility mode, visibly marked in `status`, and no trust records are
+created.
 
 ## Owner Identity
 

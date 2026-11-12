@@ -118,6 +118,10 @@ class ScriptStepMixin:
         if not step.bash:
             raise WorkflowExecutionError(f"Bash step '{step.name}' has no command")
 
+        from sase.macro.local_trust import assert_workflow_local_trust
+
+        assert_workflow_local_trust(self.workflow, step_name=step.name)
+
         # Render command with Jinja2 context. Interpolations are
         # shell-quoted by render_bash_template; only `| raw` opts out.
         rendered_command = render_bash_template(step.bash, self.context)
@@ -298,6 +302,10 @@ class ScriptStepMixin:
         """
         if not step.python:
             raise WorkflowExecutionError(f"Python step '{step.name}' has no code")
+
+        from sase.macro.local_trust import assert_workflow_local_trust
+
+        assert_workflow_local_trust(self.workflow, step_name=step.name)
 
         # Render code with Jinja2 context. Interpolations are
         # Python-literal-quoted by render_python_template; only `| tojson`

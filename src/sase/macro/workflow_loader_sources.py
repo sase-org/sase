@@ -13,10 +13,12 @@ from sase.main.plugin_discovery import (
     macro_plugins_disabled,
 )
 from sase.macro.discovery_order import (
+    RANK_CONFIG_BASE,
     RANK_FILESYSTEM_BASE,
     RANK_PACKAGE_MACROS,
     RANK_PLUGIN,
     RANK_REGISTERED_PROJECT_BASE,
+    merge_by_discovery_order,
     source_rank,
 )
 from sase.macro.loader import (
@@ -29,6 +31,7 @@ from sase.macro.project_identity import (
 )
 from sase.macro.workflow_loader_definition import (
     load_workflow_from_file,
+    load_workflow_from_mapping,
     namespace_workflow,
 )
 from sase.macro.workflow_models import Workflow
@@ -166,6 +169,63 @@ def load_workflows_from_plugins() -> dict[str, Workflow]:
     return workflows
 
 
+def load_workflows_from_config(project: str | None = None) -> dict[str, Workflow]:
+    """Load command-bearing config macros as workflows.
+
+    Prompt-only config macros stay in :func:`load_macros_from_config`. Local
+    executable entries are trust-filtered by the shared effective-local
+    adapter before this conversion, and carry a descriptor for dispatch
+    revalidation.
+    """
+    from sase.config import load_macros_by_source
+    from sase.macro.local_trust import (
+        attach_local_trust,
+        partition_config_macros,
+        workflow_mapping_from_macro_entry,
+    )
+
+    all_workflows: dict[str, Workflow] = {}
+    lower_macros: dict[str, object] = {}
+    sources = load_macros_by_source()
+    local_evaluation = None
+    try:
+        from sase.config.core import get_local_config_path
+        from sase.config.local_trust_enforcement import evaluate_local_trust_for_path
+
+        local_path = get_local_config_path()
+        if local_path is not None:
+            local_evaluation = evaluate_local_trust_for_path(local_path, None)
+    except Exception:
+        local_evaluation = None
+
+    for index, (source_label, macros_data) in enumerate(sources):
+        _prompt_only, executable = partition_config_macros(
+            macros_data,
+            lower_macros=lower_macros,
+            source=source_label,
+        )
+        lower_macros = {**lower_macros, **dict(macros_data)}
+        parsed: dict[str, Workflow] = {}
+        for name, value in executable.items():
+            mapping = workflow_mapping_from_macro_entry(value)
+            if mapping is None:
+                continue
+            workflow = load_workflow_from_mapping(name, mapping, source_label)
+            if workflow is None:
+                continue
+            if source_label == "local_config" and project:
+                workflow = namespace_workflow(project, workflow)
+            if source_label == "local_config" and local_evaluation is not None:
+                attach_local_trust(workflow, local_evaluation)
+            parsed[workflow.name] = workflow
+        merge_by_discovery_order(
+            all_workflows,
+            parsed,
+            fallback_rank=source_rank(RANK_CONFIG_BASE, index, len(sources)),
+        )
+    return all_workflows
+
+
 def load_workflows_from_project(project: str) -> dict[str, Workflow]:
     """Load and namespace project-specific workflows from home sources."""
     workflows: dict[str, Workflow] = {}
@@ -244,4 +304,10 @@ def load_workflows_from_project_workspace(
                     del workflows[namespaced.name]
                 workflows[namespaced.name] = namespaced
 
+    from sase.macro.loader_sources import load_project_local_workflows
+
+    merge_by_discovery_order(
+        workflows,
+        load_project_local_workflows(workspace_dir, project),
+    )
     return workflows
