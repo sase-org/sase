@@ -3,6 +3,7 @@
 import fcntl
 import logging
 import os
+import subprocess
 import tempfile
 import time
 from collections.abc import Iterator
@@ -20,22 +21,79 @@ class LockTimeoutError(Exception):
         super().__init__(f"Timeout waiting for lock on {lock_file} after {timeout}s")
 
 
-def _read_edit_lock_pid(project_file: str) -> int | None:
-    """Read the PID from an edit lock file.
+def _process_start_token(pid: int) -> str | None:
+    """Return a stable token for this incarnation of a process, when available."""
+    try:
+        # The comm field is parenthesized and may itself contain spaces or ')'.
+        with open(f"/proc/{pid}/stat", encoding="utf-8") as stat_file:
+            stat = stat_file.read()
+        fields_after_comm = stat[stat.rfind(")") + 2 :].split()
+        return f"linux:{fields_after_comm[19]}"  # field 22: process start time
+    except (FileNotFoundError, PermissionError, IndexError, OSError):
+        pass
 
-    Returns the PID if the lock file exists and contains a valid integer,
-    else None.
+    # macOS and other Unix systems without procfs expose process start time via ps.
+    try:
+        result = subprocess.run(
+            ["ps", "-o", "lstart=", "-p", str(pid)],
+            capture_output=True,
+            check=False,
+            text=True,
+            timeout=1,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+    start = result.stdout.strip()
+    return f"ps:{start}" if result.returncode == 0 and start else None
+
+
+def _read_edit_lock(project_file: str) -> tuple[int, str | None] | None:
+    """Read PID and optional start token from an edit lock file.
+
+    PID-only files are accepted for compatibility with locks written by older
+    versions. New locks use ``PID\nTOKEN`` to distinguish recycled PIDs.
     """
     lock_file = f"{project_file}.edit_lock"
     try:
         with open(lock_file, encoding="utf-8") as f:
-            return int(f.read().strip())
-    except (FileNotFoundError, ValueError):
+            lines = f.read().splitlines()
+        pid = int(lines[0])
+        token = lines[1] if len(lines) > 1 else None
+        return pid, token
+    except (FileNotFoundError, ValueError, IndexError):
         return None
 
 
+def _remove_stale_edit_lock(
+    project_file: str, expected: tuple[int, str | None] | None
+) -> bool:
+    """Remove a stale lock while serializing competing stale-lock reapers."""
+    lock_file = f"{project_file}.edit_lock"
+    try:
+        fd = os.open(lock_file, os.O_RDONLY)
+    except FileNotFoundError:
+        return False
+    try:
+        fcntl.flock(fd, fcntl.LOCK_EX)
+        # Recheck both content and inode after locking; another reaper may have
+        # replaced this pathname while we waited on the old inode.
+        if _read_edit_lock(project_file) != expected:
+            return False
+        try:
+            path_stat = os.stat(lock_file)
+            fd_stat = os.fstat(fd)
+            if (path_stat.st_dev, path_stat.st_ino) != (fd_stat.st_dev, fd_stat.st_ino):
+                return False
+            os.unlink(lock_file)
+            return True
+        except FileNotFoundError:
+            return True
+    finally:
+        os.close(fd)
+
+
 def acquire_edit_lock(project_file: str) -> None:
-    """Create a .edit_lock sentinel file containing the current PID.
+    """Create an exclusive .edit_lock sentinel for the current process.
 
     Args:
         project_file: Path to the .gp file to lock.
@@ -44,8 +102,30 @@ def acquire_edit_lock(project_file: str) -> None:
     lock_dir = os.path.dirname(lock_file)
     if lock_dir and not os.path.exists(lock_dir):
         os.makedirs(lock_dir, exist_ok=True)
-    with open(lock_file, "w", encoding="utf-8") as f:
-        f.write(str(os.getpid()))
+    pid = os.getpid()
+    start_token = _process_start_token(pid)
+    contents = f"{pid}\n{start_token or ''}\n"
+    while True:
+        try:
+            fd = os.open(lock_file, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o644)
+        except FileExistsError:
+            existing = _read_edit_lock(project_file)
+            if existing is not None and _is_edit_lock_active(existing):
+                raise
+            _remove_stale_edit_lock(project_file, existing)
+            continue
+        try:
+            os.write(fd, contents.encode("utf-8"))
+        except BaseException:
+            os.close(fd)
+            try:
+                os.unlink(lock_file)
+            except FileNotFoundError:
+                pass
+            raise
+        else:
+            os.close(fd)
+            return
 
 
 def release_edit_lock(project_file: str) -> None:
@@ -70,24 +150,27 @@ def is_edit_locked(project_file: str) -> bool:
     Args:
         project_file: Path to the .gp file to check.
     """
-    pid = _read_edit_lock_pid(project_file)
-    if pid is None:
+    lock = _read_edit_lock(project_file)
+    if lock is None:
         return False
+    if _is_edit_lock_active(lock):
+        return True
+    _remove_stale_edit_lock(project_file, lock)
+    return False
 
-    # Check if the process is still alive
+
+def _is_edit_lock_active(lock: tuple[int, str | None]) -> bool:
+    pid, recorded_start = lock
+    if recorded_start is not None:
+        current_start = _process_start_token(pid)
+        if current_start is not None and current_start != recorded_start:
+            return False
     try:
         os.kill(pid, 0)
     except ProcessLookupError:
-        # Process is dead — stale lock
-        try:
-            os.unlink(f"{project_file}.edit_lock")
-        except FileNotFoundError:
-            pass
         return False
     except PermissionError:
-        # Process exists but we can't signal it — treat as locked
         return True
-
     return True
 
 
@@ -106,15 +189,15 @@ def wait_for_edit_lock_release(
         poll_interval: Seconds between checks.
         timeout: Maximum seconds to wait before raising LockTimeoutError.
     """
-    pid = _read_edit_lock_pid(project_file)
-    if pid is None or pid == os.getpid():
+    lock = _read_edit_lock(project_file)
+    if lock is None or lock[0] == os.getpid():
         return
 
     if not is_edit_locked(project_file):
         return
 
     basename = os.path.basename(project_file)
-    logger.info("Waiting for edit lock on %s (PID %d)...", basename, pid)
+    logger.info("Waiting for edit lock on %s (PID %d)...", basename, lock[0])
 
     start = time.monotonic()
     while is_edit_locked(project_file):
@@ -167,17 +250,18 @@ def patch_lock(
     fd = os.open(lock_file, os.O_RDWR | os.O_CREAT, 0o644)
     lock_type = fcntl.LOCK_EX if exclusive else fcntl.LOCK_SH
 
+    start = time.monotonic()
+    while True:
+        try:
+            fcntl.flock(fd, lock_type | fcntl.LOCK_NB)
+            break
+        except BlockingIOError:
+            if time.monotonic() - start >= timeout:
+                os.close(fd)
+                raise LockTimeoutError(lock_file, timeout) from None
+            time.sleep(poll_interval)
+
     try:
-        start = time.monotonic()
-        while True:
-            try:
-                fcntl.flock(fd, lock_type | fcntl.LOCK_NB)
-                break
-            except BlockingIOError:
-                if time.monotonic() - start >= timeout:
-                    os.close(fd)
-                    raise LockTimeoutError(lock_file, timeout) from None
-                time.sleep(poll_interval)
         yield
     finally:
         fcntl.flock(fd, fcntl.LOCK_UN)

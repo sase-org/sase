@@ -1,5 +1,6 @@
 """Tests for edit lock functions."""
 
+import fcntl
 import os
 import subprocess
 import sys
@@ -10,6 +11,7 @@ import time
 
 import pytest
 
+from sase.ace.patch import locking
 from sase.ace.changespec.locking import (
     LockTimeoutError,
     acquire_edit_lock,
@@ -29,7 +31,9 @@ def test_acquire_creates_lock_file(tmp_path: Path) -> None:
         lock_file = f"{project_file}.edit_lock"
         assert os.path.exists(lock_file)
         with open(lock_file) as lf:
-            assert lf.read().strip() == str(os.getpid())
+            pid, start_token = lf.read().splitlines()
+        assert pid == str(os.getpid())
+        assert start_token
     finally:
         os.unlink(project_file)
         try:
@@ -87,6 +91,95 @@ def test_is_edit_locked_cleans_stale_lock(tmp_path: Path) -> None:
             os.unlink(lock_file)
         except FileNotFoundError:
             pass
+
+
+def test_acquire_reclaims_lock_with_recycled_pid_token(tmp_path: Path) -> None:
+    """An alive PID with a different process-start token is stale."""
+    project_file = str(tmp_path / "test.sase")
+    lock_file = f"{project_file}.edit_lock"
+    Path(project_file).touch()
+    Path(lock_file).write_text(f"{os.getpid()}\nold-process-incarnation\n")
+    try:
+        acquire_edit_lock(project_file)
+        assert is_edit_locked(project_file)
+        assert Path(lock_file).read_text().splitlines()[0] == str(os.getpid())
+    finally:
+        release_edit_lock(project_file)
+
+
+def test_acquire_reclaims_malformed_edit_lock(tmp_path: Path) -> None:
+    project_file = str(tmp_path / "test.sase")
+    lock_file = f"{project_file}.edit_lock"
+    Path(project_file).touch()
+    Path(lock_file).write_text("not-a-pid\n")
+    try:
+        acquire_edit_lock(project_file)
+        assert Path(lock_file).read_text().splitlines()[0] == str(os.getpid())
+    finally:
+        release_edit_lock(project_file)
+
+
+def test_concurrent_edit_lock_acquisition_has_one_owner(tmp_path: Path) -> None:
+    project_file = str(tmp_path / "test.sase")
+    Path(project_file).touch()
+    start = threading.Barrier(3)
+    release = threading.Event()
+    busy = threading.Event()
+    outcomes: list[str] = []
+
+    def contender() -> None:
+        start.wait()
+        try:
+            acquire_edit_lock(project_file)
+        except FileExistsError:
+            outcomes.append("busy")
+            busy.set()
+            return
+        outcomes.append("owner")
+        release.wait(timeout=5)
+        release_edit_lock(project_file)
+
+    threads = [threading.Thread(target=contender) for _ in range(2)]
+    for thread in threads:
+        thread.start()
+    start.wait()
+    assert busy.wait(timeout=2)
+    release.set()
+    for thread in threads:
+        thread.join(timeout=2)
+    assert sorted(outcomes) == ["busy", "owner"]
+
+
+def test_patch_lock_timeout_preserves_error_and_closes_fd(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    project_file = str(tmp_path / "test.sase")
+    lock_file = f"{project_file}.lock"
+    Path(project_file).touch()
+    held_fd = os.open(lock_file, os.O_CREAT | os.O_RDWR, 0o644)
+    fcntl.flock(held_fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    original_open = locking.os.open
+    patch_lock_fds: list[int] = []
+
+    def capture_open(
+        path: str, flags: int, mode: int = 0o777, **kwargs: int | None
+    ) -> int:
+        fd = original_open(path, flags, mode, **kwargs)
+        if path == lock_file:
+            patch_lock_fds.append(fd)
+        return fd
+
+    try:
+        with monkeypatch.context() as patcher:
+            patcher.setattr(locking.os, "open", capture_open)
+            with pytest.raises(LockTimeoutError):
+                with locking.patch_lock(project_file, timeout=0, poll_interval=0):
+                    pytest.fail("lock unexpectedly acquired")
+            assert len(patch_lock_fds) == 1
+            with pytest.raises(OSError):
+                os.fstat(patch_lock_fds[0])
+    finally:
+        os.close(held_fd)
 
 
 def test_is_edit_locked_returns_false_when_no_lock(tmp_path: Path) -> None:
