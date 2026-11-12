@@ -12,6 +12,10 @@ off the interactive path:
   automatic full collections become a rare backstop;
 - tagged full collections only while input is quiet, no prompt is active, and
   a collection is due, with 5-minute and RSS-growth backstops;
+- duty-cycle bound: each own full collection's pause (timed with the
+  injected clock) defers the next full collection by ``pause * DUTY_FACTOR``
+  (clamped to 15 min, floored at 60 s), applied to idle and backstop
+  triggers alike;
 - freed arenas returned with ``malloc_trim`` on a worker thread.
 
 Every collection runs under :func:`gc_trigger` (from
@@ -59,6 +63,8 @@ IDLE_QUIET_S = 3.0
 BACKSTOP_QUIET_S = 3.0
 MIN_FULL_INTERVAL_S = 60.0
 FULL_BACKSTOP_S = 5 * 60.0
+DUTY_FACTOR = 30.0
+MAX_DUTY_DELAY_S = 15 * 60.0
 RSS_GROWTH_BACKSTOP_BYTES = 500 * 1024 * 1024
 GEN1_DUE_COUNT = 100
 NONCLASSIC_DUE_S = 120.0
@@ -230,12 +236,51 @@ class GCPolicy:
         self._froze_startup = False
         self._own_last_full_mono: float | None = None
         self._rss_at_last_full: int | None = None
+        self._last_full_pause_s: float | None = None
         self._last_trim_mono: float | None = None
         self._logged_survivor_census_skip = False
 
+    def duty_floor_s(self) -> float:
+        """Minimum gap after the last full collection (duty-cycle bound).
+
+        The next full collection runs no sooner than ``last_pause *
+        DUTY_FACTOR`` after the last one, clamped to ``MAX_DUTY_DELAY_S``
+        and floored at ``MIN_FULL_INTERVAL_S``. Unknown pause (no own
+        collection yet) degrades to ``MIN_FULL_INTERVAL_S``.
+        """
+        pause = self._last_full_pause_s
+        if pause is None:
+            return MIN_FULL_INTERVAL_S
+        try:
+            pause_f = float(pause)
+        except Exception:
+            return MIN_FULL_INTERVAL_S
+        if pause_f < 0.0:
+            pause_f = 0.0
+        return max(MIN_FULL_INTERVAL_S, min(pause_f * DUTY_FACTOR, MAX_DUTY_DELAY_S))
+
+    def next_full_due_in_s(self, now_mono: float | None = None) -> float:
+        """Seconds until the duty floor lets the next full collection run."""
+        now = self._monotonic() if now_mono is None else now_mono
+        last_full = self.combined_last_full_mono()
+        if last_full is None:
+            return 0.0
+        try:
+            remaining = (float(last_full) + self.duty_floor_s()) - float(now)
+        except Exception:
+            return 0.0
+        return max(0.0, remaining)
+
     def heartbeat_fields(self) -> dict[str, Any]:
         """Extra heartbeat fields published via ``register_heartbeat_provider``."""
-        return {"threshold_policy": self.threshold_policy}
+        fields: dict[str, Any] = {"threshold_policy": self.threshold_policy}
+        try:
+            fields["next_full_due_in_s"] = round(self.next_full_due_in_s(), 3)
+            if self._last_full_pause_s is not None:
+                fields["last_full_pause_s"] = round(float(self._last_full_pause_s), 6)
+        except Exception:
+            pass
+        return fields
 
     def apply_thresholds(self) -> str:
         """Raise ``threshold2`` on the classic collector; report the policy."""
@@ -331,7 +376,8 @@ class GCPolicy:
             return (False, tag)
         if _safe_probe(self._modal_input_active, False):
             return (False, tag)
-        if last_full is not None and now_mono - last_full < MIN_FULL_INTERVAL_S:
+        floor = self.duty_floor_s()
+        if last_full is not None and now_mono - last_full < floor:
             return (False, tag)
         if not self.collection_due(now_mono, last_full):
             return (False, tag)
@@ -344,18 +390,22 @@ class GCPolicy:
         if not passes:
             return None
         if not self._froze_startup:
+            start = self._monotonic()
             with gc_trigger("startup_freeze"):
                 self._collector.collect()
                 self._collector.freeze()
+            pause = self._monotonic() - start
             self._froze_startup = True
-            self._note_full_collection()
+            self._note_full_collection(pause)
             return "startup_freeze"
+        start = self._monotonic()
         if tag == "idle" and self._census_due(now):
             self._run_idle_census(now)
         else:
             with gc_trigger(tag):
                 self._collector.collect()
-        self._note_full_collection()
+        pause = self._monotonic() - start
+        self._note_full_collection(pause)
         self._maybe_trim(now)
         return tag
 
@@ -366,9 +416,18 @@ class GCPolicy:
         except Exception:
             log.exception("GC policy tick failed")
 
-    def _note_full_collection(self) -> None:
+    def _note_full_collection(self, pause_s: float | None = None) -> None:
         """Record an own full collection and refresh the RSS baseline."""
         self._own_last_full_mono = self._monotonic()
+        if pause_s is not None:
+            try:
+                pause = float(pause_s)
+            except Exception:
+                pause = None  # type: ignore[assignment]
+            if pause is not None:
+                if pause < 0.0:
+                    pause = 0.0
+                self._last_full_pause_s = pause
         try:
             self._rss_at_last_full = latest_rss_bytes()
         except Exception:

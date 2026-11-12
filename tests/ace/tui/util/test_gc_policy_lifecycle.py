@@ -70,7 +70,7 @@ def test_thresholds_preserved_and_restored(
     handle = install_gc_policy(app=None, collector=collector, tick_interval_s=0)
     assert handle is not None
     assert collector.threshold == (700, 10, gc_policy.RAISED_THRESHOLD2)
-    assert handle.heartbeat_fields() == {"threshold_policy": "raised"}
+    assert handle.heartbeat_fields()["threshold_policy"] == "raised"
     uninstall_gc_policy(handle)
     assert collector.threshold == (700, 10, 10)
     assert gc_policy._active is None
@@ -85,7 +85,7 @@ def test_unsupported_collector_shape_leaves_thresholds(
     assert handle is not None
     try:
         assert collector.threshold == tuple(threshold)
-        assert handle.heartbeat_fields() == {"threshold_policy": "unsupported"}
+        assert handle.heartbeat_fields()["threshold_policy"] == "unsupported"
     finally:
         uninstall_gc_policy(handle)
 

@@ -21,6 +21,7 @@ from sase.ace.tui.util.gc_policy import (  # noqa: F401
     uninstall_gc_policy,
 )
 from .test_gc_policy_census import *  # noqa: F403
+from .test_gc_policy_duty import *  # noqa: F403
 from .test_gc_policy_lifecycle import *  # noqa: F403
 from .test_gc_policy_policy import *  # noqa: F403
 from .test_gc_policy_lifecycle import active_guard  # noqa: F401
