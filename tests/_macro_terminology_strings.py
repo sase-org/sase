@@ -140,6 +140,7 @@ _MACRO_TEST_STRING_REASONS: dict[str, str] = {
     "tests/macro/test_macro_discovery_policy.py": "sunset-policy implementation: flag-gated aliases, gated legacy directories, or retired-spelling readers; removed with the flag",
     "tests/main/test_lsp_handler.py": "sunset-policy implementation: flag-gated aliases, gated legacy directories, or retired-spelling readers; removed with the flag",
     "tests/main/test_lsp_handler_environment.py": "sunset-policy implementation: flag-gated aliases, gated legacy directories, or retired-spelling readers; removed with the flag",
+    "tests/test_config_local_trust.py": "retired-spelling readers: legacy local-layer keys normalize before classification",
     "tests/test_config_macro_frontmatter.py": "both-states config/frontmatter matrix",
     "tests/test_core_glossary_facade.py": "core glossary terms; vocabulary migrates with the docs/audit phases",
     "tests/test_disabled_regions.py": "dual-spelling reader: canonical writers, legacy storage tests",

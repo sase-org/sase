@@ -102,6 +102,7 @@ STRING_PAIRS: set[tuple[str, str]] = {
     ("tests/test_config_identity.py", '"xprompts:\\n  athena: selected\\n"'),
     ("tests/test_config_identity.py", '"xprompts:\\n  common: common\\n"'),
     ("tests/test_config_local.py", '"xprompts"'),
+    ("tests/test_config_local_trust.py", '"xprompts"'),
     ("tests/test_config_macro_frontmatter.py", '"auto_xprompt_menu"'),
     (
         "tests/test_config_macro_frontmatter.py",

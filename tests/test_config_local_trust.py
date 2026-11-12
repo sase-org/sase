@@ -54,7 +54,7 @@ def test_empty_and_non_command_layers_share_digest() -> None:
 
 
 def test_legacy_macro_spellings_normalize_before_classification() -> None:
-    """Retired ``xprompts`` spellings hash and filter as ``macros``."""
+    """Retired legacy spellings hash and filter as ``macros``."""
     legacy = project_local_commands(
         {"xprompts": {"hello": "world"}},
         source="local",
