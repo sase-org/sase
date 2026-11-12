@@ -188,6 +188,8 @@ def test_resolution_uses_target_project_local_config_and_tracks_origins(
         reset_linked_repo_config_caches,
         resolution_config,
     )
+    from sase.config import _cache as config_cache
+    from sase.config import _sources as config_sources
     from sase.config import core as config_core
 
     global_config = tmp_path / "config"
@@ -211,9 +213,9 @@ def test_resolution_uses_target_project_local_config_and_tracks_origins(
     (project_b_parent / "x").mkdir()
 
     monkeypatch.setattr(config_core, "CONFIG_DIR", global_config)
-    monkeypatch.setattr(config_core, "_load_default_config", lambda: {})
-    monkeypatch.setattr(config_core, "_load_plugin_configs", lambda: [])
-    monkeypatch.setattr(config_core, "_get_overlay_paths", lambda: [])
+    monkeypatch.setattr(config_sources, "_load_default_config", lambda: {})
+    monkeypatch.setattr(config_sources, "_load_plugin_configs", lambda: [])
+    monkeypatch.setattr(config_cache, "overlay_paths", lambda: [])
     monkeypatch.setattr(
         config_core,
         "get_agent_owner_config_snapshot",

@@ -11,6 +11,7 @@ import threading
 import time
 from unittest.mock import patch
 
+from sase.config import _cache as config_cache
 from sase.config import core as config_core
 from sase.config.core import clear_config_cache, current_config_token
 from tests._config_cache_helpers import (
@@ -40,16 +41,16 @@ def test_current_config_token_serves_stale_while_refreshing() -> None:
 
     with (
         patch("sase.config.core.time.monotonic", side_effect=lambda: now[0]),
-        patch("sase.config.core._compute_current_config_token", side_effect=compute),
+        patch("sase.config._cache._compute_current_config_token", side_effect=compute),
     ):
         _reset_config_token_cache()
         try:
             first = current_config_token()
-            now[0] += config_core._CONFIG_TOKEN_REFRESH_INTERVAL_SECONDS / 2
+            now[0] += config_cache._CONFIG_TOKEN_REFRESH_INTERVAL_SECONDS / 2
             assert current_config_token() is first
             assert calls == 1
 
-            now[0] += config_core._CONFIG_TOKEN_REFRESH_INTERVAL_SECONDS
+            now[0] += config_cache._CONFIG_TOKEN_REFRESH_INTERVAL_SECONDS
             assert current_config_token() is first
             assert refresh_started.wait(timeout=1.0)
             assert current_config_token() is first
@@ -81,12 +82,12 @@ def test_current_config_token_refresh_is_single_flight() -> None:
 
     with (
         patch("sase.config.core.time.monotonic", side_effect=lambda: now[0]),
-        patch("sase.config.core._compute_current_config_token", side_effect=compute),
+        patch("sase.config._cache._compute_current_config_token", side_effect=compute),
     ):
         _reset_config_token_cache()
         try:
             first = current_config_token()
-            now[0] += config_core._CONFIG_TOKEN_REFRESH_INTERVAL_SECONDS + 0.01
+            now[0] += config_cache._CONFIG_TOKEN_REFRESH_INTERVAL_SECONDS + 0.01
             assert current_config_token() is first
             assert refresh_started.wait(timeout=1.0)
 
@@ -117,14 +118,14 @@ def test_config_token_interval_exceeds_tui_tick_cadence() -> None:
     with (
         patch("sase.config.core.time.monotonic", side_effect=lambda: now[0]),
         patch(
-            "sase.config.core._compute_current_config_token",
+            "sase.config._cache._compute_current_config_token",
             return_value=("token", 1),
         ) as compute,
     ):
         _reset_config_token_cache()
-        assert config_core._CONFIG_TOKEN_REFRESH_INTERVAL_SECONDS > 1.0
+        assert config_cache._CONFIG_TOKEN_REFRESH_INTERVAL_SECONDS > 1.0
         first = current_config_token()
-        worker = config_core._current_config_token_refresh_thread
+        worker = config_cache._current_config_token_refresh_thread
         assert worker is not None
 
         for _ in range(4):
@@ -132,7 +133,7 @@ def test_config_token_interval_exceeds_tui_tick_cadence() -> None:
             assert current_config_token() is first
 
         assert compute.call_count == 1
-        assert config_core._current_config_token_refresh_thread is worker
+        assert config_cache._current_config_token_refresh_thread is worker
 
 
 def test_config_token_refresh_thread_starts_after_lock_release() -> None:
@@ -148,7 +149,7 @@ def test_config_token_refresh_thread_starts_after_lock_release() -> None:
     class ObservedThread(real_thread):
         def start(self) -> None:
             start_lock_states.append(
-                config_core._current_config_token_cache_lock._is_owned()
+                config_cache._current_config_token_cache_lock._is_owned()
             )
             super().start()
 
@@ -162,7 +163,7 @@ def test_config_token_refresh_thread_starts_after_lock_release() -> None:
 
     with (
         patch("sase.config.core.time.monotonic", side_effect=lambda: now[0]),
-        patch("sase.config.core._compute_current_config_token", side_effect=compute),
+        patch("sase.config._cache._compute_current_config_token", side_effect=compute),
         patch("sase.config.core.threading.Thread", ObservedThread),
     ):
         _reset_config_token_cache()
@@ -170,19 +171,19 @@ def test_config_token_refresh_thread_starts_after_lock_release() -> None:
             first = current_config_token()
             # The long-lived revalidator starts once at warm-up, outside the lock.
             assert start_lock_states == [False]
-            worker = config_core._current_config_token_refresh_thread
+            worker = config_cache._current_config_token_refresh_thread
             assert worker is not None
-            now[0] += config_core._CONFIG_TOKEN_REFRESH_INTERVAL_SECONDS + 0.01
+            now[0] += config_cache._CONFIG_TOKEN_REFRESH_INTERVAL_SECONDS + 0.01
             assert current_config_token() is first
             assert refresh_started.wait(timeout=1.0)
 
             # Expiry wakes the same worker; no additional Thread.start occurs.
-            assert config_core._current_config_token_refresh_thread is worker
+            assert config_cache._current_config_token_refresh_thread is worker
             assert start_lock_states == [False]
             release_refresh.set()
             _wait_for_config_token(("token", 2))
             assert worker.is_alive()
-            assert config_core._current_config_token_refresh_thread is worker
+            assert config_cache._current_config_token_refresh_thread is worker
         finally:
             release_refresh.set()
 
@@ -192,13 +193,13 @@ def test_config_token_refresh_thread_starts_after_lock_release() -> None:
 def test_first_config_token_read_starts_long_lived_revalidator() -> None:
     """Warm-up computes inline once and starts one long-lived revalidator."""
     with patch(
-        "sase.config.core._compute_current_config_token",
+        "sase.config._cache._compute_current_config_token",
         return_value=("token", 1),
     ):
         _reset_config_token_cache()
         assert current_config_token() == ("token", 1)
 
-    worker = config_core._current_config_token_refresh_thread
+    worker = config_cache._current_config_token_refresh_thread
     assert worker is not None
     assert worker.is_alive()
     assert worker.name == config_core.CONFIG_TOKEN_REFRESH_THREAD_NAME
@@ -207,7 +208,7 @@ def test_first_config_token_read_starts_long_lived_revalidator() -> None:
 def test_clear_config_cache_resets_config_token_time_gate() -> None:
     """An explicit clear forces immediate token recomputation within the window."""
     with patch(
-        "sase.config.core._compute_current_config_token",
+        "sase.config._cache._compute_current_config_token",
         side_effect=[("token", 1), ("token", 2)],
     ) as compute:
         _reset_config_token_cache()
@@ -231,26 +232,26 @@ def test_refresh_worker_only_deregisters_itself() -> None:
     with (
         patch("sase.config.core.time.monotonic", side_effect=lambda: now[0]),
         patch(
-            "sase.config.core._compute_current_config_token",
+            "sase.config._cache._compute_current_config_token",
             return_value=("inline", 1),
         ),
     ):
         _reset_config_token_cache()
         first = current_config_token()
-        worker = config_core._current_config_token_refresh_thread
+        worker = config_cache._current_config_token_refresh_thread
         assert worker is not None
-        epoch = config_core._current_config_token_cache_epoch
-        cwd = config_core._current_config_token_cache_cwd
+        epoch = config_cache._current_config_token_cache_epoch
+        cwd = config_cache._current_config_token_cache_cwd
 
         # Simulate a drain advancing the generation: a stale recompute
         # captured before the bump must decline to publish.
-        with config_core._current_config_token_cache_lock:
-            config_core._current_config_token_cache_epoch += 1
-        config_core._publish_revalidator_token(
+        with config_cache._current_config_token_cache_lock:
+            config_cache._current_config_token_cache_epoch += 1
+        config_cache._publish_revalidator_token(
             ("stale", 99), cache_epoch=epoch, cache_cwd=cwd
         )
-        assert config_core._current_config_token_cache_value is first
-        assert config_core._current_config_token_refresh_thread is worker
+        assert config_cache._current_config_token_cache_value is first
+        assert config_cache._current_config_token_refresh_thread is worker
         assert worker.is_alive()
 
 
@@ -272,13 +273,13 @@ def test_current_config_token_recomputes_after_chdir(tmp_path, monkeypatch) -> N
     monkeypatch.chdir(dir_a)
     with (
         patch("sase.config.core.time.monotonic", side_effect=lambda: now[0]),
-        patch("sase.config.core._compute_current_config_token", side_effect=compute),
+        patch("sase.config._cache._compute_current_config_token", side_effect=compute),
     ):
         _reset_config_token_cache()
         first = current_config_token()
 
         monkeypatch.chdir(dir_b)
-        now[0] += config_core._CONFIG_TOKEN_REFRESH_INTERVAL_SECONDS / 2
+        now[0] += config_cache._CONFIG_TOKEN_REFRESH_INTERVAL_SECONDS / 2
         second = current_config_token()
 
     assert second != first
@@ -313,14 +314,14 @@ def test_config_token_refresh_worker_declines_to_publish_after_chdir(
     monkeypatch.chdir(dir_a)
     with (
         patch("sase.config.core.time.monotonic", side_effect=lambda: now[0]),
-        patch("sase.config.core._compute_current_config_token", side_effect=compute),
+        patch("sase.config._cache._compute_current_config_token", side_effect=compute),
     ):
         _reset_config_token_cache()
         try:
             first = current_config_token()
-            worker = config_core._current_config_token_refresh_thread
+            worker = config_cache._current_config_token_refresh_thread
             assert worker is not None
-            now[0] += config_core._CONFIG_TOKEN_REFRESH_INTERVAL_SECONDS + 0.01
+            now[0] += config_cache._CONFIG_TOKEN_REFRESH_INTERVAL_SECONDS + 0.01
             assert current_config_token() is first
             assert refresh_started.wait(timeout=1.0)
 
@@ -336,8 +337,8 @@ def test_config_token_refresh_worker_declines_to_publish_after_chdir(
             # over a cache now keyed to dir_b. The long-lived revalidator
             # may retry (declining each time) until the synchronous read
             # below rekeys the cache, so only bound the call count from below.
-            assert config_core._current_config_token_cache_value == first
-            assert config_core._current_config_token_refresh_thread is worker
+            assert config_cache._current_config_token_cache_value == first
+            assert config_cache._current_config_token_refresh_thread is worker
 
             third = current_config_token()
             assert third != first
@@ -366,14 +367,14 @@ def test_explicit_invalidation_wins_race_with_background_refresh() -> None:
 
     with (
         patch("sase.config.core.time.monotonic", side_effect=lambda: now[0]),
-        patch("sase.config.core._compute_current_config_token", side_effect=compute),
+        patch("sase.config._cache._compute_current_config_token", side_effect=compute),
     ):
         _reset_config_token_cache()
         try:
             assert current_config_token() == ("token", 1)
-            worker = config_core._current_config_token_refresh_thread
+            worker = config_cache._current_config_token_refresh_thread
             assert worker is not None
-            now[0] += config_core._CONFIG_TOKEN_REFRESH_INTERVAL_SECONDS + 0.01
+            now[0] += config_cache._CONFIG_TOKEN_REFRESH_INTERVAL_SECONDS + 0.01
             assert current_config_token() == ("token", 1)
             assert refresh_started.wait(timeout=1.0)
 
@@ -384,14 +385,14 @@ def test_explicit_invalidation_wins_race_with_background_refresh() -> None:
             # The stale recompute declines (epoch moved); the live
             # revalidator stays registered with the post-clear token.
             deadline = time.perf_counter() + 2.0
-            while config_core._current_config_token_cache_value != ("token", 3):
+            while config_cache._current_config_token_cache_value != ("token", 3):
                 assert time.perf_counter() < deadline
                 time.sleep(min(0.01, max(0.0, deadline - time.perf_counter())))
             time.sleep(  # sase-test-wait: settle stale-recompute window
                 0.1
             )
-            assert config_core._current_config_token_cache_value == ("token", 3)
-            assert config_core._current_config_token_refresh_thread is worker
+            assert config_cache._current_config_token_cache_value == ("token", 3)
+            assert config_cache._current_config_token_refresh_thread is worker
             assert worker.is_alive()
             assert current_config_token() == ("token", 3)
         finally:
@@ -414,24 +415,24 @@ def test_getter_never_starts_thread_after_warmup() -> None:
 
     with (
         patch("sase.config.core.time.monotonic", side_effect=lambda: now[0]),
-        patch("sase.config.core._compute_current_config_token", side_effect=compute),
+        patch("sase.config._cache._compute_current_config_token", side_effect=compute),
         patch("sase.config.core.threading.Thread", CountingThread),
     ):
         _reset_config_token_cache()
         first = current_config_token()
         assert len(starts) == 1
-        worker = config_core._current_config_token_refresh_thread
+        worker = config_cache._current_config_token_refresh_thread
         assert worker is not None
 
-        now[0] += config_core._CONFIG_TOKEN_REFRESH_INTERVAL_SECONDS + 0.01
+        now[0] += config_cache._CONFIG_TOKEN_REFRESH_INTERVAL_SECONDS + 0.01
         for _ in range(5):
             assert current_config_token() is first
         assert len(starts) == 1
-        assert config_core._current_config_token_refresh_thread is worker
+        assert config_cache._current_config_token_refresh_thread is worker
 
         _wait_for_config_token(("token", int(now[0])))
         assert len(starts) == 1
-        assert config_core._current_config_token_refresh_thread is worker
+        assert config_cache._current_config_token_refresh_thread is worker
 
 
 def test_revalidator_picks_up_changed_config_within_one_cadence() -> None:
@@ -446,17 +447,17 @@ def test_revalidator_picks_up_changed_config_within_one_cadence() -> None:
 
     with (
         patch("sase.config.core.time.monotonic", side_effect=lambda: now[0]),
-        patch("sase.config.core._compute_current_config_token", side_effect=compute),
+        patch("sase.config._cache._compute_current_config_token", side_effect=compute),
     ):
         _reset_config_token_cache()
         first = current_config_token()
-        worker = config_core._current_config_token_refresh_thread
+        worker = config_cache._current_config_token_refresh_thread
         assert worker is not None
-        now[0] += config_core._CONFIG_TOKEN_REFRESH_INTERVAL_SECONDS + 0.01
+        now[0] += config_cache._CONFIG_TOKEN_REFRESH_INTERVAL_SECONDS + 0.01
         assert current_config_token() is first
         _wait_for_config_token(("token", 2))
         assert calls == 2
-        assert config_core._current_config_token_refresh_thread is worker
+        assert config_cache._current_config_token_refresh_thread is worker
         assert worker.is_alive()
 
         clear_config_cache()
@@ -497,4 +498,4 @@ def test_concurrent_first_reads_start_single_revalidator() -> None:
             and thread.is_alive()
         ]
         assert len(workers) == 1
-        assert config_core._current_config_token_refresh_thread is workers[0]
+        assert config_cache._current_config_token_refresh_thread is workers[0]

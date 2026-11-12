@@ -248,7 +248,7 @@ axe:
 
 
 def test_default_builtin_chops_use_explicit_full_script_names() -> None:
-    from sase.config.core import _load_default_config
+    from sase.config._sources import _load_default_config
 
     data = _load_default_config()
     with patch("sase.axe.config.load_merged_config", return_value=data):

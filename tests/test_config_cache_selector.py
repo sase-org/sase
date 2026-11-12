@@ -9,6 +9,8 @@ holds. See ``test_config_cache.py`` for the merged-config cache itself.
 from pathlib import Path
 from unittest.mock import patch
 
+from sase.config import _cache as config_cache
+from sase.config import _sources as config_sources
 from sase.config import core as config_core
 from sase.config.core import (
     current_config_token,
@@ -34,9 +36,9 @@ def test_selector_stat_participates_in_config_freshness_token(tmp_path: Path) ->
         patch("sase.config.core.CONFIG_DIR", global_dir),
         patch("sase.config.core.Path.cwd", return_value=tmp_path / "no_local"),
     ):
-        before = config_core._compute_current_config_token()
+        before = config_cache._compute_current_config_token()
         machine_name_path().write_text("athena\n", encoding="utf-8")
-        after = config_core._compute_current_config_token()
+        after = config_cache._compute_current_config_token()
 
     assert before != after
     assert any(
@@ -100,7 +102,7 @@ def test_selector_change_eventually_invalidates_merged_config(tmp_path: Path) ->
         import os
 
         os.utime(selector, ns=(new_mtime_ns, new_mtime_ns))
-        now[0] += config_core._CONFIG_TOKEN_REFRESH_INTERVAL_SECONDS + 0.01
+        now[0] += config_cache._CONFIG_TOKEN_REFRESH_INTERVAL_SECONDS + 0.01
 
         second = _wait_for_new_merged_config(first)
 
@@ -119,7 +121,7 @@ def test_owner_snapshot_reuses_parsed_overlay_until_token_changes(
     )
     machine_name_path().write_text("athena\n", encoding="utf-8")
     calls = {"count": 0}
-    real_loader = config_core._load_yaml_file
+    real_loader = config_sources._load_yaml_file
 
     def counting_loader(path: Path) -> dict | None:
         calls["count"] += 1
@@ -128,7 +130,7 @@ def test_owner_snapshot_reuses_parsed_overlay_until_token_changes(
     with (
         patch("sase.config.core.CONFIG_DIR", global_dir),
         patch("sase.config.core.Path.cwd", return_value=tmp_path / "no_local"),
-        patch("sase.config.core._load_yaml_file", side_effect=counting_loader),
+        patch("sase.config._sources._load_yaml_file", side_effect=counting_loader),
     ):
         first = config_core.get_agent_owner_config_snapshot()
         second = config_core.get_agent_owner_config_snapshot()

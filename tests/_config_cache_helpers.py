@@ -9,7 +9,7 @@ import time
 from pathlib import Path
 
 import yaml
-from sase.config import core as config_core
+from sase.config import _cache as config_cache
 from sase.config.core import current_config_token, load_merged_config
 
 
@@ -20,7 +20,7 @@ def _reset_config_token_cache() -> None:
     publish a host token. After ``time.monotonic`` is pinned to a small fake
     now, that leftover deadline looks fresh and the mocked compute is skipped.
     """
-    config_core._reset_current_config_token_cache()
+    config_cache._reset_current_config_token_cache()
 
 
 def _write_user_config(global_dir: Path, content: dict) -> None:

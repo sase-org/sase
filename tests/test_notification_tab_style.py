@@ -240,7 +240,7 @@ def test_a_nonsense_indicator_max_falls_back_to_the_default(
 
 def test_the_bundled_defaults_match_the_builtin_fallbacks() -> None:
     """The shipped config and the in-code fallbacks must not drift apart."""
-    from sase.config.core import _load_default_config
+    from sase.config._sources import _load_default_config
 
     configured = _load_default_config()["ace"]["notification_tabs"]
 
@@ -536,7 +536,7 @@ def test_configured_grouping_is_sanitized(
 
 
 def test_the_shipped_beads_priority_is_a_deviation_from_the_panel_default() -> None:
-    from sase.config.core import _load_default_config
+    from sase.config._sources import _load_default_config
 
     configured = _load_default_config()["ace"]["notification_tabs"]
 

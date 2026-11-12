@@ -33,7 +33,7 @@ def test_config_schema_accepts_ace_notification_tab_settings() -> None:
 
 
 def test_the_bundled_defaults_validate_against_the_schema() -> None:
-    from sase.config.core import _load_default_config
+    from sase.config._sources import _load_default_config
 
     ace = _load_default_config()["ace"]
 

@@ -149,13 +149,14 @@ def _drain_config_token_refresh(
     """
     import time as _time
 
+    from sase.config import _cache as config_cache
     from sase.config import core as config_core
 
-    with config_core._current_config_token_cache_lock:
-        config_core._reset_current_config_token_cache_locked()
-        thread = config_core._current_config_token_refresh_thread
-        stop = config_core._config_token_revalidator_stop
-        wake = config_core._config_token_revalidator_wake
+    with config_cache._current_config_token_cache_lock:
+        config_cache._reset_current_config_token_cache_locked()
+        thread = config_cache._current_config_token_refresh_thread
+        stop = config_cache._config_token_revalidator_stop
+        wake = config_cache._config_token_revalidator_wake
     skipped_join = thread is None or thread is threading.current_thread()
     if stop is not None and thread is not threading.current_thread():
         stop.set()
@@ -177,15 +178,15 @@ def _drain_config_token_refresh(
             # Never started: stop is already set, so a late start exits
             # immediately instead of orphaning. Treat as drained once the
             # registering caller can no longer leave a live worker behind.
-            with config_core._current_config_token_cache_lock:
-                if config_core._current_config_token_refresh_thread is thread:
-                    config_core._current_config_token_refresh_thread = None
-                    config_core._config_token_revalidator_stop = None
-                    config_core._config_token_revalidator_wake = None
+            with config_cache._current_config_token_cache_lock:
+                if config_cache._current_config_token_refresh_thread is thread:
+                    config_cache._current_config_token_refresh_thread = None
+                    config_cache._config_token_revalidator_stop = None
+                    config_cache._config_token_revalidator_wake = None
             return
         thread.join(timeout=remaining)
-    with config_core._current_config_token_cache_lock:
-        if config_core._current_config_token_refresh_thread is not thread:
+    with config_cache._current_config_token_cache_lock:
+        if config_cache._current_config_token_refresh_thread is not thread:
             return
         if thread is not None and thread.is_alive():
             if skipped_join:
@@ -194,9 +195,9 @@ def _drain_config_token_refresh(
                 f"{config_core.CONFIG_TOKEN_REFRESH_THREAD_NAME} did not exit "
                 f"within {timeout}s; leaving the live worker registered"
             )
-        config_core._current_config_token_refresh_thread = None
-        config_core._config_token_revalidator_stop = None
-        config_core._config_token_revalidator_wake = None
+        config_cache._current_config_token_refresh_thread = None
+        config_cache._config_token_revalidator_stop = None
+        config_cache._config_token_revalidator_wake = None
 
 
 def _clear_function_cache(cached: object) -> None:

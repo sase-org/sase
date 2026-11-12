@@ -107,14 +107,14 @@ def _service_host(
 @contextmanager
 def _preserved_host_globals() -> Iterator[None]:
     """Save and restore the process-global state ``run_host`` rewrites."""
-    import sase.config.core as config_core
+    from sase.config import _cache as config_cache
 
     saved_term = signal.getsignal(signal.SIGTERM)
     saved_int = signal.getsignal(signal.SIGINT)
     saved_usr1 = (
         signal.getsignal(signal.SIGUSR1) if hasattr(signal, "SIGUSR1") else None
     )
-    saved_local = config_core._include_local_config
+    saved_local = config_cache.include_local_config
     try:
         yield
     finally:

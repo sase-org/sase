@@ -36,7 +36,7 @@ def _merged_with_user(tmp_path: Path, user: dict) -> dict:
     with (
         patch("sase.config.core.CONFIG_DIR", global_config),
         patch("sase.config.core.Path.cwd", return_value=no_local),
-        patch("sase.config.core._load_plugin_configs", return_value=[]),
+        patch("sase.config._sources._load_plugin_configs", return_value=[]),
     ):
         return load_merged_config()
 
@@ -121,7 +121,7 @@ def test_malformed_user_layer_still_skipped(tmp_path: Path) -> None:
     with (
         patch("sase.config.core.CONFIG_DIR", tmp_path),
         patch("sase.config.core.Path.cwd", return_value=tmp_path / "no_local"),
-        patch("sase.config.core._load_plugin_configs", return_value=[]),
+        patch("sase.config._sources._load_plugin_configs", return_value=[]),
     ):
         result = load_merged_config()
     assert "bd/land_epic" in result["macros"]
@@ -134,7 +134,7 @@ def test_repeated_merged_loads_return_the_same_result(
     with (
         patch("sase.config.core.CONFIG_DIR", tmp_path),
         patch("sase.config.core.Path.cwd", return_value=tmp_path / "no_local"),
-        patch("sase.config.core._load_plugin_configs", return_value=[]),
+        patch("sase.config._sources._load_plugin_configs", return_value=[]),
     ):
         first = load_merged_config()
         assert first["macros"]["mine"] == "hello"
@@ -315,7 +315,7 @@ def test_placeholder_toggle_prefers_canonical_key(
     with (
         patch("sase.config.core.CONFIG_DIR", tmp_path),
         patch("sase.config.core.Path.cwd", return_value=tmp_path / "no_local"),
-        patch("sase.config.core._load_plugin_configs", return_value=[]),
+        patch("sase.config._sources._load_plugin_configs", return_value=[]),
     ):
         assert conversion._macro_placeholder_args_enabled() is False
     monkeypatch.setattr(conversion, "_config_section", lambda data, key: {})

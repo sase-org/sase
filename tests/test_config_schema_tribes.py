@@ -40,7 +40,7 @@ def test_bundled_ace_tribes_are_only_sase_assigned_tribes() -> None:
     Any other tribe (one your own macros assign with `%tribe:` / `tribe=`) is
     yours to configure in `~/.config/sase/sase.yml`; it must not appear here.
     """
-    from sase.config.core import _load_default_config
+    from sase.config._sources import _load_default_config
 
     data = _load_default_config()
     assert set(data["ace"]["tribes"]) == {

@@ -12,7 +12,7 @@ import time
 from unittest.mock import patch
 
 import pytest
-from sase.config import core as config_core
+from sase.config import _cache as config_cache
 from sase.config.core import current_config_token
 from tests._config_cache_helpers import _reset_config_token_cache
 from tests._load_tolerant import LOAD_TOLERANT_TIMEOUT
@@ -158,16 +158,16 @@ def test_drain_config_token_refresh_joins_worker_and_advances_epoch() -> None:
 
     with (
         patch("sase.config.core.time.monotonic", side_effect=lambda: now[0]),
-        patch("sase.config.core._compute_current_config_token", side_effect=compute),
+        patch("sase.config._cache._compute_current_config_token", side_effect=compute),
     ):
         _reset_config_token_cache()
         try:
             assert current_config_token() == ("token", 1)
-            now[0] += config_core._CONFIG_TOKEN_REFRESH_INTERVAL_SECONDS + 0.01
+            now[0] += config_cache._CONFIG_TOKEN_REFRESH_INTERVAL_SECONDS + 0.01
             assert current_config_token() == ("token", 1)
             assert refresh_started.wait(timeout=1.0)
-            epoch_before = config_core._current_config_token_cache_epoch
-            worker = config_core._current_config_token_refresh_thread
+            epoch_before = config_cache._current_config_token_cache_epoch
+            worker = config_cache._current_config_token_refresh_thread
             assert worker is not None
 
             def _release() -> None:
@@ -177,8 +177,8 @@ def test_drain_config_token_refresh_joins_worker_and_advances_epoch() -> None:
             threading.Thread(target=_release, daemon=True).start()
             _drain_config_token_refresh()
 
-            assert config_core._current_config_token_cache_epoch > epoch_before
-            assert config_core._current_config_token_refresh_thread is None
+            assert config_cache._current_config_token_cache_epoch > epoch_before
+            assert config_cache._current_config_token_refresh_thread is None
             assert not worker.is_alive()
             assert current_config_token() == ("token", 3)
         finally:
@@ -206,20 +206,20 @@ def test_drain_timeout_leaves_live_worker_registered() -> None:
     worker: threading.Thread | None = None
     with (
         patch("sase.config.core.time.monotonic", side_effect=lambda: now[0]),
-        patch("sase.config.core._compute_current_config_token", side_effect=compute),
+        patch("sase.config._cache._compute_current_config_token", side_effect=compute),
     ):
         try:
             assert current_config_token() == ("token", 1)
-            now[0] += config_core._CONFIG_TOKEN_REFRESH_INTERVAL_SECONDS + 0.01
+            now[0] += config_cache._CONFIG_TOKEN_REFRESH_INTERVAL_SECONDS + 0.01
             assert current_config_token() == ("token", 1)
             assert refresh_started.wait(timeout=1.0)
-            worker = config_core._current_config_token_refresh_thread
+            worker = config_cache._current_config_token_refresh_thread
             assert worker is not None
 
             with pytest.raises(RuntimeError, match="did not exit"):
                 _drain_config_token_refresh(timeout=0.05)
 
-            assert config_core._current_config_token_refresh_thread is worker
+            assert config_cache._current_config_token_refresh_thread is worker
             assert worker.is_alive()
         finally:
             release_refresh.set()
@@ -248,12 +248,12 @@ def test_prior_refresh_worker_cannot_publish_after_drain() -> None:
 
     with (
         patch("sase.config.core.time.monotonic", side_effect=lambda: now[0]),
-        patch("sase.config.core._compute_current_config_token", side_effect=compute),
+        patch("sase.config._cache._compute_current_config_token", side_effect=compute),
     ):
         _reset_config_token_cache()
         try:
             assert current_config_token() == ("inline", 1)
-            now[0] += config_core._CONFIG_TOKEN_REFRESH_INTERVAL_SECONDS + 0.01
+            now[0] += config_cache._CONFIG_TOKEN_REFRESH_INTERVAL_SECONDS + 0.01
             assert current_config_token() == ("inline", 1)
             assert refresh_started.wait(timeout=1.0)
 
@@ -263,9 +263,9 @@ def test_prior_refresh_worker_cannot_publish_after_drain() -> None:
 
             threading.Thread(target=_release, daemon=True).start()
             _drain_config_token_refresh()
-            assert config_core._current_config_token_refresh_thread is None
+            assert config_cache._current_config_token_refresh_thread is None
             assert current_config_token() == ("inline", 3)
-            worker = config_core._current_config_token_refresh_thread
+            worker = config_cache._current_config_token_refresh_thread
             assert worker is not None
             assert worker.is_alive()
             assert current_config_token() == ("inline", 3)
@@ -278,18 +278,18 @@ def test_drain_joins_worker_restarted_after_previous_drain() -> None:
     _reset_config_token_cache()
     try:
         current_config_token()
-        first = config_core._current_config_token_refresh_thread
+        first = config_cache._current_config_token_refresh_thread
         assert first is not None
         _drain_config_token_refresh()
-        assert config_core._current_config_token_refresh_thread is None
+        assert config_cache._current_config_token_refresh_thread is None
         assert not first.is_alive()
 
         current_config_token()
-        second = config_core._current_config_token_refresh_thread
+        second = config_cache._current_config_token_refresh_thread
         assert second is not None
         assert second is not first
         _drain_config_token_refresh()
-        assert config_core._current_config_token_refresh_thread is None
+        assert config_cache._current_config_token_refresh_thread is None
         assert not second.is_alive()
     finally:
         _drain_config_token_refresh()

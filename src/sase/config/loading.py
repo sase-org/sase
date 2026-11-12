@@ -109,7 +109,7 @@ def _with_rust_normalized_axe(
     return normalized
 
 
-def deep_merge(
+def _deep_merge(
     base: dict[str, Any],
     override: dict[str, Any],
     *,
@@ -128,7 +128,7 @@ def deep_merge(
 
         base_val = result[key]
         if isinstance(base_val, dict) and isinstance(override_val, dict):
-            result[key] = deep_merge(
+            result[key] = _deep_merge(
                 base_val, override_val, list_strategy=list_strategy
             )
         elif isinstance(base_val, list) and isinstance(override_val, list):
@@ -334,7 +334,7 @@ def merge_config_sources(
                 list_strategy="concatenate",
             )
         )
-        result = deep_merge(result, contribution)
+        result = _deep_merge(result, contribution)
 
     user_base = yaml_loader(user_base_path)
     if user_base:
@@ -364,7 +364,7 @@ def merge_config_sources(
             user_base_path,
             ", ".join(user_base),
         )
-        result = deep_merge(result, contribution, list_strategy="replace")
+        result = _deep_merge(result, contribution, list_strategy="replace")
 
     selected_identity: dict[str, Any] | None = None
     for overlay_path in overlay_paths:
@@ -410,7 +410,7 @@ def merge_config_sources(
                 list_strategy="concatenate",
             )
         )
-        result = deep_merge(result, contribution)
+        result = _deep_merge(result, contribution)
 
     if local_path:
         local_config = yaml_loader(local_path)
@@ -438,7 +438,7 @@ def merge_config_sources(
                 local_path,
                 ", ".join(local_config),
             )
-            result = deep_merge(result, contribution)
+            result = _deep_merge(result, contribution)
 
     result = without_retired_sdd_selectors(result)
     result = _with_rust_normalized_axe(result, layer_inputs)
@@ -449,7 +449,6 @@ def merge_config_sources(
 
 
 __all__ = [
-    "deep_merge",
     "get_overlay_paths",
     "load_default_config",
     "load_plugin_configs",

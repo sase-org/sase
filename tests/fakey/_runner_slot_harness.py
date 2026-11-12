@@ -20,7 +20,7 @@ import pytest
 
 from sase.axe import run_agent_wait_slots
 from sase.axe.run_agent_markers import record_run_started_at, write_agent_meta
-from sase.config import core as config_core
+from sase.config import _cache as config_cache
 from sase.core.agent_artifact_index_lifecycle import (
     update_agent_artifact_index_for_marker_mutation,
 )
@@ -88,7 +88,7 @@ class _RunnerSlotFakeyHarness:
         monkeypatch.delenv("FAKEY_SCENARIO", raising=False)
         monkeypatch.delenv("SASE_ARTIFACTS_DIR", raising=False)
         monkeypatch.chdir(self.workspace)
-        monkeypatch.setattr(config_core, "_include_local_config", True)
+        monkeypatch.setattr(config_cache, "include_local_config", True)
         monkeypatch.setattr(run_agent_wait_slots, "_RUNNER_SLOT_POLL_INTERVAL", 0.01)
         monkeypatch.setattr(run_agent_wait_slots, "was_killed", self._was_killed)
 

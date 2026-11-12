@@ -135,7 +135,7 @@ def test_merged_default_config_marks_all_unread_done_agents_read_with_u(
     with (
         patch("sase.config.core.CONFIG_DIR", tmp_path / "empty_config"),
         patch("sase.config.core.Path.cwd", return_value=tmp_path / "no_local_config"),
-        patch("sase.config.core._load_plugin_configs", return_value=[]),
+        patch("sase.config._sources._load_plugin_configs", return_value=[]),
     ):
         merged = load_merged_config()
 

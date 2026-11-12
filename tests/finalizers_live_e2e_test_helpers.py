@@ -74,7 +74,7 @@ def isolate_host_config(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None
     config_dir = tmp_path / "empty-config"
     config_dir.mkdir()
     monkeypatch.setattr("sase.config.core.CONFIG_DIR", config_dir)
-    monkeypatch.setattr("sase.config.core._include_local_config", False)
+    monkeypatch.setattr("sase.config._cache.include_local_config", False)
     monkeypatch.setenv("SASE_HOME", str(tmp_path / "sase-home"))
 
 

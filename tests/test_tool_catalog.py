@@ -157,7 +157,7 @@ def test_user_tools_without_project_catalog_do_not_appear(
 
 def test_deep_merge_would_splice_tool_argv_lists() -> None:
     """Document why tools must not ride the ordinary recursive merge."""
-    from sase.config.core import _deep_merge
+    from sase.config.loading import _deep_merge
 
     spliced = _deep_merge(
         {"tools": {"check": {"argv": ["echo", "user"]}}},

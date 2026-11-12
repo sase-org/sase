@@ -16,7 +16,7 @@ from unittest.mock import patch
 
 import pytest
 import yaml
-from sase.config import core as config_core
+from sase.config import _cache as config_cache
 from sase.config.core import (
     CONFIG_TOKEN_REFRESH_THREAD_NAME,
     current_config_token,
@@ -63,11 +63,11 @@ def test_poisoner_leaves_blocked_refresh_worker() -> None:
 
     with (
         patch("sase.config.core.time.monotonic", side_effect=lambda: now[0]),
-        patch("sase.config.core._compute_current_config_token", side_effect=compute),
+        patch("sase.config._cache._compute_current_config_token", side_effect=compute),
     ):
         _reset_config_token_cache()
         assert current_config_token() == ("poison", 1)
-        now[0] += config_core._CONFIG_TOKEN_REFRESH_INTERVAL_SECONDS + 0.01
+        now[0] += config_cache._CONFIG_TOKEN_REFRESH_INTERVAL_SECONDS + 0.01
         assert current_config_token() == ("poison", 1)
         assert refresh_started.wait(timeout=1.0)
 
@@ -95,7 +95,7 @@ def test_victim_first_reads_use_only_successor_patched_paths(tmp_path: Path) -> 
         merged = load_merged_config()
         owner = get_agent_owner_config_snapshot()
 
-    assert token[0] == config_core._config_cache_generation
+    assert token[0] == config_cache.config_cache_generation
     assert merged["marker"] == "successor"
     assert owner.owner is not None
     assert owner.owner.username == "successoruser"

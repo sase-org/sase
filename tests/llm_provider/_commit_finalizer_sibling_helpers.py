@@ -83,7 +83,7 @@ def isolate_user_config(monkeypatch: pytest.MonkeyPatch, config_dir: Path) -> No
     """
     config_dir.mkdir(parents=True, exist_ok=True)
     monkeypatch.setattr("sase.config.core.CONFIG_DIR", config_dir)
-    monkeypatch.setattr("sase.config.core._include_local_config", False)
+    monkeypatch.setattr("sase.config._cache.include_local_config", False)
 
 
 def collected_dirty_state(project_dir: Path, artifacts_dir: Path) -> DirtyState:

@@ -2,7 +2,7 @@
 
 The merge golden mirrors the Rust ``config_parity.rs`` golden: both sides fold
 the same fixture layer stack and assert the identical merged result, so a drift
-between the Python ``_deep_merge`` and the Rust merge fails on one side or the
+between the Python ``deep_merge`` and the Rust merge fails on one side or the
 other. The remaining tests cover layer serialization, the flattened field
 model, and the inventory provenance/source rail through the real binding.
 """
@@ -12,7 +12,8 @@ from __future__ import annotations
 from typing import Any
 from unittest.mock import patch
 
-from sase.config.core import ConfigLayer, _deep_merge
+from sase.config.core import ConfigLayer
+from sase.config.loading import _deep_merge
 from sase.config.inventory import (
     build_config_inventory,
     config_field_model,
@@ -22,7 +23,7 @@ from sase.config.inventory import (
 
 
 # The merged config produced by folding the fixture layer stack through the
-# Python ``_deep_merge`` — kept identical to ``PYTHON_MERGE_GOLDEN`` in
+# Python ``deep_merge`` — kept identical to ``PYTHON_MERGE_GOLDEN`` in
 # ``sase-core``'s ``config_parity.rs`` so the two implementations are pinned to
 # the same vectors.
 PYTHON_MERGE_GOLDEN: dict[str, Any] = {
@@ -257,7 +258,7 @@ def _build_fixture_inventory() -> Any:
 
 
 def test_deep_merge_fold_matches_rust_golden() -> None:
-    """Folding the fixture stack through Python ``_deep_merge`` hits the golden.
+    """Folding the fixture stack through Python ``deep_merge`` hits the golden.
 
     This is the Python half of the cross-language parity vector asserted in
     ``sase-core``'s ``merge_layers_matches_python_deep_merge_golden``.

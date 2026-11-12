@@ -6,6 +6,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+from sase.config import _cache as config_cache
 from sase.config import core as config_core
 from sase.llm_provider import config as llm_config
 from sase.llm_provider.config import (
@@ -65,8 +66,8 @@ def test_resolve_model_alias_reuses_aliases_without_config_io(tmp_path) -> None:
                 side_effect=AssertionError("unexpected config stat"),
             ),
             patch.object(
-                config_core,
-                "_get_overlay_paths",
+                config_cache,
+                "overlay_paths",
                 side_effect=AssertionError("unexpected config glob"),
             ),
         ):

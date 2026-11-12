@@ -9,13 +9,13 @@ import yaml
 
 from sase.config.core import (
     CONFIG_DIR,
-    _deep_merge,
     load_merged_config,
     load_public_merged_config,
 )
+from sase.config.loading import _deep_merge
 
 
-# --- _deep_merge tests ---
+# --- deep_merge tests ---
 
 
 def test_deep_merge_list_concatenation() -> None:
@@ -57,7 +57,7 @@ def test_load_merged_config_default_workspace_root_is_xdg_state(
     with (
         patch("sase.config.core.CONFIG_DIR", tmp_path / "empty"),
         patch("sase.config.core.Path.cwd", return_value=tmp_path / "no_local"),
-        patch("sase.config.core._load_plugin_configs", return_value=[]),
+        patch("sase.config._sources._load_plugin_configs", return_value=[]),
     ):
         result = load_merged_config()
 
@@ -127,8 +127,8 @@ def test_load_merged_config_normalizes_axe_aliases_through_rust(
     with (
         patch("sase.config.core.CONFIG_DIR", global_config),
         patch("sase.config.core.Path.cwd", return_value=tmp_path / "no_local"),
-        patch("sase.config.core._load_default_config", return_value=default),
-        patch("sase.config.core._load_plugin_configs", return_value=[]),
+        patch("sase.config._sources._load_default_config", return_value=default),
+        patch("sase.config._sources._load_plugin_configs", return_value=[]),
     ):
         merged = load_merged_config()
 
@@ -161,8 +161,8 @@ def test_load_public_merged_config_projects_canonical_axe(
     with (
         patch("sase.config.core.CONFIG_DIR", global_config),
         patch("sase.config.core.Path.cwd", return_value=tmp_path / "no_local"),
-        patch("sase.config.core._load_default_config", return_value=default),
-        patch("sase.config.core._load_plugin_configs", return_value=[]),
+        patch("sase.config._sources._load_default_config", return_value=default),
+        patch("sase.config._sources._load_plugin_configs", return_value=[]),
     ):
         canonical = load_public_merged_config()
 
@@ -197,8 +197,8 @@ def test_config_show_projects_public_axe_contract(
     with (
         patch("sase.config.core.CONFIG_DIR", global_config),
         patch("sase.config.core.Path.cwd", return_value=tmp_path / "no_local"),
-        patch("sase.config.core._load_default_config", return_value=default),
-        patch("sase.config.core._load_plugin_configs", return_value=[]),
+        patch("sase.config._sources._load_default_config", return_value=default),
+        patch("sase.config._sources._load_plugin_configs", return_value=[]),
         pytest.raises(SystemExit) as exit_info,
     ):
         handle_config_command(argparse.Namespace(config_subcommand="show", key="axe"))

@@ -161,23 +161,23 @@ def test_load_merged_config_for_local_path_override_replaces_only_local_layer(
         yaml.dump({"shared": "user", "from_user": "user"})
     )
     monkeypatch.setattr("sase.config.core.CONFIG_DIR", global_dir)
-    monkeypatch.setattr("sase.config.core._load_default_config", lambda: {})
-    monkeypatch.setattr("sase.config.core._load_plugin_configs", lambda: [])
+    monkeypatch.setattr("sase.config._sources._load_default_config", lambda: {})
+    monkeypatch.setattr("sase.config._sources._load_plugin_configs", lambda: [])
 
     local_path = tmp_path / "proj" / "sase" / "sase.yml"
     local_path.parent.mkdir(parents=True)
     local_path.write_text(yaml.dump({"shared": "disk", "from_disk": "disk"}))
 
     seen: list[Path] = []
-    from sase.config import core as config_core
+    from sase.config import _sources as config_sources
 
-    real_loader = config_core._load_yaml_file
+    real_loader = config_sources._load_yaml_file
 
     def recording_loader(path: Path) -> dict | None:
         seen.append(path)
         return real_loader(path)
 
-    monkeypatch.setattr("sase.config.core._load_yaml_file", recording_loader)
+    monkeypatch.setattr("sase.config._sources._load_yaml_file", recording_loader)
 
     merged = load_merged_config_for_local_path(
         local_path,

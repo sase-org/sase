@@ -445,9 +445,10 @@ def _clear_agent_env_vars(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
     Prevents launcher state from leaking into tests and causing side effects
     like bogus COMMITS entries in real ChangeSpec files, chop registry records,
     extra linked-repo dirty checks from the live agent workspace, model alias
-    overrides affecting resolution assertions, or a live supervisor
+    overrides affecting resolution assertions, a live supervisor
     ``SASE_PROC_*`` sidecar being consumed by ordinary gate/ops/launch
-    handlers. Monitor-delivery continuation variables are also scrubbed so
+    handlers, or the surrounding agent's prompt-authorship stamp skipping
+    host-side ``$(cmd)`` substitution in preprocessing tests. Monitor-delivery continuation variables are also scrubbed so
     provider-invoking tests don't accidentally acknowledge the surrounding
     agent's continuation key. Both the canonical ``SASE_LINKED_REPO*`` vars and
     the deprecated ``SASE_SIBLING_REPO*`` aliases are scrubbed so finalizer tests
@@ -484,6 +485,9 @@ def _clear_agent_env_vars(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
                 SASE_MODEL_ALIAS_OVERRIDES_ENV,
                 "SASE_MONITOR_CONTINUATION",
                 "SASE_MONITOR_ID",
+                "SASE_PROMPT_AUTHORSHIP",
+                "SASE_PROMPT_ORIGIN",
+                "SASE_PROMPT_SOURCE_SURFACE",
                 "SASE_SIBLING_REPOS_JSON",
                 "TMUX_PANE",
             }

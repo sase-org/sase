@@ -17,6 +17,8 @@ from unittest.mock import patch
 
 import yaml
 from sase import _yaml_safe
+from sase.config import _cache as config_cache
+from sase.config import _sources as config_sources
 from sase.config import core as config_core
 from sase.config.core import (
     clear_config_cache,
@@ -68,7 +70,7 @@ def test_load_merged_config_eventually_invalidates_on_file_mtime_change(
         import os
 
         os.utime(sase_yml, ns=(new_mtime_ns, new_mtime_ns))
-        now[0] += config_core._CONFIG_TOKEN_REFRESH_INTERVAL_SECONDS + 0.01
+        now[0] += config_cache._CONFIG_TOKEN_REFRESH_INTERVAL_SECONDS + 0.01
 
         second = _wait_for_new_merged_config(first)
 
@@ -136,8 +138,8 @@ def test_yaml_content_cache_survives_config_cache_clear(tmp_path: Path) -> None:
     with (
         patch("sase.config.core.CONFIG_DIR", global_dir),
         patch("sase.config.core.Path.cwd", return_value=tmp_path / "no_local"),
-        patch("sase.config.core._load_default_config", return_value={}),
-        patch("sase.config.core._load_plugin_configs", return_value=[]),
+        patch("sase.config._sources._load_default_config", return_value={}),
+        patch("sase.config._sources._load_plugin_configs", return_value=[]),
         patch("sase._yaml_safe.yaml_safe_load", counting_loader),
     ):
         first = load_merged_config()
@@ -156,8 +158,8 @@ def test_yaml_content_cache_returns_fresh_objects(tmp_path: Path) -> None:
     with (
         patch("sase.config.core.CONFIG_DIR", global_dir),
         patch("sase.config.core.Path.cwd", return_value=tmp_path / "no_local"),
-        patch("sase.config.core._load_default_config", return_value={}),
-        patch("sase.config.core._load_plugin_configs", return_value=[]),
+        patch("sase.config._sources._load_default_config", return_value={}),
+        patch("sase.config._sources._load_plugin_configs", return_value=[]),
     ):
         first = load_merged_config()
         first["nested"]["key"] = "mutated"
@@ -173,7 +175,7 @@ def test_load_merged_config_caches_default_layer(tmp_path: Path) -> None:
     _write_user_config(global_dir, {"key": "user"})
 
     call_count = {"n": 0}
-    real_loader = config_core._load_default_config
+    real_loader = config_sources._load_default_config
 
     def counting_loader() -> dict:
         call_count["n"] += 1
@@ -183,7 +185,7 @@ def test_load_merged_config_caches_default_layer(tmp_path: Path) -> None:
     with (
         patch("sase.config.core.CONFIG_DIR", global_dir),
         patch("sase.config.core.Path.cwd", return_value=tmp_path / "no_local"),
-        patch("sase.config.core._load_default_config", counting_loader),
+        patch("sase.config._sources._load_default_config", counting_loader),
         patch("sase.config.core.time.monotonic", side_effect=lambda: now[0]),
     ):
         first = load_merged_config()
@@ -198,7 +200,7 @@ def test_load_merged_config_caches_default_layer(tmp_path: Path) -> None:
         import os
 
         os.utime(sase_yml, ns=(new_mtime_ns, new_mtime_ns))
-        now[0] += config_core._CONFIG_TOKEN_REFRESH_INTERVAL_SECONDS + 0.01
+        now[0] += config_cache._CONFIG_TOKEN_REFRESH_INTERVAL_SECONDS + 0.01
         _wait_for_new_merged_config(first)
         assert call_count["n"] == loads_after_first
 
@@ -209,7 +211,7 @@ def test_load_merged_config_caches_plugin_layer(tmp_path: Path) -> None:
     _write_user_config(global_dir, {"key": "user"})
 
     call_count = {"n": 0}
-    real_loader = config_core._load_plugin_configs
+    real_loader = config_sources._load_plugin_configs
 
     def counting_loader() -> list:
         call_count["n"] += 1
@@ -219,7 +221,7 @@ def test_load_merged_config_caches_plugin_layer(tmp_path: Path) -> None:
     with (
         patch("sase.config.core.CONFIG_DIR", global_dir),
         patch("sase.config.core.Path.cwd", return_value=tmp_path / "no_local"),
-        patch("sase.config.core._load_plugin_configs", counting_loader),
+        patch("sase.config._sources._load_plugin_configs", counting_loader),
         patch("sase.config.core.time.monotonic", side_effect=lambda: now[0]),
     ):
         first = load_merged_config()
@@ -231,7 +233,7 @@ def test_load_merged_config_caches_plugin_layer(tmp_path: Path) -> None:
         import os
 
         os.utime(sase_yml, ns=(new_mtime_ns, new_mtime_ns))
-        now[0] += config_core._CONFIG_TOKEN_REFRESH_INTERVAL_SECONDS + 0.01
+        now[0] += config_cache._CONFIG_TOKEN_REFRESH_INTERVAL_SECONDS + 0.01
         _wait_for_new_merged_config(first)
         assert call_count["n"] == loads_after_first
 
@@ -257,12 +259,12 @@ def test_load_merged_config_serves_stale_while_refreshing(tmp_path: Path) -> Non
         patch("sase.config.core.CONFIG_DIR", global_dir),
         patch("sase.config.core.Path.cwd", return_value=tmp_path / "no_local"),
         patch("sase.config.core.time.monotonic", side_effect=lambda: now[0]),
-        patch("sase.config.core._compute_current_config_token", side_effect=compute),
+        patch("sase.config._cache._compute_current_config_token", side_effect=compute),
     ):
         try:
             first = load_merged_config()
             token_generation[0] = 2
-            now[0] += config_core._CONFIG_TOKEN_REFRESH_INTERVAL_SECONDS + 0.01
+            now[0] += config_cache._CONFIG_TOKEN_REFRESH_INTERVAL_SECONDS + 0.01
             stale = load_merged_config()
             assert stale is first
             assert refresh_started.wait(timeout=1.0)
@@ -308,7 +310,7 @@ def test_load_merged_config_discards_build_invalidated_by_concurrent_clear(
             assert build_started.wait(timeout=2.0)
 
             clear_config_cache()
-            assert config_core._merged_config_cache is None
+            assert config_cache.merged_config_cache is None
             (global_dir / "sase.yml").write_text(yaml.dump({"key": "v2"}))
 
             release_build.set()
@@ -317,7 +319,7 @@ def test_load_merged_config_discards_build_invalidated_by_concurrent_clear(
 
             # The discarded build must not have installed itself even though
             # it finished after the clear.
-            assert config_core._merged_config_cache is None
+            assert config_cache.merged_config_cache is None
 
             second = load_merged_config()
         finally:
@@ -335,7 +337,7 @@ def test_owner_config_snapshot_discards_build_invalidated_by_concurrent_clear(
 
     build_started = threading.Event()
     release_build = threading.Event()
-    real_build = config_core._build_agent_owner_config_snapshot
+    real_build = config_sources._build_agent_owner_config_snapshot
 
     def blocking_build() -> object:
         build_started.set()
@@ -346,7 +348,7 @@ def test_owner_config_snapshot_discards_build_invalidated_by_concurrent_clear(
         patch("sase.config.core.CONFIG_DIR", global_dir),
         patch("sase.config.core.Path.cwd", return_value=tmp_path / "no_local"),
         patch(
-            "sase.config.core._build_agent_owner_config_snapshot",
+            "sase.config._sources._build_agent_owner_config_snapshot",
             side_effect=blocking_build,
         ),
     ):
@@ -356,13 +358,13 @@ def test_owner_config_snapshot_discards_build_invalidated_by_concurrent_clear(
             assert build_started.wait(timeout=2.0)
 
             clear_config_cache()
-            assert config_core._agent_owner_config_cache is None
+            assert config_cache.agent_owner_config_cache is None
 
             release_build.set()
             builder.join(timeout=2.0)
             assert not builder.is_alive()
 
-            assert config_core._agent_owner_config_cache is None
+            assert config_cache.agent_owner_config_cache is None
         finally:
             release_build.set()
 
@@ -377,7 +379,7 @@ def test_merged_config_cache_is_a_single_slot(tmp_path: Path) -> None:
         patch("sase.config.core.Path.cwd", return_value=tmp_path / "no_local"),
     ):
         result = load_merged_config()
-        cached = config_core._merged_config_cache
+        cached = config_cache.merged_config_cache
         assert cached is not None
         # The key pairs the filesystem token with the constant retired
         # legacy-syntax policy bit.
@@ -385,7 +387,7 @@ def test_merged_config_cache_is_a_single_slot(tmp_path: Path) -> None:
         assert cached[1] is result
 
         clear_config_cache()
-        assert config_core._merged_config_cache is None
+        assert config_cache.merged_config_cache is None
 
 
 def test_agent_owner_config_cache_is_a_single_slot(tmp_path: Path) -> None:
@@ -398,10 +400,10 @@ def test_agent_owner_config_cache_is_a_single_slot(tmp_path: Path) -> None:
         patch("sase.config.core.Path.cwd", return_value=tmp_path / "no_local"),
     ):
         snapshot = get_agent_owner_config_snapshot()
-        cached = config_core._agent_owner_config_cache
+        cached = config_cache.agent_owner_config_cache
         assert cached is not None
         assert cached[0] == config_core.current_config_token()
         assert cached[1] is snapshot
 
         clear_config_cache()
-        assert config_core._agent_owner_config_cache is None
+        assert config_cache.agent_owner_config_cache is None
