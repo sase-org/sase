@@ -145,6 +145,7 @@ def create_monitor_member(
         agent_session_role="monitor",
         metadata=monitor_metadata,
         inherited_metadata_fields=_MONITOR_INHERITED_METADATA_FIELDS,
+        prev_artifacts_dir=starter_artifacts_dir,
     )
 
 

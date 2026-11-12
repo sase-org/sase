@@ -268,6 +268,18 @@ def launch_followup_agent(
     )
     checkpoint_body = _load_checkpoint_body(artifacts_dir, checkpoint_ref)
     output_log_path = str(monitor_log_path(artifacts_dir))
+    from sase.monitor.delivery import (
+        HOST_COMPLETION_RECEIPT_FILENAME,
+        load_host_completion_receipt,
+    )
+
+    host_completion_receipt = load_host_completion_receipt(artifacts_dir)
+    raw_fingerprint_differences = (
+        host_completion_receipt.get("fingerprint_differences")
+        if host_completion_receipt is not None
+        and host_completion_receipt.get("fingerprint_differences_recorded") is True
+        else None
+    )
     total_bytes = capture.total_bytes
     output_truncated = capture.truncated
     retained_for_prompt = retained_log
@@ -335,6 +347,14 @@ def launch_followup_agent(
         ),
         "host_completion_reasons": _clean_str_list(
             meta.get("monitor_host_completion_reasons")
+        ),
+        "host_completion_fingerprint_differences": (
+            raw_fingerprint_differences
+            if isinstance(raw_fingerprint_differences, Mapping)
+            else None
+        ),
+        "host_completion_receipt_path": os.path.join(
+            artifacts_dir, HOST_COMPLETION_RECEIPT_FILENAME
         ),
     }
 

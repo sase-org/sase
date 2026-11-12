@@ -146,6 +146,8 @@ def compose_followup_prompt(
     host_completion_status: str | None = None,
     host_completion_reason: str | None = None,
     host_completion_reasons: Sequence[str] | None = None,
+    host_completion_fingerprint_differences: Mapping[str, Any] | None = None,
+    host_completion_receipt_path: str | None = None,
 ) -> str:
     """Compose the follow-up agent's full prompt.
 
@@ -318,6 +320,10 @@ def compose_followup_prompt(
         host_completion_status=host_completion_status,
         host_completion_reason=host_completion_reason,
         host_completion_reasons=host_completion_reasons,
+        host_completion_fingerprint_differences=(
+            host_completion_fingerprint_differences
+        ),
+        host_completion_receipt_path=host_completion_receipt_path,
         monitor_state=monitor_state,
         exit_code=exit_code,
         elapsed_seconds=elapsed_seconds,
@@ -374,8 +380,10 @@ def _host_completion_reason_gloss(reason: str) -> str | None:
         )
     if reason == "stale_worktree_fingerprint":
         return (
-            "the worktree changed after the completion was sealed — re-prepare "
-            "the completion on the current tree."
+            "the sealed and current repository observations differ. The cause may "
+            "be a worktree value, ownership metadata, or repository discovery "
+            "change; inspect the recorded components before deciding whether to "
+            "re-prepare. A genuinely changed tree still requires fresh verification."
         )
     if reason == "changed_finalizer_requirements":
         return "the finalizer plan changed after sealing — re-prepare the completion."
@@ -406,6 +414,8 @@ def _host_completion_section(
     host_completion_status: str | None,
     host_completion_reason: str | None,
     host_completion_reasons: Sequence[str] | None,
+    host_completion_fingerprint_differences: Mapping[str, Any] | None,
+    host_completion_receipt_path: str | None,
     monitor_state: str,
     exit_code: int | None,
     elapsed_seconds: float,
@@ -441,8 +451,115 @@ def _host_completion_section(
             lines.append(f"- `{code}` — {gloss}")
         else:
             lines.append(f"- `{code}`")
+    if "stale_worktree_fingerprint" in reasons:
+        lines.extend(
+            _fingerprint_difference_lines(
+                host_completion_fingerprint_differences,
+                host_completion_receipt_path,
+            )
+        )
     lines.append("")
     return lines
+
+
+def _fingerprint_difference_lines(
+    differences: Mapping[str, Any] | None,
+    receipt_path: str | None,
+) -> list[str]:
+    """Render bounded comparison evidence without guessing at older records."""
+    if not isinstance(differences, Mapping):
+        return [
+            "",
+            "The host-completion receipt did not record component evidence, so "
+            "the specific difference is unknown. Do not assume the worktree "
+            "changed; inspect repository ownership and discovery state.",
+        ]
+
+    raw_items = differences.get("items")
+    items = (
+        [item for item in raw_items if isinstance(item, Mapping)]
+        if isinstance(raw_items, Sequence) and not isinstance(raw_items, str | bytes)
+        else []
+    )
+    total = _nonnegative_int(differences.get("total_count"), len(items))
+    omitted = _nonnegative_int(
+        differences.get("omitted_count"), max(0, total - len(items))
+    )
+    if not items:
+        return [
+            "",
+            "The evaluator recorded no component-level explanation for this "
+            "fingerprint refusal.",
+            *_fingerprint_receipt_pointer(receipt_path),
+        ]
+
+    visible = [_bounded_fingerprint_item(item) for item in items[:24]]
+    values_truncated = any(
+        value.endswith("…")
+        for item in visible
+        for value in item.values()
+        if isinstance(value, str)
+    )
+    payload: dict[str, Any]
+    while True:
+        payload = {
+            "total_count": total,
+            "omitted_count": max(omitted, total - len(visible)),
+            "items": visible,
+        }
+        if values_truncated:
+            payload["values_truncated"] = True
+        encoded = json.dumps(
+            payload, ensure_ascii=False, sort_keys=True, separators=(",", ":")
+        )
+        if len(encoded) <= 6000 or not visible:
+            break
+        visible.pop()
+    lines = [
+        "",
+        "Recorded fingerprint differences (repository IDs, hashes, and paths):",
+    ]
+    lines.extend(_fenced_block("Fingerprint comparison JSON", encoded))
+    if payload["omitted_count"] or values_truncated:
+        lines.extend(
+            [
+                "Some component detail is omitted from this prompt. Full retained "
+                "diagnostic data is in the monitor host-completion receipt.",
+                *_fingerprint_receipt_pointer(receipt_path),
+            ]
+        )
+    return lines
+
+
+def _bounded_fingerprint_item(item: Mapping[str, Any]) -> dict[str, Any]:
+    result: dict[str, Any] = {}
+    for key in (
+        "repo_id",
+        "repo_name",
+        "repo_kind",
+        "component",
+        "path",
+        "expected",
+        "observed",
+    ):
+        value = item.get(key)
+        if isinstance(value, str) and len(value) > 256:
+            result[key] = value[:255] + "…"
+        elif value is not None:
+            result[key] = value
+    return result
+
+
+def _fingerprint_receipt_pointer(receipt_path: str | None) -> list[str]:
+    if not receipt_path:
+        return []
+    return [f"Receipt: `{receipt_path}`."]
+
+
+def _nonnegative_int(value: object, fallback: int) -> int:
+    if isinstance(value, int) and not isinstance(value, bool) and value >= 0:
+        return value
+    return max(0, fallback)
 
 
 def _failure_triage_section(

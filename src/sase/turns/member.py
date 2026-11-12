@@ -27,6 +27,7 @@ def create_agent_session_turn_member(
     agent_session_role: str,
     metadata: Mapping[str, Any] | None = None,
     inherited_metadata_fields: Sequence[str] = (),
+    prev_artifacts_dir: str | None = None,
 ) -> str:
     """Create an agent-session turn member and layer caller-supplied metadata on it.
 
@@ -44,6 +45,7 @@ def create_agent_session_turn_member(
         workflow_name=agent_session,
         agent_session_role=agent_session_role,
         stamp_creating_process=False,
+        prev_artifacts_dir=prev_artifacts_dir,
     )
     meta_path = os.path.join(artifacts_dir, "agent_meta.json")
     with open(meta_path, encoding="utf-8") as f:

@@ -9,7 +9,7 @@ import json
 import os
 import re
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 from sase.axe.run_agent_helpers_artifacts import update_meta_field
 from sase.core.agent_artifact_paths import (
@@ -198,26 +198,36 @@ def evaluate_intent(
     from sase.monitor.diagnostics import diagnostic_manifest
 
     stages = list((diagnostic_manifest(artifacts_dir) or {}).get("stages") or [])
-    return evaluate_conditional_completion(
-        {
-            "schema_version": CONTINUATION_WIRE_SCHEMA_VERSION,
-            "intent": intent,
-            "outcome": policy_outcome(monitor_state),
-            "exit_code": exit_code,
-            "command": _command_argv(meta),
-            "observations": snapshot.observations,
-            "stages": stages,
-            "executors": executor_capabilities(snapshot.plan),
-            "workspace_identity": workspace_identity(meta),
-            "original_workspace_identity": _original_workspace_identity(intent, meta),
-            "degraded_workspace": bool(meta.get("monitor_followup_degraded_reason")),
-            "current_plan_digest": snapshot.plan.plan_digest,
-            "current_obligation_ids": list(snapshot.obligation_ids),
-            "substitutions": {
-                "duration": _format_duration(elapsed_seconds),
-                "evidence_ref": str(meta.get("monitor_diagnostic_manifest_ref") or ""),
-            },
-        }
+    # The runner also carries a partial rendering-only decision on resume.
+    return cast(
+        dict[str, Any],
+        evaluate_conditional_completion(
+            {
+                "schema_version": CONTINUATION_WIRE_SCHEMA_VERSION,
+                "intent": intent,
+                "outcome": policy_outcome(monitor_state),
+                "exit_code": exit_code,
+                "command": _command_argv(meta),
+                "observations": snapshot.observations,
+                "stages": stages,
+                "executors": executor_capabilities(snapshot.plan),
+                "workspace_identity": workspace_identity(meta),
+                "original_workspace_identity": _original_workspace_identity(
+                    intent, meta
+                ),
+                "degraded_workspace": bool(
+                    meta.get("monitor_followup_degraded_reason")
+                ),
+                "current_plan_digest": snapshot.plan.plan_digest,
+                "current_obligation_ids": list(snapshot.obligation_ids),
+                "substitutions": {
+                    "duration": _format_duration(elapsed_seconds),
+                    "evidence_ref": str(
+                        meta.get("monitor_diagnostic_manifest_ref") or ""
+                    ),
+                },
+            }
+        ),
     )
 
 

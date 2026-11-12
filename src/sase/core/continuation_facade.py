@@ -3,13 +3,14 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
-from typing import Any
+from typing import Any, cast
 
 from sase.core.continuation_wire import (
     AgentDeltaWire,
     CONTINUATION_WIRE_SCHEMA_VERSION,
     ConditionalCompletionBindRequestWire,
     ConditionalCompletionConsumeRequestWire,
+    ConditionalCompletionDecisionWire,
     ConditionalCompletionEvaluateRequestWire,
     ConditionalCompletionIntentWire,
     ConditionalCompletionPrepareRequestWire,
@@ -274,13 +275,16 @@ def rollback_conditional_completion_binding(
 
 def evaluate_conditional_completion(
     request: ConditionalCompletionEvaluateRequestWire | JsonMapping,
-) -> JsonObject:
+) -> ConditionalCompletionDecisionWire:
     """Decide whether a bound intent is eligible for no-model host completion."""
 
     binding = require_rust_binding("continuation_evaluate_conditional_completion")
-    return _json_object(
-        binding(continuation_wire_to_json_dict(request)),
-        "continuation_evaluate_conditional_completion",
+    return cast(
+        ConditionalCompletionDecisionWire,
+        _json_object(
+            binding(continuation_wire_to_json_dict(request)),
+            "continuation_evaluate_conditional_completion",
+        ),
     )
 
 

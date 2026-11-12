@@ -7,7 +7,41 @@ from pathlib import Path
 
 import pytest
 
+from sase.core.continuation_facade import (
+    bind_conditional_completion,
+    evaluate_conditional_completion,
+    seal_conditional_completion,
+)
+from sase.core.continuation_wire import CONTINUATION_WIRE_SCHEMA_VERSION
+from sase._linked_repo_markers import (
+    opened_linked_repo_records,
+    record_opened_linked_repo,
+)
+from sase.finalizers._prepare_observe import observe_completion_repositories
+from sase.finalizers.declaration import publish_final_context
+from sase.finalizers.plan import resolve_and_persist_finalizer_plan
+from sase.llm_provider.commit_finalizer_baseline import (
+    capture_dirty_baseline,
+    load_finalizer_baseline_records,
+)
+from sase.macro.directives import PromptDirectives
 from sase.monitor.member import create_monitor_member
+from tests.core._continuation_facade_helpers import (
+    make_passed_stage,
+    make_prepare_request,
+)
+from tests.finalizers_live_e2e_test_helpers import (
+    attach_bare_remote,
+    commit_instance,
+    config_for,
+    init_live_repo,
+    isolate_host_config,
+    real_git_stitch,
+    run_controller,
+    run_git,
+    submit_from_context,
+    use_config,
+)
 
 
 @pytest.fixture(autouse=True)
@@ -259,3 +293,192 @@ def test_create_monitor_member_omits_next_action_when_none() -> None:
     assert "monitor_idle_timeout_seconds" not in meta
     assert "agent_clan" not in meta
     assert "agent_clan_generation" not in meta
+
+
+def test_monitor_member_inherits_authoritative_finalizer_baseline(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    workspace = init_live_repo(tmp_path / "workspace")
+    attach_bare_remote(workspace, tmp_path / "workspace.git")
+    parent = tmp_path / "parent-artifacts"
+    parent.mkdir()
+    monkeypatch.setenv("CODEX_PROJECT_DIR", str(workspace))
+    capture_dirty_baseline(str(workspace), str(parent))
+
+    main_path = workspace / "main-work.txt"
+    main_path.write_text("authored before monitor\n", encoding="utf-8")
+    linked = tmp_path / "linked-widget"
+    init_live_repo(linked)
+    attach_bare_remote(linked, tmp_path / "linked-widget.git")
+    protected_path = linked / "pre-existing.txt"
+    protected_path.write_text("pre-existing linked dirt\n", encoding="utf-8")
+    monkeypatch.setenv("SASE_ARTIFACTS_DIR", str(parent))
+    record_opened_linked_repo(
+        "widget", str(linked), reason="monitor inheritance regression"
+    )
+    linked_path = linked / "linked-work.txt"
+    linked_path.write_text("authored before monitor\n", encoding="utf-8")
+
+    starter_observations = observe_completion_repositories(parent)
+    starter_main_observation = next(
+        item for item in starter_observations if item["kind"] == "main"
+    )
+    decided_repo_ids = [starter_main_observation["repo_id"]]
+    prepare_request = make_prepare_request(observations=[starter_main_observation])
+    prepare_request["creator"]["workspace_id"] = "0"
+    prepare_request["context"]["obligation_ids"] = decided_repo_ids
+    prepare_request["declaration"]["payloads"][0]["payload"]["repositories"] = [
+        {
+            "repo_id": repo_id,
+            "action": "commit",
+            "message": "fix: preserve monitor ownership",
+        }
+        for repo_id in decided_repo_ids
+    ]
+    prepared = seal_conditional_completion(prepare_request)
+    bound = bind_conditional_completion(
+        {
+            "schema_version": CONTINUATION_WIRE_SCHEMA_VERSION,
+            "intent": prepared,
+            "monitor_id": "inheritance-regression",
+            "command": ["just", "check-full"],
+            "request_fingerprint": "sha256:inheritance-regression",
+        }
+    )
+
+    monitor_dir = create_monitor_member(
+        "proj",
+        {
+            "name": "acme--0",
+            "agent_session": "acme",
+            "workspace_dir": str(workspace),
+            "workspace_num": 0,
+        },
+        lane="acme",
+        suffix="--mon",
+        prev_artifacts_timestamp="20261112120000",
+        workspace_num=0,
+        monitor_id="inheritance-regression",
+        command="just check",
+        cwd=str(workspace),
+        label="just check",
+        reason="exercise baseline inheritance",
+        next_action=None,
+        start_status="MONITORING",
+        stop_status="MONITORED",
+        timeout_seconds=3600.0,
+        tail_lines=20,
+        next_output="tail",
+        request_fingerprint="sha256:inheritance-regression",
+        starter_artifacts_dir=str(parent),
+    )
+    monitor_root = Path(monitor_dir)
+
+    inherited = load_finalizer_baseline_records(monitor_root)
+    assert inherited is not None
+    main_baseline = next(item for item in inherited if item.kind == "main")
+    assert main_baseline.fingerprints == {}
+    assert opened_linked_repo_records(monitor_root)["widget"]["workspace_dir"] == str(
+        linked.resolve()
+    )
+
+    observations = observe_completion_repositories(monitor_root)
+    main_observation = next(item for item in observations if item["kind"] == "main")
+    main_path_observation = next(
+        item for item in main_observation["paths"] if item["path"] == "main-work.txt"
+    )
+    assert main_path_observation["protected"] is False
+    assert main_path_observation["foreign"] is False
+
+    linked_observation = next(
+        (item for item in observations if item["name"] == "widget"), None
+    )
+    assert linked_observation is not None, [
+        (item["name"], item["kind"], item["repo_id"]) for item in observations
+    ]
+    linked_path_observation = next(
+        item
+        for item in linked_observation["paths"]
+        if item["path"] == "linked-work.txt"
+    )
+    assert linked_path_observation["protected"] is False
+    assert linked_path_observation["foreign"] is False
+    protected_observation = next(
+        item
+        for item in linked_observation["paths"]
+        if item["path"] == "pre-existing.txt"
+    )
+    assert protected_observation["protected"] is True
+    assert protected_observation["foreign"] is True
+
+    stages = [
+        make_passed_stage("formatting", "fmt (python)"),
+        make_passed_stage("ruff", "lint (ruff)"),
+        make_passed_stage("mypy", "lint (mypy)"),
+        make_passed_stage("validation", "SASE validation"),
+        make_passed_stage("full_tests", "test (full)"),
+    ]
+    decision = evaluate_conditional_completion(
+        {
+            "schema_version": CONTINUATION_WIRE_SCHEMA_VERSION,
+            "intent": bound,
+            "outcome": "completed",
+            "exit_code": 0,
+            "command": ["just", "check-full"],
+            "observations": observations,
+            "stages": stages,
+            "executors": prepare_request["executors"],
+            "workspace_identity": "0",
+            "original_workspace_identity": "0",
+            "degraded_workspace": False,
+            "current_plan_digest": prepare_request["context"]["plan_digest"],
+            "current_obligation_ids": decided_repo_ids,
+            "substitutions": {"duration": "1m"},
+        }
+    )
+    assert decision["eligible"] is True, decision["reasons"]
+
+    isolate_host_config(monkeypatch, tmp_path)
+    use_config(
+        monkeypatch,
+        config_for({"commit": commit_instance()}, ("commit",)),
+    )
+    monitor_meta = json.loads((monitor_root / "agent_meta.json").read_text())
+    monkeypatch.setenv("SASE_ARTIFACTS_DIR", str(monitor_root))
+    monkeypatch.setenv("SASE_AGENT_TIMESTAMP", monitor_root.name)
+    monkeypatch.setenv("SASE_AGENT_NAME", monitor_meta["name"])
+    monkeypatch.setenv("SASE_FINAL_TURN_NONCE", "monitor-inheritance-nonce")
+    monkeypatch.setenv("SASE_LINKED_REPOS_JSON", "[]")
+    monkeypatch.delenv("SASE_SIBLING_REPOS_JSON", raising=False)
+    resolve_and_persist_finalizer_plan(
+        PromptDirectives(), artifacts_dir=str(monitor_root)
+    )
+    publication = publish_final_context(artifacts_dir=str(monitor_root))
+    obligations = [
+        item for item in publication.context.obligations if item.kind == "repository"
+    ]
+    obligated_paths = {path for item in obligations for path in item.paths}
+    assert "main-work.txt" in obligated_paths
+    assert "linked-work.txt" in obligated_paths
+    assert "pre-existing.txt" not in obligated_paths
+
+    monkeypatch.setattr(
+        "sase.finalizers.commit_execution.run_stitch_create", real_git_stitch
+    )
+    submit_from_context(monitor_root)
+    result = run_controller(monitor_root)
+    assert result.content == "done"
+    commits = json.loads((monitor_root / "commit_results.json").read_text())
+    assert {item["cwd"] for item in commits} == {
+        str(workspace.resolve()),
+        str(linked.resolve()),
+    }
+    main_commit_files = run_git(
+        workspace, "diff-tree", "--no-commit-id", "--name-only", "-r", "HEAD"
+    ).stdout.splitlines()
+    linked_commit_files = run_git(
+        linked, "diff-tree", "--no-commit-id", "--name-only", "-r", "HEAD"
+    ).stdout.splitlines()
+    assert main_commit_files == ["main-work.txt"]
+    assert linked_commit_files == ["linked-work.txt"]
+    assert "?? pre-existing.txt" in run_git(linked, "status", "--short").stdout

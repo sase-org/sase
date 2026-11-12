@@ -107,6 +107,19 @@ def test_stale_or_missing_checks_use_one_recovery(
     assert receipt is not None
     assert receipt["status"] == "recovery"
     assert reason in str(receipt.get("reason"))
+    if reason == "stale_worktree_fingerprint":
+        assert receipt["fingerprint_differences_recorded"] is True
+        assert receipt["fingerprint_differences"]["items"] == [
+            {
+                "repo_id": repo_id,
+                "repo_name": "main",
+                "repo_kind": "main",
+                "component": "head",
+                "path": None,
+                "expected": "a" * 64,
+                "observed": "b" * 64,
+            }
+        ]
 
 
 def test_unsupported_finalizer_uses_one_recovery(

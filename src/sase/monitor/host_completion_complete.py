@@ -109,6 +109,7 @@ def recover_host_completion(
     timeout_kind: str | None = None,
     transfer_from_pid: int | None = None,
     reasons: Sequence[str] | None = None,
+    fingerprint_differences: Mapping[str, Any] | None = None,
 ) -> HostCompletionSettlement:
     normalized_reasons = _normalize_reasons(reasons, reason)
     try:
@@ -140,17 +141,18 @@ def recover_host_completion(
             )
         except (ValueError, OSError):
             pass
-    persist_host_completion_receipt(
-        artifacts_dir,
-        {
-            "schema_version": 1,
-            "status": RECOVERY_STATUS,
-            "reason": reason,
-            "reasons": normalized_reasons,
-            "intent_ref": completion_ref,
-            "commit_receipts": load_commit_results(artifact_root(artifacts_dir)),
-        },
-    )
+    receipt: dict[str, Any] = {
+        "schema_version": 1,
+        "status": RECOVERY_STATUS,
+        "reason": reason,
+        "reasons": normalized_reasons,
+        "intent_ref": completion_ref,
+        "commit_receipts": load_commit_results(artifact_root(artifacts_dir)),
+        "fingerprint_differences_recorded": fingerprint_differences is not None,
+    }
+    if fingerprint_differences is not None:
+        receipt["fingerprint_differences"] = dict(fingerprint_differences)
+    persist_host_completion_receipt(artifacts_dir, receipt)
     record_status(
         artifacts_dir, meta, RECOVERY_STATUS, reason=reason, reasons=normalized_reasons
     )

@@ -386,6 +386,32 @@ class ConditionalCompletionEvaluateRequestWire(TypedDict):
     substitutions: NotRequired[dict[str, str]]
 
 
+class _FingerprintDifferenceWire(TypedDict):
+    repo_id: str
+    repo_name: NotRequired[str | None]
+    repo_kind: NotRequired[str | None]
+    component: str
+    path: NotRequired[str | None]
+    expected: NotRequired[str | None]
+    observed: NotRequired[str | None]
+
+
+class FingerprintDifferencesWire(TypedDict):
+    total_count: int
+    omitted_count: int
+    items: list[_FingerprintDifferenceWire]
+
+
+class ConditionalCompletionDecisionWire(TypedDict):
+    schema_version: int
+    eligible: bool
+    action: str
+    reason: NotRequired[str | None]
+    reasons: list[str]
+    rendered_message: NotRequired[str | None]
+    fingerprint_differences: NotRequired[FingerprintDifferencesWire]
+
+
 class ConditionalCompletionConsumeRequestWire(TypedDict):
     schema_version: int
     intent: ConditionalCompletionIntentWire
@@ -465,11 +491,13 @@ __all__ = [
     "AgentDeltaWire",
     "ConditionalCompletionBindRequestWire",
     "ConditionalCompletionConsumeRequestWire",
+    "ConditionalCompletionDecisionWire",
     "ConditionalCompletionEvaluateRequestWire",
     "ConditionalCompletionIntentWire",
     "ConditionalCompletionPrepareRequestWire",
     "ConditionalCompletionRollbackRequestWire",
     "ConditionalCompletionStatus",
+    "FingerprintDifferencesWire",
     "CompletionAcceptPolicy",
     "ContinuationAction",
     "ContinuationBudgetDecisionKind",

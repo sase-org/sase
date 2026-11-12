@@ -3,8 +3,9 @@
 from __future__ import annotations
 
 from collections.abc import Callable, Mapping
-from typing import Any
+from typing import Any, cast
 
+from sase.core.continuation_wire import FingerprintDifferencesWire
 from sase.finalizers.controller import FinalizerControllerError
 from sase.finalizers.declaration import FinalizerDeclarationError
 from sase.finalizers.prepare import load_prepared_completion
@@ -199,6 +200,7 @@ def run_host_completion(
                     completion_ref=completion_ref,
                     reason=reason,
                     reasons=_decision_reasons(decision, reason),
+                    fingerprint_differences=_decision_fingerprint_differences(decision),
                     launch_recovery=launch_recovery,
                     release_claim=release_claim,
                     project_name=project_name,
@@ -237,6 +239,9 @@ def run_host_completion(
                         completion_ref=completion_ref,
                         reason=reason,
                         reasons=_decision_reasons(decision, reason),
+                        fingerprint_differences=_decision_fingerprint_differences(
+                            decision
+                        ),
                         launch_recovery=launch_recovery,
                         release_claim=release_claim,
                         project_name=project_name,
@@ -318,6 +323,16 @@ def _decision_reasons(decision: Mapping[str, Any], reason: str) -> list[str]:
                 return [reason, *[item for item in normalized if item != reason]]
             return normalized
     return [reason]
+
+
+def _decision_fingerprint_differences(
+    decision: Mapping[str, Any],
+) -> FingerprintDifferencesWire | None:
+    """Preserve the evaluator's exact comparison evidence on refusal."""
+    differences = decision.get("fingerprint_differences")
+    if isinstance(differences, Mapping):
+        return cast(FingerprintDifferencesWire, differences)
+    return None
 
 
 def _expected_no_new_ids(
