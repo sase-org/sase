@@ -31,10 +31,18 @@ _DEFAULT_TIMEOUT_SECONDS = 10.0
 
 @dataclass(frozen=True)
 class GateSettings:
-    """Project-local command settings after Rust timeout preflight."""
+    """Project-local command settings after Rust timeout preflight.
+
+    ``trust`` carries the local-command descriptor retained with an
+    in-memory gate plan: identity, config path, and digest/policy version.
+    Before dispatch, the descriptor is revalidated against the current
+    acknowledgment; changed config or revocation blocks further local
+    execution. User/overlay hooks carry no descriptor and always run.
+    """
 
     hook_command: str
     timeout_seconds: float
+    trust: dict[str, Any] | None = None
 
 
 def run_after_rebase_gate(
@@ -79,6 +87,26 @@ def run_after_rebase_gate(
         )
     if not settings.hook_command:
         return _classify_disabled(context, started, settings.timeout_seconds)
+    if settings.trust is not None:
+        try:
+            from sase.config.local_trust_enforcement import (
+                validate_trust_descriptor,
+            )
+
+            if not validate_trust_descriptor(settings.trust):
+                return warn_without_evidence(
+                    started,
+                    "local after-rebase hook skipped without current trust; "
+                    "run `sase config trust allow` after review",
+                    settings.trust.get("config_path"),
+                )
+        except Exception:
+            return warn_without_evidence(
+                started,
+                "local after-rebase hook skipped without current trust; "
+                "run `sase config trust allow` after review",
+                None,
+            )
     return execute_gate(
         context,
         root,
@@ -158,9 +186,60 @@ def load_after_rebase_gate_settings(
             str(exc),
         )
     budget.set_timeout(timeout)
+    local_path = local_config_path_for_repo_root(root)
+    try:
+        from sase.config.local_trust_enforcement import (
+            evaluate_local_trust_for_path,
+        )
+
+        evaluation = evaluate_local_trust_for_path(local_path, candidate=None)
+    except Exception:
+        evaluation = None
+    if (
+        evaluation is not None
+        and evaluation.enabled
+        and not evaluation.trusted
+        and "commit_hooks" in evaluation.removed_paths
+    ):
+        if not hook:
+            return GateSettings("", timeout, None), (
+                "local after-rebase hook skipped without current trust; run "
+                f"`sase config trust allow {evaluation.config_path}` after review",
+                evaluation.config_path,
+            )
+        try:
+            from sase.output import print_status as _print_status
+
+            _print_status(
+                evaluation.warning
+                or (
+                    f"Local commands in {evaluation.config_path} were skipped; "
+                    f"run `sase config trust allow {evaluation.config_path}` "
+                    "after review."
+                ),
+                "warning",
+            )
+        except Exception:
+            pass
+        return GateSettings(hook, timeout, None), None
     if not hook:
-        return GateSettings("", timeout), None
-    return GateSettings(hook, timeout), None
+        return GateSettings("", timeout, None), None
+    trust: dict[str, Any] | None = None
+    if evaluation is not None and evaluation.enabled and evaluation.trusted:
+        effective = evaluation.effective_layer.get("commit_hooks", {})
+        local_after = (
+            effective.get("after_rebase", "") if isinstance(effective, dict) else ""
+        )
+        if isinstance(local_after, str) and local_after.strip():
+            trust = {
+                "identity": evaluation.identity,
+                "config_path": evaluation.config_path,
+                "logical_path": evaluation.logical_path,
+                "digest": evaluation.digest,
+                "status": evaluation.status,
+                "enabled": evaluation.enabled,
+            }
+    return GateSettings(hook, timeout, trust), None
 
 
 def _normalize_timeout(value: Any) -> float | None:

@@ -536,7 +536,6 @@ _lint-symvision *args: _setup
         --epic-symbol "sase-1sb.2.1(LocalTrustDecision)" \
         --epic-symbol "sase-1sb.2.1(LocalTrustFilterResult)" \
         --epic-symbol "sase-1sb.2.1(digest_local_commands)" \
-        --epic-symbol "sase-1sb.2.1(filter_trusted_local_layer)" \
         --epic-symbol "sase-1sb.2.1(local_command_trust_wire_schema_version)" \
         {{ args }}
 

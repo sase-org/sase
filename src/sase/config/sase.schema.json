@@ -6192,6 +6192,12 @@
           "default": true,
           "deprecated": true
         },
+        "local_config_command_trust": {
+          "type": "boolean",
+          "description": "Require human acknowledgment of project-local commands before hooks run",
+          "default": true,
+          "deprecated": true
+        },
         "muse_explicit_instructions": {
           "type": "boolean",
           "description": "Deliver Muse instruction bundles as a prompt prefix",

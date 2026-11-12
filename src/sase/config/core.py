@@ -141,6 +141,9 @@ from sase.config.layers import (
     without_project_only_keys,
     without_retired_sdd_selectors,
 )
+from sase.config.local_trust_enforcement import (
+    effective_local_layer as _trusted_effective_local_layer,
+)
 from sase.config.loading import (
     deep_merge as _deep_merge,
     get_overlay_paths as _get_overlay_paths_from_dir,
@@ -480,6 +483,56 @@ def get_max_running_agents(now: float | None = None) -> int:
 
 # These wrappers preserve long-standing ``sase.config.core`` patch points while
 # keeping source IO implementations out of this facade.
+def _filtered_local_yaml_loader(
+    base_loader: Any,
+    local_path: Path | None,
+    effective: dict[str, Any],
+) -> Any:
+    """Return a loader serving the evaluated effective layer for *local_path*.
+
+    The same decoded snapshot is digested, filtered, and merged; the merge
+    never performs a second unchecked read of the local file.
+    """
+
+    def _loader(path: Path) -> dict[str, Any] | None:
+        if local_path is not None and path == local_path:
+            return dict(effective)
+        return base_loader(path)
+
+    return _loader
+
+
+def _trusted_yaml_loader(
+    base_loader: Any,
+    local_path: Path | None,
+    local_override: Mapping[str, Any] | None = None,
+) -> Any:
+    """Wrap *base_loader* so the local layer is trust-filtered when enabled.
+
+    Reads the candidate once and evaluates that same snapshot, so digest,
+    filter, and merge cannot diverge. Missing local files keep the original
+    loader to preserve today's missing-file merge behavior.
+    """
+    if local_path is None:
+        return base_loader
+    if local_override is not None:
+        candidate: dict[str, Any] | None = dict(local_override)
+    else:
+        try:
+            raw = base_loader(local_path)
+        except Exception:
+            raw = None
+        if not isinstance(raw, dict):
+            return base_loader
+        candidate = dict(raw)
+    try:
+        effective, _evaluation = _trusted_effective_local_layer(local_path, candidate)
+    except Exception:
+        log.debug("Local trust filtering failed closed", exc_info=True)
+        return _filtered_local_yaml_loader(base_loader, local_path, {})
+    return _filtered_local_yaml_loader(base_loader, local_path, effective)
+
+
 def _load_default_config() -> dict[str, Any]:
     return _load_default_config_resource(importlib.resources.files)
 
@@ -587,14 +640,15 @@ def load_merged_config() -> dict[str, Any]:
         _plugin_configs_cache = _load_plugin_configs()
 
     generation = _config_cache_generation
+    local_path = get_local_config_path()
     result = merge_config_sources(
         default_config=_default_config_cache,
         plugin_configs=_plugin_configs_cache,
         user_base_path=CONFIG_DIR / "sase.yml",
         overlay_paths=selected_overlay_paths(),
         selected_identity_snapshot=get_agent_owner_config_snapshot(),
-        local_path=get_local_config_path(),
-        yaml_loader=_load_yaml_file,
+        local_path=local_path,
+        yaml_loader=_trusted_yaml_loader(_load_yaml_file, local_path),
     )
     # A concurrent clear_config_cache() during the merge means this build is
     # already known stale; publish only when the generation held steady so a
@@ -623,16 +677,9 @@ def load_merged_config_for_local_path(
     if _plugin_configs_cache is None:
         _plugin_configs_cache = _load_plugin_configs()
 
-    yaml_loader = _load_yaml_file
-    if local_config_override is not None and local_path is not None:
-        override = dict(local_config_override)
-
-        def _override_loader(path: Path) -> dict[str, Any] | None:
-            if path == local_path:
-                return dict(override)
-            return _load_yaml_file(path)
-
-        yaml_loader = _override_loader
+    yaml_loader = _trusted_yaml_loader(
+        _load_yaml_file, local_path, local_config_override
+    )
 
     return merge_config_sources(
         default_config=_default_config_cache,

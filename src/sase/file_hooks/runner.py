@@ -168,9 +168,62 @@ def _notify_run(
     append_notification(notification)
 
 
+def _local_run_blocked(run: dict[str, Any]) -> str | None:
+    """Return a skip reason when a local run lost trust, else None.
+
+    The detached runner independently resolves trust; a dispatch-time
+    boolean or prefiltered mapping is never authority. User/overlay runs
+    (non-local source or no descriptor) always proceed.
+    """
+    if run.get("source_layer") != "local":
+        return None
+    descriptor = run.get("trust")
+    if descriptor is None:
+        return None
+    if not isinstance(descriptor, dict):
+        return "local file hook skipped without current trust"
+    try:
+        from sase.config.local_trust_enforcement import validate_trust_descriptor
+
+        if validate_trust_descriptor(descriptor):
+            return None
+    except Exception:
+        return "local file hook skipped without current trust"
+    config_path = (
+        descriptor.get("config_path") if isinstance(descriptor, dict) else None
+    )
+    if isinstance(config_path, str) and config_path:
+        return (
+            f"local file hook skipped without current trust (config "
+            f"{config_path}); run `sase config trust allow {config_path}` "
+            "after review"
+        )
+    return "local file hook skipped without current trust"
+
+
 def _execute_run(batch_id: str, run: dict[str, Any]) -> dict[str, Any]:
     index = int(run["index"])
     hook_name = str(run["hook_name"])
+    blocked_reason = _local_run_blocked(run)
+    if blocked_reason is not None:
+        log_path = _run_log_path(batch_id, index, hook_name)
+        _write_run_log(
+            log_path,
+            command_line=str(run.get("command", "")),
+            cwd=str(run.get("repo_root", "")),
+            output=blocked_reason + "\n",
+            outcome="skipped without current trust",
+            project=_exported_hook_project(run),
+        )
+        return {
+            **run,
+            "status": "finished",
+            "finished_at": _now_iso(),
+            "duration_seconds": 0.0,
+            "exit_code": None,
+            "failure": blocked_reason,
+            "log_path": str(log_path),
+        }
     command_line = f"{run['command']} {shlex.quote(str(run['abs_path']))}"
     log_path = _run_log_path(batch_id, index, hook_name)
     started = time.monotonic()

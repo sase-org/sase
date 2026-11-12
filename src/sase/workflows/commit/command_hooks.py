@@ -14,7 +14,7 @@ import time
 from typing import Literal
 import uuid
 
-from sase.config.core import load_merged_config
+from sase.config.core import load_merged_config_for_local_path
 from sase.output import print_status
 from sase.workflows.commit.hook_utils import (
     HOOK_LOG_DIRNAME,
@@ -23,6 +23,7 @@ from sase.workflows.commit.hook_utils import (
     drain_stream,
     get_repo_root,
     hook_log_root,
+    local_config_path_for_repo_root,
     normalize_path,
     repo_digest,
     write_json_atomic,
@@ -51,14 +52,47 @@ class _HookRunResult:
     stderr_truncated: bool
 
 
+def _warn_when_local_commit_hooks_skipped(repo_root: str) -> None:
+    """Surface one deduplicated warning when local hooks were filtered."""
+    try:
+        from sase.config.local_trust_enforcement import evaluate_local_trust_for_path
+
+        local_path = local_config_path_for_repo_root(repo_root)
+        evaluation = evaluate_local_trust_for_path(local_path, candidate=None)
+    except Exception:
+        return
+    if not evaluation.enabled or evaluation.trusted:
+        return
+    if "commit_hooks" not in evaluation.removed_paths and evaluation.removed_paths:
+        # Local file/macros blocked but commit_hooks absent still deserves a
+        # single hint only when commit_hooks themselves were removed.
+        if "commit_hooks" not in evaluation.removed_paths:
+            return
+    if evaluation.warning:
+        print_status(evaluation.warning, "warning")
+    elif evaluation.config_path:
+        print_status(
+            f"Local commands in {evaluation.config_path} were skipped; run "
+            f"`sase config trust allow {evaluation.config_path}` after review.",
+            "warning",
+        )
+
+
 def _run_commit_hook(phase: CommitHookPhase, cwd: str) -> bool:
-    """Run the configured hook for *phase* in the repository root."""
-    config = load_merged_config()
+    """Run the configured hook for *phase* in the repository root.
+
+    Configuration is selected for the explicit *cwd* repo (as the rebase
+    gate does) and re-resolved synchronously on every invocation, never
+    from a trusted ambient cwd or a caller-supplied prefiltered mapping.
+    """
+    repo_root = get_repo_root(cwd) or cwd
+    local_path = local_config_path_for_repo_root(repo_root)
+    config = load_merged_config_for_local_path(local_path)
     hooks = config.get("commit_hooks", {})
     cmd = hooks.get(phase, "") if isinstance(hooks, dict) else ""
     if not cmd:
+        _warn_when_local_commit_hooks_skipped(repo_root)
         return True
-    repo_root = get_repo_root(cwd) or cwd
     print_status(f"Running {phase} commit hook: {cmd}", "progress")
     _emit_hook_step(phase, cmd, state="start", detail=cmd)
     result = _run_hook_command(cmd, phase=phase, repo_root=repo_root)

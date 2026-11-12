@@ -49,6 +49,41 @@ def _isolate_hooks(cwd: Path, tmp_path: Path) -> None:
     _git(cwd, "config", "core.hooksPath", str(empty))
 
 
+def _acknowledge_repo(repo: Path) -> None:
+    """Acknowledge the repo's temporary hook config for enforcement-on tests.
+
+    These publication tests drive real gate execution, so they explicitly
+    acknowledge their hermetic snapshots (SASE_HOME is isolated per test)
+    instead of selecting the compatibility branch.
+    """
+    from sase.config.local_trust import LOCAL_COMMAND_TRUST_POLICY_VERSION
+    from sase.config.local_trust_enforcement import evaluate_local_trust_for_path
+    from sase.core.paths import sase_home
+    from sase.core.rust import require_rust_binding
+
+    local: Path | None = None
+    for candidate in (repo / "sase" / "sase.yml", repo / "sase.yml"):
+        try:
+            if candidate.is_file():
+                local = candidate
+                break
+        except OSError:
+            continue
+    if local is None:
+        return
+    evaluation = evaluate_local_trust_for_path(local, None)
+    if evaluation.identity is None or not evaluation.digest:
+        return
+    binding = require_rust_binding("local_command_trust_store_allow")
+    binding(
+        str(sase_home()),
+        evaluation.identity,
+        evaluation.digest,
+        LOCAL_COMMAND_TRUST_POLICY_VERSION,
+        "test",
+    )
+
+
 def _write_hook_config(repo: Path, *, timeout: Any = 10) -> None:
     config_dir = repo / "sase"
     config_dir.mkdir(exist_ok=True)
@@ -59,6 +94,7 @@ def _write_hook_config(repo: Path, *, timeout: Any = 10) -> None:
         f"  after_rebase_timeout_seconds: {timeout}\n",
         encoding="utf-8",
     )
+    _acknowledge_repo(repo)
 
 
 def _write_raw_hook_config(repo: Path, hook: str, *, timeout: Any = 10) -> None:
@@ -70,6 +106,7 @@ def _write_raw_hook_config(repo: Path, hook: str, *, timeout: Any = 10) -> None:
         f"  after_rebase_timeout_seconds: {timeout}\n",
         encoding="utf-8",
     )
+    _acknowledge_repo(repo)
 
 
 def _write_src(repo: Path, name: str, body: str) -> None:

@@ -35,9 +35,9 @@ def test_run_commit_hook_uses_nested_phase_config(phase: str, tmp_path: Path) ->
     )
     with (
         patch(
-            "sase.workflows.commit.command_hooks.load_merged_config",
+            "sase.workflows.commit.command_hooks.load_merged_config_for_local_path",
             return_value={"commit_hooks": {phase: "hook command"}},
-        ),
+        ) as load_for_path,
         patch(
             "sase.workflows.commit.command_hooks.get_repo_root",
             return_value=str(tmp_path),
@@ -48,6 +48,7 @@ def test_run_commit_hook_uses_nested_phase_config(phase: str, tmp_path: Path) ->
         assert hook(str(nested)) is True
 
     get_repo_root.assert_called_once_with(str(nested))
+    load_for_path.assert_called_once()
     run.assert_called_once_with("hook command", phase=phase, repo_root=str(tmp_path))
 
 
@@ -58,8 +59,12 @@ def test_run_commit_hook_uses_nested_phase_config(phase: str, tmp_path: Path) ->
 def test_run_commit_hook_skips_empty_commands(config: dict, tmp_path: Path) -> None:
     with (
         patch(
-            "sase.workflows.commit.command_hooks.load_merged_config",
+            "sase.workflows.commit.command_hooks.load_merged_config_for_local_path",
             return_value=config,
+        ),
+        patch(
+            "sase.workflows.commit.command_hooks.get_repo_root",
+            return_value=str(tmp_path),
         ),
         patch("sase.workflows.commit.command_hooks._run_hook_command") as run,
     ):
@@ -77,7 +82,7 @@ def test_run_commit_hook_prints_phase_specific_output_tail_and_log_path(
     )
     with (
         patch(
-            "sase.workflows.commit.command_hooks.load_merged_config",
+            "sase.workflows.commit.command_hooks.load_merged_config_for_local_path",
             return_value={"commit_hooks": {"after": command}},
         ),
         patch(

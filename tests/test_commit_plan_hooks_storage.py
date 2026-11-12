@@ -9,7 +9,7 @@ from sase.sdd.committed_plan_validation import _CommittedPlanValidationError
 from sase.workflows.commit.plan_hooks import handle_sase_plan
 from tests.sdd_policy_helpers import patched_sdd_policy
 
-_CONFIG_TARGET = "sase.workflows.commit.command_hooks.load_merged_config"
+_CONFIG_TARGET = "sase.workflows.commit.command_hooks.load_merged_config_for_local_path"
 _PLAN_REPO_ROOT_TARGET = "sase.workflows.commit.plan_hooks.get_repo_root"
 
 

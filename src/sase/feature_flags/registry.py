@@ -26,6 +26,7 @@ class FeatureFlag(StrEnum):
     claude_explicit_instructions = "claude_explicit_instructions"
     codex_explicit_instructions = "codex_explicit_instructions"
     grok_explicit_instructions = "grok_explicit_instructions"
+    local_config_command_trust = "local_config_command_trust"
     muse_explicit_instructions = "muse_explicit_instructions"
 
 
@@ -77,6 +78,14 @@ _FEATURE_FLAG_DEFINITIONS: dict[FeatureFlag, FeatureFlagDefinition] = {
         kind="sunset",
         description="Deliver Muse instruction bundles as a prompt prefix",
         bead="sase-1ku",
+    ),
+    FeatureFlag.local_config_command_trust: FeatureFlagDefinition(
+        key=FeatureFlag.local_config_command_trust,
+        kind="sunset",
+        description=(
+            "Require human acknowledgment of project-local commands before hooks run"
+        ),
+        bead="sase-1sc",
     ),
 }
 

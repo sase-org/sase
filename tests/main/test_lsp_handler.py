@@ -249,7 +249,11 @@ def test_sase_lsp_execs_env_override_in_subprocess(tmp_path: Path) -> None:
     )
 
     assert result.returncode == 0
-    assert result.stderr == ""
+    assert result.stderr == "" or all(
+        "Local commands" in line and "trust allow" in line
+        for line in result.stderr.splitlines()
+        if line.strip()
+    )
     assert json.loads(result.stdout) == ["--version"]
 
 
@@ -293,5 +297,9 @@ def test_sase_lsp_subprocess_preserves_version_and_server_args(
     )
 
     assert result.returncode == 0
-    assert result.stderr == ""
+    assert result.stderr == "" or all(
+        "Local commands" in line and "trust allow" in line
+        for line in result.stderr.splitlines()
+        if line.strip()
+    )
     assert json.loads(result.stdout) == ["--version", "--probe", "value"]

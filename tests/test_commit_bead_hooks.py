@@ -14,7 +14,7 @@ from sase.workflows.commit.bead_hooks import (
     validate_bead_action_before_commit,
 )
 
-_CONFIG_TARGET = "sase.workflows.commit.command_hooks.load_merged_config"
+_CONFIG_TARGET = "sase.workflows.commit.command_hooks.load_merged_config_for_local_path"
 _BEAD_REPO_ROOT_TARGET = "sase.workflows.commit.bead_hooks.get_repo_root"
 
 

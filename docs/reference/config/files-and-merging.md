@@ -58,9 +58,16 @@ command-bearing macro/workflow definitions, plus the selected logical config loc
 (`sase/sase.yml` or the root `sase.yml` fallback). YAML comments, whitespace, and
 mapping order do not change it. Edits to ordinary local settings do not change this
 digest. Referenced scripts, binaries, and standalone macro files are not hashed; review
-changes to those files separately. The trust record is a review input for the staged
-local command protection rollout; this phase adds the review and store commands without
-changing runtime command loading.
+changes to those files separately.
+
+Hook enforcement is active under the `local_config_command_trust` sunset flag (default
+on). When enabled, unacknowledged local `commit_hooks` are omitted before merging, local
+file-hook entries are omitted from the independent file-hook loader, and before/after
+commit hooks, explicit-project rebase gates, and file-hook execution re-resolve trust
+synchronously. User, overlay, and non-command local values still merge; blocked rebase
+hooks report skipped, never passed. A warning names the config path and
+`sase config trust allow PATH`. With the flag off, local commands run in compatibility
+mode, visibly marked in `status`, and no trust records are created.
 
 ## Owner Identity
 

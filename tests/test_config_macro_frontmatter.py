@@ -28,10 +28,14 @@ from sase.macro.workflow_loader_definition import load_workflow_from_mapping
 
 
 def _merged_with_user(tmp_path: Path, user: dict) -> dict:
-    (tmp_path / "sase.yml").write_text(yaml.dump(user))
+    global_config = tmp_path / "global"
+    global_config.mkdir(exist_ok=True)
+    (global_config / "sase.yml").write_text(yaml.dump(user))
+    no_local = tmp_path / "no_local"
+    no_local.mkdir(exist_ok=True)
     with (
-        patch("sase.config.core.CONFIG_DIR", tmp_path),
-        patch("sase.config.core.Path.cwd", return_value=tmp_path / "no_local"),
+        patch("sase.config.core.CONFIG_DIR", global_config),
+        patch("sase.config.core.Path.cwd", return_value=no_local),
         patch("sase.config.core._load_plugin_configs", return_value=[]),
     ):
         return load_merged_config()

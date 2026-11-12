@@ -12,7 +12,7 @@ import pytest
 
 from sase.core.agent_identity_facade import AgentOwnerIdentity
 
-_CONFIG_TARGET = "sase.workflows.commit.command_hooks.load_merged_config"
+_CONFIG_TARGET = "sase.workflows.commit.command_hooks.load_merged_config_for_local_path"
 
 
 @pytest.fixture(name="artifacts_dir")

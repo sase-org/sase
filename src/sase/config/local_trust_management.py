@@ -295,6 +295,34 @@ def _store_revoke(identity: str) -> dict[str, Any]:
 
 
 def _status_payload(context: _LocalCommandTrustContext) -> dict[str, Any]:
+    try:
+        from sase.config.local_trust_enforcement import (
+            is_local_command_trust_enabled as _flag_enabled,
+        )
+
+        flag_enabled = _flag_enabled()
+    except Exception:
+        flag_enabled = True
+    if not flag_enabled:
+        return {
+            "schema_version": LOCAL_COMMAND_TRUST_STORE_WIRE_SCHEMA_VERSION,
+            "status": "compatibility",
+            "project_identity": context.project_identity,
+            "checkout_root": str(context.checkout_root),
+            "selected_config_path": str(context.selected_config_path),
+            "logical_config_path": context.logical_config_path,
+            "current_digest": context.projection.digest,
+            "acknowledged_digest": None,
+            "policy_version": context.projection.policy_version,
+            "acknowledged_policy_version": None,
+            "blocked_paths": list(context.projection.blocked_paths),
+            "reason": (
+                "local_config_command_trust is off; local commands run in "
+                "compatibility mode without acknowledgment"
+            ),
+            "flag": "local_config_command_trust",
+            "flag_enabled": False,
+        }
     snapshot = _store_snapshot(context.project_identity)
     record = snapshot.get("record")
     acknowledged_digest = record.get("digest") if isinstance(record, dict) else None
@@ -409,14 +437,36 @@ def _print_allow_preview(context: _LocalCommandTrustContext) -> None:
     print(context.projection.canonical_json)
 
 
+def _flag_off_message() -> str:
+    return (
+        "local_config_command_trust is off; local commands run in "
+        "compatibility mode and trust records are not created"
+    )
+
+
 def allow_local_commands(
     path: str | os.PathLike[str] | None = None,
 ) -> int:
     """Preview, confirm, re-read and acknowledge one exact config snapshot."""
     try:
         _require_human_terminal()
+        try:
+            from sase.config.local_trust_enforcement import (
+                is_local_command_trust_enabled as _flag_enabled,
+            )
+
+            if not _flag_enabled():
+                print(_flag_off_message(), file=sys.stderr)
+                return 1
+        except _LocalCommandTrustManagementError:
+            raise
+        except Exception:
+            pass
         reviewed = _resolve_local_command_trust_context(path)
         status = _status_payload(reviewed)
+        if status["status"] == "compatibility":
+            print(_flag_off_message(), file=sys.stderr)
+            return 1
         if status["status"] == "untrusted":
             raise _LocalCommandTrustManagementError(str(status["reason"]))
         if status["status"] == "trusted":
@@ -463,6 +513,18 @@ def revoke_local_commands(
     """Require an interactive human confirmation and revoke this project record."""
     try:
         _require_human_terminal()
+        try:
+            from sase.config.local_trust_enforcement import (
+                is_local_command_trust_enabled as _flag_enabled,
+            )
+
+            if not _flag_enabled():
+                print(_flag_off_message(), file=sys.stderr)
+                return 1
+        except _LocalCommandTrustManagementError:
+            raise
+        except Exception:
+            pass
         reviewed = _resolve_local_command_trust_context(path)
         status = _status_payload(reviewed)
         print(
@@ -516,7 +578,7 @@ def print_trust_status(
     stream = sys.stdout if stdout is None else stdout
     try:
         payload = _status_local_commands(path)
-        code = 0 if payload["status"] == "trusted" else 1
+        code = 0 if payload["status"] in ("trusted", "compatibility") else 1
     except Exception as error:
         payload = {
             "schema_version": LOCAL_COMMAND_TRUST_STORE_WIRE_SCHEMA_VERSION,
@@ -538,6 +600,11 @@ def print_trust_status(
         )
         return code
     print(f"Status: {payload['status']}", file=stream)
+    if payload.get("status") == "compatibility":
+        print(
+            "Flag local_config_command_trust: off (compatibility mode)",
+            file=stream,
+        )
     print(
         "Project identity: "
         + json.dumps(payload["project_identity"], ensure_ascii=True),
@@ -573,12 +640,43 @@ def print_trust_status(
     return code
 
 
+def local_trust_store_snapshot(identity: str) -> dict[str, Any]:
+    """Return the machine-local trust store snapshot for *identity*.
+
+    Public accessor for enforcement paths that must read the same store
+    snapshot the acknowledgment CLI uses. Failures are returned as payloads
+    by the Rust binding; callers fail closed for local execution.
+    """
+    return _store_snapshot(identity)
+
+
+def project_identity_for_config(root: Path, config_path: Path) -> str:
+    """Resolve the versioned project identity management uses for trust.
+
+    Public accessor so runtime enforcement binds the same identity the
+    human acknowledgment records; never derive a parallel identity.
+    """
+    return _project_identity(root, config_path)
+
+
+def logical_config_location_for_trust(root: Path, selected: Path) -> str:
+    """Return the stable project-relative config choice included in digests.
+
+    Public accessor so enforcement digests the same logical location the
+    acknowledgment preview binds.
+    """
+    return _logical_config_location(root, selected)
+
+
 __all__ = [
     "LOCAL_COMMAND_TRUST_STORE_DIRECTORY",
     "LOCAL_COMMAND_TRUST_STORE_FILENAME",
     "LOCAL_COMMAND_TRUST_STORE_WIRE_SCHEMA_VERSION",
     "allow_local_commands",
+    "local_trust_store_snapshot",
+    "logical_config_location_for_trust",
     "print_trust_status",
+    "project_identity_for_config",
     "require_local_trust_human_terminal",
     "revoke_local_commands",
 ]

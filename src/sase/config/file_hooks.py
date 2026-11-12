@@ -6,6 +6,7 @@ from collections.abc import Mapping
 from dataclasses import dataclass, field
 import logging
 import os
+from pathlib import Path
 import re
 from typing import Any, cast, get_args, Literal, TYPE_CHECKING
 
@@ -13,6 +14,7 @@ from sase.config.core import (
     current_config_token,
     load_config_layers,
 )
+from sase.config.local_trust_enforcement import LocalTrustEvaluation
 from sase.plugins.qualified_id import (
     PluginQualifiedIdError,
     parse_plugin_qualified_id,
@@ -404,13 +406,38 @@ def _plain_value(value: Any) -> Any:
     return value
 
 
-def _effective_raw_file_hooks() -> list[tuple[object, str]]:
-    """Replay config-list merge semantics while retaining source provenance."""
+def _trust_evaluation_for_layers(
+    layers: list[Any],
+) -> LocalTrustEvaluation | None:
+    """Evaluate local trust from the same layers snapshot used for parsing."""
+    for layer in layers:
+        if layer.name != "local" or not layer.exists:
+            continue
+        data = layer.data if isinstance(layer.data, dict) else {}
+        if not data:
+            return None
+        if not layer.path:
+            return None
+        try:
+            from sase.config.local_trust_enforcement import (
+                evaluate_local_trust_for_path,
+            )
+
+            return evaluate_local_trust_for_path(Path(str(layer.path)), dict(data))
+        except Exception:
+            logger.debug("Local file-hook trust evaluation failed", exc_info=True)
+            return None
+    return None
+
+
+def _raw_hooks_from_layers(
+    layers: list[Any],
+) -> list[tuple[object, str]]:
+    """Replay list-merge semantics over an already-loaded layers snapshot."""
     effective: list[tuple[object, str]] = []
-    for layer in load_config_layers():
+    for layer in layers:
         if not layer.exists or "file_hooks" not in layer.data:
             continue
-
         raw_items = layer.data["file_hooks"]
         if layer.list_strategy == "replace":
             effective = []
@@ -439,22 +466,54 @@ def _needs_detected_project(item: object, source_layer: str) -> bool:
 
 
 def _load_file_hooks() -> list[FileHookConfig]:
-    """Load validated file hooks, memoized on the merged config token."""
+    """Load validated file hooks, memoized on token plus trust verdict.
+
+    Trust and config changes are security inputs: execution eligibility is
+    keyed by the actual projection digest and acknowledgment state, not
+    solely by the asynchronous stat token, mtime, or file size. The same
+    layers snapshot feeds both trust evaluation and hook parsing.
+    """
     global _file_hooks_cache_token, _file_hooks_cache_value
     global _file_hook_diagnostics_cache_value
 
-    token = (
+    base_token = (
         current_config_token(),
         os.environ.get("SASE_DISABLE_PLUGINS"),
         os.environ.get("SASE_DISABLE_PLUGIN_FILE_HOOKS"),
     )
+    layers = load_config_layers()
+    trust_evaluation = _trust_evaluation_for_layers(layers)
+    if trust_evaluation is not None:
+        trust_key = (
+            trust_evaluation.enabled,
+            trust_evaluation.digest,
+            trust_evaluation.status,
+        )
+    else:
+        trust_key = (True, "", "no-local")
+    token = base_token + (trust_key,)
     if _file_hooks_cache_value is not None and _file_hooks_cache_token == token:
         return _file_hooks_cache_value
 
     from sase.artifact_providers import get_artifact_provider_registry
 
     registry = get_artifact_provider_registry()
-    raw_hooks = _effective_raw_file_hooks()
+    raw_hooks = _raw_hooks_from_layers(layers)
+    if (
+        trust_evaluation is not None
+        and trust_evaluation.enabled
+        and not trust_evaluation.trusted
+    ):
+        skipped = [name for name, source in raw_hooks if source == "local"]
+        if skipped:
+            logger.warning(
+                "Skipping %d local file hook(s) without current trust "
+                "(config %s): run `sase config trust allow %s` after review.",
+                len(skipped),
+                trust_evaluation.config_path,
+                trust_evaluation.config_path,
+            )
+        raw_hooks = [(item, source) for item, source in raw_hooks if source != "local"]
     detected_project: str | None = None
     if any(_needs_detected_project(item, source) for item, source in raw_hooks):
         from sase.macro.loader import detect_project

@@ -69,9 +69,11 @@ managed workspaces share that identity only when the workspace registry confirms
 membership. Other checkouts are isolated by canonical checkout path.
 
 The digest covers config values, not the contents of referenced scripts, binaries, or
-standalone macro files. Review edits to those files separately. The review CLI and store
-are the first rollout step; runtime filtering is activated separately, so recording an
-acknowledgment alone does not change command loading in this step.
+standalone macro files. Review edits to those files separately. Hook enforcement runs
+under the `local_config_command_trust` sunset flag (default on): untrusted local hooks
+are omitted before merging and from file-hook loading, with a skip warning naming
+`sase config trust allow PATH`. With the flag off, local commands run in compatibility
+mode marked in `status`, and no trust records are created.
 
 ## Repository configuration
 
