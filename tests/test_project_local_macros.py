@@ -217,7 +217,7 @@ class TestGetAllProjectLocalPrompts:
         """Register a ``key != PROJECT_NAME`` project holding a ``sase.yml``."""
         from sase import _project_display_cache as display_cache
         from sase import project_aliases
-        from sase.macro import loader_sources
+        from sase.macro import loader_sources_projects
 
         sase_home = tmp_path / "sase-home"
         workspace = tmp_path / "workspace"
@@ -240,7 +240,7 @@ class TestGetAllProjectLocalPrompts:
             _disk_project_records,
         )
         monkeypatch.setattr(
-            loader_sources,
+            loader_sources_projects,
             "list_project_records",
             _disk_project_records,
         )

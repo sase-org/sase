@@ -26,7 +26,7 @@ _LIST_SEAMS = (
     "sase.project_aliases.list_project_records",
     "sase._project_display_cache.list_project_records",
     "sase.ace.tui.modals.project_discovery.list_project_records",
-    "sase.macro.loader_sources.list_project_records",
+    "sase.macro.loader_sources_projects.list_project_records",
 )
 
 

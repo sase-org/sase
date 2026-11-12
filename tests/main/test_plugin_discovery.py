@@ -60,15 +60,15 @@ def test_macro_plugin_discovery_loads_md_files(tmp_path: Path) -> None:
 
     with (
         patch(
-            "sase.macro.loader_sources.discover_macro_plugin_modules",
+            "sase.macro.loader_sources_plugins.discover_macro_plugin_modules",
             return_value=[fake_module],
         ),
         patch(
-            "sase.macro.loader_sources.importlib.resources.files",
+            "sase.macro.loader_sources_plugins.importlib.resources.files",
             return_value=mock_files,
         ),
         patch(
-            "sase.macro.loader_sources.macro_plugins_disabled",
+            "sase.macro.loader_sources_plugins.macro_plugins_disabled",
             return_value=False,
         ),
     ):
@@ -83,7 +83,9 @@ def test_macro_plugin_disabled_returns_empty() -> None:
     """Disabled plugin group returns empty dict."""
     from sase.macro.loader_sources import load_macros_from_plugins
 
-    with patch("sase.macro.loader_sources.macro_plugins_disabled", return_value=True):
+    with patch(
+        "sase.macro.loader_sources_plugins.macro_plugins_disabled", return_value=True
+    ):
         result = load_macros_from_plugins()
 
     assert result == {}

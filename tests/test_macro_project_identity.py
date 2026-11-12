@@ -8,7 +8,7 @@ import pytest
 from sase import _project_display_cache as display_cache
 from sase import project_aliases, project_display_names
 from sase.main import project_handler
-from sase.macro import loader_sources
+from sase.macro import loader_sources_projects
 from sase.macro import project_identity
 from sase.macro.project_identity import canonical_macro_project
 from sase.macro.project_identity import invalidate_macro_project_identity
@@ -34,7 +34,9 @@ def _clear_identity_cache() -> Iterator[None]:
 def _lifecycle_reader(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(project_aliases, "list_project_records", _disk_project_records)
     monkeypatch.setattr(display_cache, "list_project_records", _disk_project_records)
-    monkeypatch.setattr(loader_sources, "list_project_records", _disk_project_records)
+    monkeypatch.setattr(
+        loader_sources_projects, "list_project_records", _disk_project_records
+    )
 
 
 def _write_identity_project(

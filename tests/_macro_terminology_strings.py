@@ -93,6 +93,7 @@ _MACRO_SRC_STRING_REASONS: dict[str, str] = {
     "src/sase/macro/config_yaml.py": "sunset-policy implementation: flag-gated aliases, gated legacy directories, or retired-spelling readers; removed with the flag",
     "src/sase/macro/highlight.py": "dual-spelling reader: canonical writers, legacy source value",
     "src/sase/macro/loader_sources.py": "sunset-policy implementation: flag-gated aliases, gated legacy directories, or retired-spelling readers; removed with the flag",
+    "src/sase/macro/loader_sources_files.py": "sunset-policy implementation: flag-gated aliases, gated legacy directories, or retired-spelling readers; removed with the flag",
     "src/sase/macro/macro_sources.py": "sunset-policy implementation: flag-gated aliases, gated legacy directories, or retired-spelling readers; removed with the flag",
     "src/sase/macro/plugin_input_types.py": "sunset-policy implementation: flag-gated aliases, gated legacy directories, or retired-spelling readers; removed with the flag",
     "src/sase/macro/prompt_frontmatter.py": "sunset-policy implementation: flag-gated aliases, gated legacy directories, or retired-spelling readers; removed with the flag",

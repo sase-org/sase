@@ -29,7 +29,7 @@ from sase.ace.tui.widgets.macro_inline_expansion import (
     _InlineExpansionReason,
     _InlineExpansionResult,
 )
-from sase.macro import loader_sources
+from sase.macro import loader_sources_projects
 from sase.macro.models import InputArg, InputType
 from sase.macro.project_identity import invalidate_macro_project_identity
 from sase.macro.workflow_models import Workflow, WorkflowStep
@@ -516,7 +516,9 @@ def _gh_project(
     )
     monkeypatch.setattr(project_aliases, "list_project_records", _disk_project_records)
     monkeypatch.setattr(display_cache, "list_project_records", _disk_project_records)
-    monkeypatch.setattr(loader_sources, "list_project_records", _disk_project_records)
+    monkeypatch.setattr(
+        loader_sources_projects, "list_project_records", _disk_project_records
+    )
     return workspace
 
 

@@ -207,10 +207,13 @@ def testload_macros_from_plugins_with_local_macros(tmp_path: Path, monkeypatch) 
 
     with (
         patch(
-            "sase.macro.loader_sources.discover_macro_plugin_modules",
+            "sase.macro.loader_sources_plugins.discover_macro_plugin_modules",
             return_value=[module],
         ),
-        patch("sase.macro.loader_sources.macro_plugins_disabled", return_value=False),
+        patch(
+            "sase.macro.loader_sources_plugins.macro_plugins_disabled",
+            return_value=False,
+        ),
     ):
         result = load_macros_from_plugins()
 
@@ -247,7 +250,7 @@ def test_higher_priority_dir_md_overrides_lower_dir_md() -> None:
         (low_dir / "shared.md").write_text("From low dir")
 
         with patch(
-            "sase.macro.loader_sources.get_macro_search_paths",
+            "sase.macro.loader_sources_files.get_macro_search_paths",
             return_value=[high_dir, low_dir],
         ):
             from sase.macro.loader import load_macros_from_files
@@ -294,10 +297,13 @@ def test_get_all_macros_includes_md_files() -> None:
 
         with (
             patch(
-                "sase.macro.loader_sources.get_macro_search_paths",
+                "sase.macro.loader_sources_files.get_macro_search_paths",
                 return_value=[search_dir],
             ),
-            patch("sase.macro.loader_sources.load_macros_by_source", return_value=[]),
+            patch(
+                "sase.macro.loader_sources_config.load_macros_by_source",
+                return_value=[],
+            ),
             patch("sase.macro.loader.load_macros_from_internal", return_value={}),
         ):
             result = get_all_macros()
@@ -324,7 +330,7 @@ def testload_macros_from_default_files_loads_fixture(tmp_path: Path) -> None:
     )
 
     with patch(
-        "sase.macro.loader_sources.get_sase_package_default_macros_dir",
+        "sase.macro.loader_sources_files.get_sase_package_default_macros_dir",
         return_value=default_dir,
     ):
         result = load_macros_from_default_files()
@@ -410,16 +416,18 @@ def test_default_file_macro_not_project_namespaced(tmp_path: Path, monkeypatch) 
     fixture.write_text("Fixture default body.\n", encoding="utf-8")
 
     with (
-        patch("sase.macro.loader_sources.load_macros_by_source", return_value=[]),
+        patch(
+            "sase.macro.loader_sources_config.load_macros_by_source", return_value=[]
+        ),
         patch("sase.macro.loader.load_macros_from_internal", return_value={}),
         patch("sase.macro.loader.load_macros_from_plugins", return_value={}),
         patch("sase.macro.loader.load_macros_from_project", return_value={}),
         patch(
-            "sase.macro.loader_sources.get_macro_search_paths",
+            "sase.macro.loader_sources_files.get_macro_search_paths",
             return_value=[tmp_path / ".xprompts", tmp_path / "xprompts"],
         ),
         patch(
-            "sase.macro.loader_sources.get_sase_package_default_macros_dir",
+            "sase.macro.loader_sources_files.get_sase_package_default_macros_dir",
             return_value=default_dir,
         ),
     ):
@@ -437,13 +445,15 @@ def test_config_macro_overrides_default_file_macro(tmp_path: Path) -> None:
         patch("sase.config.core.CONFIG_DIR", tmp_path),
         patch("sase.config.core.get_local_config_path", return_value=None),
         patch(
-            "sase.macro.loader_sources.load_macros_by_source",
+            "sase.macro.loader_sources_config.load_macros_by_source",
             return_value=[("config", {"research_swarm": "From config"})],
         ),
         patch("sase.macro.loader.load_macros_from_internal", return_value={}),
         patch("sase.macro.loader.load_macros_from_plugins", return_value={}),
         patch("sase.macro.loader.detect_project", return_value=None),
-        patch("sase.macro.loader_sources.get_macro_search_paths", return_value=[]),
+        patch(
+            "sase.macro.loader_sources_files.get_macro_search_paths", return_value=[]
+        ),
     ):
         result = get_all_macros(project=None)
 
@@ -458,7 +468,9 @@ def test_review_macros_load_from_default_config(tmp_path: Path) -> None:
         patch("sase.config.core.get_local_config_path", return_value=None),
         patch("sase.main.plugin_discovery.is_plugin_disabled", return_value=True),
         patch("sase.macro.loader.detect_project", return_value=None),
-        patch("sase.macro.loader_sources.get_macro_search_paths", return_value=[]),
+        patch(
+            "sase.macro.loader_sources_files.get_macro_search_paths", return_value=[]
+        ),
         patch("sase.macro.loader.load_macros_from_internal", return_value={}),
         patch("sase.macro.loader.load_macros_from_plugins", return_value={}),
         patch("sase.macro.workflow_loader.get_all_workflows", return_value={}),
@@ -529,7 +541,9 @@ def test_get_all_macros_file_overrides_project() -> None:
     file_macro = Macro(name="test", content="From file")
 
     with (
-        patch("sase.macro.loader_sources.load_macros_by_source", return_value=[]),
+        patch(
+            "sase.macro.loader_sources_config.load_macros_by_source", return_value=[]
+        ),
         patch(
             "sase.macro.loader.load_macros_from_files",
             return_value={"test": file_macro},

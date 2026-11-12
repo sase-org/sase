@@ -178,6 +178,8 @@ STRING_PAIRS: set[tuple[str, str]] = {
     ("src/sase/macro/highlight.py", '"xprompt"'),
     ("src/sase/macro/loader_sources.py", '".xprompts"'),
     ("src/sase/macro/loader_sources.py", '"xprompts"'),
+    ("src/sase/macro/loader_sources_files.py", '".xprompts"'),
+    ("src/sase/macro/loader_sources_files.py", '"xprompts"'),
     (
         "src/sase/macro/loader_sources.py",
         "``legacy_xprompt_syntax`` flag allows it. Plugin skills live in",

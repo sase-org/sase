@@ -60,7 +60,7 @@ def _patch_loader_scaffolding(
     monkeypatch.setattr("sase.macro.loader.detect_project", lambda: None)
     monkeypatch.setattr("sase.macro.workflow_loader.detect_project", lambda: None)
     monkeypatch.setattr(
-        "sase.macro.loader_sources.resolve_macro_file_sources",
+        "sase.macro.loader_sources_files.resolve_macro_file_sources",
         lambda **_: (source,),
     )
     monkeypatch.setattr("sase.macro.loader.load_macros_from_default_files", lambda: {})

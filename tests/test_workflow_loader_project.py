@@ -26,7 +26,7 @@ def workflow_project_registry(
 ) -> Iterator[Path]:
     from sase import _project_display_cache as display_cache
     from sase import project_aliases
-    from sase.macro import loader_sources
+    from sase.macro import loader_sources_projects
 
     projects_root = tmp_path / "sase-home" / "projects"
     projects_root.mkdir(parents=True)
@@ -37,7 +37,9 @@ def workflow_project_registry(
         "list_project_records",
         _disk_project_records,
     )
-    monkeypatch.setattr(loader_sources, "list_project_records", _disk_project_records)
+    monkeypatch.setattr(
+        loader_sources_projects, "list_project_records", _disk_project_records
+    )
     invalidate_macro_project_identity()
     yield projects_root
     invalidate_macro_project_identity()
