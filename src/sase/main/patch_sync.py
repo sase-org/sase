@@ -91,6 +91,30 @@ def handle_sync_external(
             resolve_project_alias_ref_fn(str(args.project)),
         )
         if selected is None:
+            folded = str(args.project).casefold()
+            candidates = sorted(
+                (
+                    record
+                    for record in records
+                    if effective_project_name(record).casefold() == folded
+                    or any(alias.casefold() == folded for alias in record.aliases)
+                    or record.project_name.casefold() == folded
+                ),
+                key=lambda item: item.project_name,
+            )
+            if len(candidates) > 1:
+                lines = [
+                    f"  {item.project_name} "
+                    f"(display name: {effective_project_name(item)})"
+                    for item in candidates
+                ]
+                print(
+                    f"[{command_prefix(args, 'sync-external')}] project "
+                    f"'{args.project}' is ambiguous; matches "
+                    f"{len(candidates)} projects:\n" + "\n".join(lines),
+                    file=sys.stderr,
+                )
+                return 1
             print(
                 f"[{command_prefix(args, 'sync-external')}] project not found: "
                 f"{args.project}",
@@ -180,11 +204,15 @@ def select_sync_external_project(
     for record in records:
         if record.project_name == project_ref:
             return record
-    for record in records:
-        if effective_project_name(record).casefold() == folded:
-            return record
-        if any(alias.casefold() == folded for alias in record.aliases):
-            return record
+    matches = [
+        record
+        for record in records
+        if effective_project_name(record).casefold() == folded
+        or any(alias.casefold() == folded for alias in record.aliases)
+        or record.project_name.casefold() == folded
+    ]
+    if len(matches) == 1:
+        return matches[0]
     return None
 
 

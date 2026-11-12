@@ -44,6 +44,97 @@ class _LinkedRepoProject:
     current_primary_workspace_dir: str | None = None
 
 
+def _canonicalize_project_ref(ref: str) -> str:
+    """Canonicalize an explicit ``-p/--project`` value through the registry.
+
+    Accepts an exact registered directory key, the display name
+    (``PROJECT_NAME``), or an alias, case-insensitively for names and
+    aliases. Reuses the resolver ``sase project show`` uses
+    (``resolve_project_alias_ref`` plus ``find_project_ref_owner``
+    display-name matching). A registered project wins over an
+    unregistered stray project directory with the same name. Exits 2
+    with a candidate list when the value matches more than one project.
+    """
+    try:
+        from sase.project_aliases import (
+            find_project_ref_owner,
+            registered_project_records,
+            resolve_project_alias_ref,
+        )
+    except Exception:
+        return ref
+    try:
+        records = registered_project_records()
+    except Exception:
+        try:
+            resolved = resolve_project_alias_ref(ref)
+            if resolved != ref:
+                return resolved
+            owner = find_project_ref_owner(ref)
+            return owner if owner is not None else ref
+        except Exception:
+            return ref
+    by_name = {record.project_name: record for record in records}
+    exact = by_name.get(ref)
+    if exact is not None and (exact.workspace_dir or ""):
+        return ref
+    try:
+        resolved = resolve_project_alias_ref(ref)
+    except Exception:
+        resolved = ref
+    if resolved != ref and resolved in by_name:
+        return resolved
+    fold = ref.casefold()
+    try:
+        from sase.project_alias_records import (
+            normalize_project_aliases,
+            normalize_project_name,
+        )
+        from sase.core.project_lifecycle_wire import effective_project_name
+    except Exception:
+        try:
+            owner = find_project_ref_owner(ref)
+        except Exception:
+            owner = None
+        return owner if owner is not None else ref
+    candidates = []
+    for record in records:
+        if record.project_name.casefold() == fold:
+            candidates.append(record)
+            continue
+        display_name = normalize_project_name(record.display_name)
+        if display_name is not None and display_name.casefold() == fold:
+            candidates.append(record)
+            continue
+        if any(
+            alias.casefold() == fold
+            for alias in normalize_project_aliases(record.aliases)
+        ):
+            candidates.append(record)
+            continue
+    if not candidates:
+        try:
+            owner = find_project_ref_owner(ref)
+        except Exception:
+            owner = None
+        return owner if owner is not None else ref
+    valid = [item for item in candidates if (item.workspace_dir or "")]
+    scoped = valid if valid else candidates
+    if len(scoped) > 1:
+        ordered = sorted(scoped, key=lambda item: item.project_name)
+        lines = [
+            f"  {item.project_name} (display name: {effective_project_name(item)})"
+            for item in ordered
+        ]
+        print(
+            f"Project '{ref}' is ambiguous; matches {len(ordered)} projects:\n"
+            + "\n".join(lines),
+            file=sys.stderr,
+        )
+        raise SystemExit(2)
+    return scoped[0].project_name
+
+
 def resolve_project_context(
     project: str | None,
     *,
@@ -69,6 +160,8 @@ def resolve_project_context(
             file=sys.stderr,
         )
         raise SystemExit(2)
+
+    project_name = _canonicalize_project_ref(project_name)
 
     project_file = get_project_file_path(project_name)
     primary = parse_workspace_dir(project_file) or ""
