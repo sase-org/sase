@@ -191,13 +191,22 @@ def _build_approval_context(
         base_prompt = state.question_base_prompt
         prior_rounds: list[Any] = []
         if parent:
-            from sase.question_gate_turn import question_base_prompt, question_rounds
+            from sase.question_gate_turn import (
+                question_base_authored_request,
+                question_base_prompt,
+                question_rounds,
+            )
 
             base_prompt = question_base_prompt(parent) or base_prompt
+            state.question_base_authored_request = (
+                question_base_authored_request(parent)
+                or state.question_base_authored_request
+            )
             prior_rounds = question_rounds(parent)
         question_context = {
             "parent_artifacts_dir": parent,
             "base_prompt": base_prompt,
+            "base_authored_request": state.question_base_authored_request,
             "prior_rounds": [_qa_round_json(round_) for round_ in prior_rounds],
             "sdd_spec_path": state.sdd_spec_path,
         }
@@ -224,6 +233,9 @@ def _build_approval_context(
             "current_prompt": state.current_prompt,
             "original_prompt": state.original_prompt,
             "question_base_prompt": state.question_base_prompt,
+            "authored_local_request": state.authored_local_request,
+            "initial_authored_local_request": state.initial_authored_local_request,
+            "question_base_authored_request": state.question_base_authored_request,
             "qa_rounds": serialized_rounds,
             "feedback_round": state.feedback_round,
             "feedback_bullets": list(state.feedback_bullets),
@@ -328,6 +340,9 @@ def restore_staged_approval_loop_state(state: Any, context: Mapping[str, Any]) -
         "current_prompt",
         "original_prompt",
         "question_base_prompt",
+        "authored_local_request",
+        "initial_authored_local_request",
+        "question_base_authored_request",
         "current_role_suffix",
         "sdd_spec_path",
         "question_gate_artifacts_dir",

@@ -690,4 +690,5 @@ def handle_accepted_plan(
     # from the exact code prompt (with its resolved ``%model`` directive), not
     # the initial planner prompt.
     state.question_base_prompt = state.current_prompt
+    state.question_base_authored_request = state.authored_local_request
     return None  # continue loop

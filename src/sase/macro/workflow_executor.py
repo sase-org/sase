@@ -3,7 +3,7 @@
 import json
 import os
 import time
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from typing import TYPE_CHECKING, Any
 
 from sase.core.agent_artifact_index_lifecycle import (
@@ -54,6 +54,8 @@ class WorkflowExecutor(StepMixin, LoopMixin, ParallelMixin):
         inherited_model_override: str | None = None,
         inherited_vcs_tag: str | None = None,
         workspace_rebind_callback: Callable[[dict[str, Any], str], None] | None = None,
+        authored_local_request: str | None = None,
+        continuation_segments: Sequence[Any] = (),
     ) -> None:
         """Initialize the workflow executor.
 
@@ -85,6 +87,8 @@ class WorkflowExecutor(StepMixin, LoopMixin, ParallelMixin):
         self.inherited_model_override = inherited_model_override
         self.inherited_vcs_tag = inherited_vcs_tag
         self.workspace_rebind_callback = workspace_rebind_callback
+        self.authored_local_request = authored_local_request
+        self.launch_continuation_segments = tuple(continuation_segments)
         self._current_embedded_workflow_name: str | None = None
         self._zero_iteration_steps: set[str] = set()
         self._last_for_zero_iterations: bool = False

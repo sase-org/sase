@@ -8,6 +8,7 @@ from typing import Any
 from sase.continuation_capture import (
     AuthoredCheckpoint,
     repair_missing_starter_parent_disposition,
+    starter_capture_error_summary,
 )
 
 from .delivery import load_delivery_record
@@ -265,7 +266,19 @@ def _validate_resume_request(
             suggested_command=None,
             code="conditional_completion",
         )
-    if _capture_needs_recovery(meta) and checkpoint is None and model is None:
+    starter_artifacts_dir = meta.get("monitor_starter_artifacts_dir")
+    starter_capture_error = starter_capture_error_summary(
+        starter_artifacts_dir if isinstance(starter_artifacts_dir, str) else None
+    )
+    requires_authored_checkpoint = bool(
+        starter_capture_error
+        and "authored_local_request is too large" in starter_capture_error
+    )
+    if (
+        _capture_needs_recovery(meta)
+        and checkpoint is None
+        and (model is None or requires_authored_checkpoint)
+    ):
         raise MonitorResumeError(
             f"monitor context capture needs manual recovery; retry with `{suggested_command} -k FILE`",
             suggested_command=f"{suggested_command} -k FILE",

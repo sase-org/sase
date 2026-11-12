@@ -172,6 +172,7 @@ def _handle_pipe_handoff(
             store_prompt=_store_followup_prompt_artifact,
         )
         state.question_base_prompt = state.current_prompt
+        state.question_base_authored_request = state.authored_local_request
         successor_dir = staged_plan["successor"]["artifacts_dir"]
         if str(Path(state.current_artifacts_dir)) != str(Path(successor_dir)):
             raise RuntimeError(
@@ -282,6 +283,15 @@ def _restore_staged_pipe_loop_state(
     original_prompt = loop_state.get("original_prompt")
     if isinstance(original_prompt, str):
         state.original_prompt = original_prompt
+    authored_local_request = loop_state.get("authored_local_request")
+    if isinstance(authored_local_request, str):
+        state.authored_local_request = authored_local_request
+    initial_authored_local_request = loop_state.get("initial_authored_local_request")
+    if isinstance(initial_authored_local_request, str):
+        state.initial_authored_local_request = initial_authored_local_request
+    question_base_authored_request = loop_state.get("question_base_authored_request")
+    if isinstance(question_base_authored_request, str):
+        state.question_base_authored_request = question_base_authored_request
     sdd_spec_path = loop_state.get("sdd_spec_path")
     state.sdd_spec_path = sdd_spec_path if isinstance(sdd_spec_path, str) else None
     from sase.main.qa_markdown import QARound

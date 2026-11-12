@@ -163,6 +163,7 @@ def ensure_prepared_prompt(
     state: LoopState,
     *,
     authored_local_request: str,
+    segments: Sequence[ContinuationSegmentCapture] = (),
 ) -> PreparedPromptCaptureResult:
     root = continuation_root(artifacts_dir)
     payload = read_json_object(root / PREPARED_PROMPT_FILENAME)
@@ -173,8 +174,8 @@ def ensure_prepared_prompt(
             "0" * 64,
         )
         materialized_bytes = optional_int(payload.get("materialized_prompt_bytes")) or 0
-        segments = payload.get("materialized_local_prompt_segments")
-        segment_count = len(segments) if isinstance(segments, list) else 0
+        stored_segments = payload.get("materialized_local_prompt_segments")
+        segment_count = len(stored_segments) if isinstance(stored_segments, list) else 0
         return PreparedPromptCaptureResult(
             prepared_ref=local_ref(PREPARED_PROMPT_FILENAME),
             prepared_path=str(root / PREPARED_PROMPT_FILENAME),
@@ -187,7 +188,7 @@ def ensure_prepared_prompt(
         artifacts_dir,
         authored_local_request=authored_local_request,
         materialized_prompt=state.current_prompt,
-        segments=(),
+        segments=segments,
     )
 
 

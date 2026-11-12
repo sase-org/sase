@@ -250,12 +250,16 @@ def _blocked_followup_error(reason: str, meta: dict[str, Any]) -> str:
     from sase.continuation_capture import starter_capture_error_summary
 
     message = reason
+    authored_request_over_limit = False
     if reason == _missing_starter_parent_error():
         starter_dir = meta.get("monitor_starter_artifacts_dir")
         summary = starter_capture_error_summary(
             starter_dir if isinstance(starter_dir, str) else None
         )
         if summary:
+            authored_request_over_limit = (
+                "authored_local_request is too large" in summary
+            )
             starter = meta.get("monitor_starter_agent")
             starter_name = (
                 starter if isinstance(starter, str) and starter else "unknown"
@@ -268,6 +272,12 @@ def _blocked_followup_error(reason: str, meta: dict[str, Any]) -> str:
     short_id = (
         short_monitor_id(monitor_id) if isinstance(monitor_id, str) else "unknown"
     )
+    if authored_request_over_limit:
+        return (
+            f"{message}; inspect the retained starter request, response, and monitor "
+            "evidence, then write a bounded authored checkpoint; recover with "
+            f"`sase monitor resume {short_id} -k FILE`"
+        )
     return (
         f"{message}; recover with `sase monitor resume {short_id} -k FILE` "
         f"or `sase monitor resume {short_id} -m MODEL`"

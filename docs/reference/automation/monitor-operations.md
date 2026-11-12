@@ -69,6 +69,29 @@ command to stderr when one exists; with `-j`, the JSON result carries `code` and
 the `not-launchable` error names that capture failure and gives the `-k FILE` /
 `-m MODEL` resume command.
 
+If the starter capture error says `authored_local_request is too large`, changing the
+model does not repair the missing parent. Inspect the retained starter request and
+response, plus the monitor result and evidence, then write a concise checkpoint that
+states the objective, constraints, findings, unresolved decisions, or remaining work.
+Resume that monitor with the checkpoint:
+
+```yaml
+objective: Continue the blocked monitor follow-up from its frozen result.
+constraints:
+  - Preserve the constraints in the retained starter request.
+findings:
+  - The starter continuation capture exceeded the authored request limit.
+remaining_work:
+  - Use the retained response and monitor evidence to complete the requested work.
+```
+
+```bash
+sase monitor resume <id> -k checkpoint.yml
+```
+
+The checkpoint is a bounded authored recovery summary; it does not rewrite the immutable
+starter capture or rerun the monitor command.
+
 Terminal settlement checks for uncommitted work before releasing the monitor's
 workspace. A failed, missing, or degraded follow-up can leave the original checkout
 [held for recovery](../agents/workspaces.md#held-workspaces), including when the monitor

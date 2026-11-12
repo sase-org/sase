@@ -39,6 +39,8 @@ class SuccessorRequest:
 
     base_meta: dict[str, Any]
     prompt: str
+    # Local authored form may omit materialized ancestry present in prompt.
+    authored_local_request: str | None = None
     suffix: str | None = None
     suffix_template: str | None = None
     extra_reserved_suffixes: tuple[str, ...] = ()

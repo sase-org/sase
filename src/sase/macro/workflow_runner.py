@@ -3,7 +3,7 @@
 import logging
 import os
 import warnings
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
@@ -402,6 +402,8 @@ def execute_workflow(
     workflow_obj: "Workflow | None" = None,
     hitl_override: bool | None = None,
     workspace_rebind_callback: Callable[[dict[str, Any], str], None] | None = None,
+    authored_local_request: str | None = None,
+    continuation_segments: Sequence[Any] = (),
 ) -> WorkflowResult:
     """Execute a workflow and return its result.
 
@@ -587,6 +589,8 @@ def execute_workflow(
         inherited_model_override=inherited_model_override,
         inherited_vcs_tag=inherited_vcs_tag,
         workspace_rebind_callback=workspace_rebind_callback,
+        authored_local_request=authored_local_request,
+        continuation_segments=continuation_segments,
     )
 
     execution = executor.execute()

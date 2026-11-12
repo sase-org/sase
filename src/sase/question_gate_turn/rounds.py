@@ -72,6 +72,19 @@ def question_base_prompt(head_artifacts_dir: str) -> str:
         return ""
 
 
+def question_base_authored_request(head_artifacts_dir: str) -> str:
+    """Return the chain's local authored base request, or ``""``."""
+    chain = _question_chain(head_artifacts_dir)
+    root = chain[0] if chain else head_artifacts_dir
+    path = _read_meta(root).get("question_base_authored_request_path")
+    if not isinstance(path, str) or not path:
+        return ""
+    try:
+        return Path(path).read_text(encoding="utf-8")
+    except OSError:
+        return ""
+
+
 def _round_from_bundle(
     artifacts_dir: str, *, response: dict[str, Any] | None
 ) -> QARound | None:
@@ -125,4 +138,8 @@ def _read_json_object(path: str) -> dict[str, Any] | None:
     return data if isinstance(data, dict) else None
 
 
-__all__ = ["question_base_prompt", "question_rounds"]
+__all__ = [
+    "question_base_authored_request",
+    "question_base_prompt",
+    "question_rounds",
+]

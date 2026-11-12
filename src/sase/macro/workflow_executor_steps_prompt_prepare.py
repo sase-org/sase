@@ -57,6 +57,8 @@ class PromptStepPrepareMixin:
     workflow: Workflow
     context: dict[str, Any]
     artifacts_dir: str
+    authored_local_request: str | None
+    launch_continuation_segments: tuple[Any, ...]
     inherited_model_override: str | None
     inherited_vcs_tag: str | None
     _continuation_embedded_segments: list[Any]
@@ -101,6 +103,24 @@ class PromptStepPrepareMixin:
             context=self.context,
         )
         continuation_segments = list(early.continuation_segments)
+        authored_local_request = step_prompt
+        if (
+            self.workflow.is_anonymous()
+            and step.name == "main"
+            and isinstance(self.authored_local_request, str)
+        ):
+            from sase.continuation_capture import local_authored_prompt_segment
+
+            authored_local_request = self.authored_local_request
+            continuation_segments = [
+                segment
+                for segment in continuation_segments
+                if segment.provenance != "local_authored"
+            ]
+            continuation_segments.insert(
+                0, local_authored_prompt_segment(authored_local_request)
+            )
+            continuation_segments.extend(self.launch_continuation_segments)
         effective_directives = early.directives
         if self.inherited_model_override:
             effective_directives = replace(
@@ -176,6 +196,6 @@ class PromptStepPrepareMixin:
             embedded_workflows=embedded_workflows,
             pre_step_count=pre_step_count,
             pre_step_meta=pre_step_meta,
-            authored_local_request=step_prompt,
+            authored_local_request=authored_local_request,
             continuation_segments=tuple(continuation_segments),
         )

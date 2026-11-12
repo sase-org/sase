@@ -147,6 +147,7 @@ def _handle_questions_handoff(
     from sase.main.plan_approve_handler import is_auto_approve_active
     from sase.question_gate_turn import (
         create_question_gate_turn,
+        question_base_authored_request,
         question_base_prompt,
         question_rounds,
         resolve_question_chain_parent,
@@ -179,6 +180,12 @@ def _handle_questions_handoff(
         parent_artifacts_dir = parent if isinstance(parent, str) else None
         base_value = staged_questions.get("base_prompt")
         base_prompt = base_value if isinstance(base_value, str) else ""
+        authored_value = staged_questions.get("base_authored_request")
+        base_authored_request = (
+            authored_value
+            if isinstance(authored_value, str)
+            else state.question_base_authored_request
+        )
         prior_rounds = _question_rounds_from_snapshot(
             staged_questions.get("prior_rounds")
         )
@@ -193,9 +200,14 @@ def _handle_questions_handoff(
             base_prompt = (
                 question_base_prompt(parent_artifacts_dir) or state.question_base_prompt
             )
+            base_authored_request = (
+                question_base_authored_request(parent_artifacts_dir)
+                or state.question_base_authored_request
+            )
             prior_rounds = question_rounds(parent_artifacts_dir)
         else:
             base_prompt = state.question_base_prompt
+            base_authored_request = state.question_base_authored_request
             prior_rounds = []
 
     creator_context = (
@@ -278,6 +290,7 @@ def _handle_questions_handoff(
         producer=producer,
         action_data=action_data,
         base_prompt=base_prompt,
+        authored_base_request=base_authored_request,
         prior_rounds=prior_rounds,
         parent_artifacts_dir=parent_artifacts_dir,
         sdd_spec_path=(
@@ -307,6 +320,7 @@ def _handle_questions_handoff(
             creation,
             base_meta=base_meta,
             base_prompt=base_prompt,
+            base_authored_request=base_authored_request,
             question_relationships=question_relationships,
             provider_response=provider_response,
             staged_id=staged_id,
@@ -405,6 +419,7 @@ def _continue_after_auto_answered_question(
     *,
     base_meta: dict[str, Any],
     base_prompt: str,
+    base_authored_request: str,
     question_relationships: dict[str, Any],
     provider_response: str,
     staged_id: str | None = None,
@@ -465,12 +480,16 @@ def _continue_after_auto_answered_question(
     followup_role = interrupted_role
     fallback_token = _question_successor_fallback_token(reserved_suffixes)
     followup_prompt = assemble_question_followup_prompt(base_prompt, rounds)
+    followup_authored_request = assemble_question_followup_prompt(
+        base_authored_request, rounds
+    )
     successor_name = continue_as_successor(
         ctx,
         state,
         SuccessorRequest(
             base_meta=base_meta,
             prompt=followup_prompt,
+            authored_local_request=followup_authored_request,
             suffix_template=suffix_template,
             extra_reserved_suffixes=reserved_suffixes,
             agent_session_role=followup_role,

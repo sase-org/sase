@@ -232,7 +232,7 @@ def test_settlement_still_not_launchable_when_starter_never_settles(
         json.dumps(
             {
                 "stage": "agent_delta:interrupted",
-                "message": "validation: authored_local_request contains unsupported control characters",
+                "message": "validation: authored_local_request is too large: 708391 UTF-8 bytes exceeds allowed limit of 262144 bytes",
             }
         )
         + "\n",
@@ -264,7 +264,10 @@ def test_settlement_still_not_launchable_when_starter_never_settles(
         result.launch_result.error
     )
     assert "`sase monitor resume abc123 -k FILE`" in str(result.launch_result.error)
-    assert "`sase monitor resume abc123 -m MODEL`" in str(result.launch_result.error)
+    assert (
+        "inspect the retained starter request, response, and monitor evidence"
+        in str(result.launch_result.error)
+    )
     assert meta["monitor_followup_outcome"] == "not-launchable"
     assert meta["continuation_capture_error"] == _MISSING_STARTER_PARENT_ERROR
     assert meta["monitor_followup_error"] == result.launch_result.error

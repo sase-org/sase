@@ -36,6 +36,7 @@ def expand_embedded_workflows_in_query(
     *,
     only_workflow_names: Collection[str] | None = None,
     preserve_existing_macro_metadata: bool = False,
+    continuation_segments: list[Any] | None = None,
 ) -> tuple[str, list[EmbeddedWorkflowResult]]:
     """Detect and expand embedded workflows in a query.
 
@@ -184,6 +185,16 @@ def expand_embedded_workflows_in_query(
         if prompt_part_content:
             prompt_part_content = render_template(prompt_part_content, embedded_context)
             prompt_part_content = process_macro_references(prompt_part_content)
+            if continuation_segments is not None:
+                from sase.continuation_capture import embedded_workflow_prompt_segment
+
+                continuation_segments.append(
+                    embedded_workflow_prompt_segment(
+                        name,
+                        prompt_part_content,
+                        source_path=workflow.source_path,
+                    )
+                )
 
             # Handle section markers (### or ---) with proper line positioning
             prompt_part_content = apply_section_marker_handling(

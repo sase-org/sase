@@ -317,6 +317,8 @@ def _build_exec_context(
         agent_hidden=state.agent_hidden,
         agent_meta=bootstrap.agent_meta,
         local_macros=bootstrap.info.local_macros,
+        authored_local_request=state.authored_local_request,
+        launch_continuation_segments=tuple(state.launch_continuation_segments),
         multi_agent_prompt_file=os.environ.get(MULTI_AGENT_PROMPT_FILE_ENV),
         wait_chats=wait_chats,
         wait_context=wait_context,

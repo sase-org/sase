@@ -8,6 +8,10 @@ _LAZY_EXPORTS: dict[str, tuple[str, str]] = {
         "create_question_gate_turn",
     ),
     "question_base_prompt": ("sase.question_gate_turn.rounds", "question_base_prompt"),
+    "question_base_authored_request": (
+        "sase.question_gate_turn.rounds",
+        "question_base_authored_request",
+    ),
     "question_next_action": (
         "sase.question_gate_turn.followup",
         "question_next_action",

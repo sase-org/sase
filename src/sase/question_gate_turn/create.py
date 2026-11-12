@@ -18,6 +18,7 @@ from sase.main.qa_markdown import QARound, build_merged_qa_markdown
 from sase.user_question_actions import LIVE_AUTO_POLICY, user_question_gate_spec
 
 _QUESTION_BASE_PROMPT_FILENAME = "question_base_prompt.md"
+_QUESTION_BASE_AUTHORED_REQUEST_FILENAME = "question_base_authored_request.md"
 
 
 def _question_gate_turn_spec(
@@ -94,6 +95,7 @@ def create_question_gate_turn(
     auto_policy_snapshot: Mapping[str, Any] | None | object = LIVE_AUTO_POLICY,
     request_timestamp: float | None = None,
     base_prompt: str,
+    authored_base_request: str | None = None,
     prior_rounds: list[QARound],
     parent_artifacts_dir: str | None,
     sdd_spec_path: str | None,
@@ -129,6 +131,12 @@ def create_question_gate_turn(
         base_prompt_path = str(Path(artifacts_dir) / _QUESTION_BASE_PROMPT_FILENAME)
         Path(base_prompt_path).write_text(base_prompt, encoding="utf-8")
         fields["question_base_prompt_path"] = base_prompt_path
+        if authored_base_request is not None:
+            authored_path = str(
+                Path(artifacts_dir) / _QUESTION_BASE_AUTHORED_REQUEST_FILENAME
+            )
+            Path(authored_path).write_text(authored_base_request, encoding="utf-8")
+            fields["question_base_authored_request_path"] = authored_path
     else:
         fields["question_prev_artifacts_dir"] = parent_artifacts_dir
         parent_base_prompt_path = _read_meta(parent_artifacts_dir).get(
@@ -136,6 +144,11 @@ def create_question_gate_turn(
         )
         if isinstance(parent_base_prompt_path, str) and parent_base_prompt_path:
             fields["question_base_prompt_path"] = parent_base_prompt_path
+        parent_authored_path = _read_meta(parent_artifacts_dir).get(
+            "question_base_authored_request_path"
+        )
+        if isinstance(parent_authored_path, str) and parent_authored_path:
+            fields["question_base_authored_request_path"] = parent_authored_path
 
     update_meta_fields(artifacts_dir, fields)
     return creation

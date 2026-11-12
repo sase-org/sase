@@ -103,6 +103,7 @@ def build_staged_successor_identity(
         suffix=suffix,
         prompt_ref=str(prompt_path),
         prompt=request.prompt,
+        authored_local_request=(request.authored_local_request or request.prompt),
     )
     followup_model = None
     if request.model is not None:
@@ -160,6 +161,7 @@ def _serialize_staged_loop_state(
     suffix: str,
     prompt_ref: str,
     prompt: str,
+    authored_local_request: str,
 ) -> dict[str, Any]:
     from dataclasses import asdict, is_dataclass
 
@@ -176,6 +178,9 @@ def _serialize_staged_loop_state(
         "prompt_ref": prompt_ref,
         "question_base_prompt_ref": prompt_ref,
         "question_base_prompt": prompt,
+        "authored_local_request": authored_local_request,
+        "initial_authored_local_request": state.initial_authored_local_request,
+        "question_base_authored_request": authored_local_request,
         "original_prompt": state.original_prompt,
         "sdd_spec_path": state.sdd_spec_path,
         "qa_rounds": qa_rounds,
@@ -280,6 +285,22 @@ def restore_staged_successor_in_loop(
     state.current_artifacts_dir = str(successor["artifacts_dir"])
     state.current_prompt = prompt
     state.question_base_prompt = str(loop_state.get("question_base_prompt") or prompt)
+    authored_local_request = loop_state.get("authored_local_request")
+    state.authored_local_request = (
+        authored_local_request if isinstance(authored_local_request, str) else prompt
+    )
+    initial_authored_local_request = loop_state.get("initial_authored_local_request")
+    state.initial_authored_local_request = (
+        initial_authored_local_request
+        if isinstance(initial_authored_local_request, str)
+        else state.authored_local_request
+    )
+    question_base_authored_request = loop_state.get("question_base_authored_request")
+    state.question_base_authored_request = (
+        question_base_authored_request
+        if isinstance(question_base_authored_request, str)
+        else state.authored_local_request
+    )
     state.original_prompt = str(
         loop_state.get("original_prompt") or state.original_prompt
     )

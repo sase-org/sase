@@ -321,3 +321,91 @@ def test_resume_still_requires_checkpoint_while_starter_parent_is_missing(
     assert captured == []
     on_disk = json.loads((Path(monitor_dir) / "agent_meta.json").read_text())
     assert on_disk["continuation_capture_disposition"] == "needs_recovery"
+
+
+def test_checkpoint_resume_can_launch_when_over_limit_starter_capture_is_missing(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monitor_dir, record, meta = _terminal_monitor(tmp_path, monkeypatch)
+    _stamp_missing_starter_parent(monitor_dir, meta)
+    capture_errors = (
+        Path(meta["monitor_starter_artifacts_dir"])
+        / "continuation"
+        / "capture_errors.jsonl"
+    )
+    capture_errors.parent.mkdir(parents=True, exist_ok=True)
+    capture_errors.write_text(
+        json.dumps(
+            {
+                "stage": "agent_delta:interrupted",
+                "message": "validation: authored_local_request is too large: "
+                "708391 UTF-8 bytes exceeds allowed limit of 262144 bytes",
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    checkpoint = tmp_path / "checkpoint.yml"
+    checkpoint.write_text(
+        "objective: Continue from the frozen monitor result.\n"
+        "constraints:\n  - Preserve the original task constraints.\n"
+        "findings:\n  - Starter capture exceeded its authored request limit.\n",
+        encoding="utf-8",
+    )
+    captured: list[dict[str, Any]] = []
+    monkeypatch.setattr(
+        followup_module, "spawn_agent_subprocess", _fake_spawn(captured)
+    )
+
+    result = resume_monitor(record, checkpoint_path=str(checkpoint))
+
+    assert result.spawned is True
+    assert result.manual_revision is True
+    assert len(captured) == 1
+    assert "Continue from the frozen monitor result." in captured[0]["prompt"]
+    assert "authored request limit" in captured[0]["prompt"]
+    on_disk = json.loads((Path(monitor_dir) / "agent_meta.json").read_text())
+    assert on_disk["continuation_capture_disposition"] == "ok"
+    assert "continuation_capture_error" not in on_disk
+    assert "authored_local_request is too large" in capture_errors.read_text(
+        encoding="utf-8"
+    )
+
+
+def test_model_only_resume_cannot_repair_over_limit_starter_capture(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monitor_dir, record, meta = _terminal_monitor(tmp_path, monkeypatch)
+    _stamp_missing_starter_parent(monitor_dir, meta)
+    capture_errors = (
+        Path(meta["monitor_starter_artifacts_dir"])
+        / "continuation"
+        / "capture_errors.jsonl"
+    )
+    capture_errors.parent.mkdir(parents=True, exist_ok=True)
+    capture_errors.write_text(
+        json.dumps(
+            {
+                "stage": "agent_delta:interrupted",
+                "message": "validation: authored_local_request is too large: "
+                "708391 UTF-8 bytes exceeds allowed limit of 262144 bytes",
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    captured: list[dict[str, Any]] = []
+    monkeypatch.setattr(
+        followup_module, "spawn_agent_subprocess", _fake_spawn(captured)
+    )
+
+    with pytest.raises(MonitorResumeError) as excinfo:
+        resume_monitor(record, model="codex/gpt-5")
+
+    assert excinfo.value.code == "capture_recovery"
+    assert "-k FILE" in str(excinfo.value)
+    assert captured == []
+    on_disk = json.loads((Path(monitor_dir) / "agent_meta.json").read_text())
+    assert on_disk["continuation_capture_disposition"] == "needs_recovery"

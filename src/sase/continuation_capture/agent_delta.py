@@ -115,10 +115,14 @@ def persist_agent_delta(
     artifacts_dir = state.current_artifacts_dir or ctx.artifacts_dir
     root = continuation_root(artifacts_dir)
     recover_publication_journal(root)
+    authored_request = (
+        state.authored_local_request or state.original_prompt or state.current_prompt
+    )
     prepared = ensure_prepared_prompt(
         artifacts_dir,
         state,
-        authored_local_request=state.original_prompt or state.current_prompt,
+        authored_local_request=authored_request,
+        segments=state.continuation_segments,
     )
     workspace_ref = _read_workspace_ref(artifacts_dir)
     if workspace_ref is None:
@@ -132,7 +136,7 @@ def persist_agent_delta(
     prepared_payload = read_json_object(root / PREPARED_PROMPT_FILENAME)
     authored_local_request = required_text(
         prepared_payload.get("authored_local_request"),
-        state.original_prompt or state.current_prompt,
+        authored_request,
     )
     authored_local_request = continuation_wire_text(authored_local_request)
     segments = wire_segments_from_prepared(prepared_payload, local_only=True)

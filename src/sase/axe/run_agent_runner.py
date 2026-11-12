@@ -219,10 +219,13 @@ def _admit_and_launch(state: RunnerRunState, bootstrap: RunnerBootstrap) -> None
     # Fork resolution reads mutable parent transcripts. Keep it behind
     # dependency admission, but run it before runner-slot admission or any real
     # workspace claim/preparation.
+    state.authored_local_request = state.prompt
+    state.launch_continuation_segments.clear()
     state.prompt = expand_deferred_launch_macros(
         state.prompt,
         state.artifacts_dir,
         extra_macros=bootstrap.info.local_macros or None,
+        continuation_segments=state.launch_continuation_segments,
     )
 
     hold = getattr(bootstrap.info, "hold", None)

@@ -311,6 +311,9 @@ def _run_execution_loop_bound(
         loop_outcome="completed",
         sdd_spec_path=None,
         original_prompt=prompt,
+        authored_local_request=ctx.authored_local_request or prompt,
+        initial_authored_local_request=ctx.authored_local_request or prompt,
+        continuation_segments=ctx.launch_continuation_segments,
         original_agent_timestamp=os.environ.get("SASE_AGENT_TIMESTAMP"),
     )
     from sase.continuation_capture import persist_workspace_facts_best_effort
@@ -367,6 +370,8 @@ def _run_execution_loop_bound(
                 workflow_obj=anon_workflow,
                 project=_resolve_workflow_project(ctx),
                 workspace_rebind_callback=_rebind_workspace_identity,
+                authored_local_request=state.authored_local_request,
+                continuation_segments=state.continuation_segments,
             )
             state.continuation_prepared_ref = getattr(
                 result,

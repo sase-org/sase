@@ -90,6 +90,7 @@ def expand_deferred_launch_macros(
     artifacts_dir: str,
     *,
     extra_macros: dict[str, Any] | None = None,
+    continuation_segments: list[Any] | None = None,
 ) -> str:
     """Expand launch-deferred fork references after dependency admission.
 
@@ -129,6 +130,7 @@ def expand_deferred_launch_macros(
             artifacts_dir,
             only_workflow_names=LAUNCH_DEFERRED_MACRO_NAMES,
             preserve_existing_macro_metadata=True,
+            continuation_segments=continuation_segments,
         )
     finally:
         if previous_artifacts_dir is None:

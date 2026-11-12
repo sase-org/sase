@@ -329,6 +329,12 @@ def _continue_after_plan_result(
             state.qa_rounds,
             _rows,
         )
+        feedback_authored_request = assemble_feedback_replan_prompt(
+            state.initial_authored_local_request,
+            state.feedback_bullets,
+            state.qa_rounds,
+            _rows,
+        )
         # Seed the replanner from the planner's live auto state, as the
         # accepted-plan coder is seeded: a toggle made while the planner ran
         # reaches the successor.
@@ -344,6 +350,7 @@ def _continue_after_plan_result(
             SuccessorRequest(
                 base_meta=feedback_seeded_meta,
                 prompt=feedback_prompt,
+                authored_local_request=feedback_authored_request,
                 suffix_template=f"{PLAN_CHAIN_PLAN_SUFFIX}-@",
                 extra_reserved_suffixes=_state_reserved_suffixes(state),
                 relationships={
@@ -378,6 +385,7 @@ def _continue_after_plan_result(
         # A ``/sase_questions`` interruption from the replan phase rebuilds from
         # this feedback prompt rather than the bare planner prompt.
         state.question_base_prompt = state.current_prompt
+        state.question_base_authored_request = state.authored_local_request
         return None  # continue loop
 
     from sase.axe.run_agent_exec_plan_accept import handle_accepted_plan

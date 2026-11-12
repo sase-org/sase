@@ -123,6 +123,8 @@ def continue_as_inprocess_successor(
     if request.model is not None:
         write_model(state, request.model)
     state.current_prompt = request.prompt
+    state.authored_local_request = request.authored_local_request or request.prompt
+    state.question_base_authored_request = state.authored_local_request
     store(
         state.current_artifacts_dir,
         state.current_prompt,

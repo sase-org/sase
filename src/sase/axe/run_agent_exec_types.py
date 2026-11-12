@@ -31,6 +31,9 @@ class AgentExecContext:
     agent_hidden: bool
     agent_meta: dict[str, Any]
     local_macros: dict[str, Any]
+    # The request authored locally before launch-deferred fork expansion.
+    authored_local_request: str | None = None
+    launch_continuation_segments: tuple[Any, ...] = ()
     multi_agent_prompt_file: str | None = None
     wait_chats: list[str] = field(default_factory=list)
     wait_context: Any | None = None
@@ -67,6 +70,12 @@ class LoopState:
     sdd_spec_path: str | None
     # The bare initial prompt with no accumulated Q&A or feedback appended.
     original_prompt: str
+    # Provenance-preserving request for the current logical provider turn.
+    # Retries keep it; successor phases replace it with their own authored
+    # request even when current_prompt contains materialized parent history.
+    authored_local_request: str = ""
+    initial_authored_local_request: str = ""
+    continuation_segments: tuple[Any, ...] = ()
     # Base prompt for question continuations: the currently executing phase's
     # prompt before merged Q&A is appended. Refreshed on phase transitions
     # (accepted-plan code/epic handoff and plan-feedback replan) so a
@@ -75,6 +84,7 @@ class LoopState:
     # initial prompt at loop start (see ``__post_init__``). Unlike
     # ``original_prompt`` it is mutable, tracking the live phase.
     question_base_prompt: str = ""
+    question_base_authored_request: str = ""
     qa_rounds: list[QARound] = field(default_factory=list)
     feedback_bullets: list[str] = field(default_factory=list)
     feedback_round: int = 0
@@ -106,6 +116,12 @@ class LoopState:
     kill_evidence: dict[str, Any] | None = None
 
     def __post_init__(self) -> None:
+        if not self.authored_local_request:
+            self.authored_local_request = self.original_prompt
+        if not self.initial_authored_local_request:
+            self.initial_authored_local_request = self.authored_local_request
+        if not self.question_base_authored_request:
+            self.question_base_authored_request = self.authored_local_request
         if not self.question_base_prompt:
             self.question_base_prompt = self.original_prompt
 

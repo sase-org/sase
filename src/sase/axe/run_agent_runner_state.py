@@ -56,6 +56,11 @@ class RunnerRunState:
     # ``prompt`` keeps being rewritten by macro and agent-ref resolution.
     prompt: str = ""
     submitted_prompt: str = ""
+    # Captured after ordinary prompt macros are expanded and before deferred
+    # fork expansion. The injected fork text is carried separately as
+    # provenance-tagged continuation material.
+    authored_local_request: str | None = None
+    launch_continuation_segments: list[Any] = field(default_factory=list)
 
     # Agent identity, populated by directive extraction.
     agent_name: str | None = None

@@ -241,7 +241,12 @@ def persist_monitor_start_intent(
         fields["continuation_parent_node_ids"] = list(resolved_parent_ids)
     if starter_artifacts_dir:
         fields["monitor_starter_artifacts_dir"] = starter_artifacts_dir
-    update_agent_meta_fields(artifacts_dir, fields)
+    remove_keys = (
+        ("continuation_capture_error",)
+        if fields.get("continuation_capture_disposition") == CAPTURE_DISPOSITION_OK
+        else ()
+    )
+    update_agent_meta_fields(artifacts_dir, fields, remove_keys=remove_keys)
     return intent_ref
 
 
