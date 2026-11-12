@@ -13,6 +13,10 @@ from pathlib import Path
 from sase.vcs_provider._command_runner import CommandRunner
 from sase.vcs_provider._hookspec import hookimpl
 from sase.vcs_provider._types import CheckoutInspection
+from sase.vcs_provider.plugins._git_revision_ops import (
+    is_valid_git_revision_name,
+    revision_refusal,
+)
 from sase.workspace_provider.utils import (
     abort_in_progress_git_operations,
     in_progress_git_operations,
@@ -86,6 +90,8 @@ class GitHealOpsMixin(CommandRunner):
     def vcs_force_checkout(self, revision: str, cwd: str) -> tuple[bool, str | None]:
         if revision.startswith("origin/"):
             revision = revision[len("origin/") :]
+        if not is_valid_git_revision_name(revision):
+            return (False, revision_refusal(revision))
         out = self._run(["git", "checkout", "-f", revision], cwd)
         return self._to_result(out, "git checkout -f")
 
@@ -93,6 +99,9 @@ class GitHealOpsMixin(CommandRunner):
     def vcs_recreate_branch_from_remote(
         self, branch: str, remote_ref: str, cwd: str
     ) -> tuple[bool, str | None]:
+        for value in (branch, remote_ref):
+            if not is_valid_git_revision_name(value.removeprefix("origin/")):
+                return (False, revision_refusal(value))
         out = self._run(["git", "checkout", "-B", branch, remote_ref], cwd)
         return self._to_result(out, "git checkout -B")
 

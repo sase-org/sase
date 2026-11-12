@@ -3,6 +3,7 @@
 import json
 import os
 import re
+import shlex
 from collections.abc import Mapping
 from typing import Any
 
@@ -32,6 +33,96 @@ def _finalize_value(value: Any) -> Any:
     return value
 
 
+class _RawShellText(str):
+    """A string that bypasses shell quoting in ``bash:`` step rendering.
+
+    Produced only by the ``| raw`` Jinja filter. Every other interpolation
+    in a ``bash:`` template is passed through :func:`shlex.quote`, so an
+    author who needs intentional raw splicing (e.g. pre-quoted flag groups)
+    must opt out explicitly per interpolation.
+    """
+
+
+class _PythonLiteral(str):
+    """A string that is already a valid Python literal for ``python:`` steps.
+
+    Produced by the ``tojson`` filter in the python-step Jinja environment,
+    so ``{{ value | tojson }}`` keeps splicing a Python literal (dict, list,
+    string, number, bool, None) instead of being wrapped in ``repr``.
+    """
+
+
+def _finalize_bash_value(value: Any) -> str:
+    """Finalize one ``{{ ... }}`` interpolation inside a ``bash:`` step.
+
+    Values are normalized with :func:`_finalize_value` (bools → lowercase
+    ``"true"``/``"false"``, None → ``"null"``) and then shell-quoted with
+    :func:`shlex.quote`, so hostile content from macro inputs, prior step
+    outputs, or model responses cannot break out of its shell word.
+    ``| raw`` (a :class:`_RawShellText`) is the only opt-out.
+    """
+    if isinstance(value, _RawShellText):
+        return str(value)
+    normalized = _finalize_value(value)
+    if not isinstance(normalized, str):
+        normalized = str(normalized)
+    return shlex.quote(normalized)
+
+
+def _finalize_python_value(value: Any) -> str:
+    """Finalize one ``{{ ... }}`` interpolation inside a ``python:`` step.
+
+    Plain values are rendered with :func:`repr`, which yields a valid Python
+    literal for strings (quoted), numbers, bools, None, and builtin
+    containers — so hostile text cannot break out of the spliced source.
+    ``| tojson`` output (already a Python literal) and ``| raw`` pass
+    through unchanged.
+    """
+    if isinstance(value, (_RawShellText, _PythonLiteral)):
+        return str(value)
+    return repr(value)
+
+
+def _raw_filter(value: Any) -> _RawShellText:
+    """Opt out of quoting for one interpolation: ``{{ value | raw }}``.
+
+    The value is spliced verbatim (no ``shlex.quote``/``repr`` and no
+    bool/None normalization). Authors must only use this for values they
+    constructed themselves (e.g. pre-quoted flag groups), never for macro
+    inputs, step outputs, or model responses.
+    """
+    if isinstance(value, _RawShellText):
+        return value
+    return _RawShellText(str(value))
+
+
+def _build_script_env(
+    finalize: Any,
+    *,
+    python_literals: bool,
+) -> Environment:
+    """Create a Jinja2 environment for ``bash:``/``python:`` step bodies."""
+    env = Environment(undefined=StrictUndefined, finalize=finalize)
+
+    # tojson (Python-aware: produces None/True/False instead of
+    # null/true/false so rendered templates are valid Python)
+    def _tojson(value: Any) -> str:
+        if value is None:
+            result = "None"
+        elif isinstance(value, bool):
+            result = "True" if value else "False"
+        else:
+            result = json.dumps(value)
+        if python_literals:
+            return _PythonLiteral(result)
+        return result
+
+    env.filters["tojson"] = _tojson
+    env.filters["raw"] = _raw_filter
+    register_prompt_filters(env)
+    return env
+
+
 def create_jinja_env() -> Environment:
     """Create a Jinja2 environment for template rendering."""
     env = Environment(undefined=StrictUndefined, finalize=_finalize_value)
@@ -50,6 +141,40 @@ def create_jinja_env() -> Environment:
     return env
 
 
+def _create_bash_jinja_env() -> Environment:
+    """Create a Jinja2 environment for ``bash:`` step bodies.
+
+    Every ``{{ ... }}`` interpolation is shell-quoted with
+    :func:`shlex.quote` (after bool/None normalization), so untrusted values
+    stay inside a single shell word. ``{{ value | raw }}`` opts out per
+    interpolation for author-constructed fragments.
+    """
+    return _build_script_env(_finalize_bash_value, python_literals=False)
+
+
+def _create_python_jinja_env() -> Environment:
+    """Create a Jinja2 environment for ``python:`` step bodies.
+
+    Every ``{{ ... }}`` interpolation is rendered with :func:`repr`, which
+    yields a valid Python literal, so untrusted text cannot break out of the
+    spliced source. ``{{ value | tojson }}`` (already a Python literal) and
+    ``{{ value | raw }}`` pass through unchanged.
+    """
+    return _build_script_env(_finalize_python_value, python_literals=True)
+
+
+def _render_with_env(template: str, context: dict[str, Any], env: Environment) -> str:
+    from sase.macro._jinja import get_global_template_vars
+
+    disabled_regions: list[str] = []
+    protected_template = protect_disabled_regions(template, disabled_regions)
+
+    merged = {**get_global_template_vars(), **context}
+    jinja_template = env.from_string(protected_template)
+    rendered = jinja_template.render(merged)
+    return unprotect_disabled_regions(rendered, disabled_regions)
+
+
 def render_template(template: str, context: dict[str, Any]) -> str:
     """Render a Jinja2 template with the given context.
 
@@ -60,16 +185,33 @@ def render_template(template: str, context: dict[str, Any]) -> str:
     Returns:
         The rendered template string.
     """
-    from sase.macro._jinja import get_global_template_vars
+    return _render_with_env(template, context, create_jinja_env())
 
-    disabled_regions: list[str] = []
-    protected_template = protect_disabled_regions(template, disabled_regions)
 
-    env = create_jinja_env()
-    merged = {**get_global_template_vars(), **context}
-    jinja_template = env.from_string(protected_template)
-    rendered = jinja_template.render(merged)
-    return unprotect_disabled_regions(rendered, disabled_regions)
+def render_bash_template(template: str, context: dict[str, Any]) -> str:
+    """Render a ``bash:`` step body with shell-quoted interpolations.
+
+    Args:
+        template: The step body with {{ var }} placeholders.
+        context: Dictionary of variable values.
+
+    Returns:
+        The rendered shell command with every interpolation quoted.
+    """
+    return _render_with_env(template, context, _create_bash_jinja_env())
+
+
+def render_python_template(template: str, context: dict[str, Any]) -> str:
+    """Render a ``python:`` step body with Python-literal interpolations.
+
+    Args:
+        template: The step body with {{ var }} placeholders.
+        context: Dictionary of variable values.
+
+    Returns:
+        The rendered Python source with every interpolation repr-quoted.
+    """
+    return _render_with_env(template, context, _create_python_jinja_env())
 
 
 def parse_bash_output(output: str) -> dict[str, Any]:

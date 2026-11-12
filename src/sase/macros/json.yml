@@ -8,7 +8,9 @@ input:
 steps:
   - name: setup
     hidden: true
-    bash: sase_json_workflow --setup '{{ schema }}'
+    # Interpolations in bash steps are shell-quoted automatically; do not add
+    # manual quotes around {{ ... }} (they would become literal quote chars).
+    bash: sase_json_workflow --setup {{ schema }}
     output: { schema_json: text, semantic_hints: text }
 
   - name: inject
@@ -44,6 +46,6 @@ steps:
     hidden: true
     bash: |
       sase_json_workflow --validate \
-        --schema '{{ setup.schema_json }}' \
-        --response-file '{{ write_response._artifact }}'
+        --schema {{ setup.schema_json }} \
+        --response-file {{ write_response._artifact }}
     output: { validated: word, data: text }

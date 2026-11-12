@@ -19,7 +19,11 @@ from pathlib import Path
 
 
 #: Environment variables whose presence marks this process as a SASE agent run.
-AGENT_ENV_VARS = ("SASE_AGENT", "SASE_MONITOR_ID")
+#: This must cover every marker honored by ``agent_marker_present`` in
+#: ``src/sase/agent/identity.py`` (``SASE_AGENT``, ``SASE_AGENT_NAME``,
+#: ``SASE_MONITOR_ID``); the parity test in ``tests/sase_install/test_guards.py``
+#: fails if the two sets drift apart.
+AGENT_ENV_VARS = ("SASE_AGENT", "SASE_AGENT_NAME", "SASE_MONITOR_ID")
 
 #: Escape hatch: a non-empty reason that lets an agent run a global installer.
 BYPASS_ENV_VAR = "SASE_GLOBAL_INSTALL_BYPASS"

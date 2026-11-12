@@ -5,6 +5,50 @@ from sase.vcs_provider._command_runner import CommandRunner
 from sase.vcs_provider._hookspec import hookimpl
 
 
+def is_valid_git_revision_name(name: object) -> bool:
+    """Return whether *name* is safe to pass to git as a revision operand.
+
+    This mirrors ``git check-ref-format --branch`` for branch-like names
+    (also accepting ``origin/<branch>`` remote-tracking refs, which callers
+    pass through) and additionally rejects anything starting with ``-`` so
+    agent-writable values (branch-map entries, Patch names) cannot smuggle
+    flags such as ``--receive-pack=`` (push), ``-B`` or
+    ``--pathspec-from-file=`` (checkout), or ``--exec=`` into a git argv.
+    Lone ``@`` is rejected fail-closed even though git tolerates it; no
+    legitimate flow checks out or pushes ``@``.
+    """
+    if not isinstance(name, str) or not name:
+        return False
+    if name.startswith("-"):
+        return False
+    # No whitespace or control characters.
+    if any(ord(char) < 0x21 or ord(char) == 0x7F for char in name):
+        return False
+    # git ref-syntax forbiddens.
+    if any(char in name for char in ("~", "^", ":", "?", "*", "[", "\\")):
+        return False
+    if ".." in name or "@{" in name:
+        return False
+    if name.startswith("/") or name.endswith("/") or "//" in name:
+        return False
+    if name.endswith(".") or name in {"@", "HEAD"}:
+        return False
+    for component in name.split("/"):
+        if not component or component.startswith("."):
+            return False
+        if component.endswith(".lock"):
+            return False
+    return True
+
+
+def revision_refusal(name: object) -> str:
+    """Render the refusal message for a hostile git revision name."""
+    return (
+        f"refusing to use hostile git revision {name!r}: names must not "
+        "start with '-' and must satisfy git check-ref-format --branch"
+    )
+
+
 class GitRevisionOpsMixin(CommandRunner):
     """Git branch naming and revision resolution operations."""
 
@@ -45,7 +89,9 @@ class GitRevisionOpsMixin(CommandRunner):
             else None
         )
 
-        # Deduplicate while preserving priority order
+        # Deduplicate while preserving priority order. Drop hostile
+        # values (branch-map entries and Patch names are agent-writable) so
+        # they never reach a git argv, not even rev-parse.
         seen: set[str] = set()
         candidates: list[str] = []
         for candidate in [
@@ -57,7 +103,11 @@ class GitRevisionOpsMixin(CommandRunner):
             old_branch_without_suffix,
             prefix_stripped,
         ]:
-            if candidate and candidate not in seen:
+            if (
+                candidate
+                and candidate not in seen
+                and is_valid_git_revision_name(candidate)
+            ):
                 seen.add(candidate)
                 candidates.append(candidate)
 

@@ -76,6 +76,47 @@ def test_input_arg_word_rejects_whitespace() -> None:
         arg.validate_and_convert("hello\nworld")
 
 
+def test_input_arg_word_allows_charset() -> None:
+    """Word values are single tokens that survive bash autoquoting verbatim."""
+    arg = InputArg(name="test", type=InputType.WORD)
+    for value in ("sase-1sb.4", "task_a_done", "v1.2.3", "a-b_c.d1"):
+        assert arg.validate_and_convert(value) == value
+
+
+def test_input_arg_word_rejects_shell_metachars() -> None:
+    """Word type rejects injection payloads, not just whitespace."""
+    arg = InputArg(name="test", type=InputType.WORD)
+    for value in (
+        "$(touch /tmp/pwn)",
+        "a;b",
+        "a'b",
+        'a"b',
+        "a/b",
+        "a:b",
+        "--receive-pack=x",
+        "a`b",
+        "a$b",
+        "@epic",
+    ):
+        with pytest.raises(MacroValidationError, match="expects word"):
+            arg.validate_and_convert(value)
+    with pytest.raises(MacroValidationError, match="non-empty word"):
+        arg.validate_and_convert("")
+
+
+def test_input_arg_agent_shares_word_charset() -> None:
+    """Agent names follow the same single-token rules as words."""
+    arg = InputArg(name="test", type=InputType.AGENT)
+    assert arg.validate_and_convert("sase-1sb.4") == "sase-1sb.4"
+    # Tribe references such as #fork:@epic carry a leading @, which is
+    # shell-safe and must keep validating.
+    assert arg.validate_and_convert("@epic") == "@epic"
+    with pytest.raises(MacroValidationError, match="expects word"):
+        arg.validate_and_convert("evil;id")
+    with pytest.raises(MacroValidationError, match="expects word"):
+        arg.validate_and_convert("@evil;id")
+
+
 def test_input_arg_line_rejects_newlines() -> None:
     """Test that line type rejects values with newlines."""
     arg = InputArg(name="test", type=InputType.LINE)

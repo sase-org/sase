@@ -385,3 +385,167 @@ def test_show_revision_failure(mock_run: MagicMock) -> None:
     assert success is False
     assert error is not None
     assert "git show failed" in error
+
+
+# === Tests for hostile git revision names ===
+
+
+def test_valid_git_revision_names() -> None:
+    """Ordinary branch names, tags, SHAs, and remote-tracking refs pass."""
+    from sase.vcs_provider.plugins._git_revision_ops import is_valid_git_revision_name
+
+    for name in (
+        "sase-1sb.4",
+        "feature/foo",
+        "origin/main",
+        "v1.2.3",
+        "abc123",
+        "a" * 40,
+        "master",
+        "x-y_z.1",
+    ):
+        assert is_valid_git_revision_name(name) is True, name
+
+
+def test_hostile_git_revision_names_rejected() -> None:
+    """Flag-smuggling and ref-syntax-hostile values are refused."""
+    from sase.vcs_provider.plugins._git_revision_ops import is_valid_git_revision_name
+
+    for name in (
+        "--receive-pack=touch /tmp/pwn",
+        "--upload-pack=id",
+        "--exec=id",
+        "-B",
+        "-f",
+        "--pathspec-from-file=/tmp/x",
+        "--end-of-options",
+        "",
+        "HEAD",
+        "@",
+        "a b",
+        "a..b",
+        "a~1",
+        "a.lock",
+        "a/.lock",
+        ".hidden",
+        "a:b",
+        "a?b",
+        "origin/",
+        "a//b",
+        "a@{1}",
+    ):
+        assert is_valid_git_revision_name(name) is False, name
+
+
+@patch("sase.vcs_provider._command_runner.subprocess.run")
+def test_checkout_refuses_hostile_revision_before_git(mock_run: MagicMock) -> None:
+    """vcs_checkout refuses hostile revisions without invoking git."""
+    plugin = BareGitPlugin()
+    for revision in ("--receive-pack=id", "-B", "--pathspec-from-file=/tmp/x"):
+        success, error = plugin.vcs_checkout(revision, "/workspace")
+        assert success is False
+        assert error is not None and "hostile git revision" in error
+    mock_run.assert_not_called()
+
+
+@patch("sase.vcs_provider._command_runner.subprocess.run")
+def test_checkout_still_checks_out_valid_branch(mock_run: MagicMock) -> None:
+    """Validation does not break the legitimate checkout path."""
+    mock_run.return_value = MagicMock(returncode=0, stdout="", stderr="")
+
+    plugin = BareGitPlugin()
+    success, error = plugin.vcs_checkout("origin/feature-x", "/workspace")
+
+    assert success is True
+    assert error is None
+    assert mock_run.call_args[0][0] == ["git", "checkout", "feature-x"]
+
+
+@patch("sase.vcs_provider._command_runner.subprocess.run")
+def test_force_checkout_refuses_hostile_revision_before_git(
+    mock_run: MagicMock,
+) -> None:
+    """vcs_force_checkout refuses hostile revisions without invoking git."""
+    plugin = BareGitPlugin()
+    success, error = plugin.vcs_force_checkout("--exec=id", "/workspace")
+
+    assert success is False
+    assert error is not None and "hostile git revision" in error
+    mock_run.assert_not_called()
+
+
+@patch("sase.vcs_provider._command_runner.subprocess.run")
+def test_mail_refuses_hostile_revision_before_git(mock_run: MagicMock) -> None:
+    """vcs_mail refuses hostile revisions without invoking git."""
+    plugin = BareGitPlugin()
+    success, error = plugin.vcs_mail("--receive-pack=touch /tmp/pwn", "/workspace")
+
+    assert success is False
+    assert error is not None and "hostile git revision" in error
+    mock_run.assert_not_called()
+
+
+@patch("sase.vcs_provider._command_runner.subprocess.run")
+def test_mail_pins_revision_after_end_of_options(mock_run: MagicMock) -> None:
+    """vcs_mail passes the revision after --end-of-options (flag-safe form)."""
+    from sase.workspace_provider import push_guard
+
+    mock_run.return_value = MagicMock(returncode=0, stdout="", stderr="")
+    with patch.object(push_guard, "require_push_identity", return_value=None):
+        plugin = BareGitPlugin()
+        success, error = plugin.vcs_mail("feature-x", "/workspace")
+
+    assert success is True
+    assert error is None
+    assert mock_run.call_args[0][0] == [
+        "git",
+        "push",
+        "-u",
+        "origin",
+        "--end-of-options",
+        "feature-x",
+    ]
+
+
+@patch("sase.vcs_provider._command_runner.subprocess.run")
+def test_diff_revision_refuses_hostile_revision_before_git(
+    mock_run: MagicMock,
+) -> None:
+    """vcs_diff_revision refuses hostile revisions without invoking git."""
+    plugin = BareGitPlugin()
+    success, error = plugin.vcs_diff_revision("--output=/tmp/pwn", "/workspace")
+
+    assert success is False
+    assert error is not None and "hostile git revision" in error
+    mock_run.assert_not_called()
+
+
+@patch("sase.vcs_provider._command_runner.subprocess.run")
+def test_archive_and_prune_refuse_hostile_revision(mock_run: MagicMock) -> None:
+    """vcs_archive/vcs_prune refuse hostile revisions without invoking git."""
+    plugin = BareGitPlugin()
+    for method in (plugin.vcs_archive, plugin.vcs_prune):
+        success, error = method("--upload-pack=id", "/workspace")
+        assert success is False
+        assert error is not None and "hostile git revision" in error
+    mock_run.assert_not_called()
+
+
+@patch("sase.vcs_provider._command_runner.subprocess.run")
+def test_resolve_revision_skips_hostile_branch_map_value(
+    mock_run: MagicMock,
+) -> None:
+    """A hostile branch-map entry is skipped, never passed to git."""
+    from sase.core import branch_map
+
+    mock_run.return_value = MagicMock(returncode=0, stdout="abc123\n", stderr="")
+
+    plugin = BareGitPlugin()
+    with patch.object(
+        branch_map, "read_branch_map", return_value={"patch": "--receive-pack=id"}
+    ):
+        result = plugin.vcs_resolve_revision("patch", "proj", "/workspace")
+
+    assert result == "patch"
+    for call in mock_run.call_args_list:
+        assert "--receive-pack=id" not in call[0][0]

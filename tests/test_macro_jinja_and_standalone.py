@@ -396,3 +396,118 @@ def test_bool_roundtrip_bash_to_template() -> None:
     # Render with | string | lower — should produce lowercase "true"
     result = render_template("{{ s.success | string | lower }}", {"s": converted})
     assert result == "true"
+
+
+# Tests for shell-quoted bash step rendering (bash_autoquote=autoquote)
+
+
+def test_render_bash_template_quotes_hostile_input() -> None:
+    """Interpolations in bash steps stay inside one shell word."""
+    from sase.macro.workflow_executor_utils import render_bash_template
+
+    assert (
+        render_bash_template("echo {{ x }}", {"x": "$(touch /tmp/pwn)"})
+        == "echo '$(touch /tmp/pwn)'"
+    )
+    assert render_bash_template("echo {{ x }}", {"x": "a;b"}) == "echo 'a;b'"
+
+
+def test_render_bash_template_leaves_safe_values_verbatim() -> None:
+    """Safe tokens render exactly as before, so shipped macros keep working."""
+    from sase.macro.workflow_executor_utils import render_bash_template
+
+    for value, expected in (
+        ("task_a_done", "task_a_done"),
+        ("sase-1sb.4", "sase-1sb.4"),
+        ("5", "5"),
+        (5, "5"),
+        (True, "true"),
+        (False, "false"),
+        (None, "null"),
+    ):
+        assert render_bash_template("echo {{ x }}", {"x": value}) == (
+            f"echo {expected}"
+        )
+
+
+def test_render_bash_template_raw_opt_out() -> None:
+    """`| raw` splices author-constructed fragments without quoting."""
+    from sase.macro.workflow_executor_utils import render_bash_template
+
+    assert render_bash_template("echo {{ x | raw }}", {"x": "--flag"}) == "echo --flag"
+
+
+def test_render_bash_template_tojson_stays_one_word() -> None:
+    """JSON spliced into bash is quoted as a single shell word."""
+    from sase.macro.workflow_executor_utils import render_bash_template
+
+    assert (
+        render_bash_template("cmd --setup {{ x }}", {"x": '{"a": 1}'})
+        == """cmd --setup '{"a": 1}'"""
+    )
+
+
+def test_render_python_template_repr_quotes_hostile_input() -> None:
+    """Interpolations in python steps render as Python literals."""
+    from sase.macro.workflow_executor_utils import render_python_template
+
+    hostile = "x'); import os; os.system('touch /tmp/pwn"
+    rendered = render_python_template("data = {{ x }}", {"x": hostile})
+    assert rendered == f"data = {hostile!r}"
+    compile(rendered, "<bash-step>", "exec")
+    namespace: dict[str, object] = {}
+    exec(compile(rendered, "<bash-step>", "exec"), namespace)
+    assert namespace["data"] == hostile
+
+
+def test_render_python_template_tojson_passes_through() -> None:
+    """`| tojson` output is already a literal and is not re-quoted."""
+    from sase.macro.workflow_executor_utils import render_python_template
+
+    assert (
+        render_python_template("data = {{ x | tojson }}", {"x": {"a": 1}})
+        == 'data = {"a": 1}'
+    )
+    assert render_python_template("n = {{ x }}", {"x": 5}) == "n = 5"
+    assert render_python_template("v = {{ x }}", {"x": None}) == "v = None"
+
+
+def test_standalone_bash_step_does_not_execute_injection(
+    tmp_path: Path,
+) -> None:
+    """A hostile macro input in a bash step must not execute (marker file)."""
+    from sase.main.query_handler._standalone_steps import execute_standalone_steps
+    from sase.macro.workflow_models import WorkflowStep
+
+    marker = tmp_path / "pwned"
+    steps = [
+        WorkflowStep(
+            name="run",
+            bash="echo {{ payload }}",
+        ),
+    ]
+    context: dict[str, object] = {"payload": f"$(touch {marker})"}
+    result = execute_standalone_steps(steps, context, "test_workflow")
+    assert not marker.exists()
+    assert result["run"]["_output"] == f"$(touch {marker})"
+
+
+def test_standalone_python_step_does_not_execute_injection(
+    tmp_path: Path,
+) -> None:
+    """A hostile macro input in a python step must not execute (marker file)."""
+    from sase.main.query_handler._standalone_steps import execute_standalone_steps
+    from sase.macro.workflow_models import WorkflowStep
+
+    marker = tmp_path / "pwned"
+    hostile = f"'); import pathlib; pathlib.Path('{marker}').touch(); print('"
+    steps = [
+        WorkflowStep(
+            name="run",
+            python="print({{ payload }})",
+        ),
+    ]
+    context: dict[str, object] = {"payload": hostile}
+    result = execute_standalone_steps(steps, context, "test_workflow")
+    assert not marker.exists()
+    assert result["run"]["_output"] == hostile

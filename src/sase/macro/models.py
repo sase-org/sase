@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import TYPE_CHECKING, Any, Literal
@@ -19,6 +20,20 @@ Use ``UNSET`` when an input has no default (i.e. it is required).
 """
 
 MemoryType = Literal["core", "reference"]
+
+_WORD_RE = re.compile(r"[A-Za-z0-9._-]+")
+"""Allowed charset for ``word`` macro inputs.
+
+Single tokens only: no whitespace, no shell metacharacters, no slashes.
+Bash-step autoquoting keeps these values verbatim (``shlex.quote`` is the
+identity on this charset), while anything outside it is rejected here.
+"""
+
+_AGENT_RE = re.compile(r"@?[A-Za-z0-9._-]+")
+"""Allowed charset for ``agent`` macro inputs: the word charset plus an
+optional leading ``@`` for tribe references such as ``@epic`` (``#fork:@epic``
+dispatches to the clan context builder). ``@`` is shell-safe, so autoquoting
+still keeps these values verbatim."""
 
 
 class InputType(Enum):
@@ -170,9 +185,11 @@ class InputArg:
                 raise MacroValidationError(
                     f"Argument '{self.name}' expects a non-empty word"
                 )
-            if any(c.isspace() for c in value):
+            allowed = _AGENT_RE if self.type is InputType.AGENT else _WORD_RE
+            if allowed.fullmatch(value) is None:
                 raise MacroValidationError(
-                    f"Argument '{self.name}' expects word (no spaces), got '{value}'"
+                    f"Argument '{self.name}' expects word (no spaces) "
+                    f"matching [A-Za-z0-9._-]+, got '{value}'"
                 )
             return value
         elif self.type == InputType.LINE:

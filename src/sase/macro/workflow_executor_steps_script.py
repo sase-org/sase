@@ -16,7 +16,8 @@ from sase.macro.workflow_executor_utils import (
     apply_chdir_output,
     coerce_output_types,
     parse_bash_output,
-    render_template,
+    render_bash_template,
+    render_python_template,
     runner_bound_workspace_from_output,
 )
 from sase.macro.workflow_models import (
@@ -117,8 +118,9 @@ class ScriptStepMixin:
         if not step.bash:
             raise WorkflowExecutionError(f"Bash step '{step.name}' has no command")
 
-        # Render command with Jinja2 context
-        rendered_command = render_template(step.bash, self.context)
+        # Render command with Jinja2 context. Interpolations are
+        # shell-quoted by render_bash_template; only `| raw` opts out.
+        rendered_command = render_bash_template(step.bash, self.context)
 
         # Build env with Python's bin dir on PATH so that sase entry-point
         # scripts (e.g. sase_cl_workflow) are discoverable by /bin/sh.
@@ -297,8 +299,10 @@ class ScriptStepMixin:
         if not step.python:
             raise WorkflowExecutionError(f"Python step '{step.name}' has no code")
 
-        # Render code with Jinja2 context
-        rendered_code = render_template(step.python, self.context)
+        # Render code with Jinja2 context. Interpolations are
+        # Python-literal-quoted by render_python_template; only `| tojson`
+        # (already a literal) and `| raw` pass through.
+        rendered_code = render_python_template(step.python, self.context)
 
         # Execute python code using the same interpreter.
         # stderr is streamed in real-time so long-running subprocesses

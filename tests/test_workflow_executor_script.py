@@ -41,9 +41,13 @@ class TestPythonStepExecution:
 
     def test_python_step_with_jinja_context(self) -> None:
         """Test Python step can access Jinja2 context variables."""
+        # Secure idiom: splice the value as a Python literal outside the
+        # string and concatenate. Interpolations inside string literals are
+        # intentionally literal-quoted by render_python_template, so the old
+        # `"result={{ input_value }}_processed"` spelling no longer applies.
         step = WorkflowStep(
             name="python_step",
-            python='print("result={{ input_value }}_processed")',
+            python='print("result=" + {{ input_value | tojson }} + "_processed")',
         )
         workflow = _create_test_workflow(steps=[step])
 

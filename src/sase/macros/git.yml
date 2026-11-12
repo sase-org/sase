@@ -3,7 +3,7 @@ tags: vcs, rollover
 
 input:
   - name: git_ref
-    type: word
+    type: line
     description: Git ref, branch, or Patch name to check out.
   - name: n
     type: int

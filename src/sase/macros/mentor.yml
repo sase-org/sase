@@ -24,7 +24,10 @@ steps:
     hidden: true
     python: |
       import json
-      areas = json.loads(r'''{{ focus_areas_json }}''')
+      # focus_areas_json is itself JSON text: tojson wraps it in a JSON
+      # string literal (safe to splice), so unwrap twice to get the array.
+      areas_raw = json.loads({{ focus_areas_json | tojson }})
+      areas = json.loads(areas_raw) if isinstance(areas_raw, str) else areas_raw
       formatted = "\n".join(
           f"### {a['focus_name']}\n{a['description']}" for a in areas
       )

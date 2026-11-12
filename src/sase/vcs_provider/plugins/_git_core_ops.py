@@ -9,6 +9,10 @@ import os
 from sase.telemetry.metrics import VCS_OPERATIONS
 from sase.vcs_provider._command_runner import CommandRunner
 from sase.vcs_provider._hookspec import hookimpl
+from sase.vcs_provider.plugins._git_revision_ops import (
+    is_valid_git_revision_name,
+    revision_refusal,
+)
 
 
 class GitCoreOpsMixin(CommandRunner):
@@ -26,6 +30,8 @@ class GitCoreOpsMixin(CommandRunner):
         # auto-creates a local tracking branch from the remote-tracking ref.
         if revision.startswith("origin/"):
             revision = revision[len("origin/") :]
+        if not is_valid_git_revision_name(revision):
+            return (False, revision_refusal(revision))
         out = self._run(["git", "checkout", revision], cwd)
         return self._to_result(out, "git checkout")
 
@@ -41,6 +47,10 @@ class GitCoreOpsMixin(CommandRunner):
 
     @hookimpl
     def vcs_diff_revision(self, revision: str, cwd: str) -> tuple[bool, str | None]:
+        # Revision reaches argv both embedded in a range and standalone;
+        # refuse hostile values before any git invocation.
+        if not is_valid_git_revision_name(revision):
+            return (False, revision_refusal(revision))
         default_branch = self._get_default_branch(cwd)
         out = self._run(["git", "diff", f"origin/{default_branch}...{revision}"], cwd)
         if not out.success:
@@ -179,6 +189,8 @@ class GitCoreOpsMixin(CommandRunner):
         # resolve_revision may hand us a remote-tracking ref like
         # origin/<branch>; we tag and delete the local branch.
         local_branch = revision.removeprefix("origin/")
+        if not is_valid_git_revision_name(local_branch):
+            return (False, revision_refusal(revision))
         tag = f"archive/{local_branch}"
 
         # Resolve the commit being archived so the tag is created/validated
@@ -232,6 +244,8 @@ class GitCoreOpsMixin(CommandRunner):
         # "origin/branch") when no local branch exists.  git branch -D only
         # deletes local branches, so strip the remote prefix first.
         local_branch = revision.removeprefix("origin/")
+        if not is_valid_git_revision_name(local_branch):
+            return (False, revision_refusal(revision))
         out = self._run(["git", "branch", "-D", local_branch], cwd)
         if not out.success and "not found" in out.stderr:
             # No local branch to delete — nothing to prune.

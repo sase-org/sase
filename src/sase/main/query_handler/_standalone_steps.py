@@ -65,6 +65,8 @@ def execute_standalone_steps(
         apply_chdir_output,
         coerce_output_types,
         parse_bash_output,
+        render_bash_template,
+        render_python_template,
         render_template,
     )
     from sase.macro.workflow_models import WorkflowExecutionError
@@ -78,7 +80,7 @@ def execute_standalone_steps(
             continue
 
         if step.is_bash_step() and step.bash:
-            rendered_command = render_template(step.bash, context)
+            rendered_command = render_bash_template(step.bash, context)
             try:
                 result = subprocess.run(
                     rendered_command,
@@ -120,7 +122,7 @@ def execute_standalone_steps(
             context[step.name] = output
 
         elif step.is_python_step() and step.python:
-            rendered_code = render_template(step.python, context)
+            rendered_code = render_python_template(step.python, context)
             try:
                 result = subprocess.run(
                     [sys.executable, "-c", rendered_code],

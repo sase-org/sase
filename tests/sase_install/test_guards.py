@@ -34,6 +34,57 @@ def test_monitor_id_refuses_for_pypi_mode(tmp_path: Path) -> None:
     assert "SASE_GLOBAL_INSTALL_BYPASS='<reason>' just install -y" in err
 
 
+def test_agent_name_refuses_for_dev_mode(tmp_path: Path) -> None:
+    """A process carrying only SASE_AGENT_NAME is still an agent run."""
+    entry = kit.load_entry()
+    env = kit.make_env(tmp_path, SASE_AGENT_NAME="sase-1sb.4")
+    exit_code, out, err = kit.run_entry(entry, _dev_args(), env=env)
+    assert exit_code == 2
+    assert out == ""
+    assert "won't run inside a SASE agent" in err
+    assert "SASE_GLOBAL_INSTALL_BYPASS" in err
+
+
+def test_agent_name_refuses_for_pypi_mode(tmp_path: Path) -> None:
+    entry = kit.load_entry()
+    env = kit.make_env(tmp_path, SASE_AGENT_NAME="sase-1sb.4")
+    exit_code, out, err = kit.run_entry(entry, ["pypi", "-n"], env=env)
+    assert exit_code == 2
+    assert out == ""
+    assert "just install won't run inside a SASE agent" in err
+
+
+def test_agent_env_vars_match_identity_markers() -> None:
+    """AGENT_ENV_VARS must cover every env marker the canonical detector honors.
+
+    ``agent_marker_present`` (src/sase/agent/identity.py) is the canonical
+    definition of "inside an agent"; ``agent_guard`` (tools/_sase_install_env.py,
+    stdlib-only) is the installer's copy. A marker added to the detector
+    without updating AGENT_ENV_VARS would silently reopen the "Global Install
+    Is Human-Only" gate, so this test scans the detector source for SASE_*
+    env reads and requires exact agreement (modulo documented non-markers).
+    """
+    import re
+
+    from sase.agent import identity as agent_identity
+
+    identity_src = (
+        kit.TOOLS_DIR.parent / "src" / "sase" / "agent" / "identity.py"
+    ).read_text(encoding="utf-8")
+    read_vars = set(re.findall(r'\.get\("(SASE_[A-Z_]+)"\)', identity_src))
+    # SASE_ARTIFACTS_DIR locates agent metadata and SASE_MODEL_OVERRIDE tunes
+    # model selection; neither marks a process as an agent run.
+    non_markers = {"SASE_ARTIFACTS_DIR", "SASE_MODEL_OVERRIDE"}
+    assert read_vars - non_markers == set(install_env.AGENT_ENV_VARS)
+
+    for var in install_env.AGENT_ENV_VARS:
+        env = {var: "1"}
+        assert agent_identity.agent_marker_present(env) is True, var
+        assert install_env.agent_guard(env).refused is True, var
+    assert agent_identity.agent_marker_present({}) is False
+    assert install_env.agent_guard({}).refused is False
+
+
 def test_empty_bypass_still_refuses(tmp_path: Path) -> None:
     entry = kit.load_entry()
     env = kit.make_env(tmp_path, SASE_AGENT="1", SASE_GLOBAL_INSTALL_BYPASS="  ")

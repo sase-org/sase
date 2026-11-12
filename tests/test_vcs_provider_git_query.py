@@ -306,5 +306,6 @@ def test_git_mail_bare_remote_push_only(mock_run: MagicMock) -> None:
         "push",
         "-u",
         "origin",
+        "--end-of-options",
         "feature-branch",
     ]

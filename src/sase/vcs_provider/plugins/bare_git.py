@@ -8,6 +8,10 @@ methods that differ from the GitHub workflow.
 
 from sase.telemetry.metrics import VCS_OPERATIONS
 from sase.vcs_provider._hookspec import hookimpl
+from sase.vcs_provider.plugins._git_revision_ops import (
+    is_valid_git_revision_name,
+    revision_refusal,
+)
 
 from ._git_common import GitCommon
 
@@ -31,7 +35,13 @@ class BareGitPlugin(GitCommon):
 
     @hookimpl
     def vcs_mail(self, revision: str, cwd: str) -> tuple[bool, str | None]:
-        out = self._run(["git", "push", "-u", "origin", revision], cwd)
+        if not is_valid_git_revision_name(revision):
+            return (False, revision_refusal(revision))
+        # --end-of-options pins the revision as a positional refspec so a
+        # hostile value can never be parsed as a push flag.
+        out = self._run(
+            ["git", "push", "-u", "origin", "--end-of-options", revision], cwd
+        )
         if not out.success:
             VCS_OPERATIONS.labels(
                 provider=self._provider_name, operation="mail", status="error"
