@@ -27,11 +27,11 @@ from sase.telemetry.metrics import MENTOR_EXECUTIONS
 from sase.workflows.mentor import MentorWorkflow
 from sase.artifacts import create_artifacts_directory
 
-install_sigterm_handler("mentor")
-
 
 def main() -> None:
     """Run mentor workflow and update status on completion."""
+    # Entry-owned: an import-time install replaces SIGTERM in every importer.
+    install_sigterm_handler("mentor")
     if len(sys.argv) != 8:
         print(
             f"Usage: {sys.argv[0]} <cl_name> <project_file> <mentor_name> "

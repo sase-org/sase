@@ -84,7 +84,6 @@ from sase.env_contracts import (
 )
 from sase.telemetry.metrics import AGENT_KILLS
 
-install_sigterm_handler("agent", soft=True)
 snapshot_oom_baseline()
 
 # Editable sase installs can fast-forward while a detached runner spends hours
@@ -336,6 +335,8 @@ def _silence_notification_for_pending_recovery(state: RunnerRunState) -> None:
 
 def main() -> None:
     """Run agent workflow and release workspace on completion."""
+    # Entry-owned: an import-time install replaces SIGTERM in every importer.
+    install_sigterm_handler("agent", soft=True)
     _stamp_host_path_snapshot()
     # The runner's stdout shares one output file with stderr. Line-buffer
     # stdout from the start so the file interleaves both streams in order
