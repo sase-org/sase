@@ -29,6 +29,7 @@ from tests._agent_auto_restart_healer_helpers import (
 )
 
 __all__ = [
+    "test_day_sharded_target_keys_match_scan_project",
     "test_dead_launching_claim_settles_without_relaunching",
     "test_decline_matrix_silenced_vs_quiet",
     "test_deferral_expires_from_first_claim_across_retakes",
@@ -37,6 +38,69 @@ __all__ = [
     "test_replacement_failure_escalates_once_and_marks_recovery",
     "test_stale_claim_takeover_rewrites_claimer",
 ]
+
+
+def test_day_sharded_target_keys_match_scan_project(
+    tmp_home: Path,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Day-sharded rows key ledger records by project on every pass.
+
+    The doorbell pass builds its target from the artifacts dir while the
+    scan pass carries the facade's project; both must resolve to
+    ``<project>__<stamp>`` so the second pass finds the first pass's claim
+    instead of double-claiming the lineage.
+    """
+    _ = tmp_home
+    import sase.core.agent_artifact_paths as artifact_paths
+    from sase.agent.auto_restart import ledger as ledger_mod
+    from sase.agent.auto_restart.healer_targets import _target_for_artifacts_dir
+    from sase.agent.auto_restart.history import _project_for_done
+
+    projects_root = tmp_path / "projects"
+    project = "gh_x__y"
+    stamp = "20261112052956"
+    sharded = (
+        projects_root / project / "artifacts" / "ace-run" / "202611" / "12" / stamp
+    )
+    sharded.mkdir(parents=True)
+    (sharded / "agent_meta.json").write_text(
+        json.dumps({"name": "ace-run-261112_052959"}), encoding="utf-8"
+    )
+    monkeypatch.setattr(artifact_paths, "sase_projects_dir", lambda: projects_root)
+
+    target = _target_for_artifacts_dir(sharded)
+    assert target.project == project
+    assert target.agent_name == "ace-run-261112_052959"
+    assert _project_for_done({}, sharded) == project
+
+    doorbell_key = ledger_mod.ledger_key(target.project, stamp)
+    scan_key = ledger_mod.ledger_key(project, stamp)
+    assert doorbell_key == scan_key == f"{project}__{stamp}"
+
+    first = ledger_mod.claim_ledger_record(
+        key=doorbell_key,
+        lineage_root=stamp,
+        failed_artifacts_dir=str(sharded),
+    )
+    assert first is not None
+    second = ledger_mod.claim_ledger_record(
+        key=scan_key,
+        lineage_root=stamp,
+        failed_artifacts_dir=str(sharded),
+    )
+    assert second is not None
+    assert second.record.key == first.record.key
+
+    legacy = projects_root / project / "artifacts" / "ace-run" / stamp
+    legacy.mkdir(parents=True)
+    (legacy / "agent_meta.json").write_text(
+        json.dumps({"name": "legacy-agent"}), encoding="utf-8"
+    )
+    legacy_target = _target_for_artifacts_dir(legacy)
+    assert legacy_target.project == project
+    assert _project_for_done({}, legacy) == project
 
 
 def test_expired_deferred_claim_escalates_loudly(

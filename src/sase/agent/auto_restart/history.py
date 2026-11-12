@@ -108,6 +108,14 @@ def _project_for_done(done: Mapping[str, Any], artifacts_dir: Path) -> str:
     if isinstance(cl_name, str) and cl_name:
         return cl_name
     try:
+        from sase.core.agent_artifact_paths import parse_agent_artifact_path
+
+        info = parse_agent_artifact_path(artifacts_dir)
+        if info is not None and info.project_name:
+            return info.project_name
+    except Exception:
+        pass
+    try:
         return artifacts_dir.parents[1].name
     except IndexError:
         return artifacts_dir.parent.name

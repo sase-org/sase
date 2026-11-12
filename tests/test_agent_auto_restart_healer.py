@@ -7,6 +7,7 @@ original import path keeps working.
 from __future__ import annotations
 
 from tests.test_agent_auto_restart_healer_claim import (
+    test_day_sharded_target_keys_match_scan_project,
     test_dead_launching_claim_settles_without_relaunching,
     test_decline_matrix_silenced_vs_quiet,
     test_deferral_expires_from_first_claim_across_retakes,
@@ -45,6 +46,7 @@ __test__ = False
 __all__ = [
     "test_attach_provenance_fills_from_identity_and_file_proof",
     "test_claimer_liveness_dead_pid_and_self",
+    "test_day_sharded_target_keys_match_scan_project",
     "test_dead_launching_claim_settles_without_relaunching",
     "test_decline_matrix_silenced_vs_quiet",
     "test_deferral_expires_from_first_claim_across_retakes",

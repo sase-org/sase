@@ -388,12 +388,32 @@ def _max_defer_seconds() -> float:
 
 def _target_for_artifacts_dir(artifacts_dir: Path) -> HealerTarget:
     meta = read_json(artifacts_dir / "agent_meta.json") or {}
-    try:
-        project = artifacts_dir.parents[1].name
-    except IndexError:
-        project = artifacts_dir.parent.name
+    project = _project_for_artifacts_dir(artifacts_dir)
     name = str(meta.get("name") or meta.get("workflow_name") or artifacts_dir.name)
     return HealerTarget(artifacts_dir=artifacts_dir, project=project, agent_name=name)
+
+
+def _project_for_artifacts_dir(artifacts_dir: Path) -> str:
+    """Derive the ledger project through the canonical artifact path parser.
+
+    The day-sharded layout (``.../ace-run/<YYYYMM>/<DD>/<stamp>``) defeats
+    positional derivation: ``parents[1].name`` is the month, not the project.
+    The parser handles legacy and sharded layouts; the positional chain
+    survives only as the fallback when the path parses to nothing (for
+    example rows outside the projects root).
+    """
+    try:
+        from sase.core.agent_artifact_paths import parse_agent_artifact_path
+
+        info = parse_agent_artifact_path(artifacts_dir)
+        if info is not None and info.project_name:
+            return info.project_name
+    except Exception:
+        pass
+    try:
+        return artifacts_dir.parents[1].name
+    except IndexError:
+        return artifacts_dir.parent.name
 
 
 def _order_targets(targets: list[HealerTarget]) -> list[HealerTarget]:
