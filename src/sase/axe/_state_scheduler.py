@@ -7,10 +7,12 @@ Paths and shared helpers are looked up through ``sase.axe.state`` at call
 time so home-directory redirection applies to every reader.
 """
 
+import fcntl
 import sase.axe.state as _state  # noqa: I001
-from sase.core.state_write_guard import best_effort_test_state_write_allowed
 from dataclasses import asdict, dataclass, field
 from typing import Literal
+
+from sase.core.state_write_guard import best_effort_test_state_write_allowed
 
 
 @dataclass
@@ -181,15 +183,24 @@ def append_error(error_info: dict) -> None:
         error_info: Dictionary with error details (timestamp, job, error, traceback).
     """
     errors_file = _state.axe_state_dir() / "recent_errors.json"
-    errors: list[dict] = _state.read_json(errors_file) or []  # type: ignore[assignment]
-    if not isinstance(errors, list):
-        errors = []
+    lock_file = errors_file.with_name(f"{errors_file.name}.lock")
+    try:
+        lock_file.parent.mkdir(parents=True, exist_ok=True)
+        with open(lock_file, "a+", encoding="utf-8") as lock:
+            fcntl.flock(lock.fileno(), fcntl.LOCK_EX)
+            try:
+                errors: list[dict] = _state.read_json(errors_file) or []  # type: ignore[assignment]
+                if not isinstance(errors, list):
+                    errors = []
 
-    errors.append(error_info)
-    # Keep only last 100 errors
-    errors = errors[-100:]
-
-    _state.atomic_write_json(errors_file, errors)
+                errors.append(error_info)
+                # Keep only last 100 errors
+                errors = errors[-100:]
+                _state.atomic_write_json(errors_file, errors)
+            finally:
+                fcntl.flock(lock.fileno(), fcntl.LOCK_UN)
+    except OSError:
+        return
 
 
 def read_errors() -> list[dict]:

@@ -14,6 +14,8 @@ modules and are re-exported below.
 """
 
 import json
+import os
+import tempfile
 from datetime import datetime
 from pathlib import Path
 
@@ -52,17 +54,34 @@ def atomic_write_json(path: Path, data: dict | list) -> None:
     if not best_effort_test_state_write_allowed(path, category="axe-state"):
         return
     path.parent.mkdir(parents=True, exist_ok=True)
-    temp_path = path.with_suffix(".tmp")
+    fd: int | None = None
+    temp_path: Path | None = None
     try:
-        with open(temp_path, "w") as f:
-            json.dump(data, f, indent=2)
-        temp_path.rename(path)
+        fd, temp_name = tempfile.mkstemp(
+            prefix=f".{path.name}.", suffix=".tmp", dir=path.parent, text=True
+        )
+        temp_path = Path(temp_name)
+        handle = os.fdopen(fd, "w", encoding="utf-8")
+        fd = None
+        with handle:
+            json.dump(data, handle, indent=2)
+            handle.flush()
+            os.fsync(handle.fileno())
+        os.replace(temp_path, path)
+        temp_path = None
     except OSError:
-        # Clean up temp file if rename failed
-        try:
-            temp_path.unlink()
-        except OSError:
-            pass
+        pass
+    finally:
+        if fd is not None:
+            try:
+                os.close(fd)
+            except OSError:
+                pass
+        if temp_path is not None:
+            try:
+                temp_path.unlink()
+            except OSError:
+                pass
 
 
 def read_json(path: Path) -> dict | None:

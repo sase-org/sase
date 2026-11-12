@@ -1,7 +1,10 @@
 """Tests for the axe state management module."""
 
 from collections.abc import Iterator
+import json
+import multiprocessing
 from pathlib import Path
+import time
 from unittest.mock import patch
 
 import pytest
@@ -20,6 +23,16 @@ from sase.axe.state import (
     write_cycle_result,
     write_last_error_digest_ts,
 )
+
+
+def _append_concurrent_errors(state_dir: str, worker_id: int) -> None:
+    from pathlib import Path
+
+    from sase.axe import state
+
+    state.axe_state_dir = lambda: Path(state_dir)
+    for error_id in range(8):
+        state.append_error({"job": "concurrent", "error": f"{worker_id}-{error_id}"})
 
 
 @pytest.fixture
@@ -114,6 +127,47 @@ def test_append_and_read_errors(temp_state_dir: Path) -> None:
         assert len(errors) == 2
         assert errors[0]["job"] == "hooks"
         assert errors[1]["job"] == "mentors"
+
+
+def test_concurrent_error_appends_are_atomic_and_lossless(
+    temp_state_dir: Path,
+) -> None:
+    with patch("sase.axe.state.axe_state_dir", return_value=temp_state_dir):
+        append_error({"job": "seed", "error": "seed"})
+        context = multiprocessing.get_context("spawn")
+        workers = [
+            context.Process(
+                target=_append_concurrent_errors,
+                args=(str(temp_state_dir), worker_id),
+            )
+            for worker_id in range(4)
+        ]
+        for worker in workers:
+            worker.start()
+
+        errors_file = temp_state_dir / "recent_errors.json"
+        invalid: list[str] = []
+        while any(worker.is_alive() for worker in workers):
+            try:
+                value = json.loads(errors_file.read_text(encoding="utf-8"))
+                assert isinstance(value, list)
+            except (OSError, json.JSONDecodeError) as exc:
+                invalid.append(f"unreadable target: {exc}")
+            time.sleep(0)
+
+        for worker in workers:
+            worker.join()
+            assert worker.exitcode == 0
+
+        errors = read_errors()
+        expected = {
+            f"{worker_id}-{error_id}" for worker_id in range(4) for error_id in range(8)
+        }
+        assert {
+            error["error"] for error in errors if error["job"] == "concurrent"
+        } == expected
+        assert len(errors) == len(expected) + 1
+        assert invalid == []
 
 
 def test_read_errors_returns_empty_list_when_missing(temp_state_dir: Path) -> None:

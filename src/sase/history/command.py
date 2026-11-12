@@ -6,6 +6,7 @@ from pathlib import Path
 
 from sase.core.paths import sase_home
 from sase.core.time import generate_timestamp
+from sase.history._atomic_json import atomic_write_json
 
 _COMMAND_HISTORY_FILE: Path | None = None
 
@@ -73,11 +74,8 @@ def _save_command_history(commands: list[CommandEntry]) -> bool:
     """
     try:
         history_file = _command_history_file()
-        history_file.parent.mkdir(parents=True, exist_ok=True)
         data = {"commands": [asdict(c) for c in commands]}
-        with open(history_file, "w", encoding="utf-8") as f:
-            json.dump(data, f, indent=2)
-        return True
+        return atomic_write_json(history_file, data)
     except OSError:
         return False
 

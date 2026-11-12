@@ -2,13 +2,16 @@
 
 from __future__ import annotations
 
-import json
+import fcntl
 import logging
+from contextlib import contextmanager
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING
+from collections.abc import Iterator
 
 from sase.core.paths import sase_home, sase_projects_dir
+from sase.history._atomic_json import atomic_write_json
 from sase.legacy_xprompt_names import (
     LEGACY_VCS_XPROMPT_MRU_FILENAME,
     VCS_MACRO_MRU_FILENAME,
@@ -136,6 +139,18 @@ def load_launchable_vcs_macro_mru_pairs(
     *,
     prune: bool = True,
 ) -> list[tuple[str, str]]:
+    """Load launchable MRU pairs, pruning under a cross-process lock."""
+    if not prune:
+        return _load_launchable_vcs_macro_mru_pairs(projects_dir, prune=False)
+    with _locked_vcs_macro_mru():
+        return _load_launchable_vcs_macro_mru_pairs(projects_dir, prune=True)
+
+
+def _load_launchable_vcs_macro_mru_pairs(
+    projects_dir: Path | None = None,
+    *,
+    prune: bool,
+) -> list[tuple[str, str]]:
     """Load MRU prefixes as ``(canonical_prefix, display_prefix)`` pairs.
 
     Four classes of non-cyclable entry are pruned so ``<ctrl+p>`` only ever
@@ -227,6 +242,11 @@ def record_vcs_macro_usage(prefix: str) -> None:
     Args:
         prefix: VCS workflow prefix string (e.g. ``"#gh:sase"``).
     """
+    with _locked_vcs_macro_mru():
+        _record_vcs_macro_usage(prefix)
+
+
+def _record_vcs_macro_usage(prefix: str) -> None:
     from sase.project_aliases import canonicalize_project_aliases_in_prompt
 
     prefix = canonicalize_project_aliases_in_prompt(prefix)
@@ -261,12 +281,8 @@ def record_vcs_macro_usage(prefix: str) -> None:
 
 
 def _save_vcs_macro_mru(entries: list[str]) -> None:
-    try:
-        mru_file = _mru_file()
-        mru_file.parent.mkdir(parents=True, exist_ok=True)
-        with open(mru_file, "w", encoding="utf-8") as f:
-            json.dump({"entries": entries}, f, indent=2)
-    except OSError:
+    mru_file = _mru_file()
+    if not atomic_write_json(mru_file, {"entries": entries}):
         return
     legacy_mru_file = _legacy_mru_file()
     if legacy_mru_file != mru_file:
@@ -274,6 +290,20 @@ def _save_vcs_macro_mru(entries: list[str]) -> None:
             legacy_mru_file.unlink(missing_ok=True)
         except OSError:
             pass
+
+
+@contextmanager
+def _locked_vcs_macro_mru() -> Iterator[None]:
+    """Serialize MRU read-modify-write cycles across SASE processes."""
+    mru_file = _mru_file()
+    lock_file = mru_file.with_name(f"{mru_file.name}.lock")
+    lock_file.parent.mkdir(parents=True, exist_ok=True)
+    with open(lock_file, "a+", encoding="utf-8") as handle:
+        fcntl.flock(handle.fileno(), fcntl.LOCK_EX)
+        try:
+            yield
+        finally:
+            fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
 
 
 def _project_alias_map_or_empty(projects_dir: Path | None) -> dict[str, str]:
