@@ -362,6 +362,7 @@ class TestGetAllProjectLocalPrompts:
 class TestRegistryBackedProjectResolution:
     @staticmethod
     def _isolate_loader(monkeypatch, workspace: Path | None) -> None:
+        import sase.macro._processor_lexical as processor_lexical
         from sase.macro import loader, processor
 
         namespaces = {} if workspace is None else {"proj": workspace}
@@ -379,12 +380,12 @@ class TestRegistryBackedProjectResolution:
             lambda project=None: {},
         )
         monkeypatch.setattr(
-            processor,
+            processor_lexical,
             "canonical_macro_project",
             lambda ref: ref,
         )
         monkeypatch.setattr(
-            processor,
+            processor_lexical,
             "known_project_namespaces",
             lambda: namespaces,
         )

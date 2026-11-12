@@ -4,10 +4,7 @@ from unittest.mock import MagicMock, patch
 
 from sase.macro._jinja import validate_and_convert_args
 from sase.macro.models import UNSET, InputArg, InputType, Macro
-from sase.macro.processor import (
-    _resolve_command_substitution_in_args,
-    process_macro_references,
-)
+from sase.macro.processor import process_macro_references
 from sase.macro.workflow_models import Workflow
 
 
@@ -85,13 +82,23 @@ _CMD_SUB_PATCH = "sase.file_references.process_command_substitution"
 def test_resolve_cmd_sub_resolves_dollar_paren(
     mock_cmd_sub: MagicMock,
 ) -> None:
-    """Test that args containing $( are resolved via process_command_substitution."""
+    """Macro expansion resolves command substitutions in positional and named args."""
     mock_cmd_sub.side_effect = lambda s: s.replace("$(branch_bug)", "PROJ-123")
-    pos, named = _resolve_command_substitution_in_args(
-        ["$(branch_bug)"], {"id": "$(branch_bug)"}
+    macro_def = Macro(
+        name="cmd_sub",
+        content="{{ _1 }} {{ id }}",
+        inputs=[
+            InputArg(name="value", type=InputType.TEXT),
+            InputArg(name="id", type=InputType.TEXT),
+        ],
     )
-    assert pos == ["PROJ-123"]
-    assert named == {"id": "PROJ-123"}
+
+    with patch(
+        "sase.macro.processor.get_all_macros", return_value={"cmd_sub": macro_def}
+    ):
+        result = process_macro_references("#cmd_sub($(branch_bug), id=$(branch_bug))")
+
+    assert result == "PROJ-123 PROJ-123"
 
 
 # --- Shorthand free-text payload binding (structural, not [[...]] round-trip) ---
