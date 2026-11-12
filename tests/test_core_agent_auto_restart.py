@@ -16,6 +16,7 @@ from sase.core.agent_auto_restart_facade import (
 from sase.core.agent_auto_restart_wire import (
     AGENT_AUTO_RESTART_WIRE_SCHEMA_VERSION,
     AutoRestartContextWire,
+    AutoRestartManagedRootWire,
     AutoRestartWitnessesWire,
 )
 from sase.core.agent_scan_wire_markers import DoneMarkerWire
@@ -261,3 +262,72 @@ def test_in_flight_recovery_row_buckets_active() -> None:
     assert failed is not None
     assert failed.status == "FAILED"
     assert status_bucket_for_values(failed.status) == "Failed"
+
+
+_MANAGED_ROOT = "/home/bryan/projects/github/sase-org/sase"
+
+
+def _overlap_context(log_tail: str = "") -> AutoRestartContextWire:
+    frame = f"{_MANAGED_ROOT}/src/sase/vcs_provider/plugins/_git_revision_ops.py"
+    return AutoRestartContextWire(
+        managed_roots=(AutoRestartManagedRootWire(name="sase", root=_MANAGED_ROOT),),
+        workspace_dir=_MANAGED_ROOT,
+        lifecycle_phase="booting",
+        error_text=(
+            "ImportError: cannot import name 'is_valid_git_revision_name' "
+            "from 'sase.vcs_provider.plugins._git_revision_ops'"
+        ),
+        traceback_text=(
+            f'File "{frame}", line 1, in <module>\nImportError: cannot import name'
+        ),
+        log_tail=log_tail,
+    )
+
+
+def _skew_witnesses() -> AutoRestartWitnessesWire:
+    return AutoRestartWitnessesWire(
+        boot_identity="sase@671ff5b",
+        current_identity="sase@ea41213",
+    )
+
+
+def test_real_binding_self_hosted_overlap_is_tier1() -> None:
+    """An editable checkout that is also the workspace still counts as managed."""
+    verdict = classify_agent_failure(_overlap_context(), _skew_witnesses())
+
+    assert verdict.tier == "tier1_torn_python"
+    assert verdict.family == "cannot_import_name"
+    assert verdict.reason not in ("workspace_origin", "resource_exhausted")
+
+
+def test_real_binding_tail_marker_ignored_with_exception_evidence() -> None:
+    """An incidental resource string in the log tail vetoes nothing."""
+    verdict = classify_agent_failure(
+        _overlap_context(
+            "launch_scratch_cleanup {...} environ unreadable: "
+            "Permission denied (os error 13)"
+        ),
+        _skew_witnesses(),
+    )
+
+    assert verdict.tier == "tier1_torn_python"
+    assert verdict.reason != "resource_exhausted"
+
+
+def test_real_binding_workspace_only_still_declines() -> None:
+    """Frames under no managed root keep the workspace_origin decline."""
+    context = AutoRestartContextWire(
+        managed_roots=(AutoRestartManagedRootWire(name="sase", root=_MANAGED_ROOT),),
+        workspace_dir="/home/bryan/work/myagent",
+        lifecycle_phase="running",
+        error_text="ImportError: cannot import name 'foo' from 'bar'",
+        traceback_text=(
+            'File "/home/bryan/work/myagent/main.py", line 1\n'
+            "ImportError: cannot import name"
+        ),
+    )
+
+    verdict = classify_agent_failure(context, _skew_witnesses())
+
+    assert verdict.mode == "decline"
+    assert verdict.reason == "workspace_origin"

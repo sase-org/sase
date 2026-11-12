@@ -6,8 +6,9 @@ description: Recovery service for agents interrupted by a live update, and its l
 # Agent Auto-Restart
 
 SASE has a recovery service for agents interrupted by a live update. It classifies the
-failure, records its evidence, and can relaunch an eligible agent under the same name.
-It is enabled by default and runs through the scheduler's `agent_auto_restart` job.
+failure, records its evidence, and can relaunch an eligible agent under the same name —
+or, for a row that died before acquiring a name, by resubmitting its prompt. It is
+enabled by default and runs through the scheduler's `agent_auto_restart` job.
 
 An automatic restart uses the same stop, wipe, and relaunch machinery as
 [`sase agent restart NAME`](cli/agent.md#sase-agent-restart), with preserved failure
@@ -85,10 +86,22 @@ phase never relaunches: frames without `run_execution_loop`, `invoke_agent`, or
 finalizer frames, or a refresh log line with no provider start, count as `pre_provider`;
 otherwise the classifier asks with reason `phase_unknown`.
 
+Rows that died before acquiring a workflow name — a launcher row whose runner died
+during bootstrap, so neither `agent_meta.json` nor `done.json` carries a name — are
+relaunched by resubmitting the row's `raw_prompt.md` through the normal launch machinery
+instead of the name-based restart planner; the prompt's own directives re-create the
+intended identity. The resubmission still counts as the lineage's one automatic restart.
+A launcher row is declined when `raw_prompt.md` is missing, empty, unparsable, or
+multi-segment.
+
 Never restarted: provider errors, rate limits, auth, kills and cancels,
 OOM/timeout/disk-full, directive or macro errors, tool and test failures, and any
-`ImportError` from workspace or third-party code. Remote rows are also excluded.
-Anything the restart planner refuses is also left alone.
+`ImportError` from workspace-only or third-party code. A managed checkout that also
+serves as the agent's workspace (self-hosted editable installs) still counts as managed.
+The never-restart markers behind these declines are scanned over the exception text
+whenever the row has exception evidence; the runner-log tail only counts for log-only
+rows with no exception evidence. Remote rows are also excluded. Anything the restart
+planner refuses is also left alone.
 
 Skipped on purpose, every time: killed or dismissed agents, agents mid-`,x`, and agents
 holding a question or gate. User intent wins.
