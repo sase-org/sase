@@ -52,7 +52,7 @@ def test_failed_kill_aborts_before_wipe_and_launch(tmp_path: Path) -> None:
         return [_launch_result()]
 
     with (
-        patch("sase.agent.running.kill_named_agent", side_effect=kill),
+        patch("sase.agent.running.kill_named_agent", side_effect=kill) as kill_named,
         patch("sase.agent.running.dismiss_named_agent") as dismiss,
         patch(
             "sase.agent.force_reuse_launch.apply_force_reuse_launch", side_effect=apply
@@ -63,6 +63,7 @@ def test_failed_kill_aborts_before_wipe_and_launch(tmp_path: Path) -> None:
 
     assert outcome.status == "kill_failed"
     assert calls == ["kill"]
+    kill_named.assert_called_once_with("02p", exact_name=True, include_dead=True)
     dismiss.assert_not_called()
 
 

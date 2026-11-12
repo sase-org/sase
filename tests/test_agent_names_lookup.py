@@ -155,6 +155,44 @@ class TestFindNamedAgent:
         assert result.outcome == "completed"
         assert result.artifacts_dir == str(done_dir)
 
+    def test_include_dead_finds_crash_killed_record_without_changing_wait_lookup(
+        self, tmp_path: Path
+    ) -> None:
+        """Restart can select a crash record that wait resolution skips."""
+        crashed_dir = _make_agent(tmp_path, "proj", "run-crashed", "foo", pid=_DEAD_PID)
+        (crashed_dir / "waiting.json").write_text(
+            json.dumps({"waiting_for": ["target"]}), encoding="utf-8"
+        )
+        with patch.object(Path, "home", return_value=tmp_path):
+            wait_result = find_named_agent("foo")
+            restart_result = find_named_agent("foo", include_dead=True)
+
+        assert wait_result is None
+        assert restart_result is not None
+        assert not restart_result.is_done
+        assert restart_result.artifacts_dir == str(crashed_dir)
+
+    def test_include_dead_keeps_live_over_crashed_and_crashed_over_done(
+        self, tmp_path: Path
+    ) -> None:
+        """Restart lookup keeps live priority and chooses a crash over history."""
+        _make_agent(tmp_path, "proj", "run-done", "foo", done=True)
+        crashed_dir = _make_agent(tmp_path, "proj", "run-crashed", "foo", pid=_DEAD_PID)
+        live_dir = _make_agent(tmp_path, "proj", "run-live", "foo", pid=os.getpid())
+        with patch.object(Path, "home", return_value=tmp_path):
+            live_result = find_named_agent("foo", include_dead=True)
+
+        assert live_result is not None
+        assert live_result.artifacts_dir == str(live_dir)
+
+        # The live artifact no longer participates; a crash remains ahead of
+        # the older completed artifact for restart.
+        live_dir.rename(tmp_path / "live-moved")
+        with patch.object(Path, "home", return_value=tmp_path):
+            crash_result = find_named_agent("foo", include_dead=True)
+        assert crash_result is not None
+        assert crash_result.artifacts_dir == str(crashed_dir)
+
     def test_only_done_skips_running(self, tmp_path: Path) -> None:
         """only_done=True skips running agents and returns done one."""
         _make_agent(tmp_path, "proj", "run-new", "foo", pid=os.getpid())

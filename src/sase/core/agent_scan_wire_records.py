@@ -26,9 +26,9 @@ from sase.core.agent_scan_wire_markers import (
 )
 
 AGENT_SCAN_WIRE_SCHEMA_VERSION = 12
-AGENT_ARTIFACT_INDEX_SCHEMA_VERSION = 36
+AGENT_ARTIFACT_INDEX_SCHEMA_VERSION = 37
 SUPPORTED_AGENT_SCAN_WIRE_SCHEMA_VERSIONS = frozenset({10, 11, 12})
-SUPPORTED_AGENT_ARTIFACT_INDEX_SCHEMA_VERSIONS = frozenset({33, 34, 35, 36})
+SUPPORTED_AGENT_ARTIFACT_INDEX_SCHEMA_VERSIONS = frozenset({33, 34, 35, 36, 37})
 AgentArtifactRecordShape = Literal["full", "list"]
 AgentArtifactCandidateField = Literal[
     "project",

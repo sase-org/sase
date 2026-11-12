@@ -96,7 +96,8 @@ def _plan_drain(
 def _lookup_agent(rows: list[RunningAgentInfo]):
     by_name = {row.name: row for row in rows if row.name is not None}
 
-    def _find(name: str):
+    def _find(name: str, *, include_dead: bool = False):
+        del include_dead
         row = by_name.get(name)
         if row is None or row.artifacts_dir is None:
             return None

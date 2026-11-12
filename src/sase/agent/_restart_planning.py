@@ -54,7 +54,7 @@ def plan_agent_restart(
         effective_vcs_workflow_tag,
     )
 
-    agent = find_named_agent(name)
+    agent = find_named_agent(name, include_dead=True)
     if agent is None:
         raise AgentRestartError(
             reason="not_found",

@@ -37,12 +37,19 @@ def _meta_dict(record: AgentArtifactRecordWire) -> dict[str, Any]:
     if meta.stopped_at is not None:
         out["stopped_at"] = meta.stopped_at
     process_identity = getattr(meta, "process_identity", None)
+    if process_identity is None and record.running is not None:
+        process_identity = getattr(record.running, "process_identity", None)
     if process_identity is not None:
         out["process_identity"] = process_identity
     return out
 
 
-def find_named_agent(name: str, *, only_done: bool = False) -> NamedAgent | None:
+def find_named_agent(
+    name: str,
+    *,
+    only_done: bool = False,
+    include_dead: bool = False,
+) -> NamedAgent | None:
     """Find a named agent by scanning all project artifacts.
 
     Consults the snapshot returned by
@@ -58,6 +65,9 @@ def find_named_agent(name: str, *, only_done: bool = False) -> NamedAgent | None
         name: The agent name to search for.
         only_done: When True, ignore running candidates and return only
             historical/done matches.
+        include_dead: When True, include non-done records whose recorded
+            process is no longer alive. Restart uses this for crashed agents;
+            wait resolution keeps the default liveness filter.
 
     Returns:
         A NamedAgent if found, or None.
@@ -69,6 +79,7 @@ def find_named_agent(name: str, *, only_done: bool = False) -> NamedAgent | None
     return _find_named_agent_candidates(
         current_owner_agent_name_lookup_candidates(name),
         only_done=only_done,
+        include_dead=include_dead,
     )
 
 
@@ -76,6 +87,7 @@ def _find_named_agent_candidates(
     names: tuple[str, ...],
     *,
     only_done: bool = False,
+    include_dead: bool = False,
 ) -> NamedAgent | None:
     """Find exact-first durable spellings from one artifact snapshot."""
     projects_dir = projects_root()
@@ -146,11 +158,21 @@ def _find_named_agent_candidates(
         # For workflow matches, only return the root agent
         # (no parent_timestamp) to avoid matching intermediate steps.
         if not is_done:
-            if only_done or not is_process_alive(_meta_dict(record), artifact_dir):
+            if only_done:
                 continue
             if not exact and meta.parent_timestamp:
                 continue
-            priority = (2, 1 if exact else 0, record.timestamp)
+            is_alive = is_process_alive(_meta_dict(record), artifact_dir)
+            if not is_alive and not include_dead:
+                continue
+            # Restart lookup orders the current running record first, then
+            # the newest crash-killed record, then historical completions.
+            # Ordinary lookup retains its previous live-over-done ordering.
+            priority = (
+                3 if include_dead and is_alive else 2,
+                1 if exact else 0,
+                record.timestamp,
+            )
         else:
             priority = (1, 1 if exact else 0, record.timestamp)
 

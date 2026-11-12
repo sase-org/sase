@@ -43,7 +43,7 @@ def execute_agent_restart(
     )
 
     if not plan.agent.is_done:
-        stop = kill_named_agent(plan.name, exact_name=True)
+        stop = kill_named_agent(plan.name, exact_name=True, include_dead=True)
         stop_action = "killed"
         killed = True
     else:

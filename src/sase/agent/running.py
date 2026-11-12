@@ -51,6 +51,7 @@ def kill_named_agent(
     *,
     exact_name: bool = False,
     retain_for_retry: bool = False,
+    include_dead: bool = False,
 ) -> _KillResult:
     """Kill a running agent by its assigned name.
 
@@ -65,11 +66,14 @@ def kill_named_agent(
         retain_for_retry: When true, skip the dismissed-agents index write
             so a fleet stop keeps its retry context. Markers, claims,
             kill context, and notification dismissal still happen.
+        include_dead: When true, resolve crash-killed records so callers can
+            clean up their stale state. Restart uses this after its dead-aware
+            planning lookup.
 
     Returns:
         A KillResult with success status and a human-readable message.
     """
-    agent = find_named_agent(name)
+    agent = find_named_agent(name, include_dead=include_dead)
     if agent is None:
         return _KillResult(
             False,

@@ -106,6 +106,32 @@ def test_plan_refuses_not_found(tmp_path: Path) -> None:
         spy.assert_not_called()
 
 
+def test_plan_requests_dead_records_for_restart(tmp_path: Path) -> None:
+    artifacts = make_restartable_agent(tmp_path)
+    agent = named_agent_for(artifacts)
+    spies = mutation_spies()
+    with (
+        patch("sase.agent.names.find_named_agent", return_value=agent) as lookup,
+        patch("sase.agent.names.lookup_registered_name", return_value=None),
+        patch(
+            "sase.agent.names.preview_agent_name_wipe",
+            return_value=dummy_wipe_preview(artifacts),
+        ),
+        patch(
+            "sase.agent.force_reuse_launch.plan_force_reuse_launch",
+            return_value=dummy_force_plan(),
+        ),
+        patch("sase.agent.running.kill_named_agent", spies["kill"]),
+        patch("sase.agent.running.dismiss_named_agent", spies["dismiss"]),
+        patch("sase.agent.force_reuse_launch.apply_force_reuse_launch", spies["apply"]),
+        patch("sase.agent.launch_cwd.launch_agents_from_cwd", spies["launch"]),
+    ):
+        plan = plan_agent_restart("02p")
+
+    assert plan.agent is agent
+    lookup.assert_called_once_with("02p", include_dead=True)
+
+
 def test_plan_refuses_missing_raw_macro(tmp_path: Path) -> None:
     artifacts = make_restartable_agent(tmp_path, raw_prompt=None)
     agent = named_agent_for(artifacts)

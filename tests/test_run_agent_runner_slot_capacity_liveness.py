@@ -7,9 +7,13 @@ import threading
 from pathlib import Path
 from unittest.mock import patch
 
+import pytest
+
 from sase.axe import run_agent_wait_markers, run_agent_wait_slots
+from sase.core import agent_scan_source
 from sase.core import process_identity
 from sase.core.agent_scan_wire import AgentArtifactRecordWire
+from sase.core.runner_slots._scan import record_liveness_probe
 from sase.core.runner_slots import (
     live_runner_slot_waiters,
     runner_capacity_snapshot,
@@ -17,6 +21,60 @@ from sase.core.runner_slots import (
 )
 
 from tests._runner_slot_fixtures import artifact, record
+
+
+@pytest.mark.parametrize(
+    ("agent_meta", "running", "expected_identity"),
+    [
+        (
+            {"pid": 99, "process_identity": "boot:99"},
+            {"pid": 99},
+            "boot:99",
+        ),
+        (
+            {"pid": 99},
+            {"pid": 99, "process_identity": "boot:100"},
+            "boot:100",
+        ),
+    ],
+)
+def test_scanned_process_identity_reaches_runner_liveness_probe(
+    tmp_path: Path,
+    monkeypatch,
+    agent_meta: dict[str, object],
+    running: dict[str, object],
+    expected_identity: str,
+) -> None:
+    payload = {
+        "schema_version": 12,
+        "projects_root": str(tmp_path),
+        "records": [
+            {
+                "project_name": "proj",
+                "project_dir": str(tmp_path / "proj"),
+                "project_file": str(tmp_path / "proj/proj.sase"),
+                "workflow_dir_name": "ace-run",
+                "artifact_dir": str(tmp_path / "proj/ace-run/20260827120000"),
+                "timestamp": "20260827120000",
+                "agent_meta": agent_meta,
+                "running": running,
+            }
+        ],
+    }
+    monkeypatch.setattr(
+        agent_scan_source,
+        "require_rust_binding",
+        lambda _name: lambda _root, _options: payload,
+    )
+    scanned = agent_scan_source.scan_agent_artifacts(tmp_path)
+    record = scanned.records[0]
+    observed: dict[str, object] = {}
+    probe = record_liveness_probe(
+        is_alive=lambda meta, _path: observed.update(meta) or True
+    )
+
+    assert probe(record)
+    assert observed["process_identity"] == expected_identity
 
 
 def _write_proc_entry(
