@@ -15738,6 +15738,211 @@
             "stdin": false,
             "subcommands": [],
             "writes": false
+          },
+          {
+            "aliases": [],
+            "default_child": null,
+            "description_digest": "6e30e8b941cfcb99",
+            "hidden": false,
+            "mutex_groups": [],
+            "name": "trust",
+            "options": [
+              {
+                "choices": null,
+                "default": null,
+                "dest": "help",
+                "hidden": false,
+                "kind": null,
+                "metavar": null,
+                "repeatable": false,
+                "required": false,
+                "strings": [
+                  "-h",
+                  "--help"
+                ],
+                "takes_value": false,
+                "value_hint": null
+              }
+            ],
+            "path": [
+              "config",
+              "trust"
+            ],
+            "positionals": [],
+            "run_policy": [],
+            "stdin": false,
+            "subcommands": [
+              {
+                "aliases": [],
+                "default_child": null,
+                "description_digest": "a0df7a1a4e9d353b",
+                "hidden": false,
+                "mutex_groups": [],
+                "name": "allow",
+                "options": [
+                  {
+                    "choices": null,
+                    "default": null,
+                    "dest": "help",
+                    "hidden": false,
+                    "kind": null,
+                    "metavar": null,
+                    "repeatable": false,
+                    "required": false,
+                    "strings": [
+                      "-h",
+                      "--help"
+                    ],
+                    "takes_value": false,
+                    "value_hint": null
+                  }
+                ],
+                "path": [
+                  "config",
+                  "trust",
+                  "allow"
+                ],
+                "positionals": [
+                  {
+                    "choices": null,
+                    "dest": "path",
+                    "is_remainder": false,
+                    "kind": "path",
+                    "metavar": "PATH",
+                    "nargs": "?",
+                    "required": false,
+                    "value_hint": "path"
+                  }
+                ],
+                "run_policy": [
+                  {
+                    "note": null,
+                    "policy": "foreground",
+                    "when": null
+                  }
+                ],
+                "stdin": false,
+                "subcommands": [],
+                "writes": true
+              },
+              {
+                "aliases": [],
+                "default_child": null,
+                "description_digest": "0245a55196299e29",
+                "hidden": false,
+                "mutex_groups": [],
+                "name": "revoke",
+                "options": [
+                  {
+                    "choices": null,
+                    "default": null,
+                    "dest": "help",
+                    "hidden": false,
+                    "kind": null,
+                    "metavar": null,
+                    "repeatable": false,
+                    "required": false,
+                    "strings": [
+                      "-h",
+                      "--help"
+                    ],
+                    "takes_value": false,
+                    "value_hint": null
+                  }
+                ],
+                "path": [
+                  "config",
+                  "trust",
+                  "revoke"
+                ],
+                "positionals": [
+                  {
+                    "choices": null,
+                    "dest": "path",
+                    "is_remainder": false,
+                    "kind": "path",
+                    "metavar": "PATH",
+                    "nargs": "?",
+                    "required": false,
+                    "value_hint": "path"
+                  }
+                ],
+                "run_policy": [
+                  {
+                    "note": null,
+                    "policy": "foreground",
+                    "when": null
+                  }
+                ],
+                "stdin": false,
+                "subcommands": [],
+                "writes": true
+              },
+              {
+                "aliases": [],
+                "default_child": null,
+                "description_digest": "3fe0cf26b73e7d0c",
+                "hidden": false,
+                "mutex_groups": [],
+                "name": "status",
+                "options": [
+                  {
+                    "choices": null,
+                    "default": null,
+                    "dest": "help",
+                    "hidden": false,
+                    "kind": null,
+                    "metavar": null,
+                    "repeatable": false,
+                    "required": false,
+                    "strings": [
+                      "-h",
+                      "--help"
+                    ],
+                    "takes_value": false,
+                    "value_hint": null
+                  },
+                  {
+                    "choices": null,
+                    "default": "False",
+                    "dest": "json",
+                    "hidden": false,
+                    "kind": null,
+                    "metavar": null,
+                    "repeatable": false,
+                    "required": false,
+                    "strings": [
+                      "-j",
+                      "--json"
+                    ],
+                    "takes_value": false,
+                    "value_hint": null
+                  }
+                ],
+                "path": [
+                  "config",
+                  "trust",
+                  "status"
+                ],
+                "positionals": [
+                  {
+                    "choices": null,
+                    "dest": "path",
+                    "is_remainder": false,
+                    "kind": "path",
+                    "metavar": "PATH",
+                    "nargs": "?",
+                    "required": false,
+                    "value_hint": "path"
+                  }
+                ],
+                "run_policy": [],
+                "stdin": false,
+                "subcommands": [],
+                "writes": false
+              }
+            ],
+            "writes": false
           }
         ],
         "writes": false

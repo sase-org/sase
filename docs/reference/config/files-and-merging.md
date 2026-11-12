@@ -33,6 +33,35 @@ deliberately disables project-local config loading for its own process so openin
 `sase tui` inside a repo does not inherit that repo's agent-run settings. See
 [Deep-Merge System](#deep-merge-system) below.
 
+## Project-Local Command Trust
+
+Use `sase config trust status [PATH]` to inspect the command-bearing part of a project's
+selected config. `PATH` can be a checkout or its selected `sase.yml`; it defaults to the
+current checkout. Add `--json` for structured status. The command is read-only and does
+not create the trust store.
+
+Run `sase config trust allow [PATH]` to review the canonical projection and digest, then
+type `allow` in the foreground terminal to record that review.
+`sase config trust revoke [PATH]` removes the project's record after a separate `revoke`
+confirmation. Both commands refuse to change trust from agents and monitors, and neither
+accepts a non-interactive confirmation.
+
+The record is machine-local at `$SASE_HOME/local_config_trust/records.json` (normally
+`~/.sase/local_config_trust/records.json`). Registered projects use the host project
+record and canonical primary checkout as their identity; a managed checkout shares that
+identity only when the host workspace registry contains it. An unregistered or ambiguous
+checkout gets checkout-scoped trust. Project display names, remotes, and checkout
+markers alone do not grant another checkout's record.
+
+The digest covers the normalized local `commit_hooks`, file-hook entries, and
+command-bearing macro/workflow definitions, plus the selected logical config location
+(`sase/sase.yml` or the root `sase.yml` fallback). YAML comments, whitespace, and
+mapping order do not change it. Edits to ordinary local settings do not change this
+digest. Referenced scripts, binaries, and standalone macro files are not hashed; review
+changes to those files separately. The trust record is a review input for the staged
+local command protection rollout; this phase adds the review and store commands without
+changing runtime command loading.
+
 ## Owner Identity
 
 SASE has one explicit owner identity selected for the current machine. Initialize or

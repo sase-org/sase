@@ -13,7 +13,7 @@ Reference for `sase config`. Run `sase config --help` for the exact output on th
 
 ```text
 usage: sase config [-h]
-                   {init,layers,mentor-match,migrate-keymap-actions,show} ...
+                   {init,layers,mentor-match,migrate-keymap-actions,show,trust} ...
 ```
 
 Options:
@@ -31,6 +31,7 @@ Subcommands:
 | `sase config mentor-match`           | Trace mentor profile matching for a Patch                                                                       |
 | `sase config migrate-keymap-actions` | Rewrite ace.keymaps.app overrides that name a keymap action retired by sase-m6.9 to their canonical replacement |
 | `sase config show`                   | Print the final merged config as YAML                                                                           |
+| `sase config trust`                  | Review and manage trust for project-local commands                                                              |
 
 ## `sase config init`
 
@@ -101,5 +102,84 @@ Options:
 | --------------------- | -------------------------------------------------------- | ------- |
 | `-h`, `--help`        | show this help message and exit                          | —       |
 | `-k KEY`, `--key KEY` | Extract a specific top-level key (e.g., mentor_profiles) | —       |
+
+## `sase config trust`
+
+```text
+usage: sase config trust [-h] {allow,revoke,status} ...
+```
+
+Acknowledge the current digest of project-local executable config, inspect its status, or revoke the acknowledgment.
+
+Options:
+
+| Option         | Description                     | Default |
+| -------------- | ------------------------------- | ------- |
+| `-h`, `--help` | show this help message and exit | —       |
+
+Subcommands:
+
+| Subcommand                 | Summary                                                        |
+| -------------------------- | -------------------------------------------------------------- |
+| `sase config trust allow`  | Review and acknowledge the selected project's current commands |
+| `sase config trust revoke` | Remove the selected project's current acknowledgment           |
+| `sase config trust status` | Show the selected project's current trust status               |
+
+### `sase config trust allow`
+
+```text
+usage: sase config trust allow [-h] [PATH]
+```
+
+Show the exact command-bearing config projection and require a human confirmation in a foreground terminal.
+
+Options:
+
+| Option         | Description                     | Default |
+| -------------- | ------------------------------- | ------- |
+| `-h`, `--help` | show this help message and exit | —       |
+
+Arguments:
+
+| Argument | Description                                                   |
+| -------- | ------------------------------------------------------------- |
+| `path`   | Checkout or its selected sase.yml (default: current checkout) |
+
+### `sase config trust revoke`
+
+```text
+usage: sase config trust revoke [-h] [PATH]
+```
+
+Options:
+
+| Option         | Description                     | Default |
+| -------------- | ------------------------------- | ------- |
+| `-h`, `--help` | show this help message and exit | —       |
+
+Arguments:
+
+| Argument | Description                                                   |
+| -------- | ------------------------------------------------------------- |
+| `path`   | Checkout or its selected sase.yml (default: current checkout) |
+
+### `sase config trust status`
+
+```text
+usage: sase config trust status [-h] [PATH] [-j]
+```
+
+Options:
+
+| Option         | Description                        | Default |
+| -------------- | ---------------------------------- | ------- |
+| `-h`, `--help` | show this help message and exit    | —       |
+| `-j`, `--json` | Print machine-readable status JSON | `false` |
+
+Arguments:
+
+| Argument | Description                                                   |
+| -------- | ------------------------------------------------------------- |
+| `path`   | Checkout or its selected sase.yml (default: current checkout) |
 
 Related: [CLI command groups](index.md).

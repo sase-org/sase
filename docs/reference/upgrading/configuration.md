@@ -46,6 +46,33 @@ The accepted fields are `projects`, `sidecars`, `path_globs`, `agent_name_globs`
 `causes`, and `producers`. Use `path_globs`; `globs` and top-level filter fields are
 ignored.
 
+## Project-local command review
+
+The local-command trust CLI records a digest-pinned review for project config:
+
+```bash
+sase config trust status [PATH] --json
+sase config trust allow [PATH]
+sase config trust revoke [PATH]
+```
+
+`allow` prints the exact normalized command-bearing projection before asking for the
+literal `allow` response in a foreground terminal. `revoke` asks for `revoke`. Agents,
+monitors, and non-interactive calls cannot make either change. `status` reads the
+machine-local store without creating it; a missing, malformed, unsupported, or unsafe
+store is reported as untrusted.
+
+The digest binds executable local config to the logical config file selected by SASE.
+Changing between `sase/sase.yml` and the root `sase.yml` compatibility fallback requires
+a new review. Registered projects use their host record and canonical primary checkout;
+managed workspaces share that identity only when the workspace registry confirms their
+membership. Other checkouts are isolated by canonical checkout path.
+
+The digest covers config values, not the contents of referenced scripts, binaries, or
+standalone macro files. Review edits to those files separately. The review CLI and store
+are the first rollout step; runtime filtering is activated separately, so recording an
+acknowledgment alone does not change command loading in this step.
+
 ## Repository configuration
 
 `repos.sidecar` is a mapping with `builtin` and `custom` buckets. Each bucket maps a

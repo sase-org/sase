@@ -25,6 +25,12 @@ _RUN_POLICY_TABLE: Final[dict[tuple[str, ...], tuple[dict[str, Any], ...]]] = {
     ("prompt", "edit"): ({"policy": "foreground", "when": None, "note": None},),
     ("prompt", "run"): ({"policy": "foreground", "when": None, "note": None},),
     ("artifact", "open"): ({"policy": "foreground", "when": None, "note": None},),
+    ("config", "trust", "allow"): (
+        {"policy": "foreground", "when": None, "note": None},
+    ),
+    ("config", "trust", "revoke"): (
+        {"policy": "foreground", "when": None, "note": None},
+    ),
     ("pager",): ({"policy": "foreground", "when": None, "note": None},),
     ("tmux-agent",): ({"policy": "foreground", "when": None, "note": None},),
     # `sudo answer` prompts interactively when no decision flag is given.
@@ -116,6 +122,8 @@ _WRITES_TRUE_OVERRIDES: Final[frozenset[tuple[str, ...]]] = frozenset(
         ("patch", "accept"),
         ("patch", "mail"),
         ("var", "set"),
+        ("config", "trust", "allow"),
+        ("config", "trust", "revoke"),
     }
 )
 

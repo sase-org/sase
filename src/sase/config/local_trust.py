@@ -46,6 +46,7 @@ class LocalCommandProjection:
     digest: str
     canonical_json: str
     policy_version: int = LOCAL_COMMAND_TRUST_POLICY_VERSION
+    config_path: str | None = None
 
     @classmethod
     def from_wire(cls, payload: dict[str, Any]) -> LocalCommandProjection:
@@ -59,6 +60,7 @@ class LocalCommandProjection:
         digest = payload.get("digest")
         canonical = payload.get("canonical_json")
         policy = payload.get("policy_version", LOCAL_COMMAND_TRUST_POLICY_VERSION)
+        config_path = payload.get("config_path")
         if not isinstance(projection, dict):
             raise LocalCommandTrustError("projection.projection is not an object")
         if not isinstance(blocked, list) or not all(
@@ -75,6 +77,8 @@ class LocalCommandProjection:
             raise LocalCommandTrustError(
                 f"unsupported trust policy version: {policy!r}"
             )
+        if config_path is not None and not isinstance(config_path, str):
+            raise LocalCommandTrustError("projection.config_path is not a string")
         return cls(
             projection=projection,
             blocked_paths=tuple(blocked),
@@ -82,6 +86,7 @@ class LocalCommandProjection:
             digest=digest,
             canonical_json=canonical,
             policy_version=policy,
+            config_path=config_path,
         )
 
 
@@ -173,6 +178,7 @@ def project_local_commands(
     lower_macros: dict[str, Any] | None = None,
     lower_workflows: dict[str, Any] | None = None,
     source: str = "local_config",
+    config_path: str | None = None,
 ) -> LocalCommandProjection:
     """Project the command-bearing subset of one decoded local layer.
 
@@ -187,6 +193,7 @@ def project_local_commands(
             "lower_macros": dict(lower_macros or {}),
             "lower_workflows": dict(lower_workflows or {}),
             "source": source,
+            "config_path": config_path,
         }
     )
     if not isinstance(payload, dict):
@@ -210,6 +217,7 @@ def filter_trusted_local_layer(
     lower_macros: dict[str, Any] | None = None,
     lower_workflows: dict[str, Any] | None = None,
     source: str = "local_config",
+    config_path: str | None = None,
 ) -> LocalTrustFilterResult:
     """Apply one trust verdict to one decoded local layer.
 
@@ -226,6 +234,7 @@ def filter_trusted_local_layer(
             "lower_macros": dict(lower_macros or {}),
             "lower_workflows": dict(lower_workflows or {}),
             "source": source,
+            "config_path": config_path,
         }
     )
     if not isinstance(payload, dict):

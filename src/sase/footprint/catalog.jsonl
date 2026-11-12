@@ -1,4 +1,4 @@
-{"count": 3700, "rev": "de2dddc85c8f", "schema": "sase.footprint.catalog/1"}
+{"count": 3705, "rev": "d65644eba395", "schema": "sase.footprint.catalog/1"}
 {"area": "automation", "id": "auto:axe.agent_waits", "kind": "auto", "label": "Resolve agent wait dependencies within seconds of completion", "ns": "auto", "parent": null, "src": "sase/default_config.yml"}
 {"area": "automation", "id": "auto:axe.agent_waits.wait_checks", "kind": "auto", "label": "Resolve agent wait dependencies and write ready.json when satisfied", "ns": "auto", "parent": "auto:axe.agent_waits", "src": "sase/default_config.yml"}
 {"area": "automation", "id": "auto:axe.checks", "kind": "auto", "label": "Poll slower PR-submission and workspace-claim checks on a five-minute cadence", "ns": "auto", "parent": null, "src": "sase/default_config.yml"}
@@ -740,6 +740,11 @@
 {"area": "cli.config", "id": "cli:config.migrate-keymap-actions", "kind": "command", "label": "Rewrite ace.keymaps.app overrides that name a keymap action retired by sase-m6.9 to their canonical replacement", "ns": "cli", "parent": null, "src": "sase/main/parser_commands.py:register_config_parser"}
 {"area": "cli.config", "id": "cli:config.show", "kind": "command", "label": "Print the final merged config as YAML", "ns": "cli", "parent": null, "src": "sase/main/parser_commands.py:register_config_parser"}
 {"area": "cli.config", "id": "cli:config.show#key", "kind": "option", "label": "Option --key of cli:config.show", "ns": "cli", "parent": "cli:config.show", "src": "sase/main/parser_commands.py:register_config_parser"}
+{"area": "cli.config", "id": "cli:config.trust", "kind": "command", "label": "Review and manage trust for project-local commands", "ns": "cli", "parent": null, "src": "sase/main/parser_commands.py:register_config_parser"}
+{"area": "cli.config", "id": "cli:config.trust.allow", "kind": "command", "label": "Review and acknowledge the selected project's current commands", "ns": "cli", "parent": null, "src": "sase/main/parser_commands.py:register_config_parser"}
+{"area": "cli.config", "id": "cli:config.trust.revoke", "kind": "command", "label": "Remove the selected project's current acknowledgment", "ns": "cli", "parent": null, "src": "sase/main/parser_commands.py:register_config_parser"}
+{"area": "cli.config", "id": "cli:config.trust.status", "kind": "command", "label": "Show the selected project's current trust status", "ns": "cli", "parent": null, "src": "sase/main/parser_commands.py:register_config_parser"}
+{"area": "cli.config", "id": "cli:config.trust.status#json", "kind": "option", "label": "Option --json of cli:config.trust.status", "ns": "cli", "parent": "cli:config.trust.status", "src": "sase/main/parser_commands.py:register_config_parser"}
 {"area": "cli.core", "id": "cli:core", "kind": "command", "label": "Inspect the required sase_core_rs Rust extension", "ns": "cli", "parent": null, "src": "sase/main/parser_core.py:register_core_parser"}
 {"area": "cli.core", "id": "cli:core.health", "kind": "command", "label": "Check that the sase_core_rs Rust extension is installed and working", "ns": "cli", "parent": null, "src": "sase/main/parser_core.py:register_core_parser"}
 {"area": "cli.core", "id": "cli:core.health#json", "kind": "option", "label": "Option --json of cli:core.health", "ns": "cli", "parent": "cli:core.health", "src": "sase/main/parser_core.py:register_core_parser"}

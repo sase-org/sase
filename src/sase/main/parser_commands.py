@@ -84,6 +84,63 @@ def register_config_parser(subparsers: argparse._SubParsersAction) -> None:
         help="Extract a specific top-level key (e.g., mentor_profiles)",
     )
 
+    # sase config trust
+    trust_parser = config_subparsers.add_parser(
+        "trust",
+        help="Review and manage trust for project-local commands",
+        description=(
+            "Acknowledge the current digest of project-local executable config, "
+            "inspect its status, or revoke the acknowledgment."
+        ),
+    )
+    trust_subparsers = trust_parser.add_subparsers(
+        dest="config_trust_subcommand", help="Trust subcommands"
+    )
+
+    trust_allow_parser = trust_subparsers.add_parser(
+        "allow",
+        help="Review and acknowledge the selected project's current commands",
+        description=(
+            "Show the exact command-bearing config projection and require a "
+            "human confirmation in a foreground terminal."
+        ),
+    )
+    trust_allow_parser.add_argument(
+        "path",
+        nargs="?",
+        metavar="PATH",
+        help="Checkout or its selected sase.yml (default: current checkout)",
+    )
+
+    trust_revoke_parser = trust_subparsers.add_parser(
+        "revoke",
+        help="Remove the selected project's current acknowledgment",
+    )
+    trust_revoke_parser.add_argument(
+        "path",
+        nargs="?",
+        metavar="PATH",
+        help="Checkout or its selected sase.yml (default: current checkout)",
+    )
+
+    trust_status_parser = trust_subparsers.add_parser(
+        "status",
+        help="Show the selected project's current trust status",
+    )
+    trust_status_parser.add_argument(
+        "path",
+        nargs="?",
+        metavar="PATH",
+        help="Checkout or its selected sase.yml (default: current checkout)",
+    )
+    trust_status_parser.add_argument(
+        "-j",
+        "--json",
+        action="store_true",
+        help="Print machine-readable status JSON",
+    )
+    trust_parser.set_defaults(_config_trust_parser=trust_parser)
+
 
 def register_file_parser(subparsers: argparse._SubParsersAction) -> None:
     """Register the 'file' subcommand parser."""

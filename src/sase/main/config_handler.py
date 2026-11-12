@@ -8,7 +8,43 @@ def handle_config_command(args: argparse.Namespace) -> None:
     """Handle the 'sase config' subcommands."""
     config_sub = getattr(args, "config_subcommand", None)
 
-    if config_sub == "init":
+    if config_sub == "trust":
+        trust_sub = getattr(args, "config_trust_subcommand", None)
+        if trust_sub is None:
+            args._config_trust_parser.print_help()
+            sys.exit(0)
+        from sase.config.local_trust_management import (
+            allow_local_commands,
+            print_trust_status,
+            require_local_trust_human_terminal,
+            revoke_local_commands,
+        )
+
+        if trust_sub == "allow":
+            try:
+                require_local_trust_human_terminal()
+            except Exception as error:
+                print(str(error), file=sys.stderr)
+                sys.exit(1)
+            sys.exit(allow_local_commands(args.path))
+        if trust_sub == "revoke":
+            try:
+                require_local_trust_human_terminal()
+            except Exception as error:
+                print(str(error), file=sys.stderr)
+                sys.exit(1)
+            sys.exit(revoke_local_commands(args.path))
+        if trust_sub == "status":
+            sys.exit(
+                print_trust_status(
+                    args.path,
+                    as_json=args.json,
+                )
+            )
+        args._config_trust_parser.print_help()
+        sys.exit(2)
+
+    elif config_sub == "init":
         from .config_init_handler import run_config_init
 
         sys.exit(run_config_init(args))
@@ -158,6 +194,6 @@ def handle_config_command(args: argparse.Namespace) -> None:
 
     else:
         print(
-            "Usage: sase config {init,layers,mentor-match,migrate-keymap-actions,show}"
+            "Usage: sase config {init,layers,mentor-match,migrate-keymap-actions,show,trust}"
         )
         sys.exit(1)

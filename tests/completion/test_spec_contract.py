@@ -215,6 +215,9 @@ def test_run_policy_spot_checks() -> None:
     assert by_path[("tool", "stop")].writes is True
     assert by_path[("plan", "approve")].writes is True
     assert by_path[("plan", "reject")].writes is True
+    for path in (("config", "trust", "allow"), ("config", "trust", "revoke")):
+        assert by_path[path].writes is True
+        assert by_path[path].run_policy[0].policy == "foreground"
 
 
 def _write_spec_json(path: Path) -> None:

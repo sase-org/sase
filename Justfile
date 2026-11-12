@@ -532,15 +532,12 @@ _lint-symvision *args: _setup
         --exclude-decorator gate_command_entrypoint \
         --exclude-decorator builtin_chop \
         --epic-symbol "sase-1sb.2.1(LocalCommandDigest)" \
-        --epic-symbol "sase-1sb.2.1(LocalCommandProjection)" \
         --epic-symbol "sase-1sb.2.1(LocalCommandTrustError)" \
         --epic-symbol "sase-1sb.2.1(LocalTrustDecision)" \
         --epic-symbol "sase-1sb.2.1(LocalTrustFilterResult)" \
-        --epic-symbol "sase-1sb.2.1(decide_local_command_trust)" \
         --epic-symbol "sase-1sb.2.1(digest_local_commands)" \
         --epic-symbol "sase-1sb.2.1(filter_trusted_local_layer)" \
         --epic-symbol "sase-1sb.2.1(local_command_trust_wire_schema_version)" \
-        --epic-symbol "sase-1sb.2.1(project_local_commands)" \
         {{ args }}
 
 # Check Python file line counts (private, extracted for per-stage wrapping)
