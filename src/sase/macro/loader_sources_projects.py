@@ -167,9 +167,12 @@ def load_project_local_macros(workspace_dir: Path, project: str) -> dict[str, Ma
     from sase.macro.local_trust import partition_config_macros
 
     try:
+        from sase.config.core import load_merged_config_for_local_path
         from sase.config.local_trust_enforcement import effective_local_layer
 
         effective, _evaluation = effective_local_layer(sase_yml, data)
+        lower_raw = load_merged_config_for_local_path(None).get("macros")
+        lower_macros = dict(lower_raw) if isinstance(lower_raw, dict) else {}
     except Exception:
         log.debug(
             "Local-command trust filtering failed closed for project macros in %s",
@@ -177,6 +180,7 @@ def load_project_local_macros(workspace_dir: Path, project: str) -> dict[str, Ma
             exc_info=True,
         )
         effective = {}
+        lower_macros = {}
 
     source_label = f"project_local_config:{project}"
     macros_data: dict[str, Any] = normalize_frontmatter_macros(
@@ -185,8 +189,12 @@ def load_project_local_macros(workspace_dir: Path, project: str) -> dict[str, Ma
     if not macros_data:
         return {}
 
+    # A sparse local override of a lower executable definition is executable
+    # after composition; it belongs to load_project_local_workflows, never to
+    # an empty prompt-only namesake that would shadow the composed workflow.
     prompt_only, _executable = partition_config_macros(
         macros_data,
+        lower_macros=lower_macros,
         source=source_label,
     )
     parsed = parse_macro_entries(prompt_only, source_label)

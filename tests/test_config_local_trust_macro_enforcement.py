@@ -523,6 +523,11 @@ def test_approved_sparse_override_composes_with_lower_workflow(
         assert workflow.steps[0].bash == f"touch {tmp_path / 'sparse-ran'}"
         assert workflow.inputs[0].default == "LOCAL"
         assert workflow.trust is not None
+    # The direct prompt-only loader must not emit an empty namesake that
+    # shadows the composed executable workflow.
+    assert "sparse-approved/lct_tool" not in load_project_local_macros(
+        root, "sparse-approved"
+    )
     _identity = ordinary.trust["identity"]
     assert isinstance(_identity, str)
     # Revoking the local sparse override blocks its retained inherited command.
