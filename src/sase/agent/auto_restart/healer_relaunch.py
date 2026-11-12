@@ -64,49 +64,148 @@ def relaunch_claimed(
             escalate_kind=kind,
             silenced=effective_silenced,
         )
-    try:
-        plan = (plan_restart or _plan_default)(
-            target.agent_name, follow_live_autonomy=True
-        )
-    except Exception as exc:
-        return defer_heal(stored, target, f"restart planning refused: {exc}", now=now)
-    if _wipe_reaches_others(plan, target):
-        return decline_heal(
-            stored,
-            target,
-            "wipe_reaches_others",
-            "not restarted — the name wipe would reach other agents",
-            now=now,
-            dry_run=False,
-            escalate=False,
-            episode_id=stored.record.episode_id or episode_id,
-            silenced=silenced,
-        )
+    launcher_row = _is_launcher_row(target, done=fresh_done, meta=fresh_meta)
+    launcher_prompt: str | None = None
+    launcher_cwd: Path | None = None
+    if launcher_row:
+        prompt_path = target.artifacts_dir / "raw_prompt.md"
+        try:
+            launcher_prompt = prompt_path.read_text(encoding="utf-8")
+        except (OSError, UnicodeError):
+            return decline_heal(
+                stored,
+                target,
+                "launcher_prompt_missing",
+                "not restarted — the launcher row has no readable raw_prompt.md",
+                now=now,
+                dry_run=False,
+                escalate=False,
+                episode_id=stored.record.episode_id or episode_id,
+                silenced=silenced,
+            )
+        if not launcher_prompt.strip():
+            return decline_heal(
+                stored,
+                target,
+                "launcher_prompt_empty",
+                "not restarted — raw_prompt.md is empty",
+                now=now,
+                dry_run=False,
+                escalate=False,
+                episode_id=stored.record.episode_id or episode_id,
+                silenced=silenced,
+            )
+        try:
+            from sase.agent.multi_prompt import parse_multi_prompt
+
+            if len(parse_multi_prompt(launcher_prompt).segments) > 1:
+                return decline_heal(
+                    stored,
+                    target,
+                    "multi_segment",
+                    "not restarted — raw_prompt.md contains multiple prompt segments",
+                    now=now,
+                    dry_run=False,
+                    escalate=False,
+                    episode_id=stored.record.episode_id or episode_id,
+                    silenced=silenced,
+                )
+        except Exception as exc:
+            return decline_heal(
+                stored,
+                target,
+                "launcher_prompt_invalid",
+                f"not restarted — raw_prompt.md could not be parsed: {exc}",
+                now=now,
+                dry_run=False,
+                escalate=False,
+                episode_id=stored.record.episode_id or episode_id,
+                silenced=silenced,
+            )
+        try:
+            launcher_cwd = _launcher_project_cwd(target.project)
+        except Exception as exc:
+            return defer_heal(
+                stored,
+                target,
+                f"launcher project lookup refused: {exc}",
+                now=now,
+            )
+        plan = None
+    else:
+        try:
+            plan = (plan_restart or _plan_default)(
+                target.agent_name, follow_live_autonomy=True
+            )
+        except Exception as exc:
+            return defer_heal(
+                stored, target, f"restart planning refused: {exc}", now=now
+            )
+        if _wipe_reaches_others(plan, target):
+            return decline_heal(
+                stored,
+                target,
+                "wipe_reaches_others",
+                "not restarted — the name wipe would reach other agents",
+                now=now,
+                dry_run=False,
+                escalate=False,
+                episode_id=stored.record.episode_id or episode_id,
+                silenced=silenced,
+            )
+
+    if launcher_row:
+        assert launcher_prompt is not None
+    else:
+        assert plan is not None
     stored = ledger_mod.advance_ledger_record(
         stored,
         "begin_launch",
-        note=f"launching {target.agent_name}",
-        extra={"python_plan_digest": _plan_digest(plan)},
+        note=(
+            "resubmitting launcher raw prompt"
+            if launcher_row
+            else f"launching {target.agent_name}"
+        ),
+        extra={
+            "python_plan_digest": (
+                _prompt_digest(launcher_prompt) if launcher_row else _plan_digest(plan)
+            )
+        },
         at=ledger_mod.timestamp_for(now),
     )
-    stored = annotate_record(stored, planned_name=target.agent_name)
+    if not launcher_row:
+        stored = annotate_record(stored, planned_name=target.agent_name)
     evidence_dir, evidence_files = _write_evidence(
         target, verdict=verdict, assembled=assembled, episode_id=episode_id
     )
     if evidence_dir is not None:
         stored = annotate_record(stored, evidence_dir=evidence_dir)
-    _attach_provenance(
-        plan,
-        target,
-        verdict=verdict,
-        episode_id=episode_id,
-        lineage_root=lineage_root,
-        ledger_key=key,
-        evidence_dir=evidence_dir,
-        evidence_files=evidence_files,
-        witnesses=assembled.witnesses,
-        facts=assembled.facts,
-    )
+    if launcher_row:
+        provenance_env = _provenance_env(
+            target,
+            verdict=verdict,
+            episode_id=episode_id,
+            lineage_root=lineage_root,
+            ledger_key=key,
+            evidence_dir=evidence_dir,
+            evidence_files=evidence_files,
+            witnesses=assembled.witnesses,
+            facts=assembled.facts,
+        )
+    else:
+        _attach_provenance(
+            plan,
+            target,
+            verdict=verdict,
+            episode_id=episode_id,
+            lineage_root=lineage_root,
+            ledger_key=key,
+            evidence_dir=evidence_dir,
+            evidence_files=evidence_files,
+            witnesses=assembled.witnesses,
+            facts=assembled.facts,
+        )
+        provenance_env = {}
     write_recovery(
         target,
         "launching",
@@ -115,7 +214,18 @@ def relaunch_claimed(
         ledger_key=key,
         episode_id=episode_id,
     )
-    outcome = (execute_restart or _execute_default)(plan, evidence_files)
+    try:
+        if launcher_row:
+            assert launcher_prompt is not None
+            outcome = _launch_launcher_prompt(
+                launcher_prompt, provenance_env, launcher_cwd
+            )
+        else:
+            outcome = (execute_restart or _execute_default)(plan, evidence_files)
+    except Exception as exc:
+        from types import SimpleNamespace
+
+        outcome = SimpleNamespace(status="failed", error=str(exc))
     if outcome is None or getattr(outcome, "status", "") != "ok":
         import contextlib as _contextlib
 
@@ -161,15 +271,36 @@ def relaunch_claimed(
         stored, "launched", at=ledger_mod.timestamp_for(now)
     )
     stored = annotate_record(stored, launched_artifacts_dir=launched_dir)
-    # No done.json write here: execute wiped the failed row, and the ledger
-    # owns ``launched`` — writing would recreate a phantom artifacts dir.
+    if launcher_row:
+        # The replacement was launched without wiping the failed bootstrap
+        # row. Keep its evidence and mark it terminal so scans do not treat
+        # this preserved row as pending work.
+        write_recovery(
+            target,
+            "relaunched",
+            "relaunched from raw_prompt.md",
+            now=now,
+            ledger_key=key,
+            episode_id=episode_id,
+        )
+        import contextlib
+
+        with contextlib.suppress(Exception):
+            ledger_mod.delete_doorbells_for(str(target.artifacts_dir))
+    # The named path's execute step wiped the failed row, so writing done.json
+    # here would recreate a phantom artifacts directory. Launcher rows remain
+    # intact and receive the terminal recovery marker above.
     publish_relaunch_event(
         target, verdict=verdict, episode_id=episode_id, evidence_dir=evidence_dir
     )
     return HealerOutcome(
         action="relaunched",
         reason="relaunch",
-        reason_text=f"relaunched {target.agent_name} under the same name",
+        reason_text=(
+            f"relaunched launcher row {target.agent_name} from raw_prompt.md"
+            if launcher_row
+            else f"relaunched {target.agent_name} under the same name"
+        ),
         ledger_key=key,
         launched_artifacts_dir=launched_dir,
         evidence_dir=evidence_dir,
@@ -198,6 +329,81 @@ def _plan_digest(plan: Any) -> str:
     except AttributeError:
         prompt = repr(plan)
     return hashlib.sha256(str(prompt).encode("utf-8")).hexdigest()[:16]
+
+
+def _prompt_digest(prompt: str | None) -> str:
+    return hashlib.sha256(str(prompt or "").encode("utf-8")).hexdigest()[:16]
+
+
+def _is_launcher_row(
+    target: HealerTarget,
+    *,
+    done: Mapping[str, Any],
+    meta: Mapping[str, Any],
+) -> bool:
+    """Return whether a failed row died before it acquired a workflow name."""
+
+    for payload in (meta, done):
+        for key in ("name", "workflow_name"):
+            value = payload.get(key)
+            if isinstance(value, str) and value.strip():
+                return False
+    return target.agent_name == target.artifacts_dir.name
+
+
+def _launcher_project_cwd(project: str) -> Path:
+    """Find the primary checkout used to submit a prompt for *project*."""
+
+    if project == "home":
+        cwd = Path.home()
+    else:
+        from sase.core.paths import sase_projects_dir
+        from sase.core.project_lifecycle_facade import list_project_records
+
+        record = next(
+            (
+                item
+                for item in list_project_records(
+                    sase_projects_dir(), "all", include_home=True
+                )
+                if item.project_name == project
+            ),
+            None,
+        )
+        if record is None or not record.workspace_dir:
+            raise LookupError(f"project '{project}' has no configured workspace")
+        cwd = Path(record.workspace_dir).expanduser()
+    if not cwd.is_dir():
+        raise FileNotFoundError(f"project workspace does not exist: {cwd}")
+    return cwd
+
+
+def _launch_launcher_prompt(
+    prompt: str, extra_env: dict[str, str], cwd: Path | None
+) -> Any:
+    """Resubmit the original launcher prompt through the normal launch funnel."""
+
+    import contextlib
+    from types import SimpleNamespace
+
+    from sase.agent.launcher import launch_agents_from_cwd
+
+    if cwd is None:
+        raise RuntimeError("launcher project workspace was not resolved")
+    # The regular project launch path atomically claims a free numbered slot.
+    # Leave the failed row's hold and artifacts untouched; its slot remains
+    # occupied while the replacement claims a different one.
+    with contextlib.chdir(cwd):
+        results = launch_agents_from_cwd(
+            prompt,
+            extra_env=extra_env,
+            origin="generated",
+            source_surface="auto_restart",
+        )
+    if not results:
+        raise RuntimeError("agent launch produced no results")
+    launched_dir = getattr(results[0], "artifacts_dir", None) or None
+    return SimpleNamespace(status="ok", launched_artifacts_dir=launched_dir, error=None)
 
 
 def _wipe_reaches_others(plan: Any, target: HealerTarget) -> bool:
@@ -242,12 +448,44 @@ def _attach_provenance(
     witnesses: Any,
     facts: Any,
 ) -> None:
+    from sase.agent.auto_restart.provenance import PROVENANCE_ENV
+
+    env = _provenance_env(
+        target,
+        verdict=verdict,
+        episode_id=episode_id,
+        lineage_root=lineage_root,
+        ledger_key=ledger_key,
+        evidence_dir=evidence_dir,
+        evidence_files=evidence_files,
+        witnesses=witnesses,
+        facts=facts,
+    )
+    try:
+        segment_envs = plan.force_reuse_plan.segment_envs
+        for index, overlay in enumerate(segment_envs):
+            merged = dict(overlay or {})
+            merged.setdefault(PROVENANCE_ENV, env[PROVENANCE_ENV])
+            segment_envs[index] = merged
+    except AttributeError:
+        pass
+
+
+def _provenance_env(
+    target: HealerTarget,
+    *,
+    verdict: Any,
+    episode_id: str | None,
+    lineage_root: str,
+    ledger_key: str,
+    evidence_dir: str | None,
+    evidence_files: dict[str, Any] | None = None,
+    witnesses: Any,
+    facts: Any,
+) -> dict[str, str]:
     import datetime
 
-    from sase.agent.auto_restart.provenance import (
-        PROVENANCE_ENV,
-        provenance_segment_env,
-    )
+    from sase.agent.auto_restart.provenance import provenance_segment_env
     from sase.core.time import get_timezone
 
     try:
@@ -300,15 +538,7 @@ def _attach_provenance(
                 if provenance["broke_detail"]
                 else detail
             )
-    env = provenance_segment_env(provenance)
-    try:
-        segment_envs = plan.force_reuse_plan.segment_envs
-        for index, overlay in enumerate(segment_envs):
-            merged = dict(overlay or {})
-            merged.setdefault(PROVENANCE_ENV, env[PROVENANCE_ENV])
-            segment_envs[index] = merged
-    except AttributeError:
-        pass
+    return provenance_segment_env(provenance)
 
 
 def _identity_revision(identity: Any) -> str | None:
@@ -329,12 +559,11 @@ def _identity_revision(identity: Any) -> str | None:
 def _write_evidence(
     target: HealerTarget, *, verdict: Any, assembled: Any, episode_id: str | None
 ) -> tuple[str | None, dict[str, Any]]:
-    """Preserve evidence before the wipe; return the dir and bundle files.
+    """Preserve evidence before a relaunch; return the dir and bundle files.
 
-    The same payload lands in two places: the ledger evidence directory
-    (outside any artifacts dir, so the forced-reuse wipe cannot remove it)
-    and the restart recovery bundle (via ``execute_agent_restart``'s
-    ``extra_evidence``).
+    The ledger evidence directory is outside any artifacts dir, so it survives
+    both named-row wipes and launcher-row resubmissions. The named-row restart
+    path also copies this payload into its recovery bundle.
     """
     import datetime
 

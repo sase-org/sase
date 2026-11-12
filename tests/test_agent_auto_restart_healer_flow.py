@@ -28,6 +28,8 @@ from tests._agent_auto_restart_healer_helpers import (
 __all__ = [
     "test_healer_defers_when_probe_fails",
     "test_healer_relaunches_once_then_declines",
+    "test_healer_resubmits_unnamed_launcher_prompt_once",
+    "test_healer_declines_unusable_launcher_prompts",
     "test_quiescence_failure_does_not_run_probe",
     "test_real_classifier_reclassifies_incident_after_probe",
 ]
@@ -82,6 +84,139 @@ def test_healer_relaunches_once_then_declines(
     )
     assert again.action == "declined"
     assert len(launched) == 1
+
+
+def test_healer_resubmits_unnamed_launcher_prompt_once(
+    tmp_home: Path,
+    failed_row: Path,
+    quiet_notifications: dict[str, list],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _ = tmp_home
+    from sase.agent import launcher
+    from sase.agent.auto_restart import healer_relaunch
+    from sase.agent.auto_restart.provenance import PROVENANCE_ENV
+    from sase.agent.auto_restart.healer import HealerTarget
+
+    (failed_row / "agent_meta.json").write_text("{}\n", encoding="utf-8")
+    raw_prompt = "%id:bootstrap-agent\nResume the requested work.\n"
+    (failed_row / "raw_prompt.md").write_text(raw_prompt, encoding="utf-8")
+    target = HealerTarget(
+        artifacts_dir=failed_row,
+        project="sase",
+        agent_name=failed_row.name,
+    )
+    replacement_dir = failed_row.parent / "20261009T120100"
+    launched: list[tuple[str, dict[str, str]]] = []
+
+    def fake_launch(
+        prompt: str,
+        *,
+        extra_env: dict[str, str],
+        origin: str,
+        source_surface: str,
+    ) -> list[SimpleNamespace]:
+        assert origin == "generated"
+        assert source_surface == "auto_restart"
+        launched.append((prompt, extra_env))
+        return [SimpleNamespace(artifacts_dir=str(replacement_dir))]
+
+    monkeypatch.setattr(healer_relaunch, "_launcher_project_cwd", lambda _p: tmp_home)
+    monkeypatch.setattr(launcher, "launch_agents_from_cwd", fake_launch)
+
+    outcome = heal_one(
+        target,
+        classify=lambda assembled: relaunch_verdict(),
+        check_quiescence=ok_quiescence,
+        run_probe=lambda modules, binding_checks=None: ok_probe_result(),
+        plan_restart=lambda *args, **kwargs: (_ for _ in ()).throw(
+            AssertionError("unnamed launcher rows must not use name-based planning")
+        ),
+    )
+
+    assert outcome.action == "relaunched", outcome.reason_text
+    assert outcome.launched_artifacts_dir == str(replacement_dir)
+    assert len(launched) == 1
+    submitted_prompt, extra_env = launched[0]
+    assert submitted_prompt == raw_prompt
+    provenance = json.loads(extra_env[PROVENANCE_ENV])
+    assert provenance["of_artifacts_dir"] == str(failed_row)
+    assert provenance["lineage_root"] == failed_row.name
+    assert provenance["ledger_key"] == outcome.ledger_key
+    assert provenance["evidence_dir"] == outcome.evidence_dir
+    assert Path(outcome.evidence_dir or "", "verdict.json").is_file()
+    assert json.loads((failed_row / "done.json").read_text())["recovery"]["state"] == (
+        "relaunched"
+    )
+    assert (failed_row / "raw_prompt.md").is_file()
+
+    again = heal_one(
+        target,
+        classify=lambda assembled: relaunch_verdict(),
+        check_quiescence=ok_quiescence,
+        run_probe=lambda modules, binding_checks=None: ok_probe_result(),
+    )
+    assert again.action == "declined"
+    assert again.reason == "already_launched"
+    assert len(launched) == 1
+    assert len(quiet_notifications["relaunch"]) == 1
+
+
+@pytest.mark.parametrize(
+    ("prompt", "reason"),
+    [
+        (None, "launcher_prompt_missing"),
+        (" \n\t", "launcher_prompt_empty"),
+        ("first segment\n---\nsecond segment", "multi_segment"),
+    ],
+)
+def test_healer_declines_unusable_launcher_prompts(
+    tmp_home: Path,
+    failed_row: Path,
+    prompt: str | None,
+    reason: str,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _ = tmp_home
+    from sase.agent import launcher
+    from sase.agent.auto_restart import healer_relaunch
+    from sase.agent.auto_restart.healer import HealerTarget
+
+    (failed_row / "agent_meta.json").write_text("{}\n", encoding="utf-8")
+    if prompt is not None:
+        (failed_row / "raw_prompt.md").write_text(prompt, encoding="utf-8")
+    target = HealerTarget(
+        artifacts_dir=failed_row,
+        project="sase",
+        agent_name=failed_row.name,
+    )
+    monkeypatch.setattr(
+        healer_relaunch,
+        "_launcher_project_cwd",
+        lambda _project: (_ for _ in ()).throw(
+            AssertionError("invalid prompts are declined before project lookup")
+        ),
+    )
+    monkeypatch.setattr(
+        launcher,
+        "launch_agents_from_cwd",
+        lambda *args, **kwargs: (_ for _ in ()).throw(
+            AssertionError("invalid prompts must not be launched")
+        ),
+    )
+
+    outcome = heal_one(
+        target,
+        classify=lambda assembled: relaunch_verdict(),
+        check_quiescence=ok_quiescence,
+        run_probe=lambda modules, binding_checks=None: ok_probe_result(),
+        plan_restart=lambda *args, **kwargs: (_ for _ in ()).throw(
+            AssertionError("unnamed launcher rows must not use name-based planning")
+        ),
+    )
+
+    assert outcome.action == "declined"
+    assert outcome.reason == reason
 
 
 def test_healer_defers_when_probe_fails(
