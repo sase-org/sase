@@ -170,8 +170,60 @@ def preflight_sidecars(
                 f"{sidecar.visibility}. Update the provider plugin and rerun "
                 "`sase repo init`."
             )
+        if (
+            result.status == "found"
+            and sidecar.role == ATTACHMENTS_PRIVATE_SIDECAR_ROLE
+            and sidecar.visibility.casefold() == "private"
+        ):
+            _refuse_public_existing_private_sidecar(sidecar, result)
         results[sidecar.role] = result
     return results
+
+
+def _existing_private_probe_url(
+    sidecar: SidecarInitSpec,
+    result: SddSidecarPreflight,
+) -> str | None:
+    """Return the URL to probe for an existing private sidecar, if any."""
+    if sidecar.remote_url is not None and sidecar.remote_url.strip():
+        return sidecar.remote_url.strip()
+    host = (result.host or "").strip()
+    repo = (result.repo or "").strip()
+    if host and "." in host and repo:
+        return f"https://{host}/{repo}"
+    return None
+
+
+def _refuse_public_existing_private_sidecar(
+    sidecar: SidecarInitSpec,
+    result: SddSidecarPreflight,
+) -> None:
+    """Refuse an existing attachments-private remote that probes public.
+
+    An existing remote is trusted on its configured role alone without
+    this check, so private attachment bytes could be pushed to a public
+    repository under a private label. A ``public`` probe fails closed.
+    ``unknown`` (offline, unparsable, or inconclusive) proceeds: the probe
+    documents unknown as meaning private, the per-process upload gate
+    re-checks before any bytes move, and the store label marks the remote
+    unverified instead of claiming it is private.
+    """
+    from sase.bead.attachments.remote_visibility import resolve_remote_visibility
+
+    url = _existing_private_probe_url(sidecar, result)
+    try:
+        visibility = resolve_remote_visibility(url) if url is not None else "unknown"
+    except Exception:
+        visibility = "unknown"
+    if visibility != "public":
+        return
+    raise SddMaterializationError(
+        f"The {result.provider} repository {result.repo} configured as the "
+        f"{sidecar.role} sidecar is public; refusing to push private "
+        "attachment bytes to it. Restrict the remote visibility to private "
+        "(or point repos.sidecar at a private repository) and rerun "
+        "`sase repo init`."
+    )
 
 
 def initialize_sidecars(

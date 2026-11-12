@@ -40,7 +40,68 @@ from sase.core.rust import require_rust_binding
 _STORE_COMMIT_PREFIX = "chore(attachments): store"
 _DELETE_COMMIT_PREFIX = "chore(attachments): delete"
 _WITHDRAW_COMMIT_PREFIX = "chore(attachments): withdraw"
+
+#: Private-clone paths verified this process, mapped to their probed
+#: ``private`` | ``unknown`` verdict. The first private-layout ``put``
+#: per clone probes the origin with :func:`resolve_remote_visibility`;
+#: later puts reuse the recorded verdict. A ``public`` verdict raises
+#: instead of recording, so a later retry re-probes rather than
+#: trusting a stale refusal.
+_VERIFIED_PRIVATE_CLONES: dict[str, str] = {}
 _PUSH_ATTEMPTS = 3
+
+
+def _private_clone_origin_url(repo: Path) -> str | None:
+    """Return the configured origin URL for a bare clone, if any."""
+    import subprocess
+
+    try:
+        result = subprocess.run(
+            ["git", "config", "--get", "remote.origin.url"],
+            cwd=repo,
+            check=False,
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return None
+    if result.returncode != 0:
+        return None
+    url = (result.stdout or "").strip()
+    return url or None
+
+
+def _ensure_private_remote_not_public(repo: Path) -> str:
+    """Probe the origin of a private-layout clone; refuse when public.
+
+    Returns the probed ``public`` | ``private`` | ``unknown`` visibility.
+    Only the first call per clone path probes; later calls reuse the
+    recorded verdict. ``unknown`` (no remote, offline, or inconclusive)
+    proceeds — the probe documents unknown as meaning private — while the
+    caller labels the store unverified instead of claiming it is private.
+    """
+    from sase.bead.attachments.remote_visibility import resolve_remote_visibility
+
+    key = str(repo)
+    if key in _VERIFIED_PRIVATE_CLONES:
+        return _VERIFIED_PRIVATE_CLONES[key]
+    try:
+        url = _private_clone_origin_url(repo)
+    except Exception:
+        url = None
+    try:
+        visibility = resolve_remote_visibility(url) if url else "unknown"
+    except Exception:
+        visibility = "unknown"
+    if visibility == "public":
+        raise BlobStoreError(
+            f"refusing to upload private attachment bytes to {url}: "
+            "the remote is public. Restrict the attachments-private remote "
+            "visibility to private before using it for private attachments."
+        )
+    _VERIFIED_PRIVATE_CLONES[key] = visibility
+    return visibility
 
 
 @contextlib.contextmanager
@@ -91,6 +152,10 @@ class GitStoreWrites(GitStoreReads):
         """
 
         validate_sha256(sha256)
+        if self._layout != "public":
+            # Private bytes must never land on a public remote: verify the
+            # origin once per process before the first upload to this clone.
+            _ensure_private_remote_not_public(self._repo)
         source = Path(src)
         if not source.is_file() or source.is_symlink():
             raise BlobStoreError(f"cannot store {source}: not a regular file")

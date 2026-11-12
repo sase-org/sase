@@ -187,3 +187,123 @@ def test_custom_sidecar_preflight_rejects_provider_visibility_downgrade(
         match="config requires private",
     ):
         preflight_sidecars(project, 1, (spec,))
+
+
+def _found_private_preflight() -> SddSidecarPreflight:
+    return SddSidecarPreflight(
+        status="found",
+        provider="GitHub",
+        host="github.com",
+        repo="acme/widget--attachments-private",
+        visibility="private",
+    )
+
+
+def _private_spec() -> SidecarInitSpec:
+    return SidecarInitSpec(
+        role="attachments-private",
+        repo="acme/widget--attachments-private",
+        remote_url="https://github.com/acme/widget--attachments-private.git",
+        visibility="private",
+    )
+
+
+def test_existing_private_remote_probing_public_is_refused(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """An existing attachments-private remote that probes public fails closed."""
+    from sase.bead.attachments.remote_visibility import set_remote_visibility_prober
+
+    project = tmp_path / "widget"
+    project.mkdir()
+    monkeypatch.setattr(
+        "sase.workspace_provider.preflight_sdd_sidecar",
+        lambda *_args: _found_private_preflight(),
+    )
+    set_remote_visibility_prober(lambda url: "public")
+    try:
+        with pytest.raises(
+            RuntimeError,
+            match="is public; refusing to push private",
+        ):
+            preflight_sidecars(project, 1, (_private_spec(),))
+    finally:
+        set_remote_visibility_prober(None)
+
+
+def test_existing_private_remote_probing_private_passes(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from sase.bead.attachments.remote_visibility import set_remote_visibility_prober
+
+    project = tmp_path / "widget"
+    project.mkdir()
+    monkeypatch.setattr(
+        "sase.workspace_provider.preflight_sdd_sidecar",
+        lambda *_args: _found_private_preflight(),
+    )
+    set_remote_visibility_prober(lambda url: "private")
+    try:
+        result = preflight_sidecars(project, 1, (_private_spec(),))
+    finally:
+        set_remote_visibility_prober(None)
+
+    assert result["attachments-private"].repo == "acme/widget--attachments-private"
+
+
+def test_existing_private_remote_probing_unknown_proceeds(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Unknown visibility (offline, inconclusive) proceeds; upload re-checks."""
+    from sase.bead.attachments.remote_visibility import set_remote_visibility_prober
+
+    project = tmp_path / "widget"
+    project.mkdir()
+    monkeypatch.setattr(
+        "sase.workspace_provider.preflight_sdd_sidecar",
+        lambda *_args: _found_private_preflight(),
+    )
+    set_remote_visibility_prober(lambda url: "unknown")
+    try:
+        result = preflight_sidecars(project, 1, (_private_spec(),))
+    finally:
+        set_remote_visibility_prober(None)
+
+    assert result["attachments-private"].repo == "acme/widget--attachments-private"
+
+
+def test_existing_non_private_role_remote_is_not_private_gated(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The existing-remote probe applies to attachments-private only."""
+    from sase.bead.attachments.remote_visibility import set_remote_visibility_prober
+
+    project = tmp_path / "widget"
+    project.mkdir()
+    spec = SidecarInitSpec(
+        role="artifacts",
+        repo="acme/shared-artifacts",
+        remote_url="https://github.com/acme/shared-artifacts.git",
+        visibility="private",
+    )
+    monkeypatch.setattr(
+        "sase.workspace_provider.preflight_sdd_sidecar",
+        lambda *_args: SddSidecarPreflight(
+            status="found",
+            provider="GitHub",
+            host="github.com",
+            repo="acme/shared-artifacts",
+            visibility="private",
+        ),
+    )
+    set_remote_visibility_prober(lambda url: "public")
+    try:
+        result = preflight_sidecars(project, 1, (spec,))
+    finally:
+        set_remote_visibility_prober(None)
+
+    assert result["artifacts"].repo == "acme/shared-artifacts"

@@ -151,8 +151,26 @@ def clone_has_remote(clone: Path) -> bool:
     return result.returncode == 0 and bool((result.stdout or "").strip())
 
 
+def _probe_remote_visibility(remote: str) -> str:
+    """Return ``public`` | ``private`` | ``unknown`` for *remote*."""
+    try:
+        from sase.bead.attachments.remote_visibility import resolve_remote_visibility
+    except Exception:
+        return "unknown"
+    try:
+        return resolve_remote_visibility(remote)
+    except Exception:
+        return "unknown"
+
+
 def describe_label(clone: Path, project_key: str, audience: str = "private") -> str:
-    """Return the human-readable store label for *clone*."""
+    """Return the human-readable store label for *clone*.
+
+    The private suffix reflects a live visibility probe of the clone's
+    origin, never a hard-coded claim: ``(private)`` only when the remote
+    probes private, ``(private, unverified)`` when it cannot be verified,
+    and an explicit alarm when the remote probes public.
+    """
     word = "public" if audience == "public" else "private"
     try:
         result = subprocess.run(
@@ -177,10 +195,17 @@ def describe_label(clone: Path, project_key: str, audience: str = "private") -> 
             except Exception:
                 parsed = None
             if parsed is not None and "/" in parsed.repo:
-                return f"{parsed.repo} ({word})"
+                if word == "public":
+                    return f"{parsed.repo} (public)"
+                visibility = _probe_remote_visibility(remote)
+                if visibility == "public":
+                    return f"{parsed.repo} (PUBLIC — not private!)"
+                if visibility == "unknown":
+                    return f"{parsed.repo} (private, unverified)"
+                return f"{parsed.repo} (private)"
     if word == "public":
         return f"{project_key}--attachments (public)"
-    return f"{project_key}--attachments-private (private)"
+    return f"{project_key}--attachments-private (private, unverified)"
 
 
 def discover_shared_store(bead_context: Any | None = None) -> Any | None:

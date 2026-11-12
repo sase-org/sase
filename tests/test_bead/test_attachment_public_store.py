@@ -90,7 +90,16 @@ def public_prober(monkeypatch: pytest.MonkeyPatch):
         set_remote_visibility_prober,
     )
 
-    set_remote_visibility_prober(lambda url: "public")
+    def _prober(url: str | None) -> str:
+        # Only the public-remote fixture reads as public. Private clones
+        # must not probe public: since sase-1db the pre-upload gate
+        # refuses private-layout puts to public remotes, so a blanket
+        # "public" verdict would misrepresent the private fixture remote.
+        if url and "public-remote" in url:
+            return "public"
+        return "unknown"
+
+    set_remote_visibility_prober(_prober)
     yield
     set_remote_visibility_prober(None)
 
