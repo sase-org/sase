@@ -244,6 +244,47 @@ def test_settle_turn_claim_and_followup_uses_configured_fields() -> None:
     assert updated["gate_followup_degraded_reason"] == "fresh claim"
 
 
+def test_settle_turn_claim_and_followup_records_suppressed_without_launching() -> None:
+    config = TurnSettlementConfig(
+        next_action_field="monitor_next_action",
+        agent_field="monitor_followup_agent",
+        outcome_field="monitor_followup_outcome",
+        error_field="monitor_followup_error",
+        degraded_reason_field="monitor_followup_degraded_reason",
+        prompt_path_field="monitor_followup_prompt_path",
+        lost_state="lost",
+        stopped_state="stopped",
+        lost_followup_error="lost monitor",
+        degraded_outcome="launched-degraded",
+        fallback_followup_error="follow-up failed",
+        missing_project_error="missing project",
+    )
+    meta: dict[str, Any] = {"monitor_next_action": "Resume the land agent."}
+    updated: dict[str, Any] = {}
+    launches: list[object] = []
+
+    def launch_followup(*_args: object, **_kwargs: object) -> FollowupLaunchResult:
+        launches.append(True)
+        return FollowupLaunchResult(launched=True, agent_name="acme--1")
+
+    result = settle_turn_claim_and_followup(
+        "/tmp/artifacts",
+        meta,
+        shell_state="stopped",
+        project_name="proj",
+        config=config,
+        release_claim=lambda _meta, _project: None,
+        launch_followup=launch_followup,
+        launch_kwargs={},
+        update_meta_field=lambda _path, key, value: updated.__setitem__(key, value),
+    )
+
+    assert result is None
+    assert launches == []
+    assert meta["monitor_followup_outcome"] == "suppressed"
+    assert updated["monitor_followup_outcome"] == "suppressed"
+
+
 def test_record_followup_launched_uses_configured_agent_field() -> None:
     meta: dict[str, object] = {}
     updated: dict[str, object] = {}

@@ -71,7 +71,22 @@ def settle_turn_claim_and_followup(
         release_error = release_claim(meta, project_name)
         return release_error or config.lost_followup_error
 
-    if next_action and shell_state != config.stopped_state:
+    if next_action and shell_state == config.stopped_state:
+        # A user-stopped shell must not auto-dispatch, but it must still
+        # record a terminal follow-up outcome. Leaving next_action set with
+        # followup_outcome absent made done monitors own their bead forever.
+        # `suppressed` is the established stop token (proc settlement and
+        # monitor stop tests); it is not a launch.
+        record_turn_followup_outcome(
+            artifacts_dir,
+            meta,
+            config=config,
+            outcome="suppressed",
+            update_meta_field=update_meta_field,
+        )
+        return release_claim(meta, project_name)
+
+    if next_action:
         if project_name and launch_followup is not None:
             launch_result = _coerce_followup_result(
                 launch_followup(artifacts_dir, meta, **dict(launch_kwargs)),
