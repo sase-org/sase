@@ -28,6 +28,36 @@ def test_clone_path_helpers_split_linked_and_sidecar_namespaces(
     )
 
 
+@pytest.mark.parametrize(
+    "name",
+    ["..", "../evil", "foo/bar", r"foo\bar", ".hidden", " foo", "foo ", "/tmp/pwn"],
+)
+def test_clone_path_helpers_reject_unsafe_components(
+    tmp_path: Path,
+    name: str,
+) -> None:
+    host = tmp_path / "main_10"
+    with pytest.raises(ValueError, match="safe path component"):
+        linked_repo_clone_dir(host, name)
+    with pytest.raises(ValueError, match="safe path component"):
+        sidecar_repo_clone_dir(host, name)
+    assert not (tmp_path / "evil").exists()
+    assert not (tmp_path / "pwn").exists()
+
+
+def test_materialize_linked_repo_workspace_refuses_escaped_target(
+    tmp_path: Path,
+) -> None:
+    outside = tmp_path / "outside"
+    with pytest.raises(RuntimeError, match="sase/repos"):
+        materialize_linked_repo_workspace(
+            primary_dir=str(tmp_path / "primary"),
+            workspace_dir=str(outside),
+            workspace_num=10,
+        )
+    assert not outside.exists()
+
+
 def test_sidecar_materialization_normalizes_protocol_in_place(
     tmp_path: Path,
 ) -> None:

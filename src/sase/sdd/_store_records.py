@@ -12,6 +12,7 @@ from sase._git_remote import (
     SidecarRemotePolicyError,
     enforce_sidecar_remote_policy,
 )
+from sase.core.paths import is_safe_path_component
 from sase.sdd._store_types import (
     _DISCOVERY_VALUES,
     _STORAGE_VALUES,
@@ -309,7 +310,7 @@ def _sidecars_from_raw(
         return {}
     result: dict[str, SddSidecar] = {}
     for role, value in sidecars.items():
-        if not isinstance(role, str) or not role:
+        if not isinstance(role, str) or not is_safe_path_component(role):
             continue
         sidecar = _coerce_sidecar(
             value,

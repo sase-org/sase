@@ -6,6 +6,8 @@ from datetime import UTC, datetime
 import json
 from pathlib import Path
 
+import pytest
+
 from sase.agent.identity import AgentIdentity
 from sase.repo_open_log import (
     append_repo_open_event,
@@ -36,6 +38,29 @@ def _event(
         open_id=f"{agent_name}-{repo}-{workspace_num}",
         agent=AgentIdentity(agent_name, "SASE_AGENT_NAME", "/artifacts"),
     )
+
+
+@pytest.mark.parametrize("project", ["../evil", "/tmp/pwn", "..", ".hidden"])
+def test_repo_open_log_path_rejects_traversal_names(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, project: str
+) -> None:
+    monkeypatch.setenv("SASE_HOME", str(tmp_path / ".sase"))
+    event = build_repo_open_event(
+        project=project,
+        repo="core",
+        repo_kind="linked",
+        workspace_num=10,
+        path="/work/demo_10/repos/core",
+        reason="open core",
+        cwd=Path("/work/demo_10"),
+        now=datetime(2026, 7, 13, 12, 0, tzinfo=UTC),
+        open_id="agent-a-core-10",
+        agent=AgentIdentity("agent-a", "SASE_AGENT_NAME", "/artifacts"),
+    )
+    with pytest.raises(ValueError, match="invalid SASE project name"):
+        append_repo_open_event(event)
+    assert not (tmp_path / "evil").exists()
+    assert not (tmp_path / "pwn").exists()
 
 
 def test_append_and_read_skip_malformed_rows(tmp_path: Path) -> None:

@@ -142,7 +142,7 @@ def test_materialize_creates_fresh_linked_clone(
     target = host / "sase" / "repos" / "linked" / "core"
     ensured: list[str] = []
 
-    def ensure_clone(_primary: str, _num: int, path: str) -> str:
+    def ensure_clone(_primary: str, _num: int, path: str, **_kwargs: object) -> str:
         ensured.append(path)
         Path(path).mkdir(parents=True, exist_ok=True)
         subprocess.run(["git", "init", "-q", path], check=True)

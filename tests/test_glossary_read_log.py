@@ -56,10 +56,7 @@ def test_multiple_legacy_rows_are_all_readable(tmp_path: Path) -> None:
 def test_glossary_read_log_path_uses_project_state_and_aliases(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    monkeypatch.setattr(
-        "sase.memory.legacy_glossary_read_log.sase_projects_dir",
-        lambda: tmp_path / ".sase" / "projects",
-    )
+    monkeypatch.setenv("SASE_HOME", str(tmp_path / ".sase"))
     monkeypatch.setattr(
         "sase.memory.legacy_glossary_read_log.resolve_project_alias_ref",
         lambda ref: {"bob": "bob-cli"}.get(ref, ref),
@@ -71,6 +68,17 @@ def test_glossary_read_log_path_uses_project_state_and_aliases(
     assert glossary_read_log_path("bob") == (
         tmp_path / ".sase" / "projects" / "bob-cli" / "glossary_reads.jsonl"
     )
+
+
+@pytest.mark.parametrize("project", ["../evil", "/tmp/pwn", "..", ".hidden"])
+def test_glossary_read_log_path_rejects_traversal_names(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, project: str
+) -> None:
+    monkeypatch.setenv("SASE_HOME", str(tmp_path / ".sase"))
+    with pytest.raises(ValueError, match="invalid SASE project name"):
+        glossary_read_log_path(project)
+    assert not (tmp_path / "evil").exists()
+    assert not (tmp_path / "pwn").exists()
 
 
 def test_filter_covers_requested_and_related_terms() -> None:

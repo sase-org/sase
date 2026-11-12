@@ -176,6 +176,34 @@ def machine_name_path() -> Path:
 _PROJECT_NAME_PATH_SEPARATORS = ("/", "\\")
 
 
+def is_safe_path_component(component: object) -> bool:
+    """Return True if *component* is a single non-escaping path name.
+
+    Rejecting empty names, ``.``/``..``, surrounding whitespace, leading
+    dots, NUL, and both path separators is what keeps a joined child
+    under its parent after resolve. Nothing that passes these checks can
+    escape by traversal.
+    """
+    if not isinstance(component, str) or not component:
+        return False
+    if component in {".", ".."}:
+        return False
+    if component != component.strip() or component.startswith("."):
+        return False
+    if any(separator in component for separator in _PROJECT_NAME_PATH_SEPARATORS):
+        return False
+    if "\x00" in component:
+        return False
+    return True
+
+
+def require_safe_path_component(component: str, *, label: str = "name") -> str:
+    """Raise ``ValueError`` unless *component* is a safe path component."""
+    if not is_safe_path_component(component):
+        raise ValueError(f"{label} must be a safe path component")
+    return component
+
+
 def is_valid_sase_project_name(project_name: str) -> bool:
     """Return True if *project_name* is safe as one SASE projects child.
 
@@ -197,6 +225,37 @@ def validate_sase_project_name(project_name: str) -> None:
     """Raise ``ValueError`` if *project_name* is not a valid SASE project name."""
     if not is_valid_sase_project_name(project_name):
         raise ValueError(f"invalid SASE project name: {project_name!r}")
+
+
+def _is_safe_project_key(project_key: object) -> bool:
+    """Return True if *project_key* cannot escape a parent directory.
+
+    Project keys may contain ``/`` so GitHub identities can nest as
+    ``sase-org/sase``. Each slash-separated component must still be a
+    safe path component: ``..``, empty segments, separators, leading
+    dots, surrounding whitespace, and NUL are rejected.
+    """
+    if not isinstance(project_key, str) or not project_key:
+        return False
+    return all(is_safe_path_component(part) for part in project_key.split("/"))
+
+
+def validate_sase_project_key(project_key: str) -> None:
+    """Raise ``ValueError`` if *project_key* is not a safe project identity."""
+    if not _is_safe_project_key(project_key):
+        raise ValueError(f"invalid SASE project key: {project_key!r}")
+
+
+def sase_project_dir(project_name: str, *parts: str) -> Path:
+    """Return a path under ``sase_projects_dir() / project_name``.
+
+    Raises ``ValueError`` if *project_name* is not a valid SASE project
+    name. That check is what enforces containment under
+    ``sase_projects_dir()``, matching the validated sinks that already
+    call :func:`validate_sase_project_name`.
+    """
+    validate_sase_project_name(project_name)
+    return sase_projects_dir().joinpath(project_name, *parts)
 
 
 def get_sase_directory(subdir: str) -> str:

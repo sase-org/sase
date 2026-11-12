@@ -79,6 +79,20 @@ def test_artifact_read_log_path_uses_project_state(
     )
 
 
+@pytest.mark.parametrize("project", ["../evil", "/tmp/pwn", "..", ".hidden"])
+def test_artifact_read_log_path_rejects_traversal_names(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, project: str
+) -> None:
+    redirect_sase_home(monkeypatch, tmp_path / ".sase")
+    with pytest.raises(ValueError, match="invalid SASE project name"):
+        artifact_read_log_path(project)
+    event = _event(project=project)
+    with pytest.raises(ValueError, match="invalid SASE project name"):
+        append_artifact_read_event(event)
+    assert not (tmp_path / "evil").exists()
+    assert not (tmp_path / "pwn").exists()
+
+
 def test_resolved_path_round_trips(tmp_path: Path) -> None:
     log_path = tmp_path / "artifact_reads.jsonl"
     event = _event(resolved_path=tmp_path / "materialized.md")

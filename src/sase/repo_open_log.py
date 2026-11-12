@@ -13,7 +13,7 @@ from typing import Any
 from uuid import uuid4
 
 from sase.agent.identity import AgentIdentity, resolve_audit_identity
-from sase.core.paths import sase_projects_dir
+from sase.core.paths import sase_project_dir
 from sase.memory.locks import locked_file
 from sase.project_aliases import resolve_project_alias_ref
 from sase.repo_inventory import RepoKind
@@ -112,7 +112,7 @@ def _repo_open_log_path(project: str) -> Path:
     """Return the project-scoped repository-open JSONL path."""
 
     project_name = resolve_project_alias_ref(project)
-    return sase_projects_dir() / project_name / "repo_opens.jsonl"
+    return sase_project_dir(project_name, "repo_opens.jsonl")
 
 
 def append_repo_open_event(

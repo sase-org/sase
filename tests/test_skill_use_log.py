@@ -120,6 +120,17 @@ def test_skill_use_log_path_canonicalizes_project_alias(
     )
 
 
+@pytest.mark.parametrize("project", ["../evil", "/tmp/pwn", "..", ".hidden"])
+def test_skill_use_log_path_rejects_traversal_names(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, project: str
+) -> None:
+    monkeypatch.setenv("SASE_HOME", str(tmp_path / ".sase"))
+    with pytest.raises(ValueError, match="invalid SASE project name"):
+        skill_use_log_path(project)
+    assert not (tmp_path / "evil").exists()
+    assert not (tmp_path / "pwn").exists()
+
+
 def test_skill_use_aggregation_groups_by_skill_and_agent(tmp_path: Path) -> None:
     base = build_skill_use_event(
         "sase_plan",

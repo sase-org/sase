@@ -109,3 +109,29 @@ class TestEnsureGitCloneAt:
         commands = [call.args[0] for call in mock_run.call_args_list]
         assert commands == [["git", "remote", "get-url", "origin"]]
         assert not target.exists()
+
+    def test_require_under_refuses_escaped_target(self, tmp_path: Path) -> None:
+        primary = tmp_path / "repo"
+        primary.mkdir()
+        repos = tmp_path / "host" / "sase" / "repos"
+        repos.mkdir(parents=True)
+        target = tmp_path / "outside"
+        with pytest.raises(RuntimeError, match="sase/repos"):
+            ensure_git_clone_at(
+                str(primary),
+                2,
+                str(target),
+                require_under=repos,
+            )
+        assert not target.exists()
+
+    def test_require_under_allows_child_of_root(self, tmp_path: Path) -> None:
+        primary = tmp_path / "repo"
+        primary.mkdir()
+        result = ensure_git_clone_at(
+            str(primary),
+            0,
+            str(primary),
+            require_under=tmp_path,
+        )
+        assert result == str(primary)

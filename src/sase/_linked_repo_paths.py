@@ -16,7 +16,11 @@ from sase._linked_repo_config import (
     resolution_config,
 )
 from sase._linked_repo_config_keys import SIDECAR_ROLE_KEY, SIDECAR_SLUG_KEY
-from sase.core.paths import sase_projects_dir
+from sase.core.paths import (
+    is_safe_path_component,
+    require_safe_path_component,
+    sase_projects_dir,
+)
 
 # Host-scoped linked and sidecar clones are launch-scoped in numbered
 # workspaces. Sidecars created there are cloned from their recorded remotes.
@@ -28,6 +32,7 @@ EXTERNAL_REPO_CLONES_SUBDIR = ("sase", "repos", "external")
 def linked_repo_clone_dir(host_checkout: str | Path, name: str) -> str:
     """Return the canonical host-scoped clone path for linked repo *name*."""
 
+    require_safe_path_component(name, label="linked repo name")
     return normalize_path(
         str(Path(host_checkout).joinpath(*LINKED_REPO_CLONES_SUBDIR, name))
     )
@@ -58,6 +63,7 @@ def external_repo_clone_dir(
 def sidecar_repo_clone_dir(host_checkout: str | Path, dirname: str) -> str:
     """Return the durable host-scoped clone path for SDD sidecar *dirname*."""
 
+    require_safe_path_component(dirname, label="sidecar dirname")
     return normalize_path(
         str(Path(host_checkout).joinpath(*SIDECAR_REPO_CLONES_SUBDIR, dirname))
     )
@@ -66,19 +72,8 @@ def sidecar_repo_clone_dir(host_checkout: str | Path, dirname: str) -> str:
 def hidden_sidecar_clone_dir(project_key: str, role: str) -> str:
     """Return one project's stable machine-level hidden-sidecar clone path."""
 
-    components = {"project key": project_key, "sidecar role": role}
-    for label, component in components.items():
-        if (
-            not isinstance(component, str)
-            or not component
-            or component in {".", ".."}
-            or component != component.strip()
-            or component.startswith(".")
-            or "/" in component
-            or "\\" in component
-            or "\x00" in component
-        ):
-            raise ValueError(f"{label} must be a safe path component")
+    require_safe_path_component(project_key, label="project key")
+    require_safe_path_component(role, label="sidecar role")
     return normalize_path(str(sase_projects_dir() / project_key / "repos" / role))
 
 
@@ -142,15 +137,19 @@ def _sdd_sidecar_repo_dirnames_cached(
 
     record = read_sdd_store_record(primary)
     if record is not None:
-        store_mapping = {
-            _repo_basename(sidecar.repo): kind
-            for kind, sidecar in record.sidecars.items()
-            if kind not in configured_roles
-            and kind not in disabled
-            and kind not in hidden
-            and _repo_basename(sidecar.repo) not in disabled
-            and _repo_basename(sidecar.repo) not in hidden
-        }
+        store_mapping: dict[str, str] = {}
+        for kind, sidecar in record.sidecars.items():
+            basename = _repo_basename(sidecar.repo)
+            if (
+                is_safe_path_component(kind)
+                and is_safe_path_component(basename)
+                and kind not in configured_roles
+                and kind not in disabled
+                and kind not in hidden
+                and basename not in disabled
+                and basename not in hidden
+            ):
+                store_mapping[basename] = kind
         mapping = {
             key: value
             for key, value in {**store_mapping, **configured}.items()

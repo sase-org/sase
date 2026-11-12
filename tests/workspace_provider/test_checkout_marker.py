@@ -96,6 +96,83 @@ class TestReadMarker:
         (checkout / ".sase" / "checkout.json").write_text("[1, 2]", encoding="utf-8")
         assert read_marker(str(checkout)) is None
 
+    @pytest.mark.parametrize(
+        "field, value, match",
+        [
+            ("project_name", "../evil", "invalid SASE project name"),
+            ("project_key", "../evil", "invalid SASE project key"),
+            ("project_name", "/tmp/pwn", "invalid SASE project name"),
+            ("project_key", "..", "invalid SASE project key"),
+            ("project_key", "/tmp/pwn", "invalid SASE project key"),
+            ("project_name", ".hidden", "invalid SASE project name"),
+        ],
+    )
+    def test_from_dict_rejects_unsafe_project_identity(
+        self, field: str, value: str, match: str
+    ) -> None:
+        raw = {
+            "project_name": "proj",
+            "project_key": "k",
+            "workspace_num": 10,
+            "primary_workspace_dir": "/work/proj",
+            "registry_path": "/work/registry.json",
+        }
+        raw[field] = value
+        with pytest.raises(ValueError, match=match):
+            CheckoutMarker.from_dict(raw)
+
+    def test_from_dict_allows_slash_separated_project_key(self) -> None:
+        marker = CheckoutMarker.from_dict(
+            {
+                "project_name": "sase",
+                "project_key": "sase-org/sase",
+                "workspace_num": 20,
+                "primary_workspace_dir": "/work/sase",
+                "registry_path": "/work/registry.json",
+            }
+        )
+        assert marker.project_key == "sase-org/sase"
+        assert marker.project_name == "sase"
+
+    @pytest.mark.parametrize(
+        "project_name, project_key",
+        [
+            ("sase", ""),
+            ("", "foo-org/foo"),
+        ],
+    )
+    def test_from_dict_allows_empty_optional_identity_fields(
+        self, project_name: str, project_key: str
+    ) -> None:
+        marker = CheckoutMarker.from_dict(
+            {
+                "project_name": project_name,
+                "project_key": project_key,
+                "workspace_num": 7,
+                "primary_workspace_dir": "",
+                "registry_path": "/work/registry.json",
+            }
+        )
+        assert marker.project_name == project_name
+        assert marker.project_key == project_key
+
+    def test_read_marker_treats_traversal_names_as_absent(self, tmp_path: Path) -> None:
+        checkout = tmp_path / "ws"
+        (checkout / ".sase").mkdir(parents=True)
+        (checkout / ".sase" / "checkout.json").write_text(
+            json.dumps(
+                {
+                    "project_name": "../evil",
+                    "project_key": "k",
+                    "workspace_num": 10,
+                    "primary_workspace_dir": "/work/proj",
+                    "registry_path": "/work/registry.json",
+                }
+            ),
+            encoding="utf-8",
+        )
+        assert read_marker(str(checkout)) is None
+
 
 class TestFindMarkerFromCwd:
     def test_finds_marker_in_ancestor(self, tmp_path: Path) -> None:

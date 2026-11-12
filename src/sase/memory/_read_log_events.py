@@ -13,7 +13,7 @@ from uuid import uuid4
 
 from sase.agent.identity import AgentIdentity
 from sase.agent.identity import require_agent_identity as _require_agent_identity
-from sase.core.paths import sase_projects_dir
+from sase.core.paths import sase_project_dir
 from sase.main.init_memory.config import project_memory_name
 from sase.memory._read_log_models import (
     READ_LOG_SCHEMA_VERSION,
@@ -157,7 +157,7 @@ def memory_read_log_path(
     project_name = resolve_project_alias_ref(
         project or project_memory_name(cwd or Path.cwd())
     )
-    return sase_projects_dir() / project_name / "memory_reads.jsonl"
+    return sase_project_dir(project_name, "memory_reads.jsonl")
 
 
 def append_memory_read_event(

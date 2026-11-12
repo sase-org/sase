@@ -9,7 +9,7 @@ import json
 from pathlib import Path
 from typing import Any
 
-from sase.core.paths import sase_projects_dir
+from sase.core.paths import sase_project_dir
 from sase.main.init_memory.config import project_memory_name
 from sase.memory.locks import locked_file
 from sase.memory.web.resolution import normalize_glossary_reference
@@ -53,7 +53,7 @@ def glossary_read_log_path(
     project_name = resolve_project_alias_ref(
         project or project_memory_name(cwd or Path.cwd())
     )
-    return sase_projects_dir() / project_name / "glossary_reads.jsonl"
+    return sase_project_dir(project_name, "glossary_reads.jsonl")
 
 
 def read_glossary_read_events(

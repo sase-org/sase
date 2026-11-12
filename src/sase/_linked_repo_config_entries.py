@@ -32,6 +32,7 @@ from sase._linked_repo_config_state import (
     repo_config_cache_key,
 )
 from sase._linked_repo_identity import resolve_sidecar_repo_identity
+from sase.core.paths import is_safe_path_component
 from sase.sdd._store_types import (
     AGENTS_SIDECAR_ROLE,
     ATTACHMENTS_PRIVATE_SIDECAR_ROLE,
@@ -274,7 +275,12 @@ def _sidecar_config_entries(config: Mapping[str, Any]) -> list[Mapping[str, Any]
 def _sidecar_bucket_entries(
     raw: Mapping[str, Any], bucket: str
 ) -> dict[str, Mapping[str, Any]]:
-    """Return one bucket's role-to-entry mapping, skipping unusable values."""
+    """Return one bucket's role-to-entry mapping, skipping unusable values.
+
+    Role keys become clone directory names under ``sase/repos/``, so
+    non-component values (``..``, separators, leading dots, NUL) are
+    rejected here rather than joined later.
+    """
 
     values = raw.get(bucket)
     if not isinstance(values, Mapping):
@@ -284,7 +290,7 @@ def _sidecar_bucket_entries(
         if not isinstance(raw_role, str) or not isinstance(entry, Mapping):
             continue
         role = raw_role.strip()
-        if not role:
+        if not is_safe_path_component(role):
             continue
         entries[role] = {str(key): value for key, value in entry.items()}
     return entries

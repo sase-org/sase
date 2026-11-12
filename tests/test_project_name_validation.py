@@ -7,7 +7,14 @@ from pathlib import Path
 
 import pytest
 
-from sase.core.paths import is_valid_sase_project_name, validate_sase_project_name
+from sase.core.paths import (
+    is_safe_path_component,
+    is_valid_sase_project_name,
+    require_safe_path_component,
+    sase_project_dir,
+    validate_sase_project_key,
+    validate_sase_project_name,
+)
 from sase.workflows.commit.project_file_utils import create_project_file
 
 
@@ -40,6 +47,84 @@ def test_project_name_validation_rejects_hidden_and_path_names(
     assert not is_valid_sase_project_name(project_name)
     with pytest.raises(ValueError, match="invalid SASE project name"):
         validate_sase_project_name(project_name)
+
+
+@pytest.mark.parametrize(
+    "component",
+    ["core", "plans", "attachments-private", "foo.bar"],
+)
+def test_safe_path_component_allows_normal_names(component: str) -> None:
+    assert is_safe_path_component(component)
+    assert require_safe_path_component(component, label="name") == component
+
+
+@pytest.mark.parametrize(
+    "component",
+    [
+        "",
+        ".",
+        "..",
+        "../evil",
+        "foo/bar",
+        r"foo\bar",
+        ".hidden",
+        " foo",
+        "foo ",
+        "/tmp/pwn",
+    ],
+)
+def test_safe_path_component_rejects_traversal_names(component: str) -> None:
+    assert not is_safe_path_component(component)
+    with pytest.raises(ValueError, match="safe path component"):
+        require_safe_path_component(component, label="name")
+
+
+@pytest.mark.parametrize(
+    "project_key",
+    ["sase", "sase-org/sase", "github.com/sase-org/sase"],
+)
+def test_project_key_validation_allows_slash_separated_identities(
+    project_key: str,
+) -> None:
+    validate_sase_project_key(project_key)
+
+
+@pytest.mark.parametrize(
+    "project_key",
+    ["", "..", "../evil", "/tmp/pwn", "sase-org/../sase", r"foo\bar", ".hidden/x"],
+)
+def test_project_key_validation_rejects_traversal_identities(
+    project_key: str,
+) -> None:
+    with pytest.raises(ValueError, match="invalid SASE project key"):
+        validate_sase_project_key(project_key)
+
+
+def test_sase_project_dir_joins_under_projects_root(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    monkeypatch.setenv("SASE_HOME", str(tmp_path / ".sase"))
+    assert sase_project_dir("demo", "artifact_reads.jsonl") == (
+        tmp_path / ".sase" / "projects" / "demo" / "artifact_reads.jsonl"
+    )
+
+
+@pytest.mark.parametrize(
+    "project_name",
+    ["", ".", "..", "../evil", "/tmp/pwn", ".hidden"],
+)
+def test_sase_project_dir_rejects_unsafe_names(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    project_name: str,
+) -> None:
+    monkeypatch.setenv("SASE_HOME", str(tmp_path / ".sase"))
+    with pytest.raises(ValueError, match="invalid SASE project name"):
+        sase_project_dir(project_name, "artifact_reads.jsonl")
+    assert not (tmp_path / "evil").exists()
+    assert not (tmp_path / "pwn").exists()
+    assert not (tmp_path / ".sase" / "projects" / ".hidden").exists()
 
 
 def test_create_project_file_rejects_hidden_project_name(

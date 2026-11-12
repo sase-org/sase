@@ -20,6 +20,10 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any
 
+from sase.core.paths import (
+    validate_sase_project_key,
+    validate_sase_project_name,
+)
 from sase.core.state_write_guard import pytest_path_is_sandboxed
 from sase.workspace_provider.registry import registry_path
 from sase.workspace_provider.store import (
@@ -49,9 +53,15 @@ class CheckoutMarker:
 
     @classmethod
     def from_dict(cls, raw: dict[str, Any]) -> CheckoutMarker:
+        project_name = str(raw.get("project_name", ""))
+        project_key = str(raw.get("project_key", ""))
+        if project_name:
+            validate_sase_project_name(project_name)
+        if project_key:
+            validate_sase_project_key(project_key)
         return cls(
-            project_name=str(raw.get("project_name", "")),
-            project_key=str(raw.get("project_key", "")),
+            project_name=project_name,
+            project_key=project_key,
             workspace_num=int(raw.get("workspace_num", 0)),
             primary_workspace_dir=str(raw.get("primary_workspace_dir", "")),
             registry_path=str(raw.get("registry_path", "")),

@@ -255,3 +255,29 @@ def test_bucketed_sidecar_skips_non_mapping_values(tmp_path: Path) -> None:
     )
 
     assert [entry["name"] for entry in entries] == ["research"]
+
+
+def test_traversal_sidecar_role_keys_are_rejected(tmp_path: Path) -> None:
+    """Role keys become clone dirnames; traversal names never enter the map."""
+    primary = tmp_path / "widget"
+    primary.mkdir()
+    _set_github_origin(primary, "git@github.com:acme/widget.git")
+    config = {
+        "repos": {
+            "sidecar": {
+                "custom": {
+                    "../evil": {"repo": "acme/evil"},
+                    ".hidden": {"repo": "acme/hidden"},
+                    "research": {},
+                }
+            }
+        }
+    }
+
+    entries = merged_sidecar_entries_from_config(
+        config, primary_workspace_dir=str(primary)
+    )
+    names = [entry["name"] for entry in entries]
+    assert "../evil" not in names
+    assert ".hidden" not in names
+    assert "research" in names

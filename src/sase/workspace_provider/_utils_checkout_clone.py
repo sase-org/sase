@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import os
 import subprocess
+from pathlib import Path
 
 from sase._git_worktree import is_worktree_root, require_worktree_root
 from sase.git_lock_retry import run_with_git_lock_retry
@@ -73,6 +74,20 @@ def _refuse_existing_borrower_after_status_failure(
     return False
 
 
+def _require_clone_target_under(target: str, root: str | Path) -> None:
+    """Refuse *target* unless it resolves strictly under *root*."""
+
+    resolved_target = Path(target).expanduser().resolve(strict=False)
+    resolved_root = Path(root).expanduser().resolve(strict=False)
+    if resolved_target == resolved_root or not resolved_target.is_relative_to(
+        resolved_root
+    ):
+        raise RuntimeError(
+            "refusing to clone outside sase/repos/: "
+            f"{str(resolved_target)!r} is not under {str(resolved_root)!r}"
+        )
+
+
 def ensure_git_clone_at(
     primary_workspace_dir: str,
     workspace_num: int,
@@ -81,6 +96,7 @@ def ensure_git_clone_at(
     assume_managed_checkout: bool = False,
     share_git_objects: bool = False,
     project_file: str | None = None,
+    require_under: str | Path | None = None,
 ) -> str:
     """Materialize a Git clone at a caller-supplied target directory.
 
@@ -97,13 +113,19 @@ def ensure_git_clone_at(
         project_file: ProjectSpec path accepted from higher-level checkout
             callers. Existing broken SASE borrowers are preserved for explicit
             repair instead of being recovered during clone materialization.
+        require_under: When set (linked/sidecar clones), refuse *target*
+            unless it resolves to a strict child of this directory. Callers
+            pass the host checkout's ``sase/repos`` root.
 
     Returns:
         The materialized checkout directory.
 
     Raises:
-        RuntimeError: If the primary directory is missing or the clone fails.
+        RuntimeError: If the primary directory is missing, the clone fails,
+            or *require_under* is set and the target escapes that root.
     """
+    if require_under is not None:
+        _require_clone_target_under(target_checkout_dir, require_under)
     if workspace_num <= 1:
         if not os.path.isdir(target_checkout_dir.rstrip("/")):
             raise RuntimeError(

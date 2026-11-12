@@ -12,7 +12,7 @@ from typing import Any
 from uuid import uuid4
 
 from sase.agent.identity import AgentIdentity, discover_agent_runtime
-from sase.core.paths import sase_projects_dir
+from sase.core.paths import sase_project_dir
 from sase.main.init_memory.config import project_memory_name
 from sase.memory.locks import locked_file
 from sase.project_aliases import resolve_project_alias_ref
@@ -127,7 +127,7 @@ def skill_use_log_path(project: str | None = None, *, cwd: Path | None = None) -
     project_name = resolve_project_alias_ref(
         project or project_memory_name(cwd or Path.cwd())
     )
-    return sase_projects_dir() / project_name / "skill_uses.jsonl"
+    return sase_project_dir(project_name, "skill_uses.jsonl")
 
 
 def append_skill_use_event(

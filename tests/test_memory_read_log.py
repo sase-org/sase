@@ -444,6 +444,17 @@ def test_memory_read_log_path_canonicalizes_project_alias(
     )
 
 
+@pytest.mark.parametrize("project", ["../evil", "/tmp/pwn", "..", ".hidden"])
+def test_memory_read_log_path_rejects_traversal_names(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, project: str
+) -> None:
+    monkeypatch.setenv("SASE_HOME", str(tmp_path / ".sase"))
+    with pytest.raises(ValueError, match="invalid SASE project name"):
+        memory_read_log_path(project)
+    assert not (tmp_path / "evil").exists()
+    assert not (tmp_path / "pwn").exists()
+
+
 def test_memory_read_aggregation_groups_by_path_and_agent(tmp_path: Path) -> None:
     content = _memory_content(tmp_path, "foo.md")
     base = build_memory_read_event(

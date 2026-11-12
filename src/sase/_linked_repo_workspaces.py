@@ -164,6 +164,30 @@ def _linked_repo_clone_location(
     return None
 
 
+def _sase_repos_root(workspace_dir: str | Path) -> Path | None:
+    """Return the ``sase/repos`` ancestor of *workspace_dir*, if any."""
+
+    parts = Path(workspace_dir).expanduser().resolve(strict=False).parts
+    for index, part in enumerate(parts[:-1]):
+        if part == "sase" and parts[index + 1] == "repos":
+            return Path(*parts[: index + 2])
+    return None
+
+
+def _require_under_sase_repos(target: str | Path, root: str | Path) -> None:
+    """Refuse *target* unless it resolves strictly under *root*."""
+
+    resolved_target = Path(target).expanduser().resolve(strict=False)
+    resolved_root = Path(root).expanduser().resolve(strict=False)
+    if resolved_target == resolved_root or not resolved_target.is_relative_to(
+        resolved_root
+    ):
+        raise RuntimeError(
+            "refusing to materialize a linked or sidecar clone outside "
+            f"{str(resolved_root)!r}: {str(resolved_target)!r}"
+        )
+
+
 def materialize_linked_repo_workspace(
     *,
     primary_dir: str,
@@ -176,14 +200,27 @@ def materialize_linked_repo_workspace(
     from sase.workspace_provider.utils import ensure_git_clone_at
 
     location = _linked_repo_clone_location(workspace_dir)
+    require_under: str | None = None
     if location is not None:
         host_checkout, name, is_sidecar = location
         if is_sidecar:
             workspace_dir = sidecar_repo_clone_dir(host_checkout, name)
         else:
             workspace_dir = linked_repo_clone_dir(host_checkout, name)
+        require_under = str(Path(host_checkout).joinpath(*SIDECAR_REPO_CLONES_SUBDIR))
+    elif workspace_num > 1:
+        inferred = _sase_repos_root(workspace_dir)
+        if inferred is None:
+            raise RuntimeError(
+                "refusing to materialize a linked or sidecar clone that is "
+                f"not under sase/repos/: {workspace_dir!r}"
+            )
+        require_under = str(inferred)
+        _require_under_sase_repos(workspace_dir, inferred)
 
     if expected_remote_url:
+        if require_under is not None:
+            _require_under_sase_repos(workspace_dir, require_under)
         checkout_dir = _materialize_remote_identified_sidecar(
             primary_dir=primary_dir,
             workspace_dir=workspace_dir,
@@ -191,7 +228,12 @@ def materialize_linked_repo_workspace(
             expected_remote_url=expected_remote_url,
         )
     else:
-        checkout_dir = ensure_git_clone_at(primary_dir, workspace_num, workspace_dir)
+        checkout_dir = ensure_git_clone_at(
+            primary_dir,
+            workspace_num,
+            workspace_dir,
+            require_under=require_under,
+        )
     from sase.workspace_provider.git_exclude import ensure_sase_git_info_excludes
 
     require_worktree_root(checkout_dir)

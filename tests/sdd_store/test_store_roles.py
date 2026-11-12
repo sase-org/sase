@@ -1,5 +1,6 @@
 """Generic SDD sidecar-role coverage."""
 
+import json
 from pathlib import Path
 
 import pytest
@@ -53,6 +54,65 @@ def test_custom_sidecar_record_without_research_routes_generic_role(
     assert store.remote_url_for_kind("designs") == designs.remote_url
     with pytest.raises(ValueError, match="no research root"):
         store.kind_root("research")
+
+
+def test_sidecars_from_raw_skips_unsafe_role_keys(tmp_path: Path) -> None:
+    written = write_sdd_store_record(
+        tmp_path,
+        {
+            "schema_version": 2,
+            "storage": "sidecar_repos",
+            "sidecars": {
+                "plans": {
+                    "repo": "owner/repo--plans",
+                    "remote_url": "plans-remote",
+                },
+                "../evil": {
+                    "repo": "owner/repo--evil",
+                    "remote_url": "evil-remote",
+                },
+            },
+        },
+    )
+    assert "../evil" not in written.sidecars
+    assert "plans" in written.sidecars
+    persisted = json.loads(
+        (tmp_path / ".sase" / "sdd-store.json").read_text(encoding="utf-8")
+    )
+    assert "../evil" not in persisted["sidecars"]
+
+
+def test_read_sdd_store_record_skips_unsafe_role_keys_on_disk(tmp_path: Path) -> None:
+    record_path = tmp_path / ".sase" / "sdd-store.json"
+    record_path.parent.mkdir(parents=True)
+    record_path.write_text(
+        json.dumps(
+            {
+                "schema_version": 2,
+                "storage": "sidecar_repos",
+                "sidecars": {
+                    "plans": {
+                        "repo": "owner/repo--plans",
+                        "remote_url": "plans-remote",
+                    },
+                    "../evil": {
+                        "repo": "owner/x/..",
+                        "remote_url": "evil-remote",
+                    },
+                    ".hidden": {
+                        "repo": "owner/repo--hidden",
+                        "remote_url": "hidden-remote",
+                    },
+                },
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    record = read_sdd_store_record(tmp_path)
+    assert record is not None
+    assert set(record.sidecars) == {"plans"}
 
 
 def test_document_sidecar_roles_exclude_non_document_reserved_roles() -> None:
