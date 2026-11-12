@@ -140,8 +140,12 @@ succeeds, including its push where applicable. Proposals run `before` but never 
 `after` because they save a diff without creating a commit.
 
 Both fields default to an empty string. Because the object is deep-merged, a global
-`before` hook and project-local `after` hook compose without either configuration
-repeating the other phase.
+`before` hook and an approved project-local `after` hook compose without either
+configuration repeating the other phase. With
+[project-local command trust](files-and-merging.md#project-local-command-trust) enabled,
+unapproved local `commit_hooks` are omitted before merging, leaving lower-layer hooks in
+effect. Each hook checks the target repository's trust again before execution; approval
+for the agent's main workspace does not approve a different repository.
 
 ```yaml
 commit_hooks:
@@ -175,6 +179,9 @@ subprocess group is terminated on timeout. Only a valid matching `findings` repo
 blocks the push. Timeout, signal, spawn failure, unsupported exits,
 malformed/missing/stale reports, invalid settings, and explicit `error` reports all warn
 and allow the push — unlike `before`/`after`, no gate error aborts dispatch.
+
+An `after_rebase` hook blocked by local trust is recorded as skipped, not as a passed
+check. Its warning names the configuration to review.
 
 A confirmed finding keeps the local commit unpublished with `pushed=false`, keeps the
 commit checkpoint (including the pending gate context), and returns exit 2 with repair

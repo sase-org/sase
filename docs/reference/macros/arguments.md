@@ -220,7 +220,7 @@ Resolution is scalar → inline `enum` → builtin (`agent`, `model`, `effort`, 
 
 | Type          | Kind    | Aliases   | Validation                                                                |
 | ------------- | ------- | --------- | ------------------------------------------------------------------------- |
-| `word`        | scalar  | --        | No whitespace allowed                                                     |
+| `word`        | scalar  | --        | Non-empty; letters `A–Z`/`a–z`, digits, `.`, `_`, and `-` only             |
 | `line`        | scalar  | --        | No newlines allowed (default type)                                        |
 | `text`        | scalar  | --        | Any content, no restrictions                                              |
 | `path`        | scalar  | --        | A single line; spaces are allowed, newlines are not                       |
@@ -229,7 +229,7 @@ Resolution is scalar → inline `enum` → builtin (`agent`, `model`, `effort`, 
 | `float`       | scalar  | --        | Must parse as a float                                                     |
 | `code`        | scalar  | --        | Structured source plus language (default language bash)                   |
 | `enum`        | inline  | --        | One of the input's declared `choices`                                     |
-| `agent`       | builtin | --        | Non-empty, no whitespace; completes agent names                           |
+| `agent`       | builtin | --        | Same characters as `word`, with an optional leading `@` for a tribe; completes agent names |
 | `effort`      | builtin | --        | One of the seven `%effort` levels, matched exactly                        |
 | `wait_target` | builtin | --        | One of `session` or `turn`, matched exactly                               |
 | `model`       | builtin | --        | A model token `%model` would accept without the default-provider fallback |

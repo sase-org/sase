@@ -126,6 +126,24 @@ completed migration. Adjacent checkouts keep sibling behavior and normally do no
 a persistent registry; `cleanup` and `repair` treat a missing registry as "nothing
 managed here" rather than an error.
 
+### Checkout and publication identity
+
+SASE checks that a selected checkout is its own Git worktree before guarded Git
+mutations. A directory inside another repository does not qualify just because Git can
+find the enclosing repository. Both ordinary clones and Git worktrees are supported. A
+refusal identifies the requested path and the discovered repository root; the existing
+contents remain available for repair.
+
+Before publication, SASE checks a managed checkout's `origin` and every effective origin
+push URL against the expected repository from its workspace, linked-repository, or
+repository-inventory identity. An unresolved identity or a different destination refuses
+the push. This check does not rewrite the remote; repair the checkout's origin before
+retrying. An unregistered user checkout has no independent SASE remote pin.
+
+Linked-repository and ordinary sidecar clone targets must resolve beneath the host
+checkout's `sase/repos/` directory. Clone names are single path components; traversal
+and symlinks that resolve outside that root are refused.
+
 <a id="adjacent-compatibility-and-migration"></a> Moved to
 [Workspace upgrades](../upgrading/workspaces.md#adjacent-compatibility-and-migration).
 

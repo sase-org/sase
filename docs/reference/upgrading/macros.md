@@ -29,6 +29,22 @@ See [Macro discovery](../macros/discovery.md#discovery-order) for the supported 
 
 ## Template and input aliases
 
+### Script interpolation
+
+Workflow `bash:` and `python:` bodies quote interpolated values automatically. Templates
+that placed `{{ value }}` inside shell or Python string quotes must remove those outer
+quotes. For example, `bash: echo "{{ message }}"` becomes
+`bash: printf '%s\n' {{ message }}`, and Python's `value = '{{ message }}'` becomes
+`value = {{ message }}`. The `raw` filter opts out for deliberately authored script
+fragments. See [Template syntax](../workflows.md#template-syntax).
+
+The `word` input type now accepts only non-empty ASCII letters, digits, `.`, `_`, and
+`-`. Use `line` for branch references containing `/` or other single-line text, and
+`path` for filesystem paths. The `agent` type additionally accepts a leading `@` for
+tribe references.
+
+### Accepted aliases
+
 | Accepted form       | Canonical form     |
 | ------------------- | ------------------ |
 | `{{ wait_chats }}`  | `{{ wait.chats }}` |

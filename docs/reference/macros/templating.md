@@ -170,8 +170,9 @@ literal during `gX`, `gL`, and fresh `gx` extraction and mint no placeholder-der
 
 ## Command Substitution
 
-Macro arguments support shell command substitution using `$(cmd)` syntax. The command is
-executed via the shell and its output replaces the `$(cmd)` expression.
+Macro arguments support shell command substitution using `$(cmd)` syntax. The command
+runs on the host before the macro renders, and its output replaces the `$(cmd)`
+expression.
 
 ```
 #bug:$(branch_bug)           # Use output of branch_bug command as the argument
@@ -184,6 +185,11 @@ it as `\$(`.
 Failed commands or commands producing empty output result in an empty string
 replacement. Command outputs are cached within a single expansion pass to avoid
 redundant execution.
+
+After macro expansion, prompt preprocessing substitutes remaining `$(cmd)` expressions
+only in human-authored prompt text. This later pass leaves agent-authored text literal;
+artifact-reference expansion still applies. Explicit workflow `bash:` and `python:`
+steps use their own [script interpolation rules](../workflows.md#template-syntax).
 
 ## Protected Content
 

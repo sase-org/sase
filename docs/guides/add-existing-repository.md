@@ -49,8 +49,8 @@ sase init -p <name> --check
 sase init -p <name> --yes
 ```
 
-Initialization walks the config, machine, memory, repository, service, and skills steps
-in order. Confirm everything is current:
+Answer any identity or sidecar-creation prompts in the terminal; `--yes` skips only
+generic confirmations. Then confirm everything is current:
 
 ```bash
 sase init -p <name> --check
@@ -66,7 +66,7 @@ point at.
 
 ## Related
 
-- [Initialization](../reference/agents/index.md) — every setup command, flag, and batch
-  mode.
+- [Initialization](../reference/agents/initialization.md) — every setup command, flag,
+  and batch mode.
 - [Agents, sessions, and workspaces](../concepts/agents.md) — how the project gives
   agents isolated checkouts to work in.

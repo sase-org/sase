@@ -92,6 +92,11 @@ one exists; otherwise it switches the focused panel to Main. It opens the stoppe
 at the top of its Context card and makes Context that panel's preferred card for later
 selections.
 
+For the same selected agent, background updates preserve the active Main card and a
+reader's position within it. In spread mode, new Context content does not switch a
+parked Reply selection back to Context. Explicit card or block navigation takes over
+from that preserved position.
+
 - **Agent details**: Name, status, model, provider, Patch association, and
   chronologically sorted timestamps:
   - `Bead` — shown for agents launched by `sase bead work`; modern phase and task rows

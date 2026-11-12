@@ -257,7 +257,7 @@ Execute Python code:
 - name: process_data
   python: |
     import json
-    data = json.loads('{{ input_json }}')
+    data = json.loads({{ input_json }})
     result = [item.upper() for item in data]
     print("result=" + json.dumps(result))
   output: { result: text }
@@ -486,13 +486,13 @@ Iterate over a list:
 ```yaml
 # Single variable
 - name: process_items
-  bash: echo "Processing {{ item }}"
+  bash: printf 'Processing %s\n' {{ item }}
   for: { item: "{{ items }}" }
   output: { result: text }
 
 # Multiple parallel variables (must have equal length)
 - name: process_pairs
-  bash: echo "{{ name }} has id {{ id }}"
+  bash: printf '%s has id %s\n' {{ name }} {{ id }}
   for:
     name: "{{ names }}"
     id: "{{ ids }}"
@@ -536,7 +536,7 @@ Execute step while a condition is true (checked after each iteration):
 
 # Long form with max iterations
 - name: poll_with_limit
-  bash: echo "active={{ check_active }}"
+  bash: printf 'active=%s\n' {{ check_active }}
   while:
     condition: "{{ poll_with_limit.active }}"
     max: 10
@@ -570,7 +570,7 @@ max iterations: 100.
 
 ```yaml
 - name: conditional_loop
-  bash: echo "Processing {{ item }}"
+  bash: printf 'Processing %s\n' {{ item }}
   if: "{{ should_process }}"
   for: { item: "{{ items }}" }
 ```
@@ -582,9 +582,9 @@ max iterations: 100.
   for: { item: "[1, 2, 3]" }
   parallel:
     - name: task_a
-      bash: echo "A processing {{ item }}"
+      bash: printf 'A processing %s\n' {{ item }}
     - name: task_b
-      bash: echo "B processing {{ item }}"
+      bash: printf 'B processing %s\n' {{ item }}
 ```
 
 ## Parallel Execution
@@ -643,14 +643,14 @@ The `join` field controls how iteration/parallel results are combined.
 ```yaml
 # Array join (default for for:)
 - name: collect_results
-  bash: echo "value={{ item }}"
+  bash: printf 'value=%s\n' {{ item }}
   for: { item: "[1, 2, 3]" }
   output: { value: int }
 # Result: [{"value": 1}, {"value": 2}, {"value": 3}]
 
 # Text join
 - name: concatenate
-  bash: echo "line={{ item }}"
+  bash: printf 'line=%s\n' {{ item }}
   for: { item: "['a', 'b', 'c']" }
   join: text
   output: { line: word }
@@ -658,7 +658,7 @@ The `join` field controls how iteration/parallel results are combined.
 
 # lastOf join
 - name: keep_last
-  bash: echo "final={{ item }}"
+  bash: printf 'final=%s\n' {{ item }}
   for: { item: "['first', 'middle', 'last']" }
   join: lastOf
   output: { final: word }
@@ -677,6 +677,24 @@ The `join` field controls how iteration/parallel results are combined.
 ## Template Syntax
 
 Workflows use Jinja2 for template rendering.
+
+Interpolation depends on the step body:
+
+| Body                      | Inserted value                                                                             |
+| ------------------------- | ------------------------------------------------------------------------------------------ |
+| `bash:`                   | One shell-quoted value; booleans become `true`/`false` and `None` becomes `null`.          |
+| `python:`                 | A Python literal, including quotes around strings.                                         |
+| `agent:` / `prompt_part:` | Prompt text, subject to [prompt preprocessing](macros/templating.md#command-substitution). |
+
+Place script interpolations outside authored string quotes: use
+`printf '%s\n' {{ message }}` in Bash and `message = {{ message }}` in Python. For a
+JSON string input, `json.loads({{ input_json }})` parses the rendered string; for a
+native list or dictionary, assign `{{ data }}` directly.
+
+The `raw` filter inserts a value verbatim into a script. Use it only for deliberately
+constructed script fragments. Python's `tojson` filter inserts its result without
+another quoting pass; it does not need surrounding quotes. See
+[macro migration notes](upgrading/macros.md#script-interpolation) for older templates.
 
 ### Variable Access
 
@@ -954,7 +972,7 @@ The following workflow files demonstrate these features:
 input: { name: word }
 steps:
   - name: greet
-    bash: echo "message=Hello, {{ name }}!"
+    bash: printf 'message=Hello, %s!\n' {{ name }}
     output: { message: line }
 ```
 
@@ -972,7 +990,7 @@ steps:
     output: { ready: bool }
 
   - name: process_items
-    bash: echo "processed={{ item }}"
+    bash: printf 'processed=%s\n' {{ item }}
     if: "{{ setup.ready }}"
     for: { item: "{{ items }}" }
     output: { processed: word }
@@ -983,7 +1001,7 @@ steps:
     output: { ran: bool }
 
   - name: summary
-    bash: echo "items_count={{ process_items | length }}"
+    bash: printf 'items_count=%s\n' {{ process_items | length }}
     output: { items_count: int }
 ```
 

@@ -122,14 +122,17 @@ Matching semantics:
   first dispatch is retried.
 
 The user layer (`~/.config/sase/sase.yml`) replaces the bundled/default `file_hooks`
-list. Selected machine overlays (`sase_*.yml`) and project-local `sase/sase.yml`
-concatenate entries onto the effective list, matching `mentor_profiles` merge behavior.
-Hook names must remain unique across the effective list; invalid or duplicate entries
-are warned about and skipped. Unknown `file_hooks` keys are rejected the same way, so a
-hook carrying one is skipped with a warning rather than silently losing that filter.
-Hook filter fields belong under `filters`: `projects`, `sidecars`, `path_globs`,
-`agent_name_globs`, `ops`, `causes`, and `producers`. `globs` is not accepted; use
-`filters.path_globs`. See
+list. Selected overlays (`sase_*.yml`) concatenate entries onto the effective list.
+Project-local `sase/sase.yml` entries join that list only when allowed by
+[project-local command trust](files-and-merging.md#project-local-command-trust). This
+includes local entries that instantiate plugin hook templates. Execution checks trust
+again, so revoking approval or changing the local commands can skip a hook that was
+already queued. User and overlay hooks remain eligible. Hook names must remain unique
+across the effective list; invalid or duplicate entries are warned about and skipped.
+Unknown `file_hooks` keys are rejected the same way, so a hook carrying one is skipped
+with a warning rather than silently losing that filter. Hook filter fields belong under
+`filters`: `projects`, `sidecars`, `path_globs`, `agent_name_globs`, `ops`, `causes`,
+and `producers`. `globs` is not accepted; use `filters.path_globs`. See
 [Configuration migration notes](../upgrading/configuration.md#file-hook-filters).
 
 Source: `src/sase/config/file_hooks.py`, `src/sase/file_hooks/engine.py`,

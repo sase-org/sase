@@ -28,14 +28,16 @@ to free `agents-live` slots with `in:archive` prepended.
 
 Day banners group the list by default; `o` switches grouping between day, project,
 outcome, and model. `j` / `k` move across rows, banners, containers, and `⋮ more` rows,
-while `J` / `K` move between the Inbox pulse and the list. Selecting a row hydrates the
+while `J` / `K` move between the Inbox pulse and the list. The Inbox pulse summarizes
+live Inbox activity; `Enter`, `l`, or a click on that pulse returns to the saved Inbox
+view. Selecting an archive row hydrates the
 real decks from the retained bundle: the full prompt, the reply, diffs, tool calls, and
 the Record deck's Lifecycle, Provenance, Relations, and Links cards.
 
 The Jump panel shows the archived agent's relations, and the `linked:`, `relation:`, and
 `artifact:` facets expose the same graph as query terms.
 
-`Enter` opens the action chooser. Its ARCHIVE section lists Restore first:
+`Enter` on an archive row opens the action chooser. Its ARCHIVE section lists Restore first:
 `Restore to inbox`, `Restore N marked` when Archive marks exist, or
 `Restore clan|session <name> (N members)` on a container. Marks take precedence over the
 highlighted row. A container, collapsed or expanded and highlighted or marked, restores
@@ -74,7 +76,7 @@ that blocked save action; it is not the chooser's restore-and-show key.
 | Key       | Action                                                             |
 | --------- | ------------------------------------------------------------------ |
 | `,a`      | Toggle between the Inbox and the Archive                           |
-| `Enter`   | Open the chooser (Restore first; Open chat when restore is absent) |
+| `Enter`   | Open a row's chooser; return to Inbox when the Inbox pulse is focused |
 | `j` / `k` | Select the next / previous archive row, banner, or `⋮ more` row    |
 | `J` / `K` | Move between the Inbox pulse and the Archive list                  |
 | `o`       | Archive grouping picker: day · project · outcome · model           |
