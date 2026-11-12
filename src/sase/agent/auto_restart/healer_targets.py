@@ -400,16 +400,15 @@ def _project_for_artifacts_dir(artifacts_dir: Path) -> str:
     positional derivation: ``parents[1].name`` is the month, not the project.
     The parser handles legacy and sharded layouts; the positional chain
     survives only as the fallback when the path parses to nothing (for
-    example rows outside the projects root).
+    example rows outside the projects root). Parser/binding failures
+    propagate so the caller skips or reports the row instead of claiming a
+    guessed month-keyed ledger entry.
     """
-    try:
-        from sase.core.agent_artifact_paths import parse_agent_artifact_path
+    from sase.core.agent_artifact_paths import parse_agent_artifact_path
 
-        info = parse_agent_artifact_path(artifacts_dir)
-        if info is not None and info.project_name:
-            return info.project_name
-    except Exception:
-        pass
+    info = parse_agent_artifact_path(artifacts_dir)
+    if info is not None and info.project_name:
+        return info.project_name
     try:
         return artifacts_dir.parents[1].name
     except IndexError:

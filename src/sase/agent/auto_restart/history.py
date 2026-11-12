@@ -107,14 +107,11 @@ def _project_for_done(done: Mapping[str, Any], artifacts_dir: Path) -> str:
     cl_name = done.get("cl_name")
     if isinstance(cl_name, str) and cl_name:
         return cl_name
-    try:
-        from sase.core.agent_artifact_paths import parse_agent_artifact_path
+    from sase.core.agent_artifact_paths import parse_agent_artifact_path
 
-        info = parse_agent_artifact_path(artifacts_dir)
-        if info is not None and info.project_name:
-            return info.project_name
-    except Exception:
-        pass
+    info = parse_agent_artifact_path(artifacts_dir)
+    if info is not None and info.project_name:
+        return info.project_name
     try:
         return artifacts_dir.parents[1].name
     except IndexError:
@@ -165,11 +162,17 @@ def _iter_done_candidates(
                     if isinstance(meta_name, str) and meta_name
                     else artifacts_dir.name
                 )
+            try:
+                project = _project_for_done(done, artifacts_dir)
+            except Exception:
+                # A parser/binding failure must not become a guessed
+                # month-keyed ledger identity: skip the row.
+                continue
             candidates.append(
                 FailedCandidate(
                     source="done",
                     name=name,
-                    project=_project_for_done(done, artifacts_dir),
+                    project=project,
                     died_at=_done_died_at(done, artifacts_dir, mtime),
                     artifacts_dir=artifacts_dir,
                     done=done,

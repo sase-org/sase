@@ -5,6 +5,7 @@ from __future__ import annotations
 import re
 from collections.abc import Mapping
 from dataclasses import dataclass
+from typing import Any
 
 from sase.agent.force_reuse_bead import ForceReuseBeadAssociation
 from sase.plan_chain import AGENT_SESSION_SEPARATOR
@@ -18,6 +19,7 @@ __all__ = [
     "force_reuse_bead_associations_by_prompt",
     "force_reuse_owner_names",
     "internal_agent_name_bypass_enabled",
+    "iter_explicit_launch_name_directives",
     "preflight_launch_name_requests",
     "rewrite_force_reuse_name_directives",
     "validate_user_agent_name",
@@ -459,6 +461,16 @@ def force_reuse_owner_names(prompts: list[str]) -> list[str]:
             names.append(request.name)
             seen.add(request.name)
     return names
+
+
+def iter_explicit_launch_name_directives(prompt: str) -> list[Any]:
+    """Return explicit ``%id`` directives for one launch prompt.
+
+    Public for the auto-restart healer's launcher resubmission, which needs
+    the intended concrete identity to hand off only the failed row's own
+    planned reservation through the normal launch guard.
+    """
+    return list(_iter_explicit_name_directives(prompt))
 
 
 def force_reuse_bead_associations_by_prompt(

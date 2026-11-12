@@ -91,8 +91,18 @@ during bootstrap, so neither `agent_meta.json` nor `done.json` carries a name �
 relaunched by resubmitting the row's `raw_prompt.md` through the normal launch machinery
 instead of the name-based restart planner; the prompt's own directives re-create the
 intended identity. The resubmission still counts as the lineage's one automatic restart.
-A launcher row is declined when `raw_prompt.md` is missing, empty, unparsable, or
-multi-segment.
+A launcher row is declined when `raw_prompt.md` is missing, empty, unparsable,
+multi-segment, or requesting forced name reuse.
+
+When the launcher prompt names an explicit agent, the healer hands off only the failed
+row's own planned reservation: it releases that reservation with the existing
+owner-checked primitive, rechecks ownership and liveness at the mutation boundary, and
+re-validates with the real launch-name guard before spawning. A foreign or live owner's
+name is never stolen — the pass fails closed instead of launching a duplicate — and an
+ownership change, a missing row, or a guard refusal settles the lineage terminally
+without a second automatic attempt. The failed row's artifacts and workspace hold
+survive; the replacement claims a different workspace slot through the normal allocation
+path.
 
 Never restarted: provider errors, rate limits, auth, kills and cancels,
 OOM/timeout/disk-full, directive or macro errors, tool and test failures, and any

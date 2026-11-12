@@ -3,8 +3,10 @@
 A managed root is a checkout sase trusts: the ``sase`` host, the
 ``sase-core-rs`` extension, or an editable ``sase-*`` plugin. The failure
 classifier scopes every signature family to these roots, so an
-ImportError raised by code under an agent's workspace directory never
-matches.
+ImportError raised only by workspace-only code — under the agent's
+workspace directory but under no managed root — never matches. A managed
+checkout that also serves as the workspace (self-hosted editable
+installs) still counts as managed.
 """
 
 from __future__ import annotations
