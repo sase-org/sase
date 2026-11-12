@@ -50,7 +50,7 @@ def test_launcher_releases_owned_reservation_with_real_guard(
     _ = tmp_home
     _reset_registry(monkeypatch)
     from sase.agent import launcher
-    from sase.agent.auto_restart import healer_relaunch
+    from sase.agent.auto_restart import healer_relaunch_claim
     from sase.agent.launch_validation import validate_launch_name_requests
     from sase.agent.names import (
         planned_registered_name_belongs_to_artifact,
@@ -80,7 +80,9 @@ def test_launcher_releases_owned_reservation_with_real_guard(
         launched.append(prompt)
         return [SimpleNamespace(artifacts_dir=str(replacement_dir))]
 
-    monkeypatch.setattr(healer_relaunch, "_launcher_project_cwd", lambda _p: tmp_home)
+    monkeypatch.setattr(
+        healer_relaunch_claim, "launcher_project_cwd", lambda _p: tmp_home
+    )
     monkeypatch.setattr(launcher, "launch_agents_from_cwd", fake_launch)
 
     outcome = heal_one(
@@ -131,7 +133,7 @@ def test_launcher_preserves_foreign_reservation(
     _ = tmp_home
     _reset_registry(monkeypatch)
     from sase.agent import launcher
-    from sase.agent.auto_restart import healer_relaunch
+    from sase.agent.auto_restart import healer_relaunch_claim
     from sase.agent.names import (
         planned_registered_name_belongs_to_artifact,
         reserve_registered_name,
@@ -148,7 +150,9 @@ def test_launcher_preserves_foreign_reservation(
     def _must_not_launch(*args, **kwargs):
         raise AssertionError("foreign-owned names must never launch")
 
-    monkeypatch.setattr(healer_relaunch, "_launcher_project_cwd", lambda _p: tmp_home)
+    monkeypatch.setattr(
+        healer_relaunch_claim, "launcher_project_cwd", lambda _p: tmp_home
+    )
     monkeypatch.setattr(launcher, "launch_agents_from_cwd", _must_not_launch)
 
     outcome = heal_one(
@@ -178,7 +182,7 @@ def test_launcher_ownership_race_fails_closed(
     _ = quiet_notifications
     _reset_registry(monkeypatch)
     from sase.agent import launcher
-    from sase.agent.auto_restart import healer_relaunch
+    from sase.agent.auto_restart import healer_relaunch_claim
     from sase.agent.names import reserve_registered_name
     import sase.agent.names as names_mod
 
@@ -199,7 +203,9 @@ def test_launcher_ownership_race_fails_closed(
     monkeypatch.setattr(
         names_mod, "planned_registered_name_belongs_to_artifact", _flaky
     )
-    monkeypatch.setattr(healer_relaunch, "_launcher_project_cwd", lambda _p: tmp_home)
+    monkeypatch.setattr(
+        healer_relaunch_claim, "launcher_project_cwd", lambda _p: tmp_home
+    )
     monkeypatch.setattr(
         launcher,
         "launch_agents_from_cwd",
@@ -238,7 +244,7 @@ def test_launcher_invalid_prompts_do_not_mutate_reservations(
     _ = tmp_home
     _reset_registry(monkeypatch)
     from sase.agent import launcher
-    from sase.agent.auto_restart import healer_relaunch
+    from sase.agent.auto_restart import healer_relaunch_claim
     from sase.agent.names import (
         planned_registered_name_belongs_to_artifact,
         reserve_registered_name,
@@ -256,8 +262,8 @@ def test_launcher_invalid_prompts_do_not_mutate_reservations(
     )
 
     monkeypatch.setattr(
-        healer_relaunch,
-        "_launcher_project_cwd",
+        healer_relaunch_claim,
+        "launcher_project_cwd",
         lambda _p: (_ for _ in ()).throw(
             AssertionError("invalid prompts decline before project lookup")
         ),
@@ -294,7 +300,7 @@ def test_launcher_failed_spawn_stays_terminal(
     _ = quiet_notifications
     _reset_registry(monkeypatch)
     from sase.agent import launcher
-    from sase.agent.auto_restart import healer_relaunch
+    from sase.agent.auto_restart import healer_relaunch_claim
     from sase.agent.names import reserve_registered_name
 
     raw_prompt = "%id:bootstrap-agent\nResume the requested work.\n"
@@ -308,7 +314,9 @@ def test_launcher_failed_spawn_stays_terminal(
         calls.append(prompt)
         raise RuntimeError("spawn failed")
 
-    monkeypatch.setattr(healer_relaunch, "_launcher_project_cwd", lambda _p: tmp_home)
+    monkeypatch.setattr(
+        healer_relaunch_claim, "launcher_project_cwd", lambda _p: tmp_home
+    )
     monkeypatch.setattr(launcher, "launch_agents_from_cwd", _failing_launch)
 
     outcome = heal_one(

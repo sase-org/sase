@@ -278,7 +278,9 @@ def test_attach_provenance_fills_from_identity_and_file_proof(
     """Provenance falls back to W1 identity revs and W3 file proof."""
     from types import SimpleNamespace
 
-    from sase.agent.auto_restart.healer_relaunch import _attach_provenance
+    from sase.agent.auto_restart._healer_relaunch_provenance import (
+        attach_provenance,
+    )
     from sase.agent.auto_restart.provenance import PROVENANCE_ENV
 
     target = HealerTarget(
@@ -302,7 +304,7 @@ def test_attach_provenance_fills_from_identity_and_file_proof(
     )
     import json as _json
 
-    _attach_provenance(
+    attach_provenance(
         plan,
         target,
         verdict=verdict,

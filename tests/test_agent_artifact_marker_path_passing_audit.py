@@ -59,21 +59,21 @@ _REVIEWED_PATH_PASSING_CONTEXTS: dict[str, PathPassingReview] = {
             "no done.json or marker writes occur here."
         ),
     ),
-    "src/sase/agent/auto_restart/healer_relaunch.py:_runner_log_tail": PathPassingReview(
+    "src/sase/agent/auto_restart/_healer_relaunch_evidence.py:_runner_log_tail": PathPassingReview(
         exemption=(
             "Read-only evidence collection: done.json and agent_meta.json are "
             "read to locate the runner log tail copied into the ledger "
             "evidence bundle."
         ),
     ),
-    "src/sase/agent/auto_restart/healer_relaunch.py:_write_evidence": PathPassingReview(
+    "src/sase/agent/auto_restart/_healer_relaunch_evidence.py:write_evidence": PathPassingReview(
         exemption=(
             "Ledger evidence snapshot: a copy of done.json is written under "
             "~/.sase/agent_auto_restart/evidence, not into a live artifact "
             "directory."
         ),
     ),
-    "src/sase/agent/auto_restart/healer_relaunch.py:relaunch_claimed": PathPassingReview(
+    "src/sase/agent/auto_restart/healer_relaunch_claim.py:relaunch_claimed": PathPassingReview(
         exemption=(
             "Read-only skip re-check: done.json and agent_meta.json are read "
             "immediately before relaunch; live recovery writes go through "

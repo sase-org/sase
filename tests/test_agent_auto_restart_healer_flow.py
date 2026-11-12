@@ -94,7 +94,7 @@ def test_healer_resubmits_unnamed_launcher_prompt_once(
 ) -> None:
     _ = tmp_home
     from sase.agent import launcher
-    from sase.agent.auto_restart import healer_relaunch
+    from sase.agent.auto_restart import healer_relaunch_claim
     from sase.agent.auto_restart.provenance import PROVENANCE_ENV
     from sase.agent.auto_restart.healer import HealerTarget
 
@@ -121,7 +121,9 @@ def test_healer_resubmits_unnamed_launcher_prompt_once(
         launched.append((prompt, extra_env))
         return [SimpleNamespace(artifacts_dir=str(replacement_dir))]
 
-    monkeypatch.setattr(healer_relaunch, "_launcher_project_cwd", lambda _p: tmp_home)
+    monkeypatch.setattr(
+        healer_relaunch_claim, "launcher_project_cwd", lambda _p: tmp_home
+    )
     monkeypatch.setattr(launcher, "launch_agents_from_cwd", fake_launch)
 
     outcome = heal_one(
@@ -179,7 +181,7 @@ def test_healer_declines_unusable_launcher_prompts(
 ) -> None:
     _ = tmp_home
     from sase.agent import launcher
-    from sase.agent.auto_restart import healer_relaunch
+    from sase.agent.auto_restart import healer_relaunch_claim
     from sase.agent.auto_restart.healer import HealerTarget
 
     (failed_row / "agent_meta.json").write_text("{}\n", encoding="utf-8")
@@ -191,8 +193,8 @@ def test_healer_declines_unusable_launcher_prompts(
         agent_name=failed_row.name,
     )
     monkeypatch.setattr(
-        healer_relaunch,
-        "_launcher_project_cwd",
+        healer_relaunch_claim,
+        "launcher_project_cwd",
         lambda _project: (_ for _ in ()).throw(
             AssertionError("invalid prompts are declined before project lookup")
         ),

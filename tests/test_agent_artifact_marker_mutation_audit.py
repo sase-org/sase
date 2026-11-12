@@ -147,7 +147,7 @@ _REVIEWED_MARKER_MUTATION_CONTEXTS: dict[str, Review] = {
             "and is not Tier 1 indexed from this context."
         ),
     ),
-    "src/sase/agent/auto_restart/healer_relaunch.py:_write_evidence": Review(
+    "src/sase/agent/auto_restart/_healer_relaunch_evidence.py:write_evidence": Review(
         mutation_calls=("write_text", "write_text"),
         exemption=(
             "Copies done.json (and other evidence) into the auto-restart "
