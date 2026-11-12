@@ -31,8 +31,12 @@ from sase.bead.model import (
 def init_db(db_path: Path) -> sqlite3.Connection:
     """Create or open the database, ensuring schema exists."""
     conn = connect(db_path)
-    run_migrations(conn)
-    conn.executescript(SCHEMA_SQL)
+    try:
+        run_migrations(conn)
+        conn.executescript(SCHEMA_SQL)
+    except BaseException:
+        conn.close()
+        raise
     return conn
 
 

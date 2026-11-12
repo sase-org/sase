@@ -228,6 +228,7 @@ def _migrate_issue_types(conn: sqlite3.Connection) -> None:
         return  # No table yet or already migrated
 
     conn.execute("PRAGMA foreign_keys=OFF")
+    conn.execute("DROP TABLE IF EXISTS _issues_new")
     conn.execute(
         "CREATE TABLE _issues_new ("
         "  id TEXT PRIMARY KEY, title TEXT NOT NULL,"

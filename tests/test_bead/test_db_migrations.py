@@ -4,6 +4,7 @@ import sqlite3
 
 import pytest
 
+from sase.bead import db as bead_db
 from sase.bead._db_schema import SCHEMA_SQL
 from sase.bead.db import (
     add_dependency,
@@ -687,3 +688,77 @@ class TestStatusConstraintMigration:
             assert get_issue(reopened, "e-1") is not None
         finally:
             reopened.close()
+
+
+class TestIssueTypeRebuildRestartability:
+    def test_leftover_issues_new_does_not_wedge_init_db(self, tmp_path) -> None:
+        db_path = tmp_path / "half_migrated.db"
+        old = sqlite3.connect(str(db_path))
+        old.execute(
+            "CREATE TABLE issues ("
+            "  id TEXT PRIMARY KEY, title TEXT NOT NULL,"
+            "  status TEXT NOT NULL DEFAULT 'open'"
+            "    CHECK(status IN ('open','in_progress','closed')),"
+            "  issue_type TEXT NOT NULL DEFAULT 'child'"
+            "    CHECK(issue_type IN ('epic','child')),"
+            "  parent_id TEXT, owner TEXT, assignee TEXT,"
+            "  created_at TEXT NOT NULL, created_by TEXT,"
+            "  updated_at TEXT NOT NULL, closed_at TEXT,"
+            "  close_reason TEXT, description TEXT, notes TEXT, design TEXT"
+            ")"
+        )
+        old.execute(
+            "INSERT INTO issues (id, title, issue_type, created_at, updated_at) "
+            "VALUES ('e-old', 'Old', 'epic', ?, ?)",
+            (NOW, NOW),
+        )
+        old.execute(
+            "INSERT INTO issues "
+            "(id, title, issue_type, parent_id, created_at, updated_at) "
+            "VALUES ('c-old', 'Child', 'child', 'e-old', ?, ?)",
+            (NOW, NOW),
+        )
+        old.execute("CREATE TABLE _issues_new (id TEXT PRIMARY KEY, title TEXT)")
+        old.commit()
+        old.close()
+
+        conn = init_db(db_path)
+        try:
+            plan = get_issue(conn, "e-old")
+            phase = get_issue(conn, "c-old")
+            assert plan is not None
+            assert plan.issue_type is IssueType.PLAN
+            assert phase is not None
+            assert phase.issue_type is IssueType.PHASE
+            leftover = conn.execute(
+                "SELECT name FROM sqlite_master WHERE name = '_issues_new'"
+            ).fetchone()
+            assert leftover is None
+        finally:
+            conn.close()
+
+    def test_init_db_closes_connection_when_migration_raises(
+        self, tmp_path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        db_path = tmp_path / "fail.db"
+        opened: list[sqlite3.Connection] = []
+        real_connect = bead_db.connect
+
+        def tracking_connect(path):
+            conn = real_connect(path)
+            opened.append(conn)
+            return conn
+
+        def boom(_conn: sqlite3.Connection) -> None:
+            raise RuntimeError("migration boom")
+
+        monkeypatch.setattr(bead_db, "connect", tracking_connect)
+        monkeypatch.setattr(bead_db, "run_migrations", boom)
+
+        with pytest.raises(RuntimeError, match="migration boom"):
+            init_db(db_path)
+
+        assert opened
+        for conn in opened:
+            with pytest.raises(sqlite3.ProgrammingError, match="closed"):
+                conn.execute("SELECT 1")

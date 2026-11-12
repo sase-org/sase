@@ -18,6 +18,7 @@ from sase.history.chat_storage import iter_chat_files
 
 _CACHE_SCHEMA_VERSION = 1
 _CACHE_FILENAME = "chats_catalog.sqlite"
+_BUSY_TIMEOUT_MS = 5_000
 
 
 def _catalog_cache_path() -> Path:
@@ -36,6 +37,10 @@ def open_catalog_cache() -> Iterator[sqlite3.Connection]:
     try:
         connection = _connect(path)
         _ensure_schema(connection)
+    except sqlite3.OperationalError:
+        if connection is not None:
+            connection.close()
+        raise
     except (sqlite3.DatabaseError, TypeError, ValueError):
         if connection is not None:
             connection.close()
@@ -158,9 +163,10 @@ def store_cached_json(
 
 
 def _connect(path: Path) -> sqlite3.Connection:
-    connection = sqlite3.connect(path, timeout=0.25)
+    timeout_ms = int(_BUSY_TIMEOUT_MS)
+    connection = sqlite3.connect(path, timeout=timeout_ms / 1000)
+    connection.execute(f"PRAGMA busy_timeout={timeout_ms}")
     connection.execute("PRAGMA journal_mode=WAL")
-    connection.execute("PRAGMA busy_timeout=250")
     return connection
 
 
