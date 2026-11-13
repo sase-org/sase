@@ -112,7 +112,7 @@ contract.
 
 | Type     | Description                                                                                  |
 | -------- | -------------------------------------------------------------------------------------------- |
-| `word`   | Single word, no whitespace                                                                   |
+| `word`   | Non-empty; letters `A–Z`/`a–z`, digits, `.`, `_`, and `-` only; use `line` for refs with `/` |
 | `line`   | Single line, no newlines (the default when `type` is omitted)                                |
 | `text`   | Multi-line text (any content)                                                                |
 | `path`   | File path (a single line; spaces are allowed)                                                |
@@ -121,7 +121,7 @@ contract.
 | `float`  | Floating point value                                                                         |
 | `code`   | Structured source plus language (see [Supported Types](macros/arguments.md#supported-types)) |
 | `enum`   | One of the input's `choices`; `choices` work in both shortform and longform                  |
-| `agent`  | Agent name (no whitespace); sase's TUI completes agent targets                               |
+| `agent`  | Same characters as `word`, plus optional leading `@`; sase's TUI completes agent targets     |
 | `effort` | One of the seven `%effort` levels (`none`/`minimal`/`low`/`medium`/`high`/`xhigh`/`max`)     |
 | `model`  | A model token `%model` would accept without the default-provider fallback                    |
 
