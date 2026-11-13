@@ -64,6 +64,36 @@ def test_handoff_macros_expand_while_cmdsub_stays_disabled(
     assert not marker.exists()
 
 
+def test_workflow_model_output_interpolated_twice_stays_disabled(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from sase.macro.workflow_executor_utils import render_prompt_template
+
+    marker = tmp_path / "twice-response-command-ran"
+    monkeypatch.chdir(tmp_path)
+    raw = "$(touch twice-response-command-ran)"
+
+    rendered = render_prompt_template(
+        "A {{ step._raw }} B {{ step._raw }} C",
+        {"step": {"_raw": raw}},
+    )
+
+    assert "__SASE_MODEL_OUTPUT_" not in rendered
+    assert rendered.count(raw) == 2
+    assert rendered.count("%macros_enabled:false") == 2
+
+    result = preprocess_prompt_late(
+        rendered,
+        agent_authored=False,
+        file_ref_mode="skip",
+    )
+
+    assert raw in result
+    assert result.count(raw) == 2
+    assert not marker.exists()
+
+
 def test_workflow_model_output_cannot_reintroduce_cmdsub(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

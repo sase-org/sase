@@ -267,24 +267,33 @@ def _wrap_model_output_values(
 
 
 def render_prompt_template(template: str, context: dict[str, Any]) -> str:
-    """Render prompt Jinja with model output held inside disabled regions."""
+    """Render prompt Jinja with model output held inside disabled regions.
+
+    Model output (``_raw``/``_response``) in prompt templates is
+    interpolation-only. Jinja conditionals and transforming filters operate
+    on an opaque placeholder, which keeps the fail-closed property: the
+    placeholder never renders attacker-controlled text as template syntax.
+    Branch on model output in an ``if:`` step condition or a bash/python
+    step instead (see task ``sase-1sn`` for the broader design).
+    """
     replacements: dict[str, str] = {}
     rendered = render_template(
         template,
         _wrap_model_output_values(context, replacements, nonce=uuid4().hex),
     )
     for placeholder, protected_value in replacements.items():
-        start = rendered.find(placeholder)
-        if start < 0:
-            continue
-        end = start + len(placeholder)
-        prefix = rendered[:start]
-        suffix = rendered[end:]
-        if prefix and not prefix.endswith("\n"):
-            prefix += "\n"
-        if suffix and not suffix.startswith("\n"):
-            suffix = "\n" + suffix
-        rendered = prefix + protected_value + suffix
+        while True:
+            start = rendered.find(placeholder)
+            if start < 0:
+                break
+            end = start + len(placeholder)
+            prefix = rendered[:start]
+            suffix = rendered[end:]
+            if prefix and not prefix.endswith("\n"):
+                prefix += "\n"
+            if suffix and not suffix.startswith("\n"):
+                suffix = "\n" + suffix
+            rendered = prefix + protected_value + suffix
     return rendered
 
 
