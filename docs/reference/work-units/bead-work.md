@@ -185,11 +185,12 @@ Once an epic bead exists, the shared launch path:
    renders the `BLOCKED` rows, reports how many blockers would abort a real launch, and
    still exits `0`.
 
-   A worker that failed during bootstrap may have a reserved name but no name or bead
-   metadata in its artifacts. When the reservation identifies those artifacts, cleanup
-   can associate them with the expected worker: a dead owner is removed, while a live
-   starting owner is preserved. If the artifacts are already gone, cleanup releases the
-   stale reservation after checking that no new owner has appeared.
+   A worker that failed before startup completed may have a reserved name but no name or
+   bead metadata in its run artifacts. If the name reservation points to those
+   artifacts, cleanup can identify the worker: a dead process gets `REMOVE`, while a
+   live `STARTING` process gets `PRESERVE` and no replacement is launched for that slot.
+   If the artifacts are already gone, cleanup removes the stale reservation only after
+   rechecking ownership.
 
 3. Flips the epic plan bead's `is_ready_to_work` flag to `True` when it was not already
    ready.

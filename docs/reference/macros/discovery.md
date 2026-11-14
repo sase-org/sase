@@ -67,25 +67,32 @@ project catalog for that prompt.
 ## Config-defined macros and trust
 
 Config entries under `macros:` can be prompt-only strings or structured prompt
-definitions, or executable definitions with `bash`, `python`, or workflow `steps`.
-Executable entries load as workflows. A local override is classified after composition
-with lower config layers: changing only an input default or description on an inherited
-executable macro still requires
-[project-local command trust](../config/files-and-merging.md#project-local-command-trust).
-Approved overrides preserve inherited commands and normal config merge rules, including
-list concatenation.
+definitions, or workflow definitions with `bash`, `python`, or a list of `steps`.
+The latter load as workflows and require
+[project-local command trust](../config/files-and-merging.md#project-local-command-trust)
+when defined in project-local config and enforcement is enabled.
+
+Trust classification considers both the local entry and the lower-priority definition
+with the same name. Overriding an executable macro requires review even when the local
+entry changes only an input default or description, or is a prompt-only string.
+After approval, dictionary overrides use the normal
+[config merge rules](../config/files-and-merging.md#deep-merge-system): omitted commands
+are inherited, and local `steps` append after lower-layer steps rather than replacing
+the list.
 
 With trust enforcement enabled, unapproved executable local entries are omitted from
-both ordinary and project-namespaced catalogs. Prompt-only local entries remain
-available. Explicitly requesting a blocked name reports a trust error and identifies the
+both ordinary and project-namespaced catalogs. Prompt-only local entries that do not
+override executable definitions remain available. Explicitly requesting a blocked name
+reports a trust error and identifies the
 config to review; it does not silently use a lower-priority namesake. A higher-priority
 file definition still wins through normal discovery. Standalone macro files are outside
 the local-config digest.
 
-Local workflows retain their source's trust information through embedded workflows and
-parallel steps. Each bash or Python step checks it again before starting. A revoked or
-changed approval stops further local script execution; an already-running command is
-not terminated.
+Workflows loaded from project-local config retain their source's trust information
+through embedded workflows and parallel steps. While enforcement is enabled, each bash
+or Python step checks it again before starting. Revocation or a changed command digest
+blocks later steps from that loaded definition, even if the new config is approved;
+already-running commands are not terminated.
 
 ## Related
 

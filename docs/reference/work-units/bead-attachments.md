@@ -68,25 +68,36 @@ then in shared stores picked deterministically by size:
   a bare partial clone at `~/.sase/projects/<project_key>/repos/attachments-private`.
   Public attachments live in a `<project>--attachments` sidecar repo with the same bare
   layout at `~/.sase/projects/<project_key>/repos/attachments`. SASE requests private
-  visibility when creating the private remote. Repository initialization refuses an
-  existing private-role remote that is detected as public, and the git store checks its
-  origin before the first private upload to each clone in a process. A public result
-  refuses the upload; a private or unknown result is reused for later uploads in that
-  process. An inconclusive check permits the upload and labels the store
-  `(private, unverified)`; `(private)` requires a confirmed private result, while a
-  detected public remote is labeled `(PUBLIC — not private!)`. Make the remote private
-  or correct the sidecar configuration before retrying a public-remote refusal. The role
-  is hidden from agent instructions, and descriptors contain no local file paths.
-  `sase repo init` asks before creating a missing remote. Declining does not create a
-  git store on that machine; `repos.sidecar.builtin.attachments-private.disabled: true`
-  prevents sidecar setup and hides the role even when a clone already exists. Use
-  `-L/--local-only` for an individual attachment that must stay on this machine. See
+  visibility when creating the private remote. The private role is hidden from agent
+  instructions, and descriptors contain no local file paths. `sase repo init` asks
+  before creating a missing remote. Declining does not create a git store on that
+  machine; `repos.sidecar.builtin.attachments-private.disabled: true` prevents sidecar
+  setup and hides the role even when a clone already exists. Use `-L/--local-only` for
+  an individual attachment that must stay on this machine. See
   [Repository initialization](../agents/initialization.md#repository-initialization).
 - The optional **rclone large tier** (`bead.attachments.large_store`) takes larger
   objects; see below.
 - `-L/--local-only` keeps an object on this machine only, badged `⚠ only on <machine>`.
   It is an explicit, visible choice, and `sase bead attachment push` promotes local-only
   objects later without editing any note.
+
+For the private git tier, repository initialization refuses an existing remote detected
+as public. Before its first private upload to each clone, a process checks the clone's
+`origin`: public refuses the upload; private or unknown permits it. The process reuses
+that private or unknown result for later uploads to the same clone. Store labels are
+resolved separately:
+
+| Visibility result | Store label               | Meaning                                                                                               |
+| ----------------- | ------------------------- | ----------------------------------------------------------------------------------------------------- |
+| Private           | `(private)`               | The anonymous Git probe received HTTP 401, 403, or 404.                                               |
+| Unknown           | `(private, unverified)`   | The check was inconclusive, for example offline or an unrecognized remote URL. Uploads are permitted. |
+| Public            | `(PUBLIC — not private!)` | Anonymous Git access succeeded. Private uploads are refused.                                          |
+
+Both checks and labels use a disk cache: public results last 24 hours, private results
+one hour; unknown results are not cached there. These are probe results, not an
+authenticated check of the host's visibility setting. After making a public remote
+private or correcting its configuration, a retry may still refuse while its cached
+public result remains valid.
 
 Uploads never run under the bead lock: the event is appended first, then bytes upload
 pre-publication, so other machines never see a note before its bytes. A failed upload

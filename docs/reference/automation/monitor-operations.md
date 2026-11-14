@@ -27,8 +27,9 @@ sase monitor stop [<id>]                   # stop a running monitor; omit id to 
 
 `ID` accepts a monitor id (or unique prefix), the monitor turn's agent name, or the
 owning sase-agent name. `sase monitor stop` never launches the recorded follow-up agent,
-even when `--next` was given. Settlement records that follow-up as `suppressed` and
-releases the turn's claim, subject to the dirty-workspace retention rules below.
+even when `--next` was given. If a follow-up was recorded, settlement marks it
+`suppressed`. The monitor's workspace claim is released or retained according to the
+dirty-workspace retention rules below.
 
 `sase agent kill -n <name>` uses the same stop behavior when the name resolves to a live
 monitor member or its owner. `sase monitor stop` remains the clearest explicit form.

@@ -366,11 +366,13 @@ recovery reason code with a one-line gloss, so a green check that cannot complet
 (`missing_required_stage:*`) tells the follow-up not to re-run the same check. Stopped
 and lost monitors never complete or continue automatically.
 
-For `stale_worktree_fingerprint`, the recovery prompt includes recorded component
-differences and points to the host-completion receipt when detail is omitted.
-Differences can involve file contents, ownership metadata, or repository discovery. A
-record without component evidence leaves the cause unknown. Inspect that evidence before
-preparing completion again; changed file contents require fresh verification.
+`stale_worktree_fingerprint` means the current repository observations differ from those
+recorded when completion was prepared. The recovery prompt includes recorded differences
+and points to the host-completion receipt when detail is omitted. Differences can
+involve Git state, file contents or modes, protected or foreign-work markers, or which
+repositories were discovered. Without component evidence, the specific cause is unknown.
+That evidence determines whether completion can be prepared again; changed file contents
+require fresh verification.
 
 The monitor's host-completion status (`Host final` in sase's TUI) reads `finalizing`
 while the finalizers run, `completed_by_host` once they succeed, and `recovery` after

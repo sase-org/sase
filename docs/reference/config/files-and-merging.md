@@ -73,15 +73,18 @@ names the config path and `sase config trust allow PATH`. With the flag off, loc
 commands run in compatibility mode, visibly marked in `status`, and no trust records are
 created.
 
-Queued local commands retain the identity, config location, digest, and policy version
-of the definition that was loaded. Before execution, those facts must still match the
-currently selected config and its acknowledgment. Revoking trust, changing the command
-projection, switching between canonical and fallback config files, or losing the source
-record blocks subsequent execution. Approving a changed config does not authorize an
-older queued definition. Already-started commands are not terminated by revocation.
+Queued local commands retain source metadata: the project or checkout identity, config
+location, digest, and policy version of the loaded definition. While enforcement is
+enabled, execution requires that metadata to match the currently selected config and its
+acknowledgment. Revoking trust, changing the command-bearing configuration, switching
+between canonical and fallback config files, or losing the retained source metadata
+blocks subsequent execution. Approving a changed config does not authorize an older
+queued definition; it must be loaded again. Already-started commands are not terminated
+by revocation.
 
-Executable macro classification includes commands inherited from lower config layers:
-even a local override of only an input default can require review. See
+Macro trust classification considers both the local entry and the definition it
+overrides in lower config layers: even a local override of only an input default can
+require review. See
 [Config-defined macros and trust](../macros/discovery.md#config-defined-macros-and-trust)
 for loading and name-resolution behavior.
 

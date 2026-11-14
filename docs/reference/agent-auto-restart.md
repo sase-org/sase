@@ -266,5 +266,6 @@ clears a storm pause. The configuration switch is
 [`agent_auto_restart.enabled`](config/agents-and-runners.md#agentautorestart).
 
 A bare invocation delegates to `list`. `run --dry-run` is read-only, and a successful
-`run -j` exit does not guarantee a relaunch. See [Agent Auto-Restart](#cli) for the
-options, output contracts, and probe and deferral rules.
+`run -j` exit does not guarantee a relaunch. See the [CLI](#cli) for options and output
+contracts, and [When a restart happens](#when-a-restart-happens) for probe and deferral
+rules.
