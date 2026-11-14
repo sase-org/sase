@@ -267,4 +267,4 @@ clears a storm pause. The configuration switch is
 
 A bare invocation delegates to `list`. `run --dry-run` is read-only, and a successful
 `run -j` exit does not guarantee a relaunch. See [Agent Auto-Restart](#cli) for the
-options, output contracts, and current probe/deferral limitation.
+options, output contracts, and probe and deferral rules.

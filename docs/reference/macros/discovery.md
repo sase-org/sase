@@ -64,6 +64,29 @@ projects are not loaded through this registry fallback. When one inline prompt m
 registered project namespaces, the first such namespace selects the checkout-backed
 project catalog for that prompt.
 
+## Config-defined macros and trust
+
+Config entries under `macros:` can be prompt-only strings or structured prompt
+definitions, or executable definitions with `bash`, `python`, or workflow `steps`.
+Executable entries load as workflows. A local override is classified after composition
+with lower config layers: changing only an input default or description on an inherited
+executable macro still requires
+[project-local command trust](../config/files-and-merging.md#project-local-command-trust).
+Approved overrides preserve inherited commands and normal config merge rules, including
+list concatenation.
+
+With trust enforcement enabled, unapproved executable local entries are omitted from
+both ordinary and project-namespaced catalogs. Prompt-only local entries remain
+available. Explicitly requesting a blocked name reports a trust error and identifies the
+config to review; it does not silently use a lower-priority namesake. A higher-priority
+file definition still wins through normal discovery. Standalone macro files are outside
+the local-config digest.
+
+Local workflows retain their source's trust information through embedded workflows and
+parallel steps. Each bash or Python step checks it again before starting. A revoked or
+changed approval stops further local script execution; an already-running command is
+not terminated.
+
 ## Related
 
 - [Generated discovery order](discovery-order.md)

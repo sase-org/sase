@@ -161,7 +161,11 @@ such as `DONE`, `FAILED`, and `PLAN DONE` are excluded from the stopped-agent ju
 
 The CLI equivalent of `,x` without the edit pause is `sase agent restart NAME`: it stops
 the named agent and immediately relaunches the stored prompt under the same name. A
-relaunch whose bead is already closed now runs attached to that closed bead and records
+crashed process remains a restart target even if it never wrote a completion record.
+Lookup prefers a live matching run, then a crashed unfinished run, then a completed run;
+the stored prompt must still be available. Use `sase agent restart NAME --dry-run` to
+inspect the restart and name-wipe preview before applying it. A relaunch whose bead is
+already closed runs attached to that closed bead and records
 a `CLOSED-BEAD LAUNCH:` audit note, rather than failing; see
 [Bead Claim Lifecycle](../work-units/bead-lifecycles.md#bead-claim-lifecycle).
 
@@ -169,7 +173,7 @@ SASE also has a scheduler-driven [Agent Auto-Restart](../agent-auto-restart.md)
 service for update-skew failures. An in-flight recovery appears as amber `↻ RESTARTING`
 with a dim reason. A replacement keeps the same name and shows a `↻` chip plus
 provenance describing the update and preserved error report (`v`). It allows at most one
-automatic restart per lineage; see the guide's current probe/deferral limitation before
+automatic restart per lineage; see the reference's probe and deferral rules before
 assuming that an eligible failure will relaunch. Inspect recovery with
 `sase agent auto-restart list -a` and `sase agent auto-restart show NAME`.
 

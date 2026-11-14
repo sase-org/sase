@@ -27,7 +27,8 @@ sase monitor stop [<id>]                   # stop a running monitor; omit id to 
 
 `ID` accepts a monitor id (or unique prefix), the monitor turn's agent name, or the
 owning sase-agent name. `sase monitor stop` never launches the recorded follow-up agent,
-even when `--next` was given.
+even when `--next` was given. Settlement records that follow-up as `suppressed` and
+releases the turn's claim, subject to the dirty-workspace retention rules below.
 
 `sase agent kill -n <name>` uses the same stop behavior when the name resolves to a live
 monitor member or its owner. `sase monitor stop` remains the clearest explicit form.
@@ -220,9 +221,9 @@ cell (in both the table and `--format markdown` output) so a stalled handoff is 
 without `--json` plumbing; `sase monitor show <id>` prints a `Follow-up error` line for
 a dropped follow-up and a `Follow-up degraded` line for a degraded one, and both
 commands' JSON envelopes carry `followup_outcome` (`launched` / `launched-degraded` /
-`not-launchable` / `host-completed`), `followup_error`, and `followup_degraded_reason`,
-plus versioned `result`, `evidence`, `continuation`, and `context_budget` objects for
-compact clients.
+`not-launchable` / `suppressed` / `host-completed`), `followup_error`, and
+`followup_degraded_reason`, plus versioned `result`, `evidence`, `continuation`, and
+`context_budget` objects for compact clients.
 
 Ordinary continuation delivery is keyed by monitor result and outcome branch. SASE
 reserves the successor identity before spawning it, and the intended receiver

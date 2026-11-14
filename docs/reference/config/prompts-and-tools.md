@@ -127,12 +127,14 @@ Project-local `sase/sase.yml` entries join that list only when allowed by
 [project-local command trust](files-and-merging.md#project-local-command-trust). This
 includes local entries that instantiate plugin hook templates. Execution checks trust
 again, so revoking approval or changing the local commands can skip a hook that was
-already queued. User and overlay hooks remain eligible. Hook names must remain unique
-across the effective list; invalid or duplicate entries are warned about and skipped.
-Unknown `file_hooks` keys are rejected the same way, so a hook carrying one is skipped
-with a warning rather than silently losing that filter. Hook filter fields belong under
-`filters`: `projects`, `sidecars`, `path_globs`, `agent_name_globs`, `ops`, `causes`,
-and `producers`. `globs` is not accepted; use `filters.path_globs`. See
+already queued. Each queued local hook retains the reviewed definition's source and
+digest; a missing source record also skips execution while enforcement is enabled. User
+and overlay hooks remain eligible. Hook names must remain unique across the effective
+list; invalid or duplicate entries are warned about and skipped. Unknown `file_hooks`
+keys are rejected the same way, so a hook carrying one is skipped with a warning rather
+than silently losing that filter. Hook filter fields belong under `filters`: `projects`,
+`sidecars`, `path_globs`, `agent_name_globs`, `ops`, `causes`, and `producers`. `globs`
+is not accepted; use `filters.path_globs`. See
 [Configuration migration notes](../upgrading/configuration.md#file-hook-filters).
 
 Source: `src/sase/config/file_hooks.py`, `src/sase/file_hooks/engine.py`,
@@ -284,7 +286,9 @@ project `sase/sase.yml` wins over user overlays and base config; plugin config a
 package defaults follow. File-based macros use YAML front matter for metadata and the
 file body for content. The
 [Macro discovery reference](../macros/discovery.md#discovery-order) lists the complete
-file-source order and writable locations.
+file-source order and writable locations, and explains
+[config-defined executable macros](../macros/discovery.md#config-defined-macros-and-trust)
+and their trust requirements.
 
 Source: `src/sase/macro/loader.py` <a id="macroaliases"></a>
 

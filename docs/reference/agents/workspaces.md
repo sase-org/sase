@@ -181,6 +181,12 @@ prepared path, write the agent artifact markers used by sase's TUI and the commi
 finalizer, and append the project's durable repo-open audit event. Agents use this
 surface through `/sase_repo` and treat the printed path as authoritative.
 
+For repository and workspace commands, `-p/--project` accepts a registered project's
+display name, alias, or directory key. Names and aliases match without regard to case.
+An exact registered key takes precedence; otherwise an ambiguous match exits `2` and
+lists the candidates. A registered project with a primary workspace takes precedence
+over an unregistered project directory with the same name.
+
 Provider refs are resolved against the host project's configured repositories before
 SASE materializes an external checkout. For example, if a configured linked repo's
 GitHub origin is `git@github.com:sase-org/sase-core.git`, then

@@ -68,13 +68,19 @@ then in shared stores picked deterministically by size:
   a bare partial clone at `~/.sase/projects/<project_key>/repos/attachments-private`.
   Public attachments live in a `<project>--attachments` sidecar repo with the same bare
   layout at `~/.sase/projects/<project_key>/repos/attachments`. SASE requests private
-  visibility when creating the remote, but does not check the visibility of an existing
-  remote; verify that before using it for attachment bytes. The role is hidden from
-  agent instructions, and descriptors contain no local file paths. `sase repo init` asks
-  before creating a missing remote. Declining does not create a git store on that
-  machine; `repos.sidecar.builtin.attachments-private.disabled: true` prevents sidecar
-  setup and hides the role even when a clone already exists. Use `-L/--local-only` for
-  an individual attachment that must stay on this machine. See
+  visibility when creating the private remote. Repository initialization refuses an
+  existing private-role remote that is detected as public, and the git store checks its
+  origin before the first private upload to each clone in a process. A public result
+  refuses the upload; a private or unknown result is reused for later uploads in that
+  process. An inconclusive check permits the upload and labels the store
+  `(private, unverified)`; `(private)` requires a confirmed private result, while a
+  detected public remote is labeled `(PUBLIC — not private!)`. Make the remote private
+  or correct the sidecar configuration before retrying a public-remote refusal. The role
+  is hidden from agent instructions, and descriptors contain no local file paths.
+  `sase repo init` asks before creating a missing remote. Declining does not create a
+  git store on that machine; `repos.sidecar.builtin.attachments-private.disabled: true`
+  prevents sidecar setup and hides the role even when a clone already exists. Use
+  `-L/--local-only` for an individual attachment that must stay on this machine. See
   [Repository initialization](../agents/initialization.md#repository-initialization).
 - The optional **rclone large tier** (`bead.attachments.large_store`) takes larger
   objects; see below.
@@ -132,11 +138,10 @@ attachments. Existing attachments keep their audience. This key is configurable 
 Saving with public selected opens **Publish attachments**. Choose **Publish** to confirm
 or cancel to return to the editor. Confirmation does not override policy: an attachment
 that cannot be made public rejects the whole note and reopens the editor with an error.
-The dialog currently says policy-blocked files stay private, but the save path refuses
-the public request instead. Select automatic or private and save again to avoid
-requesting publication; sensitive-path restrictions still apply. Publication is
-irreversible. The audience cycle belongs to this add-note modal; outside it, the
-Beads-pane action reports `Open a bead note (N) first to toggle attachment audience`.
+Select automatic or private and save again to avoid requesting publication;
+sensitive-path restrictions still apply. Publication is irreversible. The audience cycle
+belongs to this add-note modal; outside it, the Beads-pane action reports
+`Open a bead note (N) first to toggle attachment audience`.
 
 The pane's note body lists each attachment with the audience chip from its stored
 descriptor (`🌐` for public, `🔒` for private or for a descriptor that has no visibility

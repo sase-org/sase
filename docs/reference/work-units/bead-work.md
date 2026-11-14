@@ -84,8 +84,8 @@ single worker prompt without changing the bead or agent registry. A real launch:
 
 1. Force-reuses the task ID as the deterministic agent name after showing or confirming
    any destructive cleanup.
-2. Selects the bead's stored model or its size-derived phase-worker alias; missing
-   missing size defaults to small.
+2. Selects the bead's stored model or its size-derived phase-worker alias; missing size
+   defaults to small.
 3. Renders one VCS-aware prompt ending in `#bd/work_task:<task-id>`, plus `#plan` for
    large/xlarge tasks.
 4. Sets `status=in_progress` and `assignee=<task-id>` in one checkpoint commit,
@@ -184,6 +184,12 @@ Once an epic bead exists, the shared launch path:
    and a real launch still stops before any wipe, bead mutation, or spawn. `--dry-run`
    renders the `BLOCKED` rows, reports how many blockers would abort a real launch, and
    still exits `0`.
+
+   A worker that failed during bootstrap may have a reserved name but no name or bead
+   metadata in its artifacts. When the reservation identifies those artifacts, cleanup
+   can associate them with the expected worker: a dead owner is removed, while a live
+   starting owner is preserved. If the artifacts are already gone, cleanup releases the
+   stale reservation after checking that no new owner has appeared.
 
 3. Flips the epic plan bead's `is_ready_to_work` flag to `True` when it was not already
    ready.
