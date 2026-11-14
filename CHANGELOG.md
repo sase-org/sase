@@ -1,5 +1,51 @@
 # Changelog
 
+## [0.19.1](https://github.com/sase-org/sase/compare/v0.19.0...v0.19.1) (2026-11-14)
+
+
+### Features
+
+* **auto-restart:** ratchet core pin to 47f1af1c with tests and docs ([cb0a3c9](https://github.com/sase-org/sase/commit/cb0a3c9a807d692e79850c62cd9b6a493bd43748))
+* **config:** add human-reviewed local command trust CLI ([7710dd0](https://github.com/sase-org/sase/commit/7710dd0bc61b2b079886b0c8d8f632a18aba0b7d))
+* **config:** add local-command trust projection adapter and contract tests ([2e7ce5c](https://github.com/sase-org/sase/commit/2e7ce5cea11b8cd5509d3b90e5567be7a1356852))
+* **config:** enforce local-command trust for config macros ([ea41213](https://github.com/sase-org/sase/commit/ea4121387b21bf727b021eb80e746a6054811ff4))
+* **config:** enforce trust for merged config and file hooks ([021cd73](https://github.com/sase-org/sase/commit/021cd73021b62e9f92ccd6829c9ded59c80ed7cd))
+* **sase-1ss.1:** catalog Gemini 4 Hydrogen on Antigravity ([cf7a09f](https://github.com/sase-org/sase/commit/cf7a09f15b485b8e1f0b9216b4707aab93f16a5b))
+* **tui:** bound full GC collections by duty cycle in gc_policy ([bdf8ae1](https://github.com/sase-org/sase/commit/bdf8ae15909f3fb61d8cb63af463183ae7a8f985))
+
+
+### Bug Fixes
+
+* **ace:** make patch and edit locks race-safe ([6cdb74c](https://github.com/sase-org/sase/commit/6cdb74c3e673c786a5d345985b1a9e9816e270d2))
+* **agent_auto_restart:** resubmit unnamed launcher prompts ([7665654](https://github.com/sase-org/sase/commit/7665654aaaa8987a92f485991bb3b30af7c4717e))
+* **agent:** include dead agents in restart lookup ([c77ff7e](https://github.com/sase-org/sase/commit/c77ff7e8f7ed0e645d77d4892bb9745ad9b54ab4))
+* **attachments:** refuse private bytes on public remotes ([03b3a01](https://github.com/sase-org/sase/commit/03b3a01dc9511cbf5be0f61f651894a90027e70f))
+* **auto_restart:** derive healer ledger project from canonical artifact path ([f613149](https://github.com/sase-org/sase/commit/f613149ecce25f785f4539e023d7db9bcbfc01ed))
+* **auto-restart:** hand off owned planned names in launcher resubmission; stop parser-error project guesses ([d237c84](https://github.com/sase-org/sase/commit/d237c842040a7bd9449359ee9c0aa8e6d3d566c7))
+* **axe:** install SIGTERM handlers in runner main, not at import ([063c982](https://github.com/sase-org/sase/commit/063c98293b69f23543c91d66709a2b28eaa310a1))
+* **bead:** recover boot-failed nameless bead-work owners ([8bb7bdc](https://github.com/sase-org/sase/commit/8bb7bdc2317b89daed0988c8306b20b60978b082))
+* **config:** enforce local command trust provenance ([681de35](https://github.com/sase-org/sase/commit/681de3542bdd024f8aa3ccfe247a9f1aa4b42ef2))
+* **continuation:** preserve local request provenance ([1087ccd](https://github.com/sase-org/sase/commit/1087ccd7f15f09f9cd2267a4cef598a1219432ca))
+* **history:** keep catalog cache on lock and make bead type migration restartable ([b9572a8](https://github.com/sase-org/sase/commit/b9572a8d59b73123199c256c7da7be473bf41ccb))
+* **macro:** keep trusted sparse project overrides out of prompt-only macros ([2b53bb0](https://github.com/sase-org/sase/commit/2b53bb0c7fc2a9f6dba7805b16778efd49cf3323))
+* **monitor:** preserve completion fingerprints and diagnostics ([a49dac1](https://github.com/sase-org/sase/commit/a49dac15cafc3e6b667734f6b1e5f4b8eb7df33a))
+* **paths:** contain clone dirs and project log paths ([b366ab0](https://github.com/sase-org/sase/commit/b366ab0b60bedce6fc2147f2dfd16c4d40b89801))
+* **prompts:** prevent command substitution in agent text ([d0dc942](https://github.com/sase-org/sase/commit/d0dc942c16b2da6cb3ddb6a38abee394ef1d10a3))
+* **repo:** resolve -p project ref through registry display names and aliases ([e072729](https://github.com/sase-org/sase/commit/e07272959937e0a39e1b7c31254b252e657978be))
+* **sase-1sb.4:** repair shell-arg-hardening regressions found by check ([22e1ef1](https://github.com/sase-org/sase/commit/22e1ef1249059503a29749c548564dbf01da0825))
+* **sase-1sb:** atomic edit-lock publish and replace-all placeholder rendering with regression tests ([4a4ee98](https://github.com/sase-org/sase/commit/4a4ee98c651bbbb1e1c6e8417891de83dd827777))
+* **state:** make history and axe JSON writes atomic ([6a6549c](https://github.com/sase-org/sase/commit/6a6549cf65140a1aac54083c45836ff0bcc1a33c))
+* **trust-policy:** whitelist local-trust adapter in symvision and terminology guard ([181b213](https://github.com/sase-org/sase/commit/181b213e8c58f8c90357d1e56cf910b5c727c0ea))
+* **turns:** record suppressed follow-up outcome on a stopped shell ([8eef093](https://github.com/sase-org/sase/commit/8eef093fa99e3c2a96df6efb2d60ae0846e63848))
+
+
+### Documentation
+
+* clarify trust and recovery reference behavior ([6345c97](https://github.com/sase-org/sase/commit/6345c97b8ef717b90d66415a85bf0fbf9ce1a23c))
+* match word and agent workflow types to the charset rule ([e43206a](https://github.com/sase-org/sase/commit/e43206a91e935fd7c9fb973b2b794889a92744c6))
+* refresh trust, recovery, and attachment references ([79f62a0](https://github.com/sase-org/sase/commit/79f62a043b2f8b4e2e8e8f51cab477d48506c2c9))
+* refresh workflow, trust, and workspace references ([1e4bcb5](https://github.com/sase-org/sase/commit/1e4bcb5f38e160fd851aedc6a94ac213094aaae7))
+
 ## [0.19.0](https://github.com/sase-org/sase/compare/v0.18.1...v0.19.0) (2026-11-11)
 
 
