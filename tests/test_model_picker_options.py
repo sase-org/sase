@@ -51,6 +51,8 @@ def test_build_model_options_has_known_models() -> None:
     assert "gpt-5.6-luna" in ids
     assert "gpt-5.5" in ids
     assert "gpt-5.3-codex-spark" in ids
+    assert "gemini-4-hydrogen-xhigh" in ids
+    assert "gemini-4-argon-high" in ids
     assert "gemini-3.8-flash-high" in ids
     assert "gemini-3.7-flash-high" in ids
     assert "gemini-3.6-flash-high" in ids

@@ -21,6 +21,10 @@ _AGY_MODELS = [
     "gemini-4-argon-high",
     "gemini-4-argon-medium",
     "gemini-4-argon-low",
+    "gemini-4-hydrogen-xhigh",
+    "gemini-4-hydrogen-high",
+    "gemini-4-hydrogen-medium",
+    "gemini-4-hydrogen-low",
     "gemini-3.8-flash-high",
     "gemini-3.8-flash-medium",
     "gemini-3.8-flash-low",
@@ -48,9 +52,9 @@ def test_agy_provider_is_llm_provider() -> None:
 
 def test_agy_provider_resolve_model_name() -> None:
     provider = AgyProvider()
-    assert provider.resolve_model_name() == "gemini-3.7-flash-high"
-    assert provider.resolve_model_name("large") == "gemini-3.7-flash-high"
-    assert provider.resolve_model_name("small") == "gemini-3.7-flash-low"
+    assert provider.resolve_model_name() == "gemini-3.8-flash-high"
+    assert provider.resolve_model_name("large") == "gemini-3.8-flash-high"
+    assert provider.resolve_model_name("small") == "gemini-3.8-flash-low"
 
 
 def test_agy_provider_metadata_hooks() -> None:
@@ -70,6 +74,10 @@ def test_agy_provider_metadata_hooks() -> None:
         "gemini-4-argon-high": "argon4h",
         "gemini-4-argon-medium": "argon4m",
         "gemini-4-argon-low": "argon4l",
+        "gemini-4-hydrogen-xhigh": "hydrogen4x",
+        "gemini-4-hydrogen-high": "hydrogen4h",
+        "gemini-4-hydrogen-medium": "hydrogen4m",
+        "gemini-4-hydrogen-low": "hydrogen4l",
         "gemini-3.8-flash-high": "flash38h",
         "gemini-3.8-flash-medium": "flash38m",
         "gemini-3.8-flash-low": "flash38l",
@@ -116,7 +124,7 @@ def test_agy_provider_command_construction(
     assert "--print-timeout" in cmd
     assert cmd[cmd.index("--print-timeout") + 1] == "24h"
     assert "--model" in cmd
-    assert cmd[cmd.index("--model") + 1] == "gemini-3.7-flash-high"
+    assert cmd[cmd.index("--model") + 1] == "gemini-3.8-flash-high"
     assert "--dangerously-skip-permissions" in cmd
     assert "--add-dir" in cmd
     assert cmd[cmd.index("--add-dir") + 1] == str(Path.cwd().resolve())
@@ -152,7 +160,7 @@ def test_agy_provider_model_override_preserves_slug(
 
     cmd = mock_popen.call_args.args[0]
     assert cmd[cmd.index("--model") + 1] == "claude-opus-4-6-thinking"
-    assert "gemini-3.7-flash-high" not in cmd
+    assert "gemini-3.8-flash-high" not in cmd
 
 
 @patch.dict(os.environ, {"SASE_AGY_PATH": "/opt/antigravity/bin/agy"})
@@ -258,7 +266,7 @@ def test_agy_provider_extra_args_from_env_small(
 
     cmd = mock_popen.call_args.args[0]
     assert "--sandbox" in cmd
-    assert cmd[cmd.index("--model") + 1] == "gemini-3.7-flash-low"
+    assert cmd[cmd.index("--model") + 1] == "gemini-3.8-flash-low"
 
 
 @patch.dict(

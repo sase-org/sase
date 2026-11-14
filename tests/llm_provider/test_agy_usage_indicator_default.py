@@ -27,6 +27,7 @@ _FROZEN_NOW = 1_800_000_000.0
 _DEFAULT_CONFIG = Path(__file__).parents[2] / "src/sase/default_config.yml"
 
 _GEMINI_IDS = [
+    "gemini-4-hydrogen-xhigh",
     "gemini-3.8-flash-high",
     "gemini-3.7-flash-medium",
     "gemini-3.1-pro-low",

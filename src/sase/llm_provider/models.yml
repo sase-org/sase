@@ -14,8 +14,9 @@
 #   (successor model ID to predecessor model ID, continuing its effort
 #   descent), and optional `advisories` (model ID to
 #   `severity`/`label`/`detail`). Nested OpenCode IDs are opaque model
-#   strings; keep Antigravity's CLI order. `fakey` stays a separate hidden
-#   test provider in code, not in this manifest.
+#   strings; keep Antigravity's CLI order, with effort levels descending
+#   within a family. `fakey` stays a separate hidden test provider in
+#   code, not in this manifest.
 # - `aliases`: the five shipped size aliases (`xsmall`, `small`, `medium`,
 #   `large`, `xlarge`), each a `target` selector plus `description`. User
 #   config (`llm_provider.model_aliases.builtin`) can override only these
@@ -23,13 +24,21 @@
 schema_version: 1
 providers:
   agy:
-    # Exact stable slugs reported by `agy models`; keep CLI ordering.
-    # Gemini 4 Argon is Ultra-gated: keep tier defaults on Gemini Flash so
-    # every agy account can use them. Argon is reachable by name.
+    # Exact stable slugs reported by `agy models`; families appear in CLI
+    # order, with effort levels descending within a family. Hydrogen is
+    # available on every plan, and Argon needs Pro or Ultra: keep tier
+    # defaults on Gemini 3.8 Flash, the long-established all-plans model
+    # (3.7 Flash and older are Enterprise-only). Argon is reachable by
+    # name. Do not catalog the bare `gemini-4-hydrogen` slug, because its
+    # effort level floats with the CLI default.
     models:
       - gemini-4-argon-high
       - gemini-4-argon-medium
       - gemini-4-argon-low
+      - gemini-4-hydrogen-xhigh
+      - gemini-4-hydrogen-high
+      - gemini-4-hydrogen-medium
+      - gemini-4-hydrogen-low
       - gemini-3.8-flash-high
       - gemini-3.8-flash-medium
       - gemini-3.8-flash-low
@@ -51,6 +60,10 @@ providers:
       gemini-4-argon-high: argon4h
       gemini-4-argon-medium: argon4m
       gemini-4-argon-low: argon4l
+      gemini-4-hydrogen-xhigh: hydrogen4x
+      gemini-4-hydrogen-high: hydrogen4h
+      gemini-4-hydrogen-medium: hydrogen4m
+      gemini-4-hydrogen-low: hydrogen4l
       gemini-3.8-flash-high: flash38h
       gemini-3.8-flash-medium: flash38m
       gemini-3.8-flash-low: flash38l
@@ -69,30 +82,33 @@ providers:
       claude-opus-4-6-thinking: opus46t
       gpt-oss-120b-medium: gptoss120m
     tiers:
-      large: gemini-3.7-flash-high
-      small: gemini-3.7-flash-low
+      large: gemini-3.8-flash-high
+      small: gemini-3.8-flash-low
     advisories:
       gemini-4-argon-high:
         severity: info
-        label: needs Google AI Ultra
-        detail: Antigravity offers Gemini 4 Argon only on Google AI Ultra and
-          eligible Gemini Enterprise subscriptions (not Free, AI Plus, or AI
-          Pro), and `agy` exits with an error when the signed-in account cannot
-          use it. Run `agy models` to check access.
+        label: needs Google AI Pro or Ultra
+        detail: Antigravity offers Gemini 4 Argon on paid Google AI Pro plans
+          (or on trial with eligible premium devices), Google AI Ultra, and
+          Gemini Enterprise subscriptions (not Free or AI Plus), and `agy`
+          exits with an error when the signed-in account cannot use it. Run
+          `agy models` to check access.
       gemini-4-argon-medium:
         severity: info
-        label: needs Google AI Ultra
-        detail: Antigravity offers Gemini 4 Argon only on Google AI Ultra and
-          eligible Gemini Enterprise subscriptions (not Free, AI Plus, or AI
-          Pro), and `agy` exits with an error when the signed-in account cannot
-          use it. Run `agy models` to check access.
+        label: needs Google AI Pro or Ultra
+        detail: Antigravity offers Gemini 4 Argon on paid Google AI Pro plans
+          (or on trial with eligible premium devices), Google AI Ultra, and
+          Gemini Enterprise subscriptions (not Free or AI Plus), and `agy`
+          exits with an error when the signed-in account cannot use it. Run
+          `agy models` to check access.
       gemini-4-argon-low:
         severity: info
-        label: needs Google AI Ultra
-        detail: Antigravity offers Gemini 4 Argon only on Google AI Ultra and
-          eligible Gemini Enterprise subscriptions (not Free, AI Plus, or AI
-          Pro), and `agy` exits with an error when the signed-in account cannot
-          use it. Run `agy models` to check access.
+        label: needs Google AI Pro or Ultra
+        detail: Antigravity offers Gemini 4 Argon on paid Google AI Pro plans
+          (or on trial with eligible premium devices), Google AI Ultra, and
+          Gemini Enterprise subscriptions (not Free or AI Plus), and `agy`
+          exits with an error when the signed-in account cannot use it. Run
+          `agy models` to check access.
   claude:
     models:
       - opus

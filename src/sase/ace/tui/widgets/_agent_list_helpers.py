@@ -14,6 +14,7 @@ def short_model_name(model: str) -> str:
         "wonder-full",
         "wonder",
         "argon",
+        "hydrogen",
         "flash",
         "fable",
         "opus",

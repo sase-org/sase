@@ -72,21 +72,29 @@ defaults are:
 
 | Tier    | Model                   |
 | ------- | ----------------------- |
-| `large` | `gemini-3.7-flash-high` |
-| `small` | `gemini-3.7-flash-low`  |
+| `large` | `gemini-3.8-flash-high` |
+| `small` | `gemini-3.8-flash-low`  |
 
 <!-- END GENERATED: model-tiers-agy -->
 
 All other `agy models` slugs remain reachable through the model picker, configured
-aliases, and provider/model directives such as `%m:agy/gemini-3.6-flash-high`. Whether a
-shipped size alias currently routes to an Antigravity member is visible in the generated
-[shipped size-alias defaults](models.md#implicit-role-aliases).
+aliases, and provider/model directives such as `%m:agy/gemini-4-hydrogen-high`. Whether
+a shipped size alias currently routes to an Antigravity member is visible in the
+generated [shipped size-alias defaults](models.md#implicit-role-aliases).
 
 Gemini 4 Argon is catalogued as `gemini-4-argon-high`, `gemini-4-argon-medium`, and
-`gemini-4-argon-low`; effort is chosen by the slug variant. Antigravity serves it only
-to Google AI Ultra and eligible Gemini Enterprise accounts, and `agy` fails the run when
-the signed-in account lacks access. For that reason the agy tier defaults stay on Gemini
-Flash, and no shipped size alias routes to Argon.
+`gemini-4-argon-low`; effort is chosen by the slug variant. Antigravity serves it to
+Google AI Pro (paid plans, or on trial with eligible premium devices), Google AI Ultra,
+and eligible Gemini Enterprise accounts, and `agy` fails the run when the signed-in
+account lacks access.
+
+Gemini 4 Hydrogen is catalogued as `gemini-4-hydrogen-xhigh`, `gemini-4-hydrogen-high`,
+`gemini-4-hydrogen-medium`, and `gemini-4-hydrogen-low`; effort is chosen by the slug
+variant. It is available on every plan, and `-xhigh` is the only agy xhigh rung.
+
+For that reason the agy tier defaults stay on Gemini 3.8 Flash — the long-established
+model available on every plan (Gemini 3.7 Flash and older are now Enterprise-only) — and
+no shipped size alias routes to Argon.
 
 ### Environment Variables {#environment-variables-1}
 

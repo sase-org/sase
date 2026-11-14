@@ -23,6 +23,11 @@ def test_short_model_name_recognizes_gemini_argon() -> None:
     assert short_model_name("gemini-4-argon-high") == "argon"
 
 
+def test_short_model_name_recognizes_gemini_hydrogen() -> None:
+    """Gemini 4 Hydrogen IDs should render with the compact hydrogen label."""
+    assert short_model_name("gemini-4-hydrogen-xhigh") == "hydrogen"
+
+
 def test_short_model_name_recognizes_muse_wonder() -> None:
     """Muse Wonder model IDs should render with the compact wonder label."""
     assert short_model_name("muse-wonder-1.0") == "wonder"

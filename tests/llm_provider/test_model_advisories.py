@@ -34,6 +34,12 @@ _ARGON_SLUGS = (
     "gemini-4-argon-medium",
     "gemini-4-argon-low",
 )
+_HYDROGEN_SLUGS = (
+    "gemini-4-hydrogen-xhigh",
+    "gemini-4-hydrogen-high",
+    "gemini-4-hydrogen-medium",
+    "gemini-4-hydrogen-low",
+)
 _FLASH_SLUGS = (
     "gemini-3.8-flash-high",
     "gemini-3.8-flash-medium",
@@ -161,12 +167,17 @@ def test_tier_mapping_never_routes_to_an_advisory_model() -> None:
 
 
 @pytest.mark.parametrize("slug", _ARGON_SLUGS)
-def test_agy_flags_argon_as_ultra_gated(slug: str) -> None:
+def test_agy_flags_argon_as_pro_gated(slug: str) -> None:
     advisories = model_advisory_map()
 
     assert advisories[slug]["severity"] == "info"
-    assert advisories[slug]["label"] == "needs Google AI Ultra"
-    assert "Google AI Ultra" in advisories[slug]["detail"]
+    assert advisories[slug]["label"] == "needs Google AI Pro or Ultra"
+    assert "Google AI Pro" in advisories[slug]["detail"]
+
+
+@pytest.mark.parametrize("slug", _HYDROGEN_SLUGS)
+def test_agy_hydrogen_models_carry_no_advisory(slug: str) -> None:
+    assert model_advisory_for(slug) is None
 
 
 @pytest.mark.parametrize("slug", _FLASH_SLUGS)
