@@ -15,6 +15,10 @@ from sase.agents_sync import (
 from sase.agents_sync.commit_publication import publish_committed_agent_hood
 from sase.agents_sync.git import run_git
 from sase.agents_sync.models import TargetSelection
+from sase.agents_sync.prompt_archive.deferred import (
+    UNRESOLVED_PROMPT_ARCHIVE_REASON,
+    DeferredPromptRestoreFailure,
+)
 from sase.agents_sync.publication_outbox import (
     AgentPublicationOutboxItem,
     enqueue_agent_publication,
@@ -576,3 +580,89 @@ def test_second_drain_does_not_publish_blocked_bytes(
     }
     assert not any(MARKER in content for content in blobs)
     assert not (target.sidecar_path / "agents" / "alice.athena.foo.blocked").exists()
+
+
+def _unavailable_failure(*, pending: bool) -> DeferredPromptRestoreFailure:
+    return DeferredPromptRestoreFailure(
+        message=(
+            "could not restore deferred prompt archive for "
+            f"alice.athena.worker--code@{('a' * 12)}: {UNRESOLVED_PROMPT_ARCHIVE_REASON}"
+        ),
+        pending=pending,
+    )
+
+
+def _publish_worker_hood(owner: AgentOwnerIdentity):
+    def publish(_target, repo, _agent, **_kwargs):
+        plant_fulfilled_publication(
+            repo,
+            owner=owner,
+            local_agent="worker--code",
+            global_agent="alice.athena.worker--code",
+            revision="a" * 40,
+            local_hood="worker",
+        )
+        manifest = V2OwnerManifest(
+            owner,
+            V2ProjectIdentity("proj", "Project"),
+            (("worker", V2OwnerHoodEntry("d" * 64, ("README.md",), 1, 1)),),
+        )
+        path = repo / owner_manifest_path(owner)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(v2_json_bytes(manifest.to_json_dict()))
+        return V2PublicationCounts(hoods_published=1)
+
+    return publish
+
+
+def test_young_unavailable_prompt_skips_error_and_attempt_charge(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    owner = AgentOwnerIdentity("alice", "athena")
+    target = _configure(monkeypatch, tmp_path, owner)
+    request = _enqueue("Project", "worker", "a" * 40)
+    failure = _unavailable_failure(pending=True)
+    monkeypatch.setattr(
+        "sase.agents_sync.prompt_archive.deferred.restore_deferred_prompt_archives",
+        lambda *_args, **_kwargs: {request.logical_key: failure},
+    )
+    monkeypatch.setattr(
+        publication_locked, "publish_agent_hood", _publish_worker_hood(owner)
+    )
+
+    result = publication_locked.publish_queued_locked(target, owner, run_git)
+
+    remaining = _remaining()[request.logical_key]
+    assert remaining.attempts == 0
+    assert remaining.terminal is False
+    assert remaining.quarantined is False
+    assert remaining.last_error is None
+    assert remaining.parked_reason is None
+    assert result.item_errors == ()
+    assert result.error is None
+    assert result.parked_keys == ()
+
+
+def test_old_unavailable_prompt_still_errors_and_charges(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    owner = AgentOwnerIdentity("alice", "athena")
+    target = _configure(monkeypatch, tmp_path, owner)
+    request = _enqueue("Project", "worker", "a" * 40)
+    failure = _unavailable_failure(pending=False)
+    monkeypatch.setattr(
+        "sase.agents_sync.prompt_archive.deferred.restore_deferred_prompt_archives",
+        lambda *_args, **_kwargs: {request.logical_key: failure},
+    )
+    monkeypatch.setattr(
+        publication_locked, "publish_agent_hood", _publish_worker_hood(owner)
+    )
+
+    result = publication_locked.publish_queued_locked(target, owner, run_git)
+
+    remaining = _remaining()[request.logical_key]
+    assert remaining.attempts == 1
+    assert remaining.terminal is False
+    assert remaining.last_error == failure.message
+    assert failure.message in result.item_errors
+    assert remaining.logical_key == request.logical_key

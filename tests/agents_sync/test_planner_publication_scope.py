@@ -373,9 +373,12 @@ def test_missing_prompt_bytes_are_still_refused(
     remaining = list_agent_publications("proj")
     assert result.drained == 0
     assert len(remaining) == 1
-    assert remaining[0].attempts == 1
-    assert remaining[0].last_error is not None
-    assert "did not materialize" not in remaining[0].last_error
+    assert remaining[0].attempts == 0
+    assert remaining[0].last_error is None
+    assert remaining[0].parked_reason is None
+    assert remaining[0].terminal is False
+    assert result.item_errors == ()
+    assert "did not materialize" not in (remaining[0].last_error or "")
 
 
 def test_protection_failure_is_still_refused(

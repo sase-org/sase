@@ -10,7 +10,9 @@ so one lock acquisition -- and one durable retry -- covers both.
 from __future__ import annotations
 
 from dataclasses import dataclass
+import logging
 from pathlib import Path
+import time
 
 from sase._interruptions import PublicationDrainTimedOut
 from sase.agents_sync.git import GitRunner
@@ -23,11 +25,29 @@ from sase.agents_sync.publication_completion import snapshot_prompt_file_present
 from sase.agents_sync.publication_outbox import AgentPublicationOutboxItem
 from sase.core.agent_identity_facade import AgentIdentitySnapshot, AgentOwnerIdentity
 from sase.core.agent_publication_recovery import (
+    PROMPT_STATUS_UNAVAILABLE,
     DeferredPromptDecision,
     classify_deferred_prompt_obligation,
 )
 from sase.sase_agent import sase_agent_ref_for_turn
 from sase.sdd.plan_header_block import PlanHeaderSectionKind, parse_plan_header_block
+
+log = logging.getLogger(__name__)
+
+# Young unresolved archives self-resolve; 30 minutes covers the worst observed case.
+DEFERRED_PROMPT_GRACE_SECONDS = 1800
+UNRESOLVED_PROMPT_ARCHIVE_REASON = (
+    "prompt archive is unresolved and a missing local source does not prove "
+    "there was no prompt obligation"
+)
+
+
+@dataclass(frozen=True, slots=True)
+class DeferredPromptRestoreFailure:
+    """One restore failure, plus whether it is still inside the grace window."""
+
+    message: str
+    pending: bool = False
 
 
 @dataclass(frozen=True, slots=True)
@@ -121,6 +141,33 @@ def prepare_deferred_prompt_archive(
     return _DeferredPromptPrepareResult(wrote=True, prepared_archive=prepared)
 
 
+def _deferred_prompt_restore_is_pending(
+    *,
+    status: str,
+    reason: str,
+    restore_error: str | None,
+    created_at: float,
+    now: float,
+    grace_seconds: float = DEFERRED_PROMPT_GRACE_SECONDS,
+) -> bool:
+    """Return whether an unavailable restore is still inside the grace window.
+
+    Legacy rows with ``created_at == 0.0`` are always past grace. An explicit
+    restore exception is never pending: only the conservative unavailable
+    classification of a missing local source qualifies.
+    """
+
+    if restore_error is not None:
+        return False
+    if status != PROMPT_STATUS_UNAVAILABLE:
+        return False
+    if reason != UNRESOLVED_PROMPT_ARCHIVE_REASON:
+        return False
+    if created_at <= 0.0:
+        return False
+    return now - created_at < grace_seconds
+
+
 def restore_deferred_prompt_archives(
     target: ProjectTarget,
     requests: tuple[AgentPublicationOutboxItem, ...],
@@ -129,20 +176,24 @@ def restore_deferred_prompt_archives(
     identity: AgentIdentitySnapshot,
     inventory: ProjectHoodInventory,
     prepared_archives: dict[tuple[str, str], PreparedPromptArchive] | None = None,
-) -> dict[tuple[str, str], str]:
+    now: float | None = None,
+) -> dict[tuple[str, str], DeferredPromptRestoreFailure]:
     """Regenerate every queued prompt archive, reporting per-request failures.
 
     One unrecoverable request must not abort a whole-project sync, so a failure
     becomes an entry keyed by the request's logical key instead of an
     exception. Callers keep those requests queued rather than acknowledging
     them. A missing local source does not prove there was no prompt obligation.
+    Young unavailable restores are marked ``pending`` so callers can skip
+    digest errors and attempt charges during the grace window.
     """
 
     if not requests:
         return {}
+    observed = time.time() if now is None else now
     prompt_runs = prompt_runs_by_request(inventory, identity)
     archived_agents = _prompt_archive_agents(target.sidecar_path, identity)
-    failures: dict[tuple[str, str], str] = {}
+    failures: dict[tuple[str, str], DeferredPromptRestoreFailure] = {}
     owner = identity.owner
     for request in requests:
         restore_error: str | None = None
@@ -177,7 +228,9 @@ def restore_deferred_prompt_archives(
                 protection_skip_reason,
             )
 
-            failures[request.logical_key] = protection_skip_reason(protection_status)
+            failures[request.logical_key] = DeferredPromptRestoreFailure(
+                message=protection_skip_reason(protection_status),
+            )
             continue
         decision = classify_deferred_prompt_obligation(
             restore_wrote=wrote,
@@ -191,8 +244,22 @@ def restore_deferred_prompt_archives(
             ),
         )
         if decision.blocks_acknowledgment:
-            failures[request.logical_key] = _prompt_restore_failure(
-                request, restore_error, decision
+            message = _prompt_restore_failure(request, restore_error, decision)
+            pending = _deferred_prompt_restore_is_pending(
+                status=decision.status,
+                reason=decision.reason,
+                restore_error=restore_error,
+                created_at=request.created_at,
+                now=observed,
+            )
+            if pending:
+                log.info(
+                    "deferred prompt archive restore still pending: %s",
+                    message,
+                )
+            failures[request.logical_key] = DeferredPromptRestoreFailure(
+                message=message,
+                pending=pending,
             )
     return failures
 
@@ -268,6 +335,9 @@ def _prompt_archive_present(
 
 
 __all__ = [
+    "DEFERRED_PROMPT_GRACE_SECONDS",
+    "DeferredPromptRestoreFailure",
+    "UNRESOLVED_PROMPT_ARCHIVE_REASON",
     "prepare_deferred_prompt_archive",
     "prompt_runs_by_request",
     "restore_deferred_prompt_archives",

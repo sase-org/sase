@@ -314,8 +314,11 @@ def acknowledge_completed(
         if withheld_error is not None:
             _park_one(item.logical_key, withheld_error)
             continue
-        prompt_error = prompt_failures.get(item.logical_key)
-        if prompt_error is not None:
+        prompt_failure = prompt_failures.get(item.logical_key)
+        if prompt_failure is not None:
+            if prompt_failure.pending:
+                continue
+            prompt_error = prompt_failure.message
             from sase.agents_sync.prompt_archive.protection import (
                 should_charge_prompt_protection_failure,
             )

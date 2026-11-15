@@ -88,4 +88,6 @@ def test_deferred_land_row_does_not_match_prefix_sharing_session(
     )
 
     assert request.logical_key in failures
-    assert "missing local source does not prove" in failures[request.logical_key]
+    failure = failures[request.logical_key]
+    assert failure.pending is False
+    assert "missing local source does not prove" in failure.message

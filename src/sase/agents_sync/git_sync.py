@@ -36,6 +36,7 @@ from sase.agents_sync.models import (
     SyncOutcome,
 )
 from sase.agents_sync.prompt_archive.deferred import (
+    DeferredPromptRestoreFailure,
     restore_deferred_prompt_archives,
 )
 from sase.agents_sync.publication import reconcile_agent_hoods
@@ -202,19 +203,21 @@ def sync_agents(
                         withheld_runs=outcome.withheld_runs,
                         withheld_hoods=outcome.withheld_hoods,
                     )
-                    prompt_error = prompt_failures.get(item.logical_key)
+                    prompt_failure = prompt_failures.get(item.logical_key)
                     if withheld_error is not None:
                         park_reasons[item.logical_key] = withheld_error
                         continue
-                    if prompt_error is not None:
+                    if prompt_failure is not None:
+                        if prompt_failure.pending:
+                            continue
                         from sase.agents_sync.prompt_archive.protection import (
                             should_charge_prompt_protection_failure,
                         )
 
-                        error = prompt_error
-                        charge = should_charge_prompt_protection_failure(prompt_error)
+                        error = prompt_failure.message
+                        charge = should_charge_prompt_protection_failure(error)
                         if not charge:
-                            park_reasons[item.logical_key] = prompt_error
+                            park_reasons[item.logical_key] = error
                             continue
                     else:
                         error = refusals[item.logical_key]
@@ -227,7 +230,7 @@ def sync_agents(
                         quarantine_threshold=(
                             configured_publication_max_attempts() if charge else None
                         ),
-                        terminal_reason=None if prompt_error is not None else error,
+                        terminal_reason=None if prompt_failure is not None else error,
                     )
                 if park_reasons:
                     park_agent_publications(target.project_key, park_reasons)
@@ -450,7 +453,9 @@ class _DeferredPromptWork:
     """
 
     requests: tuple[Any, ...] = ()
-    failures: dict[tuple[str, str], str] = field(default_factory=dict)
+    failures: dict[tuple[str, str], DeferredPromptRestoreFailure] = field(
+        default_factory=dict
+    )
 
 
 def _sync_project(
@@ -563,7 +568,11 @@ def _integrate_export_pass(
             dict.fromkeys(
                 (
                     *published.diagnostics,
-                    *prompt_failures.values(),
+                    *(
+                        failure.message
+                        for failure in prompt_failures.values()
+                        if not failure.pending
+                    ),
                 )
             )
         ),

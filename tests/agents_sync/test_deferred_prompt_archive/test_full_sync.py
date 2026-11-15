@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from contextlib import contextmanager
+from dataclasses import replace
 import json
 from pathlib import Path
 
@@ -11,8 +12,13 @@ import pytest
 from sase.agents_sync import git_sync
 from sase.agents_sync.models import ProjectTarget, TargetSelection
 from sase.agents_sync.prompt_archive import publish as archive_publish
+from sase.agents_sync.prompt_archive.deferred import DEFERRED_PROMPT_GRACE_SECONDS
 from sase.agents_sync.prompt_archive.publish import publish_prompt_archive
-from sase.agents_sync.publication_outbox import list_agent_publications
+from sase.agents_sync.publication_outbox import (
+    AgentPublicationOutboxItem,
+    list_agent_publications,
+)
+from sase.agents_sync.publication_outbox_store import mutate_publication_outbox
 from tests.agents_sync.commit_publication_fixtures import git, setup_target
 from tests.agents_sync.test_deferred_prompt_archive._helpers import (
     AGENT,
@@ -164,7 +170,51 @@ def test_full_sync_keeps_the_request_when_the_original_prompt_source_is_gone(
     [outcome] = git_sync.sync_agents(("proj",))
 
     assert outcome.error is None
+    assert not any(
+        "missing local source" in line or "unresolved" in line
+        for line in outcome.diagnostics
+    )
     verify = tmp_path / "verify-missing-source"
+    git(tmp_path, "clone", str(remote), str(verify))
+    assert not (verify / "prompts").exists()
+    [remaining] = list_agent_publications("proj")
+    assert remaining.attempts == 0
+    assert not remaining.terminal
+    assert remaining.last_error is None
+    assert remaining.parked_reason is None
+
+
+def test_full_sync_escalates_unresolved_prompt_after_grace_window(
+    deferred_publication: tuple[ProjectTarget, Path, Path],
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    target, remote, artifacts_dir = deferred_publication
+    stub_full_sync(monkeypatch, target, artifacts_dir)
+    for leftover in artifacts_dir.glob("raw_*.md"):
+        leftover.unlink()
+
+    def age(
+        items: tuple[AgentPublicationOutboxItem, ...],
+    ) -> tuple[AgentPublicationOutboxItem, ...]:
+        return tuple(
+            replace(
+                item,
+                created_at=item.created_at - (DEFERRED_PROMPT_GRACE_SECONDS + 1),
+            )
+            for item in items
+        )
+
+    mutate_publication_outbox(target.project_key, age)
+
+    [outcome] = git_sync.sync_agents(("proj",))
+
+    assert outcome.error is None
+    assert any(
+        "missing local source" in line or "unresolved" in line
+        for line in outcome.diagnostics
+    )
+    verify = tmp_path / "verify-missing-source-aged"
     git(tmp_path, "clone", str(remote), str(verify))
     assert not (verify / "prompts").exists()
     [remaining] = list_agent_publications("proj")
