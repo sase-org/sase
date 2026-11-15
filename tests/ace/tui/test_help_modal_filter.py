@@ -62,7 +62,8 @@ async def test_typing_live_filters_columns_and_status() -> None:
 
         combined = _combined_columns(modal)
         assert "Beads Pane" in combined
-        assert "Prompt Input" not in combined
+        assert "Prompt Input" in combined
+        assert "Patches Pane" not in combined
         status = _static_plain(modal, "#help-filter-status")
         assert status.strip() != ""
         assert not status.strip().startswith("0 keymaps")

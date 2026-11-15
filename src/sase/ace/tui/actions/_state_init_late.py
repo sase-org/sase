@@ -327,6 +327,9 @@ def init_late_startup_state(
     self._prompt_repo_mention_catalogs_by_context = {}
     self._prompt_repo_mention_diagnostics_by_context = {}
     self._prompt_repo_mention_warming_contexts = set()
+    self._bead_store_directory = None
+    self._bead_store_directory_generation = 0
+    self._bead_store_directory_warming = False
     # Phase ``post-open-quiet``: coalesced Agents-detail repaint deferred while
     # a prompt is active; flushed once by ``_detach_prompt_bar`` on dismissal.
     self._pending_selected_agent_semantic_refresh = False

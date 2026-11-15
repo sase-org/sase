@@ -360,6 +360,38 @@ workspace, `Ctrl+]` notifies that the repo is not cloned and prints the exact
 exist: it opens the declaration directly when one exists, or just notifies with no
 chooser at all for an external repo. sase's TUI never runs `sase repo open` itself.
 
+## Bead IDs
+
+`K` on a bead ID opens a compact bead card. Recognized forms are a bare full ID
+(`sase-1ss`, `sase-1ss.1`, `bob-cli-kx`) and an artifact ref (`@bead:sase-1ss` or
+`bead:sase-1ss`). Trailing sentence punctuation, wrapping quotes, backticks, and
+parentheses are not part of the ID. Path-adjacent tokens (`src/sase-1ss/x`,
+`sase-1ss.md`), project tags (`+bob-cli`), macros (`#…`), directives immediately
+before an ID (`%sase-1ss`), `~`-paths, tokens containing `--`, and tokens ending in
+`-` are never bead references. Bare shorthand IDs (`1ss.1`) are out of scope. The
+directive form `%wait:sase-1ss` is allowed because the ID follows a `:`.
+
+When the ID resolves, the card opens immediately in a loading state and fills itself
+off the UI thread: identity (epic / tale / plan / phase / task / flag), status and
+size chips, description, and a property grid for project, plan, assignee, owner,
+model, created, updated, closed, and notes. `y` copies the bead ID. When the bead
+has a resolvable plan file, `Y` copies its path, `o` opens it in `$EDITOR`, and `Z`
+hands it to the artifact viewer. Load failures stay in the card with `r` to retry.
+
+When no enabled project owns the prefix of a bare ID, `K` continues the existing
+preview chain with no added latency once the store directory is warm. A bare ID
+whose prefix is owned but that does not exist still runs word lookup and
+spellcheck; only the final dead-end toast names the missing bead. A ref form that
+does not resolve toasts `No bead '<id>' in <project>` or `No enabled project owns
+bead prefix '<prefix>'` and does not fall through to word lookup. A prefix owned
+by several projects prefers the prompt's `+project` tag when it names one of them;
+otherwise a warning lists the projects and suggests adding a `+project` tag. An
+unavailable owning store warns `<project> beads are unavailable: <reason>`.
+
+The store directory is cached app-wide and warmed when the prompt mounts. Config
+edits, project changes, and watched `sase.yml` changes invalidate it. Routing and
+detail reads are audit-free: a human peek is not an agent read.
+
 ## Word definitions & spellcheck
 
 When no macro, slash skill, workflow, or file target matches, `K` treats a plain

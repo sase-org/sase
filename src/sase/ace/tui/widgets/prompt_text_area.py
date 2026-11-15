@@ -17,6 +17,8 @@ from sase.ace.tui.widgets._jinja_diagnostics import JinjaDiagnosticsMixin
 from sase.ace.tui.widgets._jinja_highlight import JinjaHighlightMixin
 from sase.ace.tui.widgets._misspelling_highlight import MisspellingHighlightMixin
 from sase.ace.tui.widgets._placeholder_highlight import PlaceholderHighlightMixin
+from sase.ace.tui.widgets._prompt_bead_mentions import PromptBeadMentionMixin
+from sase.ace.tui.widgets._prompt_bead_preview import PromptBeadPreviewMixin
 from sase.ace.tui.widgets._prompt_glossary import PromptGlossaryMixin
 from sase.ace.tui.widgets._prompt_next_word import PromptNextWordMixin
 from sase.ace.tui.widgets._prompt_repo_mentions import PromptRepoMentionMixin
@@ -98,10 +100,12 @@ class PromptTextArea(
     PromptSearchMixin,
     PromptFormatMixin,
     PromptPreviewMixin,
+    PromptBeadPreviewMixin,
     PromptWordLookupMixin,
     PromptJumpMixin,
     CodeBlockHighlightMixin,
     PlaceholderHighlightMixin,
+    PromptBeadMentionMixin,
     PromptGlossaryMixin,
     PromptRepoMentionMixin,
     MisspellingHighlightMixin,

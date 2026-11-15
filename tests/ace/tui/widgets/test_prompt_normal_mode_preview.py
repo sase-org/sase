@@ -280,7 +280,7 @@ async def test_k_on_word_inside_shorthand_argument_runs_word_lookup(
         monkeypatch.setattr(
             page.ta,
             "_lookup_word_under_cursor",
-            lambda: looked_up.append(True) or True,
+            lambda *_a, **_k: looked_up.append(True) or True,
         )
 
         await page.press("K")

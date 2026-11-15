@@ -464,7 +464,7 @@ async def test_k_on_non_word_shows_reworded_warning(
         assert notifications == [
             (
                 "Move the cursor onto a macro, skill, file path, glossary "
-                "term, repo name, or word to look it up",
+                "term, repo name, bead ID, or word to look it up",
                 "warning",
             )
         ]

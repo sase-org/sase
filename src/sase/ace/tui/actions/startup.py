@@ -36,6 +36,7 @@ if TYPE_CHECKING:
     from ..agent_header_settings import AgentHeaderSettings
     from ..current_project_settings import CurrentProjectSettings
     from ..glossary_catalog import PromptGlossaryContext
+    from ..models.bead_preview import BeadStoreDirectory
     from ..prompt_catalog import PromptCatalogSnapshot
     from ..prompt_submission_settings import PromptSubmissionSettings
     from ..repo_mention_catalog import PromptRepoMentionContext
@@ -211,6 +212,9 @@ class StartupMixin(
         tuple[str, ...],
     ]
     _prompt_repo_mention_warming_contexts: set[PromptRepoMentionContext]
+    _bead_store_directory: BeadStoreDirectory | None
+    _bead_store_directory_generation: int
+    _bead_store_directory_warming: bool
     _prompt_source_watcher: ArtifactWatcher | None
     _prompt_source_watcher_active: bool
     _prompt_source_watched_projects: set[str | None]

@@ -1,4 +1,4 @@
-{"count": 3705, "rev": "d65644eba395", "schema": "sase.footprint.catalog/1"}
+{"count": 3706, "rev": "427fac4cee12", "schema": "sase.footprint.catalog/1"}
 {"area": "automation", "id": "auto:axe.agent_waits", "kind": "auto", "label": "Resolve agent wait dependencies within seconds of completion", "ns": "auto", "parent": null, "src": "sase/default_config.yml"}
 {"area": "automation", "id": "auto:axe.agent_waits.wait_checks", "kind": "auto", "label": "Resolve agent wait dependencies and write ready.json when satisfied", "ns": "auto", "parent": "auto:axe.agent_waits", "src": "sase/default_config.yml"}
 {"area": "automation", "id": "auto:axe.checks", "kind": "auto", "label": "Poll slower PR-submission and workspace-claim checks on a five-minute cadence", "ns": "auto", "parent": null, "src": "sase/default_config.yml"}
@@ -3555,6 +3555,7 @@
 {"area": "modals", "id": "view:modal.bead_editor", "kind": "modal", "label": "Bead editor dialog", "ns": "view", "parent": null, "src": "ace/tui/modals/bead_editor_modal.py:BeadEditorModal"}
 {"area": "modals", "id": "view:modal.bead_issue_select", "kind": "modal", "label": "Bead issue select dialog", "ns": "view", "parent": null, "src": "ace/tui/modals/bead_issue_modal.py:BeadIssueSelectModal"}
 {"area": "modals", "id": "view:modal.bead_note", "kind": "modal", "label": "Bead note dialog", "ns": "view", "parent": null, "src": "ace/tui/modals/bead_note_modal.py:BeadNoteModal"}
+{"area": "modals", "id": "view:modal.bead_preview", "kind": "modal", "label": "Bead preview dialog", "ns": "view", "parent": null, "src": "ace/tui/modals/bead_preview_modal.py:BeadPreviewModal"}
 {"area": "modals", "id": "view:modal.big_epic_phase_threshold_edit_preview", "kind": "modal", "label": "Big epic phase threshold edit preview dialog", "ns": "view", "parent": null, "src": "ace/tui/modals/models_panel_threshold_edit.py:BigEpicPhaseThresholdEditPreviewModal"}
 {"area": "modals", "id": "view:modal.big_epic_phase_threshold_value", "kind": "modal", "label": "Big epic phase threshold value dialog", "ns": "view", "parent": null, "src": "ace/tui/modals/models_panel_threshold_cards.py:BigEpicPhaseThresholdValueModal"}
 {"area": "modals", "id": "view:modal.capacity_inspector", "kind": "modal", "label": "Capacity inspector dialog", "ns": "view", "parent": null, "src": "ace/tui/modals/capacity_inspector_screen.py:CapacityInspectorModal"}

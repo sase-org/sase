@@ -48,7 +48,7 @@ async def test_k_on_repo_mention_pushes_repo_preview_card(
         monkeypatch.setattr(
             page.ta,
             "_lookup_word_under_cursor",
-            lambda: (_ for _ in ()).throw(
+            lambda *_a, **_k: (_ for _ in ()).throw(
                 AssertionError("word lookup must not run for repo mentions")
             ),
         )
@@ -95,7 +95,7 @@ async def test_k_on_cold_repo_catalog_defers_without_word_lookup(
         monkeypatch.setattr(
             page.ta,
             "_lookup_word_under_cursor",
-            lambda: (_ for _ in ()).throw(
+            lambda *_a, **_k: (_ for _ in ()).throw(
                 AssertionError("cold repo lookup must not fall through")
             ),
         )
@@ -133,7 +133,7 @@ async def test_k_miss_on_repo_mention_falls_through_to_word_lookup(
         monkeypatch.setattr(
             page.ta,
             "_lookup_word_under_cursor",
-            lambda: calls.append(True) or False,
+            lambda *_a, **_k: calls.append(True) or False,
         )
 
         await page.press("K")

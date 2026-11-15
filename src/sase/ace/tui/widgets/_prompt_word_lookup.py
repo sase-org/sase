@@ -30,17 +30,27 @@ class PromptWordLookupMixin(_MixinBase):
     if TYPE_CHECKING:
         _prompt_preview_request_id: int
 
-    def _lookup_word_under_cursor(self) -> bool:
+    def _lookup_word_under_cursor(
+        self,
+        span: WordSpan | None = None,
+        *,
+        bead_miss: str | None = None,
+    ) -> bool:
         """Schedule a word lookup when the cursor is on a plain word."""
-        row, col = self.cursor_location
-        span = extract_lookup_word(self.document.get_line(row), row, col)
+        if span is None:
+            row, col = self.cursor_location
+            span = extract_lookup_word(self.document.get_line(row), row, col)
         if span is None:
             return False
 
         self._prompt_preview_request_id += 1
         request_id = self._prompt_preview_request_id
         self.run_worker(
-            self._resolve_word_lookup_async(span, request_id=request_id),
+            self._resolve_word_lookup_async(
+                span,
+                request_id=request_id,
+                bead_miss=bead_miss,
+            ),
             name=f"prompt-word-lookup:{request_id}",
         )
         return True
@@ -50,6 +60,7 @@ class PromptWordLookupMixin(_MixinBase):
         span: WordSpan,
         *,
         request_id: int,
+        bead_miss: str | None = None,
     ) -> None:
         spelling = await asyncio.to_thread(check_spelling, span.word)
         if not self._word_lookup_request_is_current(request_id):
@@ -76,6 +87,7 @@ class PromptWordLookupMixin(_MixinBase):
             definitions,
             spelling_unavailable=spelling.status == "unavailable",
             card=card,
+            bead_miss=bead_miss,
         )
 
     def _handle_spelling_terminal_result(
@@ -118,6 +130,7 @@ class PromptWordLookupMixin(_MixinBase):
         *,
         spelling_unavailable: bool,
         card: object = None,
+        bead_miss: str | None = None,
     ) -> None:
         if definitions.status == "ok":
             from sase.ace.tui.modals.word_definition_card import (
@@ -140,6 +153,9 @@ class PromptWordLookupMixin(_MixinBase):
             )
             return
         if definitions.status == "no_match":
+            if bead_miss:
+                self.notify(bead_miss, severity="information")
+                return
             message = f"No definition found for '{span.word}'"
             if spelling_unavailable:
                 message += "; install aspell for spelling suggestions"

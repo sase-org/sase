@@ -272,6 +272,9 @@ class StartupPromptCatalogCoreMixin:
         self._prompt_catalog_generation += 1
         self._invalidate_prompt_glossary_catalogs(reason=reason)
         self._invalidate_prompt_repo_mention_catalogs(reason=reason)
+        invalidate_beads = getattr(self, "_invalidate_bead_store_directory", None)
+        if callable(invalidate_beads):
+            invalidate_beads(reason=reason)
         self._schedule_prompt_catalog_rebuild(
             reason=reason,
             force=True,

@@ -26,6 +26,7 @@ _EXPECTED_MOUNT_HOOK_ORDER = [
     "MisspellingHighlightMixin",
     "PromptRepoMentionMixin",
     "PromptGlossaryMixin",
+    "PromptBeadMentionMixin",
     "PlaceholderHighlightMixin",
     "CodeBlockHighlightMixin",
     "BulletHighlightMixin",

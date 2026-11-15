@@ -158,7 +158,7 @@ cross-pane operators, and wrapscan for operators.
 | `~`         | Toggle case of character(s) at cursor (supports count: `5~`)                                          |
 | `.`         | Repeat last mutation, including inserted text; a count replaces the recorded count                    |
 | `J`         | Join current line with next, removing a pulled-up prompt `- ` or `<N>.` marker (supports count: `5J`) |
-| `K`         | Preview the macro, workflow, skill, file, glossary term, repo name, or plain word under the cursor    |
+| `K`         | Preview the macro, workflow, skill, file, glossary term, repo name, bead ID, or plain word under the cursor |
 | `Ctrl+]`    | Jump to the macro/workflow/skill/glossary definition, file, or repo checkout under the cursor         |
 | `/` / `?`   | Search forward / backward in the current prompt pane; after an operator, acts up to the match         |
 | `n` / `N`   | Repeat the last confirmed search in its original / opposite direction                                 |

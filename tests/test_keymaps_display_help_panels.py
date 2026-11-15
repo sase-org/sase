@@ -20,7 +20,8 @@ def test_help_modal_lists_prompt_pane_focus_and_reorder() -> None:
         pairs = {
             (key, label) for _section, bindings in sections for key, label in bindings
         }
-        assert ("K", "Preview macro/skill/file/word") in pairs
+        assert ("K", "Preview macro/skill/file/bead") in pairs
+        assert ("K on bead ID", "Preview bead card") in pairs
         assert ("Ctrl+]", "Jump to macro/skill/file/repo") in pairs
         assert ("gf / Ctrl+G f", "Format current prompt") in pairs
         assert ("gj / gk", "Focus prompt panes (NORMAL)") in pairs

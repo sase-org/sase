@@ -43,7 +43,7 @@ async def test_k_on_glossary_term_pushes_glossary_preview_card(
         monkeypatch.setattr(
             page.ta,
             "_lookup_word_under_cursor",
-            lambda: (_ for _ in ()).throw(
+            lambda *_a, **_k: (_ for _ in ()).throw(
                 AssertionError("word lookup must not run for glossary terms")
             ),
         )
@@ -147,7 +147,7 @@ async def test_k_on_cold_glossary_defers_without_word_lookup(
         monkeypatch.setattr(
             page.ta,
             "_lookup_word_under_cursor",
-            lambda: (_ for _ in ()).throw(
+            lambda *_a, **_k: (_ for _ in ()).throw(
                 AssertionError("cold glossary lookup must not fall through")
             ),
         )

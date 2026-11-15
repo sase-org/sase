@@ -243,6 +243,13 @@ class StartupWatchersMixin:
             )
             if callable(invalidate_repo_mentions):
                 invalidate_repo_mentions(reason="prompt_source_change")
+            invalidate_beads = getattr(
+                self,
+                "_invalidate_bead_store_directory",
+                None,
+            )
+            if callable(invalidate_beads):
+                invalidate_beads(reason="prompt_source_change")
         self._schedule_prompt_catalog_rebuild(
             reason="prompt_source_change",
             config_dirty=config_dirty,

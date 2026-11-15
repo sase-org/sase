@@ -7,11 +7,13 @@ as a small composition point.
 
 from __future__ import annotations
 
+from ._startup_prompt_bead_directory import StartupPromptBeadDirectoryMixin
 from ._startup_prompt_catalog_core import StartupPromptCatalogCoreMixin
 from ._startup_prompt_catalog_semantics import StartupPromptCatalogSemanticsMixin
 
 
 class StartupPromptCatalogMixin(
+    StartupPromptBeadDirectoryMixin,
     StartupPromptCatalogCoreMixin,
     StartupPromptCatalogSemanticsMixin,
 ):
