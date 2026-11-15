@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+from collections.abc import Callable
 from typing import TYPE_CHECKING, Any
 
 from sase.ace.tui.models.bead_preview import (
@@ -45,6 +46,7 @@ class PromptBeadPreviewMixin(_MixinBase):
             schedule: bool = False,
         ) -> BeadStoreDirectory | None: ...
         def _macro_arg_assist_project_from_text(self) -> str | None: ...
+        def _bead_mention_context_key(self) -> str | None: ...
         def _preview_context(self) -> tuple[str | None, str]: ...
         def _resolve_jump_async(
             self,
@@ -54,6 +56,7 @@ class PromptBeadPreviewMixin(_MixinBase):
             base_dir: str,
             request_id: int,
             prefer_load: bool = False,
+            is_current: Callable[[], bool] | None = None,
         ) -> Any: ...
         def _resume_preview_fallback(
             self,
@@ -88,6 +91,11 @@ class PromptBeadPreviewMixin(_MixinBase):
         request_id = self._prompt_preview_request_id
         cursor = self.cursor_location
         project_ref = self._project_ref_for_bead_route()
+        context_key = self._bead_mention_context_key()
+        text_snapshot = self.text
+        selection_snapshot = getattr(self, "selection", None)
+        context_snapshot = self._bead_prompt_context_snapshot()
+        directory_generation = self._bead_store_directory_generation()
         self.run_worker(
             self._resolve_bead_preview_async(
                 mention.bead_id,
@@ -95,8 +103,13 @@ class PromptBeadPreviewMixin(_MixinBase):
                 mention.prefix,
                 fallback,
                 project_ref=project_ref,
+                context_key=context_key,
                 request_id=request_id,
                 cursor=cursor,
+                text_snapshot=text_snapshot,
+                selection_snapshot=selection_snapshot,
+                context_snapshot=context_snapshot,
+                directory_generation=directory_generation,
             ),
             name=f"prompt-bead-preview:{request_id}",
         )
@@ -110,13 +123,41 @@ class PromptBeadPreviewMixin(_MixinBase):
         fallback: PreviewFallbackSnapshot,
         *,
         project_ref: str | None,
+        context_key: str | None,
         request_id: int,
         cursor: tuple[int, int],
+        text_snapshot: str,
+        selection_snapshot: object,
+        context_snapshot: tuple[object, ...],
+        directory_generation: int,
     ) -> None:
-        directory, generation = await asyncio.to_thread(
-            self._load_directory_for_preview,
-        )
-        if not self._bead_preview_request_is_current(request_id, cursor):
+        try:
+            directory, generation = await asyncio.to_thread(
+                self._load_directory_for_preview,
+                directory_generation,
+            )
+        except Exception as exc:
+            if self._bead_preview_request_is_current(
+                request_id,
+                cursor,
+                text_snapshot,
+                selection_snapshot,
+                context_snapshot,
+                directory_generation,
+            ):
+                self.notify(
+                    f"Could not load bead stores: {exc}",
+                    severity="warning",
+                )
+            return
+        if not self._bead_preview_request_is_current(
+            request_id,
+            cursor,
+            text_snapshot,
+            selection_snapshot,
+            context_snapshot,
+            directory_generation,
+        ):
             return
         if directory is None:
             return
@@ -131,13 +172,35 @@ class PromptBeadPreviewMixin(_MixinBase):
             )
             return
 
-        route = await asyncio.to_thread(
-            route_bead_mention,
-            bead_id,
-            directory,
-            project_ref=project_ref,
-        )
-        if not self._bead_preview_request_is_current(request_id, cursor):
+        try:
+            route = await asyncio.to_thread(
+                route_bead_mention,
+                bead_id,
+                directory,
+                project_ref=project_ref,
+            )
+        except Exception as exc:
+            if self._bead_preview_request_is_current(
+                request_id,
+                cursor,
+                text_snapshot,
+                selection_snapshot,
+                context_snapshot,
+                directory_generation,
+            ):
+                self.notify(
+                    f"Could not resolve bead '{bead_id}': {exc}",
+                    severity="warning",
+                )
+            return
+        if not self._bead_preview_request_is_current(
+            request_id,
+            cursor,
+            text_snapshot,
+            selection_snapshot,
+            context_snapshot,
+            directory_generation,
+        ):
             return
 
         if isinstance(route, BeadRouteNotBead):
@@ -153,7 +216,11 @@ class PromptBeadPreviewMixin(_MixinBase):
             from sase.ace.tui.modals.bead_preview_modal import BeadPreviewModal
 
             self.app.push_screen(BeadPreviewModal(route.store, route.bead_id))
-            self._note_bead_mention_resolved(route.bead_id)
+            self._note_bead_mention_resolved(
+                route.bead_id,
+                project_ref=project_ref,
+                context_key=context_key,
+            )
             return
         if isinstance(route, BeadRouteMissing):
             miss = _missing_bead_message(route.bead_id, route.project_labels)
@@ -197,6 +264,11 @@ class PromptBeadPreviewMixin(_MixinBase):
         request_id = self._prompt_jump_request_id
         cursor = self.cursor_location
         project_ref = self._project_ref_for_bead_route()
+        context_key = self._bead_mention_context_key()
+        text_snapshot = self.text
+        selection_snapshot = getattr(self, "selection", None)
+        context_snapshot = self._bead_prompt_context_snapshot()
+        directory_generation = self._bead_store_directory_generation()
         self.run_worker(
             self._resolve_bead_jump_async(
                 mention.bead_id,
@@ -204,8 +276,13 @@ class PromptBeadPreviewMixin(_MixinBase):
                 mention.prefix,
                 offset,
                 project_ref=project_ref,
+                context_key=context_key,
                 request_id=request_id,
                 cursor=cursor,
+                text_snapshot=text_snapshot,
+                selection_snapshot=selection_snapshot,
+                context_snapshot=context_snapshot,
+                directory_generation=directory_generation,
             ),
             name=f"prompt-bead-jump:{request_id}",
         )
@@ -219,13 +296,41 @@ class PromptBeadPreviewMixin(_MixinBase):
         offset: int,
         *,
         project_ref: str | None,
+        context_key: str | None,
         request_id: int,
         cursor: tuple[int, int],
+        text_snapshot: str,
+        selection_snapshot: object,
+        context_snapshot: tuple[object, ...],
+        directory_generation: int,
     ) -> None:
-        directory, generation = await asyncio.to_thread(
-            self._load_directory_for_preview,
-        )
-        if not self._bead_jump_request_is_current(request_id, cursor):
+        try:
+            directory, generation = await asyncio.to_thread(
+                self._load_directory_for_preview,
+                directory_generation,
+            )
+        except Exception as exc:
+            if self._bead_jump_request_is_current(
+                request_id,
+                cursor,
+                text_snapshot,
+                selection_snapshot,
+                context_snapshot,
+                directory_generation,
+            ):
+                self.notify(
+                    f"Could not load bead stores: {exc}",
+                    severity="warning",
+                )
+            return
+        if not self._bead_jump_request_is_current(
+            request_id,
+            cursor,
+            text_snapshot,
+            selection_snapshot,
+            context_snapshot,
+            directory_generation,
+        ):
             return
         if directory is None:
             return
@@ -240,13 +345,35 @@ class PromptBeadPreviewMixin(_MixinBase):
             )
             return
 
-        route, resolution = await asyncio.to_thread(
-            _route_and_resolve_bead_detail,
-            bead_id,
-            directory,
-            project_ref,
-        )
-        if not self._bead_jump_request_is_current(request_id, cursor):
+        try:
+            route, resolution = await asyncio.to_thread(
+                _route_and_resolve_bead_detail,
+                bead_id,
+                directory,
+                project_ref,
+            )
+        except Exception as exc:
+            if self._bead_jump_request_is_current(
+                request_id,
+                cursor,
+                text_snapshot,
+                selection_snapshot,
+                context_snapshot,
+                directory_generation,
+            ):
+                self.notify(
+                    f"Could not resolve bead '{bead_id}': {exc}",
+                    severity="warning",
+                )
+            return
+        if not self._bead_jump_request_is_current(
+            request_id,
+            cursor,
+            text_snapshot,
+            selection_snapshot,
+            context_snapshot,
+            directory_generation,
+        ):
             return
 
         if isinstance(route, BeadRouteNotBead):
@@ -256,7 +383,15 @@ class PromptBeadPreviewMixin(_MixinBase):
                     severity="warning",
                 )
                 return
-            self._resume_jump_after_non_bead(offset, request_id)
+            self._resume_jump_after_non_bead(
+                offset,
+                request_id,
+                cursor=cursor,
+                text_snapshot=text_snapshot,
+                selection_snapshot=selection_snapshot,
+                context_snapshot=context_snapshot,
+                directory_generation=directory_generation,
+            )
             return
         if isinstance(route, BeadRouteFound):
             if resolution is None:
@@ -266,7 +401,11 @@ class PromptBeadPreviewMixin(_MixinBase):
                 )
                 return
             self._present_bead_detail(resolution, bead_id=route.bead_id)
-            self._note_bead_mention_resolved(route.bead_id)
+            self._note_bead_mention_resolved(
+                route.bead_id,
+                project_ref=project_ref,
+                context_key=context_key,
+            )
             return
         if isinstance(route, BeadRouteMissing):
             self.notify(
@@ -288,7 +427,17 @@ class PromptBeadPreviewMixin(_MixinBase):
                 severity="warning",
             )
 
-    def _resume_jump_after_non_bead(self, offset: int, request_id: int) -> None:
+    def _resume_jump_after_non_bead(
+        self,
+        offset: int,
+        request_id: int,
+        *,
+        cursor: tuple[int, int],
+        text_snapshot: str,
+        selection_snapshot: object,
+        context_snapshot: tuple[object, ...],
+        directory_generation: int,
+    ) -> None:
         from sase.ace.tui.widgets._prompt_jump_target import (
             detect_shorthand_argument_owner_jump_target,
         )
@@ -308,6 +457,14 @@ class PromptBeadPreviewMixin(_MixinBase):
                 project=project,
                 base_dir=base_dir,
                 request_id=request_id,
+                is_current=lambda: self._bead_jump_request_is_current(
+                    request_id,
+                    cursor,
+                    text_snapshot,
+                    selection_snapshot,
+                    context_snapshot,
+                    directory_generation,
+                ),
             ),
             name=f"prompt-jump:{request_id}",
         )
@@ -326,16 +483,19 @@ class PromptBeadPreviewMixin(_MixinBase):
 
     def _load_directory_for_preview(
         self,
+        expected_generation: int,
     ) -> tuple[BeadStoreDirectory | None, int | None]:
-        directory = self._bead_store_directory_for_action(schedule=False)
-        if directory is not None:
-            return directory, None
         app = getattr(self, "_active_app", lambda: None)()
         generation = (
             int(getattr(app, "_bead_store_directory_generation", 0))
             if app is not None
             else 0
         )
+        if generation != expected_generation:
+            return None, generation
+        directory = self._bead_store_directory_for_action(schedule=False)
+        if directory is not None:
+            return directory, generation
         return load_bead_store_directory(), generation
 
     def _publish_loaded_directory(
@@ -350,7 +510,13 @@ class PromptBeadPreviewMixin(_MixinBase):
         if callable(publisher):
             publisher(directory, generation=generation)
 
-    def _note_bead_mention_resolved(self, bead_id: str) -> None:
+    def _note_bead_mention_resolved(
+        self,
+        bead_id: str,
+        *,
+        project_ref: str | None,
+        context_key: str | None,
+    ) -> None:
         """Seed the mention index after a K/Ctrl+] resolution (memory only)."""
         try:
             app = self._active_app()
@@ -362,7 +528,11 @@ class PromptBeadPreviewMixin(_MixinBase):
         if not callable(requester):
             return
         try:
-            requester((bead_id,))
+            requester(
+                (bead_id,),
+                project_ref=project_ref,
+                context_key=context_key,
+            )
         except Exception:
             pass
 
@@ -380,19 +550,72 @@ class PromptBeadPreviewMixin(_MixinBase):
         self,
         request_id: int,
         cursor: tuple[int, int],
+        text_snapshot: str,
+        selection_snapshot: object,
+        context_snapshot: tuple[object, ...],
+        directory_generation: int,
     ) -> bool:
-        if request_id != self._prompt_preview_request_id or not self.is_mounted:
-            return False
-        return self.cursor_location == cursor
+        return self._bead_request_is_current(
+            self._prompt_preview_request_id,
+            request_id,
+            cursor,
+            text_snapshot,
+            selection_snapshot,
+            context_snapshot,
+            directory_generation,
+        )
 
     def _bead_jump_request_is_current(
         self,
         request_id: int,
         cursor: tuple[int, int],
+        text_snapshot: str,
+        selection_snapshot: object,
+        context_snapshot: tuple[object, ...],
+        directory_generation: int,
     ) -> bool:
-        if request_id != self._prompt_jump_request_id or not self.is_mounted:
+        return self._bead_request_is_current(
+            self._prompt_jump_request_id,
+            request_id,
+            cursor,
+            text_snapshot,
+            selection_snapshot,
+            context_snapshot,
+            directory_generation,
+        )
+
+    def _bead_request_is_current(
+        self,
+        current_request_id: int,
+        request_id: int,
+        cursor: tuple[int, int],
+        text_snapshot: str,
+        selection_snapshot: object,
+        context_snapshot: tuple[object, ...],
+        directory_generation: int,
+    ) -> bool:
+        if request_id != current_request_id or not self.is_mounted:
             return False
-        return self.cursor_location == cursor
+        if self.cursor_location != cursor or self.text != text_snapshot:
+            return False
+        if getattr(self, "selection", None) != selection_snapshot:
+            return False
+        if self._bead_prompt_context_snapshot() != context_snapshot:
+            return False
+        return self._bead_store_directory_generation() == directory_generation
+
+    def _bead_prompt_context_snapshot(self) -> tuple[object, ...]:
+        app = self._active_app()
+        context = getattr(app, "_prompt_context", None) if app is not None else None
+        return (
+            getattr(context, "project_name", None),
+            getattr(context, "workspace_dir", None),
+            bool(getattr(context, "is_home_mode", False)),
+        )
+
+    def _bead_store_directory_generation(self) -> int:
+        app = self._active_app()
+        return int(getattr(app, "_bead_store_directory_generation", 0))
 
 
 def _route_and_resolve_bead_detail(

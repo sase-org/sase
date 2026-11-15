@@ -7,6 +7,8 @@ from types import SimpleNamespace
 from typing import Any
 
 import pytest
+import asyncio
+import threading
 from rich.style import Style
 
 from sase.ace.testing import PromptPage
@@ -14,6 +16,7 @@ from sase.ace.tui.actions import _startup_prompt_bead_directory as bead_dir_mod
 from sase.ace.tui.models.bead_preview import (
     BeadMentionEntry,
     BeadMentionIndex,
+    BeadMentionRequest,
     BeadStoreDirectory,
 )
 from sase.ace.tui.util.semantic_styles import (
@@ -78,10 +81,20 @@ def _install_bead_index(
 
 def _record_requests(monkeypatch: pytest.MonkeyPatch, app: Any) -> list[list[str]]:
     calls: list[list[str]] = []
+
+    def record(
+        ids: list[str],
+        *,
+        project_ref: str | None = None,
+        context_key: str | None = None,
+    ) -> None:
+        del project_ref, context_key
+        calls.append(sorted(str(item) for item in ids))
+
     monkeypatch.setattr(
         app,
         "request_bead_mention_resolution",
-        lambda ids: calls.append(sorted(str(item) for item in ids)),
+        record,
         raising=False,
     )
     return calls
@@ -123,6 +136,54 @@ async def test_escape_schedules_one_resolution(
         await page.press("escape")
         assert page.mode == "normal"
         assert calls == [["sase-1ss"]]
+
+
+async def test_discrete_trigger_revalidates_cached_hit_and_miss(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    async with PromptPage("sase-1ss and sase-9zz", mode="normal") as page:
+        _install_bead_directory(monkeypatch, page.ta.app, _directory(tmp_path))
+        index = _install_bead_index(monkeypatch, page.ta.app)
+        index.store("sase-1ss", BeadMentionEntry("open", "key", "old-token"))
+        index.store("sase-9zz", BeadMentionEntry(None, "key", "old-token"))
+        calls = _record_requests(monkeypatch, page.ta.app)
+
+        page.ta._request_bead_mention_resolution_for_text()
+
+        assert calls == [["sase-1ss", "sase-9zz"]]
+
+
+async def test_highlight_uses_only_matching_project_context(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    async with PromptPage("see sase-1ss here", mode="insert") as page:
+        _install_bead_directory(monkeypatch, page.ta.app, _directory(tmp_path))
+        index = _install_bead_index(monkeypatch, page.ta.app)
+        page.ta.load_text("+first see sase-1ss here")
+        first_context = page.ta._bead_mention_context_key()
+        second = PromptTextArea(id="second-prompt")
+        await page.ta.app.mount(second)
+        await page.pause()
+        second.load_text("+second see sase-1ss here")
+        second_context = second._bead_mention_context_key()
+        index.store(
+            "sase-1ss",
+            BeadMentionEntry("open", "first", "token"),
+            context_key=first_context,
+        )
+        index.store(
+            "sase-1ss",
+            BeadMentionEntry("closed", "second", "token"),
+            context_key=second_context,
+        )
+
+        page.ta._build_highlight_map()
+        second._build_highlight_map()
+
+        assert any(span[3] == "bead.mention.open" for span in _bead_spans(page.ta))
+        assert all(span[3] != "bead.mention.closed" for span in _bead_spans(page.ta))
+        assert any(span[3] == "bead.mention.closed" for span in _bead_spans(second))
+        assert all(span[3] != "bead.mention.open" for span in _bead_spans(second))
 
 
 async def test_escape_without_directory_schedules_nothing(
@@ -287,6 +348,8 @@ def _stub_app(
         _bead_mention_index=index,
         _bead_mention_pending=set(),
         _bead_mention_resolution_in_flight=False,
+        _bead_mention_resolution_request_id=0,
+        _bead_mention_resolution_owner=None,
         run_workers=[],
         warmed=[],
         refreshed=[],
@@ -296,13 +359,20 @@ def _stub_app(
 def _bind_stub(app: SimpleNamespace) -> SimpleNamespace:
     mixin = bead_dir_mod.StartupPromptBeadDirectoryMixin
     app.warm_bead_store_directory = lambda: app.warmed.append(True)  # type: ignore[method-assign]
-    app.run_worker = lambda worker, **_k: app.run_workers.append(worker())  # type: ignore[method-assign]
+    app.run_worker = lambda worker, **_k: app.run_workers.append(worker)  # type: ignore[method-assign]
     app._refresh_visible_prompt_semantic_surfaces = (  # type: ignore[method-assign]
         lambda **_k: app.refreshed.append(True)
     )
     app.request_bead_mention_resolution = mixin.request_bead_mention_resolution.__get__(
         app
     )  # type: ignore[method-assign]
+    app.publish_bead_store_directory = mixin.publish_bead_store_directory.__get__(app)  # type: ignore[method-assign]
+    app._request_visible_bead_mention_resolution = (
+        mixin._request_visible_bead_mention_resolution.__get__(app)  # type: ignore[method-assign]
+    )
+    app._invalidate_bead_store_directory = (
+        mixin._invalidate_bead_store_directory.__get__(app)  # type: ignore[method-assign]
+    )
     app._run_bead_mention_resolution = mixin._run_bead_mention_resolution.__get__(app)  # type: ignore[method-assign]
     app._plan_bead_mention_resolution = mixin._plan_bead_mention_resolution.__get__(app)  # type: ignore[method-assign]
     return app
@@ -313,7 +383,10 @@ async def test_two_requests_coalesce_into_one_worker(tmp_path: Path) -> None:
     app.request_bead_mention_resolution(["sase-1ss"])
     app.request_bead_mention_resolution(["sase-1ss.1"])
     assert len(app.run_workers) == 1
-    assert app._bead_mention_pending == {"sase-1ss", "sase-1ss.1"}
+    assert app._bead_mention_pending == {
+        BeadMentionRequest("sase-1ss"),
+        BeadMentionRequest("sase-1ss.1"),
+    }
 
 
 async def test_worker_publishes_and_releases_flag(
@@ -321,9 +394,8 @@ async def test_worker_publishes_and_releases_flag(
 ) -> None:
     from sase.ace.tui.models.bead_preview import BeadMentionEntry as Entry
 
-    published = [
-        ("sase-1ss", Entry("open", "key", "tok")),
-    ]
+    request = BeadMentionRequest("sase-1ss")
+    published = [(request, Entry("open", "key", "tok"))]
     monkeypatch.setattr(
         "sase.ace.tui.models.bead_preview.resolve_bead_mention_updates",
         lambda _plan: published,
@@ -331,7 +403,7 @@ async def test_worker_publishes_and_releases_flag(
     app = _bind_stub(_stub_app(_directory(tmp_path), BeadMentionIndex()))
     app.request_bead_mention_resolution(["sase-1ss"])
     assert len(app.run_workers) == 1
-    await app.run_workers[0]
+    await app.run_workers[0]()
     assert app._bead_mention_index.peek("sase-1ss") == published[0][1]
     assert app._bead_mention_resolution_in_flight is False
     assert app.refreshed == [True]
@@ -348,7 +420,7 @@ async def test_worker_releases_flag_on_failure(
     )
     app = _bind_stub(_stub_app(_directory(tmp_path), BeadMentionIndex()))
     app.request_bead_mention_resolution(["sase-1ss"])
-    await app.run_workers[0]
+    await app.run_workers[0]()
     assert app._bead_mention_resolution_in_flight is False
     assert app._bead_mention_index.peek("sase-1ss") is None
     assert app.refreshed == []
@@ -359,4 +431,108 @@ async def test_request_with_cold_directory_warms_instead(tmp_path: Path) -> None
     app.request_bead_mention_resolution(["sase-1ss"])
     assert app.warmed == [True]
     assert app.run_workers == []
-    assert app._bead_mention_pending == {"sase-1ss"}
+    assert app._bead_mention_pending == {BeadMentionRequest("sase-1ss")}
+
+
+@pytest.mark.parametrize("start_replacement_first", [False, True])
+async def test_invalidation_releases_old_worker_without_losing_replacement(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    start_replacement_first: bool,
+) -> None:
+    from sase.ace.tui.models.bead_preview import BeadMentionEntry as Entry
+
+    old_directory = _directory(tmp_path)
+    new_directory = _directory(tmp_path / "new")
+    old_started = threading.Event()
+    old_release = threading.Event()
+    replacement_started = threading.Event()
+    replacement_release = threading.Event()
+
+    def resolve(plan: Any) -> list[tuple[BeadMentionRequest, Entry]]:
+        request = plan.requests[0]
+        if plan.directory is old_directory:
+            old_started.set()
+            assert old_release.wait(timeout=3)
+            return [(request, Entry("open", "old-store", "old-token"))]
+        replacement_started.set()
+        assert replacement_release.wait(timeout=3)
+        return [(request, Entry("closed", "new-store", "new-token"))]
+
+    monkeypatch.setattr(
+        "sase.ace.tui.models.bead_preview.resolve_bead_mention_updates", resolve
+    )
+    app = _bind_stub(_stub_app(old_directory, BeadMentionIndex()))
+    app.request_bead_mention_resolution(["sase-1ss"])
+    old_task = asyncio.create_task(app.run_workers[0]())
+    assert await asyncio.to_thread(old_started.wait, 2)
+
+    app._invalidate_bead_store_directory(reason="test invalidation")
+    app.publish_bead_store_directory(new_directory, generation=1)
+    app.request_bead_mention_resolution(["sase-1ss"])
+    assert len(app.run_workers) == 2
+    assert app._bead_mention_resolution_in_flight is True
+
+    replacement_task: asyncio.Task[None] | None = None
+    if start_replacement_first:
+        replacement_task = asyncio.create_task(app.run_workers[1]())
+        assert await asyncio.to_thread(replacement_started.wait, 2)
+
+    old_release.set()
+    await old_task
+    assert app._bead_mention_index.peek("sase-1ss") is None
+    assert app._bead_mention_resolution_in_flight is True
+
+    if replacement_task is None:
+        replacement_task = asyncio.create_task(app.run_workers[1]())
+        assert await asyncio.to_thread(replacement_started.wait, 2)
+    replacement_release.set()
+    await replacement_task
+
+    assert app._bead_mention_index.peek("sase-1ss") == Entry(
+        "closed", "new-store", "new-token"
+    )
+    assert app._bead_mention_resolution_in_flight is False
+
+
+async def test_cancelled_worker_releases_resolution_ownership(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    started = threading.Event()
+    release = threading.Event()
+
+    def resolve(_plan: Any) -> list[Any]:
+        started.set()
+        release.wait(timeout=3)
+        return []
+
+    monkeypatch.setattr(
+        "sase.ace.tui.models.bead_preview.resolve_bead_mention_updates", resolve
+    )
+    app = _bind_stub(_stub_app(_directory(tmp_path), BeadMentionIndex()))
+    app.request_bead_mention_resolution(["sase-1ss"])
+    worker = asyncio.create_task(app.run_workers[0]())
+    assert await asyncio.to_thread(started.wait, 2)
+
+    worker.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await worker
+    assert app._bead_mention_resolution_in_flight is False
+    assert app._bead_mention_resolution_owner is None
+    release.set()
+
+
+async def test_failed_worker_scheduling_releases_ownership(
+    tmp_path: Path,
+) -> None:
+    app = _bind_stub(_stub_app(_directory(tmp_path), BeadMentionIndex()))
+
+    def fail_schedule(*_args: object, **_kwargs: object) -> None:
+        raise RuntimeError("scheduler stopped")
+
+    app.run_worker = fail_schedule  # type: ignore[method-assign]
+    app.request_bead_mention_resolution(["sase-1ss"])
+
+    assert app._bead_mention_resolution_in_flight is False
+    assert app._bead_mention_resolution_owner is None
+    assert app._bead_mention_pending == {BeadMentionRequest("sase-1ss")}

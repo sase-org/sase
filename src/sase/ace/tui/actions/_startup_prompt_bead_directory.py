@@ -9,6 +9,8 @@ from typing import TYPE_CHECKING, Any, cast
 if TYPE_CHECKING:
     from sase.ace.tui.models.bead_preview import (
         BeadMentionIndex,
+        BeadMentionEntry,
+        BeadMentionRequest,
         BeadMentionResolutionPlan,
         BeadStoreDirectory,
         BeadStoreRef,
@@ -24,8 +26,10 @@ class StartupPromptBeadDirectoryMixin:
     _bead_store_directory_generation: int
     _bead_store_directory_warming: bool
     _bead_mention_index: BeadMentionIndex
-    _bead_mention_pending: set[str]
+    _bead_mention_pending: set[BeadMentionRequest]
     _bead_mention_resolution_in_flight: bool
+    _bead_mention_resolution_request_id: int
+    _bead_mention_resolution_owner: tuple[int, int] | None
 
     def get_bead_store_directory(
         self: Any,
@@ -143,6 +147,12 @@ class StartupPromptBeadDirectoryMixin:
             self._bead_mention_pending.clear()
         except Exception:
             pass
+        self._bead_mention_resolution_owner = None
+        self._bead_mention_resolution_in_flight = False
+        try:
+            self.warm_bead_store_directory()
+        except Exception:
+            log.debug("Failed to restart bead-store directory warm", exc_info=True)
 
     def bead_mention_index_for_render(self: Any) -> BeadMentionIndex | None:
         """Return the memory-only bead-mention index, or ``None`` if missing.
@@ -159,6 +169,8 @@ class StartupPromptBeadDirectoryMixin:
         *,
         store_key: str,
         fingerprint_token: str | None,
+        project_ref: str | None = None,
+        context_key: str | None = None,
     ) -> bool:
         """Seed one index entry from a just-loaded bead card (memory only).
 
@@ -166,6 +178,11 @@ class StartupPromptBeadDirectoryMixin:
         when this returns ``True``.
         """
         from sase.ace.tui.models.bead_preview import BeadMentionEntry
+
+        # A card status and a later token observation are not one atomic
+        # snapshot. Treat the seed as provisional; the background resolver
+        # will read status and fingerprint together on the next discrete run.
+        del fingerprint_token
 
         index = getattr(self, "_bead_mention_index", None)
         if index is None or not bead_id or not store_key:
@@ -176,8 +193,10 @@ class StartupPromptBeadDirectoryMixin:
                 BeadMentionEntry(
                     status=status,
                     store_key=store_key,
-                    fingerprint_token=fingerprint_token,
+                    fingerprint_token=None,
                 ),
+                project_ref=project_ref,
+                context_key=context_key,
             )
         except Exception:
             log.debug("Failed to seed bead mention %r", bead_id, exc_info=True)
@@ -191,10 +210,21 @@ class StartupPromptBeadDirectoryMixin:
                     refresher(global_change=True)
             except Exception:
                 log.debug("Failed to refresh bead mention surfaces", exc_info=True)
+        self.request_bead_mention_resolution(
+            (bead_id,),
+            project_ref=project_ref,
+            context_key=context_key,
+        )
         return changed
 
-    def request_bead_mention_resolution(self: Any, bead_ids: Iterable[str]) -> None:
-        """Queue bead IDs for off-thread status resolution (coalesced).
+    def request_bead_mention_resolution(
+        self: Any,
+        bead_ids: Iterable[str],
+        *,
+        project_ref: str | None = None,
+        context_key: str | None = None,
+    ) -> None:
+        """Queue scoped bead mentions for off-thread resolution (coalesced).
 
         Memory only: unknown IDs accumulate in a pending set and one worker
         resolves them. A second call while a worker is in flight only grows
@@ -206,8 +236,13 @@ class StartupPromptBeadDirectoryMixin:
         pending = getattr(self, "_bead_mention_pending", None)
         if pending is None:
             return
-        wanted = {str(bead_id) for bead_id in bead_ids}
-        wanted.discard("")
+        from sase.ace.tui.models.bead_preview import BeadMentionRequest
+
+        wanted = {
+            BeadMentionRequest(str(bead_id), project_ref, context_key)
+            for bead_id in bead_ids
+            if str(bead_id)
+        }
         if wanted:
             pending.update(wanted)
         if not pending:
@@ -220,11 +255,15 @@ class StartupPromptBeadDirectoryMixin:
             return
         if getattr(self, "_bead_mention_resolution_in_flight", False):
             return
-        self._bead_mention_resolution_in_flight = True
         generation = int(getattr(self, "_bead_store_directory_generation", 0))
+        request_id = int(getattr(self, "_bead_mention_resolution_request_id", 0)) + 1
+        self._bead_mention_resolution_request_id = request_id
+        owner = (generation, request_id)
+        self._bead_mention_resolution_owner = owner
+        self._bead_mention_resolution_in_flight = True
 
         async def run_resolve() -> None:
-            await self._run_bead_mention_resolution(generation)
+            await self._run_bead_mention_resolution(generation, request_id)
 
         try:
             self.run_worker(
@@ -234,23 +273,36 @@ class StartupPromptBeadDirectoryMixin:
                 exclusive=False,
             )
         except Exception:
-            self._bead_mention_resolution_in_flight = False
+            if getattr(self, "_bead_mention_resolution_owner", None) == owner:
+                self._bead_mention_resolution_owner = None
+                self._bead_mention_resolution_in_flight = False
             log.exception("Failed to schedule bead mention resolution")
 
     async def _run_bead_mention_resolution(
         self: Any,
         generation: int,
+        request_id: int,
     ) -> None:
         """Resolve pending mention IDs off-thread and publish if current."""
         import asyncio
 
+        owner = (generation, request_id)
+        owns_request = False
+        updates: list[tuple[BeadMentionRequest, BeadMentionEntry]] = []
         try:
             directory = getattr(self, "_bead_store_directory", None)
             index = getattr(self, "_bead_mention_index", None)
             pending = getattr(self, "_bead_mention_pending", None)
             if directory is None or index is None or pending is None:
                 return
-            requested = sorted(pending)
+            requested = sorted(
+                pending,
+                key=lambda item: (
+                    item.bead_id,
+                    item.project_ref or "",
+                    item.context_key or "",
+                ),
+            )
             pending.clear()
             if not requested:
                 return
@@ -262,87 +314,78 @@ class StartupPromptBeadDirectoryMixin:
             )
 
             updates = await asyncio.to_thread(resolve_bead_mention_updates, plan)
+        except asyncio.CancelledError:
+            raise
         except Exception:
             log.exception("Bead mention resolution failed")
-            return
         finally:
-            if generation == getattr(self, "_bead_store_directory_generation", 0):
+            owns_request = (
+                getattr(self, "_bead_mention_resolution_owner", None) == owner
+            )
+            if owns_request:
+                self._bead_mention_resolution_owner = None
                 self._bead_mention_resolution_in_flight = False
 
-        if generation != getattr(self, "_bead_store_directory_generation", 0):
+        if not owns_request or generation != getattr(
+            self, "_bead_store_directory_generation", 0
+        ):
             return
         changed = False
-        seen: set[str] = set()
-        for bead_id, entry in updates:
-            if bead_id in seen:
-                continue
-            seen.add(bead_id)
+        for request, entry in updates:
             try:
-                changed = self._bead_mention_index.store(bead_id, entry) or changed
+                changed = (
+                    self._bead_mention_index.store(
+                        request.bead_id,
+                        entry,
+                        project_ref=request.project_ref,
+                        context_key=request.context_key,
+                    )
+                    or changed
+                )
             except Exception:
-                log.debug("Failed to publish bead mention %r", bead_id, exc_info=True)
+                log.debug(
+                    "Failed to publish bead mention %r",
+                    request.bead_id,
+                    exc_info=True,
+                )
         if changed:
             try:
                 self._refresh_visible_prompt_semantic_surfaces(global_change=True)
             except Exception:
                 log.debug("Failed to refresh bead mention surfaces", exc_info=True)
-        if self._bead_mention_pending:
+        if getattr(self, "_bead_mention_pending", None):
             self.request_bead_mention_resolution(())
 
     def _plan_bead_mention_resolution(
         self: Any,
-        requested: list[str],
+        requested: list[BeadMentionRequest],
         directory: BeadStoreDirectory,
         index: BeadMentionIndex,
     ) -> BeadMentionResolutionPlan:
-        """Group requested IDs by owning store (memory only, UI thread).
+        """Capture cached entries for scoped requests without doing routing.
 
-        Drops IDs no store owns. Known entries ride along per store so the
-        worker can revalidate their fingerprint tokens without another pass.
+        Actual Rust-backed owner routing and store reads run in the background
+        worker; this UI-thread snapshot only copies bounded cache entries.
         """
-        from sase.ace.tui.models.bead_preview import BeadMentionStorePlan
+        from sase.ace.tui.models.bead_preview import BeadMentionResolutionPlan
 
-        from sase.bead.cross_project import bead_id_prefix
-
-        groups: dict[str, tuple[BeadStoreRef, list[str]]] = {}
-        order: list[str] = []
-        for bead_id in requested:
+        known: list[tuple[BeadMentionRequest, Any]] = []
+        for request in requested:
             try:
-                prefix = bead_id_prefix(bead_id)
-            except Exception:
-                continue
-            if prefix is None:
-                continue
-            try:
-                owners = directory.owners_for_prefix(prefix)
-            except Exception:
-                continue
-            if not owners:
-                continue
-            store = owners[0]
-            key = str(store.beads_dir)
-            if key not in groups:
-                groups[key] = (store, [])
-                order.append(key)
-            if bead_id not in groups[key][1]:
-                groups[key][1].append(bead_id)
-        planned: list[BeadMentionStorePlan] = []
-        for key in order:
-            store, candidates = groups[key]
-            try:
-                known = index.entries_for_store(key)
-            except Exception:
-                known = ()
-            known_ids = {bead_id for bead_id, _entry in known}
-            stale = [bead_id for bead_id in known_ids if bead_id not in candidates]
-            planned.append(
-                BeadMentionStorePlan(
-                    store=store,
-                    candidates=tuple(candidates + stale),
-                    known=tuple(known),
+                entry = index.peek(
+                    request.bead_id,
+                    request.project_ref,
+                    context_key=request.context_key,
                 )
-            )
-        return tuple(planned)
+            except Exception:
+                entry = None
+            if entry is not None:
+                known.append((request, entry))
+        return BeadMentionResolutionPlan(
+            directory=directory,
+            requests=tuple(requested),
+            known=tuple(known),
+        )
 
 
 __all__ = ["StartupPromptBeadDirectoryMixin"]

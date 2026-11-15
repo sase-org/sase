@@ -150,11 +150,11 @@ BEAD_MENTION_INDEX_BOUND = 2048
 class BeadMentionEntry:
     """One resolved bead mention: status plus the store token behind it.
 
-    ``status`` is the bead's status value, or ``None`` when the ID does not
-    resolve (a missing bead). ``store_key`` is ``str(store.beads_dir)`` and
-    ``fingerprint_token`` is the store's ``store_fingerprint`` token at
-    resolution time (``None`` when the store could not be fingerprinted, or
-    when the status was seeded without one).
+    ``status`` is the bead's status value, or ``None`` when the ID cannot be
+    resolved for the current route. ``store_key`` is ``str(store.beads_dir)``
+    and ``fingerprint_token`` is the store's ``store_fingerprint`` token at
+    resolution time (``None`` when the store could not be fingerprinted or
+    the status was seeded provisionally).
     """
 
     status: str | None
@@ -163,7 +163,7 @@ class BeadMentionEntry:
 
 
 class BeadMentionIndex:
-    """Bounded LRU map of bead ID to :class:`BeadMentionEntry`.
+    """Bounded LRU map of bead ID and routing context to mention entries.
 
     Textual-free and I/O-free: callers compute fingerprints and statuses
     off-thread and publish here. ``lookup`` never schedules work, so the
@@ -172,45 +172,68 @@ class BeadMentionIndex:
 
     def __init__(self, bound: int = BEAD_MENTION_INDEX_BOUND) -> None:
         self._bound = max(1, bound)
-        self._entries: OrderedDict[str, BeadMentionEntry] = OrderedDict()
+        self._entries: OrderedDict[tuple[str, str | None], BeadMentionEntry] = (
+            OrderedDict()
+        )
 
     def __len__(self) -> int:
         return len(self._entries)
 
-    def lookup(self, bead_id: str) -> BeadMentionEntry | None:
+    def lookup(
+        self,
+        bead_id: str,
+        project_ref: str | None = None,
+        *,
+        context_key: str | None = None,
+    ) -> BeadMentionEntry | None:
         """Return the entry for *bead_id*, refreshing its LRU position."""
+        key = _mention_index_key(bead_id, project_ref, context_key)
         try:
-            entry = self._entries.pop(bead_id)
+            entry = self._entries.pop(key)
         except KeyError:
             return None
-        self._entries[bead_id] = entry
+        self._entries[key] = entry
         return entry
 
-    def peek(self, bead_id: str) -> BeadMentionEntry | None:
+    def peek(
+        self,
+        bead_id: str,
+        project_ref: str | None = None,
+        *,
+        context_key: str | None = None,
+    ) -> BeadMentionEntry | None:
         """Return the entry for *bead_id* without touching LRU order."""
-        return self._entries.get(bead_id)
+        return self._entries.get(_mention_index_key(bead_id, project_ref, context_key))
 
-    def store(self, bead_id: str, entry: BeadMentionEntry) -> bool:
+    def store(
+        self,
+        bead_id: str,
+        entry: BeadMentionEntry,
+        project_ref: str | None = None,
+        *,
+        context_key: str | None = None,
+    ) -> bool:
         """Store *entry* under *bead_id*; return whether anything changed.
 
         Evicts least-recently-used entries past the bound.
         """
+        key = _mention_index_key(bead_id, project_ref, context_key)
         try:
-            previous = self._entries.pop(bead_id)
+            previous = self._entries.pop(key)
         except KeyError:
             previous = None
-        self._entries[bead_id] = entry
+        self._entries[key] = entry
         while len(self._entries) > self._bound:
             self._entries.popitem(last=False)
         return previous != entry
 
     def entries_for_store(
         self, store_key: str
-    ) -> tuple[tuple[str, BeadMentionEntry], ...]:
-        """Return every ``(bead_id, entry)`` resolved against *store_key*."""
+    ) -> tuple[tuple[BeadMentionRequest, BeadMentionEntry], ...]:
+        """Return every scoped target resolved against *store_key*."""
         return tuple(
-            (bead_id, entry)
-            for bead_id, entry in self._entries.items()
+            (BeadMentionRequest(bead_id, context_key=project_ref), entry)
+            for (bead_id, project_ref), entry in self._entries.items()
             if entry.store_key == store_key
         )
 
@@ -220,72 +243,137 @@ class BeadMentionIndex:
 
 
 @dataclass(frozen=True)
-class BeadMentionStorePlan:
-    """One store slice of a mention-resolution run (UI-thread snapshot).
+class BeadMentionRequest:
+    """One mention and the project context used to disambiguate its owner."""
 
-    ``candidates`` are the bead IDs to check against ``store`` (requested
-    IDs plus every ID the index already knows for that store, so the worker
-    can revalidate stale fingerprint tokens). ``known`` is the index slice
-    for the store at plan time.
+    bead_id: str
+    project_ref: str | None = None
+    context_key: str | None = None
+
+    def __post_init__(self) -> None:
+        if self.project_ref is not None:
+            normalized = self.project_ref.strip().casefold() or None
+            object.__setattr__(self, "project_ref", normalized)
+        if self.context_key is not None:
+            normalized_context = self.context_key.strip().casefold() or None
+            object.__setattr__(self, "context_key", normalized_context)
+
+
+def _mention_index_key(
+    bead_id: str,
+    project_ref: str | None,
+    context_key: str | None = None,
+) -> tuple[str, str | None]:
+    scope = context_key if context_key is not None else project_ref
+    context = scope.strip().casefold() if scope else None
+    return bead_id, context or None
+
+
+@dataclass(frozen=True)
+class BeadMentionResolutionPlan:
+    """UI-thread snapshot routed by :func:`resolve_bead_mention_updates`."""
+
+    directory: BeadStoreDirectory
+    requests: tuple[BeadMentionRequest, ...]
+    known: tuple[tuple[BeadMentionRequest, BeadMentionEntry], ...]
+
+
+@dataclass(frozen=True)
+class _BeadMentionStorePlan:
+    """One store slice of a mention-resolution run (worker-local snapshot).
+
+    ``candidates`` are scoped mention requests routed to ``store``. ``known``
+    is the matching index slice at plan time.
     """
 
     store: BeadStoreRef
-    candidates: tuple[str, ...]
-    known: tuple[tuple[str, BeadMentionEntry], ...]
-
-
-#: UI-thread snapshot consumed by :func:`resolve_bead_mention_updates`.
-BeadMentionResolutionPlan = tuple[BeadMentionStorePlan, ...]
+    candidates: tuple[BeadMentionRequest, ...]
+    known: tuple[tuple[BeadMentionRequest, BeadMentionEntry], ...]
 
 
 def resolve_bead_mention_updates(
     plan: BeadMentionResolutionPlan,
-) -> list[tuple[str, BeadMentionEntry]]:
+) -> list[tuple[BeadMentionRequest, BeadMentionEntry]]:
     """Resolve one mention-resolution plan (off-thread entry point).
 
-    Groups are already per-store snapshots: recompute each store's
-    fingerprint token, re-query ``statuses_for_ids`` only for unknown IDs
-    or IDs whose token changed, and return fresh entries. IDs absent from
-    the result are missing. Fail-open per store: a store that errors keeps
-    its old entries for the next trigger to retry.
+    Route each request using the Rust-backed target router, then group the
+    requests by their actual owner. Re-query statuses only for unknown IDs
+    or entries whose fingerprint changed. Ambiguous, missing and unavailable
+    requests are explicitly marked unstyled so an old owner cannot leak a
+    status into a different prompt context.
     """
     import logging
 
     from sase.core.bead_read_facade import statuses_for_ids
 
     log = logging.getLogger(__name__)
-    updates: list[tuple[str, BeadMentionEntry]] = []
-    for group in plan:
-        store = group.store
-        store_key = str(store.beads_dir)
+    updates: list[tuple[BeadMentionRequest, BeadMentionEntry]] = []
+    known_map = dict(plan.known)
+    groups: dict[str, tuple[BeadStoreRef, list[BeadMentionRequest]]] = {}
+    for request in plan.requests:
         try:
-            token = store_fingerprint_token(store.beads_dir)
+            route = route_bead_mention(
+                request.bead_id,
+                plan.directory,
+                project_ref=request.project_ref,
+            )
         except Exception:
             log.debug(
-                "Bead mention fingerprint failed for %r", store_key, exc_info=True
+                "Bead mention routing failed for %r", request.bead_id, exc_info=True
             )
+            updates.append((request, BeadMentionEntry(None, "", None)))
             continue
+        if not isinstance(route, BeadRouteFound):
+            updates.append((request, BeadMentionEntry(None, "", None)))
+            continue
+        store = route.store
+        store_key = str(store.beads_dir)
+        if store_key not in groups:
+            groups[store_key] = (store, [])
+        if request not in groups[store_key][1]:
+            groups[store_key][1].append(request)
+
+    store_plans = tuple(
+        _BeadMentionStorePlan(
+            store=store,
+            candidates=tuple(requests),
+            known=tuple(
+                (request, known_map[request])
+                for request in requests
+                if request in known_map
+            ),
+        )
+        for store, requests in groups.values()
+    )
+    for group in store_plans:
+        store = group.store
+        store_key = str(store.beads_dir)
+        token = _store_fingerprint_token(store.beads_dir)
         known_map = dict(group.known)
         needed = [
-            bead_id
-            for bead_id in group.candidates
-            if _mention_entry_is_stale(known_map.get(bead_id), store_key, token)
+            request
+            for request in group.candidates
+            if _mention_entry_is_stale(known_map.get(request), store_key, token)
         ]
         if not needed:
             continue
+        needed_ids = sorted({request.bead_id for request in needed})
         try:
-            statuses = statuses_for_ids(store.beads_dir, needed)
+            statuses = statuses_for_ids(store.beads_dir, needed_ids)
         except Exception:
             log.debug(
                 "Bead mention status query failed for %r", store_key, exc_info=True
             )
+            updates.extend(
+                (request, BeadMentionEntry(None, store_key, None)) for request in needed
+            )
             continue
-        for bead_id in needed:
+        for request in needed:
             updates.append(
                 (
-                    bead_id,
+                    request,
                     BeadMentionEntry(
-                        status=statuses.get(bead_id),
+                        status=statuses.get(request.bead_id),
                         store_key=store_key,
                         fingerprint_token=token,
                     ),
@@ -302,10 +390,14 @@ def _mention_entry_is_stale(
     """Return whether *entry* needs a re-query against (*store_key*, *token*)."""
     if entry is None:
         return True
-    return entry.store_key != store_key or entry.fingerprint_token != token
+    return (
+        token is None
+        or entry.store_key != store_key
+        or entry.fingerprint_token != token
+    )
 
 
-def store_fingerprint_token(beads_dir: Path | str) -> str | None:
+def _store_fingerprint_token(beads_dir: Path | str) -> str | None:
     """Return the stat-only fingerprint token for *beads_dir*, if available.
 
     Fail-open: ``None`` when the core predates the binding or the store
@@ -541,8 +633,8 @@ __all__ = [
     "BEAD_MENTION_INDEX_BOUND",
     "BeadMentionEntry",
     "BeadMentionIndex",
+    "BeadMentionRequest",
     "BeadMentionResolutionPlan",
-    "BeadMentionStorePlan",
     "BeadPreview",
     "BeadRoute",
     "BeadRouteAmbiguous",
@@ -556,5 +648,4 @@ __all__ = [
     "load_bead_store_directory",
     "resolve_bead_mention_updates",
     "route_bead_mention",
-    "store_fingerprint_token",
 ]

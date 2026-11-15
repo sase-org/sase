@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import dataclasses
+import re
 from typing import TYPE_CHECKING, Any
 
 from textual.widgets._text_area import TextAreaTheme
@@ -28,6 +29,8 @@ if TYPE_CHECKING:
     from sase.bead.mentions import BeadMention
 else:
     _MixinBase = object
+
+_MENTION_CONTEXT_MARKER_RE = re.compile(r"(?<!\S)(?:\+[\w.-]+|#[\w:+.-]+)")
 
 
 class PromptBeadMentionMixin(_MixinBase):
@@ -56,6 +59,7 @@ class PromptBeadMentionMixin(_MixinBase):
             end: int,
             style_name: str,
         ) -> None: ...
+        def _macro_arg_assist_project_from_text(self) -> str | None: ...
 
     def __init__(self, *args: Any, **kwargs: Any) -> None:
         # TextArea builds its first highlight map inside its constructor, so
@@ -115,11 +119,12 @@ class PromptBeadMentionMixin(_MixinBase):
             return
         if not mentions or index is None:
             return
+        context_key = self._bead_mention_context_key()
         for mention in mentions:
             if mention.form != "bare":
                 continue
             try:
-                entry = index.peek(mention.bead_id)
+                entry = index.peek(mention.bead_id, context_key=context_key)
             except Exception:
                 continue
             if entry is None or entry.status is None:
@@ -167,8 +172,11 @@ class PromptBeadMentionMixin(_MixinBase):
         return mentions
 
     def _request_bead_mention_resolution_for_text(self) -> None:
-        """Queue unresolved owned-prefix mention IDs (memory only, no I/O)."""
-        app = self._active_app()
+        """Queue visible owned-prefix IDs for background revalidation."""
+        try:
+            app = self._active_app()
+        except Exception:
+            app = None
         if app is None:
             return
         requester = getattr(app, "request_bead_mention_resolution", None)
@@ -177,7 +185,6 @@ class PromptBeadMentionMixin(_MixinBase):
         directory = self._bead_store_directory_for_action(schedule=False)
         if directory is None:
             return
-        index = self._bead_mention_index_for_render()
         try:
             text = self.text
         except Exception:
@@ -190,17 +197,55 @@ class PromptBeadMentionMixin(_MixinBase):
             return
         if not mentions:
             return
-        unresolved = [
-            mention.bead_id
-            for mention in mentions
-            if index is None or index.peek(mention.bead_id) is None
-        ]
-        if not unresolved:
-            return
+        # Revalidate visible cached hits and misses on discrete triggers. The
+        # background worker's fingerprint check avoids unnecessary status
+        # reads when a usable store token is unchanged.
+        requested = [mention.bead_id for mention in mentions]
+        project_ref = self._bead_mention_project_ref()
+        context_key = self._bead_mention_context_key()
         try:
-            requester(unresolved)
+            requester(
+                requested,
+                project_ref=project_ref,
+                context_key=context_key,
+            )
         except Exception:
             pass
+
+    def _bead_mention_project_ref(self) -> str | None:
+        """Return the route project context for a discrete background request."""
+        getter = getattr(self, "_macro_arg_assist_project_from_text", None)
+        if not callable(getter):
+            return None
+        try:
+            value = getter()
+        except Exception:
+            return None
+        return value if isinstance(value, str) and value else None
+
+    def _bead_mention_context_key(self) -> str | None:
+        """Return a pure text/app context key without warming project catalogs."""
+        try:
+            markers = tuple(
+                match.group(0).casefold()
+                for match in _MENTION_CONTEXT_MARKER_RE.finditer(self.text)
+            )
+        except Exception:
+            markers = ()
+        try:
+            app = self._active_app()
+        except Exception:
+            app = None
+        context = getattr(app, "_prompt_context", None) if app is not None else None
+        project = getattr(context, "project_name", None)
+        workspace = getattr(context, "workspace_dir", None)
+        home = bool(getattr(context, "is_home_mode", False))
+        if not markers and not project and not workspace and not home:
+            return None
+        marker_scope = "|".join(markers)
+        project_scope = str(project).casefold() if project else ""
+        workspace_scope = str(workspace).casefold() if workspace else ""
+        return f"markers:{marker_scope};project:{project_scope};workspace:{workspace_scope};home:{home}"
 
     def _bead_store_directory_for_action(
         self,

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import threading
 from pathlib import Path
 from typing import Any
@@ -131,6 +132,13 @@ async def test_loading_then_loaded(monkeypatch: pytest.MonkeyPatch) -> None:
     )
     modal = BeadPreviewModal(_store(), "sase-1aa")
     app = _BeadModalTestApp(modal)
+    seeds: list[tuple[str, str, dict[str, object]]] = []
+    monkeypatch.setattr(
+        app,
+        "seed_bead_mention_status",
+        lambda bead_id, status, **kwargs: seeds.append((bead_id, status, kwargs)),
+        raising=False,
+    )
     async with app.run_test(size=(100, 30)) as pilot:
         await wait_for(pilot, lambda: "Loading" in str(modal._build_status()))
         assert modal._preview is None
@@ -138,6 +146,18 @@ async def test_loading_then_loaded(monkeypatch: pytest.MonkeyPatch) -> None:
         await wait_for(pilot, lambda: modal._preview is preview)
         assert "Loading" not in str(modal._build_status())
         assert modal._preview.issue.title == "Epic title"
+        assert seeds == [
+            (
+                "sase-1aa",
+                "in_progress",
+                {
+                    "store_key": "/tmp/beads",
+                    "fingerprint_token": None,
+                    "project_ref": "sase",
+                    "context_key": "store:sase",
+                },
+            )
+        ]
 
 
 async def test_in_card_error_and_retry(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -349,3 +369,147 @@ async def test_enter_pushes_pager_and_unresolved_toasts(
         await pilot.press("enter")
         await wait_for(pilot, lambda: bool(notifications))
         assert notifications == [("bead gone", "warning")]
+
+
+async def test_back_discards_delayed_child_load(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    epic_issue = _issue()
+    phase_issue = _phase_issue()
+    epic = _preview(issue=epic_issue, children=(phase_issue,))
+    release = threading.Event()
+    started = threading.Event()
+
+    def load(_bead_id: str, _store: BeadStoreRef) -> BeadPreview:
+        started.set()
+        release.wait(timeout=3)
+        return _preview(issue=phase_issue, ancestors=(epic_issue,), plan_path=None)
+
+    monkeypatch.setattr(
+        "sase.ace.tui.modals.bead_preview_modal.load_bead_preview", load
+    )
+    modal = BeadPreviewModal(_store(), epic_issue.id, preview=epic)
+    app = _BeadModalTestApp(modal)
+    async with app.run_test(size=(100, 30)) as pilot:
+        await pilot.press("1")
+        assert await asyncio.to_thread(started.wait, 2)
+        await pilot.press("backspace")
+        assert modal._bead_id == epic_issue.id
+        assert modal._preview is epic
+        release.set()
+        await pilot.pause()
+        assert modal._bead_id == epic_issue.id
+        assert modal._preview is epic
+        assert "Epic body" in modal._description_markdown()
+
+
+async def test_navigation_discards_pending_detail_resolution(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    epic_issue = _issue()
+    phase_issue = _phase_issue()
+    epic = _preview(issue=epic_issue, children=(phase_issue,))
+    phase = _preview(issue=phase_issue, ancestors=(epic_issue,), plan_path=None)
+    release = threading.Event()
+    started = threading.Event()
+    document = _detail_document()
+    resolution = LinkResolution(
+        target=LinkTarget(kind=LinkTargetKind.DOCUMENT, document=document)
+    )
+
+    def delayed_detail(*_args: object, **_kwargs: object) -> LinkResolution:
+        started.set()
+        release.wait(timeout=3)
+        return resolution
+
+    monkeypatch.setattr(
+        "sase.ace.tui.modals.bead_preview_modal.bead_detail_link_resolution",
+        delayed_detail,
+    )
+    monkeypatch.setattr(
+        "sase.ace.tui.modals.bead_preview_modal.load_bead_preview",
+        lambda bead_id, _store: phase if bead_id == phase_issue.id else epic,
+    )
+    modal = BeadPreviewModal(_store(), epic_issue.id, preview=epic)
+    app = _BeadModalTestApp(modal)
+    async with app.run_test(size=(100, 30)) as pilot:
+        await pilot.press("enter")
+        assert await asyncio.to_thread(started.wait, 2)
+        await pilot.press("1")
+        await wait_for(pilot, lambda: modal._preview is phase)
+        release.set()
+        await pilot.pause()
+        assert modal._bead_id == phase_issue.id
+        assert not any(
+            type(screen).__name__ == "PagerScreen" for screen in app.screen_stack
+        )
+
+
+async def test_close_discards_delayed_load(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    release = threading.Event()
+    started = threading.Event()
+
+    def load(_bead_id: str, _store: BeadStoreRef) -> BeadPreview:
+        started.set()
+        release.wait(timeout=3)
+        return _preview()
+
+    monkeypatch.setattr(
+        "sase.ace.tui.modals.bead_preview_modal.load_bead_preview", load
+    )
+    modal = BeadPreviewModal(_store(), "sase-1aa")
+    app = _BeadModalTestApp(modal)
+    async with app.run_test(size=(100, 30)) as pilot:
+        assert await asyncio.to_thread(started.wait, 2)
+        await pilot.press("escape")
+        release.set()
+        await pilot.pause()
+        assert not modal.is_attached
+        assert modal._preview is None
+        assert modal._error is None
+
+
+async def test_reload_owns_latest_parent_load_after_navigation(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    epic_issue = _issue()
+    phase_issue = _phase_issue()
+    epic = _preview(issue=epic_issue, children=(phase_issue,))
+    phase = _preview(issue=phase_issue, ancestors=(epic_issue,), plan_path=None)
+    latest_epic = _preview(issue=_issue(title="Latest epic"), children=(phase_issue,))
+    parent_started = [threading.Event(), threading.Event()]
+    parent_release = [threading.Event(), threading.Event()]
+    parent_call = 0
+
+    def load(bead_id: str, _store: BeadStoreRef) -> BeadPreview:
+        nonlocal parent_call
+        if bead_id == phase_issue.id:
+            return phase
+        current = parent_call
+        parent_call += 1
+        parent_started[current].set()
+        assert parent_release[current].wait(timeout=3)
+        return epic if current == 0 else latest_epic
+
+    monkeypatch.setattr(
+        "sase.ace.tui.modals.bead_preview_modal.load_bead_preview", load
+    )
+    modal = BeadPreviewModal(_store(), epic_issue.id, preview=epic)
+    app = _BeadModalTestApp(modal)
+    async with app.run_test(size=(100, 30)) as pilot:
+        await pilot.press("1")
+        await wait_for(pilot, lambda: modal._preview is phase)
+        await pilot.press("p")
+        assert await asyncio.to_thread(parent_started[0].wait, 2)
+        await pilot.press("r")
+        assert await asyncio.to_thread(parent_started[1].wait, 2)
+
+        parent_release[0].set()
+        await pilot.pause()
+        assert modal._preview is None
+        assert modal._bead_id == epic_issue.id
+
+        parent_release[1].set()
+        await wait_for(pilot, lambda: modal._preview is latest_epic)

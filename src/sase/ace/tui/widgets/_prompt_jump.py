@@ -7,6 +7,7 @@ import dataclasses
 import shlex
 import subprocess
 from pathlib import Path
+from collections.abc import Callable
 from typing import TYPE_CHECKING, Any
 
 from sase.ace.tui.graphics import is_supported_image_path, view_artifact_file
@@ -109,7 +110,15 @@ class PromptJumpMixin(_MixinBase):
         base_dir: str,
         request_id: int,
         prefer_load: bool = False,
+        is_current: Callable[[], bool] | None = None,
     ) -> None:
+        def request_is_current() -> bool:
+            return (
+                request_id == self._prompt_jump_request_id
+                and self.is_mounted
+                and (is_current is None or is_current())
+            )
+
         try:
             payload = await asyncio.to_thread(
                 resolve_jump_target,
@@ -118,15 +127,15 @@ class PromptJumpMixin(_MixinBase):
                 base_dir=base_dir,
             )
         except JumpError as exc:
-            if request_id == self._prompt_jump_request_id and self.is_mounted:
+            if request_is_current():
                 self.notify(str(exc), severity="warning")
             return
         except Exception as exc:
-            if request_id == self._prompt_jump_request_id and self.is_mounted:
+            if request_is_current():
                 self.notify(f"Could not jump to {token.raw}: {exc}", severity="error")
             return
 
-        if request_id != self._prompt_jump_request_id or not self.is_mounted:
+        if not request_is_current():
             return
         if prefer_load:
             if payload.loadable_markdown is None:

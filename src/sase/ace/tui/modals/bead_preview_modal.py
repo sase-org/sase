@@ -91,6 +91,7 @@ class BeadPreviewModal(
         self._history: list[tuple[str, BeadPreview | None]] = []
         self._accent = _FALLBACK_ACCENT
         self._palette: BeadCardPalette | None = None
+        self._paint_generation = 0
 
     def compose(self) -> ComposeResult:
         self._palette = bead_card_palette(self.app.current_theme)
@@ -110,7 +111,11 @@ class BeadPreviewModal(
         if self._preview is None and self._error is None:
             self._start_load()
 
+    def on_unmount(self) -> None:
+        self._invalidate_requests()
+
     def action_close(self) -> None:
+        self._invalidate_requests()
         self.dismiss(None)
 
     def action_copy_id(self) -> None:
@@ -125,6 +130,7 @@ class BeadPreviewModal(
         self.action_reload()
 
     def action_reload(self) -> None:
+        self._invalidate_requests()
         self._error = None
         self._preview = None
         self._start_load()
@@ -149,6 +155,7 @@ class BeadPreviewModal(
     def action_go_back(self) -> None:
         if not self._history:
             return
+        self._invalidate_requests()
         bead_id, preview = self._history.pop()
         self._bead_id = bead_id
         self._preview = preview
@@ -165,8 +172,10 @@ class BeadPreviewModal(
             return
         self._detail_request_id += 1
         request_id = self._detail_request_id
+        bead_id = self._bead_id
+        load_request_id = self._load_request_id
         self.run_worker(
-            self._open_detail_async(request_id),
+            self._open_detail_async(request_id, bead_id, load_request_id),
             name=f"bead-preview-detail:{request_id}",
         )
 
@@ -181,14 +190,16 @@ class BeadPreviewModal(
     def _start_load(self) -> None:
         self._load_request_id += 1
         request_id = self._load_request_id
+        bead_id = self._bead_id
         self.run_worker(
-            self._load_preview_async(request_id),
+            self._load_preview_async(request_id, bead_id),
             name=f"bead-preview-load:{request_id}",
         )
 
     def _navigate_to(self, bead_id: str) -> None:
         if bead_id == self._bead_id and self._error is None:
             return
+        self._invalidate_requests()
         self._history.append((self._bead_id, self._preview))
         self._bead_id = bead_id
         self._preview = None
@@ -199,39 +210,38 @@ class BeadPreviewModal(
             name="bead-preview-navigate-paint",
         )
 
-    async def _load_preview_async(self, request_id: int) -> None:
+    async def _load_preview_async(self, request_id: int, bead_id: str) -> None:
         try:
             preview = await asyncio.to_thread(
                 load_bead_preview,
-                self._bead_id,
+                bead_id,
                 self._store,
             )
         except Exception as exc:
-            if not self._load_is_current(request_id):
+            if not self._load_is_current(request_id, bead_id):
                 return
             self._error = str(exc) or exc.__class__.__name__
             self._preview = None
-            await self._refresh_widgets(reset_scroll=True)
+            await self._refresh_widgets(
+                reset_scroll=True,
+                bead_id=bead_id,
+                generation=self._paint_generation,
+            )
             return
-        if not self._load_is_current(request_id):
+        if not self._load_is_current(request_id, bead_id):
             return
         self._preview = preview
         self._error = None
-        try:
-            from sase.ace.tui.models.bead_preview import store_fingerprint_token
+        if not self._load_is_current(request_id, bead_id):
+            return
+        self._seed_bead_mention(preview)
+        await self._refresh_widgets(
+            reset_scroll=True,
+            bead_id=bead_id,
+            generation=self._paint_generation,
+        )
 
-            token = await asyncio.to_thread(
-                store_fingerprint_token, self._store.beads_dir
-            )
-        except Exception:
-            token = None
-        if self._load_is_current(request_id):
-            self._seed_bead_mention(preview, token)
-        await self._refresh_widgets(reset_scroll=True)
-
-    def _seed_bead_mention(
-        self, preview: BeadPreview, fingerprint_token: str | None
-    ) -> None:
+    def _seed_bead_mention(self, preview: BeadPreview) -> None:
         """Seed the prompt mention index with the just-loaded status."""
         try:
             app = self.app
@@ -251,37 +261,48 @@ class BeadPreviewModal(
                 preview.issue.id,
                 status,
                 store_key=str(self._store.beads_dir),
-                fingerprint_token=fingerprint_token,
+                fingerprint_token=None,
+                project_ref=self._store.project_key or None,
+                context_key=(
+                    f"store:{self._store.project_key.casefold()}"
+                    if self._store.project_key
+                    else None
+                ),
             )
         except Exception:
             pass
 
-    async def _open_detail_async(self, request_id: int) -> None:
+    async def _open_detail_async(
+        self,
+        request_id: int,
+        bead_id: str,
+        load_request_id: int,
+    ) -> None:
         try:
-            resolution = await asyncio.to_thread(self._resolve_current_detail)
+            resolution = await asyncio.to_thread(self._resolve_current_detail, bead_id)
         except Exception as exc:  # noqa: BLE001 - card enter must not crash
-            if not self._detail_is_current(request_id):
+            if not self._detail_is_current(request_id, bead_id, load_request_id):
                 return
             self.notify(str(exc) or exc.__class__.__name__, severity="warning")
             return
-        if not self._detail_is_current(request_id):
+        if not self._detail_is_current(request_id, bead_id, load_request_id):
             return
-        self._present_detail(resolution)
+        self._present_detail(resolution, bead_id=bead_id)
 
-    def _resolve_current_detail(self) -> LinkResolution:
+    def _resolve_current_detail(self, bead_id: str) -> LinkResolution:
         return bead_detail_link_resolution(
-            self._bead_id,
+            bead_id,
             project_ref=self._store.project_key or None,
             context=LinkResolutionContext(
                 anchors=(LinkAnchor(self._store.primary_workspace),)
             ),
         )
 
-    def _present_detail(self, resolution: LinkResolution) -> None:
+    def _present_detail(self, resolution: LinkResolution, *, bead_id: str) -> None:
         document = resolution.target.document if resolution.target is not None else None
         if document is None:
             message = resolution.unresolved_message or (
-                f"bead:{self._bead_id} could not be resolved"
+                f"bead:{bead_id} could not be resolved"
             )
             self.notify(message, severity="warning")
             return
@@ -289,11 +310,30 @@ class BeadPreviewModal(
 
         self.app.push_screen(PagerScreen(document, links_enabled=True))
 
-    def _load_is_current(self, request_id: int) -> bool:
-        return request_id == self._load_request_id and self.is_attached
+    def _invalidate_requests(self) -> None:
+        self._load_request_id += 1
+        self._detail_request_id += 1
+        self._paint_generation += 1
 
-    def _detail_is_current(self, request_id: int) -> bool:
-        return request_id == self._detail_request_id and self.is_attached
+    def _load_is_current(self, request_id: int, bead_id: str) -> bool:
+        return (
+            request_id == self._load_request_id
+            and bead_id == self._bead_id
+            and self.is_attached
+        )
+
+    def _detail_is_current(
+        self,
+        request_id: int,
+        bead_id: str,
+        load_request_id: int,
+    ) -> bool:
+        return (
+            request_id == self._detail_request_id
+            and load_request_id == self._load_request_id
+            and bead_id == self._bead_id
+            and self.is_attached
+        )
 
     def _breadcrumb(self) -> str | None:
         if not self._history:
@@ -389,7 +429,17 @@ class BeadPreviewModal(
         parts.append("esc")
         return " | ".join(parts)
 
-    async def _refresh_widgets(self, *, reset_scroll: bool) -> None:
+    async def _refresh_widgets(
+        self,
+        *,
+        reset_scroll: bool,
+        bead_id: str | None = None,
+        generation: int | None = None,
+    ) -> None:
+        bead_id = self._bead_id if bead_id is None else bead_id
+        generation = self._paint_generation if generation is None else generation
+        if not self._paint_is_current(bead_id, generation):
+            return
         if not self.is_attached:
             return
         try:
@@ -403,7 +453,11 @@ class BeadPreviewModal(
             if self.is_attached:
                 self.call_after_refresh(
                     lambda: self.run_worker(
-                        self._refresh_widgets(reset_scroll=reset_scroll),
+                        self._refresh_widgets(
+                            reset_scroll=reset_scroll,
+                            bead_id=bead_id,
+                            generation=generation,
+                        ),
                         name="bead-preview-paint-retry",
                     )
                 )
@@ -411,10 +465,19 @@ class BeadPreviewModal(
         title.update(self._build_title())
         status.update(self._build_status())
         await description.update(self._description_markdown())
+        if not self._paint_is_current(bead_id, generation):
+            return
         meta.update(self._build_meta())
         footer.update(self._build_footer())
         if reset_scroll:
             scroll.scroll_home(animate=False)
+
+    def _paint_is_current(self, bead_id: str, generation: int) -> bool:
+        return (
+            self.is_attached
+            and self._bead_id == bead_id
+            and self._paint_generation == generation
+        )
 
     def action_scroll_down(self) -> None:
         scroll = self.query_one("#bead-preview-scroll", VerticalScroll)

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import asyncio
+import threading
 from pathlib import Path
 from typing import Any
 
@@ -292,6 +294,89 @@ async def test_stale_result_is_dropped(
         await page.pause()
         await page.pause()
         assert not _top_is_preview(page)
+
+
+@pytest.mark.parametrize("invalidate_directory", [False, True])
+async def test_same_cursor_text_change_or_directory_invalidation_discards_route(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    invalidate_directory: bool,
+) -> None:
+    directory = _directory(tmp_path, issue_prefix="sase")
+    store = BeadStoreRef(
+        project_key="sase",
+        project_label="sase",
+        beads_dir=tmp_path / "beads",
+        primary_workspace=tmp_path,
+    )
+    started = threading.Event()
+    release = threading.Event()
+
+    def delayed_route(*_args: object, **_kwargs: object) -> BeadRouteFound:
+        started.set()
+        release.wait(timeout=3)
+        return BeadRouteFound("sase-1aa", store)
+
+    monkeypatch.setattr(
+        "sase.ace.tui.widgets._prompt_bead_preview.route_bead_mention",
+        delayed_route,
+    )
+    async with PromptPage("sase-1aa", cursor=(0, 2), size=(80, 24)) as page:
+        _install_directory(monkeypatch, page.ta.app, directory)
+        await page.press("K")
+        assert await asyncio.to_thread(started.wait, 2)
+        if invalidate_directory:
+            monkeypatch.setattr(
+                page.ta.app,
+                "warm_bead_store_directory",
+                lambda: None,
+                raising=False,
+            )
+            from sase.ace.tui.actions._startup_prompt_bead_directory import (
+                StartupPromptBeadDirectoryMixin,
+            )
+
+            page.ta.app._bead_store_directory_generation = 0
+            StartupPromptBeadDirectoryMixin._invalidate_bead_store_directory(
+                page.ta.app,
+                reason="test invalidation",
+            )
+        else:
+            page.ta.load_text("sase-1bb")
+            page.ta.cursor_location = (0, 2)
+        release.set()
+        await page.pause()
+        await page.pause()
+        assert not _top_is_preview(page)
+
+
+async def test_routing_exception_becomes_current_warning(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    directory = _directory(tmp_path, issue_prefix="sase")
+    notifications: list[tuple[str, str | None]] = []
+
+    def explode(*_args: object, **_kwargs: object) -> Any:
+        raise RuntimeError("router unavailable")
+
+    monkeypatch.setattr(
+        "sase.ace.tui.widgets._prompt_bead_preview.route_bead_mention", explode
+    )
+    async with PromptPage("sase-1aa", cursor=(0, 2), size=(80, 24)) as page:
+        _install_directory(monkeypatch, page.ta.app, directory)
+        monkeypatch.setattr(
+            page.ta,
+            "notify",
+            lambda message, severity=None: notifications.append((message, severity)),
+        )
+
+        await page.press("K")
+        await page.wait_for(lambda: bool(notifications))
+
+        assert notifications == [
+            ("Could not resolve bead 'sase-1aa': router unavailable", "warning")
+        ]
 
 
 def _detail_resolution() -> LinkResolution:

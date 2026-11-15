@@ -335,6 +335,8 @@ def init_late_startup_state(
     self._bead_mention_index = BeadMentionIndex()
     self._bead_mention_pending = set()
     self._bead_mention_resolution_in_flight = False
+    self._bead_mention_resolution_request_id = 0
+    self._bead_mention_resolution_owner = None
     # Phase ``post-open-quiet``: coalesced Agents-detail repaint deferred while
     # a prompt is active; flushed once by ``_detach_prompt_bar`` on dismissal.
     self._pending_selected_agent_semantic_refresh = False
