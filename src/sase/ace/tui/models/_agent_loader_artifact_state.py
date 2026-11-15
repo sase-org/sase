@@ -43,6 +43,12 @@ class AgentLoadState:
     rows_discovered: int = 0
     rows_removed: int = 0
     record_json_decoded: int = 0
+    # True only when this load actually ran `_load_agents_from_all_sources`
+    # (which always scans the RUNNING field) without a post-decode truncation
+    # that could cut claim rows. Artifact-delta loads, keeps-displayed-roster
+    # short-circuits, and bounded-prefix loads sliced to `requested_limit`
+    # leave this False: the incoming roster is not authoritative for claims.
+    running_claims_scanned: bool = False
 
     @property
     def needs_full_history_reconcile(self) -> bool:

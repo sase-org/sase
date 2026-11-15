@@ -56,6 +56,11 @@ def _merge_agent_fields(target: Agent, source: Agent) -> None:
     Only copies fields that are None/empty on the target but set on the source.
     This preserves metadata (workspace_num, model, etc.) from VCS workspace
     agents that are being removed as duplicates.
+
+    Claim-projection provenance (``from_running_claim``) is never copied here:
+    a WORKFLOW survivor is artifact-backed and keeps ``False`` (callers enforce
+    this explicitly), while a RUNNING survivor keeps its own flag so a claim
+    projection merged with Patch metadata stays a projection.
     """
     if target.workspace_num is None and source.workspace_num is not None:
         target.workspace_num = source.workspace_num
@@ -324,6 +329,11 @@ def dedup_workflow_entries(agents: list[Agent]) -> list[Agent]:
             key = (agent.project_file, agent.raw_suffix)
             if key in seen_suffixes:
                 existing = seen_suffixes[key]
+                # Conjunctive claim provenance: an artifact-backed duplicate
+                # clears the projection flag on the survivor.
+                existing.from_running_claim = bool(
+                    existing.from_running_claim and agent.from_running_claim
+                )
                 # Copy workspace_num from RUNNING field entry
                 if existing.workspace_num is None and agent.workspace_num is not None:
                     existing.workspace_num = agent.workspace_num
@@ -394,6 +404,9 @@ def dedup_running_vs_workflow(agents: list[Agent]) -> list[Agent]:
             # Match found — merge metadata into the WORKFLOW agent
             matched = workflow_by_suffix[(agent.project_file, agent.raw_suffix)]
             _merge_agent_fields(matched, agent)
+            # The survivor is artifact-backed: a folded claim projection must
+            # not promote it to a claim projection.
+            matched.from_running_claim = False
             # A monitor's workflow_state.json may still carry the creator's
             # dead pid (or none); the RUNNING claim holds the live supervisor.
             if agent.pid is not None and (matched.pid is None or agent.runner_is_live):
@@ -486,12 +499,16 @@ def _collapse_pid_duplicate(existing: Agent, agent: Agent) -> tuple[Agent, Agent
         and existing.agent_type == AgentType.WORKFLOW
     ):
         _merge_agent_fields(existing, agent)
+        # WORKFLOW survivor is artifact-backed: never inherit the claim flag.
+        existing.from_running_claim = False
         return existing, agent
     if (
         existing.agent_type == AgentType.RUNNING
         and agent.agent_type == AgentType.WORKFLOW
     ):
         _merge_agent_fields(agent, existing)
+        # WORKFLOW survivor is artifact-backed: never inherit the claim flag.
+        agent.from_running_claim = False
         return agent, existing
     _merge_agent_fields(existing, agent)
     return existing, agent

@@ -190,6 +190,12 @@ def _stable_replacement_wins(
     is_artifact_delta: bool,
 ) -> bool:
     """Return whether a stable-key match should replace the cached row."""
+    # Belt and braces: an artifact-backed observation always outranks a cached
+    # claim placeholder on the same artifact identity. The reverse (a claim
+    # placeholder shadowing richer cached history) must still lose, so this
+    # only fires one way.
+    if cached.from_running_claim and not incoming.from_running_claim:
+        return True
     if _adds_structural_placement(cached, incoming):
         return True
     if _terminal_artifact_projection_replaces(cached, incoming):
@@ -341,6 +347,37 @@ def merge_incomplete_load_after_complete_history(
         return prep
 
     cached_agents = list(snapshot.cached_agents_with_children)
+    # Cached RUNNING-field claim projections are transient observations, not
+    # durable history. A claim-scanning load re-derives every live claim, so
+    # drop all cached projections and let incoming rows (re-emitted claims or
+    # artifact rows) become new roots. Other loads (artifact deltas,
+    # non-scanning or truncated loads) only drop a cached projection when an
+    # incoming row supersedes it on the same artifact identity; the next
+    # claim-scanning load settles the rest.
+    load_claims_scanned = bool(
+        load_state is not None and getattr(load_state, "running_claims_scanned", False)
+    )
+    if load_claims_scanned:
+        cached_agents = [
+            agent for agent in cached_agents if not agent.from_running_claim
+        ]
+    else:
+        incoming_supersede_keys = {
+            (agent.project_file, agent.raw_suffix)
+            for agent in prep.filtered_agents
+            if agent.raw_suffix is not None
+        }
+        if incoming_supersede_keys:
+            cached_agents = [
+                agent
+                for agent in cached_agents
+                if not (
+                    agent.from_running_claim
+                    and agent.raw_suffix is not None
+                    and (agent.project_file, agent.raw_suffix)
+                    in incoming_supersede_keys
+                )
+            ]
     if not cached_agents:
         return prep
 

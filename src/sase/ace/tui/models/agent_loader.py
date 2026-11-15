@@ -414,6 +414,13 @@ def _load_agents_with_load_state(
         )
         extra["decoded_count"] = len(agents) + len(workflow_agent_steps)
     decode_elapsed = time.perf_counter() - decode_start
+    # This path always scans the RUNNING field via `_load_agents_from_all_sources`,
+    # so the roster is authoritative for workspace claims. The keeps-displayed
+    # roster short-circuit above returns early without scanning, leaving the
+    # default False. Bounded-prefix truncation is handled in `load_tiered_agents`,
+    # which clears the flag when it slices the decoded roster to the viewport cap
+    # (claim rows sort anywhere in that order and could have been cut).
+    state = replace(state, running_claims_scanned=True)
     return _AgentLoadResult(
         agents=agents,
         workflow_agent_steps=workflow_agent_steps,
@@ -603,10 +610,15 @@ def load_tiered_agents(
         else:
             filtered_count = len(agents)
             agents = agents[: max(1, effective_limit)]
+        # The viewport cap slices the decoded roster after claim rows were
+        # merged in, so claim rows could have been cut. Leave the load
+        # non-authoritative for claims rather than carrying live claim rows
+        # past the cap (keeps the merge contract explicit and bounded).
         state = replace(
             state,
             returned_count=len(agents),
             has_more=state.has_more or filtered_count > len(agents),
+            running_claims_scanned=False,
         )
         return agents, state
     return agents, state

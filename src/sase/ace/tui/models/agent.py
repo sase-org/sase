@@ -1,6 +1,6 @@
 """Agent data model for the Agents tab."""
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime
 from functools import lru_cache
 from pathlib import Path
@@ -113,6 +113,15 @@ def project_file_parent_name(project_file: str | None) -> str:
 @dataclass
 class Agent(AgentState):
     """Represents a single running agent."""
+
+    # Provenance for TUI roster-cache maintenance: True only for rows projected
+    # directly from a RUNNING-field workspace claim
+    # (``load_agents_from_resolved_running_claims``). Claim projections are
+    # transient observations re-derived by every claim-scanning load, never
+    # durable history, so the Tier-1 patch merge must not treat a cached
+    # projection as authoritative. Artifact-backed rows (WORKFLOW rows,
+    # home-mode ``running.json`` rows, Patch rows) always keep this False.
+    from_running_claim: bool = field(default=False, compare=False, repr=False)
 
     def __post_init__(
         self, commit_entry_id: str | None = None

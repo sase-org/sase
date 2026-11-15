@@ -397,6 +397,7 @@ def load_agents_from_resolved_running_claims(
             raw_suffix=record.normalized_timestamp,
             bug=bug_by_cl_name.get(record.cl_name),
             cl_num=cl_by_cl_name.get(record.cl_name),
+            from_running_claim=True,
         )
         enrich_agent_from_meta(agent, agent.get_artifacts_dir())
         if record.review_agent_workflow:
