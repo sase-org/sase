@@ -8,6 +8,7 @@ from typing import Any
 
 import pytest
 
+import sase.axe.wait_marker_scan as marker_scan
 import sase.scripts._chop_wait_checks_run as wait_checks_run
 import sase.scripts._chop_wait_checks_run_fs as wait_checks_fs
 import sase.scripts._chop_wait_checks_run_waiters as wait_checks_waiters
@@ -157,3 +158,76 @@ def test_bead_only_waiter_uses_the_scoped_view(
     # keeps only the waiter directory — and this helper writes no meta there.
     assert captured
     assert captured[0] == []
+
+
+def test_resolving_view_reuses_walk_but_confirmation_relists(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    waiter = make_waiting_agent(tmp_path, "foo")
+    make_agent(
+        tmp_path, "proj", "20261115010101", "foo", done=True, outcome="completed"
+    )
+    make_agent(tmp_path, "other", "20261115010102", "unrelated")
+    walk_calls: list[str] = []
+    view_calls: list[str] = []
+    original_walk = marker_scan.iter_agent_artifact_dirs
+    original_view = wait_checks_fs.iter_agent_artifact_dirs
+
+    def walk(project: str, *args: Any, **kwargs: Any) -> Any:
+        walk_calls.append(project)
+        return original_walk(project, *args, **kwargs)
+
+    def view(project: str, *args: Any, **kwargs: Any) -> Any:
+        view_calls.append(project)
+        return original_view(project, *args, **kwargs)
+
+    monkeypatch.setattr(marker_scan, "iter_agent_artifact_dirs", walk)
+    monkeypatch.setattr(wait_checks_fs, "iter_agent_artifact_dirs", view)
+
+    run_wait_checks(tmp_path, monkeypatch)
+
+    assert (waiter / "ready.json").exists()
+    assert sorted(walk_calls) == ["other", "proj"]
+    assert view_calls == ["proj"]
+
+
+@pytest.mark.parametrize("scoped", [True, False])
+def test_supplied_listing_honors_project_filter_without_relisting(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, scoped: bool
+) -> None:
+    from sase.core.wait_dependency_resolution import ScopeKeyCache
+
+    first = make_agent(tmp_path, "proj", "20261115020101", "foo")
+    second = make_agent(tmp_path, "proj", "20261115020102", "foo")
+    other = make_agent(tmp_path, "other", "20261115020103", "foo")
+    missing_meta = tmp_path / "missing-meta"
+    missing_meta.mkdir()
+    seen: set[Path] = set()
+    reads: list[Path] = []
+    original_read = wait_checks_fs.read_json_dict
+
+    def read(path: Path) -> dict[str, Any] | None:
+        reads.append(path)
+        return original_read(path)
+
+    def unexpected_listing(*args: Any, **kwargs: Any) -> Any:
+        pytest.fail("supplied listing must not re-list projects or artifact dirs")
+
+    monkeypatch.setattr(Path, "iterdir", unexpected_listing)
+    monkeypatch.setattr(wait_checks_fs, "iter_agent_artifact_dirs", unexpected_listing)
+    monkeypatch.setattr(wait_checks_fs, "read_json_dict", read)
+    meta_cache: dict[Path, dict[str, Any] | None] = {}
+    for _ in range(2):
+        rows = wait_checks_fs.filesystem_dependency_rows(
+            tmp_path,
+            project_names={"proj"},
+            listed_dirs={"other": [other], "proj": [second, missing_meta, first]},
+            meta_cache=meta_cache,
+            scope_cache=ScopeKeyCache.empty() if scoped else None,
+            scope_keys={"foo"} if scoped else None,
+            seen_dirs=seen,
+        )
+        assert [row[0] for row in rows] == [second, first]
+    if scoped:
+        assert seen == {second, missing_meta, first}
+    assert reads.count(missing_meta / "agent_meta.json") <= 1

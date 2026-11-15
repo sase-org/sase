@@ -61,7 +61,11 @@ class _CacheEntry:
 
 
 class ScopeKeyCache:
-    """In-memory scope-key entries with change tracking for one tick."""
+    """In-memory scope-key entries with change tracking for one tick.
+
+    Lookup, store, and drop accept a precomputed canonical artifact ``key``
+    so selection can reuse one path normalization throughout each iteration.
+    """
 
     def __init__(self, entries: dict[str, _CacheEntry] | None = None) -> None:
         self._entries: dict[str, _CacheEntry] = dict(entries or {})
@@ -85,10 +89,16 @@ class ScopeKeyCache:
         return cls(raw)
 
     def lookup(
-        self, artifact_dir: Path | str, fingerprint: _Fingerprint
+        self,
+        artifact_dir: Path | str,
+        fingerprint: _Fingerprint,
+        *,
+        key: str | None = None,
     ) -> frozenset[str] | None:
         """Return cached keys on a fingerprint hit, else ``None``."""
-        entry = self._entries.get(artifact_dir_key(str(artifact_dir)))
+        if key is None:
+            key = artifact_dir_key(str(artifact_dir))
+        entry = self._entries.get(key)
         if entry is not None and entry.matches(fingerprint):
             return entry.keys
         return None
@@ -98,11 +108,14 @@ class ScopeKeyCache:
         artifact_dir: Path | str,
         fingerprint: _Fingerprint,
         keys: frozenset[str] | set[str],
+        *,
+        key: str | None = None,
     ) -> None:
         """Record *keys* for *artifact_dir*, marking the cache changed."""
         mtime_ns, size, ino = fingerprint
         frozen = frozenset(keys)
-        key = artifact_dir_key(str(artifact_dir))
+        if key is None:
+            key = artifact_dir_key(str(artifact_dir))
         existing = self._entries.get(key)
         if (
             existing is not None
@@ -113,9 +126,11 @@ class ScopeKeyCache:
         self._entries[key] = _CacheEntry(mtime_ns, size, ino, frozen)
         self._changed = True
 
-    def drop(self, artifact_dir: Path | str) -> None:
+    def drop(self, artifact_dir: Path | str, *, key: str | None = None) -> None:
         """Forget *artifact_dir*, marking the cache changed when present."""
-        if self._entries.pop(artifact_dir_key(str(artifact_dir)), None) is not None:
+        if key is None:
+            key = artifact_dir_key(str(artifact_dir))
+        if self._entries.pop(key, None) is not None:
             self._changed = True
 
     def drop_missing(self, present: Iterable[Path | str]) -> None:
@@ -175,7 +190,7 @@ def stat_agent_meta(artifact_dir: Path | str) -> _Fingerprint | None:
     ``None`` covers a missing meta (no row, as today) and any stat failure.
     """
     try:
-        stat = os.stat(Path(artifact_dir) / "agent_meta.json")
+        stat = os.stat(os.path.join(str(artifact_dir), "agent_meta.json"))
     except OSError:
         return None
     return (stat.st_mtime_ns, stat.st_size, stat.st_ino)
@@ -187,6 +202,7 @@ def keys_for_artifact_dir(
     *,
     read_meta: Callable[[Path], Mapping[str, Any] | None],
     update_cache: bool,
+    key: str | None = None,
 ) -> frozenset[str] | None:
     """Return the scope keys for one artifact dir through *cache*.
 
@@ -199,20 +215,22 @@ def keys_for_artifact_dir(
     """
     from ._scope import artifact_scope_keys
 
+    if key is None:
+        key = artifact_dir_key(str(artifact_dir))
     fingerprint = stat_agent_meta(artifact_dir)
     if fingerprint is None:
-        cache.drop(artifact_dir)
+        cache.drop(artifact_dir, key=key)
         return None
-    hit = cache.lookup(artifact_dir, fingerprint)
+    hit = cache.lookup(artifact_dir, fingerprint, key=key)
     if hit is not None:
         return hit
     meta = read_meta(artifact_dir)
     if meta is None:
-        cache.drop(artifact_dir)
+        cache.drop(artifact_dir, key=key)
         return None
     keys = artifact_scope_keys(meta)
     if update_cache:
-        cache.store(artifact_dir, fingerprint, keys)
+        cache.store(artifact_dir, fingerprint, keys, key=key)
     return keys
 
 
@@ -238,14 +256,19 @@ def select_dirs_with_cache(
     included = {artifact_dir_key(str(path)) for path in include_dirs}
     selected: list[Path] = []
     for artifact_dir in artifact_dirs:
-        if artifact_dir_key(str(artifact_dir)) in included:
+        key = artifact_dir_key(str(artifact_dir))
+        if key in included:
             if stat_agent_meta(artifact_dir) is None:
-                cache.drop(artifact_dir)
+                cache.drop(artifact_dir, key=key)
                 continue
             selected.append(artifact_dir)
             continue
         keys = keys_for_artifact_dir(
-            cache, artifact_dir, read_meta=read_meta, update_cache=update_cache
+            cache,
+            artifact_dir,
+            read_meta=read_meta,
+            update_cache=update_cache,
+            key=key,
         )
         if keys is not None and not keys.isdisjoint(wanted):
             selected.append(artifact_dir)

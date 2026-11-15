@@ -265,6 +265,9 @@ def _run(
     # directories (so a successor created after the resolving view was built is
     # still detected) but reuses metadata this run already loaded, keeping the
     # scan-once contract. Index rows only read meta dicts, never mutate them.
+    # Scoped selection stats metas itself and never reads unselected ones.
+    # Full-view reads cache missing metas as None, so those cost at most one
+    # failed open per tick without an up-front stat of every artifact's meta.
     meta_cache: dict[Path, dict[str, Any] | None] = {}
 
     # The shared walk reads no agent_meta.json itself: a tick with no live
@@ -350,14 +353,6 @@ def _run(
     scope_cache_used = False
     if live_waiters:
         artifact_rows: list[tuple[Path, dict[str, Any], str]] = []
-        # Seed negatives for walked directories whose meta file is absent
-        # (waiter-only dirs usually): the rescan must not re-stat them into
-        # reads, while a directory the walk never saw stays a cache miss and
-        # is genuinely re-read.
-        for artifact_dir in scan.walked_dirs:
-            meta_path = artifact_dir / "agent_meta.json"
-            if meta_path not in meta_cache and not meta_path.exists():
-                meta_cache[meta_path] = None
         tribe_source = WaitDependencyIndex.empty()
         if scoped_waiters:
             # Scoped selection first: cache misses read meta fresh here and
@@ -370,6 +365,7 @@ def _run(
                 scope_keys=scopable_keys,
                 include_dirs=scopable_waiter_dirs,
                 seen_dirs=scope_cache_seen,
+                listed_dirs=scan.dirs_by_project,
             )
             scope_cache_used = True
             scoped_index = clone_empty_index(tribe_source)
@@ -381,7 +377,7 @@ def _run(
                 artifact_rows = scoped_rows
         if full_view_waiters:
             artifact_rows = filesystem_dependency_rows(
-                projects_dir, meta_cache=meta_cache
+                projects_dir, meta_cache=meta_cache, listed_dirs=scan.dirs_by_project
             )
             # Seed the run cache from the resolving walk so the confirmation
             # rescan only reads metadata for artifact directories the

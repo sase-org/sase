@@ -8,6 +8,7 @@ from pathlib import Path
 
 import pytest
 
+import sase.axe.wait_marker_scan as marker_scan
 from sase.axe.wait_marker_scan import (
     scan_waiting_markers,
     waiting_runner_liveness,
@@ -76,6 +77,36 @@ def test_scan_ignores_agent_meta_content(tmp_path: Path) -> None:
 
     assert [marker.waiting_path.parent for marker in scan.pending] == [pending]
     assert scan.already_ready == 0
+
+
+def test_scan_keeps_project_listing_order_and_path_instances(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    first = _write_marker(tmp_path, "proj", "first")
+    second = _write_marker(tmp_path, "proj", "second")
+    other = _write_marker(tmp_path, "other", "only")
+    (tmp_path / "empty").mkdir()
+    listed = {"proj": [second, first], "other": [other], "empty": []}
+    monkeypatch.setattr(
+        marker_scan,
+        "iter_agent_artifact_dirs",
+        lambda project, *_args, **_kwargs: iter(listed[project]),
+    )
+
+    scan = scan_waiting_markers(tmp_path)
+
+    assert scan.dirs_by_project == listed
+    assert scan.walked_dirs == {first, second, other}
+    for project, dirs in listed.items():
+        assert all(
+            actual is expected
+            for actual, expected in zip(
+                scan.dirs_by_project[project], dirs, strict=True
+            )
+        )
+    assert {id(path) for path in scan.walked_dirs} == {
+        id(path) for dirs in scan.dirs_by_project.values() for path in dirs
+    }
 
 
 def test_liveness_missing_meta_is_unknown(tmp_path: Path) -> None:

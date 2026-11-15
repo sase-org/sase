@@ -7,6 +7,7 @@ so names here are public inside this already-private module.
 
 from __future__ import annotations
 
+from collections.abc import Iterable, Iterator, Mapping, Sequence
 from pathlib import Path
 from typing import Any
 
@@ -28,6 +29,29 @@ def clone_empty_index(source: WaitDependencyIndex) -> WaitDependencyIndex:
     return cloned
 
 
+def _project_artifact_dirs(
+    projects_dir: Path,
+    project_names: set[str] | None,
+    listed_dirs: Mapping[str, Sequence[Path]] | None,
+) -> Iterator[tuple[str, Iterable[Path]]]:
+    if listed_dirs is not None:
+        for project_name, dirs in listed_dirs.items():
+            if project_names is None or project_name in project_names:
+                yield project_name, dirs
+        return
+    for project_dir in projects_dir.iterdir():
+        if not project_dir.is_dir():
+            continue
+        project_name = project_dir.name
+        if project_names is None or project_name in project_names:
+            yield (
+                project_name,
+                iter_agent_artifact_dirs(
+                    project_name, "ace-run", projects_root=projects_dir
+                ),
+            )
+
+
 def filesystem_dependency_rows(
     projects_dir: Path,
     *,
@@ -37,12 +61,14 @@ def filesystem_dependency_rows(
     scope_keys: frozenset[str] | set[str] | None = None,
     include_dirs: tuple[Path, ...] | list[Path] = (),
     seen_dirs: set[Path] | None = None,
+    listed_dirs: Mapping[str, Sequence[Path]] | None = None,
 ) -> list[tuple[Path, dict[str, Any], str]]:
     """Load ace-run agent_meta.json files for wait-dependency resolution.
 
     When meta_cache is given, reuse metadata already loaded earlier in the run
     and only read files for artifact directories not yet seen. The directory
-    listing itself is always fresh.
+    listing is fresh unless the caller passes this tick's marker-walk listing.
+    Confirmation passes never pass listed_dirs: new members must be discovered.
 
     When scope_cache and scope_keys are given, select rows through the
     persistent scope-key cache instead: unselected artifacts cost one
@@ -53,17 +79,10 @@ def filesystem_dependency_rows(
 
     if scope_cache is None or scope_keys is None:
         rows: list[tuple[Path, dict[str, Any], str]] = []
-        for project_dir in projects_dir.iterdir():
-            if not project_dir.is_dir():
-                continue
-            project_name = project_dir.name
-            if project_names is not None and project_name not in project_names:
-                continue
-            for artifact_dir in iter_agent_artifact_dirs(
-                project_name,
-                "ace-run",
-                projects_root=projects_dir,
-            ):
+        for project_name, candidates in _project_artifact_dirs(
+            projects_dir, project_names, listed_dirs
+        ):
+            for artifact_dir in candidates:
                 meta_path = artifact_dir / "agent_meta.json"
                 if meta_cache is not None and meta_path in meta_cache:
                     meta = meta_cache[meta_path]
@@ -82,19 +101,10 @@ def filesystem_dependency_rows(
         return meta
 
     scoped_rows: list[tuple[Path, dict[str, Any], str]] = []
-    for project_dir in projects_dir.iterdir():
-        if not project_dir.is_dir():
-            continue
-        project_name = project_dir.name
-        if project_names is not None and project_name not in project_names:
-            continue
-        candidates = list(
-            iter_agent_artifact_dirs(
-                project_name,
-                "ace-run",
-                projects_root=projects_dir,
-            )
-        )
+    for project_name, dirs in _project_artifact_dirs(
+        projects_dir, project_names, listed_dirs
+    ):
+        candidates = dirs if isinstance(dirs, Sequence) else list(dirs)
         if seen_dirs is not None:
             seen_dirs.update(candidates)
         selected = select_dirs_with_cache(

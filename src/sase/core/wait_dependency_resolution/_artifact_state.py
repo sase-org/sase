@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import os
+import stat
 from collections.abc import Mapping
 from functools import lru_cache
 from pathlib import Path
@@ -243,8 +245,35 @@ def artifact_dir_key(value: str) -> str:
     return _artifact_dir_key_uncached(value)
 
 
-def _artifact_dir_key_uncached(value: str) -> str:
+@lru_cache(maxsize=4096)
+def _resolved_parent_dir(head: str) -> str:
     try:
+        return str(Path(head).resolve(strict=False))
+    except (OSError, RuntimeError, ValueError):
+        return head
+
+
+def _artifact_dir_key_uncached(value: str) -> str:
+    """Canonicalize paths, sharing parent resolution for normalized absolute leaves.
+
+    On POSIX, realpath(parent/name) equals realpath(parent)/name when name
+    is not a symlink, including a missing leaf. Parent memoization has the
+    same staleness class as the existing per-value LRU in long-lived processes.
+    """
+    try:
+        if (
+            os.path.isabs(value)
+            and not value.startswith("//")
+            and os.path.normpath(value) == value
+        ):
+            head, name = os.path.split(value)
+            if name:
+                try:
+                    is_symlink = stat.S_ISLNK(os.lstat(value).st_mode)
+                except OSError:
+                    is_symlink = False
+                if not is_symlink:
+                    return os.path.join(_resolved_parent_dir(head), name)
         return str(Path(value).expanduser().resolve(strict=False))
     except (OSError, RuntimeError, ValueError):
         return value

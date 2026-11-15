@@ -10,6 +10,7 @@ liveness is tri-state so unprovable cases fail open to live.
 from __future__ import annotations
 
 import json
+import os
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Literal
@@ -32,6 +33,7 @@ class _WaitMarkerScan:
     pending: list[WaitingMarker] = field(default_factory=list)
     already_ready_markers: list[WaitingMarker] = field(default_factory=list)
     walked_dirs: set[Path] = field(default_factory=set)
+    dirs_by_project: dict[str, list[Path]] = field(default_factory=dict)
 
 
 def scan_waiting_markers(projects_dir: Path) -> _WaitMarkerScan:
@@ -39,7 +41,8 @@ def scan_waiting_markers(projects_dir: Path) -> _WaitMarkerScan:
 
     Returns the project/artifact/waiting counts, the pending markers
     (``waiting.json`` present, ``ready.json`` absent), the already-released
-    markers, and every walked artifact directory. Reads no ``agent_meta.json``
+    markers, and every walked artifact directory, also grouped by project in
+    listing order for the resolving view. Reads no ``agent_meta.json``
     file: callers load pending-waiter metadata into their own cache and
     classify it with :func:`waiting_runner_liveness`.
     """
@@ -49,6 +52,7 @@ def scan_waiting_markers(projects_dir: Path) -> _WaitMarkerScan:
         if not project_dir.is_dir():
             continue
         scan.projects += 1
+        project_dirs = scan.dirs_by_project.setdefault(project_dir.name, [])
         for artifact_dir in iter_agent_artifact_dirs(
             project_dir.name,
             "ace-run",
@@ -56,14 +60,15 @@ def scan_waiting_markers(projects_dir: Path) -> _WaitMarkerScan:
         ):
             scan.artifacts += 1
             scan.walked_dirs.add(artifact_dir)
-            waiting_path = artifact_dir / "waiting.json"
-            if not waiting_path.exists():
+            project_dirs.append(artifact_dir)
+            waiting_path = os.path.join(str(artifact_dir), "waiting.json")
+            if not os.path.exists(waiting_path):
                 continue
             scan.waiting += 1
             marker = WaitingMarker(
                 project_name=project_dir.name,
                 ready_path=artifact_dir / "ready.json",
-                waiting_path=waiting_path,
+                waiting_path=Path(waiting_path),
             )
             if marker.ready_path.exists():
                 scan.already_ready += 1

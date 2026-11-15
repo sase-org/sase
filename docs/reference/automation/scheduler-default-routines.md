@@ -58,7 +58,7 @@ Fast-polling agent dependency resolution:
 | `wait_checks` | Resolve successful agent and closed-bead waits; write `ready.json` |
 
 `wait_checks` runs in its own 2-second routine so a slow `sidecar_auto_sync` pass does
-not convoy it behind a shared 10-second tick.
+not convoy it behind a shared 10-second tick. Its per-job timeout is `3m`.
 
 ## sidecar_sync (30-second interval) {#sidecarsync-30-second-interval}
 
@@ -135,11 +135,12 @@ the tick emits its summary without building any dependency view, and `unresolved
 only live/unknown waiters. The resolving view itself is built from filesystem
 `agent_meta.json` rows rather than the artifact index. Named-agent and bead-only waiters
 resolve from a scoped view: only rows whose identity keys intersect the live waiters'
-dependency names, plus each scopable waiter's own directory. Confirmation re-lists those
-projects fresh and keeps the same per-waiter key set, so a member that appears between
-the two views still defers release. Unscopable shapes — `@tribe` names, hoods, fork
-sources, identity (`wait_for_artifacts`) deps, and armed epic follows — keep today's
-full view, built at most once per tick and only when a live waiter needs it.
+dependency names, plus each scopable waiter's own directory. The resolving view reuses
+the tick's marker-walk listing. Only confirmation re-lists those projects fresh and
+keeps the same per-waiter key set, so a member that appears between the two views still
+defers release. Unscopable shapes — `@tribe` names, hoods, fork sources, identity
+(`wait_for_artifacts`) deps, and armed epic follows — keep today's full view, built at
+most once per tick and only when a live waiter needs it.
 
 The `wait_checks` summary includes `walk_ms` for marker scanning and liveness
 classification, `view_ms` for dependency view construction, `resolve_ms` for the

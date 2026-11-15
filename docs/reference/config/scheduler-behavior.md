@@ -197,7 +197,7 @@ axe:
         Runs every two seconds so waiting agents resume promptly once a dependency finishes. Only agent
         dependency resolution belongs here; bead-claim work lives in waits and sidecar syncing in sidecar_sync.
       interval: 2
-      job_timeout: "2m"
+      job_timeout: "3m"
       jobs:
         - name: wait_checks
           script: sase_job_wait_checks
