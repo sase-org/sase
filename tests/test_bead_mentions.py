@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from sase.bead.mentions import bead_mention_at
+from sase.bead.mentions import bead_mention_at, scan_bead_mentions
 
 
 @pytest.mark.parametrize(
@@ -119,3 +119,56 @@ def test_rejection_cases_are_not_mentions(text: str) -> None:
 def test_cursor_past_end_is_none() -> None:
     assert bead_mention_at("sase-1ss", 9) is None
     assert bead_mention_at("sase-1ss", -1) is None
+
+
+_OWNED = frozenset({"sase", "bob-cli"})
+
+
+def test_scan_finds_bare_ids_only_for_owned_prefixes() -> None:
+    text = "see sase-1ss and sase-1ss.1 here"
+    mentions = scan_bead_mentions(text, _OWNED)
+    assert [(m.bead_id, m.form) for m in mentions] == [
+        ("sase-1ss", "bare"),
+        ("sase-1ss.1", "bare"),
+    ]
+    assert all(text[m.start : m.end] == m.bead_id for m in mentions)
+
+
+def test_scan_skips_unowned_prefixes() -> None:
+    assert scan_bead_mentions("cash-flow stays plain", _OWNED) == ()
+    assert scan_bead_mentions("see well-known-1a here", _OWNED) == ()
+    assert scan_bead_mentions("see bob-cli-kx here", frozenset({"sase"})) == ()
+
+
+def test_scan_prefix_matching_is_casefolded() -> None:
+    mentions = scan_bead_mentions("see sase-1ss here", frozenset({"SASE"}))
+    assert [m.bead_id for m in mentions] == ["sase-1ss"]
+
+
+def test_scan_reuses_bare_rejection_rules() -> None:
+    assert scan_bead_mentions("src/sase-1ss/x", _OWNED) == ()
+    assert scan_bead_mentions("sase-1ss.md", _OWNED) == ()
+    assert scan_bead_mentions("+sase-1ss", _OWNED) == ()
+    assert scan_bead_mentions("sase--1ss", _OWNED) == ()
+    assert scan_bead_mentions("%wait:sase-1ss", _OWNED)[0].bead_id == "sase-1ss"
+
+
+def test_scan_covers_refs_and_skips_nested_bare_duplicates() -> None:
+    mentions = scan_bead_mentions("@bead:sase-1ss and bead:bob-cli-kx.", _OWNED)
+    assert [(m.bead_id, m.form, m.start, m.end) for m in mentions] == [
+        ("sase-1ss", "ref", 0, 14),
+        ("bob-cli-kx", "ref", 19, 34),
+    ]
+
+
+def test_scan_returns_mentions_sorted_by_offset() -> None:
+    mentions = scan_bead_mentions("sase-1ss.2 then @bead:bob-cli-kx", _OWNED)
+    assert [m.bead_id for m in mentions] == ["sase-1ss.2", "bob-cli-kx"]
+    assert mentions[0].form == "bare"
+    assert mentions[1].form == "ref"
+
+
+def test_scan_empty_text_or_prefixes_is_empty() -> None:
+    assert scan_bead_mentions("", _OWNED) == ()
+    assert scan_bead_mentions("see sase-1ss", frozenset()) == ()
+    assert scan_bead_mentions("   ", _OWNED) == ()

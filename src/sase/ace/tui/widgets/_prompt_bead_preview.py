@@ -38,6 +38,7 @@ class PromptBeadPreviewMixin(_MixinBase):
         _prompt_jump_request_id: int
 
         def _absolute_offset(self, location: tuple[int, int]) -> int: ...
+        def _active_app(self) -> Any | None: ...
         def _bead_store_directory_for_action(
             self,
             *,
@@ -152,6 +153,7 @@ class PromptBeadPreviewMixin(_MixinBase):
             from sase.ace.tui.modals.bead_preview_modal import BeadPreviewModal
 
             self.app.push_screen(BeadPreviewModal(route.store, route.bead_id))
+            self._note_bead_mention_resolved(route.bead_id)
             return
         if isinstance(route, BeadRouteMissing):
             miss = _missing_bead_message(route.bead_id, route.project_labels)
@@ -264,6 +266,7 @@ class PromptBeadPreviewMixin(_MixinBase):
                 )
                 return
             self._present_bead_detail(resolution, bead_id=route.bead_id)
+            self._note_bead_mention_resolved(route.bead_id)
             return
         if isinstance(route, BeadRouteMissing):
             self.notify(
@@ -346,6 +349,22 @@ class PromptBeadPreviewMixin(_MixinBase):
         publisher = getattr(app, "publish_bead_store_directory", None)
         if callable(publisher):
             publisher(directory, generation=generation)
+
+    def _note_bead_mention_resolved(self, bead_id: str) -> None:
+        """Seed the mention index after a K/Ctrl+] resolution (memory only)."""
+        try:
+            app = self._active_app()
+        except Exception:
+            return
+        if app is None:
+            return
+        requester = getattr(app, "request_bead_mention_resolution", None)
+        if not callable(requester):
+            return
+        try:
+            requester((bead_id,))
+        except Exception:
+            pass
 
     def _project_ref_for_bead_route(self) -> str | None:
         getter = getattr(self, "_macro_arg_assist_project_from_text", None)

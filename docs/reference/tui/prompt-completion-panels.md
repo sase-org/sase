@@ -362,6 +362,14 @@ chooser at all for an external repo. sase's TUI never runs `sase repo open` itse
 
 ## Bead IDs
 
+Resolved bare bead IDs are underlined in their bead's status color — gold for
+in-progress, green for closed, blue for open, and the remaining status colors
+for claimed, ready, and snoozed — so the `K` affordance is visible before you
+press it. Unresolved prefixes (`cash-flow`), unknown IDs, and missing beads
+stay plain, and `@bead:` refs keep the artifact-reference styling instead.
+Resolution runs off the typing path: an ID you just typed lights up when you
+leave INSERT mode with `Esc`, when the prompt mounts, or when `K` resolves it.
+
 `K` on a bead ID opens a compact bead card. Recognized forms are a bare full ID
 (`sase-1ss`, `sase-1ss.1`, `bob-cli-kx`) and an artifact ref (`@bead:sase-1ss` or
 `bead:sase-1ss`). Trailing sentence punctuation, wrapping quotes, backticks, and
@@ -428,8 +436,9 @@ and installation hint.
 Every word `K` proves misspelled is remembered durably and gets a red underline in every
 prompt input from that moment on, in every `sase tui` session -- no live spell-checking
 runs on every keystroke; only what `K` has already checked is ever squiggled. This is
-distinct from the bold blue glossary underline and the bold lavender repo-name
-underline, which mark a definable project term or repo rather than a spelling issue. The
+distinct from the bold blue glossary underline, the bold lavender repo-name
+underline, and the status-colored bead-ID underline, which mark a definable
+project term, repo, or resolved bead rather than a spelling issue. The
 correction panel offers two ways to stop fighting a word, at two different scopes. Press
 `a` to accept a word for SASE only: it is recorded in `prompt_misspellings.json`, `K` on
 it does not open the panel, but `aspell` itself -- and every other consumer of it on

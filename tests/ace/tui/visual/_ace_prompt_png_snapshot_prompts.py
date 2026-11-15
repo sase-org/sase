@@ -99,6 +99,7 @@ GLOSSARY_WRAPPED_HIGHLIGHT_PROMPT = (
 REPO_MENTION_HIGHLIGHT_PROMPT = (
     "Ask the Agent Clan to inspect sase-core before the Patch handoff"
 )
+BEAD_MENTION_HIGHLIGHT_PROMPT = "See sase-1ss and bob-cli-kx but not sase-9zz yet"
 
 CODEBLOCK_HIGHLIGHT_SOLO = (
     "#gh:sase %auto inspect `foo`/`bar`; keep `/sase_gate` literal\n"

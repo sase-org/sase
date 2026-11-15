@@ -330,6 +330,11 @@ def init_late_startup_state(
     self._bead_store_directory = None
     self._bead_store_directory_generation = 0
     self._bead_store_directory_warming = False
+    from sase.ace.tui.models.bead_preview import BeadMentionIndex
+
+    self._bead_mention_index = BeadMentionIndex()
+    self._bead_mention_pending = set()
+    self._bead_mention_resolution_in_flight = False
     # Phase ``post-open-quiet``: coalesced Agents-detail repaint deferred while
     # a prompt is active; flushed once by ``_detach_prompt_bar`` on dismissal.
     self._pending_selected_agent_semantic_refresh = False

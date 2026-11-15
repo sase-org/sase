@@ -217,7 +217,44 @@ class BeadPreviewModal(
             return
         self._preview = preview
         self._error = None
+        try:
+            from sase.ace.tui.models.bead_preview import store_fingerprint_token
+
+            token = await asyncio.to_thread(
+                store_fingerprint_token, self._store.beads_dir
+            )
+        except Exception:
+            token = None
+        if self._load_is_current(request_id):
+            self._seed_bead_mention(preview, token)
         await self._refresh_widgets(reset_scroll=True)
+
+    def _seed_bead_mention(
+        self, preview: BeadPreview, fingerprint_token: str | None
+    ) -> None:
+        """Seed the prompt mention index with the just-loaded status."""
+        try:
+            app = self.app
+        except Exception:
+            return
+        seeder = getattr(app, "seed_bead_mention_status", None)
+        if not callable(seeder):
+            return
+        try:
+            status = preview.issue.status.value
+        except Exception:
+            status = None
+        if not isinstance(status, str) or not status:
+            return
+        try:
+            seeder(
+                preview.issue.id,
+                status,
+                store_key=str(self._store.beads_dir),
+                fingerprint_token=fingerprint_token,
+            )
+        except Exception:
+            pass
 
     async def _open_detail_async(self, request_id: int) -> None:
         try:
