@@ -12,6 +12,10 @@ import yaml
 import sase.scripts.sase_chop_artifact_retention as retention_chop
 from sase.core.artifact_file_explicit import read_artifact_file_index
 from sase.core.artifact_file_protection import ProtectedArtifactIds
+from sase.core.artifact_file_trash import (
+    list_trashed_artifact_files,
+    trash_artifact_files,
+)
 from sase.core.artifact_file_retention_pass import (
     _ArtifactRetentionPassResult,
     _read_artifact_retention_stamp,
@@ -92,6 +96,97 @@ def test_job_runs_and_stamps(
     remaining = {row.id for row in read_artifact_file_index(index)}
     assert old.id not in remaining
     assert {new.id, explicit.id} <= remaining
+
+
+def test_job_trashes_dangling_payload_then_purges_and_stamps(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    index, old, new, explicit, expired = _seed_store(tmp_path, monkeypatch)
+    trash_artifact_files(
+        [expired],
+        reason="test setup",
+        now="2026-06-01T00:00:00Z",
+        index_path=index,
+    )
+    assert old.path is not None
+    Path(old.path).unlink()
+    _patch_retention_config(monkeypatch, enabled=True)
+    _patch_protections(
+        monkeypatch,
+        ProtectedArtifactIds(
+            referenced_ids=frozenset(),
+            consumed_ids=frozenset(),
+            sources_scanned=(),
+            sources_unavailable=(),
+        ),
+    )
+    runtime = _Runtime()
+
+    result = retention_chop._run(runtime)
+
+    assert runtime.summary["outcome"] == "enforced"
+    assert runtime.summary["payload_missing_rows"] == 1
+    assert runtime.summary["purged"] == 1
+    assert result.status == "ok"
+    stamp = _read_artifact_retention_stamp()
+    assert stamp is not None
+    assert stamp["outcome"] == "enforced"
+    assert stamp["payload_missing_rows"] == 1
+    trashed = list_trashed_artifact_files(index_path=index).entries
+    assert len(trashed) == 1
+    assert trashed[0].artifact_id == old.id
+    assert trashed[0].payload_missing
+    assert trashed[0].stored_filename is None
+    assert trashed[0].stored_path is None
+    assert read_artifact_file_index(index) == (new, explicit)
+
+
+def test_job_purges_even_when_trash_fails(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _seed_store(tmp_path, monkeypatch)
+    _patch_retention_config(monkeypatch, enabled=True)
+    _patch_protections(
+        monkeypatch,
+        ProtectedArtifactIds(
+            referenced_ids=frozenset(),
+            consumed_ids=frozenset(),
+            sources_scanned=(),
+            sources_unavailable=(),
+        ),
+    )
+    purge_calls: list[str] = []
+
+    def fail_trash(*_args, **_kwargs):  # type: ignore[no-untyped-def]
+        raise RuntimeError("trash failed")
+
+    def record_purge(*, before: str):
+        purge_calls.append(before)
+        return SimpleNamespace(purged_entry_ids=("expired",))
+
+    monkeypatch.setattr(
+        "sase.core.artifact_file_trash.trash_artifact_files",
+        fail_trash,
+    )
+    monkeypatch.setattr(
+        "sase.core.artifact_file_trash.purge_trashed_artifact_files",
+        record_purge,
+    )
+    runtime = _Runtime()
+
+    result = retention_chop._run(runtime)
+
+    assert result.status == "check_error"
+    assert runtime.summary["outcome"] == "failed"
+    assert runtime.summary["payload_missing_rows"] == 0
+    assert runtime.reason == "failed"
+    assert len(purge_calls) == 1
+    stamp = _read_artifact_retention_stamp()
+    assert stamp is not None
+    assert stamp["outcome"] == "failed"
+    assert stamp["error"] == "trash failed"
 
 
 def test_job_stamps_disabled_config_without_trashing(

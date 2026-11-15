@@ -46,6 +46,7 @@ class _ArtifactRetentionPassResult:
     completed_at: str | None = None
     rows_trashed: int = 0
     bytes_reclaimed: int = 0
+    payload_missing_rows: int = 0
     purged_entries: int = 0
     missing_rows: int = 0
     sources_unavailable: tuple[str, ...] = ()
@@ -177,15 +178,29 @@ def _run_locked_pass() -> _ArtifactRetentionPassResult:
                 missing_rows += 1
             else:
                 selected_rows.append(row)
-        trashed = trash_artifact_files(
-            selected_rows,
-            reason="retention",
-            now=policy.now,
-        )
         purge_cutoff = (
             now - timedelta(days=get_artifact_retention_trash_grace_days())
         ).isoformat()
-        purged = purge_trashed_artifact_files(before=purge_cutoff)
+        trash_error: Exception | None = None
+        trashed = None
+        try:
+            trashed = trash_artifact_files(
+                selected_rows,
+                reason="retention",
+                now=policy.now,
+                missing_payload_ok=True,
+            )
+        except Exception as exc:  # noqa: BLE001
+            trash_error = exc
+        try:
+            purged = purge_trashed_artifact_files(before=purge_cutoff)
+        except Exception as exc:  # noqa: BLE001
+            if trash_error is not None:
+                raise RuntimeError(f"{trash_error}; purge also failed: {exc}") from exc
+            raise
+        if trash_error is not None:
+            raise trash_error
+        assert trashed is not None
         missing_note = (
             f", skipped {missing_rows} disappeared rows" if missing_rows else ""
         )
@@ -193,6 +208,7 @@ def _run_locked_pass() -> _ArtifactRetentionPassResult:
             "[artifacts] retention: "
             f"trashed {trashed.rows_trashed} rows, "
             f"reclaimed {trashed.bytes_reclaimed} bytes, "
+            f"payload-missing {trashed.payload_missing_rows} rows, "
             f"purged {len(purged.purged_entry_ids)} trash entries"
             f"{missing_note}"
         )
@@ -203,6 +219,7 @@ def _run_locked_pass() -> _ArtifactRetentionPassResult:
                 completed_at=completed_at,
                 rows_trashed=trashed.rows_trashed,
                 bytes_reclaimed=trashed.bytes_reclaimed,
+                payload_missing_rows=trashed.payload_missing_rows,
                 purged_entries=len(purged.purged_entry_ids),
                 missing_rows=missing_rows,
             )
@@ -228,6 +245,7 @@ def _stamp_result(
         "outcome": result.outcome,
         "rows_trashed": result.rows_trashed,
         "bytes_reclaimed": result.bytes_reclaimed,
+        "payload_missing_rows": result.payload_missing_rows,
         "purged_entries": result.purged_entries,
         "missing_rows": result.missing_rows,
     }
@@ -242,6 +260,7 @@ def _stamp_result(
         completed_at=completed_at,
         rows_trashed=result.rows_trashed,
         bytes_reclaimed=result.bytes_reclaimed,
+        payload_missing_rows=result.payload_missing_rows,
         purged_entries=result.purged_entries,
         missing_rows=result.missing_rows,
         sources_unavailable=result.sources_unavailable,

@@ -36,6 +36,7 @@ class TrashEntry:
     size_bytes: int | None
     stored_filename: str | None
     stored_path: str | None
+    payload_missing: bool
     record: ArtifactFile
 
     def to_json_dict(self) -> dict[str, object]:
@@ -67,6 +68,7 @@ class TrashResult:
     entries: tuple[TrashEntry, ...]
     rows_trashed: int
     bytes_reclaimed: int
+    payload_missing_rows: int
     trash_root: str
 
     def to_json_dict(self) -> dict[str, object]:
@@ -74,6 +76,7 @@ class TrashResult:
             "entries": [entry.to_json_dict() for entry in self.entries],
             "rows_trashed": self.rows_trashed,
             "bytes_reclaimed": self.bytes_reclaimed,
+            "payload_missing_rows": self.payload_missing_rows,
             "trash_root": self.trash_root,
         }
 
@@ -112,6 +115,7 @@ def trash_artifact_files(
     reason: str,
     now: str | None = None,
     index_path: Path | str | None = None,
+    missing_payload_ok: bool = False,
 ) -> TrashResult:
     """Move rows to restorable trash and remove them from the live index.
 
@@ -153,6 +157,7 @@ def trash_artifact_files(
                     "trash_root": str(trash_root),
                     "record": artifact_file_to_dict(current),
                     "stored_path": current.path,
+                    "missing_payload_ok": missing_payload_ok,
                     "reason": reason,
                     "trashed_at": trashed_at,
                 }
@@ -175,7 +180,10 @@ def trash_artifact_files(
     return TrashResult(
         entries=tuple(entries),
         rows_trashed=len(entries),
-        bytes_reclaimed=sum(entry.size_bytes or 0 for entry in entries),
+        bytes_reclaimed=sum(
+            entry.size_bytes or 0 for entry in entries if not entry.payload_missing
+        ),
+        payload_missing_rows=sum(entry.payload_missing for entry in entries),
         trash_root=str(trash_root),
     )
 
@@ -349,6 +357,7 @@ def _entry_from_wire(raw: object, operation: str) -> TrashEntry:
         size_bytes=_optional_nonnegative_integer(data, "size_bytes", operation),
         stored_filename=_optional_string(data, "stored_filename", operation),
         stored_path=_optional_string(data, "stored_path", operation),
+        payload_missing=_boolean(data, "payload_missing", operation),
         record=record,
     )
 
@@ -407,6 +416,13 @@ def _nonnegative_integer(
     value = data.get(field)
     if not isinstance(value, int) or isinstance(value, bool) or value < 0:
         raise _wire_error(operation, f"{field} must be a non-negative integer")
+    return value
+
+
+def _boolean(data: Mapping[str, Any], field: str, operation: str) -> bool:
+    value = data.get(field, False)
+    if not isinstance(value, bool):
+        raise _wire_error(operation, f"{field} must be a boolean")
     return value
 
 

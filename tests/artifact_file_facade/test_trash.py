@@ -128,6 +128,55 @@ def test_byte_free_row_round_trips_with_identical_fields_and_id(
     assert list_trashed_artifact_files().entries == ()
 
 
+def test_missing_payload_is_trashed_only_when_enabled(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("SASE_HOME", str(tmp_path))
+    root = tmp_path / "artifacts"
+    root.mkdir()
+    stored_path = root / "missing.txt"
+    stored_path.write_text("payload", encoding="utf-8")
+    row = _artifact("default:888888888888888888888888", stored_path)
+    index = root / "index.jsonl"
+    write_artifact_file_index_unlocked(index, [row])
+    stored_path.unlink()
+
+    with pytest.raises(RuntimeError, match="failed to inspect stored artifact"):
+        trash_artifact_files(
+            [row],
+            reason="retention",
+            now="2026-07-30T00:00:00Z",
+            index_path=index,
+        )
+
+    result = trash_artifact_files(
+        [row],
+        reason="retention",
+        now="2026-07-30T00:00:00Z",
+        index_path=index,
+        missing_payload_ok=True,
+    )
+    [entry] = list_trashed_artifact_files(index_path=index).entries
+
+    assert result.rows_trashed == 1
+    assert result.bytes_reclaimed == 0
+    assert result.payload_missing_rows == 1
+    assert entry == result.entries[0]
+    assert entry.payload_missing
+    assert entry.stored_filename is None
+    assert entry.stored_path is None
+    assert entry.record == row
+    assert read_artifact_file_index(index) == ()
+
+    restored = restore_trashed_artifact_file(entry.entry_id, index_path=index)
+
+    assert restored.record == row
+    assert restored.restored_path is None
+    assert not stored_path.exists()
+    assert read_artifact_file_index(index) == (row,)
+
+
 def test_purge_respects_cutoff_and_all(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

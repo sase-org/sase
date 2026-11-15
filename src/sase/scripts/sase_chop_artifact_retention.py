@@ -28,6 +28,7 @@ def _run(runtime: BuiltinChopRuntime) -> ChopResultBuilder:
                 "trashed "
                 f"{result.rows_trashed} rows, "
                 f"reclaimed {result.bytes_reclaimed} bytes, "
+                f"payload-missing {result.payload_missing_rows} rows, "
                 f"purged {result.purged_entries} trash entries"
             ),
             "cyan",
@@ -47,6 +48,7 @@ def _run(runtime: BuiltinChopRuntime) -> ChopResultBuilder:
             "stamped": int(result.stamped),
             "trashed": result.rows_trashed,
             "bytes": result.bytes_reclaimed,
+            "payload_missing_rows": result.payload_missing_rows,
             "purged": result.purged_entries,
         },
         reason=_reason_for(result.outcome),
