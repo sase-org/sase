@@ -46,6 +46,7 @@ class PromptJumpMixin(_MixinBase):
         def _preview_context(self) -> tuple[str | None, str]: ...
         def _jump_to_glossary_definition_under_cursor(self) -> bool: ...
         def _jump_to_repo_mention_under_cursor(self) -> bool: ...
+        def _jump_to_bead_under_cursor(self) -> bool: ...
         def _refocus_if_needed(self) -> None: ...
 
     def _jump_to_definition_under_cursor(self, *, prefer_load: bool = False) -> None:
@@ -74,10 +75,14 @@ class PromptJumpMixin(_MixinBase):
             )
             if callable(jump_repo_mention) and jump_repo_mention():
                 return
+            jump_bead = getattr(self, "_jump_to_bead_under_cursor", None)
+            if callable(jump_bead) and jump_bead():
+                return
             token = detect_shorthand_argument_owner_jump_target(self.text, offset)
             if token is None:
                 self.notify(
-                    "Move the cursor onto a macro, skill, file path, glossary term, or repo name to jump to its definition",
+                    "Move the cursor onto a macro, skill, file path, glossary "
+                    "term, repo name, or bead ID to jump to its definition",
                     severity="warning",
                 )
                 return

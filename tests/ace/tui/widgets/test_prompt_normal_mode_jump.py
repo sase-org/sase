@@ -311,8 +311,8 @@ async def test_ctrl_bracket_on_plain_text_does_not_resolve(
         assert page.ta._prompt_jump_request_id == 0
         assert notifications == [
             (
-                "Move the cursor onto a macro, skill, file path, glossary term, "
-                "or repo name to jump to its definition",
+                "Move the cursor onto a macro, skill, file path, glossary "
+                "term, repo name, or bead ID to jump to its definition",
                 "warning",
             )
         ]

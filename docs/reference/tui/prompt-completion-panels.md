@@ -373,10 +373,24 @@ directive form `%wait:sase-1ss` is allowed because the ID follows a `:`.
 
 When the ID resolves, the card opens immediately in a loading state and fills itself
 off the UI thread: identity (epic / tale / plan / phase / task / flag), status and
-size chips, description, and a property grid for project, plan, assignee, owner,
-model, created, updated, closed, and notes. `y` copies the bead ID. When the bead
-has a resolvable plan file, `Y` copies its path, `o` opens it in `$EDITOR`, and `Z`
-hands it to the artifact viewer. Load failures stay in the card with `r` to retry.
+size chips, description, related beads, and a property grid for project, plan,
+assignee, owner, model, created, updated, closed, and notes. Plans show a progress
+meter on the chip row (`N/M phases closed`) and a numbered `PHASES` list; other
+beads with children use `CHILDREN`. Lineage names the nearest ancestors as
+`Epic`, `Plan`, or `Parent`, and `Blocked by` / `Blocks` rows show each related
+bead's status glyph, ID, and title. `y` copies the bead ID. When the bead has a
+resolvable plan file, `Y` copies its path, `o` opens it in `$EDITOR`, and `Z`
+hands it to the artifact viewer. `1`–`9` open the numbered child in the same
+card, `p` opens the parent, and `Backspace` returns to the previous bead (the
+title shows a `⌫` breadcrumb while there is history). `r` reloads the current
+bead; load failures stay in the card with `r` to retry. `Enter` opens the full
+bead detail in the pager on top of the card; bead IDs in the detail stay
+followable, and closing the pager returns to the card.
+
+`Ctrl+]` on a bead ID uses the same recognition and routing as `K`, including
+the miss, ambiguous, and unavailable messages, but never falls through to word
+lookup. When the ID resolves, it opens the full bead detail in the pager
+directly.
 
 When no enabled project owns the prefix of a bare ID, `K` continues the existing
 preview chain with no added latency once the store directory is warm. A bare ID

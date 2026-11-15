@@ -14,6 +14,9 @@ from sase.ace.testing import wait_for
 from sase.ace.tui.modals.bead_preview_modal import BeadPreviewModal
 from sase.ace.tui.models.bead_preview import BeadPreview, BeadStoreRef
 from sase.bead.model import BeadTier, Issue, IssueType, Status
+from sase.pager.document import PagerDocument, PagerSection
+from sase.pager.link_scan import PagerOrigin
+from sase.pager.targets import LinkResolution, LinkTarget, LinkTargetKind
 
 
 class _BeadModalTestApp(App[None]):
@@ -37,25 +40,65 @@ def _store() -> BeadStoreRef:
     )
 
 
-def _preview(*, plan_path: str | None = "/tmp/plan.md") -> BeadPreview:
-    issue = Issue(
-        id="sase-1aa",
-        title="Epic title",
-        status=Status.IN_PROGRESS,
-        issue_type=IssueType.PLAN,
-        tier=BeadTier.EPIC,
-        description="Epic body",
-    )
+def _issue(**overrides: object) -> Issue:
+    values: dict[str, object] = {
+        "id": "sase-1aa",
+        "title": "Epic title",
+        "status": Status.IN_PROGRESS,
+        "issue_type": IssueType.PLAN,
+        "tier": BeadTier.EPIC,
+        "description": "Epic body",
+    }
+    values.update(overrides)
+    return Issue(**values)  # type: ignore[arg-type]
+
+
+def _preview(
+    *,
+    plan_path: str | None = "/tmp/plan.md",
+    issue: Issue | None = None,
+    ancestors: tuple[Issue | None, ...] = (),
+    children: tuple[Issue, ...] = (),
+    depends_on: tuple[Issue | None, ...] = (),
+    blocks: tuple[Issue, ...] = (),
+) -> BeadPreview:
     return BeadPreview(
-        issue=issue,
-        ancestors=(),
-        children=(),
-        depends_on=(),
-        blocks=(),
+        issue=issue or _issue(),
+        ancestors=ancestors,
+        children=children,
+        depends_on=depends_on,
+        blocks=blocks,
         store=_store(),
         plan_reference="plan.md",
         plan_source="self",
         plan_path=plan_path,
+    )
+
+
+def _phase_issue() -> Issue:
+    return _issue(
+        id="sase-1aa.1",
+        title="Phase one",
+        issue_type=IssueType.PHASE,
+        tier=None,
+        parent_id="sase-1aa",
+        size="small",
+        description="Phase body",
+    )
+
+
+def _detail_document() -> PagerDocument:
+    return PagerDocument(
+        sections=(
+            PagerSection(
+                identity="bead:sase-1aa",
+                title="sase-1aa",
+                kind="bead",
+                body="Epic body",
+            ),
+        ),
+        title="sase-1aa",
+        origin=PagerOrigin.BEAD,
     )
 
 
@@ -188,3 +231,121 @@ async def test_y_copy_path_uses_plan_path(monkeypatch: pytest.MonkeyPatch) -> No
         await pilot.press("Y")
         await wait_for(pilot, lambda: bool(copied))
         assert copied == ["/tmp/plan.md"]
+
+
+async def test_number_p_backspace_and_reload(monkeypatch: pytest.MonkeyPatch) -> None:
+    epic_issue = _issue()
+    phase_issue = _phase_issue()
+    extra = _issue(
+        id="sase-1aa.2",
+        title="Phase two",
+        issue_type=IssueType.PHASE,
+        tier=None,
+        parent_id="sase-1aa",
+        size="medium",
+        description="Second phase",
+    )
+    epic = _preview(issue=epic_issue, children=(phase_issue, extra))
+    phase = _preview(
+        issue=phase_issue,
+        ancestors=(epic_issue,),
+        plan_path=None,
+    )
+    loaded: list[str] = []
+
+    def load(bead_id: str, _store: BeadStoreRef) -> BeadPreview:
+        loaded.append(bead_id)
+        if bead_id == phase_issue.id:
+            return phase
+        return epic
+
+    monkeypatch.setattr(
+        "sase.ace.tui.modals.bead_preview_modal.load_bead_preview",
+        load,
+    )
+    modal = BeadPreviewModal(_store(), "sase-1aa", preview=epic)
+    app = _BeadModalTestApp(modal)
+    async with app.run_test(size=(100, 30)) as pilot:
+        await pilot.pause()
+        footer = modal._build_footer()
+        assert "1-2 phase" in footer
+        assert "⏎ detail" in footer
+        assert "p parent" not in footer
+
+        await pilot.press("9")
+        await pilot.pause()
+        assert modal._bead_id == "sase-1aa"
+        assert modal._preview is epic
+
+        await pilot.press("1")
+        await wait_for(pilot, lambda: modal._preview is phase)
+        assert modal._bead_id == phase_issue.id
+        assert "⌫ back" in modal._build_footer()
+        assert "p parent" in modal._build_footer()
+        assert loaded == [phase_issue.id]
+
+        await pilot.press("p")
+        await wait_for(pilot, lambda: modal._bead_id == "sase-1aa")
+        await wait_for(pilot, lambda: modal._preview is epic)
+        assert loaded == [phase_issue.id, "sase-1aa"]
+        assert "⌫ back" in modal._build_footer()
+
+        await pilot.press("backspace")
+        await wait_for(pilot, lambda: modal._bead_id == phase_issue.id)
+        assert modal._preview is phase
+        assert loaded == [phase_issue.id, "sase-1aa"]
+
+        await pilot.press("r")
+        await wait_for(
+            pilot, lambda: loaded == [phase_issue.id, "sase-1aa", phase_issue.id]
+        )
+        assert modal._preview is phase
+
+
+async def test_enter_pushes_pager_and_unresolved_toasts(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    document = _detail_document()
+    resolution = LinkResolution(
+        target=LinkTarget(kind=LinkTargetKind.DOCUMENT, document=document)
+    )
+    monkeypatch.setattr(
+        "sase.ace.tui.modals.bead_preview_modal.bead_detail_link_resolution",
+        lambda *_a, **_k: resolution,
+    )
+    pushed: list[object] = []
+    modal = BeadPreviewModal(_store(), "sase-1aa", preview=_preview())
+    app = _BeadModalTestApp(modal)
+    async with app.run_test(size=(100, 30)) as pilot:
+        await pilot.pause()
+        original_push = app.push_screen
+
+        def capture(screen: object, *args: object, **kwargs: object) -> object:
+            pushed.append(screen)
+            return original_push(screen, *args, **kwargs)
+
+        monkeypatch.setattr(app, "push_screen", capture)
+        await pilot.press("enter")
+        await wait_for(pilot, lambda: bool(pushed))
+        screen = pushed[0]
+        assert type(screen).__name__ == "PagerScreen"
+
+    notifications: list[tuple[str, str]] = []
+    monkeypatch.setattr(
+        "sase.ace.tui.modals.bead_preview_modal.bead_detail_link_resolution",
+        lambda *_a, **_k: LinkResolution(unresolved_message="bead gone"),
+    )
+    modal = BeadPreviewModal(_store(), "sase-1aa", preview=_preview())
+    app = _BeadModalTestApp(modal)
+    monkeypatch.setattr(
+        app,
+        "notify",
+        lambda message, severity="information", **_k: notifications.append(
+            (message, severity)
+        ),
+    )
+    async with app.run_test(size=(100, 30)) as pilot:
+        await pilot.pause()
+        await pilot.press("enter")
+        await wait_for(pilot, lambda: bool(notifications))
+        assert notifications == [("bead gone", "warning")]

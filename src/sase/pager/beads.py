@@ -53,6 +53,24 @@ def bead_entry_target_resolution(
     )
 
 
+def bead_detail_link_resolution(
+    bead_id: str,
+    *,
+    project_ref: str | None = None,
+    context: LinkResolutionContext | None = None,
+) -> LinkResolution:
+    """Resolve a bare bead ID to a live detail document.
+
+    Thin public wrapper over the pager's bead-ID resolver, for prompt ``Ctrl+]``
+    and the bead card's Enter binding.
+    """
+    return _bead_id_link_resolution(
+        bead_id,
+        context=context,
+        project_ref=project_ref,
+    )
+
+
 def _bead_id_link_resolution(
     bead_id: str,
     *,
@@ -265,6 +283,7 @@ def _bead_entry_project_and_id(
 
 
 __all__ = [
+    "bead_detail_link_resolution",
     "bead_entry_target_resolution",
     "bead_link_resolution",
 ]

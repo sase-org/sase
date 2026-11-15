@@ -12,9 +12,12 @@ from sase.ace.tui.modals.bead_preview_render import (
     _abbreviate_home,
     _bead_identity,
     _build_bead_chips,
+    _build_bead_progress_meter,
+    _child_row,
     bead_card_palette,
     build_bead_loading_title,
     build_bead_meta,
+    build_bead_related,
     build_bead_title,
 )
 from sase.ace.tui.models.bead_preview import BeadPreview, BeadStoreRef
@@ -198,3 +201,158 @@ def test_abbreviate_home() -> None:
     home = str(Path.home())
     assert _abbreviate_home(f"{home}/plans/x.md") == "~/plans/x.md"
     assert _abbreviate_home("/not-home/x.md") == "/not-home/x.md"
+
+
+def test_progress_meter_caps_at_twelve_and_counts_all_closed() -> None:
+    children = tuple(
+        _issue(
+            id=f"sase-1aa.{index}",
+            title=f"Phase {index}",
+            issue_type=IssueType.PHASE,
+            parent_id="sase-1aa",
+            status=Status.CLOSED if index <= 12 else Status.OPEN,
+        )
+        for index in range(1, 14)
+    )
+    meter = _render_text(_build_bead_progress_meter(children, palette=_palette()))
+    assert "…" in meter
+    assert "12/13 phases closed" in meter
+    assert meter.count("●") == 12
+
+
+def test_related_dims_closed_children_and_uses_relative_ids() -> None:
+    palette = _palette()
+    preview = BeadPreview(
+        issue=_issue(
+            id="sase-1aa",
+            issue_type=IssueType.PLAN,
+            tier=BeadTier.EPIC,
+            title="Epic title",
+        ),
+        ancestors=(),
+        children=(
+            _issue(
+                id="sase-1aa.1",
+                title="Closed phase",
+                issue_type=IssueType.PHASE,
+                parent_id="sase-1aa",
+                status=Status.CLOSED,
+                size="small",
+            ),
+            _issue(
+                id="sase-1aa.2",
+                title="Open phase",
+                issue_type=IssueType.PHASE,
+                parent_id="sase-1aa",
+                status=Status.OPEN,
+                size="medium",
+            ),
+        ),
+        depends_on=(),
+        blocks=(),
+        store=_store(),
+        plan_reference=None,
+        plan_source=None,
+        plan_path=None,
+    )
+    related = _render_text(build_bead_related(preview, palette=palette))
+    assert "PHASES" in related
+    assert ".1" in related
+    assert ".2" in related
+    assert "sase-1aa.1" not in related
+    assert "Closed phase" in related
+    assert "Open phase" in related
+    closed_row = _child_row(
+        "sase-1aa",
+        preview.children[0],
+        index=1,
+        palette=palette,
+    )
+    closed_left = closed_row.columns[0]._cells[0]
+    assert "dim" in str(getattr(closed_left, "style", "")) or any(
+        "dim" in str(span.style) for span in getattr(closed_left, "_spans", ())
+    )
+
+
+def test_related_lineage_dependencies_and_unresolved_ancestor() -> None:
+    palette = _palette()
+    epic = _issue(
+        id="sase-1aa",
+        title="Gmail archive on task close",
+        issue_type=IssueType.PLAN,
+        tier=BeadTier.EPIC,
+        status=Status.IN_PROGRESS,
+    )
+    blocker = _issue(
+        id="sase-1ab",
+        title="Blocked on spike",
+        status=Status.IN_PROGRESS,
+    )
+    blocked = _issue(
+        id="sase-1ac",
+        title="Downstream",
+        status=Status.OPEN,
+    )
+    preview = BeadPreview(
+        issue=_issue(
+            id="sase-1aa.2",
+            title="Archive machinery",
+            issue_type=IssueType.PHASE,
+            parent_id="sase-1aa",
+            size="medium",
+        ),
+        ancestors=(epic, None),
+        children=(),
+        depends_on=(blocker, None),
+        blocks=(blocked,),
+        store=_store(),
+        plan_reference=None,
+        plan_source="parent",
+        plan_path=None,
+    )
+    related = _render_text(build_bead_related(preview, palette=palette))
+    assert "Epic" in related
+    assert "sase-1aa" in related
+    assert "Gmail archive on task close" in related
+    assert "Parent" in related
+    assert "?" in related
+    assert "Blocked by" in related
+    assert "sase-1ab" in related
+    assert "Blocks" in related
+    assert "sase-1ac" in related
+    assert "CHILDREN" not in related
+    assert "PHASES" not in related
+
+
+def test_title_breadcrumb_and_chip_meter() -> None:
+    palette = _palette()
+    children = tuple(
+        _issue(
+            id=f"sase-1aa.{index}",
+            title=f"Phase {index}",
+            issue_type=IssueType.PHASE,
+            parent_id="sase-1aa",
+            status=Status.CLOSED if index < 5 else Status.IN_PROGRESS,
+            size="small",
+        )
+        for index in range(1, 6)
+    )
+    epic = _issue(
+        id="sase-1aa",
+        title="Epic title",
+        issue_type=IssueType.PLAN,
+        tier=BeadTier.EPIC,
+        status=Status.IN_PROGRESS,
+    )
+    title = _render_text(
+        build_bead_title(
+            epic,
+            project_label="sase",
+            palette=palette,
+            children=children,
+            breadcrumb="sase-1aa.2",
+        )
+    )
+    assert "⌫" in title
+    assert "sase-1aa.2" in title
+    assert "4/5 phases closed" in title

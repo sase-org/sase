@@ -10,6 +10,31 @@ import pytest
 from sase.pager.resolve import LinkTargetKind
 
 
+def test_bead_detail_link_resolution_is_a_thin_wrapper(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from sase.pager import beads
+    from sase.pager.beads import bead_detail_link_resolution
+    from sase.pager.targets import LinkResolution
+
+    seen: list[tuple[str, str | None]] = []
+
+    def fake(
+        bead_id: str,
+        *,
+        context: object = None,
+        project_ref: str | None = None,
+    ) -> LinkResolution:
+        del context
+        seen.append((bead_id, project_ref))
+        return LinkResolution(unresolved_message="ok")
+
+    monkeypatch.setattr(beads, "_bead_id_link_resolution", fake)
+    resolution = bead_detail_link_resolution("sase-1aa", project_ref="sase")
+    assert resolution.unresolved_message == "ok"
+    assert seen == [("sase-1aa", "sase")]
+
+
 def test_bead_link_target_enriches_the_link_neighborhood_without_exiting(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

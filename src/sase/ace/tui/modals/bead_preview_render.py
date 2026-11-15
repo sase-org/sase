@@ -40,6 +40,8 @@ _COLOR_TITLE = "bold"
 _FALLBACK_ACCENT = "#FFD700"
 _PILL_FOREGROUND = "#1a1a1a"
 _LOADING_GLYPH = "◌"
+_PROGRESS_METER_CAP = 12
+_NUMBERED_CHILD_CAP = 9
 
 
 @dataclass(frozen=True)
@@ -134,19 +136,22 @@ def build_bead_loading_title(
     *,
     project_label: str,
     accent: str,
+    breadcrumb: str | None = None,
 ) -> RenderableType:
     """Build the loading-state identity row: ``◌ <id>`` plus project."""
     identity = Text()
     identity.append(_LOADING_GLYPH, style=f"bold {accent}")
     identity.append(" ")
     identity.append(bead_id, style=_COLOR_TITLE)
-    if not project_label:
-        return identity
-    first_line = Table.grid(expand=True, padding=(0, 0, 0, 2))
-    first_line.add_column(ratio=1, overflow="ellipsis")
-    first_line.add_column(justify="right", no_wrap=True)
-    first_line.add_row(identity, Text(project_label, style=f"bold {accent}"))
-    return first_line
+    if project_label:
+        first_line = Table.grid(expand=True, padding=(0, 0, 0, 2))
+        first_line.add_column(ratio=1, overflow="ellipsis")
+        first_line.add_column(justify="right", no_wrap=True)
+        first_line.add_row(identity, Text(project_label, style=f"bold {accent}"))
+        lines: list[RenderableType] = [first_line]
+    else:
+        lines = [identity]
+    return _with_breadcrumb(lines, breadcrumb)
 
 
 def build_bead_title(
@@ -154,6 +159,8 @@ def build_bead_title(
     *,
     project_label: str,
     palette: BeadCardPalette,
+    children: tuple[Issue, ...] = (),
+    breadcrumb: str | None = None,
 ) -> RenderableType:
     """Build the identity row, title, and chip row."""
     glyph, label, type_key = _bead_identity(issue)
@@ -177,13 +184,18 @@ def build_bead_title(
     title = (issue.title or "").strip()
     if title:
         lines.append(Text(title, style=_COLOR_TITLE))
-    chips = _build_bead_chips(issue, palette=palette)
+    chips = _build_bead_chips(issue, palette=palette, children=children)
     if chips.plain.strip():
         lines.append(chips)
-    return Group(*lines)
+    return _with_breadcrumb(lines, breadcrumb)
 
 
-def _build_bead_chips(issue: Issue, *, palette: BeadCardPalette) -> Text:
+def _build_bead_chips(
+    issue: Issue,
+    *,
+    palette: BeadCardPalette,
+    children: tuple[Issue, ...] = (),
+) -> Text:
     """Build the status / size / type / flag / snooze / +1 / resolution chips."""
     text = Text()
     try:
@@ -240,6 +252,12 @@ def _build_bead_chips(issue: Issue, *, palette: BeadCardPalette) -> Text:
                 resolution,
                 accent=palette.statuses.get("closed", "#5FD787"),
             )
+    if issue.issue_type == IssueType.PLAN and children:
+        meter = _build_bead_progress_meter(children, palette=palette)
+        if meter.plain.strip():
+            if text.plain:
+                text.append("  ")
+            text.append_text(meter)
     return text
 
 
@@ -289,6 +307,237 @@ def build_bead_meta(
 def bead_description_markdown(issue: Issue) -> str:
     """Return description Markdown, or empty when the body should stay dim."""
     return (issue.description or "").strip()
+
+
+def _build_bead_progress_meter(
+    children: tuple[Issue, ...],
+    *,
+    palette: BeadCardPalette,
+) -> Text:
+    """Build the chip-row meter: per-child glyphs, cap, and closed count."""
+    text = Text()
+    if not children:
+        return text
+    closed = sum(1 for child in children if _is_closed(child))
+    shown = children[:_PROGRESS_METER_CAP]
+    for child in shown:
+        glyph, color = _status_glyph(child, palette)
+        text.append(glyph, style=color)
+    if len(children) > _PROGRESS_METER_CAP:
+        text.append("…", style=_COLOR_MUTED)
+    text.append(f" {closed}/{len(children)} phases closed", style=_COLOR_MUTED)
+    return text
+
+
+def build_bead_related(
+    preview: BeadPreview,
+    *,
+    palette: BeadCardPalette,
+) -> RenderableType | None:
+    """Build lineage, children, and dependency rows above the meta grid."""
+    sections: list[RenderableType] = []
+    lineage = _lineage_rows(preview.ancestors, palette=palette)
+    if lineage:
+        sections.extend(lineage)
+    children_block = _children_block(
+        preview.issue.id,
+        preview.children,
+        heading=_children_heading(preview.issue),
+        palette=palette,
+    )
+    if children_block is not None:
+        sections.append(children_block)
+    blocked = _dependency_block(
+        "Blocked by",
+        preview.depends_on,
+        palette=palette,
+    )
+    if blocked is not None:
+        sections.append(blocked)
+    blocks = _dependency_block("Blocks", preview.blocks, palette=palette)
+    if blocks is not None:
+        sections.append(blocks)
+    if not sections:
+        return None
+    return Group(*sections)
+
+
+def numbered_child_count(children: tuple[Issue, ...]) -> int:
+    """Return how many children have a 1-9 drill-down number."""
+    return min(len(children), _NUMBERED_CHILD_CAP)
+
+
+def children_are_phases(issue: Issue) -> bool:
+    """Return whether the children heading is ``PHASES``."""
+    return issue.issue_type == IssueType.PLAN
+
+
+def _children_heading(issue: Issue) -> str:
+    return "PHASES" if children_are_phases(issue) else "CHILDREN"
+
+
+def _lineage_rows(
+    ancestors: tuple[Issue | None, ...],
+    *,
+    palette: BeadCardPalette,
+) -> list[Text]:
+    rows: list[Text] = []
+    for ancestor in ancestors:
+        rows.append(_lineage_row(ancestor, palette=palette))
+    return rows
+
+
+def _lineage_row(ancestor: Issue | None, *, palette: BeadCardPalette) -> Text:
+    text = Text()
+    if ancestor is None:
+        text.append("Parent", style=_COLOR_LABEL)
+        text.append("  ?")
+        return text
+    text.append(_lineage_label(ancestor), style=_COLOR_LABEL)
+    text.append("  ")
+    glyph, color = _status_glyph(ancestor, palette)
+    text.append(glyph, style=color)
+    text.append(" ")
+    text.append(ancestor.id)
+    title = (ancestor.title or "").strip()
+    if title:
+        text.append(" · ")
+        text.append(title)
+    return text
+
+
+def _lineage_label(ancestor: Issue) -> str:
+    if ancestor.issue_type == IssueType.PLAN:
+        if ancestor.tier == BeadTier.EPIC:
+            return "Epic"
+        return "Plan"
+    return "Parent"
+
+
+def _children_block(
+    parent_id: str,
+    children: tuple[Issue, ...],
+    *,
+    heading: str,
+    palette: BeadCardPalette,
+) -> RenderableType | None:
+    if not children:
+        return None
+    rows: list[RenderableType] = [Text(heading, style=_COLOR_LABEL)]
+    for index, child in enumerate(children, start=1):
+        rows.append(
+            _child_row(
+                parent_id,
+                child,
+                index=index,
+                palette=palette,
+            )
+        )
+    return Group(*rows)
+
+
+def _child_row(
+    parent_id: str,
+    child: Issue,
+    *,
+    index: int,
+    palette: BeadCardPalette,
+) -> RenderableType:
+    closed = _is_closed(child)
+    dim = _COLOR_MUTED if closed else ""
+    left = Text()
+    if index <= _NUMBERED_CHILD_CAP:
+        left.append(f"{index} ", style=dim)
+    else:
+        left.append("  ", style=dim)
+    glyph, color = _status_glyph(child, palette)
+    glyph_style = f"{color} {dim}".strip() if dim else color
+    left.append(glyph, style=glyph_style)
+    left.append(" ")
+    left.append(_relative_child_id(parent_id, child.id), style=dim)
+    title = (child.title or "").strip()
+    if title:
+        left.append("  ")
+        left.append(title, style=dim)
+    size = Text("")
+    if child.size is not None:
+        size = phase_size_chip(child.size)
+        if closed and size.plain.strip():
+            size.stylize(_COLOR_MUTED)
+    grid = Table.grid(expand=True, padding=(0, 0, 0, 2))
+    grid.add_column(ratio=1, overflow="ellipsis")
+    grid.add_column(justify="right", no_wrap=True)
+    grid.add_row(left, size)
+    return grid
+
+
+def _relative_child_id(parent_id: str, child_id: str) -> str:
+    prefix = f"{parent_id}."
+    if child_id.startswith(prefix):
+        return child_id[len(parent_id) :]
+    return child_id
+
+
+def _dependency_block(
+    heading: str,
+    issues: tuple[Issue | None, ...],
+    *,
+    palette: BeadCardPalette,
+) -> RenderableType | None:
+    if not issues:
+        return None
+    rows: list[RenderableType] = [Text(heading, style=_COLOR_LABEL)]
+    for issue in issues:
+        rows.append(_dependency_row(issue, palette=palette))
+    return Group(*rows)
+
+
+def _dependency_row(issue: Issue | None, *, palette: BeadCardPalette) -> Text:
+    text = Text()
+    if issue is None:
+        text.append("?")
+        return text
+    glyph, color = _status_glyph(issue, palette)
+    text.append(glyph, style=color)
+    text.append(" ")
+    text.append(issue.id)
+    title = (issue.title or "").strip()
+    if title:
+        text.append(" · ")
+        text.append(title)
+    return text
+
+
+def _status_glyph(issue: Issue, palette: BeadCardPalette) -> tuple[str, str]:
+    try:
+        presentation = bead_status_presentation(issue.status)
+    except ValueError:
+        return "?", _COLOR_MUTED
+    status_key = _status_value(issue.status)
+    color = palette.statuses.get(status_key, presentation.rich_color)
+    return presentation.tui_glyph, color
+
+
+def _status_value(status: Status | str) -> str:
+    return status.value if isinstance(status, Status) else str(status)
+
+
+def _is_closed(issue: Issue) -> bool:
+    return _status_value(issue.status) == Status.CLOSED.value
+
+
+def _with_breadcrumb(
+    lines: list[RenderableType],
+    breadcrumb: str | None,
+) -> RenderableType:
+    if breadcrumb:
+        crumb = Text()
+        crumb.append("⌫ ", style=_COLOR_MUTED)
+        crumb.append(breadcrumb, style=_COLOR_MUTED)
+        lines.insert(0, crumb)
+    if len(lines) == 1:
+        return lines[0]
+    return Group(*lines)
 
 
 def _abbreviate_home(path: str) -> str:
@@ -382,5 +631,8 @@ __all__ = [
     "bead_description_markdown",
     "build_bead_loading_title",
     "build_bead_meta",
+    "build_bead_related",
     "build_bead_title",
+    "children_are_phases",
+    "numbered_child_count",
 ]

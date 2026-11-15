@@ -8,6 +8,7 @@ from rich.console import Group, RenderableType
 from rich.text import Text
 from textual.app import ComposeResult
 from textual.containers import Container, VerticalScroll
+from textual.css.query import NoMatches
 from textual.screen import ModalScreen
 from textual.widgets import Markdown, Static
 
@@ -17,6 +18,10 @@ from sase.ace.tui.models.bead_preview import (
     BeadStoreRef,
     load_bead_preview,
 )
+from sase.bead.model import Issue
+from sase.pager.beads import bead_detail_link_resolution
+from sase.pager.link_context import LinkAnchor, LinkResolutionContext
+from sase.pager.targets import LinkResolution
 
 from ._source_file_actions import SourceFileActionsMixin
 from .base import CopyModeForwardingMixin
@@ -26,7 +31,10 @@ from .bead_preview_render import (
     bead_description_markdown,
     build_bead_loading_title,
     build_bead_meta,
+    build_bead_related,
     build_bead_title,
+    children_are_phases,
+    numbered_child_count,
 )
 
 _FALLBACK_ACCENT = "#FFD700"
@@ -49,7 +57,10 @@ class BeadPreviewModal(
         ("o", "open_in_editor", "Open in editor"),
         ("Z", "open_in_viewer", "Open in viewer"),
         ("shift+z", "open_in_viewer", "Open in viewer"),
-        ("r", "retry", "Retry"),
+        ("r", "reload", "Reload"),
+        ("p", "open_parent", "Parent"),
+        ("backspace", "go_back", "Back"),
+        ("enter", "open_detail", "Open detail"),
         ("ctrl+d", "scroll_down", "Scroll down"),
         ("ctrl+u", "scroll_up", "Scroll up"),
         ("j", "scroll_line_down", "Line down"),
@@ -57,6 +68,10 @@ class BeadPreviewModal(
         ("g", "scroll_top", "Top"),
         ("G", "scroll_bottom", "Bottom"),
         ("shift+g", "scroll_bottom", "Bottom"),
+        *(
+            (str(index), f"follow_child({index})", f"Child {index}")
+            for index in range(1, 10)
+        ),
     ]
 
     def __init__(
@@ -72,6 +87,8 @@ class BeadPreviewModal(
         self._preview = preview
         self._error: str | None = None
         self._load_request_id = 0
+        self._detail_request_id = 0
+        self._history: list[tuple[str, BeadPreview | None]] = []
         self._accent = _FALLBACK_ACCENT
         self._palette: BeadCardPalette | None = None
 
@@ -105,14 +122,52 @@ class BeadPreviewModal(
         )
 
     def action_retry(self) -> None:
-        if self._error is None:
-            return
+        self.action_reload()
+
+    def action_reload(self) -> None:
         self._error = None
         self._preview = None
         self._start_load()
         self.run_worker(
             self._refresh_widgets(reset_scroll=True),
-            name="bead-preview-retry-paint",
+            name="bead-preview-reload-paint",
+        )
+
+    def action_follow_child(self, number: int) -> None:
+        index = int(number) - 1
+        children = self._children()
+        if index < 0 or index >= numbered_child_count(children):
+            return
+        self._navigate_to(children[index].id)
+
+    def action_open_parent(self) -> None:
+        parent_id = self._parent_id()
+        if parent_id is None:
+            return
+        self._navigate_to(parent_id)
+
+    def action_go_back(self) -> None:
+        if not self._history:
+            return
+        bead_id, preview = self._history.pop()
+        self._bead_id = bead_id
+        self._preview = preview
+        self._error = None
+        if preview is None:
+            self._start_load()
+        self.run_worker(
+            self._refresh_widgets(reset_scroll=True),
+            name="bead-preview-back-paint",
+        )
+
+    def action_open_detail(self) -> None:
+        if self._preview is None:
+            return
+        self._detail_request_id += 1
+        request_id = self._detail_request_id
+        self.run_worker(
+            self._open_detail_async(request_id),
+            name=f"bead-preview-detail:{request_id}",
         )
 
     def _source_action_path(self) -> str | None:
@@ -129,6 +184,19 @@ class BeadPreviewModal(
         self.run_worker(
             self._load_preview_async(request_id),
             name=f"bead-preview-load:{request_id}",
+        )
+
+    def _navigate_to(self, bead_id: str) -> None:
+        if bead_id == self._bead_id and self._error is None:
+            return
+        self._history.append((self._bead_id, self._preview))
+        self._bead_id = bead_id
+        self._preview = None
+        self._error = None
+        self._start_load()
+        self.run_worker(
+            self._refresh_widgets(reset_scroll=True),
+            name="bead-preview-navigate-paint",
         )
 
     async def _load_preview_async(self, request_id: int) -> None:
@@ -151,16 +219,75 @@ class BeadPreviewModal(
         self._error = None
         await self._refresh_widgets(reset_scroll=True)
 
+    async def _open_detail_async(self, request_id: int) -> None:
+        try:
+            resolution = await asyncio.to_thread(self._resolve_current_detail)
+        except Exception as exc:  # noqa: BLE001 - card enter must not crash
+            if not self._detail_is_current(request_id):
+                return
+            self.notify(str(exc) or exc.__class__.__name__, severity="warning")
+            return
+        if not self._detail_is_current(request_id):
+            return
+        self._present_detail(resolution)
+
+    def _resolve_current_detail(self) -> LinkResolution:
+        return bead_detail_link_resolution(
+            self._bead_id,
+            project_ref=self._store.project_key or None,
+            context=LinkResolutionContext(
+                anchors=(LinkAnchor(self._store.primary_workspace),)
+            ),
+        )
+
+    def _present_detail(self, resolution: LinkResolution) -> None:
+        document = resolution.target.document if resolution.target is not None else None
+        if document is None:
+            message = resolution.unresolved_message or (
+                f"bead:{self._bead_id} could not be resolved"
+            )
+            self.notify(message, severity="warning")
+            return
+        from sase.pager.screen import PagerScreen
+
+        self.app.push_screen(PagerScreen(document, links_enabled=True))
+
     def _load_is_current(self, request_id: int) -> bool:
         return request_id == self._load_request_id and self.is_attached
 
+    def _detail_is_current(self, request_id: int) -> bool:
+        return request_id == self._detail_request_id and self.is_attached
+
+    def _breadcrumb(self) -> str | None:
+        if not self._history:
+            return None
+        return self._history[-1][0]
+
+    def _children(self) -> tuple[Issue, ...]:
+        if self._preview is None:
+            return ()
+        return self._preview.children
+
+    def _parent_id(self) -> str | None:
+        if self._preview is None:
+            return None
+        if self._preview.ancestors:
+            ancestor = self._preview.ancestors[0]
+            if ancestor is not None:
+                return ancestor.id
+        parent_id = self._preview.issue.parent_id
+        return parent_id or None
+
     def _build_title(self) -> RenderableType:
         palette = self._palette
+        breadcrumb = self._breadcrumb()
         if self._preview is not None and palette is not None:
             return build_bead_title(
                 self._preview.issue,
                 project_label=self._store.project_label,
                 palette=palette,
+                children=self._preview.children,
+                breadcrumb=breadcrumb,
             )
         accent = self._accent
         if palette is not None:
@@ -169,6 +296,7 @@ class BeadPreviewModal(
             self._bead_id,
             project_label=self._store.project_label,
             accent=accent,
+            breadcrumb=breadcrumb,
         )
 
     def _build_status(self) -> RenderableType:
@@ -189,35 +317,67 @@ class BeadPreviewModal(
     def _build_meta(self) -> RenderableType:
         if self._preview is None:
             return Text("")
-        sections: list[RenderableType] = [
-            Text("-" * 66, style="dim"),
-            build_bead_meta(self._preview, accent=self._accent),
-        ]
+        sections: list[RenderableType] = []
+        related = None
+        if self._palette is not None:
+            related = build_bead_related(self._preview, palette=self._palette)
+        if related is not None:
+            sections.append(related)
+        sections.append(Text("-" * 66, style="dim"))
+        sections.append(build_bead_meta(self._preview, accent=self._accent))
         return Group(*sections)
 
     def _build_footer(self) -> str:
         parts = ["j/k"]
         parts.append("y id")
+        if self._preview is not None:
+            parts.append("⏎ detail")
+            child_count = numbered_child_count(self._children())
+            if child_count:
+                kind = "phase" if children_are_phases(self._preview.issue) else "child"
+                if child_count == 1:
+                    parts.append(f"1 {kind}")
+                else:
+                    parts.append(f"1-{child_count} {kind}")
+            if self._parent_id() is not None:
+                parts.append("p parent")
+        if self._history:
+            parts.append("⌫ back")
         if self._source_action_path():
             parts.extend(("Y path", "o edit", "Z view"))
         if self._error is not None:
             parts.append("r retry")
+        else:
+            parts.append("r reload")
         parts.append("esc")
         return " | ".join(parts)
 
     async def _refresh_widgets(self, *, reset_scroll: bool) -> None:
         if not self.is_attached:
             return
-        self.query_one("#bead-preview-title", Static).update(self._build_title())
-        self.query_one("#bead-preview-status", Static).update(self._build_status())
-        description = self.query_one("#bead-preview-description", Markdown)
+        try:
+            title = self.query_one("#bead-preview-title", Static)
+            status = self.query_one("#bead-preview-status", Static)
+            description = self.query_one("#bead-preview-description", Markdown)
+            meta = self.query_one("#bead-preview-meta", Static)
+            footer = self.query_one("#bead-preview-footer", Static)
+            scroll = self.query_one("#bead-preview-scroll", VerticalScroll)
+        except NoMatches:
+            if self.is_attached:
+                self.call_after_refresh(
+                    lambda: self.run_worker(
+                        self._refresh_widgets(reset_scroll=reset_scroll),
+                        name="bead-preview-paint-retry",
+                    )
+                )
+            return
+        title.update(self._build_title())
+        status.update(self._build_status())
         await description.update(self._description_markdown())
-        self.query_one("#bead-preview-meta", Static).update(self._build_meta())
-        self.query_one("#bead-preview-footer", Static).update(self._build_footer())
+        meta.update(self._build_meta())
+        footer.update(self._build_footer())
         if reset_scroll:
-            self.query_one("#bead-preview-scroll", VerticalScroll).scroll_home(
-                animate=False
-            )
+            scroll.scroll_home(animate=False)
 
     def action_scroll_down(self) -> None:
         scroll = self.query_one("#bead-preview-scroll", VerticalScroll)

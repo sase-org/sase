@@ -13,10 +13,15 @@ from sase.ace.tui.models.bead_preview import (
     BeadRouteAmbiguous,
     BeadRouteFound,
     BeadRouteMissing,
+    BeadRouteNotBead,
     BeadRouteUnavailable,
     BeadStoreDirectory,
     BeadStoreRef,
 )
+from sase.pager.document import PagerDocument, PagerSection
+from sase.pager.link_scan import PagerOrigin
+from sase.pager.screen import PagerScreen
+from sase.pager.targets import LinkResolution, LinkTarget, LinkTargetKind
 from sase.bead.cross_project import BeadStoreOrigin, BeadStoreSnapshot, bead_id_prefix
 from sase.bead.model import IssueType
 from sase.bead.project import BeadProject
@@ -287,3 +292,115 @@ async def test_stale_result_is_dropped(
         await page.pause()
         await page.pause()
         assert not _top_is_preview(page)
+
+
+def _detail_resolution() -> LinkResolution:
+    document = PagerDocument(
+        sections=(
+            PagerSection(
+                identity="bead:sase-1aa",
+                title="sase-1aa",
+                kind="bead",
+                body="Epic body",
+            ),
+        ),
+        title="sase-1aa",
+        origin=PagerOrigin.BEAD,
+    )
+    return LinkResolution(
+        target=LinkTarget(kind=LinkTargetKind.DOCUMENT, document=document)
+    )
+
+
+def _top_is_pager(page: PromptPage) -> bool:
+    return isinstance(page.ta.app.screen_stack[-1], PagerScreen)
+
+
+async def test_ctrl_bracket_on_bead_opens_pager(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    directory = _directory(
+        tmp_path, issue_prefix="sase", issue_ids=frozenset({"sase-1aa"})
+    )
+    store = BeadStoreRef(
+        project_key="sase",
+        project_label="sase",
+        beads_dir=tmp_path / "beads",
+        primary_workspace=tmp_path,
+    )
+    monkeypatch.setattr(
+        "sase.ace.tui.widgets._prompt_bead_preview.route_bead_mention",
+        lambda *_a, **_k: BeadRouteFound("sase-1aa", store),
+    )
+    monkeypatch.setattr(
+        "sase.ace.tui.widgets._prompt_bead_preview.bead_detail_link_resolution",
+        lambda *_a, **_k: _detail_resolution(),
+    )
+
+    async with PromptPage("sase-1aa", cursor=(0, 2), size=(80, 24)) as page:
+        _install_directory(monkeypatch, page.ta.app, directory)
+        await page.press("ctrl+right_square_bracket")
+        await page.wait_for(lambda: _top_is_pager(page))
+        assert not _top_is_preview(page)
+
+
+async def test_ctrl_bracket_missing_owned_id_toasts_without_word_lookup(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    directory = _directory(tmp_path, issue_prefix="bob-cli")
+    notifications: list[tuple[str, str | None]] = []
+    monkeypatch.setattr(
+        "sase.ace.tui.widgets._prompt_bead_preview.route_bead_mention",
+        lambda *_a, **_k: BeadRouteMissing("bob-cli-kz", ("bob-cli",)),
+    )
+
+    async with PromptPage("bob-cli-kz", cursor=(0, 0), size=(80, 24)) as page:
+        _install_directory(monkeypatch, page.ta.app, directory)
+        monkeypatch.setattr(
+            page.ta,
+            "_lookup_word_under_cursor",
+            lambda *a, **k: (_ for _ in ()).throw(
+                AssertionError("Ctrl+] must not fall through to word lookup")
+            ),
+        )
+        monkeypatch.setattr(
+            page.ta,
+            "notify",
+            lambda message, severity=None: notifications.append((message, severity)),
+        )
+        await page.press("ctrl+right_square_bracket")
+        await page.wait_for(lambda: bool(notifications))
+        assert notifications == [("No bead 'bob-cli-kz' in bob-cli", "information")]
+        assert not _top_is_pager(page)
+
+
+async def test_ctrl_bracket_unowned_prefix_keeps_jump_chain(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    directory = _directory(tmp_path)
+    notifications: list[tuple[str, str | None]] = []
+    monkeypatch.setattr(
+        "sase.ace.tui.widgets._prompt_bead_preview.route_bead_mention",
+        lambda *_a, **_k: BeadRouteNotBead("plain"),
+    )
+
+    async with PromptPage("plain text", cursor=(0, 0), size=(80, 24)) as page:
+        _install_directory(monkeypatch, page.ta.app, directory)
+        monkeypatch.setattr(
+            page.ta,
+            "notify",
+            lambda message, severity=None: notifications.append((message, severity)),
+        )
+        await page.press("ctrl+right_square_bracket")
+        await page.pause()
+        assert page.ta._prompt_jump_request_id == 0
+        assert notifications == [
+            (
+                "Move the cursor onto a macro, skill, file path, glossary "
+                "term, repo name, or bead ID to jump to its definition",
+                "warning",
+            )
+        ]
