@@ -177,6 +177,33 @@ def load_macros_by_source() -> list[tuple[str, dict[str, Any]]]:
     )
 
 
+def _merged_config_cheap_key(
+    token: tuple[Any, ...],
+    local_path: Path | None,
+) -> tuple[Any, ...]:
+    """Return the pre-snapshot cache key for :func:`load_merged_config`.
+
+    The key covers the config token, the selected local path, that file's
+    stat signature, and the trust store's stat signature. A hit means neither
+    the YAML nor the trust evaluation could have changed without an explicit
+    ``clear_config_cache()``, so the caller may serve the cached merge
+    without reading or evaluating the local layer.
+    """
+    core = _facade()
+    try:
+        local_stat = core.stat_token(local_path) if local_path is not None else None
+    except Exception:
+        local_stat = None
+    try:
+        from sase.core.paths import sase_home
+
+        store_path = sase_home() / "local_config_trust" / "records.json"
+        trust_stat = cache.stat_token(store_path)
+    except Exception:
+        trust_stat = None
+    return (token, True, str(local_path), local_stat, trust_stat)
+
+
 def load_merged_config() -> dict[str, Any]:
     """Load and cache the effective config from all source layers.
 
@@ -192,6 +219,10 @@ def load_merged_config() -> dict[str, Any]:
     # Retired spellings are always accepted; the constant policy bit stays
     # in the cache key for shape compatibility.
     local_path = core.get_local_config_path()
+    cheap_key = _merged_config_cheap_key(token, local_path)
+    fast_cached = cache.merged_config_cache
+    if fast_cached is not None and cache.merged_config_cheap_key == cheap_key:
+        return fast_cached[1]
     local_snapshot = core.local_config_snapshot(local_path)
     evaluation = local_snapshot.evaluation
     trust_key = (
@@ -230,6 +261,7 @@ def load_merged_config() -> dict[str, Any]:
     # build that outlived a cache clear cannot install itself as current.
     if cache.config_cache_generation == generation:
         cache.merged_config_cache = (key, result)
+        cache.merged_config_cheap_key = cheap_key
     return result
 
 

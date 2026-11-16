@@ -31,6 +31,11 @@ _flag_state_cache_value: bool | None = None
 _warned_signatures: set[tuple[str, str, str]] = set()
 _warned_lock = threading.RLock()
 
+_lower_macros_cache_key: tuple[Any, ...] | None = None
+_lower_macros_cache_value: tuple[dict[str, Any], dict[str, Any]] | None = None
+_lower_macros_cache_generation: int | None = None
+_lower_macros_cache_lock = threading.RLock()
+
 _evaluation_state = threading.local()
 
 
@@ -132,8 +137,60 @@ def _project_identity_for(root: Path, config_path: Path) -> str:
     return project_identity_for_config(root, config_path)
 
 
+def _lower_macros_cache_token() -> tuple[Any, ...] | None:
+    """Return the cache key for the lower-layer macro/workflow memo."""
+    try:
+        from sase.config import _cache as config_cache
+        from sase.config.core import current_config_token
+
+        token = current_config_token()
+        generation = config_cache.config_cache_generation
+        default_id = (
+            0
+            if config_cache.default_config_cache is None
+            else id(config_cache.default_config_cache)
+        )
+        plugin_id = (
+            0
+            if config_cache.plugin_configs_cache is None
+            else id(config_cache.plugin_configs_cache)
+        )
+        return (token, generation, default_id, plugin_id)
+    except Exception:
+        return None
+
+
+def reset_lower_macros_cache() -> None:
+    """Drop the memoized lower-layer macros/workflows."""
+    global _lower_macros_cache_key, _lower_macros_cache_value
+    global _lower_macros_cache_generation
+    with _lower_macros_cache_lock:
+        _lower_macros_cache_key = None
+        _lower_macros_cache_value = None
+        _lower_macros_cache_generation = None
+
+
 def _lower_macros_and_workflows() -> tuple[dict[str, Any], dict[str, Any]]:
     """Return lower-layer macros/workflows without triggering filtering."""
+    global _lower_macros_cache_key, _lower_macros_cache_value
+    global _lower_macros_cache_generation
+    try:
+        from sase.config import _cache as config_cache
+
+        key = _lower_macros_cache_token()
+        generation = config_cache.config_cache_generation
+        if key is not None:
+            with _lower_macros_cache_lock:
+                if (
+                    _lower_macros_cache_key == key
+                    and _lower_macros_cache_generation == generation
+                    and _lower_macros_cache_value is not None
+                ):
+                    cached_macros, cached_workflows = _lower_macros_cache_value
+                    return dict(cached_macros), dict(cached_workflows)
+    except Exception:
+        key = None
+        generation = None
     try:
         from sase.config.core import load_merged_config_for_local_path
 
@@ -143,10 +200,25 @@ def _lower_macros_and_workflows() -> tuple[dict[str, Any], dict[str, Any]]:
         return {}, {}
     macros = lower.get("macros")
     workflows = lower.get("workflows")
-    return (
+    result = (
         dict(macros) if isinstance(macros, dict) else {},
         dict(workflows) if isinstance(workflows, dict) else {},
     )
+    if key is not None:
+        try:
+            from sase.config import _cache as config_cache
+
+            with _lower_macros_cache_lock:
+                if config_cache.config_cache_generation == generation:
+                    _lower_macros_cache_key = key
+                    _lower_macros_cache_value = (
+                        dict(result[0]),
+                        dict(result[1]),
+                    )
+                    _lower_macros_cache_generation = generation
+        except Exception:
+            pass
+    return result
 
 
 @dataclass(frozen=True)

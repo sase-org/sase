@@ -34,6 +34,7 @@ include_local_config = True
 default_config_cache: dict[str, Any] | None = None
 plugin_configs_cache: list[dict[str, Any]] | None = None
 merged_config_cache: tuple[tuple[Any, ...], dict[str, Any]] | None = None
+merged_config_cheap_key: tuple[Any, ...] | None = None
 agent_owner_config_cache: tuple[tuple[Any, ...], AgentOwnerConfigSnapshot] | None = None
 
 # Explicit clears increment the generation so rapid same-size edits cannot
@@ -327,10 +328,12 @@ def clear_config_cache() -> None:
     global config_cache_generation
     global default_config_cache, plugin_configs_cache
     global merged_config_cache, agent_owner_config_cache
+    global merged_config_cheap_key
     with _current_config_token_cache_lock:
         config_cache_generation += 1
         default_config_cache = None
         plugin_configs_cache = None
         merged_config_cache = None
+        merged_config_cheap_key = None
         agent_owner_config_cache = None
         _reset_current_config_token_cache()
