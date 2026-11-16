@@ -547,6 +547,16 @@ _REVIEWED_PATH_PASSING_CONTEXTS: dict[str, PathPassingReview] = {
             "artifact index refresh."
         ),
     ),
+    "src/sase/agent/hijack/_recover_prepare.py:_promote_sessionless_predecessor": PathPassingReview(
+        lifecycle_coverage=(
+            "Promotes a sessionless predecessor through "
+            "promote_agent_to_agent_session, which atomically rewrites "
+            "agent_meta.json and refreshes the Tier 1 artifact index; the "
+            "local agent_meta.json load is a read-only re-read to resolve "
+            "the promoted session base, fail-closed to None so the "
+            "no_session refusal is preserved."
+        ),
+    ),
     "src/sase/history/chat_fork/common.py:fork_source_hijack_status": PathPassingReview(
         exemption=(
             "Read-only transcript framing: done.json is inspected to classify "
