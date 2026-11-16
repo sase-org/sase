@@ -57,6 +57,38 @@ def test_unstarted_continuation_uses_original_task_without_fork(
     assert result.transcript_path is None
 
 
+def test_continue_uses_recorded_gate_followup_prompt(
+    tmp_path: Path, monkeypatch: Any
+) -> None:
+    artifacts = tmp_path / "artifacts"
+    artifacts.mkdir()
+    (artifacts / "raw_prompt.md").write_text("Original gate owner task.\n")
+    (artifacts / "agent_meta.json").write_text("{}")
+    followup = artifacts / "gate_followup_prompt.md"
+    followup.write_text("Continue the selected gate follow-up exactly once.\n")
+    record = _record(artifacts)
+    record["suppressed_followup"] = {
+        "kind": "gate_followup",
+        "ref": str(followup),
+    }
+    _install_preview_fakes(monkeypatch)
+    requests: list[dict[str, Any]] = []
+    monkeypatch.setattr(
+        prompt_impl,
+        "hijack_continuation_prompt",
+        lambda request: requests.append(request) or "continuation",
+    )
+    monkeypatch.setattr(
+        prompt_impl, "_budget_decision", lambda *_args, **_kwargs: {"kind": "fits"}
+    )
+
+    recovery.build_hijack_continuation_prompt(record)
+
+    assert requests[0]["original_prompt"] == (
+        "Continue the selected gate follow-up exactly once.\n"
+    )
+
+
 def _record(artifacts: Path, *, state: str = "held") -> dict[str, Any]:
     return {
         "schema_version": 1,

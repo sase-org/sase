@@ -325,19 +325,29 @@ def _settle_gate_turn_locked(
             reason=reason,
         )
     else:
-        launch_or_record_followup(
-            artifacts_dir,
+        latched = _apply_gate_hijack_latch(
+            record,
             meta,
             gate_state=gate_state,
-            project_name=project_name,
             policy=policy,
             envelope=envelope,
             response=response,
             reason=reason,
-            already_settled=False,
-            resume=False,
-            config=_GATE_SETTLEMENT_CONFIG,
         )
+        if not latched:
+            launch_or_record_followup(
+                artifacts_dir,
+                meta,
+                gate_state=gate_state,
+                project_name=project_name,
+                policy=policy,
+                envelope=envelope,
+                response=response,
+                reason=reason,
+                already_settled=False,
+                resume=False,
+                config=_GATE_SETTLEMENT_CONFIG,
+            )
     disk = _read_meta(artifacts_dir)
     merge_followup_fields(meta, disk)
     _write_meta(artifacts_dir, meta)
@@ -351,6 +361,91 @@ def _settle_gate_turn_locked(
         read_gate_turn_marker(project_name or record.project_name, artifacts_dir)
         or record
     )
+
+
+def _apply_gate_hijack_latch(
+    record: GateTurnRecord,
+    meta: dict[str, Any],
+    *,
+    gate_state: GateTurnState,
+    policy: GateFollowupPolicy | None,
+    envelope: dict[str, Any],
+    response: dict[str, Any],
+    reason: str | None,
+) -> bool:
+    """Apply a pending hijack after the gate decision, before its hand-off.
+
+    The saved response and decision record remain authoritative. A latch only
+    suppresses the follow-up launch and records its persisted prompt for
+    recovery to continue later.
+    """
+    from sase.agent.hijack import ledger
+    from sase.agent.hijack.facts import resolve_hijack_subject
+    from sase.agent.hijack.latch import apply_latch_at_boundary
+    from sase.agent.hijack._stop_claim import remove_intent
+    from sase.gate_turn.followup import (
+        GATE_FOLLOWUP_PERSISTENCE,
+        build_suppressed_gate_followup_prompt,
+    )
+    from sase.turns.followup import persist_followup_prompt
+
+    subject = resolve_hijack_subject(record.member_agent_name)
+    target = subject.target
+    if target is None:
+        return False
+    target_key = ledger.target_key_for(
+        None if target.is_home else target.project_file,
+        target.agent_session or target.name,
+    )
+    if not target_key:
+        return False
+    active = ledger.find_active_record_by_target_key(target_key)
+    if active is None or active.get("state") != "latched":
+        return False
+
+    prompt_path: str | None = None
+    if policy is not None:
+        prompt = build_suppressed_gate_followup_prompt(
+            record.artifacts_dir,
+            meta,
+            gate_state=gate_state,
+            policy=policy,
+            envelope=envelope,
+            response=response,
+            reason=reason,
+        )
+        prompt_path = persist_followup_prompt(
+            record.artifacts_dir, prompt, GATE_FOLLOWUP_PERSISTENCE
+        )
+
+    if policy is not None:
+        meta["gate_followup_outcome"] = "suppressed"
+        if prompt_path:
+            meta["gate_followup_prompt_path"] = prompt_path
+        update_meta_field(record.artifacts_dir, "gate_followup_outcome", "suppressed")
+        if prompt_path:
+            update_meta_field(
+                record.artifacts_dir, "gate_followup_prompt_path", prompt_path
+            )
+
+    outcome = apply_latch_at_boundary(
+        target_key,
+        "gate",
+        gate_state,
+        target=target,
+        suppressed_followup=(
+            {"kind": "gate_followup", "ref": prompt_path}
+            if policy is not None and prompt_path
+            else None
+        ),
+    )
+    if outcome.get("verdict") == "applied":
+        remove_intent(target.artifacts_dir)
+        return True
+    # Once a durable latch exists, uncertainty must retain custody. Letting the
+    # ordinary hand-off path run here could launch the very successor the user
+    # asked us to hold.
+    return True
 
 
 def _done_marker(

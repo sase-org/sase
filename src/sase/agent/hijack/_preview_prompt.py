@@ -76,6 +76,20 @@ def build_hijack_continuation_prompt(
             ) from exc
 
     meta = load_json_object(artifacts_dir / "agent_meta.json")
+    suppressed_followup = record.get("suppressed_followup")
+    if (
+        isinstance(suppressed_followup, Mapping)
+        and suppressed_followup.get("kind") == "gate_followup"
+    ):
+        saved_followup = string(suppressed_followup.get("ref"))
+        if saved_followup:
+            try:
+                original_prompt = Path(saved_followup).read_text(encoding="utf-8")
+            except OSError as exc:
+                raise HijackRecoveryRefusal(
+                    "missing_prompt",
+                    f"Could not read the recorded gate follow-up at {saved_followup}: {exc}",
+                ) from exc
     transcript = _transcript_path(artifacts_dir, meta)
     turn_never_reached_provider = _turn_never_reached_provider(record, meta)
 
