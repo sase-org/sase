@@ -7,7 +7,6 @@ import os
 from sase.linked_repos import (
     LINKED_REPOS_JSON_ENV,
     SIBLING_REPOS_JSON_ENV,
-    is_legacy_static_linked_repo_record,
     linked_repo_metadata_from_env,
 )
 
@@ -25,12 +24,12 @@ def configured_sibling_targets(project_dir: str) -> list[SiblingTarget]:
 
 
 def _sibling_targets_from_env() -> list[SiblingTarget]:
+    from sase._linked_repo_env import repo_dir_from_entry
+
     targets: list[SiblingTarget] = []
     for index, item in enumerate(linked_repo_metadata_from_env(os.environ), start=1):
-        if is_legacy_static_linked_repo_record(item):
-            continue
-        workspace_dir = item.get("workspace_dir")
-        if not isinstance(workspace_dir, str) or not workspace_dir.strip():
+        workspace_dir = repo_dir_from_entry(item)
+        if not workspace_dir:
             continue
         name = item.get("name")
         if not isinstance(name, str) or not name.strip():

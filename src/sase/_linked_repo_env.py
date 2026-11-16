@@ -151,3 +151,75 @@ def is_legacy_static_linked_repo_record(mapping: Mapping[str, object]) -> bool:
     """Return whether *mapping* is an old shared-primary linked-repo record."""
 
     return mapping.get("workspace_strategy") == "none"
+
+
+#: ``agent_meta.json`` keys that may list repositories, canonical first.
+META_REPO_KEYS: tuple[str, ...] = (
+    "linked_repos",
+    "sibling_repos",
+    "opened_repos",
+    "sidecar_repos",
+    "repo_roots",
+    "repos",
+)
+
+#: Dict keys that may carry a repository checkout dir, workspace first.
+#: ``primary_dir`` is a fallback only: the agent works in ``workspace_dir``.
+_ENTRY_DIR_KEYS: tuple[str, ...] = (
+    "workspace_dir",
+    "workspaceDir",
+    "checkout_dir",
+    "path",
+    "dir",
+    "worktree",
+    "primary_dir",
+    "primaryDir",
+)
+
+
+def repo_dir_from_entry(entry: object) -> str | None:
+    """Return the checkout dir for a str- or dict-shaped repo entry.
+
+    Accepts bare path strings (the old fixture shape) and
+    ``LinkedRepoResolution`` dicts (the real launcher shape, via
+    ``ResolvedLinkedRepo.to_json_dict``). Returns ``None`` for legacy static
+    shared-primary records and for entries without a usable dir.
+    """
+
+    if isinstance(entry, str):
+        return entry.strip() or None
+    if isinstance(entry, Mapping):
+        if is_legacy_static_linked_repo_record(entry):
+            return None
+        for key in _ENTRY_DIR_KEYS:
+            value = entry.get(key)
+            if isinstance(value, str) and value.strip():
+                return value.strip()
+        return None
+    return None
+
+
+def repo_dirs_from_entries(entries: object) -> list[str]:
+    """Extract ordered, de-duplicated checkout dirs from a meta list."""
+
+    if not isinstance(entries, list):
+        return []
+    dirs: list[str] = []
+    for entry in entries:
+        repo_dir = repo_dir_from_entry(entry)
+        if repo_dir and repo_dir not in dirs:
+            dirs.append(repo_dir)
+    return dirs
+
+
+def repo_dirs_from_meta(meta: Mapping[str, object] | None) -> list[str]:
+    """Extract checkout dirs from every repo list in an ``agent_meta`` mapping."""
+
+    if not isinstance(meta, Mapping):
+        return []
+    dirs: list[str] = []
+    for key in META_REPO_KEYS:
+        for repo_dir in repo_dirs_from_entries(meta.get(key)):
+            if repo_dir not in dirs:
+                dirs.append(repo_dir)
+    return dirs

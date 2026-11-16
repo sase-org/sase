@@ -68,22 +68,18 @@ def collect_evidence(target: HijackTarget, *, deps: StopDeps) -> dict[str, Any]:
 
 
 def _evidence_repo_roots(target: HijackTarget) -> list[str]:
+    from sase.linked_repos import inventory_repo_dirs
+
     roots: list[str] = []
     if target.workspace_dir:
         toplevel = _git_repo_toplevel(target.workspace_dir)
         if toplevel is not None:
             roots.append(toplevel)
     meta = read_json_dict(Path(target.artifacts_dir) / "agent_meta.json") or {}
-    for key in ("opened_repos", "linked_repos", "sidecar_repos", "repo_roots"):
-        value = meta.get(key)
-        if not isinstance(value, list):
-            continue
-        for entry in value:
-            if not isinstance(entry, str) or not entry:
-                continue
-            toplevel = _git_repo_toplevel(entry)
-            if toplevel is not None and toplevel not in roots:
-                roots.append(toplevel)
+    for repo_dir in inventory_repo_dirs(meta=meta, artifacts_dir=target.artifacts_dir):
+        toplevel = _git_repo_toplevel(repo_dir)
+        if toplevel is not None and toplevel not in roots:
+            roots.append(toplevel)
     return roots
 
 

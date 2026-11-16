@@ -46,6 +46,7 @@ from sase._linked_repo_env import (
     LINKED_REPO_ENV_PREFIX,
     LINKED_REPO_ENV_SUFFIXES,
     LINKED_REPOS_JSON_ENV,
+    META_REPO_KEYS,
     SIBLING_REPO_ENV_PREFIX,
     SIBLING_REPO_ENV_SUFFIXES,
     SIBLING_REPOS_JSON_ENV,
@@ -54,6 +55,9 @@ from sase._linked_repo_env import (
     apply_linked_repo_env,
     is_legacy_static_linked_repo_record,
     linked_repo_metadata_from_env,
+    repo_dir_from_entry,
+    repo_dirs_from_entries,
+    repo_dirs_from_meta,
     scrub_linked_repo_env,
 )
 from sase._linked_repo_markers import (
@@ -116,16 +120,21 @@ __all__ = [
     "SIBLING_REPOS_CONFIG_KEY",
     "SIBLING_REPOS_JSON_ENV",
     "LinkedRepoResolution",
+    "META_REPO_KEYS",
     "apply_linked_repo_env",
     "clear_workspace_repos",
     "external_repo_clone_dir",
     "hidden_sidecar_clone_dir",
     "sidecar_repo_clone_dir",
+    "inventory_repo_dirs",
     "is_legacy_static_linked_repo_record",
     "linked_repo_clone_dir",
     "linked_repo_metadata_from_env",
     "materialize_linked_repo_workspace",
     "refresh_clean_linked_checkout",
+    "repo_dir_from_entry",
+    "repo_dirs_from_entries",
+    "repo_dirs_from_meta",
     "opened_external_repo_records",
     "opened_linked_repo_names",
     "opened_linked_repo_records",
@@ -352,3 +361,36 @@ def _unique_env_name(base: str, used: set[str]) -> str:
     while f"{base}_{index}" in used:
         index += 1
     return f"{base}_{index}"
+
+
+def inventory_repo_dirs(
+    *,
+    meta: Mapping[str, Any] | None = None,
+    artifacts_dir: str | Path | None = None,
+) -> list[str]:
+    """Return the combined repo dirs from meta lists plus opened markers.
+
+    This is the one repository inventory shared by hijack stop/release
+    snapshots and the commit finalizer's sibling discovery: ``agent_meta``
+    repo lists in either the bare-string or the ``LinkedRepoResolution``
+    dict shape, plus the dynamically opened repos recorded in
+    ``opened_linked_workspaces.json`` and ``opened_siblings.json``.
+    """
+
+    dirs = repo_dirs_from_meta(meta)
+    if artifacts_dir:
+        try:
+            records = opened_repo_records(Path(artifacts_dir))
+        except Exception:
+            records = {}
+        for record in records.values():
+            if not isinstance(record, Mapping):
+                continue
+            workspace_dir = record.get("workspace_dir")
+            if (
+                isinstance(workspace_dir, str)
+                and workspace_dir.strip()
+                and workspace_dir.strip() not in dirs
+            ):
+                dirs.append(workspace_dir.strip())
+    return dirs

@@ -180,6 +180,8 @@ def _release_repo_roots(record: Mapping[str, Any]) -> list[str]:
 
 def _meta_repo_roots(record: Mapping[str, Any]) -> list[str]:
     """Return toplevels for repos the predecessor meta lists as opened."""
+    from sase.linked_repos import inventory_repo_dirs
+
     artifacts_dir = clean_string(record.get("artifacts_dir"))
     if not artifacts_dir:
         return []
@@ -192,16 +194,10 @@ def _meta_repo_roots(record: Mapping[str, Any]) -> list[str]:
     if not isinstance(meta, Mapping):
         return []
     roots: list[str] = []
-    for key in ("opened_repos", "linked_repos", "sidecar_repos", "repo_roots"):
-        value = meta.get(key)
-        if not isinstance(value, list):
-            continue
-        for entry in value:
-            if not isinstance(entry, str) or not entry:
-                continue
-            toplevel = _repo_toplevel(entry)
-            if toplevel is not None and toplevel not in roots:
-                roots.append(toplevel)
+    for repo_dir in inventory_repo_dirs(meta=meta, artifacts_dir=artifacts_dir):
+        toplevel = _repo_toplevel(repo_dir)
+        if toplevel is not None and toplevel not in roots:
+            roots.append(toplevel)
     return roots
 
 

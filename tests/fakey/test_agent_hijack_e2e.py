@@ -200,6 +200,22 @@ def _make_held_hijack(
         state_dir=tmp_path / "predecessor-fakey-state",
     )
     autonomy = dict(resolve_selection("manual", source="inherited", surface="launch"))
+    from sase._linked_repo_env import LinkedRepoResolution, ResolvedLinkedRepo
+
+    # Real launcher shape: refresh_linked_repos_for_workspace persists
+    # resolution.to_jsonable() dicts, never bare path strings.
+    linked_resolution = LinkedRepoResolution(
+        repos=(
+            ResolvedLinkedRepo(
+                name="sase-core",
+                env_name="SASE_CORE",
+                primary_dir=str(linked),
+                workspace_dir=str(linked),
+                workspace_num=_WORKSPACE_NUM,
+            ),
+        )
+    )
+    linked_meta = linked_resolution.to_jsonable()
     metadata = {
         "name": _AGENT,
         "pid": process.pid,
@@ -214,7 +230,8 @@ def _make_held_hijack(
         "autonomy": autonomy,
         "agent_session": _SESSION,
         "workspace_dir": str(workspace),
-        "linked_repos": [str(linked)],
+        "linked_repos": linked_meta,
+        "sibling_repos": linked_meta,
         "booted_at": time.time(),
     }
     (artifacts / "agent_meta.json").write_text(
