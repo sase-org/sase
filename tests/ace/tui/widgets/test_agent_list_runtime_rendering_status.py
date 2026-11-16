@@ -35,6 +35,7 @@ def test_format_agent_option_finished_suffix_has_timestamp_and_elapsed() -> None
         ("HIJACKED", None, "⏏ HIJACKED"),
         ("RUNNING", "hijacking", "HIJACKING…"),
         ("HIJACKED", "recovering", "RECOVERING…"),
+        ("RUNNING", "referred", "⏏ hijack requested on"),
     ],
 )
 def test_hijack_row_status_and_overlays(
@@ -42,10 +43,14 @@ def test_hijack_row_status_and_overlays(
 ) -> None:
     row = agent(status=status)
     row.hijack_overlay = overlay
+    if overlay == "referred":
+        row.fleet_origin_alias = "athena"
 
     left, _, _ = format_agent_option(row, 0, is_selected=False)
 
     assert expected in left.plain
+    if overlay == "referred":
+        assert "athena" in left.plain
 
 
 def test_hijack_stop_failed_badge_is_red_and_keeps_running_status() -> None:

@@ -145,10 +145,14 @@ def test_settlement_pending_drains_without_resolving(monkeypatch, tmp_path) -> N
 
 
 def test_settlement_malformed_metadata_keeps_custody(monkeypatch) -> None:
+    from sase.agent.hijack.ledger import timestamp_for
+
     record = resolving_record(
         launch_identity="launch-abc",
         admission_request_id="req-1",
         reserved_successor_name="acme--4",
+        updated_at=timestamp_for(time.time() - 90.0),
+        hijacked_at=timestamp_for(time.time() - 90.0),
     )
     monkeypatch.setattr(ledger, "load_record", lambda hid: dict(record))
     seams = dead_seams(
@@ -232,10 +236,14 @@ def test_settlement_crash_before_admission_returns_to_held(monkeypatch) -> None:
 
 
 def test_settlement_crash_while_queued_keeps_resolving(monkeypatch) -> None:
+    from sase.agent.hijack.ledger import timestamp_for
+
     record = resolving_record(
         launch_identity="launch-abc",
         admission_request_id="req-1",
         launch_stage="prepared",
+        updated_at=timestamp_for(time.time() - 90.0),
+        hijacked_at=timestamp_for(time.time() - 90.0),
     )
     monkeypatch.setattr(ledger, "load_record", lambda hid: dict(record))
     seams = dead_seams(

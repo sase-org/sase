@@ -185,6 +185,12 @@ def append_agent_row_status(
         text.append("HIJACKING…", style="bold #FF5FAF")
     elif hijack_overlay == "recovering":
         text.append("RECOVERING…", style="bold #FF5FAF")
+    elif hijack_overlay == "referred":
+        alias = getattr(agent, "fleet_origin_alias", None) or "remote"
+        text.append(
+            f"{HIJACKED_GLYPH} hijack requested on {alias}",
+            style="bold #FF5FAF",
+        )
     elif agent.status == HIJACKED_STATUS:
         text.append(
             f"{HIJACKED_GLYPH} {HIJACKED_STATUS}", style=f"bold {HIJACKED_COLOR}"

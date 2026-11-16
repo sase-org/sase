@@ -7,7 +7,9 @@ one idempotent entry point for mutating recovery calls and stale cleanup.
 Rust owns the reconcile decision (:func:`hijack_recovery_reconcile`);
 this module owns Python observation. Names alone never prove a successor:
 launch identity, admission identity, workspace, lineage, and inheritance
-acknowledgement must match the reservation before adoption.
+acknowledgement must match the reservation before adoption. Observation
+passes a 300s dispatch bound so a queued successor that never dispatches
+returns to held instead of holding ``RECOVERING…`` forever.
 """
 
 from __future__ import annotations

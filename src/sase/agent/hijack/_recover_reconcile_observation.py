@@ -20,6 +20,12 @@ from sase.agent.hijack.recover_common import (
 #: Rust default ``min_age_seconds`` in ``reconcile.rs``.
 RECONCILE_MIN_AGE_SECONDS = 60.0
 
+#: After this bound a matching queued successor that never dispatched
+#: returns to held (Rust ``dispatch_timeout``). Longer than
+#: :data:`RECONCILE_MIN_AGE_SECONDS` so a live admission still has time
+#: to land.
+DISPATCH_WATCHDOG_SECONDS = 300.0
+
 
 @dataclass
 class ReconcileDeps:
@@ -50,6 +56,7 @@ def gather_reconcile_facts(
         "now_unix": float(now),
         "resolving_age_seconds": float(age),
         "min_age_seconds": float(RECONCILE_MIN_AGE_SECONDS),
+        "dispatch_bound_seconds": float(DISPATCH_WATCHDOG_SECONDS),
         "resolver": resolver,
         "successor": successor,
     }

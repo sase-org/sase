@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import shlex
 from dataclasses import replace
@@ -235,8 +236,39 @@ class AgentHijackActionMixin(AgentHijackDecisionCacheMixin):
             task_name=f"copy-hijack-command-{alias}",
             on_failure="toast",
         )
+        self._record_remote_hijack_referral(alias, name)
         self.notify(f"Agent runs on {alias}; copied: {command}")  # type: ignore[attr-defined]
         return True
+
+    def _record_remote_hijack_referral(self, alias: str, name: str) -> None:
+        """Persist the copied remote request off the UI thread when possible."""
+
+        def _write() -> None:
+            try:
+                from sase.agent.hijack.referral import record_remote_hijack_referral
+
+                record_remote_hijack_referral(alias, name)
+            except Exception:
+                log.warning(
+                    "failed to record remote hijack referral alias=%s agent=%s",
+                    alias,
+                    name,
+                    exc_info=True,
+                )
+
+        try:
+            asyncio.get_running_loop()
+        except RuntimeError:
+            _write()
+            return
+        from ...util.pump_tasks import spawn_pump_free_task
+
+        spawn_pump_free_task(
+            self,
+            asyncio.to_thread(_write),
+            name=f"hijack-referral-{alias}",
+            registry_attr="_pump_free_hijack_referral_tasks",
+        )
 
     def _toast_hijack_decision(self, decision: dict[str, Any]) -> None:
         message = format_hijack_decision_toast(decision)

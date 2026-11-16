@@ -91,5 +91,12 @@ def apply_hijack_ledger_presentation(agents: Iterable[Agent]) -> None:
         elif state == "held":
             agent.hijack_diff_summary = _diff_summary(matched_record)
 
+    try:
+        from sase.agent.hijack.referral import apply_remote_hijack_referrals
+
+        apply_remote_hijack_referrals(rows)
+    except Exception:
+        pass
+
 
 __all__ = ["apply_hijack_ledger_presentation"]

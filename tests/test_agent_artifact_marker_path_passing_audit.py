@@ -563,6 +563,13 @@ _REVIEWED_PATH_PASSING_CONTEXTS: dict[str, PathPassingReview] = {
             "whether the predecessor was hijacked; no marker is written."
         ),
     ),
+    "src/sase/doctor/checks_agent_hijack.py:_load_agent_meta": PathPassingReview(
+        exemption=(
+            "Read-only doctor check: agent_meta.json is opened only to see "
+            "whether the live runner stamped hijack support; no marker is "
+            "written."
+        ),
+    ),
 }
 
 

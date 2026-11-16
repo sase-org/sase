@@ -17,13 +17,14 @@ from sase.ace.tui.actions.agents._hijack_decision import (
     hijack_ingress_available_for_footer,
     kill_modal_hijack_available,
 )
-from sase.ace.tui.actions.agents._kill_action_flow import AgentKillActionFlowMixin
 from sase.ace.tui.actions.agents._hijack_action import AgentHijackActionMixin
+from sase.ace.tui.actions.agents._kill_action_flow import AgentKillActionFlowMixin
+from sase.ace.tui.models._agent_status_apply import _mirror_root_from_child
 from sase.ace.tui.models.agent import Agent, AgentType
 from sase.ace.tui.models.agent_hijack_presentation import (
     apply_hijack_ledger_presentation,
 )
-from sase.ace.tui.models._agent_status_apply import _mirror_root_from_child
+from sase.agent.hijack.referral import _RemoteHijackReferral
 
 
 def _agent(*, status: str = "RUNNING") -> Agent:
@@ -170,6 +171,32 @@ def test_active_ledger_records_drive_hijack_overlays_and_summary(
     assert agent.hijack_overlay == "hijacking"
 
 
+def test_remote_referral_overlay_is_projected_from_the_store(
+    monkeypatch: Any,
+) -> None:
+    agent = _agent()
+    agent.fleet_origin_alias = "athena"
+    monkeypatch.setattr(
+        "sase.agent.hijack.ledger.list_active_records",
+        lambda: [],
+    )
+    monkeypatch.setattr(
+        "sase.agent.hijack.referral._list_active_remote_hijack_referrals",
+        lambda **_kwargs: [
+            _RemoteHijackReferral(
+                alias="athena",
+                agent="sase-demo.1",
+                requested_at=1.0,
+                ttl_seconds=7200.0,
+            )
+        ],
+    )
+
+    apply_hijack_ledger_presentation([agent])
+
+    assert agent.hijack_overlay == "referred"
+
+
 def test_settled_hijack_record_is_loaded_by_done_marker_id(
     monkeypatch: Any,
 ) -> None:
@@ -236,6 +263,10 @@ def test_remote_hijack_ingress_copies_host_command(monkeypatch: Any) -> None:
     agent.fleet_origin_alias = "athena"
     notifications: list[str] = []
     copied: list[tuple[str, dict[str, Any]]] = []
+    monkeypatch.setattr(
+        "sase.agent.hijack.referral.record_remote_hijack_referral",
+        lambda *_args, **_kwargs: None,
+    )
 
     class App(AgentHijackActionMixin):
         def notify(self, message: str, *, severity: str = "information") -> None:
@@ -262,6 +293,43 @@ def test_remote_hijack_ingress_copies_host_command(monkeypatch: Any) -> None:
     assert copied[0][0] == "sase agent hijack sase-demo.1"
     assert copied[0][1]["task_name"] == "copy-hijack-command-athena"
     assert "Agent runs on athena" in notifications[0]
+
+
+def test_remote_hijack_ingress_records_a_local_referral(
+    monkeypatch: Any,
+) -> None:
+    from sase.agent.hijack import referral as referral_mod
+
+    recorded: list[tuple[str, str]] = []
+    monkeypatch.setattr(
+        referral_mod,
+        "record_remote_hijack_referral",
+        lambda alias, name, **_kwargs: recorded.append((alias, name)),
+    )
+    agent = _agent()
+    agent.fleet_origin_alias = "apollo"
+
+    class App(AgentHijackActionMixin):
+        def notify(self, message: str, *, severity: str = "information") -> None:
+            del message, severity
+
+    app = App()
+    monkeypatch.setattr(
+        "sase.ace.tui.actions.clipboard.schedule_copy_delivery",
+        lambda *_args, **_kwargs: None,
+    )
+    app._store_hijack_decision(
+        agent,
+        _view(
+            agent,
+            mode="redirect",
+            code="remote_row",
+            redirect_op="copy_remote_command",
+        ),
+    )
+
+    assert app._start_hijack_agent(agent)
+    assert recorded == [("apollo", "sase-demo.1")]
 
 
 def test_refused_decision_toasts_code_message_and_next_action() -> None:

@@ -78,10 +78,14 @@ def test_absent_with_launch_evidence_retains(monkeypatch) -> None:
 
 
 def test_matching_queued_request_stays_authoritative(monkeypatch) -> None:
+    from sase.agent.hijack.ledger import timestamp_for
+
     record = resolving_record(
         launch_identity="launch-abc",
         admission_request_id="req-1",
         admission_identity="fp",
+        updated_at=timestamp_for(time.time() - 90.0),
+        hijacked_at=timestamp_for(time.time() - 90.0),
     )
     monkeypatch.setattr(ledger, "load_record", lambda hid: dict(record))
     seams = dead_seams(
@@ -92,9 +96,42 @@ def test_matching_queued_request_stays_authoritative(monkeypatch) -> None:
             "in_flight": True,
         }
     )
+    facts = gather_reconcile_facts(record, deps=seams)
+    assert facts["dispatch_bound_seconds"] == 300.0
     outcome = reconcile_recovery(record, deps=seams)
     assert outcome["outcome"] == "keep_resolving"
     assert outcome["code"] == "queued"
+
+
+def test_queued_successor_past_watchdog_returns_to_held(monkeypatch) -> None:
+    record = resolving_record(
+        launch_identity="launch-abc",
+        admission_request_id="req-1",
+        admission_identity="fp",
+    )
+    monkeypatch.setattr(ledger, "load_record", lambda hid: dict(record))
+    held: dict[str, Any] = {}
+    monkeypatch.setattr(
+        "sase.agent.hijack.recover_reconcile.fail_to_held",
+        lambda resolving, message: held.update({"called": True, "message": message}),
+    )
+    monkeypatch.setattr(
+        "sase.agent.hijack.recover_reconcile.reload_record",
+        lambda hid, fallback: {**dict(fallback), "state": "held"},
+    )
+    seams = dead_seams(
+        observe_admission=lambda rid: {
+            "request_id": "req-1",
+            "state": "submitted",
+            "dispatch_fingerprint": "fp",
+            "in_flight": True,
+        }
+    )
+    outcome = reconcile_recovery(record, deps=seams)
+    assert outcome["outcome"] == "return_to_held"
+    assert outcome["code"] == "dispatch_timeout"
+    assert outcome["action_taken"] == "returned_to_held"
+    assert held.get("called") is True
 
 
 def test_mismatched_queued_retains(monkeypatch) -> None:
