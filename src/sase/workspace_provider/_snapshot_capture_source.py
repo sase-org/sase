@@ -71,9 +71,84 @@ def snapshot_git_repo(
         raise PreservationError(f"checkout snapshot failed: {exc}") from exc
 
 
+def _head_is_unborn(repo_root: Path) -> bool:
+    """Return True only when HEAD is checked out but has no commit yet."""
+    symbolic = run_git_bytes(repo_root, "symbolic-ref", "-q", "HEAD")
+    if symbolic.returncode != 0:
+        return False
+    verify = run_git_bytes(repo_root, "rev-parse", "--verify", "-q", "HEAD")
+    return verify.returncode != 0
+
+
+def _has_no_refs(repo_root: Path) -> bool:
+    """Return True only when the repo holds no refs at all."""
+    out = run_git_bytes(repo_root, "for-each-ref")
+    if out.returncode != 0:
+        return False
+    return not out.stdout.strip()
+
+
+def _has_stash(repo_root: Path) -> bool:
+    out = run_git_bytes(repo_root, "stash", "list", "--format=%H")
+    if out.returncode != 0:
+        return False
+    return bool(out.stdout.strip())
+
+
+def _index_is_empty(repo_root: Path) -> bool:
+    out = run_git_bytes(repo_root, "ls-files", "-z", "--stage")
+    if out.returncode != 0:
+        return False
+    return not any(part for part in out.stdout.split(b"\0") if part)
+
+
+def _has_untracked_nonignored(repo_root: Path) -> bool:
+    out = run_git_bytes(repo_root, "ls-files", "-z", "-o", "--exclude-standard")
+    if out.returncode != 0:
+        return True
+    return any(part for part in out.stdout.split(b"\0") if part)
+
+
+def _is_proven_empty_unborn(repo_root: Path) -> bool:
+    """Return True for a proven no-work unborn checkout.
+
+    All of these must hold: HEAD is unborn, the repo has no refs at all
+    (catches orphan checkouts whose other branches hold commits), there is
+    no stash, the index is empty, and there are no untracked non-ignored
+    files.
+    """
+    if not _head_is_unborn(repo_root):
+        return False
+    if not _has_no_refs(repo_root):
+        return False
+    if _has_stash(repo_root):
+        return False
+    if not _index_is_empty(repo_root):
+        return False
+    if _has_untracked_nonignored(repo_root):
+        return False
+    return True
+
+
+def _empty_unborn_fingerprint() -> dict[str, str]:
+    """Return a stable fingerprint for a proven-empty unborn checkout."""
+    empty = digest_bytes(b"")
+    return {
+        "head": "unborn",
+        "index_digest": empty,
+        "status_digest": empty,
+        "ls_files_digest": empty,
+        "diff_cached_digest": empty,
+        "diff_worktree_digest": empty,
+        "untracked_digest": empty,
+    }
+
+
 def snapshot_source_fingerprint(repo_root: str | Path) -> dict[str, str]:
     """Return a stable read-only fingerprint for deciding whether to reuse a snapshot."""
     repo = Path(repo_root)
+    if _is_proven_empty_unborn(repo):
+        return _empty_unborn_fingerprint()
     before = read_source_state(repo).fingerprint
     after = read_source_state(repo).fingerprint
     if before != after:
@@ -92,6 +167,14 @@ def _snapshot_git_repo(
     reason: str,
     allocated: list[Path],
 ) -> SnapshotRecord | None:
+    if _head_is_unborn(repo_root):
+        if _is_proven_empty_unborn(repo_root):
+            return None
+        raise PreservationError(
+            f"could not snapshot unborn HEAD in {repo_root}: "
+            "the checkout has an unborn HEAD with work that cannot yet be "
+            "preserved; commit or remove the work before launch eviction"
+        )
     state = read_source_state(repo_root)
     if not _has_work(repo_root, state):
         return None
@@ -139,11 +222,22 @@ def _snapshot_git_repo(
 
 def read_source_state(repo_root: Path) -> SourceState:
     """Read HEAD, index, and diffs; fail closed on git errors."""
+    from sase.workspace_provider._snapshot_model import PreservationError as _PE
+
     git_dir_raw = git_output(repo_root, "rev-parse", "--absolute-git-dir")
     if not git_dir_raw:
         raise PreservationError(f"not a git repository: {repo_root}")
     git_dir = Path(git_dir_raw)
-    head = git_output(repo_root, "rev-parse", "--verify", "HEAD")
+    try:
+        head = git_output(repo_root, "rev-parse", "--verify", "HEAD")
+    except _PE as exc:
+        if _head_is_unborn(repo_root):
+            raise PreservationError(
+                f"could not resolve unborn HEAD in {repo_root}: "
+                "the checkout has an unborn HEAD with work that cannot yet be "
+                "preserved"
+            ) from exc
+        raise
     if not head:
         raise PreservationError(f"could not resolve HEAD in {repo_root}")
     base_tree = git_output(repo_root, "rev-parse", "--verify", "HEAD^{tree}")

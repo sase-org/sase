@@ -26,7 +26,6 @@ from sase.workflows.commit.commit_tracking import (
 )
 from sase.workflows.commit.workflow_publication import run_agent_publication_step
 from sase.workflows.commit.workflow_support import (
-    classify_dispatch_failure,
     log_commit_failed,
     resolve_head_commit_sha,
     resolve_head_tree_id,
@@ -108,17 +107,21 @@ class CommitWorkflowTrackingMixin:
         provider: object,
         dispatch_error: str | None,
     ) -> _UnpushedCommitPersistence | None:
-        """Persist recoverable local commits when dispatch failed during push."""
+        """Persist recoverable local commits when dispatch failed after commit."""
         if self._method not in ("create_commit", "create_pull_request"):
-            return None
-        if classify_dispatch_failure(dispatch_error) != "push_failed":
             return None
 
         head_sha = resolve_head_commit_sha(provider, cp.cwd)
-        if not head_sha or head_sha == (
-            cp.pre_dispatch_revision or cp.primary_revision
-        ):
+        if not head_sha:
             return None
+        if bool(getattr(cp, "pre_dispatch_unborn", False)):
+            pass
+        else:
+            baseline = cp.pre_dispatch_revision or cp.primary_revision
+            if not baseline:
+                return None
+            if head_sha == baseline:
+                return None
 
         cp.commit_sha = head_sha
         cp.commit_tree = resolve_head_tree_id(provider, cp.cwd)

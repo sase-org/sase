@@ -181,6 +181,8 @@ class GitCommitDispatchMixin(CommandRunner):
             return (True, None)
         if not self._has_origin(cwd):
             return (True, None)
+        if self._remote_is_empty(cwd):
+            return (True, None)
         default_branch = self._get_default_branch(cwd)
         fetch = self._run(
             ["git", "fetch", "origin", default_branch, "--quiet"],
@@ -332,6 +334,10 @@ class GitCommitDispatchMixin(CommandRunner):
         if "Refusing Git" in push_out.stderr:
             return self._to_result(push_out, "git push")
 
+        if self._remote_is_empty(cwd):
+            err = push_out.stderr.strip() or push_out.stdout.strip()
+            return (False, f"git push failed: {err}")
+
         # Pull and retry
         pull_out = self._run(["git", "pull", "--no-edit"], cwd)
         if not pull_out.success:
@@ -354,6 +360,17 @@ class GitCommitDispatchMixin(CommandRunner):
         branch = self._current_branch(cwd)
         if branch is None:
             return (True, None)
+        if self._remote_is_empty(cwd):
+            push = self._run(["git", "push", "-u", "origin", branch], cwd)
+            if push.success:
+                if payload is not None:
+                    from sase.workflows.commit.rebase_gate_coordinator import (
+                        clear_rebase_gate_state,
+                    )
+
+                    clear_rebase_gate_state(payload)
+                return (True, None)
+            return self._to_result(push, "git push")
         default_branch = self._get_default_branch(cwd)
         last_err: str | None = None
         for attempt in range(_PUSH_REBASE_RETRY_LIMIT + 1):
@@ -421,6 +438,14 @@ class GitCommitDispatchMixin(CommandRunner):
         if sha:
             return f"{prefix} {sha} created locally; {detail}"
         return f"{prefix} created locally; {detail}"
+
+    def _remote_is_empty(self, cwd: str) -> bool:
+        """Return True only when ``origin`` has no heads at all.
+
+        A failed ``ls-remote`` returns False so today's behaviour stays.
+        """
+        out = self._run(["git", "ls-remote", "--heads", "origin"], cwd, timeout=60)
+        return out.success and not out.stdout.strip()
 
     def _remote_branch_exists(self, name: str, cwd: str) -> bool:
         """Return True when ``name`` already exists as a remote head on origin."""
@@ -573,7 +598,24 @@ class GitCommitDispatchMixin(CommandRunner):
 
         ok, err = self._sync_with_origin_after_commit(cwd, payload)
         if not ok:
-            return (False, err)
+            if err is not None and (
+                "Rebase conflict syncing" in err or "Rebase gate finding" in err
+            ):
+                return (False, err)
+            try:
+                from sase.workflows.commit.rebase_gate_coordinator import (
+                    is_gate_blocked,
+                )
+
+                if payload is not None and is_gate_blocked(payload):
+                    return (False, err)
+            except Exception:
+                pass
+            commit_sha = self._record_unpushed_commit_marker(payload, cwd, err)
+            commit = commit_sha if commit_sha else "HEAD"
+            if err:
+                return (False, f"commit {commit} created locally; {err}")
+            return (False, f"commit {commit} created locally; git fetch failed")
 
         ok, err = self._push_current_branch_with_rebase_retry(cwd, payload)
         if not ok:

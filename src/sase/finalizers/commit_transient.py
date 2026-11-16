@@ -10,7 +10,10 @@ from typing import Any
 from sase.finalizers.commit_declaration import repository_decision_id
 from sase.finalizers.executor import FinalizerExecutionContext
 from sase.finalizers.reconciliation import pre_reconciliation_dirty_state
-from sase.llm_provider.commit_finalizer_git_status import git_head_commit_id
+from sase.llm_provider.commit_finalizer_git_status import (
+    UNKNOWN_HEAD_SENTINEL,
+    git_head_commit_id,
+)
 from sase.llm_provider.commit_finalizer_types import DirtyRepo, DirtyState
 
 TRANSIENT_EXTRA_RECHECK_LIMIT = 1
@@ -95,15 +98,20 @@ def already_clean_fingerprint_before(
     """Build declaration-time fingerprints for already-clean repos.
 
     The HEAD is the one recorded when the declaration context was built.
-    Records written before that HEAD was stored fall back to the current
-    HEAD, which is exactly today's behaviour.
+    A record with proven-unborn HEAD uses the unknown-head sentinel so the
+    discarded-work guard takes the attribution path. Records written before
+    that HEAD was stored fall back to the current HEAD, which is exactly
+    today's behaviour.
     """
 
     head_by_id: dict[str, Any] = {}
     for record in host_records:
         obligation_id = getattr(record, "obligation_id", None)
         if isinstance(obligation_id, str):
-            head_by_id[obligation_id] = getattr(record, "head", None)
+            if bool(getattr(record, "head_unborn", False)):
+                head_by_id[obligation_id] = UNKNOWN_HEAD_SENTINEL
+            else:
+                head_by_id[obligation_id] = getattr(record, "head", None)
     entries: list[tuple[str, str, tuple[str, ...]]] = []
     for repo in already_clean:
         head = head_by_id.get(repository_decision_id(repo))

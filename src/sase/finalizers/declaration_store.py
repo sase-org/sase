@@ -65,6 +65,7 @@ class HostRepositoryRecord:
     path: str
     path_count: int | None = None
     head: str | None = None
+    head_unborn: bool = False
 
 
 @contextmanager
@@ -104,22 +105,66 @@ def load_accepted_host_repositories(root: Path) -> tuple[HostRepositoryRecord, .
     return read_host_repository_file(path)
 
 
+def _is_proven_unborn_repo(path: str) -> bool:
+    """Return True only when *path* has a checked-out branch with no commit."""
+    import subprocess
+
+    try:
+        symbolic = subprocess.run(
+            ["git", "-C", path, "symbolic-ref", "-q", "HEAD"],
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=5,
+        )
+    except Exception:
+        return False
+    if symbolic.returncode != 0:
+        return False
+    try:
+        verify = subprocess.run(
+            ["git", "-C", path, "rev-parse", "--verify", "-q", "HEAD"],
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=5,
+        )
+    except Exception:
+        return False
+    return verify.returncode != 0
+
+
 def host_repository_records(
     dirty_state: DirtyState,
 ) -> tuple[HostRepositoryRecord, ...]:
     records: list[HostRepositoryRecord] = []
     for repo in dirty_state.repos:
         head = git_head_commit_id(repo.path)
-        records.append(
-            HostRepositoryRecord(
-                obligation_id=repository_obligation_id(repo),
-                kind=repo.kind,
-                name=repo.name,
-                path=repo.path,
-                path_count=len(repo.changed_files),
-                head=None if head == UNKNOWN_HEAD_SENTINEL else head,
+        if head == UNKNOWN_HEAD_SENTINEL:
+            unborn = _is_proven_unborn_repo(repo.path)
+            records.append(
+                HostRepositoryRecord(
+                    obligation_id=repository_obligation_id(repo),
+                    kind=repo.kind,
+                    name=repo.name,
+                    path=repo.path,
+                    path_count=len(repo.changed_files),
+                    head=None,
+                    head_unborn=unborn,
+                )
             )
-        )
+        else:
+            records.append(
+                HostRepositoryRecord(
+                    obligation_id=repository_obligation_id(repo),
+                    kind=repo.kind,
+                    name=repo.name,
+                    path=repo.path,
+                    path_count=len(repo.changed_files),
+                    head=head,
+                    head_unborn=False,
+                )
+            )
     return tuple(records)
 
 
@@ -142,6 +187,7 @@ def write_host_repository_file(
                     "path": record.path,
                     "path_count": record.path_count,
                     "head": record.head,
+                    "head_unborn": record.head_unborn,
                 }
                 for record in records
             ],
@@ -180,6 +226,16 @@ def read_host_repository_file(path: Path) -> tuple[HostRepositoryRecord, ...]:
         repo_path = item.get("path")
         path_count = item.get("path_count")
         head = item.get("head")
+        head_unborn_raw = item.get("head_unborn", False)
+        if head_unborn_raw is None:
+            head_unborn = False
+        elif isinstance(head_unborn_raw, bool):
+            head_unborn = head_unborn_raw
+        else:
+            raise FinalizerDeclarationError(
+                "finalizer host repository snapshot has an invalid record",
+                code="malformed_host_repositories",
+            )
         if not (
             isinstance(obligation_id, str)
             and isinstance(kind, str)
@@ -203,6 +259,7 @@ def read_host_repository_file(path: Path) -> tuple[HostRepositoryRecord, ...]:
                 path=repo_path,
                 path_count=path_count,
                 head=head,
+                head_unborn=head_unborn,
             )
         )
     return tuple(records)

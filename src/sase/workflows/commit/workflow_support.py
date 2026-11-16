@@ -59,6 +59,42 @@ def classify_dispatch_failure(result: str | None) -> str:
     return "other"
 
 
+def is_proven_unborn_head(cwd: str) -> bool:
+    """Return True only when HEAD is proven unborn.
+
+    Proven unborn means ``git symbolic-ref -q HEAD`` succeeds (a branch is
+    checked out) and ``git rev-parse --verify -q HEAD`` fails (it has no
+    commit yet). Any other read failure is not proof.
+    """
+    import subprocess
+
+    try:
+        symbolic = subprocess.run(
+            ["git", "symbolic-ref", "-q", "HEAD"],
+            cwd=cwd,
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=5,
+        )
+    except Exception:
+        return False
+    if symbolic.returncode != 0:
+        return False
+    try:
+        verify = subprocess.run(
+            ["git", "rev-parse", "--verify", "-q", "HEAD"],
+            cwd=cwd,
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=5,
+        )
+    except Exception:
+        return False
+    return verify.returncode != 0
+
+
 def log_commit_failed(method: str, reason: str) -> None:
     """Best-effort logging for commit workflow failures."""
     try:

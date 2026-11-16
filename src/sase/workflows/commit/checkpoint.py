@@ -37,6 +37,7 @@ class CommitCheckpoint:
     dispatch_result: str | None = None
     primary_revision: str | None = None
     pre_dispatch_revision: str | None = None
+    pre_dispatch_unborn: bool = False
     commit_sha: str | None = None
     commit_tree: str | None = None
     pushed: bool | None = None

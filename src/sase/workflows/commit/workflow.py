@@ -50,6 +50,7 @@ from sase.workflows.commit.workflow_support import (
     classify_dispatch_failure,
     explicit_parent_resolves,
     is_conflict_state,
+    is_proven_unborn_head,
     log_commit_failed,
 )
 from sase.workflows.commit.workflow_support import resolve_head_commit_sha
@@ -270,8 +271,11 @@ class CommitWorkflow(CommitWorkflowTrackingMixin, BaseWorkflow):
         # path can replay tracking even if dispatch crashes. The pre-dispatch
         # HEAD is stored separately so publication can name the post-commit SHA.
         pre_dispatch_revision = None
+        pre_dispatch_unborn = False
         if self._method in ("create_commit", "create_pull_request"):
             pre_dispatch_revision = resolve_head_commit_sha(provider, cwd)
+            if pre_dispatch_revision is None:
+                pre_dispatch_unborn = is_proven_unborn_head(cwd)
         cp = CommitCheckpoint(
             method=self._method,
             payload=self._payload,
@@ -283,6 +287,7 @@ class CommitWorkflow(CommitWorkflowTrackingMixin, BaseWorkflow):
             reserved_name=self._reserved_name,
             parent_cl_name=self._parent_cl_name,
             pre_dispatch_revision=pre_dispatch_revision,
+            pre_dispatch_unborn=pre_dispatch_unborn,
             publication_agent=resolve_local_agent_name(),
             run_id=os.environ.get("SASE_AGENT_TIMESTAMP", "").strip() or None,
         )

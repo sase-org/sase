@@ -64,7 +64,7 @@ def test_eviction_quarantines_unborn_head_sidecar_and_reclones(
     ) as exc_info:
         prepare_launch_workspace_repos(str(workspace), _WORKSPACE_NUM)
 
-    assert "Needed a single revision" in exc_info.value.reason
+    assert "unborn HEAD" in exc_info.value.reason
     assert clones == []
     assert not (workspace / ".sase" / "sidecar-quarantine").exists()
     assert _rescue_entries(home) == []
@@ -95,7 +95,7 @@ def test_eviction_proceeds_when_damaged_sidecar_quarantine_fails(
     ) as exc_info:
         prepare_launch_workspace_repos(str(workspace), _WORKSPACE_NUM)
 
-    assert "Needed a single revision" in exc_info.value.reason
+    assert "unborn HEAD" in exc_info.value.reason
     assert clones == []
     assert "proceeding with eviction" not in capsys.readouterr().err
     assert notified == []
