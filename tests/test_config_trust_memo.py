@@ -50,7 +50,7 @@ def test_project_identity_registry_scan_merges_once_per_primary(
     tmp_path: Path, monkeypatch
 ) -> None:
     """N evaluations over N primaries merge N times, not N**2."""
-    from sase.config import local_trust_management as trust
+    from sase.config import _local_trust_membership as trust_membership
 
     count = 6
     records = _fake_primary_records(tmp_path, count)
@@ -76,17 +76,21 @@ def test_project_identity_registry_scan_merges_once_per_primary(
     with (
         patch("sase.config.core.merge_config_sources", side_effect=counting_merge),
         patch(
-            "sase.config.local_trust_management.resolve_project_config_read_path",
+            "sase.config._local_trust_membership.resolve_project_config_read_path",
             side_effect=lambda primary: None,
         ),
     ):
         identities_first = [
-            trust._project_identity(root.resolve(), root / "sase" / "sase.yml")
+            trust_membership._project_identity(
+                root.resolve(), root / "sase" / "sase.yml"
+            )
             for root in managed_roots
         ]
         merges_after_first_pass = merge_calls["n"]
         identities_second = [
-            trust._project_identity(root.resolve(), root / "sase" / "sase.yml")
+            trust_membership._project_identity(
+                root.resolve(), root / "sase" / "sase.yml"
+            )
             for root in managed_roots
         ]
 

@@ -11,6 +11,11 @@ from types import SimpleNamespace
 import pytest
 
 from sase.config import local_trust_management as trust
+from sase.config import _local_trust_checkout as trust_checkout
+from sase.config import _local_trust_cli as trust_cli
+from sase.config import _local_trust_membership as trust_membership
+from sase.config import _local_trust_store as trust_store
+from sase.config import _local_trust_support as trust_support
 from sase.config.local_trust import LocalCommandProjection
 from sase.main.parser import create_parser
 
@@ -36,8 +41,10 @@ def _projection(
     )
 
 
-def _context(root: Path, *, digest: str = "a" * 64) -> trust._LocalCommandTrustContext:
-    return trust._LocalCommandTrustContext(
+def _context(
+    root: Path, *, digest: str = "a" * 64
+) -> trust_support.LocalCommandTrustContext:
+    return trust_support.LocalCommandTrustContext(
         checkout_root=root,
         selected_config_path=root / "sase" / "sase.yml",
         logical_config_path="sase/sase.yml",
@@ -53,10 +60,12 @@ def test_context_binds_logical_config_location_into_projection(
         tmp_path / "repo",
         "commit_hooks:\n  before: echo hi\nalias: local-name\n",
     )
-    monkeypatch.setattr(trust, "load_merged_config_for_local_path", lambda _path: {})
     monkeypatch.setattr(
-        trust,
-        "_project_identity",
+        trust_checkout, "load_merged_config_for_local_path", lambda _path: {}
+    )
+    monkeypatch.setattr(
+        trust_checkout,
+        "project_identity_for_config",
         lambda checkout, _config: f"checkout:v1:{checkout}",
     )
     seen: list[str | None] = []
@@ -65,8 +74,8 @@ def test_context_binds_logical_config_location_into_projection(
         seen.append(kwargs.get("config_path"))
         return _projection()
 
-    monkeypatch.setattr(trust, "project_local_commands", project)
-    canonical = trust._resolve_local_command_trust_context(root)
+    monkeypatch.setattr(trust_checkout, "project_local_commands", project)
+    canonical = trust_checkout.resolve_local_command_trust_context(root)
     assert canonical.logical_config_path == "sase/sase.yml"
     assert canonical.selected_config_path == root / "sase" / "sase.yml"
 
@@ -75,7 +84,7 @@ def test_context_binds_logical_config_location_into_projection(
     (root / "sase.yml").write_text(
         "commit_hooks:\n  before: echo hi\nalias: local-name\n", encoding="utf-8"
     )
-    legacy = trust._resolve_local_command_trust_context(root)
+    legacy = trust_checkout.resolve_local_command_trust_context(root)
     assert legacy.logical_config_path == "sase.yml"
     assert seen == ["sase/sase.yml", "sase.yml"]
 
@@ -85,7 +94,7 @@ def test_path_must_select_checkout_or_its_effective_config(tmp_path: Path) -> No
     unrelated = root / "notes.txt"
     unrelated.write_text("not a config", encoding="utf-8")
     with pytest.raises(RuntimeError, match="PATH must"):
-        trust._resolve_local_command_trust_context(unrelated)
+        trust_checkout.resolve_local_command_trust_context(unrelated)
 
 
 def test_registered_primary_uses_project_record_and_canonical_checkout(
@@ -106,7 +115,9 @@ def test_registered_primary_uses_project_record_and_canonical_checkout(
         "list_project_records",
         lambda *_args, **_kwargs: [record],
     )
-    identity = trust._project_identity(primary.resolve(), primary / "sase" / "sase.yml")
+    identity = trust_membership._project_identity(
+        primary.resolve(), primary / "sase" / "sase.yml"
+    )
     assert identity == f"project:v1:{project_dir.resolve()}:{primary.resolve()}"
 
 
@@ -147,9 +158,11 @@ def test_managed_identity_requires_workspace_registry_membership(
         "list_project_records",
         lambda *_args, **_kwargs: [record],
     )
-    monkeypatch.setattr(trust, "resolve_project_config_read_path", lambda _root: None)
     monkeypatch.setattr(
-        trust,
+        trust_membership, "resolve_project_config_read_path", lambda _root: None
+    )
+    monkeypatch.setattr(
+        trust_membership,
         "load_merged_config_for_local_path",
         lambda _path: {
             "workspace": {
@@ -192,10 +205,10 @@ def test_managed_identity_requires_workspace_registry_membership(
         encoding="utf-8",
     )
 
-    managed_identity = trust._project_identity(
+    managed_identity = trust_membership._project_identity(
         managed.resolve(), managed / "sase" / "sase.yml"
     )
-    spoofed_identity = trust._project_identity(
+    spoofed_identity = trust_membership._project_identity(
         spoofed.resolve(), spoofed / "sase" / "sase.yml"
     )
     expected = f"project:v1:{Path(record.project_dir).resolve()}:{primary.resolve()}"
@@ -223,16 +236,16 @@ def test_direct_mutation_adapter_repeats_human_guard(
     def refuse() -> str:
         raise RuntimeError("human terminal required")
 
-    monkeypatch.setattr(trust, "_require_human_terminal", refuse)
+    monkeypatch.setattr(trust_store, "require_human_terminal", refuse)
     monkeypatch.setattr(
-        trust,
+        trust_store,
         "require_rust_binding",
         lambda _name: pytest.fail("Rust store must not be called"),
     )
     with pytest.raises(RuntimeError, match="human terminal"):
-        trust._store_allow("checkout:v1:/repo", "a" * 64)
+        trust_store.store_allow("checkout:v1:/repo", "a" * 64)
     with pytest.raises(RuntimeError, match="human terminal"):
-        trust._store_revoke("checkout:v1:/repo")
+        trust_store.store_revoke("checkout:v1:/repo")
 
 
 def test_allow_refuses_if_config_changes_after_preview(
@@ -245,21 +258,23 @@ def test_allow_refuses_if_config_changes_after_preview(
     changed = _context(root, digest="b" * 64)
     contexts = iter((reviewed, changed))
     stored: list[tuple[str, str]] = []
-    monkeypatch.setattr(trust, "_require_human_terminal", lambda: "human")
+    monkeypatch.setattr(trust_cli, "require_human_terminal", lambda: "human")
     monkeypatch.setattr(
-        trust, "_resolve_local_command_trust_context", lambda _path=None: next(contexts)
+        trust_cli,
+        "resolve_local_command_trust_context",
+        lambda _path=None: next(contexts),
     )
     monkeypatch.setattr(
-        trust,
-        "_status_payload",
+        trust_cli,
+        "status_payload",
         lambda _context: {"status": "review_required"},
     )
     monkeypatch.setattr(
-        trust,
-        "_store_allow",
+        trust_cli,
+        "store_allow",
         lambda identity, digest: stored.append((identity, digest)),
     )
-    monkeypatch.setattr(trust.sys, "stdin", io.StringIO("allow\n"))
+    monkeypatch.setattr(trust_cli.sys, "stdin", io.StringIO("allow\n"))
 
     assert trust.allow_local_commands(root) == 1
     assert "configuration changed; review again" in capsys.readouterr().err
@@ -277,17 +292,17 @@ def test_confirmation_preview_escapes_terminal_controls(
         context,
         projection=_projection(canonical_json='{"commands":{"bash":"\\u001b[31m"}}'),
     )
-    monkeypatch.setattr(trust, "_require_human_terminal", lambda: "human")
+    monkeypatch.setattr(trust_cli, "require_human_terminal", lambda: "human")
     monkeypatch.setattr(
-        trust, "_resolve_local_command_trust_context", lambda _path=None: context
+        trust_cli, "resolve_local_command_trust_context", lambda _path=None: context
     )
     monkeypatch.setattr(
-        trust,
-        "_status_payload",
+        trust_cli,
+        "status_payload",
         lambda _context: {"status": "review_required"},
     )
-    monkeypatch.setattr(trust, "_store_allow", lambda *_args: {"changed": True})
-    monkeypatch.setattr(trust.sys, "stdin", io.StringIO("allow\n"))
+    monkeypatch.setattr(trust_cli, "store_allow", lambda *_args: {"changed": True})
+    monkeypatch.setattr(trust_cli.sys, "stdin", io.StringIO("allow\n"))
 
     assert trust.allow_local_commands(root) == 0
     output = capsys.readouterr().out

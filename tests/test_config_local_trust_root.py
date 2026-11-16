@@ -14,6 +14,8 @@ from sase.config._local_trust_enforcement_shared import (
     checkout_root_for_local_path as enforcement_checkout_root,
 )
 from sase.config import local_trust_management as trust
+from sase.config import _local_trust_checkout as trust_checkout
+from sase.config import _local_trust_support as trust_support
 from sase.config.core import clear_config_cache
 from sase.config.local_trust import LOCAL_COMMAND_TRUST_POLICY_VERSION
 from sase.content_layout import LayoutCollisionError, owning_checkout_root_for_config
@@ -77,8 +79,8 @@ def _record(primary: Path, project_dir: Path) -> SimpleNamespace:
 
 
 def _assert_parity(root: Path, config: Path) -> tuple[str, str, str]:
-    via_root = trust._resolve_local_command_trust_context(root)
-    via_file = trust._resolve_local_command_trust_context(config)
+    via_root = trust_checkout.resolve_local_command_trust_context(root)
+    via_file = trust_checkout.resolve_local_command_trust_context(config)
     evaluation = enforcement.evaluate_local_trust_for_path(config, None)
     owned = owning_checkout_root_for_config(config)
     assert owned is not None
@@ -288,8 +290,10 @@ def test_collision_fails_closed(
     with pytest.raises(LayoutCollisionError):
         owning_checkout_root_for_config(config)
     assert enforcement_checkout_root(config) is None
-    with pytest.raises(trust._LocalCommandTrustManagementError, match="multiple"):
-        trust._requested_checkout(config)
+    with pytest.raises(
+        trust_support.LocalCommandTrustManagementError, match="multiple"
+    ):
+        trust_checkout._requested_checkout(config)
 
     evaluation = enforcement.evaluate_local_trust_for_path(config, None)
     assert evaluation.trusted is False
@@ -331,7 +335,7 @@ def test_requested_checkout_from_sase_directory(
     _no_projects(monkeypatch)
     root = _canonical_checkout(tmp_path / "repo")
     monkeypatch.chdir(root / "sase")
-    checkout, selected = trust._requested_checkout(None)
+    checkout, selected = trust_checkout._requested_checkout(None)
     assert checkout == root.resolve()
     assert selected.resolve() == (root / "sase" / "sase.yml").resolve()
 
