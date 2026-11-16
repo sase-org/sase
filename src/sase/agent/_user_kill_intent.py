@@ -54,6 +54,7 @@ def write_user_kill_intent(
     timestamp: float | None = None,
     mode: str | None = None,
     hijack_id: str | None = None,
+    custody_pid: int | None = None,
 ) -> Path | None:
     """Persist explicit user-kill intent before signalling an agent.
 
@@ -75,6 +76,12 @@ def write_user_kill_intent(
         marker_data["mode"] = mode
     if hijack_id:
         marker_data["hijack_id"] = hijack_id
+    if (
+        isinstance(custody_pid, int)
+        and not isinstance(custody_pid, bool)
+        and custody_pid > 1
+    ):
+        marker_data["custody_pid"] = custody_pid
     try:
         _atomic_write_json(marker_path, marker_data)
     except OSError:
@@ -113,6 +120,19 @@ def hijack_intent_id(artifacts_dir: str | Path | None) -> str | None:
         return None
     hijack_id = marker.get("hijack_id")
     return hijack_id if isinstance(hijack_id, str) and hijack_id else None
+
+
+def hijack_intent_custody_pid(artifacts_dir: str | Path | None) -> int | None:
+    """Return the recorded recovery custodian PID for a hijack intent."""
+    if artifacts_dir is None:
+        return None
+    marker = _read_user_kill_intent(artifacts_dir)
+    if marker is None or marker.get("mode") != "hijack":
+        return None
+    pid = marker.get("custody_pid")
+    if isinstance(pid, bool) or not isinstance(pid, int) or pid <= 1:
+        return None
+    return pid
 
 
 def pending_hijack_recovery(artifacts_dir: str | Path | None) -> dict[str, Any]:
@@ -230,6 +250,7 @@ __all__ = [
     "has_hijack_intent",
     "has_user_kill_intent",
     "hijack_intent_id",
+    "hijack_intent_custody_pid",
     "live_verified_agent_pid",
     "pending_hijack_recovery",
     "read_recorded_scratch_key",

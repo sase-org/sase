@@ -367,3 +367,34 @@ def test_preserved_agent_metadata_fails_on_invalid_queue_weight_flag(
 
     with pytest.raises(RuntimeError, match="Invalid queue_weight in agent metadata"):
         preserved_agent_metadata(str(artifacts_dir))
+
+
+def test_preserved_agent_metadata_keeps_monitor_hijack_settlement(
+    tmp_path: Path,
+) -> None:
+    artifacts_dir = tmp_path / "artifacts"
+    artifacts_dir.mkdir()
+    (artifacts_dir / "agent_meta.json").write_text(
+        json.dumps(
+            {
+                "monitor_hijack_id": "hijack-1",
+                "monitor_hijack_recovery_ref": "/artifacts/hijack_recovery/hijack-1.json",
+                "monitor_hijack_boundary_outcome": "stopped",
+                "monitor_hijack_state": "held",
+                "monitor_followup_outcome": "hijacked",
+                "monitor_settled": True,
+                "monitor_state": "stopped",
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    preserved = preserved_agent_metadata(str(artifacts_dir))
+
+    assert preserved["monitor_hijack_id"] == "hijack-1"
+    assert preserved["monitor_hijack_recovery_ref"].endswith("hijack-1.json")
+    assert preserved["monitor_hijack_boundary_outcome"] == "stopped"
+    assert preserved["monitor_hijack_state"] == "held"
+    assert preserved["monitor_followup_outcome"] == "hijacked"
+    assert preserved["monitor_settled"] is True
+    assert preserved["monitor_state"] == "stopped"

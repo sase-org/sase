@@ -77,3 +77,40 @@ def test_transfer_workspace_claim_preserves_unknown_suffix_fields(
         ) in content
     finally:
         project_file.unlink()
+
+
+def test_exact_transfer_refuses_replaced_artifacts_generation(tmp_path: Path) -> None:
+    """A matching PID/workspace cannot transfer a different artifacts generation."""
+    project_file = tmp_path / "project.sase"
+    project_file.write_text(
+        "RUNNING:\n"
+        "  #100 | 11111 | ace-monitor | feature | 20260820120000 | PINNED\n"
+        "\n\nNAME: Test Feature\nSTATUS: Ready\n",
+        encoding="utf-8",
+    )
+    expected = WorkspaceClaim(
+        100,
+        "ace-monitor",
+        "feature",
+        pid=11111,
+        artifacts_timestamp="20260820115959",
+        pinned=True,
+    )
+
+    result = transfer_workspace_claim(
+        str(project_file),
+        100,
+        from_pid=11111,
+        to_pid=22222,
+        new_workflow="ace-monitor",
+        new_artifacts_timestamp="20260820120000",
+        cl_name="feature",
+        expected_from=expected,
+    )
+
+    assert result.success is False
+    assert "claim changed" in (result.error or "")
+    claims = get_claimed_workspaces(str(project_file))
+    assert len(claims) == 1
+    assert claims[0].pid == 11111
+    assert claims[0].artifacts_timestamp == "20260820120000"

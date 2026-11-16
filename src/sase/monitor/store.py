@@ -49,7 +49,20 @@ _RECONCILE_ACTIVE_MONITOR_LIMIT = 1000
 MIN_MONITOR_REF_LENGTH = 3
 
 
-def stop_monitor(record: MonitorRecord) -> MonitorRecord:
+class MonitorStopIdentityError(RuntimeError):
+    """The durable monitor identity changed before a targeted stop."""
+
+
+class MonitorStopBlockedError(RuntimeError):
+    """The monitor supervisor did not exit after its command settled."""
+
+
+def stop_monitor(
+    record: MonitorRecord,
+    *,
+    expected_supervisor_identity: str | None = None,
+    wait_for_supervisor_exit: bool = False,
+) -> MonitorRecord:
     """Terminate a running monitor's supervisor and wait for it to settle.
 
     A dead supervisor pid is reconciled in place rather than treated as an
@@ -58,19 +71,25 @@ def stop_monitor(record: MonitorRecord) -> MonitorRecord:
     monitors keep the historical supervisor path and are never copied into
     a new proc row.
     """
-    if record.monitor_state != "running":
+    if record.monitor_state != "running" and not wait_for_supervisor_exit:
         return record
+    if expected_supervisor_identity is not None:
+        _validate_stop_identity(record, expected_supervisor_identity)
     from sase.procs.submission import stop_named_proc
     from sase.procs.store import get_proc
 
     proc = get_proc(record.monitor_id)
     if proc is not None and named_proc_owns(record.monitor_id):
         stop_named_proc(proc)
-        current = read_monitor_marker(record.project_name, record.artifacts_dir)
-        return current if current is not None else record
+        return _wait_for_monitor_stop(
+            record, expected_supervisor_identity, wait_for_supervisor_exit
+        )
     pid = record.pid
     if pid is None or not supervisor_is_alive(pid, record.supervisor_identity):
-        return reconcile_dead_supervisor(record, get_monitor=read_monitor_marker)
+        reconciled = reconcile_dead_supervisor(record, get_monitor=read_monitor_marker)
+        return _wait_for_monitor_stop(
+            reconciled, expected_supervisor_identity, wait_for_supervisor_exit
+        )
 
     # The supervisor's own SIGTERM handler forwards to the monitored
     # command's process group; signal the supervisor pid directly rather
@@ -78,18 +97,81 @@ def stop_monitor(record: MonitorRecord) -> MonitorRecord:
     try:
         os.kill(pid, signal.SIGTERM)
     except (ProcessLookupError, PermissionError):
-        return reconcile_dead_supervisor(record, get_monitor=read_monitor_marker)
+        reconciled = reconcile_dead_supervisor(record, get_monitor=read_monitor_marker)
+        return _wait_for_monitor_stop(
+            reconciled, expected_supervisor_identity, wait_for_supervisor_exit
+        )
 
+    return _wait_for_monitor_stop(
+        record, expected_supervisor_identity, wait_for_supervisor_exit
+    )
+
+
+def _validate_stop_identity(
+    record: MonitorRecord, expected_supervisor_identity: str
+) -> None:
+    current = read_monitor_marker(record.project_name, record.artifacts_dir)
+    if current is None:
+        raise MonitorStopIdentityError("monitor markers disappeared before stop")
+    if (
+        current.monitor_id != record.monitor_id
+        or current.artifacts_dir != record.artifacts_dir
+        or current.timestamp != record.timestamp
+        or current.pid != record.pid
+    ):
+        raise MonitorStopIdentityError("monitor identity changed before stop")
+    recorded = current.supervisor_identity
+    if recorded and recorded != expected_supervisor_identity:
+        raise MonitorStopIdentityError(
+            "monitor supervisor identity changed before stop"
+        )
+    if current.monitor_state == "running" and not supervisor_is_alive(
+        current.pid, expected_supervisor_identity
+    ):
+        raise MonitorStopIdentityError(
+            "monitor supervisor is no longer the recorded process"
+        )
+
+
+def _wait_for_monitor_stop(
+    record: MonitorRecord,
+    expected_supervisor_identity: str | None,
+    wait_for_supervisor_exit: bool,
+) -> MonitorRecord:
     deadline = time.monotonic() + _STOP_WAIT_SECONDS
-    while time.monotonic() < deadline:
+    while True:
         current = read_monitor_marker(record.project_name, record.artifacts_dir)
-        if current is None or current.monitor_state != "running":
-            return current if current is not None else record
-        if not supervisor_is_alive(pid, record.supervisor_identity):
-            return reconcile_dead_supervisor(record, get_monitor=read_monitor_marker)
+        current = current if current is not None else record
+        if (
+            current.monitor_id != record.monitor_id
+            or current.artifacts_dir != record.artifacts_dir
+            or current.timestamp != record.timestamp
+            or (expected_supervisor_identity is not None and current.pid != record.pid)
+            or (
+                expected_supervisor_identity is not None
+                and current.supervisor_identity is not None
+                and current.supervisor_identity != expected_supervisor_identity
+            )
+        ):
+            raise MonitorStopIdentityError(
+                "monitor identity changed while waiting for stop"
+            )
+        supervisor_alive = supervisor_is_alive(
+            current.pid,
+            expected_supervisor_identity or current.supervisor_identity,
+        )
+        settled = current.monitor_state != "running"
+        if settled and (not wait_for_supervisor_exit or not supervisor_alive):
+            return current
+        if not supervisor_alive and current.monitor_state == "running":
+            return reconcile_dead_supervisor(current, get_monitor=read_monitor_marker)
+        if time.monotonic() >= deadline:
+            if settled and wait_for_supervisor_exit and supervisor_alive:
+                raise MonitorStopBlockedError(
+                    "monitor command settled but its supervisor is still writing terminal state"
+                )
+            return current
         time.sleep(_STOP_POLL_SECONDS)
-
-    return record
 
 
 def get_monitor(project_name: str, artifacts_dir: str) -> MonitorRecord | None:

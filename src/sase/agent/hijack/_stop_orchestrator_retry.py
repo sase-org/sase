@@ -55,6 +55,35 @@ def retry_stop_blocked(
             target=target,
             decision=decision,
         )
+    if target.is_monitor_turn or active.get("scope") == "monitor":
+        from sase.agent.hijack._stop_orchestrator_main import (
+            repair_monitor_settlement,
+        )
+
+        repaired = repair_monitor_settlement(
+            name,
+            record,
+            subject=subject,
+            target=target,
+            decision=decision or {},
+        )
+        if repaired is not None:
+            return repaired
+        return HijackStopResult(
+            status="settlement_pending",
+            message=(
+                f"Monitor {target.name} stopped, but its hijack settlement "
+                "remains repairable: terminal monitor state is unavailable"
+            ),
+            exit_code=EXIT_FAILED,
+            hijack_id=hijack_id or None,
+            record=ledger.load_record(hijack_id) if hijack_id else record,
+            reason="settlement_pending",
+            decision=decision,
+            occupant_name=getattr(subject, "occupant_name", None),
+            occupant_reason=getattr(subject, "occupant_reason", None),
+            workspace_num=target.workspace_num,
+        )
     # Retry succeeded: fall through to the normal held settlement.
     return settle_held_result(
         name,

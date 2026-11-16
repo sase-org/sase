@@ -45,6 +45,8 @@ class HijackTarget:
     occupant_name: str | None = None
     occupant_reason: str | None = None
     decision: dict[str, Any] | None = None
+    monitor_id: str | None = None
+    monitor_supervisor_identity: str | None = None
 
 
 @dataclass
@@ -68,6 +70,7 @@ class StopDeps:
     snapshot_repo: Callable[..., Any] | None = None
     now: Callable[[], float] | None = None
     process_alive: Callable[[dict[str, Any], Path], bool] | None = None
+    stop_monitor: Callable[..., Any] | None = None
 
 
 def read_json_dict(path: Path) -> dict[str, Any] | None:

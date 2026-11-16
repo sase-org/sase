@@ -543,6 +543,19 @@ def _finish_monitor(
         project_name=project_name,
         launch_followup=launch_followup_agent,
     )
+    if getattr(followup_settlement, "hijack_handled", False):
+        if getattr(followup_settlement, "hijack_settled", False):
+            finalize_monitor_workflow_state(artifacts_dir)
+            touch_monitor_refresh_pulse(project_name)
+            publish_deferred_monitor_completion(
+                artifacts_dir,
+                outcome={
+                    "monitor_state": monitor_state,
+                    "settled_at": _utc_now_iso(),
+                    "hijack_id": followup_settlement.hijack_id,
+                },
+            )
+        return
     followup_error = followup_settlement.error
     followup_launch = followup_settlement.launch_result
     if (

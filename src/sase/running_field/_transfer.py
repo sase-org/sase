@@ -6,7 +6,7 @@ from sase.ace.patch import patch_lock, write_patch_atomic
 from sase.core.agent_launch_claims import plan_transfer_workspace_claim_from_content
 from sase.core.agent_launch_wire import WorkspaceClaimRequestWire
 from sase.logs.workspace_claim_ledger import record_running_field_mutation
-from sase.running_field._model import ClaimResult
+from sase.running_field._model import ClaimResult, WorkspaceClaim
 
 
 def transfer_workspace_claim(
@@ -19,6 +19,7 @@ def transfer_workspace_claim(
     new_artifacts_timestamp: str | None,
     cl_name: str | None = None,
     caller_tag: str | None = None,
+    expected_from: WorkspaceClaim | None = None,
 ) -> ClaimResult:
     """Atomically transfer ownership of an existing workspace claim to a new PID.
 
@@ -42,6 +43,25 @@ def transfer_workspace_claim(
         with patch_lock(project_file):
             with open(project_file, encoding="utf-8") as f:
                 content = f.read()
+
+            if expected_from is not None and not _contains_exact_claim(
+                content, expected_from
+            ):
+                reason = "the workspace claim changed before the exact-owner transfer"
+                record_running_field_mutation(
+                    operation="transfer",
+                    project_file=project_file,
+                    workspace_num=workspace_num,
+                    success=False,
+                    before_content=content,
+                    workflow=new_workflow,
+                    cl_name=cl_name,
+                    artifacts_timestamp=new_artifacts_timestamp,
+                    claim_pid=to_pid,
+                    error=reason,
+                    caller_tag=caller_tag,
+                )
+                return ClaimResult(success=False, error=reason)
 
             plan = plan_transfer_workspace_claim_from_content(
                 content,
@@ -98,3 +118,29 @@ def transfer_workspace_claim(
             return ClaimResult(success=True)
     except (OSError, BlockingIOError) as exc:
         return ClaimResult(success=False, error=repr(exc))
+
+
+def _contains_exact_claim(content: str, expected: WorkspaceClaim) -> bool:
+    """Check the full old-owner identity while the ProjectSpec lock is held."""
+    in_running_field = False
+    for line in content.splitlines():
+        if line.startswith("RUNNING:"):
+            in_running_field = True
+            continue
+        if not in_running_field:
+            continue
+        if not line.startswith((" ", "\t")):
+            break
+        claim = WorkspaceClaim.from_line(line)
+        if claim is None:
+            continue
+        if (
+            claim.workspace_num == expected.workspace_num
+            and claim.pid == expected.pid
+            and claim.workflow == expected.workflow
+            and claim.cl_name == expected.cl_name
+            and claim.artifacts_timestamp == expected.artifacts_timestamp
+            and claim.pinned == expected.pinned
+        ):
+            return True
+    return False

@@ -135,6 +135,36 @@ def _reconcile_dead_supervisor_locked(
     except (FileNotFoundError, json.JSONDecodeError, OSError):
         return record
     if meta.get("monitor_state") != "running":
+        from .hijack_settlement import monitor_hijack_pending
+
+        if monitor_hijack_pending(record.artifacts_dir, meta):
+            terminal_state = str(meta.get("monitor_state") or record.monitor_state)
+            if terminal_state in {"completed", "failed", "timeout", "stopped", "lost"}:
+                capture = _capture_existing_output(record.artifacts_dir)
+                settlement = settle_claim_and_followup(
+                    record.artifacts_dir,
+                    meta,
+                    monitor_state=terminal_state,  # type: ignore[arg-type]
+                    exit_code=record.exit_code,
+                    elapsed_seconds=record.elapsed_seconds or 0.0,
+                    capture=capture,
+                    timeout_kind=None,
+                    project_name=record.project_name,
+                    transfer_from_pid=record.pid,
+                )
+                if getattr(settlement, "hijack_handled", False) and getattr(
+                    settlement, "hijack_settled", False
+                ):
+                    finalize_monitor_workflow_state(record.artifacts_dir)
+                    touch_monitor_refresh_pulse(record.project_name)
+                    publish_deferred_monitor_completion(
+                        record.artifacts_dir,
+                        outcome={
+                            "monitor_state": terminal_state,
+                            "settled_at": _utc_now_iso(),
+                            "hijack_id": settlement.hijack_id,
+                        },
+                    )
         current = get_monitor(record.project_name, record.artifacts_dir)
         return current if current is not None else record
 
@@ -224,6 +254,20 @@ def _reconcile_dead_supervisor_locked(
         project_name=record.project_name,
         transfer_from_pid=record.pid,
     )
+    if getattr(followup_settlement, "hijack_handled", False):
+        if getattr(followup_settlement, "hijack_settled", False):
+            finalize_monitor_workflow_state(record.artifacts_dir)
+            touch_monitor_refresh_pulse(record.project_name)
+            publish_deferred_monitor_completion(
+                record.artifacts_dir,
+                outcome={
+                    "monitor_state": monitor_state,
+                    "settled_at": stopped_at,
+                    "hijack_id": followup_settlement.hijack_id,
+                },
+            )
+        current = get_monitor(record.project_name, record.artifacts_dir)
+        return current if current is not None else record
     followup_error = followup_settlement.error
 
     meta["monitor_settled"] = True

@@ -18,6 +18,7 @@ from sase.turns.settlement import (
 
 from ._settlement_retention import release_monitor_claim
 from .followup import FollowupLaunchResult, launch_followup_agent
+from .hijack_settlement import settle_monitor_hijack
 from .host_completion import HOST_COMPLETED_OUTCOME, settle_host_completion
 from .models import MONITOR_FOLLOWUP_DEGRADED_OUTCOME, MonitorState
 from .naming import short_monitor_id
@@ -54,6 +55,9 @@ class _MonitorFollowupSettlementResult:
 
     error: str | None = None
     launch_result: FollowupLaunchResult | None = None
+    hijack_handled: bool = False
+    hijack_settled: bool = False
+    hijack_id: str | None = None
 
 
 def settle_claim_and_followup(
@@ -70,6 +74,20 @@ def settle_claim_and_followup(
     launch_followup: FollowupLauncher | None = None,
 ) -> _MonitorFollowupSettlementResult:
     """Launch/record follow-up disposition and dispose of the monitor claim."""
+    hijack = settle_monitor_hijack(
+        artifacts_dir,
+        meta,
+        monitor_state=monitor_state,
+        project_name=project_name,
+    )
+    if hijack.handled:
+        return _MonitorFollowupSettlementResult(
+            error=hijack.error,
+            hijack_handled=True,
+            hijack_settled=hijack.settled,
+            hijack_id=hijack.hijack_id,
+        )
+
     launcher = launch_followup or launch_followup_agent
     captured_launch_result: FollowupLaunchResult | None = None
 

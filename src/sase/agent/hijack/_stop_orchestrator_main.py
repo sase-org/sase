@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 import logging
+import os
 import socket
 import uuid
+from pathlib import Path
 from typing import Any
 
 from sase.agent.hijack._stop_claim import (
@@ -121,6 +123,16 @@ def stop_agent_for_hijack(
                     deps=deps,
                     decision=decision,
                 )
+            if state == "stopping" and early_active.get("scope") == "monitor":
+                repaired = repair_monitor_settlement(
+                    name,
+                    early_active,
+                    subject=subject,
+                    target=target,
+                    decision=decision,
+                )
+                if repaired is not None:
+                    return repaired
             if (
                 decision.get("code") == "active_hijack"
                 or state in _ACTIVE_TARGET_STATES
@@ -133,7 +145,7 @@ def stop_agent_for_hijack(
 
     if (
         decision.get("mode") != "immediate"
-        or decision.get("adapter") not in {"llm", "processless"}
+        or decision.get("adapter") not in {"llm", "processless", "monitor"}
         or target is None
     ):
         code = str(
@@ -175,6 +187,16 @@ def stop_agent_for_hijack(
                         deps=deps,
                         decision=decision,
                     )
+                if state == "stopping" and fallback_active.get("scope") == "monitor":
+                    repaired = repair_monitor_settlement(
+                        name,
+                        fallback_active,
+                        subject=subject,
+                        target=target,
+                        decision=decision,
+                    )
+                    if repaired is not None:
+                        return repaired
                 return coalesced_result(
                     name, fallback_active, subject=subject, decision=decision
                 )
@@ -228,6 +250,12 @@ def stop_agent_for_hijack(
                     deps=deps,
                     decision=decision,
                 )
+            if state == "stopping" and active.get("scope") == "monitor":
+                repaired = repair_monitor_settlement(
+                    name, active, subject=subject, target=target, decision=decision
+                )
+                if repaired is not None:
+                    return repaired
             return coalesced_result(name, active, subject=subject, decision=decision)
         # Stale slot winner: take the slot over and continue.
         try:
@@ -346,11 +374,14 @@ def stop_agent_for_hijack(
 
     intent_path = write_user_kill_intent(
         target.artifacts_dir,
-        pid=int(target.pid or 0) if decision.get("adapter") == "llm" else 0,
+        pid=(
+            int(target.pid or 0) if decision.get("adapter") in {"llm", "monitor"} else 0
+        ),
         source=source,
         reason=reason,
         mode="hijack",
         hijack_id=resolved_id,
+        custody_pid=os.getpid() if decision.get("adapter") == "monitor" else None,
     )
     if intent_path is None:
         abort_before_stop(target, resolved_id, reason="intent not persisted")
@@ -477,8 +508,18 @@ def stop_agent_for_hijack(
             workspace_num=target.workspace_num,
         )
 
-    termination = terminate_with_retry(target, deps=deps) if adapter == "llm" else None
+    termination = (
+        terminate_with_retry(target, deps=deps)
+        if adapter in {"llm", "monitor"}
+        else None
+    )
     if termination is not None and not termination.success:
+        if adapter == "monitor":
+            settled = ledger.load_record(resolved_id)
+            if isinstance(settled, dict) and settled.get("state") == "held":
+                return coalesced_result(
+                    name, settled, subject=subject, decision=decision
+                )
         return build_stop_blocked_result(
             name,
             resolved_id,
@@ -488,6 +529,48 @@ def stop_agent_for_hijack(
             target=target,
             decision=decision,
         )
+
+    if adapter == "monitor":
+        monitor_record = getattr(termination, "monitor_record", None)
+        monitor_state = getattr(monitor_record, "monitor_state", None)
+        if not isinstance(monitor_state, str) or monitor_state == "running":
+            return build_stop_blocked_result(
+                name,
+                resolved_id,
+                record,
+                termination,
+                subject=subject,
+                target=target,
+                decision=decision,
+            )
+        from sase.agent.hijack._stop_models import read_json_dict
+        from sase.monitor.hijack_settlement import settle_monitor_hijack
+
+        meta = read_json_dict(Path(target.artifacts_dir) / "agent_meta.json") or {}
+        settlement = settle_monitor_hijack(
+            target.artifacts_dir,
+            meta,
+            monitor_state=monitor_state,
+            project_name=target.project_name,
+        )
+        current = ledger.load_record(resolved_id) or record
+        if not settlement.settled or current.get("state") != "held":
+            return HijackStopResult(
+                status="settlement_pending",
+                message=(
+                    f"Monitor {target.name} stopped, but hijack settlement remains "
+                    f"repairable: {settlement.error or current.get('error') or 'pending'}"
+                ),
+                exit_code=EXIT_FAILED,
+                hijack_id=resolved_id,
+                record=current,
+                reason="settlement_pending",
+                decision=decision,
+                occupant_name=subject.occupant_name,
+                occupant_reason=subject.occupant_reason,
+                workspace_num=target.workspace_num,
+            )
+        return coalesced_result(name, current, subject=subject, decision=decision)
 
     return settle_held_result(
         name,
@@ -499,6 +582,62 @@ def stop_agent_for_hijack(
         decision=decision,
         pinned_by_us=pinned_by_us,
     )
+
+
+def repair_monitor_settlement(
+    name: str,
+    active: dict[str, Any],
+    *,
+    subject: Any,
+    target: Any,
+    decision: dict[str, Any],
+) -> HijackStopResult | None:
+    """Replay a terminal monitor checkpoint after a prior partial settle."""
+    from sase.agent.hijack._stop_models import read_json_dict
+    from sase.agent.hijack._stop_orchestrator_targets import coalesced_result
+    from sase.monitor.hijack_settlement import settle_monitor_hijack
+    from sase.monitor.store import read_monitor_marker
+
+    current = read_monitor_marker(target.project_name, target.artifacts_dir)
+    if current is None or current.monitor_state == "running":
+        return None
+    meta = read_json_dict(Path(target.artifacts_dir) / "agent_meta.json") or {}
+    disposition = settle_monitor_hijack(
+        target.artifacts_dir,
+        meta,
+        monitor_state=current.monitor_state,
+        project_name=target.project_name,
+    )
+    record = None
+    try:
+        from sase.agent.hijack import ledger
+
+        record = ledger.load_record(str(active.get("hijack_id") or ""))
+    except Exception:
+        pass
+    if (
+        disposition.settled
+        and isinstance(record, dict)
+        and record.get("state") == "held"
+    ):
+        return coalesced_result(name, record, subject=subject, decision=decision)
+    if disposition.handled:
+        return HijackStopResult(
+            status="settlement_pending",
+            message=(
+                f"Monitor {target.name} is terminal, but hijack settlement remains "
+                f"repairable: {disposition.error or 'pending'}"
+            ),
+            exit_code=EXIT_FAILED,
+            hijack_id=str(active.get("hijack_id") or "") or None,
+            record=record or active,
+            reason="settlement_pending",
+            decision=decision,
+            occupant_name=getattr(subject, "occupant_name", None),
+            occupant_reason=getattr(subject, "occupant_reason", None),
+            workspace_num=getattr(target, "workspace_num", None),
+        )
+    return None
 
 
 def _request_latch_result(

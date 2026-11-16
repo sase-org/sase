@@ -114,6 +114,8 @@ def resolve_direct_target(
         run_started_at=_meta_epoch(meta, "booted_at", "started_at"),
         done_outcome=done_outcome,
         done_recovery=done_recovery,
+        monitor_id=_meta_str(meta, "monitor_id"),
+        monitor_supervisor_identity=_meta_str(meta, "monitor_supervisor_identity"),
     )
 
 

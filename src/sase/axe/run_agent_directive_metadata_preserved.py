@@ -41,6 +41,18 @@ def preserved_agent_metadata(artifacts_dir: str) -> dict[str, Any]:
     if not isinstance(existing_meta, dict):
         return {}
     preserved: dict[str, Any] = {}
+    if isinstance(existing_meta.get("monitor_hijack_id"), str):
+        for key in (
+            "monitor_hijack_id",
+            "monitor_hijack_recovery_ref",
+            "monitor_hijack_boundary_outcome",
+            "monitor_hijack_state",
+            "monitor_followup_outcome",
+            "monitor_settled",
+            "monitor_state",
+        ):
+            if key in existing_meta:
+                preserved[key] = existing_meta[key]
     for key in (
         "wait_completed_at",
         "sdd_plan_path",

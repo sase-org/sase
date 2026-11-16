@@ -48,9 +48,19 @@ def terminate_with_retry(target: HijackTarget, *, deps: StopDeps) -> Any:
     The terminator escalates SIGTERM to SIGKILL internally. A retry covers
     children that appeared while the tree shut down.
     """
-    termination = terminate_tree(target, deps=deps)
+    monitor_target = target.is_monitor_turn or target.monitor_id is not None
+    if monitor_target:
+        from sase.agent.hijack._stop_monitor import stop_monitor_target
+
+        termination = stop_monitor_target(target, deps=deps)
+    else:
+        termination = terminate_tree(target, deps=deps)
     attempts = 0
-    while not termination.success and attempts < _STOP_RETRY_ATTEMPTS:
+    while (
+        not termination.success
+        and not getattr(termination, "identity_error", False)
+        and attempts < _STOP_RETRY_ATTEMPTS
+    ):
         attempts += 1
         LOG.warning(
             "hijack termination retry %d for %s: %s",
@@ -58,7 +68,12 @@ def terminate_with_retry(target: HijackTarget, *, deps: StopDeps) -> Any:
             target.name,
             getattr(termination, "error", None) or "survivors remain",
         )
-        termination = terminate_tree(target, deps=deps)
+        if monitor_target:
+            from sase.agent.hijack._stop_monitor import stop_monitor_target
+
+            termination = stop_monitor_target(target, deps=deps)
+        else:
+            termination = terminate_tree(target, deps=deps)
     return termination
 
 

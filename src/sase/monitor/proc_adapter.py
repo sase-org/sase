@@ -298,7 +298,11 @@ def settle_monitor_followup(state: dict[str, Any]) -> None:
             state,
         )
 
-    if meta.get("monitor_followup_outcome"):
+    from .hijack_settlement import monitor_hijack_pending
+
+    if meta.get("monitor_followup_outcome") and not monitor_hijack_pending(
+        artifacts_dir, meta
+    ):
         state["followup_outcome"] = meta.get("monitor_followup_outcome")
     else:
         followup_settlement = settle_claim_and_followup(
@@ -326,6 +330,21 @@ def settle_monitor_followup(state: dict[str, Any]) -> None:
             )
         state["followup_error"] = followup_error
         state["followup_outcome"] = meta.get("monitor_followup_outcome")
+
+        if getattr(followup_settlement, "hijack_handled", False):
+            if getattr(followup_settlement, "hijack_settled", False):
+                state["followup_outcome"] = "hijacked"
+                finalize_monitor_workflow_state(artifacts_dir)
+                touch_monitor_refresh_pulse(project_name)
+                publish_deferred_monitor_completion(
+                    artifacts_dir,
+                    outcome={
+                        "monitor_state": monitor_state,
+                        "settled_at": _utc_now_iso(),
+                        "hijack_id": followup_settlement.hijack_id,
+                    },
+                )
+            return
 
     if not meta.get("stopped_at"):
         meta["stopped_at"] = _command_ended_at(
