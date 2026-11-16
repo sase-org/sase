@@ -12,6 +12,7 @@ from typing import Any
 
 from sase.agent.launcher import spawn_agent_subprocess
 from sase.axe.run_agent_helpers_artifacts import update_meta_field
+from sase.workflows.utils import get_project_file_path
 from sase.gate_turn.followup_policy import GateFollowupPolicy
 from sase.gate_turn.followup_prompt import (
     GateOptionOutcome,
@@ -102,6 +103,15 @@ def launch_gate_followup_agent(
             **base_kwargs,
         )
 
+    from sase.agent.hijack.spawn_guard import latch_guard_from_predecessor
+
+    latch_guard = latch_guard_from_predecessor(
+        project_file=get_project_file_path(project_name),
+        session_or_agent=lane,
+        artifacts_dir=predecessor_dir,
+        member=predecessor_name,
+    )
+
     def _spawn(
         prompt: str,
         workspace_dir: str,
@@ -123,6 +133,7 @@ def launch_gate_followup_agent(
             predecessor_name=predecessor_name,
             vcs_ref=vcs_ref,
             spawn_fn=spawn_agent_subprocess,
+            latch_guard=latch_guard,
         )
 
     gate_artifacts_dir = artifacts_dir
@@ -179,6 +190,7 @@ def launch_gate_followup_agent(
         ),
         record_launched=_record_launched_result,
         record_not_launchable=_record_not_launchable_result,
+        latch_guard=latch_guard,
     )
 
 

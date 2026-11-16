@@ -5,6 +5,7 @@ from __future__ import annotations
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from sase.agent.detached_child import (
     AgentSessionAttachDirective,
@@ -15,6 +16,9 @@ from sase.agent.launch_types import AgentLaunchResult
 from sase.core.artifact_file_facade import store_explicit_artifact_file
 
 from ._followup_common import FollowupLaunchResult
+
+if TYPE_CHECKING:
+    from sase.agent.hijack.spawn_guard import SpawnLatchGuard
 
 UpdateMetaFieldFn = Callable[[str, str, object], None]
 
@@ -48,6 +52,7 @@ def spawn_turn_agent_session_successor(
     spawn_fn: SpawnFn | None = None,
     predecessor_artifacts_dir: str | None = None,
     predecessor_name: str | None = None,
+    latch_guard: SpawnLatchGuard | None = None,
 ) -> AgentLaunchResult:
     """Spawn the next agent member in *agent_session* using agent-session attach semantics."""
     return spawn_agent_session_successor(
@@ -64,6 +69,7 @@ def spawn_turn_agent_session_successor(
         spawn_fn=spawn_fn,
         predecessor_artifacts_dir=predecessor_artifacts_dir,
         predecessor_name=predecessor_name,
+        latch_guard=latch_guard,
     )
 
 

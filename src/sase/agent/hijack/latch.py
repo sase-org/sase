@@ -17,7 +17,7 @@ from sase.agent.hijack import core, ledger
 from sase.agent.hijack._stop_claim import apply_latched_settlement, pin_claim
 from sase.agent.hijack._stop_evidence import collect_and_attach_evidence
 from sase.agent.hijack._stop_models import HijackTarget, StopDeps, read_json_dict
-from sase.notification_gates.durability import file_lock
+from sase.agent.hijack.locks import acquire_hijack_lock, record_lock_hold
 
 
 def request_latch(
@@ -52,7 +52,9 @@ def request_latch(
     target_key = _target_key(subject, target)
     new_id = hijack_id or _new_hijack_id(target.name)
 
-    with file_lock(ledger.target_index_lock_path(), timeout=10.0):
+    with acquire_hijack_lock(
+        "target_index", ledger.target_index_lock_path(), timeout=10.0
+    ):
         active = ledger.find_active_record_by_target_key(target_key)
         if active is not None:
             if not _same_owner(active, target, owner_identity, target_key=target_key):
@@ -258,7 +260,7 @@ def apply_latch_at_boundary(
         )
 
     lock_path = ledger.hijack_record_path(hijack_id).with_suffix(".apply.lock")
-    with file_lock(lock_path, timeout=30.0):
+    with acquire_hijack_lock("apply", lock_path, timeout=30.0):
         current = ledger.load_record(hijack_id)
         if current is None:
             return _result(
@@ -326,12 +328,13 @@ def apply_latch_at_boundary(
                 target=target,
             )
 
-        if not pin_claim(target):
-            return _application_pending(
-                current,
-                "claim_mismatch",
-                "the exact numbered workspace claim could not be held; no done marker was rewritten",
-            )
+        with record_lock_hold("patch_lock"):
+            if not pin_claim(target):
+                return _application_pending(
+                    current,
+                    "claim_mismatch",
+                    "the exact numbered workspace claim could not be held; no done marker was rewritten",
+                )
         try:
             apply_latched_settlement(target, hijack_id)
         except Exception as exc:  # noqa: BLE001 - custody stays pinned for repair.

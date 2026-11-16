@@ -19,9 +19,10 @@ from sase.agent.hijack.core import (
     advance_agent_hijack_record,
     agent_hijack_wire_schema_version,
 )
+from sase.agent.hijack.locks import acquire_hijack_lock
 from sase.core.paths import sase_subdir
 from sase.core.time import get_timezone
-from sase.notification_gates.durability import atomic_write_json, file_lock
+from sase.notification_gates.durability import atomic_write_json
 
 LEDGER_DIRNAME = "agent_hijacks"
 SETTLED_DIRNAME = "settled"
@@ -142,7 +143,7 @@ def claim_target_slot(target_key: str, hijack_id: str) -> str:
     """
     if not target_key:
         return hijack_id
-    with file_lock(_target_index_lock_path(), timeout=10.0):
+    with acquire_hijack_lock("target_index", _target_index_lock_path(), timeout=10.0):
         return claim_target_slot_locked(target_key, hijack_id)
 
 
@@ -166,7 +167,9 @@ def release_target_slot(target_key: str, hijack_id: str) -> None:
     if not target_key or not hijack_id:
         return
     try:
-        with file_lock(_target_index_lock_path(), timeout=10.0):
+        with acquire_hijack_lock(
+            "target_index", _target_index_lock_path(), timeout=10.0
+        ):
             release_target_slot_locked(target_key, hijack_id)
     except Exception:
         pass
@@ -368,7 +371,9 @@ def merge_record_fields(
     """Best-effort merge of non-state fields without a revision bump."""
     path = hijack_record_path(hijack_id)
     try:
-        with file_lock(hijack_record_lock_path(hijack_id), timeout=10.0):
+        with acquire_hijack_lock(
+            "record", hijack_record_lock_path(hijack_id), timeout=10.0
+        ):
             current = read_hijack_record_payload(path)
             if current is None:
                 return None
@@ -394,7 +399,9 @@ def cas_advance_record(
     event_payload = dict(event)
     event_payload.setdefault("at", timestamp_for())
     try:
-        with file_lock(hijack_record_lock_path(hijack_id), timeout=10.0):
+        with acquire_hijack_lock(
+            "record", hijack_record_lock_path(hijack_id), timeout=10.0
+        ):
             current = read_hijack_record_payload(path)
             if current is None:
                 raise HijackLedgerConflict(

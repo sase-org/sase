@@ -379,6 +379,11 @@ def deliver_staged_successor_detached(
             str(origin), staged_id, delivery_state="submitted"
         )
         successor = record["successor"]
+        from sase.agent.hijack.spawn_guard import (
+            HijackLatchedError,
+            latch_guard_from_predecessor,
+        )
+
         try:
             prompt = _read_staged_launch_prompt(successor)
             vcs_ref_raw = successor.get("vcs_ref")
@@ -396,6 +401,21 @@ def deliver_staged_successor_detached(
 
             extra_env[PROMPT_AUTHORSHIP_ENV] = "agent"
             extra_env[PROMPT_ORIGIN_ENV] = "generated"
+
+            origin_name = source_meta.get("name")
+            if not isinstance(origin_name, str) or not origin_name.strip():
+                origin_name = None
+            origin_session = source_meta.get("agent_session")
+            if not isinstance(origin_session, str) or not origin_session.strip():
+                origin_session = origin_name
+            latch_guard = latch_guard_from_predecessor(
+                project_file=successor.get("project_file"),
+                session_or_agent=origin_session,
+                artifacts_dir=str(origin),
+                member=origin_name,
+                extra_env=extra_env,
+                is_home=bool(successor.get("is_home_mode")),
+            )
             attach_data = successor.get("attach_plan")
             if isinstance(attach_data, dict):
                 from sase.agent._agent_session_attach_types import (
@@ -426,6 +446,9 @@ def deliver_staged_successor_detached(
                     timestamp=successor["launch_timestamp"],
                     extra_env=extra_env,
                     resolve_plan=lambda *_args, **_kwargs: attach_plan,
+                    predecessor_artifacts_dir=str(origin),
+                    predecessor_name=origin_name,
+                    latch_guard=latch_guard,
                 )
             else:
                 from sase.agent.detached_child import spawn_detached_child
@@ -447,7 +470,17 @@ def deliver_staged_successor_detached(
                         **extra_env,
                         "SASE_AGENT_PLANNED_NAME": agent_name,
                     },
+                    latch_guard=latch_guard,
+                    predecessor_artifacts_dir=str(origin),
+                    predecessor_name=origin_name,
                 )
+        except HijackLatchedError as exc:
+            return SuccessorDeliveryResult(
+                "held",
+                agent_name,
+                artifacts_dir,
+                reason=str(exc),
+            )
         except Exception as exc:  # noqa: BLE001 - submitted is deliberately sticky.
             return SuccessorDeliveryResult(
                 "held",

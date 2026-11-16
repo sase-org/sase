@@ -29,6 +29,7 @@ from sase.agent._agent_session_attach_types import (
 from sase.agent.detached_child import spawn_agent_session_successor
 from sase.turns.followup_starter import starter_predecessor
 from sase.agent.launcher import spawn_agent_subprocess
+from sase.workflows.utils import get_project_file_path
 from sase.axe.run_agent_helpers_artifacts import update_meta_field
 from sase.continuation_capture.rollout import (
     monitor_continuation_records_enabled_for_meta,
@@ -412,6 +413,14 @@ def launch_followup_agent(
         predecessor_artifacts_dir=predecessor_dir,
         predecessor_name=predecessor_name,
     )
+    from sase.agent.hijack.spawn_guard import latch_guard_from_predecessor
+
+    latch_guard = latch_guard_from_predecessor(
+        project_file=get_project_file_path(project_name),
+        session_or_agent=lane,
+        artifacts_dir=predecessor_dir,
+        member=predecessor_name,
+    )
 
     def _spawn(
         prompt: str,
@@ -440,6 +449,7 @@ def launch_followup_agent(
                 parent_workspace_dir=workspace_dir or frozen_plan.parent_workspace_dir,
                 parent_workspace_num=workspace_num,
             ),
+            latch_guard=latch_guard,
         )
         maybe_crash("after_spawn")
         if claim_key is not None:
@@ -507,6 +517,7 @@ def launch_followup_agent(
         ),
         record_launched=_record_launched_result,
         record_not_launchable=_record_not_launchable_result,
+        latch_guard=latch_guard,
     )
 
 

@@ -5,6 +5,7 @@ from __future__ import annotations
 import os
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
+from typing import TYPE_CHECKING
 
 from sase.agent.launch_types import AgentLaunchResult
 from sase.running_field import (
@@ -19,6 +20,9 @@ from sase.workflows.utils import get_project_file_path
 from sase.workspace_provider import resolve_consistent_workspace_pair
 
 from ._followup_common import FollowupLaunchResult
+
+if TYPE_CHECKING:
+    from sase.agent.hijack.spawn_guard import SpawnLatchGuard
 
 _POOL_FOLLOWUP_CLAIM_WORKFLOW = "ace-followup"
 
@@ -154,6 +158,7 @@ def launch_turn_followup(
     record_not_launchable: Callable[[str, str], FollowupLaunchResult],
     recorded_vcs_ref: tuple[str, str] | None = None,
     strict_workspace: bool = False,
+    latch_guard: SpawnLatchGuard | None = None,
 ) -> FollowupLaunchResult:
     """Launch a follow-up agent, degrading through workspace claim fallbacks.
 
@@ -177,7 +182,14 @@ def launch_turn_followup(
     fresh claim on that same pair are attempted, and any further failure is
     reported through *record_not_launchable*: pool-workspace and ``#0``
     fallbacks are never used.
+
+    ``latch_guard`` carries predecessor target and artifact identity. A
+    pending or applied hijack latch raises :class:`HijackLatchedError` on
+    every attempt, including transfer, fresh claim, pool claim, and
+    workspace zero, so those fallbacks cannot swallow the refusal.
     """
+    from sase.agent.hijack.spawn_guard import HijackLatchedError
+
     if strict_workspace:
         pair_error = _strict_workspace_pair_error(
             project_name, meta_workspace_num, meta_workspace_dir
@@ -213,6 +225,7 @@ def launch_turn_followup(
 
     prompt = compose_prompt(initial_degraded_reason)
     vcs_ref = _resolve_turn_followup_vcs_ref(recorded_vcs_ref, prompt)
+    _refuse_latched_followup(latch_guard)
 
     try:
         result = spawn(
@@ -222,6 +235,8 @@ def launch_turn_followup(
             transfer_from_pid,
             vcs_ref,
         )
+    except HijackLatchedError:
+        raise
     except WorkspaceClaimError as transfer_exc:
         fresh_reason = workspace.fresh_claim_reason(
             original_workspace_num, transfer_exc
@@ -238,6 +253,7 @@ def launch_turn_followup(
 
     degraded_prompt = compose_prompt(fresh_reason)
     degraded_vcs_ref = _resolve_turn_followup_vcs_ref(recorded_vcs_ref, degraded_prompt)
+    _refuse_latched_followup(latch_guard)
     try:
         result = spawn(
             degraded_prompt,
@@ -246,6 +262,8 @@ def launch_turn_followup(
             None,
             degraded_vcs_ref,
         )
+    except HijackLatchedError:
+        raise
     except WorkspaceClaimError as claim_exc:
         if strict_workspace:
             # Strict recovery successors stay on their exact workspace pair:
@@ -276,6 +294,7 @@ def launch_turn_followup(
                 record_not_launchable=record_not_launchable,
                 recorded_vcs_ref=recorded_vcs_ref,
                 pool_failure_prompt=degraded_prompt,
+                latch_guard=latch_guard,
             )
         zero_workspace_dir = _workspace_dir_for_num(project_name, 0)
         zero_reason = workspace.workspace_zero_reason(
@@ -283,8 +302,11 @@ def launch_turn_followup(
         )
         zero_prompt = compose_prompt(zero_reason)
         zero_vcs_ref = _resolve_turn_followup_vcs_ref(recorded_vcs_ref, zero_prompt)
+        _refuse_latched_followup(latch_guard)
         try:
             result = spawn(zero_prompt, zero_workspace_dir, 0, None, zero_vcs_ref)
+        except HijackLatchedError:
+            raise
         except (RuntimeError, OSError, ValueError) as exc:
             return record_not_launchable(str(exc), zero_prompt)
         return record_launched(
@@ -318,9 +340,13 @@ def _launch_vcs_followup_in_pool_workspace(
     record_not_launchable: Callable[[str, str], FollowupLaunchResult],
     recorded_vcs_ref: tuple[str, str] | None,
     pool_failure_prompt: str,
+    latch_guard: SpawnLatchGuard | None = None,
 ) -> FollowupLaunchResult:
+    from sase.agent.hijack.spawn_guard import HijackLatchedError
+
     project_file = get_project_file_path(project_name)
     holder_pid = os.getpid()
+    _refuse_latched_followup(latch_guard)
     try:
         pool_workspace_num, pool_workspace_dir, _ = claim_next_axe_workspace_dir(
             project_file,
@@ -352,6 +378,14 @@ def _launch_vcs_followup_in_pool_workspace(
             holder_pid,
             pool_vcs_ref,
         )
+    except HijackLatchedError:
+        release_workspace(
+            project_file,
+            pool_workspace_num,
+            _POOL_FOLLOWUP_CLAIM_WORKFLOW,
+            caller_tag="turn-followup-pool",
+        )
+        raise
     except (WorkspaceClaimError, RuntimeError, OSError, ValueError) as exc:
         release_result = release_workspace(
             project_file,
@@ -373,6 +407,14 @@ def _launch_vcs_followup_in_pool_workspace(
         artifacts_dir=result.artifacts_dir or None,
         pid=result.pid,
     )
+
+
+def _refuse_latched_followup(latch_guard: SpawnLatchGuard | None) -> None:
+    if latch_guard is None:
+        return
+    from sase.agent.hijack.spawn_guard import refuse_if_latched
+
+    refuse_if_latched(latch_guard, boundary="followup")
 
 
 def _workspace_is_claimed(project_name: str, workspace_num: int) -> bool:

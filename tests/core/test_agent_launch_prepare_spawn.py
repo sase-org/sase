@@ -279,3 +279,43 @@ def test_spawn_prepared_agent_process_propagates_workspace_claim_error_type(
     while time.monotonic() < deadline and _pid_alive(seen_pid[0]):
         time.sleep(min(0.02, max(0.0, deadline - time.monotonic())))
     assert not _pid_alive(seen_pid[0])
+
+
+@pytest.mark.skipif(os.name != "posix", reason="uses POSIX pid liveness check")
+def test_spawn_prepared_agent_process_propagates_hijack_latched_error_type(
+    tmp_path: Path,
+) -> None:
+    """The pyo3/FFI boundary must preserve HijackLatchedError's type."""
+    pytest.importorskip("sase_core_rs")
+    from sase.agent.hijack.spawn_guard import HijackLatchedError
+
+    seen_pid: list[int] = []
+    prepared = _prepared_process(
+        tmp_path,
+        [sys.executable, "-c", "import time; time.sleep(60)"],
+    )
+
+    def fail_claim(pid: int) -> bool:
+        seen_pid.append(pid)
+        raise HijackLatchedError(
+            "hijack latch hijack-1 is pending; successor launch refused",
+            hijack_id="hijack-1",
+            target_key="abc",
+            verdict="pending",
+        )
+
+    with pytest.raises(HijackLatchedError, match="pending") as excinfo:
+        spawn_prepared_agent_process(
+            prepared,
+            env=dict(os.environ),
+            claim_callback=fail_claim,
+        )
+
+    assert excinfo.value.hijack_id == "hijack-1"
+    assert excinfo.value.verdict == "pending"
+    assert not isinstance(excinfo.value, RuntimeError)
+    assert seen_pid
+    deadline = time.monotonic() + 5.0
+    while time.monotonic() < deadline and _pid_alive(seen_pid[0]):
+        time.sleep(min(0.02, max(0.0, deadline - time.monotonic())))
+    assert not _pid_alive(seen_pid[0])

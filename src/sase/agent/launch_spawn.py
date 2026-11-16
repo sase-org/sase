@@ -1,10 +1,16 @@
 """Low-level detached subprocess spawning for agents."""
 
+from __future__ import annotations
+
 import logging
 import os
 import sys
 from dataclasses import replace
 from functools import lru_cache
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from sase.agent.hijack.spawn_guard import SpawnLatchGuard
 
 from sase.agent.launch_types import AgentLaunchResult
 from sase.detach_scope import detach_scope
@@ -253,6 +259,7 @@ def spawn_agent_subprocess(
     local_macros_file: str | None = None,
     extra_env: dict[str, str] | None = None,
     retry_transfer_from_pid: int | None = None,
+    latch_guard: SpawnLatchGuard | None = None,
 ) -> AgentLaunchResult:
     """Spawn a detached background agent process.
 
@@ -264,9 +271,18 @@ def spawn_agent_subprocess(
     child instead of attempting a fresh ``claim_workspace`` -- used by the
     spawn-on-retry flow so the workspace slot stays continuously held.
 
+    When ``latch_guard`` names a predecessor target and artifact directory,
+    a pre-spawn latch check runs before process creation and a serialized
+    post-spawn check runs inside the claim callback with the target-index
+    lock held before ``patch_lock``. Ordinary launches with no predecessor
+    identity are unchanged.
+
     Raises:
         RuntimeError: If workspace claiming/transfer fails (process is
             terminated before the error is raised).
+        HijackLatchedError: If a hijack latch owns the predecessor. The
+            child is not created on the pre-check, and is terminated if the
+            claim callback refuses.
     """
     # A call that bypasses the higher-level/admission funnels is itself the
     # launch ingress. Funnel callers already carry the earlier request stamp.
@@ -571,11 +587,27 @@ def spawn_agent_subprocess(
     from sase.config import require_agent_owner_identity
 
     require_agent_owner_identity()
+    from sase.agent.hijack.spawn_guard import (
+        bind_recovery_identity,
+        refuse_if_latched,
+        spawn_admission,
+    )
+
+    guard = bind_recovery_identity(latch_guard, extra_env)
+    if guard is not None:
+        refuse_if_latched(guard, boundary="spawn")
+
+    def _guarded_claim_spawned_child(pid: int) -> bool:
+        if guard is None:
+            return _claim_spawned_child(pid)
+        with spawn_admission(guard, boundary="spawn_callback"):
+            return _claim_spawned_child(pid)
+
     with timer.stage("subprocess_spawn"):
         pid = spawn_prepared_agent_process(
             prepared,
             env=subprocess_env,
-            claim_callback=_claim_spawned_child,
+            claim_callback=_guarded_claim_spawned_child,
         )
 
     if chop_launch_env is not None:

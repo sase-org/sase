@@ -4,6 +4,12 @@ Rust (`sase_core::agent_hijack`) owns the ledger/eligibility state machine,
 the never-downgrade rung walk, and the continuation-prompt text. This package
 owns effects: config access, alias candidate assembly, the Python ledger
 store, and the thin Rust bindings in :mod:`core`.
+
+Lock order (outer to inner): adoption, gate/monitor lane, gate follow-up,
+hijack ledger/target index, then ``patch_lock``. Hijack-package sub-order is
+``target_index``, ``apply``, ``record``, ``patch_lock``. Terminal cleanup may
+acquire ``target_index`` while already holding ``record``. The ledger/target
+lock is never taken from inside ``patch_lock``.
 """
 
 from __future__ import annotations
@@ -103,6 +109,7 @@ from .latch import (
     observe_hijack_latch,
     request_latch,
 )
+from .spawn_guard import HijackLatchedError
 
 HIJACK_RUNNER_CAPABILITY = "hijack"
 MISSING_HIJACK_CAPABILITY_MESSAGE = (
@@ -115,6 +122,7 @@ __all__ = [
     "HIJACK_RUNNER_CAPABILITY",
     "MISSING_HIJACK_CAPABILITY_MESSAGE",
     "HijackLedgerConflict",
+    "HijackLatchedError",
     "HijackContinuationPrompt",
     "HijackRecoveryRefusal",
     "InheritanceEvidence",

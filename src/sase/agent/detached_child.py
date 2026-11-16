@@ -39,6 +39,7 @@ from sase.core.agent_launch_facade import reserve_launch_timestamp_batch
 
 if TYPE_CHECKING:
     from sase.agent.hijack.recovery_successor import RecoveryLineage
+    from sase.agent.hijack.spawn_guard import SpawnLatchGuard
 
 AgentSessionAttachDirective = _types.AgentSessionAttachDirective
 AgentSessionAttachLaunchPlan = _types.AgentSessionAttachLaunchPlan
@@ -79,6 +80,9 @@ def spawn_detached_child(
     is_home_mode: bool = False,
     vcs_ref: tuple[str, str] | None = None,
     spawn_fn: SpawnFn | None = None,
+    latch_guard: SpawnLatchGuard | None = None,
+    predecessor_artifacts_dir: str | None = None,
+    predecessor_name: str | None = None,
 ) -> AgentLaunchResult:
     """Spawn a detached child agent, transferring the caller's workspace claim.
 
@@ -103,22 +107,38 @@ def spawn_detached_child(
     )
     spawn = spawn_fn or spawn_agent_subprocess
     timestamp = timestamp or reserve_launch_timestamp_batch(1)[0]
-    return spawn(
-        cl_name=cl_name,
-        project_file=project_file or get_project_file_path(project_name),
-        workspace_dir=workspace_dir,
-        workspace_num=workspace_num,
-        workflow_name=f"ace(run)-{timestamp}",
-        prompt=prompt,
-        timestamp=timestamp,
-        update_target=update_target,
-        project_name=project_name,
-        history_sort_key=history_sort_key,
-        is_home_mode=is_home_mode,
-        vcs_ref=vcs_ref,
-        extra_env=extra_env,
-        retry_transfer_from_pid=transfer_from_pid,
-    )
+    resolved_project_file = project_file or get_project_file_path(project_name)
+    guard = latch_guard
+    if guard is None and predecessor_artifacts_dir:
+        from sase.agent.hijack.spawn_guard import latch_guard_from_predecessor
+
+        guard = latch_guard_from_predecessor(
+            project_file=resolved_project_file,
+            session_or_agent=predecessor_name,
+            artifacts_dir=predecessor_artifacts_dir,
+            member=predecessor_name,
+            extra_env=extra_env,
+            is_home=is_home_mode,
+        )
+    spawn_kwargs: dict[str, Any] = {
+        "cl_name": cl_name,
+        "project_file": resolved_project_file,
+        "workspace_dir": workspace_dir,
+        "workspace_num": workspace_num,
+        "workflow_name": f"ace(run)-{timestamp}",
+        "prompt": prompt,
+        "timestamp": timestamp,
+        "update_target": update_target,
+        "project_name": project_name,
+        "history_sort_key": history_sort_key,
+        "is_home_mode": is_home_mode,
+        "vcs_ref": vcs_ref,
+        "extra_env": extra_env,
+        "retry_transfer_from_pid": transfer_from_pid,
+    }
+    if guard is not None:
+        spawn_kwargs["latch_guard"] = guard
+    return spawn(**spawn_kwargs)
 
 
 def spawn_agent_session_successor(
@@ -142,6 +162,7 @@ def spawn_agent_session_successor(
     resolve_plan: ResolvePlanFn | None = None,
     predecessor_artifacts_dir: str | None = None,
     predecessor_name: str | None = None,
+    latch_guard: SpawnLatchGuard | None = None,
 ) -> AgentLaunchResult:
     """Resolve ``directive`` and spawn the resolved agent-session member.
 
@@ -169,6 +190,17 @@ def spawn_agent_session_successor(
         ),
         predecessor_name=predecessor_name or plan.predecessor_name,
     )
+    if latch_guard is None and launch_plan.predecessor_artifacts_dir:
+        from sase.agent.hijack.spawn_guard import latch_guard_from_predecessor
+
+        latch_guard = latch_guard_from_predecessor(
+            project_file=project_file,
+            session_or_agent=launch_plan.parent_base or launch_plan.parent_arg,
+            artifacts_dir=launch_plan.predecessor_artifacts_dir,
+            member=launch_plan.predecessor_name,
+            extra_env=extra_env,
+            is_home=is_home_mode,
+        )
     result = spawn_detached_child(
         project_name=project_name,
         project_file=project_file,
@@ -184,6 +216,11 @@ def spawn_agent_session_successor(
         vcs_ref=vcs_ref,
         timestamp=timestamp,
         spawn_fn=spawn_fn,
+        latch_guard=latch_guard,
+        predecessor_artifacts_dir=(
+            predecessor_artifacts_dir or launch_plan.predecessor_artifacts_dir
+        ),
+        predecessor_name=predecessor_name or launch_plan.predecessor_name,
     )
     return replace(result, agent_name=result.agent_name or launch_plan.agent_name)
 
