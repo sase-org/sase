@@ -354,7 +354,7 @@ def test_re_resolution_refuses_changed_process_identity_before_pin(
     )
     pin_calls: list[int] = []
     monkeypatch.setattr(
-        "sase.agent.hijack._stop_orchestrator.pin_claim",
+        "sase.agent.hijack._stop_orchestrator_main.pin_claim",
         lambda target: pin_calls.append(target.pid or 0) or True,
     )
 
@@ -385,7 +385,7 @@ def test_re_resolution_refuses_changed_decision_before_pin(
     )
     pin_calls: list[int] = []
     monkeypatch.setattr(
-        "sase.agent.hijack._stop_orchestrator.pin_claim",
+        "sase.agent.hijack._stop_orchestrator_main.pin_claim",
         lambda target: pin_calls.append(target.pid or 0) or True,
     )
 
@@ -406,7 +406,7 @@ def test_lost_race_keeps_the_real_outcome(
     artifacts = _artifacts(tmp_path)
     project_file = _project_file(tmp_path)
     _install_target(monkeypatch, artifacts, project_file)
-    import sase.agent.hijack._stop_orchestrator as orchestrator_module
+    import sase.agent.hijack._stop_orchestrator_main as orchestrator_module
     import sase.agent.hijack._stop_target as target_module
 
     calls = {"n": 0}
@@ -490,7 +490,7 @@ def test_fallback_writes_done_json_and_reasserts_pin(
     _install_target(monkeypatch, artifacts, project_file)
     pins = {"n": 0}
     import sase.agent.hijack._stop_claim as claim_module
-    import sase.agent.hijack._stop_orchestrator as orchestrator_module
+    import sase.agent.hijack._stop_orchestrator_main as orchestrator_module
 
     original_claim_pin = claim_module.pin_claim
     original_orchestrator_pin = orchestrator_module.pin_claim

@@ -177,7 +177,7 @@ def test_intent_write_failure_aborts_before_signal(
     )
     signals: list[int] = []
     monkeypatch.setattr(
-        "sase.agent.hijack._stop_orchestrator.terminate_tree",
+        "sase.agent.hijack._stop_orchestrator_common.terminate_tree",
         lambda target, deps: signals.append(1) or SimpleNamespace(success=True),
     )
     result = stop_agent_for_hijack(_AGENT, deps=_deps(artifacts))
