@@ -239,7 +239,9 @@ def test_create_apply_submission_matches_cli_request_from_args(
             display=text,
         ),
     )
-    monkeypatch.setattr(add_cli, "resolve_request_path", lambda _args: Path("/request"))
+    monkeypatch.setattr(
+        add_cli, "resolve_request_path", lambda _args, **_kwargs: Path("/request")
+    )
     monkeypatch.setattr(
         add_cli,
         "load_request",

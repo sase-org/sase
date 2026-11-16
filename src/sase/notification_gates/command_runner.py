@@ -5,7 +5,9 @@ an action runs — goes through :func:`run_owned_command`, so both share one
 trust model: the command's hash is re-verified against the reviewed envelope,
 it is started with ``shell=False`` against the descriptor it was hashed from,
 and reviewer input reaches it as canonical JSON on stdin and never through
-``argv``. See :func:`_exec_target` for how that descriptor becomes an argv[0]
+``argv``. A gate command runs inside the answering proc's lifetime but never
+inherits its operation sidecar contract, so nested ``sase`` subcommands behave
+as if run outside any proc. See :func:`_exec_target` for how that descriptor becomes an argv[0]
 on platforms without ``/proc``.
 """
 
@@ -68,7 +70,11 @@ def run_owned_command(
         os.lseek(command_fd, 0, os.SEEK_SET)
         argv, pass_fds = _exec_target(command_fd, command_path, command_argv)
         try:
-            command_env = {**os.environ, GATE_COMMAND_ENV: "1"}
+            from sase.agent.env_hygiene import scrub_proc_operation_sidecar_env
+
+            command_env = {**os.environ}
+            scrub_proc_operation_sidecar_env(command_env)
+            command_env[GATE_COMMAND_ENV] = "1"
             inherited = _gate_inherited_workspace_dir(bundle_path)
             if inherited is not None:
                 command_env[GATE_WORKSPACE_ENV] = str(inherited)

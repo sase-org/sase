@@ -278,7 +278,9 @@ def test_durable_request_must_match_argv_target(
             "workflow_type": "gh",
         },
     )
-    monkeypatch.setattr(add_cli, "resolve_request_path", lambda _args: Path("/request"))
+    monkeypatch.setattr(
+        add_cli, "resolve_request_path", lambda _args, **_kwargs: Path("/request")
+    )
     monkeypatch.setattr(
         add_cli,
         "parse_user_ref",

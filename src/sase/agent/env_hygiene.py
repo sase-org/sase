@@ -30,6 +30,21 @@ def scrub_proc_operation_env(env: MutableMapping[str, str]) -> None:
             env.pop(key, None)
 
 
+def scrub_proc_operation_sidecar_env(env: MutableMapping[str, str]) -> None:
+    """Remove only the proc operation-sidecar contract from *env*.
+
+    Narrower than :func:`scrub_proc_operation_env`: a gate command runs
+    inside the answering proc's lifetime and process tree, so ``SASE_PROC_ID``,
+    ``SASE_PROC_LOG_PATH``, and ``SASE_PROC_SESSION_ID`` stay accurate.
+    Only the sidecar contract belongs to the proc's own command.
+    """
+    from sase.ops.models import OPERATION_ENV, REQUEST_ENV, RESULT_ENV
+
+    env.pop(REQUEST_ENV, None)
+    env.pop(RESULT_ENV, None)
+    env.pop(OPERATION_ENV, None)
+
+
 def scrub_executor_ownership_env(env: MutableMapping[str, str]) -> None:
     """Remove ambient executor-ownership variables from *env*.
 

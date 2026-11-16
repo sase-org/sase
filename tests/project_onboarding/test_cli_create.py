@@ -118,7 +118,9 @@ def test_create_option_values_equal_to_transport_flags_are_data(
         },
         "creation": {"visibility": "private", "summary": []},
     }
-    monkeypatch.setattr(add_cli, "resolve_request_path", lambda _args: Path("/request"))
+    monkeypatch.setattr(
+        add_cli, "resolve_request_path", lambda _args, **_kwargs: Path("/request")
+    )
     monkeypatch.setattr(
         add_cli,
         "load_request",
@@ -224,7 +226,7 @@ def test_create_gate_option_allows_apply(
             "owner": "team",
         },
     )
-    monkeypatch.setattr(add_cli, "resolve_request_path", lambda _args: None)
+    monkeypatch.setattr(add_cli, "resolve_request_path", lambda _args, **_kwargs: None)
     seen: dict[str, Any] = {}
 
     def capture_plan(request: dict[str, Any]) -> dict[str, Any]:

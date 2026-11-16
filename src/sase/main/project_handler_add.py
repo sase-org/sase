@@ -224,7 +224,7 @@ def _request_from_args(
             "visibility": visibility,
             "summary": [],
         }
-    if resolve_request_path(args) is None:
+    if resolve_request_path(args, operation=operation) is None:
         return cli_request
 
     durable = load_request(operation, args, required=True)

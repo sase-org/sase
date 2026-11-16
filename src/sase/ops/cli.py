@@ -52,11 +52,29 @@ def add_operation_io_flags(parser: argparse.ArgumentParser) -> None:
     )
 
 
-def resolve_request_path(args: argparse.Namespace | None = None) -> Path | None:
-    """Return the request sidecar path from flags or the proc environment."""
+def resolve_request_path(
+    args: argparse.Namespace | None = None,
+    operation: str | None = None,
+) -> Path | None:
+    """Return the request sidecar path from flags or the proc environment.
+
+    When the path comes from ``REQUEST_ENV`` rather than an explicit
+    ``-Q/--request-path`` flag and *operation* is given, an ``OPERATION_ENV``
+    value that is set but differs from *operation* means the sidecar belongs
+    to an ancestor proc, so return ``None``. An explicit flag path stays
+    strict and is always returned.
+    """
     explicit = None if args is None else getattr(args, "operation_request_path", None)
-    raw = explicit or os.environ.get(REQUEST_ENV)
-    return None if not raw else Path(raw)
+    if explicit:
+        return Path(explicit)
+    raw = os.environ.get(REQUEST_ENV)
+    if not raw:
+        return None
+    if operation is not None:
+        operation_env = os.environ.get(OPERATION_ENV)
+        if operation_env and operation_env != operation:
+            return None
+    return Path(raw)
 
 
 def resolve_result_path(args: argparse.Namespace | None = None) -> Path | None:
@@ -78,7 +96,7 @@ def load_request(
     required: bool = False,
 ) -> DurableOperationRequest:
     """Load the versioned request sidecar, or return an empty payload."""
-    path = resolve_request_path(args)
+    path = resolve_request_path(args, operation=operation)
     if path is None:
         if required:
             raise OperationIOError(

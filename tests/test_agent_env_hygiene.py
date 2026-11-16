@@ -5,6 +5,7 @@ from sase.agent.env_hygiene import (
     scrub_chop_context_env,
     scrub_executor_ownership_env,
     scrub_proc_operation_env,
+    scrub_proc_operation_sidecar_env,
 )
 from sase.agent.launch_spawn import _remove_inherited_agent_identity_env
 from sase.agent.launch_spawn import _remove_inherited_executor_ownership_env
@@ -122,6 +123,29 @@ def test_scrub_executor_ownership_env_removes_tool_monitor_proc() -> None:
     assert env == {
         "SASE_AGENT": "keep",
         "SASE_AGENT_NAME": "keep",
+        "OTHER": "keep",
+    }
+
+
+def test_scrub_proc_operation_sidecar_env_removes_only_the_trio() -> None:
+    env = {
+        "SASE_PROC_REQUEST_PATH": "/tmp/request.json",
+        "SASE_PROC_RESULT_PATH": "/tmp/result.json",
+        "SASE_PROC_OPERATION": "gate.answer",
+        "SASE_PROC_ID": "proc-1",
+        "SASE_PROC_LOG_PATH": "/tmp/proc.log",
+        "SASE_PROC_SESSION_ID": "session-1",
+        "SASE_PROC_OTHER": "keep",
+        "OTHER": "keep",
+    }
+
+    scrub_proc_operation_sidecar_env(env)
+
+    assert env == {
+        "SASE_PROC_ID": "proc-1",
+        "SASE_PROC_LOG_PATH": "/tmp/proc.log",
+        "SASE_PROC_SESSION_ID": "session-1",
+        "SASE_PROC_OTHER": "keep",
         "OTHER": "keep",
     }
 

@@ -7,6 +7,7 @@ opts in with ``monkeypatch`` after fixture setup.
 
 from __future__ import annotations
 
+import argparse
 import os
 from pathlib import Path
 
@@ -18,6 +19,7 @@ from sase.ops import (
     REQUEST_ENV,
     RESULT_ENV,
     DurableOperationRequest,
+    OperationIOError,
     emit_operation_result,
     load_request,
     resolve_proc_id,
@@ -118,6 +120,77 @@ def test_intentional_override_still_resolves_supervisor_contract(
     assert emitted.operation == "gate.answer"
     assert emitted.proc_id == "proc-override"
     assert result_path.is_file()
+
+
+def _seed_foreign_proc_env(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+    """Seed an env sidecar owned by ``gate.answer`` for ``project.create`` reads."""
+    request_path = tmp_path / "operation-request.json"
+    result_path = tmp_path / "operation-result.json"
+    write_operation_request(
+        request_path,
+        DurableOperationRequest(operation="gate.answer", payload={"choice": "yes"}),
+    )
+    monkeypatch.setenv(REQUEST_ENV, str(request_path))
+    monkeypatch.setenv(RESULT_ENV, str(result_path))
+    monkeypatch.setenv(OPERATION_ENV, "gate.answer")
+    return request_path
+
+
+def test_env_sidecar_for_different_operation_behaves_as_no_sidecar(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """A foreign env sidecar is ignored: empty payload, or ``missing`` when required."""
+    _seed_foreign_proc_env(tmp_path, monkeypatch)
+
+    assert resolve_request_path(None, operation="project.create") is None
+    loaded = load_request("project.create")
+    assert loaded.operation == "project.create"
+    assert dict(loaded.payload) == {}
+
+    with pytest.raises(OperationIOError) as excinfo:
+        load_request("project.create", required=True)
+    assert excinfo.value.kind == "missing"
+
+
+def test_matching_operation_env_path_still_loads(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """The guard only ignores sidecars owned by a different operation."""
+    _seed_foreign_proc_env(tmp_path, monkeypatch)
+
+    loaded = load_request("gate.answer")
+    assert dict(loaded.payload) == {"choice": "yes"}
+
+
+def test_explicit_request_path_stays_strict_for_wrong_operation(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """An explicit ``-Q`` path for the wrong operation still raises ``mismatched``."""
+    request_path = _seed_foreign_proc_env(tmp_path, monkeypatch)
+    args = argparse.Namespace(operation_request_path=str(request_path))
+
+    assert resolve_request_path(args, operation="project.create") == request_path
+    with pytest.raises(OperationIOError) as excinfo:
+        load_request("project.create", args, required=True)
+    assert excinfo.value.kind == "mismatched"
+
+
+def test_unset_operation_env_keeps_legacy_mismatch(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Without ``OPERATION_ENV`` an env sidecar keeps today's strict behavior."""
+    request_path = tmp_path / "operation-request.json"
+    write_operation_request(
+        request_path,
+        DurableOperationRequest(operation="gate.answer", payload={"choice": "yes"}),
+    )
+    monkeypatch.setenv(REQUEST_ENV, str(request_path))
+    monkeypatch.delenv(OPERATION_ENV, raising=False)
+
+    assert resolve_request_path(None, operation="project.create") == request_path
+    with pytest.raises(OperationIOError) as excinfo:
+        load_request("project.create")
+    assert excinfo.value.kind == "mismatched"
 
 
 def test_sase_ml_file_families_ignore_inherited_live_proc_env(
