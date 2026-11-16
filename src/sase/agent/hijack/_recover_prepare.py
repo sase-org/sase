@@ -111,6 +111,8 @@ def prepare_held_recovery(
             )
     session_base = session_base_for(record, subject.predecessor_meta)
     if not session_base:
+        session_base = _promote_sessionless_predecessor(record, subject)
+    if not session_base:
         raise RecoveryRefusal(
             "no_session",
             "The predecessor has no agent-session parent to attach the "
@@ -291,6 +293,68 @@ def _prepare_continuation_target(
         context_mode=str(prepared.context_mode),
         transcript_path=clean_string(getattr(prepared, "transcript_path", None)),
     )
+
+
+def _promote_sessionless_predecessor(
+    record: Mapping[str, Any], subject: RecoverySubject
+) -> str | None:
+    """Promote a sessionless predecessor into a session before attaching.
+
+    Keep-work recovery requires an agent-session parent for the reserved
+    successor. When the predecessor never had one, promote it with the
+    existing ``promote_agent_to_agent_session`` helper at the point
+    ``prepare_held_recovery`` used to raise ``no_session``. Fail-closed:
+    any promotion error leaves ``None`` so the caller still refuses with
+    ``no_session`` instead of accepting a stop whose Continue would fail.
+    """
+    try:
+        from sase.agent._agent_session_promotion import promote_agent_to_agent_session
+        from sase.agent.hijack.recover_subject import (
+            session_base_for as _session_base_for,
+        )
+    except Exception:
+        return None
+    try:
+        artifacts_dir = clean_string(record.get("artifacts_dir"))
+        agent_name = clean_string(record.get("agent_name"))
+        if not artifacts_dir or not agent_name:
+            return None
+        predecessor_meta = (
+            dict(subject.predecessor_meta)
+            if isinstance(subject.predecessor_meta, Mapping)
+            else {}
+        )
+        # Already sessioned (record, meta, or name-derived base): nothing to do.
+        existing = _session_base_for(record, predecessor_meta)
+        if existing:
+            return existing
+        base = agent_name
+        if "--" in agent_name:
+            candidate = agent_name.rsplit("--", 1)[0].strip()
+            if candidate:
+                base = candidate
+        try:
+            promoted_name = promote_agent_to_agent_session(artifacts_dir, base)
+        except Exception:
+            return None
+        # Re-read the promoted meta so the session base resolves.
+        try:
+            from sase.history.chat_fork.common import load_json_object
+            from pathlib import Path
+
+            reloaded = load_json_object(Path(artifacts_dir) / "agent_meta.json")
+            reloaded_meta = dict(reloaded) if isinstance(reloaded, Mapping) else {}
+        except Exception:
+            reloaded_meta = predecessor_meta
+        promoted_base = _session_base_for(record, reloaded_meta)
+        if promoted_base:
+            return promoted_base
+        # Fall back to the promotion base when metadata still lags.
+        if isinstance(promoted_name, str) and promoted_name:
+            return base
+        return None
+    except Exception:
+        return None
 
 
 def _default_execution_facts(

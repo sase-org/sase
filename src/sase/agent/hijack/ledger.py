@@ -9,6 +9,7 @@ through the Rust ``advance_agent_hijack_record`` state machine.
 
 from __future__ import annotations
 
+import hashlib
 import json
 from datetime import datetime
 from pathlib import Path
@@ -24,6 +25,8 @@ from sase.notification_gates.durability import atomic_write_json, file_lock
 
 LEDGER_DIRNAME = "agent_hijacks"
 SETTLED_DIRNAME = "settled"
+TARGET_INDEX_DIRNAME = "target_index"
+TARGET_INDEX_LOCKNAME = "target_index.lock"
 
 TERMINAL_STATES = frozenset(
     {
@@ -63,6 +66,132 @@ def _hijack_ledger_root() -> Path:
 def _hijack_settled_dir() -> Path:
     """Return the directory that holds terminal hijack records."""
     return _hijack_ledger_root() / SETTLED_DIRNAME
+
+
+def target_key_for(project_file: str | None, session_or_agent: str | None) -> str:
+    """Return the target-level dedup key for one hijack request.
+
+    ``sha256(project_file + "::" + (session name or agent name))`` is
+    stable across TUI and CLI spellings of the same session, so a double
+    press or a lost-response retry maps onto one active operation.
+    """
+    base = f"{project_file or ''}::{session_or_agent or ''}"
+    return hashlib.sha256(base.encode("utf-8")).hexdigest()
+
+
+def _target_index_dir() -> Path:
+    return _hijack_ledger_root() / TARGET_INDEX_DIRNAME
+
+
+def _target_index_path(target_key: str) -> Path:
+    safe = "".join(
+        ch if ch.isalnum() or ch in ("-", "_") else "_" for ch in target_key
+    ).strip("_")
+    return _target_index_dir() / f"{safe or 'target'}.json"
+
+
+def _target_index_lock_path() -> Path:
+    return _hijack_ledger_root() / TARGET_INDEX_LOCKNAME
+
+
+def find_active_record_by_target_key(target_key: str) -> dict[str, Any] | None:
+    """Return the active record for *target_key*, if one still needs the workspace."""
+    if not target_key:
+        return None
+    try:
+        payload = read_hijack_record_payload(_target_index_path(target_key))
+    except Exception:
+        payload = None
+    if isinstance(payload, dict):
+        hijack_id = payload.get("hijack_id")
+        if isinstance(hijack_id, str) and hijack_id:
+            record = load_record(hijack_id)
+            if (
+                isinstance(record, dict)
+                and str(record.get("state") or "") not in TERMINAL_STATES
+                and hijack_record_path(hijack_id).exists()
+            ):
+                if str(record.get("target_key") or "") in ("", target_key):
+                    return record
+    for record in list_active_records():
+        if str(record.get("target_key") or "") != target_key:
+            continue
+        if str(record.get("state") or "") in TERMINAL_STATES:
+            continue
+        return record
+    return None
+
+
+def claim_target_slot(target_key: str, hijack_id: str) -> str:
+    """Reserve *target_key* for *hijack_id*, returning the winning hijack id.
+
+    The winner is the first active reservation. A loser gets the active
+    operation back and must not start a second stop.
+    """
+    if not target_key:
+        return hijack_id
+    with file_lock(_target_index_lock_path(), timeout=10.0):
+        existing = find_active_record_by_target_key(target_key)
+        if existing is not None:
+            winner = existing.get("hijack_id")
+            if isinstance(winner, str) and winner:
+                return winner
+        path = _target_index_path(target_key)
+        try:
+            path.parent.mkdir(parents=True, exist_ok=True)
+            atomic_write_json(
+                path,
+                {"target_key": target_key, "hijack_id": hijack_id},
+                exclusive=True,
+            )
+            return hijack_id
+        except FileExistsError:
+            current = read_hijack_record_payload(path)
+            if isinstance(current, dict):
+                winner = current.get("hijack_id")
+                if isinstance(winner, str) and winner:
+                    live = load_record(winner)
+                    if (
+                        isinstance(live, dict)
+                        and str(live.get("state") or "") not in TERMINAL_STATES
+                        and hijack_record_path(winner).exists()
+                    ):
+                        return winner
+            try:
+                path.unlink(missing_ok=True)
+            except OSError:
+                pass
+            atomic_write_json(
+                path,
+                {"target_key": target_key, "hijack_id": hijack_id},
+            )
+            return hijack_id
+
+
+def release_target_slot(target_key: str, hijack_id: str) -> None:
+    """Release *target_key* when it still maps to *hijack_id*."""
+    if not target_key or not hijack_id:
+        return
+    try:
+        with file_lock(_target_index_lock_path(), timeout=10.0):
+            current = read_hijack_record_payload(_target_index_path(target_key))
+            if isinstance(current, dict) and current.get("hijack_id") == hijack_id:
+                try:
+                    _target_index_path(target_key).unlink(missing_ok=True)
+                except OSError:
+                    pass
+    except Exception:
+        pass
+
+
+def _release_target_index_if_owner(record: dict[str, Any]) -> None:
+    target_key = record.get("target_key")
+    hijack_id = record.get("hijack_id")
+    if not isinstance(target_key, str) or not target_key:
+        return
+    if not isinstance(hijack_id, str) or not hijack_id:
+        return
+    release_target_slot(target_key, hijack_id)
 
 
 def _safe_hijack_id(hijack_id: str) -> str:
@@ -110,6 +239,8 @@ def new_requested_record(
     provider: str | None = None,
     model: str | None = None,
     effort: str | None = None,
+    target_key: str | None = None,
+    scope: str | None = None,
     at: str | None = None,
 ) -> dict[str, Any]:
     """Return a v1 wire dict in ``requested`` ready for exclusive create."""
@@ -160,8 +291,8 @@ def new_requested_record(
         "successor_process_identity_token": None,
         "successor_artifacts_dir": None,
         "inheritance_acknowledged": None,
-        "target_key": "",
-        "scope": None,
+        "target_key": target_key or "",
+        "scope": scope,
         "error": None,
         "acknowledged": False,
     }
@@ -202,6 +333,11 @@ def _move_to_settled(hijack_id: str) -> None:
     active = hijack_record_path(hijack_id)
     settled = hijack_record_path(hijack_id, settled=True)
     settled.parent.mkdir(parents=True, exist_ok=True)
+    current: dict[str, Any] | None = None
+    try:
+        current = read_hijack_record_payload(active)
+    except Exception:
+        current = None
     try:
         os_replace = active.replace
         os_replace(settled)
@@ -211,6 +347,28 @@ def _move_to_settled(hijack_id: str) -> None:
         hijack_record_lock_path(hijack_id).unlink(missing_ok=True)
     except OSError:
         pass
+    if isinstance(current, dict):
+        try:
+            _release_target_index_if_owner(current)
+        except Exception:
+            pass
+
+
+def merge_record_fields(
+    hijack_id: str, fields: dict[str, Any]
+) -> dict[str, Any] | None:
+    """Best-effort merge of non-state fields without a revision bump."""
+    path = hijack_record_path(hijack_id)
+    try:
+        with file_lock(hijack_record_lock_path(hijack_id), timeout=10.0):
+            current = read_hijack_record_payload(path)
+            if current is None:
+                return None
+            current.update(fields)
+            atomic_write_json(path, current)
+            return dict(current)
+    except Exception:
+        return None
 
 
 def cas_advance_record(
@@ -357,9 +515,12 @@ __all__ = [
     "HIJACK_SCOPE_PROCESSLESS",
     "HIJACK_STOP_BLOCKED",
     "HijackLedgerConflict",
+    "TARGET_INDEX_DIRNAME",
     "TERMINAL_STATES",
     "cas_advance_record",
+    "claim_target_slot",
     "create_record",
+    "find_active_record_by_target_key",
     "hijack_record_lock_path",
     "hijack_record_path",
     "list_active_records",
@@ -368,7 +529,10 @@ __all__ = [
     "load_record_by_artifacts_dir",
     "load_record_by_workspace",
     "mark_stopping_if_requested",
+    "merge_record_fields",
     "new_requested_record",
     "read_hijack_record_payload",
+    "release_target_slot",
+    "target_key_for",
     "timestamp_for",
 ]

@@ -33,6 +33,17 @@ _EXIT_HELD = 0
 _EXIT_REFUSED = 2
 _EXIT_FAILED = 1
 
+#: Bounded termination retries after the first attempt before custody
+#: falls back to ``stop_blocked``. The verified terminator already
+#: escalates SIGTERM to SIGKILL internally; the bound covers a second and
+#: third pass for late-spawning children.
+_STOP_RETRY_ATTEMPTS = 2
+
+#: Ledger states that keep an active target slot (non-terminal custody).
+_ACTIVE_TARGET_STATES = frozenset(
+    {"requested", "stopping", "stop_blocked", "held", "resolving"}
+)
+
 
 @dataclass
 class HijackStopResult:
@@ -58,6 +69,120 @@ def _new_hijack_id(agent_name: str) -> str:
     return f"hijack-{cleaned or 'agent'}-{uuid.uuid4().hex[:12]}"
 
 
+def _target_key_name(subject: Any, target: HijackTarget) -> str:
+    """Return the session-or-agent name component of the target key."""
+    session = getattr(subject, "session", None)
+    base_name = getattr(session, "base_name", None)
+    if isinstance(base_name, str) and base_name:
+        return base_name
+    agent_session = getattr(target, "agent_session", None)
+    if isinstance(agent_session, str) and agent_session:
+        return agent_session
+    return target.name
+
+
+def _compute_target_key(subject: Any, target: HijackTarget) -> str:
+    from sase.agent.hijack import ledger
+
+    project_file: str | None = None
+    if not target.is_home:
+        project_file = target.project_file
+    return ledger.target_key_for(project_file, _target_key_name(subject, target))
+
+
+def _coalesced_result(
+    name: str,
+    active: dict[str, Any],
+    *,
+    subject: Any,
+    decision: dict[str, Any] | None = None,
+) -> HijackStopResult:
+    """Return the active operation instead of starting a second stop."""
+    state = str(active.get("state") or "")
+    hijack_id = active.get("hijack_id")
+    hijack_id_str = hijack_id if isinstance(hijack_id, str) else None
+    workspace_num = active.get("workspace_num")
+    try:
+        workspace_num_int = int(workspace_num) if workspace_num is not None else None
+    except (TypeError, ValueError):
+        workspace_num_int = None
+    if state == "held":
+        return HijackStopResult(
+            status="held",
+            message=(
+                f"Hijack {hijack_id_str} already holds "
+                f"{active.get('agent_name') or name}; nothing else was stopped"
+            ),
+            exit_code=_EXIT_HELD,
+            hijack_id=hijack_id_str,
+            record=dict(active),
+            reason="already_held",
+            decision=decision,
+            occupant_name=getattr(subject, "occupant_name", None),
+            occupant_reason=getattr(subject, "occupant_reason", None),
+            workspace_num=workspace_num_int,
+        )
+    if state == "stop_blocked":
+        survivors = active.get("survivor_pids") or []
+        detail = ""
+        try:
+            count = len(list(survivors))
+            if count:
+                detail = f" ({count} processes survived)"
+        except TypeError:
+            detail = ""
+        return HijackStopResult(
+            status="stop_blocked",
+            message=(
+                f"Hijack {hijack_id_str} is already blocked{detail}; "
+                "workspace kept; `,k` retries, or release with x"
+            ),
+            exit_code=_EXIT_FAILED,
+            hijack_id=hijack_id_str,
+            record=dict(active),
+            reason="stop_blocked",
+            decision=decision,
+            occupant_name=getattr(subject, "occupant_name", None),
+            occupant_reason=getattr(subject, "occupant_reason", None),
+            workspace_num=workspace_num_int,
+        )
+    return HijackStopResult(
+        status="active",
+        message=(
+            f"Hijack {hijack_id_str} is already {state or 'in progress'}; "
+            "returning the active operation instead of starting a second stop"
+        ),
+        exit_code=_EXIT_HELD,
+        hijack_id=hijack_id_str,
+        record=dict(active),
+        reason="already_active",
+        decision=decision,
+        occupant_name=getattr(subject, "occupant_name", None),
+        occupant_reason=getattr(subject, "occupant_reason", None),
+        workspace_num=workspace_num_int,
+    )
+
+
+def _terminate_with_retry(target: HijackTarget, *, deps: StopDeps) -> Any:
+    """Run the verified terminator, retrying a bounded number of times.
+
+    The terminator escalates SIGTERM to SIGKILL internally. A retry covers
+    children that appeared while the tree shut down.
+    """
+    termination = terminate_tree(target, deps=deps)
+    attempts = 0
+    while not termination.success and attempts < _STOP_RETRY_ATTEMPTS:
+        attempts += 1
+        LOG.warning(
+            "hijack termination retry %d for %s: %s",
+            attempts,
+            target.name,
+            getattr(termination, "error", None) or "survivors remain",
+        )
+        termination = terminate_tree(target, deps=deps)
+    return termination
+
+
 def stop_agent_for_hijack(
     name: str,
     *,
@@ -70,12 +195,54 @@ def stop_agent_for_hijack(
 
     Exit codes follow the CLI contract: 0 means HIJACKED, 2 means refused
     with nothing changed, and 1 means stop failed or an error occurred.
+    A second request for the same target returns the active operation
+    (same hijack id) instead of starting a second stop.
     """
     deps = deps or StopDeps()
     from sase.agent.hijack.facts import resolve_and_decide
 
     subject, decision = resolve_and_decide(name, deps=deps)
     target = subject.target
+
+    from sase.agent.hijack import ledger
+
+    # Fast-path dedup: when the backend already sees an active hijack for
+    # this target, return that operation instead of refusing or doubling
+    # the stop. The target key is session-stable so TUI and CLI spellings
+    # of the same session coalesce.
+    if target is not None:
+        try:
+            early_key = _compute_target_key(subject, target)
+            early_active = ledger.find_active_record_by_target_key(early_key)
+        except Exception:
+            early_key = ""
+            early_active = None
+        if (
+            isinstance(early_active, dict)
+            and str(early_active.get("state") or "") in _ACTIVE_TARGET_STATES
+        ):
+            state = str(early_active.get("state") or "")
+            if state == "stop_blocked":
+                return _retry_stop_blocked(
+                    name,
+                    early_active,
+                    subject=subject,
+                    target=target,
+                    reason=reason,
+                    source=source,
+                    deps=deps,
+                    decision=decision,
+                )
+            if (
+                decision.get("code") == "active_hijack"
+                or state in _ACTIVE_TARGET_STATES
+            ):
+                # A concurrent request is already stopping or holding this
+                # target; report the same hijack id.
+                return _coalesced_result(
+                    name, early_active, subject=subject, decision=decision
+                )
+
     if (
         decision.get("mode") != "immediate"
         or decision.get("adapter") != "llm"
@@ -87,6 +254,42 @@ def stop_agent_for_hijack(
             or decision.get("mode")
             or "ineligible"
         )
+        # A redirect onto an active hijack coalesces onto that operation:
+        # both callers report the same hijack id.
+        if code in ("active_hijack",) or decision.get("redirect_op") in (
+            "show_active_hijack",
+        ):
+            try:
+                fallback_key = (
+                    _compute_target_key(subject, target) if target is not None else ""
+                )
+                fallback_active = (
+                    ledger.find_active_record_by_target_key(fallback_key)
+                    if fallback_key
+                    else None
+                )
+            except Exception:
+                fallback_active = None
+            if (
+                isinstance(fallback_active, dict)
+                and str(fallback_active.get("state") or "") in _ACTIVE_TARGET_STATES
+            ):
+                state = str(fallback_active.get("state") or "")
+                if state == "stop_blocked":
+                    assert target is not None
+                    return _retry_stop_blocked(
+                        name,
+                        fallback_active,
+                        subject=subject,
+                        target=target,
+                        reason=reason,
+                        source=source,
+                        deps=deps,
+                        decision=decision,
+                    )
+                return _coalesced_result(
+                    name, fallback_active, subject=subject, decision=decision
+                )
         message = str(
             decision.get("message")
             or (
@@ -106,9 +309,53 @@ def stop_agent_for_hijack(
             workspace_num=None if target is None else target.workspace_num,
         )
 
-    from sase.agent.hijack import ledger
+    target_key = _compute_target_key(subject, target)
 
     resolved_id = hijack_id or _new_hijack_id(name)
+    # Claim the target-level slot before creating our record. The winner
+    # proceeds; a loser returns the active operation with the same id the
+    # winner reports.
+    try:
+        winner = ledger.claim_target_slot(target_key, resolved_id)
+    except Exception:
+        winner = resolved_id
+    if winner != resolved_id:
+        try:
+            active = ledger.load_record(winner)
+        except Exception:
+            active = None
+        if (
+            isinstance(active, dict)
+            and str(active.get("state") or "") not in ledger.TERMINAL_STATES
+        ):
+            state = str(active.get("state") or "")
+            if state == "stop_blocked":
+                return _retry_stop_blocked(
+                    name,
+                    active,
+                    subject=subject,
+                    target=target,
+                    reason=reason,
+                    source=source,
+                    deps=deps,
+                    decision=decision,
+                )
+            return _coalesced_result(name, active, subject=subject, decision=decision)
+        # Stale slot winner: take the slot over and continue.
+        try:
+            ledger.release_target_slot(target_key, winner)
+            winner = ledger.claim_target_slot(target_key, resolved_id)
+        except Exception:
+            winner = resolved_id
+        if winner != resolved_id:
+            try:
+                active = ledger.load_record(winner)
+            except Exception:
+                active = None
+            if isinstance(active, dict):
+                return _coalesced_result(
+                    name, active, subject=subject, decision=decision
+                )
     # Re-resolve immediately before the claim transaction. A session may have
     # advanced since the first decision; never signal a predecessor after its
     # successor becomes the occupant. Do this before creating our own requested
@@ -145,6 +392,7 @@ def stop_agent_for_hijack(
             ),
             "next_action": "explain the session again, then retry if it is still eligible",
         }
+        ledger.release_target_slot(target_key, resolved_id)
         return HijackStopResult(
             status="refused",
             message=(
@@ -162,6 +410,8 @@ def stop_agent_for_hijack(
     assert fresh_target is not None
     # Use the just-resolved data for the pin/stop transaction. Identity and
     # decision equality above ensure it describes the same eligible target.
+    # The target key is session-stable; a re-resolved occupant in the same
+    # session keeps the claimed slot.
     target = fresh_target
     subject = fresh_subject
     decision = fresh_decision
@@ -183,11 +433,14 @@ def stop_agent_for_hijack(
         provider=target.provider,
         model=target.model,
         effort=target.effort,
+        target_key=target_key,
+        scope="llm",
     )
     record["prior_pin_state"] = bool(target.claim_pinned)
     try:
         record = ledger.create_record(record)
     except FileExistsError as exc:
+        ledger.release_target_slot(target_key, resolved_id)
         return HijackStopResult(
             status="error",
             message=f"Hijack record {resolved_id} already exists: {exc}",
@@ -202,7 +455,7 @@ def stop_agent_for_hijack(
 
     from sase.agent._user_kill_intent import write_user_kill_intent
 
-    write_user_kill_intent(
+    intent_path = write_user_kill_intent(
         target.artifacts_dir,
         pid=int(target.pid or 0),
         source=source,
@@ -210,6 +463,23 @@ def stop_agent_for_hijack(
         mode="hijack",
         hijack_id=resolved_id,
     )
+    if intent_path is None:
+        abort_before_stop(target, resolved_id, reason="intent not persisted")
+        ledger.release_target_slot(target_key, resolved_id)
+        return HijackStopResult(
+            status="error",
+            message=(
+                f"Cannot hijack agent '{name}': intent was not persisted "
+                "before any signal; nothing was signalled"
+            ),
+            exit_code=_EXIT_FAILED,
+            hijack_id=resolved_id,
+            reason="intent_write_failed",
+            decision=decision,
+            occupant_name=subject.occupant_name,
+            occupant_reason=subject.occupant_reason,
+            workspace_num=target.workspace_num,
+        )
 
     pinned_by_us = False
     if not target.is_home and target.workspace_num is not None:
@@ -218,6 +488,7 @@ def stop_agent_for_hijack(
             abort_before_stop(
                 target, resolved_id, reason="claim mismatch; not hijacked"
             )
+            ledger.release_target_slot(target_key, resolved_id)
             return HijackStopResult(
                 status="error",
                 message=(
@@ -238,6 +509,13 @@ def stop_agent_for_hijack(
         record = ledger.cas_advance_record(record, {"event": "begin_stop"})
     except Exception as exc:
         abort_before_stop(target, resolved_id, reason=str(exc))
+        # Restore the pin this attempt set; a prior pin stays pinned.
+        if pinned_by_us:
+            try:
+                unpin_claim(target)
+            except Exception:
+                pass
+        ledger.release_target_slot(target_key, resolved_id)
         return HijackStopResult(
             status="error",
             message=f"Could not start hijack of agent '{name}': {exc}",
@@ -275,34 +553,41 @@ def stop_agent_for_hijack(
             workspace_num=target.workspace_num,
         )
 
-    termination = terminate_tree(target, deps=deps)
+    termination = _terminate_with_retry(target, deps=deps)
     if not termination.success:
         survivors = [int(pid) for pid in (termination.survivors or ())]
+        # Bounded retries are exhausted; retain custody in stop_blocked so
+        # the workspace stays pinned and `,k` can retry. Only an explicit
+        # abandon releases the claim.
         try:
-            failed = ledger.cas_advance_record(
+            blocked = ledger.cas_advance_record(
                 record,
                 {
-                    "event": "stop_failed",
+                    "event": "stop_blocked",
                     "error": termination.error or f"survivor pids: {survivors}",
-                    "survivor_pids": survivors,
                 },
             )
+            try:
+                merged = ledger.merge_record_fields(
+                    resolved_id, {"survivor_pids": survivors}
+                )
+                if isinstance(merged, dict):
+                    blocked = merged
+            except Exception:
+                pass
         except Exception:
-            failed = ledger.load_record(resolved_id) or record
-        remove_intent(target.artifacts_dir)
-        if pinned_by_us:
-            unpin_claim(target)
-        detail = f" (pids {', '.join(map(str, survivors))})" if survivors else ""
+            blocked = ledger.load_record(resolved_id) or record
+        detail = f" ({len(survivors)} processes survived)" if survivors else ""
         return HijackStopResult(
-            status="stop_failed",
+            status="stop_blocked",
             message=(
-                f"Could not fully stop agent '{name}'{detail}; it is still "
-                f"RUNNING and nothing was held"
+                f"Could not fully stop agent '{name}'{detail}; workspace kept; "
+                "`,k` retries, or release with x"
             ),
             exit_code=_EXIT_FAILED,
             hijack_id=resolved_id,
-            record=failed,
-            reason="stop_failed",
+            record=blocked,
+            reason="stop_blocked",
             decision=decision,
             occupant_name=subject.occupant_name,
             occupant_reason=subject.occupant_reason,
@@ -371,6 +656,128 @@ def stop_agent_for_hijack(
         decision=decision,
         occupant_name=subject.occupant_name,
         occupant_reason=subject.occupant_reason,
+        workspace_num=target.workspace_num,
+    )
+
+
+def _retry_stop_blocked(
+    name: str,
+    active: dict[str, Any],
+    *,
+    subject: Any,
+    target: HijackTarget,
+    reason: str | None,
+    source: str,
+    deps: StopDeps,
+    decision: dict[str, Any] | None = None,
+) -> HijackStopResult:
+    """Retry a ``stop_blocked`` target without starting a second stop."""
+    from sase.agent.hijack import ledger
+
+    hijack_id = str(active.get("hijack_id") or "")
+    try:
+        record = ledger.cas_advance_record(active, {"event": "retry_stop"})
+    except Exception as exc:
+        return HijackStopResult(
+            status="error",
+            message=f"Could not retry hijack of agent '{name}': {exc}",
+            exit_code=_EXIT_FAILED,
+            hijack_id=hijack_id or None,
+            record=ledger.load_record(hijack_id) if hijack_id else active,
+            reason="retry_failed",
+            decision=decision,
+            occupant_name=getattr(subject, "occupant_name", None),
+            occupant_reason=getattr(subject, "occupant_reason", None),
+            workspace_num=target.workspace_num,
+        )
+    termination = _terminate_with_retry(target, deps=deps)
+    if not termination.success:
+        survivors = [int(pid) for pid in (termination.survivors or ())]
+        try:
+            blocked = ledger.cas_advance_record(
+                record,
+                {
+                    "event": "stop_blocked",
+                    "error": termination.error or f"survivor pids: {survivors}",
+                },
+            )
+            try:
+                merged = ledger.merge_record_fields(
+                    hijack_id, {"survivor_pids": survivors}
+                )
+                if isinstance(merged, dict):
+                    blocked = merged
+            except Exception:
+                pass
+        except Exception:
+            blocked = ledger.load_record(hijack_id) or record
+        detail = f" ({len(survivors)} processes survived)" if survivors else ""
+        return HijackStopResult(
+            status="stop_blocked",
+            message=(
+                f"Could not fully stop agent '{name}'{detail}; workspace kept; "
+                "`,k` retries, or release with x"
+            ),
+            exit_code=_EXIT_FAILED,
+            hijack_id=hijack_id,
+            record=blocked,
+            reason="stop_blocked",
+            decision=decision,
+            occupant_name=getattr(subject, "occupant_name", None),
+            occupant_reason=getattr(subject, "occupant_reason", None),
+            workspace_num=target.workspace_num,
+        )
+    # Retry succeeded: fall through to the normal held settlement.
+    ensure_hijacked_settlement(target, hijack_id, pinned_by_us=False)
+    try:
+        current = ledger.load_record(hijack_id) or record
+    except Exception:
+        current = record
+    try:
+        evidence = collect_evidence(target, deps=deps)
+        attach_evidence(hijack_id, evidence)
+        current = ledger.load_record(hijack_id) or current
+    except Exception as exc:
+        LOG.warning("hijack evidence collection failed: %s", exc)
+    try:
+        snapshots, snapshot_error = capture_snapshots(target, deps=deps)
+        if snapshots:
+            attach_evidence(hijack_id, {"snapshots": snapshots})
+        current = ledger.load_record(hijack_id) or current
+    except Exception as exc:
+        LOG.warning("hijack snapshot failed: %s", exc)
+    try:
+        held = ledger.cas_advance_record(current, {"event": "confirmed_stop"})
+    except Exception as exc:
+        return HijackStopResult(
+            status="error",
+            message=(
+                f"Agent '{name}' was stopped but the hijack record could not "
+                f"be published: {exc}"
+            ),
+            exit_code=_EXIT_FAILED,
+            hijack_id=hijack_id,
+            record=ledger.load_record(hijack_id) or current,
+            reason="publish_failed",
+            decision=decision,
+            occupant_name=getattr(subject, "occupant_name", None),
+            occupant_reason=getattr(subject, "occupant_reason", None),
+            workspace_num=target.workspace_num,
+        )
+    summary = format_diff_summary(held)
+    held_suffix = f" · {summary}" if summary else ""
+    return HijackStopResult(
+        status="held",
+        message=(
+            f"\u23cf hijacked {target.name} \u00b7 ws #{target.workspace_num} held"
+            f"{held_suffix} \u00b7 next: sase agent recover {target.name}"
+        ),
+        exit_code=_EXIT_HELD,
+        hijack_id=hijack_id,
+        record=held,
+        decision=decision,
+        occupant_name=getattr(subject, "occupant_name", None),
+        occupant_reason=getattr(subject, "occupant_reason", None),
         workspace_num=target.workspace_num,
     )
 

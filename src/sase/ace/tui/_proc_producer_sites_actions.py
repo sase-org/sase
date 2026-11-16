@@ -153,7 +153,7 @@ ACTION_PRODUCERS: tuple[ProcProducerSite, ...] = (
         "sase agent persist-hijack",
         identifiers=("name", "identity"),
         result_kind="agent.hijack",
-        concurrency_keys=("agent-hijack:{identity}",),
+        concurrency_keys=("agent-hijack:{target_key}",),
         optimistic_ui="pending hijack row; stop-failed badge",
     ),
     site(

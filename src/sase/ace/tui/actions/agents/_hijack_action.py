@@ -110,6 +110,17 @@ class AgentHijackActionMixin:
                 if callable(refresh):
                     refresh(source=refresh_source)
 
+        session_name: str | None = None
+        try:
+            session_candidate = getattr(agent, "agent_session", None)
+            if isinstance(session_candidate, str) and session_candidate:
+                session_name = session_candidate
+            elif getattr(agent, "is_agent_session_root_entry", False):
+                reference = agent.agent_session_reference_name()
+                if isinstance(reference, str) and reference:
+                    session_name = reference
+        except Exception:
+            session_name = None
         submitted = submit_agent_hijack(
             self,
             name=name,
@@ -117,6 +128,7 @@ class AgentHijackActionMixin:
             cl_name=agent.cl_name,
             project_file=agent.project_file,
             display_name=f"Hijack {agent.display_name}",
+            session_name=session_name,
             on_complete=on_complete,
         )
         if not submitted:

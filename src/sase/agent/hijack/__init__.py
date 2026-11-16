@@ -21,6 +21,7 @@ from .core import (
 )
 from .custody import (
     ACTIVE_CUSTODY_STATES,
+    abandon_stop_blocked_for_workspace,
     hijack_retains_claim,
     hijack_skips_claim_release,
     matching_active_record,
@@ -99,6 +100,7 @@ MISSING_HIJACK_CAPABILITY_MESSAGE = (
 
 __all__ = [
     "ACTIVE_CUSTODY_STATES",
+    "abandon_stop_blocked_for_workspace",
     "HIJACK_RUNNER_CAPABILITY",
     "MISSING_HIJACK_CAPABILITY_MESSAGE",
     "HijackLedgerConflict",

@@ -34,6 +34,168 @@ HIJACK_EVENT_EXPIRE = "expire"
 ACTIVE_CUSTODY_STATES = frozenset(
     {"requested", "stopping", "stop_blocked", "held", "resolving"}
 )
+
+
+def abandon_stop_blocked_for_workspace(
+    project_file: str, workspace_num: int
+) -> dict[str, Any] | None:
+    """Abandon the ``stop_blocked`` hold on one workspace after explicit release.
+
+    Only this explicit user choice (``x``) unpins: the record advances via
+    ``abandon_stop`` to ``stop_failed`` (terminal, index released), the
+    hijack intent marker is removed, and the pin this hijack set is
+    restored. Returns the terminal record, or ``None`` when no
+    ``stop_blocked`` record holds the workspace.
+    """
+    from sase.agent.hijack import ledger
+
+    wanted_project = str(project_file)
+    try:
+        wanted_workspace = int(workspace_num)
+    except (TypeError, ValueError):
+        return None
+    for record in list_active_records():
+        if str(record.get("state") or "") != "stop_blocked":
+            continue
+        if str(record.get("project_file") or "") != wanted_project:
+            continue
+        try:
+            if int(record.get("workspace_num")) != wanted_workspace:  # type: ignore[arg-type]
+                continue
+        except (TypeError, ValueError):
+            continue
+        hijack_id = record.get("hijack_id")
+        if not isinstance(hijack_id, str) or not hijack_id:
+            continue
+        try:
+            terminal = cas_advance_record(
+                record,
+                {
+                    "event": ledger.HIJACK_EVENT_ABANDON_STOP,
+                    "error": "abandoned by explicit release",
+                },
+            )
+        except Exception:
+            try:
+                terminal = ledger.load_record(hijack_id) or record
+            except Exception:
+                return None
+            if str(terminal.get("state") or "") != "stop_failed":
+                return None
+        # Remove the hijack intent so a later sweep does not treat the
+        # abandoned stop as still owned.
+        try:
+            artifacts_dir = terminal.get("artifacts_dir")
+            if isinstance(artifacts_dir, str) and artifacts_dir:
+                from sase.agent.hijack._stop_claim import remove_intent
+
+                remove_intent(artifacts_dir)
+        except Exception:
+            pass
+        # Restore the pin this hijack set; a prior pin stays pinned.
+        try:
+            prior_pinned = terminal.get("prior_pin_state")
+            if not prior_pinned:
+                from sase.agent.hijack._stop_claim import unpin_claim
+                from sase.agent.hijack._stop_models import HijackTarget
+
+                target = HijackTarget(
+                    name=str(terminal.get("agent_name") or ""),
+                    artifacts_dir=str(terminal.get("artifacts_dir") or ""),
+                    project_name="",
+                    project_file=wanted_project,
+                    artifacts_timestamp="",
+                    is_home=False,
+                    pid=None,
+                    claim_pid=None,
+                    claim_pinned=True,
+                    cl_name=None,
+                    workflow=None,
+                    workspace_num=wanted_workspace,
+                    workspace_dir=None,
+                    status="DONE",
+                    lifecycle_phase=None,
+                    is_monitor_turn=False,
+                    is_gate_turn=False,
+                    gate_state=None,
+                    agent_session=None,
+                    capabilities=[],
+                    model_alias=None,
+                    model_alias_trail=[],
+                    model_origin=None,
+                    provider=None,
+                    model=None,
+                    effort=None,
+                    run_started_at=None,
+                    done_outcome=None,
+                    done_recovery=None,
+                )
+                # Match by workspace number when the timestamp is unknown.
+                try:
+                    from sase.ace.patch import patch_lock, write_patch_atomic
+                    from sase.logs.workspace_claim_ledger import (
+                        record_running_field_mutation,
+                    )
+                    from sase.running_field._model import WorkspaceClaim as _Claim
+
+                    with patch_lock(wanted_project):
+                        with open(wanted_project, encoding="utf-8") as handle:
+                            content = handle.read()
+                        lines = content.splitlines(keepends=True)
+                        changed = False
+                        for index, line in enumerate(lines):
+                            claim = _Claim.from_line(line)
+                            if claim is None or claim.workspace_num != wanted_workspace:
+                                continue
+                            if not claim.pinned:
+                                break
+                            suffix = tuple(
+                                part for part in claim.suffix_fields if part != "PINNED"
+                            )
+                            lines[index] = (
+                                _Claim(
+                                    workspace_num=claim.workspace_num,
+                                    workflow=claim.workflow,
+                                    cl_name=claim.cl_name,
+                                    pid=claim.pid,
+                                    artifacts_timestamp=claim.artifacts_timestamp,
+                                    pinned=False,
+                                    suffix_fields=suffix,
+                                ).to_line()
+                                + "\n"
+                            )
+                            changed = True
+                            break
+                        if changed:
+                            write_patch_atomic(
+                                wanted_project,
+                                "".join(lines),
+                                f"Release hijack pin on workspace #{wanted_workspace}",
+                            )
+                            record_running_field_mutation(
+                                operation="unpin",
+                                project_file=wanted_project,
+                                workspace_num=wanted_workspace,
+                                success=True,
+                                before_content=content,
+                                after_content="".join(lines),
+                                workflow="",
+                                cl_name="",
+                                artifacts_timestamp="",
+                                claim_pid=None,
+                                caller_tag="agent_hijack",
+                            )
+                except Exception:
+                    try:
+                        unpin_claim(target)
+                    except Exception:
+                        pass
+        except Exception:
+            pass
+        return terminal
+    return None
+
+
 USER_PARKED_RECOVERY_STATES = frozenset({"pending", "expired"})
 
 
@@ -440,6 +602,7 @@ __all__ = [
     "HIJACK_EVENT_EXPIRE",
     "RELEASE_HELD_RECORD_STATES",
     "USER_PARKED_RECOVERY_STATES",
+    "abandon_stop_blocked_for_workspace",
     "expire_hijack_hold",
     "format_diff_summary",
     "held_record_for_agent",

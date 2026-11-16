@@ -1,7 +1,7 @@
 """Stale RUNNING entry sweep for the axe scheduler."""
 
 from collections.abc import Callable
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, UTC
 from pathlib import Path
 from typing import Any
 
@@ -364,13 +364,14 @@ def _apply_hijack_custody(
     record: dict[str, Any],
     *,
     held_ttl_days: int | None,
-    log_fn: Callable[[str, str | None], None] | None,
+    log_fn: Callable[[str, str | None], None] | None = None,
 ) -> tuple[bool, int | None]:
     """Retain or expire one hijack-owned claim. Never fall through to generic release."""
     from sase.agent.hijack.custody import expire_hijack_hold, hijacked_at_exceeds_ttl
 
     state = str(record.get("state") or "")
     if state in {"requested", "stopping"}:
+        _reconcile_abandoned_stop_record(project_file, claim, record, log_fn=log_fn)
         return False, held_ttl_days
     if state == "resolving":
         _reconcile_resolving_record(record, log_fn=log_fn)
@@ -401,6 +402,218 @@ def _apply_hijack_custody(
             "cyan",
         )
     return True, held_ttl_days
+
+
+def _abandoned_stop_is_stale(
+    record: dict[str, Any], *, bound_seconds: float = 120.0
+) -> bool:
+    """Return whether a requested/stopping record outlived its orchestrator.
+
+    The orchestrator advances requested→stopping→held/blocked within
+    seconds. A record still in requested/stopping after the bound is
+    treated as abandoned (crashed worker, lost response) and reconciled.
+    Fail-closed: unreadable timestamps retain.
+    """
+    from datetime import datetime, timezone
+
+    raw = record.get("updated_at") or record.get("hijacked_at")
+    if not isinstance(raw, str) or not raw:
+        return False
+    try:
+        stamp = datetime.fromisoformat(raw)
+    except ValueError:
+        return False
+    try:
+        now = (
+            datetime.now(tz=stamp.tzinfo)
+            if stamp.tzinfo
+            else datetime.now(UTC).replace(tzinfo=None)
+        )
+    except Exception:
+        return False
+    try:
+        age = (now - stamp).total_seconds()
+    except Exception:
+        return False
+    return age >= bound_seconds
+
+
+def _reconcile_abandoned_stop_record(
+    project_file: str,
+    claim: WorkspaceClaim,
+    record: dict[str, Any],
+    *,
+    log_fn: Callable[[str, str | None], None] | None = None,
+) -> None:
+    """Reconcile one abandoned requested/stopping hijack record.
+
+    - Process dead and no hijacked marker: apply the fallback settlement
+      (same ``done.json`` the runner would have written) and publish held.
+    - Process alive and no orchestrator (stale record): move to
+      ``stop_blocked`` so custody stays and ``,k`` retries.
+
+    Best-effort and fail-closed: every failure retains custody.
+    """
+    try:
+        from sase.agent.hijack import ledger
+    except Exception:
+        return
+    try:
+        state = str(record.get("state") or "")
+        if state not in {"requested", "stopping"}:
+            return
+        if not _abandoned_stop_is_stale(record):
+            return
+        hijack_id = record.get("hijack_id")
+        if not isinstance(hijack_id, str) or not hijack_id:
+            return
+        artifacts_dir = record.get("artifacts_dir")
+        if not isinstance(artifacts_dir, str) or not artifacts_dir:
+            return
+        pid = record.get("pid")
+        try:
+            pid_int = int(pid) if pid is not None else None
+        except (TypeError, ValueError):
+            pid_int = None
+        alive = False
+        if pid_int is not None and pid_int > 1:
+            try:
+                alive = is_process_running(pid_int)
+            except Exception:
+                alive = True
+        elif claim.pid:
+            try:
+                alive = is_process_running(int(claim.pid))
+            except Exception:
+                alive = True
+        # Read the settlement marker without taking any lock.
+        outcome: str | None = None
+        try:
+            from pathlib import Path as _Path
+            import json as _json
+
+            payload = _json.loads(
+                (_Path(artifacts_dir) / "done.json").read_text(encoding="utf-8")
+            )
+            if isinstance(payload, dict):
+                raw_outcome = payload.get("outcome")
+                outcome = raw_outcome if isinstance(raw_outcome, str) else None
+        except Exception:
+            outcome = None
+        current = ledger.load_record(hijack_id) or record
+        current_state = str(current.get("state") or "")
+        if current_state not in {"requested", "stopping"}:
+            return
+        if not alive:
+            # Fallback settlement: the runner died before settling. Write
+            # the identical hijacked marker and publish held.
+            if outcome != "hijacked":
+                try:
+                    from sase.agent.hijack._stop_claim import (
+                        ensure_hijacked_settlement,
+                    )
+                    from sase.agent.hijack._stop_models import HijackTarget
+
+                    target = HijackTarget(
+                        name=str(current.get("agent_name") or ""),
+                        artifacts_dir=artifacts_dir,
+                        project_name="",
+                        project_file=str(current.get("project_file") or project_file),
+                        artifacts_timestamp="",
+                        is_home=False,
+                        pid=pid_int,
+                        claim_pid=None,
+                        claim_pinned=True,
+                        cl_name=None,
+                        workflow=None,
+                        workspace_num=current.get("workspace_num")
+                        if isinstance(current.get("workspace_num"), int)
+                        else claim.workspace_num,
+                        workspace_dir=current.get("workspace_dir")
+                        if isinstance(current.get("workspace_dir"), str)
+                        else None,
+                        status="DONE",
+                        lifecycle_phase=None,
+                        is_monitor_turn=False,
+                        is_gate_turn=False,
+                        gate_state=None,
+                        agent_session=current.get("session")
+                        if isinstance(current.get("session"), str)
+                        else None,
+                        capabilities=[],
+                        model_alias=None,
+                        model_alias_trail=[],
+                        model_origin=None,
+                        provider=None,
+                        model=None,
+                        effort=None,
+                        run_started_at=None,
+                        done_outcome=None,
+                        done_recovery=None,
+                    )
+                    ensure_hijacked_settlement(target, hijack_id, pinned_by_us=False)
+                except Exception:
+                    pass
+            try:
+                if str(current.get("state") or "") == "requested":
+                    current = ledger.cas_advance_record(
+                        current, {"event": "begin_stop"}
+                    )
+            except Exception:
+                try:
+                    current = ledger.load_record(hijack_id) or current
+                except Exception:
+                    return
+                if str(current.get("state") or "") not in {"requested", "stopping"}:
+                    return
+            try:
+                ledger.cas_advance_record(current, {"event": "confirmed_stop"})
+            except Exception:
+                return
+            if log_fn:
+                try:
+                    log_fn(
+                        f"Hijack {hijack_id} settled abandoned stop as held",
+                        "cyan",
+                    )
+                except Exception:
+                    pass
+            return
+        # Process alive but the orchestrator is gone: retain custody in
+        # stop_blocked so `,k` retries instead of releasing.
+        try:
+            if str(current.get("state") or "") == "requested":
+                current = ledger.cas_advance_record(current, {"event": "begin_stop"})
+        except Exception:
+            try:
+                current = ledger.load_record(hijack_id) or current
+            except Exception:
+                return
+            if str(current.get("state") or "") not in {"requested", "stopping"}:
+                return
+        if str(current.get("state") or "") != "stopping":
+            return
+        try:
+            ledger.cas_advance_record(
+                current,
+                {
+                    "event": "stop_blocked",
+                    "error": "orchestrator abandoned a live stop",
+                },
+            )
+        except Exception:
+            return
+        if log_fn:
+            try:
+                log_fn(
+                    f"Hijack {hijack_id} retains workspace (stop_blocked: "
+                    "abandoned live stop)",
+                    "yellow",
+                )
+            except Exception:
+                pass
+    except Exception:
+        return
 
 
 def _reconcile_resolving_record(

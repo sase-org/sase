@@ -112,11 +112,25 @@ def abort_before_stop(target: HijackTarget, hijack_id: str, reason: str) -> None
     try:
         from sase.agent.hijack import ledger
 
+        try:
+            existing = ledger.load_record(hijack_id)
+        except Exception:
+            existing = None
+        target_key = ""
+        if isinstance(existing, dict):
+            raw_key = existing.get("target_key")
+            if isinstance(raw_key, str):
+                target_key = raw_key
         path = ledger.hijack_record_path(hijack_id)
         try:
             path.unlink(missing_ok=True)
         except OSError as exc:
             LOG.warning("could not remove aborted hijack record: %s", exc)
+        if target_key:
+            try:
+                ledger.release_target_slot(target_key, hijack_id)
+            except Exception as exc:
+                LOG.warning("could not release hijack target slot: %s", exc)
     except Exception as exc:
         LOG.warning("could not remove aborted hijack record: %s", exc)
     LOG.warning("hijack %s aborted: %s", hijack_id, reason)

@@ -359,7 +359,11 @@ def _build_hijack_facts(subject: _HijackSubject) -> dict[str, Any]:
         ),
         "successor_attachable": bool(
             subject.selected is not None
-            and (subject.session is not None or (target and target.agent_session))
+            and (
+                subject.session is not None
+                or (target and target.agent_session)
+                or _promotion_preconditions_hold(member)
+            )
         ),
         "done_outcome": done_outcome,
         "active_hijack_state": active_state,
@@ -603,6 +607,33 @@ def _eligibility_schema_version() -> int:
 
 def _has_numbered_claim(claim: Any | None) -> bool:
     return _positive_int(getattr(claim, "workspace_num", None)) is not None
+
+
+def _promotion_preconditions_hold(member: Any | None) -> bool:
+    """Return whether a sessionless predecessor could be promoted.
+
+    Keep-work recovery promotes a bare agent into a session with the
+    existing ``promote_agent_to_agent_session`` helper before attaching
+    the successor. A stop is only accepted when that promotion could run,
+    so Continue never follows a stop that cannot be recovered: the
+    predecessor needs a readable meta with a bare name and an artifacts
+    directory that could host the session container.
+    """
+    if member is None:
+        return False
+    meta = getattr(member, "meta", None)
+    if not isinstance(meta, dict):
+        return False
+    name = meta.get("name")
+    if not isinstance(name, str) or not name:
+        return False
+    artifacts_dir = getattr(member, "artifacts_dir", None)
+    if not isinstance(artifacts_dir, str) or not artifacts_dir:
+        return False
+    # Already sessioned members attach without promotion; bare names with
+    # no session marker are promotable. A conflicting session marker that
+    # is not the member's own session fails closed elsewhere.
+    return True
 
 
 def _positive_int(value: object) -> int | None:

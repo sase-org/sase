@@ -97,6 +97,24 @@ def submit_agent_revert(
     return submitted is not None
 
 
+def _hijack_target_key(project_file: str, session_or_name: str) -> str:
+    """Return the target-level dedup key for one TUI hijack submission."""
+    try:
+        from sase.agent.hijack.ledger import target_key_for
+    except Exception:
+        import hashlib
+
+        base = f"{project_file or ''}::{session_or_name or ''}"
+        return hashlib.sha256(base.encode("utf-8")).hexdigest()
+    try:
+        return target_key_for(project_file, session_or_name)
+    except Exception:
+        import hashlib
+
+        base = f"{project_file or ''}::{session_or_name or ''}"
+        return hashlib.sha256(base.encode("utf-8")).hexdigest()
+
+
 def submit_agent_hijack(
     app: Any,
     *,
@@ -105,16 +123,18 @@ def submit_agent_hijack(
     cl_name: str,
     project_file: str,
     display_name: str,
+    session_name: str | None = None,
     on_complete: Callable[[TrackedProcCompletion[Any]], None] | None = None,
 ) -> bool:
     """Submit ``sase agent persist-hijack`` as a durable TUI proc."""
     payload: dict[str, Any] = {"name": name}
+    target_key = _hijack_target_key(project_file, session_name or name)
     submitted = app._submit_durable_proc(
         sase_command_argv("agent", "persist-hijack"),
         operation=AGENT_PERSIST_HIJACK,
         request=payload,
         request_fingerprint=operation_fingerprint(AGENT_PERSIST_HIJACK, payload),
-        concurrency_keys=(f"agent-hijack:{identity}",),
+        concurrency_keys=(f"agent-hijack:{target_key}",),
         proc_type="agent-hijack",
         display_name=display_name,
         cl_name=cl_name,

@@ -150,7 +150,10 @@ def persist_bulk_kill_side_effects(
 
 
 def _persist_running_kill(agent: Agent) -> None:
-    from sase.agent.hijack.custody import hijack_skips_claim_release
+    from sase.agent.hijack.custody import (
+        abandon_stop_blocked_for_workspace,
+        hijack_skips_claim_release,
+    )
     from sase.running_field import release_workspace
 
     if hijack_skips_claim_release(
@@ -158,7 +161,18 @@ def _persist_running_kill(agent: Agent) -> None:
         project_file=agent.project_file,
         workspace_num=agent.workspace_num,
     ):
-        return
+        # An explicit `x` release abandons a stop_blocked hold (the only
+        # path that unpins) and then releases; every other active hijack
+        # keeps custody.
+        try:
+            if agent.workspace_num is not None:
+                abandoned = abandon_stop_blocked_for_workspace(
+                    agent.project_file, int(agent.workspace_num)
+                )
+                if abandoned is None:
+                    return
+        except Exception:
+            return
 
     if agent.workspace_num is not None:
         release_workspace(

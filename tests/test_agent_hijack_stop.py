@@ -345,7 +345,7 @@ def test_lost_race_keeps_the_real_outcome(
     assert "finished first" in result.message
 
 
-def test_survivors_leave_the_agent_running(
+def test_survivors_retain_custody_in_stop_blocked(
     hijack_home: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     from sase.running_field import get_claimed_workspaces
@@ -353,8 +353,10 @@ def test_survivors_leave_the_agent_running(
     artifacts = _artifacts(tmp_path)
     project_file = _project_file(tmp_path)
     _install_target(monkeypatch, artifacts, project_file)
+    calls = {"n": 0}
 
     def fake_terminate(pid: int, **kwargs: Any) -> Any:
+        calls["n"] += 1
         return SimpleNamespace(
             success=False, survivors=(111, 222), error="still running"
         )
@@ -362,14 +364,20 @@ def test_survivors_leave_the_agent_running(
     result = stop_agent_for_hijack(
         _AGENT, deps=_deps(artifacts, terminate=fake_terminate)
     )
-    assert result.status == "stop_failed"
+    assert result.status == "stop_blocked"
     assert result.exit_code == 1
     assert result.record is not None
-    assert result.record["state"] == "stop_failed"
-    assert not (artifacts / ".sase_user_kill_pending").exists()
+    assert result.record["state"] == "stop_blocked"
+    assert result.record["survivor_pids"] == [111, 222]
+    # Bounded retry: initial attempt plus two retries before custody.
+    assert calls["n"] == 3
+    # Custody stays: intent kept, pin kept, no done marker.
+    assert (artifacts / ".sase_user_kill_pending").exists()
     assert not (artifacts / "done.json").exists()
     claims = get_claimed_workspaces(project_file)
-    assert [claim.pinned for claim in claims] == [False]
+    assert [claim.pinned for claim in claims] == [True]
+    assert "workspace kept" in result.message
+    assert "`,k` retries" in result.message
 
 
 def test_snapshot_failure_still_reaches_held(

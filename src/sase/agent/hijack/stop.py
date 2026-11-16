@@ -2,22 +2,29 @@
 
 Stopping a stalled agent without losing its work follows a fixed order:
 
-1. **Eligibility.** Gather facts (row, meta, pid identity, claim, lifecycle
-   phase, capability) and call the Rust eligibility function. A refusal
-   returns exit 2 and changes nothing.
-2. **Record and intent.** Exclusively create the ledger record (``requested``)
-   and write the hijack-mode user-kill intent. Both exist before any signal.
+1. **Eligibility + target dedup.** Gather facts and call the Rust v2
+   decision. The target key (``sha256(project_file::session-or-agent)``)
+   reserves one active operation per target; a second request returns the
+   active operation (same hijack id) instead of a second stop.
+2. **Record and intent.** Exclusively create the ledger record (``requested``,
+   with ``target_key`` and ``scope``) and write the hijack-mode user-kill
+   intent. An intent that is not persisted aborts before any signal
+   (``intent_write_failed``).
 3. **Pin.** Pin the workspace claim under the claim lock, recording the prior
-   pin state. A mismatched or replaced claim aborts.
+   pin state. A mismatched claim aborts; a ``begin_stop`` failure after the
+   pin restores the prior pin state.
 4. **Lost race.** If ``done.json`` already holds a real outcome, the record
    becomes ``finished_first``, the intent is removed, and the pin is restored
    only if this hijack set it.
 5. **Stop.** The record moves to ``stopping`` and the verified terminator runs
-   (process-identity checks, 6 s grace, then SIGKILL). No ``killpg`` shortcut.
-6. **Survivors.** Any surviving process moves the record to ``stop_failed``,
-   removes the intent, and restores the pin. The row stays RUNNING. Exit 1.
+   (pidfd signalling on Linux, identity checks, 6 s grace, then SIGKILL),
+   retried a bounded number of times.
+6. **Survivors.** Surviving writers move the record to ``stop_blocked``;
+   custody and the pin stay until an explicit abandon. ``,k`` retries via
+   ``retry_stop``; only ``abandon_stop`` (explicit ``x`` release) unpins.
 7. **Fallback.** When the runner died before settling, the orchestrator writes
-   the same ``done.json`` the runner would have and re-asserts the pin.
+   the same ``done.json`` the runner would have and re-asserts the pin. The
+   stale sweep reconciles abandoned requested/stopping records the same way.
 8. **Evidence**, best-effort and off the TUI: per-repo diff stats, the last
    tool call and its age, the run duration, and stale ``index.lock`` files.
 9. **Strict snapshot.** Every repo with changes is snapshotted. A failure is

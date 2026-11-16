@@ -244,9 +244,25 @@ class _TreeTermination:
         return True
 
     def signal(self, target: _Target, sig: int) -> bool:
-        """Signal *target* only while it is still the pinned process."""
+        """Signal *target* only while it is still the pinned process.
+
+        On Linux the default kill path goes through ``pidfd_send_signal``
+        after the identity check, closing the check-then-signal PID-reuse
+        race. Injected kill functions (tests, custom harnesses) keep the
+        identity-checked ``kill`` path so they observe every signal.
+        Other platforms keep the identity-checked ``kill`` path.
+        """
         if not self.alive(target):
             return False
+        if self._kill is os.kill:
+            pidfd_outcome = _pidfd_signal(target.pid, sig)
+            if pidfd_outcome is True:
+                return True
+            if pidfd_outcome == "denied":
+                self.denied.add(target.pid)
+                return False
+            # None (unavailable) or False (gone): fall through to the
+            # identity-checked kill so permission-denied is recorded uniformly.
         try:
             self._kill(target.pid, sig)
         except ProcessLookupError:
@@ -291,6 +307,45 @@ def _pid_exists(pid: int) -> bool:
     except PermissionError:
         return True
     return True
+
+
+def _pidfd_signal(pid: int, sig: int) -> bool | str | None:
+    """Signal *pid* via pidfd when the platform supports it.
+
+    Returns ``True`` when the signal was delivered through the pidfd,
+    ``"denied"`` on permission-denied, ``False`` when the pid is gone,
+    and ``None`` when pidfd is unavailable so the caller falls back to
+    the identity-checked ``kill`` path. A pidfd refers to the exact
+    process, not a recycled pid number, closing the check-then-signal
+    race on Linux.
+    """
+    pidfd_open = getattr(os, "pidfd_open", None)
+    pidfd_send = getattr(signal, "pidfd_send_signal", None)
+    if pidfd_open is None or pidfd_send is None:
+        return None
+    try:
+        fd = pidfd_open(pid, 0)
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        return "denied"
+    except OSError:
+        return None
+    try:
+        try:
+            pidfd_send(fd, sig, None, 0)
+        except ProcessLookupError:
+            return False
+        except PermissionError:
+            return "denied"
+        except OSError:
+            return None
+        return True
+    finally:
+        try:
+            os.close(fd)
+        except OSError:
+            pass
 
 
 def _default_marker_path(
