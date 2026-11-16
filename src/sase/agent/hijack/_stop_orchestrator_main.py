@@ -5,6 +5,7 @@ from __future__ import annotations
 import logging
 import socket
 import uuid
+from typing import Any
 
 from sase.agent.hijack._stop_claim import (
     abort_before_stop,
@@ -16,6 +17,7 @@ from sase.agent.hijack._stop_models import StopDeps, read_done_marker
 from sase.agent.hijack._stop_orchestrator_common import (
     EXIT_FAILED,
     EXIT_HELD,
+    EXIT_LATCHED,
     EXIT_REFUSED,
     STOP_INTENT_SOURCE,
     HijackStopResult,
@@ -69,7 +71,8 @@ def stop_agent_for_hijack(
     """Run the ordered stop orchestrator for *name*.
 
     Exit codes follow the CLI contract: 0 means HIJACKED, 2 means refused
-    with nothing changed, and 1 means stop failed or an error occurred.
+    with nothing changed, 1 means stop failed or an error occurred, and 3
+    means the hijack latched and applies at the next safe hand-off.
     A second request for the same target returns the active operation
     (same hijack id) instead of starting a second stop.
     """
@@ -78,6 +81,16 @@ def stop_agent_for_hijack(
 
     subject, decision = resolve_and_decide(name, deps=deps)
     target = subject.target
+
+    if decision.get("mode") == "latched" and target is not None:
+        return _request_latch_result(
+            name,
+            subject,
+            target,
+            decision,
+            hijack_id=hijack_id,
+            deps=deps,
+        )
 
     from sase.agent.hijack import ledger
 
@@ -485,6 +498,136 @@ def stop_agent_for_hijack(
         subject=subject,
         decision=decision,
         pinned_by_us=pinned_by_us,
+    )
+
+
+def _request_latch_result(
+    name: str,
+    subject: Any,
+    target: Any,
+    decision: dict[str, Any],
+    *,
+    hijack_id: str | None,
+    deps: StopDeps,
+) -> HijackStopResult:
+    """Request or coalesce a latch for a finalizing or staged turn.
+
+    A pending latch never stops the owner or interrupts its finalizer; the
+    runner applies it at the next safe boundary. Accepted latches exit 3.
+    """
+    from sase.agent.hijack import latch as latch_module
+
+    try:
+        result = latch_module.request_latch(name, deps=deps, hijack_id=hijack_id)
+    except Exception as exc:
+        return HijackStopResult(
+            status="error",
+            message=f"Cannot latch hijack for agent '{name}': {exc}",
+            exit_code=EXIT_FAILED,
+            hijack_id=hijack_id,
+            reason="latch_request_failed",
+            decision=decision,
+            occupant_name=getattr(subject, "occupant_name", None),
+            occupant_reason=getattr(subject, "occupant_reason", None),
+            workspace_num=getattr(target, "workspace_num", None),
+        )
+    verdict = str(result.get("verdict") or "")
+    record = result.get("record")
+    record_dict = dict(record) if isinstance(record, dict) else None
+    result_hijack_id = result.get("hijack_id")
+    hijack_id_str = result_hijack_id if isinstance(result_hijack_id, str) else hijack_id
+    if record_dict is None and hijack_id_str:
+        try:
+            from sase.agent.hijack import ledger as _ledger
+
+            loaded = _ledger.load_record(hijack_id_str)
+            if isinstance(loaded, dict):
+                record_dict = dict(loaded)
+        except Exception:
+            pass
+    workspace_num = getattr(target, "workspace_num", None)
+    occupant_name = getattr(subject, "occupant_name", None)
+    occupant_reason = getattr(subject, "occupant_reason", None)
+    boundary = decision.get("boundary") or result.get("boundary")
+    boundary_text = (
+        str(boundary).replace("_", " ")
+        if isinstance(boundary, str) and boundary
+        else "hand-off"
+    )
+    if verdict == "pending":
+        return HijackStopResult(
+            status="latched",
+            message=(
+                f"\u23cf hijack latched for {occupant_name or name} "
+                f"\u00b7 applies after {boundary_text} "
+                f"\u00b7 next: sase agent hijack -c {name} to cancel"
+            ),
+            exit_code=EXIT_LATCHED,
+            hijack_id=hijack_id_str,
+            record=record_dict,
+            reason=str(result.get("code") or decision.get("code") or "latched"),
+            decision=decision,
+            occupant_name=occupant_name,
+            occupant_reason=occupant_reason,
+            workspace_num=workspace_num,
+        )
+    if verdict in {"applied", "moot"}:
+        state = str((record_dict or {}).get("state") or verdict)
+        return HijackStopResult(
+            status=state,
+            message=str(result.get("message") or f"hijack latch is {verdict}"),
+            exit_code=EXIT_HELD if verdict == "applied" else EXIT_REFUSED,
+            hijack_id=hijack_id_str,
+            record=record_dict,
+            reason=str(result.get("code") or verdict),
+            decision=decision,
+            occupant_name=occupant_name,
+            occupant_reason=occupant_reason,
+            workspace_num=workspace_num,
+        )
+    if verdict == "cancelled":
+        return HijackStopResult(
+            status="cancelled",
+            message=str(result.get("message") or "the pending hijack was cancelled"),
+            exit_code=EXIT_HELD,
+            hijack_id=hijack_id_str,
+            record=record_dict,
+            reason=str(result.get("code") or "cancelled"),
+            decision=decision,
+            occupant_name=occupant_name,
+            occupant_reason=occupant_reason,
+            workspace_num=workspace_num,
+        )
+    if verdict in {"refused", "no_latch", "ownership_uncertain"}:
+        return HijackStopResult(
+            status="refused",
+            message=(
+                f"Cannot latch hijack for agent '{name}': "
+                f"{result.get('message') or 'latch was refused'}"
+            ),
+            exit_code=EXIT_REFUSED,
+            hijack_id=hijack_id_str,
+            record=record_dict,
+            reason=str(result.get("code") or verdict or "latch_refused"),
+            decision=decision,
+            occupant_name=occupant_name,
+            occupant_reason=occupant_reason,
+            workspace_num=workspace_num,
+        )
+    return HijackStopResult(
+        status="error",
+        message=(
+            f"Cannot latch hijack for agent '{name}': "
+            f"{result.get('message') or 'latch request failed'}"
+        ),
+        exit_code=EXIT_FAILED,
+        hijack_id=hijack_id_str,
+        record=record_dict,
+        reason=str(result.get("code") or "latch_request_failed"),
+        decision=decision,
+        occupant_name=occupant_name,
+        occupant_reason=occupant_reason,
+        workspace_num=workspace_num,
     )
 
 

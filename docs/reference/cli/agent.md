@@ -364,19 +364,21 @@ Arguments:
 ## `sase agent hijack`
 
 ```text
-usage: sase agent hijack [-h] [-e] [-j] [-r REASON] NAME
+usage: sase agent hijack [-h] [-c | -e | -n] [-j] [-r REASON] NAME
 ```
 
-Stop the named agent without releasing its workspace claim, or use --explain to inspect the current session occupant and decision. The agent's process tree is verified dead, its workspace stays held, and its evidence is snapshotted, so it can be recovered with `sase agent recover NAME`. What is kept: the workspace, the Agents-tab node, and the evidence. What is stopped: the process tree. Exit 0 means HIJACKED, 2 means refused with nothing changed, and 1 means the stop failed or an error occurred.
+Stop the named agent without releasing its workspace claim, or latch the hijack to apply after the finalizer or a staged handoff settles. Use --explain to inspect the current session occupant and decision. The agent's process tree is verified dead, its workspace stays held, and its evidence is snapshotted, so it can be recovered with `sase agent recover NAME`. What is kept: the workspace, the Agents-tab node, and the evidence. What is stopped: the process tree. Exit 0 means HIJACKED, 2 means refused with nothing changed, 3 means latched to apply after the hand-off settles, and 1 means the stop failed or an error occurred.
 
 Options:
 
-| Option                         | Description                                                                  | Default |
-| ------------------------------ | ---------------------------------------------------------------------------- | ------- |
-| `-e`, `--explain`              | Explain the current session occupant and hijack decision without stopping it | `false` |
-| `-h`, `--help`                 | show this help message and exit                                              | —       |
-| `-j`, `--json`                 | Emit one stable JSON envelope on stdout and nothing else                     | `false` |
-| `-r REASON`, `--reason REASON` | Record why the agent was hijacked                                            | —       |
+| Option                         | Description                                                                          | Default |
+| ------------------------------ | ------------------------------------------------------------------------------------ | ------- |
+| `-c`, `--cancel`               | Cancel a pending latched hijack without stopping the agent                           | `false` |
+| `-e`, `--explain`              | Explain the current session occupant and hijack decision without stopping it         | `false` |
+| `-h`, `--help`                 | show this help message and exit                                                      | —       |
+| `-j`, `--json`                 | Emit one stable JSON envelope on stdout and nothing else                             | `false` |
+| `-n`, `--now`                  | Force a pending latched hijack after its 120-second bound (interrupts the finalizer) | `false` |
+| `-r REASON`, `--reason REASON` | Record why the agent was hijacked                                                    | —       |
 
 Arguments:
 

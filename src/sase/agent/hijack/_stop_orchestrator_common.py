@@ -17,6 +17,7 @@ STOP_INTENT_SOURCE = "agent_hijack"
 EXIT_HELD = 0
 EXIT_REFUSED = 2
 EXIT_FAILED = 1
+EXIT_LATCHED = 3
 
 #: Bounded termination retries after the first attempt before custody
 #: falls back to ``stop_blocked``. The verified terminator already
@@ -188,6 +189,7 @@ def settle_held_result(
 __all__ = [
     "EXIT_FAILED",
     "EXIT_HELD",
+    "EXIT_LATCHED",
     "EXIT_REFUSED",
     "HijackStopResult",
     "STOP_INTENT_SOURCE",

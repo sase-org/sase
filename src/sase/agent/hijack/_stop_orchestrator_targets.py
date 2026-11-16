@@ -8,6 +8,7 @@ from sase.agent.hijack._stop_models import HijackTarget
 from sase.agent.hijack._stop_orchestrator_common import (
     EXIT_FAILED,
     EXIT_HELD,
+    EXIT_LATCHED,
     HijackStopResult,
 )
 
@@ -78,6 +79,29 @@ def coalesced_result(
             hijack_id=hijack_id_str,
             record=dict(active),
             reason="already_held",
+            decision=decision,
+            occupant_name=getattr(subject, "occupant_name", None),
+            occupant_reason=getattr(subject, "occupant_reason", None),
+            workspace_num=workspace_num_int,
+        )
+    if state == "latched":
+        boundary = active.get("boundary")
+        boundary_text = (
+            str(boundary).replace("_", " ")
+            if isinstance(boundary, str) and boundary
+            else "hand-off"
+        )
+        return HijackStopResult(
+            status="latched",
+            message=(
+                f"\u23cf hijack latched for {active.get('agent_name') or name} "
+                f"\u00b7 applies after {boundary_text} "
+                f"\u00b7 next: sase agent hijack -c {name} to cancel"
+            ),
+            exit_code=EXIT_LATCHED,
+            hijack_id=hijack_id_str,
+            record=dict(active),
+            reason="latched",
             decision=decision,
             occupant_name=getattr(subject, "occupant_name", None),
             occupant_reason=getattr(subject, "occupant_reason", None),

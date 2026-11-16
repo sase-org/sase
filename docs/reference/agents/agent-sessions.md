@@ -212,15 +212,32 @@ that launches in a different workspace leaves the original hold unresolved.
 
 Hijacking stops a local agent while retaining its numbered workspace, uncommitted work,
 Agents-tab row, and recovery evidence. It is available for `RUNNING`, `STARTING`, and
-`RETRYING` agent turns launched with hijack support. Finalizing turns, home-mode turns,
-remote rows, monitors, gates, named processes, clan containers, and bulk selections are
-ineligible. A remote agent must be hijacked on its owning host.
+`RETRYING` agent turns launched with hijack support. Home-mode turns, remote rows,
+monitors, gates, named processes, clan containers, and bulk selections are ineligible. A
+remote agent must be hijacked on its owning host.
+
+Finalizing turns (`provider_done`/`finalizing`/`handoff`, or finalizer
+`declaring`/`executing`) and staged-but-not-adopted agent handoffs latch instead of
+stopping immediately: the hijack is accepted durably, the finalizer settles and commits
+land, and the latch applies at the next safe boundary (staged adoption, or
+`finished_first` moot when the turn ends with no handoff). A pending latch never stops
+the owner or interrupts its finalizer.
 
 `sase agent hijack NAME` waits for the process tree to stop and verifies that it is dead
 before reporting `HIJACKED`. The workspace stays held while SASE attempts to capture
 repository diffs, snapshots, model details, and recent tool context. Capture failures
 can leave snapshots pending even after a successful stop. A refusal exits `2`; a failed
-stop or operational error exits `1`; a completed hijack exits `0`.
+stop or operational error exits `1`; a completed hijack exits `0`; an accepted latch
+exits `3` and reports `latched` with its `boundary` hint.
+
+`sase agent hijack -c NAME` cancels a pending latch and exits `0` with a `cancelled`
+status. A race that already applied or finished reports that durable state instead of
+pretending to cancel. `sase agent hijack -n NAME` forces a pending latch only after its
+120-second bound; forcing interrupts the finalizer and recovery carries "effect
+uncertain — finalizer interrupted; inspect the snapshot". A latch mooted by clean
+completion reports `finished_first` and holds nothing. The suppressed handoff payload is
+retained unreadably-by-default, labeled untrusted in the continuation brief, and never
+executed during recovery.
 
 `sase agent recover NAME` prints a read-only recovery menu without launching anything.
 The menu includes the held workspace, model, elapsed time, captured changes, and action

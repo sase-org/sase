@@ -142,29 +142,46 @@ def register_agent_hijack_parser(agents_sub: argparse._SubParsersAction) -> None
         help="Stop a stalled agent but keep its workspace",
         description=(
             "Stop the named agent without releasing its workspace claim, or "
-            "use --explain to inspect the current session occupant and decision. "
-            "The agent's process tree is verified dead, its workspace stays "
-            "held, and its evidence is snapshotted, so it can be recovered "
-            "with `sase agent recover NAME`. What is kept: the workspace, "
+            "latch the hijack to apply after the finalizer or a staged "
+            "handoff settles. Use --explain to inspect the current session "
+            "occupant and decision. The agent's process tree is verified "
+            "dead, its workspace stays held, and its evidence is "
+            "snapshotted, so it can be recovered with "
+            "`sase agent recover NAME`. What is kept: the workspace, "
             "the Agents-tab node, and the evidence. What is stopped: the "
             "process tree. Exit 0 means HIJACKED, 2 means refused with "
-            "nothing changed, and 1 means the stop failed or an error "
-            "occurred."
+            "nothing changed, 3 means latched to apply after the hand-off "
+            "settles, and 1 means the stop failed or an error occurred."
         ),
         epilog=(
             "examples:\n"
             "  sase agent hijack sase-7f.2\n"
             "  sase agent hijack -e sase-7f\n"
             '  sase agent hijack sase-7f.2 -r "stalled on lint"\n'
-            "  sase agent hijack sase-7f.2 -j"
+            "  sase agent hijack sase-7f.2 -j\n"
+            "  sase agent hijack -c sase-7f.2\n"
+            "  sase agent hijack -n sase-7f.2"
         ),
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
-    hijack_parser.add_argument(
+    latch_group = hijack_parser.add_mutually_exclusive_group()
+    latch_group.add_argument(
+        "-c",
+        "--cancel",
+        action="store_true",
+        help="Cancel a pending latched hijack without stopping the agent",
+    )
+    latch_group.add_argument(
         "-e",
         "--explain",
         action="store_true",
         help="Explain the current session occupant and hijack decision without stopping it",
+    )
+    latch_group.add_argument(
+        "-n",
+        "--now",
+        action="store_true",
+        help="Force a pending latched hijack after its 120-second bound (interrupts the finalizer)",
     )
     hijack_parser.add_argument(
         "-j",

@@ -1,4 +1,4 @@
-{"count": 3707, "rev": "84d20fe33b01", "schema": "sase.footprint.catalog/1"}
+{"count": 3709, "rev": "2653ade36b53", "schema": "sase.footprint.catalog/1"}
 {"area": "automation", "id": "auto:axe.agent_waits", "kind": "auto", "label": "Resolve agent wait dependencies within seconds of completion", "ns": "auto", "parent": null, "src": "sase/default_config.yml"}
 {"area": "automation", "id": "auto:axe.agent_waits.wait_checks", "kind": "auto", "label": "Resolve agent wait dependencies and write ready.json when satisfied", "ns": "auto", "parent": "auto:axe.agent_waits", "src": "sase/default_config.yml"}
 {"area": "automation", "id": "auto:axe.checks", "kind": "auto", "label": "Poll slower PR-submission and workspace-claim checks on a five-minute cadence", "ns": "auto", "parent": null, "src": "sase/default_config.yml"}
@@ -125,8 +125,10 @@
 {"area": "cli.agent", "id": "cli:agent.drain#operation_result_path", "kind": "option", "label": "Option --operation_result_path of cli:agent.drain", "ns": "cli", "parent": "cli:agent.drain", "src": "sase/main/parser_agent.py:register_agent_parser"}
 {"area": "cli.agent", "id": "cli:agent.drain#yes", "kind": "option", "label": "Option --yes of cli:agent.drain", "ns": "cli", "parent": "cli:agent.drain", "src": "sase/main/parser_agent.py:register_agent_parser"}
 {"area": "cli.agent", "id": "cli:agent.hijack", "kind": "command", "label": "Stop a stalled agent but keep its workspace", "ns": "cli", "parent": null, "src": "sase/main/parser_agent.py:register_agent_parser"}
+{"area": "cli.agent", "id": "cli:agent.hijack#cancel", "kind": "option", "label": "Option --cancel of cli:agent.hijack", "ns": "cli", "parent": "cli:agent.hijack", "src": "sase/main/parser_agent.py:register_agent_parser"}
 {"area": "cli.agent", "id": "cli:agent.hijack#explain", "kind": "option", "label": "Option --explain of cli:agent.hijack", "ns": "cli", "parent": "cli:agent.hijack", "src": "sase/main/parser_agent.py:register_agent_parser"}
 {"area": "cli.agent", "id": "cli:agent.hijack#json", "kind": "option", "label": "Option --json of cli:agent.hijack", "ns": "cli", "parent": "cli:agent.hijack", "src": "sase/main/parser_agent.py:register_agent_parser"}
+{"area": "cli.agent", "id": "cli:agent.hijack#now", "kind": "option", "label": "Option --now of cli:agent.hijack", "ns": "cli", "parent": "cli:agent.hijack", "src": "sase/main/parser_agent.py:register_agent_parser"}
 {"area": "cli.agent", "id": "cli:agent.hijack#reason", "kind": "option", "label": "Option --reason of cli:agent.hijack", "ns": "cli", "parent": "cli:agent.hijack", "src": "sase/main/parser_agent.py:register_agent_parser"}
 {"area": "cli.agent", "id": "cli:agent.hold", "kind": "command", "label": "Arm and manage reverse-wait admission holds (blocks WAITING/QUEUED/future agents and undispatched procs)", "ns": "cli", "parent": null, "src": "sase/main/parser_agent.py:register_agent_parser"}
 {"area": "cli.agent", "id": "cli:agent.hold.create", "kind": "command", "label": "Arm a hold from name/@tribe selectors or -n/-t/-H/-f/-p", "ns": "cli", "parent": null, "src": "sase/main/parser_agent.py:register_agent_parser"}

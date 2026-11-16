@@ -30,6 +30,7 @@ Running bucket when it handed off to a successor.
 | ----------------- | ----------------------------- | ---------------------------------------------------------------------------------------------------------------- |
 | **RUNNING**       | Gold                          | Agent subprocess is executing                                                                                    |
 | **HIJACKED** | Pink | Stopped, workspace held; settles as `ESCALATED`/`CONTINUED` ([panel](agents-tab-modes.md#hijack-recovery-panel)) |
+| **HIJACK PENDING** | Pink overlay | Latch accepted; applies after finalizer or staged handoff settles |
 | **QUEUED**        | Cornflower blue               | Cleared dependency, bead, and time waits; parked for runner capacity                                             |
 | **WAITING**       | Amethyst/purple               | Paused on a dependency, bead, or time wait; `?N` marks unknown targets; matching bead tokens follow agent tokens |
 | **WAITING INPUT** | Gate accent; legacy dim       | Workflow is paused at a human-in-the-loop (HITL) step                                                            |
@@ -64,13 +65,10 @@ runs yield their slot while unanswered, then reacquire capacity in the same proc
 can become `QUEUED` after an answer. sase's TUI continues to project that marker as
 `QUESTION` until the legacy continuation resumes or terminates.
 
-The keybinding footer renders available conditional actions as non-breaking key/label
-chips. When the chips do not fit on one line, the footer switches to a deterministic
-grid so narrow terminals and leader-mode action sets do not wrap in the middle of a
-binding. Mode labels such as `LEADER` are pinned on the left, and the service status
-indicator remains pinned on the right. The status is a segmented badge with a neutral
-`SVC` label chip before the colored state chip, so the indicator always identifies the
-service host it describes.
+The keybinding footer renders conditional actions as non-breaking key/label chips,
+switching to a deterministic grid when they do not fit on one line. `LEADER` stays
+pinned left and service status right; the status badge pairs a neutral `SVC` chip with
+the colored state chip.
 
 #### Service Health Pill
 

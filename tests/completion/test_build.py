@@ -88,9 +88,10 @@ def test_hidden_subcommands_are_absent() -> None:
 def test_mutex_groups_found() -> None:
     spec = build_spec()
     total = sum(len(command.mutex_groups) for command in _all_commands(spec.root))
-    # 22 = 20 baseline + the `sase agent auto-restart run` target group
-    # + the `sase footprint export` output/preview group.
-    assert total == 22
+    # 23 = 20 baseline + the `sase agent auto-restart run` target group
+    # + the `sase footprint export` output/preview group
+    # + the `sase agent hijack` cancel/explain/now group.
+    assert total == 23
 
 
 def test_kind_resolution_precedence_on_real_tree() -> None:

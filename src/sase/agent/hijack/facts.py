@@ -307,6 +307,7 @@ def _build_hijack_facts(subject: _HijackSubject) -> dict[str, Any]:
     is_home = (
         target.is_home if target is not None else member.is_home if member else False
     )
+    has_staged, staged_kind = _staged_pending(member)
     return {
         "schema_version": _eligibility_schema_version(),
         "is_local": not subject.is_remote,
@@ -352,6 +353,8 @@ def _build_hijack_facts(subject: _HijackSubject) -> dict[str, Any]:
         ),
         "done_outcome": done_outcome,
         "active_hijack_state": active_state,
+        "has_staged_handoff": has_staged,
+        "staged_kind": staged_kind,
     }
 
 
@@ -631,6 +634,58 @@ def _active_hijack_state(target: HijackTarget | None) -> str | None:
     except (OSError, RuntimeError, ValueError):
         return None
     return _text(None if record is None else record.get("state"))
+
+
+def _staged_pending(member: _MemberFacts | None) -> tuple[bool, str | None]:
+    """Return staged-adoption facts from durable files, never from row text.
+
+    A staged handoff is pending when its staged payload exists and no
+    adoption receipt authorizes that stage. Malformed staged state counts
+    as pending: the later reconciler owns it and the healer must never
+    discard it as an ordinary abandoned run.
+    """
+    if member is None or not member.artifacts_dir:
+        return False, None
+    artifacts_dir = member.artifacts_dir
+    try:
+        from sase.agent.staged_handoff import (
+            StagedHandoffError,
+            read_adoption_receipt,
+            read_staged_handoff,
+        )
+    except Exception:
+        return False, None
+    try:
+        staged = read_staged_handoff(artifacts_dir)
+    except StagedHandoffError:
+        return True, None
+    except Exception:
+        return False, None
+    if staged is None:
+        return False, None
+    staged_id = staged.get("staged_id") if isinstance(staged, dict) else None
+    kind = staged.get("kind") if isinstance(staged, dict) else None
+    kind_text = kind if isinstance(kind, str) and kind.strip() else None
+    try:
+        receipt = read_adoption_receipt(artifacts_dir)
+    except StagedHandoffError:
+        return True, kind_text
+    except Exception:
+        return False, None
+    if receipt is None:
+        return True, kind_text
+    try:
+        from sase.agent.staged_handoff import receipt_authorizes
+    except Exception:
+        return True, kind_text
+    if isinstance(staged_id, str) and staged_id:
+        try:
+            if receipt_authorizes(receipt, staged_id):
+                return False, None
+        except Exception:
+            return True, kind_text
+        return True, kind_text
+    return True, kind_text
 
 
 def _eligibility_schema_version() -> int:
