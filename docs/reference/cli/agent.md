@@ -364,18 +364,19 @@ Arguments:
 ## `sase agent hijack`
 
 ```text
-usage: sase agent hijack [-h] [-j] [-r REASON] NAME
+usage: sase agent hijack [-h] [-e] [-j] [-r REASON] NAME
 ```
 
-Stop the named agent without releasing its workspace claim. The agent's process tree is verified dead, its workspace stays held, and its evidence is snapshotted, so it can be recovered with `sase agent recover NAME`. What is kept: the workspace, the Agents-tab node, and the evidence. What is stopped: the process tree. Exit 0 means HIJACKED, 2 means refused with nothing changed, and 1 means the stop failed or an error occurred.
+Stop the named agent without releasing its workspace claim, or use --explain to inspect the current session occupant and decision. The agent's process tree is verified dead, its workspace stays held, and its evidence is snapshotted, so it can be recovered with `sase agent recover NAME`. What is kept: the workspace, the Agents-tab node, and the evidence. What is stopped: the process tree. Exit 0 means HIJACKED, 2 means refused with nothing changed, and 1 means the stop failed or an error occurred.
 
 Options:
 
-| Option                         | Description                                              | Default |
-| ------------------------------ | -------------------------------------------------------- | ------- |
-| `-h`, `--help`                 | show this help message and exit                          | —       |
-| `-j`, `--json`                 | Emit one stable JSON envelope on stdout and nothing else | `false` |
-| `-r REASON`, `--reason REASON` | Record why the agent was hijacked                        | —       |
+| Option                         | Description                                                                  | Default |
+| ------------------------------ | ---------------------------------------------------------------------------- | ------- |
+| `-e`, `--explain`              | Explain the current session occupant and hijack decision without stopping it | `false` |
+| `-h`, `--help`                 | show this help message and exit                                              | —       |
+| `-j`, `--json`                 | Emit one stable JSON envelope on stdout and nothing else                     | `false` |
+| `-r REASON`, `--reason REASON` | Record why the agent was hijacked                                            | —       |
 
 Arguments:
 

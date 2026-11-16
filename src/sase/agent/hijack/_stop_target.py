@@ -15,8 +15,23 @@ from sase.agent.hijack._stop_models import (
 
 
 def resolve_target(name: str, *, deps: StopDeps) -> HijackTarget | None:
+    """Resolve a name through the shared session-occupant facts builder."""
+    from sase.agent.hijack.facts import resolve_hijack_subject
+
+    return resolve_hijack_subject(name, deps=deps).target
+
+
+def resolve_direct_target(
+    name: str,
+    *,
+    deps: StopDeps,
+    found_override: Any | None = None,
+    row_override: Any | None = None,
+    session_name: str | None = None,
+) -> HijackTarget | None:
+    """Build a target for an already selected member, without resolving its session."""
     find_agent = deps.find_agent or _default_find_agent
-    found = find_agent(name)
+    found = found_override if found_override is not None else find_agent(name)
     if found is None:
         return None
     artifacts_dir = str(
@@ -30,7 +45,7 @@ def resolve_target(name: str, *, deps: StopDeps) -> HijackTarget | None:
 
     _, project_name, project_file, timestamp, is_home = _project_fields(found)
     meta = read_json_dict(Path(artifacts_dir) / "agent_meta.json") or {}
-    row = _find_live_row(name, deps=deps)
+    row = row_override or _find_live_row(name, deps=deps, artifacts_dir=artifacts_dir)
     claim = _find_claim(project_file, timestamp) if not is_home else None
     claim_pid = int(claim.pid) if claim is not None else None
     meta_pid = _valid_pid(meta.get("pid"))
@@ -56,7 +71,7 @@ def resolve_target(name: str, *, deps: StopDeps) -> HijackTarget | None:
             phase = raw_phase
     done_outcome, done_recovery = read_done_marker(artifacts_dir)
     trail = meta.get("model_alias_trail")
-    is_monitor_turn, is_gate_turn, gate_state = _classify_turn(meta)
+    is_monitor_turn, is_gate_turn, gate_state = classify_turn(meta)
     return HijackTarget(
         name=str(getattr(found, "name", name) or name),
         artifacts_dir=artifacts_dir,
@@ -77,7 +92,8 @@ def resolve_target(name: str, *, deps: StopDeps) -> HijackTarget | None:
         is_monitor_turn=is_monitor_turn,
         is_gate_turn=is_gate_turn,
         gate_state=gate_state,
-        agent_session=getattr(row, "agent_session", None)
+        agent_session=session_name
+        or getattr(row, "agent_session", None)
         or _meta_str(meta, "agent_session"),
         capabilities=capability_list,
         model_alias=_meta_str(meta, "model_alias"),
@@ -106,7 +122,12 @@ def _default_find_agent(name: str) -> Any | None:
     return find_named_agent(name)
 
 
-def _find_live_row(name: str, *, deps: StopDeps) -> Any | None:
+def _find_live_row(
+    name: str,
+    *,
+    deps: StopDeps,
+    artifacts_dir: str | None = None,
+) -> Any | None:
     list_running = deps.list_running
     if list_running is None:
         try:
@@ -120,7 +141,14 @@ def _find_live_row(name: str, *, deps: StopDeps) -> Any | None:
     except Exception:
         return None
     for row in rows or ():
-        if getattr(row, "name", None) == name and getattr(row, "artifacts_dir", None):
+        row_artifacts = getattr(row, "artifacts_dir", None)
+        if artifacts_dir and row_artifacts:
+            try:
+                if Path(row_artifacts).resolve() == Path(artifacts_dir).resolve():
+                    return row
+            except (OSError, RuntimeError):
+                pass
+        if getattr(row, "name", None) == name and row_artifacts:
             return row
     return None
 
@@ -195,7 +223,7 @@ def _row_status(row: Any | None, artifacts_dir: str, pid: int | None) -> str:
     return "DONE"
 
 
-def _classify_turn(meta: dict[str, Any]) -> tuple[bool, bool, str | None]:
+def classify_turn(meta: dict[str, Any]) -> tuple[bool, bool, str | None]:
     """Classify monitor/gate turns from durable records, never live rows."""
     from sase.core.agent_scan_wire import AgentArtifactRecordWire, AgentMetaWire
     from sase.core.agent_scan_wire_agent_session_turn import (
@@ -276,5 +304,6 @@ def _parse_timestamp(value: object) -> float | None:
 
 
 __all__ = [
+    "classify_turn",
     "resolve_target",
 ]

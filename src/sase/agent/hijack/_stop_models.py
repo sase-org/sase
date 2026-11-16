@@ -42,6 +42,9 @@ class HijackTarget:
     run_started_at: float | None
     done_outcome: str | None
     done_recovery: dict[str, Any] | None
+    occupant_name: str | None = None
+    occupant_reason: str | None = None
+    decision: dict[str, Any] | None = None
 
 
 @dataclass
@@ -53,6 +56,7 @@ class StopDeps:
     terminate: Callable[..., Any] | None = None
     snapshot_repo: Callable[..., Any] | None = None
     now: Callable[[], float] | None = None
+    process_alive: Callable[[dict[str, Any], Path], bool] | None = None
 
 
 def read_json_dict(path: Path) -> dict[str, Any] | None:

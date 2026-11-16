@@ -23,7 +23,6 @@ from sase.agent.hijack._stop_evidence import (
     format_diff_summary,
 )
 from sase.agent.hijack._stop_models import HijackTarget, StopDeps, read_done_marker
-from sase.agent.hijack._stop_target import resolve_target
 
 LOG = logging.getLogger(__name__)
 
@@ -45,6 +44,10 @@ class HijackStopResult:
     hijack_id: str | None = None
     record: dict[str, Any] | None = None
     reason: str | None = None
+    decision: dict[str, Any] | None = None
+    occupant_name: str | None = None
+    occupant_reason: str | None = None
+    workspace_num: int | None = None
 
 
 def _new_hijack_id(agent_name: str) -> str:
@@ -69,43 +72,100 @@ def stop_agent_for_hijack(
     with nothing changed, and 1 means stop failed or an error occurred.
     """
     deps = deps or StopDeps()
-    target = resolve_target(name, deps=deps)
-    if target is None:
-        return HijackStopResult(
-            status="refused",
-            message=f"No agent found with name '{name}'",
-            exit_code=_EXIT_REFUSED,
-            reason="not_found",
-        )
-    if target.done_outcome is not None and target.done_outcome != "hijacked":
-        return HijackStopResult(
-            status="refused",
-            message=(
-                f"Agent '{name}' already completed ({target.done_outcome}); "
-                f"nothing to hijack"
-            ),
-            exit_code=_EXIT_REFUSED,
-            reason="already_completed",
-        )
-    decision = _check_eligibility(target)
-    if decision.get("code") == "missing_capability":
-        from sase.agent.hijack import MISSING_HIJACK_CAPABILITY_MESSAGE
+    from sase.agent.hijack.facts import resolve_and_decide
 
-        decision["message"] = MISSING_HIJACK_CAPABILITY_MESSAGE
-    if not decision.get("eligible", False):
+    subject, decision = resolve_and_decide(name, deps=deps)
+    target = subject.target
+    if (
+        decision.get("mode") != "immediate"
+        or decision.get("adapter") != "llm"
+        or target is None
+    ):
+        code = str(
+            decision.get("code")
+            or ("unsupported_adapter" if decision.get("mode") == "immediate" else None)
+            or decision.get("mode")
+            or "ineligible"
+        )
+        message = str(
+            decision.get("message")
+            or (
+                "the selected stop adapter is not supported by this command"
+                if decision.get("mode") == "immediate"
+                else "hijack was refused"
+            )
+        )
         return HijackStopResult(
             status="refused",
-            message=(
-                f"Cannot hijack agent '{name}': "
-                f"{decision.get('message') or 'not eligible'}"
-            ),
+            message=f"Cannot hijack agent '{name}': {message}",
             exit_code=_EXIT_REFUSED,
-            reason=str(decision.get("code") or "ineligible"),
+            reason=code,
+            decision=decision,
+            occupant_name=subject.occupant_name,
+            occupant_reason=subject.occupant_reason,
+            workspace_num=None if target is None else target.workspace_num,
         )
 
     from sase.agent.hijack import ledger
 
     resolved_id = hijack_id or _new_hijack_id(name)
+    # Re-resolve immediately before the claim transaction. A session may have
+    # advanced since the first decision; never signal a predecessor after its
+    # successor becomes the occupant. Do this before creating our own requested
+    # ledger record, which the v2 decision correctly treats as an active hijack.
+    fresh_subject, fresh_decision = resolve_and_decide(name, deps=deps)
+    fresh_target = fresh_subject.target
+    identity_changed = (
+        fresh_subject.occupant_name != subject.occupant_name
+        or _target_identity(fresh_target) != _target_identity(target)
+    )
+    decision_changed = (
+        fresh_decision != decision
+        or fresh_decision.get("mode") != "immediate"
+        or fresh_decision.get("eligible") is not True
+        or fresh_decision.get("adapter") != "llm"
+    )
+    if identity_changed or decision_changed:
+        refusal_code = "occupant_changed" if identity_changed else "decision_changed"
+        LOG.info(
+            "agent_hijack_decision mode=refused code=%s member=%s requested=%s",
+            refusal_code,
+            fresh_subject.occupant_name or "-",
+            name,
+        )
+        changed = {
+            **fresh_decision,
+            "mode": "refused",
+            "eligible": False,
+            "code": refusal_code,
+            "message": (
+                "session occupant changed while preparing the hijack"
+                if identity_changed
+                else "hijack eligibility changed while preparing the stop"
+            ),
+            "next_action": "explain the session again, then retry if it is still eligible",
+        }
+        return HijackStopResult(
+            status="refused",
+            message=(
+                f"Cannot hijack agent '{name}': {changed['message']}; nothing was signalled"
+            ),
+            exit_code=_EXIT_REFUSED,
+            reason=refusal_code,
+            decision=changed,
+            occupant_name=fresh_subject.occupant_name,
+            occupant_reason=fresh_subject.occupant_reason,
+            workspace_num=(
+                None if fresh_target is None else fresh_target.workspace_num
+            ),
+        )
+    assert fresh_target is not None
+    # Use the just-resolved data for the pin/stop transaction. Identity and
+    # decision equality above ensure it describes the same eligible target.
+    target = fresh_target
+    subject = fresh_subject
+    decision = fresh_decision
+
     record = ledger.new_requested_record(
         hijack_id=resolved_id,
         agent_name=target.name,
@@ -134,6 +194,10 @@ def stop_agent_for_hijack(
             exit_code=_EXIT_FAILED,
             hijack_id=resolved_id,
             reason="record_exists",
+            decision=decision,
+            occupant_name=subject.occupant_name,
+            occupant_reason=subject.occupant_reason,
+            workspace_num=target.workspace_num,
         )
 
     from sase.agent._user_kill_intent import write_user_kill_intent
@@ -163,6 +227,10 @@ def stop_agent_for_hijack(
                 exit_code=_EXIT_FAILED,
                 hijack_id=resolved_id,
                 reason="claim_mismatch",
+                decision=decision,
+                occupant_name=subject.occupant_name,
+                occupant_reason=subject.occupant_reason,
+                workspace_num=target.workspace_num,
             )
         pinned_by_us = not target.claim_pinned
 
@@ -176,6 +244,10 @@ def stop_agent_for_hijack(
             exit_code=_EXIT_FAILED,
             hijack_id=resolved_id,
             reason="record_advance_failed",
+            decision=decision,
+            occupant_name=subject.occupant_name,
+            occupant_reason=subject.occupant_reason,
+            workspace_num=target.workspace_num,
         )
 
     lost = _read_done_outcome(target.artifacts_dir)
@@ -197,6 +269,10 @@ def stop_agent_for_hijack(
             hijack_id=resolved_id,
             record=finished,
             reason="finished_first",
+            decision=decision,
+            occupant_name=subject.occupant_name,
+            occupant_reason=subject.occupant_reason,
+            workspace_num=target.workspace_num,
         )
 
     termination = terminate_tree(target, deps=deps)
@@ -227,6 +303,10 @@ def stop_agent_for_hijack(
             hijack_id=resolved_id,
             record=failed,
             reason="stop_failed",
+            decision=decision,
+            occupant_name=subject.occupant_name,
+            occupant_reason=subject.occupant_reason,
+            workspace_num=target.workspace_num,
         )
 
     ensure_hijacked_settlement(target, resolved_id, pinned_by_us)
@@ -270,6 +350,10 @@ def stop_agent_for_hijack(
             hijack_id=resolved_id,
             record=ledger.load_record(resolved_id) or record,
             reason="publish_failed",
+            decision=decision,
+            occupant_name=subject.occupant_name,
+            occupant_reason=subject.occupant_reason,
+            workspace_num=target.workspace_num,
         )
     summary = format_diff_summary(held)
     held_suffix = f" · {summary}" if summary else ""
@@ -278,12 +362,16 @@ def stop_agent_for_hijack(
     return HijackStopResult(
         status="held",
         message=(
-            f"\u23cf hijacked {name} \u00b7 ws #{target.workspace_num} held"
-            f"{held_suffix} \u00b7 next: sase agent recover {name}"
+            f"\u23cf hijacked {target.name} \u00b7 ws #{target.workspace_num} held"
+            f"{held_suffix} \u00b7 next: sase agent recover {target.name}"
         ),
         exit_code=_EXIT_HELD,
         hijack_id=resolved_id,
         record=held,
+        decision=decision,
+        occupant_name=subject.occupant_name,
+        occupant_reason=subject.occupant_reason,
+        workspace_num=target.workspace_num,
     )
 
 
@@ -299,27 +387,20 @@ def _read_done_outcome(artifacts_dir: str) -> str | None:
     return outcome
 
 
-def _check_eligibility(target: HijackTarget) -> dict[str, Any]:
-    from sase.agent.hijack.core import agent_hijack_eligibility
-
-    facts = {
-        "schema_version": 1,
-        "is_local": True,
-        "is_llm_agent": True,
-        "is_monitor_turn": target.is_monitor_turn,
-        "is_gate_turn": target.is_gate_turn,
-        "is_named_proc": False,
-        "is_home_mode": target.is_home,
-        "is_remote": False,
-        "is_clan_container": False,
-        "is_bulk": False,
-        "workspace_num": target.workspace_num,
-        "status": target.status,
-        "lifecycle_phase": target.lifecycle_phase,
-        "has_hijack_capability": "hijack" in target.capabilities,
-        "pid": target.pid,
-    }
-    return dict(agent_hijack_eligibility(facts))
+def _target_identity(target: HijackTarget | None) -> tuple[Any, ...] | None:
+    if target is None:
+        return None
+    return (
+        target.name,
+        target.project_file,
+        target.artifacts_timestamp,
+        target.artifacts_dir,
+        target.pid,
+        target.claim_pid,
+        target.workspace_num,
+        target.agent_session,
+        target.is_home,
+    )
 
 
 __all__ = [

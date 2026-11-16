@@ -9,6 +9,7 @@ process tree, snapshots, and project layout are faked.
 from __future__ import annotations
 
 import argparse
+import copy
 import json
 from pathlib import Path
 from types import SimpleNamespace
@@ -42,6 +43,7 @@ def _artifacts(tmp_path: Path, *, capabilities: list[str] | None = None) -> Path
     artifacts.mkdir()
     meta: dict[str, Any] = {
         "name": _AGENT,
+        "agent_session": "sase-7f",
         "pid": _PID,
         "runner_capabilities": capabilities if capabilities is not None else ["hijack"],
         "agent_model": "claude-opus",
@@ -119,6 +121,7 @@ def _deps(
         list_running=lambda: [row],
         terminate=terminate_fn,
         snapshot_repo=snapshot_repo,
+        process_alive=lambda _meta, _path: True,
     )
 
 
@@ -183,7 +186,7 @@ def test_old_runner_without_capability_is_refused(
     assert result.status == "refused"
     assert result.exit_code == 2
     assert result.reason == "missing_capability"
-    assert "runner did not record hijack support" in result.message
+    assert "launched before hijack support" in result.message
     assert _hijack_ids(hijack_home) == []
     assert not (artifacts / ".sase_user_kill_pending").exists()
 
@@ -235,6 +238,79 @@ def test_happy_path_reaches_held(
     claims = get_claimed_workspaces(project_file)
     assert [claim.pinned for claim in claims] == [True]
     assert f"ws #{_WS} held" in result.message
+
+
+def test_re_resolution_refuses_changed_process_identity_before_pin(
+    hijack_home: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from sase.agent.hijack.facts import resolve_and_decide as resolve_original
+
+    artifacts = _artifacts(tmp_path)
+    project_file = _project_file(tmp_path)
+    _install_target(monkeypatch, artifacts, project_file)
+    deps = _deps(artifacts)
+    original_subject, original_decision = resolve_original(_AGENT, deps=deps)
+    assert original_subject.target is not None
+    assert original_decision["mode"] == "immediate"
+
+    changed_subject = copy.copy(original_subject)
+    changed_target = copy.copy(original_subject.target)
+    changed_target.pid = _PID + 1
+    changed_subject.target = changed_target
+    subjects = iter(
+        (
+            (original_subject, original_decision),
+            (changed_subject, original_decision),
+        )
+    )
+    monkeypatch.setattr(
+        "sase.agent.hijack.facts.resolve_and_decide",
+        lambda _name, *, deps=None: next(subjects),
+    )
+    pin_calls: list[int] = []
+    monkeypatch.setattr(
+        "sase.agent.hijack._stop_orchestrator.pin_claim",
+        lambda target: pin_calls.append(target.pid or 0) or True,
+    )
+
+    result = stop_agent_for_hijack(_AGENT, deps=deps)
+
+    assert result.status == "refused"
+    assert result.reason == "occupant_changed"
+    assert pin_calls == []
+    assert not (artifacts / ".sase_user_kill_pending").exists()
+    assert _hijack_ids(hijack_home) == []
+
+
+def test_re_resolution_refuses_changed_decision_before_pin(
+    hijack_home: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from sase.agent.hijack.facts import resolve_and_decide as resolve_original
+
+    artifacts = _artifacts(tmp_path)
+    project_file = _project_file(tmp_path)
+    _install_target(monkeypatch, artifacts, project_file)
+    deps = _deps(artifacts)
+    subject, decision = resolve_original(_AGENT, deps=deps)
+    changed_decision = {**decision, "next_action": "decision changed during recheck"}
+    subjects = iter(((subject, decision), (subject, changed_decision)))
+    monkeypatch.setattr(
+        "sase.agent.hijack.facts.resolve_and_decide",
+        lambda _name, *, deps=None: next(subjects),
+    )
+    pin_calls: list[int] = []
+    monkeypatch.setattr(
+        "sase.agent.hijack._stop_orchestrator.pin_claim",
+        lambda target: pin_calls.append(target.pid or 0) or True,
+    )
+
+    result = stop_agent_for_hijack(_AGENT, deps=deps)
+
+    assert result.status == "refused"
+    assert result.reason == "decision_changed"
+    assert pin_calls == []
+    assert not (artifacts / ".sase_user_kill_pending").exists()
+    assert _hijack_ids(hijack_home) == []
 
 
 def test_lost_race_keeps_the_real_outcome(
@@ -374,6 +450,51 @@ def test_cli_json_envelope(
     assert payload["ok"] is True
     assert payload["hijack_id"] == "h-1"
     assert payload["workspace_num"] == 4
+
+
+def test_cli_explain_json_is_additive_and_does_not_stop(
+    monkeypatch: pytest.MonkeyPatch, capsys: Any
+) -> None:
+    from sase.agents.cli_hijack import handle_agents_hijack
+
+    subject = SimpleNamespace(
+        occupant_name="sase-7f.2",
+        occupant_reason="sase-7f.2 holds the workspace claim",
+        target=SimpleNamespace(workspace_num=4),
+    )
+    decision = {
+        "mode": "immediate",
+        "eligible": True,
+        "code": None,
+        "message": None,
+        "next_action": None,
+        "redirect_op": None,
+        "adapter": "llm",
+    }
+    monkeypatch.setattr(
+        "sase.agents.cli_hijack.resolve_and_decide",
+        lambda name: (subject, decision),
+    )
+    monkeypatch.setattr(
+        "sase.agents.cli_hijack.stop_agent_for_hijack",
+        lambda *args, **kwargs: pytest.fail("--explain must not stop a turn"),
+    )
+
+    args = argparse.Namespace(name=_AGENT, reason=None, json=True, explain=True)
+    assert handle_agents_hijack(args) == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["status"] == "explained"
+    assert payload["occupant_name"] == "sase-7f.2"
+    assert payload["mode"] == "immediate"
+    assert payload["adapter"] == "llm"
+    assert payload["workspace_num"] == 4
+
+    args.json = False
+    assert handle_agents_hijack(args) == 0
+    assert (
+        "Selected because: sase-7f.2 holds the workspace claim"
+        in capsys.readouterr().out
+    )
 
 
 def test_persist_hijack_uses_the_request_sidecar(

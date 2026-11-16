@@ -141,7 +141,8 @@ def register_agent_hijack_parser(agents_sub: argparse._SubParsersAction) -> None
         "hijack",
         help="Stop a stalled agent but keep its workspace",
         description=(
-            "Stop the named agent without releasing its workspace claim. "
+            "Stop the named agent without releasing its workspace claim, or "
+            "use --explain to inspect the current session occupant and decision. "
             "The agent's process tree is verified dead, its workspace stays "
             "held, and its evidence is snapshotted, so it can be recovered "
             "with `sase agent recover NAME`. What is kept: the workspace, "
@@ -153,10 +154,17 @@ def register_agent_hijack_parser(agents_sub: argparse._SubParsersAction) -> None
         epilog=(
             "examples:\n"
             "  sase agent hijack sase-7f.2\n"
+            "  sase agent hijack -e sase-7f\n"
             '  sase agent hijack sase-7f.2 -r "stalled on lint"\n'
             "  sase agent hijack sase-7f.2 -j"
         ),
         formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    hijack_parser.add_argument(
+        "-e",
+        "--explain",
+        action="store_true",
+        help="Explain the current session occupant and hijack decision without stopping it",
     )
     hijack_parser.add_argument(
         "-j",
