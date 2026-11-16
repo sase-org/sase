@@ -84,6 +84,41 @@ def test_done_loader_adds_instruction_bundle_files(tmp_path: Path, monkeypatch) 
     assert names == ["00-claude.md", "00-claude.helper.md"]
 
 
+def test_done_loader_defers_instruction_bundle_scan_until_list_use(
+    tmp_path: Path, monkeypatch
+) -> None:
+    from sase.ace.tui.models._loaders import _done_common
+
+    artifact_dir = tmp_path / "20260430120200"
+    artifact_dir.mkdir()
+    (artifact_dir / "done.json").write_text(
+        json.dumps(
+            {
+                "cl_name": "feature",
+                "project_file": "/tmp/project.sase",
+                "outcome": "completed",
+            }
+        ),
+        encoding="utf-8",
+    )
+    calls: list[str | Path | None] = []
+    bundle_paths = [str(artifact_dir / "instructions" / "00-claude.md")]
+    monkeypatch.setattr(
+        _done_common,
+        "_done_instruction_bundle_files",
+        lambda path: calls.append(path) or bundle_paths,
+    )
+
+    agent = _load_done_agent_for_dir(artifact_dir, "ace-run", {}, {})
+
+    assert agent is not None
+    assert calls == []
+    assert list(agent.instruction_bundle_files) == bundle_paths
+    assert calls == [artifact_dir]
+    assert list(agent.instruction_bundle_files) == bundle_paths
+    assert calls == [artifact_dir]
+
+
 def test_snapshot_done_loader_adds_image_paths_to_extra_files(tmp_path: Path) -> None:
     plan = tmp_path / "plan.md"
     pdf = tmp_path / "notes.pdf"

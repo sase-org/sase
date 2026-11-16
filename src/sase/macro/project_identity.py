@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterator
+from contextlib import contextmanager
+from contextvars import ContextVar
 from functools import lru_cache
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -10,11 +13,52 @@ if TYPE_CHECKING:
     from sase.project_display_names import ProjectDisplaySnapshot
 
 
+class _ProjectAliasMapScope:
+    def __init__(self) -> None:
+        self.aliases: dict[str, str] | None = None
+
+
+_PROJECT_ALIAS_MAP_SCOPE: ContextVar[_ProjectAliasMapScope | None] = ContextVar(
+    "sase_project_alias_map_scope", default=None
+)
+
+
 def load_project_alias_map() -> dict[str, str]:
     """Load project aliases without importing alias prompts during package init."""
+    scoped = _PROJECT_ALIAS_MAP_SCOPE.get()
+    if scoped is not None:
+        aliases = scoped.aliases
+        if aliases is None:
+            aliases = _load_project_alias_map()
+            scoped.aliases = aliases
+        return aliases
+    return _load_project_alias_map()
+
+
+def _load_project_alias_map() -> dict[str, str]:
     from sase.project_aliases import load_project_alias_map as _load_project_alias_map
 
     return _load_project_alias_map()
+
+
+@contextmanager
+def project_identity_load_scope() -> Iterator[dict[str, str] | None]:
+    """Share one alias-map projection across a single loader batch.
+
+    The map is loaded on first use, so batches which do not resolve macro
+    project refs pay no alias-scan cost. Nested loader scopes share the
+    already-built projection.
+    """
+    scoped = _PROJECT_ALIAS_MAP_SCOPE.get()
+    if scoped is not None:
+        yield scoped.aliases
+        return
+    batch = _ProjectAliasMapScope()
+    token = _PROJECT_ALIAS_MAP_SCOPE.set(batch)
+    try:
+        yield batch.aliases
+    finally:
+        _PROJECT_ALIAS_MAP_SCOPE.reset(token)
 
 
 def load_project_display_snapshot() -> ProjectDisplaySnapshot:

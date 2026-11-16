@@ -16,7 +16,7 @@ from sase.monitor_status import (
 
 from ._done_common import (
     done_extra_files,
-    done_instruction_bundle_files,
+    lazy_done_instruction_bundle_files,
     enrich_agent_revert_state,
     enrich_missing_commit_metadata,
 )
@@ -199,7 +199,7 @@ def load_done_agent_for_dir(
             data.get("image_paths"),
             data.get("video_paths"),
         )
-        instruction_bundle_files = done_instruction_bundle_files(artifact_dir)
+        instruction_bundle_files = lazy_done_instruction_bundle_files(artifact_dir)
 
         agent = Agent(
             agent_type=AgentType.RUNNING,

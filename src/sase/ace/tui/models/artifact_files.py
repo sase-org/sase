@@ -37,6 +37,15 @@ def get_artifacts_dir(agent: Agent) -> str | None:
     Returns:
         Path to the artifacts directory, or None if it cannot be determined.
     """
+    from ._loader_memos import current_agent_loader_memos
+
+    memos = current_agent_loader_memos()
+    if memos is not None:
+        return memos.artifacts_dir(agent, lambda: _get_artifacts_dir_uncached(agent))
+    return _get_artifacts_dir_uncached(agent)
+
+
+def _get_artifacts_dir_uncached(agent: Agent) -> str | None:
     # If we have an explicit artifacts_dir (from marker files), resolve it in
     # case persisted state still points at the legacy flat layout.
     if agent.artifacts_dir:

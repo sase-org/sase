@@ -18,6 +18,7 @@ from sase.core.agent_scan_wire import (
     AgentArtifactScanWire,
 )
 from sase.core.paths import sase_projects_dir
+from sase.macro.project_identity import project_identity_load_scope
 
 from ..util.trace import tui_trace
 from ...patch import Patch, find_all_patches
@@ -68,6 +69,7 @@ from ._loaders import (
     load_workflow_states,  # noqa: F401  re-exported for fallback/tests
     load_workflow_states_from_snapshot,  # noqa: F401  re-exported for fallback/tests
 )
+from ._loader_memos import agent_loader_memos
 from ._timestamps import normalize_to_14_digit
 from .agent import Agent
 from .workflow import WorkflowEntry
@@ -237,6 +239,18 @@ def _load_agents_from_artifact_snapshot_sources(
     *,
     patch_snapshot: list[Patch] | None = None,
 ) -> tuple[list[Agent], list[Agent]]:
+    with agent_loader_memos(), project_identity_load_scope():
+        return _load_agents_from_artifact_snapshot_sources_impl(
+            artifact_snapshot,
+            patch_snapshot=patch_snapshot,
+        )
+
+
+def _load_agents_from_artifact_snapshot_sources_impl(
+    artifact_snapshot: AgentArtifactScanWire,
+    *,
+    patch_snapshot: list[Patch] | None = None,
+) -> tuple[list[Agent], list[Agent]]:
     """Load only artifact-backed agents from an exact scanner snapshot."""
     all_patches = _patch_snapshot_for_loader(patch_snapshot)
     bug_by_cl_name, cl_by_cl_name = _patch_agent_lookups(all_patches)
@@ -280,6 +294,18 @@ def _load_plan_agents_from_artifact_snapshot(
 
 
 def _load_agents_from_all_sources(
+    *,
+    patch_snapshot: list[Patch] | None = None,
+    artifact_snapshot: AgentArtifactScanWire | None = None,
+) -> tuple[list[Agent], list[Agent]]:
+    with agent_loader_memos(), project_identity_load_scope():
+        return _load_agents_from_all_sources_impl(
+            patch_snapshot=patch_snapshot,
+            artifact_snapshot=artifact_snapshot,
+        )
+
+
+def _load_agents_from_all_sources_impl(
     *,
     patch_snapshot: list[Patch] | None = None,
     artifact_snapshot: AgentArtifactScanWire | None = None,

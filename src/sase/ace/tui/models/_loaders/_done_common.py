@@ -1,7 +1,8 @@
 """Shared helpers for completed-agent loaders."""
 
 from pathlib import Path
-from typing import Any
+from typing import Any, SupportsIndex, overload
+from collections.abc import Callable, Iterator
 
 from sase.ace.revert_agent_marker import agent_is_reverted
 
@@ -111,7 +112,72 @@ def enrich_missing_commit_metadata(
             step_output["meta_commit_cwd"] = commit_cwd
 
 
-def done_instruction_bundle_files(artifact_dir: str | Path | None) -> list[str]:
+class _LazyInstructionBundleFiles(list[str]):
+    """A list-compatible bundle file collection resolved on first inspection."""
+
+    def __init__(self, loader: Callable[[], list[str]]) -> None:
+        super().__init__()
+        self._loader: Callable[[], list[str]] | None = loader
+        self._loaded = False
+
+    def _load(self) -> None:
+        if self._loaded:
+            return
+        self._loaded = True
+        loader = self._loader
+        self._loader = None
+        if loader is not None:
+            super().extend(loader())
+
+    def __iter__(self) -> Iterator[str]:
+        self._load()
+        return super().__iter__()
+
+    def __len__(self) -> int:
+        self._load()
+        return super().__len__()
+
+    def __bool__(self) -> bool:
+        self._load()
+        return super().__len__() != 0
+
+    def __contains__(self, value: object) -> bool:
+        self._load()
+        return super().__contains__(value)
+
+    def __eq__(self, other: object) -> bool:
+        self._load()
+        return super().__eq__(other)
+
+    @overload
+    def __getitem__(self, index: SupportsIndex, /) -> str: ...
+
+    @overload
+    def __getitem__(
+        self,
+        index: slice[
+            SupportsIndex | None,
+            SupportsIndex | None,
+            SupportsIndex | None,
+        ],
+        /,
+    ) -> list[str]: ...
+
+    def __getitem__(
+        self,
+        index: SupportsIndex
+        | slice[
+            SupportsIndex | None,
+            SupportsIndex | None,
+            SupportsIndex | None,
+        ],
+        /,
+    ) -> str | list[str]:
+        self._load()
+        return super().__getitem__(index)
+
+
+def _done_instruction_bundle_files(artifact_dir: str | Path | None) -> list[str]:
     """Return recorded instruction-bundle paths for a completed agent."""
     if artifact_dir is None:
         return []
@@ -121,6 +187,15 @@ def done_instruction_bundle_files(artifact_dir: str | Path | None) -> list[str]:
         return list(run_bundle_paths(artifact_dir))
     except Exception:
         return []
+
+
+def lazy_done_instruction_bundle_files(
+    artifact_dir: str | Path | None,
+) -> _LazyInstructionBundleFiles:
+    """Defer instruction-manifest reads until the detail file panel inspects them."""
+    return _LazyInstructionBundleFiles(
+        lambda: _done_instruction_bundle_files(artifact_dir)
+    )
 
 
 def done_extra_files(
