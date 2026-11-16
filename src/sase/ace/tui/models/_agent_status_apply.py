@@ -112,9 +112,9 @@ def mirror_hijack_overlays_to_containers(agents: Iterable[Agent]) -> None:
     pending record rather than process liveness.
     """
     for agent in agents:
-        is_container = agent.is_agent_session_container_row or getattr(
-            agent, "is_clan_container", False
-        )
+        is_container = getattr(
+            agent, "is_agent_session_container_row", False
+        ) or getattr(agent, "is_clan_container", False)
         if not is_container:
             continue
         members = tuple(agent.followup_agents or ())
