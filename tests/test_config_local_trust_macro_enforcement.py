@@ -15,6 +15,7 @@ import pytest
 import yaml
 
 from sase.config import local_trust_enforcement as enforcement
+from sase.config import local_trust_enforcement_flag_on as enforcement_flag_on
 from sase.config.core import clear_config_cache
 from sase.macro.loader import load_macros_from_config, load_project_local_macros
 from sase.macro.loader_sources import load_project_local_workflows
@@ -54,7 +55,7 @@ def _repo(
     monkeypatch.setattr("sase.macro.loader.detect_project", lambda: None)
     monkeypatch.setattr("sase.macro.workflow_loader.detect_project", lambda: None)
     clear_config_cache()
-    enforcement._warned_signatures.clear()
+    enforcement_flag_on._warned_signatures.clear()
     return root, local_path
 
 

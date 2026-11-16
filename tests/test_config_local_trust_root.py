@@ -9,6 +9,10 @@ from types import SimpleNamespace
 import pytest
 
 from sase.config import local_trust_enforcement as enforcement
+from sase.config import local_trust_enforcement_flag_on as enforcement_flag_on
+from sase.config._local_trust_enforcement_shared import (
+    checkout_root_for_local_path as enforcement_checkout_root,
+)
 from sase.config import local_trust_management as trust
 from sase.config.core import clear_config_cache
 from sase.config.local_trust import LOCAL_COMMAND_TRUST_POLICY_VERSION
@@ -47,7 +51,7 @@ def _isolate(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
 
     monkeypatch.setattr(core, "CONFIG_DIR", config_dir)
     clear_config_cache()
-    enforcement._warned_signatures.clear()
+    enforcement_flag_on._warned_signatures.clear()
 
 
 def _no_projects(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -101,7 +105,7 @@ def test_unregistered_canonical_checkout_is_repo_not_sase_dir(
     assert identity == f"checkout:v1:{root.resolve()}"
     assert logical == "sase/sase.yml"
     assert "/sase:" not in identity
-    enforcement._warned_signatures.clear()
+    enforcement_flag_on._warned_signatures.clear()
     evaluation = enforcement.evaluate_local_trust_for_path(config, None)
     assert evaluation.trusted is False
     assert evaluation.warning is not None
@@ -139,7 +143,7 @@ def test_registered_primary_matches_project_record(
     expected = f"project:v1:{project_dir.resolve()}:{primary.resolve()}"
     assert identity == expected
     assert logical == "sase/sase.yml"
-    enforcement._warned_signatures.clear()
+    enforcement_flag_on._warned_signatures.clear()
     evaluation = enforcement.evaluate_local_trust_for_path(
         primary / "sase" / "sase.yml", None
     )
@@ -211,7 +215,7 @@ def test_numbered_workspace_inherits_primary_identity(
     assert numbered_logical == "sase/sase.yml"
     assert numbered_digest == digest
 
-    enforcement._warned_signatures.clear()
+    enforcement_flag_on._warned_signatures.clear()
     numbered_eval = enforcement.evaluate_local_trust_for_path(
         numbered / "sase" / "sase.yml", None
     )
@@ -230,7 +234,7 @@ def test_numbered_workspace_inherits_primary_identity(
         LOCAL_COMMAND_TRUST_POLICY_VERSION,
         "test",
     )
-    enforcement._warned_signatures.clear()
+    enforcement_flag_on._warned_signatures.clear()
     clear_config_cache()
     trusted = enforcement.evaluate_local_trust_for_path(
         numbered / "sase" / "sase.yml", None
@@ -283,7 +287,7 @@ def test_collision_fails_closed(
 
     with pytest.raises(LayoutCollisionError):
         owning_checkout_root_for_config(config)
-    assert enforcement._checkout_root_for_local_path(config) is None
+    assert enforcement_checkout_root(config) is None
     with pytest.raises(trust._LocalCommandTrustManagementError, match="multiple"):
         trust._requested_checkout(config)
 
@@ -311,7 +315,7 @@ def test_legacy_key_is_not_honored_under_cutover(
         LOCAL_COMMAND_TRUST_POLICY_VERSION,
         "test",
     )
-    enforcement._warned_signatures.clear()
+    enforcement_flag_on._warned_signatures.clear()
     clear_config_cache()
     after = enforcement.evaluate_local_trust_for_path(config, None)
     assert after.trusted is False

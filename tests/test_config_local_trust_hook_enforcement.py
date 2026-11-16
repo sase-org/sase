@@ -18,6 +18,7 @@ import pytest
 import yaml
 
 from sase.config import local_trust_enforcement as enforcement
+from sase.config import local_trust_enforcement_flag_on as enforcement_flag_on
 from sase.config.core import (
     clear_config_cache,
     load_merged_config,
@@ -52,7 +53,7 @@ def _repo(
     monkeypatch.setattr(core, "CONFIG_DIR", config_dir)
     monkeypatch.chdir(root)
     clear_config_cache()
-    enforcement._warned_signatures.clear()
+    enforcement_flag_on._warned_signatures.clear()
     return root, local_path
 
 
@@ -450,7 +451,7 @@ def test_canonical_to_fallback_requires_new_review(
     monkeypatch.setattr(core, "CONFIG_DIR", config_dir)
     monkeypatch.chdir(root)
     clear_config_cache()
-    enforcement._warned_signatures.clear()
+    enforcement_flag_on._warned_signatures.clear()
     assert (
         load_merged_config_for_local_path(canonical)["commit_hooks"].get("before", "")
         != "echo hi"
