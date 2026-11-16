@@ -93,6 +93,9 @@ class LifecycleMixin:
 
         cancel_archive_controller(self)
         cancel_pump_free_tasks(self)
+        shutdown_hijack = getattr(self, "_shutdown_hijack_decision_executor", None)
+        if callable(shutdown_hijack):
+            shutdown_hijack()
         getattr(self, "_link_chip_requests", set()).clear()
         self._stop_tui_stall_watchdog()
         stop_watcher = getattr(self, "_stop_artifact_watcher", None)
@@ -439,6 +442,11 @@ class LifecycleMixin:
             if callable(cancel):
                 cancel()
 
+        def shutdown_hijack_decision_executor() -> None:
+            shutdown = getattr(self, "_shutdown_hijack_decision_executor", None)
+            if callable(shutdown):
+                shutdown()
+
         def shutdown_loader_executor() -> None:
             from sase.ace.tui.models._loaders._json_cache import (
                 shutdown_loader_executor as shutdown,
@@ -489,6 +497,7 @@ class LifecycleMixin:
             cleanup(stop_artifact_watcher)
             cleanup(cancel_notification_deadlines)
             cleanup(cancel_async_refresh_tasks)
+            cleanup(shutdown_hijack_decision_executor)
             cleanup(cancel_artifact_discovery)
             cleanup(cancel_content_search_refresh)
             cleanup(flush_tui_toasts)

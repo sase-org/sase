@@ -163,3 +163,44 @@ def test_stale_live_row_is_not_an_occupying_member() -> None:
     row = SimpleNamespace(status="RUNNING")
 
     assert _status(row, process_alive=False) == "LOST"
+
+
+def test_session_and_clan_seams_skip_archive_lookups(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    session = AgentSession(
+        base_name="seam.1",
+        root=None,
+        members=(),
+    )
+
+    def _raise(label: str) -> None:
+        raise AssertionError(f"archive lookup {label}")
+
+    monkeypatch.setattr(
+        "sase.agent.names.find_named_agent",
+        lambda *_a, **_k: _raise("agent"),
+    )
+    monkeypatch.setattr(
+        "sase.agent.names.find_agent_session",
+        lambda *_a, **_k: _raise("session"),
+    )
+    monkeypatch.setattr(
+        "sase.agent.names.find_agent_session_by_member_artifact_dir",
+        lambda *_a, **_k: _raise("session-dir"),
+    )
+    monkeypatch.setattr(
+        "sase.agent.names.find_agent_clan",
+        lambda *_a, **_k: _raise("clan"),
+    )
+
+    deps = StopDeps(
+        find_agent=lambda _name: None,
+        list_running=lambda: [],
+        find_session=lambda name: session if name == "seam.1" else None,
+        find_session_by_member_artifact_dir=lambda _path: None,
+        find_clan=lambda name: SimpleNamespace(name=name) if name == "wave-1" else None,
+    )
+    subject, decision = resolve_and_decide("wave-1", deps=deps)
+    assert subject.is_clan_container is True
+    assert decision["mode"] == "redirect"

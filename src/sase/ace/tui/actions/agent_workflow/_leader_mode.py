@@ -556,9 +556,13 @@ class LeaderModeMixin:
             if agent is not None:
                 has_revertable_agent = is_revertable_agent_status(agent.status)
                 from ..agents._hijack_decision import (
+                    cheap_hijack_ingress_available,
                     hijack_ingress_available_for_footer,
                 )
 
+                schedule_hijack = getattr(self, "_schedule_hijack_decision", None)
+                if callable(schedule_hijack) and cheap_hijack_ingress_available(agent):
+                    schedule_hijack(agent)
                 can_hijack_selected_agent = hijack_ingress_available_for_footer(
                     self, agent
                 )

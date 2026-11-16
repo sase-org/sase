@@ -77,12 +77,7 @@ def resolve_hijack_subject(
     row = None if isinstance(name_or_row, str) else name_or_row
     requested_name = _input_name(name_or_row)
 
-    from sase.agent.names import (
-        NamedAgent,
-        find_agent_clan,
-        find_agent_session,
-        find_agent_session_by_member_artifact_dir,
-    )
+    from sase.agent.names import NamedAgent
 
     find_agent = deps.find_agent or _default_find_agent
     raw_artifacts_dir = _value(row, "artifacts_dir")
@@ -102,26 +97,11 @@ def resolve_hijack_subject(
 
     session = None
     if artifacts_dir:
-        try:
-            member_session = find_agent_session_by_member_artifact_dir(artifacts_dir)
-        except (OSError, RuntimeError, ValueError):
-            member_session = None
-        if member_session is not None:
-            session = member_session[0]
+        session = _session_from_member_dir(deps, artifacts_dir)
     if session is None and found_agent is not None:
-        try:
-            member_session = find_agent_session_by_member_artifact_dir(
-                found_agent.artifacts_dir
-            )
-        except (OSError, RuntimeError, ValueError):
-            member_session = None
-        if member_session is not None:
-            session = member_session[0]
+        session = _session_from_member_dir(deps, found_agent.artifacts_dir)
     if session is None:
-        try:
-            session = find_agent_session(requested_name)
-        except (OSError, RuntimeError, ValueError):
-            session = None
+        session = _session_from_name(deps, requested_name)
 
     if session is not None:
         roster: tuple[Any, ...] = tuple(session.members)
@@ -262,10 +242,7 @@ def resolve_hijack_subject(
         _value(row, "is_clan_container", False) or _value(row, "is_clan", False)
     )
     if not is_clan_container:
-        try:
-            is_clan_container = find_agent_clan(requested_name) is not None
-        except (OSError, RuntimeError, ValueError):
-            is_clan_container = False
+        is_clan_container = _clan_from_name(deps, requested_name) is not None
     is_remote = bool(
         _value(row, "is_remote", False)
         or _value(row, "fleet_origin_alias", None)
@@ -427,6 +404,45 @@ def _default_find_agent(name: str) -> Any | None:
     from sase.agent.names import find_named_agent
 
     return find_named_agent(name, include_dead=True)
+
+
+def _session_from_member_dir(deps: StopDeps, artifacts_dir: str) -> Any | None:
+    lookup = deps.find_session_by_member_artifact_dir
+    if lookup is None:
+        from sase.agent.names import find_agent_session_by_member_artifact_dir
+
+        lookup = find_agent_session_by_member_artifact_dir
+    try:
+        found = lookup(artifacts_dir)
+    except (OSError, RuntimeError, TypeError, ValueError):
+        return None
+    if isinstance(found, tuple) and found:
+        return found[0]
+    return None
+
+
+def _session_from_name(deps: StopDeps, name: str) -> Any | None:
+    lookup = deps.find_session
+    if lookup is None:
+        from sase.agent.names import find_agent_session
+
+        lookup = find_agent_session
+    try:
+        return lookup(name)
+    except (OSError, RuntimeError, TypeError, ValueError):
+        return None
+
+
+def _clan_from_name(deps: StopDeps, name: str) -> Any | None:
+    lookup = deps.find_clan
+    if lookup is None:
+        from sase.agent.names import find_agent_clan
+
+        lookup = find_agent_clan
+    try:
+        return lookup(name)
+    except (OSError, RuntimeError, TypeError, ValueError):
+        return None
 
 
 def _input_name(name_or_row: str | Any) -> str:

@@ -31,6 +31,7 @@ class HijackDecisionView:
     occupant_reason: str
     workspace_num: int | None
     decision: dict[str, Any]
+    computed_at: float = 0.0
 
     @property
     def mode(self) -> str:
@@ -110,12 +111,13 @@ def format_hijack_decision_toast(decision: Mapping[str, Any]) -> str:
 
 
 def hijack_ingress_available_for_footer(app: object, agent: Agent | None) -> bool:
-    """Footer chip: cached backend decision, else cheap row-local refusals."""
+    """Footer chip: cached backend decision, else cheap row-local refusals.
+
+    This helper never schedules a compute. Footer and leader refresh paths
+    request a decision from one place per refresh.
+    """
     if agent is None:
         return False
-    schedule = getattr(app, "_schedule_hijack_decision", None)
-    if callable(schedule):
-        schedule(agent)
     cached = getattr(app, "_cached_hijack_decision", None)
     if callable(cached):
         view = cached(agent)
@@ -189,6 +191,55 @@ def _row_identity(agent: Agent) -> tuple[object, ...]:
     return (getattr(agent, "agent_name", None), id(agent))
 
 
+def hijack_decision_fingerprint(
+    agent: Agent, *, _seen: frozenset[int] | None = None
+) -> tuple[object, ...]:
+    """Return the row-local fields a hijack decision reads from *agent*.
+
+    The roster generation is never part of this fingerprint. Container rows
+    include each follow-up member's fingerprint.
+    """
+    marker = id(agent)
+    seen = _seen or frozenset()
+    if marker in seen:
+        return (_row_identity(agent),)
+    seen = seen | {marker}
+    record = getattr(agent, "hijack_record", None)
+    record_state = record.get("state") if isinstance(record, dict) else None
+    base = (
+        getattr(agent, "status", None),
+        getattr(agent, "pid", None),
+        getattr(agent, "workspace_num", None),
+        getattr(agent, "artifacts_dir", None),
+        getattr(agent, "agent_session", None),
+        getattr(agent, "agent_session_role", None),
+        bool(getattr(agent, "agent_session_parallel", False)),
+        getattr(agent, "agent_clan", None),
+        getattr(agent, "agent_clan_generation", None),
+        bool(getattr(agent, "is_clan_container", False)),
+        bool(getattr(agent, "is_agent_session_container_row", False)),
+        bool(getattr(agent, "is_imported_agent_session_container", False)),
+        bool(getattr(agent, "is_remote_agent_session_container", False)),
+        bool(getattr(agent, "is_named_proc", False)),
+        getattr(agent, "fleet_origin_alias", None),
+        getattr(agent, "hijack_overlay", None),
+        bool(getattr(agent, "hijack_stop_failed", False)),
+        getattr(agent, "hijack_id", None),
+        bool(getattr(agent, "hijack_expired", False)),
+        getattr(agent, "hijack_diff_summary", None),
+        record_state,
+    )
+    members = getattr(agent, "followup_agents", None) or ()
+    if not members:
+        return base
+    return (
+        *base,
+        tuple(hijack_decision_fingerprint(member, _seen=seen) for member in members),
+    )
+
+
+row_identity = _row_identity
+
 __all__ = [
     "HijackDecisionView",
     "agent_can_offer_hijack",
@@ -196,6 +247,8 @@ __all__ = [
     "cheap_hijack_ingress_available",
     "compute_hijack_decision",
     "format_hijack_decision_toast",
+    "hijack_decision_fingerprint",
     "hijack_ingress_available_for_footer",
     "kill_modal_hijack_available",
+    "row_identity",
 ]

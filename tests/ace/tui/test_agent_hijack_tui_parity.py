@@ -11,6 +11,7 @@ from typing import Any
 import pytest
 
 from sase.ace.tui.actions.agents._hijack_decision import compute_hijack_decision
+from sase.ace.tui.actions.agents._hijack_roster_snapshot import hijack_row_local_deps
 from sase.ace.tui.models.agent import Agent, AgentType
 from sase.agent.hijack._stop_models import StopDeps
 from sase.agent.hijack.facts import resolve_and_decide
@@ -373,6 +374,42 @@ def test_loader_rows_match_cli_explain_decisions(
     clan_row.refresh_raw_presented_agent_name()
     remote_row = _tui_agent(name="remote.1")
     remote_row.fleet_origin_alias = "athena"
+    done_member, done_path = _write_member(
+        tmp_path,
+        name="done.1",
+        timestamp="20261115163900",
+        meta={"name": "done.1", "runner_capabilities": ["hijack"]},
+        outcome="succeeded",
+    )
+    terminal_row = _tui_agent(
+        name=done_member.name,
+        status="DONE",
+        artifacts_dir=str(done_path),
+        suffix=done_member.timestamp,
+        pid=None,
+        workspace_num=None,
+    )
+    named_row = _tui_agent(name="proc.1", pid=None, workspace_num=None, suffix=None)
+    named_row.agent_type = AgentType.NAMED_PROC
+    boot, boot_path = _write_member(
+        tmp_path,
+        name="boot.1",
+        timestamp="20261115164400",
+        meta={
+            "name": "boot.1",
+            "lifecycle_phase": "booting",
+            "runner_capabilities": ["hijack"],
+            "pid": 717171,
+        },
+    )
+    waiting_row = _tui_agent(
+        name=boot.name,
+        status="WAITING",
+        artifacts_dir=str(boot_path),
+        suffix=boot.timestamp,
+        pid=717171,
+        workspace_num=7,
+    )
 
     local_cases = (
         (container, session.base_name),
@@ -405,3 +442,86 @@ def test_loader_rows_match_cli_explain_decisions(
     assert tui_gate.redirect_op == "gate_review"
     tui_workflow = compute_hijack_decision(workflow_row, deps=deps)
     assert tui_workflow.mode in {"immediate", "latched"}
+    tui_terminal = compute_hijack_decision(terminal_row, deps=deps)
+    assert tui_terminal.mode == "refused"
+    tui_named = compute_hijack_decision(named_row, deps=deps)
+    assert tui_named.mode == "refused"
+    waiting_deps = StopDeps(
+        find_agent=lambda name: named.get(name),
+        list_running=lambda: [
+            *running_rows,
+            SimpleNamespace(
+                name=boot.name,
+                artifacts_dir=str(boot_path),
+                status="WAITING",
+                pid=717171,
+            ),
+        ],
+        process_alive=lambda _meta, _path: True,
+    )
+    tui_waiting = compute_hijack_decision(waiting_row, deps=waiting_deps)
+    assert tui_waiting.mode in {"immediate", "latched", "redirect", "refused"}
+
+    class _Roster:
+        _agents_with_children = [
+            container,
+            monitor_row,
+            llm_row,
+            gate_row,
+            workflow_row,
+            clan_row,
+            remote_row,
+            terminal_row,
+            named_row,
+            waiting_row,
+        ]
+
+    default_keys: dict[str | None, tuple[Any, ...]] = {}
+    for row, row_deps in (
+        (container, deps),
+        (monitor_row, deps),
+        (llm_row, deps),
+        (gate_row, deps),
+        (workflow_row, deps),
+        (clan_row, deps),
+        (remote_row, deps),
+        (terminal_row, deps),
+        (named_row, deps),
+        (waiting_row, waiting_deps),
+    ):
+        decided = compute_hijack_decision(row, deps=row_deps)
+        default_keys[row.agent_name] = _decision_key(
+            decided.decision, decided.occupant_name
+        )
+
+    def _raise(*_args: Any, **_kwargs: Any) -> Any:
+        raise AssertionError("row-local deps must not scan the archive")
+
+    monkeypatch.setattr("sase.agent.names.find_named_agent", _raise)
+    monkeypatch.setattr("sase.agent.names.find_agent_session", _raise)
+    monkeypatch.setattr(
+        "sase.agent.names.find_agent_session_by_member_artifact_dir",
+        _raise,
+    )
+    monkeypatch.setattr("sase.agent.names.find_agent_clan", _raise)
+    monkeypatch.setattr("sase.agent.running_listing.list_running_agents", _raise)
+
+    for row in (
+        container,
+        monitor_row,
+        llm_row,
+        gate_row,
+        workflow_row,
+        clan_row,
+        remote_row,
+        terminal_row,
+        named_row,
+        waiting_row,
+    ):
+        local_deps = hijack_row_local_deps(_Roster(), row)
+        local_deps.process_alive = lambda _meta, _path: True
+        local = compute_hijack_decision(row, deps=local_deps)
+        assert (
+            _decision_key(local.decision, local.occupant_name)
+            == default_keys[row.agent_name]
+        ), row.agent_name

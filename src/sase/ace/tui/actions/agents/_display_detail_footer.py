@@ -172,7 +172,10 @@ class AgentFooterDisplayMixin:
             return
         schedule_hijack = getattr(self, "_schedule_hijack_decision", None)
         if current_agent is not None and callable(schedule_hijack):
-            schedule_hijack(current_agent)
+            from ._hijack_decision import cheap_hijack_ingress_available
+
+            if cheap_hijack_ingress_available(current_agent):
+                schedule_hijack(current_agent)
         if pending_digit := getattr(self, "_member_jump_pending_digit", None):
             noun_resolver = getattr(self, "_roster_jump_noun", None)
             container_resolver = getattr(self, "_selected_member_jump_container", None)

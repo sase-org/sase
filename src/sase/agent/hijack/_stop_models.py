@@ -49,10 +49,21 @@ class HijackTarget:
 
 @dataclass
 class StopDeps:
-    """Seams for tests; production uses the defaults."""
+    """Seams for tests; production uses the defaults.
+
+    ``find_session``, ``find_session_by_member_artifact_dir``, and
+    ``find_clan`` default to the archive-backed name lookups. Callers that
+    pass any of those callables — including ones that return ``None`` —
+    skip the archive entirely for that lookup.
+    """
 
     find_agent: Callable[[str], Any | None] | None = None
     list_running: Callable[[], list[Any]] | None = None
+    find_session: Callable[[str], Any | None] | None = None
+    find_session_by_member_artifact_dir: (
+        Callable[[str | Path], tuple[Any, Any] | None] | None
+    ) = None
+    find_clan: Callable[[str], Any | None] | None = None
     terminate: Callable[..., Any] | None = None
     snapshot_repo: Callable[..., Any] | None = None
     now: Callable[[], float] | None = None
