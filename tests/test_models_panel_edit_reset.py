@@ -17,6 +17,7 @@ from tests._models_panel_helpers import (
     make_alias_view,
     make_edit_plan,
     patch_alias_views,
+    wait_for,
 )
 
 
@@ -28,7 +29,7 @@ async def test_action_reset_unconfigured_warns_and_skips(monkeypatch: Any) -> No
     async with ModelsPanelTestApp().run_test() as pilot:
         panel = ModelsPanel()
         pilot.app.push_screen(panel)
-        await pilot.pause()
+        await wait_for(pilot, lambda: "medium" in panel._row_by_id)
         highlight_row(panel, "medium")
         panel.notify = MagicMock()  # type: ignore[method-assign]
         panel.action_reset()
@@ -52,7 +53,7 @@ async def test_action_reset_configured_opens_preview_with_unset(
     async with ModelsPanelTestApp().run_test() as pilot:
         panel = ModelsPanel()
         pilot.app.push_screen(panel)
-        await pilot.pause()
+        await wait_for(pilot, lambda: "medium" in panel._row_by_id)
         highlight_row(panel, "medium")
         panel.action_reset()
         await pilot.pause()
@@ -83,7 +84,7 @@ async def test_action_reset_custom_alias_deletes_custom_entry(
     async with ModelsPanelTestApp().run_test() as pilot:
         panel = ModelsPanel()
         pilot.app.push_screen(panel)
-        await pilot.pause()
+        await wait_for(pilot, lambda: "blogger" in panel._row_by_id)
         highlight_row(panel, "blogger")
         panel.action_reset()
         await pilot.pause()
