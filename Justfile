@@ -523,6 +523,9 @@ _lint-patch-stitch-terminology: _setup
 # those rows were dropped after landing. sase-1qz.9 now consumes
 # normalize_hijack_rung for the recovery panel's displayed model rung; its
 # temporary whitelist entry is removed here.
+# sase-1t3.6.1.1 (lookup-core) exported the targeted artifact lookup facade
+# and compact hit/target wires; sase-1t3.6.1.2 (named-cutover) consumes them
+# by switching public named/dismissed lookups onto lookup_agent_artifacts.
 # Never put a comment
 # line inside the continued command below: just joins the lines, so the comment
 # would swallow every later argument.
@@ -531,6 +534,9 @@ _lint-symvision *args: _setup
     SASE_SYMVISION_BEAD_STATUS_ONLY=1 BD_COMMAND=tools/sase_bead {{ venv_bin }}/symvision src/sase \
         --exclude-decorator gate_command_entrypoint \
         --exclude-decorator builtin_chop \
+        --epic-symbol "sase-1t3.6.1.2(AgentArtifactLookupHitWire)" \
+        --epic-symbol "sase-1t3.6.1.2(AgentArtifactLookupTargetWire)" \
+        --epic-symbol "sase-1t3.6.1.2(lookup_agent_artifacts)" \
         {{ args }}
 
 # Check Python file line counts (private, extracted for per-stage wrapping)
