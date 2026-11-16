@@ -68,7 +68,7 @@ def _run_pinned_cleanup(
             return_value=clock,
         ),
         patch(
-            "sase.ace.scheduler.stale_running_sweep._matching_hijack_record",
+            "sase.ace.scheduler.stale_running_sweep.matching_hijack_record",
             return_value=None,
         ),
         patch("sase.ace.scheduler.stale_running_sweep.release_workspace") as release,

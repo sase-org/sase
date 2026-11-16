@@ -9,6 +9,8 @@ from sase.running_field import (
 )
 from sase.workspace_provider.occupant import clear_owned_occupant_record
 
+_DEFAULT_HELD_CLAIM_TTL_DAYS = 14
+
 
 def staged_origin_retains_claim(project_file: str, claim: WorkspaceClaim) -> bool:
     if not claim.artifacts_timestamp:
@@ -114,3 +116,14 @@ def clear_stale_occupant_record(project_file: str, claim: WorkspaceClaim) -> Non
         cl_name=claim.cl_name,
         workspace_num=claim.workspace_num,
     )
+
+
+def held_claim_ttl_days() -> int:
+    """Return ``workspace.held_claim_ttl_days``, defaulting to 14 on error."""
+    try:
+        from sase.config import load_merged_config
+        from sase.workspace_provider.store import held_claim_ttl_days_from_config
+
+        return held_claim_ttl_days_from_config(load_merged_config())
+    except Exception:
+        return _DEFAULT_HELD_CLAIM_TTL_DAYS

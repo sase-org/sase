@@ -132,7 +132,11 @@ def test_cleanup_retains_requested_hijack_without_done_json() -> None:
             return_value=False,
         ),
         patch(
-            "sase.ace.scheduler.stale_running_sweep._matching_hijack_record",
+            "sase.ace.scheduler._stale_running_hijack.is_process_running",
+            return_value=False,
+        ),
+        patch(
+            "sase.ace.scheduler.stale_running_sweep.matching_hijack_record",
             return_value=_held_record(state="requested"),
         ),
         patch("sase.ace.scheduler.stale_running_sweep.release_workspace") as release,
@@ -163,11 +167,15 @@ def test_cleanup_retains_held_claim_younger_than_hijacked_at_ttl() -> None:
             return_value=False,
         ),
         patch(
-            "sase.ace.scheduler.stale_running_sweep._matching_hijack_record",
+            "sase.ace.scheduler._stale_running_hijack.is_process_running",
+            return_value=False,
+        ),
+        patch(
+            "sase.ace.scheduler.stale_running_sweep.matching_hijack_record",
             return_value=record,
         ),
         patch(
-            "sase.ace.scheduler.stale_running_sweep._held_claim_ttl_days",
+            "sase.ace.scheduler._stale_running_hijack.held_claim_ttl_days",
             return_value=14,
         ),
         patch("sase.agent.hijack.custody.hijacked_at_exceeds_ttl", return_value=False),
@@ -198,11 +206,15 @@ def test_cleanup_expire_snapshot_failure_keeps_the_hold() -> None:
             return_value=False,
         ),
         patch(
-            "sase.ace.scheduler.stale_running_sweep._matching_hijack_record",
+            "sase.ace.scheduler._stale_running_hijack.is_process_running",
+            return_value=False,
+        ),
+        patch(
+            "sase.ace.scheduler.stale_running_sweep.matching_hijack_record",
             return_value=record,
         ),
         patch(
-            "sase.ace.scheduler.stale_running_sweep._held_claim_ttl_days",
+            "sase.ace.scheduler._stale_running_hijack.held_claim_ttl_days",
             return_value=14,
         ),
         patch("sase.agent.hijack.custody.hijacked_at_exceeds_ttl", return_value=True),

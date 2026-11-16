@@ -298,7 +298,7 @@ def test_stale_sweep_settles_dead_stop_as_held(
     hijack_home: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     from sase.agent.hijack import ledger
-    from sase.ace.scheduler.stale_running_sweep import (
+    from sase.ace.scheduler._stale_running_hijack import (
         _reconcile_abandoned_stop_record,
     )
 

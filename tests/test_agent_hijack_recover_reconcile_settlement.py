@@ -105,7 +105,7 @@ def test_settlement_resolving_claim_matches_successor_pid() -> None:
 def test_settlement_stale_cleanup_reconciles_every_resolving() -> None:
     from unittest.mock import patch
 
-    from sase.ace.scheduler import stale_running_sweep as cleanup
+    from sase.ace.scheduler import _stale_running_hijack as hijack
 
     first = resolving_record(hijack_id="h-1")
     second = resolving_record(hijack_id="h-2", agent_name="acme--5")
@@ -116,14 +116,14 @@ def test_settlement_stale_cleanup_reconciles_every_resolving() -> None:
             return_value=[first, second, {"state": "held"}],
         ),
         patch.object(
-            cleanup,
+            hijack,
             "_reconcile_resolving_record",
             side_effect=lambda record, log_fn=None: seen.append(
                 str(record.get("hijack_id"))
             ),
         ),
     ):
-        cleanup._reconcile_all_resolving_records(log_fn=None)
+        hijack.reconcile_all_resolving_records(log_fn=None)
     assert sorted(seen) == ["h-1", "h-2"]
 
 
@@ -344,6 +344,7 @@ def test_settlement_crash_after_ack_adopts(monkeypatch, tmp_path) -> None:
 def test_settlement_cleanup_never_releases_resolving() -> None:
     from unittest.mock import patch
 
+    from sase.ace.scheduler import _stale_running_hijack as hijack
     from sase.ace.scheduler import stale_running_sweep as cleanup
     from sase.running_field import WorkspaceClaim
 
@@ -366,8 +367,8 @@ def test_settlement_cleanup_never_releases_resolving() -> None:
     with (
         patch.object(cleanup, "_get_all_project_files", return_value=[project_file]),
         patch.object(cleanup, "get_claimed_workspaces", return_value=[claim]),
-        patch.object(cleanup, "_matching_hijack_record", return_value=dict(record)),
-        patch.object(cleanup, "_reconcile_resolving_record", return_value=None),
+        patch.object(cleanup, "matching_hijack_record", return_value=dict(record)),
+        patch.object(hijack, "_reconcile_resolving_record", return_value=None),
         patch.object(cleanup, "release_workspace") as release,
     ):
         released = cleanup.cleanup_stale_running_entries()
