@@ -143,6 +143,18 @@ class StartupMountMixin:
 
     def _start_post_first_paint_services(self: Any) -> None:
         """Start services that are not required to draw the initial frame."""
+        # Provider discovery waits for first paint: bootstrap fixed panes
+        # compose without project enumeration, then one pump-free pass
+        # publishes the complete generation. The callback stays thin and
+        # synchronous; enumeration runs in a worker (see tui_perf rules).
+        try:
+            schedule = getattr(self, "_schedule_artifacts_provider_discovery", None)
+            if callable(schedule):
+                schedule(reason="startup")
+            else:
+                log.debug("artifacts discovery schedule unavailable")
+        except Exception:
+            log.exception("Failed to schedule Artifacts provider discovery")
         import asyncio
 
         start_capacity_feed = getattr(self, "_start_machine_capacity_report_feed", None)

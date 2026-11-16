@@ -78,6 +78,9 @@ class ArtifactsView(Vertical):
         **kwargs: Any,
     ) -> None:
         super().__init__(**kwargs)
+        self._discovery_pending = snapshot is not None and bool(
+            getattr(snapshot, "is_pending", False)
+        )
         self._snapshot = snapshot
         self._descriptors = (
             snapshot.descriptors
@@ -217,15 +220,36 @@ class ArtifactsView(Vertical):
             for descriptor in self._descriptors
         )
 
+    @property
+    def discovery_pending(self) -> bool:
+        """Return whether provider discovery has been published yet."""
+
+        snapshot = self._snapshot
+        if snapshot is not None and bool(getattr(snapshot, "is_pending", False)):
+            return True
+        return bool(self._discovery_pending)
+
+    def set_discovery_pending(self, pending: bool) -> None:
+        """Mark provider discovery pending without changing panes."""
+
+        self._discovery_pending = bool(pending)
+        try:
+            self._refresh_provider_diagnostics()
+        except Exception:  # noqa: BLE001 - pre-compose refresh is a no-op.
+            pass
+
     def _refresh_provider_diagnostics(self) -> None:
         """Show a header warning when any provider tab is degraded."""
 
         degraded = artifacts_provider_diagnostics(self._descriptors)
         spacer = self.query_one("#artifacts-split-spacer", Static)
-        if not degraded:
-            spacer.update("")
+        if degraded:
+            spacer.update(Text("⚠", style="bold #FF5F5F", justify="center"))
             return
-        spacer.update(Text("⚠", style="bold #FF5F5F", justify="center"))
+        if self.discovery_pending:
+            spacer.update(Text("…", style="dim #888888", justify="center"))
+            return
+        spacer.update("")
 
     def _compose_pane(self, descriptor: ArtifactsTabDescriptor) -> ComposeResult:
         if descriptor.is_degraded:

@@ -10,6 +10,9 @@ from sase.ace.tui import AceApp
 from sase.ace.tui.actions.agents import _loading as _agent_loading
 from sase.ace.tui.actions.lifecycle import NotificationStartupState
 from sase.ace.tui.actions import artifacts as _artifacts_actions
+from sase.ace.tui.actions._artifacts_publication import (
+    ArtifactsPublicationMixin as _ArtifactsPublicationMixin,
+)
 from sase.ace.tui.modals import plugins_browser_pane as _plugins_browser_pane
 from sase.ace.tui.modals import project_inventory_panes as _project_inventory_panes
 from sase.ace.tui.util import gc_policy as _gc_policy
@@ -60,6 +63,10 @@ _ORIGINAL_COLLECT_WORKSPACE_INVENTORY = (
 )
 _ORIGINAL_COLLECT_ARTIFACTS_PROJECT_CHOICES = (
     _artifacts_actions._collect_artifacts_project_choices
+)
+
+_ORIGINAL_SCHEDULE_ARTIFACTS_DISCOVERY = (
+    _ArtifactsPublicationMixin._schedule_artifacts_provider_discovery
 )
 
 
@@ -291,6 +298,13 @@ def _install_fast_startup_overrides(stack: AsyncExitStack) -> None:
     )
     stack.enter_context(
         patch.object(
+            _artifact_tabs,
+            "bootstrap_artifacts_snapshot",
+            lambda **_kwargs: _fast_artifacts_snapshot(),
+        )
+    )
+    stack.enter_context(
+        patch.object(
             _artifact_tabs, "resolve_artifacts_subtabs", _fast_artifacts_subtabs
         )
     )
@@ -330,6 +344,12 @@ def _install_fast_startup_overrides(stack: AsyncExitStack) -> None:
             patch.object(AceApp, "_run_axe_startup_init", _run_fast_axe_startup)
         )
 
+    _patch_method_if_unchanged(
+        stack,
+        "_schedule_artifacts_provider_discovery",
+        _ORIGINAL_SCHEDULE_ARTIFACTS_DISCOVERY,
+        _noop_startup_service,
+    )
     for name, original in (
         ("_schedule_agents_fold_state_load", _ORIGINAL_SCHEDULE_FOLD_STATE_LOAD),
         (

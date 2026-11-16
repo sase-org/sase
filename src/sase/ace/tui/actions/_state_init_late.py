@@ -369,9 +369,20 @@ def init_late_startup_state(
 
     # Pin one discovery generation for every TUI consumer. Background cache
     # refreshes must not change bindings, the tab strip, help, or catalogs.
-    from ..artifact_tabs import discover_artifacts_snapshot
+    # First paint uses fixed panes only: no project walk, token read, or
+    # cache write. Provider discovery is scheduled after first paint by
+    # the startup loads mixin and published as one coherent generation.
+    from ..artifact_tabs import bootstrap_artifacts_snapshot
 
-    self._artifacts_descriptor_snapshot = discover_artifacts_snapshot()
+    self._artifacts_descriptor_snapshot = bootstrap_artifacts_snapshot(generation=0)
+    self._artifacts_discovery_in_flight = False
+    self._artifacts_discovery_pending = False
+    self._artifacts_discovery_seq = 0
+    self._artifacts_pending_provider_target: str | None = None
+    self._artifacts_pending_provider_tab: Any = None
+    self._artifacts_discovery_teardown = False
+    self._artifacts_last_discovery_error: str | None = None
+    self._artifacts_last_discovery_mono: float | None = None
 
     # Replace instance bindings with registry-driven bindings.
     from textual.binding import BindingsMap

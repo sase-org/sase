@@ -37,6 +37,7 @@ from .artifacts_limit import ArtifactsLimitActionsMixin
 from .artifacts_link import ArtifactsLinkActionsMixin
 from .artifacts_navigation import ArtifactsNavigationActionsMixin
 from .artifacts_plans import ArtifactsPlansActionsMixin, PLANS_ARTIFACT_ACTIONS
+from ._artifacts_publication import ArtifactsPublicationMixin
 from .artifacts_query_history import ArtifactsQueryHistoryActionsMixin
 
 if TYPE_CHECKING:
@@ -278,6 +279,7 @@ class ArtifactsMixin(
     ArtifactsQueryHistoryActionsMixin,
     ArtifactsLinkActionsMixin,
     ArtifactsLimitActionsMixin,
+    ArtifactsPublicationMixin,
 ):
     """Compose Artifacts pane actions and manage their shared project scope."""
 
@@ -351,6 +353,10 @@ class ArtifactsMixin(
         picked: bool,
     ) -> None:
         self._cancel_non_pr_artifacts_jump_mode()
+        # A scope change supersedes a retained pending provider jump.
+        note_navigation = getattr(self, "_note_user_artifacts_navigation", None)
+        if callable(note_navigation):
+            note_navigation()
         if project != self.artifacts_project_scope:
             self._clear_all_artifacts_marks()
         self.artifacts_project_scope = project

@@ -410,11 +410,21 @@ class ArtifactsNavigationActionsMixin:
         if self._artifacts_jump_mode_subtab == pane_key:
             self._cancel_non_pr_artifacts_jump_mode()
 
+    def _note_user_artifacts_navigation(self) -> None:
+        """Mark an explicit user navigation, superseding a pending jump."""
+
+        try:
+            self._artifacts_pending_provider_target = None  # type: ignore[attr-defined]
+            self._artifacts_pending_provider_tab = None  # type: ignore[attr-defined]
+        except Exception:
+            pass
+
     def _switch_artifacts_subtab(self, subtab: ArtifactsSubTab) -> None:
         from ..artifact_tabs import (
             switch_to_artifacts_subtab,
         )
 
+        self._note_user_artifacts_navigation()
         snapshot = self._artifacts_snapshot()
         switch_to_artifacts_subtab(
             self,
@@ -425,6 +435,7 @@ class ArtifactsNavigationActionsMixin:
     def _cycle_artifacts_subtab(self, step: int) -> None:
         if self.current_tab != ARTIFACTS_TAB:
             return
+        self._note_user_artifacts_navigation()
         snapshot = self._artifacts_snapshot()
         order = artifacts_subtab_order(snapshot=snapshot)
         current = normalize_artifacts_subtab(
@@ -491,6 +502,10 @@ class ArtifactsNavigationActionsMixin:
     def action_show_artifacts_digit(self, digit: int) -> None:
         """Switch to the descriptor carrying *digit* as its shortcut."""
 
+        # Digits resolve only against the displayed committed generation.
+        # A digit with no displayed target does nothing and is never
+        # replayed against a later ordering; any press supersedes a
+        # retained pending provider target.
         snapshot = self._artifacts_snapshot()
         if snapshot is not None:
             selected = snapshot.lookup_digit(digit)
@@ -508,6 +523,8 @@ class ArtifactsNavigationActionsMixin:
             )
         if selected is not None:
             self._switch_artifacts_subtab(selected.id)
+        else:
+            self._note_user_artifacts_navigation()
 
     def action_show_artifacts_pane(self, pane_id: str) -> None:
         """Switch to the stable Artifacts pane id, or report it unavailable."""
@@ -523,6 +540,18 @@ class ArtifactsNavigationActionsMixin:
         else:
             selected = snapshot.lookup(pane_id)
         if selected is None:
+            # While discovery is pending, an explicit provider pane-ID
+            # request is retained once; it applies only when no later user
+            # navigation supersedes it and the completed generation has it.
+            if snapshot is not None and bool(getattr(snapshot, "is_pending", False)):
+                try:
+                    self._artifacts_pending_provider_target = pane_id  # type: ignore[attr-defined]
+                    self._artifacts_pending_provider_tab = getattr(  # type: ignore[attr-defined]
+                        self, "current_tab", None
+                    )
+                except Exception:
+                    pass
+                return
             label = pane_id
             if snapshot is not None:
                 label = snapshot.label(pane_id)

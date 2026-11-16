@@ -56,6 +56,10 @@ class LifecycleMixin:
         except Exception:
             pass
         set_startup_window(False)
+        try:
+            self._artifacts_discovery_teardown = True  # type: ignore[attr-defined]
+        except Exception:
+            pass
         stop_tui_heap_sampler(self)
         stop_capacity_feed = getattr(self, "_stop_machine_capacity_report_feed", None)
         if callable(stop_capacity_feed):
