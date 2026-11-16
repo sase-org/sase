@@ -164,7 +164,11 @@ def test_orchestrator_latches_finalizing_with_exit_3(
         tmp_path, {"lifecycle_phase": "finalizing", "process_identity": "boot:123"}
     )
     monkeypatch.setattr(
-        "sase.agent.hijack.latch.owner_identity_for",
+        "sase.agent.hijack._latch_request.owner_identity_for",
+        lambda _target: "boot:123",
+    )
+    monkeypatch.setattr(
+        "sase.agent.hijack._latch_common.owner_identity_for",
         lambda _target: "boot:123",
     )
     project_file = _project_file(tmp_path)
@@ -186,7 +190,11 @@ def test_repeated_latch_requests_coalesce_to_one_operation(
         tmp_path, {"lifecycle_phase": "handoff", "process_identity": "boot:123"}
     )
     monkeypatch.setattr(
-        "sase.agent.hijack.latch.owner_identity_for",
+        "sase.agent.hijack._latch_request.owner_identity_for",
+        lambda _target: "boot:123",
+    )
+    monkeypatch.setattr(
+        "sase.agent.hijack._latch_common.owner_identity_for",
         lambda _target: "boot:123",
     )
     project_file = _project_file(tmp_path)

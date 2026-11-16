@@ -10,7 +10,10 @@ from typing import Any
 
 import pytest
 
-from sase.agent.hijack import latch, ledger
+from sase.agent.hijack import core, latch, ledger
+from sase.agent.hijack import _latch_apply as latch_apply
+from sase.agent.hijack import _latch_common as latch_common
+from sase.agent.hijack import _latch_request as latch_request
 from sase.agent.hijack._stop_models import HijackTarget
 from sase.agent.hijack import runner_boundaries as bounds
 from sase.agent.hijack.spawn_guard import HijackLatchedError
@@ -85,8 +88,8 @@ def latch_store(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     monkeypatch.setattr(ledger, "_hijack_ledger_root", lambda: tmp_path / "ledger")
     monkeypatch.setattr(ledger, "agent_hijack_wire_schema_version", lambda: 1)
     monkeypatch.setattr(ledger, "advance_agent_hijack_record", _advance)
-    monkeypatch.setattr(latch.core, "agent_hijack_latch_wire_schema_version", lambda: 1)
-    monkeypatch.setattr(latch.core, "agent_hijack_latch_observe", _observe)
+    monkeypatch.setattr(core, "agent_hijack_latch_wire_schema_version", lambda: 1)
+    monkeypatch.setattr(core, "agent_hijack_latch_observe", _observe)
     return tmp_path / "ledger"
 
 
@@ -174,7 +177,9 @@ def _install_subject(
         "sase.agent.hijack.facts.resolve_hijack_subject",
         lambda _name, *, deps=None: subject,
     )
-    monkeypatch.setattr(latch, "owner_identity_for", lambda _t: identity)
+    monkeypatch.setattr(latch_common, "owner_identity_for", lambda _t: identity)
+    monkeypatch.setattr(latch_request, "owner_identity_for", lambda _t: identity)
+    monkeypatch.setattr(latch_apply, "owner_identity_for", lambda _t: identity)
 
 
 def test_runner_target_recovers_workflow_from_exact_claim_when_meta_omits_it(
@@ -220,8 +225,8 @@ def test_staged_adoption_applies_once_and_replays_same_id(
     requested = latch.request_latch(target.name)
     assert requested["verdict"] == "pending"
 
-    monkeypatch.setattr(latch, "pin_claim", lambda _t: True)
-    monkeypatch.setattr(latch, "apply_latched_settlement", lambda _t, _hid: None)
+    monkeypatch.setattr(latch_apply, "pin_claim", lambda _t: True)
+    monkeypatch.setattr(latch_apply, "apply_latched_settlement", lambda _t, _hid: None)
 
     def _attach(
         hijack_id: str,
@@ -232,7 +237,7 @@ def test_staged_adoption_applies_once_and_replays_same_id(
     ) -> tuple[Any, Any, Any]:
         return ledger.load_record(hijack_id), None, None
 
-    monkeypatch.setattr(latch, "collect_and_attach_evidence", _attach)
+    monkeypatch.setattr(latch_apply, "collect_and_attach_evidence", _attach)
 
     with pytest.raises(HijackLatchedError) as first:
         bounds.enforce_staged_adoption_latch(str(member), "staged-1", "pipe")
@@ -265,8 +270,8 @@ def test_inprocess_successor_suppresses_without_extra_successor(
     requested = latch.request_latch(target.name)
     assert requested["verdict"] == "pending"
 
-    monkeypatch.setattr(latch, "pin_claim", lambda _t: True)
-    monkeypatch.setattr(latch, "apply_latched_settlement", lambda _t, _hid: None)
+    monkeypatch.setattr(latch_apply, "pin_claim", lambda _t: True)
+    monkeypatch.setattr(latch_apply, "apply_latched_settlement", lambda _t, _hid: None)
 
     def _attach(
         hijack_id: str,
@@ -277,7 +282,7 @@ def test_inprocess_successor_suppresses_without_extra_successor(
     ) -> tuple[Any, Any, Any]:
         return ledger.load_record(hijack_id), None, None
 
-    monkeypatch.setattr(latch, "collect_and_attach_evidence", _attach)
+    monkeypatch.setattr(latch_apply, "collect_and_attach_evidence", _attach)
 
     with pytest.raises(HijackLatchedError):
         bounds.enforce_inprocess_successor_latch(str(member), prompt="follow up please")
@@ -313,8 +318,8 @@ def test_run_end_moot_keeps_real_outcome_and_retry_refuses_applied(
     target2 = _target_for(member2, meta2)
     _install_subject(monkeypatch, target2, identity)
     requested2 = latch.request_latch(target2.name)
-    monkeypatch.setattr(latch, "pin_claim", lambda _t: True)
-    monkeypatch.setattr(latch, "apply_latched_settlement", lambda _t, _hid: None)
+    monkeypatch.setattr(latch_apply, "pin_claim", lambda _t: True)
+    monkeypatch.setattr(latch_apply, "apply_latched_settlement", lambda _t, _hid: None)
 
     def _attach(
         hijack_id: str,
@@ -325,7 +330,7 @@ def test_run_end_moot_keeps_real_outcome_and_retry_refuses_applied(
     ) -> tuple[Any, Any, Any]:
         return ledger.load_record(hijack_id), None, None
 
-    monkeypatch.setattr(latch, "collect_and_attach_evidence", _attach)
+    monkeypatch.setattr(latch_apply, "collect_and_attach_evidence", _attach)
     with pytest.raises(HijackLatchedError):
         bounds.enforce_staged_adoption_latch(str(member2), "staged-9", "plan")
     with pytest.raises(HijackLatchedError):

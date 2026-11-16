@@ -8,7 +8,10 @@ from typing import Any
 
 import pytest
 
-from sase.agent.hijack import latch, ledger
+from sase.agent.hijack import core, latch, ledger
+from sase.agent.hijack import _latch_apply as latch_apply
+from sase.agent.hijack import _latch_common as latch_common
+from sase.agent.hijack import _latch_request as latch_request
 from sase.agent.hijack._stop_models import HijackTarget
 from sase.agent.hijack.locks import (
     HIJACK_LOCK_ORDER,
@@ -85,8 +88,8 @@ def latch_store(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     monkeypatch.setattr(ledger, "_hijack_ledger_root", lambda: tmp_path / "ledger")
     monkeypatch.setattr(ledger, "agent_hijack_wire_schema_version", lambda: 1)
     monkeypatch.setattr(ledger, "advance_agent_hijack_record", _advance)
-    monkeypatch.setattr(latch.core, "agent_hijack_latch_wire_schema_version", lambda: 1)
-    monkeypatch.setattr(latch.core, "agent_hijack_latch_observe", _observe)
+    monkeypatch.setattr(core, "agent_hijack_latch_wire_schema_version", lambda: 1)
+    monkeypatch.setattr(core, "agent_hijack_latch_observe", _observe)
     return tmp_path / "ledger"
 
 
@@ -174,9 +177,13 @@ def _install_subjects(
         "sase.agent.hijack.facts.resolve_hijack_subject",
         lambda _name, *, deps=None: next(values, subjects[-1]),
     )
-    monkeypatch.setattr(
-        latch, "owner_identity_for", lambda target: target.test_identity
-    )
+
+    def identity_for(target: HijackTarget) -> str:
+        return target.test_identity
+
+    monkeypatch.setattr(latch_common, "owner_identity_for", identity_for)
+    monkeypatch.setattr(latch_request, "owner_identity_for", identity_for)
+    monkeypatch.setattr(latch_apply, "owner_identity_for", identity_for)
 
 
 def test_lock_order_names_match_parent_contract() -> None:
@@ -224,12 +231,12 @@ def test_request_apply_cancel_and_callback_traces(
     del latch_store
     target = _target(tmp_path / "member")
     _install_subjects(monkeypatch, _subject(target))
-    monkeypatch.setattr(latch, "pin_claim", lambda _target: True)
+    monkeypatch.setattr(latch_apply, "pin_claim", lambda _target: True)
     monkeypatch.setattr(
-        latch, "apply_latched_settlement", lambda *_args, **_kwargs: None
+        latch_apply, "apply_latched_settlement", lambda *_args, **_kwargs: None
     )
     monkeypatch.setattr(
-        latch,
+        latch_apply,
         "collect_and_attach_evidence",
         lambda hijack_id, _target, *, deps, existing_snapshots: (
             ledger.load_record(hijack_id),
@@ -238,7 +245,7 @@ def test_request_apply_cancel_and_callback_traces(
         ),
     )
     monkeypatch.setattr(
-        latch.core,
+        core,
         "hijack_latch_force_eligibility",
         lambda *_args: {"eligible": True},
     )

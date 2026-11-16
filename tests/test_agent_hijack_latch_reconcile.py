@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Any
 
 from sase.agent.hijack import _latch_reconcile
+from sase.agent.hijack import _latch_reconcile_evidence as evidence
 
 
 def test_pid_reuse_proves_old_latch_owner_dead(monkeypatch: Any) -> None:
@@ -17,7 +18,7 @@ def test_pid_reuse_proves_old_latch_owner_dead(monkeypatch: Any) -> None:
         lambda _pid: "boot:new-process",
     )
 
-    owner, state = _latch_reconcile._owner_observation(
+    owner, state = evidence.owner_observation(
         {"owner_pid": 42, "owner_identity": "boot:old-process"}
     )
 
@@ -37,7 +38,7 @@ def test_unreadable_owner_identity_remains_unknown(monkeypatch: Any) -> None:
         "sase.core.process_identity.process_identity_token", lambda _pid: ""
     )
 
-    owner, state = _latch_reconcile._owner_observation(
+    owner, state = evidence.owner_observation(
         {"owner_pid": 42, "owner_identity": "boot:old-process"}
     )
 
@@ -66,7 +67,7 @@ def test_adopted_receipt_without_successor_manifest_is_uncertain(
         lambda _receipt, _stage_id: True,
     )
 
-    successor, error = _latch_reconcile._successor_observation(
+    successor, error = evidence.successor_observation(
         {"agent_name": "agent.1", "owner_identity": "boot:old"}, str(tmp_path)
     )
 

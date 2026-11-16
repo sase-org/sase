@@ -9,7 +9,11 @@ from typing import Any
 
 import pytest
 
-from sase.agent.hijack import ledger
+from sase.agent.hijack import core, ledger
+from sase.agent.hijack import _latch_apply as latch_apply
+from sase.agent.hijack import _latch_common as latch_common
+from sase.agent.hijack import _latch_force as latch_force
+from sase.agent.hijack import _latch_request as latch_request
 from sase.agent.hijack._stop_models import HijackTarget
 from sase.agent.hijack import latch
 from sase.agent.hijack._stop_claim import apply_latched_settlement
@@ -85,8 +89,8 @@ def latch_store(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     monkeypatch.setattr(ledger, "_hijack_ledger_root", lambda: tmp_path / "ledger")
     monkeypatch.setattr(ledger, "agent_hijack_wire_schema_version", lambda: 1)
     monkeypatch.setattr(ledger, "advance_agent_hijack_record", _advance)
-    monkeypatch.setattr(latch.core, "agent_hijack_latch_wire_schema_version", lambda: 1)
-    monkeypatch.setattr(latch.core, "agent_hijack_latch_observe", _observe)
+    monkeypatch.setattr(core, "agent_hijack_latch_wire_schema_version", lambda: 1)
+    monkeypatch.setattr(core, "agent_hijack_latch_observe", _observe)
     return tmp_path / "ledger"
 
 
@@ -155,9 +159,14 @@ def _install_subjects(
         "sase.agent.hijack.facts.resolve_hijack_subject",
         lambda _name, *, deps=None: next(values, subjects[-1]),
     )
-    monkeypatch.setattr(
-        latch, "owner_identity_for", lambda target: target.test_identity
-    )
+
+    def identity_for(target: HijackTarget) -> str:
+        return target.test_identity
+
+    monkeypatch.setattr(latch_common, "owner_identity_for", identity_for)
+    monkeypatch.setattr(latch_force, "owner_identity_for", identity_for)
+    monkeypatch.setattr(latch_request, "owner_identity_for", identity_for)
+    monkeypatch.setattr(latch_apply, "owner_identity_for", identity_for)
 
 
 def test_request_deduplicates_by_target_and_rejects_recycled_occupant(
@@ -239,7 +248,7 @@ def test_cancel_and_moot_release_only_their_own_target_reservation(
     target2 = _target(tmp_path / "member-2", name="agent.2")
     _install_subjects(monkeypatch, _subject(target2))
     requested2 = latch.request_latch(target2.name)
-    monkeypatch.setattr(latch, "owner_identity_for", lambda _target: None)
+    monkeypatch.setattr(latch_common, "owner_identity_for", lambda _target: None)
     mooted = latch.moot_latch(
         str(requested2["target_key"]),
         "run_end",
@@ -267,15 +276,15 @@ def test_application_holds_claim_and_retries_snapshot_failure(
     evidence_results = iter(("snapshot failed", None))
 
     monkeypatch.setattr(
-        latch, "pin_claim", lambda value: pin_calls.append(value.pid or 0) or True
+        latch_apply, "pin_claim", lambda value: pin_calls.append(value.pid or 0) or True
     )
     monkeypatch.setattr(
-        latch,
+        latch_apply,
         "apply_latched_settlement",
         lambda _target, hijack_id: settlement_calls.append(hijack_id),
     )
     monkeypatch.setattr(
-        latch.core,
+        core,
         "hijack_latch_force_eligibility",
         lambda *_args: pytest.fail(
             "a force retry must not re-evaluate age after apply"
@@ -294,7 +303,7 @@ def test_application_holds_claim_and_retries_snapshot_failure(
         record = ledger.load_record(hijack_id)
         return record, None, error
 
-    monkeypatch.setattr(latch, "collect_and_attach_evidence", attach_evidence)
+    monkeypatch.setattr(latch_apply, "collect_and_attach_evidence", attach_evidence)
     first = latch.apply_latch_at_boundary(
         str(requested["target_key"]),
         "staged_adoption",
@@ -357,7 +366,7 @@ def test_force_refuses_before_timeout_without_signalling(
     _install_subjects(monkeypatch, _subject(target))
     requested = latch.request_latch(target.name)
     monkeypatch.setattr(
-        latch.core,
+        core,
         "hijack_latch_force_eligibility",
         lambda record, now: {
             "eligible": False,
@@ -398,7 +407,7 @@ def test_eligible_force_reuses_latch_id_and_persists_interruption_custody(
     target.claim_pinned = False
     termination_targets: list[HijackTarget] = []
     monkeypatch.setattr(
-        latch.core,
+        core,
         "hijack_latch_force_eligibility",
         lambda record, now: {
             "eligible": True,
@@ -410,7 +419,7 @@ def test_eligible_force_reuses_latch_id_and_persists_interruption_custody(
         "sase.agent.staged_handoff.acquire_adoption_lock",
         lambda *_args, **_kwargs: _acquired_lock(),
     )
-    monkeypatch.setattr(latch, "pin_claim", lambda _target: True)
+    monkeypatch.setattr(latch_force, "pin_claim", lambda _target: True)
     monkeypatch.setattr(
         "sase.agent.hijack._stop_orchestrator_common.terminate_with_retry",
         lambda value, **_kwargs: (
@@ -455,7 +464,7 @@ def test_force_preserves_custody_when_transition_commit_result_is_uncertain(
     _install_subjects(monkeypatch, _subject(target))
     requested = latch.request_latch(target.name)
     monkeypatch.setattr(
-        latch.core,
+        core,
         "hijack_latch_force_eligibility",
         lambda *_args: {"eligible": True, "age_seconds": 120},
     )
@@ -464,8 +473,10 @@ def test_force_preserves_custody_when_transition_commit_result_is_uncertain(
         lambda *_args, **_kwargs: _acquired_lock(),
     )
     pin_calls: list[bool] = []
-    monkeypatch.setattr(latch, "pin_claim", lambda _target: True)
-    monkeypatch.setattr(latch, "unpin_claim", lambda _target: pin_calls.append(True))
+    monkeypatch.setattr(latch_force, "pin_claim", lambda _target: True)
+    monkeypatch.setattr(
+        latch_force, "unpin_claim", lambda _target: pin_calls.append(True)
+    )
     actual_advance = ledger.cas_advance_record
 
     def commit_then_raise(
@@ -519,6 +530,7 @@ def test_adopted_successor_moots_latch_after_claim_transfer(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     from sase.agent.hijack import _latch_reconcile
+    from sase.agent.hijack import _latch_reconcile_evidence as evidence
 
     target = _target(tmp_path / "member")
     _install_subjects(monkeypatch, _subject(target))
@@ -526,24 +538,24 @@ def test_adopted_successor_moots_latch_after_claim_transfer(
     hijack_id = str(requested["hijack_id"])
     monkeypatch.setattr(
         _latch_reconcile,
-        "_owner_observation",
+        "owner_observation",
         lambda _record: ({"lookup_succeeded": True, "pid": None}, "dead"),
     )
     monkeypatch.setattr(
         _latch_reconcile,
-        "_successor_observation",
+        "successor_observation",
         lambda *_args: ({"kind": "launched", "name": "agent.2"}, None),
     )
     monkeypatch.setattr(
-        _latch_reconcile, "_read_real_outcome", lambda _artifacts: "completed"
+        _latch_reconcile, "read_real_outcome", lambda _artifacts: "completed"
     )
     monkeypatch.setattr(
-        latch.core,
+        core,
         "hijack_latch_reconcile",
         lambda *_args: {"outcome": "moot_latch"},
     )
     monkeypatch.setattr(
-        _latch_reconcile,
+        evidence,
         "get_claimed_workspaces",
         lambda *_args: pytest.fail("mooting must not require the transferred claim"),
     )
@@ -567,6 +579,7 @@ def test_stale_reconciliation_applies_dead_owner_once_and_finishes_evidence(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     from sase.agent.hijack import _latch_reconcile
+    from sase.agent.hijack import _latch_reconcile_evidence as evidence
     from sase.agent import _user_kill_intent
 
     target = _target(tmp_path / "member")
@@ -585,26 +598,26 @@ def test_stale_reconciliation_applies_dead_owner_once_and_finishes_evidence(
     settlement_calls: list[str] = []
     monkeypatch.setattr(
         _latch_reconcile,
-        "_owner_observation",
+        "owner_observation",
         lambda _record: ({"lookup_succeeded": True, "pid": None}, "dead"),
     )
     monkeypatch.setattr(
         _latch_reconcile,
-        "_successor_observation",
+        "successor_observation",
         lambda *_args: ({"kind": "absent"}, None),
     )
-    monkeypatch.setattr(_latch_reconcile, "_read_real_outcome", lambda _artifacts: None)
+    monkeypatch.setattr(_latch_reconcile, "read_real_outcome", lambda _artifacts: None)
     monkeypatch.setattr(
-        latch.core,
+        core,
         "hijack_latch_reconcile",
         lambda *_args: {"outcome": "apply_latch"},
     )
     monkeypatch.setattr(
-        _latch_reconcile,
+        evidence,
         "get_claimed_workspaces",
         lambda _project: [claim],
     )
-    monkeypatch.setattr(latch, "pin_claim", lambda _target: True)
+    monkeypatch.setattr(latch_apply, "pin_claim", lambda _target: True)
     monkeypatch.setattr(
         _user_kill_intent,
         "has_user_kill_intent",
@@ -622,12 +635,12 @@ def test_stale_reconciliation_applies_dead_owner_once_and_finishes_evidence(
         ),
     )
     monkeypatch.setattr(
-        latch,
+        latch_apply,
         "apply_latched_settlement",
         lambda _target, operation_id: settlement_calls.append(operation_id),
     )
     monkeypatch.setattr(
-        latch,
+        latch_apply,
         "collect_and_attach_evidence",
         lambda operation_id, _target, **_kwargs: (
             ledger.load_record(operation_id),

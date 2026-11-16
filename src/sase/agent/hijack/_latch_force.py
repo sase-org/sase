@@ -7,6 +7,12 @@ from pathlib import Path
 from typing import Any
 
 from sase.agent.hijack import core, ledger, latch
+from sase.agent.hijack._latch_common import (
+    current_time,
+    owner_identity_for,
+    same_owner_anchor,
+)
+from sase.agent.hijack._stop_claim import pin_claim, remove_intent, unpin_claim
 from sase.agent.hijack._stop_models import StopDeps
 from sase.agent.hijack.locks import acquire_hijack_lock
 
@@ -91,9 +97,7 @@ def force_hijack_latch(
         if state != "latched":
             return _non_pending_result(current, target_key)
 
-        eligibility = core.hijack_latch_force_eligibility(
-            current, latch.current_time(deps)
-        )
+        eligibility = core.hijack_latch_force_eligibility(current, current_time(deps))
         if eligibility.get("eligible") is not True:
             code = str(eligibility.get("code") or "force_refused")
             return _action_result(
@@ -141,7 +145,7 @@ def force_hijack_latch(
                 target_key=target_key,
                 next_action="wait for the stale sweep to reconcile the dead owner",
             )
-        identity = latch.owner_identity_for(target)
+        identity = owner_identity_for(target)
         if not _same_force_owner(current, target, identity, target_key):
             return _action_result(
                 "ownership_uncertain",
@@ -173,9 +177,9 @@ def force_hijack_latch(
                 next_action="retry after the artifacts directory is writable; no signal was sent",
             )
         pinned_by_us = not bool(target.claim_pinned)
-        if not latch.pin_claim(target):
+        if not pin_claim(target):
             if marker_path is not None:
-                latch.remove_intent(target.artifacts_dir)
+                remove_intent(target.artifacts_dir)
             return _action_result(
                 "error",
                 code="claim_mismatch",
@@ -203,9 +207,9 @@ def force_hijack_latch(
                 latest = None
             if latest is not None and latest.get("state") == "latched":
                 if marker_path is not None:
-                    latch.remove_intent(target.artifacts_dir)
+                    remove_intent(target.artifacts_dir)
                 if pinned_by_us:
-                    latch.unpin_claim(target)
+                    unpin_claim(target)
                 current = latest
             else:
                 # The CAS may have committed even if its caller saw an error.
@@ -289,7 +293,7 @@ def _same_force_owner(
     return (
         bool(identity)
         and str(record.get("owner_identity") or "") == identity
-        and latch.same_owner_anchor(record, target, target_key=target_key)
+        and same_owner_anchor(record, target, target_key=target_key)
         and str(record.get("project_file") or "") == str(target.project_file)
         and record.get("workspace_num") == target.workspace_num
     )
