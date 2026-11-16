@@ -310,6 +310,18 @@ def spawn_retry_agent(
     )
 
     try:
+        from sase.agent.hijack.runner_boundaries import (
+            check_retry_latch as _check_spawn_retry,
+        )
+
+        _check_spawn_retry(state.current_artifacts_dir or ctx.artifacts_dir)
+    except Exception as latch_exc:
+        from sase.agent.hijack.spawn_guard import HijackLatchedError as _SpawnLatched
+
+        if isinstance(latch_exc, _SpawnLatched):
+            raise
+
+    try:
         result = spawn_detached_child(
             cl_name=ctx.cl_name,
             project_file=ctx.project_file,
@@ -323,6 +335,8 @@ def spawn_retry_agent(
             vcs_ref=vcs_ref_tuple,
             extra_env=extra_env,
             transfer_from_pid=os.getpid(),
+            predecessor_artifacts_dir=state.current_artifacts_dir or ctx.artifacts_dir,
+            predecessor_name=ctx.agent_name,
         )
     except RuntimeError as exc:
         # Couldn't claim/transfer workspace.  Caller falls back to in-process.
@@ -333,6 +347,10 @@ def spawn_retry_agent(
             pass
         return None
     except Exception as exc:
+        from sase.agent.hijack.spawn_guard import HijackLatchedError as _SpawnLatched2
+
+        if isinstance(exc, _SpawnLatched2):
+            raise
         print(f"[retry-spawn] Unexpected error spawning retry agent: {exc}")
         try:
             RETRY_SPAWNS_TOTAL.labels(outcome="failed").inc()

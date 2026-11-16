@@ -121,9 +121,14 @@ def complete_pending_delivery(
         }
         if delivery.pid is not None:
             hold_destination["pid"] = delivery.pid
+        from sase.agent.hijack.runner_boundaries import (
+            is_hijack_suppressed_reason as _is_hij_suppressed,
+        )
+
+        _hijacked_hold = _is_hij_suppressed(delivery.reason)
         return StagedRecoveryResult(
             adopted=False,
-            already_adopted=False,
+            already_adopted=_hijacked_hold,
             action="hold",
             reason=delivery.reason or "successor delivery is still pending",
             repair_action=delivery.reason,

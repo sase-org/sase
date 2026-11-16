@@ -242,6 +242,17 @@ def restore_staged_successor_in_loop(
     state: LoopState, record: Mapping[str, Any]
 ) -> None:
     """Restore a prepared plan/question/pipe successor into a live loop."""
+    try:
+        from sase.agent.hijack.runner_boundaries import (
+            enforce_adoption_replay_latch as _enforce_restore_replay,
+        )
+
+        _enforce_restore_replay(state.current_artifacts_dir)
+    except Exception as restore_exc:
+        from sase.agent.hijack.spawn_guard import HijackLatchedError as _RestoreLatched
+
+        if isinstance(restore_exc, _RestoreLatched):
+            raise
     successor = record.get("successor")
     if not isinstance(successor, Mapping):
         raise RuntimeError("staged successor identity is malformed")

@@ -259,6 +259,17 @@ def _restore_staged_pipe_loop_state(
     state: LoopState,
     record: Mapping[str, Any],
 ) -> None:
+    try:
+        from sase.agent.hijack.runner_boundaries import (
+            enforce_adoption_replay_latch as _enforce_pipe_replay,
+        )
+
+        _enforce_pipe_replay(state.current_artifacts_dir)
+    except Exception as pipe_restore_exc:
+        from sase.agent.hijack.spawn_guard import HijackLatchedError as _PipeLatched
+
+        if isinstance(pipe_restore_exc, _PipeLatched):
+            raise
     successor = record["successor"]
     artifacts_dir = str(successor["artifacts_dir"])
     meta = read_json_meta(Path(artifacts_dir) / "agent_meta.json")

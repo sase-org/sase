@@ -399,6 +399,17 @@ def _already_adopted_dispatch(
     artifacts_dir: str,
     continuation: StagedInlineContinuation,
 ) -> _StagedHandoffDispatch:
+    try:
+        from sase.agent.hijack.runner_boundaries import (
+            enforce_adoption_replay_latch as _enforce_already_replay,
+        )
+
+        _enforce_already_replay(artifacts_dir)
+    except Exception as already_exc:
+        from sase.agent.hijack.spawn_guard import HijackLatchedError as _AlreadyLatched
+
+        if isinstance(already_exc, _AlreadyLatched):
+            raise
     receipt_refs = receipt.get("refs")
     receipt_refs = receipt_refs if isinstance(receipt_refs, Mapping) else {}
     outcome = receipt_refs.get("loop_outcome")
@@ -500,6 +511,27 @@ def dispatch_completed_staged_handoff(
         receipt = read_adoption_receipt(artifacts_dir)
         if receipt is not None:
             if receipt_authorizes(receipt, staged_id):
+                try:
+                    from sase.agent.hijack.runner_boundaries import (
+                        moot_runner_latch_at_run_end as _moot_latch,
+                    )
+
+                    _moot_latch(artifacts_dir, "handoff")
+                except Exception:
+                    pass
+                try:
+                    from sase.agent.hijack.runner_boundaries import (
+                        enforce_adoption_replay_latch as _enforce_replay,
+                    )
+
+                    _enforce_replay(artifacts_dir)
+                except Exception as replay_exc:
+                    from sase.agent.hijack.spawn_guard import (
+                        HijackLatchedError as _ReplayLatched,
+                    )
+
+                    if isinstance(replay_exc, _ReplayLatched):
+                        raise
                 return _already_adopted_dispatch(
                     receipt,
                     staged_record,
@@ -511,6 +543,19 @@ def dispatch_completed_staged_handoff(
                     adopted=False,
                     reason="existing adoption receipt belongs to a different stage",
                 )
+            try:
+                from sase.agent.hijack.runner_boundaries import (
+                    enforce_adoption_replay_latch as _enforce_held_replay,
+                )
+
+                _enforce_held_replay(artifacts_dir)
+            except Exception as held_exc:
+                from sase.agent.hijack.spawn_guard import (
+                    HijackLatchedError as _HeldLatched,
+                )
+
+                if isinstance(held_exc, _HeldLatched):
+                    raise
 
         run_metadata = _read_run_metadata(artifacts_dir)
         refusal = finalizer_settlement_refusal(
@@ -562,6 +607,32 @@ def dispatch_completed_staged_handoff(
                 continuation=continuation,
             )
             return _StagedHandoffDispatch(adopted=False, reason=reason)
+
+        try:
+            from sase.agent.hijack.runner_boundaries import (
+                enforce_staged_adoption_latch as _enforce_adoption,
+            )
+
+            _enforce_adoption(
+                artifacts_dir,
+                staged_id,
+                str(staged_record.get("kind") or "staged"),
+            )
+        except Exception as latch_exc:
+            from sase.agent.hijack.spawn_guard import (
+                HijackLatchedError as _AdoptLatched,
+            )
+
+            if isinstance(latch_exc, _AdoptLatched):
+                hijack_ref = latch_exc.hijack_id or "unknown"
+                _write_held_receipt_locked(
+                    staged_id,
+                    f"hijack latch {hijack_ref} suppressed staged "
+                    f"{staged_record.get('kind') or 'handoff'} adoption; "
+                    "suppressed payload retained and never replayed",
+                    artifacts_dir=artifacts_dir,
+                )
+                raise
 
         recovery_context = ensure_recovery_context_locked(
             staged_record, artifacts_dir=artifacts_dir, run_metadata=run_metadata

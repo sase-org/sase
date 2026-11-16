@@ -61,6 +61,17 @@ def continue_as_inprocess_successor(
     write_model_meta: Callable[..., None] | None = None,
 ) -> str:
     """Run the ordinary in-process continuation after identity is chosen."""
+    try:
+        from sase.agent.hijack.runner_boundaries import (
+            enforce_inprocess_successor_latch as _enforce_inprocess,
+        )
+
+        _enforce_inprocess(state.current_artifacts_dir, prompt=request.prompt)
+    except Exception as latch_exc:
+        from sase.agent.hijack.spawn_guard import HijackLatchedError as _InLatched
+
+        if isinstance(latch_exc, _InLatched):
+            raise
     create = create_followup_artifacts if create_artifacts is None else create_artifacts
     promote_fn = promote_to_workflow if promote is None else promote
     store = store_followup_prompt_artifact if store_prompt is None else store_prompt

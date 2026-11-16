@@ -209,7 +209,12 @@ def _dispatch_staged_on_workflow_error(
             state.current_artifacts_dir,
             StagedInlineContinuation(ctx=ctx, state=state),
         )
-    except Exception:  # noqa: BLE001 - held receipt already records the cause.
+    except Exception as dispatch_exc:  # noqa: BLE001 - held receipt records cause.
+        from sase.agent.hijack.spawn_guard import HijackLatchedError as _StagedLatched
+
+        if isinstance(dispatch_exc, _StagedLatched):
+            state.loop_outcome = "hijacked"
+            return True
         logging.getLogger(__name__).exception(
             "staged handoff %s adoption failed after workflow error",
             state.current_artifacts_dir,
@@ -379,10 +384,19 @@ def _run_execution_loop_bound(
                 None,
             )
         except Exception as wf_exc:
+            from sase.agent.hijack.spawn_guard import HijackLatchedError as _LoopLatched
+
+            if isinstance(wf_exc, _LoopLatched):
+                state.loop_outcome = "hijacked"
+                break
             if not was_killed():
                 if _dispatch_staged_on_workflow_error(ctx, state):
                     break
-                action = handle_workflow_error(wf_exc, tracker, ctx, state)
+                try:
+                    action = handle_workflow_error(wf_exc, tracker, ctx, state)
+                except _LoopLatched:
+                    state.loop_outcome = "hijacked"
+                    break
                 if action == "continue":
                     continue
                 if action == "break":
@@ -391,10 +405,20 @@ def _run_execution_loop_bound(
             result = None
 
         if not was_killed():
-            staged_dispatch = dispatch_completed_staged_handoff(
-                state.current_artifacts_dir,
-                StagedInlineContinuation(ctx=ctx, state=state),
-            )
+            try:
+                staged_dispatch = dispatch_completed_staged_handoff(
+                    state.current_artifacts_dir,
+                    StagedInlineContinuation(ctx=ctx, state=state),
+                )
+            except Exception as staged_exc:
+                from sase.agent.hijack.spawn_guard import (
+                    HijackLatchedError as _StagedLoopLatched,
+                )
+
+                if isinstance(staged_exc, _StagedLoopLatched):
+                    state.loop_outcome = "hijacked"
+                    break
+                raise
             if staged_dispatch is not None:
                 if not staged_dispatch.adopted:
                     logging.getLogger(__name__).error(

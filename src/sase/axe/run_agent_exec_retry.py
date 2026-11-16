@@ -289,6 +289,21 @@ def handle_workflow_error(
     Returns ``"continue"`` to retry, ``"break"`` if killed during wait,
     or ``"raise"`` to propagate the exception.
     """
+    from sase.agent.hijack.spawn_guard import HijackLatchedError as _RetryLatched
+
+    if isinstance(exc, _RetryLatched):
+        raise
+    try:
+        from sase.agent.hijack.runner_boundaries import (
+            check_retry_latch as _check_retry,
+        )
+
+        _check_retry(state.current_artifacts_dir or ctx.artifacts_dir)
+    except Exception as latch_exc:
+        from sase.agent.hijack.spawn_guard import HijackLatchedError as _RetryLatched3
+
+        if isinstance(latch_exc, _RetryLatched3):
+            raise
     error_str = str(exc)
     artifacts_dir = state.current_artifacts_dir or ctx.artifacts_dir
     staged_block_reason = _staged_blocks_retry(artifacts_dir)

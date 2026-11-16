@@ -375,6 +375,31 @@ def deliver_staged_successor_detached(
                 "held", agent_name, artifacts_dir, reason=claim_conflict
             )
 
+        try:
+            from sase.agent.hijack.runner_boundaries import (
+                check_detached_delivery_latch as _check_delivery_latch,
+            )
+
+            _delivery_latched = _check_delivery_latch(str(origin))
+            if _delivery_latched is not None:
+                _dhid = _delivery_latched.get("hijack_id") or "unknown"
+                return SuccessorDeliveryResult(
+                    "held",
+                    agent_name,
+                    artifacts_dir,
+                    reason=(
+                        f"hijack latch {_dhid} is "
+                        f"{_delivery_latched.get('verdict')}; detached successor "
+                        "delivery suppressed and never replayed"
+                    ),
+                )
+        except Exception as _delivery_latch_exc:
+            from sase.agent.hijack.spawn_guard import (
+                HijackLatchedError as _DeliveryLatched,
+            )
+
+            if isinstance(_delivery_latch_exc, _DeliveryLatched):
+                raise
         record = update_staged_successor_locked(
             str(origin), staged_id, delivery_state="submitted"
         )

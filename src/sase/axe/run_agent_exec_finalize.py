@@ -213,6 +213,19 @@ def finalize_loop(
 
     phase_before_finalizing = current_lifecycle_phase()
     mark_lifecycle_phase(ctx.artifacts_dir, "finalizing")
+    if state.loop_outcome != "hijacked" and state.loop_outcome:
+        try:
+            from sase.agent.hijack.runner_boundaries import (
+                moot_runner_latch_at_run_end as _moot_at_run_end,
+            )
+
+            _moot_at_run_end(state.current_artifacts_dir, str(state.loop_outcome))
+        except Exception:  # noqa: BLE001 - moot is best-effort; keep real outcome.
+            _LOGGER.warning(
+                "could not moot hijack latch at run end for %s",
+                state.current_artifacts_dir,
+                exc_info=True,
+            )
     RetryState.delete_from(ctx.artifacts_dir)
     fallback_model_override = os.environ.get("SASE_MODEL_OVERRIDE")
     fallback_model_label = None
@@ -418,6 +431,32 @@ def finalize_loop(
             from sase.agent._user_kill_intent import pending_hijack_recovery
 
             hijack_recovery = pending_hijack_recovery(state.current_artifacts_dir)
+            try:
+                from sase.agent.hijack.runner_boundaries import (
+                    observe_runner_latch as _observe_latch,
+                )
+
+                _hijacked_observed = _observe_latch(
+                    state.current_artifacts_dir, "run_end"
+                )
+                if str(_hijacked_observed.get("verdict") or "") == "applied":
+                    _hid = _hijacked_observed.get("hijack_id")
+                    _hrec = _hijacked_observed.get("record") or {}
+                    if isinstance(_hid, str) and _hid:
+                        hijack_recovery = {
+                            "state": "applied",
+                            "kind": "hijack",
+                            "hijack_id": _hid,
+                            "boundary": _hrec.get("boundary"),
+                            "boundary_outcome": _hrec.get("boundary_outcome"),
+                            "suppressed_followup": _hrec.get("suppressed_followup"),
+                        }
+            except Exception:  # noqa: BLE001 - intent recovery remains fallback.
+                _LOGGER.warning(
+                    "could not read applied hijack latch at finalize for %s",
+                    state.current_artifacts_dir,
+                    exc_info=True,
+                )
         done_marker = build_done_marker(
             ctx.cl_name,
             ctx.project_file,
