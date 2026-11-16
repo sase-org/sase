@@ -154,7 +154,7 @@ ACTION_PRODUCERS: tuple[ProcProducerSite, ...] = (
         identifiers=("name", "identity"),
         result_kind="agent.hijack",
         concurrency_keys=("agent-hijack:{target_key}",),
-        optimistic_ui="pending hijack row; stop-failed badge",
+        optimistic_ui="pending latch or hijacking row; stop-failed badge",
     ),
     site(
         "agent.recover",

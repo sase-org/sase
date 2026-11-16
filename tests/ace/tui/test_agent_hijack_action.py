@@ -16,13 +16,25 @@ from sase.ace.tui.actions.agents._hijack_decision import (
     cheap_hijack_ingress_available,
     hijack_ingress_available_for_footer,
     kill_modal_hijack_available,
+    row_has_pending_latch,
 )
 from sase.ace.tui.actions.agents._hijack_action import AgentHijackActionMixin
+from sase.ace.tui.actions.agents._hijack_pending_panel import (
+    _CANCEL_RESULT,
+    _FORCE_RESULT,
+    _FORCE_WARNING,
+    _pending_hijack_choices,
+    _pending_latch_force_eligible,
+    apply_hijack_proc_completion,
+)
 from sase.ace.tui.actions.agents._kill_action_flow import AgentKillActionFlowMixin
 from sase.ace.tui.models._agent_status_apply import _mirror_root_from_child
 from sase.ace.tui.models.agent import Agent, AgentType
 from sase.ace.tui.models.agent_hijack_presentation import (
+    HIJACK_PENDING_TRACKER,
+    _HijackPendingTracker,
     apply_hijack_ledger_presentation,
+    pending_hijack_status_text,
 )
 from sase.agent.hijack.referral import _RemoteHijackReferral
 
@@ -647,3 +659,434 @@ def test_show_active_hijack_redirect_toasts_decision() -> None:
             "warning",
         )
     ]
+
+
+def _latched_record(**overrides: Any) -> dict[str, Any]:
+    record: dict[str, Any] = {
+        "hijack_id": "h-latched",
+        "agent_name": "sase-demo.1",
+        "state": "latched",
+        "boundary": "handoff",
+        "target_key": "proj:session-1",
+        "workspace_num": 4,
+        "latched_at": 1_000_000,
+    }
+    record.update(overrides)
+    return record
+
+
+def test_latched_ledger_record_projects_pending_overlay_on_member_and_container(
+    tmp_path: Any, monkeypatch: Any
+) -> None:
+    HIJACK_PENDING_TRACKER.reset()
+    try:
+        artifacts_dir = tmp_path / "artifacts"
+        artifacts_dir.mkdir()
+        parent = _agent()
+        parent.agent_name = "session-root"
+        parent.agent_session = "session-root"
+        parent.agent_session_role = "root"
+        child = _agent()
+        child.agent_name = "session-root--1"
+        child.agent_session = "session-root"
+        child.artifacts_dir = str(artifacts_dir)
+        parent.followup_agents = [child]
+        records = [
+            _latched_record(
+                artifacts_dir=str(artifacts_dir),
+                agent_name=child.agent_name,
+                boundary="retry",
+            )
+        ]
+        monkeypatch.setattr(
+            "sase.agent.hijack.ledger.list_active_records", lambda: records
+        )
+
+        apply_hijack_ledger_presentation([parent, child])
+
+        assert child.hijack_overlay == "pending"
+        assert child.hijack_record == records[0]
+        assert child.hijack_id == "h-latched"
+        assert parent.hijack_overlay == "pending"
+        assert parent.hijack_record == records[0]
+        assert pending_hijack_status_text(child.hijack_record) == (
+            "⏏ HIJACK PENDING · after retry"
+        )
+
+        apply_hijack_ledger_presentation([parent, child])
+        assert child.hijack_overlay == "pending"
+        assert parent.hijack_overlay == "pending"
+    finally:
+        HIJACK_PENDING_TRACKER.reset()
+
+
+def test_pending_tracker_notifies_finished_first_once() -> None:
+    tracker = _HijackPendingTracker()
+    loads: list[str] = []
+
+    def load(hijack_id: str) -> dict[str, Any]:
+        loads.append(hijack_id)
+        return {"hijack_id": hijack_id, "state": "finished_first"}
+
+    tracker.observe_active_records(
+        [_latched_record()],
+        load_record=lambda _hid: None,
+    )
+    assert tracker.pending_ids == {"h-latched"}
+
+    tracker.observe_active_records([], load_record=load)
+    assert tracker.drain_moot_notices() == (
+        "finished before the hijack; nothing was held",
+    )
+    tracker.observe_active_records([_latched_record()], load_record=load)
+    tracker.observe_active_records([], load_record=load)
+    assert tracker.drain_moot_notices() == ()
+    assert loads == ["h-latched"]
+
+
+def test_notify_hijack_moot_transitions_toasts_once() -> None:
+    HIJACK_PENDING_TRACKER.reset()
+    try:
+        HIJACK_PENDING_TRACKER.observe_active_records(
+            [_latched_record()],
+            load_record=lambda _hid: None,
+        )
+        HIJACK_PENDING_TRACKER.observe_active_records(
+            [],
+            load_record=lambda _hid: {"state": "finished_first"},
+        )
+        notifications: list[str] = []
+
+        class App(AgentHijackActionMixin):
+            def notify(self, message: str, *, severity: str = "information") -> None:
+                del severity
+                notifications.append(message)
+
+        app = App()
+        app._notify_hijack_moot_transitions()
+        app._notify_hijack_moot_transitions()
+        assert notifications == ["finished before the hijack; nothing was held"]
+    finally:
+        HIJACK_PENDING_TRACKER.reset()
+
+
+def test_pending_tracker_ignores_cancelled_disappearance() -> None:
+    tracker = _HijackPendingTracker()
+    tracker.observe_active_records(
+        [_latched_record()],
+        load_record=lambda _hid: None,
+    )
+    tracker.observe_active_records(
+        [],
+        load_record=lambda _hid: {"state": "cancelled"},
+    )
+    assert tracker.drain_moot_notices() == ()
+
+
+def test_footer_and_kill_modal_offer_hijack_for_pending_latch() -> None:
+    agent = _agent()
+    agent.hijack_overlay = "pending"
+    agent.hijack_record = _latched_record()
+
+    class App(AgentHijackActionMixin):
+        pass
+
+    app = App()
+    app._store_hijack_decision(
+        agent,
+        _view(
+            agent,
+            mode="refused",
+            code="finalizing_turn",
+            message="finalizing turns cannot be hijacked yet",
+        ),
+    )
+    assert row_has_pending_latch(agent) is True
+    assert hijack_ingress_available_for_footer(app, agent) is True
+    assert kill_modal_hijack_available(app, agent) is True
+
+
+def test_pending_row_opens_cancel_force_panel(monkeypatch: Any) -> None:
+    agent = _agent()
+    agent.hijack_overlay = "pending"
+    agent.hijack_record = _latched_record()
+    opened: list[Agent] = []
+
+    class App(AgentHijackActionMixin):
+        def notify(self, message: str, *, severity: str = "information") -> None:
+            del message, severity
+
+        def _get_selected_agent(self) -> Agent:
+            return agent
+
+    app = App()
+    monkeypatch.setattr(
+        "sase.ace.tui.actions.agents._hijack_pending_panel.open_pending_hijack_panel",
+        lambda _app, row: opened.append(row) or True,
+    )
+    app._store_hijack_decision(
+        agent,
+        _view(agent, mode="refused", code="finalizing_turn"),
+    )
+
+    assert app._start_hijack_agent() is True
+    assert opened == [agent]
+
+
+def test_pending_ingress_skips_when_selection_moves(monkeypatch: Any) -> None:
+    pending = _agent()
+    pending.hijack_overlay = "pending"
+    pending.hijack_record = _latched_record()
+    other = _agent()
+    other.agent_name = "other.1"
+    other.raw_suffix = "20261103100001"
+    opened: list[Agent] = []
+    selected: list[Agent] = [pending]
+
+    class App(AgentHijackActionMixin):
+        def notify(self, message: str, *, severity: str = "information") -> None:
+            del message, severity
+
+        def _get_selected_agent(self) -> Agent:
+            current = selected[0]
+            selected[0] = other
+            return current
+
+    app = App()
+    monkeypatch.setattr(
+        "sase.ace.tui.actions.agents._hijack_pending_panel.open_pending_hijack_panel",
+        lambda _app, row: opened.append(row) or True,
+    )
+    assert app._start_hijack_agent() is False
+    assert opened == []
+    selected[0] = pending
+    assert app._start_hijack_agent(pending) is True
+    assert opened == [pending]
+
+
+def test_latched_occupying_completion_stays_pending(monkeypatch: Any) -> None:
+    agent = _agent()
+    callbacks: list[Any] = []
+    notifications: list[tuple[str, str]] = []
+
+    class App(AgentHijackActionMixin):
+        _agents_with_children = [agent]
+
+        def notify(self, message: str, *, severity: str = "information") -> None:
+            notifications.append((message, severity))
+
+        def _refresh_agents_display(
+            self, *, list_changed: bool, defer_detail: bool
+        ) -> None:
+            del list_changed, defer_detail
+
+    app = App()
+    monkeypatch.setattr(
+        "sase.ace.tui.actions.agents._roster_generation.notify_roster_status_mutation",
+        lambda _app: None,
+    )
+    monkeypatch.setattr(
+        "sase.ace.tui.actions.agent_durable.submit_agent_hijack",
+        lambda _app, **kwargs: callbacks.append(kwargs["on_complete"]) or True,
+    )
+    app._store_hijack_decision(agent, _view(agent, mode="latched"))
+
+    assert app._start_hijack_agent(agent)
+    assert agent.hijack_overlay == "pending"
+
+    callbacks[0](
+        SimpleNamespace(
+            payload={
+                "status": "latched",
+                "hijack_id": "h-latched",
+                "record": _latched_record(),
+            },
+            message="",
+            success=True,
+        )
+    )
+
+    assert agent.hijack_overlay == "pending"
+    assert agent.hijack_stop_failed is False
+    assert agent.hijack_id == "h-latched"
+    assert notifications == [
+        ("Hijack latched; waiting for a safe boundary", "information")
+    ]
+
+
+def test_refused_force_keeps_pending_overlay() -> None:
+    agent = _agent()
+    agent.hijack_overlay = "pending"
+    agent.hijack_record = _latched_record()
+    notifications: list[tuple[str, str]] = []
+
+    class App:
+        def notify(self, message: str, *, severity: str = "information") -> None:
+            notifications.append((message, severity))
+
+    apply_hijack_proc_completion(
+        App(),
+        agent,
+        agent,
+        SimpleNamespace(
+            payload={
+                "status": "refused",
+                "code": "force_too_early",
+                "severity": "warning",
+            },
+            message="the pending latch is younger than 120 seconds",
+            success=False,
+        ),
+    )
+
+    assert agent.hijack_overlay == "pending"
+    assert agent.hijack_stop_failed is False
+    assert notifications == [
+        ("the pending latch is younger than 120 seconds", "warning")
+    ]
+
+
+def test_moot_completion_toasts_exact_phrase() -> None:
+    agent = _agent()
+    agent.hijack_overlay = "pending"
+    notifications: list[tuple[str, str]] = []
+
+    class App:
+        def notify(self, message: str, *, severity: str = "information") -> None:
+            notifications.append((message, severity))
+
+    apply_hijack_proc_completion(
+        App(),
+        agent,
+        agent,
+        SimpleNamespace(
+            payload={"status": "finished_first"},
+            message="some other wording",
+            success=True,
+        ),
+    )
+
+    assert agent.hijack_overlay is None
+    assert notifications == [
+        ("finished before the hijack; nothing was held", "information")
+    ]
+
+
+def test_delayed_completion_applies_to_current_identity_row() -> None:
+    original = _agent()
+    original.hijack_overlay = "pending"
+    original.hijack_record = _latched_record()
+    refreshed = _agent()
+    refreshed.hijack_overlay = "pending"
+    refreshed.hijack_record = _latched_record()
+    notifications: list[str] = []
+
+    class App(AgentHijackActionMixin):
+        _agents_with_children = [refreshed]
+        _agents = [refreshed]
+
+        def notify(self, message: str, *, severity: str = "information") -> None:
+            del severity
+            notifications.append(message)
+
+        def _refresh_agents_display(
+            self, *, list_changed: bool, defer_detail: bool
+        ) -> None:
+            del list_changed, defer_detail
+
+    app = App()
+    apply_hijack_proc_completion(
+        app,
+        app._hijack_row_for_identity(original.identity) or original,
+        app._hijack_row_for_identity(original.identity) or original,
+        SimpleNamespace(
+            payload={"status": "cancelled"},
+            message="latch cancelled",
+            success=True,
+        ),
+    )
+
+    assert refreshed.hijack_overlay is None
+    assert original.hijack_overlay == "pending"
+    assert notifications == ["latch cancelled"]
+
+
+def test_pending_force_choice_appears_only_after_120s(monkeypatch: Any) -> None:
+    record = _latched_record()
+    monkeypatch.setattr(
+        "sase.agent.hijack.core.hijack_latch_force_eligibility",
+        lambda _record, now: {
+            "eligible": now >= 1_000_120,
+            "age_seconds": now - 1_000_000,
+            "threshold_seconds": 120,
+        },
+    )
+    assert _pending_latch_force_eligible(record, now=1_000_119) is False
+    young = _pending_hijack_choices(record, now=1_000_119)
+    assert [choice.result for choice in young] == [_CANCEL_RESULT]
+    assert _pending_latch_force_eligible(record, now=1_000_120) is True
+    aged = _pending_hijack_choices(record, now=1_000_120)
+    assert [choice.result for choice in aged] == [_CANCEL_RESULT, _FORCE_RESULT]
+    assert aged[1].detail == _FORCE_WARNING
+    assert aged[1].hotkey == "n"
+
+
+def test_pending_cancel_submits_durable_cancel(monkeypatch: Any) -> None:
+    agent = _agent()
+    agent.hijack_overlay = "pending"
+    agent.hijack_record = _latched_record()
+    submitted: list[dict[str, Any]] = []
+    pushed: list[Any] = []
+
+    class App(AgentHijackActionMixin):
+        _agents_with_children = [agent]
+
+        def notify(self, message: str, *, severity: str = "information") -> None:
+            del message, severity
+
+        def push_screen(self, modal: Any, callback: Any) -> None:
+            pushed.append(modal)
+            callback(_CANCEL_RESULT)
+
+        def _refresh_agents_display(
+            self, *, list_changed: bool, defer_detail: bool
+        ) -> None:
+            del list_changed, defer_detail
+
+    app = App()
+    monkeypatch.setattr(
+        "sase.ace.tui.actions.agents._roster_generation.notify_roster_status_mutation",
+        lambda _app: None,
+    )
+    monkeypatch.setattr(
+        "sase.ace.tui.actions.agent_durable.submit_agent_hijack",
+        lambda _app, **kwargs: submitted.append(kwargs) or True,
+    )
+    monkeypatch.setattr(
+        "sase.agent.hijack.core.hijack_latch_force_eligibility",
+        lambda *_args, **_kwargs: {"eligible": False},
+    )
+
+    from sase.ace.tui.actions.agents._hijack_pending_panel import (
+        open_pending_hijack_panel,
+    )
+
+    assert open_pending_hijack_panel(app, agent) is True
+    assert submitted[0]["action"] == "cancel"
+    assert submitted[0]["hijack_id"] == "h-latched"
+    assert submitted[0]["target_key"] == "proj:session-1"
+    assert submitted[0]["name"] == "sase-demo.1"
+    assert pushed[0]._title_text.startswith("⏏ Pending hijack")
+
+
+def test_help_lists_pending_cancel_and_force() -> None:
+    from sase.ace.tui.keymaps import load_keymap_registry
+    from sase.ace.tui.modals.help_modal.agents_mode_sections import mode_sections
+
+    boxes = dict(mode_sections(load_keymap_registry({})))
+    leader = next(
+        rows for title, rows in boxes.items() if title.startswith("Leader Mode")
+    )
+    descriptions = [description for _key, description in leader]
+    assert "Hijack, cancel, or force latch" in descriptions
+    assert len("Hijack, cancel, or force latch") <= 32

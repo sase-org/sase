@@ -124,17 +124,28 @@ def submit_agent_hijack(
     project_file: str,
     display_name: str,
     session_name: str | None = None,
+    action: str = "hijack",
+    hijack_id: str | None = None,
+    target_key: str | None = None,
     on_complete: Callable[[TrackedProcCompletion[Any]], None] | None = None,
 ) -> bool:
     """Submit ``sase agent persist-hijack`` as a durable TUI proc."""
-    payload: dict[str, Any] = {"name": name}
-    target_key = _hijack_target_key(project_file, session_name or name)
+    payload: dict[str, Any] = {"name": name, "action": action or "hijack"}
+    if hijack_id:
+        payload["hijack_id"] = hijack_id
+    resolved_target = target_key or _hijack_target_key(
+        project_file, session_name or name
+    )
+    payload["target_key"] = resolved_target
+    payload["project_file"] = project_file
+    if session_name:
+        payload["session_name"] = session_name
     submitted = app._submit_durable_proc(
         sase_command_argv("agent", "persist-hijack"),
         operation=AGENT_PERSIST_HIJACK,
         request=payload,
         request_fingerprint=operation_fingerprint(AGENT_PERSIST_HIJACK, payload),
-        concurrency_keys=(f"agent-hijack:{target_key}",),
+        concurrency_keys=(f"agent-hijack:{resolved_target}",),
         proc_type="agent-hijack",
         display_name=display_name,
         cl_name=cl_name,

@@ -7,10 +7,13 @@ from types import SimpleNamespace
 from typing import Any
 from xml.etree import ElementTree
 
+from rich.text import Text
+
 import pytest
 
 from sase.ace.testing import AcePage
 from sase.ace.tui.actions.agents import (
+    _hijack_pending_panel as pending_panel,
     _hijack_recovery_panel_impl as panel_helpers,
     _hijack_recovery_preview as preview_helpers,
 )
@@ -262,6 +265,104 @@ _INSTRUCT_BAR_TEXT = (
     "\n"
     "Do the task.\n"
 )
+
+
+async def _capture_pending_chooser(
+    ace_png_visual: AcePngSnapshotFixture,
+    *,
+    snapshot_name: str,
+    force_eligible: bool,
+) -> None:
+    record = {
+        "hijack_id": "visual-pending-1",
+        "agent_name": "visual-pending",
+        "state": "latched",
+        "boundary": "handoff",
+        "workspace_num": 4,
+        "target_key": "visual:session",
+        "latched_at": 1_000_000,
+    }
+    agent = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="visual-pending",
+        project_file="/workspace/project.sase",
+        status="RUNNING",
+        start_time=datetime(2026, 11, 3, 10, 0, 0),
+        workspace_num=4,
+        workspace_dir="/workspace/project_4",
+        raw_suffix="20261103100000",
+        agent_name="visual-pending",
+        llm_provider="claude",
+        model="opus",
+        hijack_id="visual-pending-1",
+        hijack_overlay="pending",
+        hijack_record=record,
+    )
+    now = 1_000_120.0 if force_eligible else 1_000_010.0
+    choices = pending_panel._pending_hijack_choices(record, now=now)
+    header = Text()
+    header.append("after handoff", style="bold")
+    header.append(" · workspace #4", style="dim")
+    subtitles = {"hijack_keep": "the occupant keeps running"}
+    if force_eligible:
+        subtitles["hijack_fresh"] = pending_panel._FORCE_WARNING
+    modal = AgentActionChooserModal(
+        choices,
+        title=f"⏏ Pending hijack · {agent.agent_name}",
+        title_badge="PENDING",
+        header=header,
+        section_subtitles=subtitles,
+        primary_result=pending_panel._CANCEL_RESULT,
+        initial_index=0,
+        footer_text="j/k move · ⏎ select · Esc leave pending",
+    )
+    async with AcePage(size=(80, 24)) as page:
+        page.app.push_screen(modal, lambda _result: None)
+        await page.expect_modal("AgentActionChooserModal")
+        await page.wait_for(lambda _screen: "Cancel hijack" in _svg_text(page))
+        await wait_for_visual_idle(page)
+        visible_text = _svg_text(page)
+        assert "Cancel hijack" in visible_text
+        if force_eligible:
+            assert "Hijack now" in visible_text
+            assert "effect uncertain" in visible_text
+        else:
+            assert "Hijack now" not in visible_text
+        ace_png_visual.assert_page_png(
+            page,
+            snapshot_name,
+            title=f"Agent Hijack pending chooser · {snapshot_name}",
+        )
+
+
+async def test_agent_hijack_pending_chooser_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: Any,
+) -> None:
+    monkeypatch.setattr(
+        "sase.agent.hijack.core.hijack_latch_force_eligibility",
+        lambda _record, now: {"eligible": now >= 1_000_120},
+    )
+    await _capture_pending_chooser(
+        ace_png_visual,
+        snapshot_name="agent_hijack_pending_chooser_80x24",
+        force_eligible=False,
+    )
+
+
+async def test_agent_hijack_pending_force_chooser_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: Any,
+) -> None:
+    monkeypatch.setattr(
+        "sase.agent.hijack.core.hijack_latch_force_eligibility",
+        lambda _record, now: {"eligible": now >= 1_000_120},
+    )
+    await _capture_pending_chooser(
+        ace_png_visual,
+        snapshot_name="agent_hijack_pending_force_chooser_80x24",
+        force_eligible=True,
+    )
 
 
 async def test_agent_hijack_instruct_bar_png_snapshot(

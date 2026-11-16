@@ -218,6 +218,11 @@ def _runtime_signature(
         agent.hijack_stop_failed,
         agent.hijack_diff_summary,
         agent.hijack_expired,
+        (
+            (agent.hijack_record or {}).get("boundary")
+            if agent.hijack_overlay == "pending"
+            else None
+        ),
         tuple(agent.plan_times),
         tuple(agent.feedback_times),
         agent.code_time,

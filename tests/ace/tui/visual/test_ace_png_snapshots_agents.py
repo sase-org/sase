@@ -104,6 +104,68 @@ def _hijack_rendering_agents() -> list[Agent]:
     return [hijacked, expired, hijacking, recovering, stop_failed]
 
 
+def _pending_hijack_rendering_agents() -> list[Agent]:
+    """Fixed rows for pending latch overlays on a member and a session container."""
+    started = datetime(2026, 11, 3, 10, 0, 0)
+    common = {
+        "agent_type": AgentType.RUNNING,
+        "project_file": "/workspace/sase/visual_project.sase",
+        "start_time": started,
+        "workspace_num": 4,
+        "llm_provider": "codex",
+        "model": "gpt-6.1-sol",
+    }
+    pending_record = {
+        "hijack_id": "visual-pending-1",
+        "state": "latched",
+        "boundary": "handoff",
+        "workspace_num": 4,
+    }
+    pending_member = Agent(
+        **common,
+        cl_name="visual-pending",
+        status="RUNNING",
+        agent_name="visual.pending",
+        raw_suffix="20261103100000",
+        hijack_overlay="pending",
+        hijack_id="visual-pending-1",
+        hijack_record=pending_record,
+    )
+    session_record = {
+        "hijack_id": "visual-pending-session",
+        "state": "latched",
+        "boundary": "retry",
+        "workspace_num": 5,
+    }
+    session = Agent(
+        **common,
+        cl_name="visual-pending-session",
+        status="RUNNING",
+        agent_name="visual.pending-session",
+        raw_suffix="20261103100100",
+        agent_session="visual.pending-session",
+        agent_session_role="root",
+        hijack_overlay="pending",
+        hijack_id="visual-pending-session",
+        hijack_record=session_record,
+    )
+    member = Agent(
+        **common,
+        cl_name="visual-pending-session--1",
+        status="RUNNING",
+        agent_name="visual.pending-session--1",
+        raw_suffix="20261103100101",
+        parent_timestamp=session.raw_suffix,
+        agent_session="visual.pending-session",
+        agent_session_role="code",
+        hijack_overlay="pending",
+        hijack_id="visual-pending-session",
+        hijack_record=session_record,
+    )
+    session.followup_agents = [member]
+    return [pending_member, session, member]
+
+
 async def test_agent_hijack_rows_png_snapshot(
     ace_png_visual: AcePngSnapshotFixture,
     monkeypatch: pytest.MonkeyPatch,
@@ -148,6 +210,29 @@ async def test_agent_hijack_rows_png_snapshot(
             page,
             "agents_hijack_rendering_200x40",
             title="ACE agents hijack row rendering",
+        )
+
+
+async def test_agent_hijack_pending_rows_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    pin_agents_visual_now(monkeypatch, datetime(2026, 11, 3, 10, 5, 0))
+    patch_startup_loaders(monkeypatch, agents=_pending_hijack_rendering_agents())
+
+    async with AcePage(query='"visual"', size=(200, 40), patches=patches()) as page:
+        await wait_for_startup(page)
+        await page.press("shift+tab")
+        await page.expect_state("tab", "agents")
+        await wait_for_visual_idle(page)
+
+        assert_page_svg_contains(page, "HIJACK PENDING")
+        assert_page_svg_contains(page, "after handoff")
+        assert_page_svg_contains(page, "after retry")
+        ace_png_visual.assert_page_png(
+            page,
+            "agents_hijack_pending_200x40",
+            title="ACE agents pending hijack row rendering",
         )
 
 

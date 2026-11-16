@@ -114,7 +114,9 @@ agent_auto_restart:
   storm_max_per_30m: 20
 
 # Recovery for hijacked agents (`,k` / `sase agent hijack`). A hijack stops a
-# stalled agent but keeps its workspace claim until it is recovered.
+# stalled agent immediately, or latches until the next safe boundary, and keeps
+# its workspace claim until it is recovered. On a pending latch, `,k` offers
+# Cancel hijack and, after 120 seconds, Hijack now.
 agent_hijack:
   # Ordered size rungs for the recovery panel's Escalate action. A hijacked run
   # moves to the first rung above the one it ran on; runs below the first rung

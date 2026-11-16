@@ -1,6 +1,6 @@
 """Status override orchestration for TUI agents."""
 
-from collections.abc import Callable
+from collections.abc import Callable, Iterable
 from datetime import datetime
 
 from sase.agent.status_buckets import (
@@ -101,6 +101,51 @@ def _mirror_root_from_child(parent: Agent, child: Agent) -> None:
     parent.hijack_id = child.hijack_id
     parent.hijack_stop_failed = child.hijack_stop_failed
     parent.hijack_expired = child.hijack_expired
+
+
+def mirror_hijack_overlays_to_containers(agents: Iterable[Agent]) -> None:
+    """Copy durable hijack presentation from occupying members onto containers.
+
+    Status mirroring runs before the ledger projection, so collapsed session
+    and clan rows would otherwise keep a stale overlay. Prefer a pending
+    latch over other hijack overlays so the container shows the durable
+    pending record rather than process liveness.
+    """
+    for agent in agents:
+        is_container = agent.is_agent_session_container_row or getattr(
+            agent, "is_clan_container", False
+        )
+        if not is_container:
+            continue
+        members = tuple(agent.followup_agents or ())
+        if not members:
+            continue
+        source = next(
+            (
+                child
+                for child in members
+                if getattr(child, "hijack_overlay", None) == "pending"
+            ),
+            None,
+        )
+        if source is None:
+            source = next(
+                (
+                    child
+                    for child in members
+                    if getattr(child, "hijack_overlay", None)
+                    or getattr(child, "hijack_record", None)
+                ),
+                None,
+            )
+        if source is None:
+            continue
+        agent.hijack_record = source.hijack_record
+        agent.hijack_overlay = source.hijack_overlay
+        agent.hijack_diff_summary = source.hijack_diff_summary
+        agent.hijack_id = source.hijack_id
+        agent.hijack_stop_failed = source.hijack_stop_failed
+        agent.hijack_expired = source.hijack_expired
 
 
 def _is_active_root_mirror_candidate(parent: Agent, agent: Agent) -> bool:

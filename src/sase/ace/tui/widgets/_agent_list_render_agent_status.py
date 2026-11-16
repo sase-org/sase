@@ -181,7 +181,14 @@ def append_agent_row_status(
     stranded_leaf = stranded_state == "stranded"
     stranded_done_overlay = stranded_leaf and agent_status_bucket(agent) == "Done"
     hijack_overlay = getattr(agent, "hijack_overlay", None)
-    if hijack_overlay == "hijacking":
+    if hijack_overlay == "pending":
+        from ..models.agent_hijack_presentation import pending_hijack_status_text
+
+        text.append(
+            pending_hijack_status_text(getattr(agent, "hijack_record", None)),
+            style="bold #FF5FAF",
+        )
+    elif hijack_overlay == "hijacking":
         text.append("HIJACKING…", style="bold #FF5FAF")
     elif hijack_overlay == "recovering":
         text.append("RECOVERING…", style="bold #FF5FAF")

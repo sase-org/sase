@@ -115,6 +115,9 @@ class AgentLoadingApplyMixin(
                 for agent in getattr(self, "_agents_with_children", [])
                 if getattr(agent, "is_named_proc", False)
             )
+        notify_moot = getattr(self, "_notify_hijack_moot_transitions", None)
+        if callable(notify_moot):
+            notify_moot()
 
     def _apply_loaded_agents_prepared_inner(
         self,

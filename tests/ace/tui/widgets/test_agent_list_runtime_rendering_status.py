@@ -34,6 +34,7 @@ def test_format_agent_option_finished_suffix_has_timestamp_and_elapsed() -> None
     [
         ("HIJACKED", None, "⏏ HIJACKED"),
         ("RUNNING", "hijacking", "HIJACKING…"),
+        ("RUNNING", "pending", "⏏ HIJACK PENDING · after handoff"),
         ("HIJACKED", "recovering", "RECOVERING…"),
         ("RUNNING", "referred", "⏏ hijack requested on"),
     ],
@@ -45,6 +46,8 @@ def test_hijack_row_status_and_overlays(
     row.hijack_overlay = overlay
     if overlay == "referred":
         row.fleet_origin_alias = "athena"
+    if overlay == "pending":
+        row.hijack_record = {"state": "latched", "boundary": "handoff"}
 
     left, _, _ = format_agent_option(row, 0, is_selected=False)
 

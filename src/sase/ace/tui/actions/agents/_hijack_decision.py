@@ -110,14 +110,27 @@ def format_hijack_decision_toast(decision: Mapping[str, Any]) -> str:
     return text
 
 
+def row_has_pending_latch(agent: Agent | None) -> bool:
+    """Return whether *agent* currently presents a durable pending latch."""
+    if agent is None:
+        return False
+    if getattr(agent, "hijack_overlay", None) == "pending":
+        return True
+    record = getattr(agent, "hijack_record", None)
+    return isinstance(record, dict) and record.get("state") == "latched"
+
+
 def hijack_ingress_available_for_footer(app: object, agent: Agent | None) -> bool:
     """Footer chip: cached backend decision, else cheap row-local refusals.
 
     This helper never schedules a compute. Footer and leader refresh paths
-    request a decision from one place per refresh.
+    request a decision from one place per refresh. A durable pending latch
+    keeps the chip even when eligibility still refuses the live turn.
     """
     if agent is None:
         return False
+    if row_has_pending_latch(agent):
+        return True
     cached = getattr(app, "_cached_hijack_decision", None)
     if callable(cached):
         view = cached(agent)
@@ -130,6 +143,8 @@ def kill_modal_hijack_available(app: object, agent: Agent | None) -> bool:
     """Kill-modal ``h``: cached stop modes, else a cheap local optimistic check."""
     if agent is None or is_remote_fleet_agent(agent):
         return False
+    if row_has_pending_latch(agent):
+        return True
     cached = getattr(app, "_cached_hijack_decision", None)
     if callable(cached):
         view = cached(agent)
@@ -206,6 +221,7 @@ def hijack_decision_fingerprint(
     seen = seen | {marker}
     record = getattr(agent, "hijack_record", None)
     record_state = record.get("state") if isinstance(record, dict) else None
+    record_boundary = record.get("boundary") if isinstance(record, dict) else None
     base = (
         getattr(agent, "status", None),
         getattr(agent, "pid", None),
@@ -228,6 +244,7 @@ def hijack_decision_fingerprint(
         bool(getattr(agent, "hijack_expired", False)),
         getattr(agent, "hijack_diff_summary", None),
         record_state,
+        record_boundary,
     )
     members = getattr(agent, "followup_agents", None) or ()
     if not members:
@@ -250,5 +267,6 @@ __all__ = [
     "hijack_decision_fingerprint",
     "hijack_ingress_available_for_footer",
     "kill_modal_hijack_available",
+    "row_has_pending_latch",
     "row_identity",
 ]

@@ -13,6 +13,7 @@ from ._hijack_decision import (
     agent_can_offer_hijack,
     agent_hijack_ingress_available,
     format_hijack_decision_toast,
+    row_has_pending_latch,
 )
 from ._hijack_decision_cache import AgentHijackDecisionCacheMixin
 
@@ -34,6 +35,15 @@ class AgentHijackActionMixin(AgentHijackDecisionCacheMixin):
         if agent is None:
             self.notify("No agent selected", severity="warning")  # type: ignore[attr-defined]
             return False
+        if row_has_pending_latch(agent):
+            if not explicit:
+                getter = getattr(self, "_get_selected_agent", None)
+                selected = getter() if callable(getter) else agent
+                if selected is None or selected.identity != agent.identity:
+                    return False
+            from ._hijack_pending_panel import open_pending_hijack_panel
+
+            return open_pending_hijack_panel(self, agent)
         view = self._cached_hijack_decision(agent)
         if view is not None:
             return self._act_on_hijack_decision(
@@ -94,41 +104,20 @@ class AgentHijackActionMixin(AgentHijackDecisionCacheMixin):
 
         from ..agent_durable import submit_agent_hijack
 
-        occupant.hijack_overlay = "hijacking"
+        overlay = "pending" if view.mode == "latched" else "hijacking"
+        occupant.hijack_overlay = overlay
         if agent.identity != occupant.identity:
-            agent.hijack_overlay = "hijacking"
+            agent.hijack_overlay = overlay
         self._refresh_hijack_row(occupant)
         if agent.identity != occupant.identity:
             self._refresh_hijack_row(agent)
 
         def on_complete(completion: Any) -> None:
+            from ._hijack_pending_panel import apply_hijack_proc_completion
+
             current = self._hijack_row_for_identity(occupant.identity) or occupant
             selected = self._hijack_row_for_identity(agent.identity) or agent
-            current.hijack_overlay = None
-            if selected.identity != current.identity:
-                selected.hijack_overlay = None
-            payload = completion.payload
-            status = payload.get("status") if isinstance(payload, dict) else None
-            current.hijack_stop_failed = status == "stop_failed"
-            if status == "held":
-                current.hijack_stop_failed = False
-            self._refresh_hijack_row(current)
-            if selected.identity != current.identity:
-                self._refresh_hijack_row(selected)
-            severity = payload.get("severity") if isinstance(payload, dict) else None
-            if severity not in {"warning", "error"}:
-                severity = "information" if completion.success else "warning"
-            if completion.message:
-                self.notify(completion.message, severity=severity)  # type: ignore[attr-defined]
-            refresh_source = (
-                payload.get("schedule_agents_refresh_source")
-                if isinstance(payload, dict)
-                else None
-            )
-            if isinstance(refresh_source, str):
-                refresh = getattr(self, "_schedule_agents_async_refresh", None)
-                if callable(refresh):
-                    refresh(source=refresh_source)
+            apply_hijack_proc_completion(self, current, selected, completion)
 
         session_name = _hijack_session_name(occupant) or _hijack_session_name(agent)
         submitted = submit_agent_hijack(
@@ -148,6 +137,13 @@ class AgentHijackActionMixin(AgentHijackDecisionCacheMixin):
             self._refresh_hijack_row(occupant)
             self.notify("Could not queue the hijack operation", severity="error")  # type: ignore[attr-defined]
         return submitted
+
+    def _notify_hijack_moot_transitions(self) -> None:
+        """Toast one-shot moot notices collected by the background loader."""
+        from ...models.agent_hijack_presentation import drain_hijack_moot_notices
+
+        for message in drain_hijack_moot_notices():
+            self.notify(message)  # type: ignore[attr-defined]
 
     def _perform_hijack_redirect(self, agent: Agent, view: HijackDecisionView) -> bool:
         """Run a non-destructive navigation the backend asked the TUI to perform."""
