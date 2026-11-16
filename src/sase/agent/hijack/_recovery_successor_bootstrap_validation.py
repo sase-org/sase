@@ -161,20 +161,20 @@ def _require_bootstrap_identity(
 
 
 def _require_bootstrap_goal(observation: BootstrapObservation) -> None:
-    """Prove the child bound the predecessor's goal (not a caller value)."""
-    if not (
-        isinstance(observation.predecessor_goal, str)
-        and observation.predecessor_goal.strip()
-    ):
-        raise RecoveryBootstrapError(
-            "goal_mismatch", "recovery requires the predecessor's bound goal"
-        )
-    if observation.goal != observation.predecessor_goal:
+    """Prove the child's bound goal matches the predecessor's (or its lack)."""
+    predecessor_goal = observation.predecessor_goal
+    if predecessor_goal is not None and str(predecessor_goal).strip():
+        if observation.goal != predecessor_goal:
+            raise RecoveryBootstrapError(
+                "goal_mismatch",
+                "recovery requires the host to bind the same goal "
+                f"(predecessor {predecessor_goal!r}, successor {observation.goal!r})",
+            )
+    elif observation.goal is not None and str(observation.goal).strip():
         raise RecoveryBootstrapError(
             "goal_mismatch",
-            "recovery requires the host to bind the same goal "
-            f"(predecessor {observation.predecessor_goal!r}, "
-            f"successor {observation.goal!r})",
+            "recovery successor claims a goal the predecessor never held "
+            f"({observation.goal!r})",
         )
 
 

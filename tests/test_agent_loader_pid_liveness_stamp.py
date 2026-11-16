@@ -79,6 +79,22 @@ def test_running_row_with_dead_pid_is_still_dropped() -> None:
     assert kept == []
 
 
+def test_hijacked_row_with_dead_pid_is_kept_and_stamped() -> None:
+    agent = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="hijacked-row",
+        project_file="/tmp/demo.sase",
+        status="HIJACKED",
+        start_time=None,
+        pid=DEAD_PID,
+        hijack_id="h-canary",
+    )
+    kept = _filter_dead_pids([agent], is_process_running=lambda _pid: False)
+    assert [row.cl_name for row in kept] == ["hijacked-row"]
+    assert kept[0].pid_liveness_unverified is True
+    assert kept[0].status == "HIJACKED"
+
+
 def test_normalize_keeps_stamp_on_done_row() -> None:
     kept = normalize_loaded_agents(
         [_done_agent()],

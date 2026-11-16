@@ -21,7 +21,7 @@ from sase.agent.hijack.recover_common import (
 
 def require_concrete_target(value: object, *, source: str) -> str:
     """Validate *value* as a concrete ``provider/model[@effort]`` target."""
-    from sase.macro.effort import EFFORT_LEVELS
+    from sase.macro.effort import split_model_effort
 
     text = clean_string(value)
     if not text:
@@ -29,10 +29,7 @@ def require_concrete_target(value: object, *, source: str) -> str:
             "invalid_model_target",
             f"Recovery target must be a concrete provider/model ({source})",
         )
-    base, separator, raw_effort = text.rpartition("@")
-    effort: str | None = None
-    if separator and raw_effort in EFFORT_LEVELS:
-        base, effort = base, raw_effort
+    base, effort = split_model_effort(text)
     provider, slash, model = base.partition("/")
     if not slash or not provider or not model:
         raise RecoveryRefusal(

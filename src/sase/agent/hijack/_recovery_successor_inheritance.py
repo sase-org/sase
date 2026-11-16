@@ -55,9 +55,11 @@ def require_recovery_inheritance(
     return to held with no partially privileged successor running.
 
     A predecessor with no bead has no bead to transfer: *successor_bead* must
-    then also be empty. Permission scope narrows through the host-composed
-    autonomy inheritance only -- an unreadable predecessor record or a
-    widening refusal fails closed instead of adopting ambient defaults.
+    then also be empty. The same holds for a predecessor with no bound goal:
+    *successor_goal* must then also be empty. Permission scope narrows
+    through the host-composed autonomy inheritance only -- an unreadable
+    predecessor record or a widening refusal fails closed instead of
+    adopting ambient defaults.
 
     *predecessor_inventory_missing* fails closed when the predecessor's
     opened-repository inventory could not be read: a missing inventory must
@@ -73,12 +75,16 @@ def require_recovery_inheritance(
             "recovery requires the predecessor's opened-repository inventory; "
             "a missing inventory must not pass as an empty one"
         )
-    if not (isinstance(predecessor_goal, str) and predecessor_goal.strip()):
-        raise RecoveryInheritanceError("recovery requires the predecessor's bound goal")
-    if successor_goal != predecessor_goal:
+    if predecessor_goal is not None and str(predecessor_goal).strip():
+        if successor_goal != predecessor_goal:
+            raise RecoveryInheritanceError(
+                "recovery requires the host to bind the same goal "
+                f"(predecessor {predecessor_goal!r}, successor {successor_goal!r})"
+            )
+    elif successor_goal is not None and str(successor_goal).strip():
         raise RecoveryInheritanceError(
-            "recovery requires the host to bind the same goal "
-            f"(predecessor {predecessor_goal!r}, successor {successor_goal!r})"
+            "recovery successor claims a goal the predecessor never held "
+            f"({successor_goal!r})"
         )
     if predecessor_bead is not None and str(predecessor_bead).strip():
         if successor_bead != predecessor_bead:

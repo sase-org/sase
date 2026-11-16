@@ -187,6 +187,38 @@ def test_dedup_running_vs_workflow_sibling_status_branches_still_work() -> None:
     assert plan_result[0].status == "PLAN"
 
 
+def test_dedup_hijacked_done_marker_wins_over_failed_workflow() -> None:
+    """A SIGTERM'd hijack must keep HIJACKED when workflow_state infers FAILED."""
+    project = "/tmp/test.sase"
+    suffix = "20260101120004"
+    failed_workflow = Agent(
+        agent_type=AgentType.WORKFLOW,
+        cl_name="hijack-canary",
+        project_file=project,
+        status="FAILED",
+        start_time=None,
+        raw_suffix=suffix,
+        pid=121415,
+    )
+    hijacked_done = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="hijack-canary",
+        project_file=project,
+        status="HIJACKED",
+        start_time=None,
+        workflow="ace(run)-260101_120004",
+        raw_suffix=suffix,
+        pid=121415,
+        hijack_id="h-canary",
+    )
+
+    result = dedup_running_vs_workflow([failed_workflow, hijacked_done])
+
+    assert len(result) == 1
+    assert result[0].status == "HIJACKED"
+    assert result[0].hijack_id == "h-canary"
+
+
 def test_dedup_running_vs_workflow_agrees_across_broad_and_delta_shaped_inputs() -> (
     None
 ):

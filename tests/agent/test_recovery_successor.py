@@ -163,8 +163,14 @@ class TestRequireRecoveryInheritance:
         assert ack["transferred_repos"] == 1
         assert isinstance(ack["permission"], dict) and ack["permission"]
 
-    def test_missing_predecessor_goal_raises(self) -> None:
-        with pytest.raises(RecoveryInheritanceError, match="bound goal"):
+    def test_goalless_predecessor_needs_no_goal(self) -> None:
+        ack = require_recovery_inheritance(
+            **_inheritance_kwargs(predecessor_goal=None, successor_goal=None)
+        )
+        assert ack["goal"] is None
+
+    def test_unexpected_successor_goal_raises(self) -> None:
+        with pytest.raises(RecoveryInheritanceError, match="never held"):
             require_recovery_inheritance(**_inheritance_kwargs(predecessor_goal=None))
 
     def test_goal_mismatch_raises(self) -> None:

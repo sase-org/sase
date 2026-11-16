@@ -1356,7 +1356,7 @@
           {
             "aliases": [],
             "default_child": null,
-            "description_digest": "62d81a52c2d4de59",
+            "description_digest": "befb512b867b8315",
             "hidden": false,
             "mutex_groups": [],
             "name": "hijack",
@@ -1376,6 +1376,22 @@
                 ],
                 "takes_value": false,
                 "value_hint": null
+              },
+              {
+                "choices": null,
+                "default": "False",
+                "dest": "explain",
+                "hidden": false,
+                "kind": null,
+                "metavar": null,
+                "repeatable": false,
+                "required": false,
+                "strings": [
+                  "-e",
+                  "--explain"
+                ],
+                "takes_value": false,
+                "value_hint": "text"
               },
               {
                 "choices": null,

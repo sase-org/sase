@@ -26,6 +26,27 @@ _LIVE_PLAN_AGENT_BUCKETS = frozenset(
     {"Stopped", "Starting", "Running", "Queued", "Waiting"}
 )
 
+#: Loaded statuses whose runner is expected to be gone. Hijack settlement
+#: SIGTERMs the occupant, so ``HIJACKED`` / ``ESCALATED`` / ``CONTINUED``
+#: must survive the same way ``DONE`` and ``FAILED`` do.
+_PID_LIVENESS_EXEMPT_STATUSES = frozenset(
+    {
+        "DONE",
+        "FAILED",
+        "FAILED (RETRIED)",
+        "STOPPED",
+        "HIJACKED",
+        "ESCALATED",
+        "CONTINUED",
+        "PLAN COMMITTED",
+        "PLAN DONE",
+        "TALE DONE",
+        "PLAN REJECTED",
+        "EPIC CREATED",
+        "LOST",
+    }
+)
+
 
 def apply_snapshot_clan_context(
     agents: list[Agent],
@@ -62,13 +83,12 @@ def _filter_dead_pids(
     """
 
     verified_agents: list[Agent] = []
-    completed_statuses = ("DONE", "FAILED")
     for agent in agents:
         if row_is_agent_session_turn(agent):
             if agent.pid is not None and not agent.runner_is_live:
                 agent.pid_liveness_unverified = True
             verified_agents.append(agent)
-        elif agent.status in completed_statuses:
+        elif agent.status in _PID_LIVENESS_EXEMPT_STATUSES:
             if agent.pid is not None and not agent.runner_is_live:
                 agent.pid_liveness_unverified = True
             verified_agents.append(agent)

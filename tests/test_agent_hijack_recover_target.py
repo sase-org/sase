@@ -61,6 +61,13 @@ class TestConcreteTargets:
             == "claude/opus@xhigh"
         )
 
+    def test_require_concrete_target_accepts_provider_model_without_effort(
+        self,
+    ) -> None:
+        assert require_concrete_target("fakey/fakey-large", source="t") == (
+            "fakey/fakey-large"
+        )
+
     @pytest.mark.parametrize("value", ["opus", "@large", "claude/", "claude/@high", ""])
     def test_require_concrete_target_refuses(self, value: str) -> None:
         with pytest.raises(RecoveryRefusal):

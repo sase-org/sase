@@ -174,6 +174,26 @@ class TestEnforceSuccess:
 
         assert ack["bead"] is None
 
+    def test_goalless_predecessor_needs_no_goal(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        _mock_inherit(monkeypatch)
+        _parent, child = _parent_child(tmp_path)
+        observation = _observation(
+            predecessor_goal=None,
+            goal=None,
+            parent_meta={"name": "acme--3", "bead_id": "sase-1"},
+            child_meta={"name": "acme--4", "bead_id": "sase-1"},
+        )
+
+        ack = enforce_recovery_bootstrap(
+            child_artifacts_dir=str(child),
+            descriptor=make_descriptor(),
+            observation=observation,
+        )
+
+        assert ack["goal"] is None
+
     def test_genuine_zero_repos_passes(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
@@ -274,7 +294,7 @@ class TestEnforceFailures:
         err = self._fails(tmp_path, monkeypatch, {"goal": "goal-other"})
         assert err.code == "goal_mismatch"
 
-    def test_missing_predecessor_goal(
+    def test_unexpected_successor_goal(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         err = self._fails(

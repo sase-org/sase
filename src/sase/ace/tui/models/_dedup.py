@@ -22,6 +22,15 @@ _DONE_AXE_PREFIXES = ["mentor_"]
 _PLAIN_AXE_WORKFLOWS = {"fix_hook", "crs", "mentor", "summarize_hook"}
 _PLAIN_AXE_PREFIXES = ("mentor_",)
 
+#: done.json hijack settlement labels. A SIGTERM'd occupant leaves
+#: ``workflow_state.json`` as FAILED (dead PID), so these must win over
+#: that inferred failure or the TUI row reads FAILED instead of HIJACKED.
+_HIJACK_SETTLED_STATUSES = frozenset({"HIJACKED", "ESCALATED", "CONTINUED"})
+_CLAIM_TERMINAL_STATUSES = (
+    frozenset({"DONE", "FAILED", "FAILED (RETRIED)", "STOPPED"})
+    | _HIJACK_SETTLED_STATUSES
+)
+
 
 def _is_workspace_claim_workflow(workflow: str | None) -> bool:
     """Return whether *workflow* is a registered workspace-provider claim."""
@@ -184,6 +193,10 @@ def _merge_agent_fields(target: Agent, source: Agent) -> None:
         target.stitch_id = source.stitch_id
     if target.finalizer_status is None and source.finalizer_status is not None:
         target.finalizer_status = source.finalizer_status
+    if target.hijack_id is None and source.hijack_id is not None:
+        target.hijack_id = source.hijack_id
+    if not target.hijack_expired and source.hijack_expired:
+        target.hijack_expired = True
 
 
 def dedup_axe_spawned_agents(agents: list[Agent]) -> list[Agent]:
@@ -470,8 +483,14 @@ def dedup_running_vs_workflow(agents: list[Agent]) -> list[Agent]:
             # runner that is waiting to retry it. Keep the row live so the
             # retry-state projection can promote it to RETRYING. A terminal
             # failure has no live RUNNING claim and reaches the loader through
-            # done.json instead.
-            if agent.status in {"DONE", "FAILED", "FAILED (RETRIED)", "STOPPED"}:
+            # done.json instead. Hijack settlement is also terminal: the
+            # occupant is SIGTERM'd, so a dead-PID FAILED workflow row must
+            # not overwrite HIJACKED / ESCALATED / CONTINUED from done.json.
+            if agent.status in _HIJACK_SETTLED_STATUSES:
+                matched.status = agent.status
+            elif matched.status in _HIJACK_SETTLED_STATUSES:
+                pass
+            elif agent.status in _CLAIM_TERMINAL_STATUSES:
                 matched.status = agent.status
             elif matched.status == "FAILED" and agent.status == "RUNNING":
                 matched.status = "RUNNING"
