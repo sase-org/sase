@@ -153,6 +153,91 @@ def test_unknown_agent_is_refused(
     assert list(tmp_path.glob("**/.sase_user_kill_pending")) == []
 
 
+@pytest.mark.parametrize(
+    ("status", "phase"),
+    [("WAITING", "waiting"), ("QUEUED", "waiting"), ("STARTING", "booting")],
+)
+@pytest.mark.parametrize("alive", [True, False])
+def test_pre_provider_claim_is_held_with_or_without_runner(
+    hijack_home: Path,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    status: str,
+    phase: str,
+    alive: bool,
+) -> None:
+    from sase.running_field import get_claimed_workspaces
+
+    artifacts = _artifacts(tmp_path, capabilities=["hijack"] if alive else [])
+    meta_path = artifacts / "agent_meta.json"
+    meta = json.loads(meta_path.read_text())
+    meta["lifecycle_phase"] = phase
+    if not alive:
+        meta.pop("pid")
+    meta_path.write_text(json.dumps(meta))
+    if status != "STARTING":
+        waiting = {"waiting_for": ["dependency"]}
+        if status == "QUEUED":
+            waiting["slot_requested_at"] = 123.0
+        (artifacts / "waiting.json").write_text(json.dumps(waiting))
+    project_file = _project_file(tmp_path)
+    _install_target(monkeypatch, artifacts, project_file)
+    signalled: list[int] = []
+
+    def terminate(pid: int, **kwargs: Any) -> Any:
+        signalled.append(pid)
+        if status != "STARTING":
+            assert json.loads((artifacts / "waiting.json").read_text())[
+                "cancelled_by_hijack"
+            ]
+        return SimpleNamespace(success=True, survivors=(), error=None)
+
+    deps = _deps(artifacts, terminate=terminate)
+    assert deps.list_running is not None
+    rows = deps.list_running()
+    rows[0].status = status
+    deps.list_running = lambda: rows if alive else []
+    deps.process_alive = lambda _meta, _path: alive
+
+    result = stop_agent_for_hijack(_AGENT, deps=deps)
+
+    assert result.status == "held", result
+    assert result.record is not None
+    assert result.record["scope"] == ("llm" if alive else "processless")
+    assert signalled == ([_PID] if alive else [])
+    assert get_claimed_workspaces(project_file)[0].pinned
+    done = json.loads((artifacts / "done.json").read_text())
+    assert done["outcome"] == "hijacked"
+    assert done["recovery"]["hijack_id"] == result.hijack_id
+
+
+def test_claimless_wait_redirects_without_stopping(
+    hijack_home: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    artifacts = _artifacts(tmp_path)
+    project_file = create_project_file_with_running(tmp_path, running_claims=[])
+    _install_target(monkeypatch, artifacts, project_file)
+
+    def terminate(*args: Any, **kwargs: Any) -> Any:
+        pytest.fail("claimless redirect must not signal the runner")
+
+    deps = _deps(artifacts, terminate=terminate)
+    assert deps.list_running is not None
+    rows = deps.list_running()
+    rows[0].status = "WAITING"
+    rows[0].workspace_num = 0
+    deps.list_running = lambda: rows
+
+    result = stop_agent_for_hijack(_AGENT, deps=deps)
+
+    assert result.decision is not None
+    assert result.decision["mode"] == "redirect"
+    assert result.decision["code"] == "nothing_to_keep"
+    assert result.decision["redirect_op"] == "kill_and_edit"
+    assert _hijack_ids(hijack_home) == []
+    assert not (artifacts / ".sase_user_kill_pending").exists()
+
+
 def test_completed_agent_is_refused(
     hijack_home: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

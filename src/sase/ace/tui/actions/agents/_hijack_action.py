@@ -163,6 +163,12 @@ class AgentHijackActionMixin(AgentHijackDecisionCacheMixin):
         if op == "show_active_hijack":
             self._toast_hijack_decision(view.decision)
             return True
+        if op == "kill_and_edit":
+            occupant = self._hijack_row_for_name(view.occupant_name) or agent
+            self._toast_hijack_decision(view.decision)
+            self._select_hijack_retarget(occupant)
+            self._kill_and_edit_agent(occupant)  # type: ignore[attr-defined]
+            return True
         self._toast_hijack_decision(view.decision)
         return True
 

@@ -165,6 +165,10 @@ def _try_claim_runner_slot(
     with runner_slot_admission_lock():
         waiting_path = Path(artifacts_dir) / "waiting.json"
         waiting_data = read_json_dict(waiting_path)
+        if waiting_data is not None and waiting_data.get("cancelled_by_hijack") is True:
+            # Cancellation shares this lock with admission. Do not refresh the
+            # tombstone or claim a slot while the hijack stops the parked runner.
+            return None, False
         priority, priority_explicit = marker_priority_state(
             waiting_data,
             directive_priority,

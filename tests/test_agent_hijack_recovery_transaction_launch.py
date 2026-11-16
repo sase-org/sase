@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 from typing import Any
 
@@ -43,6 +44,29 @@ def _assert_inherited_work(txn: Transaction, child: Path, ack: dict[str, Any]) -
         "opened_linked_workspaces.json",
     ):
         assert (child / filename).read_bytes() == (txn.parent / filename).read_bytes()
+
+
+@pytest.mark.parametrize("action", ["continue", "escalate"])
+def test_unstarted_turn_relaunches_without_transcript(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, action: str
+) -> None:
+    txn = Transaction(monkeypatch, tmp_path)
+    (txn.parent / "chat.md").unlink(missing_ok=True)
+    meta_path = txn.parent / "agent_meta.json"
+    meta = json.loads(meta_path.read_text())
+    meta["lifecycle_phase"] = "waiting"
+    meta_path.write_text(json.dumps(meta))
+
+    result = txn.recover(action=action)
+
+    assert result.kind == "launched"
+    assert result.detail["context_mode"] == "unstarted"
+    assert "never reached its provider" in txn.spawned_prompts[0]
+    assert len(txn.provider_calls) == 1
+    assert len(txn.children()) == 1
+    child = txn.children()[0]
+    _assert_inherited_work(txn, child, _ack_for(txn, child))
+    assert txn.record()["state"] == "resolved"
 
 
 def test_continue_full_transaction_launches_with_real_policy_and_persistence(

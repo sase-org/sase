@@ -143,12 +143,16 @@ def publish_ready_marker(
     and a late tick can never overwrite an existing one.
 
     Returns ``False`` without writing anything when ``waiting.json`` is
-    already gone (the runner released and cleaned up) or when another
-    writer published first. Returns ``True`` only when this call
+    already gone, was cancelled by hijack, or another writer published first.
+    Returns ``True`` only when this call
     published. Other :class:`OSError` failures propagate to the caller.
     """
     ready_path = os.path.join(artifacts_dir, "ready.json")
-    if not os.path.exists(os.path.join(artifacts_dir, "waiting.json")):
+    waiting_path = Path(artifacts_dir) / "waiting.json"
+    waiting = read_json_dict(waiting_path)
+    if not waiting_path.exists() or (
+        waiting is not None and waiting.get("cancelled_by_hijack") is True
+    ):
         return False
     fd, temp_name = tempfile.mkstemp(
         prefix=".ready.json.",
@@ -161,6 +165,11 @@ def publish_ready_marker(
             f.flush()
             os.fsync(f.fileno())
         try:
+            waiting = read_json_dict(waiting_path)
+            if not waiting_path.exists() or (
+                waiting is not None and waiting.get("cancelled_by_hijack") is True
+            ):
+                return False
             os.link(temp_name, ready_path)
         except FileExistsError:
             return False
@@ -174,6 +183,74 @@ def publish_ready_marker(
             os.unlink(temp_name)
         except OSError:
             pass
+
+
+def cancel_waiting_marker_for_hijack(
+    artifacts_dir: str,
+    hijack_id: str,
+) -> bool:
+    """Durably prevent this turn's wait barrier from releasing after hijack.
+
+    The marker remains as a tombstone so a late ``wait_checks`` publication
+    and the runner's direct dependency fallback can both observe the cancel.
+    Waiters whose markers refer to this turn are separate files and are left
+    untouched.
+    """
+    from sase.core.agent_directive_lock import (
+        agent_directive_lock,
+        runner_slot_marker_lock,
+    )
+
+    with agent_directive_lock(Path(artifacts_dir)):
+        with runner_slot_marker_lock():
+            cancelled = _cancel_waiting_marker_for_hijack(artifacts_dir, hijack_id)
+    if cancelled:
+        try:
+            update_agent_artifact_index_for_marker_mutation(artifacts_dir)
+        except Exception:  # noqa: BLE001 - the durable tombstone is authoritative.
+            pass
+    return cancelled
+
+
+def _cancel_waiting_marker_for_hijack(artifacts_dir: str, hijack_id: str) -> bool:
+    """Write the cancellation while directive and admission writers are locked."""
+    waiting_path = Path(artifacts_dir) / "waiting.json"
+    waiting = read_json_dict(waiting_path)
+    if waiting is None:
+        if not waiting_path.exists():
+            return True
+        waiting = {}
+    if waiting.get("cancelled_by_hijack") is True:
+        return waiting.get("hijack_id") == hijack_id
+
+    waiting.update(
+        {
+            "cancelled_by_hijack": True,
+            "hijack_id": hijack_id,
+            "cancelled_at": datetime.now(UTC).isoformat(),
+        }
+    )
+    fd, temp_name = tempfile.mkstemp(
+        prefix=".waiting.json.hijack.",
+        suffix=".tmp",
+        dir=artifacts_dir,
+    )
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as stream:
+            json.dump(waiting, stream, indent=2)
+            stream.flush()
+            os.fsync(stream.fileno())
+        os.replace(temp_name, waiting_path)
+    finally:
+        try:
+            os.unlink(temp_name)
+        except OSError:
+            pass
+    try:
+        os.unlink(Path(artifacts_dir) / "ready.json")
+    except OSError:
+        pass
+    return True
 
 
 def remove_waiting_marker(artifacts_dir: str) -> None:

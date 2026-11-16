@@ -243,7 +243,7 @@ def stop_agent_for_hijack(
 
     if (
         decision.get("mode") != "immediate"
-        or decision.get("adapter") != "llm"
+        or decision.get("adapter") not in {"llm", "processless"}
         or target is None
     ):
         code = str(
@@ -368,7 +368,7 @@ def stop_agent_for_hijack(
         fresh_decision != decision
         or fresh_decision.get("mode") != "immediate"
         or fresh_decision.get("eligible") is not True
-        or fresh_decision.get("adapter") != "llm"
+        or fresh_decision.get("adapter") != decision.get("adapter")
     )
     if identity_changed or decision_changed:
         refusal_code = "occupant_changed" if identity_changed else "decision_changed"
@@ -413,6 +413,7 @@ def stop_agent_for_hijack(
     target = fresh_target
     subject = fresh_subject
     decision = fresh_decision
+    adapter = str(decision.get("adapter"))
 
     record = ledger.new_requested_record(
         hijack_id=resolved_id,
@@ -432,7 +433,7 @@ def stop_agent_for_hijack(
         model=target.model,
         effort=target.effort,
         target_key=target_key,
-        scope="llm",
+        scope=adapter,
     )
     record["prior_pin_state"] = bool(target.claim_pinned)
     try:
@@ -455,7 +456,7 @@ def stop_agent_for_hijack(
 
     intent_path = write_user_kill_intent(
         target.artifacts_dir,
-        pid=int(target.pid or 0),
+        pid=int(target.pid or 0) if decision.get("adapter") == "llm" else 0,
         source=source,
         reason=reason,
         mode="hijack",
@@ -526,6 +527,41 @@ def stop_agent_for_hijack(
             workspace_num=target.workspace_num,
         )
 
+    # A late wait_checks result must not restart this turn while it is being
+    # taken into custody. This only marks the target's own wait; other agents
+    # waiting on its hijacked outcome remain parked.
+    from sase.axe.run_agent_wait_markers import cancel_waiting_marker_for_hijack
+
+    try:
+        wait_cancelled = cancel_waiting_marker_for_hijack(
+            target.artifacts_dir,
+            resolved_id,
+        )
+    except Exception as exc:
+        wait_cancelled = False
+        wait_cancel_error = str(exc)
+    else:
+        wait_cancel_error = "wait marker was already cancelled by another hijack"
+    if not wait_cancelled:
+        abort_before_stop(target, resolved_id, reason=wait_cancel_error)
+        if pinned_by_us:
+            unpin_claim(target)
+        ledger.release_target_slot(target_key, resolved_id)
+        return HijackStopResult(
+            status="error",
+            message=(
+                f"Cannot hijack agent '{name}': could not cancel its wait marker; "
+                "nothing was signalled"
+            ),
+            exit_code=_EXIT_FAILED,
+            hijack_id=resolved_id,
+            reason="wait_marker_cancel_failed",
+            decision=decision,
+            occupant_name=subject.occupant_name,
+            occupant_reason=subject.occupant_reason,
+            workspace_num=target.workspace_num,
+        )
+
     lost = _read_done_outcome(target.artifacts_dir)
     if lost is not None and lost != "hijacked":
         try:
@@ -551,8 +587,8 @@ def stop_agent_for_hijack(
             workspace_num=target.workspace_num,
         )
 
-    termination = _terminate_with_retry(target, deps=deps)
-    if not termination.success:
+    termination = _terminate_with_retry(target, deps=deps) if adapter == "llm" else None
+    if termination is not None and not termination.success:
         survivors = [int(pid) for pid in (termination.survivors or ())]
         # Bounded retries are exhausted; retain custody in stop_blocked so
         # the workspace stays pinned and `,k` can retry. Only an explicit

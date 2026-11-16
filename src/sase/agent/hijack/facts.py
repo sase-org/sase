@@ -174,14 +174,22 @@ def resolve_hijack_subject(
             is_monitor=is_monitor,
             is_gate=is_gate,
         )
-        settled = done_outcome is not None or status in _TERMINAL_STATUSES
+        pre_provider = turn_phase in {"booting", "waiting", "preparing"}
+        settled = done_outcome is not None or (
+            status in _TERMINAL_STATUSES and not pre_provider
+        )
         waiting = status in _WAITING_STATUSES
-        in_flight = status in _LIVE_STATUSES or turn_phase in {
-            "provider_running",
-            "provider_done",
-            "finalizing",
-            "handoff",
-        }
+        in_flight = (
+            status in _LIVE_STATUSES
+            or pre_provider
+            or turn_phase
+            in {
+                "provider_running",
+                "provider_done",
+                "finalizing",
+                "handoff",
+            }
+        )
         member_facts.append(
             _MemberFacts(
                 member=member,
@@ -553,10 +561,20 @@ def _occupying_kind(
     kind = turn_kind_value(meta)
     if isinstance(kind, str) and kind.lower() in {"agent", "llm"}:
         return "llm"
-    if any(
+    has_model_target = any(
         isinstance(meta.get(key), str) and meta.get(key)
         for key in ("llm_provider", "exec_llm_provider", "agent_llm_provider", "model")
-    ) or "hijack" in _capabilities(meta):
+    )
+    if has_model_target:
+        return "llm"
+    if status in {"STARTING", "LOST", "DONE", "STOPPED", "FAILED"} and _text(
+        meta.get("lifecycle_phase")
+    ) in {
+        "booting",
+        "preparing",
+    }:
+        return "llm"
+    if "hijack" in _capabilities(meta) and status != "STARTING":
         return "llm"
     return "none"
 

@@ -435,6 +435,41 @@ def test_open_recovery_redirect_opens_panel(monkeypatch: Any) -> None:
     assert opened == [agent]
 
 
+def test_claimless_wait_redirect_opens_kill_and_edit_flow() -> None:
+    agent = _agent(status="WAITING")
+    agent.workspace_num = 0
+    opened: list[Agent] = []
+    messages: list[str] = []
+
+    class App(AgentHijackActionMixin):
+        _agents_with_children = [agent]
+
+        def notify(self, message: str, *, severity: str = "information") -> None:
+            messages.append(message)
+
+        def _select_hijack_retarget(self, row: Agent) -> None:
+            assert row is agent
+
+        def _kill_and_edit_agent(self, row: Agent) -> None:
+            opened.append(row)
+
+    app = App()
+    app._store_hijack_decision(
+        agent,
+        _view(
+            agent,
+            mode="redirect",
+            code="nothing_to_keep",
+            message="waiting turn has no numbered workspace to keep",
+            redirect_op="kill_and_edit",
+        ),
+    )
+
+    assert app._start_hijack_agent(agent)
+    assert opened == [agent]
+    assert any("nothing_to_keep" in message for message in messages)
+
+
 def test_footer_and_kill_modal_follow_cached_decision() -> None:
     agent = _agent()
     agent.agent_type = AgentType.WORKFLOW

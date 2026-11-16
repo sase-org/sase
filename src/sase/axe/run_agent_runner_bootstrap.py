@@ -422,10 +422,6 @@ def bootstrap_agent_run(state: RunnerRunState) -> RunnerBootstrap:
     submitted_at = persisted_meta.get("launch_submitted_at")
     state.launch_submitted_at = submitted_at if isinstance(submitted_at, str) else None
 
-    from sase.axe.runner_lifecycle_phase import mark_lifecycle_phase
-
-    mark_lifecycle_phase(artifacts_dir, "booting")
-
     _load_submitted_prompt(state)
 
     init_telemetry()
@@ -485,6 +481,13 @@ def bootstrap_agent_run(state: RunnerRunState) -> RunnerBootstrap:
     if state.launch_submitted_at is not None:
         agent_meta["launch_submitted_at"] = state.launch_submitted_at
         write_agent_meta(state.artifacts_dir, agent_meta)
+
+    # Publish the booting boundary only after the original prompt, expanded
+    # raw prompt, and concrete launch model are durable. Hijack Continue can
+    # then relaunch a turn stopped before its first provider call.
+    from sase.axe.runner_lifecycle_phase import mark_lifecycle_phase
+
+    mark_lifecycle_phase(artifacts_dir, "booting")
 
     has_dependency_wait, has_wait = _wait_flags(info)
     # Launch preflight is conservative: a deferred launch can still reach this

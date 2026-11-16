@@ -6,9 +6,55 @@ import json
 from pathlib import Path
 from typing import Any
 
+import pytest
+
 from sase.agent.hijack import preview as recovery
 from sase.agent.hijack import _preview_prompt as prompt_impl
 from sase.agent.hijack import _preview_recovery as recovery_impl
+
+
+@pytest.mark.parametrize("phase", ["booting", "waiting", "preparing"])
+@pytest.mark.parametrize("use_submitted", [False, True])
+@pytest.mark.parametrize("model_target", [None, "claude/opus@xhigh"])
+def test_unstarted_continuation_uses_original_task_without_fork(
+    tmp_path: Path,
+    monkeypatch: Any,
+    phase: str,
+    use_submitted: bool,
+    model_target: str | None,
+) -> None:
+    from sase.legacy_xprompt_names import SUBMITTED_PROMPT_FILENAME
+
+    artifacts = tmp_path / "artifacts"
+    artifacts.mkdir()
+    prompt_file = SUBMITTED_PROMPT_FILENAME if use_submitted else "raw_prompt.md"
+    (artifacts / prompt_file).write_text(
+        "%wait:dependency\nComplete the stored task.\n"
+    )
+    (artifacts / "agent_meta.json").write_text(json.dumps({"lifecycle_phase": phase}))
+    _install_preview_fakes(monkeypatch)
+    monkeypatch.setattr(
+        prompt_impl,
+        "_budget_decision",
+        lambda *args, **kwargs: {"kind": "fits"},
+    )
+
+    def unexpected_fork(*args: Any, **kwargs: Any) -> str:
+        pytest.fail("a turn that never reached its provider has no history to fork")
+
+    monkeypatch.setattr(prompt_impl, "build_fork_injected_history", unexpected_fork)
+
+    result = recovery.build_hijack_continuation_prompt(
+        _record(artifacts), model_target=model_target
+    )
+
+    assert result.context_mode == "unstarted"
+    assert result.model_target == (model_target or "claude/opus@high")
+    assert "never reached its provider" in result.prompt
+    assert "Complete the stored task." in result.prompt
+    assert "%wait:" not in result.prompt
+    assert "#fork:" not in result.prompt
+    assert result.transcript_path is None
 
 
 def _record(artifacts: Path, *, state: str = "held") -> dict[str, Any]:

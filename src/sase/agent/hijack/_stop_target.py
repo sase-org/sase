@@ -72,6 +72,7 @@ def resolve_direct_target(
     done_outcome, done_recovery = read_done_marker(artifacts_dir)
     trail = meta.get("model_alias_trail")
     is_monitor_turn, is_gate_turn, gate_state = classify_turn(meta)
+    lifecycle_phase = _meta_str(meta, "lifecycle_phase")
     return HijackTarget(
         name=str(getattr(found, "name", name) or name),
         artifacts_dir=artifacts_dir,
@@ -88,7 +89,7 @@ def resolve_direct_target(
         workspace_num=workspace_num,
         workspace_dir=workspace_dir,
         status=status,
-        lifecycle_phase=phase,
+        lifecycle_phase=lifecycle_phase or phase,
         is_monitor_turn=is_monitor_turn,
         is_gate_turn=is_gate_turn,
         gate_state=gate_state,

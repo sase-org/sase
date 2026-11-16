@@ -385,6 +385,9 @@ def read_ready_result(ready_path: str) -> _ReadyResult:
     markers written by older SASE versions are stale state. Remove them
     and keep waiting for an actual successful resolution marker.
     """
+    waiting_data = read_json_dict(Path(ready_path).with_name("waiting.json"))
+    if waiting_data is not None and waiting_data.get("cancelled_by_hijack") is True:
+        return _ReadyResult(False)
     try:
         with open(ready_path, encoding="utf-8") as f:
             data = json.load(f)
@@ -416,6 +419,8 @@ def waiting_marker_dependencies_resolved(
     """Re-resolve the dependencies currently recorded in ``waiting.json``."""
     waiting_data = read_json_dict(waiting_path)
     if waiting_data is None:
+        return _DependencyResolution(False)
+    if waiting_data.get("cancelled_by_hijack") is True:
         return _DependencyResolution(False)
 
     wait_names = waiting_data.get("waiting_for", [])

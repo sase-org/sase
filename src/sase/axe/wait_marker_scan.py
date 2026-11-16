@@ -64,6 +64,16 @@ def scan_waiting_markers(projects_dir: Path) -> _WaitMarkerScan:
             waiting_path = os.path.join(str(artifact_dir), "waiting.json")
             if not os.path.exists(waiting_path):
                 continue
+            try:
+                with open(waiting_path, encoding="utf-8") as stream:
+                    waiting_data = json.load(stream)
+            except (json.JSONDecodeError, OSError):
+                waiting_data = None
+            if (
+                isinstance(waiting_data, dict)
+                and waiting_data.get("cancelled_by_hijack") is True
+            ):
+                continue
             scan.waiting += 1
             marker = WaitingMarker(
                 project_name=project_dir.name,

@@ -64,10 +64,20 @@ def build_hijack_continuation_prompt(
     try:
         original_prompt = raw_prompt_path.read_text(encoding="utf-8")
     except OSError as exc:
-        raise HijackRecoveryRefusal(
-            "missing_prompt",
-            f"Could not read the original prompt at {raw_prompt_path}: {exc}",
-        ) from exc
+        from sase.legacy_xprompt_names import SUBMITTED_PROMPT_FILENAME
+
+        submitted_prompt_path = artifacts_dir / SUBMITTED_PROMPT_FILENAME
+        try:
+            original_prompt = submitted_prompt_path.read_text(encoding="utf-8")
+        except OSError:
+            raise HijackRecoveryRefusal(
+                "missing_prompt",
+                f"Could not read the original prompt at {raw_prompt_path}: {exc}",
+            ) from exc
+
+    meta = load_json_object(artifacts_dir / "agent_meta.json")
+    transcript = _transcript_path(artifacts_dir, meta)
+    turn_never_reached_provider = _turn_never_reached_provider(record, meta)
 
     selected_model = model_target or concrete_model_target(record)
     if not selected_model:
@@ -77,10 +87,10 @@ def build_hijack_continuation_prompt(
 
     config = agent_hijack_config()
     requested_context = successor_context or config.successor_context
-    if requested_context not in {"fork", "brief"}:
+    if turn_never_reached_provider:
+        requested_context = "unstarted"
+    elif requested_context not in {"fork", "brief"}:
         requested_context = "fork"
-    meta = load_json_object(artifacts_dir / "agent_meta.json")
-    transcript = _transcript_path(artifacts_dir, meta)
     stale_locks = string_list(record.get("stale_lock_files"))
 
     def make_prompt(mode: str) -> str:
@@ -140,7 +150,8 @@ def build_hijack_continuation_prompt(
                 budget_decision=decision,
             )
 
-    brief_prompt = make_prompt("brief")
+    context_mode = "unstarted" if turn_never_reached_provider else "brief"
+    brief_prompt = make_prompt(context_mode)
     brief_decision = _budget_decision(brief_prompt, model_target=selected_model)
     if str(brief_decision.get("kind") or "") == "refuse":
         raise HijackRecoveryRefusal(
@@ -149,7 +160,7 @@ def build_hijack_continuation_prompt(
     return HijackContinuationPrompt(
         prompt=brief_prompt,
         model_target=selected_model,
-        context_mode="brief",
+        context_mode=context_mode,
         transcript_path=str(transcript) if transcript else None,
         expanded_prompt_bytes=utf8_len(brief_prompt),
         budget_decision=brief_decision,
@@ -180,21 +191,22 @@ def validate_hijack_continuation_prompt(
     artifacts_dir = Path(preview._artifacts_dir)
     meta = load_json_object(artifacts_dir / "agent_meta.json")
     transcript = _transcript_path(artifacts_dir, meta)
+    turn_never_reached_provider = _turn_never_reached_provider(record, meta)
     name = str(record.get("agent_name") or "unknown")
     fork_pattern = re.compile(r"(?m)^#fork:(?P<name>[^\s]+)\s*$")
     fork_matches = _active_fork_matches(prompt, fork_pattern)
     expanded = prompt
-    context_mode = "instruct"
+    context_mode = "unstarted" if turn_never_reached_provider else "instruct"
     if fork_matches:
         if len(fork_matches) != 1 or fork_matches[0].group("name") != name:
             raise HijackRecoveryRefusal(
                 "invalid_fork_directive",
                 "An edited continuation prompt must fork only the held predecessor",
             )
-        if transcript is None:
+        if turn_never_reached_provider or transcript is None:
             raise HijackRecoveryRefusal(
                 "missing_transcript",
-                "The edited fork prompt has no readable predecessor transcript",
+                "The turn has no provider transcript to fork",
             )
         try:
             history = build_fork_injected_history(
@@ -236,6 +248,22 @@ def _transcript_path(artifacts_dir: Path, meta: Mapping[str, object]) -> Path | 
     candidates = [Path(hinted).expanduser()] if hinted else []
     candidates.append(artifacts_dir / "chat.md")
     return next((candidate for candidate in candidates if candidate.is_file()), None)
+
+
+def _turn_never_reached_provider(
+    record: Mapping[str, Any],
+    meta: Mapping[str, object],
+) -> bool:
+    """Return whether the held target stopped before its first provider call."""
+    return (
+        string(meta.get("lifecycle_phase"))
+        in {
+            "booting",
+            "waiting",
+            "preparing",
+        }
+        or string(record.get("scope")) == "processless"
+    )
 
 
 def _snapshot_ref(record: Mapping[str, Any]) -> str | None:
