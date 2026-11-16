@@ -168,11 +168,13 @@ warning.
 
 ### Hijack a running agent and recover its work
 
-Use `,k` on an eligible running local agent, choose **h Hijack instead** in the `x`
-confirmation, or run `sase agent hijack NAME`. The TUI offers the action only for a live
-agent turn with a numbered workspace. On remote rows, `,k` copies the command to run on
-the owning host. SASE verifies the process tree stopped before showing **⏏ HIJACKED**;
-the row and workspace claim remain until recovery or expiry.
+Use `,k` on a member row, a session container, or a clan with one live member, choose
+**h Hijack instead** in the `x` confirmation, or run `sase agent hijack NAME`. The TUI
+asks the same backend as `sase agent hijack --explain` and either hijacks the occupying
+turn, navigates (recovery panel, gate review, remote command copy, or the single live
+clan member), or toasts a precise reason and next action. On remote rows, `,k` copies
+the command to run on the owning host. SASE verifies the process tree stopped before
+showing **⏏ HIJACKED**; the row and workspace claim remain until recovery or expiry.
 
 `Enter` opens the hijack recovery panel. Its keep-work actions run the next turn in the
 same workspace: `u` escalates (or switches models at the top rung), `c` continues on the

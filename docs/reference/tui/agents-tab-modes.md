@@ -272,10 +272,14 @@ hiding them.
 
 ## Hijack recovery panel
 
-The default `,k` binding hijacks an eligible focused agent, and the kill dialog offers
-**Hijack**. The row stays visible while its process stops and its workspace is retained.
-The action is unavailable for bulk selections. Eligibility and recovery ownership are
-documented under [Hijack recovery](../agents/agent-sessions.md#hijack-recovery).
+The default `,k` binding hijacks the session's occupying turn for the focused row, and
+the kill dialog offers **h Hijack instead** when that decision is immediate or latched.
+The footer chip follows the same backend decision: it stays visible for immediate,
+latched, and redirect modes (recovery, gate review, remote copy, clan retarget) and
+hides on a refusal, which `,k` then toasts with a code, message, and next action. The
+row stays visible while its process stops and its workspace is retained. The action is
+unavailable for bulk selections. Eligibility and recovery ownership are documented
+under [Hijack recovery](../agents/agent-sessions.md#hijack-recovery).
 
 The pink `⏏ HIJACKED` row belongs to the Stopped bucket. Operations show `HIJACKING…`
 while stopping and `RECOVERING…` while resolving recovery. An expired hijack adds

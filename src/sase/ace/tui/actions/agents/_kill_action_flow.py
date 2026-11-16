@@ -155,9 +155,9 @@ class AgentKillActionFlowMixin:
         agent_description = "\n".join(desc_parts)
 
         from ...modals import ConfirmKillModal
-        from ._hijack_action import agent_can_offer_hijack
+        from ._hijack_decision import kill_modal_hijack_available
 
-        hijack_available = agent_can_offer_hijack(agent)
+        hijack_available = kill_modal_hijack_available(self, agent)
 
         def on_dismiss(confirmed: bool | str | None) -> None:
             if confirmed == "hijack":

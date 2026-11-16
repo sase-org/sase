@@ -555,9 +555,13 @@ class LeaderModeMixin:
             agent = self._get_selected_agent()  # type: ignore[attr-defined]
             if agent is not None:
                 has_revertable_agent = is_revertable_agent_status(agent.status)
-                from ..agents._hijack_action import agent_hijack_ingress_available
+                from ..agents._hijack_decision import (
+                    hijack_ingress_available_for_footer,
+                )
 
-                can_hijack_selected_agent = agent_hijack_ingress_available(agent)
+                can_hijack_selected_agent = hijack_ingress_available_for_footer(
+                    self, agent
+                )
             has_unread_completed_agent = self._has_unread_completed_agent()  # type: ignore[attr-defined]
             has_bulk_read_undo = self._has_bulk_read_undo_available()  # type: ignore[attr-defined]
             has_stopped_agent = self._has_stopped_agent()  # type: ignore[attr-defined]

@@ -170,6 +170,9 @@ class AgentFooterDisplayMixin:
         """Refresh Agents-tab footer bindings for the current selection."""
         if self.current_tab != "agents":
             return
+        schedule_hijack = getattr(self, "_schedule_hijack_decision", None)
+        if current_agent is not None and callable(schedule_hijack):
+            schedule_hijack(current_agent)
         if pending_digit := getattr(self, "_member_jump_pending_digit", None):
             noun_resolver = getattr(self, "_roster_jump_noun", None)
             container_resolver = getattr(self, "_selected_member_jump_container", None)
@@ -200,14 +203,16 @@ class AgentFooterDisplayMixin:
             )
         elif getattr(self, "_leader_mode_active", False):
             from ..agent_workflow._launch_records import latest_live_launch_record
-            from ._hijack_action import agent_hijack_ingress_available
+            from ._hijack_decision import hijack_ingress_available_for_footer
 
             footer_widget.update_leader_bindings(
                 current_tab="agents",
                 has_unread_completed_agent=self._has_unread_completed_agent(),  # type: ignore[attr-defined]
                 has_bulk_read_undo_available=self._has_bulk_read_undo_available(),  # type: ignore[attr-defined]
                 has_stopped_agent=self._has_stopped_agent(),  # type: ignore[attr-defined]
-                can_hijack_selected_agent=agent_hijack_ingress_available(current_agent),
+                can_hijack_selected_agent=hijack_ingress_available_for_footer(
+                    self, current_agent
+                ),
                 has_live_launch_record=latest_live_launch_record(self) is not None,
             )
         elif getattr(self, "_bang_mode_active", False):

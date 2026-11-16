@@ -443,8 +443,8 @@ class KeybindingModesMixin:
             has_unread_completed_agent: Whether any completed agent is unread.
             has_bulk_read_undo_available: Whether the last bulk read can be undone.
             has_stopped_agent: Whether any stopped agent is loaded.
-            can_hijack_selected_agent: Whether local hijack is plausible or a remote
-                row can copy the owning-host command while the beta flag is enabled.
+            can_hijack_selected_agent: Whether the cached backend decision offers
+                hijack, latch, or a non-destructive redirect for the selected row.
             has_revertable_agent: Whether the selected Agents-tab row is a
                 done/failed agent whose commits can be reverted.
             marked_agent_count: Number of marked agents; when non-zero ``,r``

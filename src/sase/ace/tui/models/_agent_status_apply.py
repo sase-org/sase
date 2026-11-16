@@ -95,6 +95,12 @@ def _mirror_root_from_child(parent: Agent, child: Agent) -> None:
         parent.gate_state = None
         parent.gate_execution_active = False
         parent.gate_finalize_proc_id = None
+    parent.hijack_record = child.hijack_record
+    parent.hijack_overlay = child.hijack_overlay
+    parent.hijack_diff_summary = child.hijack_diff_summary
+    parent.hijack_id = child.hijack_id
+    parent.hijack_stop_failed = child.hijack_stop_failed
+    parent.hijack_expired = child.hijack_expired
 
 
 def _is_active_root_mirror_candidate(parent: Agent, agent: Agent) -> bool:
