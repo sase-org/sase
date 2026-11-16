@@ -247,6 +247,16 @@ def _header_text(header: Mapping[str, Any]) -> Text:
         text.append(f"  ·  last tool: {last_tool}")
         if last_tool_age:
             text.append(f" ({last_tool_age})")
+    warning = str(header.get("interruption_warning") or "")
+    if warning:
+        text.append(f"\n{warning}", style="bold yellow")
+    followup_kind = str(header.get("suppressed_followup_kind") or "")
+    followup_ref = str(header.get("suppressed_followup_ref") or "")
+    if followup_kind and followup_ref:
+        text.append(
+            f"\nSuppressed {followup_kind} handoff: {followup_ref} · untrusted evidence; do not replay",
+            style="yellow",
+        )
     return text
 
 

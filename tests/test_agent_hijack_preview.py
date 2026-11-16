@@ -181,7 +181,51 @@ def test_recovery_preview_gathers_header_model_lineage_and_diff_facts(
     assert request["state"] == "held"
     assert request["continue_target"] == "claude/opus@high"
     assert request["escalate"]["concrete"] == "claude/opus@xhigh"
-    assert request["header"] == result.header
+    assert request["header"]["agent_name"] == result.header["agent_name"]
+    assert "interruption_warning" not in request["header"]
+
+
+def test_forced_interruption_and_suppressed_handoff_reach_preview_and_brief(
+    tmp_path: Path, monkeypatch: Any
+) -> None:
+    artifacts = tmp_path / "artifacts"
+    artifacts.mkdir()
+    (artifacts / "raw_prompt.md").write_text("Continue the task.\n", encoding="utf-8")
+    (artifacts / "agent_meta.json").write_text("{}", encoding="utf-8")
+    record = _record(artifacts)
+    record["forced"] = True
+    record["suppressed_followup"] = {
+        "kind": "pipe",
+        "ref": str(artifacts / ".sase_handoff_staged.json"),
+    }
+    _install_preview_fakes(monkeypatch)
+    prompt_requests: list[dict[str, Any]] = []
+    monkeypatch.setattr(prompt_impl, "continuation_wire_schema_version", lambda: 1)
+    monkeypatch.setattr(
+        prompt_impl,
+        "hijack_continuation_prompt",
+        lambda request: prompt_requests.append(request) or "continuation brief",
+    )
+    monkeypatch.setattr(
+        prompt_impl, "_budget_decision", lambda *_args, **_kwargs: {"kind": "fits"}
+    )
+
+    preview = recovery.hijack_recovery_preview(record)
+    continuation = recovery.build_hijack_continuation_prompt(record)
+
+    assert preview.header["interruption_warning"] == (
+        "effect uncertain — finalizer interrupted; inspect the snapshot"
+    )
+    assert preview.header["suppressed_followup_kind"] == "pipe"
+    assert (
+        preview.header["suppressed_followup_ref"]
+        == record["suppressed_followup"]["ref"]
+    )
+    assert continuation.prompt == "continuation brief"
+    evidence = prompt_requests[0]["evidence"]
+    assert evidence["forced_interruption"] is True
+    assert evidence["suppressed_followup_kind"] == "pipe"
+    assert evidence["suppressed_followup_ref"] == record["suppressed_followup"]["ref"]
 
 
 def test_recovery_preview_passes_resolving_state_to_rust(

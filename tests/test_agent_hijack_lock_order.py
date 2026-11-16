@@ -174,7 +174,9 @@ def _install_subjects(
         "sase.agent.hijack.facts.resolve_hijack_subject",
         lambda _name, *, deps=None: next(values, subjects[-1]),
     )
-    monkeypatch.setattr(latch, "_owner_identity", lambda target: target.test_identity)
+    monkeypatch.setattr(
+        latch, "owner_identity_for", lambda target: target.test_identity
+    )
 
 
 def test_lock_order_names_match_parent_contract() -> None:

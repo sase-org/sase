@@ -19,6 +19,7 @@ from ._stale_running_hijack import (
     drain_pending_settlement_repairs,
     matching_hijack_record,
     reconcile_all_resolving_records,
+    reconcile_all_latched_records,
     resolving_workspace_retains_claim,
 )
 from ._stale_running_shared import (
@@ -222,6 +223,7 @@ def cleanup_stale_running_entries(
     # claim, then drain pending settlement repairs even when no resolving
     # record remains. Both are fail-closed and best-effort.
     reconcile_all_resolving_records(log_fn=log_fn)
+    reconcile_all_latched_records(log_fn=log_fn)
     drain_pending_settlement_repairs()
 
     for project_file in _get_all_project_files():

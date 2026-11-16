@@ -92,6 +92,10 @@ def build_hijack_continuation_prompt(
     elif requested_context not in {"fork", "brief"}:
         requested_context = "fork"
     stale_locks = string_list(record.get("stale_lock_files"))
+    suppressed_followup = record.get("suppressed_followup")
+    suppressed_followup = (
+        suppressed_followup if isinstance(suppressed_followup, Mapping) else {}
+    )
 
     def make_prompt(mode: str) -> str:
         return hijack_continuation_prompt(
@@ -111,6 +115,9 @@ def build_hijack_continuation_prompt(
                     "deletions": diff_totals(record)[2],
                     "snapshot_ref": _snapshot_ref(record) or "",
                     "model_display": str(preview.header.get("model_display") or ""),
+                    "suppressed_followup_kind": string(suppressed_followup.get("kind")),
+                    "suppressed_followup_ref": string(suppressed_followup.get("ref")),
+                    "forced_interruption": record.get("forced") is True,
                 },
                 "context_mode": mode,
                 "transcript_path": str(transcript)

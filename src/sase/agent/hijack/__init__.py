@@ -105,6 +105,7 @@ from .recover_release import (
 from .latch import (
     apply_latch_at_boundary,
     cancel_latch,
+    force_hijack_latch,
     moot_latch,
     observe_hijack_latch,
     request_latch,
@@ -169,6 +170,7 @@ __all__ = [
     "hijack_latch_reconcile",
     "apply_latch_at_boundary",
     "cancel_latch",
+    "force_hijack_latch",
     "moot_latch",
     "observe_hijack_latch",
     "request_latch",

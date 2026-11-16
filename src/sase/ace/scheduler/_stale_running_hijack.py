@@ -44,6 +44,11 @@ def apply_hijack_custody(
     from sase.agent.hijack.custody import expire_hijack_hold, hijacked_at_exceeds_ttl
 
     state = str(record.get("state") or "")
+    if state == "stopping" and record.get("latched_at") is not None:
+        # Safe-boundary and forced latches require their snapshot-aware
+        # application repair. The immediate-stop fallback below only writes
+        # the runner marker and would publish held before latch evidence lands.
+        return False, held_ttl_days
     if state in {"requested", "stopping"}:
         _reconcile_abandoned_stop_record(project_file, claim, record, log_fn=log_fn)
         return False, held_ttl_days
@@ -354,6 +359,20 @@ def reconcile_all_resolving_records(
             _reconcile_resolving_record(record, log_fn=log_fn)
         except Exception:
             continue
+
+
+def reconcile_all_latched_records(
+    *,
+    log_fn: Callable[[str, str | None], None] | None = None,
+) -> None:
+    """Run Rust-backed owner reconciliation for latched and stopping records."""
+    try:
+        from sase.agent.hijack._latch_reconcile import reconcile_latched_records
+
+        reconcile_latched_records(log_fn=log_fn)
+    except Exception:
+        # A failed recovery import or binding must never release a claim.
+        return
 
 
 def drain_pending_settlement_repairs() -> None:

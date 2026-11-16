@@ -211,6 +211,16 @@ def _preview_header(
     if tool:
         details.append(f"last tool: {tool}" + (f" ({tool_age})" if tool_age else ""))
     result.append(" · ".join(details) or "Recovery snapshot is held", style="dim")
+    warning = text_value(header.get("interruption_warning"))
+    if warning:
+        result.append("\n" + warning, style="bold yellow")
+    followup_kind = text_value(header.get("suppressed_followup_kind"))
+    followup_ref = text_value(header.get("suppressed_followup_ref"))
+    if followup_kind and followup_ref:
+        result.append(
+            f"\nSuppressed {followup_kind} handoff: {followup_ref} · untrusted evidence; do not replay",
+            style="yellow",
+        )
     return result
 
 

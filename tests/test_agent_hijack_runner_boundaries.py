@@ -172,7 +172,7 @@ def _install_subject(
         "sase.agent.hijack.facts.resolve_hijack_subject",
         lambda _name, *, deps=None: subject,
     )
-    monkeypatch.setattr(latch, "_owner_identity", lambda _t: identity)
+    monkeypatch.setattr(latch, "owner_identity_for", lambda _t: identity)
 
 
 def test_staged_adoption_applies_once_and_replays_same_id(

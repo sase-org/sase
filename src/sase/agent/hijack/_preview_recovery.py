@@ -71,6 +71,7 @@ def hijack_recovery_preview(agent_or_name: object) -> RecoveryPreview:
             "continue_target": model_target,
         }
     )
+    wire = _with_latch_evidence_header(wire, record)
     wire = _with_release_rows(wire, record, state)
     return _preview_from_wire(
         wire, record=record, artifacts_dir=artifacts_dir, state=state
@@ -259,6 +260,31 @@ def _recovery_header(record: Mapping[str, Any]) -> dict[str, Any]:
         "last_tool": string(record.get("last_tool")) or "",
         "last_tool_age": duration(record.get("last_tool_age_seconds")),
     }
+
+
+def _with_latch_evidence_header(
+    wire: Mapping[str, Any], record: Mapping[str, Any]
+) -> dict[str, Any]:
+    """Add Python presentation fields after the stable Rust preview wire."""
+    patched = dict(wire)
+    raw_header = wire.get("header")
+    header = dict(raw_header) if isinstance(raw_header, Mapping) else {}
+    suppressed = record.get("suppressed_followup")
+    suppressed = suppressed if isinstance(suppressed, Mapping) else {}
+    forced = record.get("forced") is True
+    header.update(
+        {
+            "interruption_warning": (
+                "effect uncertain — finalizer interrupted; inspect the snapshot"
+                if forced
+                else ""
+            ),
+            "suppressed_followup_kind": string(suppressed.get("kind")) or "",
+            "suppressed_followup_ref": string(suppressed.get("ref")) or "",
+        }
+    )
+    patched["header"] = header
+    return patched
 
 
 def _model_display(record: Mapping[str, Any]) -> str:
