@@ -149,6 +149,77 @@ def discover_project_root(start: Path | str | None = None) -> Path | None:
     return None
 
 
+def owning_checkout_root_for_config(config_path: Path | str) -> Path | None:
+    """Return the checkout whose selected config is *config_path*.
+
+    Walks ancestors of the selected file and picks the nearest one whose
+    ``resolve_project_config_read_path`` selects exactly that file. VCS
+    markers (``.git``, ``.hg``, ``.jj``) break canonical-versus-legacy
+    ties, so ``<repo>/sase/sase.yml`` belongs to ``<repo>`` rather than
+    the ``sase/`` directory that also looks like a legacy layout. When no
+    VCS marker is present, a canonical-layout match wins over a legacy
+    match.
+
+    A VCS-marked ancestor that collides (canonical and legacy configs both
+    exist) fails closed with :class:`LayoutCollisionError` instead of
+    falling back to the nested ``sase/`` directory.
+    """
+    try:
+        selected = _normalized(Path(config_path).expanduser())
+    except (OSError, RuntimeError, ValueError):
+        return None
+    try:
+        if selected.is_dir():
+            return None
+    except OSError:
+        return None
+
+    nearest_canonical: Path | None = None
+    nearest_legacy: Path | None = None
+    collision: LayoutCollisionError | None = None
+    start = selected.parent
+    for ancestor in (start, *start.parents):
+        ancestor_n = _normalized(ancestor)
+        try:
+            layout = resolve_project_layout(ancestor_n)
+        except Exception:
+            continue
+        try:
+            resolved = layout.config.resolve_read("project config")
+        except LayoutCollisionError as exc:
+            if _selected_in_collision(selected, exc) and _has_vcs_marker(ancestor_n):
+                collision = exc
+                break
+            continue
+        except OSError:
+            continue
+        if resolved is None:
+            continue
+        try:
+            resolved_n = _normalized(resolved)
+        except (OSError, RuntimeError, ValueError):
+            continue
+        if resolved_n != selected:
+            continue
+        if _has_vcs_marker(ancestor_n):
+            return ancestor_n
+        try:
+            canonical_n = _normalized(layout.config.canonical.path)
+        except (OSError, RuntimeError, ValueError):
+            canonical_n = layout.config.canonical.path
+        if canonical_n == selected:
+            if nearest_canonical is None:
+                nearest_canonical = ancestor_n
+        elif nearest_legacy is None:
+            nearest_legacy = ancestor_n
+
+    if collision is not None:
+        raise collision
+    if nearest_canonical is not None:
+        return nearest_canonical
+    return nearest_legacy
+
+
 def resolve_project_config_read_path(
     root: Path | str,
     *,
@@ -404,11 +475,33 @@ def display_path(
 
 def _is_project_root(path: Path) -> bool:
     try:
-        if any((path / marker).exists() for marker in _PROJECT_MARKERS):
+        if _has_vcs_marker(path):
             return True
         return (path / "sase" / "sase.yml").is_file() or (path / "sase.yml").is_file()
     except OSError:
         return False
+
+
+def _has_vcs_marker(path: Path) -> bool:
+    try:
+        return any((path / marker).exists() for marker in _PROJECT_MARKERS)
+    except OSError:
+        return False
+
+
+def _selected_in_collision(selected: Path, exc: LayoutCollisionError) -> bool:
+    try:
+        selected_n = _normalized(selected)
+    except (OSError, RuntimeError, ValueError):
+        selected_n = selected
+    for path in exc.paths:
+        try:
+            if _normalized(path) == selected_n:
+                return True
+        except (OSError, RuntimeError, ValueError):
+            if path == selected_n:
+                return True
+    return False
 
 
 def _normalized(path: Path) -> Path:
@@ -442,6 +535,7 @@ __all__ = [
     "chezmoi_source_path",
     "discover_project_root",
     "display_path",
+    "owning_checkout_root_for_config",
     "resolve_chezmoi_layout",
     "resolve_project_config_read_path",
     "resolve_project_config_write_path",

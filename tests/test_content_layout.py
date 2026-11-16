@@ -8,6 +8,7 @@ from sase.content_layout import (
     chezmoi_source_path,
     discover_project_root,
     display_path,
+    owning_checkout_root_for_config,
     resolve_memory_file_sources,
     resolve_project_layout,
     resolve_macro_file_sources,
@@ -215,6 +216,109 @@ def test_discover_project_root_from_nested_and_missing_descendants(
 
     assert discover_project_root(nested) == root
     assert discover_project_root(nested / "deleted" / "child") == root
+
+
+def test_discover_project_root_still_treats_sase_dir_as_legacy_root(
+    tmp_path: Path,
+) -> None:
+    root = tmp_path / "repo"
+    config = root / "sase" / "sase.yml"
+    config.parent.mkdir(parents=True)
+    config.write_text("project: true\n")
+    (root / ".git").mkdir()
+
+    assert discover_project_root(config) == root / "sase"
+    assert owning_checkout_root_for_config(config) == root.resolve()
+
+
+def test_owning_checkout_root_prefers_vcs_over_legacy_sase_dir(
+    tmp_path: Path,
+) -> None:
+    root = tmp_path / "repo"
+    canonical = root / "sase" / "sase.yml"
+    canonical.parent.mkdir(parents=True)
+    canonical.write_text("canonical: true\n")
+    (root / ".git").mkdir()
+
+    assert owning_checkout_root_for_config(canonical) == root.resolve()
+
+
+def test_owning_checkout_root_legacy_layout_is_repo_root(tmp_path: Path) -> None:
+    root = tmp_path / "repo"
+    legacy = root / "sase.yml"
+    root.mkdir()
+    legacy.write_text("legacy: true\n")
+    (root / ".git").mkdir()
+
+    assert owning_checkout_root_for_config(legacy) == root.resolve()
+
+
+def test_owning_checkout_root_repo_named_sase_disambiguates_by_vcs(
+    tmp_path: Path,
+) -> None:
+    named = tmp_path / "x" / "sase"
+    named.mkdir(parents=True)
+    (named / ".git").mkdir()
+    legacy = named / "sase.yml"
+    legacy.write_text("legacy: true\n")
+    assert owning_checkout_root_for_config(legacy) == named.resolve()
+
+    parent = tmp_path / "parent"
+    nested = parent / "sase"
+    nested.mkdir(parents=True)
+    (parent / ".git").mkdir()
+    canonical = nested / "sase.yml"
+    canonical.write_text("canonical: true\n")
+    assert owning_checkout_root_for_config(canonical) == parent.resolve()
+
+
+def test_owning_checkout_root_nested_vcs_repo_named_sase_keeps_nearest(
+    tmp_path: Path,
+) -> None:
+    parent = tmp_path / "x"
+    nested = parent / "sase"
+    nested.mkdir(parents=True)
+    (parent / ".git").mkdir()
+    (nested / ".git").mkdir()
+    config = nested / "sase.yml"
+    config.write_text("nested-legacy: true\n")
+
+    assert owning_checkout_root_for_config(config) == nested.resolve()
+
+
+def test_owning_checkout_root_canonical_wins_without_vcs(tmp_path: Path) -> None:
+    root = tmp_path / "unregistered"
+    canonical = root / "sase" / "sase.yml"
+    canonical.parent.mkdir(parents=True)
+    canonical.write_text("canonical: true\n")
+
+    assert owning_checkout_root_for_config(canonical) == root.resolve()
+
+
+def test_owning_checkout_root_collision_at_vcs_root_raises(tmp_path: Path) -> None:
+    root = tmp_path / "repo"
+    canonical = root / "sase" / "sase.yml"
+    canonical.parent.mkdir(parents=True)
+    canonical.write_text("canonical: true\n")
+    (root / "sase.yml").write_text("legacy: true\n")
+    (root / ".git").mkdir()
+
+    with pytest.raises(LayoutCollisionError, match="multiple canonical/legacy"):
+        owning_checkout_root_for_config(canonical)
+
+
+def test_owning_checkout_root_resolves_symlinked_checkout(tmp_path: Path) -> None:
+    root = tmp_path / "real" / "repo"
+    canonical = root / "sase" / "sase.yml"
+    canonical.parent.mkdir(parents=True)
+    canonical.write_text("project: true\n")
+    (root / ".git").mkdir()
+    alias = tmp_path / "alias"
+    alias.symlink_to(root, target_is_directory=True)
+
+    assert (
+        owning_checkout_root_for_config(alias / "sase" / "sase.yml") == root.resolve()
+    )
 
 
 def test_discover_project_root_resolves_symlinked_working_tree(

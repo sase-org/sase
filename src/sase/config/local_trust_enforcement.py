@@ -91,27 +91,24 @@ def _read_candidate_file(path: Path) -> dict[str, Any]:
 def _checkout_root_for_local_path(local_path: Path) -> Path | None:
     """Return the checkout root owning *local_path*, if discoverable."""
     try:
-        from sase.content_layout import discover_project_root
+        from sase.content_layout import owning_checkout_root_for_config
+
+        return owning_checkout_root_for_config(local_path)
     except Exception:
         return None
-    probe = local_path if local_path.is_dir() else local_path.parent
-    try:
-        found = discover_project_root(probe)
-    except Exception:
-        return None
-    if found is not None:
-        return found
-    # Fall back to the config's grandparent for canonical layouts when the
-    # checkout is not a registered project root (unregistered roots still
-    # get checkout-scoped trust rather than inheriting another project).
-    try:
-        if local_path.name in {"sase.yml", "sase.yaml"}:
-            if local_path.parent.name == "sase":
-                return local_path.parent.parent
-            return local_path.parent
-    except Exception:
-        return None
-    return None
+
+
+def _allow_command(requested_path: str, identity: str, allow_root: Path | None) -> str:
+    """Return the ``sase config trust allow`` command that records *identity*."""
+    target = requested_path
+    if allow_root is not None:
+        try:
+            from sase.config.local_trust_management import acknowledgment_target_path
+
+            target = str(acknowledgment_target_path(allow_root, identity))
+        except Exception:
+            target = str(allow_root)
+    return f"sase config trust allow {target}"
 
 
 def _logical_location(root: Path, selected: Path) -> str:
@@ -158,16 +155,6 @@ def _lower_macros_cache_token() -> tuple[Any, ...] | None:
         return (token, generation, default_id, plugin_id)
     except Exception:
         return None
-
-
-def reset_lower_macros_cache() -> None:
-    """Drop the memoized lower-layer macros/workflows."""
-    global _lower_macros_cache_key, _lower_macros_cache_value
-    global _lower_macros_cache_generation
-    with _lower_macros_cache_lock:
-        _lower_macros_cache_key = None
-        _lower_macros_cache_value = None
-        _lower_macros_cache_generation = None
 
 
 def _lower_macros_and_workflows() -> tuple[dict[str, Any], dict[str, Any]]:
@@ -377,22 +364,23 @@ def _evaluate_with_flag_on(
     )
 
     requested_path = str(local_path)
-    root = _checkout_root_for_local_path(local_path)
-    if root is None:
+    found_root = _checkout_root_for_local_path(local_path)
+    allow_root: Path | None = None
+    if found_root is None:
         try:
             canonical = str(local_path.expanduser().resolve(strict=False))
         except Exception:
             canonical = requested_path
-        root = local_path.parent
         identity = f"checkout:v1:{canonical}"
         logical: str | None = local_path.name
     else:
         try:
-            selected = Path(os.path.abspath(local_path))
-            canonical_root = root.expanduser().resolve(strict=False)
+            canonical_root = found_root.expanduser().resolve(strict=False)
+            selected = local_path.expanduser().resolve(strict=False)
         except Exception:
-            canonical_root = root
+            canonical_root = found_root
             selected = local_path
+        allow_root = canonical_root
         try:
             identity = _project_identity_for(canonical_root, selected)
         except Exception as exc:
@@ -414,8 +402,9 @@ def _evaluate_with_flag_on(
     except Exception as exc:
         message = (
             f"Local commands in {requested_path} were skipped: cannot project "
-            f"command-bearing content ({exc}); run `sase config trust allow "
-            f"{requested_path}` after review."
+            f"command-bearing content ({exc}); run "
+            f"`{_allow_command(requested_path, identity, allow_root)}` "
+            "after review."
         )
         warning = _deduplicated_warning(identity, "projection-error", str(exc), message)
         return LocalTrustEvaluation(
@@ -455,7 +444,8 @@ def _evaluate_with_flag_on(
     except Exception as exc:
         message = (
             f"Local commands in {requested_path} were skipped: trust store is "
-            f"unavailable ({exc}); run `sase config trust allow {requested_path}` "
+            f"unavailable ({exc}); run "
+            f"`{_allow_command(requested_path, identity, allow_root)}` "
             "after review."
         )
         warning = _deduplicated_warning(
@@ -515,7 +505,8 @@ def _evaluate_with_flag_on(
         detail = str(store_reason or "trust store is unavailable or unsafe")
         message = (
             f"Local commands in {requested_path} were skipped: {detail}; run "
-            f"`sase config trust allow {requested_path}` after review."
+            f"`{_allow_command(requested_path, identity, allow_root)}` "
+            "after review."
         )
         warning = _deduplicated_warning(identity, projection.digest, detail, message)
         return LocalTrustEvaluation(
@@ -560,7 +551,8 @@ def _evaluate_with_flag_on(
             removed = tuple(projection.blocked_paths)
         message = (
             f"Local commands in {requested_path} were skipped: cannot decide "
-            f"trust ({exc}); run `sase config trust allow {requested_path}` "
+            f"trust ({exc}); run "
+            f"`{_allow_command(requested_path, identity, allow_root)}` "
             "after review."
         )
         warning = _deduplicated_warning(identity, projection.digest, str(exc), message)
@@ -627,7 +619,8 @@ def _evaluate_with_flag_on(
         removed = tuple(projection.blocked_paths)
     message = (
         f"Local commands in {requested_path} were skipped ({decision.reason}); "
-        f"run `sase config trust allow {requested_path}` after review."
+        f"run `{_allow_command(requested_path, identity, allow_root)}` "
+        "after review."
     )
     warning = _deduplicated_warning(
         identity, projection.digest, decision.reason, message

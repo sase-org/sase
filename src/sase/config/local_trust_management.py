@@ -27,7 +27,9 @@ from sase.config.local_trust import (
     project_local_commands,
 )
 from sase.content_layout import (
+    LayoutCollisionError,
     discover_project_root,
+    owning_checkout_root_for_config,
     resolve_project_config_read_path,
     resolve_project_config_write_path,
 )
@@ -86,9 +88,10 @@ def _canonical(path: Path) -> Path:
 
 def _logical_config_location(root: Path, selected: Path) -> str:
     """Return the stable project-relative config choice included in the digest."""
-    lexical = Path(os.path.abspath(selected))
+    canonical_root = _canonical(root)
+    canonical_selected = _canonical(selected)
     try:
-        relative = lexical.relative_to(root)
+        relative = canonical_selected.relative_to(canonical_root)
     except ValueError as error:
         raise _LocalCommandTrustManagementError(
             f"selected config path {selected} is outside checkout {root}"
@@ -96,31 +99,73 @@ def _logical_config_location(root: Path, selected: Path) -> str:
     return relative.as_posix()
 
 
+def _owning_checkout_for_request(
+    requested: Path, *, is_config_argument: bool
+) -> Path | None:
+    """Resolve the checkout root that owns *requested*."""
+    if is_config_argument:
+        try:
+            owned = owning_checkout_root_for_config(requested)
+        except LayoutCollisionError:
+            raise
+        except Exception:
+            owned = None
+        if owned is not None:
+            return owned
+    discovered = discover_project_root(requested)
+    if discovered is None:
+        return None
+    try:
+        selected = resolve_project_config_read_path(discovered)
+    except LayoutCollisionError:
+        raise
+    except Exception:
+        selected = None
+    if selected is not None:
+        try:
+            owned = owning_checkout_root_for_config(selected)
+        except LayoutCollisionError:
+            raise
+        except Exception:
+            owned = None
+        if owned is not None:
+            return owned
+    return discovered
+
+
 def _requested_checkout(path: str | os.PathLike[str] | None) -> tuple[Path, Path]:
     requested = Path.cwd() if path is None else Path(path).expanduser()
     requested = _canonical(requested)
-    root = discover_project_root(requested)
+    is_config_argument = requested.name in {"sase.yml", "sase.yaml"}
+    if not requested.exists() and not is_config_argument:
+        raise _LocalCommandTrustManagementError(f"PATH does not exist: {requested}")
+    if requested.is_file() and not is_config_argument:
+        raise _LocalCommandTrustManagementError(
+            "PATH must select a checkout or its selected sase.yml file"
+        )
+    try:
+        root = _owning_checkout_for_request(
+            requested, is_config_argument=is_config_argument
+        )
+    except LayoutCollisionError as exc:
+        raise _LocalCommandTrustManagementError(str(exc)) from exc
     if root is None:
         raise _LocalCommandTrustManagementError(
             f"{requested} is not inside a SASE project checkout"
         )
     root = _canonical(root)
 
-    selected = resolve_project_config_read_path(root)
+    try:
+        selected = resolve_project_config_read_path(root)
+    except LayoutCollisionError as exc:
+        raise _LocalCommandTrustManagementError(str(exc)) from exc
     if selected is None:
         selected = resolve_project_config_write_path(root)
     selected = Path(os.path.abspath(selected))
 
-    is_config_argument = requested.name in {"sase.yml", "sase.yaml"}
-    if not requested.exists() and not is_config_argument:
-        raise _LocalCommandTrustManagementError(f"PATH does not exist: {requested}")
     if is_config_argument and _canonical(requested) != _canonical(selected):
         raise _LocalCommandTrustManagementError(
             f"{requested} is not the selected project config; expected {selected}"
-        )
-    if requested.is_file() and not is_config_argument:
-        raise _LocalCommandTrustManagementError(
-            "PATH must select a checkout or its selected sase.yml file"
         )
     return root, selected
 
@@ -205,21 +250,6 @@ def _records_fingerprint(records: list[Any]) -> tuple[Any, ...]:
             )
         )
     return tuple(sorted(items))
-
-
-def reset_project_identity_caches() -> None:
-    """Drop memoized project records and per-primary membership results."""
-    global _project_records_cache_token, _project_records_cache_value
-    global _project_records_cache_fingerprint, _project_records_cache_generation
-    global _primary_membership_cache, _primary_membership_cache_generation
-    with _project_records_cache_lock:
-        _project_records_cache_token = None
-        _project_records_cache_value = None
-        _project_records_cache_fingerprint = None
-        _project_records_cache_generation = None
-    with _primary_membership_cache_lock:
-        _primary_membership_cache = {}
-        _primary_membership_cache_generation = None
 
 
 def _cached_project_records() -> list[Any]:
@@ -444,6 +474,21 @@ def _project_identity(root: Path, config_path: Path) -> str:
 def _registered_identity(project_dir: str, primary: Path) -> str:
     project_record = _canonical(Path(project_dir))
     return f"project:v1:{project_record}:{primary}"
+
+
+def acknowledgment_target_path(root: Path, identity: str) -> Path:
+    """Return the checkout ``sase config trust allow`` should record.
+
+    Project-scoped identities name the primary checkout so numbered
+    workspaces inherit that acknowledgment. Checkout-scoped identities
+    name *root*.
+    """
+    prefix = "project:v1:"
+    if identity.startswith(prefix):
+        primary = identity.rsplit(":", 1)[-1]
+        if primary.startswith("/") or (len(primary) >= 2 and primary[1] == ":"):
+            return Path(primary)
+    return root
 
 
 def _resolve_local_command_trust_context(
@@ -901,6 +946,7 @@ __all__ = [
     "LOCAL_COMMAND_TRUST_STORE_DIRECTORY",
     "LOCAL_COMMAND_TRUST_STORE_FILENAME",
     "LOCAL_COMMAND_TRUST_STORE_WIRE_SCHEMA_VERSION",
+    "acknowledgment_target_path",
     "allow_local_commands",
     "local_trust_store_snapshot",
     "logical_config_location_for_trust",
