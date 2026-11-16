@@ -25,22 +25,6 @@ def is_success_outcome(outcome: str | None) -> bool:
     return outcome in WAIT_SUCCESS_OUTCOMES
 
 
-def ace_run_scan_options() -> Any:
-    """Return the scan-facade options for ace-run-only name lookups.
-
-    Imported lazily to avoid the agent-scan facade pulling in the TUI
-    loader package at ``sase.agent`` import time (the loader package
-    transitively depends back on ``sase.agent.names``).
-    """
-    from sase.core.agent_scan_wire import AgentArtifactScanOptionsWire
-
-    return AgentArtifactScanOptionsWire(
-        only_workflow_dirs=("ace-run",),
-        include_prompt_step_markers=False,
-        include_raw_prompt_snippets=False,
-    )
-
-
 def projects_root() -> Path:
     return sase_projects_dir()
 

@@ -56,6 +56,19 @@ def _extract_for_fork_parent(tmp_path: Path, target_name: str, *, prompt: str) -
         )
 
 
+def _rebuild_artifact_index() -> None:
+    """Rebuild the artifact index for indexed name lookups."""
+    from sase.core.agent_scan_facade import (
+        default_agent_artifact_index_path,
+        rebuild_agent_artifact_index,
+    )
+    from sase.core.paths import sase_projects_dir
+
+    rebuild_agent_artifact_index(
+        default_agent_artifact_index_path(), sase_projects_dir()
+    )
+
+
 class TestFailedForkParentAdmission:
     def test_preflight_and_extraction_agree_on_a_failed_fork_parent(
         self, tmp_path: Path
@@ -75,6 +88,7 @@ class TestFailedForkParentAdmission:
         assert has_deferred_start_directive(raw_prompt) is True
 
         with patch.object(Path, "home", return_value=tmp_path):
+            _rebuild_artifact_index()
             info = _extract_for_fork_parent(tmp_path, "parent-agent", prompt="Do work")
             resolved = resolve_initial_wait_release(
                 info.wait_names,
@@ -120,6 +134,7 @@ class TestFailedForkParentAdmission:
         )
 
         with patch.object(Path, "home", return_value=tmp_path):
+            _rebuild_artifact_index()
             info = _extract_for_fork_parent(
                 tmp_path, "parent-agent", prompt="%wait:parent-agent\nDo work"
             )
@@ -155,6 +170,7 @@ class TestFailedForkParentAdmission:
             outcome=FAILURE_OUTCOME,
         )
         with patch.object(Path, "home", return_value=tmp_path):
+            _rebuild_artifact_index()
             info = _extract_for_fork_parent(tmp_path, "parent-agent", prompt="Do work")
         assert info.wait_fork_sources  # sanity: reproduces typed terminal wait shape
 

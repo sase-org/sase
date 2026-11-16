@@ -143,7 +143,7 @@ def test_dismissed_bundle_index_schema_mismatch_recreates_table(
     assert [summary.raw_suffix for summary in summaries] == ["20250615100000"]
     signature = index_signature(bundles_dir)
     assert signature is not None
-    assert signature[0] == SCHEMA_VERSION == 3
+    assert signature[0] == SCHEMA_VERSION == 4
 
 
 def test_rebuild_indexes_sharded_bundles_and_clears_progress(

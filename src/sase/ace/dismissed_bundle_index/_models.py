@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-SCHEMA_VERSION = 3
+SCHEMA_VERSION = 4
 INDEX_FILENAME = "index.sqlite"
 
 
@@ -59,6 +59,7 @@ class DismissedBundleSummary:
     agent_tab: str | None = None
     tribe: str | None = None
     clan_tribe: str | None = None
+    workflow_name: str | None = None
 
     @property
     def meta_patch(self) -> str | None:

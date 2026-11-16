@@ -158,5 +158,14 @@ def test_show_agent_via_done_response_path(
     (artifact_dir / "done.json").write_text(
         json.dumps({"response_path": str(chat), "outcome": "completed"})
     )
+    from sase.core.agent_scan_facade import (
+        default_agent_artifact_index_path,
+        rebuild_agent_artifact_index,
+    )
+    from sase.core.paths import sase_projects_dir
+
+    rebuild_agent_artifact_index(
+        default_agent_artifact_index_path(), sase_projects_dir()
+    )
     handle_chat_show(_show_args(agent="alpha", format="response"))
     assert "answer" in capsys.readouterr().out

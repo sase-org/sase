@@ -90,6 +90,19 @@ def _write_named_agent(
     return artifact_dir
 
 
+def _rebuild_artifact_index() -> None:
+    """Rebuild the artifact index for indexed name lookups."""
+    from sase.core.agent_scan_facade import (
+        default_agent_artifact_index_path,
+        rebuild_agent_artifact_index,
+    )
+    from sase.core.paths import sase_projects_dir
+
+    rebuild_agent_artifact_index(
+        default_agent_artifact_index_path(), sase_projects_dir()
+    )
+
+
 def _list_transcripts(
     *,
     limit: int | None = None,
@@ -344,6 +357,7 @@ def test_resolve_agent_via_done_response_path(
         name="alpha",
         done={"response_path": str(chat), "outcome": "completed"},
     )
+    _rebuild_artifact_index()
     assert resolve_chat_ref(agent="alpha") == str(chat)
 
 
@@ -361,6 +375,7 @@ def test_resolve_agent_falls_back_to_meta_chat_path(
         done=None,
         meta={"chat_path": str(chat), "pid": os.getpid()},
     )
+    _rebuild_artifact_index()
     assert resolve_chat_ref(agent="bravo") == str(chat)
 
 

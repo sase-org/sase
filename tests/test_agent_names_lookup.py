@@ -28,6 +28,24 @@ from tests._agent_names_fixtures import DEAD_PID as _DEAD_PID
 from tests._agent_names_fixtures import make_agent as _make_agent
 
 
+def _rebuild_artifact_index() -> None:
+    """Rebuild the artifact index for the (patched) home.
+
+    Indexed ``find_named_agent`` reads only matching records; the index must
+    exist for fixtures with non-timestamp directory names. Call inside the
+    patched-home block after creating fixtures.
+    """
+    from sase.core.agent_scan_facade import (
+        default_agent_artifact_index_path,
+        rebuild_agent_artifact_index,
+    )
+    from sase.core.paths import sase_projects_dir
+
+    rebuild_agent_artifact_index(
+        default_agent_artifact_index_path(), sase_projects_dir()
+    )
+
+
 def _configure_machine(monkeypatch: pytest.MonkeyPatch) -> None:
     identity = AgentIdentitySnapshot(
         AgentOwnerIdentity("alice", "athena"),
@@ -44,6 +62,7 @@ class TestFindNamedAgent:
     def test_finds_done_agent(self, tmp_path: Path) -> None:
         _make_agent(tmp_path, "proj", "run1", "foo", done=True, outcome="success")
         with patch.object(Path, "home", return_value=tmp_path):
+            _rebuild_artifact_index()
             result = find_named_agent("foo")
         assert result is not None
         assert result.is_done
@@ -72,6 +91,7 @@ class TestFindNamedAgent:
         )
 
         with patch.object(Path, "home", return_value=tmp_path):
+            _rebuild_artifact_index()
             bare_result = find_named_agent("foo")
             qualified_result = find_named_agent("athena.foo")
             foreign_result = find_named_agent("zeus.foo")
@@ -86,11 +106,13 @@ class TestFindNamedAgent:
     def test_returns_none_when_not_found(self, tmp_path: Path) -> None:
         _make_agent(tmp_path, "proj", "run1", "foo")
         with patch.object(Path, "home", return_value=tmp_path):
+            _rebuild_artifact_index()
             result = find_named_agent("bar")
         assert result is None
 
     def test_returns_none_when_no_projects_dir(self, tmp_path: Path) -> None:
         with patch.object(Path, "home", return_value=tmp_path):
+            _rebuild_artifact_index()
             result = find_named_agent("foo")
         assert result is None
 
@@ -98,6 +120,7 @@ class TestFindNamedAgent:
         _make_agent(tmp_path, "proj", "run-old", "foo", done=True)
         running_dir = _make_agent(tmp_path, "proj", "run-new", "foo", pid=os.getpid())
         with patch.object(Path, "home", return_value=tmp_path):
+            _rebuild_artifact_index()
             result = find_named_agent("foo")
         assert result is not None
         assert not result.is_done
@@ -117,6 +140,7 @@ class TestFindNamedAgent:
             outcome="completed",
         )
         with patch.object(Path, "home", return_value=tmp_path):
+            _rebuild_artifact_index()
             result = find_named_agent("a")
         assert result is not None
         assert result.is_done
@@ -138,6 +162,7 @@ class TestFindNamedAgent:
             tmp_path, "proj", "run2", "a", done=True, outcome="completed"
         )
         with patch.object(Path, "home", return_value=tmp_path):
+            _rebuild_artifact_index()
             result = find_named_agent("a")
         assert result is not None
         assert result.artifacts_dir == str(exact_dir)
@@ -149,6 +174,7 @@ class TestFindNamedAgent:
             tmp_path, "proj", "run-new", "foo", done=True, outcome="completed"
         )
         with patch.object(Path, "home", return_value=tmp_path):
+            _rebuild_artifact_index()
             result = find_named_agent("foo")
         assert result is not None
         assert result.is_done
@@ -164,6 +190,7 @@ class TestFindNamedAgent:
             json.dumps({"waiting_for": ["target"]}), encoding="utf-8"
         )
         with patch.object(Path, "home", return_value=tmp_path):
+            _rebuild_artifact_index()
             wait_result = find_named_agent("foo")
             restart_result = find_named_agent("foo", include_dead=True)
 
@@ -180,6 +207,7 @@ class TestFindNamedAgent:
         crashed_dir = _make_agent(tmp_path, "proj", "run-crashed", "foo", pid=_DEAD_PID)
         live_dir = _make_agent(tmp_path, "proj", "run-live", "foo", pid=os.getpid())
         with patch.object(Path, "home", return_value=tmp_path):
+            _rebuild_artifact_index()
             live_result = find_named_agent("foo", include_dead=True)
 
         assert live_result is not None
@@ -189,6 +217,7 @@ class TestFindNamedAgent:
         # the older completed artifact for restart.
         live_dir.rename(tmp_path / "live-moved")
         with patch.object(Path, "home", return_value=tmp_path):
+            _rebuild_artifact_index()
             crash_result = find_named_agent("foo", include_dead=True)
         assert crash_result is not None
         assert crash_result.artifacts_dir == str(crashed_dir)
@@ -200,6 +229,7 @@ class TestFindNamedAgent:
             tmp_path, "proj", "run-old", "foo", done=True, outcome="completed"
         )
         with patch.object(Path, "home", return_value=tmp_path):
+            _rebuild_artifact_index()
             result = find_named_agent("foo", only_done=True)
         assert result is not None
         assert result.is_done
@@ -209,6 +239,7 @@ class TestFindNamedAgent:
         """only_done=True returns None when only running agents exist."""
         _make_agent(tmp_path, "proj", "run1", "foo", pid=os.getpid())
         with patch.object(Path, "home", return_value=tmp_path):
+            _rebuild_artifact_index()
             result = find_named_agent("foo", only_done=True)
         assert result is None
 
@@ -225,6 +256,7 @@ class TestFindNamedAgent:
             tmp_path, "proj", "run-old", "260428.foo", pid=_DEAD_PID
         )
         with patch.object(Path, "home", return_value=tmp_path):
+            _rebuild_artifact_index()
             result = find_named_agent("260428.foo")
         assert result is not None
         assert result.is_done
@@ -532,6 +564,7 @@ class TestWaitSuccessOutcomeClassification:
         _make_agent(tmp_path, "proj", "run1", "foo", done=True, outcome=outcome)
 
         with patch.object(Path, "home", return_value=tmp_path):
+            _rebuild_artifact_index()
             assert resolve_wait_dependency("foo") is True
 
 

@@ -161,6 +161,7 @@ def test_dismissed_bundle_index_summary_fields(tmp_path: Path) -> None:
         "tribe",
         "vcs_provider",
         "workflow",
+        "workflow_name",
     }
 
 
