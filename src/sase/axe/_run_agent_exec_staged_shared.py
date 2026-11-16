@@ -44,6 +44,16 @@ class StagedAdoptionOutcome:
     refs: Mapping[str, Any] | None = None
 
 
+@dataclass(frozen=True)
+class StagedHandoffDispatch:
+    """Result of examining and, when safe, adopting one staged handoff."""
+
+    adopted: bool
+    outcome: str | None = None
+    reason: str | None = None
+    already_adopted: bool = False
+
+
 StagedAdopter = Callable[
     [Mapping[str, Any], Mapping[str, Any], StagedInlineContinuation, str],
     str | None | StagedAdoptionOutcome,
@@ -86,6 +96,7 @@ def proven_ids_for_settlement(
 __all__ = [
     "StagedAdopter",
     "StagedAdoptionOutcome",
+    "StagedHandoffDispatch",
     "StagedInlineContinuation",
     "proven_ids_for_settlement",
     "read_json_object",
