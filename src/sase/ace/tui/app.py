@@ -428,13 +428,19 @@ class AceApp(
             instance_id = getattr(self, "_app_instance_id", None)
             if not isinstance(instance_id, str):
                 return
+            import asyncio
+
+            self._perf_event_loop = asyncio.get_running_loop()
+            from .util.gc_telemetry import register_heartbeat_provider
+
+            register_heartbeat_provider(
+                "default_executor", self._default_executor_heartbeat
+            )
             if self._jk_perf is not None:
                 self._jk_perf.bind(instance_id)
             if self._prompt_activity is not None:
                 self._prompt_activity.bind(instance_id)
                 self._prompt_activity.start(prompt_open=False)
-                from .util.gc_telemetry import register_heartbeat_provider
-
                 register_heartbeat_provider("perf_activity", self._perf_heartbeat)
         except Exception:  # noqa: BLE001 - telemetry must never break startup.
             pass
@@ -449,6 +455,12 @@ class AceApp(
         if self._jk_perf is not None:
             result["perf_dropped_total"] = self._jk_perf.dropped_samples
         return result
+
+    def _default_executor_heartbeat(self) -> dict[str, Any]:
+        """Expose event-loop default executor capacity in memory heartbeats."""
+        from .util.gc_telemetry import default_executor_heartbeat_fields
+
+        return default_executor_heartbeat_fields(self._perf_event_loop)
 
     def _note_prompt_opened(self) -> None:
         """Record prompt text-entry focus, when SASE_TUI_PERF=1."""

@@ -130,6 +130,37 @@ def unregister_heartbeat_provider(name: str) -> None:
     _heartbeat_providers.pop(name, None)
 
 
+def default_executor_heartbeat_fields(loop: Any) -> dict[str, Any]:
+    """Return a cheap best-effort gauge for the loop's default executor."""
+    executor = getattr(loop, "_default_executor", None)
+    if executor is None:
+        return {
+            "default_executor_workers": 0,
+            "default_executor_threads": 0,
+            "default_executor_queue_depth": 0,
+            "default_executor_saturated": False,
+        }
+    try:
+        workers = int(executor._max_workers)
+        threads = len(executor._threads)
+        queue_depth = int(executor._work_queue.qsize())
+        return {
+            "default_executor_workers": workers,
+            "default_executor_threads": threads,
+            "default_executor_queue_depth": queue_depth,
+            "default_executor_saturated": (
+                workers > 0 and threads >= workers and queue_depth > 0
+            ),
+        }
+    except Exception:  # noqa: BLE001 - diagnostic gauge must never affect heartbeat.
+        return {
+            "default_executor_workers": None,
+            "default_executor_threads": None,
+            "default_executor_queue_depth": None,
+            "default_executor_saturated": None,
+        }
+
+
 def new_app_instance_id() -> str:
     """Mint one short random ID per app instance."""
     return secrets.token_hex(4)

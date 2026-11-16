@@ -8,14 +8,19 @@ raise back into the TUI or launch paths.
 from __future__ import annotations
 
 import logging
+import json
 import os
+import time
 from pathlib import Path
 from typing import Any
 
 from sase.core.paths import sase_subdir
 from sase.logs._bounded import (
     DEFAULT_MAX_BYTES,
+    append_encoded_line_locked,
     append_jsonl_record,
+    encode_jsonl_record,
+    log_file_lock,
     max_bytes_from_env,
 )
 
@@ -36,6 +41,9 @@ ENV_EXTERNAL_TOOLS_PATH = "SASE_TUI_EXTERNAL_TOOLS_PATH"
 ENV_AGENT_LOADS_PATH = "SASE_TUI_AGENT_LOADS_PATH"
 ENV_STARTUP_PATH = "SASE_TUI_STARTUP_PATH"
 ENV_MAX_BYTES = "SASE_TUI_TELEMETRY_MAX_BYTES"
+STALL_RETENTION_SECONDS = 48 * 60 * 60
+STALL_PRUNE_INTERVAL_SECONDS = 60 * 60
+_last_stalls_prune_bucket: tuple[Path, int] | None = None
 
 
 def _logs_dir() -> str:
@@ -102,8 +110,41 @@ def tui_startup_jsonl_path() -> Path:
 
 
 def log_tui_stall(record: dict[str, Any]) -> None:
-    """Append one event-loop stall record."""
-    _append_jsonl(tui_stalls_jsonl_path(), record)
+    """Append one event-loop record, retaining at least the latest 24 hours."""
+    path = tui_stalls_jsonl_path()
+    try:
+        encoded = encode_jsonl_record(record, json_default=str)
+        now = time.time()
+        prune_bucket = int(now // STALL_PRUNE_INTERVAL_SECONDS)
+        prune_key = (path, prune_bucket)
+        with log_file_lock(path):
+            global _last_stalls_prune_bucket
+            if _last_stalls_prune_bucket != prune_key:
+                cutoff = now - STALL_RETENTION_SECONDS
+                try:
+                    lines = path.read_bytes().splitlines(keepends=True)
+                except FileNotFoundError:
+                    lines = []
+                retained: list[bytes] = []
+                for line in lines:
+                    try:
+                        row = json.loads(line)
+                        timestamp = float(row.get("ts"))
+                    except (
+                        ValueError,
+                        TypeError,
+                        AttributeError,
+                        json.JSONDecodeError,
+                    ):
+                        retained.append(line if line.endswith(b"\n") else line + b"\n")
+                        continue
+                    if timestamp >= cutoff:
+                        retained.append(line if line.endswith(b"\n") else line + b"\n")
+                path.write_bytes(b"".join(retained))
+                _last_stalls_prune_bucket = prune_key
+            append_encoded_line_locked(path, encoded, max_bytes=0)
+    except Exception:
+        log.debug("TUI telemetry write failed for %s", path, exc_info=True)
 
 
 def log_tui_git_operation(record: dict[str, Any]) -> None:

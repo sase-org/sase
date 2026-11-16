@@ -61,6 +61,22 @@ def test_enabled_writes_record(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) 
     assert row["current_tab"] is None
 
 
+def test_writer_rotates_trace_at_configured_limit(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    log = tmp_path / "trace.jsonl"
+    monkeypatch.setenv("SASE_TUI_TRACE", "1")
+    monkeypatch.setenv("SASE_TUI_TRACE_PATH", str(log))
+    monkeypatch.setenv("SASE_TUI_TRACE_MAX_BYTES", "80")
+
+    for index in range(4):
+        trace.trace_event("sample", index=index)
+
+    assert log.stat().st_size <= 80
+    assert log.with_name("trace.jsonl.1").exists()
+    assert _records(log)[-1]["index"] == 3
+
+
 @pytest.mark.asyncio
 async def test_running_event_loop_defers_filesystem_write(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch

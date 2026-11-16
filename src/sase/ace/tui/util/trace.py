@@ -41,11 +41,21 @@ from typing import Any
 from collections.abc import Generator
 
 from sase.core.paths import sase_subdir
+from sase.logs._bounded import (
+    DEFAULT_MAX_BYTES,
+    append_jsonl_record,
+    max_bytes_from_env,
+)
+
+# Trace rows rotate one prior segment at this configurable byte limit.
+# Set SASE_TUI_TRACE_MAX_BYTES to override it.
+DEFAULT_TRACE_MAX_BYTES = 10 * DEFAULT_MAX_BYTES
 
 log = logging.getLogger(__name__)
 
 ENV_FLAG = "SASE_TUI_TRACE"
 ENV_PATH = "SASE_TUI_TRACE_PATH"
+ENV_MAX_BYTES = "SASE_TUI_TRACE_MAX_BYTES"
 
 _context: dict[str, Any] = {}
 _startup_window = False
@@ -121,8 +131,13 @@ def _ensure_parent_dir(path: Path) -> None:
 def _write_line(path: Path, line: str) -> None:
     try:
         _ensure_parent_dir(path)
-        with open(path, "a", encoding="utf-8") as f:
-            f.write(line)
+        record = json.loads(line)
+        append_jsonl_record(
+            path,
+            record,
+            max_bytes=max_bytes_from_env(ENV_MAX_BYTES, DEFAULT_TRACE_MAX_BYTES),
+            json_default=str,
+        )
     except OSError as e:
         log.debug("trace log write failed: %s", e)
 

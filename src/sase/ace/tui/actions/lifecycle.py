@@ -530,6 +530,7 @@ class LifecycleMixin:
         from ..util.gc_telemetry import unregister_heartbeat_provider
 
         unregister_heartbeat_provider("perf_activity")
+        unregister_heartbeat_provider("default_executor")
         handle = getattr(self, "_gc_telemetry", None)
         if handle is None:
             return

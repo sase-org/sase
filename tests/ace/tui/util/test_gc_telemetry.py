@@ -19,6 +19,7 @@ from sase.ace.tui.util import startup_clock
 from sase.ace.tui.util.gc_telemetry import (
     GCTelemetry,
     app_instance_id,
+    default_executor_heartbeat_fields,
     gc_trigger,
     install_gc_telemetry,
     latest_rss_bytes,
@@ -275,6 +276,39 @@ def test_heartbeat_degrades_cleanly_without_proc(
     assert row["major_faults_delta"] is None
     assert row["gc_generations"] == {}
     assert telemetry.latest_rss is None
+
+
+def test_default_executor_heartbeat_gauge_reports_backlog() -> None:
+    import queue
+    from types import SimpleNamespace
+
+    work_queue: queue.SimpleQueue[object] = queue.SimpleQueue()
+    work_queue.put(object())
+    executor = SimpleNamespace(
+        _max_workers=1, _threads={object()}, _work_queue=work_queue
+    )
+    fields = default_executor_heartbeat_fields(
+        SimpleNamespace(_default_executor=executor)
+    )
+    assert fields == {
+        "default_executor_workers": 1,
+        "default_executor_threads": 1,
+        "default_executor_queue_depth": 1,
+        "default_executor_saturated": True,
+    }
+
+
+def test_default_executor_heartbeat_gauge_reports_no_executor() -> None:
+    from types import SimpleNamespace
+
+    assert default_executor_heartbeat_fields(
+        SimpleNamespace(_default_executor=None)
+    ) == {
+        "default_executor_workers": 0,
+        "default_executor_threads": 0,
+        "default_executor_queue_depth": 0,
+        "default_executor_saturated": False,
+    }
 
 
 def test_heartbeat_providers_contribute_without_clobbering_core(
