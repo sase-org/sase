@@ -48,7 +48,10 @@ def _artifact_contract_action_available(app: Any, action: str) -> bool:
     pane_key = str(app.current_artifacts_pane_key)
     contract = getattr(app, "active_artifacts_contract", None)
     if contract is None or getattr(contract, "id", pane_key) != pane_key:
-        contract = artifacts_pane_contract(pane_key)
+        contract = artifacts_pane_contract(
+            pane_key,
+            snapshot=getattr(app, "artifacts_descriptor_snapshot", None),
+        )
     if contract is None:
         return False
     if action in _ARTIFACT_RELATION_ACTIONS:
@@ -152,6 +155,7 @@ def check_artifacts_availability(
         "show_artifacts_beads",
         "show_artifacts_files",
         "show_artifacts_digit",
+        "show_artifacts_pane",
     }:
         if app.current_tab != ARTIFACTS_TAB:
             return False
@@ -182,7 +186,10 @@ def check_artifacts_availability(
         from .artifact_tabs import PaneCapability, artifacts_pane_contract
 
         contract = getattr(app, "active_artifacts_contract", None) or (
-            artifacts_pane_contract(str(app.current_artifacts_pane_key))
+            artifacts_pane_contract(
+                str(app.current_artifacts_pane_key),
+                snapshot=getattr(app, "artifacts_descriptor_snapshot", None),
+            )
         )
         if (
             app.current_tab != ARTIFACTS_TAB
@@ -212,7 +219,10 @@ def check_artifacts_availability(
         from .artifact_tabs import PaneCapability, artifacts_pane_contract
 
         contract = getattr(app, "active_artifacts_contract", None) or (
-            artifacts_pane_contract(str(app.current_artifacts_pane_key))
+            artifacts_pane_contract(
+                str(app.current_artifacts_pane_key),
+                snapshot=getattr(app, "artifacts_descriptor_snapshot", None),
+            )
         )
         if (
             app.current_tab != ARTIFACTS_TAB
@@ -239,7 +249,10 @@ def check_artifacts_availability(
         from .artifact_tabs import PaneCapability, artifacts_pane_contract
 
         contract = getattr(app, "active_artifacts_contract", None) or (
-            artifacts_pane_contract(str(app.current_artifacts_pane_key))
+            artifacts_pane_contract(
+                str(app.current_artifacts_pane_key),
+                snapshot=getattr(app, "artifacts_descriptor_snapshot", None),
+            )
         )
         return (
             contract is not None

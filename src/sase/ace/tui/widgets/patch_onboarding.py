@@ -10,7 +10,9 @@ from textual.containers import VerticalScroll
 from textual.widgets import Static
 
 from ..artifact_tabs import (
+    ArtifactsDescriptorSnapshot,
     ArtifactsSubTab,
+    artifacts_snapshot_from_widget,
     resolve_artifacts_subtabs,
 )
 from ...display_helpers import get_status_color
@@ -48,14 +50,15 @@ class PatchOnboarding(VerticalScroll):
 
     def compose(self) -> ComposeResult:
         """Compose the fixed onboarding sections."""
+        snapshot = artifacts_snapshot_from_widget(self)
         yield Static(
-            self._build_hero(),
+            self._build_hero(snapshot),
             id="patch-onboarding-hero",
             classes="patch-onboarding-hero",
         )
 
         tabs = Static(
-            self._build_tabs_card(self._registry),
+            self._build_tabs_card(self._registry, snapshot),
             id="patch-onboarding-tabs",
             classes="patch-onboarding-card",
         )
@@ -107,13 +110,15 @@ class PatchOnboarding(VerticalScroll):
         """Refresh static sections from the current keymap registry."""
         if not self.is_mounted:
             return
-        sections = self.render_content(self._registry)
+        snapshot = artifacts_snapshot_from_widget(self)
+        sections = self.render_content(self._registry, snapshot=snapshot)
         for selector, content in sections.items():
             self.query_one(selector, Static).update(content)
 
     @staticmethod
     def render_content(
         registry: KeymapRegistry,
+        snapshot: ArtifactsDescriptorSnapshot | None = None,
     ) -> dict[str, Text]:
         """Build all renderable sections for *registry*.
 
@@ -121,8 +126,10 @@ class PatchOnboarding(VerticalScroll):
         without needing a mounted Textual app.
         """
         return {
-            "#patch-onboarding-hero": PatchOnboarding._build_hero(),
-            "#patch-onboarding-tabs": PatchOnboarding._build_tabs_card(registry),
+            "#patch-onboarding-hero": PatchOnboarding._build_hero(snapshot),
+            "#patch-onboarding-tabs": PatchOnboarding._build_tabs_card(
+                registry, snapshot
+            ),
             "#patch-onboarding-what": PatchOnboarding._build_what_card(),
             "#patch-onboarding-how": PatchOnboarding._build_how_card(registry),
             "#patch-onboarding-queue": PatchOnboarding._build_queue_card(registry),
@@ -130,7 +137,7 @@ class PatchOnboarding(VerticalScroll):
         }
 
     @staticmethod
-    def _build_hero() -> Text:
+    def _build_hero(snapshot: ArtifactsDescriptorSnapshot | None = None) -> Text:
         text = Text(justify="center")
         text.append("*  ", style="bold #FFD700")
         text.append(
@@ -138,7 +145,11 @@ class PatchOnboarding(VerticalScroll):
             style="bold #FFFFFF",
         )
         text.append("  *\n", style="bold #FFD700")
-        descriptors = resolve_artifacts_subtabs()
+        descriptors = (
+            snapshot.descriptors
+            if snapshot is not None
+            else resolve_artifacts_subtabs()
+        )
         descriptor_ids = {descriptor.id for descriptor in descriptors}
         browse_items = ["commits", "patches", "beads"]
         if "agents" in descriptor_ids:
@@ -171,16 +182,23 @@ class PatchOnboarding(VerticalScroll):
         text.append("\n")
 
     @classmethod
-    def _build_tabs_card(cls, registry: KeymapRegistry) -> Text:
+    def _build_tabs_card(
+        cls,
+        registry: KeymapRegistry,
+        snapshot: ArtifactsDescriptorSnapshot | None = None,
+    ) -> Text:
         app = registry.app
         text = Text()
         append_section_heading(text, "Know what each view shows", accent=_ACCENT)
         # Follow the live strip (not the static order) so the retired Agent
         # pane drops out and Commits takes digit 1.
+        rows = (
+            snapshot.descriptors
+            if snapshot is not None
+            else resolve_artifacts_subtabs()
+        )
         descriptors = [
-            descriptor
-            for descriptor in resolve_artifacts_subtabs()
-            if descriptor.id in _ARTIFACT_DESCRIPTIONS
+            descriptor for descriptor in rows if descriptor.id in _ARTIFACT_DESCRIPTIONS
         ]
         for descriptor in descriptors:
             cls._append_artifact_row(text, descriptor)

@@ -453,14 +453,17 @@ class AcePage:
 
         Artifacts digits follow visual position (see
         ``_artifact_tab_descriptors._assign_artifacts_digit_shortcuts``), so tests must
-        not hard-code them. The import is function-local because AcePage's
-        fast startup overrides patch ``resolve_artifacts_subtabs`` on the
-        ``artifact_tabs`` module; a module-level import would bind the
-        unpatched function instead.
+        not hard-code them. Prefer the app's committed snapshot so digits
+        match the mounted generation rather than a later discovery cache.
         """
-        from sase.ace.tui.artifact_tabs import resolve_artifacts_subtabs
+        snapshot = getattr(self.app, "artifacts_descriptor_snapshot", None)
+        if snapshot is not None:
+            descriptor = snapshot.lookup(subtab)
+        else:
+            from sase.ace.tui.artifact_tabs import resolve_artifacts_subtabs
 
-        descriptor = next(d for d in resolve_artifacts_subtabs() if d.id == subtab)
+            descriptor = next(d for d in resolve_artifacts_subtabs() if d.id == subtab)
+        assert descriptor is not None
         assert descriptor.digit_shortcut is not None
         return descriptor.digit_shortcut
 

@@ -1,4 +1,4 @@
-{"count": 3709, "rev": "2653ade36b53", "schema": "sase.footprint.catalog/1"}
+{"count": 3709, "rev": "28171137c70a", "schema": "sase.footprint.catalog/1"}
 {"area": "automation", "id": "auto:axe.agent_waits", "kind": "auto", "label": "Resolve agent wait dependencies within seconds of completion", "ns": "auto", "parent": null, "src": "sase/default_config.yml"}
 {"area": "automation", "id": "auto:axe.agent_waits.wait_checks", "kind": "auto", "label": "Resolve agent wait dependencies and write ready.json when satisfied", "ns": "auto", "parent": "auto:axe.agent_waits", "src": "sase/default_config.yml"}
 {"area": "automation", "id": "auto:axe.checks", "kind": "auto", "label": "Poll slower PR-submission and workspace-claim checks on a five-minute cadence", "ns": "auto", "parent": null, "src": "sase/default_config.yml"}
@@ -3174,9 +3174,9 @@
 {"area": "tui.app", "id": "tui:app.view_files", "kind": "action", "label": "View Patch files", "ns": "tui", "parent": null, "src": "ace/action:view_files"}
 {"area": "tui.app", "id": "tui:app.view_remote_agent_content", "kind": "action", "label": "Agents: view remote chat/output/diff content", "ns": "tui", "parent": null, "src": "ace/action:view_remote_agent_content"}
 {"area": "tui.app", "id": "tui:app.zoom_panel", "kind": "action", "label": "Zoom deck panel, hiding the node rail", "ns": "tui", "parent": null, "src": "ace/action:zoom_panel"}
-{"area": "tui.artifacts", "id": "tui:artifacts.beads", "kind": "action", "label": "Show Artifacts: Beads", "ns": "tui", "parent": null, "src": "ace/action:show_artifacts_digit"}
-{"area": "tui.artifacts", "id": "tui:artifacts.patches", "kind": "action", "label": "Show Artifacts: Patches", "ns": "tui", "parent": null, "src": "ace/action:show_artifacts_digit"}
-{"area": "tui.artifacts", "id": "tui:artifacts.stitches", "kind": "action", "label": "Show Artifacts: Commits", "ns": "tui", "parent": null, "src": "ace/action:show_artifacts_digit"}
+{"area": "tui.artifacts", "id": "tui:artifacts.beads", "kind": "action", "label": "Show Artifacts: Beads", "ns": "tui", "parent": null, "src": "ace/action:show_artifacts_pane"}
+{"area": "tui.artifacts", "id": "tui:artifacts.patches", "kind": "action", "label": "Show Artifacts: Patches", "ns": "tui", "parent": null, "src": "ace/action:show_artifacts_pane"}
+{"area": "tui.artifacts", "id": "tui:artifacts.stitches", "kind": "action", "label": "Show Artifacts: Commits", "ns": "tui", "parent": null, "src": "ace/action:show_artifacts_pane"}
 {"area": "tui.bang", "id": "tui:bang.mark_pr_origin", "kind": "mode_key", "label": "Mark PR origin (bang)", "ns": "tui", "parent": "tui:app.start_bang_mode", "src": null}
 {"area": "tui.bang", "id": "tui:bang.run_cmd", "kind": "mode_key", "label": "Run command (bang)", "ns": "tui", "parent": "tui:app.start_bang_mode", "src": null}
 {"area": "tui.bang", "id": "tui:bang.start_rewind", "kind": "mode_key", "label": "Rewind Patch / revive agent (bang)", "ns": "tui", "parent": "tui:app.start_bang_mode", "src": null}

@@ -137,6 +137,9 @@ class CommandExecutor:
         action: For ``app_action`` — the action method name without the
             ``action_`` prefix (e.g. ``"refresh"``).
         digit: For ``saved_query`` and numbered app actions — the digit 0..9.
+        pane_id: For Artifacts pane commands — the stable pane id. Digits
+            stay display-only so a stale catalog row cannot jump to a
+            different pane after a later generation.
         subkey: For mode-key kinds — the Textual subkey (e.g. ``"c"`` for
             ``z c`` cycle commits).
         mode_name: For ``custom_mode_key`` — the user-defined mode name.
@@ -150,6 +153,7 @@ class CommandExecutor:
     kind: ExecutorKind
     action: str | None = None
     digit: int | None = None
+    pane_id: str | None = None
     subkey: str | None = None
     mode_name: str | None = None
     command_id: str | None = None
@@ -262,6 +266,9 @@ class CommandContext:
     selected_axe_chop_run_total: int = 0
     selected_axe_chop_enabled: bool = True
     selected_axe_chop_running: bool = False
+    # Committed Artifacts generation for contract/copy-group lookups. ``None``
+    # keeps standalone tests on the process discovery cache.
+    artifacts_snapshot: object | None = None
 
     def __post_init__(
         self,

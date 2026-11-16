@@ -89,6 +89,7 @@ from .artifact_tabs import (
     DEFAULT_ARTIFACTS_RELATIONS_COLLAPSED,
     DEFAULT_ARTIFACTS_SUBTAB,
     DEFAULT_FILES_SUBTAB,
+    ArtifactsDescriptorSnapshot,
     ArtifactsPaneKey,
     ArtifactsSubTab,
     FilesSubTab,
@@ -409,8 +410,16 @@ class AceApp(
         return self._canonical_patch_query(self.query_string, self.parsed_query)
 
     @property
+    def artifacts_descriptor_snapshot(self) -> ArtifactsDescriptorSnapshot:
+        """Return the committed Artifacts generation this app presents."""
+        return self._artifacts_descriptor_snapshot
+
+    @property
     def current_artifacts_pane_key(self) -> ArtifactsPaneKey:
         """Return the visible leaf pane that owns Artifacts state."""
+        snapshot = getattr(self, "_artifacts_descriptor_snapshot", None)
+        if snapshot is not None:
+            return snapshot.pane_key(self.current_artifacts_subtab)
         return artifacts_pane_key(self.current_artifacts_subtab)
 
     def check_action(self, action: str, parameters: tuple[object, ...]) -> bool | None:

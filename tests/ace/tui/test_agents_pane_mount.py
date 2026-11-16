@@ -1,7 +1,7 @@
 """End-to-end mount and lifecycle coverage for the Artifacts Agent pane.
 
-``AcePage``'s default "fast" startup policy patches ``resolve_artifacts_subtabs``
-to a fixed stub (see ``sase.ace.testing._startup._install_fast_startup_overrides``),
+``AcePage``'s default "fast" startup policy pins ``discover_artifacts_snapshot``
+to a fixture (see ``sase.ace.testing._startup._install_fast_startup_overrides``),
 which would silently bypass live pane resolution entirely. This uses
 ``startup_policy="real"`` so the live resolution actually runs, proving the
 pane mounts, activates, loads a real (if empty in this sandboxed environment)

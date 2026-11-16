@@ -17,8 +17,9 @@ if TYPE_CHECKING:
 
 
 def build_artifacts_context(app: Any, subtab: str) -> CopyAsContext | None:
+    snapshot = getattr(app, "artifacts_descriptor_snapshot", None)
     subtab = _canonical_artifact_subtab(subtab)
-    label, item_noun = _artifact_context_labels(subtab)
+    label, item_noun = _artifact_context_labels(subtab, snapshot)
     pane = _artifact_pane(app, subtab)
     if pane is None:
         notify_copy_warning(app, f"No {item_noun.lower()} entry to copy")
@@ -50,7 +51,7 @@ def build_artifacts_context(app: Any, subtab: str) -> CopyAsContext | None:
             return None
 
     count = len(marked_targets) if marked else 1
-    copy_mode_group = _copy_mode_group(subtab)
+    copy_mode_group = _copy_mode_group(subtab, snapshot)
     available, previews = artifact_target_state(
         group=copy_mode_group,
         subtab=subtab,
@@ -64,6 +65,7 @@ def build_artifacts_context(app: Any, subtab: str) -> CopyAsContext | None:
         artifacts_subtab=subtab,  # type: ignore[arg-type]
         artifact_selection_present=True,
         artifact_available_targets=frozenset(available),
+        artifacts_snapshot=snapshot,
     )
     display_name = _artifact_display_name(pane, selected_objects)
     if marked:
@@ -247,10 +249,10 @@ def _artifact_identity(subtab: str, value: Any | None) -> str:
     return str(getattr(value, "label", "") or getattr(value, "path", ""))
 
 
-def _copy_mode_group(subtab: str) -> str:
+def _copy_mode_group(subtab: str, snapshot: Any | None = None) -> str:
     from ...artifact_tabs import copy_keymap_group_for_artifacts_pane
 
-    return copy_keymap_group_for_artifacts_pane(subtab)
+    return copy_keymap_group_for_artifacts_pane(subtab, snapshot=snapshot)
 
 
 def _canonical_artifact_subtab(subtab: str) -> str:
@@ -261,10 +263,15 @@ def _canonical_artifact_subtab(subtab: str) -> str:
     return subtab
 
 
-def _artifact_context_labels(subtab: str) -> tuple[str, str]:
+def _artifact_context_labels(
+    subtab: str, snapshot: Any | None = None
+) -> tuple[str, str]:
     from ...artifact_tabs import artifacts_pane_item_noun, artifacts_pane_label
 
-    return artifacts_pane_label(subtab), artifacts_pane_item_noun(subtab)
+    return (
+        artifacts_pane_label(subtab, snapshot=snapshot),
+        artifacts_pane_item_noun(subtab, snapshot=snapshot),
+    )
 
 
 def _is_document_subtab(subtab: str) -> bool:

@@ -367,10 +367,19 @@ def init_late_startup_state(
         if name not in BUILTIN_MODE_NAMES and mode.prefix
     }
 
+    # Pin one discovery generation for every TUI consumer. Background cache
+    # refreshes must not change bindings, the tab strip, help, or catalogs.
+    from ..artifact_tabs import discover_artifacts_snapshot
+
+    self._artifacts_descriptor_snapshot = discover_artifacts_snapshot()
+
     # Replace instance bindings with registry-driven bindings.
     from textual.binding import BindingsMap
 
-    _app_bindings = build_app_bindings(self._keymap_registry.app)
+    _app_bindings = build_app_bindings(
+        self._keymap_registry.app,
+        snapshot=self._artifacts_descriptor_snapshot,
+    )
     self._bindings = BindingsMap(_app_bindings)
     log.debug(
         "Keymap registry loaded: %d bindings, display=%s",

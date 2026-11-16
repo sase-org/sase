@@ -116,7 +116,14 @@ def test_project_scope_change_clears_every_non_pr_mark_set(
 ) -> None:
     monkeypatch.setattr(
         "sase.ace.tui.actions.artifacts_navigation.artifacts_subtab_order",
-        lambda: ("agents", "stitches", "patches", "beads", "ref:plan", "files"),
+        lambda **_kwargs: (
+            "agents",
+            "stitches",
+            "patches",
+            "beads",
+            "ref:plan",
+            "files",
+        ),
     )
     app = _MarkHarness("ref:plan", ("entry", "plans"))
     app._artifacts_marked_targets = {

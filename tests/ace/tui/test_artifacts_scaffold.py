@@ -486,7 +486,10 @@ async def test_startup_scope_keeps_unresolvable_ref_unchanged(
 async def test_palette_has_direct_jump_for_every_artifacts_subtab() -> None:
     async with AcePage(initial_tab="agents") as page:
         view = page.query_one_widget("#artifacts-view", ArtifactsView)
-        catalog = build_command_catalog(page.app._keymap_registry)
+        catalog = build_command_catalog(
+            page.app._keymap_registry,
+            snapshot=page.app.artifacts_descriptor_snapshot,
+        )
         by_id = {spec.id: spec for spec in catalog}
         descriptors = view.descriptors
         expected = {f"artifacts.{descriptor.id}" for descriptor in descriptors}

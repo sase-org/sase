@@ -40,8 +40,13 @@ def test_help_modal_refresh_for_tab_rebuilds_sections() -> None:
     assert "[01]" in left
     assert "01-9 / 00" in right
     assert "Choose saved Patch query" in right
-    assert "1 / 2 / 3 / 4" in left
-    assert "Jump fixed top-level views" in left
+    jump_keys = " / ".join(
+        descriptor.digit_shortcut
+        for descriptor in artifact_tabs.resolve_artifacts_subtabs()
+        if descriptor.digit_shortcut is not None
+    )
+    assert (jump_keys or "1 / 2 / 3 / 4") in left
+    assert "Jump to numbered artifact views" in left
     assert "Cycle top-level views" in left
     assert "Select first / last entry" in combined
     assert "Scroll right detail down / up" in combined

@@ -336,7 +336,12 @@ class HelpModal(CopyModeForwardingMixin, ModalScreen[None]):
         """Get the keybinding sections for the current tab."""
         km = self._get_km()
         if self._current_tab == "artifacts":
-            return cls_bindings(km)
+            from ...artifact_tabs import artifacts_snapshot_from_widget
+
+            return cls_bindings(
+                km,
+                snapshot=artifacts_snapshot_from_widget(self),
+            )
         elif self._current_tab == "agents":
             return agents_bindings(km)
         else:  # axe

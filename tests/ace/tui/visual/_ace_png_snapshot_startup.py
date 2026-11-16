@@ -85,6 +85,11 @@ def _visual_artifacts_subtabs() -> tuple[Any, ...]:
     return ace_startup._fast_artifacts_subtabs()
 
 
+def _visual_artifacts_snapshot() -> Any:
+    """Return a pinned fixture snapshot for visual TUI pages."""
+    return ace_startup._fast_artifacts_snapshot()
+
+
 def patch_startup_loaders(
     monkeypatch: pytest.MonkeyPatch,
     *,
@@ -120,11 +125,7 @@ def patch_startup_loaders(
     )
     from sase.ace.tui.actions.agents import _loading
     from sase.ace.tui.proc_observer import ProcObserver
-    from sase.ace.tui.commands import catalog as commands_catalog
-    from sase.ace.tui.keymaps import bindings as keymap_bindings
-    from sase.ace.tui.modals.help_modal import (
-        patches_artifact_bindings as help_patches_artifact_bindings,
-    )
+
     from sase.ace.tui.models.agent_groups import GroupingMode
     from sase.ace.tui.models.patch_groups import PatchGroupingMode
     from sase.ace.tui.widgets import (
@@ -132,8 +133,7 @@ def patch_startup_loaders(
         llm_override_indicator,
         notification_tab_style,
     )
-    from sase.ace.tui.widgets.artifacts import types as artifacts_types
-    from sase.ace.tui.widgets.artifacts import view as artifacts_view
+
     from sase.llm_provider import temporary_override
     from sase.llm_provider.model_launch_settings import (
         LaunchModelSettingSnapshot,
@@ -278,17 +278,12 @@ def patch_startup_loaders(
         monkeypatch.setattr(
             _loading, "load_agents_from_disk_with_state", _fake_load_agents
         )
-    for module in (
-        artifact_tabs,
-        artifacts_types,
-        artifacts_view,
-        commands_catalog,
-        help_patches_artifact_bindings,
-        keymap_bindings,
-    ):
-        monkeypatch.setattr(
-            module, "resolve_artifacts_subtabs", _visual_artifacts_subtabs
-        )
+    monkeypatch.setattr(
+        artifact_tabs, "discover_artifacts_snapshot", _visual_artifacts_snapshot
+    )
+    monkeypatch.setattr(
+        artifact_tabs, "resolve_artifacts_subtabs", _visual_artifacts_subtabs
+    )
     monkeypatch.setattr(
         memory_reads_module,
         "_load_memory_reads_for_agent",

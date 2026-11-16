@@ -71,7 +71,7 @@ class TabQuickStart(VerticalScroll):
         self._selector_prefix = selector_prefix
         self._registry: KeymapRegistry = load_keymap_registry({})
         self._no_match_total = 0
-        self._content_cache_key: tuple[int, int] | None = None
+        self._content_cache_key: tuple[int, int, int | None] | None = None
         self._content_cache: dict[str, Text] | None = None
 
     @property
@@ -149,7 +149,11 @@ class TabQuickStart(VerticalScroll):
             return
 
     def _cached_content(self) -> dict[str, Text]:
-        key = (id(self._registry), self._no_match_total)
+        from ..artifact_tabs import artifacts_snapshot_from_widget
+
+        snapshot = artifacts_snapshot_from_widget(self)
+        generation = None if snapshot is None else snapshot.generation
+        key = (id(self._registry), self._no_match_total, generation)
         if self._content_cache_key == key and self._content_cache is not None:
             return self._content_cache
         self._content_cache_key = key
@@ -158,6 +162,7 @@ class TabQuickStart(VerticalScroll):
             tab=self._tab,
             no_match_total=self._no_match_total,
             selector_prefix=self._selector_prefix,
+            snapshot=snapshot,
         )
         return self._content_cache
 
@@ -176,6 +181,7 @@ class TabQuickStart(VerticalScroll):
         tab: TabQuickStartTab | LegacyTabQuickStartTab,
         no_match_total: int = 0,
         selector_prefix: str | None = None,
+        snapshot: Any | None = None,
     ) -> dict[str, Text]:
         """Build all renderable sections for *registry* without mounting."""
         selector_prefix = (
@@ -194,7 +200,9 @@ class TabQuickStart(VerticalScroll):
                 total_patches=no_match_total,
             ),
             f"#{prefix}-quickstart-hero": cls._build_hero(tab),
-            f"#{prefix}-quickstart-card": cls._build_card(registry, tab=tab),
+            f"#{prefix}-quickstart-card": cls._build_card(
+                registry, tab=tab, snapshot=snapshot
+            ),
             f"#{prefix}-quickstart-footer": cls._build_footer(tab),
         }
 
@@ -209,7 +217,13 @@ class TabQuickStart(VerticalScroll):
         return text
 
     @classmethod
-    def _build_card(cls, registry: KeymapRegistry, *, tab: TabQuickStartTab) -> Text:
+    def _build_card(
+        cls,
+        registry: KeymapRegistry,
+        *,
+        tab: TabQuickStartTab,
+        snapshot: Any | None = None,
+    ) -> Text:
         app = registry.app
         query_key = key_display_name(app.edit_query)
         rows: list[tuple[tuple[str, ...], str]] = [
@@ -253,9 +267,16 @@ class TabQuickStart(VerticalScroll):
                 )
             )
         if tab == "artifacts":
-            from ..artifact_tabs import resolve_artifacts_subtabs
+            from ..artifact_tabs import (
+                ArtifactsDescriptorSnapshot,
+                resolve_artifacts_subtabs,
+            )
 
-            descriptors = resolve_artifacts_subtabs()
+            descriptors = (
+                snapshot.descriptors
+                if isinstance(snapshot, ArtifactsDescriptorSnapshot)
+                else resolve_artifacts_subtabs()
+            )
             jump_keys: list[str] = []
             jump_labels: list[str] = []
             for descriptor in descriptors:

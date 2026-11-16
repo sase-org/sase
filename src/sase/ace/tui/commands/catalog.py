@@ -22,7 +22,10 @@ from collections.abc import Iterator
 from typing import TYPE_CHECKING
 
 from sase.ace.tui.actions.refresh_panel import REFRESH_PANEL_COMMAND_LABEL
-from sase.ace.tui.artifact_tabs import resolve_artifacts_subtabs
+from sase.ace.tui.artifact_tabs import (
+    ArtifactsDescriptorSnapshot,
+    resolve_artifacts_subtabs,
+)
 from sase.ace.tui.keymaps.key_validation import is_unbound_key
 from sase.ace.tui.commands._app_metadata import (
     APP_COMMAND_META as _APP_COMMAND_META,
@@ -384,9 +387,14 @@ def _iter_new_project_command() -> Iterator[CommandSpec]:
     )
 
 
-def _iter_artifacts_subtab_commands() -> Iterator[CommandSpec]:
+def _iter_artifacts_subtab_commands(
+    snapshot: ArtifactsDescriptorSnapshot | None = None,
+) -> Iterator[CommandSpec]:
     """Yield numbered direct jumps for every Artifacts sub-tab."""
-    for descriptor in resolve_artifacts_subtabs():
+    descriptors = (
+        snapshot.descriptors if snapshot is not None else resolve_artifacts_subtabs()
+    )
+    for descriptor in descriptors:
         key = descriptor.digit_shortcut
         if key is None:
             continue
@@ -411,8 +419,8 @@ def _iter_artifacts_subtab_commands() -> Iterator[CommandSpec]:
             tabs=CL_ONLY,
             executor=CommandExecutor(
                 kind="app_action",
-                action="show_artifacts_digit",
-                digit=int(key),
+                action="show_artifacts_pane",
+                pane_id=subtab,
             ),
             aliases=aliases,
         )
@@ -609,7 +617,10 @@ def _iter_tool_runs_commands() -> Iterator[CommandSpec]:
     )
 
 
-def build_command_catalog(registry: KeymapRegistry) -> list[CommandSpec]:
+def build_command_catalog(
+    registry: KeymapRegistry,
+    snapshot: ArtifactsDescriptorSnapshot | None = None,
+) -> list[CommandSpec]:
     """Construct the full catalog from a :class:`KeymapRegistry`.
 
     Order is deterministic: app commands (in ``_APP_COMMAND_META``
@@ -625,7 +636,7 @@ def build_command_catalog(registry: KeymapRegistry) -> list[CommandSpec]:
     catalog.extend(_iter_deck_view_commands())
     catalog.extend(iter_saved_query_commands(registry))
     catalog.extend(_iter_agents_archive_commands())
-    catalog.extend(_iter_artifacts_subtab_commands())
+    catalog.extend(_iter_artifacts_subtab_commands(snapshot))
     catalog.extend(_iter_tasks_command())
     catalog.extend(_iter_machines_command())
     catalog.extend(_iter_statistics_command())

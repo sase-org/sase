@@ -97,6 +97,22 @@ def _fast_artifacts_subtabs() -> tuple[Any, ...]:
     return build_artifacts_strip((_plan_test_descriptor(),))
 
 
+def _fast_artifacts_snapshot() -> Any:
+    """Return a pinned fixture snapshot for fast TUI tests."""
+    from sase.ace.tui.artifact_tabs import (
+        ArtifactsDiscoveryStatus,
+        snapshot_from_descriptors,
+    )
+
+    return snapshot_from_descriptors(
+        _fast_artifacts_subtabs(),
+        status=ArtifactsDiscoveryStatus.COMPLETED,
+        source_token=("fast-startup",),
+        source_epoch=0,
+        generation=1,
+    )
+
+
 def _noop_startup_service(*_args: Any, **_kwargs: Any) -> None:
     """Stand in for a background service suppressed by fast pilot startup."""
 
@@ -267,21 +283,17 @@ def _patch_method_if_unchanged(
 def _install_fast_startup_overrides(stack: AsyncExitStack) -> None:
     """Install the scoped nonessential-service overrides used by AcePage."""
     from sase.ace.tui import artifact_tabs as _artifact_tabs
-    from sase.ace.tui.commands import catalog as _commands_catalog
-    from sase.ace.tui.keymaps import bindings as _keymap_bindings
-    from sase.ace.tui.widgets.artifacts import types as _artifacts_types
-    from sase.ace.tui.widgets.artifacts import view as _artifacts_view
 
-    for module in (
-        _artifact_tabs,
-        _artifacts_types,
-        _artifacts_view,
-        _commands_catalog,
-        _keymap_bindings,
-    ):
-        stack.enter_context(
-            patch.object(module, "resolve_artifacts_subtabs", _fast_artifacts_subtabs)
+    stack.enter_context(
+        patch.object(
+            _artifact_tabs, "discover_artifacts_snapshot", _fast_artifacts_snapshot
         )
+    )
+    stack.enter_context(
+        patch.object(
+            _artifact_tabs, "resolve_artifacts_subtabs", _fast_artifacts_subtabs
+        )
+    )
 
     _patch_method_if_unchanged(
         stack,

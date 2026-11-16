@@ -131,7 +131,10 @@ def context_from_registry(
 
     catalog = {
         spec.id: spec
-        for spec in build_command_catalog(app._keymap_registry)
+        for spec in build_command_catalog(
+            app._keymap_registry,
+            snapshot=getattr(app, "artifacts_descriptor_snapshot", None),
+        )
         if spec.executor.kind == "copy_mode_key"
     }
     dispatch_winners = _dispatch_winners(group, keys)

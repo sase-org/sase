@@ -564,6 +564,7 @@ def extract_command_context(app: AceApp) -> CommandContext:  # type: ignore[no-u
         selected_axe_chop_run_total=chop_run_total,
         selected_axe_chop_enabled=chop_enabled,
         selected_axe_chop_running=chop_running,
+        artifacts_snapshot=getattr(app, "artifacts_descriptor_snapshot", None),
     )
 
 

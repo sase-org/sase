@@ -116,6 +116,7 @@ class AppLayoutMixin:
         with Horizontal(id="main-container"):
             yield ArtifactsView(
                 commits_default_filter=self._commits_default_filter,
+                snapshot=getattr(self, "artifacts_descriptor_snapshot", None),
                 id="artifacts-view",
                 classes=cs_classes,
             )

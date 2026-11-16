@@ -632,9 +632,15 @@ class KeybindingModesMixin:
         if tab == "artifacts" and artifacts_pane_key in {"stitches", "beads", "files"}:
             key_group = f"artifacts_{artifacts_pane_key}"
         elif tab == "artifacts" and artifacts_pane_key not in {None, "patches"}:
-            from sase.ace.tui.artifact_tabs import copy_keymap_group_for_artifacts_pane
+            from sase.ace.tui.artifact_tabs import (
+                artifacts_snapshot_from_widget,
+                copy_keymap_group_for_artifacts_pane,
+            )
 
-            key_group = copy_keymap_group_for_artifacts_pane(str(artifacts_pane_key))
+            key_group = copy_keymap_group_for_artifacts_pane(
+                str(artifacts_pane_key),
+                snapshot=artifacts_snapshot_from_widget(self),
+            )
         elif tab == "services":
             # The copy-mode keymap group is still named ``axe`` in the
             # user-editable keymap config; ``services`` is only the tab id.

@@ -2,7 +2,10 @@
 
 from textual.binding import Binding
 
-from sase.ace.tui.artifact_tabs import resolve_artifacts_subtabs
+from sase.ace.tui.artifact_tabs import (
+    ArtifactsDescriptorSnapshot,
+    resolve_artifacts_subtabs,
+)
 from sase.ace.tui.keymaps.display import key_display_name
 from sase.ace.tui.keymaps.app_keymaps import (
     AppKeymaps,
@@ -36,9 +39,14 @@ from sase.ace.tui.keymaps.metadata import (
 _GATE_NUMBERED_BRANCH_KEYS = tuple(str(index) for index in range(1, 10))
 
 
-def _artifact_subtab_bindings() -> list[Binding]:
+def _artifact_subtab_bindings(
+    snapshot: ArtifactsDescriptorSnapshot | None = None,
+) -> list[Binding]:
     """Return non-configurable numbered Artifacts sub-tab bindings."""
 
+    descriptors = (
+        snapshot.descriptors if snapshot is not None else resolve_artifacts_subtabs()
+    )
     return [
         Binding(
             descriptor.digit_shortcut,
@@ -46,12 +54,15 @@ def _artifact_subtab_bindings() -> list[Binding]:
             f"Show {descriptor.label}",
             show=False,
         )
-        for descriptor in resolve_artifacts_subtabs()
+        for descriptor in descriptors
         if descriptor.digit_shortcut is not None
     ]
 
 
-def build_app_bindings(app_km: AppKeymaps) -> list[Binding]:
+def build_app_bindings(
+    app_km: AppKeymaps,
+    snapshot: ArtifactsDescriptorSnapshot | None = None,
+) -> list[Binding]:
     """Generate the Textual ``Binding`` list from an ``AppKeymaps`` instance.
 
     Preserves the original binding order, descriptions, and priority flags and
@@ -63,7 +74,7 @@ def build_app_bindings(app_km: AppKeymaps) -> list[Binding]:
         if is_unbound_key(key):
             continue
         bindings.append(Binding(key, action, desc, show=False, priority=priority))
-    bindings.extend(_artifact_subtab_bindings())
+    bindings.extend(_artifact_subtab_bindings(snapshot))
     return bindings
 
 

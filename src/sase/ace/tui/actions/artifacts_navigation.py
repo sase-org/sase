@@ -23,15 +23,15 @@ from ..widgets.artifacts import (
 )
 
 
-def _is_unconfigured_ref_pane(pane_id: str) -> bool:
+def _is_unconfigured_ref_pane(app: Any, pane_id: str) -> bool:
     """Return whether *pane_id* is a ``ref:<kind>`` pane with no provider."""
 
     try:
-        from ..artifact_tabs import is_unconfigured_ref_pane
+        from ..artifact_tabs import artifacts_snapshot_of, is_unconfigured_ref_pane
     except Exception:  # noqa: BLE001 - fail open to the old path
         return False
     try:
-        return is_unconfigured_ref_pane(pane_id)
+        return is_unconfigured_ref_pane(pane_id, snapshot=artifacts_snapshot_of(app))
     except Exception:  # noqa: BLE001 - discovery errors are not unconfigured
         return False
 
@@ -63,11 +63,17 @@ class ArtifactsNavigationActionsMixin:
     _artifacts_jump_history: dict[ArtifactsPaneKey, ArtifactEntryTarget]
     _artifacts_marked_targets: dict[ArtifactsPaneKey, set[ArtifactEntryTarget]]
 
+    def _artifacts_snapshot(self) -> Any:
+        return getattr(self, "artifacts_descriptor_snapshot", None)
+
     @property
     def current_artifacts_pane_key(self) -> ArtifactsPaneKey:
         """Resolve the visible leaf for lightweight mixin test harnesses."""
 
-        return artifacts_pane_key(cast(ArtifactsSubTab, self.current_artifacts_subtab))
+        return artifacts_pane_key(
+            cast(ArtifactsSubTab, self.current_artifacts_subtab),
+            snapshot=self._artifacts_snapshot(),
+        )
 
     @property
     def active_artifacts_contract(self) -> Any | None:
@@ -80,7 +86,9 @@ class ArtifactsNavigationActionsMixin:
                 return contract
         from ..artifact_tabs import ArtifactsPaneContract, artifacts_pane_contract
 
-        return artifacts_pane_contract(self.current_artifacts_pane_key)
+        return artifacts_pane_contract(
+            self.current_artifacts_pane_key, snapshot=self._artifacts_snapshot()
+        )
 
     def _artifacts_view(self) -> ArtifactsView | None:
         try:
@@ -137,7 +145,9 @@ class ArtifactsNavigationActionsMixin:
         target_pane = pane_key or self.current_artifacts_pane_key
         if isinstance(target_pane, str) and _is_disabled_artifacts_pane(target_pane):
             return None
-        if isinstance(target_pane, str) and _is_unconfigured_ref_pane(target_pane):
+        if isinstance(target_pane, str) and _is_unconfigured_ref_pane(
+            self, target_pane
+        ):
             return None
         view = self._artifacts_view()
         if view is None:
@@ -165,7 +175,7 @@ class ArtifactsNavigationActionsMixin:
         pane_key = target.pane_id
         if _is_disabled_artifacts_pane(pane_key):
             return LinkRequestState.MISSING
-        if _is_unconfigured_ref_pane(pane_key):
+        if _is_unconfigured_ref_pane(self, pane_key):
             return LinkRequestState.MISSING
         self._switch_artifacts_subtab(cast(ArtifactsSubTab, pane_key))
         pane = self._artifacts_entry_navigator(pane_key)
@@ -222,7 +232,7 @@ class ArtifactsNavigationActionsMixin:
 
     def _clear_all_artifacts_marks(self) -> None:
         """Drop every pane's marks after the shared project scope changes."""
-        for pane_key in artifacts_subtab_order():
+        for pane_key in artifacts_subtab_order(snapshot=self._artifacts_snapshot()):
             if pane_key == "patches":
                 continue
             self._clear_artifacts_marks_for_pane(pane_key)
@@ -405,14 +415,21 @@ class ArtifactsNavigationActionsMixin:
             switch_to_artifacts_subtab,
         )
 
-        switch_to_artifacts_subtab(self, normalize_artifacts_subtab(subtab))
+        snapshot = self._artifacts_snapshot()
+        switch_to_artifacts_subtab(
+            self,
+            normalize_artifacts_subtab(subtab, snapshot=snapshot),
+            snapshot=snapshot,
+        )
 
     def _cycle_artifacts_subtab(self, step: int) -> None:
         if self.current_tab != ARTIFACTS_TAB:
             return
-        order = artifacts_subtab_order()
+        snapshot = self._artifacts_snapshot()
+        order = artifacts_subtab_order(snapshot=snapshot)
         current = normalize_artifacts_subtab(
-            cast(ArtifactsSubTab, self.current_artifacts_subtab)
+            cast(ArtifactsSubTab, self.current_artifacts_subtab),
+            snapshot=snapshot,
         )
         index = order.index(current)
         self.current_artifacts_subtab = order[(index + step) % len(order)]
@@ -474,19 +491,46 @@ class ArtifactsNavigationActionsMixin:
     def action_show_artifacts_digit(self, digit: int) -> None:
         """Switch to the descriptor carrying *digit* as its shortcut."""
 
-        view = self._artifacts_view()
-        if view is None:
-            return
-        selected = next(
-            (
-                descriptor
-                for descriptor in view.descriptors
-                if descriptor.digit_shortcut == str(digit)
-            ),
-            None,
-        )
+        snapshot = self._artifacts_snapshot()
+        if snapshot is not None:
+            selected = snapshot.lookup_digit(digit)
+        else:
+            view = self._artifacts_view()
+            if view is None:
+                return
+            selected = next(
+                (
+                    descriptor
+                    for descriptor in view.descriptors
+                    if descriptor.digit_shortcut == str(digit)
+                ),
+                None,
+            )
         if selected is not None:
             self._switch_artifacts_subtab(selected.id)
+
+    def action_show_artifacts_pane(self, pane_id: str) -> None:
+        """Switch to the stable Artifacts pane id, or report it unavailable."""
+
+        snapshot = self._artifacts_snapshot()
+        if snapshot is None:
+            view = self._artifacts_view()
+            descriptors = () if view is None else view.descriptors
+            selected = next(
+                (descriptor for descriptor in descriptors if descriptor.id == pane_id),
+                None,
+            )
+        else:
+            selected = snapshot.lookup(pane_id)
+        if selected is None:
+            label = pane_id
+            if snapshot is not None:
+                label = snapshot.label(pane_id)
+            notify = getattr(self, "notify", None)
+            if callable(notify):
+                notify(f"Artifacts pane {label} is unavailable", severity="warning")
+            return
+        self._switch_artifacts_subtab(selected.id)
 
     def action_show_artifacts_patches(self) -> None:
         self._switch_artifacts_subtab("patches")

@@ -7,7 +7,10 @@ from typing import TYPE_CHECKING
 from sase.ace.tui.commands.types import CommandContext, CommandSpec
 
 if TYPE_CHECKING:
-    from sase.ace.tui.artifact_tabs import PaneCapability
+    from sase.ace.tui.artifact_tabs import (
+        ArtifactsDescriptorSnapshot,
+        PaneCapability,
+    )
 
 
 # Statuses used by footer for editable PR gating.
@@ -163,15 +166,26 @@ def _get_base_status(status: str) -> str:
     return get_base_status(status)
 
 
-def _artifacts_copy_group(subtab: str) -> str:
+def _ctx_snapshot(ctx: CommandContext) -> ArtifactsDescriptorSnapshot | None:
+    from sase.ace.tui.artifact_tabs import ArtifactsDescriptorSnapshot
+
+    snapshot = getattr(ctx, "artifacts_snapshot", None)
+    return snapshot if isinstance(snapshot, ArtifactsDescriptorSnapshot) else None
+
+
+def _artifacts_copy_group(
+    subtab: str,
+    snapshot: ArtifactsDescriptorSnapshot | None = None,
+) -> str:
     from sase.ace.tui.artifact_tabs import copy_group_for_artifacts_pane
 
-    return copy_group_for_artifacts_pane(subtab)
+    return copy_group_for_artifacts_pane(subtab, snapshot=snapshot)
 
 
 def _artifacts_subtab_has_capability(
     subtab: str,
     capability: PaneCapability,
+    snapshot: ArtifactsDescriptorSnapshot | None = None,
 ) -> bool:
     from sase.ace.tui.artifact_tabs import (
         LEGACY_ARTIFACTS_SUBTABS,
@@ -179,14 +193,15 @@ def _artifacts_subtab_has_capability(
     )
 
     pane_id = LEGACY_ARTIFACTS_SUBTABS.get(subtab, subtab)
-    contract = artifacts_pane_contract(pane_id)
+    contract = artifacts_pane_contract(pane_id, snapshot=snapshot)
     return contract is not None and contract.has(capability)
 
 
 def artifacts_available(spec: CommandSpec, ctx: CommandContext) -> bool:
     """Return whether an Artifacts-tab command is runnable."""
+    snapshot = _ctx_snapshot(ctx)
     if spec.id.startswith("copy.artifacts_"):
-        copy_group = _artifacts_copy_group(ctx.artifacts_subtab)
+        copy_group = _artifacts_copy_group(ctx.artifacts_subtab, snapshot)
         if not spec.id.startswith(f"copy.{copy_group}."):
             return False
         if ctx.artifact_selection_present is False:
@@ -200,6 +215,7 @@ def artifacts_available(spec: CommandSpec, ctx: CommandContext) -> bool:
         return _artifacts_subtab_has_capability(
             ctx.artifacts_subtab,
             PaneCapability.SAVED_QUERIES,
+            snapshot,
         )
     if spec.id == "app.edit_query":
         from sase.ace.tui.artifact_tabs import (
@@ -209,12 +225,12 @@ def artifacts_available(spec: CommandSpec, ctx: CommandContext) -> bool:
 
         if ctx.artifacts_subtab in {"patches", "stitches", "beads", "files"}:
             return True
-        contract = artifacts_pane_contract(ctx.artifacts_subtab)
+        contract = artifacts_pane_contract(ctx.artifacts_subtab, snapshot=snapshot)
         if contract is not None:
             return contract.has(PaneCapability.FILTER_SESSION)
         from sase.ace.tui.artifact_tabs import is_document_artifacts_pane
 
-        return is_document_artifacts_pane(ctx.artifacts_subtab)
+        return is_document_artifacts_pane(ctx.artifacts_subtab, snapshot=snapshot)
     if spec.id in {
         "app.cycle_grouping_mode",
         "app.cycle_grouping_mode_reverse",
@@ -224,7 +240,7 @@ def artifacts_available(spec: CommandSpec, ctx: CommandContext) -> bool:
             artifacts_pane_contract,
         )
 
-        contract = artifacts_pane_contract(ctx.artifacts_subtab)
+        contract = artifacts_pane_contract(ctx.artifacts_subtab, snapshot=snapshot)
         return contract is not None and contract.has(PaneCapability.GROUPING)
     if spec.id == "app.patches_filters":
         return ctx.artifacts_subtab == "patches"
@@ -238,11 +254,11 @@ def artifacts_available(spec: CommandSpec, ctx: CommandContext) -> bool:
             artifacts_pane_contract,
         )
 
-        contract = artifacts_pane_contract(ctx.artifacts_subtab)
+        contract = artifacts_pane_contract(ctx.artifacts_subtab, snapshot=snapshot)
         if contract is None:
             from sase.ace.tui.artifact_tabs import is_document_artifacts_pane
 
-            if not is_document_artifacts_pane(ctx.artifacts_subtab):
+            if not is_document_artifacts_pane(ctx.artifacts_subtab, snapshot=snapshot):
                 return False
             if spec.id in {
                 "app.plans_approve",

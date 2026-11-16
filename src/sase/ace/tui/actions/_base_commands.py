@@ -34,7 +34,10 @@ class BaseCommandActionsMixin(BaseActionsHost):
 
         registry = self._keymap_registry  # type: ignore[attr-defined]
         ctx = extract_command_context(self)  # type: ignore[arg-type]
-        catalog = build_command_catalog(registry)
+        catalog = build_command_catalog(
+            registry,
+            snapshot=getattr(self, "artifacts_descriptor_snapshot", None),
+        )
         applicable = [s for s in catalog if is_command_available(s, ctx)]
         catalog_by_id = {s.id: s for s in catalog}
 

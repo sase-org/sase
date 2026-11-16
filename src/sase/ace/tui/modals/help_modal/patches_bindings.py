@@ -20,15 +20,23 @@ from .patches_artifact_bindings import artifact_sections
 from .patches_copy_bindings import copy_mode_sections
 
 
-def cls_bindings(km: KeymapRegistry) -> Sections:
+def cls_bindings(
+    km: KeymapRegistry,
+    snapshot: object | None = None,
+) -> Sections:
     """Build keybinding sections for the Patches pane."""
+    from ...artifact_tabs import ArtifactsDescriptorSnapshot
+
     d = key_display_name
     a = km.app
     fm = km.fold_mode
     lm = km.leader_mode
     bm = km.bang_mode
+    artifacts_snapshot = (
+        snapshot if isinstance(snapshot, ArtifactsDescriptorSnapshot) else None
+    )
     sections: Sections = [
-        *artifact_sections(km),
+        *artifact_sections(km, artifacts_snapshot),
         (
             "PR Navigation",
             [

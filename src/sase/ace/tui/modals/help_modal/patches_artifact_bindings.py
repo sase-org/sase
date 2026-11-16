@@ -1,7 +1,13 @@
 """Artifact-pane keybinding sections for the Patches help tab."""
 
+from typing import Any
+
 from ..._artifact_tab_actions import action_applies_to_contract
-from ...artifact_tabs import PaneCapability, resolve_artifacts_subtabs
+from ...artifact_tabs import (
+    ArtifactsDescriptorSnapshot,
+    PaneCapability,
+    resolve_artifacts_subtabs,
+)
 from ...keymaps import KeymapRegistry, key_display_name
 from sase.core.artifact_relation_layout import (
     RelationRole,
@@ -10,13 +16,23 @@ from sase.core.artifact_relation_layout import (
 from .binding_common import Sections
 
 
-def artifact_sections(km: KeymapRegistry) -> Sections:
+def _artifacts_descriptors(
+    snapshot: ArtifactsDescriptorSnapshot | None,
+) -> tuple[Any, ...]:
+    if snapshot is not None:
+        return snapshot.descriptors
+    return resolve_artifacts_subtabs()
+
+
+def artifact_sections(
+    km: KeymapRegistry,
+    snapshot: ArtifactsDescriptorSnapshot | None = None,
+) -> Sections:
     """Build artifact-pane help sections."""
     d = key_display_name
     a = km.app
-    contracts = {
-        descriptor.id: descriptor.contract for descriptor in resolve_artifacts_subtabs()
-    }
+    descriptors = _artifacts_descriptors(snapshot)
+    contracts = {descriptor.id: descriptor.contract for descriptor in descriptors}
     artifact_list_navigation = [
         (
             f"{d(a.toggle_mark)} / {d(a.clear_marks)}",
@@ -46,13 +62,18 @@ def artifact_sections(km: KeymapRegistry) -> Sections:
     )
     artifact_list_navigation.append(("⊘ / ↻", "Panel: dangling / needs reveal"))
 
+    jump_keys = " / ".join(
+        descriptor.digit_shortcut
+        for descriptor in descriptors
+        if descriptor.digit_shortcut is not None
+    )
     return [
         (
             "Artifact Views",
             [
                 (
-                    "1 / 2 / 3 / 4",
-                    "Jump fixed top-level views",
+                    jump_keys or "1 / 2 / 3 / 4",
+                    "Jump to numbered artifact views",
                 ),
                 (
                     f"{d(a.cycle_artifacts_subtab_reverse)} / {d(a.cycle_artifacts_subtab)}",
@@ -187,7 +208,7 @@ def artifact_sections(km: KeymapRegistry) -> Sections:
                 *artifact_list_navigation,
             ],
         ),
-        *_document_contract_sections(km, artifact_list_navigation),
+        *_document_contract_sections(km, artifact_list_navigation, snapshot),
         *(
             (
                 (
@@ -262,13 +283,14 @@ def artifact_sections(km: KeymapRegistry) -> Sections:
 def _document_contract_sections(
     km: KeymapRegistry,
     artifact_list_navigation: list[tuple[str, str]],
+    snapshot: ArtifactsDescriptorSnapshot | None = None,
 ) -> Sections:
     """Build one help section per compiled document-provider contract."""
 
     d = key_display_name
     a = km.app
     sections: Sections = []
-    for descriptor in resolve_artifacts_subtabs():
+    for descriptor in _artifacts_descriptors(snapshot):
         contract = descriptor.contract
         if contract is None or not contract.is_document_provider():
             continue

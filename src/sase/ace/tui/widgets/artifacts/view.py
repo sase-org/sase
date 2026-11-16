@@ -51,6 +51,7 @@ from .types import (
     normalize_artifacts_subtab,
     resolve_artifacts_subtabs,
 )
+from ...artifact_tabs import ArtifactsDescriptorSnapshot
 from sase.vcs_log.filter_query import CommitLogFilterValues
 
 if TYPE_CHECKING:
@@ -73,14 +74,20 @@ class ArtifactsView(Vertical):
         self,
         *,
         commits_default_filter: CommitLogFilterValues | None = None,
+        snapshot: ArtifactsDescriptorSnapshot | None = None,
         **kwargs: Any,
     ) -> None:
         super().__init__(**kwargs)
-        self._descriptors = resolve_artifacts_subtabs()
+        self._snapshot = snapshot
+        self._descriptors = (
+            snapshot.descriptors
+            if snapshot is not None
+            else resolve_artifacts_subtabs()
+        )
         self._descriptor_by_id = {
             descriptor.id: descriptor for descriptor in self._descriptors
         }
-        self._current_subtab: ArtifactsSubTab = normalize_artifacts_subtab(
+        self._current_subtab: ArtifactsSubTab = self._normalize(
             DEFAULT_ARTIFACTS_SUBTAB
         )
         self._split_mode: ArtifactsSplitMode = DEFAULT_ARTIFACTS_SPLIT_MODE
@@ -123,6 +130,9 @@ class ArtifactsView(Vertical):
     @property
     def current_subtab(self) -> ArtifactsSubTab:
         return self._current_subtab
+
+    def _normalize(self, value: str) -> ArtifactsSubTab:
+        return normalize_artifacts_subtab(value, snapshot=self._snapshot)
 
     @property
     def descriptors(self) -> tuple[ArtifactsTabDescriptor, ...]:
@@ -287,9 +297,11 @@ class ArtifactsView(Vertical):
             )
 
     def _pane_id(self, subtab: ArtifactsSubTab) -> str:
-        descriptor = self._descriptor_by_id.get(normalize_artifacts_subtab(subtab))
+        descriptor = self._descriptor_by_id.get(self._normalize(subtab))
         if descriptor is None:
-            descriptor = descriptor_for_artifacts_subtab(DEFAULT_ARTIFACTS_SUBTAB)
+            descriptor = descriptor_for_artifacts_subtab(
+                DEFAULT_ARTIFACTS_SUBTAB, snapshot=self._snapshot
+            )
         if descriptor is None:
             raise ValueError(f"Unknown Artifacts pane: {subtab!r}")
         return descriptor.pane_id
@@ -301,13 +313,13 @@ class ArtifactsView(Vertical):
     def entry_navigator(self, pane_key: ArtifactsPaneKey) -> ArtifactEntryNavigator:
         """Return the stable-target navigator for any Artifacts pane."""
 
-        normalized = normalize_artifacts_subtab(pane_key)
+        normalized = self._normalize(pane_key)
         return cast(ArtifactEntryNavigator, self._pane(normalized))
 
     def detail_scroll(self, pane_key: ArtifactsPaneKey) -> VerticalScroll:
         """Return the right-hand detail viewport for a non-PR pane."""
 
-        normalized = normalize_artifacts_subtab(pane_key)
+        normalized = self._normalize(pane_key)
         pane = cast(Any, self._pane(normalized))
         descriptor = self._descriptor_by_id.get(normalized)
         contract = None if descriptor is None else descriptor.contract
@@ -321,7 +333,7 @@ class ArtifactsView(Vertical):
     def switch_to(self, subtab: ArtifactsSubTab) -> None:
         """Switch visible content and route active-pane lifecycle hooks."""
 
-        subtab = normalize_artifacts_subtab(subtab)
+        subtab = self._normalize(subtab)
         old_subtab = self._current_subtab
         if old_subtab == subtab:
             return
@@ -456,7 +468,7 @@ class ArtifactsView(Vertical):
         if event.tab_id not in self._descriptor_by_id:
             return
         event.stop()
-        cast("AceApp", self.app).current_artifacts_subtab = normalize_artifacts_subtab(
+        cast("AceApp", self.app).current_artifacts_subtab = self._normalize(
             event.tab_id
         )
 

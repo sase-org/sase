@@ -80,6 +80,7 @@ NON_PRS_ARTIFACT_ACTIONS: frozenset[str] = frozenset(
         "toggle_relation_panel",
         *{f"show_artifacts_{subtab}" for subtab in FIXED_ARTIFACTS_SUBTAB_ORDER},
         "show_artifacts_digit",
+        "show_artifacts_pane",
         "show_artifacts_bugs",
         "show_artifacts_prs",
         "pick_artifacts_project",

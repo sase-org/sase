@@ -27,28 +27,33 @@ from ._representations import (
 )
 
 
-def _copy_group_for_artifacts_subtab(subtab: str) -> str:
-    from ...artifact_tabs import copy_keymap_group_for_artifacts_pane
+def _copy_group_for_artifacts_subtab(app: Any, subtab: str) -> str:
+    from ...artifact_tabs import (
+        artifacts_snapshot_of,
+        copy_keymap_group_for_artifacts_pane,
+    )
 
-    return copy_keymap_group_for_artifacts_pane(subtab)
-
-
-def _copy_label_for_artifacts_subtab(subtab: str) -> str:
-    from ...artifact_tabs import artifacts_pane_label
-
-    return artifacts_pane_label(subtab)
-
-
-def _copy_item_noun_for_artifacts_subtab(subtab: str) -> str:
-    from ...artifact_tabs import artifacts_pane_item_noun
-
-    return artifacts_pane_item_noun(subtab)
+    return copy_keymap_group_for_artifacts_pane(
+        subtab, snapshot=artifacts_snapshot_of(app)
+    )
 
 
-def _document_copy_handlers_enabled(subtab: str) -> bool:
-    from ...artifact_tabs import is_document_artifacts_pane
+def _copy_label_for_artifacts_subtab(app: Any, subtab: str) -> str:
+    from ...artifact_tabs import artifacts_pane_label, artifacts_snapshot_of
 
-    return is_document_artifacts_pane(subtab)
+    return artifacts_pane_label(subtab, snapshot=artifacts_snapshot_of(app))
+
+
+def _copy_item_noun_for_artifacts_subtab(app: Any, subtab: str) -> str:
+    from ...artifact_tabs import artifacts_pane_item_noun, artifacts_snapshot_of
+
+    return artifacts_pane_item_noun(subtab, snapshot=artifacts_snapshot_of(app))
+
+
+def _document_copy_handlers_enabled(app: Any, subtab: str) -> bool:
+    from ...artifact_tabs import artifacts_snapshot_of, is_document_artifacts_pane
+
+    return is_document_artifacts_pane(subtab, snapshot=artifacts_snapshot_of(app))
 
 
 def _project_tag_or_vcs_prefix(display_name: str, workflow_type: str) -> str:
@@ -130,7 +135,7 @@ class ClipboardArtifactsMixin(
 
     def _handle_artifacts_copy_key(self, key: str) -> bool:
         subtab = self.current_artifacts_pane_key
-        group_name = _copy_group_for_artifacts_subtab(str(subtab))
+        group_name = _copy_group_for_artifacts_subtab(self, str(subtab))
         subtab_keys = self._keymap_registry.copy_mode.keys.get(group_name, {})
         assert isinstance(subtab_keys, dict)
 
@@ -162,7 +167,7 @@ class ClipboardArtifactsMixin(
                 ),
                 str(subtab_keys["plan"]): lambda: self._copy_commit_target("plan"),
             }
-        elif _document_copy_handlers_enabled(str(subtab)):
+        elif _document_copy_handlers_enabled(self, str(subtab)):
             handlers = _document_copy_handlers(self, subtab_keys, str(subtab))
         elif subtab == "beads":
             handlers = {
@@ -197,7 +202,7 @@ class ClipboardArtifactsMixin(
                 if isinstance(value, str)
             )
             self.notify(  # type: ignore[attr-defined]
-                f"Unknown copy key ({_copy_label_for_artifacts_subtab(str(subtab))}: "
+                f"Unknown copy key ({_copy_label_for_artifacts_subtab(self, str(subtab))}: "
                 f"{key_list})",
                 severity="warning",
             )
@@ -238,7 +243,7 @@ class ClipboardArtifactsMixin(
                     if resolved.failures
                     else (
                         "No "
-                        f"{_copy_item_noun_for_artifacts_subtab(selection.subtab).lower()} "
+                        f"{_copy_item_noun_for_artifacts_subtab(self, selection.subtab).lower()} "
                         "entries have a reference"
                     )
                 )

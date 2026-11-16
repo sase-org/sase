@@ -8,6 +8,8 @@ from ...artifact_tabs import (
     FIXED_ARTIFACTS_SUBTAB_ORDER,
     FILES_PANE_IDS,
     FILES_SUBTAB_ORDER,
+    ArtifactsDescriptorSnapshot,
+    ArtifactsDiscoveryStatus,
     ArtifactsPaneContract,
     ArtifactsPaneKey,
     ArtifactsTabDescriptor,
@@ -28,6 +30,7 @@ from ...artifact_tabs import (
     normalize_artifacts_subtab,
     reset_artifacts_subtabs_cache,
     resolve_artifacts_subtabs,
+    snapshot_from_descriptors,
 )
 
 __all__ = [
@@ -38,6 +41,8 @@ __all__ = [
     "FIXED_ARTIFACTS_SUBTAB_ORDER",
     "FILES_PANE_IDS",
     "FILES_SUBTAB_ORDER",
+    "ArtifactsDescriptorSnapshot",
+    "ArtifactsDiscoveryStatus",
     "ArtifactsPaneContract",
     "ArtifactsPaneKey",
     "ArtifactsSubTab",
@@ -58,4 +63,5 @@ __all__ = [
     "normalize_artifacts_subtab",
     "reset_artifacts_subtabs_cache",
     "resolve_artifacts_subtabs",
+    "snapshot_from_descriptors",
 ]

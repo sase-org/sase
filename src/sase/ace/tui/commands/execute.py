@@ -56,7 +56,9 @@ def execute_command(app: AceApp, spec: CommandSpec) -> None:  # type: ignore[no-
                 severity="error",
             )
             return
-        if executor.digit is None:
+        if executor.pane_id is not None:
+            method(executor.pane_id)
+        elif executor.digit is None:
             method()
         else:
             method(executor.digit)

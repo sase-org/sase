@@ -57,6 +57,15 @@ from ._artifact_tab_model import (
     artifacts_files_pane_enabled,
     provider_item_noun,
 )
+from ._artifact_tab_snapshot import (
+    ArtifactsDescriptorSnapshot,
+    ArtifactsDiscoveryStatus,
+    artifacts_snapshot_from_widget,
+    artifacts_snapshot_of,
+    bootstrap_artifacts_snapshot,
+    discover_artifacts_snapshot,
+    snapshot_from_descriptors,
+)
 
 log = logging.getLogger(__name__)
 
@@ -70,6 +79,12 @@ ARTIFACTS_TAB_REFRESH_THREAD_NAME = "sase-artifacts-tab-refresh"
 _PROVIDER_ROOTS_CACHE: dict[
     tuple[str, str | None], tuple[DocumentProviderProjectRoot, ...]
 ] = {}
+
+
+def artifacts_tab_cache_epoch() -> int:
+    """Return the process discovery-cache epoch used to validate snapshots."""
+
+    return _ARTIFACTS_TAB_CACHE_EPOCH
 
 
 def reset_artifacts_subtabs_cache() -> None:
@@ -189,13 +204,20 @@ def _refresh_artifacts_subtabs(
             _ARTIFACTS_TAB_REFRESH_TOKEN = None
 
 
-def artifacts_subtab_order() -> tuple[ArtifactsSubTab, ...]:
+def artifacts_subtab_order(
+    snapshot: ArtifactsDescriptorSnapshot | None = None,
+) -> tuple[ArtifactsSubTab, ...]:
+    if snapshot is not None:
+        return snapshot.ordered_ids
     return tuple(descriptor.id for descriptor in resolve_artifacts_subtabs())
 
 
 def descriptor_for_artifacts_subtab(
     subtab: str,
+    snapshot: ArtifactsDescriptorSnapshot | None = None,
 ) -> ArtifactsTabDescriptor | None:
+    if snapshot is not None:
+        return snapshot.descriptor_for_subtab(subtab)
     normalized = normalize_artifacts_subtab(subtab)
     return next(
         (
@@ -207,13 +229,18 @@ def descriptor_for_artifacts_subtab(
     )
 
 
-def descriptor_for_artifacts_pane_id(pane_id: str) -> ArtifactsTabDescriptor | None:
+def descriptor_for_artifacts_pane_id(
+    pane_id: str,
+    snapshot: ArtifactsDescriptorSnapshot | None = None,
+) -> ArtifactsTabDescriptor | None:
     """Return the descriptor whose id matches *pane_id* exactly.
 
     Unlike :func:`descriptor_for_artifacts_subtab`, this does not normalize
     an unknown id to Commits.
     """
 
+    if snapshot is not None:
+        return snapshot.lookup(pane_id)
     return next(
         (
             descriptor
@@ -224,21 +251,31 @@ def descriptor_for_artifacts_pane_id(pane_id: str) -> ArtifactsTabDescriptor | N
     )
 
 
-def is_unconfigured_ref_pane(pane_id: str) -> bool:
+def is_unconfigured_ref_pane(
+    pane_id: str,
+    snapshot: ArtifactsDescriptorSnapshot | None = None,
+) -> bool:
     """Return whether *pane_id* names a ``ref:<kind>`` pane with no provider.
 
     Fixed panes (Commits, Beads, ...) never count: only a document pane whose
     exact descriptor is missing does.
     """
 
+    if snapshot is not None:
+        return snapshot.is_unconfigured_ref_pane(pane_id)
     return (
         pane_id.startswith("ref:") and descriptor_for_artifacts_pane_id(pane_id) is None
     )
 
 
-def artifacts_pane_contract(pane_id: str) -> ArtifactsPaneContract | None:
+def artifacts_pane_contract(
+    pane_id: str,
+    snapshot: ArtifactsDescriptorSnapshot | None = None,
+) -> ArtifactsPaneContract | None:
     """Exact contract lookup for diagnostics and CLI use."""
 
+    if snapshot is not None:
+        return snapshot.contract(pane_id)
     descriptor = descriptor_for_artifacts_pane_id(pane_id)
     return None if descriptor is None else descriptor.contract
 
@@ -251,9 +288,14 @@ def _artifacts_pane_fallback(pane_id: str) -> str:
     return pane_id.rsplit(":", 1)[-1].replace("_", " ").replace("-", " ").title()
 
 
-def artifacts_pane_label(pane_id: str) -> str:
+def artifacts_pane_label(
+    pane_id: str,
+    snapshot: ArtifactsDescriptorSnapshot | None = None,
+) -> str:
     """Return the collection label for a pane id or legacy sub-tab id."""
 
+    if snapshot is not None:
+        return snapshot.label(pane_id)
     canonical = _canonical_artifacts_pane_id(pane_id)
     descriptor = descriptor_for_artifacts_pane_id(canonical)
     if descriptor is not None and descriptor.contract is not None:
@@ -261,9 +303,14 @@ def artifacts_pane_label(pane_id: str) -> str:
     return ARTIFACTS_LABELS.get(canonical, _artifacts_pane_fallback(canonical))
 
 
-def artifacts_pane_item_noun(pane_id: str) -> str:
+def artifacts_pane_item_noun(
+    pane_id: str,
+    snapshot: ArtifactsDescriptorSnapshot | None = None,
+) -> str:
     """Return the singular item noun for a pane id or legacy sub-tab id."""
 
+    if snapshot is not None:
+        return snapshot.item_noun(pane_id)
     canonical = _canonical_artifacts_pane_id(pane_id)
     descriptor = descriptor_for_artifacts_pane_id(canonical)
     if descriptor is not None and descriptor.contract is not None:
@@ -271,9 +318,13 @@ def artifacts_pane_item_noun(pane_id: str) -> str:
     return ARTIFACTS_ITEM_NOUNS.get(canonical, _artifacts_pane_fallback(canonical))
 
 
-def configured_artifacts_pane_ids() -> tuple[str, ...]:
+def configured_artifacts_pane_ids(
+    snapshot: ArtifactsDescriptorSnapshot | None = None,
+) -> tuple[str, ...]:
     """Return configured pane ids in visual order."""
 
+    if snapshot is not None:
+        return snapshot.ordered_ids
     return tuple(descriptor.id for descriptor in resolve_artifacts_subtabs())
 
 
@@ -300,19 +351,27 @@ def artifacts_provider_diagnostics(
     )
 
 
-def is_document_artifacts_pane(pane_id: str) -> bool:
+def is_document_artifacts_pane(
+    pane_id: str,
+    snapshot: ArtifactsDescriptorSnapshot | None = None,
+) -> bool:
     """Return whether *pane_id* is a compiled document-provider pane."""
 
+    if snapshot is not None:
+        return snapshot.is_document_pane(pane_id)
     contract = artifacts_pane_contract(pane_id)
     if contract is not None:
         return contract.is_document_provider()
     return pane_id in {"ref:plan", "plans"}
 
 
-def copy_group_for_artifacts_pane(pane_id: str) -> str:
+def copy_group_for_artifacts_pane(
+    pane_id: str,
+    snapshot: ArtifactsDescriptorSnapshot | None = None,
+) -> str:
     """Return the contract copy group, with static fallbacks for tests."""
 
-    contract = artifacts_pane_contract(pane_id)
+    contract = artifacts_pane_contract(pane_id, snapshot=snapshot)
     if contract is not None:
         return contract.copy_group
     if pane_id == "files":
@@ -324,13 +383,16 @@ def copy_group_for_artifacts_pane(pane_id: str) -> str:
     return f"artifacts_{pane_id}"
 
 
-def copy_keymap_group_for_artifacts_pane(pane_id: str) -> str:
+def copy_keymap_group_for_artifacts_pane(
+    pane_id: str,
+    snapshot: ArtifactsDescriptorSnapshot | None = None,
+) -> str:
     """Return the keymap group used for copy-mode keys."""
 
-    contract = artifacts_pane_contract(pane_id)
+    contract = artifacts_pane_contract(pane_id, snapshot=snapshot)
     if contract is not None:
         return contract.copy_keymap_group or contract.copy_group
-    group = copy_group_for_artifacts_pane(pane_id)
+    group = copy_group_for_artifacts_pane(pane_id, snapshot=snapshot)
     if group.startswith("artifacts_") and group not in {
         "artifacts_stitches",
         "artifacts_plans",
@@ -368,9 +430,14 @@ def document_provider_roots(
     return roots
 
 
-def normalize_artifacts_subtab(value: str) -> ArtifactsSubTab:
+def normalize_artifacts_subtab(
+    value: str,
+    snapshot: ArtifactsDescriptorSnapshot | None = None,
+) -> ArtifactsSubTab:
     """Map a persisted or legacy sub-tab identifier to a configured pane id."""
 
+    if snapshot is not None:
+        return snapshot.normalize(value)
     canonical = LEGACY_ARTIFACTS_SUBTABS.get(value, value)
     configured = {descriptor.id for descriptor in resolve_artifacts_subtabs()}
     if canonical in configured:
@@ -383,6 +450,7 @@ def normalize_artifacts_subtab(value: str) -> ArtifactsSubTab:
 def artifacts_pane_key(
     subtab: ArtifactsSubTab,
     files_subtab: FilesSubTab | None = None,
+    snapshot: ArtifactsDescriptorSnapshot | None = None,
 ) -> ArtifactsPaneKey:
     """Return the visible Artifacts pane id.
 
@@ -391,6 +459,8 @@ def artifacts_pane_key(
     normalized through :func:`normalize_artifacts_subtab`.
     """
 
+    if snapshot is not None:
+        return snapshot.pane_key(subtab, files_subtab)
     if subtab == "files" and files_subtab:
         legacy = LEGACY_ARTIFACTS_SUBTABS.get(files_subtab)
         if legacy is not None:
@@ -398,12 +468,17 @@ def artifacts_pane_key(
     return normalize_artifacts_subtab(subtab)
 
 
-def switch_to_artifacts_subtab(app: Any, subtab: ArtifactsSubTab) -> None:
+def switch_to_artifacts_subtab(
+    app: Any,
+    subtab: ArtifactsSubTab,
+    snapshot: ArtifactsDescriptorSnapshot | None = None,
+) -> None:
     """Show the Artifacts tab with *subtab* as its active pane."""
 
     from .tab_order import ARTIFACTS_TAB
 
-    app.current_artifacts_subtab = normalize_artifacts_subtab(subtab)
+    owned = snapshot if snapshot is not None else artifacts_snapshot_of(app)
+    app.current_artifacts_subtab = normalize_artifacts_subtab(subtab, snapshot=owned)
     app.current_tab = ARTIFACTS_TAB
 
 
@@ -437,6 +512,8 @@ __all__ = [
     "GENERIC_DOCUMENT_COPY_TARGETS",
     "LEGACY_ARTIFACTS_SUBTABS",
     "PLAN_COPY_TARGETS",
+    "ArtifactsDescriptorSnapshot",
+    "ArtifactsDiscoveryStatus",
     "ArtifactsPaneContract",
     "ArtifactsPaneKey",
     "ArtifactsSubTab",
@@ -453,11 +530,16 @@ __all__ = [
     "artifacts_pane_contract",
     "artifacts_pane_item_noun",
     "artifacts_pane_label",
+    "artifacts_snapshot_from_widget",
+    "artifacts_snapshot_of",
+    "artifacts_tab_cache_epoch",
+    "bootstrap_artifacts_snapshot",
     "provider_item_noun",
     "artifacts_pane_key",
     "artifacts_provider_diagnostics",
     "artifacts_subtab_order",
     "configured_artifacts_pane_ids",
+    "discover_artifacts_snapshot",
     "copy_group_for_artifacts_pane",
     "copy_keymap_group_for_artifacts_pane",
     "descriptor_for_artifacts_pane_id",
@@ -467,5 +549,6 @@ __all__ = [
     "normalize_artifacts_subtab",
     "reset_artifacts_subtabs_cache",
     "resolve_artifacts_subtabs",
+    "snapshot_from_descriptors",
     "switch_to_artifacts_subtab",
 ]
