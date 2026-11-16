@@ -134,6 +134,27 @@ def _build_runner_target(artifacts_dir: str) -> Any | None:
         workspace_num_int = None
     cl_name = meta.get("cl_name") or meta.get("patch_name") or record.get("cl_name")
     workflow = meta.get("workflow_name") or record.get("workflow")
+    claim_owner_pid = (
+        claim_pid
+        if isinstance(claim_pid, int) and not isinstance(claim_pid, bool)
+        else None
+    )
+    if not workflow and workspace_num_int is not None and claim_owner_pid is not None:
+        try:
+            from sase.running_field import get_claimed_workspaces
+
+            matching_claims = [
+                claim
+                for claim in get_claimed_workspaces(project_file)
+                if claim.workspace_num == workspace_num_int
+                and claim.pid == claim_owner_pid
+                and (claim.cl_name or "") == (cl_name or "")
+                and (claim.artifacts_timestamp or "") == artifacts_timestamp
+            ]
+        except Exception:
+            matching_claims = []
+        if len(matching_claims) == 1:
+            workflow = matching_claims[0].workflow
     workspace_dir = meta.get("workspace_dir") or record.get("workspace_dir")
     capabilities = meta.get("runner_capabilities")
     capability_list = (
@@ -155,7 +176,7 @@ def _build_runner_target(artifacts_dir: str) -> Any | None:
         artifacts_timestamp=artifacts_timestamp,
         is_home=bool(meta.get("is_home_mode") or meta.get("is_home") or False),
         pid=pid,
-        claim_pid=int(claim_pid) if isinstance(claim_pid, int) else None,
+        claim_pid=claim_owner_pid,
         claim_pinned=False,
         cl_name=cl_name if isinstance(cl_name, str) else None,
         workflow=workflow if isinstance(workflow, str) else None,

@@ -33,6 +33,10 @@ from tests.fakey._agent_hijack_canary_support import (
 )
 
 
+def _finalizer_complete_path(barrier: FakeyBarrier) -> Path:
+    return barrier.started.with_suffix(".finished")
+
+
 def _git(root: Path, *args: str) -> str:
     result = subprocess.run(
         ["git", "-C", str(root), *args],
@@ -87,7 +91,13 @@ def _kill_tree(pid: int) -> None:
 class CanaryHarness:
     """Isolated home, git workspace, fakey binary, and real runner launches."""
 
-    def __init__(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    def __init__(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        *,
+        finalizer_barrier: FakeyBarrier | None = None,
+    ) -> None:
         self.root = tmp_path
         self.monkeypatch = monkeypatch
         self.home = tmp_path / "sase-home"
@@ -111,22 +121,53 @@ class CanaryHarness:
             f"WORKSPACE_DIR: {self.primary}\nNAME: {PROJECT}\nRUNNING:\n\n",
             encoding="utf-8",
         )
-        (self.primary / "sase.yml").write_text(
-            yaml.safe_dump(
-                {
-                    "max_running_agents": 8,
-                    "llm_provider": {
-                        "retry": {
-                            "fakey": {
-                                "max_retries": 0,
-                                "wait_times": [0],
-                                "spawn_new_agent": False,
-                            }
-                        }
-                    },
+        project_config: dict[str, object] = {
+            "max_running_agents": 8,
+            "llm_provider": {
+                "retry": {
+                    "fakey": {
+                        "max_retries": 0,
+                        "wait_times": [0],
+                        "spawn_new_agent": False,
+                    }
+                }
+            },
+        }
+        if finalizer_barrier is not None:
+            complete = _finalizer_complete_path(finalizer_barrier)
+            finalizer_code = "\n".join(
+                (
+                    "from pathlib import Path",
+                    "import time",
+                    f"started = Path({str(finalizer_barrier.started)!r})",
+                    f"release = Path({str(finalizer_barrier.release)!r})",
+                    f"complete = Path({str(complete)!r})",
+                    "started.parent.mkdir(parents=True, exist_ok=True)",
+                    "started.write_text('started\\n', encoding='utf-8')",
+                    f"deadline = time.monotonic() + {finalizer_barrier.timeout!r}",
+                    "while not release.exists() and time.monotonic() < deadline:",
+                    "    time.sleep(0.01)",
+                    "if not release.exists():",
+                    "    raise SystemExit('finalizer barrier timed out')",
+                    "complete.write_text('finalized\\n', encoding='utf-8')",
+                )
+            )
+            project_config["finalizers"] = {
+                "defaults": ["canary-barrier"],
+                "instances": {
+                    "canary-barrier": {
+                        "use": "builtin@command",
+                        "config": {
+                            "command": [sys.executable, "-c", finalizer_code],
+                            "cwd": "primary",
+                            "timeout": f"{int(finalizer_barrier.timeout) + 30}s",
+                            "submission": "none",
+                        },
+                    }
                 },
-                sort_keys=False,
-            ),
+            }
+        (self.primary / "sase.yml").write_text(
+            yaml.safe_dump(project_config, sort_keys=False),
             encoding="utf-8",
         )
         _git(self.primary, "add", "sase.yml")

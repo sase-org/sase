@@ -96,6 +96,7 @@ def _write_meta(
     name: str = "agent.1",
     session: str = "session-1",
     project_file: str = "/tmp/sample.sase",
+    workflow_name: str | None = "agent",
 ) -> dict[str, Any]:
     from sase.core.process_identity import process_identity_token
 
@@ -111,9 +112,10 @@ def _write_meta(
         "workspace_num": 4,
         "workspace_dir": "/tmp/workspace-4",
         "cl_name": "sample-patch",
-        "workflow_name": "agent",
         "runner_capabilities": ["hijack"],
     }
+    if workflow_name is not None:
+        meta["workflow_name"] = workflow_name
     (artifacts / "agent_meta.json").write_text(json.dumps(meta), encoding="utf-8")
     return meta
 
@@ -173,6 +175,36 @@ def _install_subject(
         lambda _name, *, deps=None: subject,
     )
     monkeypatch.setattr(latch, "owner_identity_for", lambda _t: identity)
+
+
+def test_runner_target_recovers_workflow_from_exact_claim_when_meta_omits_it(
+    latch_store: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from sase.core.process_identity import process_identity_token
+
+    artifacts = tmp_path / "20261116130000"
+    project_file = tmp_path / "sample.sase"
+    meta = _write_meta(
+        artifacts,
+        project_file=str(project_file),
+        workflow_name=None,
+    )
+    project_file.write_text(
+        "WORKSPACE_DIR: /tmp\nNAME: sample\nRUNNING:\n"
+        f"  #4 | {os.getpid()} | agent | sample-patch | {artifacts.name}\n",
+        encoding="utf-8",
+    )
+    target = _target_for(artifacts, meta)
+    identity = process_identity_token(os.getpid())
+    _install_subject(monkeypatch, target, identity)
+
+    requested = latch.request_latch(target.name)
+    assert requested["verdict"] == "pending", requested
+
+    runner_target = bounds._build_runner_target(str(artifacts))
+    assert runner_target is not None
+    assert runner_target.workflow == "agent"
+    assert runner_target.claim_pid == os.getpid()
 
 
 def test_staged_adoption_applies_once_and_replays_same_id(

@@ -170,6 +170,9 @@ def test_request_deduplicates_by_target_and_rejects_recycled_occupant(
     first = latch.request_latch(target.name)
     assert first["verdict"] == "pending"
     assert first["record"]["owner_identity"] == "boot:123"
+    assert first["record"]["provider"] == target.provider
+    assert first["record"]["model"] == target.model
+    assert first["record"]["effort"] == target.effort
 
     _install_subjects(monkeypatch, _subject(target))
     second = latch.request_latch(target.name)

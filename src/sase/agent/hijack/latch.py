@@ -134,6 +134,12 @@ def request_latch(
             workspace_dir=target.workspace_dir,
             expected_claim_owner_pid=target.claim_pid,
             session=target.agent_session,
+            model_alias=target.model_alias,
+            model_alias_trail=target.model_alias_trail,
+            model_origin=target.model_origin,
+            provider=target.provider,
+            model=target.model,
+            effort=target.effort,
             target_key=target_key,
             scope="llm",
         )
