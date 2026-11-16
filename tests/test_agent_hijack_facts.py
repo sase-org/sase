@@ -158,7 +158,7 @@ def test_screenshot_session_name_resolves_to_claim_holding_monitor(
 
 
 def test_stale_live_row_is_not_an_occupying_member() -> None:
-    from sase.agent.hijack.facts import _status
+    from sase.agent.hijack._facts_resolve import _status
 
     row = SimpleNamespace(status="RUNNING")
 
