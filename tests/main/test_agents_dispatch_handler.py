@@ -238,6 +238,15 @@ def test_dispatch_index_rebuild_json(capsys: pytest.CaptureFixture[str]) -> None
         "rows_skipped": 0,
         "hidden_terminal_rows_retained": 0,
         "hidden_terminal_rows_pruned": 0,
+        "terminalization_rows_examined": 0,
+        "terminalization_source_done_repairs": 0,
+        "terminalization_synthesized_rows": 0,
+        "terminalization_skipped_live": 0,
+        "terminalization_skipped_claim": 0,
+        "terminalization_skipped_fresh": 0,
+        "terminalization_skipped_unknown": 0,
+        "terminalization_skipped_race": 0,
+        "terminalization_wrapped": False,
     }
 
     with (

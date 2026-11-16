@@ -27,11 +27,11 @@ from sase.llm_provider import TemporaryProviderDisable
 from sase.llm_provider.provider_disable import PROVIDER_DISABLE_WIRE_SCHEMA_VERSION
 from tests._models_panel_helpers import (
     ModelsPanelTestApp,
-    highlight_row,
     make_alias_view,
     make_edit_plan,
+    open_models_panel,
     patch_alias_views,
-    wait_for,
+    wait_and_highlight,
 )
 
 
@@ -51,10 +51,8 @@ async def test_action_edit_opens_model_picker(monkeypatch: Any) -> None:
         models_panel_edit, "plan_alias_edit", lambda *a, **k: make_edit_plan()
     )
     async with ModelsPanelTestApp().run_test() as pilot:
-        panel = ModelsPanel()
-        pilot.app.push_screen(panel)
-        await wait_for(pilot, lambda: "medium" in panel._row_by_id)
-        highlight_row(panel, "medium")
+        panel = await open_models_panel(pilot, row_id="medium")
+        await wait_and_highlight(pilot, panel, "medium")
         await pilot.press("e")
         await pilot.pause()
         assert isinstance(pilot.app.screen, ModelPickerModal)
@@ -83,12 +81,10 @@ async def test_action_edit_picker_uses_flat_alias_snapshot(monkeypatch: Any) -> 
     patch_alias_views(monkeypatch, views)
 
     async with ModelsPanelTestApp().run_test() as pilot:
-        panel = ModelsPanel()
-        pilot.app.push_screen(panel)
-        await pilot.pause()
+        panel = await open_models_panel(pilot, row_id="medium")
         disable = _disable("codex")
         panel._provider_disables = {"codex": disable}
-        highlight_row(panel, "medium")
+        await wait_and_highlight(pilot, panel, "medium")
         await pilot.press("e")
         await pilot.pause()
 
@@ -105,10 +101,8 @@ async def test_action_edit_picker_offers_selector_builder_row(monkeypatch: Any) 
     patch_alias_views(monkeypatch, [make_alias_view("medium", "role")])
 
     async with ModelsPanelTestApp().run_test() as pilot:
-        panel = ModelsPanel()
-        pilot.app.push_screen(panel)
-        await pilot.pause()
-        highlight_row(panel, "medium")
+        panel = await open_models_panel(pilot, row_id="medium")
+        await wait_and_highlight(pilot, panel, "medium")
         await pilot.press("e")
         await pilot.pause()
 

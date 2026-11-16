@@ -8,10 +8,11 @@ import sase.ace.tui.modals.models_panel as models_panel
 from sase.ace.tui.modals.models_panel import ModelsPanel
 from tests._models_panel_helpers import (
     ModelsPanelTestApp,
-    highlight_row,
     make_alias_view,
     make_override,
+    open_models_panel,
     patch_alias_views,
+    wait_and_highlight,
     wait_for_snapshot_idle,
 )
 
@@ -32,13 +33,11 @@ async def test_panel_description_strip_updates_on_highlight(monkeypatch) -> None
     )
 
     async with ModelsPanelTestApp().run_test() as pilot:
-        panel = ModelsPanel()
-        pilot.app.push_screen(panel)
-        await pilot.pause()
+        panel = await open_models_panel(pilot, row_id="blogger")
         assert panel._highlighted_row_id() == "launch:default_model"
         description = panel.query_one("#models-panel-description", Static)
         assert "Used when a launch has no explicit" in description.content.plain
-        highlight_row(panel, "blogger")
+        await wait_and_highlight(pilot, panel, "blogger")
         await pilot.pause()
         assert "Draft blog posts." in description.content.plain
 
@@ -49,8 +48,7 @@ async def test_panel_does_not_warn_for_clean_alias_views(monkeypatch) -> None:
     async with ModelsPanelTestApp().run_test() as pilot:
         panel = ModelsPanel()
         panel.notify = MagicMock()  # type: ignore[method-assign]
-        pilot.app.push_screen(panel)
-        await pilot.pause()
+        await open_models_panel(pilot, panel=panel, row_id="large")
 
         panel.notify.assert_not_called()
 
@@ -73,8 +71,7 @@ async def test_panel_warns_once_and_keeps_alias_warning_through_refresh(
     async with ModelsPanelTestApp().run_test() as pilot:
         panel = ModelsPanel()
         panel.notify = MagicMock()  # type: ignore[method-assign]
-        pilot.app.push_screen(panel)
-        await pilot.pause()
+        panel = await open_models_panel(pilot, panel=panel, row_id="small")
 
         panel.notify.assert_called_once_with(
             "Builtin alias @small is configured under "
@@ -89,7 +86,7 @@ async def test_panel_warns_once_and_keeps_alias_warning_through_refresh(
         alias_row = option_list.get_option_at_index(alias_index).prompt.plain
         assert alias_row.startswith("  ! small")
         assert "override · 1h left" in alias_row
-        highlight_row(panel, "small")
+        await wait_and_highlight(pilot, panel, "small")
         description = panel.query_one("#models-panel-description", Static).content.plain
         assert "@small" in description
         assert "llm_provider.model_aliases.custom" in description
@@ -130,9 +127,7 @@ async def test_panel_title_shows_configured_default_effort(monkeypatch) -> None:
     monkeypatch.setattr(models_panel, "default_reasoning_effort", effort)
 
     async with ModelsPanelTestApp().run_test() as pilot:
-        panel = ModelsPanel()
-        pilot.app.push_screen(panel)
-        await pilot.pause()
+        panel = await open_models_panel(pilot, row_id="large")
 
         title = panel.query_one("#models-panel-title", Static).content.plain
         assert title == "Launch Control"

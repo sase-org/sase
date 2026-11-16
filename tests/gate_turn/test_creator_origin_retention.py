@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import subprocess
+from datetime import timedelta
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
@@ -12,6 +13,7 @@ import pytest
 
 from sase.axe.run_agent_helpers_artifacts import update_meta_fields
 from sase.core.paths import sase_projects_dir
+from sase.core.time import local_now
 from sase.gate_turn._transaction_creator import CreatorContext, resolve_creator
 from sase.gate_turn._transaction_spec import spec_from_request
 from sase.gate_turn import transaction as transaction_module
@@ -192,12 +194,21 @@ def test_detached_failed_gate_pins_root_claim_and_preserves_private_linked_edits
 ) -> None:
     home = tmp_path / ".sase"
     monkeypatch.setenv("SASE_HOME", str(home))
-    root_timestamp = "20261102120000"
-    member_timestamp = "20261102120100"
+    # Held-claim TTL is 14 days from the artifacts stamp. A hard-coded
+    # 2026-11-02 12:00 stamp started failing at local noon on 2026-11-16.
+    now = local_now()
+    root_timestamp = (now - timedelta(minutes=2)).strftime("%Y%m%d%H%M%S")
+    member_timestamp = (now - timedelta(minutes=1)).strftime("%Y%m%d%H%M%S")
     artifact_parent = sase_projects_dir() / "proj" / "artifacts" / "ace-run"
-    root_artifacts = artifact_parent / root_timestamp[:6] / root_timestamp[6:8]
-    root_artifacts = root_artifacts / root_timestamp
-    member_artifacts = root_artifacts.parent / member_timestamp
+    root_artifacts = (
+        artifact_parent / root_timestamp[:6] / root_timestamp[6:8] / root_timestamp
+    )
+    member_artifacts = (
+        artifact_parent
+        / member_timestamp[:6]
+        / member_timestamp[6:8]
+        / member_timestamp
+    )
 
     workspace = tmp_path / "workspace"
     linked = tmp_path / "private-sase-core"
@@ -343,6 +354,10 @@ def test_detached_failed_gate_pins_root_claim_and_preserves_private_linked_edits
     monkeypatch.setattr(
         "sase.ace.scheduler.stale_running_sweep.is_process_running",
         lambda _pid: False,
+    )
+    monkeypatch.setattr(
+        "sase.ace.scheduler.stale_running_sweep._now",
+        lambda: now,
     )
     assert cleanup_stale_running_entries() == 0
     assert get_claimed_workspaces(project_file)[0].pinned is True

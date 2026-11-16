@@ -296,6 +296,20 @@ def _run_active_tier_maintenance(
     terminalized = update.rows_indexed
     pruned = update.hidden_terminal_rows_pruned
     retained = update.hidden_terminal_rows_retained
+    log.debug(
+        "agent artifact index terminalization examined=%s source_done=%s "
+        "synthesized=%s skipped_live=%s skipped_claim=%s skipped_fresh=%s "
+        "skipped_unknown=%s skipped_race=%s wrapped=%s",
+        update.terminalization_rows_examined,
+        update.terminalization_source_done_repairs,
+        update.terminalization_synthesized_rows,
+        update.terminalization_skipped_live,
+        update.terminalization_skipped_claim,
+        update.terminalization_skipped_fresh,
+        update.terminalization_skipped_unknown,
+        update.terminalization_skipped_race,
+        update.terminalization_wrapped,
+    )
     if terminalized <= 0 and pruned <= 0:
         return report
     return DismissedProjectionSyncReport(

@@ -8,6 +8,7 @@ from tests._models_panel_helpers import (
     make_alias_view,
     make_bucketed_views,
     make_worker_bucket_views,
+    open_models_panel,
     patch_alias_views,
 )
 
@@ -34,11 +35,7 @@ def _many_custom_aliases(count: int) -> list:
 
 async def _mounted_panel(monkeypatch, pilot, views) -> ModelsPanel:
     patch_alias_views(monkeypatch, views)
-    panel = ModelsPanel()
-    pilot.app.push_screen(panel)
-    await pilot.pause()
-    await pilot.pause()
-    return panel
+    return await open_models_panel(pilot)
 
 
 async def test_top_level_jump_hints_follow_visual_order_and_skip_furniture(
@@ -350,11 +347,7 @@ async def test_initial_async_alias_load_does_not_manufacture_history(
 ) -> None:
     """First composition must record identity without inventing back-stack entries."""
     async with ModelsPanelTestApp().run_test() as pilot:
-        patch_alias_views(monkeypatch, make_worker_bucket_views())
-        panel = ModelsPanel()
-        pilot.app.push_screen(panel)
-        await pilot.pause()
-        await pilot.pause()
+        panel = await _mounted_panel(monkeypatch, pilot, make_worker_bucket_views())
 
         assert panel.jump_back_stack == []
         assert panel.jump_mode_active is False

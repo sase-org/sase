@@ -212,6 +212,15 @@ class AgentArtifactIndexUpdateWire:
     rows_skipped: int = 0
     hidden_terminal_rows_retained: int = 0
     hidden_terminal_rows_pruned: int = 0
+    terminalization_rows_examined: int = 0
+    terminalization_source_done_repairs: int = 0
+    terminalization_synthesized_rows: int = 0
+    terminalization_skipped_live: int = 0
+    terminalization_skipped_claim: int = 0
+    terminalization_skipped_fresh: int = 0
+    terminalization_skipped_unknown: int = 0
+    terminalization_skipped_race: int = 0
+    terminalization_wrapped: bool = False
 
 
 @dataclass(frozen=True)

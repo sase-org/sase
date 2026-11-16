@@ -245,6 +245,21 @@ def agent_artifact_index_update_from_dict(
         rows_skipped=int(data.get("rows_skipped", 0)),
         hidden_terminal_rows_retained=int(data.get("hidden_terminal_rows_retained", 0)),
         hidden_terminal_rows_pruned=int(data.get("hidden_terminal_rows_pruned", 0)),
+        terminalization_rows_examined=int(data.get("terminalization_rows_examined", 0)),
+        terminalization_source_done_repairs=int(
+            data.get("terminalization_source_done_repairs", 0)
+        ),
+        terminalization_synthesized_rows=int(
+            data.get("terminalization_synthesized_rows", 0)
+        ),
+        terminalization_skipped_live=int(data.get("terminalization_skipped_live", 0)),
+        terminalization_skipped_claim=int(data.get("terminalization_skipped_claim", 0)),
+        terminalization_skipped_fresh=int(data.get("terminalization_skipped_fresh", 0)),
+        terminalization_skipped_unknown=int(
+            data.get("terminalization_skipped_unknown", 0)
+        ),
+        terminalization_skipped_race=int(data.get("terminalization_skipped_race", 0)),
+        terminalization_wrapped=bool(data.get("terminalization_wrapped", False)),
     )
 
 

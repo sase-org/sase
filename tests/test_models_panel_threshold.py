@@ -25,14 +25,10 @@ from sase.config import AppliedResult, ConfigEditOp, ConfigLayer
 from tests._models_panel_helpers import (
     ModelsPanelTestApp,
     make_alias_view,
+    open_models_panel,
     patch_alias_views,
+    wait_and_highlight,
 )
-
-
-def _highlight_row(panel: ModelsPanel, row_id: str) -> None:
-    option_list = panel.query_one("#models-panel-list", OptionList)
-    panel._set_highlighted_index(option_list, option_list.get_option_index(row_id))
-    panel._update_context()
 
 
 @pytest.mark.parametrize(
@@ -188,8 +184,9 @@ async def test_threshold_row_order_description_footer_and_actions(
     async with ModelsPanelTestApp().run_test() as pilot:
         panel = ModelsPanel()
         panel.notify = MagicMock()  # type: ignore[method-assign]
-        pilot.app.push_screen(panel)
-        await pilot.pause()
+        panel = await open_models_panel(
+            pilot, panel=panel, row_id="setting:big_epic_phase_threshold"
+        )
         option_list = panel.query_one("#models-panel-list", OptionList)
         ids = [
             option_list.get_option_at_index(index).id
@@ -199,7 +196,7 @@ async def test_threshold_row_order_description_footer_and_actions(
             ids.index("setting:big_epic_phase_threshold")
             == ids.index("launch:big_epic_lander_model") + 1
         )
-        _highlight_row(panel, "setting:big_epic_phase_threshold")
+        await wait_and_highlight(pilot, panel, "setting:big_epic_phase_threshold")
         description = panel.query_one("#models-panel-description", Static).content.plain
         assert "5 or more authored phases use the big epic lander" in description
         assert "bead.big_epic_phase_threshold: 5" in description
@@ -259,9 +256,10 @@ async def test_threshold_edit_refreshes_atomic_snapshot_and_reports_mismatch(
     async with ModelsPanelTestApp().run_test() as pilot:
         panel = ModelsPanel()
         panel.notify = MagicMock()  # type: ignore[method-assign]
-        pilot.app.push_screen(panel)
-        await pilot.pause()
-        _highlight_row(panel, "setting:big_epic_phase_threshold")
+        panel = await open_models_panel(
+            pilot, panel=panel, row_id="setting:big_epic_phase_threshold"
+        )
+        await wait_and_highlight(pilot, panel, "setting:big_epic_phase_threshold")
         panel._on_big_epic_phase_threshold_edited(
             BigEpicPhaseThresholdEditOutcome(
                 requested_threshold=7,

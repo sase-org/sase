@@ -13,11 +13,11 @@ from sase.ace.tui.modals.models_panel import ModelsPanel
 from sase.ace.tui.modals.models_panel_edit import AliasEditPreviewModal
 from tests._models_panel_helpers import (
     ModelsPanelTestApp,
-    highlight_row,
     make_alias_view,
     make_edit_plan,
+    open_models_panel,
     patch_alias_views,
-    wait_for,
+    wait_and_highlight,
 )
 
 
@@ -27,10 +27,8 @@ async def test_action_reset_unconfigured_warns_and_skips(monkeypatch: Any) -> No
     )
 
     async with ModelsPanelTestApp().run_test() as pilot:
-        panel = ModelsPanel()
-        pilot.app.push_screen(panel)
-        await wait_for(pilot, lambda: "medium" in panel._row_by_id)
-        highlight_row(panel, "medium")
+        panel = await open_models_panel(pilot, row_id="medium")
+        await wait_and_highlight(pilot, panel, "medium")
         panel.notify = MagicMock()  # type: ignore[method-assign]
         panel.action_reset()
         await pilot.pause()
@@ -51,10 +49,8 @@ async def test_action_reset_configured_opens_preview_with_unset(
     )
 
     async with ModelsPanelTestApp().run_test() as pilot:
-        panel = ModelsPanel()
-        pilot.app.push_screen(panel)
-        await wait_for(pilot, lambda: "medium" in panel._row_by_id)
-        highlight_row(panel, "medium")
+        panel = await open_models_panel(pilot, row_id="medium")
+        await wait_and_highlight(pilot, panel, "medium")
         panel.action_reset()
         await pilot.pause()
         screen = pilot.app.screen
@@ -82,10 +78,8 @@ async def test_action_reset_custom_alias_deletes_custom_entry(
     )
 
     async with ModelsPanelTestApp().run_test() as pilot:
-        panel = ModelsPanel()
-        pilot.app.push_screen(panel)
-        await wait_for(pilot, lambda: "blogger" in panel._row_by_id)
-        highlight_row(panel, "blogger")
+        panel = await open_models_panel(pilot, row_id="blogger")
+        await wait_and_highlight(pilot, panel, "blogger")
         panel.action_reset()
         await pilot.pause()
         screen = pilot.app.screen

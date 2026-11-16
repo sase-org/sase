@@ -129,6 +129,35 @@ def test_artifact_index_wire_helpers() -> None:
         hidden_terminal_rows_retained=4,
         hidden_terminal_rows_pruned=5,
     )
+    assert update.terminalization_rows_examined == 0
+    assert update.terminalization_wrapped is False
+
+    diagnosed = agent_artifact_index_update_from_dict(
+        {
+            "schema_version": 1,
+            "index_path": "/tmp/index.sqlite",
+            "projects_root": "/tmp/projects",
+            "rows_indexed": 2,
+            "terminalization_rows_examined": 9,
+            "terminalization_source_done_repairs": 1,
+            "terminalization_synthesized_rows": 2,
+            "terminalization_skipped_live": 3,
+            "terminalization_skipped_claim": 4,
+            "terminalization_skipped_fresh": 5,
+            "terminalization_skipped_unknown": 6,
+            "terminalization_skipped_race": 7,
+            "terminalization_wrapped": True,
+        }
+    )
+    assert diagnosed.terminalization_rows_examined == 9
+    assert diagnosed.terminalization_source_done_repairs == 1
+    assert diagnosed.terminalization_synthesized_rows == 2
+    assert diagnosed.terminalization_skipped_live == 3
+    assert diagnosed.terminalization_skipped_claim == 4
+    assert diagnosed.terminalization_skipped_fresh == 5
+    assert diagnosed.terminalization_skipped_unknown == 6
+    assert diagnosed.terminalization_skipped_race == 7
+    assert diagnosed.terminalization_wrapped is True
 
     status = agent_artifact_index_status_from_dict(
         {

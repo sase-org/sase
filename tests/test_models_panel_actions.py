@@ -9,12 +9,13 @@ from sase.ace.tui.modals.model_picker_modal import ModelPickerModal
 from sase.ace.tui.modals.models_panel import ModelsPanel, ModelsPanelResult
 from tests._models_panel_helpers import (
     ModelsPanelTestApp,
-    highlight_row,
     make_alias_view,
     make_bucketed_views,
     make_override,
     make_worker_bucket_views,
+    open_models_panel,
     patch_alias_views,
+    wait_and_highlight,
 )
 
 
@@ -28,8 +29,9 @@ async def test_panel_escape_closes_unchanged(monkeypatch) -> None:
             nonlocal result
             result = value
 
-        pilot.app.push_screen(ModelsPanel(), callback=on_dismiss)
-        await pilot.pause()
+        panel = ModelsPanel()
+        pilot.app.push_screen(panel, callback=on_dismiss)
+        await open_models_panel(pilot, panel=panel, row_id="large")
         await pilot.press("escape")
         await pilot.pause()
 
@@ -41,8 +43,7 @@ async def test_panel_o_opens_model_picker(monkeypatch) -> None:
     patch_alias_views(monkeypatch, make_worker_bucket_views())
 
     async with ModelsPanelTestApp().run_test() as pilot:
-        pilot.app.push_screen(ModelsPanel())
-        await pilot.pause()
+        await open_models_panel(pilot)
         await pilot.press("o")
         await pilot.pause()
         assert isinstance(pilot.app.screen, ModelPickerModal)
@@ -68,11 +69,9 @@ async def test_panel_x_clears_active_override(monkeypatch) -> None:
             nonlocal result
             result = value
 
-        pilot.app.push_screen(ModelsPanel(), callback=on_dismiss)
-        await pilot.pause()
-        panel = pilot.app.screen
-        assert isinstance(panel, ModelsPanel)
-        highlight_row(panel, "small")
+        panel = ModelsPanel()
+        pilot.app.push_screen(panel, callback=on_dismiss)
+        await wait_and_highlight(pilot, panel, "small")
         await pilot.press("x")
         await pilot.pause()
         await pilot.press("escape")
@@ -89,9 +88,7 @@ async def test_panel_x_without_override_does_not_clear(monkeypatch) -> None:
     monkeypatch.setattr(models_panel, "clear_alias_override", clear_mock)
 
     async with ModelsPanelTestApp().run_test() as pilot:
-        panel = ModelsPanel()
-        pilot.app.push_screen(panel)
-        await pilot.pause()
+        panel = await open_models_panel(pilot)
         await pilot.press("x")
         await pilot.pause()
         clear_mock.assert_not_called()
@@ -105,8 +102,7 @@ async def test_panel_size_aliases_open_override_picker(
     patch_alias_views(monkeypatch, make_worker_bucket_views())
 
     async with ModelsPanelTestApp().run_test() as pilot:
-        pilot.app.push_screen(ModelsPanel())
-        await pilot.pause()
+        await open_models_panel(pilot, row_id="xsmall")
         await pilot.press(*member_steps, "o")
         await pilot.pause()
 
@@ -120,9 +116,8 @@ async def test_alias_actions_on_bucket_are_guarded(monkeypatch, key: str) -> Non
     async with ModelsPanelTestApp().run_test() as pilot:
         panel = ModelsPanel()
         panel.notify = MagicMock()  # type: ignore[method-assign]
-        pilot.app.push_screen(panel)
-        await pilot.pause()
-        highlight_row(panel, "bucket:research")
+        panel = await open_models_panel(pilot, panel=panel, row_id="bucket:research")
+        await wait_and_highlight(pilot, panel, "bucket:research")
         await pilot.press(key)
         await pilot.pause()
 

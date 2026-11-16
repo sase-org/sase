@@ -34,6 +34,7 @@ from tests._models_panel_helpers import (
     ModelsPanelTestApp,
     make_alias_view,
     make_pool_members,
+    open_models_panel,
     patch_alias_views,
 )
 
@@ -81,9 +82,7 @@ async def test_action_override_opens_alias_enabled_picker(monkeypatch) -> None:
     patch_alias_views(monkeypatch, views)
 
     async with ModelsPanelTestApp().run_test() as pilot:
-        panel = ModelsPanel()
-        pilot.app.push_screen(panel)
-        await pilot.pause()
+        panel = await open_models_panel(pilot)
         disable = _disable("codex")
         panel._provider_disables = {"codex": disable}
         await pilot.press("l", "o")
@@ -174,9 +173,7 @@ async def test_alias_override_flows_raw_token_through_write_time_resolution(
     monkeypatch.setattr(models_panel, "set_alias_override", set_mock)
 
     async with ModelsPanelTestApp().run_test() as pilot:
-        panel = ModelsPanel()
-        pilot.app.push_screen(panel)
-        await pilot.pause()
+        panel = await open_models_panel(pilot)
         panel._pending_alias = target.name
         panel._pending_alias_selection = AliasSelectionContext(
             (target, medium), target.name, "temporary"
@@ -341,9 +338,7 @@ async def test_alias_reference_to_pool_owning_alias_still_snapshots(
     patch_alias_views(monkeypatch, [target, pool_owner])
 
     async with ModelsPanelTestApp().run_test() as pilot:
-        panel = ModelsPanel()
-        pilot.app.push_screen(panel)
-        await pilot.pause()
+        panel = await open_models_panel(pilot)
         panel._pending_alias = target.name
         panel._pending_alias_selection = AliasSelectionContext(
             (target, pool_owner), target.name, "temporary"
@@ -359,9 +354,7 @@ async def test_t_opens_until_modal_and_back_reopens_duration(monkeypatch) -> Non
     patch_alias_views(monkeypatch, [make_alias_view("medium", "role")])
 
     async with ModelsPanelTestApp().run_test() as pilot:
-        panel = ModelsPanel()
-        pilot.app.push_screen(panel)
-        await pilot.pause()
+        panel = await open_models_panel(pilot)
         panel._pending_alias = "medium"
         panel._pending_raw_model = "o3"
         panel._on_duration_picked(OPEN_OVERRIDE_UNTIL)
@@ -396,9 +389,7 @@ async def test_exact_time_flow_dispatches_exact_api(monkeypatch) -> None:
     )
 
     async with ModelsPanelTestApp().run_test() as pilot:
-        panel = ModelsPanel()
-        pilot.app.push_screen(panel)
-        await pilot.pause()
+        panel = await open_models_panel(pilot)
         panel._pending_alias = "medium"
         panel._pending_raw_model = "o3"
         panel._on_override_until_picked(resolved)
@@ -414,9 +405,7 @@ async def test_custom_model_path_opens_input_then_duration(monkeypatch) -> None:
     patch_alias_views(monkeypatch, [make_alias_view("medium", "role")])
 
     async with ModelsPanelTestApp().run_test() as pilot:
-        panel = ModelsPanel()
-        pilot.app.push_screen(panel)
-        await pilot.pause()
+        panel = await open_models_panel(pilot)
         panel._pending_alias = "medium"
         panel._on_model_picked(CUSTOM_SENTINEL)
         await pilot.pause()
@@ -436,9 +425,7 @@ async def test_custom_override_explicit_effort_skips_effort_picker(
     patch_alias_views(monkeypatch, [make_alias_view("medium", "role")])
 
     async with ModelsPanelTestApp().run_test() as pilot:
-        panel = ModelsPanel()
-        pilot.app.push_screen(panel)
-        await pilot.pause()
+        panel = await open_models_panel(pilot)
         panel._pending_alias = "medium"
         panel._on_custom_picked("codex/o3@medium")
         await pilot.pause()
@@ -455,9 +442,7 @@ async def test_custom_alias_override_explicit_effort_skips_effort_picker(
     patch_alias_views(monkeypatch, [target, other])
 
     async with ModelsPanelTestApp().run_test() as pilot:
-        panel = ModelsPanel()
-        pilot.app.push_screen(panel)
-        await pilot.pause()
+        panel = await open_models_panel(pilot)
         panel._pending_alias = "medium"
         panel._pending_alias_selection = AliasSelectionContext(
             (target, other), target.name, "temporary"
@@ -473,9 +458,7 @@ async def test_override_effort_cancel_does_not_open_duration(monkeypatch) -> Non
     patch_alias_views(monkeypatch, [make_alias_view("medium", "role")])
 
     async with ModelsPanelTestApp().run_test() as pilot:
-        panel = ModelsPanel()
-        pilot.app.push_screen(panel)
-        await pilot.pause()
+        panel = await open_models_panel(pilot)
         panel._pending_alias = "medium"
         panel._on_model_picked("o3")
         await pilot.pause()

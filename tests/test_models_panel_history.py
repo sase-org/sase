@@ -37,6 +37,7 @@ from tests._models_panel_helpers import (
     make_alias_view,
     make_bucketed_views,
     make_pool_members,
+    open_models_panel,
     patch_alias_views,
 )
 
@@ -138,9 +139,7 @@ async def test_footer_shows_history_only_for_supported_rows(
     patch_alias_views(monkeypatch, make_bucketed_views())
 
     async with ModelsPanelTestApp().run_test() as pilot:
-        panel = ModelsPanel()
-        pilot.app.push_screen(panel)
-        await pilot.pause()
+        panel = await open_models_panel(pilot, row_id=row_id)
         highlight_row(panel, row_id)
         footer = str(panel.query_one("#models-panel-footer", Static).content)
         assert ("H" in footer and "History" in footer) is expect_history
@@ -161,9 +160,7 @@ async def test_footer_shows_history_for_alias_backed_launch_setting(
     )
 
     async with ModelsPanelTestApp().run_test() as pilot:
-        panel = ModelsPanel()
-        pilot.app.push_screen(panel)
-        await pilot.pause()
+        panel = await open_models_panel(pilot, row_id="launch:default_model")
         highlight_row(panel, "launch:default_model")
         footer = str(panel.query_one("#models-panel-footer", Static).content)
         assert "History" in footer
@@ -182,9 +179,7 @@ async def test_footer_hides_history_for_concrete_launch_setting(monkeypatch) -> 
     )
 
     async with ModelsPanelTestApp().run_test() as pilot:
-        panel = ModelsPanel()
-        pilot.app.push_screen(panel)
-        await pilot.pause()
+        panel = await open_models_panel(pilot, row_id="launch:default_model")
         highlight_row(panel, "launch:default_model")
         footer = str(panel.query_one("#models-panel-footer", Static).content)
         assert "History" not in footer
@@ -194,9 +189,9 @@ async def test_footer_hides_history_for_big_epic_threshold_row(monkeypatch) -> N
     patch_alias_views(monkeypatch, [make_alias_view("large", "role")])
 
     async with ModelsPanelTestApp().run_test() as pilot:
-        panel = ModelsPanel()
-        pilot.app.push_screen(panel)
-        await pilot.pause()
+        panel = await open_models_panel(
+            pilot, row_id="setting:big_epic_phase_threshold"
+        )
         highlight_row(panel, "setting:big_epic_phase_threshold")
         footer = str(panel.query_one("#models-panel-footer", Static).content)
         assert "History" not in footer
@@ -206,9 +201,7 @@ async def test_h_on_alias_opens_history_modal_for_that_alias(monkeypatch) -> Non
     patch_alias_views(monkeypatch, [make_alias_view("large", "role")])
 
     async with ModelsPanelTestApp().run_test() as pilot:
-        panel = ModelsPanel()
-        pilot.app.push_screen(panel)
-        await pilot.pause()
+        panel = await open_models_panel(pilot, row_id="large")
         highlight_row(panel, "large")
         await pilot.press("H")
         await pilot.pause()
@@ -225,9 +218,7 @@ async def test_h_on_bucket_opens_history_for_every_member_in_order(
     patch_alias_views(monkeypatch, make_bucketed_views())
 
     async with ModelsPanelTestApp().run_test() as pilot:
-        panel = ModelsPanel()
-        pilot.app.push_screen(panel)
-        await pilot.pause()
+        panel = await open_models_panel(pilot, row_id="bucket:research")
         highlight_row(panel, "bucket:research")
         await pilot.press("H")
         await pilot.pause()
@@ -253,9 +244,7 @@ async def test_h_on_alias_backed_launch_setting_opens_referenced_alias(
     )
 
     async with ModelsPanelTestApp().run_test() as pilot:
-        panel = ModelsPanel()
-        pilot.app.push_screen(panel)
-        await pilot.pause()
+        panel = await open_models_panel(pilot, row_id="launch:default_model")
         highlight_row(panel, "launch:default_model")
         await pilot.press("H")
         await pilot.pause()
@@ -280,8 +269,9 @@ async def test_h_on_concrete_launch_setting_only_warns(monkeypatch) -> None:
     async with ModelsPanelTestApp().run_test() as pilot:
         panel = ModelsPanel()
         panel.notify = MagicMock()  # type: ignore[method-assign]
-        pilot.app.push_screen(panel)
-        await pilot.pause()
+        panel = await open_models_panel(
+            pilot, row_id="launch:default_model", panel=panel
+        )
         highlight_row(panel, "launch:default_model")
         await pilot.press("H")
         await pilot.pause()
@@ -307,8 +297,7 @@ async def test_h_on_scalar_setting_only_warns(
     async with ModelsPanelTestApp().run_test() as pilot:
         panel = ModelsPanel()
         panel.notify = MagicMock()  # type: ignore[method-assign]
-        pilot.app.push_screen(panel)
-        await pilot.pause()
+        panel = await open_models_panel(pilot, row_id=row_id, panel=panel)
         highlight_row(panel, row_id)
         await pilot.press("H")
         await pilot.pause()

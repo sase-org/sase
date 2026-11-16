@@ -23,8 +23,11 @@ from tests._models_panel_helpers import (
     highlight_row,
     make_alias_view,
     make_bucketed_views,
+    open_models_panel,
     patch_alias_views,
+    wait_and_highlight,
     wait_for,
+    wait_for_option,
     wait_for_snapshot_idle,
 )
 
@@ -70,11 +73,8 @@ async def test_panel_l_drills_into_bucket_and_h_restores_bucket(monkeypatch) -> 
     )
 
     async with ModelsPanelTestApp().run_test() as pilot:
-        panel = ModelsPanel()
-        pilot.app.push_screen(panel)
-        await pilot.pause()
-
-        highlight_row(panel, "bucket:research")
+        panel = await open_models_panel(pilot, row_id="bucket:research")
+        await wait_and_highlight(pilot, panel, "bucket:research")
 
         assert panel._highlighted_row_id() == "bucket:research"
         assert "l/enter" in str(panel.query_one("#models-panel-footer", Static).content)
@@ -105,10 +105,8 @@ async def test_panel_enter_drills_into_bucket(monkeypatch) -> None:
     patch_alias_views(monkeypatch, make_bucketed_views())
 
     async with ModelsPanelTestApp().run_test() as pilot:
-        panel = ModelsPanel()
-        pilot.app.push_screen(panel)
-        await wait_for(pilot, lambda: "bucket:research" in panel._row_by_id)
-        highlight_row(panel, "bucket:research")
+        panel = await open_models_panel(pilot, row_id="bucket:research")
+        await wait_and_highlight(pilot, panel, "bucket:research")
         await pilot.press("enter")
         await pilot.pause()
 
@@ -150,7 +148,7 @@ async def test_delayed_provider_snapshot_keeps_bucket_for_guarded_edit(
             await wait_for(pilot, lambda: panel._provider_snapshot_worker is not None)
             worker = panel._provider_snapshot_worker
             assert worker is not None
-            await wait_for(pilot, lambda: "bucket:research" in panel._row_by_id)
+            await wait_for_option(pilot, panel, "bucket:research")
             assert "launch:default_model" in panel._row_by_id
             assert "setting:big_epic_phase_threshold" in panel._row_by_id
             highlight_row(panel, "bucket:research")
@@ -180,10 +178,8 @@ async def test_refresh_auto_leaves_bucket_when_last_member_disappears(
     patch_alias_views(monkeypatch, views)
 
     async with ModelsPanelTestApp().run_test() as pilot:
-        panel = ModelsPanel()
-        pilot.app.push_screen(panel)
-        await pilot.pause()
-        highlight_row(panel, "bucket:research")
+        panel = await open_models_panel(pilot, row_id="bucket:research")
+        await wait_and_highlight(pilot, panel, "bucket:research")
         await pilot.press("l")
         await pilot.pause()
         assert panel._active_bucket == "research"
@@ -213,10 +209,8 @@ async def test_panel_mixed_bucket_sections_title_and_restore(monkeypatch) -> Non
     patch_alias_views(monkeypatch, views)
 
     async with ModelsPanelTestApp().run_test() as pilot:
-        panel = ModelsPanel()
-        pilot.app.push_screen(panel)
-        await pilot.pause()
-        highlight_row(panel, "bucket:worker")
+        panel = await open_models_panel(pilot, row_id="bucket:worker")
+        await wait_and_highlight(pilot, panel, "bucket:worker")
         await pilot.press("l")
         await pilot.pause()
 

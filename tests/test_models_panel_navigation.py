@@ -7,10 +7,11 @@ from textual.widgets import OptionList, Static
 from sase.ace.tui.modals.models_panel import ModelsPanel
 from tests._models_panel_helpers import (
     ModelsPanelTestApp,
-    highlight_row,
     make_alias_view,
     make_worker_bucket_views,
+    open_models_panel,
     patch_alias_views,
+    wait_and_highlight,
     wait_for_snapshot_idle,
 )
 
@@ -21,9 +22,7 @@ async def test_panel_size_alias_navigation_and_order(
     patch_alias_views(monkeypatch, make_worker_bucket_views())
 
     async with ModelsPanelTestApp().run_test() as pilot:
-        panel = ModelsPanel()
-        pilot.app.push_screen(panel)
-        await pilot.pause()
+        panel = await open_models_panel(pilot, row_id="xsmall")
 
         assert list(panel._row_by_id) == [
             "launch:default_model",
@@ -42,7 +41,7 @@ async def test_panel_size_alias_navigation_and_order(
         description = panel.query_one("#models-panel-description", Static).content.plain
         assert "llm_provider.default_model" in description
 
-        highlight_row(panel, "xsmall")
+        await wait_and_highlight(pilot, panel, "xsmall")
         assert panel._highlighted_row_id() == "xsmall"
         await pilot.press("j")
         assert panel._highlighted_row_id() == "small"
@@ -66,9 +65,7 @@ async def test_panel_navigation_skips_headers_and_empty_hint_with_wrap(
     patch_alias_views(monkeypatch, views)
 
     async with ModelsPanelTestApp().run_test() as pilot:
-        panel = ModelsPanel()
-        pilot.app.push_screen(panel)
-        await pilot.pause()
+        panel = await open_models_panel(pilot, row_id="large")
         option_list = panel.query_one("#models-panel-list", OptionList)
 
         assert panel._highlighted_row_id() == "launch:default_model"
@@ -84,7 +81,7 @@ async def test_panel_navigation_skips_headers_and_empty_hint_with_wrap(
             "researcher",
         }
 
-        highlight_row(panel, "large")
+        await wait_and_highlight(pilot, panel, "large")
         await pilot.press("j")
         assert panel._highlighted_row_id() == "researcher"
         await pilot.press("j")
@@ -115,8 +112,7 @@ async def test_panel_decorative_option_ids_never_resolve_to_actions(
     async with ModelsPanelTestApp().run_test() as pilot:
         panel = ModelsPanel()
         panel.notify = MagicMock()  # type: ignore[method-assign]
-        pilot.app.push_screen(panel)
-        await pilot.pause()
+        panel = await open_models_panel(pilot, panel=panel, row_id="large")
         option_list = panel.query_one("#models-panel-list", OptionList)
 
         decorative_ids = [

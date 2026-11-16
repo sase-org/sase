@@ -6,10 +6,11 @@ from typing import Any
 
 from textual.app import App, ComposeResult
 from textual.widgets import OptionList
+from textual.widgets._option_list import OptionDoesNotExist
 
 import sase.ace.tui.modals.models_panel as models_panel
 import sase.ace.tui.modals.models_panel_provider_state as models_panel_provider_state
-from sase.ace.testing import wait_for as wait_for_pilot
+from sase.ace.testing import settle_pilot, wait_for as wait_for_pilot
 from sase.ace.tui.modals.models_panel import ModelsPanel
 from sase.config.edit import ConfigEffectivePreview, ConfigWritePlan, EditPlanResult
 from sase.config.inventory import ConfigDiagnostic
@@ -274,15 +275,51 @@ async def wait_for(
     await wait_for_pilot(pilot, predicate, timeout=timeout)
 
 
-async def wait_for_snapshot_idle(
-    pilot: Any, panel: ModelsPanel, *, timeout: float = 5.0
-) -> None:
-    """Wait until a `_refresh_rows` provider-snapshot worker has applied."""
-    await wait_for(
-        pilot,
-        lambda: panel._provider_snapshot_worker is None,
-        timeout=timeout,
-    )
+async def wait_for_snapshot_idle(pilot: Any, panel: ModelsPanel) -> None:
+    """Wait until a `_refresh_rows` provider-snapshot worker has applied.
+
+    ``on_mount`` starts the worker, so this first waits until the panel is
+    mounted. Checking ``worker is None`` before that returns immediately and
+    races the snapshot paint.
+    """
+    await wait_for_pilot(pilot, lambda: panel.is_mounted)
+    await settle_pilot(pilot)
+    await wait_for_pilot(pilot, lambda: panel._provider_snapshot_worker is None)
+
+
+async def wait_for_option(pilot: Any, panel: ModelsPanel, row_id: str) -> None:
+    """Wait until ``row_id`` exists on the mounted Models panel.
+
+    Compose starts with empty alias views; ``large`` and bucket rows only
+    appear after the provider-snapshot worker applies. ``pilot.pause()``
+    alone can return before that paint under load.
+    """
+
+    def _ready() -> bool:
+        option_list = panel.query_one("#models-panel-list", OptionList)
+        try:
+            option_list.get_option(row_id)
+        except OptionDoesNotExist:
+            return False
+        return True
+
+    await wait_for_pilot(pilot, _ready)
+
+
+async def open_models_panel(
+    pilot: Any,
+    *,
+    row_id: str | None = None,
+    panel: ModelsPanel | None = None,
+) -> ModelsPanel:
+    """Mount Launch Control and wait until the snapshot (and optional row) exist."""
+    panel = panel or ModelsPanel()
+    if panel is not getattr(pilot.app, "screen", None):
+        pilot.app.push_screen(panel)
+    await wait_for_snapshot_idle(pilot, panel)
+    if row_id is not None:
+        await wait_for_option(pilot, panel, row_id)
+    return panel
 
 
 def highlight_row(panel: ModelsPanel, row_id: str) -> None:
@@ -290,6 +327,13 @@ def highlight_row(panel: ModelsPanel, row_id: str) -> None:
     option_list = panel.query_one("#models-panel-list", OptionList)
     panel._set_highlighted_index(option_list, option_list.get_option_index(row_id))
     panel._update_context()
+
+
+async def wait_and_highlight(pilot: Any, panel: ModelsPanel, row_id: str) -> None:
+    """Wait for snapshot paint and ``row_id``, then highlight that row."""
+    await wait_for_snapshot_idle(pilot, panel)
+    await wait_for_option(pilot, panel, row_id)
+    highlight_row(panel, row_id)
 
 
 def make_bucketed_views() -> list[AliasView]:

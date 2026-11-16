@@ -24,6 +24,7 @@ from tests._models_panel_helpers import (
     make_alias_view,
     make_bucketed_views,
     patch_alias_views,
+    wait_and_highlight,
     wait_for,
 )
 from tests._models_panel_provider_routing_helpers import (
@@ -333,12 +334,6 @@ async def test_models_panel_title_shows_disabled_provider_line(monkeypatch) -> N
         assert "disabled providers: CLAUDE until cleared" in title
 
 
-def _highlight_row(panel: ModelsPanel, row_id: str) -> None:
-    option_list = panel.query_one("#models-panel-list", OptionList)
-    panel._set_highlighted_index(option_list, option_list.get_option_index(row_id))
-    panel._update_context()
-
-
 async def test_provider_snapshot_explicit_keep_overrides_current_row(
     monkeypatch,
 ) -> None:
@@ -359,8 +354,7 @@ async def test_provider_snapshot_explicit_keep_overrides_current_row(
         panel = ModelsPanel()
         pilot.app.push_screen(panel)
         await wait_for(pilot, lambda: panel._provider_snapshot is snapshot)
-        await wait_for(pilot, lambda: "bucket:research" in panel._row_by_id)
-        _highlight_row(panel, "bucket:research")
+        await wait_and_highlight(pilot, panel, "bucket:research")
         assert panel._highlighted_row_id() == "bucket:research"
 
         panel._apply_provider_snapshot(snapshot, keep="plain", update_rows=True)
@@ -395,8 +389,7 @@ async def test_provider_snapshot_missing_row_falls_back_to_first_launch_row(
         panel = ModelsPanel()
         pilot.app.push_screen(panel)
         await wait_for(pilot, lambda: panel._provider_snapshot is before)
-        await wait_for(pilot, lambda: "bucket:research" in panel._row_by_id)
-        _highlight_row(panel, "bucket:research")
+        await wait_and_highlight(pilot, panel, "bucket:research")
         assert panel._highlighted_row_id() == "bucket:research"
 
         panel._apply_provider_snapshot(after, update_rows=True)

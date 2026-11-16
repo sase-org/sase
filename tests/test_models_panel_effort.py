@@ -34,7 +34,9 @@ from tests._models_panel_helpers import (
     make_alias_view,
     make_bucketed_views,
     make_edit_plan,
+    open_models_panel,
     patch_alias_views,
+    wait_and_highlight,
 )
 
 _NOW = 1_800_000_000.0
@@ -77,12 +79,6 @@ def _patch_snapshot(
     )
 
 
-def _highlight_row(panel: ModelsPanel, row_id: str) -> None:
-    option_list = panel.query_one("#models-panel-list", OptionList)
-    panel._set_highlighted_index(option_list, option_list.get_option_index(row_id))
-    panel._update_context()
-
-
 @pytest.mark.parametrize("bucket_state", ["alias", "collapsed", "open"])
 async def test_ctrl_e_opens_global_action_card_in_every_bucket_state(
     monkeypatch: pytest.MonkeyPatch, bucket_state: str
@@ -92,9 +88,7 @@ async def test_ctrl_e_opens_global_action_card_in_every_bucket_state(
     _patch_snapshot(monkeypatch, _snapshot())
 
     async with ModelsPanelTestApp().run_test() as pilot:
-        panel = ModelsPanel()
-        pilot.app.push_screen(panel)
-        await pilot.pause()
+        await open_models_panel(pilot)
         if bucket_state in {"collapsed", "open"}:
             await pilot.press("j", "j")
         if bucket_state == "open":
@@ -110,9 +104,7 @@ async def test_panel_title_and_chooser_show_effective_and_configured_values(
     _patch_snapshot(monkeypatch, _snapshot(override=_override()))
 
     async with ModelsPanelTestApp().run_test() as pilot:
-        panel = ModelsPanel()
-        pilot.app.push_screen(panel)
-        await pilot.pause()
+        panel = await open_models_panel(pilot, row_id="setting:default_effort")
         title = panel.query_one("#models-panel-title", Static).content.plain
         assert title == "Launch Control"
         option_list = panel.query_one("#models-panel-list", OptionList)
@@ -122,7 +114,7 @@ async def test_panel_title_and_chooser_show_effective_and_configured_values(
         assert "default effort" in effort_row
         assert "@ medium" in effort_row
         assert "override · 42m left" in effort_row
-        _highlight_row(panel, "setting:default_effort")
+        await wait_and_highlight(pilot, panel, "setting:default_effort")
         description = panel.query_one("#models-panel-description", Static).content.plain
         assert "configured: xhigh" in description
         assert (
@@ -248,9 +240,7 @@ async def test_override_flow_reuses_duration_picker_and_updates_snapshot(
     monkeypatch.setattr(ModelsPanel, "_set_default_effort_override", set_override)
 
     async with ModelsPanelTestApp().run_test() as pilot:
-        panel = ModelsPanel()
-        pilot.app.push_screen(panel)
-        await pilot.pause()
+        panel = await open_models_panel(pilot)
         await pilot.press("ctrl+e", "o", "4")
         assert isinstance(pilot.app.screen, DurationPickerModal)
         await pilot.press("1")
@@ -280,10 +270,8 @@ async def test_clear_flow_preserves_alias_cursor(
     )
 
     async with ModelsPanelTestApp().run_test() as pilot:
-        panel = ModelsPanel()
-        pilot.app.push_screen(panel)
-        await pilot.pause()
-        _highlight_row(panel, "plain")
+        panel = await open_models_panel(pilot, row_id="plain")
+        await wait_and_highlight(pilot, panel, "plain")
         await pilot.press("ctrl+e", "x")
         await wait_for(pilot, lambda: panel._effort_clear_worker is None)
         assert panel._effort_snapshot.temporary_override is None

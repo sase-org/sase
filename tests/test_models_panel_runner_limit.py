@@ -36,7 +36,9 @@ from tests._models_panel_helpers import (
     make_alias_view,
     make_bucketed_views,
     make_edit_plan,
+    open_models_panel,
     patch_alias_views,
+    wait_and_highlight,
 )
 
 _NOW = 1_800_000_000.0
@@ -88,12 +90,6 @@ def _patch_snapshot(
     )
 
 
-def _highlight_row(panel: ModelsPanel, row_id: str) -> None:
-    option_list = panel.query_one("#models-panel-list", OptionList)
-    panel._set_highlighted_index(option_list, option_list.get_option_index(row_id))
-    panel._update_context()
-
-
 def _runner_limit_row_text(panel: ModelsPanel) -> str:
     option_list = panel.query_one("#models-panel-list", OptionList)
     return option_list.get_option_at_index(
@@ -109,9 +105,7 @@ async def test_ctrl_r_opens_global_action_card_in_every_bucket_state(
     _patch_snapshot(monkeypatch, _snapshot())
 
     async with ModelsPanelTestApp().run_test() as pilot:
-        panel = ModelsPanel()
-        pilot.app.push_screen(panel)
-        await pilot.pause()
+        await open_models_panel(pilot)
         if bucket_state in {"collapsed", "open"}:
             await pilot.press("j", "j")
         if bucket_state == "open":
@@ -127,9 +121,7 @@ async def test_title_footer_and_chooser_show_effective_and_configured_limits(
     _patch_snapshot(monkeypatch, _snapshot(override=_override()))
 
     async with ModelsPanelTestApp().run_test() as pilot:
-        panel = ModelsPanel()
-        pilot.app.push_screen(panel)
-        await pilot.pause()
+        panel = await open_models_panel(pilot, row_id="setting:runner_limit")
         await wait_for(
             pilot,
             lambda: "override · 42m left" in _runner_limit_row_text(panel),
@@ -267,8 +259,7 @@ async def test_edit_prefills_configured_and_override_prefills_effective(
     _patch_snapshot(monkeypatch, _snapshot(configured=10, override=_override(4)))
 
     async with ModelsPanelTestApp().run_test() as pilot:
-        pilot.app.push_screen(ModelsPanel())
-        await pilot.pause()
+        await open_models_panel(pilot)
         await pilot.press("ctrl+r", "e")
         assert (
             pilot.app.screen.query_one("#runner-limit-value-input", Input).value == "10"
@@ -304,10 +295,8 @@ async def test_override_flow_reuses_duration_and_requests_agents_refresh(
 
     app = _RefreshingModelsPanelTestApp()
     async with app.run_test() as pilot:
-        panel = ModelsPanel()
-        pilot.app.push_screen(panel)
-        await pilot.pause()
-        _highlight_row(panel, "plain")
+        panel = await open_models_panel(pilot, row_id="plain")
+        await wait_and_highlight(pilot, panel, "plain")
         await pilot.press("ctrl+r", "o")
         assert isinstance(pilot.app.screen, RunnerLimitValueModal)
         await pilot.press("4", "enter")
@@ -336,10 +325,8 @@ async def test_clear_preserves_cursor_and_requests_agents_refresh(
 
     app = _RefreshingModelsPanelTestApp()
     async with app.run_test() as pilot:
-        panel = ModelsPanel()
-        pilot.app.push_screen(panel)
-        await pilot.pause()
-        _highlight_row(panel, "plain")
+        panel = await open_models_panel(pilot, row_id="plain")
+        await wait_and_highlight(pilot, panel, "plain")
         await pilot.press("ctrl+r", "x")
         await wait_for(pilot, lambda: panel._runner_limit_clear_worker is None)
         assert panel._runner_limit_snapshot.temporary_override is None
@@ -354,9 +341,7 @@ async def test_runner_cards_fit_narrow_supported_layout(
     _patch_snapshot(monkeypatch, _snapshot(override=_override()))
 
     async with StyledModelsPanelTestApp().run_test(size=(80, 40)) as pilot:
-        panel = ModelsPanel()
-        pilot.app.push_screen(panel)
-        await pilot.pause()
+        panel = await open_models_panel(pilot)
         assert panel.region.right <= pilot.app.screen.size.width
         assert panel.region.bottom <= pilot.app.screen.size.height
         assert panel.query_one("#models-panel-footer", Static).region.bottom <= 40
