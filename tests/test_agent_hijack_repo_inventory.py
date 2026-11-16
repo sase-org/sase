@@ -297,6 +297,7 @@ class TestHijackReleaseSeesAllRepos:
             lifecycle_phase=None,
             is_monitor_turn=False,
             is_gate_turn=False,
+            gate_state=None,
             agent_session=None,
             capabilities=[],
             model_alias=None,

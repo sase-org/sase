@@ -1,0 +1,95 @@
+{
+  "autonomy": {
+    "digest": "c901a80c96319b4ff3a6c0b8df9b9fc60e67b4d4175a32e60153ec91c0ef8c07",
+    "overrides": {},
+    "policy": {
+      "gates": {
+        "epic": "ask",
+        "plan": "ask",
+        "question": "ask"
+      },
+      "on_ask": "park"
+    },
+    "profile": "manual",
+    "revision": 1,
+    "schema_version": 1,
+    "selection": "manual",
+    "source": "prompt",
+    "updated_at": "2026-11-06T12:00:00Z",
+    "updated_by": {
+      "kind": "host",
+      "principal": "host",
+      "surface": "launch"
+    }
+  },
+  "booted_at": "2026-11-06T12:00:00+00:00",
+  "changespec_name": "ace(run)-fixture",
+  "cl_name": "ace(run)-fixture",
+  "code_identity": {
+    "captured_at": "2026-11-06T12:00:00+00:00",
+    "roots": [
+      {
+        "commit": "082f2bc7054de7d71a86646105c863b4dd85849d",
+        "install_type": "editable",
+        "name": "sase",
+        "role": "host",
+        "source_root": "/src/sase",
+        "version": "0.18.1"
+      },
+      {
+        "commit": null,
+        "install_type": "wheel",
+        "name": "sase-core-rs",
+        "role": "core",
+        "source_root": null,
+        "version": "0.44.2"
+      }
+    ],
+    "schema_version": 1
+  },
+  "launch_scratch_key": "agent-ws3-fixture",
+  "linked_repos": [
+    {
+      "auto_clone": true,
+      "env_name": "SASE_CORE",
+      "kind": "linked",
+      "name": "sase-core",
+      "primary_dir": "/src/sase-core",
+      "remote_url": null,
+      "revision_pin": "sase-core-revision.txt",
+      "slug": null,
+      "workspace_dir": "/workspace/sase/repos/linked/sase-core",
+      "workspace_num": 3
+    }
+  ],
+  "llm_provider": "fakey",
+  "model": "fakey-large",
+  "model_alias_origin": "none",
+  "name": "hijack-e2e--0",
+  "output_path": "/tmp/out.log",
+  "patch_name": "ace(run)-fixture",
+  "pid": 424242,
+  "process_identity": "boot-id:start-ticks",
+  "prompt_origin": "unknown",
+  "prompt_source_surface": "cli",
+  "queue_weight": 1.0,
+  "queue_weight_explicit": false,
+  "reasoning_effort": "high",
+  "runner_capabilities": ["hijack"],
+  "sibling_repos": [
+    {
+      "auto_clone": true,
+      "env_name": "SASE_CORE",
+      "kind": "linked",
+      "name": "sase-core",
+      "primary_dir": "/src/sase-core",
+      "remote_url": null,
+      "revision_pin": "sase-core-revision.txt",
+      "slug": null,
+      "workspace_dir": "/workspace/sase/repos/linked/sase-core",
+      "workspace_num": 3
+    }
+  ],
+  "workspace_dir": "/workspace",
+  "workspace_num": 3
+}

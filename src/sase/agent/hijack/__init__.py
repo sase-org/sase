@@ -93,10 +93,14 @@ from .recover_release import (
 )
 
 HIJACK_RUNNER_CAPABILITY = "hijack"
+MISSING_HIJACK_CAPABILITY_MESSAGE = (
+    "runner did not record hijack support; use x, or wait for its next turn"
+)
 
 __all__ = [
     "ACTIVE_CUSTODY_STATES",
     "HIJACK_RUNNER_CAPABILITY",
+    "MISSING_HIJACK_CAPABILITY_MESSAGE",
     "HijackLedgerConflict",
     "HijackContinuationPrompt",
     "HijackRecoveryRefusal",

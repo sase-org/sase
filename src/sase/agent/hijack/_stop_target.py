@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 
@@ -55,6 +56,7 @@ def resolve_target(name: str, *, deps: StopDeps) -> HijackTarget | None:
             phase = raw_phase
     done_outcome, done_recovery = read_done_marker(artifacts_dir)
     trail = meta.get("model_alias_trail")
+    is_monitor_turn, is_gate_turn, gate_state = _classify_turn(meta)
     return HijackTarget(
         name=str(getattr(found, "name", name) or name),
         artifacts_dir=artifacts_dir,
@@ -72,21 +74,27 @@ def resolve_target(name: str, *, deps: StopDeps) -> HijackTarget | None:
         workspace_dir=workspace_dir,
         status=status,
         lifecycle_phase=phase,
-        is_monitor_turn=bool(getattr(row, "is_monitor", False))
-        if row is not None
-        else False,
-        is_gate_turn=_meta_bool(meta, "gate_turn", "is_gate_turn"),
-        agent_session=getattr(row, "agent_session", None),
+        is_monitor_turn=is_monitor_turn,
+        is_gate_turn=is_gate_turn,
+        gate_state=gate_state,
+        agent_session=getattr(row, "agent_session", None)
+        or _meta_str(meta, "agent_session"),
         capabilities=capability_list,
         model_alias=_meta_str(meta, "model_alias"),
         model_alias_trail=[str(item) for item in trail]
         if isinstance(trail, list)
         else [],
         model_origin=_meta_str(meta, "prompt_origin", "model_origin"),
-        provider=_meta_str(meta, "agent_llm_provider", "provider"),
-        model=_meta_str(meta, "agent_model", "model"),
-        effort=_meta_str(meta, "agent_effort", "effort"),
-        run_started_at=_meta_float(meta, "booted_at", "started_at"),
+        provider=_meta_str(
+            meta,
+            "llm_provider",
+            "exec_llm_provider",
+            "agent_llm_provider",
+            "provider",
+        ),
+        model=_meta_str(meta, "model", "agent_model"),
+        effort=_meta_str(meta, "reasoning_effort", "agent_effort", "effort"),
+        run_started_at=_meta_epoch(meta, "booted_at", "started_at"),
         done_outcome=done_outcome,
         done_recovery=done_recovery,
     )
@@ -187,6 +195,54 @@ def _row_status(row: Any | None, artifacts_dir: str, pid: int | None) -> str:
     return "DONE"
 
 
+def _classify_turn(meta: dict[str, Any]) -> tuple[bool, bool, str | None]:
+    """Classify monitor/gate turns from durable records, never live rows."""
+    from sase.core.agent_scan_wire import AgentArtifactRecordWire, AgentMetaWire
+    from sase.core.agent_scan_wire_agent_session_turn import (
+        agent_session_turn_from_mapping,
+    )
+    from sase.gate_turn.state import is_real_gate_member
+    from sase.monitor.models import is_monitor_member_record
+    from sase.plan_chain import agent_session_role_value, turn_kind_value
+
+    role_raw = agent_session_role_value(meta)
+    role = role_raw if isinstance(role_raw, str) and role_raw else None
+    turn = agent_session_turn_from_mapping(meta)
+    gate_id = None
+    if (
+        turn is not None
+        and turn.kind == "gate"
+        and isinstance(turn.id, str)
+        and turn.id
+    ):
+        gate_id = turn.id
+    elif isinstance(meta.get("gate_id"), str) and meta["gate_id"]:
+        gate_id = str(meta["gate_id"])
+    is_gate = is_real_gate_member(role, gate_id)
+    gate_state: str | None = None
+    if is_gate:
+        if turn is not None and isinstance(turn.state, str) and turn.state:
+            gate_state = turn.state
+        else:
+            gate_state = _meta_str(meta, "gate_state")
+    record = AgentArtifactRecordWire(
+        project_name="",
+        project_dir="",
+        project_file="",
+        workflow_dir_name="",
+        artifact_dir="",
+        timestamp="",
+        agent_meta=AgentMetaWire(
+            agent_session_role=role,
+            agent_session_turn=turn,
+        ),
+    )
+    is_monitor = is_monitor_member_record(record) or (
+        turn_kind_value(meta) == "monitor" and turn is not None and bool(turn.id)
+    )
+    return is_monitor, is_gate, gate_state
+
+
 def _meta_str(meta: dict[str, Any], *keys: str) -> str | None:
     for key in keys:
         value = meta.get(key)
@@ -195,20 +251,28 @@ def _meta_str(meta: dict[str, Any], *keys: str) -> str | None:
     return None
 
 
-def _meta_bool(meta: dict[str, Any], *keys: str) -> bool:
+def _meta_epoch(meta: dict[str, Any], *keys: str) -> float | None:
     for key in keys:
-        value = meta.get(key)
-        if isinstance(value, bool):
-            return value
-    return False
-
-
-def _meta_float(meta: dict[str, Any], *keys: str) -> float | None:
-    for key in keys:
-        value = meta.get(key)
-        if isinstance(value, (int, float)) and not isinstance(value, bool):
-            return float(value)
+        parsed = _parse_timestamp(meta.get(key))
+        if parsed is not None:
+            return parsed
     return None
+
+
+def _parse_timestamp(value: object) -> float | None:
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, (int, float)):
+        return float(value)
+    if not isinstance(value, str) or not value.strip():
+        return None
+    text = value.strip()
+    if text.endswith("Z"):
+        text = f"{text[:-1]}+00:00"
+    try:
+        return datetime.fromisoformat(text).timestamp()
+    except ValueError:
+        return None
 
 
 __all__ = [

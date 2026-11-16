@@ -13,6 +13,7 @@ from sase.axe._run_agent_directive_metadata_shared import (
 from sase.axe.run_agent_directive_metadata_inputs import (
     EPIC_WORK_ENV_METADATA_NAMES,
 )
+from sase.axe.runner_boot_meta import copy_runner_boot_meta
 from sase.bead.work import SASE_EPIC_CLAN_SUMMARY_SCRIPT_ENV
 from sase.core.runner_slots import valid_queue_weight
 from sase.plan_chain import (
@@ -53,8 +54,6 @@ def preserved_agent_metadata(artifacts_dir: str) -> dict[str, Any]:
         "reasoning_effort",
         "model_alias",
         "model_alias_origin",
-        "prompt_origin",
-        "prompt_source_surface",
     ):
         value = existing_meta.get(key)
         if isinstance(value, str) and value:
@@ -67,16 +66,11 @@ def preserved_agent_metadata(artifacts_dir: str) -> dict[str, Any]:
     model_alias_reservation = existing_meta.get("model_alias_reservation")
     if isinstance(model_alias_reservation, dict):
         preserved["model_alias_reservation"] = dict(model_alias_reservation)
-    # Boot code identity and lifecycle breadcrumbs survive a refresh
-    # re-exec: the refreshed pass re-extracts directives into a rebuilt
-    # record, and these keys must ride along. A refreshed bootstrap already
-    # overwrote them with the new image's own values before this runs.
-    code_identity = existing_meta.get("code_identity")
-    if isinstance(code_identity, dict):
-        preserved["code_identity"] = code_identity
-    booted_at = existing_meta.get("booted_at")
-    if isinstance(booted_at, str) and booted_at:
-        preserved["booted_at"] = booted_at
+    # Boot keys survive a refresh re-exec: the refreshed pass re-extracts
+    # directives into a rebuilt record, and these keys must ride along. A
+    # refreshed bootstrap already overwrote them with the new image's own
+    # values before this runs.
+    copy_runner_boot_meta(existing_meta, preserved)
     lifecycle_phase = existing_meta.get("lifecycle_phase")
     if isinstance(lifecycle_phase, str) and lifecycle_phase:
         preserved["lifecycle_phase"] = lifecycle_phase

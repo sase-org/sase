@@ -19,11 +19,13 @@ from sase.axe.run_agent_directive_metadata_preserved import (
     preserved_agent_metadata,
     session_root_tab,
 )
+from sase.axe.runner_boot_meta import RUNNER_BOOT_META_KEYS
 
 __all__ = [
     "AgentMetadataInputs",
     "DEFAULT_QUEUE_WEIGHT",
     "EPIC_WORK_ENV_METADATA_NAMES",
+    "RUNNER_BOOT_META_KEYS",
     "build_agent_meta",
     "consume_epic_clan_summary_script_from_env",
     "epic_work_environment_from_metadata",

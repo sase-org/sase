@@ -88,6 +88,10 @@ def stop_agent_for_hijack(
             reason="already_completed",
         )
     decision = _check_eligibility(target)
+    if decision.get("code") == "missing_capability":
+        from sase.agent.hijack import MISSING_HIJACK_CAPABILITY_MESSAGE
+
+        decision["message"] = MISSING_HIJACK_CAPABILITY_MESSAGE
     if not decision.get("eligible", False):
         return HijackStopResult(
             status="refused",

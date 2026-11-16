@@ -12,6 +12,10 @@ from typing import Any
 
 from sase.artifacts import create_artifacts_directory
 from sase.axe.agent_meta import write_agent_meta_atomic
+from sase.axe.runner_boot_meta import (
+    copy_runner_boot_meta,
+    restamp_hijack_capability,
+)
 from sase.core.agent_artifact_index_lifecycle import (
     update_agent_artifact_index_for_marker_mutation,
 )
@@ -300,12 +304,12 @@ def create_followup_artifacts(
     # Follow-up agents (successors, gate-turn members, retries created
     # in-process) always run agent-written prompts: they are generated,
     # never human-typed. The surface that launched the lineage is kept.
+    copy_runner_boot_meta(base_meta, followup_meta)
     followup_meta["prompt_origin"] = "generated"
-    base_surface = base_meta.get("prompt_source_surface")
-    if isinstance(base_surface, str) and base_surface.strip():
-        followup_meta["prompt_source_surface"] = base_surface.strip()
-    else:
+    surface = followup_meta.get("prompt_source_surface")
+    if not isinstance(surface, str) or not surface.strip():
         followup_meta["prompt_source_surface"] = "unknown"
+    restamp_hijack_capability(followup_meta)
     followup_meta["role_suffix"] = canonical_suffix
     base_session = agent_session_value(base_meta)
     agent_session_name = (

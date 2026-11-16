@@ -14,6 +14,7 @@ from sase.core.agent_artifact_index_lifecycle import (
     update_agent_artifact_index_for_marker_mutation,
 )
 from sase.core.process_identity import process_identity_token
+from sase.axe.runner_boot_meta import restamp_hijack_capability
 from sase.env_contracts import SASE_LAUNCH_SCRATCH_KEY_ENV
 
 
@@ -271,6 +272,7 @@ def write_agent_meta(artifacts_dir: str, agent_meta: dict[str, Any]) -> None:
         and os.environ.get(SASE_LAUNCH_SCRATCH_KEY_ENV)
     ):
         agent_meta["launch_scratch_key"] = os.environ[SASE_LAUNCH_SCRATCH_KEY_ENV]
+    restamp_hijack_capability(agent_meta)
     write_agent_meta_atomic(
         artifacts_dir,
         agent_meta,

@@ -183,6 +183,7 @@ def test_old_runner_without_capability_is_refused(
     assert result.status == "refused"
     assert result.exit_code == 2
     assert result.reason == "missing_capability"
+    assert "runner did not record hijack support" in result.message
     assert _hijack_ids(hijack_home) == []
     assert not (artifacts / ".sase_user_kill_pending").exists()
 

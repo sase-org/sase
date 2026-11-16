@@ -216,24 +216,28 @@ def _make_held_hijack(
         )
     )
     linked_meta = linked_resolution.to_jsonable()
-    metadata = {
-        "name": _AGENT,
-        "pid": process.pid,
-        "runner_capabilities": ["hijack"],
-        "agent_llm_provider": "fakey",
-        "agent_model": "fakey-large",
-        "agent_effort": "high",
-        "model_alias": "large",
-        "model_alias_trail": ["large"],
-        "goal_id": "goal-hijack-e2e",
-        "bead_id": "sase-1qz.11",
-        "autonomy": autonomy,
-        "agent_session": _SESSION,
-        "workspace_dir": str(workspace),
-        "linked_repos": linked_meta,
-        "sibling_repos": linked_meta,
-        "booted_at": time.time(),
-    }
+    fixture_path = (
+        Path(__file__).resolve().parents[1]
+        / "fixtures"
+        / "agent_hijack"
+        / "runner_agent_meta.json"
+    )
+    metadata = json.loads(fixture_path.read_text(encoding="utf-8"))
+    metadata.update(
+        {
+            "name": _AGENT,
+            "pid": process.pid,
+            "model_alias": "large",
+            "model_alias_trail": ["large"],
+            "goal_id": "goal-hijack-e2e",
+            "bead_id": "sase-1qz.11",
+            "autonomy": autonomy,
+            "agent_session": _SESSION,
+            "workspace_dir": str(workspace),
+            "linked_repos": linked_meta,
+            "sibling_repos": linked_meta,
+        }
+    )
     (artifacts / "agent_meta.json").write_text(
         json.dumps(metadata, indent=2) + "\n", encoding="utf-8"
     )

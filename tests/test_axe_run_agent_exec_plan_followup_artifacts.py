@@ -142,6 +142,37 @@ def test_create_followup_artifacts_persists_plan_committed_flag(tmp_path) -> Non
     assert meta["source_plan_agent_name"] == "root--plan"
 
 
+def test_create_followup_artifacts_inherits_runner_boot_keys(tmp_path) -> None:
+    followup = tmp_path / "followup-boot-keys"
+    followup.mkdir()
+
+    with patch(
+        "sase.axe.run_agent_helpers.create_artifacts_directory",
+        return_value=str(followup),
+    ):
+        create_followup_artifacts(
+            "test_proj",
+            {
+                "runner_capabilities": ["hijack"],
+                "code_identity": {"schema_version": 1, "roots": []},
+                "booted_at": "2026-11-06T12:00:00+00:00",
+                "launch_scratch_key": "agent-ws3-parent",
+                "prompt_origin": "human",
+                "prompt_source_surface": "cli",
+            },
+            "--code",
+            "20260711120000",
+        )
+
+    meta = json.loads((followup / "agent_meta.json").read_text())
+    assert meta["runner_capabilities"] == ["hijack"]
+    assert meta["code_identity"] == {"schema_version": 1, "roots": []}
+    assert meta["booted_at"] == "2026-11-06T12:00:00+00:00"
+    assert meta["launch_scratch_key"] == "agent-ws3-parent"
+    assert meta["prompt_origin"] == "generated"
+    assert meta["prompt_source_surface"] == "cli"
+
+
 def test_create_followup_artifacts_inherits_model_alias_overrides(tmp_path) -> None:
     followup = tmp_path / "followup-overrides"
     followup.mkdir()

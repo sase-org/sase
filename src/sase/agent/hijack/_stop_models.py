@@ -30,6 +30,7 @@ class HijackTarget:
     lifecycle_phase: str | None
     is_monitor_turn: bool
     is_gate_turn: bool
+    gate_state: str | None
     agent_session: str | None
     capabilities: list[str]
     model_alias: str | None
