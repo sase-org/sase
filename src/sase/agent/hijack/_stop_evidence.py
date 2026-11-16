@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import subprocess
 import time
 from pathlib import Path
@@ -42,7 +43,7 @@ def attach_evidence(hijack_id: str, evidence: dict[str, Any]) -> None:
         atomic_write_json(path, current)
 
 
-def collect_evidence(target: HijackTarget, *, deps: StopDeps) -> dict[str, Any]:
+def _collect_evidence(target: HijackTarget, *, deps: StopDeps) -> dict[str, Any]:
     evidence: dict[str, Any] = {}
     now = deps.now() if deps.now is not None else time.time()
     if target.run_started_at is not None:
@@ -83,8 +84,11 @@ def _evidence_repo_roots(target: HijackTarget) -> list[str]:
     return roots
 
 
-def capture_snapshots(
-    target: HijackTarget, *, deps: StopDeps
+def _capture_snapshots(
+    target: HijackTarget,
+    *,
+    deps: StopDeps,
+    existing_snapshots: list[dict[str, Any]] | None = None,
 ) -> tuple[list[dict[str, Any]], str | None]:
     snapshot_repo = deps.snapshot_repo
     if snapshot_repo is None:
@@ -97,7 +101,14 @@ def capture_snapshots(
         return [], None
     snapshots: list[dict[str, Any]] = []
     errors: list[str] = []
+    existing_repos = {
+        str(item.get("repo") or "")
+        for item in existing_snapshots or ()
+        if isinstance(item, dict)
+    }
     for root in _evidence_repo_roots(target):
+        if root in existing_repos:
+            continue
         try:
             record = snapshot_repo(
                 root,
@@ -121,6 +132,62 @@ def capture_snapshots(
             }
         )
     return snapshots, "; ".join(errors) if errors else None
+
+
+def collect_and_attach_evidence(
+    hijack_id: str,
+    target: HijackTarget,
+    *,
+    deps: StopDeps,
+    existing_snapshots: list[dict[str, Any]] | None = None,
+    record_snapshot_error: bool = True,
+) -> tuple[dict[str, Any] | None, str | None, str | None]:
+    """Collect shared stop evidence while keeping snapshot failure explicit.
+
+    Immediate stops continue to settle on a best-effort basis. A boundary
+    latch can use ``snapshot_error`` to retain stopping custody until required
+    snapshots have been written. Existing repository snapshots are skipped on
+    replay so interrupted applications converge without duplicate captures.
+    """
+    from sase.agent.hijack import ledger
+
+    evidence_error: str | None = None
+    record: dict[str, Any] | None = None
+    try:
+        evidence = _collect_evidence(target, deps=deps)
+        attach_evidence(hijack_id, evidence)
+        record = ledger.load_record(hijack_id)
+    except Exception as exc:  # noqa: BLE001 - evidence collection is best effort.
+        evidence_error = str(exc)
+        logging.getLogger(__name__).warning(
+            "hijack evidence collection failed: %s", exc
+        )
+
+    snapshot_error: str | None = None
+    try:
+        snapshots, snapshot_error = _capture_snapshots(
+            target,
+            deps=deps,
+            existing_snapshots=existing_snapshots,
+        )
+        merged_snapshots = list(existing_snapshots or ()) + snapshots
+        if snapshots:
+            attach_evidence(hijack_id, {"snapshots": merged_snapshots})
+        if snapshot_error:
+            if not evidence_error:
+                evidence_error = snapshot_error
+            if record_snapshot_error:
+                attach_evidence(
+                    hijack_id,
+                    {"error": f"snapshot failed: {snapshot_error}"},
+                )
+        record = ledger.load_record(hijack_id) or record
+    except Exception as exc:  # noqa: BLE001 - callers decide whether to retain.
+        snapshot_error = str(exc)
+        if not evidence_error:
+            evidence_error = snapshot_error
+        logging.getLogger(__name__).warning("hijack snapshot failed: %s", exc)
+    return record, evidence_error, snapshot_error
 
 
 def format_diff_summary(record: dict[str, Any]) -> str:
@@ -250,7 +317,5 @@ def _read_last_tool(
 
 __all__ = [
     "attach_evidence",
-    "capture_snapshots",
-    "collect_evidence",
     "format_diff_summary",
 ]

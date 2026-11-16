@@ -13,11 +13,15 @@ from .core import (
     agent_hijack_decide,
     agent_hijack_eligibility,
     agent_hijack_eligibility_wire_schema_version,
+    agent_hijack_latch_observe,
+    agent_hijack_latch_wire_schema_version,
     agent_hijack_select_occupant,
     agent_hijack_status_for_done_marker,
     agent_hijack_wire_schema_version,
     hijack_recovery_confirm,
     hijack_recovery_rollback,
+    hijack_latch_force_eligibility,
+    hijack_latch_reconcile,
 )
 from .custody import (
     ACTIVE_CUSTODY_STATES,
@@ -92,6 +96,13 @@ from .recover_release import (
     restart_availability_reason,
     restart_replacement_conflicts,
 )
+from .latch import (
+    apply_latch_at_boundary,
+    cancel_latch,
+    moot_latch,
+    observe_hijack_latch,
+    request_latch,
+)
 
 HIJACK_RUNNER_CAPABILITY = "hijack"
 MISSING_HIJACK_CAPABILITY_MESSAGE = (
@@ -131,6 +142,8 @@ __all__ = [
     "agent_hijack_decide",
     "agent_hijack_eligibility",
     "agent_hijack_eligibility_wire_schema_version",
+    "agent_hijack_latch_observe",
+    "agent_hijack_latch_wire_schema_version",
     "agent_hijack_select_occupant",
     "agent_hijack_status_for_done_marker",
     "agent_hijack_wire_schema_version",
@@ -144,6 +157,13 @@ __all__ = [
     "hijack_recovery_preview",
     "hijack_recovery_confirm",
     "hijack_recovery_rollback",
+    "hijack_latch_force_eligibility",
+    "hijack_latch_reconcile",
+    "apply_latch_at_boundary",
+    "cancel_latch",
+    "moot_latch",
+    "observe_hijack_latch",
+    "request_latch",
     "list_active_records",
     "load_record",
     "load_record_by_agent_name",

@@ -32,7 +32,7 @@ LOG = logging.getLogger(__name__)
 HIJACK_EVENT_EXPIRE = "expire"
 
 ACTIVE_CUSTODY_STATES = frozenset(
-    {"requested", "stopping", "stop_blocked", "held", "resolving"}
+    {"requested", "latched", "stopping", "stop_blocked", "held", "resolving"}
 )
 
 

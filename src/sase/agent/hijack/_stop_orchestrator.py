@@ -17,9 +17,7 @@ from sase.agent.hijack._stop_claim import (
     unpin_claim,
 )
 from sase.agent.hijack._stop_evidence import (
-    attach_evidence,
-    capture_snapshots,
-    collect_evidence,
+    collect_and_attach_evidence,
     format_diff_summary,
 )
 from sase.agent.hijack._stop_models import HijackTarget, StopDeps, read_done_marker
@@ -41,7 +39,7 @@ _STOP_RETRY_ATTEMPTS = 2
 
 #: Ledger states that keep an active target slot (non-terminal custody).
 _ACTIVE_TARGET_STATES = frozenset(
-    {"requested", "stopping", "stop_blocked", "held", "resolving"}
+    {"requested", "latched", "stopping", "stop_blocked", "held", "resolving"}
 )
 
 
@@ -599,29 +597,10 @@ def stop_agent_for_hijack(
         record = ledger.load_record(resolved_id) or record
     except Exception:
         pass
-    evidence_error: str | None = None
-    try:
-        evidence = collect_evidence(target, deps=deps)
-        attach_evidence(resolved_id, evidence)
-        record = ledger.load_record(resolved_id) or record
-    except Exception as exc:  # noqa: BLE001 - evidence is best-effort.
-        evidence_error = str(exc)
-        LOG.warning("hijack evidence collection failed: %s", exc)
-    try:
-        snapshots, snapshot_error = capture_snapshots(target, deps=deps)
-        if snapshots:
-            attach_evidence(resolved_id, {"snapshots": snapshots})
-        if snapshot_error and not evidence_error:
-            evidence_error = snapshot_error
-        if snapshot_error:
-            attach_evidence(
-                resolved_id, {"error": f"snapshot failed: {snapshot_error}"}
-            )
-        record = ledger.load_record(resolved_id) or record
-    except Exception as exc:  # noqa: BLE001 - snapshots never block held.
-        if not evidence_error:
-            evidence_error = str(exc)
-        LOG.warning("hijack snapshot failed: %s", exc)
+    record_after_evidence, evidence_error, _snapshot_error = (
+        collect_and_attach_evidence(resolved_id, target, deps=deps)
+    )
+    record = record_after_evidence or ledger.load_record(resolved_id) or record
     try:
         held = ledger.cas_advance_record(record, {"event": "confirmed_stop"})
     except Exception as exc:
@@ -733,19 +712,15 @@ def _retry_stop_blocked(
         current = ledger.load_record(hijack_id) or record
     except Exception:
         current = record
-    try:
-        evidence = collect_evidence(target, deps=deps)
-        attach_evidence(hijack_id, evidence)
-        current = ledger.load_record(hijack_id) or current
-    except Exception as exc:
-        LOG.warning("hijack evidence collection failed: %s", exc)
-    try:
-        snapshots, snapshot_error = capture_snapshots(target, deps=deps)
-        if snapshots:
-            attach_evidence(hijack_id, {"snapshots": snapshots})
-        current = ledger.load_record(hijack_id) or current
-    except Exception as exc:
-        LOG.warning("hijack snapshot failed: %s", exc)
+    record_after_evidence, _evidence_error, _snapshot_error = (
+        collect_and_attach_evidence(
+            hijack_id,
+            target,
+            deps=deps,
+            record_snapshot_error=False,
+        )
+    )
+    current = record_after_evidence or ledger.load_record(hijack_id) or current
     try:
         held = ledger.cas_advance_record(current, {"event": "confirmed_stop"})
     except Exception as exc:

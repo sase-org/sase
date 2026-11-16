@@ -30,6 +30,7 @@ TARGET_INDEX_LOCKNAME = "target_index.lock"
 
 TERMINAL_STATES = frozenset(
     {
+        "cancelled",
         "resolved",
         "dismissed",
         "expired",
@@ -39,6 +40,10 @@ TERMINAL_STATES = frozenset(
 )
 
 HIJACK_EVENT_BEGIN_STOP = "begin_stop"
+HIJACK_EVENT_LATCH = "latch"
+HIJACK_EVENT_APPLY_LATCH = "apply_latch"
+HIJACK_EVENT_CANCEL_LATCH = "cancel_latch"
+HIJACK_EVENT_MOOT_LATCH = "moot_latch"
 HIJACK_EVENT_STOP_BLOCKED = "stop_blocked"
 HIJACK_EVENT_RETRY_STOP = "retry_stop"
 HIJACK_EVENT_ABANDON_STOP = "abandon_stop"
@@ -46,6 +51,8 @@ HIJACK_EVENT_ABANDON_STOP = "abandon_stop"
 #: Ledger state entered when a surviving writer blocks the stop. Custody
 #: stays with the hijack and the claim pin stays until an explicit abandon.
 HIJACK_STOP_BLOCKED = "stop_blocked"
+HIJACK_LATCHED = "latched"
+HIJACK_CANCELLED = "cancelled"
 
 #: Stop-mechanism scopes carried on the hijack record.
 HIJACK_SCOPE_LLM = "llm"
@@ -94,6 +101,11 @@ def _target_index_lock_path() -> Path:
     return _hijack_ledger_root() / TARGET_INDEX_LOCKNAME
 
 
+def target_index_lock_path() -> Path:
+    """Return the lock path for transactions that claim a target slot."""
+    return _target_index_lock_path()
+
+
 def find_active_record_by_target_key(target_key: str) -> dict[str, Any] | None:
     """Return the active record for *target_key*, if one still needs the workspace."""
     if not target_key:
@@ -131,41 +143,22 @@ def claim_target_slot(target_key: str, hijack_id: str) -> str:
     if not target_key:
         return hijack_id
     with file_lock(_target_index_lock_path(), timeout=10.0):
-        existing = find_active_record_by_target_key(target_key)
-        if existing is not None:
-            winner = existing.get("hijack_id")
-            if isinstance(winner, str) and winner:
-                return winner
-        path = _target_index_path(target_key)
-        try:
-            path.parent.mkdir(parents=True, exist_ok=True)
-            atomic_write_json(
-                path,
-                {"target_key": target_key, "hijack_id": hijack_id},
-                exclusive=True,
-            )
-            return hijack_id
-        except FileExistsError:
-            current = read_hijack_record_payload(path)
-            if isinstance(current, dict):
-                winner = current.get("hijack_id")
-                if isinstance(winner, str) and winner:
-                    live = load_record(winner)
-                    if (
-                        isinstance(live, dict)
-                        and str(live.get("state") or "") not in TERMINAL_STATES
-                        and hijack_record_path(winner).exists()
-                    ):
-                        return winner
-            try:
-                path.unlink(missing_ok=True)
-            except OSError:
-                pass
-            atomic_write_json(
-                path,
-                {"target_key": target_key, "hijack_id": hijack_id},
-            )
-            return hijack_id
+        return claim_target_slot_locked(target_key, hijack_id)
+
+
+def claim_target_slot_locked(target_key: str, hijack_id: str) -> str:
+    """Claim a target slot while the caller holds ``target_index_lock_path``."""
+    if not target_key:
+        return hijack_id
+    existing = find_active_record_by_target_key(target_key)
+    if existing is not None:
+        winner = existing.get("hijack_id")
+        if isinstance(winner, str) and winner:
+            return winner
+    path = _target_index_path(target_key)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    atomic_write_json(path, {"target_key": target_key, "hijack_id": hijack_id})
+    return hijack_id
 
 
 def release_target_slot(target_key: str, hijack_id: str) -> None:
@@ -174,14 +167,21 @@ def release_target_slot(target_key: str, hijack_id: str) -> None:
         return
     try:
         with file_lock(_target_index_lock_path(), timeout=10.0):
-            current = read_hijack_record_payload(_target_index_path(target_key))
-            if isinstance(current, dict) and current.get("hijack_id") == hijack_id:
-                try:
-                    _target_index_path(target_key).unlink(missing_ok=True)
-                except OSError:
-                    pass
+            release_target_slot_locked(target_key, hijack_id)
     except Exception:
         pass
+
+
+def release_target_slot_locked(target_key: str, hijack_id: str) -> None:
+    """Release a target slot while the caller holds ``target_index_lock_path``."""
+    if not target_key or not hijack_id:
+        return
+    current = read_hijack_record_payload(_target_index_path(target_key))
+    if isinstance(current, dict) and current.get("hijack_id") == hijack_id:
+        try:
+            _target_index_path(target_key).unlink(missing_ok=True)
+        except OSError:
+            pass
 
 
 def _release_target_index_if_owner(record: dict[str, Any]) -> None:
@@ -295,6 +295,14 @@ def new_requested_record(
         "scope": scope,
         "error": None,
         "acknowledged": False,
+        "latched_at": None,
+        "applied_at": None,
+        "boundary": None,
+        "boundary_outcome": None,
+        "suppressed_followup": None,
+        "forced": False,
+        "owner_pid": None,
+        "owner_identity": None,
     }
 
 
@@ -507,6 +515,10 @@ def mark_stopping_if_requested(artifacts_dir: str | None) -> dict[str, Any] | No
 __all__ = [
     "HIJACK_EVENT_ABANDON_STOP",
     "HIJACK_EVENT_BEGIN_STOP",
+    "HIJACK_EVENT_LATCH",
+    "HIJACK_EVENT_APPLY_LATCH",
+    "HIJACK_EVENT_CANCEL_LATCH",
+    "HIJACK_EVENT_MOOT_LATCH",
     "HIJACK_EVENT_RETRY_STOP",
     "HIJACK_EVENT_STOP_BLOCKED",
     "HIJACK_SCOPE_GATE",
@@ -514,11 +526,14 @@ __all__ = [
     "HIJACK_SCOPE_MONITOR",
     "HIJACK_SCOPE_PROCESSLESS",
     "HIJACK_STOP_BLOCKED",
+    "HIJACK_LATCHED",
+    "HIJACK_CANCELLED",
     "HijackLedgerConflict",
     "TARGET_INDEX_DIRNAME",
     "TERMINAL_STATES",
     "cas_advance_record",
     "claim_target_slot",
+    "claim_target_slot_locked",
     "create_record",
     "find_active_record_by_target_key",
     "hijack_record_lock_path",
@@ -533,6 +548,8 @@ __all__ = [
     "new_requested_record",
     "read_hijack_record_payload",
     "release_target_slot",
+    "release_target_slot_locked",
+    "target_index_lock_path",
     "target_key_for",
     "timestamp_for",
 ]

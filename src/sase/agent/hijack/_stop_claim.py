@@ -6,7 +6,11 @@ import logging
 from pathlib import Path
 from typing import Any
 
-from sase.agent.hijack._stop_models import HijackTarget, StopDeps
+from sase.agent.hijack._stop_models import (
+    HijackTarget,
+    StopDeps,
+    read_json_dict,
+)
 
 LOG = logging.getLogger(__name__)
 
@@ -160,38 +164,97 @@ def ensure_hijacked_settlement(
     the identical ``outcome: hijacked`` marker and re-asserts the pin. The
     runner path is idempotent with this one: an existing marker is kept.
     """
-    from sase.agent._user_kill_intent import pending_hijack_recovery
-
-    done_path = Path(target.artifacts_dir) / "done.json"
-    if not done_path.exists():
-        from sase.axe.run_agent_exec_markers import (
-            write_done_marker_and_update_index,
+    try:
+        _write_hijacked_done_marker(
+            target,
+            hijack_id,
+            replace_existing=False,
+            use_intent_recovery=True,
         )
-        from sase.axe.run_agent_markers import build_done_marker
-
-        marker = build_done_marker(
-            target.cl_name or "",
-            target.project_file,
-            target.artifacts_timestamp,
-            target.artifacts_timestamp,
-            int(target.workspace_num or 0),
-            target.workspace_dir or "",
-            "",
-            "hijacked",
-            agent_name=target.name,
-            recovery=pending_hijack_recovery(target.artifacts_dir),
-        )
-        try:
-            write_done_marker_and_update_index(target.artifacts_dir, marker)
-        except Exception as exc:
-            LOG.warning("could not write hijacked done.json: %s", exc)
+    except Exception as exc:
+        LOG.warning("could not write hijacked done.json: %s", exc)
     if not target.is_home and target.workspace_num is not None and pinned_by_us:
         pin_claim(target)
+
+
+def apply_latched_settlement(target: HijackTarget, hijack_id: str) -> None:
+    """Publish hijacked outcome after a safe-boundary latch wins.
+
+    Unlike immediate-stop settlement, a normal done marker may already exist:
+    the finalizer ran to completion, but its staged follow-up is now suppressed.
+    The latch ledger retains that real outcome separately.
+    """
+    _write_hijacked_done_marker(
+        target,
+        hijack_id,
+        replace_existing=True,
+        use_intent_recovery=False,
+    )
+
+
+def _write_hijacked_done_marker(
+    target: HijackTarget,
+    hijack_id: str,
+    *,
+    replace_existing: bool,
+    use_intent_recovery: bool,
+) -> None:
+    done_path = Path(target.artifacts_dir) / "done.json"
+    existing = read_json_dict(done_path)
+    if not replace_existing and done_path.exists():
+        return
+    if replace_existing and done_path.exists() and existing is None:
+        raise RuntimeError("existing done.json could not be read safely")
+    if replace_existing and existing is not None:
+        if (
+            existing.get("project_file") != target.project_file
+            or existing.get("artifacts_timestamp") != target.artifacts_timestamp
+        ):
+            raise RuntimeError(
+                "existing done.json belongs to a different project or artifacts generation"
+            )
+    if (
+        existing is not None
+        and existing.get("outcome") == "hijacked"
+        and isinstance(existing.get("recovery"), dict)
+        and existing["recovery"].get("hijack_id") == hijack_id
+    ):
+        return
+
+    from sase.axe.run_agent_exec_markers import (
+        write_done_marker_and_update_index,
+    )
+    from sase.axe.run_agent_markers import build_done_marker
+
+    if use_intent_recovery:
+        from sase.agent._user_kill_intent import pending_hijack_recovery
+
+        recovery = pending_hijack_recovery(target.artifacts_dir)
+    else:
+        recovery = {
+            "state": "pending",
+            "kind": "hijack",
+            "hijack_id": hijack_id,
+        }
+    marker = build_done_marker(
+        target.cl_name or "",
+        target.project_file,
+        target.artifacts_timestamp,
+        target.artifacts_timestamp,
+        int(target.workspace_num or 0),
+        target.workspace_dir or "",
+        "",
+        "hijacked",
+        agent_name=target.name,
+        recovery=recovery,
+    )
+    write_done_marker_and_update_index(target.artifacts_dir, marker)
 
 
 __all__ = [
     "STOP_GRACE_SECONDS",
     "abort_before_stop",
+    "apply_latched_settlement",
     "ensure_hijacked_settlement",
     "pin_claim",
     "remove_intent",

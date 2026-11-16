@@ -21,6 +21,7 @@ ESCALATION_WIRE_SCHEMA_VERSION = 1
 CONTINUATION_WIRE_SCHEMA_VERSION = 1
 PREVIEW_WIRE_SCHEMA_VERSION = 1
 RECONCILE_WIRE_SCHEMA_VERSION = 1
+LATCH_WIRE_SCHEMA_VERSION = 1
 
 
 def agent_hijack_wire_schema_version() -> int:
@@ -35,6 +36,36 @@ def advance_agent_hijack_record(
     """Advance one hijack record through the core state machine."""
     binding = require_rust_binding("advance_agent_hijack_record")
     return dict(binding(dict(record), dict(event)))
+
+
+def agent_hijack_latch_wire_schema_version() -> int:
+    """Return the latch observation and reconciliation schema version."""
+    binding = require_rust_binding("agent_hijack_latch_wire_schema_version")
+    return int(binding())
+
+
+def agent_hijack_latch_observe(
+    record: Mapping[str, Any], facts: Mapping[str, Any]
+) -> dict[str, Any]:
+    """Observe a latch after Rust validates target and owner identity."""
+    binding = require_rust_binding("agent_hijack_latch_observe")
+    return dict(binding(dict(record), dict(facts)))
+
+
+def hijack_latch_reconcile(
+    record: Mapping[str, Any], facts: Mapping[str, Any]
+) -> dict[str, Any]:
+    """Reconcile pending latch ownership from process and successor evidence."""
+    binding = require_rust_binding("hijack_latch_reconcile")
+    return dict(binding(dict(record), dict(facts)))
+
+
+def hijack_latch_force_eligibility(
+    record: Mapping[str, Any], now_unix: float
+) -> dict[str, Any]:
+    """Evaluate the 120-second explicit force rule at injected time."""
+    binding = require_rust_binding("hijack_latch_force_eligibility")
+    return dict(binding(dict(record), float(now_unix)))
 
 
 def agent_hijack_eligibility(facts: Mapping[str, Any]) -> dict[str, Any]:
@@ -214,6 +245,7 @@ __all__ = [
     "ESCALATION_WIRE_SCHEMA_VERSION",
     "PREVIEW_WIRE_SCHEMA_VERSION",
     "RECONCILE_WIRE_SCHEMA_VERSION",
+    "LATCH_WIRE_SCHEMA_VERSION",
     "advance_agent_hijack_record",
     "agent_hijack_decide",
     "agent_hijack_eligibility",
@@ -221,6 +253,8 @@ __all__ = [
     "agent_hijack_select_occupant",
     "agent_hijack_status_for_done_marker",
     "agent_hijack_wire_schema_version",
+    "agent_hijack_latch_wire_schema_version",
+    "agent_hijack_latch_observe",
     "continuation_wire_schema_version",
     "escalation_wire_schema_version",
     "hijack_continuation_prompt",
@@ -234,6 +268,8 @@ __all__ = [
     "hijack_recovery_validate_execution",
     "hijack_recovery_confirm",
     "hijack_recovery_rollback",
+    "hijack_latch_force_eligibility",
+    "hijack_latch_reconcile",
     "normalize_hijack_rung",
     "strip_hijack_launch_directives",
 ]
