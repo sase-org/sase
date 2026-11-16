@@ -43,6 +43,36 @@ def agent_hijack_eligibility(facts: Mapping[str, Any]) -> dict[str, Any]:
     return dict(binding(dict(facts)))
 
 
+def agent_hijack_eligibility_wire_schema_version() -> int:
+    """Return the hijack eligibility facts/decision wire schema version."""
+    binding = require_rust_binding("agent_hijack_eligibility_wire_schema_version")
+    return int(binding())
+
+
+def agent_hijack_decide(facts: Mapping[str, Any]) -> dict[str, Any]:
+    """Decide a hijack request against the v2 facts wire.
+
+    *facts* mirrors ``AgentHijackEligibilityFactsV2Wire``. Returns the
+    ``AgentHijackEligibilityDecisionV2Wire`` dict with ``mode``
+    (``immediate``/``latched``/``redirect``/``refused``), ``code``,
+    ``message``, ``next_action``, ``redirect_op``, and ``adapter``.
+    """
+    binding = require_rust_binding("agent_hijack_decide")
+    return dict(binding(dict(facts)))
+
+
+def agent_hijack_select_occupant(request: Mapping[str, Any]) -> dict[str, Any]:
+    """Select the session's occupying member from its roster.
+
+    *request* mirrors ``AgentHijackOccupantSelectionRequestWire``
+    (``schema_version`` plus a ``members`` list). Returns the
+    ``AgentHijackOccupantSelectionWire`` dict with ``selected_index`` and
+    the ``reason`` string ``--explain`` prints.
+    """
+    binding = require_rust_binding("agent_hijack_select_occupant")
+    return dict(binding(dict(request)))
+
+
 def agent_hijack_status_for_done_marker(
     outcome: str | None, recovery: Mapping[str, Any] | AgentRecoveryWire | None
 ) -> str | None:
@@ -185,7 +215,10 @@ __all__ = [
     "PREVIEW_WIRE_SCHEMA_VERSION",
     "RECONCILE_WIRE_SCHEMA_VERSION",
     "advance_agent_hijack_record",
+    "agent_hijack_decide",
     "agent_hijack_eligibility",
+    "agent_hijack_eligibility_wire_schema_version",
+    "agent_hijack_select_occupant",
     "agent_hijack_status_for_done_marker",
     "agent_hijack_wire_schema_version",
     "continuation_wire_schema_version",

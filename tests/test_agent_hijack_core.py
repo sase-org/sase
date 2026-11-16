@@ -9,7 +9,10 @@ import pytest
 from sase.agent.hijack.core import (
     assemble_hijack_recovery_preview,
     advance_agent_hijack_record,
+    agent_hijack_decide,
     agent_hijack_eligibility,
+    agent_hijack_eligibility_wire_schema_version,
+    agent_hijack_select_occupant,
     agent_hijack_status_for_done_marker,
     agent_hijack_wire_schema_version,
     hijack_recovery_preview_wire_schema_version,
@@ -81,6 +84,62 @@ def test_hijack_wrappers_call_the_registered_bindings(
             },
         ),
     )
+
+
+def test_decide_and_occupant_wrappers_call_the_registered_bindings(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[tuple[str, tuple[object, ...]]] = []
+
+    def eligibility_version() -> int:
+        calls.append(("eligibility_version", ()))
+        return 2
+
+    def decide(facts: dict[str, Any]) -> dict[str, Any]:
+        calls.append(("decide", (facts,)))
+        return {
+            "schema_version": 2,
+            "mode": "immediate",
+            "eligible": True,
+            "code": None,
+            "message": None,
+            "next_action": None,
+            "redirect_op": None,
+            "adapter": "llm",
+        }
+
+    def select_occupant(request: dict[str, Any]) -> dict[str, Any]:
+        calls.append(("select_occupant", (request,)))
+        return {
+            "schema_version": 2,
+            "selected_index": 1,
+            "reason": "s.t.2 holds the workspace claim",
+        }
+
+    install_fake_rust_extension(
+        monkeypatch,
+        agent_hijack_eligibility_wire_schema_version=eligibility_version,
+        agent_hijack_decide=decide,
+        agent_hijack_select_occupant=select_occupant,
+    )
+
+    assert agent_hijack_eligibility_wire_schema_version() == 2
+    facts = {"schema_version": 2, "occupying_kind": "llm", "status": "RUNNING"}
+    decision = agent_hijack_decide(facts)
+    assert decision["mode"] == "immediate"
+    assert decision["adapter"] == "llm"
+    request = {
+        "schema_version": 2,
+        "members": [{"name": "s.t.1", "order": 1}, {"name": "s.t.2", "order": 2}],
+    }
+    selection = agent_hijack_select_occupant(request)
+    assert selection["selected_index"] == 1
+    assert "s.t.2" in str(selection["reason"])
+    assert calls == [
+        ("eligibility_version", ()),
+        ("decide", (facts,)),
+        ("select_occupant", (request,)),
+    ]
 
 
 def test_recovery_preview_and_reconcile_wrappers_call_bindings(

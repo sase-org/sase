@@ -36,6 +36,19 @@ TERMINAL_STATES = frozenset(
 )
 
 HIJACK_EVENT_BEGIN_STOP = "begin_stop"
+HIJACK_EVENT_STOP_BLOCKED = "stop_blocked"
+HIJACK_EVENT_RETRY_STOP = "retry_stop"
+HIJACK_EVENT_ABANDON_STOP = "abandon_stop"
+
+#: Ledger state entered when a surviving writer blocks the stop. Custody
+#: stays with the hijack and the claim pin stays until an explicit abandon.
+HIJACK_STOP_BLOCKED = "stop_blocked"
+
+#: Stop-mechanism scopes carried on the hijack record.
+HIJACK_SCOPE_LLM = "llm"
+HIJACK_SCOPE_PROCESSLESS = "processless"
+HIJACK_SCOPE_MONITOR = "monitor"
+HIJACK_SCOPE_GATE = "gate"
 
 
 class HijackLedgerConflict(RuntimeError):
@@ -147,6 +160,8 @@ def new_requested_record(
         "successor_process_identity_token": None,
         "successor_artifacts_dir": None,
         "inheritance_acknowledged": None,
+        "target_key": "",
+        "scope": None,
         "error": None,
         "acknowledged": False,
     }
@@ -332,7 +347,15 @@ def mark_stopping_if_requested(artifacts_dir: str | None) -> dict[str, Any] | No
 
 
 __all__ = [
+    "HIJACK_EVENT_ABANDON_STOP",
     "HIJACK_EVENT_BEGIN_STOP",
+    "HIJACK_EVENT_RETRY_STOP",
+    "HIJACK_EVENT_STOP_BLOCKED",
+    "HIJACK_SCOPE_GATE",
+    "HIJACK_SCOPE_LLM",
+    "HIJACK_SCOPE_MONITOR",
+    "HIJACK_SCOPE_PROCESSLESS",
+    "HIJACK_STOP_BLOCKED",
     "HijackLedgerConflict",
     "TERMINAL_STATES",
     "cas_advance_record",

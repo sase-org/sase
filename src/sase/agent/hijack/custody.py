@@ -31,7 +31,9 @@ LOG = logging.getLogger(__name__)
 
 HIJACK_EVENT_EXPIRE = "expire"
 
-ACTIVE_CUSTODY_STATES = frozenset({"requested", "stopping", "held", "resolving"})
+ACTIVE_CUSTODY_STATES = frozenset(
+    {"requested", "stopping", "stop_blocked", "held", "resolving"}
+)
 USER_PARKED_RECOVERY_STATES = frozenset({"pending", "expired"})
 
 

@@ -10,7 +10,10 @@ from __future__ import annotations
 
 from .core import (
     advance_agent_hijack_record,
+    agent_hijack_decide,
     agent_hijack_eligibility,
+    agent_hijack_eligibility_wire_schema_version,
+    agent_hijack_select_occupant,
     agent_hijack_status_for_done_marker,
     agent_hijack_wire_schema_version,
     hijack_recovery_confirm,
@@ -119,7 +122,10 @@ __all__ = [
     "RecoverySubject",
     "RecoveryTarget",
     "advance_agent_hijack_record",
+    "agent_hijack_decide",
     "agent_hijack_eligibility",
+    "agent_hijack_eligibility_wire_schema_version",
+    "agent_hijack_select_occupant",
     "agent_hijack_status_for_done_marker",
     "agent_hijack_wire_schema_version",
     "cas_advance_record",
