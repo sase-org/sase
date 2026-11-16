@@ -45,6 +45,13 @@ def test_lint_includes_retired_test_wait_stage() -> None:
     assert "just _lint-test-waits" in output
 
 
+def test_lint_includes_eager_annotation_stage() -> None:
+    output = dry_run("lint")
+
+    assert "Checking eager annotation evaluation (Python 3.12 floor)" in output
+    assert "just _lint-eager-annotations" in output
+
+
 def test_check_and_check_full_skip_toobig_stage() -> None:
     for recipe in ("check", "check-full"):
         output = dry_run(recipe)
@@ -63,6 +70,15 @@ def test_check_mirrors_retired_test_wait_stage() -> None:
     output = dry_run("check")
 
     assert 'tools/run_silent "lint (test waits)"  just _lint-test-waits' in output
+
+
+def test_check_mirrors_eager_annotation_stage() -> None:
+    output = dry_run("check")
+
+    assert (
+        'tools/run_silent "lint (eager annotations)" just _lint-eager-annotations'
+        in output
+    )
 
 
 def test_lint_does_not_run_sase_validation() -> None:

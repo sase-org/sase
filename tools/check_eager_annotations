@@ -1,0 +1,159 @@
+#!/usr/bin/env python3
+"""Find Python modules that fail when annotations are evaluated eagerly."""
+
+from __future__ import annotations
+
+import argparse
+import ast
+import importlib
+import inspect
+import sys
+import typing
+from pathlib import Path
+from types import ModuleType
+from typing import Any, NamedTuple
+from collections.abc import Sequence
+
+
+REPO_ROOT = Path(__file__).resolve().parents[1]
+HINT = (
+    "Python 3.12 evaluates annotations eagerly; add `from __future__ import "
+    "annotations` or quote the annotation"
+)
+
+
+class Finding(NamedTuple):
+    path: Path
+    qualified_name: str
+    exception: Exception
+
+
+def _python_files(package_root: Path) -> list[Path]:
+    return sorted(path for path in package_root.rglob("*.py") if path.is_file())
+
+
+def _has_future_annotations(path: Path) -> bool:
+    try:
+        tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+    except (OSError, SyntaxError, UnicodeError):
+        return False
+    return any(
+        isinstance(node, ast.ImportFrom)
+        and node.level == 0
+        and node.module == "__future__"
+        and any(alias.name == "annotations" for alias in node.names)
+        for node in tree.body
+    )
+
+
+def _module_name(path: Path, src_root: Path, package: str) -> str:
+    relative = path.relative_to(src_root)
+    parts = list(relative.with_suffix("").parts)
+    if parts[-1] == "__init__":
+        parts.pop()
+    return ".".join(parts) or package
+
+
+def _function_objects(function: Any) -> list[Any]:
+    return [function, *typing.get_overloads(function)]
+
+
+def _class_objects(cls: type[Any]) -> list[tuple[str, Any]]:
+    objects: list[tuple[str, Any]] = [(cls.__qualname__, cls)]
+    for name, member in vars(cls).items():
+        if isinstance(member, (staticmethod, classmethod)):
+            objects.extend(
+                (function.__qualname__, function)
+                for function in _function_objects(member.__func__)
+            )
+        elif isinstance(member, property):
+            for function in (member.fget, member.fset, member.fdel):
+                if function is not None:
+                    objects.extend(
+                        (fn.__qualname__, fn) for fn in _function_objects(function)
+                    )
+        elif inspect.isfunction(member):
+            objects.extend(
+                (function.__qualname__, function)
+                for function in _function_objects(member)
+            )
+        elif inspect.isclass(member) and member.__module__ == cls.__module__:
+            objects.extend(_class_objects(member))
+    return objects
+
+
+def _module_objects(module: ModuleType, module_name: str) -> list[tuple[str, Any]]:
+    objects: list[tuple[str, Any]] = [(module_name, module)]
+    for value in vars(module).values():
+        if getattr(value, "__module__", None) != module_name:
+            continue
+        if inspect.isfunction(value):
+            objects.extend(
+                (function.__qualname__, function)
+                for function in _function_objects(value)
+            )
+        elif inspect.isclass(value):
+            objects.extend(_class_objects(value))
+    return objects
+
+
+def _eager_annotation_findings(
+    module: ModuleType, module_name: str, path: Path
+) -> list[Finding]:
+    if sys.version_info < (3, 14):
+        return []
+    import annotationlib
+
+    findings: list[Finding] = []
+    for qualified_name, obj in _module_objects(module, module_name):
+        if getattr(obj, "__annotate__", None) is None:
+            continue
+        try:
+            annotationlib.get_annotations(obj, format=annotationlib.Format.VALUE)
+        except Exception as exc:
+            findings.append(Finding(path, qualified_name, exc))
+    return findings
+
+
+def find_eager_annotation_failures(src_root: Path, package: str) -> list[Finding]:
+    package_root = src_root / package.replace(".", "/")
+    findings: list[Finding] = []
+    for path in _python_files(package_root):
+        if path.name == "__main__.py" or _has_future_annotations(path):
+            continue
+        module_name = _module_name(path, src_root, package)
+        try:
+            module = importlib.import_module(module_name)
+        except Exception as exc:
+            findings.append(Finding(path, "import", exc))
+            continue
+        findings.extend(_eager_annotation_findings(module, module_name, path))
+    return findings
+
+
+def _parse_args(argv: Sequence[str] | None) -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--src", type=Path, default=REPO_ROOT / "src")
+    parser.add_argument("--package", default="sase")
+    return parser.parse_args(argv)
+
+
+def main(argv: Sequence[str] | None = None) -> int:
+    args = _parse_args(argv)
+    src_root = args.src.resolve()
+    sys.path.insert(0, str(src_root))
+    findings = find_eager_annotation_failures(src_root, args.package)
+    for finding in findings:
+        relative_path = finding.path.relative_to(src_root)
+        print(
+            f"{relative_path}: {finding.qualified_name}: "
+            f"{type(finding.exception).__name__}: {finding.exception}"
+        )
+    if findings:
+        print(HINT)
+        return 1
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main(sys.argv[1:]))

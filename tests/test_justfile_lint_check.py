@@ -21,6 +21,7 @@ _CHECK_GATE_LINES = (
     'tools/run_silent "lint (feature flags)" just _lint-flags',
     'tools/run_silent "lint (pyscripts)"   just _lint-pyscripts',
     'tools/run_silent "lint (test waits)"  just _lint-test-waits',
+    'tools/run_silent "lint (eager annotations)" just _lint-eager-annotations',
     'tools/run_silent "lint (changelog)"   just _lint-changelog',
     'tools/run_silent "lint (symvision)"   just _lint-symvision',
     'tools/run_silent "SASE validation"     just validate',

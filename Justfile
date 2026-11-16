@@ -324,6 +324,8 @@ lint: _setup (_header "lint") lint-keep-sorted
     @just _lint-pyscripts
     @printf "\n---------- Checking retired test wait helpers... ----------\n"
     @just _lint-test-waits
+    @printf "\n---------- Checking eager annotation evaluation (Python 3.12 floor)... ----------\n"
+    @just _lint-eager-annotations
     @printf "\n---------- Validating generated changelog structure... ----------\n"
     @just _lint-changelog
     @printf "\n---------- Auditing Patch/stitch terminology... ----------\n"
@@ -385,6 +387,10 @@ _lint-pyscripts: _setup
 # Check that retired ad-hoc bounded-wait helpers stay retired.
 _lint-test-waits: _setup
     {{ venv_bin }}/python tools/check_test_wait_helpers
+
+# Python 3.14 hides eager-annotation crashes that break the Python 3.12 floor.
+_lint-eager-annotations: _setup
+    {{ venv_bin }}/python tools/check_eager_annotations
 
 # Check that CHANGELOG.md contains only release-please sections (private, extracted for per-stage wrapping)
 _lint-changelog: _setup
@@ -940,6 +946,7 @@ check: (_require-tool-run "check") _setup
     @tools/run_silent "lint (feature flags)" just _lint-flags
     @tools/run_silent "lint (pyscripts)"   just _lint-pyscripts
     @tools/run_silent "lint (test waits)"  just _lint-test-waits
+    @tools/run_silent "lint (eager annotations)" just _lint-eager-annotations
     @tools/run_silent "lint (changelog)"   just _lint-changelog
     @tools/run_silent "lint (patch/stitch terminology)" just _lint-patch-stitch-terminology
     @tools/run_silent "lint (symvision)"   just _lint-symvision
@@ -979,6 +986,7 @@ check-full: (_require-tool-run "check-full") _setup
     @tools/run_silent "lint (feature flags)" just _lint-flags
     @tools/run_silent "lint (pyscripts)"   just _lint-pyscripts
     @tools/run_silent "lint (test waits)"  just _lint-test-waits
+    @tools/run_silent "lint (eager annotations)" just _lint-eager-annotations
     @tools/run_silent "lint (changelog)"   just _lint-changelog
     @tools/run_silent "lint (patch/stitch terminology)" just _lint-patch-stitch-terminology
     @tools/run_silent "lint (symvision)"   just _lint-symvision

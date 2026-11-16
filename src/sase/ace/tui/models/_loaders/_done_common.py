@@ -1,5 +1,7 @@
 """Shared helpers for completed-agent loaders."""
 
+from __future__ import annotations
+
 from pathlib import Path
 from typing import Any, SupportsIndex, overload
 from collections.abc import Callable, Iterator
