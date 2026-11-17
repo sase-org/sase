@@ -79,7 +79,6 @@ def write_jsonl(path: Path, events: list[MemoryReadEvent]) -> None:
 def clear_memory_reads_cache_fixture() -> None:
     memory_reads_module._memory_reads_cache.clear()
     memory_reads_module._memory_reads_context_cache.clear()
-    memory_reads_module._memory_reads_snapshot_cache.clear()
 
 
 @pytest.fixture(name="fake_project")

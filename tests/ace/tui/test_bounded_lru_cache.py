@@ -34,7 +34,6 @@ _DERIVED_CACHE_TABLES = (
 )
 
 _SNAPSHOT_CACHE_TABLES = (
-    memory_reads._memory_reads_snapshot_cache,
     artifact_reads._artifact_reads_snapshot_cache,
     skill_uses._skill_uses_snapshot_cache,
     glossary_reads._glossary_reads_snapshot_cache,

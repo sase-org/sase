@@ -63,10 +63,7 @@ def test_cache_invalidates_on_mtime_change(fake_project: Path, tmp_path: Path) -
     os.utime(log_path, ns=(future_mtime_ns, future_mtime_ns))
 
     # Bypass the throttle window: rewind cached monotonic timestamp.
-    for cache in (
-        memory_reads_module._memory_reads_cache,
-        memory_reads_module._memory_reads_snapshot_cache,
-    ):
+    for cache in (memory_reads_module._memory_reads_cache,):
         for entry in cache.values():
             entry.last_read_monotonic = 0.0
 
@@ -77,7 +74,7 @@ def test_cache_invalidates_on_mtime_change(fake_project: Path, tmp_path: Path) -
     ]
 
 
-def test_snapshot_cache_parses_once_for_distinct_agents_and_revalidates(
+def test_targeted_queries_replace_snapshot_parse_once(
     fake_project: Path,
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -105,25 +102,29 @@ def test_snapshot_cache_parses_once_for_distinct_agents_and_revalidates(
         ),
     ]
     write_jsonl(log_path, events)
-    parsed_events = list(events)
-    parse_count = 0
 
-    def fake_read_memory_read_events(
-        *,
-        project: str | None = None,
-        log_path: Path | None = None,
-    ) -> tuple[MemoryReadEvent, ...]:
-        nonlocal parse_count
-        assert project == "memory-reads-test"
-        assert log_path is None
-        parse_count += 1
-        return tuple(parsed_events)
-
-    monkeypatch.setattr(
-        memory_reads_module,
-        "read_memory_read_events",
-        fake_read_memory_read_events,
+    from sase.memory._read_log_query_facade import (
+        MemoryAuditRow,
+        MemoryAuditSourceIdentity,
     )
+
+    query_count = 0
+    real_query = memory_reads_module.query_memory_audit
+
+    def counting_query(
+        log_path_arg: Path,
+        *,
+        members: list[dict[str, object]],
+        limit: int = 50,
+        deduplicate: bool = False,
+    ) -> tuple[list[MemoryAuditRow], MemoryAuditSourceIdentity]:
+        nonlocal query_count
+        query_count += 1
+        return real_query(
+            log_path_arg, members=members, limit=limit, deduplicate=deduplicate
+        )
+
+    monkeypatch.setattr(memory_reads_module, "query_memory_audit", counting_query)
 
     agent_a = make_agent(
         artifacts_dir=artifacts_a,
@@ -145,8 +146,18 @@ def test_snapshot_cache_parses_once_for_distinct_agents_and_revalidates(
         item.event.canonical_path
         for item in load_memory_reads_for_agent_context(agent_b)
     ] == ["beta.md"]
-    assert parse_count == 1
+    # Two targeted queries (one per agent), no shared project-wide snapshot.
+    assert query_count == 2
+    assert not hasattr(memory_reads_module, "_memory_reads_snapshot_cache")
 
+    # Cache hits do not re-query.
+    assert [
+        item.event.canonical_path
+        for item in load_memory_reads_for_agent_context(agent_a)
+    ] == ["alpha.md"]
+    assert query_count == 2
+
+    parsed_events = list(events)
     parsed_events.append(
         make_event(
             canonical_path="alpha-new.md",
@@ -161,7 +172,7 @@ def test_snapshot_cache_parses_once_for_distinct_agents_and_revalidates(
     os.utime(log_path, ns=(future_mtime_ns, future_mtime_ns))
     for cache in (
         memory_reads_module._memory_reads_cache,
-        memory_reads_module._memory_reads_snapshot_cache,
+        memory_reads_module._memory_reads_context_cache,
     ):
         for entry in cache.values():
             entry.last_read_monotonic = 0.0
@@ -174,7 +185,8 @@ def test_snapshot_cache_parses_once_for_distinct_agents_and_revalidates(
         item.event.canonical_path
         for item in load_memory_reads_for_agent_context(agent_b)
     ] == ["beta.md"]
-    assert parse_count == 2
+    # Revalidation re-queries only the drifted selectors.
+    assert query_count > 2
 
 
 def test_evicted_agent_result_reloads_identically_and_releases_its_entry(
@@ -221,17 +233,12 @@ def test_evicted_agent_result_reloads_identically_and_releases_its_entry(
     assert reloaded == expected
     assert len(cache) == 128
     assert second_entry_ref() is None
-    snapshot = memory_reads_module._memory_reads_snapshot_cache.peek(
-        "memory-reads-test"
-    )
-    assert snapshot is not None
-    assert len(snapshot.events) == 129
+    # No project-wide snapshot survives: bounded per-agent entries only.
+    assert not hasattr(memory_reads_module, "_memory_reads_snapshot_cache")
 
 
 def test_project_switch_keeps_same_agent_results_separate(
-    fake_project: Path,
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
+    fake_project: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     artifacts_dir = tmp_path / "artifacts" / "shared-agent"
     artifacts_dir.mkdir(parents=True)
@@ -241,23 +248,48 @@ def test_project_switch_keeps_same_agent_results_separate(
         "project_memory_name",
         lambda workspace: Path(workspace).name,
     )
-    project_events = {
-        project: (
-            make_event(
-                canonical_path=f"{project}.md",
-                timestamp="2026-05-24T10:00:00+00:00",
-                agent_name="shared-agent",
-                artifacts_dir=str(artifacts_dir),
-                project=project,
-            ),
-        )
-        for project in projects
-    }
-    monkeypatch.setattr(
-        memory_reads_module,
-        "read_memory_read_events",
-        lambda *, project: project_events[project],
+    from sase.memory._read_log_query_facade import (
+        MemoryAuditRow,
+        MemoryAuditSourceIdentity,
     )
+
+    def fake_query(
+        log_path_arg: Path,
+        *,
+        members: list[dict[str, object]],
+        limit: int = 50,
+        deduplicate: bool = False,
+    ) -> tuple[list[MemoryAuditRow], MemoryAuditSourceIdentity]:
+        # Route by the project encoded in the log path's parent project key.
+        # memory_read_log_path places the project in the path; emulate it.
+        text = str(log_path_arg)
+        if "project-alpha" in text or "project_alpha" in text:
+            project: str = "project-alpha"
+        else:
+            project = "project-beta"
+        from sase.memory.read_log import READ_LOG_SCHEMA_VERSION
+
+        event = MemoryReadEvent(
+            schema_version=READ_LOG_SCHEMA_VERSION,
+            id=f"{project}-id",
+            timestamp="2026-05-24T10:00:00+00:00",
+            project=project,
+            cwd="/tmp/test",
+            canonical_path=f"{project}.md",
+            resolved_path=f"/tmp/test/{project}.md",
+            agent_name="shared-agent",
+            agent_source="SASE_AGENT_NAME",
+            artifacts_dir=str(artifacts_dir),
+            reason="context",
+            byte_count=10,
+            frontmatter_stripped=False,
+        )
+        source = MemoryAuditSourceIdentity(
+            missing=False, size=10, mtime_ns=1, dev=1, ino=1
+        )
+        return [MemoryAuditRow(event=event, member_index=0)], source
+
+    monkeypatch.setattr(memory_reads_module, "query_memory_audit", fake_query)
     agents = tuple(
         make_agent(
             artifacts_dir=artifacts_dir,
@@ -272,7 +304,7 @@ def test_project_switch_keeps_same_agent_results_separate(
     beta = tuple(event.id for event in _load_memory_reads_for_agent(agents[1]))
     alpha_again = tuple(event.id for event in _load_memory_reads_for_agent(agents[0]))
 
-    assert alpha == ("project-alpha.md2026-05-24T10:00:00+00:00",)
-    assert beta == ("project-beta.md2026-05-24T10:00:00+00:00",)
+    assert alpha == ("project-alpha-id",)
+    assert beta == ("project-beta-id",)
     assert alpha_again == alpha
-    assert set(memory_reads_module._memory_reads_snapshot_cache) == set(projects)
+    assert not hasattr(memory_reads_module, "_memory_reads_snapshot_cache")

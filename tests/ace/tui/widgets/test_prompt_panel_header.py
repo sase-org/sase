@@ -51,7 +51,6 @@ def _setup(
 ) -> Iterator[Path]:
     memory_reads_module._memory_reads_cache.clear()
     memory_reads_module._memory_reads_context_cache.clear()
-    memory_reads_module._memory_reads_snapshot_cache.clear()
     artifact_reads_module._artifact_reads_cache.clear()
     artifact_reads_module._artifact_reads_context_cache.clear()
     artifact_reads_module._artifact_reads_snapshot_cache.clear()
@@ -86,7 +85,6 @@ def _setup(
     yield sase_home
     memory_reads_module._memory_reads_cache.clear()
     memory_reads_module._memory_reads_context_cache.clear()
-    memory_reads_module._memory_reads_snapshot_cache.clear()
     artifact_reads_module._artifact_reads_cache.clear()
     artifact_reads_module._artifact_reads_context_cache.clear()
     artifact_reads_module._artifact_reads_snapshot_cache.clear()

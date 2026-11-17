@@ -2,27 +2,28 @@
 
 from __future__ import annotations
 
+import fcntl
 import time
 from dataclasses import dataclass
 from pathlib import Path
 
 from sase.ace.tui.models.agent import Agent
 from sase.ace.tui.util.bounded_lru import BoundedLRUCache
-from sase.ace.tui.util.normalized_dirs import (
-    normalize_dir as _normalize_dir,
-)
 from sase.main.init_memory.config import project_memory_name
+from sase.memory._read_log_query_facade import (
+    MemoryAuditSourceIdentity,
+    query_memory_audit,
+)
+from sase.memory.locks import locked_file
 from sase.memory.read_log import (
     MemoryReadEvent,
     memory_read_log_path,
-    read_memory_read_events,
 )
 
 MAX_KEPT_READS = 50
 _MIN_REREAD_INTERVAL_S = 0.5
-_MAX_SNAPSHOT_CACHE_PROJECTS = 8
 _MAX_DERIVED_CACHE_ENTRIES = 128
-_LogStat = tuple[int, int]
+_SourceIdentity = tuple[int, int, int, int, bool]
 
 
 @dataclass(frozen=True)
@@ -41,24 +42,14 @@ class MemoryReadDisplayEvent:
 @dataclass
 class _MemoryReadsCacheEntry:
     events: tuple[MemoryReadEvent, ...]
-    log_mtime_ns: int
-    log_size: int
+    identity: _SourceIdentity
     last_read_monotonic: float
 
 
 @dataclass
 class _MemoryReadsContextCacheEntry:
     events: tuple[MemoryReadDisplayEvent, ...]
-    log_mtime_ns: int
-    log_size: int
-    last_read_monotonic: float
-
-
-@dataclass
-class _MemoryReadsSnapshotCacheEntry:
-    events: tuple[MemoryReadEvent, ...]
-    log_mtime_ns: int
-    log_size: int
+    identity: _SourceIdentity
     last_read_monotonic: float
 
 
@@ -68,9 +59,6 @@ _memory_reads_cache: BoundedLRUCache[tuple[str, str], _MemoryReadsCacheEntry] = 
 _memory_reads_context_cache: BoundedLRUCache[
     tuple[str, tuple[str, ...]], _MemoryReadsContextCacheEntry
 ] = BoundedLRUCache(_MAX_DERIVED_CACHE_ENTRIES)
-_memory_reads_snapshot_cache: BoundedLRUCache[str, _MemoryReadsSnapshotCacheEntry] = (
-    BoundedLRUCache(_MAX_SNAPSHOT_CACHE_PROJECTS)
-)
 
 
 def _project_name_for_agent(agent: Agent) -> str | None:
@@ -92,78 +80,57 @@ def _cache_key(project: str, agent: Agent) -> tuple[str, str]:
     return (project, get_cache_key(agent))
 
 
-def _filter_events_for_agent(
-    events: tuple[MemoryReadEvent, ...], agent: Agent
-) -> tuple[MemoryReadEvent, ...]:
-    artifacts_dir_raw = agent.get_artifacts_dir()
-    agent_artifacts_dir = _normalize_dir(artifacts_dir_raw)
-    agent_name = agent.agent_name
-
-    matches: list[MemoryReadEvent] = []
-    for event in events:
-        event_artifacts_dir = _normalize_dir(event.artifacts_dir)
-        if event_artifacts_dir is not None and agent_artifacts_dir is not None:
-            if event_artifacts_dir == agent_artifacts_dir:
-                matches.append(event)
-            continue
-        # Fallback: match by agent_name when the event has no artifacts_dir.
-        if (
-            event_artifacts_dir is None
-            and agent_name
-            and event.agent_name == agent_name
-        ):
-            matches.append(event)
-    return tuple(matches)
-
-
-def _stat_mtime_ns(path: Path) -> int:
+def _log_source_identity(path: Path) -> _SourceIdentity:
     try:
-        return path.stat().st_mtime_ns
+        stat = path.stat()
+    except FileNotFoundError:
+        return (0, 0, 0, 0, True)
     except OSError:
-        return 0
-
-
-def _stat_size(path: Path) -> int:
-    try:
-        return path.stat().st_size
-    except OSError:
-        return 0
-
-
-def _log_stat(path: Path) -> _LogStat:
-    return (_stat_mtime_ns(path), _stat_size(path))
-
-
-def _cache_entry_stat(
-    entry: _MemoryReadsCacheEntry | _MemoryReadsContextCacheEntry,
-) -> _LogStat:
-    return (entry.log_mtime_ns, entry.log_size)
-
-
-def _load_memory_read_events_snapshot(
-    project: str,
-    *,
-    log_path: Path,
-    now: float,
-    current_stat: _LogStat,
-) -> tuple[tuple[MemoryReadEvent, ...], _LogStat]:
-    cached = _memory_reads_snapshot_cache.peek(project)
-    if cached is not None:
-        cached_stat = (cached.log_mtime_ns, cached.log_size)
-        recent = (now - cached.last_read_monotonic) < _MIN_REREAD_INTERVAL_S
-        if recent or current_stat == cached_stat:
-            _memory_reads_snapshot_cache.touch(project)
-            return cached.events, cached_stat
-
-    events = read_memory_read_events(project=project)
-    entry = _MemoryReadsSnapshotCacheEntry(
-        events=events,
-        log_mtime_ns=current_stat[0],
-        log_size=current_stat[1],
-        last_read_monotonic=now,
+        return (0, 0, 0, 0, True)
+    return (
+        int(stat.st_dev),
+        int(stat.st_ino),
+        int(stat.st_mtime_ns),
+        int(stat.st_size),
+        False,
     )
-    _memory_reads_snapshot_cache[project] = entry
-    return events, current_stat
+
+
+def _audit_source_to_identity(
+    source: MemoryAuditSourceIdentity,
+) -> _SourceIdentity:
+    return (
+        int(source.dev),
+        int(source.ino),
+        int(source.mtime_ns),
+        int(source.size),
+        bool(source.missing),
+    )
+
+
+def _query_single_agent_rows(
+    log_path: Path,
+    *,
+    artifacts_dir: str | None,
+    agent_name: str | None,
+) -> tuple[tuple[MemoryReadEvent, ...], _SourceIdentity] | None:
+    try:
+        with locked_file(log_path.with_suffix(".lock"), fcntl.LOCK_SH):
+            rows, source = query_memory_audit(
+                log_path,
+                members=[
+                    {
+                        "artifacts_dir": artifacts_dir,
+                        "agent_name": agent_name,
+                    }
+                ],
+                limit=MAX_KEPT_READS,
+                deduplicate=False,
+            )
+    except Exception:
+        return None
+    events = tuple(row.event for row in rows)
+    return events, _audit_source_to_identity(source)
 
 
 def _load_memory_reads_for_agent(
@@ -171,8 +138,8 @@ def _load_memory_reads_for_agent(
 ) -> tuple[MemoryReadEvent, ...]:
     """Return memory-read events attributed to ``agent``, newest first.
 
-    Uses an mtime-keyed cache + throttle to make repeated calls cheap on the
-    j/k navigation hot path.
+    Uses a bounded targeted Rust query plus an identity-keyed cache and
+    throttle to make repeated calls cheap on the j/k navigation hot path.
     """
     project = _project_name_for_agent(agent)
     if project is None:
@@ -182,28 +149,32 @@ def _load_memory_reads_for_agent(
     now = time.monotonic()
     key = _cache_key(project, agent)
     cached = _memory_reads_cache.peek(key)
-    current_stat = _log_stat(log_path)
 
     if cached is not None:
         recent = (now - cached.last_read_monotonic) < _MIN_REREAD_INTERVAL_S
-        if recent or current_stat == _cache_entry_stat(cached):
+        if recent:
+            _memory_reads_cache.touch(key)
+            return cached.events[:limit]
+        if _log_source_identity(log_path) == cached.identity:
             _memory_reads_cache.touch(key)
             return cached.events[:limit]
 
-    all_events, snapshot_stat = _load_memory_read_events_snapshot(
-        project,
-        log_path=log_path,
-        now=now,
-        current_stat=current_stat,
+    queried = _query_single_agent_rows(
+        log_path,
+        artifacts_dir=agent.get_artifacts_dir(),
+        agent_name=agent.agent_name,
     )
-    filtered = _filter_events_for_agent(all_events, agent)
-    ordered = tuple(sorted(filtered, key=lambda event: event.timestamp, reverse=True))
-    capped = ordered[:MAX_KEPT_READS]
+    if queried is None:
+        if cached is not None:
+            return cached.events[:limit]
+        return ()
+    events, identity = queried
+    # Rust already returns newest-first capped rows.
+    capped = events[:MAX_KEPT_READS]
     _memory_reads_cache[key] = _MemoryReadsCacheEntry(
         events=capped,
-        log_mtime_ns=snapshot_stat[0],
-        log_size=snapshot_stat[1],
-        last_read_monotonic=now,
+        identity=identity,
+        last_read_monotonic=time.monotonic(),
     )
     return capped[:limit]
 
@@ -215,15 +186,14 @@ def load_memory_reads_for_agent_context(
 
     For an ordinary row with no follow-up session members this delegates to
     :func:`_load_memory_reads_for_agent` and wraps each event with no label,
-    preserving the single-agent visual shape. For a session row it reads the
-    log once, attributes each event to a member, de-duplicates by event id,
+    preserving the single-agent visual shape. For a session row it issues one
+    targeted Rust query for the ordered members, de-duplicates by event id,
     sorts newest first, caps to ``MAX_KEPT_READS``, and labels each kept event
     with its producer's compact role.
     """
     from sase.ace.tui.agent_context_members import (
         build_context_members,
         context_cache_key,
-        match_event_label,
     )
 
     members = build_context_members(agent)
@@ -239,43 +209,49 @@ def load_memory_reads_for_agent_context(
     now = time.monotonic()
     key = (project, context_cache_key(members))
     cached = _memory_reads_context_cache.peek(key)
-    current_stat = _log_stat(log_path)
 
     if cached is not None:
         recent = (now - cached.last_read_monotonic) < _MIN_REREAD_INTERVAL_S
-        if recent or current_stat == _cache_entry_stat(cached):
+        if recent:
+            _memory_reads_context_cache.touch(key)
+            return cached.events[:limit]
+        if _log_source_identity(log_path) == cached.identity:
             _memory_reads_context_cache.touch(key)
             return cached.events[:limit]
 
-    all_events, snapshot_stat = _load_memory_read_events_snapshot(
-        project,
-        log_path=log_path,
-        now=now,
-        current_stat=current_stat,
-    )
-    matched: list[MemoryReadDisplayEvent] = []
-    seen_ids: set[str] = set()
-    for event in all_events:
-        if event.id in seen_ids:
-            continue
-        label = match_event_label(
-            members,
-            artifacts_dir=event.artifacts_dir,
-            agent_name=event.agent_name,
+    payload = [
+        {
+            "artifacts_dir": member.artifacts_dir,
+            "agent_name": member.agent_name,
+        }
+        for member in members
+    ]
+    try:
+        with locked_file(log_path.with_suffix(".lock"), fcntl.LOCK_SH):
+            rows, source = query_memory_audit(
+                log_path,
+                members=payload,
+                limit=MAX_KEPT_READS,
+                deduplicate=True,
+            )
+    except Exception:
+        if cached is not None:
+            return cached.events[:limit]
+        return ()
+    identity = _audit_source_to_identity(source)
+    display = tuple(
+        MemoryReadDisplayEvent(
+            event=row.event,
+            agent_label=members[row.member_index].label
+            if 0 <= row.member_index < len(members)
+            else None,
         )
-        if label is None:
-            continue
-        seen_ids.add(event.id)
-        matched.append(MemoryReadDisplayEvent(event=event, agent_label=label))
-
-    ordered = tuple(
-        sorted(matched, key=lambda item: item.event.timestamp, reverse=True)
+        for row in rows
     )
-    capped = ordered[:MAX_KEPT_READS]
+    capped = display[:MAX_KEPT_READS]
     _memory_reads_context_cache[key] = _MemoryReadsContextCacheEntry(
         events=capped,
-        log_mtime_ns=snapshot_stat[0],
-        log_size=snapshot_stat[1],
-        last_read_monotonic=now,
+        identity=identity,
+        last_read_monotonic=time.monotonic(),
     )
     return capped[:limit]

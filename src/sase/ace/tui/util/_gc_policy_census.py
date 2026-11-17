@@ -210,7 +210,13 @@ def known_cache_census() -> list[dict[str, Any]]:
         ),
         (
             "sase.ace.tui.memory_reads",
-            "_memory_reads_snapshot_cache",
+            "_memory_reads_cache",
+            "src/sase/ace/tui/memory_reads.py",
+            "lru",
+        ),
+        (
+            "sase.ace.tui.memory_reads",
+            "_memory_reads_context_cache",
             "src/sase/ace/tui/memory_reads.py",
             "lru",
         ),
