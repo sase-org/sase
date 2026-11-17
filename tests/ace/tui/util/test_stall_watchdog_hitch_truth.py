@@ -18,7 +18,8 @@ from types import SimpleNamespace
 
 import pytest
 
-from sase.ace.tui.util import gc_telemetry
+from sase.ace.tui.util import _gc_telemetry_lifecycle as telemetry_lifecycle
+from sase.ace.tui.util import _gc_telemetry_recorder as telemetry_recorder
 from sase.ace.tui.util.stall_watchdog import _EventLoopStallWatchdog
 from sase.logs import tui_telemetry
 
@@ -107,7 +108,7 @@ async def test_recovery_attributes_gc_overlap_from_telemetry_ring(
     path = tmp_path / "tui_stalls.jsonl"
     monkeypatch.setattr(tui_telemetry, "TUI_STALLS_JSONL", str(path))
     monkeypatch.setattr(
-        gc_telemetry,
+        telemetry_lifecycle,
         "_active",
         SimpleNamespace(
             recent_collections=lambda since_mono: (
@@ -191,7 +192,7 @@ async def test_heartbeat_provider_registers_on_start(
 ) -> None:
     path = tmp_path / "tui_stalls.jsonl"
     monkeypatch.setattr(tui_telemetry, "TUI_STALLS_JSONL", str(path))
-    monkeypatch.setattr(gc_telemetry, "_heartbeat_providers", {})
+    monkeypatch.setattr(telemetry_recorder, "_heartbeat_providers", {})
     watchdog = _EventLoopStallWatchdog(
         asyncio.get_running_loop(),
         threshold_seconds=100.0,
@@ -199,12 +200,12 @@ async def test_heartbeat_provider_registers_on_start(
     )
     try:
         watchdog._register_heartbeat_provider()
-        assert "stall_watchdog" in gc_telemetry._heartbeat_providers
-        provided = gc_telemetry._heartbeat_providers["stall_watchdog"]()
+        assert "stall_watchdog" in telemetry_recorder._heartbeat_providers
+        provided = telemetry_recorder._heartbeat_providers["stall_watchdog"]()
         assert provided["loop_hitch_episodes"] == 0
     finally:
         watchdog._unregister_heartbeat_provider()
-    assert "stall_watchdog" not in gc_telemetry._heartbeat_providers
+    assert "stall_watchdog" not in telemetry_recorder._heartbeat_providers
 
 
 @pytest.mark.asyncio

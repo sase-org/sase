@@ -14,6 +14,8 @@ from typing import Any
 import pytest
 
 from sase.ace.tui.actions._startup_telemetry import StartupTelemetryMixin
+from sase.ace.tui.util import _gc_telemetry_lifecycle as lifecycle_module
+from sase.ace.tui.util import _gc_telemetry_recorder as recorder_module
 from sase.ace.tui.util import gc_telemetry
 from sase.ace.tui.util import startup_clock
 from sase.ace.tui.util.gc_telemetry import (
@@ -67,23 +69,23 @@ def telemetry(
         status_path=tmp_path / "missing-status",
         stat_path=tmp_path / "missing-stat",
     )
-    previous_active = gc_telemetry._active
-    previous_tag = gc_telemetry._trigger_tag
-    previous_providers = dict(gc_telemetry._heartbeat_providers)
-    gc_telemetry._active = tel
+    previous_active = lifecycle_module._active
+    previous_tag = lifecycle_module._trigger_tag
+    previous_providers = dict(recorder_module._heartbeat_providers)
+    lifecycle_module._active = tel
     try:
         yield tel
     finally:
-        gc_telemetry._active = previous_active
-        gc_telemetry._trigger_tag = previous_tag
-        gc_telemetry._heartbeat_providers.clear()
-        gc_telemetry._heartbeat_providers.update(previous_providers)
-        gc_telemetry._pending_start.start_mono = None
-        gc_telemetry._pending_start.thread = ""
-        gc_telemetry._pending_start.trigger = gc_telemetry.UNTAGGED_TRIGGER
-        gc_telemetry._pending_start.last_input_mono = 0.0
-        gc_telemetry._pending_start.start_majflt = None
-        gc_telemetry._last_input_mono = 0.0
+        lifecycle_module._active = previous_active
+        lifecycle_module._trigger_tag = previous_tag
+        recorder_module._heartbeat_providers.clear()
+        recorder_module._heartbeat_providers.update(previous_providers)
+        lifecycle_module._pending_start.start_mono = None
+        lifecycle_module._pending_start.thread = ""
+        lifecycle_module._pending_start.trigger = gc_telemetry.UNTAGGED_TRIGGER
+        lifecycle_module._pending_start.last_input_mono = 0.0
+        lifecycle_module._pending_start.start_majflt = None
+        lifecycle_module._last_input_mono = 0.0
 
 
 def _record(
@@ -139,7 +141,7 @@ def test_callback_body_performs_no_io_or_locking() -> None:
         "Path(",
         "sleep",
     )
-    for fn in (gc_telemetry._gc_callback, GCTelemetry._record_stop):
+    for fn in (lifecycle_module._gc_callback, GCTelemetry._record_stop):
         source = inspect.getsource(fn)
         for token in forbidden:
             assert token not in source, f"{fn.__name__} contains {token!r}"
@@ -349,10 +351,10 @@ def test_trigger_tag_lands_on_record(
     telemetry: GCTelemetry, emitted: list[dict[str, Any]], clock: _Clock
 ) -> None:
     with gc_trigger("idle"):
-        gc_telemetry._gc_callback("start", {"generation": 2})
-        gc_telemetry._gc_callback("stop", {"generation": 2, "collected": 7})
-    gc_telemetry._gc_callback("start", {"generation": 0})
-    gc_telemetry._gc_callback("stop", {"generation": 2, "collected": 3})
+        lifecycle_module._gc_callback("start", {"generation": 2})
+        lifecycle_module._gc_callback("stop", {"generation": 2, "collected": 7})
+    lifecycle_module._gc_callback("start", {"generation": 0})
+    lifecycle_module._gc_callback("stop", {"generation": 2, "collected": 3})
     telemetry._flush_queued(clock.now)
     assert [row["trigger"] for row in emitted] == ["idle", "automatic"]
     assert emitted[0]["collected"] == 7
@@ -361,9 +363,9 @@ def test_trigger_tag_lands_on_record(
 def test_trigger_nesting_restores_outer_tag() -> None:
     with gc_trigger("outer"):
         with gc_trigger("inner"):
-            assert gc_telemetry._trigger_tag == "inner"
-        assert gc_telemetry._trigger_tag == "outer"
-    assert gc_telemetry._trigger_tag == gc_telemetry.UNTAGGED_TRIGGER
+            assert lifecycle_module._trigger_tag == "inner"
+        assert lifecycle_module._trigger_tag == "outer"
+    assert lifecycle_module._trigger_tag == gc_telemetry.UNTAGGED_TRIGGER
 
 
 def test_recent_collections_filters_by_time(telemetry: GCTelemetry) -> None:
@@ -399,14 +401,14 @@ def test_queue_bound_drops_oldest_without_growing(
 
 
 def test_install_uninstall_restores_gc_callbacks() -> None:
-    assert gc_telemetry._active is None
+    assert lifecycle_module._active is None
     before = list(gc.callbacks)
-    assert gc_telemetry._gc_callback not in before
+    assert lifecycle_module._gc_callback not in before
     handle = install_gc_telemetry()
     try:
         assert handle is not None
-        assert gc_telemetry._active is handle
-        assert gc_telemetry._gc_callback in gc.callbacks
+        assert lifecycle_module._active is handle
+        assert lifecycle_module._gc_callback in gc.callbacks
         assert install_gc_telemetry() is handle
         thread = handle._thread
         assert thread is not None
@@ -415,7 +417,7 @@ def test_install_uninstall_restores_gc_callbacks() -> None:
     finally:
         uninstall_gc_telemetry(handle)
     assert list(gc.callbacks) == before
-    assert gc_telemetry._active is None
+    assert lifecycle_module._active is None
 
 
 def test_install_respects_kill_switch(
@@ -425,7 +427,7 @@ def test_install_respects_kill_switch(
     before = list(gc.callbacks)
     assert install_gc_telemetry() is None
     assert list(gc.callbacks) == before
-    assert gc_telemetry._active is None
+    assert lifecycle_module._active is None
 
 
 @pytest.mark.asyncio
@@ -442,7 +444,7 @@ async def test_testing_harness_does_not_auto_install() -> None:
     async with AsyncExitStack() as stack:
         harness_startup._install_fast_startup_overrides(stack)
         assert harness_startup._gc_telemetry.install_gc_telemetry(object()) is None
-        assert gc_telemetry._active is None
+        assert lifecycle_module._active is None
         assert list(gc.callbacks) == before
 
 
@@ -501,12 +503,12 @@ def test_app_instance_id_mint_and_accessor() -> None:
 
 
 def test_latest_rss_bytes_without_active() -> None:
-    previous = gc_telemetry._active
-    gc_telemetry._active = None
+    previous = lifecycle_module._active
+    lifecycle_module._active = None
     try:
         assert latest_rss_bytes() is None
     finally:
-        gc_telemetry._active = previous
+        lifecycle_module._active = previous
 
 
 class _StartupStub(StartupTelemetryMixin):
@@ -577,12 +579,12 @@ def test_callback_records_input_age_and_majflt(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     faults = iter((10, 25))
-    monkeypatch.setattr(gc_telemetry, "_majflt", lambda: next(faults))
-    monkeypatch.setattr(gc_telemetry.time, "monotonic", clock)
+    monkeypatch.setattr(lifecycle_module, "_majflt", lambda: next(faults))
+    monkeypatch.setattr(lifecycle_module.time, "monotonic", clock)
     note_last_input_mono(clock.now - 2.5)
-    gc_telemetry._gc_callback("start", {"generation": 2})
+    lifecycle_module._gc_callback("start", {"generation": 2})
     clock.advance(0.4)
-    gc_telemetry._gc_callback("stop", {"generation": 2, "collected": 1})
+    lifecycle_module._gc_callback("stop", {"generation": 2, "collected": 1})
     telemetry._flush_queued(clock.now)
     assert emitted
     row = emitted[0]

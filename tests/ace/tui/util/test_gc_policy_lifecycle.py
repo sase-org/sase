@@ -15,7 +15,8 @@ from textual.widgets import Input, TextArea
 from sase.ace.tui.actions._event_keyboard import EventKeyboardMixin
 from sase.ace.tui.util import _gc_policy_lifecycle as lifecycle_module
 from sase.ace.tui.util import _gc_policy_trim as trim_module
-from sase.ace.tui.util import gc_policy, gc_telemetry
+from sase.ace.tui.util import _gc_telemetry_recorder as recorder_module
+from sase.ace.tui.util import gc_policy
 from sase.ace.tui.util._gc_policy_lifecycle import (  # noqa: F401
     _modal_text_input_active as modal_text_input_active,
 )
@@ -46,14 +47,14 @@ def recorder() -> Recorder:
 @pytest.fixture
 def active_guard() -> Iterator[None]:
     previous_active = lifecycle_module._active
-    previous_providers = dict(gc_telemetry._heartbeat_providers)
+    previous_providers = dict(recorder_module._heartbeat_providers)
     lifecycle_module._active = None
     try:
         yield
     finally:
         lifecycle_module._active = previous_active
-        gc_telemetry._heartbeat_providers.clear()
-        gc_telemetry._heartbeat_providers.update(previous_providers)
+        recorder_module._heartbeat_providers.clear()
+        recorder_module._heartbeat_providers.update(previous_providers)
 
 
 class _Modal(ModalScreen[None]):
@@ -115,12 +116,12 @@ def test_uninstall_stops_timer_unfreezes_and_unregisters(
     handle = install_gc_policy(app=app, collector=collector)
     assert handle is not None
     assert handle.tick(clock.now) == "startup_freeze"
-    assert gc_policy.HEARTBEAT_PROVIDER_NAME in gc_telemetry._heartbeat_providers
+    assert gc_policy.HEARTBEAT_PROVIDER_NAME in recorder_module._heartbeat_providers
     uninstall_gc_policy(handle)
     assert stops == ["stopped"]
     assert collector.threshold == (700, 10, 10)
     assert collector.unfreezes == 1
-    assert gc_policy.HEARTBEAT_PROVIDER_NAME not in gc_telemetry._heartbeat_providers
+    assert gc_policy.HEARTBEAT_PROVIDER_NAME not in recorder_module._heartbeat_providers
     assert lifecycle_module._active is None
 
 
