@@ -19,7 +19,7 @@ _child_start = time.perf_counter()
 _first_visual_emitted = False
 
 
-def _emit_child_span(name: str, *, mode: str, **fields: Any) -> None:
+def emit_child_span(name: str, *, mode: str, **fields: Any) -> None:
     """Emit ``artifact_viewer.<name>`` when child tracing is enabled."""
 
     if os.environ.get(_ENV_FLAG) != "1":
@@ -48,7 +48,7 @@ def _emit_child_span(name: str, *, mode: str, **fields: Any) -> None:
 def mark_child_ready(mode: str) -> None:
     """Record that the pane child finished imports and config resolution."""
 
-    _emit_child_span("child_ready", mode=mode)
+    emit_child_span("child_ready", mode=mode)
 
 
 def mark_first_visual(mode: str) -> None:
@@ -58,4 +58,4 @@ def mark_first_visual(mode: str) -> None:
     if _first_visual_emitted:
         return
     _first_visual_emitted = True
-    _emit_child_span("first_visual", mode=mode)
+    emit_child_span("first_visual", mode=mode)

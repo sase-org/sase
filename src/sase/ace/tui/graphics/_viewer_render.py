@@ -90,17 +90,9 @@ def render_artifact_file_pages(
                     ),
                 ),
             )
-        if mode == "video":
-            from ._viewer_loop_media import load_artifact_video_playback_config
-
-            config = video_config
-            if config is None:
-                config = load_artifact_video_playback_config()
-            warnings = validate_artifact_file_viewer_dependencies(
-                mode, video_config=config
-            )
-            if warnings:
-                return ArtifactRenderResult((), tuple(warnings))
+        # Video pages are empty: the inspect loop owns playback and
+        # missing-tool notices. Do not fail the renderer on ffmpeg/kitten.
+        _ = video_config
         return ArtifactRenderResult(())
 
     warnings = validate_artifact_file_viewer_dependencies(mode)
@@ -168,7 +160,10 @@ def validate_artifact_file_viewer_dependencies(
                 tool="kitten",
             )
         )
-    if mode == "video" and _video_still_preview_required(video_config):
+    if mode == "video":
+        # Inspect-first: ffmpeg/ffprobe/kitten render the view. mpv is opt-in
+        # on space and is not required to open a video.
+        _ = video_config
         for tool, code in (
             ("ffprobe", "missing_ffprobe"),
             ("ffmpeg", "missing_ffmpeg"),
@@ -183,14 +178,6 @@ def validate_artifact_file_viewer_dependencies(
                     )
                 )
         return tuple(warnings)
-    if mode == "video" and shutil.which("mpv") is None:
-        warnings.append(
-            ArtifactFileViewerWarning(
-                "missing_mpv",
-                "mpv executable not found",
-                tool="mpv",
-            )
-        )
     if mode in {"markdown", "pdf"} and shutil.which("pdftoppm") is None:
         warnings.append(
             ArtifactFileViewerWarning(
@@ -219,16 +206,6 @@ def validate_artifact_file_viewer_dependencies(
                 )
             )
     return tuple(warnings)
-
-
-def _video_still_preview_required(
-    video_config: ArtifactVideoPlaybackConfig | None,
-) -> bool:
-    if video_config is None:
-        return False
-    from ._viewer_loop_media import video_still_preview_required
-
-    return video_still_preview_required(video_config)
 
 
 def convert_pdf_to_png_pages(

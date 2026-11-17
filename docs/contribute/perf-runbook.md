@@ -476,6 +476,9 @@ covers loader stages and pager opens):
 - `actions/agents/_panel_artifact_open.py` — `artifact_viewer.open.select`,
   `artifact_viewer.open.materialize`, `artifact_viewer.open.split`,
   `artifact_viewer.open.decorate`
+- `graphics/_viewer_trace.py` — child spans `artifact_viewer.child_ready`,
+  `.first_visual`, `.storyboard_ready`, `.key_to_frame` (inspect view), plus
+  `.motion_start` when motion-handoff lands
 - `widgets/prompt_panel/_agent_display_hints.py` —
   `widget.prompt_panel.update_display_with_hints`
 - `widgets/patch_list.py` — `widget.patch_list.update_list`,

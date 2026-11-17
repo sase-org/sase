@@ -10,11 +10,15 @@ from sase.ace.tui.graphics.viewer import (
     ArtifactFileViewerResult,
     ArtifactFileViewSpec,
     ArtifactVideoPlaybackConfig,
-    artifact_video_player_command,
     run_artifact_sequence_loop,
 )
 
-from ._helpers import _TEST_IMAGE_AREA, _strip_ansi, _test_icat_command
+from ._helpers import (
+    _TEST_IMAGE_AREA,
+    _strip_ansi,
+    _test_icat_command,
+    stub_video_inspect_service,
+)
 
 
 def test_run_artifact_sequence_loop_navigates_pages_and_artifacts(
@@ -375,12 +379,7 @@ def test_run_artifact_sequence_loop_plays_video_artifact(
     specs = (ArtifactFileViewSpec(video, "file"),)
     commands: list[list[str]] = []
     keys = iter(["q"])
-    monkeypatch.delenv("TMUX", raising=False)
-    monkeypatch.delenv("TMUX_PANE", raising=False)
-    monkeypatch.setattr(
-        "sase.ace.tui.graphics._viewer_render.shutil.which",
-        lambda tool: f"/usr/bin/{tool}" if tool == "mpv" else None,
-    )
+    stub_video_inspect_service(monkeypatch, tmp_path)
 
     def fake_run(cmd):
         commands.append(list(cmd))
@@ -396,13 +395,12 @@ def test_run_artifact_sequence_loop_plays_video_artifact(
     )
 
     assert result.returncode == 0
-    assert commands == [
-        artifact_video_player_command(video, _TEST_IMAGE_AREA),
-    ]
+    assert any(cmd and cmd[0] == "kitten" for cmd in commands)
+    assert all(cmd[0] != "mpv" for cmd in commands if cmd)
     output = capsys.readouterr().out
     assert "Viewing artifact" in output
     assert "▶ Video" in output
-    assert "r: refresh" in _strip_ansi(output)
+    assert "h/l: seek" in _strip_ansi(output)
 
 
 def test_run_artifact_sequence_loop_replays_video_artifact(
@@ -414,12 +412,7 @@ def test_run_artifact_sequence_loop_replays_video_artifact(
     specs = (ArtifactFileViewSpec(video, "file"),)
     commands: list[list[str]] = []
     keys = iter(["r", "q"])
-    monkeypatch.delenv("TMUX", raising=False)
-    monkeypatch.delenv("TMUX_PANE", raising=False)
-    monkeypatch.setattr(
-        "sase.ace.tui.graphics._viewer_render.shutil.which",
-        lambda tool: f"/usr/bin/{tool}" if tool == "mpv" else None,
-    )
+    stub = stub_video_inspect_service(monkeypatch, tmp_path)
 
     def fake_run(cmd):
         commands.append(list(cmd))
@@ -435,10 +428,8 @@ def test_run_artifact_sequence_loop_replays_video_artifact(
     )
 
     assert result.returncode == 0
-    assert commands == [
-        artifact_video_player_command(video, _TEST_IMAGE_AREA),
-        artifact_video_player_command(video, _TEST_IMAGE_AREA),
-    ]
+    assert stub["extracts"].count(0.0) >= 2
+    assert all(cmd[0] != "mpv" for cmd in commands if cmd)
 
 
 def test_run_artifact_sequence_loop_navigates_video_to_image(
@@ -460,12 +451,7 @@ def test_run_artifact_sequence_loop_navigates_video_to_image(
         "sase.ace.tui.graphics.viewer.render_artifact_file_pages",
         lambda *args, **kwargs: ArtifactRenderResult((page,)),
     )
-    monkeypatch.delenv("TMUX", raising=False)
-    monkeypatch.delenv("TMUX_PANE", raising=False)
-    monkeypatch.setattr(
-        "sase.ace.tui.graphics._viewer_render.shutil.which",
-        lambda tool: f"/usr/bin/{tool}" if tool == "mpv" else None,
-    )
+    stub_video_inspect_service(monkeypatch, tmp_path)
     commands: list[list[str]] = []
     keys = iter(["n", "q"])
 
@@ -483,10 +469,8 @@ def test_run_artifact_sequence_loop_navigates_video_to_image(
     )
 
     assert result.returncode == 0
-    assert commands == [
-        artifact_video_player_command(video, _TEST_IMAGE_AREA),
-        _test_icat_command(page),
-    ]
+    assert _test_icat_command(page) in commands
+    assert all(not cmd or cmd[0] != "mpv" for cmd in commands)
 
 
 def test_run_artifact_sequence_loop_keeps_prompt_after_mpv_failure(
@@ -498,17 +482,12 @@ def test_run_artifact_sequence_loop_keeps_prompt_after_mpv_failure(
     video.write_bytes(b"video")
     specs = (ArtifactFileViewSpec(video, "file"),)
     commands: list[list[str]] = []
-    keys = iter(["q"])
-    monkeypatch.delenv("TMUX", raising=False)
-    monkeypatch.delenv("TMUX_PANE", raising=False)
-    monkeypatch.setattr(
-        "sase.ace.tui.graphics._viewer_render.shutil.which",
-        lambda tool: f"/usr/bin/{tool}" if tool == "mpv" else None,
-    )
+    keys = iter([" ", "q"])
+    stub_video_inspect_service(monkeypatch, tmp_path)
 
     def fake_run(cmd):
         commands.append(list(cmd))
-        return subprocess.CompletedProcess(cmd, 2 if cmd[0] == "mpv" else 0)
+        return subprocess.CompletedProcess(cmd, 2 if cmd and cmd[0] == "mpv" else 0)
 
     result = run_artifact_sequence_loop(
         specs,
@@ -520,9 +499,7 @@ def test_run_artifact_sequence_loop_keeps_prompt_after_mpv_failure(
     )
 
     assert result.returncode == 0
-    assert commands == [
-        artifact_video_player_command(video, _TEST_IMAGE_AREA),
-    ]
+    assert any(cmd and cmd[0] == "mpv" for cmd in commands)
     output = capsys.readouterr().out
     assert "mpv failed with exit code 2" in output
     assert "q: quit" in _strip_ansi(output)

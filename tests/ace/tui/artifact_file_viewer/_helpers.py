@@ -2,7 +2,13 @@ from __future__ import annotations
 
 import re
 from pathlib import Path
+from typing import Any
 
+from sase.ace.tui.graphics._viewer_video_frames import (
+    FrameExtractResult,
+    StoryboardResult,
+)
+from sase.ace.tui.graphics._viewer_video_media import VideoMetadata
 from sase.ace.tui.graphics.viewer import ArtifactFileImageArea, kitten_icat_command
 
 
@@ -34,6 +40,74 @@ def _patch_tmux_run(monkeypatch, fake_run) -> None:
         "sase.ace.tui.graphics._viewer_tmux_common.subprocess.run",
         fake_run,
     )
+
+
+def stub_video_inspect_service(
+    monkeypatch: Any,
+    tmp_path: Path,
+    *,
+    duration: float = 7.0,
+    fps: float = 30.0,
+    scrub: Any = None,
+    storyboard: bool = True,
+) -> dict[str, Any]:
+    """Stub the inspect-view frame service so tests never shell out to ffmpeg."""
+
+    cache = tmp_path / "artifact-video-cache"
+    cache.mkdir(parents=True, exist_ok=True)
+    extracts: list[float] = []
+    storyboards: list[Path] = []
+
+    def fake_extract(path: object, at_seconds: float, max_px: int, **kwargs: object):
+        del path, kwargs
+        extracts.append(float(at_seconds))
+        dest = cache / f"frame-{at_seconds:.3f}-w{max_px}.png"
+        dest.write_bytes(b"PNG")
+        return FrameExtractResult(path=dest, cached=False, error=None)
+
+    def fake_metadata(path: object, **kwargs: object) -> VideoMetadata:
+        del path, kwargs
+        return VideoMetadata(
+            duration_seconds=duration,
+            width=640,
+            height=360,
+            fps=fps,
+            codec="h264",
+            size_bytes=1234,
+        )
+
+    def fake_storyboard(*args: object, **kwargs: object) -> StoryboardResult:
+        del args, kwargs
+        dest = cache / "storyboard.png"
+        dest.write_bytes(b"BOARD")
+        storyboards.append(dest)
+        if not storyboard:
+            return StoryboardResult(path=None, cached=False, cells=0, error="skipped")
+        return StoryboardResult(path=dest, cached=False, cells=10, error=None)
+
+    def fake_scrub(*args: object, **kwargs: object) -> Any:
+        del args, kwargs
+        return scrub
+
+    def fake_which(tool: str) -> str | None:
+        return f"/usr/bin/{tool}"
+
+    target = "sase.ace.tui.graphics._viewer_loop_video"
+    monkeypatch.setattr(f"{target}.extract_frame", fake_extract)
+    monkeypatch.setattr(f"{target}.metadata_for_frame_service", fake_metadata)
+    monkeypatch.setattr(f"{target}.build_storyboard", fake_storyboard)
+    monkeypatch.setattr(f"{target}.start_scrub_track", fake_scrub)
+    monkeypatch.setattr(f"{target}.artifact_video_cache_dir", lambda **_k: cache)
+    monkeypatch.setattr(f"{target}.terminal_pixel_size", lambda **_k: (1600, 900))
+    monkeypatch.setattr(f"{target}.shutil.which", fake_which)
+    monkeypatch.setattr(f"{target}.content_digest_for_path", lambda _p: "digest")
+    monkeypatch.setattr(f"{target}.enforce_cache_budget", lambda *_a, **_k: 0)
+    monkeypatch.setattr(f"{target}.scrub_fps_for_duration", lambda _d: 2.0)
+    return {
+        "cache": cache,
+        "extracts": extracts,
+        "storyboards": storyboards,
+    }
 
 
 def _tmux_split_env(cmd: list[str]) -> dict[str, str]:

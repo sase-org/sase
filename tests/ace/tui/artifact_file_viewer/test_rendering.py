@@ -160,6 +160,33 @@ def test_kitten_icat_command_transfer_mode_is_opt_in(tmp_path: Path) -> None:
     ]
 
 
+def test_kitten_icat_command_image_id_is_opt_in(tmp_path: Path) -> None:
+    page = tmp_path / "page.png"
+
+    assert kitten_icat_command(
+        page,
+        ArtifactFileImageArea(100, 33),
+        image_id=1,
+    ) == [
+        "kitten",
+        "icat",
+        "--scale-up",
+        "--align",
+        "left",
+        "--place",
+        "100x33@0x0",
+        "--image-id",
+        "1",
+        str(page),
+    ]
+
+
+def test_kitten_icat_clear_command_is_stable() -> None:
+    from sase.ace.tui.graphics._viewer_loop_terminal import kitten_icat_clear_command
+
+    assert kitten_icat_clear_command() == ["kitten", "icat", "--clear"]
+
+
 def test_artifact_video_player_command_targets_image_area(tmp_path: Path) -> None:
     video = tmp_path / "clip.mp4"
 
@@ -297,16 +324,18 @@ def test_validate_artifact_file_viewer_dependencies_reports_missing_tools(
     ]
 
 
-def test_validate_artifact_file_viewer_dependencies_reports_missing_mpv(
+def test_validate_artifact_file_viewer_dependencies_reports_missing_inspect_tools(
     monkeypatch,
 ) -> None:
     monkeypatch.setattr("sase.ace.tui.graphics.viewer.shutil.which", lambda _tool: None)
 
     warnings = validate_artifact_file_viewer_dependencies("video")
 
-    assert [warning.code for warning in warnings] == ["missing_mpv"]
-    assert warnings[0].message == "mpv executable not found"
-    assert warnings[0].tool == "mpv"
+    assert [warning.code for warning in warnings] == [
+        "missing_ffprobe",
+        "missing_ffmpeg",
+        "missing_kitten",
+    ]
 
 
 def test_render_markdown_artifact_uses_transient_pdf_and_pdf_pages(

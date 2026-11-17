@@ -6,7 +6,6 @@ from pathlib import Path
 
 from sase.ace.tui.graphics._viewer_loop_media import display_video_artifact
 from sase.ace.tui.graphics._viewer_video_media import (
-    VIDEO_STILL_FOOTER_PREFIX,
     VideoMetadata,
     _extract_video_still,
     _terminal_pixel_width,
@@ -21,7 +20,6 @@ from sase.ace.tui.graphics.viewer import (
     ArtifactFileViewSpec,
     ArtifactVideoPlaybackConfig,
     artifact_video_player_command,
-    kitten_icat_command,
     run_artifact_sequence_loop,
     validate_artifact_file_viewer_dependencies,
 )
@@ -206,18 +204,9 @@ def test_still_dispatch_runs_probe_extract_and_icat_without_mpv(
 ) -> None:
     video = _write_clip(tmp_path)
     monkeypatch.setenv("TMUX", "/tmp/tmux-1/default,123,0")
-    monkeypatch.setattr(
-        "sase.ace.tui.graphics._viewer_video_media.shutil.which", _present_tools
-    )
-    captured: list[tuple[list[str], float]] = []
-    monkeypatch.setattr(
-        "sase.ace.tui.graphics._viewer_video_media._run_capture",
-        _fake_capture_factory(captured),
-    )
-    monkeypatch.setattr(
-        "sase.ace.tui.graphics._viewer_video_media._terminal_pixel_width",
-        lambda **_kwargs: 1600,
-    )
+    from ._helpers import stub_video_inspect_service
+
+    stub_video_inspect_service(monkeypatch, tmp_path)
     commands: list[list[str]] = []
     keys = iter(["q"])
 
@@ -236,21 +225,11 @@ def test_still_dispatch_runs_probe_extract_and_icat_without_mpv(
 
     assert result.returncode == 0
     assert result.warnings == ()
-    assert all(cmd[0] != "mpv" for cmd in commands)
-    still_path = tmp_path / "cache" / "video-still-0.png"
-    assert commands == [
-        kitten_icat_command(still_path, _TEST_IMAGE_AREA),
-    ]
-    assert captured[0][0] == ffprobe_metadata_command(video)
-    assert captured[0][1] == _FFPROBE_TIMEOUT_SECONDS
-    assert captured[1][0] == _video_still_extraction_command(video, still_path, 1600)
-    assert captured[1][1] == _FFMPEG_TIMEOUT_SECONDS
+    assert all(cmd[0] != "mpv" for cmd in commands if cmd)
     output = capsys.readouterr().out
     assert "Viewing artifact" in output
-    assert (
-        "0:06 \u00b7 2560\u00d71548 \u00b7 30 fps \u00b7 h264 \u00b7 1.2 MB" in output
-    )
-    assert VIDEO_STILL_FOOTER_PREFIX in _strip_ansi(output)
+    assert "h/l: seek" in _strip_ansi(output)
+    assert any(cmd and cmd[0] == "kitten" and "--image-id" in cmd for cmd in commands)
 
 
 def test_still_dispatch_with_tct_vo_inside_tmux_runs_mpv(
@@ -259,12 +238,12 @@ def test_still_dispatch_with_tct_vo_inside_tmux_runs_mpv(
 ) -> None:
     video = _write_clip(tmp_path)
     monkeypatch.setenv("TMUX", "/tmp/tmux-1/default,123,0")
-    monkeypatch.setattr(
-        "sase.ace.tui.graphics._viewer_render.shutil.which",
-        lambda tool: f"/usr/bin/{tool}" if tool == "mpv" else None,
-    )
+    from ._helpers import stub_video_inspect_service
+    from sase.ace.tui.graphics._viewer_loop_video import _compute_inspect_layout
+
+    stub_video_inspect_service(monkeypatch, tmp_path)
     commands: list[list[str]] = []
-    keys = iter(["q"])
+    keys = iter([" ", "q"])
     config = ArtifactVideoPlaybackConfig(vo="tct")
 
     def fake_run(cmd) -> subprocess.CompletedProcess:
@@ -281,9 +260,10 @@ def test_still_dispatch_with_tct_vo_inside_tmux_runs_mpv(
     )
 
     assert result.returncode == 0
-    assert commands == [
-        artifact_video_player_command(video, _TEST_IMAGE_AREA, config),
-    ]
+    layout = _compute_inspect_layout(
+        _TEST_IMAGE_AREA, storyboard_enabled=True, pane_rows=26
+    )
+    assert artifact_video_player_command(video, layout.frame, config) in commands
 
 
 def test_still_r_key_rerenders(
@@ -292,40 +272,22 @@ def test_still_r_key_rerenders(
 ) -> None:
     video = _write_clip(tmp_path)
     monkeypatch.setenv("TMUX", "/tmp/tmux-1/default,123,0")
-    monkeypatch.setattr(
-        "sase.ace.tui.graphics._viewer_video_media.shutil.which", _present_tools
-    )
-    captured: list[tuple[list[str], float]] = []
-    monkeypatch.setattr(
-        "sase.ace.tui.graphics._viewer_video_media._run_capture",
-        _fake_capture_factory(captured),
-    )
-    monkeypatch.setattr(
-        "sase.ace.tui.graphics._viewer_video_media._terminal_pixel_width",
-        lambda **_kwargs: 1600,
-    )
-    commands: list[list[str]] = []
-    keys = iter(["r", "q"])
+    from ._helpers import stub_video_inspect_service
 
-    def fake_run(cmd) -> subprocess.CompletedProcess:
-        commands.append(list(cmd))
-        return subprocess.CompletedProcess(cmd, 0)
+    stub = stub_video_inspect_service(monkeypatch, tmp_path)
+    keys = iter(["r", "q"])
 
     result = run_artifact_sequence_loop(
         (ArtifactFileViewSpec(video, "file"),),
         cache_root=tmp_path / "cache",
         read_key=lambda: next(keys),
-        run_command=fake_run,
+        run_command=lambda cmd: subprocess.CompletedProcess(cmd, 0),
         image_area=_TEST_IMAGE_AREA,
         video_config=ArtifactVideoPlaybackConfig(),
     )
 
     assert result.returncode == 0
-    still_path = tmp_path / "cache" / "video-still-0.png"
-    assert commands == [
-        kitten_icat_command(still_path, _TEST_IMAGE_AREA),
-        kitten_icat_command(still_path, _TEST_IMAGE_AREA),
-    ]
+    assert stub["extracts"].count(0.0) >= 2
 
 
 def _display_still(
@@ -493,7 +455,7 @@ def test_validate_video_dependencies_use_still_tools_inside_tmux(
     ]
 
 
-def test_validate_video_dependencies_use_mpv_with_tct_vo_inside_tmux(
+def test_validate_video_dependencies_use_inspect_tools_with_tct_vo_inside_tmux(
     monkeypatch,
 ) -> None:
     monkeypatch.setenv("TMUX", "/tmp/tmux-1/default,123,0")
@@ -503,10 +465,16 @@ def test_validate_video_dependencies_use_mpv_with_tct_vo_inside_tmux(
         "video", video_config=ArtifactVideoPlaybackConfig(vo="tct")
     )
 
-    assert [warning.code for warning in warnings] == ["missing_mpv"]
+    assert [warning.code for warning in warnings] == [
+        "missing_ffprobe",
+        "missing_ffmpeg",
+        "missing_kitten",
+    ]
 
 
-def test_validate_video_dependencies_use_mpv_outside_tmux(monkeypatch) -> None:
+def test_validate_video_dependencies_use_inspect_tools_outside_tmux(
+    monkeypatch,
+) -> None:
     monkeypatch.delenv("TMUX", raising=False)
     monkeypatch.delenv("TMUX_PANE", raising=False)
     monkeypatch.setattr("sase.ace.tui.graphics.viewer.shutil.which", lambda _tool: None)
@@ -515,4 +483,8 @@ def test_validate_video_dependencies_use_mpv_outside_tmux(monkeypatch) -> None:
         "video", video_config=ArtifactVideoPlaybackConfig()
     )
 
-    assert [warning.code for warning in warnings] == ["missing_mpv"]
+    assert [warning.code for warning in warnings] == [
+        "missing_ffprobe",
+        "missing_ffmpeg",
+        "missing_kitten",
+    ]

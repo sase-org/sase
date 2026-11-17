@@ -164,6 +164,26 @@ def test_video_pane_tmux_probe(tmp_path: Path) -> None:
             first_pixel = time.monotonic()
             child.expect(b"\x1b_G", timeout=10)
             assert time.monotonic() - first_pixel <= 1.0
+            child.expect(b"\x1b_G", timeout=15)
+            title = _tmux(
+                socket, "display-message", "-p", "-t", "probe", "#{pane_title}", env=env
+            )
+            assert title.stdout.strip() == _SENTINEL_TITLE
+            time.sleep(2.0)  # sase-test-wait: let scrub track and storyboard settle
+            before_step = len(log.getvalue())
+            child.send("l")
+            stepped = time.monotonic()
+            while time.monotonic() - stepped <= 0.3:
+                data = log.getvalue()[before_step:]
+                if b"\x1b_G" in data:
+                    break
+                time.sleep(0.02)  # sase-test-wait: poll pty log for kitty APC
+            else:
+                raise AssertionError("no kitty APC within 300 ms of an l press")
+            for _ in range(9):
+                child.send("l")
+                time.sleep(0.05)  # sase-test-wait: space l presses for byte budget
+            assert len(log.getvalue()) < _MAX_CLIENT_BYTES
             title = _tmux(
                 socket, "display-message", "-p", "-t", "probe", "#{pane_title}", env=env
             )
@@ -176,7 +196,9 @@ def test_video_pane_tmux_probe(tmp_path: Path) -> None:
                 child.terminate(force=True)
             child.close()
 
-        assert len(log.getvalue()) < _MAX_CLIENT_BYTES
+        payload = log.getvalue()
+        assert payload.count(b"\x1b_G") >= 2
+        assert len(payload) < _MAX_CLIENT_BYTES
         assert not marker.exists()
     finally:
         _tmux(socket, "kill-server", env=env)

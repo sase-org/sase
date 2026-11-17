@@ -535,10 +535,9 @@ _lint-patch-stitch-terminology: _setup
 # allowlist rows remain.
 # sase-1tb.4 (video-frame-cache) landed the ffmpeg frame service in
 # _viewer_video_frames.py, which consumes the ffprobe metadata surface, so
-# those rows are dropped. The frame service itself is consumed by sase-1tb.5
-# (inspect-scrubber), which renders it in the inspect view, plus the metadata
-# summary for the media label. Drop each row once its phase lands a real
-# consumer.
+# those rows are dropped. sase-1tb.5 (inspect-scrubber) consumes the
+# frame-cache public surface in the inspect view, plus the metadata summary
+# for the media label, so those --epic-symbol rows are dropped.
 # sase-1t3.10.1.2 (scalar-row-adapters) exports the compact list facade and
 # ordinary-row constructors; sase-1t3.10.1.3 (workflow-list-cutover) consumes
 # them by switching TUI acquisition to the compact APIs. Drop each row once
@@ -563,18 +562,6 @@ _lint-symvision *args: _setup
         --epic-symbol "sase-1t3.10.1.3(scan_agent_artifact_dir_list)" \
         --epic-symbol "sase-1t3.10.1.3(scan_agent_artifact_dirs_list)" \
         --epic-symbol "sase-1t3.10.1.3(scan_agent_artifacts_list)" \
-        --epic-symbol "sase-1tb.5(FrameExtractResult)" \
-        --epic-symbol "sase-1tb.5(ScrubTrack)" \
-        --epic-symbol "sase-1tb.5(StoryboardResult)" \
-        --epic-symbol "sase-1tb.5(artifact_video_cache_dir)" \
-        --epic-symbol "sase-1tb.5(build_storyboard)" \
-        --epic-symbol "sase-1tb.5(content_digest_for_path)" \
-        --epic-symbol "sase-1tb.5(enforce_cache_budget)" \
-        --epic-symbol "sase-1tb.5(extract_frame)" \
-        --epic-symbol "sase-1tb.5(format_video_metadata_summary)" \
-        --epic-symbol "sase-1tb.5(metadata_for_frame_service)" \
-        --epic-symbol "sase-1tb.5(scrub_fps_for_duration)" \
-        --epic-symbol "sase-1tb.5(start_scrub_track)" \
         {{ args }}
 
 # Check Python file line counts (private, extracted for per-stage wrapping)

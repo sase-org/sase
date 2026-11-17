@@ -11,7 +11,6 @@ from typing import Any
 from ._viewer_loop_media import (
     ARTIFACT_VIEWER_VIDEO_CONFIG_ENV,
     display_text_artifact,
-    display_video_artifact,
     load_artifact_video_playback_config,
     parse_video_playback_config_env,
 )
@@ -23,7 +22,6 @@ from ._viewer_loop_terminal import (
     page_index_after_key,
     page_loop_available_keys,
     print_artifact_header,
-    print_artifact_warning,
     print_page_prompt,
     read_single_key,
     run_command as default_run_command,
@@ -32,12 +30,11 @@ from ._viewer_loop_terminal import (
     toggle_tmux_zoom,
     viewer_kitten_icat_command,
 )
-from ._viewer_trace import mark_child_ready, mark_first_visual
 from ._viewer_loop_types import (
     ArtifactVideoPlaybackConfig,
     PageLoopResult,
-    VideoDisplayResult,
 )
+from ._viewer_trace import mark_child_ready, mark_first_visual
 from ._viewer_render import artifact_file_view_mode, render_artifact_file_pages
 from ._viewer_types import (
     ArtifactFileImageArea,
@@ -149,38 +146,45 @@ def run_artifact_sequence_loop(
                 pages = ()
                 if resolved_video_config is None:
                     resolved_video_config = load_artifact_video_playback_config()
-                video_displayed = display_video_artifact(
+                # Deferred: inspect/ffprobe stay off the TUI import path.
+                from ._viewer_loop_video import run_video_inspect
+
+                inspect_outcome = run_video_inspect(
                     spec,
-                    current_area,
-                    run,
-                    video_config=resolved_video_config,
-                    artifact_index=artifact_index,
-                    artifact_count=len(specs),
                     cache_root=root,
-                )
-                if video_displayed.warnings:
-                    return PageLoopResult(
-                        returncode=1,
-                        warnings=video_displayed.warnings,
-                    )
-                if video_displayed.returncode != 0:
-                    print_artifact_warning(
-                        ArtifactFileViewerWarning(
-                            "mpv_failed",
-                            f"mpv failed with exit code {video_displayed.returncode}",
-                            tool="mpv",
-                        )
-                    )
-                print_page_prompt(
-                    index=0,
-                    page_count=1,
+                    video_config=resolved_video_config,
+                    image_area=current_area,
+                    read_key=read_key,
+                    run_command=run,
                     artifact_index=artifact_index,
                     artifact_count=len(specs),
-                    show_position=False,
-                    return_pane_available=return_pane_available,
+                    return_pane_id=return_pane_id,
+                    select_pane=select,
                     tmux_zoom_available=zoom_available,
-                    footer_prefix=_video_footer_prefix(video_displayed),
+                    toggle_zoom=zoom,
                 )
+                if inspect_outcome.warnings:
+                    return PageLoopResult(
+                        returncode=inspect_outcome.returncode or 1,
+                        warnings=inspect_outcome.warnings,
+                    )
+                if inspect_outcome.action == "quit":
+                    return PageLoopResult(returncode=inspect_outcome.returncode)
+                if inspect_outcome.action == "return_pane":
+                    if return_pane_id:
+                        select(return_pane_id)
+                    continue
+                if inspect_outcome.action == "next":
+                    artifact_index = min(artifact_index + 1, len(specs) - 1)
+                    page_index = 0
+                    needs_render = True
+                    continue
+                if inspect_outcome.action == "previous":
+                    artifact_index = max(artifact_index - 1, 0)
+                    page_index = 0
+                    needs_render = True
+                    continue
+                continue
             else:
                 rendered = pages_for(artifact_index, current_area)
                 if rendered.warnings:
@@ -255,12 +259,3 @@ def run_artifact_sequence_loop(
         elif key == "p":
             artifact_index = max(artifact_index - 1, 0)
             page_index = 0
-
-
-def _video_footer_prefix(displayed: VideoDisplayResult) -> str | None:
-    if not displayed.still_preview:
-        return None
-    # Only the still path sets still_preview, and it already loaded this module.
-    from ._viewer_video_media import VIDEO_STILL_FOOTER_PREFIX
-
-    return VIDEO_STILL_FOOTER_PREFIX

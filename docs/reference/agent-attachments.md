@@ -723,40 +723,42 @@ Agents tab to focus the tracked artifact pane, or press `a` again to close it.
 Row-changing navigation is guarded while the pane is open so the TUI does not drift to a
 different agent than the viewer. Outside tmux, sase's TUI suspends and opens the viewer
 in the current terminal pane. The viewer chooses its mode from the artifact kind and
-file extension: supported images are displayed directly, supported videos play with mpv
-outside tmux and show a still inside tmux, PDFs are converted to PNG pages, and Markdown
-is rendered to PDF before paging. The page loop uses `j`/`k` to move between pages,
-wrapping at the first and last page, `n`/`p` to move between artifacts in a sequence,
-`r` to refresh or replay the current artifact, and `q` to close the viewer.
+file extension: supported images are displayed directly, supported videos open on the
+inspect view (frame, storyboard, metadata) with motion on `space`, PDFs are converted to
+PNG pages, and Markdown is rendered to PDF before paging. The page loop uses `j`/`k` to
+move between pages, wrapping at the first and last page, `n`/`p` to move between
+artifacts in a sequence, `r` to refresh or replay the current artifact, and `q` to close
+the viewer.
 
 Only one plan artifact is listed for each agent. If run metadata contains both an
 archived plan path and an SDD tale path, committed plans prefer the SDD path;
 uncommitted plans prefer the archived path unless only the SDD path is available.
 
 Viewer dependencies are intentionally outside the agent completion path. `kitten` is
-required for image/PDF/Markdown display and video stills, `ffmpeg` and `ffprobe` for
-video stills and metadata inside tmux, `mpv` for video playback outside tmux, `pdftoppm`
-for PDF/Markdown paging, and Markdown rendering also needs `pandoc` plus one PDF engine.
-If a dependency is missing, sase's TUI shows a warning instead of failing the TUI or
-changing the stored artifact list.
+required for image/PDF/Markdown display and the video inspect view, `ffmpeg` and
+`ffprobe` for video frames, storyboards, and metadata, `mpv` for optional in-pane motion
+outside tmux (or with a non-kitty `vo`), `pdftoppm` for PDF/Markdown paging, and
+Markdown rendering also needs `pandoc` plus one PDF engine. If a dependency is missing,
+sase's TUI shows a warning instead of failing the TUI or changing the stored artifact
+list.
 
 Source: `src/sase/ace/tui/graphics/viewer.py`
 
 ### Video Preview
 
 sase's TUI shows `.mp4`, `.m4v`, `.mov`, and `.webm` artifacts in the same viewer used
-for images and PDFs. Outside tmux, selecting a video suspends sase's TUI and plays it
-with `mpv --vo=kitty` in the same cell area used for images. Inside tmux, selecting a
-video opens the tracked pane with a still frame: `ffprobe` metadata such as
-`▶ Video 0:07 · 2560×1548 · 30 fps · h264 · 1.2 MB` plus the first frame via `ffmpeg`,
-shown with `kitten icat`. The footer notes in-pane playback is unavailable inside tmux,
-and mpv never spawns there.
+for images and PDFs. A video always opens on the inspect view: `ffprobe` metadata such
+as `▶ Video 0:07 · 2560×1548 · 30 fps · h264 · 1.2 MB`, the frame at t=0 via `ffmpeg`,
+and a decile storyboard once ready, shown with `kitten icat`. Motion starts on `space`.
 
-While mpv runs, it owns playback keys: `space` pauses or resumes, arrow keys seek, `m`
-toggles mute, `q` stops. Afterwards the usual footer returns: `r` replays, `n`/`p` move
-through a sequence, `z` toggles tmux zoom, `<tab>` focuses the SASE TUI, `q` closes. On
-the still path `r` re-renders, and a missing `ffprobe`, `ffmpeg`, or `kitten` prints a
-yellow notice naming the tool without closing the viewer.
+Inspect keys: `h`/`←` and `l`/`→` seek 1 s (snapped to the scrub track when ready),
+`,`/`.` step one source frame, `0`–`9` jump to that decile, `s` toggles the storyboard,
+`r` re-renders, `z` zooms, `n`/`p` move a sequence, `<tab>` focuses the SASE TUI, `q`
+closes. `j`/`k` are unused. Inside tmux with a kitty `vo`, `space` prints
+`in-pane playback is unavailable here — scrub with h/l or 0–9` and mpv never spawns.
+Outside tmux, or with a non-kitty `vo` such as `tct`, `space` runs mpv when it is on
+`PATH`, then returns to inspect. While mpv runs it owns `space`, arrows, `m`, and `q`. A
+missing `ffprobe`, `ffmpeg`, or `kitten` names the tool.
 
 Videos are muted by default because SASE often runs on a remote host or inside tmux
 where the server audio device is not useful. Configure playback under

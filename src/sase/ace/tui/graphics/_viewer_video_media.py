@@ -36,10 +36,7 @@ from ._viewer_types import (
 _FFPROBE_TIMEOUT_SECONDS = 5.0
 _FFMPEG_TIMEOUT_SECONDS = 10.0
 _FALLBACK_TERMINAL_PIXEL_WIDTH = 1600
-
-VIDEO_STILL_FOOTER_PREFIX = (
-    "still frame \u00b7 in-pane playback is unavailable inside tmux"
-)
+_FALLBACK_TERMINAL_PIXEL_HEIGHT = 900
 
 
 @dataclass(frozen=True)
@@ -150,20 +147,33 @@ def format_video_metadata_summary(metadata: VideoMetadata) -> str | None:
     return " \u00b7 ".join(parts)
 
 
+def terminal_pixel_size(
+    *,
+    fallback_width: int = _FALLBACK_TERMINAL_PIXEL_WIDTH,
+    fallback_height: int = _FALLBACK_TERMINAL_PIXEL_HEIGHT,
+) -> tuple[int, int]:
+    """Return the terminal pixel size from ``TIOCGWINSZ``, or the fallbacks."""
+
+    try:
+        _, _, xpixels, ypixels = unpack(
+            "HHHH",
+            fcntl.ioctl(stdout.fileno(), termios.TIOCGWINSZ, pack("HHHH", 0, 0, 0, 0)),
+        )
+    except (OSError, ValueError):
+        return (fallback_width, fallback_height)
+    width = xpixels if xpixels > 0 else fallback_width
+    height = ypixels if ypixels > 0 else fallback_height
+    return (width, height)
+
+
 def _terminal_pixel_width(
     *,
     fallback: int = _FALLBACK_TERMINAL_PIXEL_WIDTH,
 ) -> int:
     """Return the terminal pixel width from ``TIOCGWINSZ``, or *fallback*."""
 
-    try:
-        _, _, xpixels, _ = unpack(
-            "HHHH",
-            fcntl.ioctl(stdout.fileno(), termios.TIOCGWINSZ, pack("HHHH", 0, 0, 0, 0)),
-        )
-    except (OSError, ValueError):
-        return fallback
-    return xpixels if xpixels > 0 else fallback
+    width, _ = terminal_pixel_size(fallback_width=fallback)
+    return width
 
 
 def probe_video_metadata(path: str | Path) -> VideoMetadata | None:
@@ -396,13 +406,13 @@ def _format_bytes(size: int) -> str:
 
 
 __all__ = [
-    "VIDEO_STILL_FOOTER_PREFIX",
     "VideoMetadata",
     "display_video_still_artifact",
     "ffprobe_metadata_command",
     "format_video_metadata_summary",
     "parse_ffprobe_metadata",
     "probe_video_metadata",
+    "terminal_pixel_size",
     "video_still_preview_required",
     "video_vo_uses_kitty_placement",
 ]

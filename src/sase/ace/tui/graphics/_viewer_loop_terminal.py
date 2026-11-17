@@ -122,11 +122,13 @@ def kitten_icat_command(
     image_area: ArtifactFileImageArea,
     *,
     transfer_mode: str | None = None,
+    image_id: int | None = None,
 ) -> list[str]:
     """Build a bounded ``kitten icat`` command for the current viewer area.
 
-    ``transfer_mode`` is omitted by default so ``sase artifact open`` stays
-    byte-identical. The pane viewer passes ``stream`` inside tmux.
+    ``transfer_mode`` and ``image_id`` are omitted by default so
+    ``sase artifact open`` stays byte-identical. The pane viewer passes
+    ``stream`` inside tmux and a stable id per inspect region.
     """
 
     command = [
@@ -140,19 +142,32 @@ def kitten_icat_command(
     ]
     if transfer_mode:
         command.extend(["--transfer-mode", transfer_mode])
+    if image_id is not None:
+        command.extend(["--image-id", str(image_id)])
     command.append(str(page))
     return command
 
 
+def kitten_icat_clear_command() -> list[str]:
+    """Build ``kitten icat --clear`` to drop placed region images."""
+
+    return ["kitten", "icat", "--clear"]
+
+
 def viewer_kitten_icat_command(
-    page: Path, image_area: ArtifactFileImageArea
+    page: Path,
+    image_area: ArtifactFileImageArea,
+    *,
+    image_id: int | None = None,
 ) -> list[str]:
     """``kitten icat`` argv for the pane viewer, streaming inside tmux."""
 
     from ._viewer_tmux_common import is_tmux_session
 
     transfer_mode = "stream" if is_tmux_session() else None
-    return kitten_icat_command(page, image_area, transfer_mode=transfer_mode)
+    return kitten_icat_command(
+        page, image_area, transfer_mode=transfer_mode, image_id=image_id
+    )
 
 
 def clear_terminal() -> None:
