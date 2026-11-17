@@ -26,7 +26,7 @@ class MemoryAuditSourceIdentity:
 
 
 @dataclass(frozen=True)
-class MemoryAuditRow:
+class _MemoryAuditRow:
     """One matched memory-read event plus the claiming member ordinal."""
 
     event: MemoryReadEvent
@@ -39,7 +39,7 @@ def query_memory_audit(
     members: Sequence[Mapping[str, Any] | Any],
     limit: int = 50,
     deduplicate: bool = False,
-) -> tuple[list[MemoryAuditRow], MemoryAuditSourceIdentity]:
+) -> tuple[list[_MemoryAuditRow], MemoryAuditSourceIdentity]:
     """Return matching memory-read rows for ordered member selectors.
 
     ``members`` is an ordered list of ``{"artifacts_dir": str|None,
@@ -140,7 +140,7 @@ def _require_identity_int(source: Mapping[str, Any], field: str) -> int:
 
 def _audit_row_from_wire(
     raw: object, *, row_number: int, member_count: int
-) -> MemoryAuditRow:
+) -> _MemoryAuditRow:
     if not isinstance(raw, Mapping):
         raise RuntimeError(
             "sase_core_rs returned an incompatible memory audit query row "
@@ -164,7 +164,7 @@ def _audit_row_from_wire(
             "sase_core_rs returned an incompatible memory audit query row "
             f"{row_number}: member_index out of range"
         )
-    return MemoryAuditRow(
+    return _MemoryAuditRow(
         event=_memory_event_from_wire(raw_event, row_number=row_number),
         member_index=member_index,
     )
@@ -318,7 +318,6 @@ def _pair_tuple(raw: Any, row_number: int, field: str) -> tuple[tuple[str, str],
 
 __all__ = [
     "MEMORY_AUDIT_QUERY_WIRE_SCHEMA_VERSION",
-    "MemoryAuditRow",
     "MemoryAuditSourceIdentity",
     "query_memory_audit",
 ]

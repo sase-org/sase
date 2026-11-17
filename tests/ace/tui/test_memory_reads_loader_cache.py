@@ -104,8 +104,8 @@ def test_targeted_queries_replace_snapshot_parse_once(
     write_jsonl(log_path, events)
 
     from sase.memory._read_log_query_facade import (
-        MemoryAuditRow,
         MemoryAuditSourceIdentity,
+        _MemoryAuditRow,
     )
 
     query_count = 0
@@ -117,7 +117,7 @@ def test_targeted_queries_replace_snapshot_parse_once(
         members: list[dict[str, object]],
         limit: int = 50,
         deduplicate: bool = False,
-    ) -> tuple[list[MemoryAuditRow], MemoryAuditSourceIdentity]:
+    ) -> tuple[list[_MemoryAuditRow], MemoryAuditSourceIdentity]:
         nonlocal query_count
         query_count += 1
         return real_query(
@@ -249,8 +249,8 @@ def test_project_switch_keeps_same_agent_results_separate(
         lambda workspace: Path(workspace).name,
     )
     from sase.memory._read_log_query_facade import (
-        MemoryAuditRow,
         MemoryAuditSourceIdentity,
+        _MemoryAuditRow,
     )
 
     def fake_query(
@@ -259,7 +259,7 @@ def test_project_switch_keeps_same_agent_results_separate(
         members: list[dict[str, object]],
         limit: int = 50,
         deduplicate: bool = False,
-    ) -> tuple[list[MemoryAuditRow], MemoryAuditSourceIdentity]:
+    ) -> tuple[list[_MemoryAuditRow], MemoryAuditSourceIdentity]:
         # Route by the project encoded in the log path's parent project key.
         # memory_read_log_path places the project in the path; emulate it.
         text = str(log_path_arg)
@@ -287,7 +287,7 @@ def test_project_switch_keeps_same_agent_results_separate(
         source = MemoryAuditSourceIdentity(
             missing=False, size=10, mtime_ns=1, dev=1, ino=1
         )
-        return [MemoryAuditRow(event=event, member_index=0)], source
+        return [_MemoryAuditRow(event=event, member_index=0)], source
 
     monkeypatch.setattr(memory_reads_module, "query_memory_audit", fake_query)
     agents = tuple(
