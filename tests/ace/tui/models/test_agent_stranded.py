@@ -383,3 +383,164 @@ def test_waiting_for_agent_name_resolves_against_verdict_index() -> None:
 
     assert view.waiting_on == ()
     assert view.waiting_on_agents == (("sase-demo.1", "stranded"),)
+
+
+def _owner_agent(bead_id: str) -> Agent:
+    return Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name=bead_id,
+        project_file="/tmp/demo/demo.sase",
+        status="DONE",
+        start_time=datetime(2026, 10, 1, 12, 0),
+        raw_suffix="owner",
+        agent_name=bead_id,
+        phase_bead_id=bead_id,
+    )
+
+
+def test_surfaced_leaves_union_owner_waiter_and_clan_leaves() -> None:
+    owner = _owner_agent("sase-demo.1")
+    waiter = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="demo-waiter",
+        project_file="/tmp/demo/demo.sase",
+        status="WAITING",
+        start_time=datetime(2026, 10, 1, 12, 1),
+        raw_suffix="waiter",
+        agent_name="sase-demo.land",
+        waiting_for_beads=["sase-demo.1"],
+    )
+    member = _owner_agent("sase-demo.2")
+    member.agent_clan = "sase-demo"
+    member.agent_clan_generation = "g1"
+    container = _clan_container(name="sase-demo", members=[member])
+    blocked_owner = _owner_agent("sase-demo.3")
+    agent_stranded._STRANDED_REPORT_CACHE.set(
+        "demo",
+        _snapshot(
+            _verdict("sase-demo.1", "stranded"),
+            _verdict("sase-demo.2", "stranded", parent_id="sase-demo"),
+            _verdict("sase-demo.3", "blocked"),
+            _verdict("sase-demo.9", "stranded"),
+        ),
+        "store",
+    )
+
+    assert agent_stranded.surfaced_stranded_leaves(owner) == (("demo", "sase-demo.1"),)
+    assert agent_stranded.surfaced_stranded_leaves(waiter) == (("demo", "sase-demo.1"),)
+    assert agent_stranded.surfaced_stranded_leaves(container) == (
+        ("demo", "sase-demo.2"),
+    )
+    assert agent_stranded.surfaced_stranded_leaves(blocked_owner) == ()
+    # The owner and waiter flag the same leaf, the clan flags another, the
+    # rowless leaf and the blocked verdict never count.
+    assert (
+        agent_stranded.surfaced_stranded_count(
+            (owner, waiter, container, blocked_owner)
+        )
+        == 2
+    )
+
+
+def test_surfaced_leaves_excludes_blocked_wait_targets() -> None:
+    waiter = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="demo-waiter",
+        project_file="/tmp/demo/demo.sase",
+        status="WAITING",
+        start_time=datetime(2026, 10, 1, 12, 1),
+        raw_suffix="waiter",
+        agent_name="sase-demo.land",
+        waiting_for_beads=["sase-demo.1"],
+    )
+    agent_stranded._STRANDED_REPORT_CACHE.set(
+        "demo",
+        _snapshot(_verdict("sase-demo.1", "blocked")),
+        "store",
+    )
+
+    assert agent_stranded.surfaced_stranded_leaves(waiter) == ()
+    assert agent_stranded.surfaced_stranded_count((waiter,)) == 0
+
+
+def test_surfaced_count_memo_hits_and_invalidates_on_report_replacement() -> None:
+    roster = (_owner_agent("sase-demo.1"),)
+    agent_stranded._STRANDED_REPORT_CACHE.set(
+        "demo",
+        _snapshot(_verdict("sase-demo.1", "stranded")),
+        "store-1",
+    )
+
+    assert agent_stranded.surfaced_stranded_count(roster) == 1
+    assert agent_stranded.surfaced_stranded_count(roster) == 1
+
+    agent_stranded._STRANDED_REPORT_CACHE.set(
+        "demo",
+        _snapshot(
+            _verdict("sase-demo.1", "stranded"),
+            _verdict("sase-demo.2", "stranded"),
+        ),
+        "store-2",
+    )
+    # A report replacement invalidates the memo even for the same roster.
+    assert agent_stranded.surfaced_stranded_count(roster) == 1
+    assert (
+        agent_stranded.surfaced_stranded_count((*roster, _owner_agent("sase-demo.2")))
+        == 2
+    )
+
+
+def test_surfaced_count_memo_keys_on_generation_and_roster_identity(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from types import SimpleNamespace
+
+    app = SimpleNamespace(
+        _agents_roster_generation=0, _agents_tribe_assignment_generation=0
+    )
+    agent_stranded._STRANDED_REPORT_CACHE.set(
+        "demo",
+        _snapshot(_verdict("sase-demo.1", "stranded")),
+        "store-1",
+    )
+    calls = 0
+    real_leaves = agent_stranded.surfaced_stranded_leaves
+
+    def counting(agent: Agent) -> tuple[tuple[str, str], ...]:
+        nonlocal calls
+        calls += 1
+        return real_leaves(agent)
+
+    monkeypatch.setattr(agent_stranded, "surfaced_stranded_leaves", counting)
+    roster = [_owner_agent("sase-demo.1")]
+
+    assert agent_stranded.surfaced_stranded_count(roster, app) == 1
+    assert calls == 1
+    assert agent_stranded.surfaced_stranded_count(roster, app) == 1
+    assert calls == 1
+
+    app._agents_roster_generation = 1
+    assert agent_stranded.surfaced_stranded_count(roster, app) == 1
+    assert calls == 2
+
+    assert (
+        agent_stranded.surfaced_stranded_count([_owner_agent("sase-demo.1")], app) == 1
+    )
+    assert calls == 3
+
+
+def test_surfaced_count_is_zero_when_no_row_flags_the_backlog() -> None:
+    leaves = tuple(_verdict(f"sase-old.{n}", "stranded") for n in range(1, 141))
+    agent_stranded._STRANDED_REPORT_CACHE.set("demo", _snapshot(*leaves), "store")
+    unrelated = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="unrelated",
+        project_file="/tmp/demo/demo.sase",
+        status="RUNNING",
+        start_time=datetime(2026, 10, 1, 12, 0),
+        raw_suffix="unrelated",
+        agent_name="unrelated",
+    )
+
+    assert agent_stranded.surfaced_stranded_count((unrelated,)) == 0
+    assert agent_stranded.stranded_count_for_agents((unrelated,)) == 140

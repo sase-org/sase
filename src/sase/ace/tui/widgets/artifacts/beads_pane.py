@@ -286,7 +286,7 @@ class ArtifactsBeadsPane(
                 self._update_static("#beads-info", self._scope_text())
         self._relation_index = result.relation_index
         self._filter_index = result.filter_index
-        self._filter_index_source_key = result.snapshot.source_key
+        self._filter_index_source_key = result.filter_index.source_key
         self._query_index = result.query_index
         if result.initial_query_result is not None:
             self._query_session.remember(result.initial_query_result)

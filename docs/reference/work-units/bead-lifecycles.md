@@ -231,7 +231,8 @@ Stranded causes, first match wins: `followup_failed`, `failed`, `stopped`, `lost
 
 Remedies: fork the last turn with `%id(bead=<id>) #fork:<turn>`, or close the bead with
 `sase bead close <id> --note "…"`. `sase doctor` reports stranded beads on the
-`project.beads` check.
+`project.beads` check. In the TUI, `status:stranded` in the Beads pane lists the
+stranded backlog as a worklist.
 
 A live waiter blocked on a stranded bead raises one `wait_checks` notification for that
 bead, shared by all waiters currently blocked on it.

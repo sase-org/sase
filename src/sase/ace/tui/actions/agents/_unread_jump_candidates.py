@@ -25,6 +25,7 @@ class TimedAgentJumpCandidate:
     visible_idx: int | None
     clan_fold_key: str | None = None
     tab_key: AgentTabKey | None = None
+    is_clan_container: bool = False
 
 
 class AgentUnreadJumpCandidatesMixin:
@@ -66,8 +67,14 @@ class AgentUnreadJumpCandidatesMixin:
         predicate: Callable[[Agent], bool],
         time_for_agent: Callable[[Agent], datetime | None] | None,
         include_collapsed_clan_members: bool,
+        include_clan_containers: bool = False,
     ) -> list[TimedAgentJumpCandidate]:
-        """Discover rendered targets plus revealable direct clan members."""
+        """Discover rendered targets plus revealable direct clan members.
+
+        Clan containers are candidates only when *include_clan_containers* is
+        set (the stranded jump, whose surfaced leaves aggregate on containers);
+        unread and stopped jumps keep their historical row-only behavior.
+        """
         if not self._agents and not getattr(self, "_agents_with_children", None):
             return []
 
@@ -79,7 +86,9 @@ class AgentUnreadJumpCandidatesMixin:
         seen: set[tuple[AgentType, str, str | None]] = set()
         for idx, panel_idx in visible_panel_indices.items():
             agent = self._agents[idx]
-            if agent.is_clan_container or not predicate(agent):
+            if agent.is_clan_container and not include_clan_containers:
+                continue
+            if not predicate(agent):
                 continue
             if panel_group is None:
                 panel_key = None
@@ -97,6 +106,7 @@ class AgentUnreadJumpCandidatesMixin:
                         else agent.stop_time or agent.start_time
                     ),
                     visible_idx=idx,
+                    is_clan_container=bool(getattr(agent, "is_clan_container", False)),
                 )
             )
             seen.add(agent.identity)
@@ -115,11 +125,18 @@ class AgentUnreadJumpCandidatesMixin:
                 predicate=predicate,
                 time_for_agent=time_for_agent,
                 seen=seen,
+                include_clan_containers=include_clan_containers,
             )
         )
 
+        # Newest first; on equal times prefer a concrete row over an
+        # aggregate clan container so a hidden stranded member still reveals
+        # instead of landing on its already-visible container.
         candidates.sort(
-            key=lambda candidate: candidate.jump_time or datetime.min,
+            key=lambda candidate: (
+                candidate.jump_time or datetime.min,
+                not candidate.is_clan_container,
+            ),
             reverse=True,
         )
         return candidates
@@ -130,6 +147,7 @@ class AgentUnreadJumpCandidatesMixin:
         predicate: Callable[[Agent], bool],
         time_for_agent: Callable[[Agent], datetime | None] | None,
         seen: set[tuple[AgentType, str, str | None]],
+        include_clan_containers: bool = False,
     ) -> list[TimedAgentJumpCandidate]:
         """Return matching rows on agent tabs other than the active one.
 
@@ -150,7 +168,9 @@ class AgentUnreadJumpCandidatesMixin:
         for agent in query_result:
             if agent.identity in seen:
                 continue
-            if agent.is_clan_container or not predicate(agent):
+            if agent.is_clan_container and not include_clan_containers:
+                continue
+            if not predicate(agent):
                 continue
             try:
                 tab_key = index.key_for(agent)
@@ -169,6 +189,7 @@ class AgentUnreadJumpCandidatesMixin:
                     ),
                     visible_idx=None,
                     tab_key=tab_key,
+                    is_clan_container=bool(getattr(agent, "is_clan_container", False)),
                 )
             )
             seen.add(agent.identity)

@@ -54,7 +54,12 @@ BeadCompletionKind = Literal[
     "text",
 ]
 
-DERIVED_BEAD_STATUS_VALUES: tuple[str, ...] = ("blocked", "launched", "triage")
+DERIVED_BEAD_STATUS_VALUES: tuple[str, ...] = (
+    "blocked",
+    "launched",
+    "triage",
+    "stranded",
+)
 BEAD_FLAG_DUE_VALUES: tuple[str, ...] = ("live", "soon", "due")
 BEAD_HAS_VALUES: tuple[str, ...] = (
     "+1",

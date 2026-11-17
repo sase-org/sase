@@ -42,7 +42,7 @@ def beads_query_schema() -> ArtifactQuerySchema:
             static_values=(*bead_status_display_order(), *DERIVED_BEAD_STATUS_VALUES),
             repeatable=True,
             negatable=True,
-            hint="open, closed, blocked, triage",
+            hint="open, closed, blocked, triage, stranded",
         ),
         QueryFieldSpec(
             key="size",

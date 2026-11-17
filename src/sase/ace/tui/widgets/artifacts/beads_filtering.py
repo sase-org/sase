@@ -56,6 +56,18 @@ class BeadFilterIndex:
         return len(self.records)
 
 
+def beads_filter_source_key(snapshot: BeadsSnapshot) -> tuple[object, ...]:
+    """Return the filter-index cache key for one Beads snapshot.
+
+    The key folds the stranded-report token into the snapshot source key so
+    ``status:stranded`` rebuilds when stranded reports change instead of
+    serving stale rows.
+    """
+    from sase.ace.tui.models.agent_stranded import stranded_snapshot_token
+
+    return (snapshot.source_key, stranded_snapshot_token(snapshot.projects))
+
+
 def build_bead_filter_index(snapshot: BeadsSnapshot) -> BeadFilterIndex:
     """Build one prefolded record per bead in the loaded snapshot."""
 
@@ -71,7 +83,7 @@ def build_bead_filter_index(snapshot: BeadsSnapshot) -> BeadFilterIndex:
     ]
     frozen_records = tuple(records)
     return BeadFilterIndex(
-        source_key=snapshot.source_key,
+        source_key=beads_filter_source_key(snapshot),
         records=frozen_records,
         by_option_id=MappingProxyType(
             {record.option_id: record for record in frozen_records}
@@ -104,6 +116,10 @@ def _record(
         status_labels.add("launched")
     if issue_key in snapshot.triage_gates:
         status_labels.add("triage")
+    from sase.ace.tui.models.agent_stranded import cached_stranded_verdict_state
+
+    if cached_stranded_verdict_state(project, issue.id) == "stranded":
+        status_labels.add("stranded")
     size_labels = _fold_labels(() if issue.size is None else (issue.size.value,))
     due = snapshot.flag_due.get(issue_key)
     due_labels = _fold_labels(() if due is None else (due.state,))
@@ -274,5 +290,6 @@ def _timestamp_epoch(value: str) -> int | None:
 
 __all__ = [
     "BeadFilterIndex",
+    "beads_filter_source_key",
     "build_bead_filter_index",
 ]

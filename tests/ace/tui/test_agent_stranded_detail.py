@@ -15,6 +15,15 @@ from sase.bead.stranded import StrandedReport
 from sase.core.stranded_work_facade import StrandedWorkReport, StrandedWorkVerdict
 from tests.ace.tui.widgets._agent_display_helpers import make_agent
 
+import pytest
+
+
+@pytest.fixture(autouse=True)
+def _clear_stranded_cache():
+    agent_stranded._STRANDED_REPORT_CACHE.clear()
+    yield
+    agent_stranded._STRANDED_REPORT_CACHE.clear()
+
 
 def _verdict(bead_id: str, state: str, **fields: object) -> StrandedWorkVerdict:
     return StrandedWorkVerdict(

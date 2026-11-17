@@ -26,7 +26,10 @@ if TYPE_CHECKING:
     from ...models import Agent
     from ...models.agent import AgentType
 
-from ...models.agent_stranded import stranded_leaf_verdict
+from ...models.agent_stranded import (
+    stranded_verdict_for_bead,
+    surfaced_stranded_leaves,
+)
 
 
 def _stopped_agent_jump_time(agent: Agent) -> datetime | None:
@@ -39,10 +42,15 @@ def _stopped_agent_jump_time(agent: Agent) -> datetime | None:
 
 
 def _stranded_agent_jump_time(agent: Agent) -> datetime | None:
-    """Return the cached stranding time, falling back to the agent time."""
-    verdict = stranded_leaf_verdict(agent)
-    if verdict is not None and verdict.since is not None:
-        return to_local(datetime.fromtimestamp(verdict.since, tz=UTC))
+    """Return the most recent surfaced stranding time for ordering jumps."""
+    latest: float | None = None
+    for project, bead_id in surfaced_stranded_leaves(agent):
+        verdict = stranded_verdict_for_bead(project, bead_id)
+        since = None if verdict is None else verdict.since
+        if since is not None and (latest is None or since > latest):
+            latest = since
+    if latest is not None:
+        return to_local(datetime.fromtimestamp(latest, tz=UTC))
     return agent.stop_time or agent.start_time
 
 
@@ -169,10 +177,11 @@ class AgentUnreadNavigationMixin(
     def _jump_to_next_stranded_agent(self) -> bool:
         """Move focus through stranded rows, including collapsed-clan members."""
         return self._jump_to_next_matching_agent_by_time(
-            predicate=lambda agent: stranded_leaf_verdict(agent) is not None,
+            predicate=lambda agent: bool(surfaced_stranded_leaves(agent)),
             after_select=None,
             time_for_agent=_stranded_agent_jump_time,
             include_collapsed_clan_members=True,
+            include_clan_containers=True,
         )
 
     def _jump_to_next_matching_agent_by_time(
@@ -182,6 +191,7 @@ class AgentUnreadNavigationMixin(
         after_select: Callable[[Agent, bool, bool], None] | None,
         time_for_agent: Callable[[Agent], datetime | None] | None = None,
         include_collapsed_clan_members: bool = False,
+        include_clan_containers: bool = False,
         candidates: list[TimedAgentJumpCandidate] | None = None,
     ) -> bool:
         """Move focus to the next jumpable agent matching *predicate* by recency."""
@@ -190,6 +200,7 @@ class AgentUnreadNavigationMixin(
                 predicate=predicate,
                 time_for_agent=time_for_agent,
                 include_collapsed_clan_members=include_collapsed_clan_members,
+                include_clan_containers=include_clan_containers,
             )
         if not candidates:
             return False

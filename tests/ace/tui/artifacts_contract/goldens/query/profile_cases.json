@@ -275,7 +275,7 @@
       "errors": {
         "status:not-real": {
           "position": 0,
-          "message": "status: value 'not-real' must be one of open, claimed, ready, snoozed, in_progress, closed, blocked, launched, triage (at position 0)"
+          "message": "status: value 'not-real' must be one of open, claimed, ready, snoozed, in_progress, closed, blocked, launched, triage, stranded (at position 0)"
         },
         "unknown:value": {
           "position": 0,

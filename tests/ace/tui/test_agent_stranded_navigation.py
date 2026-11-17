@@ -153,3 +153,65 @@ def test_blocked_and_missing_verdicts_are_skipped_and_cold_cache_misses() -> Non
     app.notifications.clear()
     assert app._handle_leader_key("comma") is True
     assert app.notifications == ["No unread completed, stopped, or stranded agents"]
+
+
+def test_stranded_jump_lands_on_waiting_row_with_stranded_target() -> None:
+    from dataclasses import replace as _replace
+
+    origin = make_agent(name="origin", status="RUNNING", raw_suffix="origin")
+    waiter = _replace(
+        make_agent(name="waiter", status="WAITING", raw_suffix="waiter"),
+        waiting_for_beads=["sase-demo.new"],
+    )
+    old_owner = _owner("sase-demo.old", stop_time=datetime(2026, 11, 7, 12))
+    _seed(
+        _verdict("sase-demo.old", since=1_700_000_000),
+        _verdict("sase-demo.new", since=1_800_000_000),
+    )
+    app = UnreadJumpApp([origin, waiter, old_owner], current_idx=0)
+
+    assert app._jump_to_next_stranded_agent()
+    assert app._agents[app.current_idx] is waiter
+
+
+def test_stranded_jump_lands_on_clan_container_for_rowless_leaf() -> None:
+    origin = make_agent(name="origin", status="RUNNING", raw_suffix="origin")
+    member = make_agent(name="member", status="RUNNING", raw_suffix="member")
+    member.agent_clan = "sase-demo"
+    member.agent_clan_generation = "generation"
+    complete = project_clan_tree([origin, member])
+    report = StrandedWorkReport(
+        verdicts=(
+            StrandedWorkVerdict(
+                bead_id="sase-demo",
+                kind="epic",
+                state="blocked",
+                reason="kept",
+                blocked_by=("sase-demo.9",),
+            ),
+            StrandedWorkVerdict(
+                bead_id="sase-demo.9",
+                kind="phase",
+                state="stranded",
+                reason="unclosed",
+                parent_id="sase-demo",
+                since=1_800_000_000,
+            ),
+        ),
+        stranded_ids=("sase-demo.9",),
+        blocked_ids=("sase-demo",),
+    )
+    agent_stranded._STRANDED_REPORT_CACHE.set(
+        "demo", StrandedReport(report=report, titles={}, generated_at=1.0), "test"
+    )
+    origin_idx = next(
+        index
+        for index, agent in enumerate(complete)
+        if getattr(agent, "cl_name", "") == "origin"
+    )
+    app = UnreadJumpApp(complete, current_idx=origin_idx)
+
+    assert app._jump_to_next_stranded_agent()
+    landed = app._agents[app.current_idx]
+    assert landed.is_clan_container
+    assert landed.agent_clan == "sase-demo"

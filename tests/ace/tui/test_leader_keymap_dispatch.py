@@ -412,6 +412,64 @@ def test_leader_j_notifies_when_no_unread_done_stopped_or_stranded_agent() -> No
     assert app.refresh_count == 0
 
 
+def test_leader_j_triple_miss_names_stranded_backlog() -> None:
+    from types import SimpleNamespace
+
+    from sase.ace.tui.models import agent_stranded
+    from sase.bead.stranded import StrandedReport
+    from sase.core.stranded_work_facade import (
+        StrandedWorkReport,
+        StrandedWorkVerdict,
+    )
+
+    app = _FakeApp(current_tab="agents")
+    app.jump_unread_result = False
+    app.jump_stopped_result = False
+    app.jump_stranded_result = False
+    app._agents = [SimpleNamespace(project_file="/tmp/demo/demo.sase")]
+    try:
+        agent_stranded._STRANDED_REPORT_CACHE.set(
+            "demo",
+            StrandedReport(
+                report=StrandedWorkReport(
+                    verdicts=(
+                        StrandedWorkVerdict(
+                            bead_id="sase-demo.1",
+                            kind="phase",
+                            state="stranded",
+                            reason="unclosed",
+                        ),
+                        StrandedWorkVerdict(
+                            bead_id="sase-demo.2",
+                            kind="phase",
+                            state="stranded",
+                            reason="unclosed",
+                        ),
+                    ),
+                    stranded_ids=("sase-demo.1", "sase-demo.2"),
+                    blocked_ids=(),
+                ),
+                titles={},
+                generated_at=1.0,
+            ),
+            "test",
+        )
+
+        handled = app._handle_leader_key("j")
+    finally:
+        agent_stranded._STRANDED_REPORT_CACHE.clear()
+
+    assert handled is True
+    assert app.jump_unread_count == 1
+    assert app.jump_stopped_count == 1
+    assert app.jump_stranded_count == 1
+    assert app.notifications == [
+        "No unread completed, stopped, or stranded agents · "
+        "⚐ 2 stranded beads have no agent row here (Beads: status:stranded)"
+    ]
+    assert app.refresh_count == 0
+
+
 def test_leader_j_falls_back_to_next_stopped_agent() -> None:
     app = _FakeApp(current_tab="agents")
     app.jump_unread_result = False

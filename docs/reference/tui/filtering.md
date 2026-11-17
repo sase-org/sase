@@ -165,8 +165,9 @@ and `until:` terms, plus host-owned `limit:`. `id:` is the pane's identity field
 matches a bead id exactly, and bead ids remain free-text searchable as well, so
 `id:sase-w3.2` pins one row while a bare `sase-w3` still matches by substring.
 `task_type:` accepts catalog slugs plus `untyped` for legacy beads. Status values
-include the five stored states plus the derived `blocked`, `launched`, and `triage`
-states. `due:` accepts `live`, `soon`, or `due` and matches
+include the five stored states plus the derived `blocked`, `launched`, `triage`, and
+`stranded` states. `status:stranded` lists the stranded backlog: every stranded leaf
+across tasks, epics, and phases, including beads with no loaded agent row. `due:` accepts `live`, `soon`, or `due` and matches
 [flag beads](../work-units/bead-lifecycles.md#flag-bead-lifecycle) — the
 dedicated feature-flag removal tasks — by how close they are to their removal
 thresholds. Other bead types have no due state, so a positive `due:` term hides them.

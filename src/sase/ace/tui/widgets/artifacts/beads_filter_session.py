@@ -219,10 +219,12 @@ class BeadsFilterSessionMixin(_MixinBase):
         return self.filters
 
     def _ensure_filter_index(self, *, needed: bool) -> BeadFilterIndex | None:
+        from .beads_filtering import beads_filter_source_key
+
         snapshot = self._snapshot
         if not needed or snapshot is None or snapshot.project != self.project_scope:
             return None
-        if self._filter_index_source_key != snapshot.source_key:
+        if self._filter_index_source_key != beads_filter_source_key(snapshot):
             return None
         return self._filter_index
 

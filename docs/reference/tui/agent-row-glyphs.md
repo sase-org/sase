@@ -51,9 +51,12 @@ badges instead of verbose text:
 | `⚐` / `⚐N` | On a WAITING row, a stranded or blocked bead target swaps its status glyph for `⚐`, or a count of those targets appends `⚐N`. An agent-session target with no bead token appends a breadcrumb `⚐`. |
 | `▲` | A clan wave whose stranded or blocked member needs you. |
 
-When a stranded bead appears in a loaded project report, the Agents info strip shows
-`⚐ N stranded`. The count is zero-suppressed and covers cached reports for projects
-represented in the Agents roster. See [Bead lifecycles](../work-units/bead-lifecycles.md#stranded-beads)
+The Agents info strip shows `⚐ N stranded` for stranded leaves flagged on loaded
+rows: an owner row's own stranded bead, a WAITING row's stranded bead target, or a
+stranded leaf in a clan container's subtree. The count is zero-suppressed and `,j`
+visits every counted row. Stranded beads with no loaded agent row are not counted
+here; the project-wide backlog lives in the Beads pane (`status:stranded`) and is
+named by the `,j` triple-miss toast. See [Bead lifecycles](../work-units/bead-lifecycles.md#stranded-beads)
 for the definition and resolution options.
 
 A monitor turn (a session member whose work is a supervised command, started with

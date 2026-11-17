@@ -48,7 +48,7 @@ class BeadFilterBar(FilterBar):
         ("type", ", ".join(BEAD_FILTER_TYPE_VALUES)),
         ("task_type", "task-type slug or untyped"),
         ("tier", "plan or epic"),
-        ("status", "open, closed, blocked, triage"),
+        ("status", "open, closed, blocked, triage, stranded"),
         ("size", "xsmall through xlarge"),
         ("due", "live, soon, or due"),
         ("project", "project key or display name"),

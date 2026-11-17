@@ -111,6 +111,26 @@ class LeaderModeMixin:
         )
 
     @staticmethod
+    def _triple_miss_toast(app: object) -> str:
+        """Return the `,j` triple-miss toast, naming the stranded backlog."""
+        base = "No unread completed, stopped, or stranded agents"
+        try:
+            from ...models.agent_stranded import stranded_count_for_agents
+
+            roster = getattr(app, "_agents_with_children", None) or getattr(
+                app, "_agents", []
+            )
+            backlog = stranded_count_for_agents(roster)
+        except Exception:  # noqa: BLE001 - toast stays fail-open without I/O.
+            backlog = 0
+        if backlog <= 0:
+            return base
+        return (
+            f"{base} · ⚐ {backlog} stranded beads have no agent row here "
+            "(Beads: status:stranded)"
+        )
+
+    @staticmethod
     def _bulk_ack_chord(app: object) -> str:
         """Render the configured bulk-ack leader chord (for example ``,u``).
 
@@ -285,7 +305,9 @@ class LeaderModeMixin:
                     trace["fallback"] = fell_back
                     trace["stranded_fallback"] = stranded_fallback
                 if not hit:
-                    self.notify("No unread completed, stopped, or stranded agents")  # type: ignore[attr-defined]
+                    self.notify(  # type: ignore[attr-defined]
+                        LeaderModeMixin._triple_miss_toast(self)
+                    )
                 # All three jumps paint their own highlight with detail behind
                 # the debouncer; no trailing refresh, even on a triple miss.
             LeaderModeMixin._finish_leader_perf(self)
