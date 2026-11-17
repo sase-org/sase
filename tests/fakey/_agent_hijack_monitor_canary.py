@@ -17,6 +17,11 @@ from sase.ace.tui.actions.agents._hijack_decision import compute_hijack_decision
 from sase.agent.hijack.ledger import load_record, load_record_by_artifacts_dir
 from sase.agent.staged_handoff import read_staged_handoff
 from sase.core.agent_artifact_paths import iter_agent_artifact_dirs
+from sase.legacy_xprompt_names import (
+    LEGACY_SUBMITTED_XPROMPT_FILENAME,
+    RAW_PROMPT_FILENAME,
+    SUBMITTED_PROMPT_FILENAME,
+)
 from sase.running_field import get_claimed_workspaces, release_workspace
 from tests._load_tolerant import LOAD_TOLERANT_TIMEOUT
 from tests.fakey.harness import _wait_for_condition
@@ -398,10 +403,14 @@ def _wait_recovery_successor(
 
 
 def _prompt_text(artifacts_dir: Path) -> str:
-    path = artifacts_dir / "raw_prompt.md"
+    path = artifacts_dir / RAW_PROMPT_FILENAME
     if path.is_file():
         return path.read_text(encoding="utf-8")
-    for name in ("submitted_prompt.md", "submitted_xprompt.md", "followup_prompt.md"):
+    for name in (
+        SUBMITTED_PROMPT_FILENAME,
+        LEGACY_SUBMITTED_XPROMPT_FILENAME,
+        "followup_prompt.md",
+    ):
         candidate = artifacts_dir / name
         if candidate.is_file():
             return candidate.read_text(encoding="utf-8")
