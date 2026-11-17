@@ -60,6 +60,36 @@ def test_enter_on_local_hijacked_agent_opens_recovery_panel(
     assert opened == [agent]
 
 
+def test_enter_on_collapsed_session_opens_occupying_monitor_recovery(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    container = make_agent(
+        name="session", status="HIJACKED", raw_suffix="20260918010101"
+    )
+    container.hijack_id = "h-mon-1"
+    container.hijack_record = {
+        "hijack_id": "h-mon-1",
+        "scope": "monitor",
+        "revision": 2,
+        "state": "held",
+        "workspace_num": 7,
+        "workspace_dir": "/tmp/project_7",
+    }
+    app = _EnterApp(agents=[container])
+    opened: list[Agent] = []
+    monkeypatch.setattr(
+        "sase.ace.tui.actions.agents._hijack_recovery_panel.open_hijack_recovery_panel",
+        lambda _app, row: opened.append(row),
+    )
+
+    resolution = app._agent_enter_resolution(container)
+    [target] = resolution.targets
+    assert target.kind == "hijack"
+    app._run_agent_enter_target(target, agent_identity=container.identity)
+
+    assert opened == [container]
+
+
 def test_enter_on_remote_hijacked_agent_shows_host_command() -> None:
     agent = make_agent(
         name="remote-held", status="HIJACKED", raw_suffix="20260918010101"

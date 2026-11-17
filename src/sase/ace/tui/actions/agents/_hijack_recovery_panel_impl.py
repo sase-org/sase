@@ -108,7 +108,13 @@ def open_hijack_recovery_panel(app: Any, agent: Agent) -> None:
                 app.notify("Workspace shell is unavailable", severity="warning")
             return
         action = result.removeprefix(RESULT_PREFIX)
-        if action not in {"escalate", "continue", "restart", "dismiss"}:
+        if _is_monitor_record(record) and action in {"restart", "instruct", "edit"}:
+            app.notify(
+                "That action is unavailable for monitor recovery",
+                severity="warning",
+            )
+            return
+        if action not in {"escalate", "continue", "rerun", "restart", "dismiss"}:
             return
         target = choice.action_target if choice is not None else None
         if choice is not None and not target:
@@ -125,11 +131,18 @@ def open_hijack_recovery_panel(app: Any, agent: Agent) -> None:
     schedule_preview(app, modal, record)
 
 
+def _is_monitor_record(record: Mapping[str, Any]) -> bool:
+    """Return whether *record* is a monitor-scope hijack recovery."""
+    return str(record.get("scope") or "") == "monitor"
+
+
 def _initial_choices(
     app: Any, agent: Agent, record: Mapping[str, Any]
 ) -> tuple[AgentActionChoice, ...]:
     state = str(record.get("state") or "held")
     expired = state == "expired" or bool(getattr(agent, "hijack_expired", False))
+    if _is_monitor_record(record):
+        return _initial_monitor_choices(app, agent, record, expired=expired)
     choices: list[AgentActionChoice] = []
     if not expired:
         choices.extend(
@@ -205,6 +218,110 @@ def _initial_choices(
                 "view",
                 "hijack_other",
                 "View diff",
+                "changes in the pager · stays hijacked",
+                "±",
+                _RELEASE_STYLE,
+                "v",
+                disabled_reason=None
+                if has_snapshot or workspace_dir
+                else "No recovery snapshot is available",
+            ),
+            _choice(
+                "shell",
+                "hijack_other",
+                "Shell",
+                shell_detail,
+                "$",
+                _RELEASE_STYLE,
+                "t",
+                disabled_reason=None
+                if workspace_dir
+                else "No held workspace is available",
+            ),
+            _choice(
+                "dismiss",
+                "hijack_other",
+                "Dismiss",
+                "snapshot first, then workspace is released",
+                "⌫",
+                _RELEASE_STYLE,
+                "d",
+                disabled_reason=(
+                    "already being resolved" if state == "resolving" else None
+                ),
+            ),
+        )
+    )
+    patch_choice = _patch_choice(app, agent)
+    if patch_choice is not None:
+        choices.append(patch_choice)
+    return tuple(choices)
+
+
+def _initial_monitor_choices(
+    app: Any, agent: Agent, record: Mapping[str, Any], *, expired: bool
+) -> tuple[AgentActionChoice, ...]:
+    """Build the monitor-scope recovery choices from the shared preview rows.
+
+    Monitor recovery keeps the recorded follow-up (Continue/Escalate) or
+    re-runs the recorded command (Re-run command) in the held workspace.
+    Restart/Edit/Instruct are LLM-only and stay hidden here; the async
+    preview supplies the backend's per-row availability reasons.
+    """
+    state = str(record.get("state") or "held")
+    choices: list[AgentActionChoice] = []
+    if not expired:
+        choices.extend(
+            (
+                _choice(
+                    "escalate",
+                    "hijack_keep",
+                    "Escalate",
+                    "computing…",
+                    "⇧",
+                    _KEEP_STYLE,
+                    "u",
+                    pending=True,
+                ),
+                _choice(
+                    "continue",
+                    "hijack_keep",
+                    "Continue",
+                    "computing…",
+                    "▶",
+                    _KEEP_STYLE,
+                    "c",
+                    pending=True,
+                ),
+                _choice(
+                    "rerun",
+                    "hijack_keep",
+                    "Re-run command",
+                    "computing…",
+                    "⟳",
+                    _KEEP_STYLE,
+                    "r",
+                    pending=True,
+                ),
+            )
+        )
+    workspace_dir = record.get("workspace_dir")
+    snapshots = record.get("snapshots")
+    has_snapshot = isinstance(snapshots, list) and any(
+        isinstance(item, Mapping) and item.get("reference") for item in snapshots
+    )
+    workspace_num = record.get("workspace_num")
+    shell_detail = (
+        f"tmux in workspace #{workspace_num} · stays hijacked"
+        if isinstance(workspace_num, int)
+        else "tmux in held workspace · stays hijacked"
+    )
+    choices.extend(
+        (
+            _choice(
+                "view",
+                "hijack_other",
+                "View",
                 "changes in the pager · stays hijacked",
                 "±",
                 _RELEASE_STYLE,

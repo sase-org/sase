@@ -15,7 +15,36 @@ from sase.ace.tui.actions.agent_durable import submit_agent_recovery
 from sase.ace.tui.models.agent import Agent, AgentType
 
 
-def _agent(*, state: str = "held", expired: bool = False) -> Agent:
+def _agent(
+    *, state: str = "held", expired: bool = False, scope: str | None = None
+) -> Agent:
+    record: dict[str, Any] = {
+        "hijack_id": "h-123",
+        "agent_name": "sase-demo.1",
+        "artifacts_dir": "/tmp/agent-artifacts",
+        "revision": 4,
+        "state": state,
+        "workspace_num": 4,
+        "workspace_dir": "/tmp/project_4",
+        "model_alias": "large",
+        "provider": "claude",
+        "model": "opus",
+        "effort": "high",
+        "run_duration_seconds": 2820,
+        "last_tool": "Bash just check",
+        "last_tool_age_seconds": 1320,
+        "repo_diffs": [
+            {
+                "repo": "/tmp/project_4",
+                "files_changed": 5,
+                "insertions": 212,
+                "deletions": 31,
+            }
+        ],
+        "snapshots": [{"repo": "/tmp/project_4", "reference": "snapshot-123"}],
+    }
+    if scope is not None:
+        record["scope"] = scope
     agent = Agent(
         agent_type=AgentType.RUNNING,
         cl_name="feature",
@@ -30,31 +59,7 @@ def _agent(*, state: str = "held", expired: bool = False) -> Agent:
         model="opus",
         hijack_id="h-123",
         hijack_expired=expired,
-        hijack_record={
-            "hijack_id": "h-123",
-            "agent_name": "sase-demo.1",
-            "artifacts_dir": "/tmp/agent-artifacts",
-            "revision": 4,
-            "state": state,
-            "workspace_num": 4,
-            "workspace_dir": "/tmp/project_4",
-            "model_alias": "large",
-            "provider": "claude",
-            "model": "opus",
-            "effort": "high",
-            "run_duration_seconds": 2820,
-            "last_tool": "Bash just check",
-            "last_tool_age_seconds": 1320,
-            "repo_diffs": [
-                {
-                    "repo": "/tmp/project_4",
-                    "files_changed": 5,
-                    "insertions": 212,
-                    "deletions": 31,
-                }
-            ],
-            "snapshots": [{"repo": "/tmp/project_4", "reference": "snapshot-123"}],
-        },
+        hijack_record=record,
     )
     return agent
 
@@ -190,6 +195,268 @@ def test_recovery_action_submission_pins_revision_and_model() -> None:
         "model": "claude/opus@xhigh",
     }
     assert submission["concurrency_keys"] == ("agent-hijack-recovery:h-123",)
+
+
+def test_monitor_choices_show_rerun_without_llm_actions() -> None:
+    agent = _agent(scope="monitor")
+    choices = panel_helpers._initial_choices(_App(), agent, agent.hijack_record or {})
+
+    assert [choice.hotkey for choice in choices] == ["u", "c", "r", "v", "t", "d", "p"]
+    assert [choice.section for choice in choices] == [
+        "hijack_keep",
+        "hijack_keep",
+        "hijack_keep",
+        "hijack_other",
+        "hijack_other",
+        "hijack_other",
+        "patch",
+    ]
+    results = {choice.result for choice in choices}
+    assert "hijack:rerun" in results
+    assert not results & {"hijack:restart", "hijack:edit", "hijack:instruct"}
+    assert all(choice.pending for choice in choices if choice.hotkey in {"u", "c", "r"})
+
+
+def test_monitor_expired_choices_keep_view_shell_dismiss() -> None:
+    agent = _agent(state="expired", expired=True, scope="monitor")
+    choices = panel_helpers._initial_choices(_App(), agent, agent.hijack_record or {})
+
+    hotkeys = {choice.hotkey for choice in choices}
+    assert hotkeys == {"v", "t", "d", "p"}
+    assert all(choice.section != "hijack_keep" for choice in choices)
+
+
+def test_monitor_resolving_disables_dismiss_before_preview() -> None:
+    agent = _agent(state="resolving", scope="monitor")
+    choices = panel_helpers._initial_choices(_App(), agent, agent.hijack_record or {})
+
+    dismiss = next(choice for choice in choices if choice.hotkey == "d")
+    assert dismiss.disabled_reason == "already being resolved"
+
+
+def _monitor_preview(
+    *,
+    followup_available: bool = True,
+    rerun_available: bool = True,
+) -> Any:
+    followup_reason = (
+        None
+        if followup_available
+        else "recorded monitor follow-up is missing; cannot Continue or Escalate"
+    )
+    rerun_reason = (
+        None
+        if rerun_available
+        else "monitor command is unavailable; cannot Re-run command"
+    )
+    actions = {
+        "escalate": SimpleNamespace(
+            label="Escalate",
+            detail="@large → @xlarge · claude/opus@xhigh",
+            target="claude/opus@xhigh",
+            available=followup_available,
+            reason=followup_reason,
+        ),
+        "continue": SimpleNamespace(
+            label="Continue",
+            detail="same model · claude/opus@high",
+            target="claude/opus@high",
+            available=followup_available,
+            reason=followup_reason,
+        ),
+        "rerun": SimpleNamespace(
+            label="Re-run command",
+            detail="same command in the held workspace",
+            target=None,
+            available=rerun_available,
+            reason=rerun_reason,
+        ),
+        "view": SimpleNamespace(
+            label="View",
+            detail="open the recovery snapshot",
+            target=None,
+            available=True,
+            reason=None,
+        ),
+        "shell": SimpleNamespace(
+            label="Shell",
+            detail="open a shell in the held workspace",
+            target=None,
+            available=True,
+            reason=None,
+        ),
+        "dismiss": SimpleNamespace(
+            label="Dismiss",
+            detail="snapshot first, then workspace released",
+            target=None,
+            available=True,
+            reason=None,
+        ),
+    }
+    return SimpleNamespace(state="held", action=lambda name: actions.get(name))
+
+
+def test_monitor_preview_disables_followup_but_keeps_rerun() -> None:
+    agent = _agent(scope="monitor")
+    choices = panel_helpers._initial_choices(_App(), agent, agent.hijack_record or {})
+
+    updated = preview_helpers._apply_preview(
+        choices, _monitor_preview(followup_available=False)
+    )
+    by_hotkey = {choice.hotkey: choice for choice in updated}
+
+    assert (
+        by_hotkey["u"].disabled_reason
+        == "recorded monitor follow-up is missing; cannot Continue or Escalate"
+    )
+    assert (
+        by_hotkey["c"].disabled_reason
+        == "recorded monitor follow-up is missing; cannot Continue or Escalate"
+    )
+    assert by_hotkey["r"].disabled_reason is None
+    assert by_hotkey["r"].label == "Re-run command"
+    assert not by_hotkey["r"].pending
+
+
+def test_monitor_preview_disables_rerun_without_command() -> None:
+    agent = _agent(scope="monitor")
+    choices = panel_helpers._initial_choices(_App(), agent, agent.hijack_record or {})
+
+    updated = preview_helpers._apply_preview(
+        choices, _monitor_preview(rerun_available=False)
+    )
+    rerun = next(choice for choice in updated if choice.hotkey == "r")
+
+    assert (
+        rerun.disabled_reason == "monitor command is unavailable; cannot Re-run command"
+    )
+
+
+def test_monitor_preview_preserves_escalate_switch_label() -> None:
+    agent = _agent(scope="monitor")
+    choices = panel_helpers._initial_choices(_App(), agent, agent.hijack_record or {})
+    actions = {
+        "escalate": SimpleNamespace(
+            label="Switch",
+            detail="already @xlarge",
+            target="codex/gpt-6.1-sol@xhigh",
+            available=True,
+            reason=None,
+        ),
+        "continue": SimpleNamespace(
+            label="Continue",
+            detail="same model",
+            target="claude/opus@high",
+            available=True,
+            reason=None,
+        ),
+    }
+    preview = SimpleNamespace(state="held", action=lambda name: actions.get(name))
+
+    updated = preview_helpers._apply_preview(choices, preview)
+    escalate = next(choice for choice in updated if choice.hotkey == "u")
+
+    assert escalate.glyph == "↔"
+    assert escalate.label == "Switch"
+
+
+def test_monitor_rerun_routes_through_durable_recovery(
+    monkeypatch: Any,
+) -> None:
+    agent = _agent(scope="monitor")
+    submitted: list[dict[str, Any]] = []
+    monkeypatch.setattr(
+        "sase.ace.tui.actions.agent_durable.submit_agent_recovery",
+        lambda _app, **kwargs: submitted.append(kwargs) or True,
+    )
+    monkeypatch.setattr(
+        "sase.ace.tui.actions.agents._hijack_recovery_panel_impl.agent_by_identity",
+        lambda _app, _identity: agent,
+    )
+    monkeypatch.setattr(
+        "sase.ace.tui.actions.agents._roster_generation.notify_roster_status_mutation",
+        lambda _app: None,
+    )
+
+    captured: dict[str, Any] = {}
+
+    class _FakeModal:
+        def __init__(self, choices: Any, **_kwargs: Any) -> None:
+            self.choices = choices
+            self.is_mounted = False
+            self.selected_index = 0
+
+        def update_choices(self, choices: Any, **_kwargs: Any) -> None:
+            self.choices = choices
+
+        def update_header(self, _header: Any) -> None:
+            pass
+
+    monkeypatch.setattr(
+        "sase.ace.tui.actions.agents._hijack_recovery_panel_impl.AgentActionChooserModal",
+        _FakeModal,
+    )
+
+    app = _App()
+    app._agents_with_children = [agent]  # type: ignore[attr-defined]
+    app._refresh_agents_display = lambda **_kwargs: None  # type: ignore[attr-defined]
+    app.push_screen = lambda modal, callback: captured.update(  # type: ignore[attr-defined]
+        modal=modal, callback=callback
+    )
+
+    panel.open_hijack_recovery_panel(app, agent)
+    captured["callback"]("hijack:rerun")
+
+    assert [item["action"] for item in submitted] == ["rerun"]
+    assert submitted[0]["hijack_id"] == "h-123"
+    assert submitted[0]["expected_revision"] == 4
+    assert submitted[0]["model"] is None
+
+
+def test_monitor_restart_choice_is_refused(monkeypatch: Any) -> None:
+    agent = _agent(scope="monitor")
+    submitted: list[dict[str, Any]] = []
+    monkeypatch.setattr(
+        "sase.ace.tui.actions.agent_durable.submit_agent_recovery",
+        lambda _app, **kwargs: submitted.append(kwargs) or True,
+    )
+    monkeypatch.setattr(
+        "sase.ace.tui.actions.agents._hijack_recovery_panel_impl.agent_by_identity",
+        lambda _app, _identity: agent,
+    )
+
+    captured: dict[str, Any] = {}
+
+    class _FakeModal:
+        def __init__(self, choices: Any, **_kwargs: Any) -> None:
+            self.choices = choices
+            self.is_mounted = False
+            self.selected_index = 0
+
+        def update_choices(self, choices: Any, **_kwargs: Any) -> None:
+            self.choices = choices
+
+        def update_header(self, _header: Any) -> None:
+            pass
+
+    monkeypatch.setattr(
+        "sase.ace.tui.actions.agents._hijack_recovery_panel_impl.AgentActionChooserModal",
+        _FakeModal,
+    )
+
+    app = _App()
+    app.push_screen = lambda modal, callback: captured.update(  # type: ignore[attr-defined]
+        modal=modal, callback=callback
+    )
+
+    panel.open_hijack_recovery_panel(app, agent)
+    captured["callback"]("hijack:restart")
+
+    assert submitted == []
+    assert any(
+        "unavailable for monitor recovery" in message
+        for message, _severity in app.notifications
+    )
 
 
 def test_x_dismiss_uses_snapshot_gated_recovery_proc(

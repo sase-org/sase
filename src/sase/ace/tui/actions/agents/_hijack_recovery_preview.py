@@ -53,7 +53,7 @@ def schedule_preview(
             return
         choices = _apply_preview(modal.choices, preview)
         primary = None
-        for action_name in ("escalate", "continue"):
+        for action_name in ("escalate", "continue", "rerun"):
             action = preview.action(action_name)
             if preview.state == "held" and action is not None and action.available:
                 primary = f"{RESULT_PREFIX}{action_name}"
@@ -123,8 +123,12 @@ def _apply_preview(
     action_names = {
         "escalate": "escalate",
         "continue": "continue",
+        "rerun": "rerun",
         "restart": "restart",
         "edit": "edit",
+        "view": "view",
+        "shell": "shell",
+        "dismiss": "dismiss",
     }
     updated: list[AgentActionChoice] = []
     for choice in choices:
@@ -141,16 +145,10 @@ def _apply_preview(
             continue
         action = preview.action(action_name)
         if action is None:
-            updated.append(
-                AgentActionChoice(
-                    **{
-                        **choice.__dict__,
-                        "pending": False,
-                        "disabled_reason": "not available",
-                        "detail": None,
-                    }
-                )
-            )
+            # The shared preview has no such row for this scope (for
+            # example View/Shell on LLM records): keep the initial
+            # choice rather than disabling a valid local action.
+            updated.append(choice)
             continue
         detail = text_value(action.detail)
         target = text_value(action.target)

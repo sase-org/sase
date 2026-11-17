@@ -131,6 +131,90 @@ def _preview(*, switch: bool = False, restart_disabled: bool = False) -> Any:
     )
 
 
+def _monitor_record(*, state: str = "held") -> dict[str, Any]:
+    record = _record(state=state)
+    record["scope"] = "monitor"
+    return record
+
+
+def _monitor_preview(
+    *,
+    followup_available: bool = True,
+    rerun_available: bool = True,
+) -> Any:
+    followup_reason = (
+        None
+        if followup_available
+        else "recorded monitor follow-up is missing; cannot Continue or Escalate"
+    )
+    rerun_reason = (
+        None
+        if rerun_available
+        else "monitor command is unavailable; cannot Re-run command"
+    )
+    actions = {
+        "escalate": SimpleNamespace(
+            label="Escalate",
+            detail="@large → @xlarge · claude/opus@xhigh",
+            target="claude/opus@xhigh",
+            available=followup_available,
+            reason=followup_reason,
+        ),
+        "continue": SimpleNamespace(
+            label="Continue",
+            detail="same model · claude/opus@high",
+            target="claude/opus@high",
+            available=followup_available,
+            reason=followup_reason,
+        ),
+        "rerun": SimpleNamespace(
+            label="Re-run command",
+            detail="same command in the held workspace",
+            target=None,
+            available=rerun_available,
+            reason=rerun_reason,
+        ),
+        "view": SimpleNamespace(
+            label="View",
+            detail="open the recovery snapshot",
+            target=None,
+            available=True,
+            reason=None,
+        ),
+        "shell": SimpleNamespace(
+            label="Shell",
+            detail="open a shell in the held workspace",
+            target=None,
+            available=True,
+            reason=None,
+        ),
+        "dismiss": SimpleNamespace(
+            label="Dismiss",
+            detail="snapshot first, then workspace released",
+            target=None,
+            available=True,
+            reason=None,
+        ),
+    }
+    return SimpleNamespace(
+        state="held",
+        actions=tuple(actions.values()),
+        action=lambda name: actions.get(name),
+        header={
+            "model_display": "claude/opus@high",
+            "run_duration_display": "47m",
+            "hijacked_ago": "3m ago",
+            "files_changed": 5,
+            "insertions": 212,
+            "deletions": 31,
+            "last_tool": "Bash just check",
+            "last_tool_age": "22m",
+            "suppressed_followup_kind": "monitor_followup",
+            "suppressed_followup_ref": "/workspace/descriptor.json",
+        },
+    )
+
+
 async def _capture_panel(
     ace_png_visual: AcePngSnapshotFixture,
     *,
@@ -140,6 +224,8 @@ async def _capture_panel(
     switch: bool = False,
     restart_disabled: bool = False,
     long_name: bool = False,
+    monitor_preview: Any | None = None,
+    monitor_missing_followup: bool = False,
 ) -> None:
     name = (
         "visual-recovery-" + "very-long-agent-name-that-needs-ellipsis-in-the-title"
@@ -154,11 +240,16 @@ async def _capture_panel(
         "hijack:escalate" if any(c.result == "hijack:escalate" for c in choices) else ""
     )
     if resolved:
-        preview = _preview(switch=switch, restart_disabled=restart_disabled)
+        if monitor_preview is not None:
+            preview = monitor_preview
+        else:
+            preview = _preview(switch=switch, restart_disabled=restart_disabled)
         choices = preview_helpers._apply_preview(choices, preview)
         header = preview_helpers._preview_header(preview.header, record)
         if record["state"] == "expired":
             primary = ""
+        elif monitor_missing_followup:
+            primary = "hijack:rerun"
     modal = AgentActionChooserModal(
         choices,
         title=f"⏏ Recover {name}",
@@ -173,11 +264,14 @@ async def _capture_panel(
         footer_text="j/k move · ⏎ select · Esc decide later",
     )
     if resolved:
-        preferred = (
-            "hijack:continue"
-            if switch and restart_disabled
-            else ("" if record["state"] == "expired" else "hijack:escalate")
-        )
+        if monitor_missing_followup:
+            preferred = "hijack:rerun"
+        else:
+            preferred = (
+                "hijack:continue"
+                if switch and restart_disabled
+                else ("" if record["state"] == "expired" else "hijack:escalate")
+            )
         modal.update_choices(choices, primary_result=primary, selected_result=preferred)
     async with AcePage(size=(80, 24)) as page:
         page.app.push_screen(modal, lambda _result: None)
@@ -205,6 +299,31 @@ async def test_agent_hijack_panel_png_snapshot(
         snapshot_name="agent_hijack_panel_80x24",
         record=_record(),
         resolved=True,
+    )
+
+
+async def test_agent_hijack_monitor_panel_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+) -> None:
+    await _capture_panel(
+        ace_png_visual,
+        snapshot_name="agent_hijack_monitor_panel_80x24",
+        record=_monitor_record(),
+        resolved=True,
+        monitor_preview=_monitor_preview(),
+    )
+
+
+async def test_agent_hijack_monitor_panel_missing_followup_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+) -> None:
+    await _capture_panel(
+        ace_png_visual,
+        snapshot_name="agent_hijack_monitor_panel_missing_followup_80x24",
+        record=_monitor_record(),
+        resolved=True,
+        monitor_preview=_monitor_preview(followup_available=False),
+        monitor_missing_followup=True,
     )
 
 
