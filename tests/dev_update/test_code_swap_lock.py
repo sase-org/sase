@@ -17,6 +17,7 @@ from sase.dev_update.code_swap_lock import (
     code_swap_advisory_warning,
     code_swap_reader_lock,
     code_swap_readers_active,
+    code_swap_writer_holder,
     code_swap_writer_lock,
 )
 
@@ -333,6 +334,133 @@ def test_reader_ignores_unrelated_handoff_fd(monkeypatch, tmp_path: Path) -> Non
         assert code_swap_readers_active() is None
     finally:
         os.close(unrelated)
+
+
+def test_writer_holder_describes_live_writer() -> None:
+    assert code_swap_writer_holder() is None
+    with code_swap_writer_lock() as writer:
+        assert writer.acquired is True
+        holder = code_swap_writer_holder()
+        assert holder is not None
+        assert "sase dev update" in holder
+        assert f"pid {os.getpid()}" in holder
+    assert code_swap_writer_holder() is None
+
+
+def test_writer_holder_ignores_empty_lock_file() -> None:
+    lock_path = sase_subdir("locks") / "code-swap-v2.lock"
+    lock_path.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        previous = lock_path.read_bytes()
+    except OSError:
+        previous = None
+    try:
+        lock_path.write_bytes(b"")
+        assert code_swap_writer_holder() is None
+    finally:
+        try:
+            if previous is None:
+                lock_path.unlink(missing_ok=True)
+            else:
+                lock_path.write_bytes(previous)
+        except OSError:
+            pass
+
+
+def test_writer_holder_ignores_dead_pid(monkeypatch) -> None:
+    lock_path = sase_subdir("locks") / "code-swap-v2.lock"
+    lock_path.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        previous = lock_path.read_bytes()
+    except OSError:
+        previous = None
+    monkeypatch.setattr(lock_mod, "is_process_running", lambda _pid: False)
+    try:
+        lock_path.write_text(
+            json.dumps(
+                {
+                    "pid": os.getpid(),
+                    "op": "dev.update",
+                    "command": ["sase", "dev", "update"],
+                    "started_at": "2026-11-17T07:15:51+00:00",
+                    "blocking": True,
+                },
+                sort_keys=True,
+            ),
+            encoding="utf-8",
+        )
+        assert code_swap_writer_holder() is None
+    finally:
+        try:
+            if previous is None:
+                lock_path.unlink(missing_ok=True)
+            else:
+                lock_path.write_bytes(previous)
+        except OSError:
+            pass
+
+
+def test_writer_holder_ignores_malformed_json() -> None:
+    lock_path = sase_subdir("locks") / "code-swap-v2.lock"
+    lock_path.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        previous = lock_path.read_bytes()
+    except OSError:
+        previous = None
+    try:
+        lock_path.write_text("{not-json", encoding="utf-8")
+        assert code_swap_writer_holder() is None
+    finally:
+        try:
+            if previous is None:
+                lock_path.unlink(missing_ok=True)
+            else:
+                lock_path.write_bytes(previous)
+        except OSError:
+            pass
+
+
+def test_writer_holder_disabled_by_env_var(monkeypatch) -> None:
+    monkeypatch.setenv(ENV_DISABLE_CODE_SWAP_LOCK, "1")
+    with code_swap_writer_lock() as writer:
+        assert writer.acquired is True
+        assert code_swap_writer_holder() is None
+    assert code_swap_writer_holder() is None
+
+
+def test_writer_holder_recognizes_installer_payload() -> None:
+    lock_path = sase_subdir("locks") / "code-swap-v2.lock"
+    lock_path.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        previous = lock_path.read_bytes()
+    except OSError:
+        previous = None
+    try:
+        lock_path.write_text(
+            json.dumps(
+                {
+                    "pid": os.getpid(),
+                    "op": "install.dev",
+                    "command": ["just", "install-dev"],
+                    "started_at": "2026-11-16T10:21:46+00:00",
+                    "blocking": True,
+                },
+                sort_keys=True,
+            ),
+            encoding="utf-8",
+        )
+        holder = code_swap_writer_holder()
+        assert holder is not None
+        assert "just install-dev" in holder
+        assert f"pid {os.getpid()}" in holder
+    finally:
+        try:
+            if previous is None:
+                lock_path.unlink(missing_ok=True)
+            else:
+                lock_path.write_bytes(previous)
+        except OSError:
+            pass
 
 
 def test_advisory_reader_still_removed_from_a_dead_pid(monkeypatch) -> None:

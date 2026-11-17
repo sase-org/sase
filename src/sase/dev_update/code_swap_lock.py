@@ -203,6 +203,30 @@ def code_swap_readers_active() -> str | None:
     return _format_reader_holders(holders)
 
 
+def code_swap_writer_holder() -> str | None:
+    """Return a description of a live code-swap writer, or None.
+
+    Reads the writer holder payload from the lock file without taking any
+    ``flock`` (not even a non-blocking shared one), so a concurrent
+    non-blocking ``sase dev update`` writer is never spuriously deferred by
+    this probe. A non-empty payload means a writer only while its pid is
+    still alive; a stale payload from a crashed writer reads as no swap so
+    the caller falls back to the existing loud error.
+    """
+    try:
+        if _lock_disabled():
+            return None
+        holder = _read_writer_holder()
+        if not holder:
+            return None
+        pid = _holder_pid(holder)
+        if pid is None or not is_process_running(pid):
+            return None
+        return _format_writer_holder(holder)
+    except Exception:  # noqa: BLE001 - probe must never break the caller
+        return None
+
+
 def code_swap_advisory_warning() -> str | None:
     """Return a warning naming live advisory readers, if any.
 
@@ -524,6 +548,8 @@ def _display_op(op: str) -> str:
         "bead.work": "sase bead work",
         "dev.update": "sase dev update",
         "agent.runner": "agent runner",
+        "install.dev": "just install-dev",
+        "install.pypi": "just install",
     }.get(op, op)
 
 

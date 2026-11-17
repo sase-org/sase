@@ -14,6 +14,8 @@ code, TUI notification, scheduler bookkeeping).
 
 from __future__ import annotations
 
+from collections.abc import Callable
+
 from sase.ace.patch import Patch, find_all_patches
 from sase.ace.hooks.processes import is_process_running
 from sase.agent.launcher import launch_agent_from_cwd, launch_agents_from_cwd
@@ -96,6 +98,7 @@ def _run_script_chop_once(
     dry_run: bool,
     chop_verbose: bool,
     force: bool,
+    code_swap_writer_holder_fn: Callable[[], str | None] | None = None,
 ) -> ChopRunOutcome:
     return run_script_chop_once(
         lumberjack_name=lumberjack_name,
@@ -109,6 +112,7 @@ def _run_script_chop_once(
         dry_run=dry_run,
         chop_verbose=chop_verbose,
         force=force,
+        code_swap_writer_holder_fn=code_swap_writer_holder_fn,
         discover_chop_script_fn=discover_chop_script,
         stream_chop_script_fn=stream_chop_script,
         build_context_fn=_build_oneshot_context,
@@ -131,6 +135,7 @@ def run_configured_chop_once(
     dry_run: bool = False,
     chop_verbose: bool = False,
     force: bool = False,
+    code_swap_writer_holder_fn: Callable[[], str | None] | None = None,
 ) -> ChopRunOutcome:
     """Execute one configured chop once, sharing logic across all callers.
 
@@ -159,6 +164,7 @@ def run_configured_chop_once(
         dry_run=dry_run,
         chop_verbose=chop_verbose,
         force=force,
+        code_swap_writer_holder_fn=code_swap_writer_holder_fn,
     )
 
 

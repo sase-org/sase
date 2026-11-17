@@ -494,10 +494,13 @@ most relevant fields are `status`, `started_at`, `finished_at`, `duration_ms`,
 
 A run starts as `running`. Exit-code-only scripts end as `success`, `failure`,
 `timeout`, or `missing_script`. Policy rejections are `skipped`; structured healthy
-no-work and degraded probes are `no_op` and `check_error`. A result with accepted
-proposals moves to `launched`, then the housekeeping pass finalizes it as
-`action_succeeded` or `action_failed` from linked agent completion artifacts. `running`
-and `launched` are active states, so `finished_at` is `null` for both.
+no-work and degraded probes are `no_op` and `check_error`. A script that is missing
+while a live code-swap writer (`sase dev update`, `just install`, `just install-dev`)
+holds the lock is recorded as `skipped` with a reason and retried after the swap,
+instead of `missing_script`. A result with accepted proposals moves to `launched`, then
+the housekeeping pass finalizes it as `action_succeeded` or `action_failed` from linked
+agent completion artifacts. `running` and `launched` are active states, so `finished_at`
+is `null` for both.
 
 If a linked agent's process has stopped and its live `done.json` is absent, finalization
 looks for the top-level dismissed-agent archive entry with the same artifact timestamp.

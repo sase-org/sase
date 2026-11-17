@@ -374,6 +374,65 @@ def test_run_configured_chop_once_missing_script(
     assert entry.error == "Job script not found: absent_chop (job: absent_chop)"
 
 
+def test_run_configured_chop_once_defers_missing_script_during_code_swap(
+    temp_state_dir: Path,
+    axe_config: AxeConfig,
+) -> None:
+    chop = ChopConfig(name="absent_chop", description="")
+    holder = "sase dev update (pid 1234)"
+    with patch("sase.axe.chop_runner.find_all_patches", return_value=[]):
+        outcome = run_configured_chop_once(
+            lumberjack_name="hooks",
+            chop=chop,
+            axe_config=axe_config,
+            source="manual",
+            code_swap_writer_holder_fn=lambda: holder,
+        )
+
+    assert outcome.status == "skipped"
+    assert outcome.advances_cadence is False
+    assert outcome.skip_reason == "inhibited"
+    assert outcome.reason is not None
+    assert "absent_chop" in outcome.reason
+    assert holder in outcome.reason
+    assert outcome.run_id is not None
+    entry = read_chop_run("hooks", "absent_chop", outcome.run_id)
+    assert entry is not None
+    assert entry.status == "skipped"
+    assert entry.error is None
+    assert entry.reason is not None
+    assert "absent_chop" in entry.reason
+    assert holder in entry.reason
+    tail = read_chop_run_log_tail("hooks", "absent_chop", outcome.run_id)
+    assert holder in tail
+
+
+def test_run_configured_chop_once_missing_script_when_probe_raises(
+    temp_state_dir: Path,
+    axe_config: AxeConfig,
+) -> None:
+    chop = ChopConfig(name="absent_chop", description="")
+
+    def _boom() -> str | None:
+        raise RuntimeError("probe exploded")
+
+    with patch("sase.axe.chop_runner.find_all_patches", return_value=[]):
+        outcome = run_configured_chop_once(
+            lumberjack_name="hooks",
+            chop=chop,
+            axe_config=axe_config,
+            source="manual",
+            code_swap_writer_holder_fn=_boom,
+        )
+
+    assert outcome.status == "missing_script"
+    assert outcome.run_id is not None
+    entry = read_chop_run("hooks", "absent_chop", outcome.run_id)
+    assert entry is not None
+    assert entry.status == "missing_script"
+    assert entry.error == "Job script not found: absent_chop (job: absent_chop)"
+
+
 def test_run_configured_chop_once_dedupes_live_script_run(
     temp_state_dir: Path,
     axe_config: AxeConfig,

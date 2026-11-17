@@ -52,6 +52,18 @@ from .state import (
 )
 
 
+def _default_code_swap_writer_holder() -> str | None:
+    """Probe for a live code-swap writer, importing the lock module lazily.
+
+    ``sase.dev_update``'s package ``__init__`` pulls the update backend onto
+    the TUI first-paint path, so this edge stays a use-site import: it only
+    runs on the missing-script path, never at module import time.
+    """
+    from sase.dev_update.code_swap_lock import code_swap_writer_holder
+
+    return code_swap_writer_holder()
+
+
 def run_script_chop_once(
     *,
     lumberjack_name: str,
@@ -68,6 +80,7 @@ def run_script_chop_once(
     discover_chop_script_fn: Callable[
         [str, list[str]], Path | None
     ] = discover_chop_script,
+    code_swap_writer_holder_fn: Callable[[], str | None] | None = None,
     stream_chop_script_fn: Callable[..., Any] = stream_chop_script,
     build_context_fn: Callable[[str, AxeConfig], str] = build_oneshot_context,
     is_process_running_fn: Callable[[int], bool] = is_process_running,
@@ -168,6 +181,56 @@ def run_script_chop_once(
     script_name = chop.script_name
     script = discover_chop_script_fn(script_name, axe_config.chop_script_dirs)
     if script is None:
+        holder_fn = (
+            _default_code_swap_writer_holder
+            if code_swap_writer_holder_fn is None
+            else code_swap_writer_holder_fn
+        )
+        try:
+            swap_holder: str | None = holder_fn()
+        except Exception:  # noqa: BLE001 - probe failure falls back to missing_script
+            swap_holder = None
+        if swap_holder is not None:
+            reason = (
+                f"job script {script_name} is unavailable while a code swap "
+                f"is in progress ({swap_holder}); retrying after the swap"
+            )
+            finished_at = datetime.now(get_timezone())
+            duration_ms = max(0, int((finished_at - started_at).total_seconds() * 1000))
+            try:
+                write_chop_run(
+                    ChopRunEntry(
+                        run_id=run_id,
+                        lumberjack_name=lumberjack_name,
+                        chop_name=chop.name,
+                        started_at=started_at.isoformat(),
+                        finished_at=finished_at.isoformat(),
+                        duration_ms=duration_ms,
+                        status="skipped",
+                        source=source,
+                        started_by=started_by,
+                        reason=reason,
+                    ),
+                    output=reason,
+                )
+            except OSError:
+                pass
+            record_checkpoint_best_effort(
+                lumberjack_name,
+                chop.name,
+                preflight,
+                "action_failed",
+            )
+            return ChopRunOutcome(
+                lumberjack_name=lumberjack_name,
+                chop_name=chop.name,
+                status="skipped",
+                run_id=run_id,
+                reason=reason,
+                advances_cadence=False,
+                skip_reason="inhibited",
+                chop_verbose=chop_verbose,
+            )
         error = RuntimeError(f"Job script not found: {script_name} (job: {chop.name})")
         finished_at = datetime.now(get_timezone())
         duration_ms = max(0, int((finished_at - started_at).total_seconds() * 1000))
