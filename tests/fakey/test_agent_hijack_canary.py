@@ -15,3 +15,7 @@ from tests.fakey._agent_hijack_canary_scenarios import (
     test_finalizing_latch_without_handoff_moots_and_keeps_real_outcome as test_finalizing_latch_without_handoff_moots_and_keeps_real_outcome,
     test_session_hijack_chooses_running_member_one as test_session_hijack_chooses_running_member_one,
 )
+from tests.fakey._agent_hijack_monitor_canary import (
+    test_monitor_hijack_continue_same_workspace as test_monitor_hijack_continue_same_workspace,
+    test_monitor_hijack_rerun_same_workspace as test_monitor_hijack_rerun_same_workspace,
+)
