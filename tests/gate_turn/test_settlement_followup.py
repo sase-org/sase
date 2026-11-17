@@ -16,7 +16,6 @@ from sase.core.wait_dependency_resolution import (
 )
 import sase.gate_turn.followup as followup_module
 import sase.gate_turn.handoff as handoff_module
-import sase.gate_turn.settlement as settlement_module
 from sase.gate_turn.claims import GATE_WORKSPACE_CLAIM_WORKFLOW
 from sase.gate_turn.settlement import settle_gate_turn
 from sase.gate_turn.store import read_gate_turn_marker
@@ -244,7 +243,9 @@ def test_unparseable_turn_block_records_followup_error(
 
     meta = json.loads((Path(artifacts_dir) / "agent_meta.json").read_text())
     done = json.loads((Path(artifacts_dir) / "done.json").read_text())
-    expected = settlement_module.SHELL_PARSE_FOLLOWUP_ERROR
+    from sase.gate_turn._settlement_support import SHELL_PARSE_FOLLOWUP_ERROR
+
+    expected = SHELL_PARSE_FOLLOWUP_ERROR
     assert meta["gate_followup_error"] == expected
     assert done["gate_followup_error"] == expected
     assert "gate_next_action" not in meta

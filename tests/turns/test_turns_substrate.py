@@ -8,7 +8,7 @@ from typing import Any
 
 import pytest
 
-from sase.gate_turn.settlement import _done_marker
+from sase.gate_turn._settlement_support import done_marker
 from sase.turns.followup import (
     FollowupLaunchResult,
     FollowupPersistence,
@@ -393,6 +393,7 @@ _KNOWN_SHELL_DONE_WRITERS = frozenset(
         "src/sase/monitor/proc_adapter.py",
         "src/sase/monitor/reconcile.py",
         "src/sase/monitor/start_runtime.py",
+        "src/sase/gate_turn/_settlement_publish.py",
         "src/sase/gate_turn/settlement.py",
     }
 )
@@ -414,7 +415,7 @@ def test_gate_done_marker_stamps_finished_at_through_shared_helper(
 ) -> None:
     monkeypatch.setattr("sase.turns.settlement.time.time", lambda: 1_779_999_999.5)
 
-    marker = _done_marker({"artifacts_dir": ""}, gate_state="answered", reason=None)
+    marker = done_marker({"artifacts_dir": ""}, gate_state="answered", reason=None)
 
     assert marker["finished_at"] == 1_779_999_999.5
     assert marker["outcome"] == "gated"
@@ -433,7 +434,7 @@ def test_shell_done_marker_writers_stamp_finished_at_through_shared_helper() -> 
                 continue
             relative = path.relative_to(_REPO_ROOT).as_posix()
             found.add(relative)
-            if "stamp_turn_finished_at(" not in source:
+            if "stamp_turn_finished_at(" not in source and "done_marker(" not in source:
                 missing.append(relative)
 
     assert _KNOWN_SHELL_DONE_WRITERS <= found, (

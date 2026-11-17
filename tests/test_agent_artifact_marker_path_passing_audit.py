@@ -285,7 +285,7 @@ _REVIEWED_PATH_PASSING_CONTEXTS: dict[str, PathPassingReview] = {
             "and done-marker helpers."
         ),
     ),
-    "src/sase/gate_turn/settlement.py:_read_meta": PathPassingReview(
+    "src/sase/gate_turn/_settlement_support.py:read_meta": PathPassingReview(
         exemption=(
             "Read-only gate-shell settlement bootstrap and post-settlement "
             "refresh: agent_meta.json is inspected to recover gate metadata "

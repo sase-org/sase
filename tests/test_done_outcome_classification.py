@@ -2,7 +2,7 @@
 
 from sase.core.dismissed_agent_completion import GATE_OUTCOME, GATE_SUCCESS_STATES
 from sase.core.wait_dependency_resolution import KNOWN_DONE_OUTCOMES
-from sase.gate_turn.settlement import _done_marker
+from sase.gate_turn._settlement_support import done_marker
 from sase.gate_turn.state import GATE_STATE_BUCKETS
 
 
@@ -33,7 +33,7 @@ def test_gate_outcome_classification_matches_gate_state_contract() -> None:
 
     assert GATE_SUCCESS_STATES == done_bucket
     assert (
-        _done_marker({"artifacts_dir": ""}, gate_state="answered", reason=None)[
+        done_marker({"artifacts_dir": ""}, gate_state="answered", reason=None)[
             "outcome"
         ]
         == GATE_OUTCOME
