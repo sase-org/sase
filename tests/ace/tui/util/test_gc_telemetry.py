@@ -311,6 +311,15 @@ def test_default_executor_heartbeat_gauge_reports_no_executor() -> None:
     }
 
 
+def test_default_executor_heartbeat_gauge_reports_missing_loop() -> None:
+    assert default_executor_heartbeat_fields(None) == {
+        "default_executor_workers": None,
+        "default_executor_threads": None,
+        "default_executor_queue_depth": None,
+        "default_executor_saturated": None,
+    }
+
+
 def test_heartbeat_providers_contribute_without_clobbering_core(
     telemetry: GCTelemetry,
     emitted: list[dict[str, Any]],
@@ -593,3 +602,27 @@ def test_heartbeat_includes_stats_blocks_and_python_version(
     assert row["python_version"]
     assert row["gc_stats"] is None or isinstance(row["gc_stats"], list)
     assert row["allocated_blocks"] is None or isinstance(row["allocated_blocks"], int)
+
+
+def test_bind_perf_instance_registers_executor_without_running_loop(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from types import SimpleNamespace
+
+    from sase.ace.tui.app import AceApp
+
+    registered: dict[str, object] = {}
+
+    def _register(name: str, fn: object) -> None:
+        registered[name] = fn
+
+    monkeypatch.setattr(gc_telemetry, "register_heartbeat_provider", _register)
+    dummy = SimpleNamespace(
+        _app_instance_id="abcd1234",
+        _jk_perf=None,
+        _prompt_activity=None,
+        _default_executor_heartbeat=lambda: {},
+    )
+    AceApp._bind_perf_instance(dummy)
+    assert "default_executor" in registered
+    assert dummy._perf_event_loop is None

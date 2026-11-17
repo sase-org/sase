@@ -16,6 +16,8 @@ from sase.ace.tui.util.session_registration import register_ace_session
 from sase.logs import current_toast_session, record_toast
 
 if TYPE_CHECKING:
+    from asyncio import AbstractEventLoop
+
     from sase.vcs_log.filter_query import CommitLogFilterValues
 
     from .current_project_settings import CurrentProjectSettings
@@ -228,6 +230,7 @@ class AceApp(
     _jk_perf: "JKPerfTimer | None"
     _prompt_activity: "PromptActivityTracker | None"
     _heap_sampler: "TUIHeapSampler | None"
+    _perf_event_loop: "AbstractEventLoop | None"
     _commits_default_filter: "CommitLogFilterValues"
     _commits_default_query_diagnostic: str | None
     _current_project_settings: "CurrentProjectSettings"
@@ -339,6 +342,7 @@ class AceApp(
             self._prompt_activity = (
                 PromptActivityTracker(writer=writer) if perf_enabled else None
             )
+            self._perf_event_loop = None
             self._heap_sampler = TUIHeapSampler.from_env()
             if self._heap_sampler is not None:
                 self._heap_sampler.start_tracing()
@@ -439,9 +443,17 @@ class AceApp(
                 return
             import asyncio
 
-            self._perf_event_loop = asyncio.get_running_loop()
             from .util.gc_telemetry import register_heartbeat_provider
 
+            try:
+                self._perf_event_loop = asyncio.get_running_loop()
+            except RuntimeError:
+                # __init__ runs before Textual starts the loop. Capture it
+                # from `_start_post_first_paint_services` once the loop is
+                # running; still register the executor gauge so heartbeats
+                # include the fields (None until the loop is stored).
+                if getattr(self, "_perf_event_loop", None) is None:
+                    self._perf_event_loop = None
             register_heartbeat_provider(
                 "default_executor", self._default_executor_heartbeat
             )

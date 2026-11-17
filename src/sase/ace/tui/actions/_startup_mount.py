@@ -157,6 +157,13 @@ class StartupMountMixin:
             log.exception("Failed to schedule Artifacts provider discovery")
         import asyncio
 
+        bind_perf = getattr(self, "_bind_perf_instance", None)
+        if callable(bind_perf):
+            try:
+                bind_perf()
+            except Exception:
+                log.debug("perf instance bind after first paint failed", exc_info=True)
+
         start_capacity_feed = getattr(self, "_start_machine_capacity_report_feed", None)
         if callable(start_capacity_feed):
             try:

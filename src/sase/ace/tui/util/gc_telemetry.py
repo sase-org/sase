@@ -132,6 +132,13 @@ def unregister_heartbeat_provider(name: str) -> None:
 
 def default_executor_heartbeat_fields(loop: Any) -> dict[str, Any]:
     """Return a cheap best-effort gauge for the loop's default executor."""
+    if loop is None:
+        return {
+            "default_executor_workers": None,
+            "default_executor_threads": None,
+            "default_executor_queue_depth": None,
+            "default_executor_saturated": None,
+        }
     executor = getattr(loop, "_default_executor", None)
     if executor is None:
         return {

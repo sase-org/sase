@@ -27,7 +27,9 @@ watchdog can attribute any resulting hitch. The policy is driven by a 1 s
 and never auto-installs under the ``sase.ace.testing`` harness. The opt-in
 survivor census (``SASE_TUI_GC_CENSUS=1``) needs Python 3.14+; earlier
 CPython versions skip ``gc.get_objects()`` and record collected-garbage
-types only.
+types only. Census rows rank types by count and shallow ``sys.getsizeof``
+bytes, always emit a watchlist of suspected heap owners, and probe
+already-imported snapshot caches so later diet phases can name owners.
 """
 
 from __future__ import annotations
@@ -38,8 +40,9 @@ import os
 import sys
 import threading
 import time
-from collections import Counter
-from collections.abc import Callable, Iterable
+from collections import Counter, OrderedDict
+from collections.abc import Callable, Iterable, Mapping
+from dataclasses import dataclass
 from typing import Any
 
 from textual.screen import ModalScreen
@@ -72,6 +75,21 @@ RAISED_THRESHOLD2 = 10_000
 TRIM_INTERVAL_S = 10 * 60.0
 CENSUS_INTERVAL_S = 10 * 60.0
 CENSUS_TOP_N = 40
+CENSUS_WATCHLIST: frozenset[str] = frozenset(
+    {
+        "sase.ace.tui.models.agent.Agent",
+        "sase.ace.tui.provider_contract.AceRowHandle",
+        "sase.agents.catalog._query.AgentCatalogLinkFacets",
+        "sase.artifact_read_log.ArtifactReadEvent",
+        "sase.core.agent_scan_wire.AgentArtifactRecordWire",
+        "sase.core.artifact_file_types.ArtifactFile",
+        "sase.core.bead_touch_index_models.BeadTouch",
+        "sase.memory._read_log_models.MemoryReadEvent",
+        "sase.notifications.models.Notification",
+        "sase.notifications.models.NotificationPlusOne",
+        "textual.cache.FIFOCache",
+    }
+)
 TIMER_NAME = "gc-policy"
 TRIM_THREAD_NAME = "sase-tui-gc-trim"
 HEARTBEAT_PROVIDER_NAME = "gc_policy"
@@ -115,20 +133,249 @@ def _type_key(obj: object) -> str:
     return f"{module}.{qualname}" if module else str(qualname)
 
 
+@dataclass(frozen=True)
+class _TypeCensus:
+    """Ranked type counts plus optional watchlist rows from one object walk."""
+
+    top: list[dict[str, Any]]
+    total: int
+    watch: list[dict[str, Any]]
+    bytes_total: int
+
+
+def _type_row(name: str, count: int, size: int) -> dict[str, Any]:
+    return {"type": name, "count": count, "bytes": int(size)}
+
+
 def _top_types(
-    objects: Iterable[object], n: int = CENSUS_TOP_N
-) -> tuple[list[dict[str, Any]], int]:
-    """Return the *n* most common ``module.qualname`` types and the total count."""
+    objects: Iterable[object],
+    n: int = CENSUS_TOP_N,
+    *,
+    watch: frozenset[str] | None = None,
+) -> _TypeCensus:
+    """Return the *n* most common types, watchlist rows, and shallow bytes."""
     counts: Counter[str] = Counter()
+    sizes: Counter[str] = Counter()
     total = 0
+    bytes_total = 0
     for obj in objects:
         total += 1
         try:
-            counts[_type_key(obj)] += 1
+            key = _type_key(obj)
         except Exception:
             continue
-    top = [{"type": name, "count": count} for name, count in counts.most_common(n)]
-    return top, total
+        counts[key] += 1
+        try:
+            size = sys.getsizeof(obj)
+        except Exception:
+            size = 0
+        sizes[key] += size
+        bytes_total += size
+    top = [_type_row(name, count, sizes[name]) for name, count in counts.most_common(n)]
+    watched = [
+        _type_row(name, counts[name], sizes[name]) for name in sorted(watch or ())
+    ]
+    return _TypeCensus(
+        top=top, total=total, watch=watched, bytes_total=int(bytes_total)
+    )
+
+
+def _cache_event_count(value: Any, attr: str = "events") -> int:
+    """Return ``len(value.attr)`` for a snapshot-cache entry, else 0."""
+    try:
+        events = getattr(value, attr, None)
+        if events is None:
+            return 0
+        return len(events)
+    except Exception:
+        return 0
+
+
+def _locked_mapping_items(cache: Any, lock: Any | None = None) -> list[tuple[Any, Any]]:
+    """Copy ``cache`` items while holding *lock* or ``cache._lock``."""
+    held = lock if lock is not None else getattr(cache, "_lock", None)
+    if held is None:
+        try:
+            return list(OrderedDict.items(cache))
+        except Exception:
+            entries = getattr(cache, "_entries", None)
+            if isinstance(entries, Mapping):
+                return list(entries.items())
+            return []
+    try:
+        held.acquire()
+    except Exception:
+        return []
+    try:
+        try:
+            return list(OrderedDict.items(cache))
+        except Exception:
+            entries = getattr(cache, "_entries", None)
+            if isinstance(entries, Mapping):
+                return list(entries.items())
+            return []
+    finally:
+        try:
+            held.release()
+        except Exception:
+            pass
+
+
+def _snapshot_cache_census(cache: Any) -> dict[str, Any]:
+    """Summarize ``ARTIFACT_SNAPSHOT_CACHE`` generations and retained records."""
+    items = _locked_mapping_items(cache)
+    generations: list[dict[str, Any]] = []
+    record_total = 0
+    for key, value in items:
+        snapshot = value[1] if isinstance(value, tuple) and len(value) >= 2 else None
+        records = _cache_event_count(snapshot, "records")
+        record_total += records
+        key_parts = (
+            [str(part) for part in key] if isinstance(key, tuple) else [str(key)]
+        )
+        generations.append({"key": key_parts, "records": records})
+    return {
+        "entries": len(items),
+        "max_entries": getattr(cache, "_max_entries", None),
+        "record_total": record_total,
+        "generations": generations,
+    }
+
+
+def _lru_cache_census(cache: Any, *, event_attr: str = "events") -> dict[str, Any]:
+    """Summarize a ``BoundedLRUCache`` of snapshot entries."""
+    items = _locked_mapping_items(cache)
+    event_total = 0
+    per_key: list[dict[str, Any]] = []
+    for key, value in items:
+        count = _cache_event_count(value, event_attr)
+        event_total += count
+        per_key.append({"key": str(key), "events": count})
+    return {
+        "entries": len(items),
+        "max_entries": getattr(cache, "max_entries", None),
+        "event_total": event_total,
+        "keys": per_key,
+    }
+
+
+def _index_file_cache_census(cache: Any, lock: Any | None = None) -> dict[str, Any]:
+    """Summarize ``_artifact_file_index_cache`` path entries and row counts."""
+    items = _locked_mapping_items(cache, lock=lock)
+    row_total = 0
+    paths: list[dict[str, Any]] = []
+    for key, value in items:
+        rows = value[1] if isinstance(value, tuple) and len(value) >= 2 else value
+        try:
+            count = len(rows)
+        except Exception:
+            count = 0
+        row_total += count
+        paths.append({"path": str(key), "rows": count})
+    return {
+        "entries": len(items),
+        "row_total": row_total,
+        "paths": paths,
+    }
+
+
+def _known_cache_census() -> list[dict[str, Any]]:
+    """Probe already-imported module-level caches; never import new modules."""
+    probes: tuple[tuple[str, str, str, str], ...] = (
+        (
+            "sase.ace.tui.models._agent_loader_artifact_cache",
+            "ARTIFACT_SNAPSHOT_CACHE",
+            "src/sase/ace/tui/models/_agent_loader_artifact_cache.py",
+            "snapshot",
+        ),
+        (
+            "sase.core.artifact_file_explicit",
+            "_artifact_file_index_cache",
+            "src/sase/core/artifact_file_explicit.py",
+            "index",
+        ),
+        (
+            "sase.ace.tui.artifact_reads",
+            "_artifact_reads_snapshot_cache",
+            "src/sase/ace/tui/artifact_reads.py",
+            "lru",
+        ),
+        (
+            "sase.ace.tui.memory_reads",
+            "_memory_reads_snapshot_cache",
+            "src/sase/ace/tui/memory_reads.py",
+            "lru",
+        ),
+        (
+            "sase.ace.tui._bead_touches_loader",
+            "_bead_touches_snapshot_cache",
+            "src/sase/ace/tui/_bead_touches_loader.py",
+            "lru",
+        ),
+        (
+            "sase.ace.tui.glossary_reads",
+            "_glossary_reads_snapshot_cache",
+            "src/sase/ace/tui/glossary_reads.py",
+            "lru",
+        ),
+        (
+            "sase.ace.tui.skill_uses",
+            "_skill_uses_snapshot_cache",
+            "src/sase/ace/tui/skill_uses.py",
+            "lru",
+        ),
+    )
+    rows: list[dict[str, Any]] = []
+    for module_name, attr, anchor, kind in probes:
+        try:
+            module = sys.modules.get(module_name)
+            if module is None:
+                rows.append(
+                    {
+                        "name": f"{module_name}.{attr}",
+                        "anchor": anchor,
+                        "imported": False,
+                    }
+                )
+                continue
+            cache = getattr(module, attr, None)
+            if cache is None:
+                rows.append(
+                    {
+                        "name": f"{module_name}.{attr}",
+                        "anchor": anchor,
+                        "imported": True,
+                        "present": False,
+                    }
+                )
+                continue
+            if kind == "snapshot":
+                extra = _snapshot_cache_census(cache)
+            elif kind == "index":
+                extra = _index_file_cache_census(
+                    cache,
+                    lock=getattr(module, "_artifact_file_index_cache_lock", None),
+                )
+            else:
+                extra = _lru_cache_census(cache)
+            rows.append(
+                {
+                    "name": f"{module_name}.{attr}",
+                    "anchor": anchor,
+                    "imported": True,
+                    "present": True,
+                    **extra,
+                }
+            )
+        except Exception:
+            rows.append(
+                {
+                    "name": f"{module_name}.{attr}",
+                    "anchor": anchor,
+                    "error": True,
+                }
+            )
+    return rows
 
 
 def _modal_text_input_active(app: Any) -> bool:
@@ -454,6 +701,7 @@ class GCPolicy:
         start = self._monotonic()
         collector = self._collector
         previous_debug = 0
+        garbage = _TypeCensus(top=[], total=0, watch=[], bytes_total=0)
         get_debug = getattr(collector, "get_debug", None)
         set_debug = getattr(collector, "set_debug", None)
         try:
@@ -465,7 +713,7 @@ class GCPolicy:
                     set_debug = None
             with gc_trigger("idle"):
                 collector.collect()
-            garbage_top, garbage_count = _top_types(tuple(gc.garbage))
+            garbage = _top_types(tuple(gc.garbage))
             gc.garbage.clear()
         finally:
             if callable(set_debug):
@@ -479,19 +727,27 @@ class GCPolicy:
             except Exception:
                 pass
         survivor_top: list[dict[str, Any]] = []
+        survivor_watch: list[dict[str, Any]] = []
         survivor_count: int | None
+        survivor_bytes: int | None
         if _survivor_census_safe():
             survivor_census = "ok"
             survivor_count = 0
+            survivor_bytes = 0
             get_objects = getattr(collector, "get_objects", None)
             if callable(get_objects):
                 try:
-                    survivor_top, survivor_count = _top_types(get_objects())
+                    survivors = _top_types(get_objects(), watch=CENSUS_WATCHLIST)
+                    survivor_top = survivors.top
+                    survivor_watch = survivors.watch
+                    survivor_count = survivors.total
+                    survivor_bytes = survivors.bytes_total
                 except Exception:
                     pass
         else:
             survivor_census = "skipped_unsafe_python"
             survivor_count = None
+            survivor_bytes = None
             if not self._logged_survivor_census_skip:
                 self._logged_survivor_census_skip = True
                 log.warning(
@@ -499,11 +755,15 @@ class GCPolicy:
                     "recording collected-garbage types only"
                 )
         payload = {
-            "garbage_top": garbage_top,
+            "garbage_top": garbage.top,
             "survivor_top": survivor_top,
-            "garbage_count": garbage_count,
+            "survivor_watch": survivor_watch,
+            "garbage_count": garbage.total,
+            "garbage_bytes": garbage.bytes_total,
             "survivor_count": survivor_count,
+            "survivor_bytes": survivor_bytes,
             "survivor_census": survivor_census,
+            "known_caches": _known_cache_census(),
             "census_duration_s": round(self._monotonic() - start, 6),
         }
         if self._census_emit is not None:
