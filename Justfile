@@ -533,10 +533,11 @@ _lint-patch-stitch-terminology: _setup
 # hit/target wires; the named-cutover phase consumed them by switching
 # public named/dismissed lookups onto lookup_agent_artifacts, so no
 # allowlist rows remain.
-# sase-1tb.1 (tmux-still-hotfix) exported the ffprobe metadata surface for
-# sase-1tb.4 (video-frame-cache), which reuses it for the frame service, and
-# the metadata summary for sase-1tb.5 (inspect-scrubber), which renders it in
-# the inspect view's media label. Drop each row once its phase lands a real
+# sase-1tb.4 (video-frame-cache) landed the ffmpeg frame service in
+# _viewer_video_frames.py, which consumes the ffprobe metadata surface, so
+# those rows are dropped. The frame service itself is consumed by sase-1tb.5
+# (inspect-scrubber), which renders it in the inspect view, plus the metadata
+# summary for the media label. Drop each row once its phase lands a real
 # consumer.
 # Never put a comment
 # line inside the continued command below: just joins the lines, so the comment
@@ -546,11 +547,18 @@ _lint-symvision *args: _setup
     SASE_SYMVISION_BEAD_STATUS_ONLY=1 BD_COMMAND=tools/sase_bead {{ venv_bin }}/symvision src/sase \
         --exclude-decorator gate_command_entrypoint \
         --exclude-decorator builtin_chop \
-        --epic-symbol "sase-1tb.4(VideoMetadata)" \
-        --epic-symbol "sase-1tb.4(ffprobe_metadata_command)" \
-        --epic-symbol "sase-1tb.4(parse_ffprobe_metadata)" \
-        --epic-symbol "sase-1tb.4(probe_video_metadata)" \
+        --epic-symbol "sase-1tb.5(FrameExtractResult)" \
+        --epic-symbol "sase-1tb.5(ScrubTrack)" \
+        --epic-symbol "sase-1tb.5(StoryboardResult)" \
+        --epic-symbol "sase-1tb.5(artifact_video_cache_dir)" \
+        --epic-symbol "sase-1tb.5(build_storyboard)" \
+        --epic-symbol "sase-1tb.5(content_digest_for_path)" \
+        --epic-symbol "sase-1tb.5(enforce_cache_budget)" \
+        --epic-symbol "sase-1tb.5(extract_frame)" \
         --epic-symbol "sase-1tb.5(format_video_metadata_summary)" \
+        --epic-symbol "sase-1tb.5(metadata_for_frame_service)" \
+        --epic-symbol "sase-1tb.5(scrub_fps_for_duration)" \
+        --epic-symbol "sase-1tb.5(start_scrub_track)" \
         {{ args }}
 
 # Check Python file line counts (private, extracted for per-stage wrapping)
