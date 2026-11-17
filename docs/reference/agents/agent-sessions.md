@@ -210,11 +210,15 @@ that launches in a different workspace leaves the original hold unresolved.
 
 ### Hijack recovery
 
-Hijacking stops a local agent while retaining its numbered workspace, uncommitted work,
-Agents-tab row, and recovery evidence. It is available for `RUNNING`, `STARTING`, and
-`RETRYING` agent turns launched with hijack support. Home-mode turns, remote rows,
-monitors, gates, named processes, clan containers, and bulk selections are ineligible. A
-remote agent must be hijacked on its owning host.
+Hijacking stops a local occupying turn while retaining its numbered workspace,
+uncommitted work, Agents-tab row, and recovery evidence. It is available for `RUNNING`,
+`STARTING`, and `RETRYING` agent turns launched with hijack support, and for a running
+monitor that holds the session's numbered workspace. A settled monitor whose follow-up
+is still pending latches at the monitor boundary instead of signalling a dead command.
+Home-mode turns, remote rows, gates, named processes, clan containers, and bulk
+selections are ineligible. A remote agent must be hijacked on its owning host. Monitor
+stop, settlement, and recovery are documented under
+[Hijack a monitor](../automation/monitor-operations.md#hijack-a-monitor).
 
 Finalizing turns (`provider_done`/`finalizing`/`handoff`, or finalizer
 `declaring`/`executing`) and staged-but-not-adopted agent handoffs latch instead of
@@ -244,14 +248,19 @@ The menu includes the held workspace, model, elapsed time, captured changes, and
 availability. The [CLI reference](../cli/agent.md#sase-agent-recover) lists exact
 options.
 
-| Action   | Result                                                                                                                     |
-| -------- | -------------------------------------------------------------------------------------------------------------------------- |
-| Continue | Launch a successor in the held workspace using the recorded concrete model and effort.                                     |
-| Escalate | Keep the workspace and select a different model through the configured escalation ladder.                                  |
-| Instruct | Edit the continuation prompt before continuing; the CLI accepts the full prompt through Continue's prompt-file option.     |
-| Restart  | Verify recovery snapshots, release the workspace, and relaunch the stored prompt under the same name in a fresh workspace. |
-| Edit     | Use a replacement prompt for Restart; snapshots are verified before workspace release.                                     |
-| Dismiss  | Verify recovery snapshots, retire the row, and release the held workspace without launching a successor.                   |
+| Action         | Result                                                                                                                                          |
+| -------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| Continue       | Launch a successor in the held workspace using the recorded concrete model and effort.                                                          |
+| Escalate       | Keep the workspace and select a different model through the configured escalation ladder.                                                       |
+| Instruct       | Edit the continuation prompt before continuing; the CLI accepts the full prompt through Continue's prompt-file option. Hidden for monitors.     |
+| Re-run command | Start a new monitor for the recorded command in the held workspace. Monitor-only; hidden for agent turns.                                       |
+| Restart        | Verify recovery snapshots, release the workspace, and relaunch the stored prompt under the same name in a fresh workspace. Hidden for monitors. |
+| Edit           | Use a replacement prompt for Restart; snapshots are verified before workspace release. Hidden for monitors.                                     |
+| Dismiss        | Verify recovery snapshots, retire the row, and release the held workspace without launching a successor.                                        |
+
+For a hijacked monitor, Continue and Escalate launch the recorded follow-up with bounded
+untrusted command output; they do not rerun the command. See
+[Hijack a monitor](../automation/monitor-operations.md#hijack-a-monitor).
 
 Continue and Escalate support a dry-run preview. A supplied continuation prompt is the
 complete prompt, not just extra guidance. A concrete model override takes precedence
@@ -277,9 +286,10 @@ the held workspace's primary repository and recorded opened repositories before 
 A snapshot failure keeps an existing hold in place. The CLI's explicit
 discard-without-snapshot option permits release after capture failures and can lose
 uncommitted work. Once a hold has expired and its workspace has been released, Continue,
-Escalate, and Instruct are unavailable; the menu still offers eligible release actions.
-See [Held workspaces](workspaces.md#held-workspaces) for retention and expiry, and
-[the recovery panel](../tui/agents-tab-modes.md#hijack-recovery-panel) for TUI actions.
+Escalate, Instruct, and Re-run command are unavailable; the menu still offers eligible
+release actions. See [Held workspaces](workspaces.md#held-workspaces) for retention and
+expiry, and [the recovery panel](../tui/agents-tab-modes.md#hijack-recovery-panel) for
+TUI actions.
 
 ### Session detail folding
 

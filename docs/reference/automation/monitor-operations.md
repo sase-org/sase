@@ -1,11 +1,11 @@
 ---
 title: Monitor operations
-description: Inspect, stop, and view monitors in the SASE TUI.
+description: Inspect, stop, hijack, and recover monitors in the SASE TUI.
 ---
 
 # Monitor operations
 
-This page names how to inspect, stop, and view monitors in sase's TUI.
+This page names how to inspect, stop, hijack, and recover monitors in sase's TUI.
 
 ## Inspecting and stopping monitors
 
@@ -32,7 +32,9 @@ even when `--next` was given. If a follow-up was recorded, settlement marks it
 dirty-workspace retention rules below.
 
 `sase agent kill -n <name>` uses the same stop behavior when the name resolves to a live
-monitor member or its owner. `sase monitor stop` remains the clearest explicit form.
+monitor member or its owner. `sase monitor stop` remains the clearest explicit form. To
+stop the occupying monitor while **keeping** its numbered workspace for recovery, hijack
+it instead; see [Hijack a monitor](#hijack-a-monitor).
 
 Every subcommand can emit machine-readable output, but not with the same flag: `start`,
 `list`, `resume`, and `stop` take `-j/--json`, while `list` and `show` take
@@ -64,11 +66,13 @@ run this same terminal-delivery reconciliation. A receiver whose delivery was fe
 exits before invoking its provider, and its error names the fence reason. When
 settlement recorded a follow-up as `not-launchable` only because the starter had not
 settled in time, resume first repairs that missing parent link. Ineligible monitors —
-still running, stopped or lost, fire-and-forget, owned by host completion, or already
-delivered, among others — make `resume` exit `2` and print the precise eligible resume
-command to stderr when one exists; with `-j`, the JSON result carries `code` and
-`suggested_command` fields. If the starter settled but its continuation capture failed,
-the `not-launchable` error names that capture failure and gives the `-k FILE` /
+still running, stopped or lost, fire-and-forget, owned by host completion, already
+delivered, or with a pending hijack (`hijack_pending`), among others — make `resume`
+exit `2` and print the precise eligible resume command to stderr when one exists; with
+`-j`, the JSON result carries `code` and `suggested_command` fields. A pending hijack
+has no resume command: recover it with `sase agent recover` instead of reviving the
+suppressed automatic follow-up. If the starter settled but its continuation capture
+failed, the `not-launchable` error names that capture failure and gives the `-k FILE` /
 `-m MODEL` resume command.
 
 If the starter capture error says `authored_local_request is too large`, changing the
@@ -105,6 +109,62 @@ any captured recovery diffs. When resume is eligible it names `sase monitor resu
 stopped and lost monitors stay inspection-only and the callout names dismissal instead.
 A later successful same-workspace resume settles the retention record; a failed resume
 leaves it unresolved. Inspect that work before dismissing the monitor row.
+
+## Hijack a monitor
+
+A running monitor that holds the session's numbered workspace is immediately hijackable.
+`,k` on the monitor row, the session container, or `sase agent hijack NAME` resolves to
+that occupying member, writes a hijack intent, and stops the command through
+`stop_monitor` — the same adapter as `sase monitor stop`, not the LLM process-tree stop.
+A command that has already settled while its follow-up is still pending accepts a
+durable latch at the monitor boundary instead of signalling a dead process. An already
+delivered follow-up is never replayed.
+
+Hijack keeps the numbered workspace claim pinned and writes a `hijacked` done marker
+with the command's real `boundary_outcome`. Automatic `--next` delivery, prepared host
+completion, and ordinary claim release are suppressed. `sase monitor stop` without a
+hijack intent still suppresses the follow-up and follows the dirty-workspace retention
+rules; it does not open recovery. `sase monitor resume` refuses a pending hijack with
+code `hijack_pending`.
+
+The toast and CLI name the member actually acted on, for example
+`⏏ hijacked acme--mon · ws #4 held`. A surviving command stays `stop_blocked` rather
+than reporting a false held completion.
+
+### Recovery
+
+`sase agent recover NAME` and `Enter` on the pink `⏏ HIJACKED` row share the monitor
+recovery menu. Keep-work actions stay in the held workspace. View and Shell do not
+resolve the hijack. Dismiss snapshots before release. Restart, Edit, and Instruct are
+hidden for monitors.
+
+| Action         | Result                                                                                                                                                                                                |
+| -------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Continue       | Launch the recorded follow-up now, using that follow-up's concrete model. Partial command output is bounded, labeled untrusted, and treated as data. The command is not rerun.                        |
+| Escalate       | Launch that same recorded follow-up on the configured higher rung.                                                                                                                                    |
+| Re-run command | Start a new monitor for the same recorded command, argv, cwd, limits, and follow-up policy in the held workspace, under a new monitor ID. The interrupted ToolRun's verification proof is not reused. |
+| View           | Open diffs or saved snapshots without resolving the hijack.                                                                                                                                           |
+| Shell          | Open tmux at the held workspace without resolving the hijack.                                                                                                                                         |
+| Dismiss        | Verify the recovery snapshot, retire the row, and release the claim.                                                                                                                                  |
+
+Missing or corrupt follow-up data disables Continue and Escalate with an actionable
+reason. It does not hide Re-run, View, Shell, or Dismiss, and it never synthesizes a
+follow-up from an absent record. Duplicate clicks, retries, and crashes around launch
+create at most one successor. The original monitor's automatic delivery stays suppressed
+after explicit recovery.
+
+```bash
+sase agent hijack -e acme           # occupant and decision, no stop
+sase agent hijack acme              # stop or latch the occupying monitor
+sase agent recover acme             # shared recovery menu
+sase agent recover -a continue acme
+sase agent recover -a escalate acme
+sase agent recover -a rerun acme
+```
+
+In the TUI, Continue is `c`, Escalate is `u`, Re-run command is `r`, View is `v`, Shell
+is `t`, and Dismiss is `d`. Enter from a collapsed session opens the occupying monitor's
+recovery panel.
 
 If a proc-backed monitor loses its supervisor, its failure message in
 `sase monitor show` and `done.json` includes `last supervisor error: <line>` when the
@@ -185,8 +245,10 @@ on the command and log instead of falling back to the empty prompt view.
 With a **running** monitor row selected, the Agents tab's kill key (`x` by default)
 stops the monitor instead of killing an agent: it opens a `Stop Monitor` confirmation
 that defaults to **Keep running**, and confirming runs the same `stop_monitor` path as
-`sase monitor stop`, so no follow-up agent launches. On a settled monitor row, `x`
-behaves like an ordinary dismiss. See
+`sase monitor stop`, so no follow-up agent launches. `,k` (or **h Hijack instead** in
+that confirmation) hijacks the occupying monitor instead: the command still stops
+through `stop_monitor`, but the workspace stays held for recovery. On a settled monitor
+row, `x` behaves like an ordinary dismiss. See
 [Agent Row Glyphs](../tui/agent-row-glyphs.md#agent-row-glyphs-1) and
 [Sequential Agent Sessions](../agents/agent-sessions.md#sequential-agent-sessions).
 
@@ -303,6 +365,7 @@ for the retired `sleep 1` pattern.
 ## Related
 
 - [Monitors](monitors.md)
+- [Hijack recovery](../agents/agent-sessions.md#hijack-recovery)
 - [Named tools and ToolRuns](tools.md)
 - [`sase monitor`](../cli/monitor.md)
 - [Agent queued for a runner slot](../runner-slots.md)

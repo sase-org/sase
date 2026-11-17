@@ -141,15 +141,16 @@ def register_agent_hijack_parser(agents_sub: argparse._SubParsersAction) -> None
         "hijack",
         help="Stop a stalled agent but keep its workspace",
         description=(
-            "Stop the named agent without releasing its workspace claim, or "
-            "latch the hijack to apply after the finalizer or a staged "
-            "handoff settles. Use --explain to inspect the current session "
-            "occupant and decision. The agent's process tree is verified "
-            "dead, its workspace stays held, and its evidence is "
-            "snapshotted, so it can be recovered with "
+            "Stop the occupying turn without releasing its workspace claim, "
+            "or latch the hijack to apply after the finalizer, a staged "
+            "handoff, or a pending monitor follow-up settles. Use --explain "
+            "to inspect the current session occupant and decision. An "
+            "agent-turn process tree is verified dead; a running monitor is "
+            "stopped through the monitor adapter. The workspace stays held "
+            "and its evidence is snapshotted, so it can be recovered with "
             "`sase agent recover NAME`. What is kept: the workspace, "
             "the Agents-tab node, and the evidence. What is stopped: the "
-            "process tree. Exit 0 means HIJACKED, 2 means refused with "
+            "occupying process. Exit 0 means HIJACKED, 2 means refused with "
             "nothing changed, 3 means latched to apply after the hand-off "
             "settles, and 1 means the stop failed or an error occurred."
         ),
@@ -221,7 +222,7 @@ def register_agent_recover_parser(agents_sub: argparse._SubParsersAction) -> Non
     """Register the 'sase agent recover' subcommand."""
     recover_parser = agents_sub.add_parser(
         "recover",
-        help="Recover a hijacked agent: keep, restart, or dismiss its work",
+        help="Recover a hijacked agent: keep, rerun, restart, or dismiss its work",
         description=(
             "Preview or resolve a held hijack. Without --action, print the shared "
             "recovery menu. Keep-the-work actions (continue, escalate, rerun) "

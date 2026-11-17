@@ -176,13 +176,13 @@ clan member), or toasts a precise reason and next action. On remote rows, `,k` c
 the command to run on the owning host. SASE verifies the process tree stopped before
 showing **⏏ HIJACKED**; the row and workspace claim remain until recovery or expiry.
 
-`Enter` opens the hijack recovery panel. Its keep-work actions run the next turn in the
-same workspace: `u` escalates (or switches models at the top rung), `c` continues on the
-same concrete model, and `i` lets you add instructions before continuing. `r` restarts
-from the original prompt in a fresh workspace. `e` edits the prompt and releases the held
-workspace only when you submit. `d` dismisses after a verified recovery snapshot; `v`
-shows the diff, `t` opens a shell in the held workspace, and `Esc` leaves the run held.
-Pressing `x` on a HIJACKED row also runs snapshot-verified dismissal. See
+`Enter` opens the hijack recovery panel. Keep-work actions stay in the held workspace:
+`u` escalates (or switches at the top rung) and `c` continues. For an agent turn, `i`
+adds instructions and `r` restarts in a fresh workspace; `e` edits that prompt and
+releases only on submit. For a monitor, `r` re-runs the recorded command; Instruct,
+Restart, and Edit stay hidden. `d` dismisses after a verified snapshot; `v` shows the
+diff, `t` opens a shell, and `Esc` leaves the run held. `x` on a HIJACKED row also runs
+snapshot-verified dismissal. See
 [Agent statuses](agent-statuses.md#agent-statuses-1) and
 [Held workspaces](../agents/workspaces.md#held-workspaces).
 

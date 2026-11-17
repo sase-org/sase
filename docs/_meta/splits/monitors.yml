@@ -6,6 +6,7 @@ sections:
   The follow-up agent: reference/automation/monitors.md
   Runner slots: reference/automation/monitors.md
   Inspecting and stopping monitors: reference/automation/monitor-operations.md
+  Hijack a monitor: reference/automation/monitor-operations.md
   In sase's TUI: reference/automation/monitor-operations.md
   Visibility: reference/automation/monitor-operations.md
   "Example: approved epic launches": reference/automation/monitor-operations.md

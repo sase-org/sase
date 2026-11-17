@@ -412,13 +412,15 @@ best-effort; an absent diff does not mean the held checkout is clean. Late holds
 monitor or gate settlement also send a `workspace-held` notification.
 
 An Agent Hijack keeps its numbered workspace claim pinned after the process stops. The
-TUI shows **⏏ HIJACKED** and lets you continue in that workspace, restart in a fresh
-workspace, or dismiss. A keep-work successor inherits the held claim and repository
-obligations. Restart and dismissal take a verified snapshot before releasing the claim.
-The hijack hold uses `workspace.held_claim_ttl_days` (14 days by default), measured from
-`hijacked_at` rather than the original run start. Before expiry releases the workspace,
-cleanup verifies or refreshes snapshots for the primary repository and recorded linked
-or sidecar repositories. A snapshot failure leaves the claim held.
+TUI shows **⏏ HIJACKED**. Keep-work recovery continues in that workspace, including
+Re-run command for a hijacked monitor. Restart in a fresh workspace is an agent-turn
+release action and is hidden for monitors. Dismiss snapshots and then releases the
+claim. A keep-work successor inherits the held claim and repository obligations. Restart
+and dismissal take a verified snapshot before releasing the claim. The hijack hold uses
+`workspace.held_claim_ttl_days` (14 days by default), measured from `hijacked_at` rather
+than the original run start. Before expiry releases the workspace, cleanup verifies or
+refreshes snapshots for the primary repository and recorded linked or sidecar
+repositories. A snapshot failure leaves the claim held.
 
 For a saved handoff, repair the reported cause before
 [re-adopting it](agent-sessions.md#handoff-recovery). Held-work details name
@@ -426,10 +428,12 @@ For a saved handoff, repair the reported cause before
 eligible to continue — not still running, not stopped or lost, and not fire-and-forget
 or host-completion —
 [`sase monitor resume`](../automation/monitor-operations.md#inspecting-and-stopping-monitors)
-retries its follow-up without rerunning the command. Stopped and lost monitors stay
-inspection-only; their details name dismissal rather than resume. Dismissing the
-terminal agent releases a retained claim only if its recorded ownership still matches.
-Recover work before dismissing: release makes the workspace available for reuse.
+retries its follow-up without rerunning the command. A pending monitor hijack makes
+resume ineligible (`hijack_pending`); recover it with `sase agent recover` instead.
+Stopped and lost monitors stay inspection-only; their details name dismissal rather than
+resume. Dismissing the terminal agent releases a retained claim only if its recorded
+ownership still matches. Recover work before dismissing: release makes the workspace
+available for reuse.
 
 A successful same-workspace resume, staged re-adoption, clean release, explicit
 dismissal, or TTL expiry writes `settled_at` on the retention record. Later refresh and

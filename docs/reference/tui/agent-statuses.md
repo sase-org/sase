@@ -30,7 +30,7 @@ Running bucket when it handed off to a successor.
 | ----------------- | ----------------------------- | ---------------------------------------------------------------------------------------------------------------- |
 | **RUNNING**       | Gold                          | Agent subprocess is executing                                                                                    |
 | **HIJACKED** | Pink | Stopped, workspace held; settles as `ESCALATED`/`CONTINUED` ([panel](agents-tab-modes.md#hijack-recovery-panel)) |
-| **HIJACK PENDING** | Pink overlay | Latch accepted; applies after finalizer or staged handoff settles |
+| **HIJACK PENDING** | Pink overlay | Latch accepted; applies after finalizer, staged handoff, or pending monitor follow-up settlement |
 | **QUEUED**        | Cornflower blue               | Cleared dependency, bead, and time waits; parked for runner capacity                                             |
 | **WAITING**       | Amethyst/purple               | Paused on a dependency, bead, or time wait; `?N` marks unknown targets; matching bead tokens follow agent tokens |
 | **WAITING INPUT** | Gate accent; legacy dim       | Workflow is paused at a human-in-the-loop (HITL) step                                                            |

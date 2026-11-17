@@ -47,7 +47,7 @@ Subcommands:
 | `sase agent persist-recover`   | Resolve a hijacked agent from a private request sidecar                                                  |
 | `sase agent prompts`           | Inspect and validate canonical prompt persistence                                                        |
 | `sase agent readopt`           | Retry a held staged handoff after its obligations are satisfied                                          |
-| `sase agent recover`           | Recover a hijacked agent: keep, restart, or dismiss its work                                             |
+| `sase agent recover`           | Recover a hijacked agent: keep, rerun, restart, or dismiss its work                                      |
 | `sase agent restart`           | Stop a named agent and immediately relaunch its stored prompt                                            |
 | `sase agent revert`            | Execute a previously previewed agent commit revert                                                       |
 | `sase agent search`            | Search the agent catalog or archive                                                                      |
@@ -367,7 +367,7 @@ Arguments:
 usage: sase agent hijack [-h] [-c | -e | -n] [-j] [-r REASON] NAME
 ```
 
-Stop the named agent without releasing its workspace claim, or latch the hijack to apply after the finalizer or a staged handoff settles. Use --explain to inspect the current session occupant and decision. The agent's process tree is verified dead, its workspace stays held, and its evidence is snapshotted, so it can be recovered with `sase agent recover NAME`. What is kept: the workspace, the Agents-tab node, and the evidence. What is stopped: the process tree. Exit 0 means HIJACKED, 2 means refused with nothing changed, 3 means latched to apply after the hand-off settles, and 1 means the stop failed or an error occurred.
+Stop the occupying turn without releasing its workspace claim, or latch the hijack to apply after the finalizer, a staged handoff, or a pending monitor follow-up settles. Use --explain to inspect the current session occupant and decision. An agent-turn process tree is verified dead; a running monitor is stopped through the monitor adapter. The workspace stays held and its evidence is snapshotted, so it can be recovered with `sase agent recover NAME`. What is kept: the workspace, the Agents-tab node, and the evidence. What is stopped: the occupying process. Exit 0 means HIJACKED, 2 means refused with nothing changed, 3 means latched to apply after the hand-off settles, and 1 means the stop failed or an error occurred.
 
 Options:
 

@@ -66,7 +66,7 @@
 - [Artifact References](https://sase.sh/reference/artifact-references/) — Typed @kind:argument citations that expand in launch prompts.
 - [Automation](https://sase.sh/reference/automation/) — Reference pages for SASE notifications, scheduling, monitors, tools, mentors, and sudo requests.
 - [Mentors](https://sase.sh/reference/automation/mentors/) — Configure and use automated review mentors for Patches.
-- [Monitor operations](https://sase.sh/reference/automation/monitor-operations/) — Inspect, stop, and view monitors in the SASE TUI.
+- [Monitor operations](https://sase.sh/reference/automation/monitor-operations/) — Inspect, stop, hijack, and recover monitors in the SASE TUI.
 - [Monitors](https://sase.sh/reference/automation/monitors/) — Start and supervise commands that outlive the SASE agent that launched them.
 - [Notification CLI](https://sase.sh/reference/automation/notification-cli/) — Command-line operations for listing and managing notifications.
 - [Command-backed interaction gates](https://sase.sh/reference/automation/notification-gates/) — Gate decisions, inputs, actions, and continuation behavior for SASE interactions.

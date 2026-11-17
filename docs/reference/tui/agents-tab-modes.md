@@ -294,9 +294,10 @@ choices initially show `computing…`; unavailable choices show their refusal re
 | --- | --- |
 | **Escalate** or **Switch** | Continue with the displayed different model in the held workspace. |
 | **Continue** | Continue with the recorded concrete model in the held workspace. |
-| **Instruct** | Open the continuation prompt in the prompt bar, with the cursor at the guidance line. |
-| **Restart** | Relaunch the original prompt in a fresh workspace after snapshot verification. |
-| **Edit** | Open the original prompt for editing; submit runs snapshot-verified restart with the replacement prompt. |
+| **Instruct** | Open the continuation prompt in the prompt bar, with the cursor at the guidance line. Hidden for monitors. |
+| **Re-run command** | Start the recorded monitor command again in the held workspace. Monitor-only. |
+| **Restart** | Relaunch the original prompt in a fresh workspace after snapshot verification. Hidden for monitors. |
+| **Edit** | Open the original prompt for editing; submit runs snapshot-verified restart with the replacement prompt. Hidden for monitors. |
 | **View diff** | Open current repository diffs, or saved snapshot references when no diff is available, in the pager. |
 | **Shell** | Open tmux at the recorded workspace path without resolving the hijack. |
 | **Dismiss** | Verify the snapshot, dismiss the row, and release the workspace. |
@@ -305,7 +306,10 @@ choices initially show `computing…`; unavailable choices show their refusal re
 and Edit release nothing when the prompt bar opens. Canceling leaves the agent hijacked
 and saves the draft through prompt history. Submitting uses a durable recovery operation
 that continues if the TUI closes. `x` on a hijacked row also uses snapshot-verified
-dismissal. Expired holds omit Continue, Escalate, and Instruct.
+dismissal. Expired holds omit Continue, Escalate, Instruct, and Re-run command. A
+hijacked monitor keeps Continue, Escalate, Re-run command, View, Shell, and Dismiss
+from the shared preview; see
+[Hijack a monitor](../automation/monitor-operations.md#hijack-a-monitor).
 
 ## Bang Mode (`!` prefix) {#bang-mode-prefix-1}
 

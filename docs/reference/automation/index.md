@@ -34,8 +34,8 @@ tools, mentors, and sudo requests.
 ## Other automation
 
 - [Monitors](monitors.md) — start a supervised command and follow its result.
-- [Monitor operations](monitor-operations.md) — inspect monitors and see them in the
-  TUI.
+- [Monitor operations](monitor-operations.md) — inspect, stop, hijack, and recover
+  monitors in the TUI.
 - [Named tools and ToolRuns](tools.md) — declare and run named tools.
 - [Mentors](mentors.md) — automated code review for Patches.
 - [Sudo requests](sudo.md) — request and review privileged commands.
