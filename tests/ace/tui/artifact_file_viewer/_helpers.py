@@ -18,6 +18,24 @@ def _test_icat_command(page: Path) -> list[str]:
     return kitten_icat_command(page, _TEST_IMAGE_AREA)
 
 
+def _tmux_which(tool: str) -> str | None:
+    return f"/usr/bin/{tool}" if tool == "tmux" else None
+
+
+def _patch_tmux_which(monkeypatch, which=_tmux_which) -> None:
+    monkeypatch.setattr(
+        "sase.ace.tui.graphics._viewer_tmux_common.shutil.which",
+        which,
+    )
+
+
+def _patch_tmux_run(monkeypatch, fake_run) -> None:
+    monkeypatch.setattr(
+        "sase.ace.tui.graphics._viewer_tmux_common.subprocess.run",
+        fake_run,
+    )
+
+
 def _tmux_split_env(cmd: list[str]) -> dict[str, str]:
     env: dict[str, str] = {}
     index = 0

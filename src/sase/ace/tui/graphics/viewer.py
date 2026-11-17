@@ -12,6 +12,7 @@ from typing import Any
 
 from . import _viewer_loop, _viewer_render
 from ._viewer_launch import (
+    ArtifactViewerLaunchContext,
     artifact_file_tmux_pane_exists,
     artifact_file_viewer_module_command,
     close_artifact_file_tmux_pane,
@@ -188,6 +189,7 @@ __all__ = [
     "ArtifactFileViewSpec",
     "ArtifactFileViewerResult",
     "ArtifactFileViewerWarning",
+    "ArtifactViewerLaunchContext",
     "ArtifactVideoPlaybackConfig",
     "ImageViewerResult",
     "SUPPORTED_VIDEO_EXTENSIONS",

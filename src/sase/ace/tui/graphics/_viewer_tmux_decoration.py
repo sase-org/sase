@@ -3,11 +3,11 @@
 from __future__ import annotations
 
 import os
-import shutil
 from dataclasses import dataclass
 
 from ._viewer_tmux_common import (
     is_tmux_session,
+    tmux_binary_available,
     tmux_display,
     tmux_set_pane_title,
     tmux_set_window_option,
@@ -85,6 +85,8 @@ def _decoration_warning_result(
 
 def decorate_artifact_file_tmux_panes(
     artifact_pane_id: str,
+    *,
+    origin_pane_id: str | None = None,
 ) -> TmuxPaneDecorationResult:
     """Add window-scoped tmux pane decoration for artifact viewer focus state."""
 
@@ -98,13 +100,14 @@ def decorate_artifact_file_tmux_panes(
             "not_in_tmux",
             "Not running inside tmux",
         )
-    if shutil.which("tmux") is None:
+    if not tmux_binary_available():
         return _decoration_warning_result(
             "missing_tmux",
             "tmux executable not found",
         )
 
-    origin_pane_id = os.environ.get("TMUX_PANE") or None
+    if origin_pane_id is None:
+        origin_pane_id = os.environ.get("TMUX_PANE") or None
     target_pane_id = origin_pane_id or artifact_pane_id
     warnings: list[ArtifactFileViewerWarning] = []
     option_snapshots: list[_TmuxWindowOptionSnapshot] = []
@@ -195,7 +198,7 @@ def restore_artifact_file_tmux_pane_decoration(
 ) -> ArtifactFileViewerResult:
     """Restore tmux pane/window decoration saved before artifact viewing."""
 
-    if shutil.which("tmux") is None:
+    if not tmux_binary_available():
         return tmux_warning_result(
             "missing_tmux",
             "tmux executable not found",

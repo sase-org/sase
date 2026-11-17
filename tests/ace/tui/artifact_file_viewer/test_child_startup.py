@@ -19,7 +19,13 @@ from sase.ace.tui.graphics.viewer import (
     view_artifact_files_in_tmux_pane,
 )
 
-from ._helpers import _TEST_IMAGE_AREA, _test_icat_command, _tmux_split_env
+from ._helpers import (
+    _TEST_IMAGE_AREA,
+    _patch_tmux_run,
+    _patch_tmux_which,
+    _test_icat_command,
+    _tmux_split_env,
+)
 
 
 def test_video_config_snapshot_round_trip() -> None:
@@ -118,10 +124,7 @@ def test_parent_split_ignores_stale_env_snapshot(tmp_path: Path, monkeypatch) ->
     )
     monkeypatch.setenv("TMUX", "/tmp/tmux")
     monkeypatch.setenv(ARTIFACT_VIEWER_VIDEO_CONFIG_ENV, stale)
-    monkeypatch.setattr(
-        "sase.ace.tui.graphics.viewer.shutil.which",
-        lambda tool: f"/usr/bin/{tool}" if tool == "tmux" else None,
-    )
+    _patch_tmux_which(monkeypatch)
     monkeypatch.setattr(
         "sase.ace.tui.graphics._viewer_loop_media.load_merged_artifact_video_playback_config",
         lambda: ArtifactVideoPlaybackConfig(audio=False, vo="kitty"),
@@ -131,7 +134,7 @@ def test_parent_split_ignores_stale_env_snapshot(tmp_path: Path, monkeypatch) ->
         calls.append(list(cmd))
         return subprocess.CompletedProcess(cmd, 0, "%7\n", "")
 
-    monkeypatch.setattr("sase.ace.tui.graphics.viewer.subprocess.run", fake_run)
+    _patch_tmux_run(monkeypatch, fake_run)
 
     result = view_artifact_files_in_tmux_pane(
         (ArtifactFileViewSpec(artifact, "image"),)
@@ -150,10 +153,7 @@ def test_parent_split_passes_trace_env(tmp_path: Path, monkeypatch) -> None:
     monkeypatch.setenv("TMUX", "/tmp/tmux")
     monkeypatch.setenv("SASE_TUI_TRACE", "1")
     monkeypatch.setenv("SASE_TUI_TRACE_PATH", "/tmp/tui_trace.jsonl")
-    monkeypatch.setattr(
-        "sase.ace.tui.graphics.viewer.shutil.which",
-        lambda tool: f"/usr/bin/{tool}" if tool == "tmux" else None,
-    )
+    _patch_tmux_which(monkeypatch)
     monkeypatch.setattr(
         "sase.ace.tui.graphics._viewer_tmux.load_merged_artifact_video_playback_config",
         lambda: ArtifactVideoPlaybackConfig(),
@@ -163,7 +163,7 @@ def test_parent_split_passes_trace_env(tmp_path: Path, monkeypatch) -> None:
         calls.append(list(cmd))
         return subprocess.CompletedProcess(cmd, 0, "%7\n", "")
 
-    monkeypatch.setattr("sase.ace.tui.graphics.viewer.subprocess.run", fake_run)
+    _patch_tmux_run(monkeypatch, fake_run)
 
     result = view_artifact_files_in_tmux_pane(
         (ArtifactFileViewSpec(artifact, "image"),)

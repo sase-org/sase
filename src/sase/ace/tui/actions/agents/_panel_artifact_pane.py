@@ -2,21 +2,22 @@
 
 from __future__ import annotations
 
-import os
 import signal
 from collections.abc import Callable
 from types import FrameType
 from typing import TYPE_CHECKING, Any
 
 from ._panel_types import (
-    ARTIFACT_FILE_NOTIFY_PID_ENV,
     ARTIFACT_FILE_VIEWER_LAYOUT_CLASS,
     ARTIFACT_FILE_VIEWER_NAV_MESSAGE,
     TabName,
 )
 
 if TYPE_CHECKING:
-    from ...graphics import ArtifactFileViewerResult, TmuxPaneDecorationState
+    from ...graphics import (
+        TmuxPaneDecorationResult,
+        TmuxPaneDecorationState,
+    )
 
 
 class AgentArtifactFilePaneMixin:
@@ -25,6 +26,7 @@ class AgentArtifactFilePaneMixin:
     current_tab: TabName
     _artifact_file_tmux_pane_id: str | None
     _artifact_file_tmux_decoration_state: TmuxPaneDecorationState | None
+    _artifact_file_tmux_open_in_flight: bool
     _artifact_file_viewer_previous_sigusr1_handler: (
         signal.Handlers | int | Callable[[int, FrameType | None], Any] | None
     )
@@ -111,23 +113,27 @@ class AgentArtifactFilePaneMixin:
             self.notify(result.warning, severity="warning")  # type: ignore[attr-defined]
         self._sync_artifact_file_viewer_layout()
 
-    def _with_artifact_file_viewer_notify_pid(
+    def _apply_opened_artifact_file_tmux_pane(
         self,
-        callback: Callable[[], ArtifactFileViewerResult],
-    ) -> ArtifactFileViewerResult:
-        """Run a tmux launch while exposing this Ace process as notify target."""
-        if not self._install_artifact_file_viewer_close_signal_handler():
-            return callback()
+        pane_id: str,
+        decoration: TmuxPaneDecorationResult | None,
+    ) -> None:
+        """Track a pane the worker already split and decorated, without tmux I/O."""
+        self._artifact_file_tmux_pane_id = pane_id  # type: ignore[attr-defined]
+        self._artifact_file_tmux_decoration_state = (  # type: ignore[attr-defined]
+            None if decoration is None else decoration.state
+        )
+        self._set_artifact_file_viewer_layout_collapsed(True)
 
-        previous = os.environ.get(ARTIFACT_FILE_NOTIFY_PID_ENV)
-        os.environ[ARTIFACT_FILE_NOTIFY_PID_ENV] = str(os.getpid())
-        try:
-            return callback()
-        finally:
-            if previous is None:
-                os.environ.pop(ARTIFACT_FILE_NOTIFY_PID_ENV, None)
-            else:
-                os.environ[ARTIFACT_FILE_NOTIFY_PID_ENV] = previous
+    def _reject_if_artifact_file_viewer_open_in_flight(self) -> bool:
+        """Toast and return True when a tmux open is already running."""
+        if not getattr(self, "_artifact_file_tmux_open_in_flight", False):
+            return False
+        self.notify(  # type: ignore[attr-defined]
+            "Artifact viewer is already opening",
+            severity="warning",
+        )
+        return True
 
     def _set_artifact_file_viewer_layout_collapsed(self, collapsed: bool) -> None:
         """Apply the Agents-tab layout state for the artifact-file pane."""

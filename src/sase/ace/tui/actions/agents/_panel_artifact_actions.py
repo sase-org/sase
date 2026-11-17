@@ -65,6 +65,9 @@ class AgentArtifactFileActionMixin:
         """Open or choose artifact files associated with the selected agent."""
         if self.current_tab != "agents":
             return
+        reject = getattr(self, "_reject_if_artifact_file_viewer_open_in_flight", None)
+        if callable(reject) and reject():
+            return
         from ._archive_actions import archive_read_target, archive_ui_active
 
         in_archive = archive_ui_active(self)

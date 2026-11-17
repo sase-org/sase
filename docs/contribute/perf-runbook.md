@@ -473,6 +473,9 @@ covers loader stages and pager opens):
 - `actions/agents/_display_detail_render.py` — `agents.view_hints_refresh`
 - `actions/hints/_files.py` — `agents.view_files`, `agents.view_agent_files`,
   `agents.view_hint_bar_mount`
+- `actions/agents/_panel_artifact_open.py` — `artifact_viewer.open.select`,
+  `artifact_viewer.open.materialize`, `artifact_viewer.open.split`,
+  `artifact_viewer.open.decorate`
 - `widgets/prompt_panel/_agent_display_hints.py` —
   `widget.prompt_panel.update_display_with_hints`
 - `widgets/patch_list.py` — `widget.patch_list.update_list`,

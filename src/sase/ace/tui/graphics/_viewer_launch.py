@@ -12,6 +12,7 @@ from ._viewer_artifact_files import artifact_file_view_spec
 from ._viewer_loop import run_artifact_sequence_loop, run_artifact_text_viewer
 from ._viewer_render import artifact_file_view_mode
 from ._viewer_tmux import (
+    ArtifactViewerLaunchContext,
     TmuxPaneDecorationResult,
     TmuxPaneDecorationState,
     artifact_file_tmux_pane_exists,
@@ -39,6 +40,7 @@ from ._viewer_types import (
 )
 
 __all__ = [
+    "ArtifactViewerLaunchContext",
     "TmuxPaneDecorationResult",
     "TmuxPaneDecorationState",
     "_artifact_file_view_spec",
@@ -174,16 +176,20 @@ def view_registered_artifact_file_in_tmux_pane(
     artifact: ArtifactFileLike,
     *,
     zoom: bool = False,
+    launch: ArtifactViewerLaunchContext | None = None,
 ) -> ArtifactFileViewerResult:
     """Open a registered artifact file with the terminal viewer in a tmux pane."""
 
-    return view_registered_artifact_files_in_tmux_pane((artifact,), zoom=zoom)
+    return view_registered_artifact_files_in_tmux_pane(
+        (artifact,), zoom=zoom, launch=launch
+    )
 
 
 def view_registered_artifact_files_in_tmux_pane(
     artifacts: Sequence[ArtifactFileLike],
     *,
     zoom: bool = False,
+    launch: ArtifactViewerLaunchContext | None = None,
 ) -> ArtifactFileViewerResult:
     """Open one or more registered artifact files in a tmux pane."""
 
@@ -194,6 +200,7 @@ def view_registered_artifact_files_in_tmux_pane(
     return view_artifact_files_in_tmux_pane(
         tuple(_artifact_file_view_spec(artifact) for artifact in specs),
         zoom=zoom,
+        launch=launch,
     )
 
 

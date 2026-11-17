@@ -79,7 +79,7 @@ def test_agents_open_artifact_files_materializes_byte_free_row_before_open(
 
     assert len(calls) == 1
     assert calls[0].path == str(cached)
-    app.notify.assert_not_called()
+    app.notify.assert_called_once_with("Fetching 1 artifact file…")
     app.agent_list.focus.assert_called_once_with()
 
 
@@ -108,7 +108,8 @@ def test_agents_open_artifact_files_materialize_oserror_notifies_and_restores_fo
     callback(row)
 
     viewer.assert_not_called()
-    app.notify.assert_called_once_with(
+    app.notify.assert_any_call("Fetching 1 artifact file…")
+    app.notify.assert_any_call(
         "Could not open artifact file: content unavailable for sase@deadbeef:x",
         severity="warning",
     )
@@ -138,7 +139,7 @@ def test_agents_open_artifact_files_marked_zoom_materializes_and_forwards_zoom(
 
     calls: list[tuple[list[object], bool]] = []
 
-    def fake_tmux_viewer(selected_artifacts, *, zoom: bool = False):
+    def fake_tmux_viewer(selected_artifacts, *, zoom: bool = False, launch=None):
         calls.append((list(selected_artifacts), zoom))
         return ArtifactFileViewerResult(True, pane_id="%7")
 
@@ -154,7 +155,9 @@ def test_agents_open_artifact_files_marked_zoom_materializes_and_forwards_zoom(
     )
     monkeypatch.setattr(
         "sase.ace.tui.graphics.decorate_artifact_file_tmux_panes",
-        lambda _pane_id: TmuxPaneDecorationResult(True, state=_decoration_state()),
+        lambda _pane_id, **_kwargs: TmuxPaneDecorationResult(
+            True, state=_decoration_state()
+        ),
     )
 
     app.action_open_artifact_files()

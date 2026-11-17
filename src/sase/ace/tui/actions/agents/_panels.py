@@ -41,6 +41,7 @@ class AgentPanelsMixin(
     _agents: list[Agent]
     _artifact_file_tmux_pane_id: str | None
     _artifact_file_tmux_decoration_state: TmuxPaneDecorationState | None
+    _artifact_file_tmux_open_in_flight: bool
     _artifact_file_viewer_previous_sigusr1_handler: (
         signal.Handlers | int | Callable[[int, FrameType | None], Any] | None
     )

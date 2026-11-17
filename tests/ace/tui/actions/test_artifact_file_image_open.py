@@ -165,7 +165,7 @@ def test_agents_open_artifact_files_single_selection_uses_tmux_pane_without_susp
     app._artifacts = [artifact]
     calls: list[object] = []
 
-    def fake_tmux_viewer(viewed_artifact) -> ArtifactFileViewerResult:
+    def fake_tmux_viewer(viewed_artifact, **_kwargs) -> ArtifactFileViewerResult:
         calls.append(viewed_artifact)
         assert app.suspend_recorder.entered is False
         return ArtifactFileViewerResult(True, pane_id="%7")
@@ -198,11 +198,11 @@ def test_agents_open_artifact_files_single_selection_uses_tmux_pane_without_susp
 
     assert calls == [artifact]
     assert app._artifact_file_tmux_pane_id == "%7"
-    decorate.assert_called_once_with("%7")
+    assert decorate.call_args.args[0] == "%7"
     assert app._artifact_file_tmux_decoration_state == _decoration_state()
     assert "-artifact-file-viewer-active" in app.content.classes
     same_pane_viewer.assert_not_called()
-    app.notify.assert_not_called()
+    app.notify.assert_called_once_with("Opening artifact viewer…")
 
 
 def test_agents_open_artifact_files_zoomed_single_selection_passes_zoom_to_tmux(
@@ -221,6 +221,7 @@ def test_agents_open_artifact_files_zoomed_single_selection_passes_zoom_to_tmux(
         viewed_artifact,
         *,
         zoom: bool = False,
+        launch=None,
     ) -> ArtifactFileViewerResult:
         calls.append((viewed_artifact, zoom))
         assert app.suspend_recorder.entered is False
@@ -250,13 +251,13 @@ def test_agents_open_artifact_files_zoomed_single_selection_passes_zoom_to_tmux(
 
     assert calls == [(artifact, True)]
     assert app._artifact_file_tmux_pane_id == "%7"
-    decorate.assert_called_once_with("%7")
+    assert decorate.call_args.args[0] == "%7"
     assert app._artifact_file_tmux_decoration_state == _decoration_state()
     assert "-artifact-file-viewer-active" in app.content.classes
-    app.notify.assert_not_called()
+    app.notify.assert_called_once_with("Opening artifact viewer…")
 
 
-def test_agents_tmux_artifact_launch_exposes_notify_pid_temporarily(
+def test_agents_tmux_artifact_launch_passes_notify_pid_in_context(
     tmp_path: Path,
     monkeypatch,
 ) -> None:
@@ -266,20 +267,22 @@ def test_agents_tmux_artifact_launch_exposes_notify_pid_temporarily(
     artifact = SimpleNamespace(path=str(image), kind="image", label="Image")
     app._selected_agent = SimpleNamespace(status="DONE")
     app._artifacts = [artifact]
-    notify_values: list[str | None] = []
+    launches: list[object] = []
     monkeypatch.delenv("SASE_ARTIFACT_FILE_NOTIFY_PID", raising=False)
+    before = dict(os.environ)
     monkeypatch.setattr("sase.ace.tui.graphics.is_tmux_session", lambda: True)
     monkeypatch.setattr(
-        "sase.ace.tui.graphics.artifact_file_tmux_pane_exists",
-        lambda _pane_id: True,
-    )
-    monkeypatch.setattr(
         "sase.ace.tui.graphics.decorate_artifact_file_tmux_panes",
-        lambda _pane_id: TmuxPaneDecorationResult(True, state=_decoration_state()),
+        lambda _pane_id, **_kwargs: TmuxPaneDecorationResult(
+            True, state=_decoration_state()
+        ),
     )
 
-    def fake_tmux_viewer(_viewed_artifact) -> ArtifactFileViewerResult:
-        notify_values.append(os.environ.get("SASE_ARTIFACT_FILE_NOTIFY_PID"))
+    def fake_tmux_viewer(
+        _viewed_artifact, *, launch=None, **_kwargs
+    ) -> ArtifactFileViewerResult:
+        launches.append(launch)
+        assert os.environ.get("SASE_ARTIFACT_FILE_NOTIFY_PID") is None
         return ArtifactFileViewerResult(True, pane_id="%7")
 
     monkeypatch.setattr(
@@ -293,8 +296,13 @@ def test_agents_tmux_artifact_launch_exposes_notify_pid_temporarily(
 
     callback(artifact)
 
-    assert notify_values == [str(os.getpid())]
-    assert os.environ.get("SASE_ARTIFACT_FILE_NOTIFY_PID") is None
+    assert len(launches) == 1
+    launch = launches[0]
+    assert launch is not None
+    assert launch.notify_pid == os.getpid()
+    assert launch.open_id
+    assert launch.extra_env["SASE_ARTIFACT_VIEWER_OPEN_ID"] == launch.open_id
+    assert dict(os.environ) == before
 
 
 def test_agents_open_artifact_files_action_surfaces_tmux_warning(
@@ -310,7 +318,9 @@ def test_agents_open_artifact_files_action_surfaces_tmux_warning(
     monkeypatch.setattr("sase.ace.tui.graphics.is_tmux_session", lambda: True)
     monkeypatch.setattr(
         "sase.ace.tui.graphics.view_registered_artifact_file_in_tmux_pane",
-        lambda _artifact: ArtifactFileViewerResult(False, warning="tmux missing"),
+        lambda _artifact, **_kwargs: ArtifactFileViewerResult(
+            False, warning="tmux missing"
+        ),
     )
 
     app.action_open_artifact_files()
@@ -320,7 +330,9 @@ def test_agents_open_artifact_files_action_surfaces_tmux_warning(
     callback(artifact)
 
     assert app.suspend_recorder.entered is False
-    app.notify.assert_called_once_with("tmux missing", severity="warning")
+    messages = [call.args[0] for call in app.notify.call_args_list]
+    assert "Opening artifact viewer…" in messages
+    app.notify.assert_any_call("tmux missing", severity="warning")
 
 
 def test_agents_open_artifact_files_action_warns_when_no_files(monkeypatch) -> None:
@@ -442,7 +454,7 @@ def test_agents_open_artifact_files_modal_callback_opens_marked_sequence_in_tmux
     app._artifacts = artifacts
     calls: list[list[object]] = []
 
-    def fake_tmux_viewer(selected_artifacts) -> ArtifactFileViewerResult:
+    def fake_tmux_viewer(selected_artifacts, **_kwargs) -> ArtifactFileViewerResult:
         calls.append(list(selected_artifacts))
         assert app.suspend_recorder.entered is False
         return ArtifactFileViewerResult(True, pane_id="%7")
@@ -475,7 +487,7 @@ def test_agents_open_artifact_files_modal_callback_opens_marked_sequence_in_tmux
 
     assert calls == [artifacts]
     assert app._artifact_file_tmux_pane_id == "%7"
-    decorate.assert_called_once_with("%7")
+    assert decorate.call_args.args[0] == "%7"
     assert app._artifact_file_tmux_decoration_state == _decoration_state()
     assert "-artifact-file-viewer-active" in app.content.classes
     same_pane_viewer.assert_not_called()
@@ -499,6 +511,7 @@ def test_agents_open_artifact_files_zoomed_marked_sequence_passes_zoom_to_tmux(
         selected_artifacts,
         *,
         zoom: bool = False,
+        launch=None,
     ) -> ArtifactFileViewerResult:
         calls.append((list(selected_artifacts), zoom))
         assert app.suspend_recorder.entered is False
@@ -528,7 +541,7 @@ def test_agents_open_artifact_files_zoomed_marked_sequence_passes_zoom_to_tmux(
 
     assert calls == [(artifacts, True)]
     assert app._artifact_file_tmux_pane_id == "%7"
-    decorate.assert_called_once_with("%7")
+    assert decorate.call_args.args[0] == "%7"
     assert app._artifact_file_tmux_decoration_state == _decoration_state()
     assert "-artifact-file-viewer-active" in app.content.classes
     app.agent_list.focus.assert_called_once_with()

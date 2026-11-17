@@ -203,6 +203,7 @@ def init_agent_state(self: Any) -> None:
     self._agents_repro_output_dir = ""
     self._artifact_file_tmux_pane_id = None
     self._artifact_file_tmux_decoration_state = None
+    self._artifact_file_tmux_open_in_flight = False
     self._artifact_file_viewer_previous_sigusr1_handler = None
     # Bounded LRU; eviction happens in
     # ``_panel_artifact_files._artifact_file_cache_put`` once the cache exceeds

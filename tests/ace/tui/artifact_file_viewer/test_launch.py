@@ -21,6 +21,8 @@ from sase.ace.tui.graphics.viewer import (
     view_registered_artifact_files_in_tmux_pane,
 )
 
+from ._helpers import _patch_tmux_run, _patch_tmux_which
+
 
 @dataclass(frozen=True)
 class _Artifact:
@@ -125,16 +127,13 @@ def test_view_registered_artifact_files_tmux_pane_uses_normalized_module_command
     calls: list[list[str]] = []
     monkeypatch.setenv("TMUX", "/tmp/tmux")
     monkeypatch.delenv("TMUX_PANE", raising=False)
-    monkeypatch.setattr(
-        "sase.ace.tui.graphics.viewer.shutil.which",
-        lambda tool: f"/usr/bin/{tool}" if tool == "tmux" else None,
-    )
+    _patch_tmux_which(monkeypatch)
 
     def fake_run(cmd, **_kwargs):
         calls.append(list(cmd))
         return subprocess.CompletedProcess(cmd, 0, "%7\n", "")
 
-    monkeypatch.setattr("sase.ace.tui.graphics.viewer.subprocess.run", fake_run)
+    _patch_tmux_run(monkeypatch, fake_run)
 
     result = view_registered_artifact_files_in_tmux_pane(
         (_Artifact(path=str(pdf), kind="pdf", source_path=str(source)),)

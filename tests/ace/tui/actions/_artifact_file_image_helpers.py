@@ -46,6 +46,7 @@ class _ImageActionApp(AgentPanelsMixin):
         self.pushed: list[Any] = []
         self._artifact_file_tmux_pane_id: str | None = None
         self._artifact_file_tmux_decoration_state: TmuxPaneDecorationState | None = None
+        self._artifact_file_tmux_open_in_flight = False
         self._agents_with_children: list[Any] = []
         self._marked_agents: set[Any] = set()
 

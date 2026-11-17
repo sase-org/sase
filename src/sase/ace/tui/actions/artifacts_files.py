@@ -148,6 +148,9 @@ class ArtifactsFilesActionsMixin:
     def action_files_open_viewer(self) -> None:
         """Open the marked visible rows, or the selection, in one viewer."""
 
+        reject = getattr(self, "_reject_if_artifact_file_viewer_open_in_flight", None)
+        if callable(reject) and reject():
+            return
         toggle = getattr(self, "_toggle_tracked_artifact_file_tmux_pane", None)
         if callable(toggle) and toggle():
             return

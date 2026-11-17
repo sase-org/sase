@@ -4,10 +4,10 @@ from __future__ import annotations
 
 import os
 import shlex
-import shutil
 import subprocess
 import sys
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
+from dataclasses import dataclass, field
 from pathlib import Path
 
 from ._viewer_loop_media import (
@@ -16,9 +16,15 @@ from ._viewer_loop_media import (
     serialize_video_playback_config,
 )
 from ._viewer_tmux_common import (
+    ARTIFACT_VIEWER_OPEN_ID_ENV,
+    ARTIFACT_VIEWER_OPEN_T0_ENV,
     _ARTIFACT_FILE_NOTIFY_PID_ENV,
     _ARTIFACT_RETURN_PANE_ID_ENV,
+    tmux_completed_process,
     is_tmux_session,
+    tmux_binary_available,
+    tmux_process_timed_out,
+    tmux_timeout_warning,
 )
 from ._viewer_tmux_decoration import (
     TmuxPaneDecorationResult,
@@ -34,6 +40,7 @@ from ._viewer_types import (
 )
 
 __all__ = [
+    "ArtifactViewerLaunchContext",
     "TmuxPaneDecorationResult",
     "TmuxPaneDecorationState",
     "artifact_file_tmux_pane_exists",
@@ -49,24 +56,93 @@ __all__ = [
 ]
 
 
+@dataclass(frozen=True)
+class ArtifactViewerLaunchContext:
+    """Explicit tmux-pane launch env so callers need not mutate ``os.environ``."""
+
+    notify_pid: int | None = None
+    return_pane_id: str | None = None
+    extra_env: Mapping[str, str] = field(default_factory=dict)
+    open_id: str | None = None
+    open_t0: float | None = None
+
+
+def _run_tmux_command(command: Sequence[str]) -> subprocess.CompletedProcess[str]:
+    """Run a tmux argv with the shared launch timeout."""
+
+    result = tmux_completed_process(command)
+    if result is None:
+        return subprocess.CompletedProcess(
+            list(command),
+            127,
+            "",
+            "tmux executable not found",
+        )
+    return result
+
+
 def view_artifact_file_in_tmux_pane(
     path: str | Path,
     *,
     kind: str | None = None,
     zoom: bool = False,
+    launch: ArtifactViewerLaunchContext | None = None,
 ) -> ArtifactFileViewerResult:
     """Launch the artifact viewer in a right-side tmux pane."""
 
     return view_artifact_files_in_tmux_pane(
         (ArtifactFileViewSpec(path, kind),),
         zoom=zoom,
+        launch=launch,
     )
+
+
+def _tmux_split_env_pairs(
+    launch: ArtifactViewerLaunchContext | None,
+) -> list[tuple[str, str]]:
+    """Build ``split-window -e`` pairs from *launch* or process-env defaults."""
+
+    extra_env = dict(launch.extra_env) if launch is not None else {}
+    if launch is not None:
+        if launch.open_id:
+            extra_env.setdefault(ARTIFACT_VIEWER_OPEN_ID_ENV, launch.open_id)
+        if launch.open_t0 is not None:
+            extra_env.setdefault(ARTIFACT_VIEWER_OPEN_T0_ENV, str(launch.open_t0))
+        notify_pid = str(launch.notify_pid) if launch.notify_pid is not None else None
+        origin_pane_id = launch.return_pane_id
+    else:
+        notify_pid = os.environ.get(_ARTIFACT_FILE_NOTIFY_PID_ENV)
+        origin_pane_id = None
+    if not origin_pane_id:
+        origin_pane_id = os.environ.get("TMUX_PANE")
+
+    pairs: list[tuple[str, str]] = []
+    added: set[str] = set()
+
+    def _add(key: str, value: str | None) -> None:
+        if not value or key in added:
+            return
+        pairs.append((key, value))
+        added.add(key)
+
+    _add(_ARTIFACT_RETURN_PANE_ID_ENV, origin_pane_id)
+    _add(_ARTIFACT_FILE_NOTIFY_PID_ENV, notify_pid)
+    snapshot = serialize_video_playback_config(
+        load_merged_artifact_video_playback_config()
+    )
+    _add(ARTIFACT_VIEWER_VIDEO_CONFIG_ENV, snapshot)
+    for key in ("SASE_TUI_TRACE", "SASE_TUI_TRACE_PATH"):
+        _add(key, extra_env.get(key) or os.environ.get(key))
+    for key, value in extra_env.items():
+        _add(key, value)
+    return pairs
 
 
 def view_artifact_files_in_tmux_pane(
     artifacts: Sequence[ArtifactFileViewSpec],
     *,
     zoom: bool = False,
+    launch: ArtifactViewerLaunchContext | None = None,
 ) -> ArtifactFileViewerResult:
     """Launch one or more artifacts in a right-side tmux pane."""
 
@@ -87,7 +163,7 @@ def view_artifact_files_in_tmux_pane(
             tool="tmux",
         )
         return viewer_result_from_warnings((warning,))
-    if shutil.which("tmux") is None:
+    if not tmux_binary_available():
         warning = ArtifactFileViewerWarning(
             "missing_tmux",
             "tmux executable not found",
@@ -104,26 +180,13 @@ def view_artifact_files_in_tmux_pane(
         "-F",
         "#{pane_id}",
     ]
-    if origin_pane_id := os.environ.get("TMUX_PANE"):
-        tmux_command.extend(["-e", f"{_ARTIFACT_RETURN_PANE_ID_ENV}={origin_pane_id}"])
-    if notify_pid := os.environ.get(_ARTIFACT_FILE_NOTIFY_PID_ENV):
-        tmux_command.extend(["-e", f"{_ARTIFACT_FILE_NOTIFY_PID_ENV}={notify_pid}"])
-    snapshot = serialize_video_playback_config(
-        load_merged_artifact_video_playback_config()
-    )
-    tmux_command.extend(["-e", f"{ARTIFACT_VIEWER_VIDEO_CONFIG_ENV}={snapshot}"])
-    for key in ("SASE_TUI_TRACE", "SASE_TUI_TRACE_PATH"):
-        value = os.environ.get(key)
-        if value:
-            tmux_command.extend(["-e", f"{key}={value}"])
+    for key, value in _tmux_split_env_pairs(launch):
+        tmux_command.extend(["-e", f"{key}={value}"])
     tmux_command.append(shlex.join(viewer_command))
-    result = subprocess.run(
-        tmux_command,
-        check=False,
-        capture_output=True,
-        text=True,
-    )
+    result = _run_tmux_command(tmux_command)
     if result.returncode != 0:
+        if tmux_process_timed_out(result):
+            return viewer_result_from_warnings((tmux_timeout_warning("split-window"),))
         stderr = result.stderr.strip()
         suffix = f": {stderr}" if stderr else ""
         warning = ArtifactFileViewerWarning(
@@ -161,13 +224,10 @@ def view_artifact_files_in_tmux_pane(
 def artifact_file_tmux_pane_exists(pane_id: str) -> bool:
     """Return whether *pane_id* currently resolves in tmux."""
 
-    if not pane_id or shutil.which("tmux") is None:
+    if not pane_id or not tmux_binary_available():
         return False
-    result = subprocess.run(
-        ["tmux", "display-message", "-p", "-t", pane_id, "#{pane_id}"],
-        check=False,
-        capture_output=True,
-        text=True,
+    result = _run_tmux_command(
+        ["tmux", "display-message", "-p", "-t", pane_id, "#{pane_id}"]
     )
     return result.returncode == 0 and bool(result.stdout.strip())
 
@@ -196,7 +256,7 @@ def close_artifact_file_tmux_pane(pane_id: str) -> ArtifactFileViewerResult:
             tool="tmux",
         )
         return viewer_result_from_warnings((warning,))
-    if shutil.which("tmux") is None:
+    if not tmux_binary_available():
         warning = ArtifactFileViewerWarning(
             "missing_tmux",
             "tmux executable not found",
@@ -204,13 +264,10 @@ def close_artifact_file_tmux_pane(pane_id: str) -> ArtifactFileViewerResult:
         )
         return viewer_result_from_warnings((warning,))
 
-    result = subprocess.run(
-        ["tmux", "kill-pane", "-t", pane_id],
-        check=False,
-        capture_output=True,
-        text=True,
-    )
+    result = _run_tmux_command(["tmux", "kill-pane", "-t", pane_id])
     if result.returncode != 0:
+        if tmux_process_timed_out(result):
+            return viewer_result_from_warnings((tmux_timeout_warning("kill-pane"),))
         stderr = result.stderr.strip()
         suffix = f": {stderr}" if stderr else ""
         warning = ArtifactFileViewerWarning(
@@ -240,7 +297,7 @@ def select_tmux_pane(pane_id: str) -> ArtifactFileViewerResult:
             tool="tmux",
         )
         return viewer_result_from_warnings((warning,))
-    if shutil.which("tmux") is None:
+    if not tmux_binary_available():
         warning = ArtifactFileViewerWarning(
             "missing_tmux",
             "tmux executable not found",
@@ -248,13 +305,10 @@ def select_tmux_pane(pane_id: str) -> ArtifactFileViewerResult:
         )
         return viewer_result_from_warnings((warning,))
 
-    result = subprocess.run(
-        ["tmux", "select-pane", "-t", pane_id],
-        check=False,
-        capture_output=True,
-        text=True,
-    )
+    result = _run_tmux_command(["tmux", "select-pane", "-t", pane_id])
     if result.returncode != 0:
+        if tmux_process_timed_out(result):
+            return viewer_result_from_warnings((tmux_timeout_warning("select-pane"),))
         stderr = result.stderr.strip()
         suffix = f": {stderr}" if stderr else ""
         warning = ArtifactFileViewerWarning(
@@ -279,7 +333,7 @@ def toggle_artifact_file_tmux_pane_zoom(
             tool="tmux",
         )
         return viewer_result_from_warnings((warning,))
-    if shutil.which("tmux") is None:
+    if not tmux_binary_available():
         warning = ArtifactFileViewerWarning(
             "missing_tmux",
             "tmux executable not found",
@@ -291,13 +345,12 @@ def toggle_artifact_file_tmux_pane_zoom(
     target_pane_id = pane_id if pane_id is not None else os.environ.get("TMUX_PANE")
     if target_pane_id:
         tmux_command.extend(["-t", target_pane_id])
-    result = subprocess.run(
-        tmux_command,
-        check=False,
-        capture_output=True,
-        text=True,
-    )
+    result = _run_tmux_command(tmux_command)
     if result.returncode != 0:
+        if tmux_process_timed_out(result):
+            return viewer_result_from_warnings(
+                (tmux_timeout_warning("resize-pane -Z"),)
+            )
         stderr = result.stderr.strip()
         suffix = f": {stderr}" if stderr else ""
         warning = ArtifactFileViewerWarning(

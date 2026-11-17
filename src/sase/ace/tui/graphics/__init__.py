@@ -14,6 +14,7 @@ from .renderable import ImageFallbackRenderable, image_preview
 from .sizing import image_preview_size_for_viewport
 from .videos import SUPPORTED_VIDEO_EXTENSIONS, is_supported_video_path
 from ._viewer_launch import (
+    ArtifactViewerLaunchContext,
     artifact_file_tmux_pane_exists,
     close_artifact_file_tmux_pane,
     decorate_artifact_file_tmux_panes,
@@ -77,6 +78,7 @@ __all__ = [
     "ArtifactFileViewSpec",
     "ArtifactFileViewerResult",
     "ArtifactFileViewerWarning",
+    "ArtifactViewerLaunchContext",
     "ArtifactVideoPlaybackConfig",
     "ImageViewerResult",
     "artifact_image_area",

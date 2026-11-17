@@ -12,6 +12,7 @@ import pytest
 from sase.ace.tui.graphics.viewer import (
     ARTIFACT_VIEWER_VIDEO_CONFIG_ENV,
     ArtifactFileViewSpec,
+    ArtifactViewerLaunchContext,
     artifact_file_tmux_pane_exists,
     artifact_file_viewer_module_command,
     close_artifact_file_tmux_pane,
@@ -27,7 +28,7 @@ from sase.ace.tui.graphics.viewer import (
 )
 from sase.ace.tui.graphics._viewer_loop import _PageLoopResult
 
-from ._helpers import _tmux_split_env
+from ._helpers import _patch_tmux_run, _patch_tmux_which, _tmux_split_env
 
 
 def test_tmux_detection_returns_false_outside_tmux(monkeypatch) -> None:
@@ -42,7 +43,7 @@ def test_tmux_pane_launch_warns_when_tmux_is_unavailable(
     monkeypatch,
 ) -> None:
     monkeypatch.setenv("TMUX_PANE", "%1")
-    monkeypatch.setattr("sase.ace.tui.graphics.viewer.shutil.which", lambda _tool: None)
+    _patch_tmux_which(monkeypatch, which=lambda _tool: None)
 
     result = view_artifact_file_in_tmux_pane(tmp_path / "artifact.png", kind="image")
 
@@ -60,16 +61,13 @@ def test_tmux_pane_launch_invokes_split_window_with_module_entrypoint(
     calls: list[list[str]] = []
     monkeypatch.setenv("TMUX", "/tmp/tmux")
     monkeypatch.delenv("TMUX_PANE", raising=False)
-    monkeypatch.setattr(
-        "sase.ace.tui.graphics.viewer.shutil.which",
-        lambda tool: f"/usr/bin/{tool}" if tool == "tmux" else None,
-    )
+    _patch_tmux_which(monkeypatch)
 
     def fake_run(cmd, **kwargs):
         calls.append(list(cmd))
         return subprocess.CompletedProcess(cmd, 0, "%7\n", "")
 
-    monkeypatch.setattr("sase.ace.tui.graphics.viewer.subprocess.run", fake_run)
+    _patch_tmux_run(monkeypatch, fake_run)
 
     result = view_artifact_file_in_tmux_pane(artifact, kind="image")
 
@@ -108,10 +106,7 @@ def test_tmux_pane_launch_with_zoom_resizes_returned_pane(
     calls: list[list[str]] = []
     monkeypatch.setenv("TMUX", "/tmp/tmux")
     monkeypatch.delenv("TMUX_PANE", raising=False)
-    monkeypatch.setattr(
-        "sase.ace.tui.graphics.viewer.shutil.which",
-        lambda tool: f"/usr/bin/{tool}" if tool == "tmux" else None,
-    )
+    _patch_tmux_which(monkeypatch)
 
     def fake_run(cmd, **kwargs):
         calls.append(list(cmd))
@@ -121,7 +116,7 @@ def test_tmux_pane_launch_with_zoom_resizes_returned_pane(
             return subprocess.CompletedProcess(cmd, 0, "", "")
         raise AssertionError(cmd)
 
-    monkeypatch.setattr("sase.ace.tui.graphics.viewer.subprocess.run", fake_run)
+    _patch_tmux_run(monkeypatch, fake_run)
 
     result = view_artifact_file_in_tmux_pane(artifact, kind="image", zoom=True)
 
@@ -147,10 +142,7 @@ def test_tmux_pane_launch_with_zoom_failure_preserves_live_pane(
     calls: list[list[str]] = []
     monkeypatch.setenv("TMUX", "/tmp/tmux")
     monkeypatch.delenv("TMUX_PANE", raising=False)
-    monkeypatch.setattr(
-        "sase.ace.tui.graphics.viewer.shutil.which",
-        lambda tool: f"/usr/bin/{tool}" if tool == "tmux" else None,
-    )
+    _patch_tmux_which(monkeypatch)
 
     def fake_run(cmd, **kwargs):
         calls.append(list(cmd))
@@ -160,7 +152,7 @@ def test_tmux_pane_launch_with_zoom_failure_preserves_live_pane(
             return subprocess.CompletedProcess(cmd, 1, "", "no pane")
         raise AssertionError(cmd)
 
-    monkeypatch.setattr("sase.ace.tui.graphics.viewer.subprocess.run", fake_run)
+    _patch_tmux_run(monkeypatch, fake_run)
 
     result = view_artifact_file_in_tmux_pane(artifact, kind="image", zoom=True)
 
@@ -179,16 +171,13 @@ def test_tmux_pane_launch_passes_return_pane_env_when_available(
     artifact.write_bytes(b"png")
     calls: list[list[str]] = []
     monkeypatch.setenv("TMUX_PANE", "%1")
-    monkeypatch.setattr(
-        "sase.ace.tui.graphics.viewer.shutil.which",
-        lambda tool: f"/usr/bin/{tool}" if tool == "tmux" else None,
-    )
+    _patch_tmux_which(monkeypatch)
 
     def fake_run(cmd, **kwargs):
         calls.append(list(cmd))
         return subprocess.CompletedProcess(cmd, 0, "%7\n", "")
 
-    monkeypatch.setattr("sase.ace.tui.graphics.viewer.subprocess.run", fake_run)
+    _patch_tmux_run(monkeypatch, fake_run)
 
     result = view_artifact_file_in_tmux_pane(artifact, kind="image")
 
@@ -227,16 +216,13 @@ def test_tmux_pane_launch_passes_notify_pid_env_when_available(
     monkeypatch.setenv("TMUX", "/tmp/tmux")
     monkeypatch.setenv("SASE_ARTIFACT_FILE_NOTIFY_PID", "12345")
     monkeypatch.delenv("TMUX_PANE", raising=False)
-    monkeypatch.setattr(
-        "sase.ace.tui.graphics.viewer.shutil.which",
-        lambda tool: f"/usr/bin/{tool}" if tool == "tmux" else None,
-    )
+    _patch_tmux_which(monkeypatch)
 
     def fake_run(cmd, **kwargs):
         calls.append(list(cmd))
         return subprocess.CompletedProcess(cmd, 0, "%7\n", "")
 
-    monkeypatch.setattr("sase.ace.tui.graphics.viewer.subprocess.run", fake_run)
+    _patch_tmux_run(monkeypatch, fake_run)
 
     result = view_artifact_file_in_tmux_pane(artifact, kind="image")
 
@@ -268,16 +254,13 @@ def test_tmux_pane_launch_invokes_multi_artifact_entrypoint(
     calls: list[list[str]] = []
     monkeypatch.setenv("TMUX", "/tmp/tmux")
     monkeypatch.delenv("TMUX_PANE", raising=False)
-    monkeypatch.setattr(
-        "sase.ace.tui.graphics.viewer.shutil.which",
-        lambda tool: f"/usr/bin/{tool}" if tool == "tmux" else None,
-    )
+    _patch_tmux_which(monkeypatch)
 
     def fake_run(cmd, **kwargs):
         calls.append(list(cmd))
         return subprocess.CompletedProcess(cmd, 0, "%7\n", "")
 
-    monkeypatch.setattr("sase.ace.tui.graphics.viewer.subprocess.run", fake_run)
+    _patch_tmux_run(monkeypatch, fake_run)
 
     result = view_artifact_file_in_tmux_pane(artifacts[0].path, kind=artifacts[0].kind)
     assert result.ok is True
@@ -309,10 +292,7 @@ def test_tmux_pane_launch_invokes_multi_artifact_entrypoint(
 def test_tmux_pane_helpers_check_and_kill_tracked_pane(monkeypatch) -> None:
     calls: list[list[str]] = []
     monkeypatch.setenv("TMUX_PANE", "%1")
-    monkeypatch.setattr(
-        "sase.ace.tui.graphics.viewer.shutil.which",
-        lambda tool: f"/usr/bin/{tool}" if tool == "tmux" else None,
-    )
+    _patch_tmux_which(monkeypatch)
 
     def fake_run(cmd, **kwargs):
         calls.append(list(cmd))
@@ -322,7 +302,7 @@ def test_tmux_pane_helpers_check_and_kill_tracked_pane(monkeypatch) -> None:
             return subprocess.CompletedProcess(cmd, 0, "", "")
         raise AssertionError(cmd)
 
-    monkeypatch.setattr("sase.ace.tui.graphics.viewer.subprocess.run", fake_run)
+    _patch_tmux_run(monkeypatch, fake_run)
 
     assert artifact_file_tmux_pane_exists("%7") is True
     result = close_artifact_file_tmux_pane("%7")
@@ -337,16 +317,13 @@ def test_tmux_pane_helpers_check_and_kill_tracked_pane(monkeypatch) -> None:
 def test_tmux_select_pane_helper_focuses_pane(monkeypatch) -> None:
     calls: list[list[str]] = []
     monkeypatch.setenv("TMUX_PANE", "%1")
-    monkeypatch.setattr(
-        "sase.ace.tui.graphics.viewer.shutil.which",
-        lambda tool: f"/usr/bin/{tool}" if tool == "tmux" else None,
-    )
+    _patch_tmux_which(monkeypatch)
 
     def fake_run(cmd, **kwargs):
         calls.append(list(cmd))
         return subprocess.CompletedProcess(cmd, 0, "", "")
 
-    monkeypatch.setattr("sase.ace.tui.graphics.viewer.subprocess.run", fake_run)
+    _patch_tmux_run(monkeypatch, fake_run)
 
     result = select_tmux_pane("%7")
 
@@ -356,12 +333,9 @@ def test_tmux_select_pane_helper_focuses_pane(monkeypatch) -> None:
 
 def test_tmux_select_pane_helper_surfaces_failure(monkeypatch) -> None:
     monkeypatch.setenv("TMUX_PANE", "%1")
-    monkeypatch.setattr(
-        "sase.ace.tui.graphics.viewer.shutil.which",
-        lambda tool: f"/usr/bin/{tool}" if tool == "tmux" else None,
-    )
-    monkeypatch.setattr(
-        "sase.ace.tui.graphics.viewer.subprocess.run",
+    _patch_tmux_which(monkeypatch)
+    _patch_tmux_run(
+        monkeypatch,
         lambda cmd, **kwargs: subprocess.CompletedProcess(cmd, 1, "", "no pane"),
     )
 
@@ -375,16 +349,13 @@ def test_tmux_select_pane_helper_surfaces_failure(monkeypatch) -> None:
 def test_tmux_zoom_helper_toggles_current_tmux_pane(monkeypatch) -> None:
     calls: list[list[str]] = []
     monkeypatch.setenv("TMUX_PANE", "%7")
-    monkeypatch.setattr(
-        "sase.ace.tui.graphics.viewer.shutil.which",
-        lambda tool: f"/usr/bin/{tool}" if tool == "tmux" else None,
-    )
+    _patch_tmux_which(monkeypatch)
 
     def fake_run(cmd, **kwargs):
         calls.append(list(cmd))
         return subprocess.CompletedProcess(cmd, 0, "", "")
 
-    monkeypatch.setattr("sase.ace.tui.graphics.viewer.subprocess.run", fake_run)
+    _patch_tmux_run(monkeypatch, fake_run)
 
     result = toggle_artifact_file_tmux_pane_zoom()
 
@@ -398,16 +369,13 @@ def test_tmux_zoom_helper_uses_current_pane_without_tmux_pane_env(
     calls: list[list[str]] = []
     monkeypatch.setenv("TMUX", "/tmp/tmux")
     monkeypatch.delenv("TMUX_PANE", raising=False)
-    monkeypatch.setattr(
-        "sase.ace.tui.graphics.viewer.shutil.which",
-        lambda tool: f"/usr/bin/{tool}" if tool == "tmux" else None,
-    )
+    _patch_tmux_which(monkeypatch)
 
     def fake_run(cmd, **kwargs):
         calls.append(list(cmd))
         return subprocess.CompletedProcess(cmd, 0, "", "")
 
-    monkeypatch.setattr("sase.ace.tui.graphics.viewer.subprocess.run", fake_run)
+    _patch_tmux_run(monkeypatch, fake_run)
 
     result = toggle_artifact_file_tmux_pane_zoom()
 
@@ -417,12 +385,9 @@ def test_tmux_zoom_helper_uses_current_pane_without_tmux_pane_env(
 
 def test_tmux_zoom_helper_surfaces_failure(monkeypatch) -> None:
     monkeypatch.setenv("TMUX_PANE", "%7")
-    monkeypatch.setattr(
-        "sase.ace.tui.graphics.viewer.shutil.which",
-        lambda tool: f"/usr/bin/{tool}" if tool == "tmux" else None,
-    )
-    monkeypatch.setattr(
-        "sase.ace.tui.graphics.viewer.subprocess.run",
+    _patch_tmux_which(monkeypatch)
+    _patch_tmux_run(
+        monkeypatch,
         lambda cmd, **kwargs: subprocess.CompletedProcess(cmd, 1, "", "no pane"),
     )
 
@@ -446,10 +411,7 @@ def test_tmux_artifact_decoration_snapshots_sets_and_restores(monkeypatch) -> No
         "%7": "artifact title",
     }
     monkeypatch.setenv("TMUX_PANE", "%1")
-    monkeypatch.setattr(
-        "sase.ace.tui.graphics.viewer.shutil.which",
-        lambda tool: f"/usr/bin/{tool}" if tool == "tmux" else None,
-    )
+    _patch_tmux_which(monkeypatch)
 
     def fake_run(cmd, **kwargs):
         calls.append(list(cmd))
@@ -463,7 +425,7 @@ def test_tmux_artifact_decoration_snapshots_sets_and_restores(monkeypatch) -> No
             return subprocess.CompletedProcess(cmd, 0, "", "")
         raise AssertionError(cmd)
 
-    monkeypatch.setattr("sase.ace.tui.graphics.viewer.subprocess.run", fake_run)
+    _patch_tmux_run(monkeypatch, fake_run)
 
     result = decorate_artifact_file_tmux_panes("%7")
 
@@ -523,10 +485,7 @@ def test_tmux_artifact_decoration_failure_does_not_block_viewing(
     artifact.write_bytes(b"png")
     calls: list[list[str]] = []
     monkeypatch.setenv("TMUX_PANE", "%1")
-    monkeypatch.setattr(
-        "sase.ace.tui.graphics.viewer.shutil.which",
-        lambda tool: f"/usr/bin/{tool}" if tool == "tmux" else None,
-    )
+    _patch_tmux_which(monkeypatch)
 
     def fake_run(cmd, **kwargs):
         calls.append(list(cmd))
@@ -536,7 +495,7 @@ def test_tmux_artifact_decoration_failure_does_not_block_viewing(
             return subprocess.CompletedProcess(cmd, 1, "", "old tmux")
         return subprocess.CompletedProcess(cmd, 0, "title\n", "")
 
-    monkeypatch.setattr("sase.ace.tui.graphics.viewer.subprocess.run", fake_run)
+    _patch_tmux_run(monkeypatch, fake_run)
 
     launch = view_artifact_file_in_tmux_pane(artifact, kind="image")
     decoration = decorate_artifact_file_tmux_panes("%7")
@@ -577,11 +536,8 @@ def test_artifact_file_viewer_notifies_parent_pid_on_exit(
 def test_tmux_pane_close_refuses_current_pane(monkeypatch) -> None:
     kill = MagicMock()
     monkeypatch.setenv("TMUX_PANE", "%1")
-    monkeypatch.setattr(
-        "sase.ace.tui.graphics.viewer.shutil.which",
-        lambda tool: f"/usr/bin/{tool}" if tool == "tmux" else None,
-    )
-    monkeypatch.setattr("sase.ace.tui.graphics.viewer.subprocess.run", kill)
+    _patch_tmux_which(monkeypatch)
+    _patch_tmux_run(monkeypatch, kill)
 
     result = close_artifact_file_tmux_pane("%1")
 
@@ -594,10 +550,7 @@ def test_tmux_pane_view_warns_instead_of_crashing_on_missing_path(
     monkeypatch,
 ) -> None:
     monkeypatch.setenv("TMUX", "/tmp/tmux")
-    monkeypatch.setattr(
-        "sase.ace.tui.graphics.viewer.shutil.which",
-        lambda tool: f"/usr/bin/{tool}" if tool == "tmux" else None,
-    )
+    _patch_tmux_which(monkeypatch)
 
     result = view_artifact_files_in_tmux_pane(
         (ArtifactFileViewSpec(None, "image"),)  # type: ignore[arg-type]
@@ -614,3 +567,109 @@ def test_artifact_file_viewer_module_command_raises_value_error_on_missing_path(
         artifact_file_viewer_module_command(
             (ArtifactFileViewSpec(None, "image"),)  # type: ignore[arg-type]
         )
+
+
+def test_tmux_pane_launch_passes_launch_context_env(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    artifact = tmp_path / "artifact.png"
+    artifact.write_bytes(b"png")
+    calls: list[list[str]] = []
+    monkeypatch.setenv("TMUX", "/tmp/tmux")
+    monkeypatch.setenv("TMUX_PANE", "%9")
+    monkeypatch.setenv("SASE_ARTIFACT_FILE_NOTIFY_PID", "999")
+    monkeypatch.delenv("SASE_ARTIFACT_VIEWER_OPEN_ID", raising=False)
+    _patch_tmux_which(monkeypatch)
+
+    def fake_run(cmd, **kwargs):
+        calls.append(list(cmd))
+        assert kwargs.get("timeout") == 2
+        return subprocess.CompletedProcess(cmd, 0, "%7\n", "")
+
+    _patch_tmux_run(monkeypatch, fake_run)
+
+    result = view_artifact_files_in_tmux_pane(
+        (ArtifactFileViewSpec(artifact, "image"),),
+        launch=ArtifactViewerLaunchContext(
+            notify_pid=4242,
+            return_pane_id="%1",
+            extra_env={"SASE_TUI_TRACE": "1"},
+            open_id="open-abc",
+            open_t0=12.5,
+        ),
+    )
+
+    assert result.ok is True
+    env = _tmux_split_env(calls[0])
+    assert env["SASE_ARTIFACT_RETURN_PANE_ID"] == "%1"
+    assert env["SASE_ARTIFACT_FILE_NOTIFY_PID"] == "4242"
+    assert env["SASE_ARTIFACT_VIEWER_OPEN_ID"] == "open-abc"
+    assert env["SASE_ARTIFACT_VIEWER_OPEN_T0"] == "12.5"
+    assert env["SASE_TUI_TRACE"] == "1"
+    assert (
+        parse_video_playback_config_env(env[ARTIFACT_VIEWER_VIDEO_CONFIG_ENV])
+        is not None
+    )
+
+
+def test_tmux_pane_launch_timeout_surfaces_warning(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    artifact = tmp_path / "artifact.png"
+    artifact.write_bytes(b"png")
+    monkeypatch.setenv("TMUX", "/tmp/tmux")
+    monkeypatch.delenv("TMUX_PANE", raising=False)
+    _patch_tmux_which(monkeypatch)
+
+    def fake_run(cmd, **kwargs):
+        raise subprocess.TimeoutExpired(cmd, timeout=kwargs.get("timeout", 2))
+
+    _patch_tmux_run(monkeypatch, fake_run)
+
+    result = view_artifact_file_in_tmux_pane(artifact, kind="image")
+
+    assert result.ok is False
+    assert result.warnings[0].code == "tmux_timeout"
+    assert result.warning == "tmux split-window timed out after 2s"
+
+
+def test_tmux_artifact_decoration_uses_explicit_origin_pane(
+    monkeypatch,
+) -> None:
+    option_values = {
+        "pane-border-status": "off",
+        "pane-border-format": "#{pane_index}",
+        "pane-border-style": "default",
+        "pane-active-border-style": "default",
+    }
+    title_values = {"%3": "origin title", "%7": "artifact title"}
+    monkeypatch.setenv("TMUX_PANE", "%1")
+    _patch_tmux_which(monkeypatch)
+    calls: list[list[str]] = []
+
+    def fake_run(cmd, **kwargs):
+        calls.append(list(cmd))
+        if cmd[:3] == ["tmux", "show-options", "-wqv"]:
+            return subprocess.CompletedProcess(
+                cmd, 0, option_values[cmd[-1]] + "\n", ""
+            )
+        if cmd[:3] == ["tmux", "display-message", "-p"]:
+            return subprocess.CompletedProcess(cmd, 0, title_values[cmd[4]] + "\n", "")
+        if cmd[:2] in (["tmux", "select-pane"], ["tmux", "set-option"]):
+            return subprocess.CompletedProcess(cmd, 0, "", "")
+        raise AssertionError(cmd)
+
+    _patch_tmux_run(monkeypatch, fake_run)
+
+    result = decorate_artifact_file_tmux_panes("%7", origin_pane_id="%3")
+
+    assert result.ok is True
+    assert result.state is not None
+    assert result.state.target_pane_id == "%3"
+    assert ["tmux", "select-pane", "-t", "%3", "-T", "SASE TUI"] in calls
+    assert [(title.pane_id, title.title) for title in result.state.pane_titles] == [
+        ("%3", "origin title"),
+        ("%7", "artifact title"),
+    ]
