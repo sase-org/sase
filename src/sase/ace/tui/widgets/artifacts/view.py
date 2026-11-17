@@ -251,7 +251,20 @@ class ArtifactsView(Vertical):
             return
         spacer.update("")
 
-    def _compose_pane(self, descriptor: ArtifactsTabDescriptor) -> ComposeResult:
+    def _compose_pane(
+        self,
+        descriptor: ArtifactsTabDescriptor,
+        *,
+        widget_id: str | None = None,
+        assign_id: bool = True,
+    ) -> ComposeResult:
+        pane_id: str | None
+        if not assign_id:
+            pane_id = None
+        elif widget_id is None:
+            pane_id = descriptor.pane_id
+        else:
+            pane_id = widget_id
         if descriptor.is_degraded:
             yield ArtifactsDegradedPane(
                 provider_kind=descriptor.provider_kind or descriptor.id,
@@ -259,35 +272,35 @@ class ArtifactsView(Vertical):
                 error=descriptor.error or "Provider failed to load",
                 error_code=descriptor.error_code,
                 error_source=descriptor.error_source,
-                id=descriptor.pane_id,
+                id=pane_id,
                 classes="artifacts-degraded-pane",
             )
             return
         if descriptor.id == "patches":
             yield ArtifactsPatchesPane(
                 contract=descriptor.contract,
-                id=descriptor.pane_id,
+                id=pane_id,
             )
         elif descriptor.id == "stitches":
             yield CommitsPane(
                 initial_filters=self._commits_default_filter,
                 contract=descriptor.contract,
-                id=descriptor.pane_id,
+                id=pane_id,
             )
         elif descriptor.id == "beads":
             yield ArtifactsBeadsPane(
                 contract=descriptor.contract,
-                id=descriptor.pane_id,
+                id=pane_id,
             )
         elif descriptor.id == "agents":
             yield ArtifactsAgentsPane(
                 contract=descriptor.contract,
-                id=descriptor.pane_id,
+                id=pane_id,
             )
         elif descriptor.id == "files":
             yield ArtifactsFilesPane(
                 contract=descriptor.contract,
-                id=descriptor.pane_id,
+                id=pane_id,
             )
         elif descriptor.provider_kind == "plan":
             yield ArtifactsPlansPane(
@@ -301,7 +314,7 @@ class ArtifactsView(Vertical):
                     if descriptor.provider_spec is not None
                     else None
                 ),
-                id=descriptor.pane_id,
+                id=pane_id,
                 classes="artifacts-documents-pane",
             )
         elif descriptor.provider_kind is not None:
@@ -316,7 +329,7 @@ class ArtifactsView(Vertical):
                     if descriptor.provider_spec is not None
                     else None
                 ),
-                id=descriptor.pane_id,
+                id=pane_id,
                 classes="artifacts-documents-pane",
             )
 

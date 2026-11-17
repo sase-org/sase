@@ -93,7 +93,7 @@ def pinned_identity(identity: AgentIdentitySnapshot) -> Iterator[None]:
     def _current(_cls: type[AgentIdentitySnapshot]) -> AgentIdentitySnapshot:
         return identity
 
-    def _no_descriptor(_pane_id: str) -> None:
+    def _no_descriptor(_pane_id: str, snapshot: object | None = None) -> None:
         return None
 
     AgentIdentitySnapshot.current = _current  # type: ignore[method-assign]

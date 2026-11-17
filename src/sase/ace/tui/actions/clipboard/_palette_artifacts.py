@@ -20,7 +20,7 @@ def build_artifacts_context(app: Any, subtab: str) -> CopyAsContext | None:
     snapshot = getattr(app, "artifacts_descriptor_snapshot", None)
     subtab = _canonical_artifact_subtab(subtab)
     label, item_noun = _artifact_context_labels(subtab, snapshot)
-    pane = _artifact_pane(app, subtab)
+    pane = _artifact_pane(app, subtab, snapshot=snapshot)
     if pane is None:
         notify_copy_warning(app, f"No {item_noun.lower()} entry to copy")
         return None
@@ -41,9 +41,10 @@ def build_artifacts_context(app: Any, subtab: str) -> CopyAsContext | None:
         marked_targets
         if marked
         else (() if selected_target is None else (selected_target,)),
+        snapshot=snapshot,
     )
     if not marked:
-        selected = _selected_artifact_object(pane, subtab)
+        selected = _selected_artifact_object(pane, subtab, snapshot=snapshot)
         if selected is not None and not selected_objects:
             selected_objects = (selected,)
         if selected_target is None and not selected_objects:
@@ -59,6 +60,7 @@ def build_artifacts_context(app: Any, subtab: str) -> CopyAsContext | None:
         objects=selected_objects,
         marked=marked,
         count=count,
+        snapshot=snapshot,
     )
     ctx = CommandContext(
         tab="artifacts",
@@ -74,7 +76,9 @@ def build_artifacts_context(app: Any, subtab: str) -> CopyAsContext | None:
             subtitle += f" · {display_name}"
     else:
         identity = _artifact_identity(
-            subtab, selected_objects[0] if selected_objects else None
+            subtab,
+            selected_objects[0] if selected_objects else None,
+            snapshot=snapshot,
         )
         subtitle = " · ".join(part for part in (display_name, identity) if part)
         if not subtitle:
@@ -91,12 +95,12 @@ def build_artifacts_context(app: Any, subtab: str) -> CopyAsContext | None:
     )
 
 
-def _artifact_pane(app: Any, subtab: str) -> Any | None:
+def _artifact_pane(app: Any, subtab: str, snapshot: Any | None = None) -> Any | None:
     if subtab == "files":
         resolver_name = "_files_pane"
     elif subtab == "stitches":
         resolver_name = "_commits_pane"
-    elif _is_document_subtab(subtab):
+    elif _is_document_subtab(subtab, snapshot=snapshot):
         resolver_name = "_active_documents_pane"
     else:
         resolver_name = f"_{subtab}_pane"
@@ -129,11 +133,13 @@ def _selected_entry_target(pane: Any) -> ArtifactEntryTarget | None:
         return None
 
 
-def _selected_artifact_object(pane: Any, subtab: str) -> Any | None:
+def _selected_artifact_object(
+    pane: Any, subtab: str, snapshot: Any | None = None
+) -> Any | None:
     if subtab == "stitches":
         resolver = getattr(pane, "_selected_entry", None)
         return resolver() if callable(resolver) else None
-    if _is_document_subtab(subtab):
+    if _is_document_subtab(subtab, snapshot=snapshot):
         resolver = getattr(pane, "selected_row", None)
         return resolver() if callable(resolver) else None
     if subtab == "files":
@@ -148,6 +154,7 @@ def _artifact_objects(
     pane: Any,
     subtab: str,
     targets: Iterable[ArtifactEntryTarget],
+    snapshot: Any | None = None,
 ) -> tuple[Any, ...]:
     ordered_targets = tuple(targets)
     if not ordered_targets:
@@ -163,7 +170,11 @@ def _artifact_objects(
             for target in ordered_targets
             if target in commit_by_target
         )
-    if subtab == "beads" or _is_document_subtab(subtab) or subtab == "files":
+    if (
+        subtab == "beads"
+        or _is_document_subtab(subtab, snapshot=snapshot)
+        or subtab == "files"
+    ):
         rows = getattr(pane, "_rows", {}).values()
         row_by_target: dict[ArtifactEntryTarget, Any] = {}
         for row in rows:
@@ -172,7 +183,7 @@ def _artifact_objects(
 
                 target = bead_row_target(row)
                 value = row
-            elif _is_document_subtab(subtab):
+            elif _is_document_subtab(subtab, snapshot=snapshot):
                 from ...widgets.artifacts.plans_list import plan_row_target
 
                 target = plan_row_target(row)
@@ -223,13 +234,15 @@ def _artifact_display_name(pane: Any, objects: tuple[Any, ...]) -> str:
     return str(scope or "")
 
 
-def _artifact_identity(subtab: str, value: Any | None) -> str:
+def _artifact_identity(
+    subtab: str, value: Any | None, snapshot: Any | None = None
+) -> str:
     if value is None:
         return ""
     if subtab == "stitches":
         commit = getattr(value, "commit", None)
         return f"{getattr(value, 'repo', '')}@{getattr(commit, 'short_id', '')}"
-    if _is_document_subtab(subtab):
+    if _is_document_subtab(subtab, snapshot=snapshot):
         if getattr(value, "proposal", None) is not None:
             return str(value.proposal.title)
         if getattr(value, "active", None) is not None:
@@ -274,7 +287,7 @@ def _artifact_context_labels(
     )
 
 
-def _is_document_subtab(subtab: str) -> bool:
+def _is_document_subtab(subtab: str, snapshot: Any | None = None) -> bool:
     from ...artifact_tabs import is_document_artifacts_pane
 
-    return is_document_artifacts_pane(subtab)
+    return is_document_artifacts_pane(subtab, snapshot=snapshot)

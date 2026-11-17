@@ -51,7 +51,7 @@ def test_fixed_pane_style_does_not_resolve_dynamic_artifacts_tabs(
 ) -> None:
     from sase.ace.tui import artifact_tabs
 
-    def _boom(_pane_id: str) -> None:
+    def _boom(_pane_id: str, snapshot: object | None = None) -> None:
         raise AssertionError("fixed panes must not reach provider discovery")
 
     monkeypatch.setattr(artifact_tabs, "descriptor_for_artifacts_pane_id", _boom)
@@ -71,7 +71,7 @@ def test_provider_pane_style_still_uses_dynamic_descriptor(
     monkeypatch.setattr(
         artifact_tabs,
         "descriptor_for_artifacts_pane_id",
-        lambda _pane_id: descriptor,
+        lambda _pane_id, snapshot=None: descriptor,
     )
 
     assert accent_and_icon_for_ref(

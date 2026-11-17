@@ -190,7 +190,7 @@ def test_unconfigured_research_reports_without_landing_on_stitches(
     )
     monkeypatch.setattr(
         "sase.ace.tui.artifact_tabs.descriptor_for_artifacts_pane_id",
-        lambda pane_id: None if pane_id == "ref:research" else object(),
+        lambda pane_id, snapshot=None: None if pane_id == "ref:research" else object(),
     )
     app._follow_single_link_chip(app._chips[0])
     assert app.current_artifacts_pane_key != "stitches"

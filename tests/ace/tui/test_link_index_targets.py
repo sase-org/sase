@@ -164,7 +164,7 @@ def test_lazy_chip_style_uses_worker_captured_provider_context(
         )
     )
 
-    def forbidden(_pane_id: str) -> object:
+    def forbidden(_pane_id: str, snapshot: object | None = None) -> object:
         raise AssertionError("lazy chip lookup performed descriptor resolution")
 
     monkeypatch.setattr(artifact_tabs, "descriptor_for_artifacts_pane_id", forbidden)

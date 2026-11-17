@@ -129,6 +129,11 @@ class StartupMixin(
     _mount_notification_state_load_done: bool
     _mount_deferred_state_load_started: bool
     _mount_deferred_state_load_done: bool
+    _artifacts_pending_provider_target: str | None
+    _artifacts_pending_provider_tab: Any
+    _artifacts_discovery_teardown: bool
+    _artifacts_last_discovery_error: str | None
+    _artifacts_last_discovery_mono: float | None
     _feature_flag_cleanup_notice_scheduled: bool
     _agents_onboarding_launch_targets_available: bool
     _agents_onboarding_launch_targets_refresh_scheduled: bool

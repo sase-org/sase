@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, cast
+from typing import TYPE_CHECKING, Any, cast
 
 from ._base_types import BaseActionsHost
 
@@ -39,7 +39,6 @@ class BaseCommandActionsMixin(BaseActionsHost):
             snapshot=getattr(self, "artifacts_descriptor_snapshot", None),
         )
         applicable = [s for s in catalog if is_command_available(s, ctx)]
-        catalog_by_id = {s.id: s for s in catalog}
 
         def _on_dismiss(result: CommandPaletteResult | None) -> None:
             if result is None:
@@ -58,8 +57,18 @@ class BaseCommandActionsMixin(BaseActionsHost):
                 return
             if result.selected_id is None:
                 return
-            spec = catalog_by_id.get(result.selected_id)
+            spec = self._command_spec_for_palette_id(result.selected_id)
             if spec is None:
+                if result.selected_id.startswith("artifacts."):
+                    pane_id = result.selected_id.removeprefix("artifacts.")
+                    snapshot = getattr(self, "artifacts_descriptor_snapshot", None)
+                    label = snapshot.label(pane_id) if snapshot is not None else pane_id
+                    notify = getattr(self, "notify", None)
+                    if callable(notify):
+                        notify(
+                            f"Artifacts pane {label} is unavailable",
+                            severity="warning",
+                        )
                 return
             execute_command(self, spec)  # type: ignore[arg-type]
 
@@ -67,3 +76,17 @@ class BaseCommandActionsMixin(BaseActionsHost):
             CommandPaletteModal(specs=applicable, tab=cast("CommandTab", ctx.tab)),
             callback=_on_dismiss,
         )
+
+    def _command_spec_for_palette_id(self, command_id: str) -> Any:
+        """Resolve *command_id* against the committed catalog, not open-time."""
+
+        from ..commands import build_command_catalog
+
+        catalog = build_command_catalog(
+            self._keymap_registry,  # type: ignore[attr-defined]
+            snapshot=getattr(self, "artifacts_descriptor_snapshot", None),
+        )
+        for spec in catalog:
+            if spec.id == command_id:
+                return spec
+        return None

@@ -545,6 +545,9 @@ class ArtifactsMixin(
         view = self._artifacts_view()
         if view is not None:
             view.request_active_explicit_refresh()
+        schedule = getattr(self, "_schedule_artifacts_provider_discovery", None)
+        if callable(schedule):
+            schedule(reason="refresh")
 
 
 __all__ = [

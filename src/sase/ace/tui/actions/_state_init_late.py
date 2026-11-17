@@ -378,11 +378,11 @@ def init_late_startup_state(
     self._artifacts_discovery_in_flight = False
     self._artifacts_discovery_pending = False
     self._artifacts_discovery_seq = 0
-    self._artifacts_pending_provider_target: str | None = None
-    self._artifacts_pending_provider_tab: Any = None
+    self._artifacts_pending_provider_target = None
+    self._artifacts_pending_provider_tab = None
     self._artifacts_discovery_teardown = False
-    self._artifacts_last_discovery_error: str | None = None
-    self._artifacts_last_discovery_mono: float | None = None
+    self._artifacts_last_discovery_error = None
+    self._artifacts_last_discovery_mono = None
 
     # Replace instance bindings with registry-driven bindings.
     from textual.binding import BindingsMap

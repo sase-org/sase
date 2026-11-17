@@ -322,10 +322,21 @@ class TreeNavigationMixin(NavigationMixinBase):
             trail_origin = getattr(self, "_current_link_trail_origin", None)
             if callable(follow) and callable(trail_origin):
                 try:
+                    from ...artifact_tabs import artifacts_snapshot_of
                     from ...relations.link_subject import ref_for_target
                 except Exception:  # noqa: BLE001 - fall back to direct reveal
                     ref_for_target = None  # type: ignore[assignment]
-                ref = ref_for_target(target) if ref_for_target is not None else None
+                    artifacts_snapshot_of = None  # type: ignore[assignment]
+                snapshot = (
+                    artifacts_snapshot_of(self)
+                    if callable(artifacts_snapshot_of)
+                    else None
+                )
+                ref = (
+                    ref_for_target(target, snapshot=snapshot)
+                    if ref_for_target is not None
+                    else None
+                )
                 if ref is not None:
                     hop = trail_origin()
                     guard_attr = hasattr(self, "_link_trail_guard")

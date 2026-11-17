@@ -29,9 +29,11 @@ class ArtifactsPlansActionsMixin:
 
     def _active_documents_pane(self) -> ArtifactsDocumentsPane | None:
         pane_key = getattr(self, "current_artifacts_pane_key", "ref:plan")
-        from ..artifact_tabs import is_document_artifacts_pane
+        from ..artifact_tabs import artifacts_snapshot_of, is_document_artifacts_pane
 
-        if not isinstance(pane_key, str) or not is_document_artifacts_pane(pane_key):
+        if not isinstance(pane_key, str) or not is_document_artifacts_pane(
+            pane_key, snapshot=artifacts_snapshot_of(self)
+        ):
             return None
         view = getattr(self, "_artifacts_view", lambda: None)()
         if view is None:

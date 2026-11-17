@@ -173,10 +173,16 @@ class PatchQueryMixin:
             return
 
         if pane_id != "patches":
-            from ...artifact_tabs import PaneCapability, artifacts_pane_contract
+            from ...artifact_tabs import (
+                PaneCapability,
+                artifacts_pane_contract,
+                artifacts_snapshot_of,
+            )
 
             contract = getattr(self, "active_artifacts_contract", None) or (
-                artifacts_pane_contract(str(pane_id))
+                artifacts_pane_contract(
+                    str(pane_id), snapshot=artifacts_snapshot_of(self)
+                )
             )
             if contract is None or not contract.has(PaneCapability.SAVED_QUERIES):
                 self.notify(  # type: ignore[attr-defined]
@@ -316,10 +322,16 @@ class PatchQueryMixin:
             return
         contract = None
         if pane_id != "patches":
-            from ...artifact_tabs import PaneCapability, artifacts_pane_contract
+            from ...artifact_tabs import (
+                PaneCapability,
+                artifacts_pane_contract,
+                artifacts_snapshot_of,
+            )
 
             contract = getattr(self, "active_artifacts_contract", None) or (
-                artifacts_pane_contract(str(pane_id))
+                artifacts_pane_contract(
+                    str(pane_id), snapshot=artifacts_snapshot_of(self)
+                )
             )
             if contract is None or not contract.has(PaneCapability.SAVED_QUERIES):
                 return

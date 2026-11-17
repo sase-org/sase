@@ -9,10 +9,10 @@ from ._base import ClipboardBase
 from ._representations import ArtifactReferenceItem, ArtifactReferenceSelection
 
 
-def _is_document_pane_key(subtab: str) -> bool:
+def _is_document_pane_key(subtab: str, snapshot: Any | None = None) -> bool:
     from ...artifact_tabs import is_document_artifacts_pane
 
-    return is_document_artifacts_pane(subtab)
+    return is_document_artifacts_pane(subtab, snapshot=snapshot)
 
 
 class ClipboardArtifactReferencesMixin(ClipboardBase):
@@ -22,9 +22,10 @@ class ClipboardArtifactReferencesMixin(ClipboardBase):
         self,
     ) -> ArtifactReferenceSelection | None:
         subtab = self.current_artifacts_pane_key
-        from ...artifact_tabs import artifacts_pane_item_noun
+        from ...artifact_tabs import artifacts_pane_item_noun, artifacts_snapshot_of
 
-        noun = artifacts_pane_item_noun(str(subtab)).lower()
+        snapshot = artifacts_snapshot_of(self)
+        noun = artifacts_pane_item_noun(str(subtab), snapshot=snapshot).lower()
         if subtab == "stitches":
             resolver_name = "_commits_pane"
         elif subtab == "beads":
@@ -33,7 +34,7 @@ class ClipboardArtifactReferencesMixin(ClipboardBase):
             resolver_name = "_files_pane"
         elif subtab == "agents":
             resolver_name = "_agents_pane"
-        elif _is_document_pane_key(str(subtab)):
+        elif _is_document_pane_key(str(subtab), snapshot=snapshot):
             resolver_name = "_active_documents_pane"
         else:
             self.notify(f"No {noun} entry selected", severity="warning")  # type: ignore[attr-defined]
@@ -56,7 +57,7 @@ class ClipboardArtifactReferencesMixin(ClipboardBase):
                 self.notify(f"No {noun} entry selected", severity="warning")  # type: ignore[attr-defined]
             return None
 
-        items = reference_items_for_targets(subtab, pane, targets)
+        items = reference_items_for_targets(subtab, pane, targets, snapshot=snapshot)
         if not items:
             self.notify(  # type: ignore[attr-defined]
                 f"No visible {noun} entries are available",

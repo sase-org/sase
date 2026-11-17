@@ -58,12 +58,12 @@ def pane_is_loading(pane: Any) -> bool:
     return bool(getattr(pane, "_query_result_pending", False))
 
 
-def pane_label(target: ArtifactEntryTarget | None) -> str:
+def pane_label(target: ArtifactEntryTarget | None, snapshot: Any | None = None) -> str:
     if target is None:
         return "the destination pane"
     from ..artifact_tabs import descriptor_for_artifacts_pane_id
 
-    descriptor = descriptor_for_artifacts_pane_id(target.pane_id)
+    descriptor = descriptor_for_artifacts_pane_id(target.pane_id, snapshot=snapshot)
     return descriptor.label if descriptor is not None else target.pane_id
 
 

@@ -422,7 +422,12 @@ class AppWatchersMixin:
         if old_tab == "agents" and getattr(self, "_panel_fold_hint_mode_active", False):
             self._teardown_panel_fold_hint_mode(refresh_titles=False)
 
-        # Tab changes always cancel adaptive entry-jump mode.
+        # Tab changes always cancel adaptive entry-jump mode and any
+        # pending provider jump, including leave-and-return before
+        # publication completes.
+        note_artifacts_nav = getattr(self, "_note_user_artifacts_navigation", None)
+        if callable(note_artifacts_nav):
+            note_artifacts_nav()
         self._cancel_non_pr_artifacts_jump_mode()
         self._entry_jump_mode_active = False
         self._entry_jump_hint_to_target: dict[str, object] = {}

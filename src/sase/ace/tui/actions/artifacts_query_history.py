@@ -128,12 +128,18 @@ class ArtifactsQueryHistoryActionsMixin:
             return _agents_live_history_contract()
         if self.current_tab != ARTIFACTS_TAB:
             return None
-        from ..artifact_tabs import PaneCapability, artifacts_pane_contract
+        from ..artifact_tabs import (
+            PaneCapability,
+            artifacts_pane_contract,
+            artifacts_snapshot_of,
+        )
 
         pane_id = str(getattr(self, "current_artifacts_pane_key", "patches"))
         contract = getattr(self, "active_artifacts_contract", None)
         if contract is None or getattr(contract, "id", pane_id) != pane_id:
-            contract = artifacts_pane_contract(pane_id)
+            contract = artifacts_pane_contract(
+                pane_id, snapshot=artifacts_snapshot_of(self)
+            )
         if contract is None or not contract.has(PaneCapability.QUERY_HISTORY):
             return None
         return contract

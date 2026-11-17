@@ -103,7 +103,9 @@ class ArtifactsLimitActionsMixin:
         apply = getattr(pane, "apply_host_limit_query", None)
         if not callable(apply):
             return
-        if pane_key == "files" or _is_document_pane_key(pane_key):
+        if pane_key == "files" or _is_document_pane_key(
+            pane_key, snapshot=_artifacts_snapshot(self)
+        ):
             apply(query, grow=direction == "load_more")
             return
         apply(query)
@@ -132,17 +134,23 @@ class ArtifactsLimitActionsMixin:
             return self._beads_pane()  # type: ignore[attr-defined]
         if pane_key == "files":
             return self._files_pane()  # type: ignore[attr-defined]
-        if _is_document_pane_key(pane_key):
+        if _is_document_pane_key(pane_key, snapshot=_artifacts_snapshot(self)):
             return self._active_documents_pane()  # type: ignore[attr-defined]
         return self._artifacts_entry_navigator()  # type: ignore[attr-defined]
 
 
-def _is_document_pane_key(pane_key: object) -> bool:
+def _artifacts_snapshot(owner: Any) -> Any | None:
+    from ..artifact_tabs import artifacts_snapshot_of
+
+    return artifacts_snapshot_of(owner)
+
+
+def _is_document_pane_key(pane_key: object, snapshot: Any | None = None) -> bool:
     if not isinstance(pane_key, str):
         return False
     from ..artifact_tabs import is_document_artifacts_pane
 
-    return is_document_artifacts_pane(pane_key)
+    return is_document_artifacts_pane(pane_key, snapshot=snapshot)
 
 
 __all__ = [

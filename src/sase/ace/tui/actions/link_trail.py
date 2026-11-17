@@ -232,14 +232,18 @@ def link_trail_breadcrumb_text(app: Any) -> str | None:
     trail = getattr(app, "_link_trail", None)
     if not trail:
         return None
-    icon, label = _hop_icon_and_label(trail[-1])
+    from ..artifact_tabs import artifacts_snapshot_of
+
+    icon, label = _hop_icon_and_label(trail[-1], snapshot=artifacts_snapshot_of(app))
     chip = f"{icon} {label}".strip()
     if len(trail) > 1:
         return f"⟨ …{len(trail) - 1} › {chip} ⟩"
     return f"⟨ {chip} ⟩"
 
 
-def _hop_icon_and_label(hop: LinkTrailHop) -> tuple[str, str]:
+def _hop_icon_and_label(
+    hop: LinkTrailHop, snapshot: Any | None = None
+) -> tuple[str, str]:
     axe_key = hop.axe_key
     if hop.tab == "services" and axe_key is not None:
         if axe_key[0] == "chop":
@@ -248,11 +252,11 @@ def _hop_icon_and_label(hop: LinkTrailHop) -> tuple[str, str]:
             return _AXE_ICON, axe_key[1]
         return _AXE_ICON, f"bg:{axe_key[1]}"
     if hop.origin is not None:
-        ref = ref_for_target(hop.origin)
+        ref = ref_for_target(hop.origin, snapshot=snapshot)
         if ref is not None:
             parsed = parse_link_ref(ref)
             ref_kind = parsed[0] if parsed is not None else ""
-            _, icon = accent_and_icon_for_ref(ref_kind, hop.origin)
+            _, icon = accent_and_icon_for_ref(ref_kind, hop.origin, snapshot=snapshot)
             return icon, short_ref_label(ref)
     return _UNKNOWN_ICON, hop.pane_key or hop.tab or "entry"
 

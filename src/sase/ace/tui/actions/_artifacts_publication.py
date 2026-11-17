@@ -34,10 +34,12 @@ def _fresh_artifacts_discovery_blocking() -> tuple[Any, int, tuple[Any, ...], st
     from ..artifact_tabs import artifacts_tab_cache_epoch
 
     token = provider_source_token()
-    epoch = artifacts_tab_cache_epoch()
     loaded = load_project_provider_records(project=None)
     providers = provider_descriptors(loaded.records, loaded.issues)
     descriptors = build_artifacts_strip(providers)
+    # Capture the epoch after the work so a reset during enumeration is
+    # visible to the UI-thread stale check.
+    epoch = artifacts_tab_cache_epoch()
     status = (
         ArtifactsDiscoveryStatus.FAILED
         if token is None
@@ -46,8 +48,60 @@ def _fresh_artifacts_discovery_blocking() -> tuple[Any, int, tuple[Any, ...], st
     return token, epoch, descriptors, status.value
 
 
+class _ArtifactsPublicationError(RuntimeError):
+    """Essential publication infrastructure is missing."""
+
+
 class ArtifactsPublicationMixin:
     """Schedule deferred provider discovery and publish one generation."""
+
+    _artifacts_pending_provider_target: str | None
+    _artifacts_pending_provider_tab: Any
+    _artifacts_discovery_teardown: bool
+    _artifacts_last_discovery_error: str | None
+    _artifacts_last_discovery_mono: float | None
+
+    def _artifacts_source_result_is_stale(self: Any, epoch: int) -> bool:
+        """Return whether *epoch* no longer matches the live cache epoch."""
+
+        from ..artifact_tabs import artifacts_tab_cache_epoch
+
+        return int(artifacts_tab_cache_epoch()) != int(epoch)
+
+    def _current_artifacts_scope_display_name(self: Any) -> str | None:
+        scope = getattr(self, "artifacts_project_scope", None)
+        choices = getattr(self, "_artifacts_project_choices", None)
+        if scope is None or choices is None:
+            return None
+        display_names = getattr(choices, "display_names", None)
+        if not isinstance(display_names, dict):
+            return None
+        display_name = display_names.get(scope)
+        return display_name if isinstance(display_name, str) else None
+
+    def _schedule_artifacts_provider_discovery_if_source_changed(self: Any) -> bool:
+        """Schedule discovery when the cached source token/epoch drifted.
+
+        Periodic ticks revalidate the cached token; they do not enumerate
+        providers. A ``None`` token keeps the last coherent generation and
+        waits for explicit refresh to retry.
+        """
+
+        snapshot = getattr(self, "artifacts_descriptor_snapshot", None)
+        if snapshot is None or bool(getattr(snapshot, "is_pending", False)):
+            return False
+        if getattr(self, "_artifacts_discovery_in_flight", False):
+            return False
+        from .._artifact_tab_discovery import provider_source_token
+        from ..artifact_tabs import artifacts_tab_cache_epoch
+
+        token = provider_source_token()
+        if token is None:
+            return False
+        epoch = artifacts_tab_cache_epoch()
+        if snapshot.source_token == token and int(snapshot.source_epoch) == int(epoch):
+            return False
+        return self._schedule_artifacts_provider_discovery(reason="source-changed")
 
     def _schedule_artifacts_provider_discovery(
         self: Any,
@@ -175,6 +229,9 @@ class ArtifactsPublicationMixin:
             self._artifacts_last_discovery_error = "provider_source_failed"
             self._artifacts_last_discovery_mono = time.monotonic()
             return False
+        if self._artifacts_source_result_is_stale(epoch):
+            self._artifacts_discovery_pending = True
+            return False
         new_snapshot = snapshot_from_descriptors(
             tuple(descriptors),
             status=status,
@@ -185,6 +242,9 @@ class ArtifactsPublicationMixin:
         if current is not None and tuple(current.descriptors) == tuple(
             new_snapshot.descriptors
         ):
+            if self._artifacts_source_result_is_stale(epoch):
+                self._artifacts_discovery_pending = True
+                return False
             # Same panes: still adopt the completed status/token so pending
             # clears authoritatively without churning widgets or bindings.
             self._commit_artifacts_snapshot(
@@ -193,69 +253,114 @@ class ArtifactsPublicationMixin:
                 started_mono=started_mono,
                 staged_widgets=(),
                 removed_pane_ids=(),
+                replaced_pane_ids=(),
             )
             return True
 
         staged_widgets: list[Any] = []
         removed_pane_ids: tuple[str, ...] = ()
+        replaced_pane_ids: tuple[str, ...] = ()
         try:
-            staged_widgets, removed_pane_ids = await self._stage_artifacts_panes(
-                new_snapshot
-            )
+            (
+                staged_widgets,
+                removed_pane_ids,
+                replaced_pane_ids,
+            ) = await self._stage_artifacts_panes(new_snapshot)
         except asyncio.CancelledError:
             raise
-        except Exception:
+        except Exception as error:
             log.exception("Artifacts prepare failed; retaining generation")
+            self._artifacts_last_discovery_error = str(error) or "prepare_failed"
+            self._artifacts_last_discovery_mono = time.monotonic()
             try:
                 await self._discard_staged_artifacts_panes(staged_widgets)
             except Exception:
                 log.debug("Staged pane cleanup failed", exc_info=True)
             return False
-        # Re-check lifetime, generation, scope, and user navigation after
-        # every await before committing.
+        # Re-check lifetime, generation, source epoch, scope, and user
+        # navigation after every await before committing.
         if getattr(self, "_artifacts_discovery_teardown", False):
+            await self._discard_staged_artifacts_panes(staged_widgets)
+            return False
+        if self._artifacts_source_result_is_stale(epoch):
+            self._artifacts_discovery_pending = True
             await self._discard_staged_artifacts_panes(staged_widgets)
             return False
         committed_snapshot = getattr(self, "artifacts_descriptor_snapshot", None)
         if committed_snapshot is not current:
             await self._discard_staged_artifacts_panes(staged_widgets)
             return False
-        self._commit_artifacts_snapshot(
-            new_snapshot,
-            reason=reason,
-            started_mono=started_mono,
-            staged_widgets=tuple(staged_widgets),
-            removed_pane_ids=tuple(removed_pane_ids),
-        )
+        try:
+            self._apply_current_scope_to_artifacts_widgets(staged_widgets)
+            self._commit_artifacts_snapshot(
+                new_snapshot,
+                reason=reason,
+                started_mono=started_mono,
+                staged_widgets=tuple(staged_widgets),
+                removed_pane_ids=tuple(removed_pane_ids),
+                replaced_pane_ids=tuple(replaced_pane_ids),
+            )
+        except Exception:
+            try:
+                await self._discard_staged_artifacts_panes(staged_widgets)
+            except Exception:
+                log.debug("Staged pane cleanup failed", exc_info=True)
+            raise
         return True
 
-    async def _stage_artifacts_panes(self: Any, new_snapshot: Any) -> tuple[Any, Any]:
-        """Mount missing panes without advertising them; await completion."""
+    async def _stage_artifacts_panes(
+        self: Any, new_snapshot: Any
+    ) -> tuple[list[Any], tuple[str, ...], tuple[str, ...]]:
+        """Mount missing and replacement panes without advertising them."""
         from ..widgets.artifacts.view import ArtifactsView
+
+        from ._artifacts_publication_diff import (
+            diff_artifact_descriptors,
+            mark_staged_replacement,
+        )
 
         try:
             view = self.query_one("#artifacts-view", ArtifactsView)  # type: ignore[attr-defined]
-        except Exception:
-            return [], ()
-        old_by_id = {descriptor.id: descriptor for descriptor in view.descriptors}
-        new_ids = {descriptor.id for descriptor in new_snapshot.descriptors}
-        added = [d for d in new_snapshot.descriptors if d.id not in old_by_id]
-        removed = tuple(
-            sorted(old_by_id[pane_id].pane_id for pane_id in set(old_by_id) - new_ids)
+        except Exception as error:
+            raise _ArtifactsPublicationError("artifacts view missing") from error
+        added, removed, replaced = diff_artifact_descriptors(
+            view.descriptors, new_snapshot.descriptors
         )
+        replaced_pane_ids = tuple(descriptor.pane_id for descriptor in replaced)
         staged: list[Any] = []
-        if not added:
-            return staged, removed
+        if not added and not replaced:
+            return staged, removed, replaced_pane_ids
         try:
             switcher = view.query_one("#artifacts-content-switcher")
-        except Exception:
-            return staged, removed
-        for descriptor in added:
-            for widget in view._compose_pane(descriptor):
-                staged.append(widget)
-        if not staged:
-            return [], removed
-        # Propagate shared presentation state to staged panes before mount.
+        except Exception as error:
+            raise _ArtifactsPublicationError("artifacts switcher missing") from error
+        try:
+            for descriptor in added:
+                for widget in view._compose_pane(descriptor):
+                    staged.append(widget)
+            for descriptor in replaced:
+                for widget in view._compose_pane(descriptor, assign_id=False):
+                    mark_staged_replacement(widget, descriptor.pane_id)
+                    staged.append(widget)
+            if not staged:
+                return [], removed, replaced_pane_ids
+            self._propagate_presentation_to_staged_artifacts_panes(staged)
+            for widget in staged:
+                await switcher.mount(widget)
+            try:
+                view.set_keymap_registry(view._keymap_registry)  # type: ignore[attr-defined]
+            except Exception:
+                log.debug("Staged pane keymap refresh failed", exc_info=True)
+            return staged, removed, replaced_pane_ids
+        except BaseException:
+            await self._discard_staged_artifacts_panes(staged)
+            raise
+
+    def _propagate_presentation_to_staged_artifacts_panes(
+        self: Any, staged: list[Any]
+    ) -> None:
+        """Copy keymap and current scope onto panes that are about to mount."""
+
         try:
             registry = getattr(self, "_keymap_registry", None)
             if registry is not None:
@@ -265,32 +370,28 @@ class ArtifactsPublicationMixin:
                         setter(registry)
         except Exception:
             log.debug("Staged pane keymap propagation failed", exc_info=True)
-        try:
-            scope = getattr(self, "artifacts_project_scope", None)
-            for widget in staged:
-                setter = getattr(widget, "set_project_scope", None)
-                if callable(setter):
-                    try:
-                        setter(scope, display_name=None)
-                    except TypeError:
-                        try:
-                            setter(scope)
-                        except Exception:
-                            pass
-        except Exception:
-            log.debug("Staged pane scope propagation failed", exc_info=True)
-        try:
-            for widget in staged:
-                await switcher.mount(widget)
-        except Exception:
-            log.exception("Staged artifacts pane mount failed")
-            raise
-        # New panes inherit split/description presentation through the view.
-        try:
-            view.set_keymap_registry(view._keymap_registry)  # type: ignore[attr-defined]
-        except Exception:
-            log.debug("Staged pane keymap refresh failed", exc_info=True)
-        return staged, removed
+        self._apply_current_scope_to_artifacts_widgets(staged)
+
+    def _apply_current_scope_to_artifacts_widgets(
+        self: Any, widgets: list[Any] | tuple[Any, ...]
+    ) -> None:
+        """Re-read live project scope/display and apply it to *widgets*."""
+
+        scope = getattr(self, "artifacts_project_scope", None)
+        display_name = self._current_artifacts_scope_display_name()
+        for widget in widgets:
+            setter = getattr(widget, "set_project_scope", None)
+            if not callable(setter):
+                continue
+            try:
+                setter(scope, display_name=display_name)
+            except TypeError:
+                try:
+                    setter(scope)
+                except Exception:
+                    pass
+            except Exception:
+                log.debug("Staged pane scope propagation failed", exc_info=True)
 
     async def _discard_staged_artifacts_panes(self: Any, staged: Any) -> None:
         """Remove staged widgets that will never be advertised."""
@@ -308,11 +409,23 @@ class ArtifactsPublicationMixin:
         started_mono: float,
         staged_widgets: tuple[Any, ...] = (),
         removed_pane_ids: tuple[str, ...] = (),
+        replaced_pane_ids: tuple[str, ...] = (),
     ) -> None:
         """Synchronously replace the committed generation; no await inside."""
         from textual.binding import BindingsMap
 
         from ..keymaps.bindings import build_app_bindings
+        from ._artifacts_publication_diff import (
+            is_staged_replacement_widget,
+            promote_staged_replacement,
+        )
+
+        new_bindings = BindingsMap(
+            build_app_bindings(
+                self._keymap_registry.app,  # type: ignore[attr-defined]
+                snapshot=new_snapshot,
+            )
+        )
 
         view = None
         try:
@@ -323,21 +436,47 @@ class ArtifactsPublicationMixin:
             view = None
         old_current = str(getattr(self, "current_artifacts_subtab", "stitches"))
         old_tab = getattr(self, "current_tab", None)
+        old_widget: Any = None
+        if view is not None:
+            try:
+                old_widget = view._pane(old_current)  # type: ignore[attr-defined]
+            except Exception:
+                old_widget = None
+
+        # Promote staged replacements onto published pane ids before any
+        # lookup that keys on those ids. Remove the outgoing widget first
+        # so the DOM never holds duplicate ids. Missing view/switcher or a
+        # failed id promotion is an essential commit failure.
+        if staged_widgets or replaced_pane_ids:
+            if view is None:
+                raise _ArtifactsPublicationError("artifacts view missing")
+            try:
+                switcher = view.query_one("#artifacts-content-switcher")
+            except Exception as error:
+                raise _ArtifactsPublicationError(
+                    "artifacts switcher missing"
+                ) from error
+            replaced = set(replaced_pane_ids)
+            if replaced:
+                doomed = [
+                    child
+                    for child in list(switcher.children)
+                    if getattr(child, "id", None) in replaced
+                ]
+                for widget in doomed:
+                    widget.remove()
+            for widget in staged_widgets:
+                if is_staged_replacement_widget(widget):
+                    promote_staged_replacement(widget)
 
         # App snapshot first so view helpers that read the app see the new
         # generation during the same commit.
         self._artifacts_descriptor_snapshot = new_snapshot
         self._artifacts_last_discovery_error = None
         self._artifacts_last_discovery_mono = time.monotonic()
+        self._bindings = new_bindings  # type: ignore[attr-defined]
 
         if view is not None:
-            # Resolve the outgoing pane against the outgoing maps so a
-            # removed selection still gets its deactivate hook.
-            old_widget: Any = None
-            try:
-                old_widget = view._pane(old_current)  # type: ignore[attr-defined]
-            except Exception:
-                old_widget = None
             view._snapshot = new_snapshot
             view._descriptors = new_snapshot.descriptors
             view._descriptor_by_id = {
@@ -401,17 +540,6 @@ class ArtifactsPublicationMixin:
                 self.current_artifacts_subtab = new_current  # type: ignore[attr-defined]
             except Exception:
                 log.debug("Artifacts subtab sync failed", exc_info=True)
-
-        # Digit bindings must change together with the visible labels.
-        try:
-            self._bindings = BindingsMap(  # type: ignore[attr-defined]
-                build_app_bindings(
-                    self._keymap_registry.app,  # type: ignore[attr-defined]
-                    snapshot=new_snapshot,
-                )
-            )
-        except Exception:
-            log.exception("Artifacts bindings commit failed")
 
         # Apply a retained explicit provider target only when no later user
         # navigation superseded it and the completed generation has it.

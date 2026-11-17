@@ -48,11 +48,15 @@ class BaseQueryActionsMixin(BaseActionsHost):
                 show_filters()
             return
         if self.current_tab == "artifacts":
-            from ..artifact_tabs import PaneCapability, artifacts_pane_contract
+            from ..artifact_tabs import (
+                PaneCapability,
+                artifacts_pane_contract,
+                artifacts_snapshot_of,
+            )
 
             pane_key = str(getattr(self, "current_artifacts_pane_key", "patches"))
             contract = getattr(self, "active_artifacts_contract", None) or (
-                artifacts_pane_contract(pane_key)
+                artifacts_pane_contract(pane_key, snapshot=artifacts_snapshot_of(self))
             )
             if (
                 contract is not None

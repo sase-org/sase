@@ -44,7 +44,9 @@ class LinkSubject:
 
 
 def accent_and_icon_for_ref(
-    ref_kind: str, target: ArtifactEntryTarget | None
+    ref_kind: str,
+    target: ArtifactEntryTarget | None,
+    snapshot: Any | None = None,
 ) -> tuple[str, str]:
     """Return the (accent, icon) an entity of *ref_kind* should paint with.
 
@@ -67,13 +69,15 @@ def accent_and_icon_for_ref(
             )
         from ..artifact_tabs import descriptor_for_artifacts_pane_id
 
-        descriptor = descriptor_for_artifacts_pane_id(target.pane_id)
+        descriptor = descriptor_for_artifacts_pane_id(target.pane_id, snapshot=snapshot)
         if descriptor is not None:
             return descriptor.accent, descriptor.icon
     return EXTERNAL_ACCENT, _DEFAULT_ICON
 
 
-def ref_for_target(target: ArtifactEntryTarget) -> str | None:
+def ref_for_target(
+    target: ArtifactEntryTarget, snapshot: Any | None = None
+) -> str | None:
     """Invert :func:`target_for_ref_kind`: a real target back to a ref string."""
 
     if not target.parts:
@@ -94,21 +98,23 @@ def ref_for_target(target: ArtifactEntryTarget) -> str | None:
         return reference_for_agent_name(payload)
     from ..artifact_tabs import artifacts_pane_contract
 
-    contract = artifacts_pane_contract(pane_id)
+    contract = artifacts_pane_contract(pane_id, snapshot=snapshot)
     if contract is not None and contract.ref_kind:
         return f"{contract.ref_kind}:{payload}"
     return None
 
 
-def _subject_from_target(target: ArtifactEntryTarget | None) -> LinkSubject | None:
+def _subject_from_target(
+    target: ArtifactEntryTarget | None, snapshot: Any | None = None
+) -> LinkSubject | None:
     if target is None:
         return None
-    ref = ref_for_target(target)
+    ref = ref_for_target(target, snapshot=snapshot)
     if ref is None:
         return None
     parsed = parse_link_ref(ref)
     ref_kind = parsed[0] if parsed is not None else ""
-    accent, icon = accent_and_icon_for_ref(ref_kind, target)
+    accent, icon = accent_and_icon_for_ref(ref_kind, target, snapshot=snapshot)
     return LinkSubject(ref=ref, target=target, accent=accent, icon=icon)
 
 
@@ -116,7 +122,11 @@ def _subject_from_artifacts(app: Any) -> LinkSubject | None:
     pane = app._artifacts_entry_navigator()
     if pane is None:
         return None
-    return _subject_from_target(pane.selected_entry_target())
+    from ..artifact_tabs import artifacts_snapshot_of
+
+    return _subject_from_target(
+        pane.selected_entry_target(), snapshot=artifacts_snapshot_of(app)
+    )
 
 
 def _subject_from_agents(app: Any) -> LinkSubject | None:

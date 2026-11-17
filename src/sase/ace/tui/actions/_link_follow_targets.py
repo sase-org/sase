@@ -546,8 +546,12 @@ class LinkFollowTargetsMixin:
     ) -> None:
         from ._link_follow_toast import format_link_failure
 
+        from ..artifact_tabs import artifacts_snapshot_of
+
         title, message, severity = format_link_failure(
-            "missing", ref=ref, pane_label=pane_label(target)
+            "missing",
+            ref=ref,
+            pane_label=pane_label(target, snapshot=artifacts_snapshot_of(self)),
         )
         self.notify(  # type: ignore[attr-defined]
             message,
@@ -562,8 +566,12 @@ class LinkFollowTargetsMixin:
     ) -> None:
         from ._link_follow_toast import format_link_failure
 
+        from ..artifact_tabs import artifacts_snapshot_of
+
         title, message, severity = format_link_failure(
-            "unconfigured", ref=ref, pane_label=pane_label(target)
+            "unconfigured",
+            ref=ref,
+            pane_label=pane_label(target, snapshot=artifacts_snapshot_of(self)),
         )
         self.notify(  # type: ignore[attr-defined]
             message,

@@ -30,11 +30,12 @@ class ClipboardBase:
     def current_artifacts_pane_key(self) -> Any:
         """Resolve nested Files identity for standalone clipboard harnesses."""
 
-        from ...artifact_tabs import artifacts_pane_key
+        from ...artifact_tabs import artifacts_pane_key, artifacts_snapshot_of
 
         return artifacts_pane_key(
             self.current_artifacts_subtab,
             getattr(self, "current_files_subtab", "files"),
+            snapshot=artifacts_snapshot_of(self),
         )
 
     @property

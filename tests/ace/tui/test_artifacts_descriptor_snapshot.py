@@ -283,3 +283,107 @@ def test_acepage_digit_prefers_app_snapshot() -> None:
     patches = snapshot.lookup("patches")
     assert patches is not None
     assert page.artifacts_digit("patches") == patches.digit_shortcut
+
+
+def _fatal_discovery(monkeypatch: pytest.MonkeyPatch) -> None:
+    def _boom(*_args: object, **_kwargs: object) -> None:
+        raise AssertionError("mounted UI must not discover")
+
+    monkeypatch.setattr("sase.ace.tui.artifact_tabs.resolve_artifacts_subtabs", _boom)
+    monkeypatch.setattr(
+        "sase.ace.tui._artifact_tab_discovery.provider_source_token", _boom
+    )
+    monkeypatch.setattr("sase.ace.tui.artifact_tabs.provider_source_token", _boom)
+
+
+def test_empty_mark_uses_snapshot_without_discovery(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    snapshot = bootstrap_artifacts_snapshot(generation=0)
+    _fatal_discovery(monkeypatch)
+
+    class _Harness(ArtifactsNavigationActionsMixin):
+        def __init__(self) -> None:
+            self.artifacts_descriptor_snapshot = snapshot
+            self.current_tab = "artifacts"
+            self.current_artifacts_subtab = "stitches"
+            self.current_files_subtab = "files"
+            self.notes: list[str] = []
+            self._artifacts_marked_targets: dict[str, set[object]] = {}
+
+        def notify(self, message: str, severity: str = "information") -> None:
+            del severity
+            self.notes.append(message)
+
+        def _artifacts_entry_navigator(self, pane_key: str | None = None) -> None:
+            del pane_key
+            return None
+
+    harness = _Harness()
+    harness._toggle_artifacts_entry_mark()
+    assert harness.notes
+    assert "stitch" in harness.notes[0].lower() or "entry" in harness.notes[0].lower()
+
+
+def test_copy_and_refresh_helpers_use_snapshot_without_discovery(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    snapshot = bootstrap_artifacts_snapshot(generation=0)
+    _fatal_discovery(monkeypatch)
+    app = SimpleNamespace(
+        artifacts_descriptor_snapshot=snapshot,
+        current_tab="artifacts",
+        current_artifacts_pane_key="stitches",
+    )
+    from sase.ace.tui.actions.clipboard._artifacts import (
+        _copy_item_noun_for_artifacts_subtab,
+        _copy_label_for_artifacts_subtab,
+        _document_copy_handlers,
+        _document_copy_handlers_enabled,
+    )
+    from sase.ace.tui.actions.refresh_panel import RefreshPanelMixin
+
+    assert _copy_label_for_artifacts_subtab(app, "stitches")
+    assert _copy_item_noun_for_artifacts_subtab(app, "stitches")
+    assert _document_copy_handlers_enabled(app, "stitches") is False
+    assert _document_copy_handlers(app, {}, "stitches") == {}
+
+    class _Refresh(RefreshPanelMixin):
+        current_tab = "artifacts"
+        current_artifacts_pane_key = "stitches"
+        artifacts_descriptor_snapshot = snapshot
+
+    assert "Artifacts" in _Refresh()._refresh_tab_label()
+
+
+def test_palette_dismiss_resolves_against_the_committed_catalog() -> None:
+    from sase.ace.tui.actions._base_commands import BaseCommandActionsMixin
+
+    bootstrap = bootstrap_artifacts_snapshot(generation=0)
+    published = _snapshot(
+        "stitches",
+        "patches",
+        "beads",
+        providers=("ref:plan",),
+        generation=2,
+    )
+
+    class _Harness(BaseCommandActionsMixin):
+        def __init__(self, snapshot: ArtifactsDescriptorSnapshot) -> None:
+            self.artifacts_descriptor_snapshot = snapshot
+            self._keymap_registry = load_keymap_registry({})
+            self.notes: list[str] = []
+            self.executed: list[str] = []
+
+        def notify(self, message: str, severity: str = "information") -> None:
+            del severity
+            self.notes.append(message)
+
+    bootstrap_host = _Harness(bootstrap)
+    assert bootstrap_host._command_spec_for_palette_id("artifacts.ref:plan") is None
+
+    published_host = _Harness(published)
+    spec = published_host._command_spec_for_palette_id("artifacts.ref:plan")
+    assert spec is not None
+    assert spec.executor.pane_id == "ref:plan"
+    assert spec.executor.action == "show_artifacts_pane"

@@ -77,9 +77,9 @@ def _document_copy_handlers(
     subtab_keys: dict[str, Any],
     subtab: str,
 ) -> dict[str, Callable[[], None]]:
-    from ...artifact_tabs import artifacts_pane_contract
+    from ...artifact_tabs import artifacts_pane_contract, artifacts_snapshot_of
 
-    contract = artifacts_pane_contract(subtab)
+    contract = artifacts_pane_contract(subtab, snapshot=artifacts_snapshot_of(owner))
     if contract is None and subtab == "ref:plan":
         from ...artifact_tabs import PLAN_COPY_TARGETS
 

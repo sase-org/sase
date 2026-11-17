@@ -154,6 +154,19 @@ class EventAutoRefreshSurfacesMixin(
             if hasattr(self, "_dirty_patches"):
                 self._dirty_patches = True
 
+        # Revalidate the cached provider source against the committed
+        # generation. Enumeration stays in the publication worker.
+        schedule_artifacts = getattr(
+            self,
+            "_schedule_artifacts_provider_discovery_if_source_changed",
+            None,
+        )
+        if callable(schedule_artifacts):
+            try:
+                schedule_artifacts()
+            except Exception:
+                pass
+
         attention_network_scheduled = False
         attention_network_due = getattr(
             self,

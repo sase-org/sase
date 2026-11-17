@@ -28,6 +28,7 @@ def artifact_target_state(
     objects: tuple[Any, ...],
     marked: bool,
     count: int,
+    snapshot: Any | None = None,
 ) -> tuple[set[str], dict[str, str]]:
     available = {target.target for target in copy_targets_for(group)}
     previews = {
@@ -60,10 +61,10 @@ def artifact_target_state(
         }
         if not plan and not marked:
             available.discard("plan")
-    elif _is_document_subtab(subtab):
+    elif _is_document_subtab(subtab, snapshot=snapshot):
         values = _plan_values(first)
         for target in ("design", "path", "title", "body"):
-            if target not in _declared_copy_targets(subtab):
+            if target not in _declared_copy_targets(subtab, snapshot=snapshot):
                 available.discard(target)
             elif not values.get(target) and not marked:
                 available.discard(target)
@@ -220,16 +221,16 @@ def _file_target_counts(pane: Any, entries: tuple[Any, ...]) -> dict[str, int]:
     }
 
 
-def _is_document_subtab(subtab: str) -> bool:
+def _is_document_subtab(subtab: str, snapshot: Any | None = None) -> bool:
     from ...artifact_tabs import is_document_artifacts_pane
 
-    return is_document_artifacts_pane(subtab)
+    return is_document_artifacts_pane(subtab, snapshot=snapshot)
 
 
-def _declared_copy_targets(subtab: str) -> frozenset[str]:
+def _declared_copy_targets(subtab: str, snapshot: Any | None = None) -> frozenset[str]:
     from ...artifact_tabs import artifacts_pane_contract
 
-    contract = artifacts_pane_contract(subtab)
+    contract = artifacts_pane_contract(subtab, snapshot=snapshot)
     if contract is None:
         return frozenset()
     return frozenset(contract.copy_targets)

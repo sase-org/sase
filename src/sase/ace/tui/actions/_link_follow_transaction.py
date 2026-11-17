@@ -458,8 +458,12 @@ class LinkFollowTransactionMixin:
         profile = getattr(pane, "_query_profile", None)
         hidden: HiddenReason = explain_hidden(probe, origin_canonical, profile)
         label = getattr(reveal, "label", None)
+        from ..artifact_tabs import artifacts_snapshot_of
+
         return RevealOutcome(
-            pane_label=pane_label(transaction.target),
+            pane_label=pane_label(
+                transaction.target, snapshot=artifacts_snapshot_of(self)
+            ),
             ref=transaction.ref,
             old_canonical=origin_canonical,
             new_canonical=current,
@@ -473,10 +477,14 @@ class LinkFollowTransactionMixin:
     def _notify_link_follow_failed(self, transaction: LinkFollowTransaction) -> None:
         from ._link_follow_toast import format_link_failure
 
+        from ..artifact_tabs import artifacts_snapshot_of
+
         title, message, severity = format_link_failure(
             "load",
             ref=transaction.ref,
-            pane_label=pane_label(transaction.target),
+            pane_label=pane_label(
+                transaction.target, snapshot=artifacts_snapshot_of(self)
+            ),
         )
         self.notify(  # type: ignore[attr-defined]
             message,

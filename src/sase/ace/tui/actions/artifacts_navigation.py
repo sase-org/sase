@@ -62,6 +62,8 @@ class ArtifactsNavigationActionsMixin:
     _artifacts_jump_target_to_hint: dict[ArtifactEntryTarget, str]
     _artifacts_jump_history: dict[ArtifactsPaneKey, ArtifactEntryTarget]
     _artifacts_marked_targets: dict[ArtifactsPaneKey, set[ArtifactEntryTarget]]
+    _artifacts_pending_provider_target: str | None
+    _artifacts_pending_provider_tab: Any
 
     def _artifacts_snapshot(self) -> Any:
         return getattr(self, "artifacts_descriptor_snapshot", None)
@@ -201,7 +203,7 @@ class ArtifactsNavigationActionsMixin:
             from ..artifact_tabs import artifacts_pane_item_noun
 
             self.notify(  # type: ignore[attr-defined]
-                f"No {artifacts_pane_item_noun(self.current_artifacts_pane_key).lower()} entry to mark",
+                f"No {artifacts_pane_item_noun(self.current_artifacts_pane_key, snapshot=self._artifacts_snapshot()).lower()} entry to mark",
                 severity="warning",
             )
             return
@@ -414,8 +416,8 @@ class ArtifactsNavigationActionsMixin:
         """Mark an explicit user navigation, superseding a pending jump."""
 
         try:
-            self._artifacts_pending_provider_target = None  # type: ignore[attr-defined]
-            self._artifacts_pending_provider_tab = None  # type: ignore[attr-defined]
+            self._artifacts_pending_provider_target = None
+            self._artifacts_pending_provider_tab = None
         except Exception:
             pass
 
@@ -545,8 +547,8 @@ class ArtifactsNavigationActionsMixin:
             # navigation supersedes it and the completed generation has it.
             if snapshot is not None and bool(getattr(snapshot, "is_pending", False)):
                 try:
-                    self._artifacts_pending_provider_target = pane_id  # type: ignore[attr-defined]
-                    self._artifacts_pending_provider_tab = getattr(  # type: ignore[attr-defined]
+                    self._artifacts_pending_provider_target = pane_id
+                    self._artifacts_pending_provider_tab = getattr(
                         self, "current_tab", None
                     )
                 except Exception:

@@ -28,10 +28,10 @@ if TYPE_CHECKING:
 _ARTIFACT_SUBTABS = frozenset({"stitches", "beads", "files"})
 
 
-def _is_document_copy_subtab(subtab: str) -> bool:
+def _is_document_copy_subtab(subtab: str, snapshot: Any | None = None) -> bool:
     from ...artifact_tabs import is_document_artifacts_pane
 
-    return is_document_artifacts_pane(subtab)
+    return is_document_artifacts_pane(subtab, snapshot=snapshot)
 
 
 def build_copy_as_context(app: Any) -> CopyAsContext | None:
@@ -39,11 +39,17 @@ def build_copy_as_context(app: Any) -> CopyAsContext | None:
 
     tab = app.current_tab
     subtab = getattr(app, "current_artifacts_pane_key", "patches")
+    from ...artifact_tabs import artifacts_snapshot_of
+
+    snapshot = artifacts_snapshot_of(app)
     if tab in {
         "artifacts",
         "patches",
         "changespecs",  # legacy compatibility alias
-    } and (subtab in _ARTIFACT_SUBTABS or _is_document_copy_subtab(str(subtab))):
+    } and (
+        subtab in _ARTIFACT_SUBTABS
+        or _is_document_copy_subtab(str(subtab), snapshot=snapshot)
+    ):
         return build_artifacts_context(app, subtab)
     if tab in {
         "artifacts",
