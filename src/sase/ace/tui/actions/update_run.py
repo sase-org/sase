@@ -165,6 +165,9 @@ class UpdateRunActionsMixin:
             return
         if not preview.runnable:
             self._handle_comprehensive_noop(preview)
+            refresh = getattr(self, "_schedule_updates_indicator_revalidation", None)
+            if callable(refresh):
+                refresh()
             return
         if preview.request.auto_approve:
             self._submit_scoped_update_task(preview)

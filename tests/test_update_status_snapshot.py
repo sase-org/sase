@@ -3,7 +3,11 @@
 from __future__ import annotations
 
 import json
+import os
+import time
 from pathlib import Path
+
+import pytest
 
 from sase.updates import (
     DEFAULT_UPDATE_STATUS_TTL_SECONDS,
@@ -53,7 +57,8 @@ def test_update_status_snapshot_round_trip_and_freshness(tmp_path: Path) -> None
 
     assert read_update_status_snapshot(path=path) == status
     envelope = json.loads(path.read_text(encoding="utf-8"))
-    assert envelope["schema_version"] == 4
+    assert envelope["schema_version"] == 5
+    assert envelope["install_prefix"]
     assert envelope["provider_candidates"][0]["manual_only"] is True
     assert update_status_snapshot_is_fresh(status, now=110.0, ttl_seconds=20)
     assert not update_status_snapshot_is_fresh(status, now=130.0, ttl_seconds=20)
@@ -170,3 +175,90 @@ def test_update_status_snapshot_freshness_uses_default_ttl() -> None:
     assert not update_status_snapshot_is_fresh(status, now=600.0)
     assert not update_status_snapshot_is_fresh(status, now=601.0)
     assert not update_status_snapshot_is_fresh(future_status, now=600.0)
+
+
+def test_keyed_snapshots_are_scoped_to_install_prefix(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import sase.updates.cache as cache_module
+
+    monkeypatch.setenv("SASE_HOME", str(tmp_path / "sase-home"))
+    monkeypatch.setattr(cache_module, "current_install_prefix", lambda: "/venv/a")
+    status_a = UpdateStatus(
+        checked_at=100.0,
+        components=(OutdatedComponent("sase", "host", "1", "2", "sase"),),
+    )
+    write_update_status_snapshot(status_a)
+    path_a = cache_module._cache_path()
+
+    monkeypatch.setattr(cache_module, "current_install_prefix", lambda: "/venv/b")
+    status_b = UpdateStatus(checked_at=200.0, components=())
+    write_update_status_snapshot(status_b)
+    path_b = cache_module._cache_path()
+
+    assert path_a != path_b
+    assert path_a.exists()
+    assert path_b.exists()
+
+    monkeypatch.setattr(cache_module, "current_install_prefix", lambda: "/venv/a")
+    assert read_update_status_snapshot() == status_a
+    # An explicit path from the other install never leaks across.
+    assert read_update_status_snapshot(path=path_b) is None
+
+
+def test_snapshot_with_missing_or_foreign_prefix_is_cache_miss(
+    tmp_path: Path,
+) -> None:
+    import sase.updates.cache as cache_module
+
+    path = tmp_path / "status.json"
+    write_update_status_snapshot(
+        UpdateStatus(checked_at=100.0, components=()),
+        path=path,
+    )
+
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    assert payload["install_prefix"] == cache_module.current_install_prefix()
+
+    del payload["install_prefix"]
+    path.write_text(json.dumps(payload), encoding="utf-8")
+    assert read_update_status_snapshot(path=path) is None
+
+    payload["install_prefix"] = "/some/other/venv"
+    path.write_text(json.dumps(payload), encoding="utf-8")
+    assert read_update_status_snapshot(path=path) is None
+
+
+def test_default_path_ignores_legacy_and_prunes_stale_siblings(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import sase.updates.cache as cache_module
+
+    monkeypatch.setenv("SASE_HOME", str(tmp_path / "sase-home"))
+    monkeypatch.setattr(cache_module, "current_install_prefix", lambda: "/venv/current")
+    updates_dir = tmp_path / "sase-home" / "updates"
+    updates_dir.mkdir(parents=True)
+
+    legacy = updates_dir / "status_snapshot.json"
+    legacy.write_text(json.dumps({"schema_version": 4}), encoding="utf-8")
+    assert read_update_status_snapshot() is None
+    assert read_update_status_snapshot(path=legacy) is None
+
+    stale = updates_dir / "status_snapshot.deadbeefcafe.json"
+    stale.write_text("{}", encoding="utf-8")
+    aged = time.time() - 8 * 24 * 60 * 60
+    os.utime(stale, (aged, aged))
+    fresh = updates_dir / "status_snapshot.0123456789ab.json"
+    fresh.write_text("{}", encoding="utf-8")
+
+    status = UpdateStatus(checked_at=1.0, components=())
+    write_update_status_snapshot(status)
+
+    current = cache_module._cache_path()
+    assert current.exists()
+    assert not legacy.exists()
+    assert not stale.exists()
+    assert fresh.exists()
+    assert read_update_status_snapshot() == status

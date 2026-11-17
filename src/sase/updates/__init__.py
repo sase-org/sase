@@ -3,6 +3,7 @@
 from .cache import (
     DEFAULT_UPDATE_STATUS_TTL_SECONDS,
     SCHEMA_VERSION,
+    current_install_prefix,
     get_cached_update_status,
     merge_update_status,
     read_update_status_snapshot,
@@ -52,6 +53,7 @@ __all__ = [
     "make_cached_core_latest_lookup",
     "make_core_latest_fetch_fn",
     "core_package_commit_spec",
+    "current_install_prefix",
     "fetch_incoming_commits",
     "get_cached_update_status",
     "merge_update_status",

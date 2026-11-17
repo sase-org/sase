@@ -195,6 +195,7 @@ def test_preview_proc_runnable_result_pushes_confirm_modal() -> None:
     harness._on_update_preview_complete(_completion(preview))
 
     assert harness.submitted is None
+    assert harness.updates_refreshes == 0
     assert len(harness.screens) == 1
     modal = harness.screens[0]
     assert isinstance(modal, PluginActionConfirmModal)
@@ -222,6 +223,7 @@ def test_preview_proc_non_runnable_result_toasts_instead() -> None:
             "information",
         )
     ]
+    assert harness.updates_refreshes == 1
 
 
 def test_preview_proc_none_payload_toasts_error() -> None:
@@ -322,6 +324,7 @@ def test_auto_approved_non_runnable_preview_does_not_mutate() -> None:
 
     assert harness.screens == []
     assert harness.submitted is None
+    assert harness.updates_refreshes == 1
     assert harness.messages == [
         (
             "SASE, core, and plugins in the captured update are already current.",
@@ -339,6 +342,7 @@ def test_auto_approved_preview_error_does_not_mutate() -> None:
 
     assert harness.screens == []
     assert harness.submitted is None
+    assert harness.updates_refreshes == 0
     assert harness.messages == [("update preview failed: boom", "error")]
 
 

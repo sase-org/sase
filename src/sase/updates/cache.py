@@ -2,11 +2,13 @@
 
 from __future__ import annotations
 
+import hashlib
 import importlib.metadata as importlib_metadata
 import json
 import math
 import os
 import subprocess
+import sys
 import time
 from collections.abc import Callable
 from dataclasses import replace
@@ -30,9 +32,15 @@ from .status import (
     compute_update_status,
 )
 
-SCHEMA_VERSION = 4
+SCHEMA_VERSION = 5
 CACHE_SUBDIR = "updates"
+# Legacy unkeyed snapshot name. Reads ignore it and default-path writes remove
+# it; the running install uses a keyed sibling instead.
 CACHE_FILENAME = "status_snapshot.json"
+CACHE_FILENAME_TEMPLATE = "status_snapshot.{key}.json"
+# Sibling keyed snapshots older than this are pruned on default-path writes so
+# dead workspace venvs do not leave files behind.
+STALE_KEYED_SNAPSHOT_AGE_SECONDS = 7 * 24 * 60 * 60
 DEFAULT_UPDATE_STATUS_TTL_SECONDS = 10 * 60
 
 VersionFn = Callable[[str], str | None]
@@ -42,8 +50,18 @@ GitClassifierFn = Callable[[Path], GitUpstreamStatus]
 ProviderStatusFn = Callable[..., tuple[AgentCliStatus, ...]]
 
 
+def current_install_prefix() -> str:
+    """Return the resolved prefix of the venv running this interpreter."""
+    return str(Path(sys.prefix).resolve())
+
+
+def _install_key(prefix: str) -> str:
+    return hashlib.sha256(prefix.encode("utf-8")).hexdigest()[:12]
+
+
 def _cache_path() -> Path:
-    return sase_subdir(CACHE_SUBDIR) / CACHE_FILENAME
+    key = _install_key(current_install_prefix())
+    return sase_subdir(CACHE_SUBDIR) / CACHE_FILENAME_TEMPLATE.format(key=key)
 
 
 def read_update_status_snapshot(path: Path | None = None) -> UpdateStatus | None:
@@ -60,6 +78,11 @@ def read_update_status_snapshot(path: Path | None = None) -> UpdateStatus | None
     if not isinstance(envelope, dict):
         return None
     if envelope.get("schema_version") != SCHEMA_VERSION:
+        return None
+    install_prefix = envelope.get("install_prefix")
+    if not isinstance(install_prefix, str) or not install_prefix:
+        return None
+    if install_prefix != current_install_prefix():
         return None
     checked_at = _timestamp_from_json(envelope.get("checked_at"))
     if checked_at is None:
@@ -119,6 +142,7 @@ def write_update_status_snapshot(
 
     envelope: dict[str, Any] = {
         "schema_version": SCHEMA_VERSION,
+        "install_prefix": current_install_prefix(),
         "checked_at": status.checked_at,
         "components": [
             {
@@ -153,6 +177,36 @@ def write_update_status_snapshot(
     tmp_path = cache_path.with_name(f"{cache_path.name}.{os.getpid()}.tmp")
     tmp_path.write_text(serialized, encoding="utf-8")
     os.replace(tmp_path, cache_path)
+    if path is None:
+        _prune_update_snapshots(cache_path)
+
+
+def _prune_update_snapshots(current_path: Path) -> None:
+    """Remove legacy and stale sibling snapshots. Best effort, never raising."""
+    try:
+        parent = current_path.parent
+        legacy_path = parent / CACHE_FILENAME
+        if legacy_path != current_path:
+            try:
+                legacy_path.unlink(missing_ok=True)
+            except OSError:
+                pass
+        try:
+            siblings = list(parent.glob("status_snapshot.*.json"))
+        except OSError:
+            return
+        now = time.time()
+        for sibling in siblings:
+            if sibling == current_path or sibling == legacy_path:
+                continue
+            try:
+                if now - sibling.stat().st_mtime < STALE_KEYED_SNAPSHOT_AGE_SECONDS:
+                    continue
+                sibling.unlink(missing_ok=True)
+            except OSError:
+                continue
+    except Exception:  # noqa: BLE001 - housekeeping is best effort.
+        return
 
 
 def update_status_snapshot_is_fresh(
@@ -552,9 +606,12 @@ def _editable_component_still_outdated(
 
 __all__ = [
     "CACHE_FILENAME",
+    "CACHE_FILENAME_TEMPLATE",
     "CACHE_SUBDIR",
     "DEFAULT_UPDATE_STATUS_TTL_SECONDS",
     "SCHEMA_VERSION",
+    "STALE_KEYED_SNAPSHOT_AGE_SECONDS",
+    "current_install_prefix",
     "get_cached_update_status",
     "merge_update_status",
     "read_update_status_snapshot",
