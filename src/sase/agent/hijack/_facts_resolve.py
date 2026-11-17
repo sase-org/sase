@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from copy import copy
 from pathlib import Path
 from typing import Any
 
@@ -29,6 +30,10 @@ def resolve_hijack_subject(
     deps: StopDeps | None = None,
 ) -> HijackSubject:
     """Resolve a member, session name, or session-container row to its occupant."""
+    from sase.core.agent_artifact_group_lookup import (
+        AgentArtifactGroupLookupUnavailable,
+    )
+
     deps = deps or StopDeps()
     row = None if isinstance(name_or_row, str) else name_or_row
     requested_name = _input_name(name_or_row)
@@ -51,13 +56,16 @@ def resolve_hijack_subject(
         else find_agent(requested_name)
     )
 
-    session = None
-    if artifacts_dir:
-        session = _session_from_member_dir(deps, artifacts_dir)
-    if session is None and found_agent is not None:
-        session = _session_from_member_dir(deps, found_agent.artifacts_dir)
-    if session is None:
-        session = _session_from_name(deps, requested_name)
+    try:
+        session = None
+        if artifacts_dir:
+            session = _session_from_member_dir(deps, artifacts_dir)
+        if session is None and found_agent is not None:
+            session = _session_from_member_dir(deps, found_agent.artifacts_dir)
+        if session is None:
+            session = _session_from_name(deps, requested_name)
+    except AgentArtifactGroupLookupUnavailable as exc:
+        return _unavailable_group_subject(requested_name, row, exc)
 
     if session is not None:
         roster: tuple[Any, ...] = tuple(session.members)
@@ -68,7 +76,9 @@ def resolve_hijack_subject(
     else:
         roster = ()
 
-    running_rows = _running_rows(deps, row)
+    running_rows = _running_rows(deps, row, roster)
+    deps = copy(deps)
+    deps.list_running = lambda: running_rows
     claims_by_project: dict[str, list[Any]] = {}
     member_facts: list[MemberFacts] = []
     for member in roster:
@@ -198,7 +208,10 @@ def resolve_hijack_subject(
         value(row, "is_clan_container", False) or value(row, "is_clan", False)
     )
     if not is_clan_container:
-        is_clan_container = _clan_from_name(deps, requested_name) is not None
+        try:
+            is_clan_container = _clan_from_name(deps, requested_name) is not None
+        except AgentArtifactGroupLookupUnavailable as exc:
+            return _unavailable_group_subject(requested_name, row, exc)
     is_remote = bool(
         value(row, "is_remote", False)
         or value(row, "fleet_origin_alias", None)
@@ -252,6 +265,31 @@ def resolve_hijack_subject(
     )
 
 
+def _unavailable_group_subject(
+    requested_name: str,
+    row: Any | None,
+    error: BaseException,
+) -> HijackSubject:
+    """Make index incompleteness a safe, explicit refusal."""
+    return HijackSubject(
+        requested_name=requested_name,
+        target=None,
+        selected=None,
+        context=None,
+        members=(),
+        session=None,
+        occupant_reason="agent group lookup is incomplete",
+        is_session_container=False,
+        is_named_proc=False,
+        is_clan_container=False,
+        is_remote=False,
+        is_bulk=False,
+        row=row,
+        found=False,
+        lookup_error=str(error),
+    )
+
+
 def _default_find_agent(name: str) -> Any | None:
     from sase.agent.names import find_named_agent
 
@@ -259,6 +297,10 @@ def _default_find_agent(name: str) -> Any | None:
 
 
 def _session_from_member_dir(deps: StopDeps, artifacts_dir: str) -> Any | None:
+    from sase.core.agent_artifact_group_lookup import (
+        AgentArtifactGroupLookupUnavailable,
+    )
+
     lookup = deps.find_session_by_member_artifact_dir
     if lookup is None:
         from sase.agent.names import find_agent_session_by_member_artifact_dir
@@ -266,6 +308,8 @@ def _session_from_member_dir(deps: StopDeps, artifacts_dir: str) -> Any | None:
         lookup = find_agent_session_by_member_artifact_dir
     try:
         found = lookup(artifacts_dir)
+    except AgentArtifactGroupLookupUnavailable:
+        raise
     except (OSError, RuntimeError, TypeError, ValueError):
         return None
     if isinstance(found, tuple) and found:
@@ -274,6 +318,10 @@ def _session_from_member_dir(deps: StopDeps, artifacts_dir: str) -> Any | None:
 
 
 def _session_from_name(deps: StopDeps, name: str) -> Any | None:
+    from sase.core.agent_artifact_group_lookup import (
+        AgentArtifactGroupLookupUnavailable,
+    )
+
     lookup = deps.find_session
     if lookup is None:
         from sase.agent.names import find_agent_session
@@ -281,11 +329,17 @@ def _session_from_name(deps: StopDeps, name: str) -> Any | None:
         lookup = find_agent_session
     try:
         return lookup(name)
+    except AgentArtifactGroupLookupUnavailable:
+        raise
     except (OSError, RuntimeError, TypeError, ValueError):
         return None
 
 
 def _clan_from_name(deps: StopDeps, name: str) -> Any | None:
+    from sase.core.agent_artifact_group_lookup import (
+        AgentArtifactGroupLookupUnavailable,
+    )
+
     lookup = deps.find_clan
     if lookup is None:
         from sase.agent.names import find_agent_clan
@@ -293,6 +347,8 @@ def _clan_from_name(deps: StopDeps, name: str) -> Any | None:
         lookup = find_agent_clan
     try:
         return lookup(name)
+    except AgentArtifactGroupLookupUnavailable:
+        raise
     except (OSError, RuntimeError, TypeError, ValueError):
         return None
 
@@ -307,16 +363,33 @@ def _input_name(name_or_row: str | Any) -> str:
     return ""
 
 
-def _running_rows(deps: StopDeps, input_row: Any | None) -> list[Any]:
+def _running_rows(
+    deps: StopDeps, input_row: Any | None, roster: tuple[Any, ...]
+) -> list[Any]:
     rows: list[Any] = []
     if input_row is not None and value(input_row, "artifacts_dir"):
         rows.append(input_row)
     list_running = deps.list_running
     if list_running is None:
         try:
-            from sase.agent.running_listing import list_running_agents
+            from sase.agent.running_listing import running_from_snapshot
+            from sase.core.agent_scan_facade import scan_agent_artifact_dirs
+            from sase.core.agent_scan_wire import AgentArtifactScanOptionsWire
+            from sase.core.paths import sase_projects_dir
 
-            list_running = list_running_agents
+            paths = [str(member.artifacts_dir) for member in roster]
+            snapshot = scan_agent_artifact_dirs(
+                sase_projects_dir(),
+                paths,
+                AgentArtifactScanOptionsWire(
+                    include_prompt_step_markers=False,
+                    include_raw_prompt_snippets=False,
+                ),
+            )
+            targeted = running_from_snapshot(snapshot)
+
+            def list_running() -> list[Any]:
+                return list(targeted)
         except Exception:
             return rows
     try:

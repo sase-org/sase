@@ -230,6 +230,14 @@ def test_detached_failed_gate_pins_root_claim_and_preserves_private_linked_edits
     _write_meta(root_artifacts, root_meta)
     (root_artifacts / "done.json").write_text('{"outcome":"failed"}', encoding="utf-8")
     _write_meta(member_artifacts, member_meta)
+    from sase.core.agent_scan_facade import (
+        default_agent_artifact_index_path,
+        rebuild_agent_artifact_index,
+    )
+
+    rebuild_agent_artifact_index(
+        default_agent_artifact_index_path(), sase_projects_dir()
+    )
 
     from sase.llm_provider.commit_finalizer_git import normalize_path
     from sase._linked_repo_markers import record_opened_repo

@@ -52,6 +52,7 @@ class HijackSubject:
     is_bulk: bool
     row: Any | None
     found: bool
+    lookup_error: str | None = None
 
     @property
     def occupant_name(self) -> str | None:

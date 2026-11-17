@@ -83,6 +83,18 @@ def _build_hijack_facts(subject: HijackSubject) -> dict[str, Any]:
 
 def decide(subject: HijackSubject) -> dict[str, Any]:
     """Call the Rust v2 decision and attach it to the selected target."""
+    if subject.lookup_error is not None:
+        return {
+            "schema_version": eligibility_schema_version(),
+            "mode": "refused",
+            "eligible": False,
+            "code": "lookup_unavailable",
+            "message": f"Cannot safely resolve '{subject.requested_name}': {subject.lookup_error}",
+            "next_action": "retry after the agent artifact index is available",
+            "redirect_op": None,
+            "adapter": None,
+        }
+
     from sase.agent.hijack.core import agent_hijack_decide
 
     facts = _build_hijack_facts(subject)

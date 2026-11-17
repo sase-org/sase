@@ -93,6 +93,17 @@ def test_twenty_launch_agent_monitor_cycles_keep_only_local_authored_text(
     """Exercise real deferred fork expansion and the anonymous prompt prepare path."""
     monkeypatch.setenv("HOME", str(tmp_path))
     monkeypatch.setenv("SASE_HOME", str(tmp_path / ".sase"))
+    from sase.core.agent_scan_facade import (
+        default_agent_artifact_index_path,
+        rebuild_agent_artifact_index,
+    )
+    from sase.core.paths import sase_projects_dir
+
+    def rebuild_artifact_index() -> None:
+        rebuild_agent_artifact_index(
+            default_agent_artifact_index_path(), sase_projects_dir()
+        )
+
     fake_prettier_missing(monkeypatch)
     artifacts_root = tmp_path / ".sase" / "projects" / "proj" / "artifacts" / "ace-run"
     artifacts_root.mkdir(parents=True)
@@ -108,6 +119,7 @@ def test_twenty_launch_agent_monitor_cycles_keep_only_local_authored_text(
         seed_artifacts / "done.json",
         {"outcome": "completed", "response_path": str(seed_transcript)},
     )
+    rebuild_artifact_index()
 
     previous_monitor_node: str | None = None
     agent_nodes: list[str] = []
@@ -243,6 +255,7 @@ def test_twenty_launch_agent_monitor_cycles_keep_only_local_authored_text(
                 loop_agent_dir / "done.json",
                 {"outcome": "completed", "response_path": str(chat_path)},
             )
+            rebuild_artifact_index()
 
         def admit_slot(*_args, claim, **_kwargs):
             claim()

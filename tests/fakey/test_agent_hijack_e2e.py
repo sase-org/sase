@@ -356,6 +356,7 @@ def test_hijack_reload_escalate_inherits_both_repos_through_finalizer(
             status="HIJACKED",
             hijack_id=setup["record"]["hijack_id"],
             get_artifacts_dir=lambda: str(setup["artifacts"]),
+            is_agent_session_container_row=False,
             hijack_overlay=None,
             hijack_diff_summary=None,
             hijack_record=None,

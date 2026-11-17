@@ -64,7 +64,11 @@ def handle_agents_hijack(args: argparse.Namespace) -> int:
     if explain:
         subject, decision = resolve_and_decide(name)
         if subject.target is None and subject.selected is None:
-            message = f"Cannot explain agent '{name}': no agent or session resolves"
+            message = (
+                str(decision.get("message"))
+                if decision.get("code") == "lookup_unavailable"
+                else f"Cannot explain agent '{name}': no agent or session resolves"
+            )
             if as_json:
                 _print_json(
                     name,
@@ -72,7 +76,7 @@ def handle_agents_hijack(args: argparse.Namespace) -> int:
                         status="refused",
                         message=message,
                         exit_code=2,
-                        reason="not_found",
+                        reason=str(decision.get("code") or "not_found"),
                         decision=decision,
                         occupant_name=subject.occupant_name,
                         occupant_reason=subject.occupant_reason,

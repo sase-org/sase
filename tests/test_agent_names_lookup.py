@@ -595,4 +595,5 @@ def test_bare_named_agent_with_plan_rejected_outcome_is_not_wait_success(
     _make_agent(tmp_path, "proj", "run1", "foo", done=True, outcome="plan_rejected")
 
     with patch.object(Path, "home", return_value=tmp_path):
+        _rebuild_artifact_index()
         assert resolve_wait_dependency("foo") is False

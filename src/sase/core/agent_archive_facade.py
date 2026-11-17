@@ -319,7 +319,7 @@ def compile_agent_archive_corpus(
     timezone: str | None = None,
     link_facets: Mapping[str, Any] | None = None,
 ) -> AgentArchiveCorpus:
-    """Compile the v3 archive index at *root* into an immutable corpus.
+    """Compile the v4 archive index at *root* into an immutable corpus.
 
     *index_status* is the ``AgentArchiveIndexProbeStatusWire`` mapping the
     caller already probed (``missing``, ``rebuilding`` with a count, or

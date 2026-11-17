@@ -7,9 +7,12 @@ from pathlib import Path
 from sase.core.agent_artifact_lookup import lookup_agent_artifacts
 from sase.core.agent_artifact_lookup_wire import (
     AGENT_ARTIFACT_LOOKUP_FALLBACK_BUDGET,
+    AgentArtifactGroupSelectionQueryWire,
     AgentArtifactLookupQueryWire,
     AgentArtifactLookupTargetWire,
+    agent_artifact_group_selection_query_to_dict,
     agent_artifact_lookup_query_to_dict,
+    agent_artifact_lookup_result_to_dict,
     agent_artifact_lookup_result_from_dict,
 )
 from sase.core.agent_scan_facade import rebuild_agent_artifact_index
@@ -65,6 +68,50 @@ def test_lookup_query_round_trips_targets() -> None:
     assert restored.query.target.kind == "session"
     assert restored.hits[0].lookup_session == "lane-a"
     assert restored.hits[0].match_kind == "session"
+
+
+def test_group_selection_wire_round_trips_lookup_and_explicit_member_request() -> None:
+    query = AgentArtifactLookupQueryWire(
+        target=AgentArtifactLookupTargetWire(kind="session", names=("lane",)),
+    )
+    lookup = agent_artifact_lookup_result_from_dict(
+        {
+            "schema_version": 38,
+            "index_path": "/tmp/index.sqlite",
+            "projects_root": "/tmp/projects",
+            "query": agent_artifact_lookup_query_to_dict(query),
+            "availability": "ready",
+            "complete": True,
+            "source": "index",
+            "hits": [
+                {
+                    "artifact_dir": "/tmp/member",
+                    "project_name": "proj",
+                    "workflow_dir_name": "ace-run",
+                    "timestamp": "20261116120000",
+                    "lookup_session": "lane",
+                    "has_done_marker": False,
+                    "has_running_marker": False,
+                    "hidden": False,
+                }
+            ],
+        }
+    )
+    selection = AgentArtifactGroupSelectionQueryWire(
+        kind="session_member",
+        names=("lane",),
+        artifact_dir="/tmp/member",
+    )
+
+    assert (
+        agent_artifact_lookup_result_to_dict(lookup)["hits"][0]["lookup_session"]
+        == "lane"
+    )
+    assert agent_artifact_group_selection_query_to_dict(selection) == {
+        "kind": "session_member",
+        "names": ["lane"],
+        "artifact_dir": "/tmp/member",
+    }
 
 
 def test_lookup_facade_selects_indexed_name(tmp_path: Path) -> None:

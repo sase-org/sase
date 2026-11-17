@@ -7,6 +7,18 @@ from tests._agent_names_extract_fixtures import run_extract
 from tests._agent_names_fixtures import make_agent
 
 
+def _rebuild_artifact_index() -> None:
+    from sase.core.agent_scan_facade import (
+        default_agent_artifact_index_path,
+        rebuild_agent_artifact_index,
+    )
+    from sase.core.paths import sase_projects_dir
+
+    rebuild_agent_artifact_index(
+        default_agent_artifact_index_path(), sase_projects_dir()
+    )
+
+
 class TestExtractDirectivesTemplates:
     def test_indexed_name_template_allocates_concrete_name(
         self, tmp_path: Path
@@ -103,6 +115,7 @@ class TestExtractDirectivesTemplates:
         make_agent(tmp_path, "proj", "run2", "build-3")
 
         with patch.object(Path, "home", return_value=tmp_path):
+            _rebuild_artifact_index()
             result = run_extract(tmp_path, prompt="%wait:build-@\nDo work")
 
         assert result["info"].wait_names == ["build-3"]
@@ -116,6 +129,7 @@ class TestExtractDirectivesTemplates:
         make_agent(tmp_path, "proj", "run2", "cld-1")
 
         with patch.object(Path, "home", return_value=tmp_path):
+            _rebuild_artifact_index()
             result = run_extract(tmp_path, prompt="%wait:cld-@\nDo work")
 
         assert result["info"].wait_names == ["cld-1"]
@@ -128,6 +142,7 @@ class TestExtractDirectivesTemplates:
         make_agent(tmp_path, "proj", "run1", "build-0")
 
         with patch.object(Path, "home", return_value=tmp_path):
+            _rebuild_artifact_index()
             result = run_extract(
                 tmp_path,
                 prompt="%wait:build-@\n%id:build-@\nDo work",

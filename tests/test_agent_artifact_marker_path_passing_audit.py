@@ -185,13 +185,13 @@ _REVIEWED_PATH_PASSING_CONTEXTS: dict[str, PathPassingReview] = {
             ),
         )
     ),
-    "src/sase/agent/names/_lookup_groups.py:_iter_clan_members": PathPassingReview(
+    "src/sase/agent/names/_lookup_groups.py:_clan_members_from_selection": PathPassingReview(
         exemption=(
             "Read-only clan completion lookup: done.json presence and outcome are "
             "inspected before consulting an exact dismissed-archive fallback."
         ),
     ),
-    "src/sase/agent/names/_lookup_groups.py:_iter_agent_session_members": PathPassingReview(
+    "src/sase/agent/names/_lookup_groups.py:_session_members_from_selection": PathPassingReview(
         exemption=(
             "Read-only agent-session completion lookup: done.json presence and outcome are "
             "inspected before consulting an exact dismissed-archive fallback."

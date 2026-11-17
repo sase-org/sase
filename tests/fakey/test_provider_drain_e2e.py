@@ -186,6 +186,15 @@ def _seed_second_agent(harness: FakeyRetryHarness) -> Path:
         "error": _USAGE_LIMIT_ERROR,
     }
     (artifacts / "done.json").write_text(json.dumps(done), encoding="utf-8")
+    from sase.core.agent_scan_facade import (
+        default_agent_artifact_index_path,
+        rebuild_agent_artifact_index,
+    )
+    from sase.core.paths import sase_projects_dir
+
+    rebuild_agent_artifact_index(
+        default_agent_artifact_index_path(), sase_projects_dir()
+    )
     return artifacts
 
 

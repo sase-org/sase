@@ -21,6 +21,9 @@ AgentArtifactLookupAvailability = Literal[
     "corrupt",
     "busy",
 ]
+AgentArtifactGroupSelectionKind = Literal[
+    "session_latest", "session_root", "session_member", "clan_latest"
+]
 AGENT_ARTIFACT_LOOKUP_FALLBACK_BUDGET = 200
 
 
@@ -81,6 +84,30 @@ class AgentArtifactLookupResultWire:
     diagnostic: str | None = None
 
 
+@dataclass(frozen=True)
+class AgentArtifactGroupSelectionQueryWire:
+    """Group-selection mode over one targeted lookup result."""
+
+    kind: AgentArtifactGroupSelectionKind
+    names: tuple[str, ...]
+    artifact_dir: str | None = None
+
+
+@dataclass(frozen=True)
+class AgentArtifactGroupSelectionResultWire:
+    """Selected generation returned by the Rust group resolver."""
+
+    availability: AgentArtifactLookupAvailability
+    complete: bool
+    source: str
+    selected_name: str | None = None
+    generation: str | None = None
+    root: AgentArtifactLookupHitWire | None = None
+    member: AgentArtifactLookupHitWire | None = None
+    members: tuple[AgentArtifactLookupHitWire, ...] = ()
+    diagnostic: str | None = None
+
+
 def agent_artifact_lookup_query_to_dict(
     query: AgentArtifactLookupQueryWire,
 ) -> dict[str, Any]:
@@ -92,6 +119,77 @@ def agent_artifact_lookup_query_to_dict(
     if query.forced_unavailability is not None:
         payload["forced_unavailability"] = query.forced_unavailability
     return payload
+
+
+def agent_artifact_lookup_result_to_dict(
+    result: AgentArtifactLookupResultWire,
+) -> dict[str, Any]:
+    """Project a lookup result back to the Rust binding's wire shape."""
+    return {
+        "schema_version": result.schema_version,
+        "index_path": result.index_path,
+        "projects_root": result.projects_root,
+        "query": agent_artifact_lookup_query_to_dict(result.query),
+        "availability": result.availability,
+        "complete": result.complete,
+        "source": result.source,
+        "diagnostic": result.diagnostic,
+        "hits": [_hit_to_dict(hit) for hit in result.hits],
+        "truncated": result.truncated,
+        "dirs_visited": result.dirs_visited,
+        "records_decoded": result.records_decoded,
+    }
+
+
+def agent_artifact_group_selection_query_to_dict(
+    query: AgentArtifactGroupSelectionQueryWire,
+) -> dict[str, Any]:
+    """Project a group-selection request to the Rust binding shape."""
+    payload: dict[str, Any] = {"kind": query.kind, "names": list(query.names)}
+    if query.artifact_dir is not None:
+        payload["artifact_dir"] = query.artifact_dir
+    return payload
+
+
+def agent_artifact_group_selection_result_from_dict(
+    data: dict[str, Any],
+) -> AgentArtifactGroupSelectionResultWire:
+    """Rehydrate a Rust group-selection result."""
+    availability = str(data.get("availability") or "missing")
+    if availability not in {
+        "ready",
+        "missing",
+        "stale_schema",
+        "newer_schema",
+        "corrupt",
+        "busy",
+    }:
+        availability = "missing"
+    root = data.get("root")
+    member = data.get("member")
+    return AgentArtifactGroupSelectionResultWire(
+        availability=availability,  # type: ignore[arg-type]
+        complete=bool(data.get("complete")),
+        source=str(data.get("source") or "none"),
+        selected_name=(
+            str(data["selected_name"])
+            if data.get("selected_name") is not None
+            else None
+        ),
+        generation=(
+            str(data["generation"]) if data.get("generation") is not None else None
+        ),
+        root=_hit_from_dict(root) if isinstance(root, dict) else None,
+        member=_hit_from_dict(member) if isinstance(member, dict) else None,
+        members=tuple(
+            _hit_from_dict(item)
+            for item in data.get("members") or []
+            if isinstance(item, dict)
+        ),
+        diagnostic=(
+            str(data["diagnostic"]) if data.get("diagnostic") is not None else None
+        ),
+    )
 
 
 def agent_artifact_lookup_result_from_dict(
@@ -207,8 +305,31 @@ def _hit_from_dict(data: dict[str, Any]) -> AgentArtifactLookupHitWire:
     return AgentArtifactLookupHitWire(**kwargs)
 
 
+def _hit_to_dict(hit: AgentArtifactLookupHitWire) -> dict[str, Any]:
+    return {
+        "artifact_dir": hit.artifact_dir,
+        "project_name": hit.project_name,
+        "workflow_dir_name": hit.workflow_dir_name,
+        "timestamp": hit.timestamp,
+        "has_done_marker": hit.has_done_marker,
+        "has_running_marker": hit.has_running_marker,
+        "hidden": hit.hidden,
+        "agent_name": hit.agent_name,
+        "workflow_name": hit.workflow_name,
+        "agent_session": hit.agent_session,
+        "lookup_session": hit.lookup_session,
+        "agent_clan": hit.agent_clan,
+        "agent_clan_generation": hit.agent_clan_generation,
+        "parent_timestamp": hit.parent_timestamp,
+        "match_kind": hit.match_kind,
+    }
+
+
 __all__ = [
     "AGENT_ARTIFACT_LOOKUP_FALLBACK_BUDGET",
+    "AgentArtifactGroupSelectionQueryWire",
+    "AgentArtifactGroupSelectionResultWire",
+    "AgentArtifactGroupSelectionKind",
     "AgentArtifactLookupAvailability",
     "AgentArtifactLookupHitWire",
     "AgentArtifactLookupQueryWire",
@@ -216,5 +337,8 @@ __all__ = [
     "AgentArtifactLookupTargetKind",
     "AgentArtifactLookupTargetWire",
     "agent_artifact_lookup_query_to_dict",
+    "agent_artifact_lookup_result_to_dict",
     "agent_artifact_lookup_result_from_dict",
+    "agent_artifact_group_selection_query_to_dict",
+    "agent_artifact_group_selection_result_from_dict",
 ]
