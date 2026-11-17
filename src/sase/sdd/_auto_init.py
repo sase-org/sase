@@ -43,6 +43,8 @@ def auto_connect_sdd_store(workspace_dir: str | Path, workspace_num: int) -> boo
     project_root, management = repo_project_management(primary)
     if not is_project_directory(project_root):
         return False
+    # Mirrors sase.sdd.store.sdd_store_not_applicable's management check: only
+    # a readable unmanaged status skips the connect; errors fail closed below.
     if management.error is not None or not management.is_sase_managed:
         return False
 

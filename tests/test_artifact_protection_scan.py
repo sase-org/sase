@@ -7,6 +7,7 @@ import pytest
 from sase._repo_inventory_models import RepoInventory, RepoRecord
 from sase.core.artifact_file_protection import collect_protected_artifact_ids
 from sase.sdd.store import write_sdd_store_record
+from tests.main.repo_init_handler_helpers import _mark_managed_project
 
 
 def _record(
@@ -260,6 +261,7 @@ def test_missing_required_sidecar_is_unavailable_but_research_is_optional(
     plans = tmp_path / "plans"
     projects.mkdir()
     plans.mkdir()
+    _mark_managed_project(tmp_path)
     inventory = RepoInventory(
         (
             _record("sase", tmp_path, kind="primary"),
@@ -332,6 +334,114 @@ def test_connected_project_with_a_missing_clone_keeps_the_bare_label(
     result = collect_protected_artifact_ids()
 
     assert result.sources_unavailable == ("sase:beads",)
+
+
+def test_managed_unconnected_project_reports_both_required_roles(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    projects = tmp_path / "projects"
+    projects.mkdir()
+    _mark_managed_project(tmp_path)
+    inventory = RepoInventory(
+        (
+            _record("sase", tmp_path, kind="primary"),
+            _record("beads", tmp_path / "missing-beads", exists=False),
+            _record("plans", tmp_path / "missing-plans", exists=False),
+        )
+    )
+    monkeypatch.setattr(
+        "sase.core.artifact_file_protection.sase_projects_dir",
+        lambda: projects,
+    )
+    monkeypatch.setattr(
+        "sase.core.artifact_file_protection.collect_repo_inventory",
+        lambda: inventory,
+    )
+    monkeypatch.setattr(
+        "sase.core.artifact_file_protection.default_artifact_consumption_log_path",
+        lambda: tmp_path / "missing-consumption.jsonl",
+    )
+
+    result = collect_protected_artifact_ids()
+
+    assert result.sources_unavailable == (
+        "sase:beads (sidecars not connected on this machine)",
+        "sase:plans (sidecars not connected on this machine)",
+    )
+
+
+def test_unmanaged_unconnected_project_has_no_required_sources(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    projects = tmp_path / "projects"
+    projects.mkdir()
+    _mark_managed_project(tmp_path, config="is_sase_managed: false\n")
+    inventory = RepoInventory(
+        (
+            _record("sase", tmp_path, kind="primary"),
+            _record("beads", tmp_path / "missing-beads", exists=False),
+            _record("plans", tmp_path / "missing-plans", exists=False),
+            _record("research", tmp_path / "missing-research", exists=False),
+        )
+    )
+    monkeypatch.setattr(
+        "sase.core.artifact_file_protection.sase_projects_dir",
+        lambda: projects,
+    )
+    monkeypatch.setattr(
+        "sase.core.artifact_file_protection.collect_repo_inventory",
+        lambda: inventory,
+    )
+    monkeypatch.setattr(
+        "sase.core.artifact_file_protection.default_artifact_consumption_log_path",
+        lambda: tmp_path / "missing-consumption.jsonl",
+    )
+
+    result = collect_protected_artifact_ids()
+
+    assert result.sources_unavailable == ()
+
+
+def test_unmanaged_project_with_live_beads_clone_is_scanned(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    projects = tmp_path / "projects"
+    beads = tmp_path / "beads"
+    projects.mkdir()
+    beads.mkdir()
+    stored_id = "default:111111111111111111111111"
+    (beads / "page.md").write_text(
+        f"file:{stored_id}\n",
+        encoding="utf-8",
+    )
+    _mark_managed_project(tmp_path, config="is_sase_managed: false\n")
+    inventory = RepoInventory(
+        (
+            _record("sase", tmp_path, kind="primary"),
+            _record("beads", beads),
+            _record("plans", tmp_path / "missing-plans", exists=False),
+        )
+    )
+    monkeypatch.setattr(
+        "sase.core.artifact_file_protection.sase_projects_dir",
+        lambda: projects,
+    )
+    monkeypatch.setattr(
+        "sase.core.artifact_file_protection.collect_repo_inventory",
+        lambda: inventory,
+    )
+    monkeypatch.setattr(
+        "sase.core.artifact_file_protection.default_artifact_consumption_log_path",
+        lambda: tmp_path / "missing-consumption.jsonl",
+    )
+
+    result = collect_protected_artifact_ids()
+
+    assert stored_id in result.referenced_ids
+    assert result.sources_unavailable == ()
 
 
 def test_consumption_adds_only_canonical_file_ids_and_retains_overlap_evidence(

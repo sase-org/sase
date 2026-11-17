@@ -89,6 +89,7 @@ __all__ = [
     "resolve_sdd_kind_dir",
     "resolve_sdd_store",
     "sdd_store_connected",
+    "sdd_store_not_applicable",
     "write_sdd_store_record",
 ]
 
@@ -142,6 +143,43 @@ def sdd_store_connected(primary_workspace_dir: str | Path) -> bool | None:
     except (OSError, SddMaterializationError):
         return None
     return is_materialized_record(record)
+
+
+def _management_is_definitively_unmanaged(management: object) -> bool:
+    """Return whether a management status is cleanly unmanaged.
+
+    Shared by :func:`sdd_store_not_applicable` and the
+    ``sidecar_auto_sync`` connect leg so the two cannot drift apart. Only a
+    readable status with ``error is None`` and ``is_sase_managed is False``
+    qualifies; invalid YAML, a non-bool marker, or a layout collision fails
+    closed. A missing ``sase.yml`` is a valid unmanaged status.
+    """
+
+    error = getattr(management, "error", None)
+    managed = getattr(management, "is_sase_managed", None)
+    return error is None and managed is False
+
+
+def sdd_store_not_applicable(primary_workspace_dir: str | Path) -> bool:
+    """Return whether the project definitively has no SDD sidecar sources.
+
+    True only when the primary checkout carries no materialized store record
+    (:func:`sdd_store_connected` is False) and the repository is cleanly
+    unmanaged (readable ``sase.yml`` status with ``is_sase_managed`` False).
+    A record that is present but unreadable (``None``) never qualifies, nor
+    does an unreadable ``sase.yml``, an invalid marker, or a layout
+    collision. Costs local reads only; never touches the network.
+    """
+
+    if sdd_store_connected(primary_workspace_dir) is not False:
+        return False
+    from sase.main._repo_init_config import repo_project_management
+
+    try:
+        _, management = repo_project_management(primary_workspace_dir)
+    except Exception:
+        return False
+    return _management_is_definitively_unmanaged(management)
 
 
 def materialized_sdd_clone(primary_workspace_dir: str | Path) -> Path | None:

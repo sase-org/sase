@@ -39,6 +39,12 @@ from tests.agents_sync._publication_job_referenced_by import (
     test_publisher_keeps_unfenced_referenced_by_refresh_path,
     test_fenced_conversion_failure_quarantines_without_re_ring,
 )
+from tests.agents_sync._publication_job_targets import (
+    test_skipped_target_with_no_rows_is_silent_and_never_rings,
+    test_skipped_target_with_queued_row_counts_one_error_and_stays_visible,
+    test_error_outcome_is_counted_once_without_a_second_diagnostic,
+    test_sibling_project_with_valid_target_still_drains,
+)
 from tests.agents_sync._publication_job_lifecycle import (
     test_new_publication_waits_for_done_marker_or_ten_minute_grace,
     test_publication_job_leaves_young_request_queued_until_done_marker,
@@ -78,6 +84,10 @@ __all__ = [
     "test_publisher_converts_fenced_referenced_by_requests_without_sidecar_refresh",
     "test_publisher_keeps_unfenced_referenced_by_refresh_path",
     "test_fenced_conversion_failure_quarantines_without_re_ring",
+    "test_skipped_target_with_no_rows_is_silent_and_never_rings",
+    "test_skipped_target_with_queued_row_counts_one_error_and_stays_visible",
+    "test_error_outcome_is_counted_once_without_a_second_diagnostic",
+    "test_sibling_project_with_valid_target_still_drains",
     "test_new_publication_waits_for_done_marker_or_ten_minute_grace",
     "test_publication_job_leaves_young_request_queued_until_done_marker",
     "test_busy_agents_lock_rings_again_without_charging_requests",

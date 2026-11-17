@@ -9,7 +9,10 @@ import re
 
 from sase._repo_inventory_models import RepoRecord
 from sase.core.artifact_consumption import default_artifact_consumption_log_path
-from sase.core._sidecar_protection_label import unavailable_sidecar_label
+from sase.core._sidecar_protection_label import (
+    sidecar_protection_not_applicable,
+    unavailable_sidecar_label,
+)
 from sase.core.artifact_consumption_query import summarize_artifact_consumption
 from sase.core.paths import sase_projects_dir
 from sase.repo_inventory import collect_repo_inventory
@@ -84,9 +87,16 @@ def collect_protected_artifact_ids() -> ProtectedArtifactIds:
                 for record in inventory.records
                 if record.project == project and record.kind == "sidecar"
             )
+            not_applicable: bool | None = None
             for role in _REQUIRED_SIDECAR_ROLES:
                 root = _live_sidecar_root(records, role)
                 if root is None:
+                    if not_applicable is None:
+                        not_applicable = sidecar_protection_not_applicable(
+                            primaries[project]
+                        )
+                    if not_applicable:
+                        continue
                     unavailable.add(
                         unavailable_sidecar_label(project, role, primaries[project])
                     )

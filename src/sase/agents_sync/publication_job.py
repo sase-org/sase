@@ -32,7 +32,7 @@ from sase.agents_sync.publication_diverged_replay import (
 from sase.agents_sync.publication_outbox import AgentPublicationOutboxItem
 from sase.agents_sync.publication_outbox_models import publication_sort_key
 from sase.agents_sync.referenced_by_outbox import list_referenced_by_requests
-from sase.agents_sync.models import ProjectTarget
+from sase.agents_sync.models import ProjectTarget, SyncOutcome
 from sase.agents_sync.targets import resolve_sync_targets
 from sase.core.paths import sase_home, sase_projects_dir
 from sase.core.project_lifecycle_facade import list_project_records
@@ -124,10 +124,14 @@ def _run_publication_job(
         summary.diagnostics.append(f"could not list enabled projects: {exc}")
         project_keys = ()
     targets: dict[str, ProjectTarget] = {}
+    outcomes_by_key: dict[str, SyncOutcome] = {}
     if project_keys:
         try:
             selection = resolve_sync_targets(project_keys)
             targets = {target.project_key: target for target in selection.targets}
+            outcomes_by_key = {
+                outcome.project_key: outcome for outcome in selection.outcomes
+            }
             for outcome in selection.outcomes:
                 if outcome.error:
                     summary.errors += 1
@@ -159,22 +163,41 @@ def _run_publication_job(
             break
         target = targets.get(project_key)
         if target is None:
-            summary.errors += 1
-            summary.diagnostics.append(
-                f"{project_key}: no usable agents publication target"
-            )
-            if read_diverged_replay_marker(project_key) is None:
-                _safe_ring(project_key)
+            # A missing target cannot be drained, so the job never rings the
+            # doorbell here: the trigger's max_quiet backstop re-runs the job,
+            # and queued hints stay in the hints file because no claim is
+            # taken, so nothing is lost when the target comes back.
             missing_active = _safe_active_items(project_key)
             missing_parked = _parked_items(missing_active)
             missing_parked_count = len(missing_parked)
             summary.parked += missing_parked_count
+            summary.active_remaining += len(missing_active)
+            missing_outcome = outcomes_by_key.get(project_key)
+            if missing_outcome is not None and missing_outcome.error:
+                # Already counted once at selection time; do not count again
+                # or append a second diagnostic.
+                last_outcome = "target_unavailable"
+            else:
+                skip_reason = (
+                    missing_outcome.skip_reason
+                    if missing_outcome is not None and missing_outcome.skip_reason
+                    else "no usable agents publication target"
+                )
+                if missing_active:
+                    summary.errors += 1
+                    summary.diagnostics.append(
+                        f"{project_key}: {len(missing_active)} queued publication "
+                        f"request(s) cannot drain: {skip_reason}"
+                    )
+                    last_outcome = "target_unavailable"
+                else:
+                    last_outcome = "target_skipped"
             summary.project_stats[project_key] = {
                 "active_count": len(missing_active),
                 "oldest_active_age_seconds": _oldest_age(missing_active),
                 "parked_count": missing_parked_count,
                 "oldest_parked_age_seconds": _oldest_parked_age(missing_parked),
-                "last_outcome": "target_unavailable",
+                "last_outcome": last_outcome,
             }
             continue
         try:

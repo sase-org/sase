@@ -16,7 +16,10 @@ from sase.core.agent_artifact_paths import (
 from sase.core.agent_artifact_run_retention_models import AceRunProtectionSnapshot
 from sase.core.artifact_file_explicit import read_artifact_file_index
 from sase.core.continuation_retention import CONTINUATION_PORTABLE_LABEL_PREFIX
-from sase.core._sidecar_protection_label import unavailable_sidecar_label
+from sase.core._sidecar_protection_label import (
+    sidecar_protection_not_applicable,
+    unavailable_sidecar_label,
+)
 from sase.core.paths import sase_home, sase_projects_dir
 from sase.repo_inventory import collect_repo_inventory
 
@@ -135,9 +138,14 @@ def _collect_project_sidecar_refs(
     scanned: set[str],
     unavailable: set[str],
 ) -> None:
+    not_applicable: bool | None = None
     for role in _REQUIRED_SIDECAR_ROLES:
         sidecar = _live_sidecar_root(records, role)
         if sidecar is None:
+            if not_applicable is None:
+                not_applicable = sidecar_protection_not_applicable(primary)
+            if not_applicable:
+                continue
             unavailable.add(unavailable_sidecar_label(project, role, primary))
             continue
         if role == "beads":

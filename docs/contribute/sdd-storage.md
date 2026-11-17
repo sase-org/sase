@@ -187,10 +187,12 @@ the `sidecar_auto_sync` scheduler job performs the same connect-only step as a b
 and logs `Connected existing SDD sidecars for <project>`. It connects at most one
 project per tick (see the
 [`sidecar_sync` routine](../reference/automation/scheduler-default-routines.md#sidecarsync-30-second-interval)).
-The backstop matters because artifact-run retention needs every enabled project's beads
-and plans sidecars as protection sources. Until they are connected, retention reports
-`<project>:<role> (sidecars not connected on this machine)` as an unavailable source and
-refuses to purge.
+The backstop matters because artifact-run retention needs every enabled sase-managed
+project's beads and plans sidecars as protection sources. Until they are connected,
+retention reports `<project>:<role> (sidecars not connected on this machine)` as an
+unavailable source and refuses to purge. An unconnected project that is definitively not
+sase-managed has no required sidecar sources, so retention does not wait on it. An
+unreadable `sase.yml` or store record still fails closed.
 
 A required sidecar that does not exist remotely stops the launch with the remedy named
 directly — run `sase repo init` in the project root to create it — instead of an opaque

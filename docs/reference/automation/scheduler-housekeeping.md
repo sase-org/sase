@@ -51,9 +51,11 @@ projects and refreshes them in unfenced projects. A pass has a four-minute work 
 The publisher rings again for publishable hood work, active Referenced By requests, lock
 contention, or work deferred by the budget; a raised or deferred link drain keeps its
 hint and rings again. Rows retained by a completed link drain stay durable for the
-hourly `artifact_link_backfill` routine and do not keep their hint. The job writes
-per-project queue counts, oldest request age, and its last outcome—including the
-retained link-row count—to `~/.sase/agent_publication/heartbeat.json`.
+hourly `artifact_link_backfill` routine and do not keep their hint. A project without a
+usable agents sidecar is skipped without an error unless it has queued publication rows,
+and the job never rings the doorbell for it. The job writes per-project queue counts,
+oldest request age, and its last outcome—including the retained link-row count—to
+`~/.sase/agent_publication/heartbeat.json`.
 
 The `error_digest` job summarizes recent errors into a digest file stored at
 `~/.sase/axe/error_digests/digest_<timestamp>.txt`. The notification includes a

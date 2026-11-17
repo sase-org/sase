@@ -82,7 +82,9 @@ as `deferred`. A connect that fails, for example because a required sidecar does
 exist remotely yet, backs off exponentially up to 30 minutes. An unmanaged or
 non-remote-backed project is rechecked every 5 minutes. The summary counts `connected`
 and `connect_failed`. A connect failure does not change the job's status, because
-`artifact_run_prune` already reports the resulting protection gap.
+`artifact_run_prune` already reports the resulting protection gap. Retention does not
+wait on unmanaged projects: a project that is definitively not sase-managed has no
+required sidecar sources.
 
 `bead_claim_checks` and `wait_checks` both ship with an `fs` trigger watching the
 per-project completion pulse
