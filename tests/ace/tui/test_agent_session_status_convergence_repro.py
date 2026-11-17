@@ -273,11 +273,15 @@ def _settle_monitor(tree: _IncidentTree) -> list[dict[str, Any]]:
     (tree.monitor_dir / "live_reply.md").write_text("epic launched\n")
     with (
         patch(
-            "sase.monitor.proc_adapter.update_agent_artifact_index_for_marker_mutation",
+            "sase.monitor._proc_adapter_artifacts.update_agent_artifact_index_for_marker_mutation",
             lambda _artifacts_dir: None,
         ),
         patch(
-            "sase.monitor.proc_adapter.write_done_marker_and_update_index",
+            "sase.monitor._proc_adapter_followup.update_agent_artifact_index_for_marker_mutation",
+            lambda _artifacts_dir: None,
+        ),
+        patch(
+            "sase.monitor._proc_adapter_followup.write_done_marker_and_update_index",
             _write_done_marker_without_index,
         ),
         patch(

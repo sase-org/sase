@@ -23,7 +23,7 @@ from pathlib import Path
 import pytest
 
 from sase.monitor.models import MonitorRecord
-from sase.monitor.proc_adapter import _compile_monitor_argv
+from sase.monitor.proc_adapter import monitor_proc_argv
 from sase.monitor.start import StartMonitorRequest, start_monitor
 from sase.monitor.tool_wrap import (
     format_unwrapped_log_line,
@@ -117,7 +117,7 @@ def test_already_wrapped_commands_are_untouched() -> None:
         argv, reason = resolve_monitor_tool_wrap(
             command, None, "verify", "/repo", "verify", env={}
         )
-        assert argv == _compile_monitor_argv(command)
+        assert argv == monitor_proc_argv(command)
         assert reason is None
 
 
@@ -231,7 +231,7 @@ def test_no_profile_untouched_under_verify_wrapped_under_all(
     argv, reason = resolve_monitor_tool_wrap(
         "sleep 30", None, None, str(root), "verify", env={}
     )
-    assert argv == _compile_monitor_argv("sleep 30")
+    assert argv == monitor_proc_argv("sleep 30")
     assert reason == "no profile (monitor.tool_wrap is verify)"
 
     argv, reason = resolve_monitor_tool_wrap(
@@ -246,7 +246,7 @@ def test_off_wraps_nothing(tmp_path: Path) -> None:
     argv, reason = resolve_monitor_tool_wrap(
         "true", None, "verify", str(root), "off", env={}
     )
-    assert argv == _compile_monitor_argv("true")
+    assert argv == monitor_proc_argv("true")
     assert reason == "monitor.tool_wrap is off"
 
 
@@ -260,7 +260,7 @@ def test_bypass_leaves_raw(tmp_path: Path) -> None:
         "verify",
         env={"SASE_TOOL_BYPASS": "stale install"},
     )
-    assert argv == _compile_monitor_argv("true")
+    assert argv == monitor_proc_argv("true")
     assert reason == "SASE_TOOL_BYPASS is set"
 
 
@@ -269,7 +269,7 @@ def test_unknown_tool_wrap_fails_open_to_verify(tmp_path: Path) -> None:
     argv, reason = resolve_monitor_tool_wrap(
         "sleep 30", None, None, str(root), "sometimes", env={}
     )
-    assert argv == _compile_monitor_argv("sleep 30")
+    assert argv == monitor_proc_argv("sleep 30")
     assert reason == "no profile (monitor.tool_wrap is verify)"
 
 
@@ -280,7 +280,7 @@ def test_catalog_failure_leaves_raw_with_reason() -> None:
     argv, reason = resolve_monitor_tool_wrap(
         "true", None, "verify", "/repo", "verify", env={}, load_catalog=_broken
     )
-    assert argv == _compile_monitor_argv("true")
+    assert argv == monitor_proc_argv("true")
     assert reason == "tool catalog unavailable (bindings gone)"
 
 

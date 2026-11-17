@@ -15,7 +15,7 @@ import pytest
 from sase.ace.hooks.processes import is_process_running
 from sase.monitor.followup import FollowupLaunchResult
 from sase.monitor.models import MonitorRecord
-from sase.monitor.proc_adapter import _compile_monitor_argv, monitor_proc_argv
+from sase.monitor.proc_adapter import monitor_proc_argv
 from sase.monitor.start import StartMonitorRequest, start_monitor
 from sase.monitor.store import list_monitors, stop_monitor
 from sase.procs import reconcile_running_procs
@@ -123,8 +123,8 @@ def _start(
     )
 
 
-def test_compile_monitor_argv_is_explicit_sh_c() -> None:
-    assert _compile_monitor_argv("just check-full") == [
+def test_monitor_proc_argv_defaults_to_explicit_sh_c() -> None:
+    assert monitor_proc_argv("just check-full") == [
         "/bin/sh",
         "-c",
         "just check-full",
@@ -136,9 +136,11 @@ def test_monitor_proc_argv_prefers_explicit_execution_argv() -> None:
     assert monitor_proc_argv("sase bead work plan.md", execution_argv=execution) == (
         execution
     )
-    assert monitor_proc_argv("just check-full") == _compile_monitor_argv(
-        "just check-full"
-    )
+    assert monitor_proc_argv("just check-full") == [
+        "/bin/sh",
+        "-c",
+        "just check-full",
+    ]
 
 
 def test_start_uses_one_proc_id_and_artifacts_cross_links(
@@ -394,7 +396,7 @@ def test_incident_save_chat_history_crash_recovers_completed_result(
             pid=os.getpid(),
         )
 
-    import sase.monitor.proc_adapter as proc_adapter
+    import sase.monitor._proc_adapter_followup as proc_adapter
 
     monkeypatch.setattr(proc_adapter, "launch_followup_agent", fake_launch)
     monkeypatch.setattr(

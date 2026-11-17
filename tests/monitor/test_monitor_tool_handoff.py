@@ -18,7 +18,7 @@ from pathlib import Path
 import pytest
 
 from sase.monitor.models import MonitorRecord
-from sase.monitor.proc_adapter import _compile_monitor_argv
+from sase.monitor.proc_adapter import monitor_proc_argv
 from sase.monitor.start import StartMonitorRequest, start_monitor
 from sase.monitor.tool_handoff import (
     _parse_monitor_tool_words,
@@ -130,7 +130,7 @@ def test_words_unwrapped_reason_never_reserves() -> None:
     )
     assert (
         monitor_tool_run_words(
-            "true", None, _compile_monitor_argv("true"), "monitor.tool_wrap is off"
+            "true", None, monitor_proc_argv("true"), "monitor.tool_wrap is off"
         )
         is None
     )

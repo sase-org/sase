@@ -362,7 +362,7 @@ def _settlement_state(tmp_path: Path, *, joined: bool) -> tuple[str, dict[str, A
 def test_settle_skips_monitor_owned_reconcile_for_joined_runs(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
-    import sase.monitor.proc_adapter as adapter
+    import sase.monitor._proc_adapter_followup as adapter
 
     _, state = _settlement_state(tmp_path, joined=True)
     reconciled: list[Any] = []
@@ -392,7 +392,7 @@ def test_settle_skips_monitor_owned_reconcile_for_joined_runs(
 def test_settle_still_reconciles_monitor_owned_runs(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
-    import sase.monitor.proc_adapter as adapter
+    import sase.monitor._proc_adapter_followup as adapter
 
     _, state = _settlement_state(tmp_path, joined=False)
     reconciled: list[Any] = []

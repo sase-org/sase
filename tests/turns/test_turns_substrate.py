@@ -390,7 +390,7 @@ _REPO_ROOT = Path(__file__).resolve().parents[2]
 _KNOWN_SHELL_DONE_WRITERS = frozenset(
     {
         "src/sase/monitor/supervise_finish.py",
-        "src/sase/monitor/proc_adapter.py",
+        "src/sase/monitor/_proc_adapter_followup.py",
         "src/sase/monitor/reconcile.py",
         "src/sase/monitor/start_runtime.py",
         "src/sase/gate_turn/_settlement_publish.py",

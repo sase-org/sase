@@ -107,7 +107,7 @@ def _assert_followup_runs_after_cleanup(
     agent_tmp: Path,
     expected_removed: bool,
 ) -> None:
-    import sase.monitor.proc_adapter as proc_adapter
+    import sase.monitor._proc_adapter_followup as proc_adapter
 
     def observe_cleanup(*_args: object, **_kwargs: object) -> SimpleNamespace:
         assert cargo.exists() is not expected_removed
@@ -148,7 +148,7 @@ def test_settle_monitor_followup_persists_stopped_at_after_wait(
     followup_dir.mkdir()
     state = _settlement_state(artifacts_dir)
     settle_monitor_artifacts(state)
-    import sase.monitor.proc_adapter as proc_adapter
+    import sase.monitor._proc_adapter_followup as proc_adapter
 
     wait_calls: list[tuple[str, int | None]] = []
 
@@ -287,7 +287,7 @@ def test_lost_supervisor_diagnostic_reaches_done_and_show_without_followup(
         message=message,
     )
     monkeypatch.setattr(
-        "sase.monitor.proc_adapter.launch_followup_agent",
+        "sase.monitor._proc_adapter_followup.launch_followup_agent",
         lambda *_args, **_kwargs: pytest.fail("lost monitor must not launch"),
     )
 
@@ -509,7 +509,7 @@ def test_settle_monitor_followup_noops_for_missing_key_or_cargo_dir(
         assert agent_tmp.is_dir()
         return SimpleNamespace(error=None, launch_result=None)
 
-    import sase.monitor.proc_adapter as proc_adapter
+    import sase.monitor._proc_adapter_followup as proc_adapter
 
     monkeypatch.setattr(proc_adapter, "settle_claim_and_followup", observe_cleanup)
     settle_monitor_followup(
@@ -528,7 +528,7 @@ def test_settle_monitor_followup_skips_joined_monitor_scratch(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     import sase.axe.run_agent_runner_scratch as scratch
-    import sase.monitor.proc_adapter as proc_adapter
+    import sase.monitor._proc_adapter_followup as proc_adapter
 
     artifacts_dir = _make_proc_monitor(tmp_path)
     managed_root, cargo, agent_tmp = _prepare_starter_scratch(artifacts_dir, tmp_path)
