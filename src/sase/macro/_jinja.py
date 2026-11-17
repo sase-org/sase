@@ -7,6 +7,7 @@ from typing import Any
 from jinja2 import BaseLoader, Environment, StrictUndefined, TemplateError
 from sase.output import print_status
 
+from .cmdsub_source import GeneratedTextGuard
 from ._exceptions import MacroArgumentError
 from ._fenced_blocks import (
     protect_fenced_blocks,
@@ -109,6 +110,8 @@ def _render_jinja2_template(
     named_args: dict[str, Any],
     macro_name: str,
     scope: dict[str, Any] | None = None,
+    *,
+    guard: GeneratedTextGuard | None = None,
 ) -> str:
     """Render macro content as a Jinja2 template.
 
@@ -119,6 +122,10 @@ def _render_jinja2_template(
         macro_name: Name of the macro (for error messages)
         scope: Optional base context (e.g., workflow execution context).
             Macro-specific args take priority over scope values.
+        guard: When given, every ``{{ }}`` interpolation is marked and
+            hidden behind a guard token so a later command-substitution
+            boundary can tell argument/scope-derived text apart from the
+            admitted definition body. ``None`` renders exactly as before.
 
     Returns:
         Rendered template content
@@ -126,8 +133,6 @@ def _render_jinja2_template(
     Raises:
         MacroArgumentError: On template errors or missing variables
     """
-    env = _get_jinja_env()
-
     # Build context: globals first, then scope, then positional/named args override
     context: dict[str, Any] = get_global_template_vars()
     if scope:
@@ -139,11 +144,37 @@ def _render_jinja2_template(
     # Add named args directly (overrides scope)
     context.update(named_args)
 
+    if guard is None:
+        env = _get_jinja_env()
+        try:
+            template = env.from_string(content)
+            return template.render(**context)
+        except TemplateError as e:
+            raise MacroArgumentError(
+                f"Macro '#{macro_name}' template error: {e}"
+            ) from e
+
+    from sase.macro.cmdsub_source import interpolation_markers
+
+    start, end = interpolation_markers(guard.nonce)
+
+    def _marking_finalize(value: Any) -> str:
+        return f"{start}{value}{end}"
+
+    marking_env = Environment(
+        loader=BaseLoader(),
+        undefined=StrictUndefined,
+        autoescape=False,
+        finalize=_marking_finalize,
+    )
+    register_prompt_filters(marking_env)
+
     try:
-        template = env.from_string(content)
-        return template.render(**context)
+        template = marking_env.from_string(content)
+        rendered = template.render(**context)
     except TemplateError as e:
         raise MacroArgumentError(f"Macro '#{macro_name}' template error: {e}") from e
+    return guard.hide_marked_spans(rendered)
 
 
 def render_toplevel_jinja2(content: str) -> str:
@@ -219,20 +250,32 @@ def substitute_placeholders(
     named_args: dict[str, Any],
     macro_name: str,
     scope: dict[str, Any] | None = None,
+    *,
+    guard: GeneratedTextGuard | None = None,
 ) -> str:
     """Substitute placeholders using appropriate mode (Jinja2 or legacy).
 
     Automatically detects whether to use Jinja2 or legacy substitution
     based on the content.
+
+    When *guard* is given, substituted argument and scope values are hidden
+    behind guard tokens (marked during Jinja rendering, pre-wrapped for
+    legacy splicing) so a later command-substitution boundary treats them
+    as data. ``None`` substitutes exactly as before.
     """
     fenced_blocks: list[str] = []
     content = protect_fenced_blocks_only(content, fenced_blocks)
 
     if is_jinja2_template(content):
         result = _render_jinja2_template(
-            content, positional_args, named_args, macro_name, scope=scope
+            content, positional_args, named_args, macro_name, scope=scope, guard=guard
         )
     else:
+        if guard is not None:
+            positional_args = [
+                guard.wrap(arg if isinstance(arg, str) else str(arg))
+                for arg in positional_args
+            ]
         result = _substitute_legacy_placeholders(content, positional_args, macro_name)
 
     return unprotect_fenced_blocks(result, fenced_blocks)

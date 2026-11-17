@@ -277,8 +277,10 @@ The preprocessing steps delegate to functions from two libraries:
 - **`macro`**: `process_macro_references()`, `extract_prompt_directives()`,
   `is_jinja2_template()`, `render_toplevel_jinja2()`
 - **`artifact_refs`**: `process_artifact_references()`, `validate_artifact_references()`
-- **`file_references`**: `process_command_substitution()`, `process_file_references()`,
+- **`file_references`**: `execute_cmd_cached()`, `process_file_references()`,
   `validate_file_references()`, `format_with_prettier()`, `strip_html_comments()`
+  (command planning lives in the `sase_core` policy and executes through
+  `sase.macro.cmdsub_source` at explicit provenance boundaries)
 
 ## Subprocess Streaming
 

@@ -1,6 +1,9 @@
 """Tests for disabled region protection in macro processing."""
 
+from pathlib import Path
 from unittest.mock import MagicMock, patch
+
+import pytest
 
 from sase.feature_flags import override_flags
 from sase.macro._disabled_regions import (
@@ -275,10 +278,6 @@ class TestPreprocessPromptLateDisabledRegions:
     """Integration: preprocess_prompt_late strips markers and protects content."""
 
     @patch(
-        "sase.file_references.process_command_substitution",
-        side_effect=lambda x: x,
-    )
-    @patch(
         "sase.file_references.format_with_prettier",
         side_effect=lambda x, **_kw: x,
     )
@@ -296,7 +295,6 @@ class TestPreprocessPromptLateDisabledRegions:
         _mock_jinja: MagicMock,
         _mock_html: MagicMock,
         _mock_prettier: MagicMock,
-        _mock_cmd_sub: MagicMock,
     ) -> None:
         """@refs inside disabled region with inline closing marker are not validated.
 
@@ -319,10 +317,6 @@ class TestPreprocessPromptLateDisabledRegions:
         assert "@i18n" not in validated_text
 
     @patch(
-        "sase.file_references.process_command_substitution",
-        side_effect=lambda x: x,
-    )
-    @patch(
         "sase.file_references.format_with_prettier",
         side_effect=lambda x, **_kw: x,
     )
@@ -336,7 +330,6 @@ class TestPreprocessPromptLateDisabledRegions:
         _mock_jinja: MagicMock,
         _mock_html: MagicMock,
         _mock_prettier: MagicMock,
-        _mock_cmd_sub: MagicMock,
     ) -> None:
         """Markers must be stripped even when preceded by unexpanded refs.
 
@@ -362,7 +355,6 @@ class TestPreprocessPromptLateDisabledRegions:
         assert "# Previous Conversation" in result
         assert "# New Query" in result
 
-    @patch("sase.file_references.process_command_substitution")
     @patch(
         "sase.file_references.format_with_prettier",
         side_effect=lambda x, **_kw: x,
@@ -377,30 +369,32 @@ class TestPreprocessPromptLateDisabledRegions:
         _mock_jinja: MagicMock,
         _mock_html: MagicMock,
         _mock_prettier: MagicMock,
-        mock_cmd_sub: MagicMock,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
     ) -> None:
-        from sase.llm_provider.preprocessing import preprocess_prompt_late
-
-        # Track what text gets passed to command substitution
-        cmd_sub_inputs: list[str] = []
-
-        def track_cmd_sub(text: str) -> str:
-            cmd_sub_inputs.append(text)
-            return text
-
-        mock_cmd_sub.side_effect = track_cmd_sub
-        prompt = (
-            "%xprompts_enabled:false\n$(dangerous command)\n%xprompts_enabled:true\n"
+        # Phase sase-1tc.1.1.2 moved command substitution to the early
+        # source boundary, so this test drives the real two-phase pipeline
+        # with marker files instead of spying on the removed late-phase call:
+        # the outside command executes once in early, the disabled one stays
+        # literal through both phases.
+        from sase.llm_provider.preprocessing import (
+            preprocess_prompt_early,
+            preprocess_prompt_late,
         )
-        preprocess_prompt_late(prompt, file_ref_mode="skip")
-        # The command substitution should NOT see the $(dangerous command) text
-        for inp in cmd_sub_inputs:
-            assert "$(dangerous command)" not in inp
 
-    @patch(
-        "sase.file_references.process_command_substitution",
-        side_effect=lambda x: x,
-    )
+        monkeypatch.chdir(tmp_path)
+        prompt = (
+            "%xprompts_enabled:false\n"
+            "$(touch disabled-cmd-marker)\n"
+            "%xprompts_enabled:true\n"
+            "go $(touch disabled-go-marker)\n"
+        )
+        early = preprocess_prompt_early(prompt)
+        result = preprocess_prompt_late(early.prompt, file_ref_mode="skip")
+        assert (tmp_path / "disabled-go-marker").exists()
+        assert not (tmp_path / "disabled-cmd-marker").exists()
+        assert "$(touch disabled-cmd-marker)" in result
+
     @patch(
         "sase.file_references.format_with_prettier",
         side_effect=lambda x, **_kw: x,
@@ -415,7 +409,6 @@ class TestPreprocessPromptLateDisabledRegions:
         _mock_jinja: MagicMock,
         _mock_html: MagicMock,
         _mock_prettier: MagicMock,
-        _mock_cmd_sub: MagicMock,
     ) -> None:
         """Full two-phase pipeline must protect @refs inside disabled regions.
 

@@ -32,13 +32,21 @@ def test_agent_authored_late_preprocessing_keeps_cmdsub_literal(
     assert not marker.exists()
 
 
-def test_human_authored_late_preprocessing_keeps_cmdsub_behavior() -> None:
-    result = preprocess_prompt_late(
+def test_human_authored_cmdsub_executes_at_early_boundary_not_late() -> None:
+    # Phase sase-1tc.1.1.2 moved command substitution to the early source
+    # boundary: the late phase never executes, so rendered text cannot
+    # become source through a second pass.
+    late_result = preprocess_prompt_late(
         "human prompt $(printf human)",
         file_ref_mode="skip",
     )
 
-    assert result == "human prompt human\n"
+    assert "$(printf human)" in late_result
+
+    early = preprocess_prompt_early("human prompt $(printf human)")
+
+    assert "human prompt human" in early.prompt
+    assert "$(" not in early.prompt
 
 
 def test_handoff_macros_expand_while_cmdsub_stays_disabled(
@@ -47,6 +55,9 @@ def test_handoff_macros_expand_while_cmdsub_stays_disabled(
 ) -> None:
     marker = tmp_path / "macro-command-ran"
     monkeypatch.chdir(tmp_path)
+    # An agent-authored handoff carries the launch stamp; source commands
+    # in it must not execute at the early boundary either.
+    monkeypatch.setenv("SASE_PROMPT_AUTHORSHIP", "agent")
     command = "$(touch macro-command-ran)"
     early = preprocess_prompt_early(
         f"#handoff {command}",

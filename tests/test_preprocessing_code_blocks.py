@@ -1,7 +1,9 @@
 """Tests for fenced code block protection in preprocessing."""
 
+from pathlib import Path
 from typing import Any
-from unittest.mock import MagicMock, patch
+
+import pytest
 
 from sase.macro import _fenced_blocks
 from sase.llm_provider.preprocessing import preprocess_prompt, preprocess_prompt_late
@@ -12,7 +14,6 @@ from sase.macro._fenced_blocks import (
     protect_fenced_blocks_only,
     unprotect_fenced_blocks,
 )
-from sase.macro.directives import PromptDirectives
 
 _BOXED_INNER_FENCE_PROMPT = (
     "before\n"
@@ -150,49 +151,35 @@ def test_fenced_block_details_batch_converts_unicode_offsets(
     assert all(prompt[slice(*detail.opening_fence)] == "```" for detail in details)
 
 
-def _passthrough(x: str, **_kw: Any) -> str:
-    return x
-
-
 class TestPreprocessPromptCodeBlockProtection:
     """Integration tests verifying code block content bypasses processors."""
 
-    # Late-phase processors (command sub, file refs, prettier, HTML strip)
-    # are protected by the late phase's own fenced-block protection.
-    # process_macro_references handles its own protection internally.
-    @patch("sase.file_references.strip_html_comments")
-    @patch("sase.file_references.format_with_prettier")
-    @patch("sase.file_references.process_file_references")
-    @patch("sase.file_references.process_command_substitution")
-    @patch("sase.macro.process_macro_references")
-    @patch("sase.llm_provider.preprocessing.extract_prompt_directives")
     def test_text_outside_code_blocks_still_processed(
-        self,
-        mock_directives: MagicMock,
-        mock_macro: MagicMock,
-        mock_cmd_sub: MagicMock,
-        mock_file_refs: MagicMock,
-        mock_prettier: MagicMock,
-        mock_strip: MagicMock,
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        """Text outside code blocks should still go through processors."""
-        for mock in [
-            mock_macro,
-            mock_cmd_sub,
-            mock_file_refs,
-            mock_prettier,
-            mock_strip,
-        ]:
-            mock.side_effect = _passthrough
-        mock_directives.side_effect = lambda x, **_kw: (x, PromptDirectives())
+        """Commands outside fences execute at the source boundary; fenced ones stay literal.
 
-        prompt = "outside text\n```\ninside block\n```\nmore outside"
-        preprocess_prompt(prompt, agent_authored=False)
+        Phase sase-1tc.1.1.2 moved command substitution from the late phase
+        to the early source boundary, so this previously mock-based test now
+        drives the real boundary with marker files: outside-fence commands
+        execute exactly once while fenced content is never planned.
+        """
+        monkeypatch.chdir(tmp_path)
+        prompt = (
+            "outside $(touch outside-marker)\n"
+            "```\n"
+            "$(touch inside-marker)\n"
+            "```\n"
+            "more $(touch more-marker)"
+        )
+        result = preprocess_prompt(prompt, agent_authored=False)
 
-        # Late-phase processor (command sub) should see "outside text"
-        first_call_text = mock_cmd_sub.call_args[0][0]
-        assert "outside text" in first_call_text
-        assert "more outside" in first_call_text
+        assert (tmp_path / "outside-marker").exists()
+        assert (tmp_path / "more-marker").exists()
+        assert not (tmp_path / "inside-marker").exists()
+        assert "$(touch outside-marker)" not in result.prompt
+        assert "$(touch more-marker)" not in result.prompt
+        assert "$(touch inside-marker)" in result.prompt
 
     def test_late_preprocessing_ignores_file_refs_after_displayed_inner_fence(
         self,

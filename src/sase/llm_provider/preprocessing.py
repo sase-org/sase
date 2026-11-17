@@ -26,13 +26,26 @@ from sase.macro._disabled_regions import (
     unprotect_disabled_regions,
 )
 from sase.macro._fenced_blocks import protect_fenced_blocks, unprotect_fenced_blocks
+from sase.macro.cmdsub_source import (
+    CmdsubProvenance,
+    GeneratedTextGuard,
+    PromptTextKind,
+    execute_eligible_commands,
+    resolve_provenance,
+)
 from sase.macro.directives import PromptDirectives, extract_prompt_directives
+from sase.macro.source_render import render_source_template
 
 # File reference processing mode:
 #   "process" — expand @path refs (copy files, rewrite paths)
 #   "validate" — check @path refs exist but don't modify the prompt
 #   "skip" — ignore @path refs entirely
 FileRefMode = Literal["process", "validate", "skip"]
+
+
+def _default_result_provenance() -> CmdsubProvenance:
+    """Fail-closed provenance for directly constructed results."""
+    return CmdsubProvenance(kind=PromptTextKind.GENERATED, launch_authorship="agent")
 
 
 @dataclass
@@ -48,12 +61,16 @@ class PreprocessResult:
         continuation_segments: Provenance-aware local prompt fragments captured
             before transcript rendering so continuation replay never recovers
             structure from Markdown delimiters.
+        provenance: Provenance of :attr:`prompt`. Early-phase output is
+            rendered text (``GENERATED`` kind), so feeding it back into an
+            early boundary with this provenance executes nothing.
     """
 
     prompt: str
     directives: PromptDirectives = field(default_factory=PromptDirectives)
     segment_vcs_refs: tuple[str | None, ...] = ()
     continuation_segments: tuple[ContinuationSegmentCapture, ...] = ()
+    provenance: CmdsubProvenance = field(default_factory=_default_result_provenance)
 
 
 # Keep the old name as an alias so existing internal references still work.
@@ -67,56 +84,76 @@ def preprocess_prompt_early(
     scope: dict[str, Any] | None = None,
     context: dict[str, Any] | None = None,
     trace: ExpansionTrace | None = None,
+    provenance: CmdsubProvenance | None = None,
 ) -> PreprocessResult:
-    """Early preprocessing phase: Jinja2 context, macro expansion, directives.
+    """Early preprocessing phase: source commands, Jinja2, macros, directives.
 
     Steps:
-        1. Render Jinja2 with *context* dict (for workflow variables).
-        2. Expand ``#name`` macro references.
-        3. Extract ``%id`` prompt directives (after macro expansion so
+        1. Resolve launch authorship (the source boundary). Only source-kind
+           text in a human launch executes ``$(cmd)``; generated text and
+           agent launches render and expand without executing.
+        2. Render Jinja2 with *context* dict (for workflow variables).
+           Context values are data: Jinja sees the original typed values,
+           and interpolated spans are hidden from every execution pass.
+           Without *context*, bare source commands still execute here.
+        3. Expand ``#name`` macro references.
+        4. Extract ``%id`` prompt directives (after macro expansion so
            directives embedded in macros are also discovered).
 
     Args:
-        prompt: The raw prompt text.
+        prompt: The raw prompt text (authorized source).
         extra_macros: Additional macros (workflow-defined) for expansion.
         scope: Variable scope for macro argument evaluation.
         context: Jinja2 template context dict.  When provided, the prompt is
             rendered as a Jinja2 template *before* macro expansion.
         trace: Optional ExpansionTrace to collect expansion records into.
+        provenance: Explicit input provenance. ``None`` presents the prompt
+            as human source with launch-stamp authorship.
 
     Returns:
-        A PreprocessResult with the partially processed prompt and extracted
-        directives.
+        A PreprocessResult with the partially processed prompt, extracted
+        directives, and ``GENERATED``-kind output provenance.
     """
     from sase.macro import process_macro_references
 
     authored_prompt = prompt
+    provenance_in = resolve_provenance(provenance)
+    guard = GeneratedTextGuard()
     trace_start_index = len(trace.records) if trace is not None else 0
     if trace is None:
         from sase.macro._trace import ExpansionTrace
 
         trace = ExpansionTrace()
 
-    # 1. Optional Jinja2 rendering (workflow variables)
+    # 1/2. Source-aware Jinja2 rendering (workflow variables) or bare
+    # source-command execution. Literal commands from authorized source
+    # execute here; interpolated data never reaches an execution pass.
     if context is not None:
-        from sase.macro.workflow_executor_utils import render_prompt_template
-
-        fenced_blocks: list[str] = []
-        prompt = protect_fenced_blocks(prompt, fenced_blocks)
-        disabled_regions: list[str] = []
-        prompt = protect_disabled_regions(prompt, disabled_regions)
-        prompt = render_prompt_template(prompt, context)
-        prompt = unprotect_disabled_regions(prompt, disabled_regions)
-        prompt = unprotect_fenced_blocks(prompt, fenced_blocks)
+        prompt = render_source_template(
+            prompt, context, provenance=provenance_in, guard=guard
+        )
+    else:
+        prompt = execute_eligible_commands(
+            prompt, provenance=provenance_in, guard=guard
+        )
 
     from sase.project_aliases import canonicalize_project_aliases_in_prompt
 
     prompt = canonicalize_project_aliases_in_prompt(prompt)
 
-    # 2. Expand macro references
+    # 3. Expand macro references
     prompt = process_macro_references(
-        prompt, extra_macros=extra_macros, scope=scope, trace=trace
+        prompt,
+        extra_macros=extra_macros,
+        scope=scope,
+        trace=trace,
+        cmdsub_provenance=provenance_in,
+        cmdsub_guard=guard,
     )
+    # The macro entry points unwrap what they expanded, but prompts without
+    # references return through a fast path: unwrap here so generated spans
+    # hidden for the source boundary never leak into the result.
+    prompt = guard.unwrap(prompt)
 
     # 3. Directive extraction (after macro expansion so directives inside
     #    expanded macros are also discovered; fenced-block protection is
@@ -142,6 +179,10 @@ def preprocess_prompt_early(
             local_authored_prompt_segment(authored_prompt),
             *macro_trace_segments(trace, start_index=trace_start_index),
         ),
+        provenance=CmdsubProvenance(
+            kind=PromptTextKind.GENERATED,
+            launch_authorship=provenance_in.launch_authorship,
+        ),
     )
 
 
@@ -153,26 +194,34 @@ def preprocess_prompt_late(
     is_home_mode: bool = False,
     ref_contexts: Sequence[PromptRefContext] | None = None,
     materialize_missing_roots: bool = False,
+    provenance: CmdsubProvenance | None = None,
 ) -> str:
-    """Late preprocessing phase: command sub, artifact/file refs, Jinja2, formatting.
+    """Late preprocessing phase: artifact/file refs, Jinja2, formatting.
+
+    Command substitution never runs here. Authored ``$(cmd)`` expressions
+    execute exactly once at the early-phase source boundary; this phase's
+    input is rendered text, so scanning it again would execute generated
+    data. Macros and artifact refs remain live for agent-authored prompts.
 
     Steps:
-        1. Protect fenced code blocks.
-        2. ``$(cmd)`` command substitution for human-authored prompts.
-        3. ``@kind:payload`` artifact reference expansion or validation into
+        1. Protect disabled regions and fenced code blocks.
+        2. ``@kind:payload`` artifact reference expansion or validation into
            portable prose (and, for explicit custom path-bound formats, path
            tokens).
-        4. Ordinary authored ``@path`` file reference processing or validation.
-        5. Top-level Jinja2 rendering.
-        6. Literal-preserving agent-prompt formatting.
-        7. HTML comment stripping.
-        8. Restore fenced code blocks.
+        3. Ordinary authored ``@path`` file reference processing or validation.
+        4. Top-level Jinja2 rendering.
+        5. Literal-preserving agent-prompt formatting.
+        6. HTML comment stripping.
+        7. Restore fenced code blocks and disabled regions.
 
     Args:
         prompt: The prompt text (output of early phase or embedded-workflow
             expansion).
-        agent_authored: If True, skip host-side ``$(cmd)`` execution because
-            the prompt body came from an agent-generated launch.
+        agent_authored: Retained for caller compatibility; command
+            substitution no longer runs in this phase for any authorship.
+            The remaining steps treat all prompts identically. Phase
+            ``sase-1tc.1.1.3`` removes this parameter when it migrates the
+            workflow callers to explicit provenance.
         file_ref_mode: How to handle ``@path`` references.
         is_home_mode: If True, skip file copying for ``@`` file references.
         ref_contexts: Per-segment builtin artifact-ref resolution contexts,
@@ -181,13 +230,15 @@ def preprocess_prompt_late(
             this sequence; see ``artifact_ref_prompt``'s resolution order.
         materialize_missing_roots: If True, clone missing document sidecar
             roots cited by artifact refs before resolving them.
+        provenance: Explicit provenance of *prompt*, carried for the
+            ordinary :func:`preprocess_prompt` composition. It never enables
+            execution here; a future phase uses it to thread policy.
 
     Returns:
         The fully preprocessed prompt text.
     """
     from sase.file_references import (
         format_agent_prompt_markdown,
-        process_command_substitution,
         process_file_references,
         strip_html_comments,
         validate_file_references,
@@ -199,6 +250,10 @@ def preprocess_prompt_late(
     )
     from sase.macro import is_jinja2_template, render_toplevel_jinja2
 
+    # NOTE: agent_authored and provenance are intentionally unused: no late
+    # input may enable command substitution. Both stay for caller
+    # compatibility until phase sase-1tc.1.1.3 migrates the workflow callers.
+
     # 0. Protect disabled regions (%macros_enabled:false/true pairs)
     disabled_regions: list[str] = []
     prompt = protect_disabled_regions(prompt, disabled_regions)
@@ -207,12 +262,7 @@ def preprocess_prompt_late(
     fenced_blocks: list[str] = []
     prompt = protect_fenced_blocks(prompt, fenced_blocks)
 
-    # 2. Command substitution. Macros and artifact refs remain live for
-    # agent-authored prompts; only shell execution is provenance-gated.
-    if not agent_authored:
-        prompt = process_command_substitution(prompt)
-
-    # 3. Artifact references first. Built-in expansions are portable prose and
+    # 2. Artifact references first. Built-in expansions are portable prose and
     #    are not re-parsed as ``@path`` tokens; staged_artifact_paths still
     #    suppresses explicit custom path-bound formats that emit ``@path``.
     staged_artifact_paths: set[str] = set()
@@ -231,7 +281,7 @@ def preprocess_prompt_late(
             prompt, is_home_mode=is_home_mode, ref_contexts=ref_contexts
         )
 
-    # 4. File references
+    # 3. File references
     if file_ref_mode == "process":
         prompt = process_file_references(
             prompt,
@@ -241,21 +291,19 @@ def preprocess_prompt_late(
     elif file_ref_mode == "validate":
         validate_file_references(prompt)
 
-    # 5. Top-level Jinja2
+    # 4. Top-level Jinja2
     if is_jinja2_template(prompt):
         prompt = render_toplevel_jinja2(prompt)
     prompt = artifact_jinja_protection.unprotect(prompt)
 
-    # 6. Literal-preserving agent-prompt formatting
+    # 5. Literal-preserving agent-prompt formatting
     prompt = format_agent_prompt_markdown(prompt)
 
-    # 7. HTML comment stripping
+    # 6. HTML comment stripping
     prompt = strip_html_comments(prompt)
 
-    # 8. Restore fenced code blocks
+    # 7. Restore fenced code blocks and disabled regions
     prompt = unprotect_fenced_blocks(prompt, fenced_blocks)
-
-    # 9. Restore disabled regions and strip markers
     prompt = unprotect_disabled_regions(prompt, disabled_regions)
     prompt = strip_disabled_region_markers(prompt)
 
@@ -268,6 +316,7 @@ def preprocess_prompt(
     is_home_mode: bool = False,
     materialize_missing_roots: bool = False,
     agent_authored: bool | None = None,
+    provenance: CmdsubProvenance | None = None,
 ) -> PreprocessResult:
     """Apply the full preprocessing pipeline to a raw prompt.
 
@@ -281,11 +330,17 @@ def preprocess_prompt(
             roots cited by artifact refs before resolving them.
         agent_authored: Whether the prompt body came from an agent. When
             omitted, use the authorship stamp provided by the launch funnel.
+            Kept for the late-phase call; command substitution itself is
+            governed by *provenance* at the early source boundary.
+        provenance: Explicit input provenance for the early phase.
+            ``None`` presents the prompt as human source with launch-stamp
+            authorship.
 
     Returns:
-        A PreprocessResult with the cleaned prompt and extracted directives.
+        A PreprocessResult with the cleaned prompt, extracted directives,
+        and ``GENERATED``-kind output provenance.
     """
-    early = preprocess_prompt_early(prompt)
+    early = preprocess_prompt_early(prompt, provenance=provenance)
 
     from sase.artifact_ref_prompt_context import (
         prompt_ref_contexts_for_segment_vcs_refs,
@@ -304,10 +359,12 @@ def preprocess_prompt(
         is_home_mode=is_home_mode,
         ref_contexts=ref_contexts,
         materialize_missing_roots=materialize_missing_roots,
+        provenance=early.provenance,
     )
     return PreprocessResult(
         prompt=final_prompt,
         directives=early.directives,
         segment_vcs_refs=early.segment_vcs_refs,
         continuation_segments=early.continuation_segments,
+        provenance=early.provenance,
     )

@@ -13,6 +13,7 @@ from sase.output import print_status
 
 from ._jinja import is_jinja2_template, render_toplevel_jinja2
 from ._processor_engine import process_loaded_macro_catalog
+from .cmdsub_source import CmdsubProvenance, GeneratedTextGuard
 from ._processor_lexical import (
     LAUNCH_DEFERRED_MACRO_NAMES,
     prompt_may_reference_macro,
@@ -32,6 +33,8 @@ def process_macro_references(
     trace: ExpansionTrace | None = None,
     defer_macro_names: Collection[str] = frozenset(),
     raise_on_error: bool = False,
+    cmdsub_provenance: CmdsubProvenance | None = None,
+    cmdsub_guard: GeneratedTextGuard | None = None,
 ) -> str:
     """Process macro references in the prompt.
 
@@ -65,6 +68,13 @@ def process_macro_references(
         raise_on_error: When True, raise ``MacroError`` instead of printing
             the failure and exiting. The default print-and-exit path is
             unchanged so existing callers keep their current behavior.
+        cmdsub_provenance: Provenance of *prompt* for command substitution.
+            Source-kind text in a human launch executes argument and
+            definition commands at their own boundaries; generated text and
+            agent launches expand without executing. ``None`` presents the
+            prompt as human source with launch-stamp authorship.
+        cmdsub_guard: Guard hiding generated spans. ``None`` mints an
+            ephemeral guard unwrapped before returning.
 
     Returns:
         The transformed prompt with macros expanded
@@ -102,6 +112,8 @@ def process_macro_references(
         aliases_resolved=True,
         defer_macro_names=defer_macro_names,
         raise_on_error=raise_on_error,
+        cmdsub_provenance=cmdsub_provenance,
+        cmdsub_guard=cmdsub_guard,
     )
 
 
@@ -116,6 +128,8 @@ def process_macro_references_with_catalog(
     preserve_segment_separators: bool = False,
     defer_macro_names: Collection[str] = frozenset(),
     raise_on_error: bool = False,
+    cmdsub_provenance: CmdsubProvenance | None = None,
+    cmdsub_guard: GeneratedTextGuard | None = None,
 ) -> str:
     """Process macro references using an already-loaded macro catalog."""
     return process_loaded_macro_catalog(
@@ -130,6 +144,8 @@ def process_macro_references_with_catalog(
         raise_on_error=raise_on_error,
         print_status_fn=print_status,
         resolve_macro_aliases_fn=resolve_macro_aliases,
+        cmdsub_provenance=cmdsub_provenance,
+        cmdsub_guard=cmdsub_guard,
     )
 
 

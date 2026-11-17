@@ -5,6 +5,13 @@ from __future__ import annotations
 from collections.abc import Collection
 from typing import Any
 
+from .cmdsub_source import (
+    CmdsubProvenance,
+    GeneratedTextGuard,
+    PromptTextKind,
+    execute_eligible_commands,
+    resolve_provenance,
+)
 from ._exceptions import MacroError
 from ._jinja import substitute_placeholders, validate_and_convert_args
 from .models import Macro
@@ -19,6 +26,8 @@ def expand_single_macro(
     preserve_segment_separators: bool = False,
     defer_macro_names: Collection[str] = frozenset(),
     raise_on_error: bool = False,
+    cmdsub_provenance: CmdsubProvenance | None = None,
+    cmdsub_guard: GeneratedTextGuard | None = None,
 ) -> str:
     """Expand a single macro with its arguments.
 
@@ -33,6 +42,14 @@ def expand_single_macro(
             first rendered segment.
         raise_on_error: When True, nested local-helper expansion raises
             ``MacroError`` instead of printing and exiting.
+        cmdsub_provenance: Provenance of the prompt that referenced this
+            macro. Admitted-definition commands in the body execute only
+            for source-kind text in a human launch; generated text and
+            agent launches expand without executing. ``None`` presents the
+            reference as human source with launch-stamp authorship.
+        cmdsub_guard: Guard hiding generated spans from the definition
+            boundary. ``None`` mints an ephemeral guard unwrapped before
+            returning, so direct callers always get clean text.
 
     Returns:
         The expanded macro content.
@@ -42,6 +59,20 @@ def expand_single_macro(
         MacroError: If nested local-helper expansion fails and
             ``raise_on_error`` is True.
     """
+    provenance = resolve_provenance(cmdsub_provenance)
+    own_guard = cmdsub_guard is None
+    guard = cmdsub_guard if cmdsub_guard is not None else GeneratedTextGuard()
+    # Each admitted definition is its own source boundary: body commands
+    # execute here, before substituted argument/scope values (hidden behind
+    # guard tokens) can reach the execution pass.
+    if provenance.may_execute:
+        body_provenance = CmdsubProvenance(
+            kind=PromptTextKind.ADMITTED_DEFINITION,
+            launch_authorship=provenance.launch_authorship,
+        )
+    else:
+        body_provenance = provenance
+
     # Validate and convert args if macro has typed inputs
     conv_positional, conv_named = validate_and_convert_args(
         macro_def, positional_args, named_args
@@ -54,10 +85,17 @@ def expand_single_macro(
         conv_named,
         macro_def.name,
         scope=render_scope,
+        guard=guard,
     )
-    rendered = _filter_conditional_macro_segments(rendered)
+    # Filter conditional segments before the boundary executes: only text
+    # that survives into the output may execute, mirroring the Jinja rule
+    # that a false branch never runs a command.
+    rendered = _filter_conditional_macro_segments(rendered, guard)
+    rendered = execute_eligible_commands(
+        rendered, provenance=body_provenance, guard=guard
+    )
     if not rendered.strip():
-        return ""
+        return guard.unwrap(rendered) if own_guard else rendered
     rendered = _expand_local_macro_references(
         macro_def,
         rendered,
@@ -67,29 +105,74 @@ def expand_single_macro(
         preserve_segment_separators=preserve_segment_separators,
         defer_macro_names=defer_macro_names,
         raise_on_error=raise_on_error,
+        # Nested helper boundaries mint their own ephemeral guard: sharing
+        # this boundary's guard would let the nested mid-pass unwrap expose
+        # outer generated spans to this pass's execution boundary early.
+        cmdsub_provenance=body_provenance,
     )
-    rendered = _filter_conditional_macro_segments(rendered)
+    rendered = _filter_conditional_macro_segments(rendered, guard)
     if not rendered.strip():
-        return ""
+        return guard.unwrap(rendered) if own_guard else rendered
     if preserve_segment_separators:
-        return rendered
+        return guard.unwrap(rendered) if own_guard else rendered
 
     from sase.agent.multi_prompt import split_segments_protecting_fences
     from sase.macro.segment_separators import macro_has_segment_separators
 
     if not macro_has_segment_separators(macro_def):
-        return rendered
+        return guard.unwrap(rendered) if own_guard else rendered
 
     segments = split_segments_protecting_fences(rendered)
-    return segments[0] if segments else ""
+    result = segments[0] if segments else ""
+    return guard.unwrap(result) if own_guard else result
 
 
-def _filter_conditional_macro_segments(rendered: str) -> str:
+def _filter_conditional_macro_segments(
+    rendered: str, guard: GeneratedTextGuard | None = None
+) -> str:
     if "%if(" not in rendered:
         return rendered
     from sase.core.agent_launch_facade import filter_conditional_prompt_text
 
+    if guard is not None:
+        rendered = _unwrap_condition_tokens(rendered, guard)
     return filter_conditional_prompt_text(rendered)
+
+
+def _unwrap_condition_tokens(rendered: str, guard: GeneratedTextGuard) -> str:
+    """Expose guard-hidden values inside ``%if(...)`` conditions.
+
+    The segment filter parses each condition value and consumes the
+    directive, so no unwrapped span survives filtering; every other guard
+    token stays hidden for downstream execution boundaries. Guard tokens
+    never contain parentheses, so paren balancing can skip straight past
+    them while locating each condition's end.
+    """
+    import re
+
+    token_ends = dict(guard.spans_in(rendered))
+    if not token_ends:
+        return rendered
+    parts: list[str] = []
+    pos = 0
+    for match in re.finditer(r"%if\(", rendered):
+        start = match.start()
+        parts.append(rendered[pos:start])
+        depth = 1
+        cursor = match.end()
+        while cursor < len(rendered) and depth > 0:
+            if cursor in token_ends:
+                cursor = token_ends[cursor]
+                continue
+            if rendered[cursor] == "(":
+                depth += 1
+            elif rendered[cursor] == ")":
+                depth -= 1
+            cursor += 1
+        parts.append(guard.unwrap(rendered[start:cursor]))
+        pos = cursor
+    parts.append(rendered[pos:])
+    return "".join(parts)
 
 
 def _skill_render_scope(
@@ -138,6 +221,7 @@ def _expand_local_macro_references(
     preserve_segment_separators: bool,
     defer_macro_names: Collection[str],
     raise_on_error: bool = False,
+    cmdsub_provenance: CmdsubProvenance | None = None,
 ) -> str:
     """Expand helpers scoped to *macro* without consulting the global catalog."""
     if not macro_def.local_macros or "#" not in rendered:
@@ -154,4 +238,5 @@ def _expand_local_macro_references(
         preserve_segment_separators=preserve_segment_separators,
         defer_macro_names=defer_macro_names,
         raise_on_error=raise_on_error,
+        cmdsub_provenance=cmdsub_provenance,
     )

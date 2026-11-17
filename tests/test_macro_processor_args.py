@@ -75,15 +75,15 @@ def test_process_macro_colon_arg_decodes_plus_space_substitution() -> None:
 # --- Command substitution resolution tests ---
 
 
-_CMD_SUB_PATCH = "sase.file_references.process_command_substitution"
-
-
-@patch(_CMD_SUB_PATCH)
+@patch("sase.file_references.execute_cmd_cached")
 def test_resolve_cmd_sub_resolves_dollar_paren(
-    mock_cmd_sub: MagicMock,
+    mock_execute: MagicMock,
 ) -> None:
     """Macro expansion resolves command substitutions in positional and named args."""
-    mock_cmd_sub.side_effect = lambda s: s.replace("$(branch_bug)", "PROJ-123")
+    # Phase sase-1tc.1.1.2: argument commands are planned through the core
+    # source policy and executed via execute_cmd_cached at the source
+    # boundary (not via the legacy late-phase process_command_substitution).
+    mock_execute.side_effect = lambda cmd: ("PROJ-123", True)
     macro_def = Macro(
         name="cmd_sub",
         content="{{ _1 }} {{ id }}",
@@ -99,6 +99,7 @@ def test_resolve_cmd_sub_resolves_dollar_paren(
         result = process_macro_references("#cmd_sub($(branch_bug), id=$(branch_bug))")
 
     assert result == "PROJ-123 PROJ-123"
+    assert mock_execute.call_count == 2
 
 
 # --- Shorthand free-text payload binding (structural, not [[...]] round-trip) ---

@@ -1,4 +1,13 @@
-"""Tests for command substitution and main API in the file_references module."""
+"""Tests for the main API in the file_references module.
+
+Command substitution moved to the source-aware boundary in phase
+sase-1tc.1.1.2: planning lives in the sase_core policy and execution goes
+through ``execute_cmd_cached`` at explicit provenance boundaries, so the
+legacy ``process_command_substitution`` entry point and its scanner helpers
+were removed with their dedicated tests. The scanner contract (nested,
+escaped, unclosed, multiple commands, non-ASCII offsets) is covered by the
+core policy tests plus ``tests/test_cmdsub_source_provenance.py``.
+"""
 
 import os
 import tempfile
@@ -6,59 +15,8 @@ from pathlib import Path
 
 import pytest
 from sase.file_references import (
-    _find_command_substitutions,
-    _find_matching_paren,
-    process_command_substitution,
     process_file_references,
 )
-
-# Tests for process_command_substitution
-
-
-def test_process_command_substitution_no_pattern() -> None:
-    """Test that prompts without $() are returned unchanged."""
-    prompt = "This is a regular prompt with no command substitution"
-    result = process_command_substitution(prompt)
-    assert result == prompt
-
-
-def test_process_command_substitution_failed_command() -> None:
-    """Test that failed commands result in empty string."""
-    prompt = "Before $(nonexistent_command_xyz_12345) after"
-    result = process_command_substitution(prompt)
-    # Failed command should be replaced with empty string
-    assert result == "Before  after"
-
-
-def test_process_command_substitution_unclosed_paren() -> None:
-    """Test that unclosed $( is left unchanged."""
-    prompt = "Unclosed $(echo hello"
-    result = process_command_substitution(prompt)
-    assert result == prompt
-
-
-def test_process_command_substitution_multiline_output() -> None:
-    """Test that multiline output is stripped properly."""
-    prompt = '$(printf "line1\\nline2")'
-    result = process_command_substitution(prompt)
-    assert result == "line1\nline2"
-
-
-# Tests for helper functions
-
-
-def test_find_matching_paren_nested() -> None:
-    """Test finding matching paren with nested parens."""
-    text = "a(b)c)"
-    result = _find_matching_paren(text, 0)
-    assert result == 5
-
-
-def test_find_command_substitutions_escaped() -> None:
-    """Test that escaped $( is skipped."""
-    text = "\\$(not a command)"
-    result = _find_command_substitutions(text)
-    assert len(result) == 0
 
 
 # Tests for process_file_references with is_home_mode

@@ -11,6 +11,13 @@ from sase.content import (
     apply_section_marker_handling,
     content_ends_with_markdown_heading,
 )
+from sase.macro.cmdsub_source import (
+    CmdsubProvenance,
+    GeneratedTextGuard,
+    execute_eligible_commands,
+    generated_provenance,
+    resolve_provenance,
+)
 from sase.macro._disabled_regions import (
     ensure_disabled_region_at_line_start,
     protect_disabled_regions,
@@ -45,32 +52,45 @@ _MAX_EXPANSION_ITERATIONS = 100
 def _resolve_command_substitution_in_args(
     positional_args: list[str],
     named_args: dict[str, str],
+    *,
+    provenance: CmdsubProvenance,
+    guard: GeneratedTextGuard,
 ) -> tuple[list[str], dict[str, str]]:
     """Resolve $(cmd) command substitutions in macro arguments.
+
+    Only argument text from authorized source executes, at this source
+    boundary. Generated spans (guard tokens hiding interpolated data and
+    command stdout) are planned as protected ranges, and generated text or
+    agent launches resolve nothing.
 
     Args:
         positional_args: Positional argument values.
         named_args: Named argument values.
+        provenance: Explicit boundary provenance.
+        guard: Guard hiding generated spans in the argument text.
 
     Returns:
-        Tuple of (resolved_positional, resolved_named) with any $(cmd)
-        patterns replaced by their command output.
+        Tuple of (resolved_positional, resolved_named) with authorized
+        $(cmd) patterns replaced by their command output.
     """
+    if not provenance.may_execute:
+        return positional_args, named_args
     has_cmd_sub = any("$(" in a for a in positional_args) or any(
         "$(" in v for v in named_args.values()
     )
     if not has_cmd_sub:
         return positional_args, named_args
 
-    # Lazy import keeps the file-reference helper out of the import-time graph.
-    from sase.file_references import process_command_substitution
-
     resolved_positional = [
-        process_command_substitution(arg) if "$(" in arg else arg
+        execute_eligible_commands(arg, provenance=provenance, guard=guard)
+        if "$(" in arg
+        else arg
         for arg in positional_args
     ]
     resolved_named = {
-        k: process_command_substitution(v) if "$(" in v else v
+        k: execute_eligible_commands(v, provenance=provenance, guard=guard)
+        if "$(" in v
+        else v
         for k, v in named_args.items()
     }
     return resolved_positional, resolved_named
@@ -113,8 +133,57 @@ def process_loaded_macro_catalog(
     raise_on_error: bool = False,
     print_status_fn: Callable[[str, str], None],
     resolve_macro_aliases_fn: Callable[[str], str],
+    cmdsub_provenance: CmdsubProvenance | None = None,
+    cmdsub_guard: GeneratedTextGuard | None = None,
 ) -> str:
-    """Process macro references using an already-loaded macro catalog."""
+    """Process macro references using an already-loaded macro catalog.
+
+    The catalog expands in two passes. The first pass resolves references
+    visible in the presented text with *cmdsub_provenance* (source text in
+    a human launch executes argument and definition commands at their own
+    boundaries; generated text and agent launches only expand). Generated
+    spans stay hidden behind guard tokens through that pass, so only
+    genuinely authored commands can execute. The first pass result is then
+    unwrapped and a second, generated (expand-only) pass expands references
+    that arrived inside interpolated data without executing anything.
+    """
+    provenance = resolve_provenance(cmdsub_provenance)
+    guard = cmdsub_guard if cmdsub_guard is not None else GeneratedTextGuard()
+    result = _catalog_expand_with_provenance(
+        prompt,
+        macros,
+        extra_macros=extra_macros,
+        scope=scope,
+        trace=trace,
+        aliases_resolved=aliases_resolved,
+        preserve_segment_separators=preserve_segment_separators,
+        defer_macro_names=defer_macro_names,
+        raise_on_error=raise_on_error,
+        print_status_fn=print_status_fn,
+        resolve_macro_aliases_fn=resolve_macro_aliases_fn,
+        provenance=provenance,
+        guard=guard,
+    )
+    return guard.unwrap(result)
+
+
+def _catalog_expand_with_provenance(
+    prompt: str,
+    macros: dict[str, Macro],
+    *,
+    extra_macros: dict[str, Macro] | None,
+    scope: dict[str, Any] | None,
+    trace: ExpansionTrace | None,
+    aliases_resolved: bool,
+    preserve_segment_separators: bool,
+    defer_macro_names: Collection[str],
+    raise_on_error: bool,
+    print_status_fn: Callable[[str, str], None],
+    resolve_macro_aliases_fn: Callable[[str], str],
+    provenance: CmdsubProvenance,
+    guard: GeneratedTextGuard,
+) -> str:
+    """Run alias resolution plus the source and generated expansion passes."""
     if "#" not in prompt:
         return prompt
     if not prompt_may_reference_macro(prompt, extra_macros):
@@ -130,7 +199,72 @@ def process_loaded_macro_catalog(
     if extra_macros:
         macros = {**macros, **extra_macros}
 
+    expandable_names = set(macros).difference(defer_macro_names)
+    if not expandable_names:
+        return prompt
+
+    # Check if there are any potential macro references
+    if "#" not in prompt:
+        return prompt
+
     extra_names = set(extra_macros) if extra_macros else None
+    prompt = _expansion_fixpoint(
+        prompt,
+        macros,
+        expandable_names,
+        extra_names=extra_names,
+        scope=scope,
+        trace=trace,
+        preserve_segment_separators=preserve_segment_separators,
+        defer_macro_names=defer_macro_names,
+        raise_on_error=raise_on_error,
+        print_status_fn=print_status_fn,
+        provenance=provenance,
+        guard=guard,
+    )
+    # Expose interpolated data so references that arrived inside rendered
+    # values expand. The second pass always runs generated (expand-only):
+    # it never executes argument or definition commands. It is also what
+    # expands data references on ineligible launches, where the first pass
+    # already skipped every execution.
+    prompt = guard.unwrap(prompt)
+    return _expansion_fixpoint(
+        prompt,
+        macros,
+        expandable_names,
+        extra_names=extra_names,
+        scope=scope,
+        trace=trace,
+        preserve_segment_separators=preserve_segment_separators,
+        defer_macro_names=defer_macro_names,
+        raise_on_error=raise_on_error,
+        print_status_fn=print_status_fn,
+        provenance=generated_provenance(provenance.launch_authorship),
+        guard=guard,
+    )
+
+
+def _expansion_fixpoint(
+    prompt: str,
+    macros: dict[str, Macro],
+    expandable_names: set[str],
+    *,
+    extra_names: set[str] | None,
+    scope: dict[str, Any] | None,
+    trace: ExpansionTrace | None,
+    preserve_segment_separators: bool,
+    defer_macro_names: Collection[str],
+    raise_on_error: bool,
+    print_status_fn: Callable[[str, str], None],
+    provenance: CmdsubProvenance,
+    guard: GeneratedTextGuard,
+) -> str:
+    """Expand references to a fixpoint with one provenance.
+
+    Blocked local-executable references are refused in every pass: data
+    cannot smuggle a blocked reference past the trust check by arriving
+    inside an interpolated value.
+    """
     _refuse_blocked_local_macro_refs(
         prompt,
         macros,
@@ -141,10 +275,6 @@ def process_loaded_macro_catalog(
 
     if not macros:
         return prompt  # No macros defined
-
-    expandable_names = set(macros).difference(defer_macro_names)
-    if not expandable_names:
-        return prompt
 
     # Check if there are any potential macro references
     if "#" not in prompt:
@@ -257,9 +387,14 @@ def process_loaded_macro_catalog(
                         prompt, match_end
                     )
 
-                # Resolve any $(cmd) command substitutions in arguments
+                # Resolve any $(cmd) command substitutions in arguments.
+                # Only source-kind text in a human launch executes here;
+                # generated spans stay hidden behind guard tokens.
                 positional_args, named_args = _resolve_command_substitution_in_args(
-                    positional_args, named_args
+                    positional_args,
+                    named_args,
+                    provenance=provenance,
+                    guard=guard,
                 )
 
                 expanded = expand_single_macro(
@@ -270,6 +405,8 @@ def process_loaded_macro_catalog(
                     preserve_segment_separators=preserve_segment_separators,
                     defer_macro_names=defer_macro_names,
                     raise_on_error=raise_on_error,
+                    cmdsub_provenance=provenance,
+                    cmdsub_guard=guard,
                 )
 
                 if trace is not None:
@@ -320,7 +457,8 @@ def process_loaded_macro_catalog(
         iteration += 1
 
     if trace is not None:
-        trace.total_iterations = iteration
+        # A second (generated) pass must not erase the first pass count.
+        trace.total_iterations = max(trace.total_iterations, iteration)
 
     if iteration >= _MAX_EXPANSION_ITERATIONS:
         if trace is not None and trace.records:
