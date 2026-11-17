@@ -20,7 +20,9 @@ from sase.ace.tui.models.finalizer_row_state import (
     presented_status_label,
     row_status_is_finalizing,
 )
-from sase.ace.tui.models.agent_loader import _apply_status_overrides
+from sase.ace.tui.models._agent_status_apply import (
+    apply_status_overrides as _apply_status_overrides,
+)
 from sase.ace.tui.widgets._agent_list_render_agent_status import (
     append_agent_row_status,
 )

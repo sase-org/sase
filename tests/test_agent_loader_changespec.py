@@ -35,35 +35,35 @@ def test_load_all_agents_with_summarize_agents() -> None:
 
     with (
         patch(
-            "sase.ace.tui.models.agent_loader.get_all_project_files",
+            "sase.ace.tui.models._agent_loader_sources.get_all_project_files",
             return_value=[],
         ),
         patch(
-            "sase.ace.tui.models.agent_loader.find_all_patches",
+            "sase.ace.tui.models._agent_loader_sources.find_all_patches",
             return_value=[mock_cs],
         ),
         patch(
-            "sase.ace.tui.models.agent_loader._scan_artifacts_for_loader",
+            "sase.ace.tui.models._agent_loader_sources.scan_artifacts_for_loader",
             return_value=_empty_artifact_snapshot(),
         ),
         patch(
-            "sase.ace.tui.models.agent_loader.is_process_running",
+            "sase.ace.tui.models._agent_loader_tiered.is_process_running",
             return_value=True,
         ),
         patch(
-            "sase.ace.tui.models.agent_loader.load_done_agents_from_snapshot",
+            "sase.ace.tui.models._agent_loader_sources.load_done_agents_from_snapshot",
             return_value=[],
         ),
         patch(
-            "sase.ace.tui.models.agent_loader.load_running_home_agents_from_snapshot",
+            "sase.ace.tui.models._agent_loader_sources.load_running_home_agents_from_snapshot",
             return_value=[],
         ),
         patch(
-            "sase.ace.tui.models.agent_loader.load_workflow_agents_from_snapshot",
+            "sase.ace.tui.models._agent_loader_sources.load_workflow_agents_from_snapshot",
             return_value=[],
         ),
         patch(
-            "sase.ace.tui.models.agent_loader.load_workflow_agent_steps_from_snapshot",
+            "sase.ace.tui.models._agent_loader_sources.load_workflow_agent_steps_from_snapshot",
             return_value=([], {}),
         ),
     ):
@@ -102,35 +102,35 @@ def test_load_all_agents_with_fix_hook_review_agent() -> None:
 
     with (
         patch(
-            "sase.ace.tui.models.agent_loader.get_all_project_files",
+            "sase.ace.tui.models._agent_loader_sources.get_all_project_files",
             return_value=[],
         ),
         patch(
-            "sase.ace.tui.models.agent_loader.find_all_patches",
+            "sase.ace.tui.models._agent_loader_sources.find_all_patches",
             return_value=[mock_cs],
         ),
         patch(
-            "sase.ace.tui.models.agent_loader._scan_artifacts_for_loader",
+            "sase.ace.tui.models._agent_loader_sources.scan_artifacts_for_loader",
             return_value=_empty_artifact_snapshot(),
         ),
         patch(
-            "sase.ace.tui.models.agent_loader.is_process_running",
+            "sase.ace.tui.models._agent_loader_tiered.is_process_running",
             return_value=True,
         ),
         patch(
-            "sase.ace.tui.models.agent_loader.load_done_agents_from_snapshot",
+            "sase.ace.tui.models._agent_loader_sources.load_done_agents_from_snapshot",
             return_value=[],
         ),
         patch(
-            "sase.ace.tui.models.agent_loader.load_running_home_agents_from_snapshot",
+            "sase.ace.tui.models._agent_loader_sources.load_running_home_agents_from_snapshot",
             return_value=[],
         ),
         patch(
-            "sase.ace.tui.models.agent_loader.load_workflow_agents_from_snapshot",
+            "sase.ace.tui.models._agent_loader_sources.load_workflow_agents_from_snapshot",
             return_value=[],
         ),
         patch(
-            "sase.ace.tui.models.agent_loader.load_workflow_agent_steps_from_snapshot",
+            "sase.ace.tui.models._agent_loader_sources.load_workflow_agent_steps_from_snapshot",
             return_value=([], {}),
         ),
     ):
@@ -172,35 +172,35 @@ def test_load_all_agents_with_mentor_agents() -> None:
 
     with (
         patch(
-            "sase.ace.tui.models.agent_loader.get_all_project_files",
+            "sase.ace.tui.models._agent_loader_sources.get_all_project_files",
             return_value=[],
         ),
         patch(
-            "sase.ace.tui.models.agent_loader.find_all_patches",
+            "sase.ace.tui.models._agent_loader_sources.find_all_patches",
             return_value=[mock_cs],
         ),
         patch(
-            "sase.ace.tui.models.agent_loader._scan_artifacts_for_loader",
+            "sase.ace.tui.models._agent_loader_sources.scan_artifacts_for_loader",
             return_value=_empty_artifact_snapshot(),
         ),
         patch(
-            "sase.ace.tui.models.agent_loader.is_process_running",
+            "sase.ace.tui.models._agent_loader_tiered.is_process_running",
             return_value=True,
         ),
         patch(
-            "sase.ace.tui.models.agent_loader.load_done_agents_from_snapshot",
+            "sase.ace.tui.models._agent_loader_sources.load_done_agents_from_snapshot",
             return_value=[],
         ),
         patch(
-            "sase.ace.tui.models.agent_loader.load_running_home_agents_from_snapshot",
+            "sase.ace.tui.models._agent_loader_sources.load_running_home_agents_from_snapshot",
             return_value=[],
         ),
         patch(
-            "sase.ace.tui.models.agent_loader.load_workflow_agents_from_snapshot",
+            "sase.ace.tui.models._agent_loader_sources.load_workflow_agents_from_snapshot",
             return_value=[],
         ),
         patch(
-            "sase.ace.tui.models.agent_loader.load_workflow_agent_steps_from_snapshot",
+            "sase.ace.tui.models._agent_loader_sources.load_workflow_agent_steps_from_snapshot",
             return_value=([], {}),
         ),
     ):
@@ -238,31 +238,31 @@ def test_load_all_agents_with_crs_agents() -> None:
 
     with (
         patch(
-            "sase.ace.tui.models.agent_loader.get_all_project_files",
+            "sase.ace.tui.models._agent_loader_sources.get_all_project_files",
             return_value=[],
         ),
         patch(
-            "sase.ace.tui.models.agent_loader.find_all_patches",
+            "sase.ace.tui.models._agent_loader_sources.find_all_patches",
             return_value=[mock_cs],
         ),
         patch(
-            "sase.ace.tui.models.agent_loader._scan_artifacts_for_loader",
+            "sase.ace.tui.models._agent_loader_sources.scan_artifacts_for_loader",
             return_value=_empty_artifact_snapshot(),
         ),
         patch(
-            "sase.ace.tui.models.agent_loader.load_done_agents_from_snapshot",
+            "sase.ace.tui.models._agent_loader_sources.load_done_agents_from_snapshot",
             return_value=[],
         ),
         patch(
-            "sase.ace.tui.models.agent_loader.load_running_home_agents_from_snapshot",
+            "sase.ace.tui.models._agent_loader_sources.load_running_home_agents_from_snapshot",
             return_value=[],
         ),
         patch(
-            "sase.ace.tui.models.agent_loader.load_workflow_agents_from_snapshot",
+            "sase.ace.tui.models._agent_loader_sources.load_workflow_agents_from_snapshot",
             return_value=[],
         ),
         patch(
-            "sase.ace.tui.models.agent_loader.load_workflow_agent_steps_from_snapshot",
+            "sase.ace.tui.models._agent_loader_sources.load_workflow_agent_steps_from_snapshot",
             return_value=([], {}),
         ),
     ):

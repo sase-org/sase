@@ -294,7 +294,7 @@ def test_plan_inventory_exact_timestamp_fallback_ignores_recent_done_planner(
     artifact_dir.mkdir(parents=True)
 
     with patch(
-        "sase.ace.tui.models.agent_loader._scan_artifact_dirs_for_loader",
+        "sase.ace.tui.models._agent_loader_tiered.scan_artifact_dirs_for_loader",
         return_value=_done_plan_snapshot(timestamp=timestamp),
     ) as scan_dirs:
         payload = plan_inventory_to_json(build_plan_inventory())
@@ -326,7 +326,7 @@ def test_plan_inventory_exact_timestamp_fallback_ignores_sharded_done_planner(
     artifact_dir.mkdir(parents=True)
 
     with patch(
-        "sase.ace.tui.models.agent_loader._scan_artifact_dirs_for_loader",
+        "sase.ace.tui.models._agent_loader_tiered.scan_artifact_dirs_for_loader",
         return_value=_done_plan_snapshot(timestamp=timestamp),
     ) as scan_dirs:
         payload = plan_inventory_to_json(build_plan_inventory())
@@ -347,22 +347,22 @@ def test_lightweight_live_plan_loader_ignores_unreviewed_done_plan(
 
     with (
         patch(
-            "sase.ace.tui.models.agent_loader.default_agent_artifact_index_path",
+            "sase.ace.tui.models._agent_loader_scans.default_agent_artifact_index_path",
             return_value=index_path,
         ),
         patch(
-            "sase.ace.tui.models.agent_loader.query_agent_artifact_index",
+            "sase.ace.tui.models._agent_loader_scans.query_agent_artifact_index",
             return_value=snapshot,
         ) as query_index,
         patch(
-            "sase.ace.tui.models.agent_loader._scan_artifacts_for_loader",
+            "sase.ace.tui.models._agent_loader_scans.scan_artifacts_for_loader",
         ) as source_scan,
         patch(
-            "sase.ace.tui.models.agent_loader.get_all_project_files",
+            "sase.ace.tui.models._agent_loader_tiered.get_all_project_files",
             return_value=[],
         ),
         patch(
-            "sase.ace.tui.models.agent_loader.load_workflow_agent_steps_from_snapshot",
+            "sase.ace.tui.models._agent_loader_sources.load_workflow_agent_steps_from_snapshot",
         ) as workflow_steps,
         patch(
             "sase.ace.tui.models._agent_status_apply.classify_persisted_diff_badges",

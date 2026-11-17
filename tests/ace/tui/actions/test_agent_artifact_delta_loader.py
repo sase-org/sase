@@ -85,27 +85,27 @@ def test_delta_loader_normalizes_exact_artifact_dirs_without_broad_load(
 
     with (
         patch(
-            "sase.ace.tui.models.agent_loader._scan_artifacts_for_loader",
+            "sase.ace.tui.models._agent_loader_scans.scan_artifacts_for_loader",
             side_effect=AssertionError("delta load must not broad scan"),
         ),
         patch(
-            "sase.ace.tui.models.agent_loader.query_agent_artifact_index",
+            "sase.ace.tui.models._agent_loader_scans.query_agent_artifact_index",
             side_effect=AssertionError("delta load must not query visible inbox"),
         ),
         patch(
-            "sase.ace.tui.models.agent_loader.load_agents_from_running_field",
+            "sase.ace.tui.models._agent_loader_sources.load_agents_from_running_field",
             side_effect=AssertionError("delta load must not read RUNNING fields"),
         ),
         patch(
-            "sase.ace.tui.models.agent_loader.load_agents_from_hooks",
+            "sase.ace.tui.models._agent_loader_sources.load_agents_from_hooks",
             side_effect=AssertionError("delta load must not read hooks"),
         ),
         patch(
-            "sase.ace.tui.models.agent_loader.load_agents_from_mentors",
+            "sase.ace.tui.models._agent_loader_sources.load_agents_from_mentors",
             side_effect=AssertionError("delta load must not read mentors"),
         ),
         patch(
-            "sase.ace.tui.models.agent_loader.load_agents_from_comments",
+            "sase.ace.tui.models._agent_loader_sources.load_agents_from_comments",
             side_effect=AssertionError("delta load must not read comments"),
         ),
         patch("sase.ace.agent_tribes.load_agent_tribes", return_value={}),
@@ -114,7 +114,7 @@ def test_delta_loader_normalizes_exact_artifact_dirs_without_broad_load(
             return_value=True,
         ),
         patch(
-            "sase.ace.tui.models.agent_loader.is_process_running",
+            "sase.ace.tui.models._agent_loader_tiered.is_process_running",
             return_value=True,
         ),
         patch(

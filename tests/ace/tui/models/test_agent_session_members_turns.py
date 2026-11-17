@@ -8,7 +8,9 @@ container reachability.
 from __future__ import annotations
 
 from sase.ace.tui.models._agent_ordering import sort_and_reorder
-from sase.ace.tui.models.agent_loader import _apply_status_overrides
+from sase.ace.tui.models._agent_status_apply import (
+    apply_status_overrides as _apply_status_overrides,
+)
 from sase.ace.tui.models.agent_session_members import (
     concrete_agent_session_member_rows,
     concrete_agent_statuses,

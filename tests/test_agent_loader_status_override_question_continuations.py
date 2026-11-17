@@ -3,7 +3,9 @@
 from datetime import datetime
 
 from sase.ace.tui.models.agent import Agent, AgentType
-from sase.ace.tui.models.agent_loader import _apply_status_overrides
+from sase.ace.tui.models._agent_status_apply import (
+    apply_status_overrides as _apply_status_overrides,
+)
 
 
 def _question_continuation_agent_session_root() -> tuple[Agent, Agent]:

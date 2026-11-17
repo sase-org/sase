@@ -83,37 +83,39 @@ def test_load_agents_from_disk_passes_snapshot_through() -> None:
     snapshot = _make_snapshot()
 
     with (
-        patch("sase.ace.tui.models.agent_loader.find_all_patches") as mock_find,
         patch(
-            "sase.ace.tui.models.agent_loader._scan_artifacts_for_loader",
+            "sase.ace.tui.models._agent_loader_sources.find_all_patches"
+        ) as mock_find,
+        patch(
+            "sase.ace.tui.models._agent_loader_sources.scan_artifacts_for_loader",
             return_value=_empty_artifact_snapshot(),
         ),
         patch(
-            "sase.ace.tui.models.agent_loader.get_all_project_files",
+            "sase.ace.tui.models._agent_loader_sources.get_all_project_files",
             return_value=[],
         ),
         patch(
-            "sase.ace.tui.models.agent_loader.load_done_agents_from_snapshot",
+            "sase.ace.tui.models._agent_loader_sources.load_done_agents_from_snapshot",
             return_value=[],
         ),
         patch(
-            "sase.ace.tui.models.agent_loader.load_running_home_agents_from_snapshot",
+            "sase.ace.tui.models._agent_loader_sources.load_running_home_agents_from_snapshot",
             return_value=[],
         ),
         patch(
-            "sase.ace.tui.models.agent_loader.load_agents_from_running_field",
+            "sase.ace.tui.models._agent_loader_sources.load_agents_from_running_field",
             return_value=[],
         ),
         patch(
-            "sase.ace.tui.models.agent_loader.get_workflow_timestamp_dirs",
+            "sase.ace.tui.models._loaders.get_workflow_timestamp_dirs",
             return_value=[],
         ),
         patch(
-            "sase.ace.tui.models.agent_loader.load_workflow_agent_steps_from_snapshot",
+            "sase.ace.tui.models._agent_loader_sources.load_workflow_agent_steps_from_snapshot",
             return_value=([], {}),
         ),
         patch(
-            "sase.ace.tui.models.agent_loader.load_workflow_agents_from_snapshot",
+            "sase.ace.tui.models._agent_loader_sources.load_workflow_agents_from_snapshot",
             return_value=[],
         ),
         patch(
@@ -134,39 +136,39 @@ def test_load_agents_from_disk_passes_snapshot_through() -> None:
 def test_load_agents_from_disk_falls_back_to_find_all() -> None:
     with (
         patch(
-            "sase.ace.tui.models.agent_loader.find_all_patches",
+            "sase.ace.tui.models._agent_loader_sources.find_all_patches",
             return_value=[],
         ) as mock_find,
         patch(
-            "sase.ace.tui.models.agent_loader.get_all_project_files",
+            "sase.ace.tui.models._agent_loader_sources.get_all_project_files",
             return_value=[],
         ),
         patch(
-            "sase.ace.tui.models.agent_loader._scan_artifacts_for_loader",
+            "sase.ace.tui.models._agent_loader_sources.scan_artifacts_for_loader",
             return_value=_empty_artifact_snapshot(),
         ),
         patch(
-            "sase.ace.tui.models.agent_loader.load_done_agents_from_snapshot",
+            "sase.ace.tui.models._agent_loader_sources.load_done_agents_from_snapshot",
             return_value=[],
         ),
         patch(
-            "sase.ace.tui.models.agent_loader.load_running_home_agents_from_snapshot",
+            "sase.ace.tui.models._agent_loader_sources.load_running_home_agents_from_snapshot",
             return_value=[],
         ),
         patch(
-            "sase.ace.tui.models.agent_loader.load_agents_from_running_field",
+            "sase.ace.tui.models._agent_loader_sources.load_agents_from_running_field",
             return_value=[],
         ),
         patch(
-            "sase.ace.tui.models.agent_loader.get_workflow_timestamp_dirs",
+            "sase.ace.tui.models._loaders.get_workflow_timestamp_dirs",
             return_value=[],
         ),
         patch(
-            "sase.ace.tui.models.agent_loader.load_workflow_agent_steps_from_snapshot",
+            "sase.ace.tui.models._agent_loader_sources.load_workflow_agent_steps_from_snapshot",
             return_value=([], {}),
         ),
         patch(
-            "sase.ace.tui.models.agent_loader.load_workflow_agents_from_snapshot",
+            "sase.ace.tui.models._agent_loader_sources.load_workflow_agents_from_snapshot",
             return_value=[],
         ),
         patch(

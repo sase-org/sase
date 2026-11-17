@@ -18,7 +18,9 @@ from unittest.mock import patch
 import pytest
 
 from sase.ace.tui.models.agent import Agent, AgentType, LinkedRepoMetadata
-from sase.ace.tui.models.agent_loader import _apply_status_overrides
+from sase.ace.tui.models._agent_status_apply import (
+    apply_status_overrides as _apply_status_overrides,
+)
 from sase.ace.tui.models._agent_status_diff import (
     classify_live_file_change_hint,
 )

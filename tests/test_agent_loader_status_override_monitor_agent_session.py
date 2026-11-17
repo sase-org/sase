@@ -12,7 +12,9 @@ from datetime import datetime, timedelta
 
 from sase.ace.tui.models._agent_ordering import sort_and_reorder
 from sase.ace.tui.models.agent import Agent, AgentType
-from sase.ace.tui.models.agent_loader import _apply_status_overrides
+from sase.ace.tui.models._agent_status_apply import (
+    apply_status_overrides as _apply_status_overrides,
+)
 from sase.agent.status_buckets import agent_status_bucket
 from sase.monitor_status import monitor_status_pair, monitor_status_style
 

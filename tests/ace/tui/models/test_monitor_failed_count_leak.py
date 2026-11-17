@@ -8,7 +8,9 @@ from sase.ace.tui.actions.agents._display_panel_titles import agent_panel_counts
 from sase.ace.tui.models._agent_clan import clan_member_counts, sase_agent_status_counts
 from sase.ace.tui.models._agent_tree import project_clan_tree
 from sase.ace.tui.models.agent import Agent, AgentType
-from sase.ace.tui.models.agent_loader import _apply_status_overrides
+from sase.ace.tui.models._agent_status_apply import (
+    apply_status_overrides as _apply_status_overrides,
+)
 from sase.agent.status_buckets import agent_status_bucket
 from sase.ace.tui.widgets.prompt_panel._agent_display_clan_roster import (
     clan_roster_entries,

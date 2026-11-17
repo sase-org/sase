@@ -341,7 +341,7 @@ def test_exact_child_delta_remirrors_tale_agent_session_root_to_done(
 
     with (
         patch(
-            "sase.ace.tui.models.agent_loader.is_process_running",
+            "sase.ace.tui.models._agent_loader_tiered.is_process_running",
             return_value=True,
         ),
         patch(
@@ -373,7 +373,7 @@ def test_exact_child_delta_remirrors_tale_agent_session_root_to_done(
     with (
         patch("sase.ace.agent_tribes.load_agent_tribes", return_value={}),
         patch(
-            "sase.ace.tui.models.agent_loader.is_process_running",
+            "sase.ace.tui.models._agent_loader_tiered.is_process_running",
             return_value=False,
         ),
         patch(

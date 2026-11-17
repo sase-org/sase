@@ -35,11 +35,11 @@ def test_load_tiered_agents_live_query_uses_bounded_pushdown(
         )
 
     monkeypatch.setattr(
-        "sase.ace.tui.models.agent_loader._load_agents_with_load_state",
+        "sase.ace.tui.models._agent_loader_tiered._load_agents_with_load_state",
         fake_load_agents_with_state,
     )
     monkeypatch.setattr(
-        "sase.ace.tui.models.agent_loader._normalize_loaded_agents",
+        "sase.ace.tui.models._agent_loader_tiered._normalize_loaded_agents",
         lambda agents, _steps: list(agents),
     )
 
@@ -92,11 +92,11 @@ def test_load_tiered_machine_filter_stays_on_bounded_window(
         )
 
     monkeypatch.setattr(
-        "sase.ace.tui.models.agent_loader._load_agents_with_load_state",
+        "sase.ace.tui.models._agent_loader_tiered._load_agents_with_load_state",
         fake_load_agents_with_state,
     )
     monkeypatch.setattr(
-        "sase.ace.tui.models.agent_loader._normalize_loaded_agents",
+        "sase.ace.tui.models._agent_loader_tiered._normalize_loaded_agents",
         lambda agents, _steps: list(agents),
     )
 
@@ -147,11 +147,11 @@ def test_load_tiered_agents_unsupported_query_defers_full_history(
         )
 
     monkeypatch.setattr(
-        "sase.ace.tui.models.agent_loader._load_agents_with_load_state",
+        "sase.ace.tui.models._agent_loader_tiered._load_agents_with_load_state",
         fake_load_agents_with_state,
     )
     monkeypatch.setattr(
-        "sase.ace.tui.models.agent_loader._normalize_loaded_agents",
+        "sase.ace.tui.models._agent_loader_tiered._normalize_loaded_agents",
         lambda agents, _steps: list(agents),
     )
 
@@ -199,11 +199,11 @@ def test_load_tiered_unsupported_live_query_uses_bounded_history(
         )
 
     monkeypatch.setattr(
-        "sase.ace.tui.models.agent_loader._load_agents_with_load_state",
+        "sase.ace.tui.models._agent_loader_tiered._load_agents_with_load_state",
         fake_load_agents_with_state,
     )
     monkeypatch.setattr(
-        "sase.ace.tui.models.agent_loader._normalize_loaded_agents",
+        "sase.ace.tui.models._agent_loader_tiered._normalize_loaded_agents",
         lambda agents, _steps: list(agents),
     )
 
@@ -249,11 +249,11 @@ def test_load_tiered_agents_full_history_preserves_safe_candidate_filter(
         )
 
     monkeypatch.setattr(
-        "sase.ace.tui.models.agent_loader._load_agents_with_load_state",
+        "sase.ace.tui.models._agent_loader_tiered._load_agents_with_load_state",
         fake_load_agents_with_state,
     )
     monkeypatch.setattr(
-        "sase.ace.tui.models.agent_loader._normalize_loaded_agents",
+        "sase.ace.tui.models._agent_loader_tiered._normalize_loaded_agents",
         lambda agents, _steps: list(agents),
     )
 

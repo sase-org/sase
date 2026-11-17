@@ -7,7 +7,9 @@ from datetime import datetime
 import pytest
 
 from sase.ace.tui.models._agent_clan import clan_member_counts, sase_agent_status_counts
-from sase.ace.tui.models.agent_loader import _apply_status_overrides
+from sase.ace.tui.models._agent_status_apply import (
+    apply_status_overrides as _apply_status_overrides,
+)
 from sase.ace.tui.models._agent_tree import project_clan_tree
 from sase.ace.tui.models.agent_runner_slots import refresh_runner_slot_context
 from sase.ace.tui.widgets._agent_list_rendering import format_agent_option

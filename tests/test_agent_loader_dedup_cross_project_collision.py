@@ -26,7 +26,10 @@ from sase.ace.tui.models._dedup import (
     dedup_workflow_entries,
 )
 from sase.ace.tui.models.agent import Agent, AgentType
-from sase.ace.tui.models.agent_loader import AgentLoadState, _apply_status_overrides
+from sase.ace.tui.models._agent_status_apply import (
+    apply_status_overrides as _apply_status_overrides,
+)
+from sase.ace.tui.models.agent_loader import AgentLoadState
 
 
 def _workflow_agent(

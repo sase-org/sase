@@ -10,7 +10,9 @@ import pytest
 
 from sase.ace.testing import AcePage
 from sase.ace.tui.models.agent import AttemptRecord
-from sase.ace.tui.models.agent_loader import _apply_status_overrides
+from sase.ace.tui.models._agent_status_apply import (
+    apply_status_overrides as _apply_status_overrides,
+)
 from sase.ace.tui.widgets.prompt_panel import AgentPromptPanel
 from tests.ace.tui.visual._ace_agents_png_snapshot_helpers import (
     assert_page_svg_contains,

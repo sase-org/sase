@@ -32,10 +32,10 @@ from sase.ace.tui.actions.axe_display._read_cache import AxeCollectorStats
 from sase.ace.tui.data_providers import AgentsProviderSnapshot
 from sase.ace.tui.data_providers._snapshots import agent_snapshot
 from sase.ace.tui.models.agent import Agent, AgentType
-from sase.ace.tui.models.agent_loader import (
-    AgentLoadState,
+from sase.ace.tui.models._agent_loader_tiered import (
     _load_agents_with_load_state,
 )
+from sase.ace.tui.models.agent_loader import AgentLoadState
 from sase.ace.tui.util import trace
 from sase.core.agent_scan_wire import AgentArtifactScanWire
 from sase.logs import tui_telemetry
@@ -170,11 +170,11 @@ def test_load_state_emits_index_and_decode_spans(
 
     with (
         patch(
-            "sase.ace.tui.models.agent_loader._artifact_snapshot_for_tui_load",
+            "sase.ace.tui.models._agent_loader_tiered.artifact_snapshot_for_tui_load",
             side_effect=_slow_index,
         ),
         patch(
-            "sase.ace.tui.models.agent_loader._load_agents_from_all_sources",
+            "sase.ace.tui.models._agent_loader_tiered.load_agents_from_all_sources",
             side_effect=_slow_decode,
         ),
     ):
@@ -365,11 +365,11 @@ def test_disk_load_returns_always_on_substage_timings(
         ),
         patch("sase.ace.agent_tribes.load_agent_tribes", return_value={}),
         patch(
-            "sase.ace.tui.models.agent_loader._artifact_snapshot_for_tui_load",
+            "sase.ace.tui.models._agent_loader_tiered.artifact_snapshot_for_tui_load",
             side_effect=_slow_index,
         ),
         patch(
-            "sase.ace.tui.models.agent_loader._load_agents_from_all_sources",
+            "sase.ace.tui.models._agent_loader_tiered.load_agents_from_all_sources",
             side_effect=_slow_decode,
         ),
     ):

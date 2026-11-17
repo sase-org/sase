@@ -5,7 +5,7 @@ from sase.plan_chain import agent_session_role_for_suffix, is_plan_feedback_suff
 from .agent import Agent
 
 
-def is_feedback_suffix(
+def _is_feedback_suffix(
     suffix: str | None,
     *,
     agent_session_role: str | None = None,
@@ -35,7 +35,7 @@ def agent_session_role(agent: Agent) -> str | None:
 
 
 def is_feedback_agent(agent: Agent) -> bool:
-    return is_feedback_suffix(
+    return _is_feedback_suffix(
         agent.role_suffix,
         agent_session_role=agent.agent_session_role,
     )

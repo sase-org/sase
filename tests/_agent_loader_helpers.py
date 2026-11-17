@@ -36,39 +36,39 @@ def _mock_agent_loader_sources(
     """Patch loader inputs for tests focused on final agent composition."""
     with (
         patch(
-            "sase.ace.tui.models.agent_loader.get_all_project_files",
+            "sase.ace.tui.models._agent_loader_sources.get_all_project_files",
             return_value=[],
         ),
         patch(
-            "sase.ace.tui.models.agent_loader.find_all_patches",
+            "sase.ace.tui.models._agent_loader_sources.find_all_patches",
             return_value=[],
         ),
         patch(
-            "sase.ace.tui.models.agent_loader._scan_artifacts_for_loader",
+            "sase.ace.tui.models._agent_loader_sources.scan_artifacts_for_loader",
             return_value=_empty_artifact_snapshot(),
         ),
         patch(
-            "sase.ace.tui.models.agent_loader.load_agents_from_running_field",
+            "sase.ace.tui.models._agent_loader_sources.load_agents_from_running_field",
             return_value=running_agents,
         ),
         patch(
-            "sase.ace.tui.models.agent_loader.load_done_agents_from_snapshot",
+            "sase.ace.tui.models._agent_loader_sources.load_done_agents_from_snapshot",
             return_value=[],
         ),
         patch(
-            "sase.ace.tui.models.agent_loader.load_running_home_agents_from_snapshot",
+            "sase.ace.tui.models._agent_loader_sources.load_running_home_agents_from_snapshot",
             return_value=[],
         ),
         patch(
-            "sase.ace.tui.models.agent_loader.load_workflow_agents_from_snapshot",
+            "sase.ace.tui.models._agent_loader_sources.load_workflow_agents_from_snapshot",
             return_value=workflow_agents,
         ),
         patch(
-            "sase.ace.tui.models.agent_loader.load_workflow_agent_steps_from_snapshot",
+            "sase.ace.tui.models._agent_loader_sources.load_workflow_agent_steps_from_snapshot",
             return_value=([], {}),
         ),
         patch(
-            "sase.ace.tui.models.agent_loader.is_process_running",
+            "sase.ace.tui.models._agent_loader_tiered.is_process_running",
             return_value=process_is_running,
         ),
     ):

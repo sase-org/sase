@@ -11,7 +11,9 @@ from datetime import datetime
 
 from sase.ace.tui.models._agent_status_agent_session import is_root_plan_workflow
 from sase.ace.tui.models.agent import Agent, AgentType
-from sase.ace.tui.models.agent_loader import _apply_status_overrides
+from sase.ace.tui.models._agent_status_apply import (
+    apply_status_overrides as _apply_status_overrides,
+)
 
 _ROOT_SUFFIX = "20260731065155"
 _ROOT_START = datetime(2026, 7, 31, 6, 51, 55)

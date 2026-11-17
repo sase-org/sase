@@ -169,19 +169,19 @@ def _patch_disk_load_dependencies(
     )
     stack.enter_context(
         patch(
-            "sase.ace.tui.models.agent_loader.default_agent_artifact_index_path",
+            "sase.ace.tui.models._agent_loader_scans.default_agent_artifact_index_path",
             return_value=index_path,
         )
     )
     stack.enter_context(
         patch(
-            "sase.ace.tui.models.agent_loader._projects_root_for_loader",
+            "sase.ace.tui.models._agent_loader_scans._projects_root_for_loader",
             return_value=projects_root,
         )
     )
     stack.enter_context(
         patch(
-            "sase.ace.tui.models.agent_loader.query_agent_artifact_index",
+            "sase.ace.tui.models._agent_loader_scans.query_agent_artifact_index",
             side_effect=loader_query,
         )
     )

@@ -29,7 +29,7 @@ _PROJECT_METADATA_FLOW_FILES = (
     "src/sase/ace/tui/actions/agents/_notification_launch_approval.py",
     "src/sase/ace/tui/actions/agents/_archive_controller_build.py",
     "src/sase/ace/tui/actions/agents/_loading_compute.py",
-    "src/sase/ace/tui/models/agent_loader.py",
+    "src/sase/ace/tui/models/_agent_loader_tiered.py",
     "src/sase/ace/dismissed_agents_bundles.py",
     "src/sase/ace/tui/actions/event_refresh/_auto_refresh_surfaces.py",
     "src/sase/agents/_wait_live_rows.py",
@@ -83,7 +83,7 @@ _ALLOWED_METADATA_LOADERS = {
         "refresh_project_display_snapshot",
     ): "Agent-load worker revalidates cross-process labels before attaching names.",
     (
-        "src/sase/ace/tui/models/agent_loader.py",
+        "src/sase/ace/tui/models/_agent_loader_tiered.py",
         "_filter_and_cap_windowed_agents_live",
         "refresh_project_display_snapshot",
     ): "Windowed live-query path revalidates before attaching names.",

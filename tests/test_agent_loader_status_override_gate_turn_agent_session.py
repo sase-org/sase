@@ -17,7 +17,9 @@ from sase.ace.tui.models._loaders._meta_enrichment_wire import (
     enrich_agent_from_meta_wire,
 )
 from sase.ace.tui.models.agent import Agent, AgentType
-from sase.ace.tui.models.agent_loader import _apply_status_overrides
+from sase.ace.tui.models._agent_status_apply import (
+    apply_status_overrides as _apply_status_overrides,
+)
 from sase.ace.tui.models.finalizer_row_state import presented_status_label
 from sase.agent.status_buckets import agent_status_bucket
 from sase.core.agent_scan_wire import (

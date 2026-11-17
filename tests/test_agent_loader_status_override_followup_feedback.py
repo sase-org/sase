@@ -8,7 +8,9 @@ from sase.agent.status_buckets import (
     WORKING_TALE_STATUS,
 )
 from sase.ace.tui.models.agent import Agent, AgentType
-from sase.ace.tui.models.agent_loader import _apply_status_overrides
+from sase.ace.tui.models._agent_status_apply import (
+    apply_status_overrides as _apply_status_overrides,
+)
 
 
 def test_apply_status_overrides_feedback_child_unreviewed_plan_stays_done() -> None:

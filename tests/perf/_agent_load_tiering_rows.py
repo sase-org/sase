@@ -14,10 +14,10 @@ from sase.ace.dismissed_agents import (
 from sase.ace.tui.actions.agents._loading_compute import compute_apply_loaded_agents
 from sase.ace.tui.models.agent import Agent
 from sase.ace.tui.models.agent_live_query import agent_live_query_row_id
-from sase.ace.tui.models.agent_loader import (
-    _load_agents_from_artifact_snapshot_sources,
-    _normalize_loaded_agents,
+from sase.ace.tui.models._agent_loader_sources import (
+    load_agents_from_artifact_snapshot_sources,
 )
+from sase.ace.tui.models._agent_loader_tiered import _normalize_loaded_agents
 from sase.core.agent_scan_wire import AgentArtifactScanWire
 
 from tests.perf._agent_load_tiering_types import (
@@ -47,7 +47,7 @@ def _tui_visible_agents(agents: list[Agent]) -> list[Agent]:
 
 
 def _agents_from_snapshot(snapshot: AgentArtifactScanWire) -> list[Agent]:
-    agents, workflow_agent_steps = _load_agents_from_artifact_snapshot_sources(
+    agents, workflow_agent_steps = load_agents_from_artifact_snapshot_sources(
         snapshot,
         patch_snapshot=[],
     )

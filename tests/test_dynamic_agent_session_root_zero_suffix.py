@@ -7,7 +7,9 @@ from datetime import datetime
 from sase.ace.tui.agent_completion import agent_prompt_name
 from sase.ace.tui.models.agent import Agent, AgentType
 from sase.ace.tui.models.agent_groups import banner_label, build_agent_tree
-from sase.ace.tui.models.agent_loader import _apply_status_overrides
+from sase.ace.tui.models._agent_status_apply import (
+    apply_status_overrides as _apply_status_overrides,
+)
 from sase.ace.tui.widgets._agent_list_render_agent import format_agent_option
 from sase.ace.tui.widgets.prompt_panel._agent_display_parts import build_header_text
 

@@ -190,11 +190,11 @@ def _pushdown_miss_states(
         )
 
     monkeypatch.setattr(
-        "sase.ace.tui.models.agent_loader._load_agents_with_load_state",
+        "sase.ace.tui.models._agent_loader_tiered._load_agents_with_load_state",
         fake_load_agents_with_state,
     )
     monkeypatch.setattr(
-        "sase.ace.tui.models.agent_loader._normalize_loaded_agents",
+        "sase.ace.tui.models._agent_loader_tiered._normalize_loaded_agents",
         lambda agents, _steps: list(agents),
     )
     _, out = load_tiered_agents(search_query="(((", requested_limit=None)

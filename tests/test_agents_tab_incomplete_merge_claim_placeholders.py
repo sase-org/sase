@@ -214,6 +214,7 @@ def test_claim_provenance_through_dedup() -> None:
 def test_load_state_flag_claim_scanning_vs_delta_and_short_circuit(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    import sase.ace.tui.models._agent_loader_tiered as tiered
     import sase.ace.tui.models.agent_loader as loader
 
     from sase.core.agent_scan_wire import (
@@ -238,16 +239,16 @@ def test_load_state_flag_claim_scanning_vs_delta_and_short_circuit(
     )
 
     monkeypatch.setattr(
-        loader,
-        "_artifact_snapshot_for_tui_load",
+        tiered,
+        "artifact_snapshot_for_tui_load",
         lambda **_kwargs: (snapshot, scanned_state),
     )
     monkeypatch.setattr(
-        loader,
-        "_load_agents_from_all_sources",
+        tiered,
+        "load_agents_from_all_sources",
         lambda **_kwargs: ([], []),
     )
-    result = loader._load_agents_with_load_state()
+    result = tiered._load_agents_with_load_state()
     assert result.state.running_claims_scanned is True
 
     # Keeps-displayed-roster short-circuit never scans claims.
@@ -263,37 +264,37 @@ def test_load_state_flag_claim_scanning_vs_delta_and_short_circuit(
         repair_reason=LOCK_BUSY_KEEP_ROSTER_REASON,
     )
     monkeypatch.setattr(
-        loader,
-        "_artifact_snapshot_for_tui_load",
+        tiered,
+        "artifact_snapshot_for_tui_load",
         lambda **_kwargs: (snapshot, keep_state),
     )
-    kept = loader._load_agents_with_load_state()
+    kept = tiered._load_agents_with_load_state()
     assert kept.agents == []
     assert kept.state.running_claims_scanned is False
 
     # Artifact deltas never scan the RUNNING field.
     monkeypatch.setattr(
-        loader,
-        "_scan_artifact_dirs_for_loader",
+        tiered,
+        "scan_artifact_dirs_for_loader",
         lambda _dirs, _options=None: snapshot,
     )
     monkeypatch.setattr(
-        loader,
-        "_update_artifact_index_from_delta",
+        tiered,
+        "update_artifact_index_from_delta",
         lambda _snapshot, **_kwargs: None,
     )
     monkeypatch.setattr(
-        loader,
-        "_load_agents_from_artifact_snapshot_sources",
+        tiered,
+        "load_agents_from_artifact_snapshot_sources",
         lambda _snapshot, **_kwargs: ([], []),
     )
     monkeypatch.setattr(
-        loader,
+        tiered,
         "_normalize_loaded_agents",
         lambda agents, _steps, **_kwargs: list(agents),
     )
     monkeypatch.setattr(
-        loader,
+        tiered,
         "_mark_live_artifact_delta_runners",
         lambda _agents: None,
     )

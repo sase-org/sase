@@ -25,7 +25,19 @@ def projects(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     project.mkdir(parents=True)
     (project / "demo.sase").write_text("PROJECT_NAME: demo\n")
     monkeypatch.setattr(agent_loader, "get_all_project_files", lambda: [])
+    monkeypatch.setattr(
+        "sase.ace.tui.models._agent_loader_sources.get_all_project_files",
+        lambda: [],
+    )
+    monkeypatch.setattr(
+        "sase.ace.tui.models._agent_loader_tiered.get_all_project_files",
+        lambda: [],
+    )
     monkeypatch.setattr(agent_loader, "is_process_running", lambda pid: pid != 99999)
+    monkeypatch.setattr(
+        "sase.ace.tui.models._agent_loader_tiered.is_process_running",
+        lambda pid: pid != 99999,
+    )
     monkeypatch.setattr(
         "sase.ace.hooks.processes.is_process_running", lambda pid: pid != 99999
     )
@@ -227,6 +239,14 @@ def test_monitor_running_claim_merges_without_losing_projected_fields(
     project_file = projects / "demo" / "demo.sase"
     monkeypatch.setattr(
         agent_loader, "get_all_project_files", lambda: [str(project_file)]
+    )
+    monkeypatch.setattr(
+        "sase.ace.tui.models._agent_loader_sources.get_all_project_files",
+        lambda: [str(project_file)],
+    )
+    monkeypatch.setattr(
+        "sase.ace.tui.models._agent_loader_tiered.get_all_project_files",
+        lambda: [str(project_file)],
     )
     claim = WorkspaceClaim(
         workspace_num=7,

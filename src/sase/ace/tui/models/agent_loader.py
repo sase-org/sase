@@ -1,708 +1,86 @@
 """Functions for loading and aggregating agents from all sources."""
 
-from collections.abc import Iterable, Sequence
-from dataclasses import dataclass, field, replace
-from pathlib import Path
-from typing import Literal
-
-import time
-
 from sase.core.agent_scan_facade import (
     default_agent_artifact_index_path,
     query_agent_artifact_index_bounded as query_agent_artifact_index,
     scan_agent_artifact_dirs,
     scan_agent_artifacts,
 )
-from sase.core.agent_scan_wire import (
-    AgentArtifactScanOptionsWire,
-    AgentArtifactScanWire,
-)
-from sase.core.paths import sase_projects_dir
-from sase.macro.project_identity import project_identity_load_scope
 
-from ..util.trace import tui_trace
-from ...patch import Patch, find_all_patches
 from ...hooks.processes import is_process_running
-from . import _agent_loader_artifact_config as _artifact_config
-from ._agent_loader_artifacts import (
-    AgentLoadState,
-    artifact_delta_load_state as _artifact_delta_load_state,
-    artifact_dirs_for_normalized_timestamps as _artifact_dirs_for_timestamps,
-    artifact_snapshot_for_live_plan_load as _live_plan_artifact_snapshot,
-    artifact_snapshot_for_tui_load as _tui_artifact_snapshot,
-    load_state_keeps_displayed_roster,
-    normalize_timestamps as _normalize_artifact_timestamps,
-    prepare_artifact_delta_paths as _prepare_artifact_delta_paths,
-    query_artifact_index_for_loader as _query_artifact_index,
-    update_artifact_index_from_delta as _update_artifact_index_from_delta,
+from ...patch import Patch, find_all_patches
+from ._agent_loader_artifacts import AgentLoadState
+from ._agent_loader_tiered import (
+    artifact_dirs_for_normalized_timestamps,
+    load_all_agents,
+    load_all_workflows,
+    load_artifact_delta_agents,
+    load_live_plan_agents,
+    load_live_plan_agents_for_timestamps,
+    load_tiered_agents,
+    normalize_timestamps,
 )
-from ._agent_loader_normalization import (
-    apply_snapshot_clan_context as _apply_snapshot_clan_context,
-    mark_live_artifact_delta_runners as _mark_delta_runners_live,
-    normalize_live_plan_agents as _normalize_plan_agents,
-    normalize_loaded_agents as _normalize_agents,
-)
-from ._agent_ordering import get_status_priority as _get_status_priority  # noqa: F401
-from ._agent_status_apply import apply_status_overrides as _apply_status_overrides
-from ._agent_status_agent_session_core import (
-    is_root_plan_workflow as _is_root_plan_workflow,  # noqa: F401
-)
-from ._agent_status_roles import (
-    is_coder_followup_suffix as _is_coder_followup_suffix,  # noqa: F401
-    is_feedback_suffix as _is_feedback_suffix,  # noqa: F401
-)
+from ._loader_memos import agent_loader_memos
 from ._loaders import (
     get_all_project_files,
-    get_workflow_timestamp_dirs,  # noqa: F401  re-exported for fallback callers
+    get_workflow_timestamp_dirs,
     load_agents_from_comments,
     load_agents_from_hooks,
     load_agents_from_mentors,
     load_agents_from_running_field,
-    load_done_agents,  # noqa: F401  re-exported for fallback/tests
+    load_done_agents,
     load_done_agents_from_snapshot,
-    load_running_home_agents,  # noqa: F401  re-exported for fallback/tests
+    load_running_home_agents,
     load_running_home_agents_from_snapshot,
-    load_workflow_agent_steps,  # noqa: F401  re-exported for fallback/tests
+    load_workflow_agent_steps,
     load_workflow_agent_steps_from_snapshot,
-    load_workflow_agents,  # noqa: F401  re-exported for fallback/tests
+    load_workflow_agents,
     load_workflow_agents_from_snapshot,
-    load_workflow_states,  # noqa: F401  re-exported for fallback/tests
-    load_workflow_states_from_snapshot,  # noqa: F401  re-exported for fallback/tests
+    load_workflow_states,
+    load_workflow_states_from_snapshot,
 )
-from ._loader_memos import agent_loader_memos
 from ._timestamps import normalize_to_14_digit
 from .agent import Agent
 from .workflow import WorkflowEntry
 
 find_all_changespecs = find_all_patches  # legacy compatibility alias
 
-
-@dataclass(frozen=True)
-class _AgentLoadResult:
-    """Agents plus metadata about the artifact-history tier used."""
-
-    agents: list[Agent]
-    workflow_agent_steps: list[Agent]
-    state: AgentLoadState
-    #: Always-on ``perf_counter`` timings for the ``index`` and ``decode``
-    #: loader substages, in seconds. The remaining substages
-    #: (``dismissed_snapshot``, ``provider``, ``projections``) are timed by
-    #: the TUI disk-load wrapper, which merges them for telemetry.
-    substages: dict[str, float] = field(default_factory=dict)
-
-
-def _scan_artifacts_for_loader(
-    options: AgentArtifactScanOptionsWire | None = None,
-) -> "AgentArtifactScanWire":
-    """Return one fresh artifact-tree snapshot for the TUI loader.
-
-    Single-purpose seam between :func:`_load_agents_from_all_sources` and
-    :func:`scan_agent_artifacts` so tests can replace the snapshot with a
-    fixture without having to patch every individual ``_from_snapshot``
-    consumer.
-    """
-    return scan_agent_artifacts(
-        sase_projects_dir(),
-        options or _artifact_config.TUI_SCAN_OPTIONS,
-    )
-
-
-def _scan_artifact_dirs_for_loader(
-    artifact_dirs: Sequence[Path | str],
-    options: AgentArtifactScanOptionsWire | None = None,
-) -> "AgentArtifactScanWire":
-    """Return a fresh exact artifact-dir snapshot for the TUI loader."""
-    return scan_agent_artifact_dirs(
-        sase_projects_dir(),
-        artifact_dirs,
-        options or _artifact_config.TUI_SCAN_OPTIONS,
-    )
-
-
-def _projects_root_for_loader() -> Path:
-    return sase_projects_dir()
-
-
-def _query_artifact_index_for_loader(
-    *,
-    full_history: bool,
-    freshness: Literal["revalidate", "cached"] = "cached",
-    requested_limit: int | None = None,
-    candidate_filter: dict[str, object] | None = None,
-    allow_lock_busy_source_scan: bool = True,
-) -> tuple[AgentArtifactScanWire, AgentLoadState] | None:
-    """Return an index-backed snapshot when the persistent index exists."""
-    return _query_artifact_index(
-        full_history=full_history,
-        freshness=freshness,
-        requested_limit=requested_limit,
-        candidate_filter=candidate_filter,
-        default_index_path=default_agent_artifact_index_path,
-        projects_root=_projects_root_for_loader,
-        query_index=query_agent_artifact_index,
-        scan_artifacts=_scan_artifacts_for_loader,
-        allow_lock_busy_source_scan=allow_lock_busy_source_scan,
-    )
-
-
-def _artifact_snapshot_for_tui_load(
-    *,
-    full_history: bool,
-    use_artifact_index: bool = True,
-    index_freshness: Literal["revalidate", "cached"] = "cached",
-    requested_limit: int | None = None,
-    candidate_filter: dict[str, object] | None = None,
-    allow_lock_busy_source_scan: bool = True,
-) -> tuple[AgentArtifactScanWire, AgentLoadState]:
-    """Return the artifact snapshot for a TUI refresh.
-
-    Tier 1 uses the persistent artifact index when available. Missing or bad
-    indexes fall back to a bounded source scan so first paint remains capped.
-    A busy index lock serves the last same-key snapshot or keeps the roster.
-    Tier 2 uses a revalidated index query and falls back to source artifacts when the
-    index path is unavailable.
-    """
-
-    return _tui_artifact_snapshot(
-        full_history=full_history,
-        use_artifact_index=use_artifact_index,
-        index_freshness=index_freshness,
-        requested_limit=requested_limit,
-        candidate_filter=candidate_filter,
-        scan_artifacts=_scan_artifacts_for_loader,
-        load_tier1_index=_query_artifact_index_for_loader,
-        allow_lock_busy_source_scan=allow_lock_busy_source_scan,
-    )
-
-
-def _artifact_snapshot_for_live_plan_load() -> AgentArtifactScanWire:
-    """Return a bounded artifact snapshot for CLI plan notification matching."""
-    return _live_plan_artifact_snapshot(
-        default_index_path=default_agent_artifact_index_path,
-        projects_root=_projects_root_for_loader,
-        query_index=query_agent_artifact_index,
-        scan_artifacts=_scan_artifacts_for_loader,
-    )
-
-
-def normalize_timestamps(timestamps: Iterable[str]) -> set[str]:
-    return _normalize_artifact_timestamps(timestamps)
-
-
-def artifact_dirs_for_normalized_timestamps(normalized: set[str]) -> list[Path]:
-    return _artifact_dirs_for_timestamps(normalized)
-
-
-def load_all_workflows() -> list[WorkflowEntry]:
-    """Load all workflow entries from workflow_state.json files.
-
-    Returns:
-        List of WorkflowEntry objects sorted by start time (most recent first).
-    """
-    workflows = load_workflow_states()
-
-    # Sort by start time (most recent first)
-    workflows_with_time = [w for w in workflows if w.start_time is not None]
-    workflows_without_time = [w for w in workflows if w.start_time is None]
-
-    workflows_with_time.sort(key=lambda w: w.start_time, reverse=True)  # type: ignore
-
-    return workflows_with_time + workflows_without_time
-
-
-def _patch_snapshot_for_loader(
-    patch_snapshot: list[Patch] | None,
-) -> list[Patch]:
-    return (
-        patch_snapshot
-        if patch_snapshot is not None
-        else find_all_patches(include_states="all")
-    )
-
-
-def _patch_agent_lookups(
-    all_patches: list[Patch],
-) -> tuple[dict[str, str | None], dict[str, str | None]]:
-    bug_by_cl_name: dict[str, str | None] = {}
-    cl_by_cl_name: dict[str, str | None] = {}
-    for cs in all_patches:
-        if cs.bug:
-            bug_id = cs.bug.removeprefix("http://b/")
-            bug_by_cl_name[cs.name] = f"http://b/{bug_id}"
-        if cs.pr_url:
-            cl_by_cl_name[cs.name] = cs.pr_url
-    return bug_by_cl_name, cl_by_cl_name
-
-
-def _load_agents_from_artifact_snapshot_sources(
-    artifact_snapshot: AgentArtifactScanWire,
-    *,
-    patch_snapshot: list[Patch] | None = None,
-) -> tuple[list[Agent], list[Agent]]:
-    with agent_loader_memos(), project_identity_load_scope():
-        return _load_agents_from_artifact_snapshot_sources_impl(
-            artifact_snapshot,
-            patch_snapshot=patch_snapshot,
-        )
-
-
-def _load_agents_from_artifact_snapshot_sources_impl(
-    artifact_snapshot: AgentArtifactScanWire,
-    *,
-    patch_snapshot: list[Patch] | None = None,
-) -> tuple[list[Agent], list[Agent]]:
-    """Load only artifact-backed agents from an exact scanner snapshot."""
-    all_patches = _patch_snapshot_for_loader(patch_snapshot)
-    bug_by_cl_name, cl_by_cl_name = _patch_agent_lookups(all_patches)
-
-    agents: list[Agent] = []
-    agents.extend(
-        load_done_agents_from_snapshot(artifact_snapshot, bug_by_cl_name, cl_by_cl_name)
-    )
-    agents.extend(load_running_home_agents_from_snapshot(artifact_snapshot))
-    workflow_agent_steps, step_meta_by_parent = load_workflow_agent_steps_from_snapshot(
-        artifact_snapshot
-    )
-    agents.extend(
-        load_workflow_agents_from_snapshot(
-            artifact_snapshot,
-            step_meta_by_parent=step_meta_by_parent,
-        )
-    )
-    _apply_snapshot_clan_context(
-        [*agents, *workflow_agent_steps],
-        artifact_snapshot,
-    )
-    return agents, workflow_agent_steps
-
-
-def _load_plan_agents_from_artifact_snapshot(
-    artifact_snapshot: AgentArtifactScanWire,
-) -> list[Agent]:
-    """Load artifact-backed rows needed for plan notification liveness."""
-
-    agents: list[Agent] = []
-    agents.extend(load_done_agents_from_snapshot(artifact_snapshot, {}, {}))
-    agents.extend(load_running_home_agents_from_snapshot(artifact_snapshot))
-    agents.extend(
-        load_workflow_agents_from_snapshot(
-            artifact_snapshot,
-            step_meta_by_parent=None,
-        )
-    )
-    return agents
-
-
-def _load_agents_from_all_sources(
-    *,
-    patch_snapshot: list[Patch] | None = None,
-    artifact_snapshot: AgentArtifactScanWire | None = None,
-) -> tuple[list[Agent], list[Agent]]:
-    with agent_loader_memos(), project_identity_load_scope():
-        return _load_agents_from_all_sources_impl(
-            patch_snapshot=patch_snapshot,
-            artifact_snapshot=artifact_snapshot,
-        )
-
-
-def _load_agents_from_all_sources_impl(
-    *,
-    patch_snapshot: list[Patch] | None = None,
-    artifact_snapshot: AgentArtifactScanWire | None = None,
-) -> tuple[list[Agent], list[Agent]]:
-    """Load agents from all sources and return (agents, workflow_agent_steps).
-
-    Sources:
-    1. RUNNING field in project files (workspace claims)
-    2. done.json marker files (DONE agents)
-    3. running.json markers (home mode agents)
-    4. Workflow agent steps and workflow entries
-    5. HOOKS, MENTORS, COMMENTS fields from Patches
-
-    Args:
-        patch_snapshot: Optional pre-fetched Patch list. When
-            supplied, the loader skips the in-process ``find_all_patches()``
-            call and reuses this snapshot for bug/PR lookups and the
-            HOOKS/MENTORS/COMMENTS sweep.
-    """
-    agents: list[Agent] = []
-
-    # Get all project files
-    project_files = get_all_project_files()
-
-    # Load all Patches early to build bug lookup. Caller-supplied
-    # snapshots avoid re-globbing every project spec file when the TUI already
-    # has a fresh cached snapshot in hand.
-    all_patches = _patch_snapshot_for_loader(patch_snapshot)
-
-    # Build bug URL and PR number lookups by Patch name (single pass)
-    bug_by_cl_name, cl_by_cl_name = _patch_agent_lookups(all_patches)
-
-    # 1. Load from RUNNING field (snapshot-independent; reads project spec files).
-    agents.extend(
-        load_agents_from_running_field(project_files, bug_by_cl_name, cl_by_cl_name)
-    )
-
-    # Acquire a single artifact snapshot for every artifact-tree consumer
-    # below. Phase 3F replaces independent walks of done/running/workflow
-    # subtrees with one ``scan_agent_artifacts()`` snapshot so the
-    # filesystem (and, in Rust mode, the FFI conversion) only pays the
-    # walking + JSON parsing cost once per refresh.
-    if artifact_snapshot is None:
-        artifact_snapshot = _scan_artifacts_for_loader()
-
-    # 1a. Load completed (DONE) agents
-    agents.extend(
-        load_done_agents_from_snapshot(artifact_snapshot, bug_by_cl_name, cl_by_cl_name)
-    )
-
-    # 1b. Load running home mode agents (from running.json markers)
-    agents.extend(load_running_home_agents_from_snapshot(artifact_snapshot))
-
-    # 1d. Load workflow agent steps first — also collects meta_* fields
-    # per parent timestamp so load_workflow_agents() can skip redundant
-    # prompt_step_*.json reads.
-    workflow_agent_steps, step_meta_by_parent = load_workflow_agent_steps_from_snapshot(
-        artifact_snapshot
-    )
-
-    # 1c. Load workflow entries as agents (with pre-collected meta fields)
-    agents.extend(
-        load_workflow_agents_from_snapshot(
-            artifact_snapshot,
-            step_meta_by_parent=step_meta_by_parent,
-        )
-    )
-
-    # 2. Load from each Patch's fields
-    for cs in all_patches:
-        stripped_bug_id = cs.bug.removeprefix("http://b/") if cs.bug else None
-        bug = f"http://b/{stripped_bug_id}" if stripped_bug_id else None
-        cl_num = cs.pr_url
-
-        # HOOKS - fix-hook and summarize agents
-        agents.extend(load_agents_from_hooks(cs, bug, cl_num))
-
-        # MENTORS - mentor agents
-        agents.extend(load_agents_from_mentors(cs, bug, cl_num))
-
-        # COMMENTS - CRS agents
-        agents.extend(load_agents_from_comments(cs, bug, cl_num))
-
-    _apply_snapshot_clan_context(
-        [*agents, *workflow_agent_steps],
-        artifact_snapshot,
-    )
-    return agents, workflow_agent_steps
-
-
-def _load_agents_with_load_state(
-    *,
-    patch_snapshot: list[Patch] | None = None,
-    full_history: bool = False,
-    use_artifact_index: bool = True,
-    index_freshness: Literal["revalidate", "cached"] = "cached",
-    requested_limit: int | None = None,
-    candidate_filter: dict[str, object] | None = None,
-    allow_lock_busy_source_scan: bool = True,
-) -> _AgentLoadResult:
-    """Load agents for the TUI and report whether history is complete."""
-
-    index_start = time.perf_counter()
-    with tui_trace(
-        "agents.load_from_disk.index",
-        index_freshness=index_freshness,
-    ) as extra:
-        artifact_snapshot, state = _artifact_snapshot_for_tui_load(
-            full_history=full_history,
-            use_artifact_index=use_artifact_index,
-            index_freshness=index_freshness,
-            requested_limit=requested_limit,
-            candidate_filter=candidate_filter,
-            allow_lock_busy_source_scan=allow_lock_busy_source_scan,
-        )
-        extra["artifact_source"] = state.artifact_source
-        extra["record_count"] = state.record_count
-        extra["used_artifact_index"] = state.used_artifact_index
-    index_elapsed = time.perf_counter() - index_start
-    if load_state_keeps_displayed_roster(state):
-        return _AgentLoadResult(
-            agents=[],
-            workflow_agent_steps=[],
-            state=state,
-            substages={"index": index_elapsed, "decode": 0.0},
-        )
-    decode_start = time.perf_counter()
-    with tui_trace("agents.load_from_disk.decode") as extra:
-        agents, workflow_agent_steps = _load_agents_from_all_sources(
-            patch_snapshot=patch_snapshot,
-            artifact_snapshot=artifact_snapshot,
-        )
-        extra["decoded_count"] = len(agents) + len(workflow_agent_steps)
-    decode_elapsed = time.perf_counter() - decode_start
-    # This path always scans the RUNNING field via `_load_agents_from_all_sources`,
-    # so the roster is authoritative for workspace claims. The keeps-displayed
-    # roster short-circuit above returns early without scanning, leaving the
-    # default False. Bounded-prefix truncation is handled in `load_tiered_agents`,
-    # which clears the flag when it slices the decoded roster to the viewport cap
-    # (claim rows sort anywhere in that order and could have been cut).
-    state = replace(state, running_claims_scanned=True)
-    return _AgentLoadResult(
-        agents=agents,
-        workflow_agent_steps=workflow_agent_steps,
-        state=state,
-        substages={"index": index_elapsed, "decode": decode_elapsed},
-    )
-
-
-def _normalize_loaded_agents(
-    agents: list[Agent],
-    workflow_agent_steps: list[Agent],
-    *,
-    keep_orphaned_followups: bool = False,
-) -> list[Agent]:
-    normalized = _normalize_agents(
-        agents,
-        workflow_agent_steps,
-        is_process_running=is_process_running,
-        keep_orphaned_followups=keep_orphaned_followups,
-    )
-    from .agent_hijack_presentation import apply_hijack_ledger_presentation
-
-    apply_hijack_ledger_presentation(normalized)
-    return normalized
-
-
-def _mark_live_artifact_delta_runners(agents: list[Agent]) -> None:
-    """Attach bounded PID liveness proof to exact-delta rows.
-
-    Artifact deltas intentionally do not rescan ProjectSpec RUNNING claims.
-    Rechecking only the PIDs already present in the exact delta keeps the
-    worker-side operation bounded while preventing a stale retry marker from
-    reviving a dead terminal row.
-    """
-    _mark_delta_runners_live(
-        agents,
-        is_process_running=is_process_running,
-    )
-
-
-def _normalize_live_plan_agents(agents: list[Agent]) -> list[Agent]:
-    """Normalize the cheap visibility-affecting pieces for plan-list matching."""
-    return _normalize_plan_agents(
-        agents,
-        is_process_running=is_process_running,
-    )
-
-
-def load_live_plan_agents() -> list[Agent]:
-    """Load just the agent rows needed to match pending PlanApproval notifications."""
-
-    agents: list[Agent] = []
-    project_files = get_all_project_files()
-    agents.extend(load_agents_from_running_field(project_files, {}, {}))
-    artifact_snapshot = _artifact_snapshot_for_live_plan_load()
-    agents.extend(_load_plan_agents_from_artifact_snapshot(artifact_snapshot))
-    return _normalize_live_plan_agents(agents)
-
-
-def load_live_plan_agents_for_timestamps(timestamps: Iterable[str]) -> list[Agent]:
-    """Load plan-matching agent rows from exact artifact timestamps."""
-
-    normalized = normalize_timestamps(timestamps)
-    if not normalized:
-        return []
-
-    agents = [
-        agent
-        for agent in load_agents_from_running_field(get_all_project_files(), {}, {})
-        if agent.raw_suffix and normalize_to_14_digit(agent.raw_suffix) in normalized
-    ]
-
-    artifact_dirs = artifact_dirs_for_normalized_timestamps(normalized)
-    if not artifact_dirs:
-        return _normalize_live_plan_agents(agents)
-    snapshot = _scan_artifact_dirs_for_loader(
-        artifact_dirs,
-        _artifact_config.PLAN_LIVE_SCAN_OPTIONS,
-    )
-    agents.extend(_load_plan_agents_from_artifact_snapshot(snapshot))
-    return _normalize_live_plan_agents(agents)
-
-
-def load_all_agents(
-    *,
-    patch_snapshot: list[Patch] | None = None,
-    artifact_snapshot: AgentArtifactScanWire | None = None,
-) -> list[Agent]:
-    """Load all running agents from all sources.
-
-    Sources:
-    1. RUNNING field in project files (workspace claims)
-    2. HOOKS field with suffix_type="running_agent" (fix_hook, summarize_hook)
-    3. MENTORS field with suffix_type="running_agent"
-    4. COMMENTS field with suffix_type="running_agent" (CRS)
-    5. done.json marker files (DONE agents)
-
-    Args:
-        patch_snapshot: Optional pre-fetched Patch list. When
-            supplied, the loader skips its own ``find_all_patches()``
-            call and reuses this snapshot.
-
-    Returns:
-        List of Agent objects sorted by start time (most recent first),
-        with agents that have no start time at the end.
-    """
-    agents, workflow_agent_steps = _load_agents_from_all_sources(
-        patch_snapshot=patch_snapshot,
-        artifact_snapshot=artifact_snapshot,
-    )
-    return _normalize_loaded_agents(agents, workflow_agent_steps)
-
-
-def load_tiered_agents(
-    *,
-    patch_snapshot: list[Patch] | None = None,
-    full_history: bool = False,
-    use_artifact_index: bool = True,
-    index_freshness: Literal["revalidate", "cached"] = "cached",
-    search_query: str | None = None,
-    requested_limit: int | None = None,
-    substages: dict[str, float] | None = None,
-    allow_lock_busy_source_scan: bool = True,
-) -> tuple[list[Agent], AgentLoadState]:
-    """Load agents through the TUI tiered artifact path.
-
-    When *substages* is given, it is updated with the always-on
-    ``perf_counter`` timings for the ``index``, ``decode``, and
-    ``provider`` (identity plus status normalization) loader substages.
-    """
-
-    from .agent_live_query_engine import agents_history_query_key
-    from .agent_live_query_pushdown import compile_agents_live_query_pushdown
-
-    live_query_plan = compile_agents_live_query_pushdown(search_query)
-    raw_query = live_query_plan.raw_query
-    window_safe = live_query_plan.window_safe
-    candidate_filter = live_query_plan.candidate_filter
-    history_query_key = agents_history_query_key(raw_query)
-    pushdown_miss = bool(raw_query) and not window_safe
-    defer_pushdown_miss = pushdown_miss and not full_history
-    effective_full_history = full_history
-    effective_limit = (
-        requested_limit
-        if requested_limit is not None
-        and not effective_full_history
-        and (window_safe or defer_pushdown_miss)
-        else None
-    )
-    result = _load_agents_with_load_state(
-        patch_snapshot=patch_snapshot,
-        full_history=effective_full_history,
-        use_artifact_index=use_artifact_index,
-        index_freshness=index_freshness,
-        requested_limit=effective_limit,
-        candidate_filter=(
-            candidate_filter
-            if window_safe and (effective_limit is not None or effective_full_history)
-            else None
-        ),
-        allow_lock_busy_source_scan=allow_lock_busy_source_scan,
-    )
-    provider_start = time.perf_counter()
-    agents = _normalize_loaded_agents(result.agents, result.workflow_agent_steps)
-    provider_elapsed = time.perf_counter() - provider_start
-    if substages is not None:
-        substages.update(result.substages)
-        substages["provider"] = provider_elapsed
-    state = replace(result.state, history_query_key=history_query_key)
-    # A pushdown-miss query evaluated only against recent history is
-    # query-incomplete. A non-truncated baseline read saw the whole visible
-    # inbox, so it is not query-incomplete; only viewport-bounded reads and
-    # truncated baseline reads are.
-    if (
-        defer_pushdown_miss
-        and not state.complete_history
-        and (state.bounded_prefix or state.truncated)
-    ):
-        state = replace(state, query_incomplete=True)
-    if effective_limit is not None and result.state.bounded_prefix:
-        if raw_query:
-            agents, filtered_count = _filter_and_cap_windowed_agents_live(
-                agents,
-                raw_query,
-                effective_limit,
-            )
-        else:
-            filtered_count = len(agents)
-            agents = agents[: max(1, effective_limit)]
-        # The viewport cap slices the decoded roster after claim rows were
-        # merged in, so claim rows could have been cut. Leave the load
-        # non-authoritative for claims rather than carrying live claim rows
-        # past the cap (keeps the merge contract explicit and bounded).
-        state = replace(
-            state,
-            returned_count=len(agents),
-            has_more=state.has_more or filtered_count > len(agents),
-            running_claims_scanned=False,
-        )
-        return agents, state
-    return agents, state
-
-
-def _filter_and_cap_windowed_agents_live(
-    agents: list[Agent],
-    raw_query: str,
-    requested_limit: int,
-) -> tuple[list[Agent], int]:
-    """Apply exact ``agents-live`` query semantics and cap a bounded prefix."""
-    from sase.project_display_names import (
-        attach_project_display_names,
-        refresh_project_display_snapshot,
-    )
-
-    refresh_project_display_snapshot()
-    attach_project_display_names(agents)
-    from .agent_live_query_engine import apply_agents_live_query_filter
-
-    filtered, _facade, error = apply_agents_live_query_filter(raw_query, agents)
-    if error is not None:
-        filtered = list(agents)
-    return filtered[: max(1, requested_limit)], len(filtered)
-
-
-def load_artifact_delta_agents(
-    artifact_dirs: Sequence[Path | str],
-    *,
-    patch_snapshot: list[Patch] | None = None,
-    changespec_snapshot: list[Patch] | None = None,  # legacy compatibility alias
-    update_index: bool = True,
-    deleted_artifact_dirs: Sequence[Path | str] = (),
-) -> tuple[list[Agent], AgentLoadState]:
-    """Load normalized agents from an exact set of artifact directories."""
-    if patch_snapshot is None:
-        patch_snapshot = changespec_snapshot  # legacy compatibility alias
-
-    unique_dirs, seen_dirs, deleted_dir_keys = _prepare_artifact_delta_paths(
-        artifact_dirs,
-        deleted_artifact_dirs,
-    )
-
-    snapshot = _scan_artifact_dirs_for_loader(unique_dirs)
-    _update_artifact_index_from_delta(snapshot, update_index=update_index)
-    state = _artifact_delta_load_state(
-        snapshot,
-        seen_dirs=seen_dirs,
-        deleted_dir_keys=deleted_dir_keys,
-    )
-    agents, workflow_agent_steps = _load_agents_from_artifact_snapshot_sources(
-        snapshot,
-        patch_snapshot=patch_snapshot,
-    )
-    normalized = _normalize_loaded_agents(
-        agents,
-        workflow_agent_steps,
-        keep_orphaned_followups=True,
-    )
-    _mark_live_artifact_delta_runners(normalized)
-    return normalized, state
+__all__ = [
+    "Agent",
+    "AgentLoadState",
+    "Patch",
+    "WorkflowEntry",
+    "agent_loader_memos",
+    "artifact_dirs_for_normalized_timestamps",
+    "default_agent_artifact_index_path",
+    "find_all_changespecs",  # legacy compatibility alias
+    "find_all_patches",
+    "get_all_project_files",
+    "get_workflow_timestamp_dirs",
+    "is_process_running",
+    "load_agents_from_comments",
+    "load_agents_from_hooks",
+    "load_agents_from_mentors",
+    "load_agents_from_running_field",
+    "load_all_agents",
+    "load_all_workflows",
+    "load_artifact_delta_agents",
+    "load_done_agents",
+    "load_done_agents_from_snapshot",
+    "load_live_plan_agents",
+    "load_live_plan_agents_for_timestamps",
+    "load_running_home_agents",
+    "load_running_home_agents_from_snapshot",
+    "load_tiered_agents",
+    "load_workflow_agent_steps",
+    "load_workflow_agent_steps_from_snapshot",
+    "load_workflow_agents",
+    "load_workflow_agents_from_snapshot",
+    "load_workflow_states",
+    "load_workflow_states_from_snapshot",
+    "normalize_timestamps",
+    "normalize_to_14_digit",
+    "query_agent_artifact_index",
+    "scan_agent_artifact_dirs",
+    "scan_agent_artifacts",
+]

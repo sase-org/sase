@@ -10,7 +10,9 @@ from sase.ace.tui.models._agent_parallel_agent_session import (
     aggregate_parallel_agent_session_status,
 )
 from sase.ace.tui.models.agent import Agent, AgentType
-from sase.ace.tui.models.agent_loader import _apply_status_overrides
+from sase.ace.tui.models._agent_status_apply import (
+    apply_status_overrides as _apply_status_overrides,
+)
 
 
 @pytest.mark.parametrize(

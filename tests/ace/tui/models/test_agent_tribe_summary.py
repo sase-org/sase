@@ -594,7 +594,9 @@ def _settled_failed_monitor(name: str, root, *, start_minute: int):
 
 
 def test_settled_failed_monitor_with_followup_does_not_fail_tribe() -> None:
-    from sase.ace.tui.models.agent_loader import _apply_status_overrides
+    from sase.ace.tui.models._agent_status_apply import (
+        apply_status_overrides as _apply_status_overrides,
+    )
 
     root = _agent(
         "build--plan",

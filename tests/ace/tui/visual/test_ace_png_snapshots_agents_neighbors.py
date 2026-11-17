@@ -11,7 +11,9 @@ from sase.ace.testing import AcePage
 from sase.ace.tui.actions.agents._display_helpers import panel_widget_id_for_key
 from sase.ace.tui.models._agent_ordering import sort_and_reorder
 from sase.ace.tui.models.agent import Agent, AgentType
-from sase.ace.tui.models.agent_loader import _apply_status_overrides
+from sase.ace.tui.models._agent_status_apply import (
+    apply_status_overrides as _apply_status_overrides,
+)
 from sase.ace.tui.models.fold_state import FoldLevel
 from sase.ace.tui.widgets import AgentDetail, AgentList
 from tests.ace.tui.visual._ace_agents_png_snapshot_helpers import (

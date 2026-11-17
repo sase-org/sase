@@ -47,7 +47,7 @@ def _load_agent_session(
             side_effect=is_live,
         ),
         patch(
-            "sase.ace.tui.models.agent_loader.is_process_running",
+            "sase.ace.tui.models._agent_loader_tiered.is_process_running",
             side_effect=is_live,
         ),
         patch("sase.ace.agent_tribes.load_agent_tribes", return_value={}),

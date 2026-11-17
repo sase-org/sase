@@ -4,7 +4,7 @@ from .agent import Agent, AgentType
 from .agent_session_members import concrete_agent_session_turn_rows
 
 
-def get_status_priority(status: str) -> int:
+def _get_status_priority(status: str) -> int:
     """Return sort priority for agent status (lower = appears first).
 
     Completed/failed steps appear before running/waiting steps.
@@ -66,7 +66,7 @@ def sort_and_reorder(
         for steps in steps_by_parent.values():
             steps.sort(
                 key=lambda s: (
-                    get_status_priority(s.status),
+                    _get_status_priority(s.status),
                     (
                         s.parent_step_index
                         if s.parent_step_index is not None

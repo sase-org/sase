@@ -180,13 +180,13 @@ def _stub_agent_scan_backend(
     empty = agent_scan_wire_from_dict(
         {"schema_version": 10, "projects_root": str(projects_root)}
     )
-    import sase.ace.tui.models.agent_loader as loader_module
+    import sase.ace.tui.models._agent_loader_scans as scans_module
 
     monkeypatch.setattr(
-        loader_module, "scan_agent_artifacts", lambda *args, **kwargs: empty
+        scans_module, "scan_agent_artifacts", lambda *args, **kwargs: empty
     )
     monkeypatch.setattr(
-        loader_module, "scan_agent_artifact_dirs", lambda *args, **kwargs: empty
+        scans_module, "scan_agent_artifact_dirs", lambda *args, **kwargs: empty
     )
 
 
