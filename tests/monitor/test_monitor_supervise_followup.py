@@ -21,7 +21,7 @@ def test_run_supervisor_holds_the_claim_when_the_followup_launch_succeeds(
     artifacts_dir, project_file = _make_member(
         tmp_path, command="true", next_action="Report that it finished."
     )
-    import sase.monitor.supervise as supervise_module
+    import sase.monitor.supervise_finish as supervise_finish_module
 
     done_path = Path(artifacts_dir) / "done.json"
 
@@ -32,7 +32,9 @@ def test_run_supervisor_holds_the_claim_when_the_followup_launch_succeeds(
         meta["monitor_followup_agent"] = "acme--1"
         return True
 
-    monkeypatch.setattr(supervise_module, "launch_followup_agent", fake_launch_success)
+    monkeypatch.setattr(
+        supervise_finish_module, "launch_followup_agent", fake_launch_success
+    )
 
     run_supervisor(artifacts_dir)
 
@@ -53,7 +55,7 @@ def test_run_supervisor_persists_stopped_at_after_followup_start_wait(
     )
     followup_dir = tmp_path / "followup"
     followup_dir.mkdir()
-    import sase.monitor.supervise as supervise_module
+    import sase.monitor.supervise_finish as supervise_finish_module
 
     done_path = Path(artifacts_dir) / "done.json"
     wait_calls: list[tuple[str, int | None]] = []
@@ -79,8 +81,10 @@ def test_run_supervisor_persists_stopped_at_after_followup_start_wait(
         wait_calls.append((artifacts_dir_arg, pid))
         return False
 
-    monkeypatch.setattr(supervise_module, "launch_followup_agent", fake_launch_success)
-    monkeypatch.setattr(supervise_module, "wait_for_followup_started", fake_wait)
+    monkeypatch.setattr(
+        supervise_finish_module, "launch_followup_agent", fake_launch_success
+    )
+    monkeypatch.setattr(supervise_finish_module, "wait_for_followup_started", fake_wait)
 
     run_supervisor(artifacts_dir)
 
@@ -99,7 +103,7 @@ def test_run_supervisor_records_degraded_followup_and_releases_monitor_claim(
     )
     followup_dir = tmp_path / "followup"
     followup_dir.mkdir()
-    import sase.monitor.supervise as supervise_module
+    import sase.monitor.supervise_finish as supervise_finish_module
 
     wait_calls: list[tuple[str, int | None]] = []
 
@@ -119,8 +123,10 @@ def test_run_supervisor_records_degraded_followup_and_releases_monitor_claim(
         wait_calls.append((artifacts_dir_arg, pid))
         return True
 
-    monkeypatch.setattr(supervise_module, "launch_followup_agent", fake_launch_degraded)
-    monkeypatch.setattr(supervise_module, "wait_for_followup_started", fake_wait)
+    monkeypatch.setattr(
+        supervise_finish_module, "launch_followup_agent", fake_launch_degraded
+    )
+    monkeypatch.setattr(supervise_finish_module, "wait_for_followup_started", fake_wait)
 
     run_supervisor(artifacts_dir)
 
@@ -145,7 +151,7 @@ def test_run_supervisor_releases_the_claim_when_the_followup_launch_fails(
     artifacts_dir, project_file = _make_member(
         tmp_path, command="true", next_action="Report that it finished."
     )
-    import sase.monitor.supervise as supervise_module
+    import sase.monitor.supervise_finish as supervise_finish_module
 
     def fake_launch_failure(
         _artifacts_dir: str, meta: dict[str, object], **_kwargs: object
@@ -154,9 +160,11 @@ def test_run_supervisor_releases_the_claim_when_the_followup_launch_fails(
         meta["monitor_followup_error"] = "boom"
         return False
 
-    monkeypatch.setattr(supervise_module, "launch_followup_agent", fake_launch_failure)
     monkeypatch.setattr(
-        supervise_module,
+        supervise_finish_module, "launch_followup_agent", fake_launch_failure
+    )
+    monkeypatch.setattr(
+        supervise_finish_module,
         "wait_for_followup_started",
         lambda *_args: pytest.fail("failed follow-up launch should not wait"),
     )

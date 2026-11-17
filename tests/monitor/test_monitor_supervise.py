@@ -15,10 +15,10 @@ from pathlib import Path
 
 import pytest
 
-from sase.monitor.supervise import (
+from sase.monitor.supervise import run_supervisor
+from sase.monitor.supervise_proc import (
     _execution_argv,
-    _popen_monitored_command,
-    run_supervisor,
+    popen_monitored_command,
 )
 from sase.notifications.store import load_notifications
 from sase.running_field import get_claimed_workspaces
@@ -45,7 +45,7 @@ def test_popen_monitored_command_uses_persisted_execution_argv(
 
     monkeypatch.setattr(subprocess, "Popen", fake_popen)
     argv = [sys.executable, "-c", "pass"]
-    _popen_monitored_command(
+    popen_monitored_command(
         {"monitor_execution_argv": argv},
         command="sase bead work plan.md --yes-to-all",
         cwd=str(tmp_path),
@@ -70,7 +70,7 @@ def test_popen_monitored_command_keeps_shell_form_without_execution_argv(
         return object()
 
     monkeypatch.setattr(subprocess, "Popen", fake_popen)
-    _popen_monitored_command(
+    popen_monitored_command(
         {},
         command="true",
         cwd=str(tmp_path),
@@ -172,10 +172,12 @@ def test_run_supervisor_fails_without_the_launch_barrier(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    import sase.monitor.supervise as supervise_module
+    import sase.monitor.supervise_proc as supervise_proc_module
 
     sentinel = tmp_path / "command-ran"
-    monkeypatch.setattr(supervise_module, "MONITOR_LAUNCH_BARRIER_TIMEOUT_SECONDS", 0.1)
+    monkeypatch.setattr(
+        supervise_proc_module, "MONITOR_LAUNCH_BARRIER_TIMEOUT_SECONDS", 0.1
+    )
     artifacts_dir, project_file = _make_member(
         tmp_path,
         command=f"touch {sentinel}",

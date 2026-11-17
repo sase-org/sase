@@ -269,7 +269,7 @@ _REVIEWED_PATH_PASSING_CONTEXTS: dict[str, PathPassingReview] = {
             "goes through write_agent_meta_atomic separately."
         ),
     ),
-    "src/sase/monitor/supervise.py:_read_meta": PathPassingReview(
+    "src/sase/monitor/supervise_run.py:_read_meta": PathPassingReview(
         exemption=(
             "Read-only supervisor bootstrap: agent_meta.json is read only to "
             "recover the monitored command's configuration before running it; "

@@ -18,7 +18,7 @@ from sase.axe.run_agent_exec import _export_exec_agent_tab
 from sase.dispatch.models import DispatchConfig, MachineRecord, ProviderSettings
 from sase.gate_turn.member import _GATE_INHERITED_METADATA_FIELDS
 from sase.monitor.member import _MONITOR_INHERITED_METADATA_FIELDS
-from sase.monitor.supervise import _reexport_member_agent_tab
+from sase.monitor.supervise_run import _reexport_member_agent_tab
 from sase.macro.directive_edit import (
     apply_inherited_agent_tab,
     inherited_agent_tab,

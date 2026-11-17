@@ -52,10 +52,11 @@ import sys
 
 try:
     import sase.monitor.supervise as supervise
+    import sase.monitor.supervise_proc as supervise_proc
 
     for name, value in json.loads(sys.argv[2]).items():
-        getattr(supervise, name)  # a renamed constant must not be skipped
-        setattr(supervise, name, value)
+        getattr(supervise_proc, name)  # a renamed constant must not be skipped
+        setattr(supervise_proc, name, value)
 except BaseException as exc:  # noqa: BLE001 - reported through the exit code
     print(f"supervisor driver setup failed: {{exc!r}}", file=sys.stderr)
     raise SystemExit({_SUPERVISOR_DRIVER_SETUP_FAILURE}) from None

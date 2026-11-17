@@ -389,7 +389,7 @@ def test_wait_for_followup_started_returns_false_on_timeout(
 _REPO_ROOT = Path(__file__).resolve().parents[2]
 _KNOWN_SHELL_DONE_WRITERS = frozenset(
     {
-        "src/sase/monitor/supervise.py",
+        "src/sase/monitor/supervise_finish.py",
         "src/sase/monitor/proc_adapter.py",
         "src/sase/monitor/reconcile.py",
         "src/sase/monitor/start_runtime.py",
