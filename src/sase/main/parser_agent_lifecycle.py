@@ -224,15 +224,16 @@ def register_agent_recover_parser(agents_sub: argparse._SubParsersAction) -> Non
         help="Recover a hijacked agent: keep, restart, or dismiss its work",
         description=(
             "Preview or resolve a held hijack. Without --action, print the shared "
-            "recovery menu. Keep-the-work actions (continue, escalate) relaunch in "
-            "the held workspace; --prompt-file with continue supplies the full "
-            "edited continuation prompt (Instruct). Release actions verify the "
-            "recovery snapshot first: restart relaunches the same prompt under "
-            "the same name in a fresh workspace (--prompt-file relaunches an "
-            "edited prompt instead, the Edit backend), and dismiss retires the "
-            "row and releases the workspace. Exit 0 means menu, queued, or "
-            "launched; 2 means refused with no new recovery; 1 means an "
-            "operation error."
+            "recovery menu. Keep-the-work actions (continue, escalate, rerun) "
+            "relaunch in the held workspace; --prompt-file with continue supplies "
+            "the full edited continuation prompt (Instruct); rerun is "
+            "monitor-only and re-executes the recorded command as a new "
+            "monitor. Release actions verify the recovery snapshot first: "
+            "restart relaunches the same prompt under the same name in a fresh "
+            "workspace (--prompt-file relaunches an edited prompt instead, the "
+            "Edit backend), and dismiss retires the row and releases the "
+            "workspace. Exit 0 means menu, queued, or launched; 2 means refused "
+            "with no new recovery; 1 means an operation error."
         ),
         epilog=(
             "examples:\n"
@@ -242,6 +243,7 @@ def register_agent_recover_parser(agents_sub: argparse._SubParsersAction) -> Non
             "  sase agent recover -a continue -p /tmp/continue.md -m opus@high "
             "sase-7f.2\n"
             "  sase agent recover -a escalate -j sase-7f.2\n"
+            "  sase agent recover -a rerun sase-7f.2\n"
             "  sase agent recover -a restart sase-7f.2\n"
             "  sase agent recover -a restart -p /tmp/edited.md sase-7f.2\n"
             "  sase agent recover -a dismiss sase-7f.2"
@@ -251,7 +253,7 @@ def register_agent_recover_parser(agents_sub: argparse._SubParsersAction) -> Non
     recover_parser.add_argument(
         "-a",
         "--action",
-        choices=("continue", "dismiss", "escalate", "restart"),
+        choices=("continue", "dismiss", "escalate", "rerun", "restart"),
         metavar="ACTION",
         help="Resolve the hijack (without this, print the menu)",
     )

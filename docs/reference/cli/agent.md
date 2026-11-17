@@ -907,13 +907,13 @@ usage: sase agent recover [-h] [-a ACTION] [-D] [-n] [-j] [-m MODEL] [-p PATH]
                           NAME
 ```
 
-Preview or resolve a held hijack. Without --action, print the shared recovery menu. Keep-the-work actions (continue, escalate) relaunch in the held workspace; --prompt-file with continue supplies the full edited continuation prompt (Instruct). Release actions verify the recovery snapshot first: restart relaunches the same prompt under the same name in a fresh workspace (--prompt-file relaunches an edited prompt instead, the Edit backend), and dismiss retires the row and releases the workspace. Exit 0 means menu, queued, or launched; 2 means refused with no new recovery; 1 means an operation error.
+Preview or resolve a held hijack. Without --action, print the shared recovery menu. Keep-the-work actions (continue, escalate, rerun) relaunch in the held workspace; --prompt-file with continue supplies the full edited continuation prompt (Instruct); rerun is monitor-only and re-executes the recorded command as a new monitor. Release actions verify the recovery snapshot first: restart relaunches the same prompt under the same name in a fresh workspace (--prompt-file relaunches an edited prompt instead, the Edit backend), and dismiss retires the row and releases the workspace. Exit 0 means menu, queued, or launched; 2 means refused with no new recovery; 1 means an operation error.
 
 Options:
 
 | Option                             | Description                                                                                                                                                                | Default |
 | ---------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------- |
-| `-a ACTION`, `--action ACTION`     | Resolve the hijack (without this, print the menu) (choices: `continue`, `dismiss`, `escalate`, `restart`)                                                                  | —       |
+| `-a ACTION`, `--action ACTION`     | Resolve the hijack (without this, print the menu) (choices: `continue`, `dismiss`, `escalate`, `rerun`, `restart`)                                                         | —       |
 | `-D`, `--discard-without-snapshot` | DANGEROUS: release a hijacked workspace with restart or dismiss even when the recovery snapshot fails; uncommitted work may be lost                                        | `false` |
 | `-n`, `--dry-run`                  | Preview one keep-work action without changing the ledger                                                                                                                   | `false` |
 | `-h`, `--help`                     | show this help message and exit                                                                                                                                            | —       |

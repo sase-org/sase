@@ -42,10 +42,15 @@ def hijack_recovery_preview(agent_or_name: object) -> RecoveryPreview:
     header = _recovery_header(record)
     scope = string(record.get("scope")) or ""
     monitor_facts = None
+    rerun_reason: str | None = None
     if scope == "monitor":
-        from sase.agent.hijack._preview_monitor import monitor_followup_facts
+        from sase.agent.hijack._preview_monitor import (
+            monitor_followup_facts,
+            monitor_rerun_reason,
+        )
 
         monitor_facts = monitor_followup_facts(record, artifacts_dir)
+        rerun_reason = monitor_rerun_reason(record, artifacts_dir)
     model_target = (
         monitor_facts.continue_target
         if monitor_facts is not None
@@ -75,15 +80,15 @@ def hijack_recovery_preview(agent_or_name: object) -> RecoveryPreview:
         "scope": scope,
     }
     if monitor_facts is not None:
-        request.update(
-            {
-                "followup_available": monitor_facts.available,
-                "followup_reason": monitor_facts.reason,
-                "view_reason": monitor_facts.view_reason,
-                "shell_reason": monitor_facts.shell_reason,
-                "rerun_reason": "re-run command is not yet available",
-            }
-        )
+        update: dict[str, Any] = {
+            "followup_available": monitor_facts.available,
+            "followup_reason": monitor_facts.reason,
+            "view_reason": monitor_facts.view_reason,
+            "shell_reason": monitor_facts.shell_reason,
+        }
+        if rerun_reason is not None:
+            update["rerun_reason"] = rerun_reason
+        request.update(update)
     wire = assemble_hijack_recovery_preview(request)
     wire = _with_latch_evidence_header(wire, record)
     wire = _with_release_rows(wire, record, state)

@@ -263,6 +263,10 @@ def _prepare_continuation_target(
     build_prompt_fn: Callable[..., Any] | None = None,
 ) -> RecoveryTarget:
     """Prepare prompt text while the record is still in the held state."""
+    if target.action == "rerun":
+        # Rerun re-executes the recorded monitor command; it never builds an
+        # LLM continuation prompt.
+        return target
     if target.prompt:
         try:
             prepared = preview_module.validate_hijack_continuation_prompt(

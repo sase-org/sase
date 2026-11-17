@@ -211,6 +211,22 @@ def resolve_effective_target(
             "incompatible_options",
             "Escalate takes no replacement prompt",
         )
+    if normalized == "rerun":
+        if edited is not None:
+            raise RecoveryRefusal(
+                "incompatible_options",
+                "Rerun takes no replacement prompt",
+            )
+        if explicit_model is not None:
+            raise RecoveryRefusal(
+                "incompatible_options",
+                "Rerun takes no model override",
+            )
+        if clean_string(record.get("scope")) != "monitor":
+            raise RecoveryRefusal(
+                "unsupported_action",
+                "Rerun is available only for monitor records",
+            )
 
     internal_action = (
         "instruct"
@@ -249,6 +265,7 @@ def resolve_effective_target(
         "explicit_model_override": explicit_model,
         "prompt_model": prompt_model,
         "predecessor_provider": clean_string(record.get("provider")),
+        "scope": clean_string(record.get("scope")) or "",
     }
     try:
         result = hijack_recovery_effective_target(request)

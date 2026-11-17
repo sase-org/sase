@@ -21,9 +21,9 @@ def run_persist_recover(args: argparse.Namespace) -> OperationCommandResult:
     payload = dict(request.payload)
     name = _required_string(payload, "name")
     action = _required_string(payload, "action")
-    if action not in {"continue", "escalate", "dismiss", "restart"}:
+    if action not in {"continue", "escalate", "rerun", "dismiss", "restart"}:
         raise ValueError(
-            "persist-recover action must be 'continue', 'escalate', "
+            "persist-recover action must be 'continue', 'escalate', 'rerun', "
             "'restart', or 'dismiss'"
         )
     expected_hijack_id = _required_string(payload, "expected_hijack_id")
@@ -40,6 +40,10 @@ def run_persist_recover(args: argparse.Namespace) -> OperationCommandResult:
         raise ValueError(
             "persist-recover model is supported only with continue or escalate"
         )
+    if action == "rerun" and prompt is not None:
+        raise ValueError("persist-recover prompt is not supported with rerun")
+    if action == "rerun" and model is not None:
+        raise ValueError("persist-recover model is not supported with rerun")
     discard_without_snapshot = payload.get("discard_without_snapshot", False)
     if discard_without_snapshot not in (False, True):
         raise ValueError("persist-recover discard_without_snapshot must be a boolean")

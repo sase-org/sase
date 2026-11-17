@@ -38,6 +38,12 @@ NO_NEXT_ACTION_REASON = (
 )
 NO_FOLLOWUP_MODEL_REASON = "recorded follow-up has no model selection"
 
+RERUN_NO_DESCRIPTOR_REASON = (
+    "monitor recovery descriptor is unavailable; cannot Re-run command"
+)
+RERUN_NO_COMMAND_REASON = "monitor command is unavailable; cannot Re-run command"
+RERUN_NO_WORKSPACE_REASON = "held workspace is unavailable; cannot Re-run command"
+
 
 @dataclass(frozen=True)
 class _MonitorFollowupFacts:
@@ -143,6 +149,43 @@ def _load_monitor_recovery_descriptor(
     if not isinstance(payload, dict):
         return None, CORRUPT_FOLLOWUP_REASON
     return payload, None
+
+
+def monitor_rerun_reason(record: Mapping[str, Any], artifacts_dir: str) -> str | None:
+    """Return ``None`` when Re-run is available, else the disabled reason.
+
+    Re-run needs only the immutable command descriptor and the held claim;
+    a missing or corrupt follow-up does not block it. The descriptor is the
+    same immutable record custody persists, so duplicate and crash
+    reconciliation can re-resolve the exact command, cwd, and workspace.
+    """
+    suppressed = record.get("suppressed_followup")
+    if (
+        not isinstance(suppressed, Mapping)
+        or suppressed.get("kind") != MONITOR_FOLLOWUP_KIND
+    ):
+        return RERUN_NO_DESCRIPTOR_REASON
+    ref = string(suppressed.get("ref"))
+    if not ref:
+        return RERUN_NO_DESCRIPTOR_REASON
+    descriptor, error = _load_monitor_recovery_descriptor(ref)
+    if descriptor is None:
+        if error in (MISSING_FOLLOWUP_REASON, CORRUPT_FOLLOWUP_REASON):
+            return RERUN_NO_DESCRIPTOR_REASON
+        return error or RERUN_NO_DESCRIPTOR_REASON
+    command = string(descriptor.get("command"))
+    if not command:
+        return RERUN_NO_COMMAND_REASON
+    workspace_num = record.get("workspace_num")
+    if (
+        not isinstance(workspace_num, int)
+        or isinstance(workspace_num, bool)
+        or workspace_num <= 0
+    ):
+        return RERUN_NO_WORKSPACE_REASON
+    if not string(record.get("workspace_dir")):
+        return RERUN_NO_WORKSPACE_REASON
+    return None
 
 
 def compose_monitor_recovery_prompt(
@@ -529,7 +572,11 @@ def _split_model_target(value: str) -> tuple[str, str, str | None]:
 
 __all__ = [
     "MONITOR_FOLLOWUP_KIND",
+    "RERUN_NO_COMMAND_REASON",
+    "RERUN_NO_DESCRIPTOR_REASON",
+    "RERUN_NO_WORKSPACE_REASON",
     "compose_monitor_recovery_prompt",
     "monitor_followup_facts",
+    "monitor_rerun_reason",
     "preserve_monitor_followup_suppression",
 ]

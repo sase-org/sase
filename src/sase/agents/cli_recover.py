@@ -326,7 +326,7 @@ def _validate_options(
     if dry_run and action in {"dismiss", "restart"}:
         raise ValueError(
             "--dry-run is supported only with keep-work actions "
-            "(--action continue or --action escalate)"
+            "(--action continue, --action escalate, or --action rerun)"
         )
     if prompt_path and action not in {"continue", "restart"}:
         raise ValueError(
@@ -334,6 +334,14 @@ def _validate_options(
         )
     if model is not None and action not in {"continue", "escalate"}:
         raise ValueError("--model requires --action continue or --action escalate")
+    if action == "rerun" and prompt_path is not None:
+        raise ValueError("--prompt-file is not supported with --action rerun")
+    if action == "rerun" and model is not None:
+        raise ValueError("--model is not supported with --action rerun")
+    if action == "rerun" and discard_without_snapshot:
+        raise ValueError(
+            "--discard-without-snapshot is not supported with --action rerun"
+        )
     if model is not None and (not isinstance(model, str) or not model.strip()):
         raise ValueError("--model requires a non-empty concrete model target")
     if discard_without_snapshot and action not in {"dismiss", "restart"}:
@@ -367,6 +375,15 @@ def _preflight_prompt(
         )
     if action == "continue" or action == "escalate":
         return build_hijack_continuation_prompt(name, model_target=target)
+    if action == "rerun":
+        return HijackContinuationPrompt(
+            prompt="Re-run the recorded monitor command in the held workspace.",
+            model_target=target,
+            context_mode="monitor-rerun",
+            transcript_path=None,
+            expanded_prompt_bytes=0,
+            budget_decision={"kind": "fits"},
+        )
     raise HijackRecoveryRefusal("unsupported_action", f"Unsupported action {action!r}")
 
 

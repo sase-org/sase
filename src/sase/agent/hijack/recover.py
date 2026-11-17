@@ -176,6 +176,28 @@ def recover_hijacked_agent(
             message=(f"Keep-work recovery is unavailable while state is {state!r}"),
             detail={**code_detail("not_held"), "state": state},
         )
+    if clean_string(action) == "rerun":
+        try:
+            from sase.agent.hijack._rerun_monitor import recover_monitor_rerun
+
+            return recover_monitor_rerun(
+                subject,
+                record,
+                hijack_id,
+                revision,
+                expected_revision=expected_revision,
+                goal=goal,
+                bead=bead,
+                seams=seams,
+            )
+        except RecoveryRefusal as exc:
+            return RecoveryResult(
+                kind=RESULT_REFUSED,
+                detail=code_detail(exc.code),
+                hijack_id=hijack_id,
+                revision=revision,
+                message=exc.message,
+            )
     try:
         return _recover_held(
             subject,

@@ -302,8 +302,9 @@ def test_monitor_preview_rows_are_truthful_and_skip_llm_actions(
     assert preview.action("continue").available is True
     assert preview.action("continue").target == "codex/gpt-5.4@high"
     assert preview.action("escalate").target == "codex/gpt-5.4@xhigh"
-    assert preview.action("rerun").available is False
-    assert preview.action("rerun").reason == "re-run command is not yet available"
+    assert preview.action("rerun").available is True
+    assert preview.action("rerun").reason is None
+    assert preview.action("rerun").label == "Re-run command"
     assert preview.action("view").available is True
     assert preview.action("shell").available is True
     assert preview.action("dismiss").available is True

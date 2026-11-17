@@ -15,7 +15,7 @@ from sase.agent.hijack import ledger
 LOG = logging.getLogger(__name__)
 
 
-KEEP_WORK_ACTIONS = ("escalate", "continue", "instruct")
+KEEP_WORK_ACTIONS = ("escalate", "continue", "instruct", "rerun")
 
 #: Environment key carrying the durable launch identity into the successor.
 RECOVERY_LAUNCH_IDENTITY_ENV = "SASE_HIJACK_LAUNCH_IDENTITY"
