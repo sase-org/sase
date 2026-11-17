@@ -16,7 +16,7 @@ from typing import Any
 import pytest
 
 from sase.footprint import _tui, ids
-from sase.ace.tui._app_watchers import _BUILTIN_MODES
+from sase.ace.tui._app_watchers_footprint import _BUILTIN_MODES
 from sase.footprint.catalog import load_catalog
 from sase.footprint.paths import generation_path, spool_dir
 
@@ -344,7 +344,7 @@ def _scope_dataclass(scope: str) -> Any:
 
 def test_builtin_mode_keys_are_catalogued() -> None:
     from sase.ace.tui.keymaps.mode_keymaps import _BUILTIN_MODE_CLASSES
-    from sase.ace.tui._app_watchers import _flatten
+    from sase.ace.tui._app_watchers_footprint import _flatten
 
     _, entries = load_catalog()
     catalogued = {entry.id for entry in entries}
