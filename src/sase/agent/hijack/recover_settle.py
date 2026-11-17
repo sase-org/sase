@@ -529,6 +529,8 @@ def _write_predecessor_settlement(
     if launch_identity:
         merged.setdefault("launch_identity", launch_identity)
     payload["recovery"] = merged
+    if clean_string(record.get("scope")) == "monitor":
+        payload["monitor_followup_outcome"] = "hijacked"
     try:
         atomic_write_json(path, payload)
     except OSError as exc:
@@ -537,3 +539,9 @@ def _write_predecessor_settlement(
             f"Could not write the predecessor done.json: {exc}",
         ) from exc
     update_agent_artifact_index_for_marker_mutation(artifacts_dir)
+    if clean_string(record.get("scope")) == "monitor":
+        from sase.agent.hijack._preview_monitor import (
+            preserve_monitor_followup_suppression,
+        )
+
+        preserve_monitor_followup_suppression(artifacts_dir)

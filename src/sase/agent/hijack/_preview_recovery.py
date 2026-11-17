@@ -40,37 +40,51 @@ def hijack_recovery_preview(agent_or_name: object) -> RecoveryPreview:
     record, artifacts_dir, meta = _load_recovery_context(agent_or_name)
     state = _record_state(record)
     header = _recovery_header(record)
-    model_target = concrete_model_target(record)
+    scope = string(record.get("scope")) or ""
+    monitor_facts = None
+    if scope == "monitor":
+        from sase.agent.hijack._preview_monitor import monitor_followup_facts
+
+        monitor_facts = monitor_followup_facts(record, artifacts_dir)
+    model_target = (
+        monitor_facts.continue_target
+        if monitor_facts is not None
+        else concrete_model_target(record)
+    )
     rung = _lineage_to_rung(meta)
     config: AgentHijackConfig = agent_hijack_config()
+    model_facts = _model_facts_for_preview(record, model_target)
     escalation = hijack_escalation_target(
         {
             "schema_version": escalation_wire_schema_version(),
-            "model_facts": {
-                "alias": string(record.get("model_alias")),
-                "alias_trail": string_list(record.get("model_alias_trail")),
-                "origin": string(record.get("model_origin")),
-                "provider": string(record.get("provider")),
-                "model": string(record.get("model")),
-                "effort": string(record.get("effort")),
-            },
+            "model_facts": model_facts,
             "ladder": list(config.escalation_ladder),
             "alias_candidates": build_alias_candidates(config.escalation_ladder),
             "lineage_to_rung": rung,
             "stalled_concrete": model_target,
         }
     )
-    wire = assemble_hijack_recovery_preview(
-        {
-            "schema_version": hijack_recovery_preview_wire_schema_version(),
-            "hijack_id": str(record.get("hijack_id") or ""),
-            "revision": integer(record.get("revision")),
-            "state": state,
-            "header": header,
-            "escalate": escalation,
-            "continue_target": model_target,
-        }
-    )
+    request: dict[str, Any] = {
+        "schema_version": hijack_recovery_preview_wire_schema_version(),
+        "hijack_id": str(record.get("hijack_id") or ""),
+        "revision": integer(record.get("revision")),
+        "state": state,
+        "header": header,
+        "escalate": escalation,
+        "continue_target": model_target,
+        "scope": scope,
+    }
+    if monitor_facts is not None:
+        request.update(
+            {
+                "followup_available": monitor_facts.available,
+                "followup_reason": monitor_facts.reason,
+                "view_reason": monitor_facts.view_reason,
+                "shell_reason": monitor_facts.shell_reason,
+                "rerun_reason": "re-run command is not yet available",
+            }
+        )
+    wire = assemble_hijack_recovery_preview(request)
     wire = _with_latch_evidence_header(wire, record)
     wire = _with_release_rows(wire, record, state)
     return _preview_from_wire(
@@ -99,8 +113,11 @@ def _with_release_rows(
     on the Python restart planner (fan-out, container, disabled provider) and
     the ledger state, so this phase patches those rows here. The same patched
     preview powers ``sase agent recover``, the TUI panel, and the release
-    transaction's own availability check.
+    transaction's own availability check. Monitor records keep the Rust rows:
+    Restart/Edit must not be appended back.
     """
+    if string(record.get("scope")) == "monitor":
+        return dict(wire)
     patched = dict(wire)
     raw_actions = wire.get("actions")
     actions: list[dict[str, Any]] = [
@@ -285,6 +302,49 @@ def _with_latch_evidence_header(
     )
     patched["header"] = header
     return patched
+
+
+def _model_facts_for_preview(
+    record: Mapping[str, Any], model_target: str | None
+) -> dict[str, Any]:
+    """Prefer the recorded follow-up model for monitor escalation facts."""
+    provider = string(record.get("provider"))
+    model = string(record.get("model"))
+    effort = string(record.get("effort"))
+    alias = string(record.get("model_alias"))
+    if model_target:
+        parsed = _parse_concrete_target(model_target)
+        if parsed is not None:
+            provider, model, effort = parsed
+        elif model_target.startswith("@"):
+            alias = model_target.lstrip("@")
+    return {
+        "alias": alias,
+        "alias_trail": string_list(record.get("model_alias_trail")),
+        "origin": string(record.get("model_origin")),
+        "provider": provider,
+        "model": model,
+        "effort": effort,
+    }
+
+
+def _parse_concrete_target(value: str) -> tuple[str, str, str | None] | None:
+    base, separator, raw_effort = value.rpartition("@")
+    effort: str | None = raw_effort
+    if not separator or effort not in {
+        "none",
+        "minimal",
+        "low",
+        "medium",
+        "high",
+        "xhigh",
+        "max",
+    }:
+        base, effort = value, None
+    provider, slash, model = base.partition("/")
+    if not slash or not provider or not model:
+        return None
+    return provider, model, effort
 
 
 def _model_display(record: Mapping[str, Any]) -> str:

@@ -185,7 +185,14 @@ def resolve_effective_target(
             f"Recovery action {normalized!r} is unavailable"
             + (f": {reason}" if reason else ""),
         )
+    preview_target = clean_string((preview_action or {}).get("target"))
     stalled = predecessor_concrete_target(record)
+    if normalized == "continue" and preview_target:
+        # Monitor Continue pins the recorded follow-up model, which can differ
+        # from the occupying starter still stored on the ledger record.
+        stalled = preview_target
+    elif stalled is None:
+        stalled = preview_target
     if stalled is None:
         raise RecoveryRefusal(
             "unknown_model",

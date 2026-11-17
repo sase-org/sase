@@ -475,6 +475,13 @@ _REVIEWED_PATH_PASSING_CONTEXTS: dict[str, PathPassingReview] = {
             "measurement recording is disabled and no marker is written."
         ),
     ),
+    "src/sase/agent/hijack/_preview_monitor.py:_compose_from_descriptor": PathPassingReview(
+        exemption=(
+            "Read-only monitor follow-up composition: agent_meta.json, frozen "
+            "continuation records, and bounded monitor output are read to assemble "
+            "the keep-work prompt; no artifact marker is written."
+        ),
+    ),
     "src/sase/agent/hijack/recover_subject.py:_load_predecessor_meta": PathPassingReview(
         exemption=(
             "Read-only recovery subject loading: agent_meta.json is read to recover "

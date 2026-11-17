@@ -175,8 +175,9 @@ def assemble_hijack_recovery_preview(request: Mapping[str, Any]) -> dict[str, An
 
     *request* mirrors ``AgentHijackRecoveryPreviewRequestWire``: ledger
     identity, header facts, a precomputed escalation result, and the stalled
-    concrete continue target. Restart, Edit, and Dismiss stay unavailable
-    until the parent release phase.
+    concrete continue target. Optional ``scope`` selects the monitor row
+    set. LLM Restart, Edit, and Dismiss stay unavailable until Python
+    patches release rows.
     """
     binding = require_rust_binding("hijack_recovery_preview")
     return dict(binding(dict(request)))

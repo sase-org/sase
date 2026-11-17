@@ -60,6 +60,18 @@ def build_hijack_continuation_prompt(
         )
     record = preview._record
     artifacts_dir = Path(preview._artifacts_dir)
+    suppressed_followup = record.get("suppressed_followup")
+    if (
+        isinstance(suppressed_followup, Mapping)
+        and suppressed_followup.get("kind") == "monitor_followup"
+    ):
+        from sase.agent.hijack._preview_monitor import compose_monitor_recovery_prompt
+
+        return compose_monitor_recovery_prompt(
+            record,
+            artifacts_dir=str(artifacts_dir),
+            model_target=model_target,
+        )
     raw_prompt_path = artifacts_dir / "raw_prompt.md"
     try:
         original_prompt = raw_prompt_path.read_text(encoding="utf-8")

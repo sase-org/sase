@@ -92,6 +92,28 @@ class TestEffectiveTargets:
         assert target.concrete_target == "claude/opus@high"
         assert target.model_changed is False
 
+    def test_continue_falls_back_to_preview_target_when_predecessor_model_missing(
+        self,
+    ) -> None:
+        record = _record(Path("/tmp/x"), provider=None, model="")
+        target = resolve_effective_target(
+            action="continue",
+            record=record,
+            preview_action=self._row(target="codex/gpt-5.4@high"),
+        )
+        assert target.concrete_target == "codex/gpt-5.4@high"
+        assert target.model_changed is False
+
+    def test_continue_uses_followup_preview_target_not_starter_model(self) -> None:
+        record = _record(Path("/tmp/x"), provider="claude", model="opus")
+        target = resolve_effective_target(
+            action="continue",
+            record=record,
+            preview_action=self._row(target="codex/gpt-5.4@high"),
+        )
+        assert target.concrete_target == "codex/gpt-5.4@high"
+        assert target.model_changed is False
+
     def test_escalate_pins_preview_target(self) -> None:
         record = _record(Path("/tmp/x"))
         target = resolve_effective_target(
