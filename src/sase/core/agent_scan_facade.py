@@ -62,6 +62,9 @@ from sase.core.agent_scan_wire import AgentArtifactRecordWire
 from sase.core.agent_scan_wire import AgentArtifactScanOptionsWire
 from sase.core.agent_scan_wire import AgentArtifactScanStatsWire
 from sase.core.agent_scan_wire import AgentArtifactScanWire
+from sase.core.agent_scan_list_wire import AGENT_ARTIFACT_LIST_WIRE_SCHEMA_VERSION
+from sase.core.agent_scan_list_wire import AgentArtifactListRecordWire
+from sase.core.agent_scan_list_wire import AgentArtifactListSnapshotWire
 from sase.core.agent_scan_wire import AgentClanContextWire
 from sase.core.agent_scan_wire import AgentMetaWire
 from sase.core.agent_scan_wire import DoneMarkerWire
@@ -452,7 +455,75 @@ def verify_agent_artifact_index(
     return queries_impl.verify_agent_artifact_index(index_path, projects_root, options)
 
 
+def agent_artifact_list_wire_schema_version() -> int:
+    _sync_queries_patchables()
+    return queries_impl.agent_artifact_list_wire_schema_version()
+
+
+def scan_agent_artifacts_list(
+    projects_root: Path | str,
+    options: AgentArtifactScanOptionsWire | None = None,
+) -> AgentArtifactListSnapshotWire:
+    _sync_source_patchables()
+    return source_impl.scan_agent_artifacts_list(projects_root, options)
+
+
+def scan_agent_artifact_dirs_list(
+    projects_root: Path | str,
+    artifact_dirs: Sequence[Path | str],
+    options: AgentArtifactScanOptionsWire | None = None,
+) -> AgentArtifactListSnapshotWire:
+    _sync_source_patchables()
+    return source_impl.scan_agent_artifact_dirs_list(
+        projects_root, artifact_dirs, options
+    )
+
+
+def scan_agent_artifact_dir_list(
+    projects_root: Path | str,
+    artifact_dir: Path | str,
+    options: AgentArtifactScanOptionsWire | None = None,
+) -> AgentArtifactListRecordWire | None:
+    _sync_source_patchables()
+    return source_impl.scan_agent_artifact_dir_list(
+        projects_root, artifact_dir, options
+    )
+
+
+def query_agent_artifact_index_list(
+    index_path: Path | str,
+    projects_root: Path | str,
+    query: AgentArtifactIndexQueryWire | None = None,
+    options: AgentArtifactScanOptionsWire | None = None,
+) -> AgentArtifactListSnapshotWire:
+    _sync_queries_patchables()
+    return queries_impl.query_agent_artifact_index_list(
+        index_path, projects_root, query, options
+    )
+
+
+def query_agent_artifact_index_list_bounded(
+    index_path: Path | str,
+    projects_root: Path | str,
+    query: AgentArtifactIndexQueryWire | None = None,
+    options: AgentArtifactScanOptionsWire | None = None,
+    *,
+    lock_timeout_seconds: float = DEFAULT_READ_LOCK_TIMEOUT_SECONDS,
+) -> AgentArtifactListSnapshotWire | None:
+    _sync_queries_patchables()
+    return queries_impl.query_agent_artifact_index_list_bounded(
+        index_path,
+        projects_root,
+        query,
+        options,
+        lock_timeout_seconds=lock_timeout_seconds,
+    )
+
+
 __all__ = [
+    "AGENT_ARTIFACT_LIST_WIRE_SCHEMA_VERSION",
+    "AgentArtifactListRecordWire",
+    "AgentArtifactListSnapshotWire",
     "AgentArtifactRecordWire",
     "AgentArtifactIndexStatusWire",
     "AgentArtifactIndexQueryWire",
@@ -473,6 +544,7 @@ __all__ = [
     "WorkflowStepStateWire",
     "agent_artifact_index_status",
     "agent_artifact_index_status_bounded",
+    "agent_artifact_list_wire_schema_version",
     "default_agent_artifact_index_path",
     "delete_agent_artifact_index_row",
     "delete_agent_artifact_index_row_bounded",
@@ -484,6 +556,8 @@ __all__ = [
     "query_agent_alias_history",
     "query_agent_artifact_index",
     "query_agent_artifact_index_bounded",
+    "query_agent_artifact_index_list",
+    "query_agent_artifact_index_list_bounded",
     "query_agent_output_variable_history",
     "query_agent_output_variable_selectors",
     "query_related_agent_artifact_dirs_bounded",
@@ -491,8 +565,11 @@ __all__ = [
     "rebuild_agent_artifact_index",
     "reconcile_agent_artifact_index_dismissed_agent_session_members",
     "replace_agent_artifact_index_dismissed_agents",
+    "scan_agent_artifact_dir_list",
     "scan_agent_artifact_dirs",
+    "scan_agent_artifact_dirs_list",
     "scan_agent_artifacts",
+    "scan_agent_artifacts_list",
     "terminalize_stale_active_agent_artifact_index_rows",
     "upsert_agent_artifact_index_row",
     "verify_agent_artifact_index",

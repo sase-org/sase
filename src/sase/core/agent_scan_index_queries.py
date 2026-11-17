@@ -18,6 +18,11 @@ from sase.core._agent_scan_shared import DEFAULT_READ_LOCK_TIMEOUT_SECONDS
 from sase.core._agent_scan_shared import options_to_dict
 from sase.core.agent_artifact_index_lock import agent_artifact_index_operation_lock
 from sase.core.agent_artifact_index_lock import try_agent_artifact_index_operation_lock
+from sase.core.agent_scan_list_conversion import (
+    agent_artifact_list_index_query_to_dict,
+    agent_artifact_list_scan_wire_from_dict,
+)
+from sase.core.agent_scan_list_wire import AgentArtifactListSnapshotWire
 from sase.core.agent_alias_history_wire import AgentAliasHistoryQueryWire
 from sase.core.agent_alias_history_wire import AgentAliasHistoryWire
 from sase.core.agent_alias_history_wire import agent_alias_history_from_dict
@@ -300,12 +305,72 @@ def verify_agent_artifact_index(
     )
 
 
+def agent_artifact_list_wire_schema_version() -> int:
+    """Return the compact agent list wire schema version of the core."""
+    rust_version = require_rust_binding("agent_artifact_list_wire_schema_version")
+    return int(rust_version())
+
+
+def query_agent_artifact_index_list(
+    index_path: Path | str,
+    projects_root: Path | str,
+    query: AgentArtifactIndexQueryWire | None = None,
+    options: AgentArtifactScanOptionsWire | None = None,
+) -> AgentArtifactListSnapshotWire:
+    """Return compact list rows from the persistent artifact index.
+
+    Compact twin of :func:`query_agent_artifact_index`: the Rust core
+    reuses the existing selection, revalidation, windowing, clan-context,
+    and completeness pipeline, and the response carries only list facts
+    (no nested full marker records). Takes the artifact index operation
+    lock like the full query.
+    """
+    opts = options or AgentArtifactScanOptionsWire()
+    query_wire = query or AgentArtifactIndexQueryWire()
+    with agent_artifact_index_operation_lock():
+        rust_query = require_rust_binding("query_agent_artifact_index_list")
+        payload: dict[str, Any] = rust_query(
+            str(index_path),
+            str(projects_root),
+            agent_artifact_list_index_query_to_dict(query_wire),
+            options_to_dict(opts),
+        )
+    return agent_artifact_list_scan_wire_from_dict(payload)
+
+
+def query_agent_artifact_index_list_bounded(
+    index_path: Path | str,
+    projects_root: Path | str,
+    query: AgentArtifactIndexQueryWire | None = None,
+    options: AgentArtifactScanOptionsWire | None = None,
+    *,
+    lock_timeout_seconds: float = DEFAULT_READ_LOCK_TIMEOUT_SECONDS,
+) -> AgentArtifactListSnapshotWire | None:
+    """Query compact list rows, or ``None`` when the process-local lock is busy."""
+    opts = options or AgentArtifactScanOptionsWire()
+    query_wire = query or AgentArtifactIndexQueryWire()
+    with try_agent_artifact_index_operation_lock(lock_timeout_seconds) as acquired:
+        if not acquired:
+            return None
+        rust_query = require_rust_binding("query_agent_artifact_index_list")
+        payload: dict[str, Any] = rust_query(
+            str(index_path),
+            str(projects_root),
+            agent_artifact_list_index_query_to_dict(query_wire),
+            options_to_dict(opts),
+        )
+    return agent_artifact_list_scan_wire_from_dict(payload)
+
+
 __all__ = [
+    "agent_artifact_list_wire_schema_version",
     "find_gate_turn_by_gate_id",
     "load_agent_artifact_records_bounded",
     "query_agent_alias_history",
     "query_agent_artifact_index",
     "query_agent_artifact_index_bounded",
+    "query_agent_artifact_index_list",
+    "query_agent_artifact_index_list_bounded",
     "query_agent_output_variable_history",
     "query_agent_output_variable_selectors",
     "query_related_agent_artifact_dirs_bounded",

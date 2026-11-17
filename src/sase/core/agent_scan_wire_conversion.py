@@ -187,7 +187,7 @@ def _non_default_field_kwargs(
     return kwargs
 
 
-def _options_from_dict(data: dict[str, Any]) -> AgentArtifactScanOptionsWire:
+def agent_scan_options_from_dict(data: dict[str, Any]) -> AgentArtifactScanOptionsWire:
     return AgentArtifactScanOptionsWire(
         include_prompt_step_markers=bool(data.get("include_prompt_step_markers", True)),
         include_raw_prompt_snippets=bool(data.get("include_raw_prompt_snippets", True)),
@@ -318,7 +318,7 @@ def agent_artifact_index_vacuum_from_dict(
     )
 
 
-def _stats_from_dict(data: dict[str, Any]) -> AgentArtifactScanStatsWire:
+def agent_scan_stats_from_dict(data: dict[str, Any]) -> AgentArtifactScanStatsWire:
     return AgentArtifactScanStatsWire(
         projects_visited=int(data.get("projects_visited", 0)),
         artifact_dirs_visited=int(data.get("artifact_dirs_visited", 0)),
@@ -334,7 +334,7 @@ def _stats_from_dict(data: dict[str, Any]) -> AgentArtifactScanStatsWire:
     )
 
 
-def _index_completeness_from_dict(
+def agent_artifact_index_completeness_from_dict(
     data: dict[str, Any] | None,
 ) -> AgentArtifactIndexCompletenessWire | None:
     if not isinstance(data, dict):
@@ -350,7 +350,7 @@ def _index_completeness_from_dict(
     )
 
 
-def _index_window_from_dict(
+def agent_artifact_index_window_from_dict(
     data: dict[str, Any] | None,
 ) -> AgentArtifactIndexWindowWire | None:
     if not isinstance(data, dict):
@@ -599,8 +599,8 @@ def agent_scan_wire_from_dict(data: dict[str, Any]) -> AgentArtifactScanWire:
             f"got {schema_version}, expected one of "
             f"{sorted(SUPPORTED_AGENT_SCAN_WIRE_SCHEMA_VERSIONS)}"
         )
-    options = _options_from_dict(data.get("options") or {})
-    stats = _stats_from_dict(data.get("stats") or {})
+    options = agent_scan_options_from_dict(data.get("options") or {})
+    stats = agent_scan_stats_from_dict(data.get("stats") or {})
     records = [_record_from_dict(r) for r in data.get("records") or []]
     clan_context = [
         AgentClanContextWire(**known_field_kwargs(AgentClanContextWire, item))
@@ -612,10 +612,10 @@ def agent_scan_wire_from_dict(data: dict[str, Any]) -> AgentArtifactScanWire:
         projects_root=data["projects_root"],
         options=options,
         stats=stats,
-        index_window=_index_window_from_dict(data.get("index_window")),
+        index_window=agent_artifact_index_window_from_dict(data.get("index_window")),
         records=records,
         clan_context=clan_context,
-        index_completeness=_index_completeness_from_dict(
+        index_completeness=agent_artifact_index_completeness_from_dict(
             data.get("index_completeness")
         ),
     )
@@ -630,11 +630,15 @@ def agent_artifact_records_from_dicts(
 
 
 __all__ = [
+    "agent_artifact_index_completeness_from_dict",
+    "agent_artifact_index_window_from_dict",
     "agent_artifact_records_from_dicts",
     "agent_artifact_index_dismissal_reconcile_from_dict",
     "agent_artifact_index_query_to_dict",
     "agent_artifact_index_status_from_dict",
     "agent_artifact_index_update_from_dict",
+    "agent_scan_options_from_dict",
+    "agent_scan_stats_from_dict",
     "agent_scan_wire_from_dict",
     "agent_scan_wire_to_json_dict",
 ]
