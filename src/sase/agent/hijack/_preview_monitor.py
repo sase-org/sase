@@ -88,7 +88,7 @@ def monitor_followup_facts(
             view_reason=view_reason,
             shell_reason=shell_reason,
         )
-    descriptor, error = _load_monitor_recovery_descriptor(ref)
+    descriptor, error = load_monitor_recovery_descriptor(ref)
     if descriptor is None:
         return _MonitorFollowupFacts(
             available=False,
@@ -131,7 +131,7 @@ def monitor_followup_facts(
     )
 
 
-def _load_monitor_recovery_descriptor(
+def load_monitor_recovery_descriptor(
     ref: str,
 ) -> tuple[dict[str, Any] | None, str | None]:
     """Return the immutable monitor recovery descriptor, or a refusal reason."""
@@ -168,7 +168,7 @@ def monitor_rerun_reason(record: Mapping[str, Any], artifacts_dir: str) -> str |
     ref = string(suppressed.get("ref"))
     if not ref:
         return RERUN_NO_DESCRIPTOR_REASON
-    descriptor, error = _load_monitor_recovery_descriptor(ref)
+    descriptor, error = load_monitor_recovery_descriptor(ref)
     if descriptor is None:
         if error in (MISSING_FOLLOWUP_REASON, CORRUPT_FOLLOWUP_REASON):
             return RERUN_NO_DESCRIPTOR_REASON

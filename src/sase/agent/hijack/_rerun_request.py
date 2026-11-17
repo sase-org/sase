@@ -12,7 +12,7 @@ def load_rerun_descriptor(record: Mapping[str, Any]) -> dict[str, Any]:
     """Return the immutable monitor recovery descriptor for rerun."""
     from sase.agent.hijack._preview_monitor import (
         MONITOR_FOLLOWUP_KIND,
-        _load_monitor_recovery_descriptor,
+        load_monitor_recovery_descriptor,
     )
 
     suppressed = record.get("suppressed_followup")
@@ -30,7 +30,7 @@ def load_rerun_descriptor(record: Mapping[str, Any]) -> dict[str, Any]:
             "rerun_unavailable",
             "monitor recovery descriptor is unavailable; cannot Re-run command",
         )
-    descriptor, error = _load_monitor_recovery_descriptor(ref)
+    descriptor, error = load_monitor_recovery_descriptor(ref)
     if descriptor is None:
         raise RecoveryRefusal(
             "rerun_unavailable",

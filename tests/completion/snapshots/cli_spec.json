@@ -3668,6 +3668,7 @@
                   "continue",
                   "dismiss",
                   "escalate",
+                  "rerun",
                   "restart"
                 ],
                 "default": null,

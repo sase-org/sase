@@ -515,7 +515,7 @@ def _confirm_rerun(
     try:
         settled = dict(
             ledger.cas_advance_record(
-                resolving,
+                dict(resolving),
                 {
                     "event": "complete_resolution",
                     "successor_name": successor_name or reserved_name,
