@@ -101,6 +101,7 @@ class StartupMixin(
     _patches_first_load_done: bool
     _agents_first_load_done: bool
     _axe_first_load_done: bool
+    _axe_services_visited: bool
     _mount_state_loads_done: bool
     _startup_process_start_mono: float
     _startup_on_mount_mono: float | None

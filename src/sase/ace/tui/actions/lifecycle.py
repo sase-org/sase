@@ -73,6 +73,11 @@ class LifecycleMixin:
                 fallback_timer.stop()
             except Exception:
                 pass
+        cancel_monitor_backstop = getattr(
+            self, "_cancel_monitor_reconcile_backstop", None
+        )
+        if callable(cancel_monitor_backstop):
+            cancel_monitor_backstop()
         cancel_patch_follow_up = getattr(
             self, "_cancel_patches_refresh_follow_up_timer", None
         )

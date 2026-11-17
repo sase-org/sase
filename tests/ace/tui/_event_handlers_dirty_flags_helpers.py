@@ -174,6 +174,8 @@ class _FakeApp(EventHandlersMixin):
         self._startup_deferred_loads_released = True
         self._startup_axe_surface_started = False
         self._axe_first_load_done = False
+        self._axe_services_visited = False
+        self.axe_load_kwargs: list[dict[str, object]] = []
         self._probed_surface_tokens = _surface_token_snapshot()
         self._last_completed_surface_tokens = _completed_tokens(
             self._probed_surface_tokens
@@ -212,7 +214,18 @@ class _FakeApp(EventHandlersMixin):
     def set_timer(self, delay: float, callback: Callable[[], Any]) -> None:
         self.deferred_calls.append((delay, callback))
 
-    async def _load_axe_status_async(self) -> None:
+    async def _load_axe_status_async(
+        self,
+        *,
+        include_full_snapshots: bool | None = None,
+        tail_all_chop_logs: bool = False,
+    ) -> None:
+        self.axe_load_kwargs.append(
+            {
+                "include_full_snapshots": include_full_snapshots,
+                "tail_all_chop_logs": tail_all_chop_logs,
+            }
+        )
         self.refresh_calls.append("axe")
 
     async def _poll_agent_completions(self) -> bool:

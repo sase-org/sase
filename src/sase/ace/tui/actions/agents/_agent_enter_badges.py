@@ -6,7 +6,6 @@ from datetime import datetime, UTC
 from typing import TYPE_CHECKING
 
 from sase.core.time import local_now, parse_local
-from sase.gate_turn.status import gate_status_pair, gate_status_style
 
 if TYPE_CHECKING:
     from ...models import Agent
@@ -57,6 +56,8 @@ def row_age_seconds(row: Agent) -> float | None:
 
 def gate_badge_style(row: Agent) -> str | None:
     try:
+        from sase.gate_turn.status import gate_status_pair, gate_status_style
+
         pair = gate_status_pair(
             getattr(row, "gate_start_status", None),
             getattr(row, "gate_stop_status", None),

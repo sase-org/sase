@@ -74,6 +74,7 @@ class _TelemetryApp(StartupTelemetryMixin):
         self._startup_telemetry_async_tasks: set[asyncio.Task[None]] = set()
         self._agents_first_load_done = False
         self._axe_first_load_done = False
+        self._axe_services_visited = False
         self._agents: list[Any] = []
         self._agents_refresh_active_source = "startup"
         self._agent_load_state: AgentLoadState | None = None
@@ -119,11 +120,19 @@ def test_mark_startup_on_mount_snapshots_tab_once() -> None:
     first_mono = app._startup_on_mount_mono
     assert app._startup_initial_tab == "services"
     assert first_mono is not None
+    assert app._axe_services_visited is True
 
     app.current_tab = "agents"
     app._mark_startup_on_mount()
     assert app._startup_on_mount_mono == first_mono
     assert app._startup_initial_tab == "services"
+
+
+def test_mark_startup_on_mount_hidden_services_stays_unvisited() -> None:
+    app = _TelemetryApp(current_tab="agents")
+    app._mark_startup_on_mount()
+    assert app._startup_initial_tab == "agents"
+    assert app._axe_services_visited is False
 
 
 @pytest.mark.asyncio

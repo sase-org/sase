@@ -249,7 +249,14 @@ class EventAutoRefreshSurfacesMixin(
         ) and not getattr(self, "_axe_first_load_done", False)
         if (not startup_axe_busy) and _should_refresh("_dirty_axe", "axe"):
             run_axe_refresh = getattr(self, "_run_axe_status_refresh", None)
-            axe_full = sanity_due or self.current_tab == "services"
+            should_full = getattr(self, "_axe_should_collect_full", None)
+            if callable(should_full):
+                axe_full = bool(should_full(sanity_due=sanity_due))
+            else:
+                axe_full = bool(getattr(self, "_axe_services_visited", False)) and (
+                    sanity_due or self.current_tab == "services"
+                )
+            tail_all_chop_logs = axe_full and sanity_due
             if callable(run_axe_refresh):
                 if not getattr(
                     self, "_axe_status_refresh_running", False
@@ -266,7 +273,7 @@ class EventAutoRefreshSurfacesMixin(
                         ):
                             refreshed = await run_axe_refresh(
                                 include_full_snapshots=axe_full,
-                                tail_all_chop_logs=sanity_due,
+                                tail_all_chop_logs=tail_all_chop_logs,
                             )
                         else:
                             refreshed = await run_axe_refresh(
@@ -287,7 +294,7 @@ class EventAutoRefreshSurfacesMixin(
                     if callable_accepts_kwarg(load_axe, "tail_all_chop_logs"):
                         await load_axe(
                             include_full_snapshots=axe_full,
-                            tail_all_chop_logs=sanity_due,
+                            tail_all_chop_logs=tail_all_chop_logs,
                         )
                     else:
                         await load_axe(include_full_snapshots=axe_full)

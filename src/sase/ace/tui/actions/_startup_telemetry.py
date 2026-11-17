@@ -81,6 +81,8 @@ class StartupTelemetryMixin:
             return
         self._startup_on_mount_mono = time.monotonic()
         self._startup_initial_tab = self.current_tab
+        if self.current_tab == "services":
+            self._axe_services_visited = True
         try:
             self._startup_host_load1 = float(os.getloadavg()[0])
         except (OSError, ValueError, IndexError):

@@ -4,8 +4,6 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
-from sase.notification_gates.registry import PRIVILEGED_GATE_ACTIONS
-
 if TYPE_CHECKING:
     from sase.notifications import Notification
 
@@ -54,6 +52,7 @@ class AgentNotificationModalMixin:
         Args:
             initial_index: Index of the notification to highlight initially.
         """
+        from sase.notification_gates.registry import PRIVILEGED_GATE_ACTIONS
         from sase.notifications import mark_read
 
         from ._notification_actions import REMOTE_ATTENTION_NOTIFICATION_ACTION

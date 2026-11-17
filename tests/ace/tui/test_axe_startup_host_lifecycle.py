@@ -18,6 +18,7 @@ class _StartupHarness(AxeMixin):
         self.axe_running = running
         self._restart_axe = restart
         self._auto_start_axe = auto_start
+        self._axe_services_visited = False
         self.refreshes = 0
         self._service_status = None
         self._service_restart_transition = None
@@ -27,7 +28,7 @@ class _StartupHarness(AxeMixin):
     async def _load_axe_status_async(self, **_kwargs: object) -> None:  # type: ignore[override]
         return
 
-    def _schedule_axe_async_refresh(self) -> None:  # type: ignore[override]
+    def _schedule_axe_async_refresh(self, **_kwargs: object) -> None:  # type: ignore[override]
         self.refreshes += 1
 
     def notify(self, message: str, severity: str = "information") -> None:

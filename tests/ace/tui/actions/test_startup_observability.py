@@ -229,6 +229,7 @@ def test_axe_collect_span_carries_file_opens(
 class _AxeStartupHarness(AxeDisplayRefreshMixin):
     def __init__(self, *, current_tab: str = "agents") -> None:
         self._axe_first_load_done = False
+        self._axe_services_visited = False
         self.current_tab = current_tab
         self._startup_initial_tab = current_tab
         self._restart_axe = False
@@ -241,7 +242,7 @@ class _AxeStartupHarness(AxeDisplayRefreshMixin):
     def _apply_axe_status_data(self, data: AxeCollectedData) -> None:
         self.applied = data
 
-    def _schedule_axe_async_refresh(self) -> None:
+    def _schedule_axe_async_refresh(self, **_kwargs: object) -> None:
         self.scheduled_full_refresh += 1
 
 
@@ -332,6 +333,7 @@ async def test_axe_startup_on_axe_tab_schedules_background_full_refresh(
 
     assert collect_kwargs[0]["include_full_snapshots"] is False
     assert app.scheduled_full_refresh == 1
+    assert app._axe_services_visited is True
     assert app.applied is payload
 
 

@@ -139,7 +139,7 @@ class AgentWorkflowHITLMixin:
 
         # Show the HITL modal
         def on_dismiss(result: object) -> None:
-            from sase.macro import HITLResult
+            from sase.macro.workflow_executor_types import HITLResult
 
             if result is None:
                 return

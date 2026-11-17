@@ -19,10 +19,6 @@ from __future__ import annotations
 from collections.abc import Mapping
 from typing import Literal, TYPE_CHECKING
 
-from sase.notification_gates.presentation import (
-    GateChip,
-    gate_chip_from_action_data,
-)
 from sase.phase_size_presentation import (
     PHASE_SIZE_ABBREVIATIONS,
     PHASE_SIZE_ACCENTS,
@@ -47,6 +43,7 @@ from sase.sdd.plan_display import (
 from sase.sdd.plan_summary import decode_plan_counts
 
 if TYPE_CHECKING:
+    from sase.notification_gates.presentation import GateChip
     from sase.notifications import Notification
 
 
@@ -209,6 +206,8 @@ def _plan_toast(n: Notification) -> tuple[str, Severity]:
 
 def _bead_gate_toast(n: Notification) -> tuple[str, Severity]:
     """Build the chip-aware toast for ``TaskTriage`` and ``BeadSnooze``."""
+    from sase.notification_gates.presentation import gate_chip_from_action_data
+
     note = _first_note(n)
     chip = gate_chip_from_action_data(n.action_data)
     if chip is not None:

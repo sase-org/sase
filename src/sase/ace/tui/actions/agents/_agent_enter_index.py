@@ -5,7 +5,6 @@ from __future__ import annotations
 from collections.abc import Sequence
 from typing import TYPE_CHECKING, Any
 
-from sase.notification_gates.registry import adapter_for_action
 from sase.notifications.agent_matching import agent_matches_notification_identity
 
 from ._agent_enter_models import GateNotificationIndex
@@ -37,6 +36,8 @@ def build_gate_notification_index(snapshot: Any) -> GateNotificationIndex:
     by_id: dict[str, Notification] = {}
     by_bundle_path: dict[str, Notification] = {}
     by_raw_suffix: dict[str, list[Notification]] = {}
+    from sase.notification_gates.registry import adapter_for_action
+
     by_request_id: dict[str, Notification] = {}
     gate_notifications: list[Notification] = []
     for notification in notifications:

@@ -223,19 +223,18 @@ class AppWatchersMixin:
             agents_view.disabled = True
             axe_view.remove_class("hidden")
             axe_view.disabled = False
-            startup_surface_started = False
             maybe_start_startup_surface = getattr(
                 self,
                 "_maybe_start_startup_surface_for_tab",
                 None,
             )
             if callable(maybe_start_startup_surface):
-                startup_surface_started = bool(
-                    maybe_start_startup_surface(SERVICES_TAB)
-                )
+                maybe_start_startup_surface(SERVICES_TAB)
+            self._axe_services_visited = True
             self._refresh_axe_display()
-            if not startup_surface_started:
-                self._schedule_axe_async_refresh()
+            # First visit (including during an in-flight header load)
+            # schedules one full request through the existing guard.
+            self._schedule_axe_async_refresh()
 
         if new_tab == "agents" and not self._mounting:
             get_panel = getattr(self, "_deck_source_panel", None)

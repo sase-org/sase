@@ -29,14 +29,18 @@ _MAX_ELAPSED_SECONDS = 5.0
 # The old strict first-party module-count cap (2861) failed on every such
 # split (sase-1ic).
 #
-# Calibration (Python 3.14.7, metric version 1): the clean tree at 078e3da1d6
-# measured 12,158,388 bytes, and the cap is that baseline plus a fixed
-# 4,096-byte allowance with a strict ``<``. The allowance is an absolute
-# number, not a percentage of the ~23 MB raw source tree: it covers the small
-# source changes that accompany real splits and, like the previous guard's
-# module headroom, admits small code growth. Replays under this same cap,
-# measured with the same helper over isolated ``git archive`` source snapshots
-# and the same installed dependencies:
+# Calibration (Python 3.14.7, metric version 1): sase-1t3.8 lowered the
+# baseline from 12,158,388 to 11,819,267 bytes after PEP 562 lazy exports
+# removed gate-turn models/settlement, notification-gate executor/poller/
+# service, and macro workflow-runner/executor closures from
+# ``import sase.ace.tui.app`` (50 first-party modules, -232,064 bytes vs
+# 694cdec86b). The cap is that baseline plus a fixed 4,096-byte allowance
+# with a strict ``<``. The allowance is an absolute number, not a
+# percentage of the ~23 MB raw source tree: it covers the small source
+# changes that accompany real splits and, like the previous guard's
+# module headroom, admits small code growth. Historical replays under the
+# previous 12,162,484 cap, measured with the same helper over isolated
+# ``git archive`` source snapshots and the same installed dependencies:
 #   eef22a0124^ -> eef22a0124  (filesystem enrichment split)
 #     2,860 -> 2,863 modules; 12,160,347 -> 12,160,635 bytes (+288)
 #   bffbc8effd^ -> bffbc8effd  (artifact loader split)
@@ -44,7 +48,7 @@ _MAX_ELAPSED_SECONDS = 5.0
 #   362fcb2e7f^ -> 362fcb2e7f  (prompt artifact staging split)
 #     2,856 -> 2,860 modules; 12,138,357 -> 12,138,426 bytes (+69)
 #   d3d26a5b55 (the tree that failed the old cap) measures 2,863 modules and
-#   12,160,635 bytes, 1,849 under the cap.
+#   12,160,635 bytes.
 #
 # Raising the cap requires a named first-party source that is genuinely
 # needed on the first-paint path with deferral considered and impossible: the
@@ -60,7 +64,7 @@ _MAX_ELAPSED_SECONDS = 5.0
 # modules already imported) and defer the new edges with use-site or
 # ``TYPE_CHECKING`` imports.
 _FOOTPRINT_METRIC_VERSION = 1
-_FOOTPRINT_BASELINE_BYTES = 12_158_388
+_FOOTPRINT_BASELINE_BYTES = 11_819_267
 _FOOTPRINT_ALLOWANCE_BYTES = 4_096
 _MAX_SASE_SOURCE_FOOTPRINT_BYTES = (
     _FOOTPRINT_BASELINE_BYTES + _FOOTPRINT_ALLOWANCE_BYTES
@@ -91,6 +95,58 @@ _DEFERRED_MODULES = (
     "sase.agents_sync.git_sync_transaction",
     "sase.agents_sync.publication",
     "sase.agents_sync.publication_cleanup",
+    # sase-1t3.8: gate/notification/macro execution closures stay off first paint.
+    "sase.core.atomic_temp",
+    "sase.core.gate_decision_facade",
+    "sase.gate_turn.lifecycle",
+    "sase.gate_turn.models",
+    "sase.gate_turn.settlement",
+    "sase.macro.input_binding",
+    "sase.macro.output_validation",
+    "sase.macro.used_macros",
+    "sase.macro.workflow_executor",
+    "sase.macro.workflow_executor_loops",
+    "sase.macro.workflow_executor_parallel",
+    "sase.macro.workflow_executor_steps",
+    "sase.macro.workflow_executor_steps_embedded",
+    "sase.macro.workflow_executor_steps_embedded_expand",
+    "sase.macro.workflow_executor_steps_embedded_types",
+    "sase.macro.workflow_executor_steps_prompt",
+    "sase.macro.workflow_executor_steps_prompt_launch",
+    "sase.macro.workflow_executor_steps_prompt_outputs",
+    "sase.macro.workflow_executor_steps_prompt_prepare",
+    "sase.macro.workflow_executor_steps_script",
+    "sase.macro.workflow_executor_types",
+    "sase.macro.workflow_executor_utils",
+    "sase.macro.workflow_hitl",
+    "sase.macro.workflow_output",
+    "sase.macro.workflow_runner",
+    "sase.notification_gates._service_shared",
+    "sase.notification_gates.attempts",
+    "sase.notification_gates.command_runner",
+    "sase.notification_gates.decision",
+    "sase.notification_gates.dismissal",
+    "sase.notification_gates.durability",
+    "sase.notification_gates.edits",
+    "sase.notification_gates.execution_owner",
+    "sase.notification_gates.executor",
+    "sase.notification_gates.executor_cancellation",
+    "sase.notification_gates.executor_inputs",
+    "sase.notification_gates.executor_side_effects",
+    "sase.notification_gates.executor_transport",
+    "sase.notification_gates.failure_notifications",
+    "sase.notification_gates.failure_outcome",
+    "sase.notification_gates.hashing",
+    "sase.notification_gates.input_bounds",
+    "sase.notification_gates.input_collection",
+    "sase.notification_gates.journal",
+    "sase.notification_gates.operations",
+    "sase.notification_gates.poller",
+    "sase.notification_gates.selection",
+    "sase.notification_gates.service",
+    "sase.notification_gates.service_assembly",
+    "sase.notification_gates.service_creation",
+    "sase.notification_gates.service_evaluation",
 )
 
 
@@ -157,7 +213,7 @@ def _measure_tui_app_import(
 def test_footprint_cap_is_the_measured_baseline_plus_the_fixed_allowance() -> None:
     assert footprint.FOOTPRINT_METRIC_VERSION == _FOOTPRINT_METRIC_VERSION
     assert _FOOTPRINT_ALLOWANCE_BYTES == 4_096
-    assert _MAX_SASE_SOURCE_FOOTPRINT_BYTES == 12_162_484
+    assert _MAX_SASE_SOURCE_FOOTPRINT_BYTES == 11_823_363
 
 
 def test_first_party_membership_is_the_sase_package_and_submodules() -> None:
@@ -178,7 +234,7 @@ def test_first_party_membership_is_the_sase_package_and_submodules() -> None:
 
 def test_footprint_cap_uses_strict_less_than() -> None:
     _assert_footprint_budget(_synthetic(_MAX_SASE_SOURCE_FOOTPRINT_BYTES - 1))
-    with pytest.raises(AssertionError, match="against the 12,162,484 cap"):
+    with pytest.raises(AssertionError, match="against the 11,823,363 cap"):
         _assert_footprint_budget(_synthetic(_MAX_SASE_SOURCE_FOOTPRINT_BYTES))
 
 

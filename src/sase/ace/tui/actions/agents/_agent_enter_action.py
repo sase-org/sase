@@ -12,8 +12,6 @@ import asyncio
 from collections.abc import Callable
 from typing import TYPE_CHECKING, Any
 
-from sase.gate_turn.naming import short_gate_turn_id
-
 from ._display_helpers import route_archive_key_if_active
 from ._agent_enter_targets import (
     NO_TARGET_EMPTY_MESSAGE,
@@ -46,6 +44,8 @@ def _pr_label_for_patch(patch: Any) -> str | None:
 def _short_gate_ref(target: AgentEnterTarget) -> str:
     if target.gate_id:
         try:
+            from sase.gate_turn.naming import short_gate_turn_id
+
             return short_gate_turn_id(target.gate_id)
         except Exception:
             return target.gate_id[:8]

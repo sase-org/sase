@@ -4,8 +4,6 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from sase.notification_gates.registry import adapter_for_action
-
 if TYPE_CHECKING:
     from sase.notifications import Notification
 
@@ -67,6 +65,8 @@ def gate_target_label(
 
 def notification_gate_kind(notification: Notification) -> str | None:
     """Return the gate kind for a gate-action notification, if known."""
+    from sase.notification_gates.registry import adapter_for_action
+
     adapter = adapter_for_action(notification.action)
     if adapter is not None:
         return adapter.kind

@@ -85,6 +85,7 @@ def init_runtime_state(
     self._patches_first_load_done = False
     self._agents_first_load_done = False
     self._axe_first_load_done = False
+    self._axe_services_visited = False
     self._mount_state_loads_done = False
     # Durable one-record-per-session startup telemetry (StartupTelemetryMixin).
     # ``_startup_process_start_mono`` is stamped during ``AceApp.__init__`` and

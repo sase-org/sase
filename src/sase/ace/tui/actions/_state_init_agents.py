@@ -166,6 +166,8 @@ def init_agent_state(self: Any) -> None:
     self._monitor_reconcile_completed_signature = None
     self._monitor_reconcile_completed_mono = 0.0
     self._monitor_reconcile_async_tasks = set()
+    self._monitor_reconcile_backstop_timer = None
+    self._monitor_reconcile_backstop_source = "unknown"
     self._startup_telemetry_async_tasks = set()
     self._agents_refresh_debounce_armed = False
     self._agents_refresh_debounce_source = "unknown"

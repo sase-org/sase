@@ -36,9 +36,35 @@ class AxeRefreshFullMixin(AxeRefreshCollectMixin):
             extra["include_full_snapshots"] = data.include_full_snapshots
             self._apply_axe_status_data(data)
 
-    def _schedule_axe_async_refresh(self) -> None:
-        """Schedule an async axe status reload without blocking."""
-        self._axe_status_refresh_want_full = True
+    def _axe_should_collect_full(self, *, sanity_due: bool = False) -> bool:
+        """Return whether this refresh should walk chop snapshots.
+
+        Full collection waits until Services has been visited. After a
+        visit, sanity reconciliation and a visible Services tab still
+        request the established full snapshot.
+        """
+        if not getattr(self, "_axe_services_visited", False):
+            return False
+        return sanity_due or getattr(self, "current_tab", None) == "services"
+
+    def _schedule_axe_async_refresh(
+        self,
+        *,
+        include_full_snapshots: bool | None = None,
+        tail_all_chop_logs: bool = False,
+    ) -> None:
+        """Schedule an async axe status reload without blocking.
+
+        Coalescing preserves requested header/full strength: a hidden
+        header request does not escalate itself, and a Services full
+        request is not dropped when a header load is already in flight.
+        """
+        if include_full_snapshots is None:
+            include_full_snapshots = self._axe_should_collect_full()
+        if include_full_snapshots:
+            self._axe_status_refresh_want_full = True
+        if tail_all_chop_logs:
+            self._axe_status_refresh_want_all_tails = True
         if getattr(self, "_axe_status_refresh_running", False):
             self._axe_status_refresh_pending = True
             return
@@ -86,7 +112,7 @@ class AxeRefreshFullMixin(AxeRefreshCollectMixin):
         self._axe_status_refresh_running = True
         try:
             await self._load_axe_status_async(
-                include_full_snapshots=True if want_full else include_full_snapshots,
+                include_full_snapshots=want_full,
                 tail_all_chop_logs=want_all_tails,
             )
             return True
@@ -129,6 +155,7 @@ class AxeRefreshFullMixin(AxeRefreshCollectMixin):
         initial_tab = getattr(self, "_startup_initial_tab", None)
         current_tab = getattr(self, "current_tab", None)
         if initial_tab == "services" or current_tab == "services":
+            self._axe_services_visited = True
             schedule = getattr(self, "_schedule_axe_async_refresh", None)
             if callable(schedule):
                 schedule()

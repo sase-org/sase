@@ -125,6 +125,8 @@ class AgentLoadingDiskSupportMixin(AgentLoadingStateMixin):
     _monitor_reconcile_inflight_signature: _MonitorReconcileSignature | None
     _monitor_reconcile_completed_signature: _MonitorReconcileSignature | None
     _monitor_reconcile_completed_mono: float
+    _monitor_reconcile_backstop_timer: Any
+    _monitor_reconcile_backstop_source: str
 
     def _prepare_agent_content_search_index_sync(
         self,
@@ -243,8 +245,15 @@ class AgentLoadingDiskSupportMixin(AgentLoadingStateMixin):
         if task is None:
             self._loader_cleanup_running = False
 
-    def _schedule_monitor_reconcile(self, *, source: str) -> None:
-        """Queue one latest-wins dead-supervisor settle pass after a load."""
+    def _schedule_monitor_reconcile(self, *, source: str, force: bool = False) -> None:
+        """Queue one latest-wins dead-supervisor settle pass after a load.
+
+        An empty in-memory monitor signature is not an immediate scan: the
+        displayed roster can hide candidates (filters, bounded loads, other
+        projects). Empty loads arm the 30 s post-ready backstop instead of
+        starting a worker. A positive signature change still requests the
+        existing worker after the startup and activity gates.
+        """
         if source == MONITOR_RECONCILE_REFRESH_SOURCE:
             return
         if not getattr(self, "_startup_deferred_loads_released", True):
@@ -267,6 +276,10 @@ class AgentLoadingDiskSupportMixin(AgentLoadingStateMixin):
             and now - completed_mono < _MONITOR_RECONCILE_BACKSTOP_SECONDS
         ):
             return
+        if not signature and not force:
+            self._arm_monitor_reconcile_backstop(source=source)
+            return
+        self._cancel_monitor_reconcile_backstop()
         self._monitor_reconcile_pending_source = source
         if self._monitor_reconcile_running:
             if signature == getattr(
@@ -279,6 +292,40 @@ class AgentLoadingDiskSupportMixin(AgentLoadingStateMixin):
         self._monitor_reconcile_pending = False
         self._monitor_reconcile_scheduled_signature = signature
         self._spawn_monitor_reconcile_task()
+
+    def _arm_monitor_reconcile_backstop(self, *, source: str) -> None:
+        """Coalesce empty-roster recovery onto the existing 30 s cadence."""
+        self._monitor_reconcile_backstop_source = source
+        if getattr(self, "_monitor_reconcile_backstop_timer", None) is not None:
+            return
+        set_timer = getattr(self, "set_timer", None)
+        if not callable(set_timer):
+            return
+        self._monitor_reconcile_backstop_timer = set_timer(
+            _MONITOR_RECONCILE_BACKSTOP_SECONDS,
+            self._on_monitor_reconcile_backstop,
+        )
+
+    def _on_monitor_reconcile_backstop(self) -> None:
+        """Run the bounded backend query after the empty-roster delay."""
+        self._monitor_reconcile_backstop_timer = None
+        source = getattr(
+            self, "_monitor_reconcile_backstop_source", "monitor_reconcile_backstop"
+        )
+        self._schedule_monitor_reconcile(source=source, force=True)
+
+    def _cancel_monitor_reconcile_backstop(self) -> None:
+        """Drop a pending empty-roster backstop timer."""
+        timer = getattr(self, "_monitor_reconcile_backstop_timer", None)
+        self._monitor_reconcile_backstop_timer = None
+        if timer is None:
+            return
+        stop = getattr(timer, "stop", None)
+        if callable(stop):
+            try:
+                stop()
+            except Exception:
+                pass
 
     def _spawn_monitor_reconcile_task(self) -> None:
         """Run monitor reconciliation outside Textual's serial message pump."""

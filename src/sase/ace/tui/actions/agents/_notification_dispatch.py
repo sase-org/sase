@@ -11,11 +11,6 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
-from sase.notification_gates.registry import (
-    PRIVILEGED_GATE_ACTIONS,
-    adapter_for_action,
-)
-
 if TYPE_CHECKING:
     from sase.notifications import Notification
 
@@ -40,6 +35,10 @@ def open_notification_action(app: Any, notification: Notification) -> bool:
     """
     from sase.notification_gates.failure_notifications import (
         GATE_EXECUTION_FAILED_ACTION,
+    )
+    from sase.notification_gates.registry import (
+        PRIVILEGED_GATE_ACTIONS,
+        adapter_for_action,
     )
 
     from ._notification_actions import (

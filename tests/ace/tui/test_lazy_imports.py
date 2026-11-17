@@ -76,3 +76,32 @@ def test_patch_loading_import_stays_off_unittest_mock() -> None:
         assert "unittest.mock" not in sys.modules
         """
     )
+
+
+def test_tui_app_import_stays_off_gate_and_macro_execution_closures() -> None:
+    _run_probe(
+        """
+        import sys
+        import sase.ace.tui.app
+
+        assert "sase.gate_turn.models" not in sys.modules
+        assert "sase.gate_turn.settlement" not in sys.modules
+        assert "sase.notification_gates.executor" not in sys.modules
+        assert "sase.notification_gates.poller" not in sys.modules
+        assert "sase.notification_gates.service" not in sys.modules
+        assert "sase.macro.workflow_runner" not in sys.modules
+        assert "sase.macro.workflow_executor" not in sys.modules
+        """
+    )
+
+
+def test_workflow_hitl_modal_import_stays_off_workflow_executor() -> None:
+    _run_probe(
+        """
+        import sys
+        from sase.ace.tui.modals.workflow_hitl_modal import WorkflowHITLModal
+
+        assert WorkflowHITLModal is not None
+        assert "sase.macro.workflow_executor" not in sys.modules
+        """
+    )

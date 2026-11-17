@@ -189,6 +189,8 @@ class AgentLoadingStateMixin:
     _monitor_reconcile_pending: bool
     _monitor_reconcile_pending_source: str
     _monitor_reconcile_async_tasks: set[asyncio.Task[None]]
+    _monitor_reconcile_backstop_timer: object | None
+    _monitor_reconcile_backstop_source: str
     # Sticky deferred Tier 2 reconcile state. ``_pending`` is True while
     # the last load reported incomplete history and a full-history pass
     # has not yet been scheduled; ``_armed_mono`` is the monotonic time
@@ -343,7 +345,8 @@ class AgentLoadingStateMixin:
     ) -> None:
         raise NotImplementedError
 
-    def _schedule_monitor_reconcile(self, *, source: str) -> None:
+    def _schedule_monitor_reconcile(self, *, source: str, force: bool = False) -> None:
+        del source, force
         raise NotImplementedError
 
     def _record_slow_loader_stages(

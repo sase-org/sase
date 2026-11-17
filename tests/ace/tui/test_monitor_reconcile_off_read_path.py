@@ -16,6 +16,7 @@ from sase.ace.tui.actions.agents._loading import AgentLoadingMixin
 from sase.ace.tui.actions.agents._loading_disk_support import (
     MONITOR_RECONCILE_REFRESH_SOURCE,
     AgentLoadingDiskSupportMixin,
+    _MONITOR_RECONCILE_BACKSTOP_SECONDS,
     _reconcile_dead_monitor_supervisors_for_tui,
 )
 from sase.ace.tui.actions.agents._loading_helpers import (
@@ -40,6 +41,32 @@ class _IdleNavigationGate:
         return 0.0
 
 
+class _BackstopTimer:
+    def __init__(self, delay: float, callback: object) -> None:
+        self.delay = delay
+        self.callback = callback
+        self.stopped = False
+
+    def stop(self) -> None:
+        self.stopped = True
+
+
+def _monitor_row(
+    *,
+    monitor_id: str = "m1",
+    state: str = "running",
+) -> SimpleNamespace:
+    return SimpleNamespace(
+        is_monitor=True,
+        identity=("monitor", monitor_id, None),
+        monitor_id=monitor_id,
+        monitor_state=state,
+        monitor_start_status=None,
+        monitor_stop_status=None,
+        stop_time=None,
+    )
+
+
 class _ReconcileApp(AgentLoadingDiskSupportMixin):
     def __init__(self) -> None:
         self._monitor_reconcile_running = False
@@ -50,12 +77,20 @@ class _ReconcileApp(AgentLoadingDiskSupportMixin):
         self._monitor_reconcile_completed_signature = None
         self._monitor_reconcile_completed_mono = 0.0
         self._monitor_reconcile_async_tasks: set[asyncio.Task[None]] = set()
+        self._monitor_reconcile_backstop_timer: _BackstopTimer | None = None
+        self._monitor_reconcile_backstop_source = "unknown"
+        self._startup_deferred_loads_released = True
         self._nav_gate = _IdleNavigationGate()
         self._agents: list[object] = []
         self.refresh_sources: list[str] = []
+        self.timers: list[_BackstopTimer] = []
 
-    def set_timer(self, _delay: float, _callback: object) -> None:
-        raise AssertionError("idle reconcile must not arm a navigation timer")
+    def set_timer(self, delay: float, callback: object) -> _BackstopTimer:
+        if delay != _MONITOR_RECONCILE_BACKSTOP_SECONDS:
+            raise AssertionError("idle reconcile must not arm a navigation timer")
+        timer = _BackstopTimer(delay, callback)
+        self.timers.append(timer)
+        return timer
 
     def _schedule_agents_async_refresh(
         self, *, source: str = "unknown", **_: object
@@ -101,7 +136,8 @@ class _ScheduleProbeApp(AgentLoadingMixin):
     def _apply_loaded_agents_prepared(self, *args: object, **kwargs: object) -> None:
         del args, kwargs
 
-    def _schedule_monitor_reconcile(self, *, source: str) -> None:
+    def _schedule_monitor_reconcile(self, *, source: str, force: bool = False) -> None:
+        del force
         self.reconcile_sources.append(source)
 
 
@@ -219,6 +255,7 @@ def test_followup_refresh_source_does_not_reschedule_reconcile() -> None:
 @pytest.mark.asyncio
 async def test_monitor_reconcile_burst_suppresses_unchanged_trailing_pass() -> None:
     app = _ReconcileApp()
+    app._agents = [_monitor_row()]
     started = threading.Event()
     release = threading.Event()
     calls: list[str] = []
@@ -300,6 +337,7 @@ async def test_monitor_reconcile_changed_roster_runs_trailing_pass() -> None:
 @pytest.mark.asyncio
 async def test_spawn_failure_releases_monitor_reconcile_guard() -> None:
     app = _ReconcileApp()
+    app._agents = [_monitor_row()]
 
     def fake_spawn(_owner: object, coro: object, **_kwargs: object) -> None:
         close = getattr(coro, "close", None)
@@ -337,6 +375,7 @@ async def test_background_reconcile_settles_dead_supervisor_and_refreshes(
     )
     _expose_monitor_dirs(monkeypatch, [monitor_dir])
     app = _ReconcileApp()
+    app._agents = [_monitor_row(monitor_id="aaa")]
 
     app._schedule_monitor_reconcile(source="startup")
     await _drain_monitor_reconcile(app)
@@ -371,3 +410,106 @@ def test_tui_reconcile_helper_returns_settled_records(
 
     assert [record.monitor_state for record in settled] == ["failed"]  # type: ignore[attr-defined]
     assert (Path(monitor_dir) / "done.json").exists()
+
+
+def test_empty_roster_burst_arms_one_backstop_without_immediate_worker() -> None:
+    app = _ReconcileApp()
+    app._schedule_monitor_reconcile(source="startup")
+    app._schedule_monitor_reconcile(source="refresh")
+    app._schedule_monitor_reconcile(source="idle")
+
+    assert app._monitor_reconcile_running is False
+    assert app._monitor_reconcile_async_tasks == set()
+    assert len(app.timers) == 1
+    assert app.timers[0].delay == _MONITOR_RECONCILE_BACKSTOP_SECONDS
+    assert app._monitor_reconcile_backstop_timer is app.timers[0]
+    assert app._monitor_reconcile_backstop_source == "idle"
+
+
+def test_startup_hold_defers_empty_roster_before_backstop() -> None:
+    app = _ReconcileApp()
+    app._startup_deferred_loads_released = False
+    app._schedule_monitor_reconcile(source="startup")
+
+    assert app._startup_deferred_monitor_reconcile_pending is True
+    assert app._monitor_reconcile_running is False
+    assert app._monitor_reconcile_backstop_timer is None
+    assert app.timers == []
+
+    app._startup_deferred_loads_released = True
+    app._schedule_monitor_reconcile(source="startup")
+    assert app._monitor_reconcile_running is False
+    assert app._monitor_reconcile_backstop_timer is not None
+
+
+def test_incomplete_empty_roster_is_not_globally_authoritative() -> None:
+    """A bounded or filtered empty display still arms recovery, never a skip."""
+    app = _ReconcileApp()
+    app._agents = []
+    app._schedule_monitor_reconcile(source="incomplete")
+    assert app._monitor_reconcile_running is False
+    assert app._monitor_reconcile_backstop_timer is not None
+
+
+def test_newly_appearing_monitor_cancels_backstop_and_starts_worker() -> None:
+    app = _ReconcileApp()
+    app._schedule_monitor_reconcile(source="startup")
+    timer = app._monitor_reconcile_backstop_timer
+    assert timer is not None
+    assert app._monitor_reconcile_running is False
+
+    app._agents = [_monitor_row()]
+
+    def fake_spawn(_owner: object, coro: object, **_kwargs: object) -> object:
+        close = getattr(coro, "close", None)
+        if callable(close):
+            close()
+        return object()
+
+    with patch(
+        "sase.ace.tui.actions.agents._loading_disk_support.spawn_pump_free_task",
+        side_effect=fake_spawn,
+    ):
+        app._schedule_monitor_reconcile(source="appeared")
+
+    assert timer.stopped is True
+    assert app._monitor_reconcile_backstop_timer is None
+    assert app._monitor_reconcile_running is True
+    assert app._monitor_reconcile_scheduled_signature
+
+
+def test_empty_roster_backstop_force_starts_worker() -> None:
+    app = _ReconcileApp()
+    app._schedule_monitor_reconcile(source="startup")
+    timer = app._monitor_reconcile_backstop_timer
+    assert timer is not None
+    assert callable(timer.callback)
+    spawned: list[str] = []
+
+    def fake_spawn(_owner: object, coro: object, **kwargs: object) -> object:
+        close = getattr(coro, "close", None)
+        if callable(close):
+            close()
+        spawned.append(str(kwargs.get("name")))
+        return object()
+
+    with patch(
+        "sase.ace.tui.actions.agents._loading_disk_support.spawn_pump_free_task",
+        side_effect=fake_spawn,
+    ):
+        timer.callback()
+
+    assert spawned == ["sase-agents-monitor-reconcile"]
+    assert app._monitor_reconcile_backstop_timer is None
+    assert app._monitor_reconcile_running is True
+
+
+def test_cancel_monitor_reconcile_backstop_stops_timer() -> None:
+    app = _ReconcileApp()
+    app._schedule_monitor_reconcile(source="startup")
+    timer = app._monitor_reconcile_backstop_timer
+    assert timer is not None
+
+    app._cancel_monitor_reconcile_backstop()
+    assert timer.stopped is True
+    assert app._monitor_reconcile_backstop_timer is None

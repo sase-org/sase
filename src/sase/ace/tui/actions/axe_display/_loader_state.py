@@ -86,6 +86,10 @@ class AxeLoaderState:
     # True once a full-snapshot collector payload has landed; gates the
     # first-sight builtin fold so header-only pre-loads never mislead.
     _axe_full_snapshot_ready: bool
+    # True once Services has been the initial tab or the user has switched
+    # to it. Distinct from ``_axe_first_load_done`` (headers loaded) and
+    # ``_axe_full_snapshot_ready`` (full data applied).
+    _axe_services_visited: bool
     # Caches populated by the async collector so navigation paints without I/O.
     _axe_lumberjack_statuses: dict[str, LumberjackStatus | None]
     _axe_lumberjack_metrics: dict[str, LumberjackMetrics | None]

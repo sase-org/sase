@@ -113,7 +113,33 @@ async def test_watcherless_matching_tokens_skip_refreshes() -> None:
     app = _FakeApp(watcher_active=False)
     await app._run_auto_refresh()
     assert app.refresh_calls == []
+    assert app.axe_load_kwargs == []
     assert app.token_probe_calls == 1
+
+
+@pytest.mark.asyncio
+async def test_sanity_before_services_visit_stays_header_only() -> None:
+    """A hidden, never-visited Services tab must not walk chop snapshots."""
+    app = _FakeApp(watcher_active=True)
+    app.current_tab = "agents"
+    app._axe_services_visited = False
+    app._last_full_sanity_refresh = time.monotonic() - FULL_SANITY_REFRESH_SECONDS - 1.0
+    await app._run_auto_refresh()
+    assert "axe" in app.refresh_calls
+    assert app.axe_load_kwargs[-1]["include_full_snapshots"] is False
+    assert app.axe_load_kwargs[-1]["tail_all_chop_logs"] is False
+
+
+@pytest.mark.asyncio
+async def test_sanity_after_services_visit_collects_full_snapshots() -> None:
+    app = _FakeApp(watcher_active=True)
+    app.current_tab = "agents"
+    app._axe_services_visited = True
+    app._last_full_sanity_refresh = time.monotonic() - FULL_SANITY_REFRESH_SECONDS - 1.0
+    await app._run_auto_refresh()
+    assert "axe" in app.refresh_calls
+    assert app.axe_load_kwargs[-1]["include_full_snapshots"] is True
+    assert app.axe_load_kwargs[-1]["tail_all_chop_logs"] is True
 
 
 @pytest.mark.asyncio

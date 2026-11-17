@@ -122,6 +122,7 @@ def init_late_startup_state(
     # Flipped once the first full-snapshot collector payload lands, so a
     # header-only pre-load never initializes a misleading builtin fold.
     self._axe_full_snapshot_ready = False
+    self._axe_services_visited = False
 
     # Query history stacks for prev/next navigation, namespaced by
     # Artifacts pane id.
