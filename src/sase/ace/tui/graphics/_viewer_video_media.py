@@ -15,6 +15,10 @@ from struct import pack, unpack
 from sys import stdout
 from typing import Any
 
+from ._viewer_loop_media import (
+    video_still_preview_required,
+    video_vo_uses_kitty_placement,
+)
 from ._viewer_loop_terminal import (
     clear_terminal,
     kitten_icat_command,
@@ -22,8 +26,7 @@ from ._viewer_loop_terminal import (
     print_artifact_header,
     print_artifact_warning,
 )
-from ._viewer_loop_types import ArtifactVideoPlaybackConfig, VideoDisplayResult
-from ._viewer_tmux_common import is_tmux_session
+from ._viewer_loop_types import VideoDisplayResult
 from ._viewer_types import (
     ArtifactFileImageArea,
     ArtifactFileViewerWarning,
@@ -37,18 +40,6 @@ _FALLBACK_TERMINAL_PIXEL_WIDTH = 1600
 VIDEO_STILL_FOOTER_PREFIX = (
     "still frame \u00b7 in-pane playback is unavailable inside tmux"
 )
-
-
-def video_vo_uses_kitty_placement(vo: str) -> bool:
-    """Return whether an mpv ``vo`` value places frames with kitty graphics."""
-
-    return vo.split(",", 1)[0].strip() == "kitty"
-
-
-def video_still_preview_required(config: ArtifactVideoPlaybackConfig) -> bool:
-    """Return whether a video must render as a still instead of mpv playback."""
-
-    return is_tmux_session() and video_vo_uses_kitty_placement(config.vo)
 
 
 @dataclass(frozen=True)

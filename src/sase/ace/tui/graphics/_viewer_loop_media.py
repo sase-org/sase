@@ -23,11 +23,6 @@ from ._viewer_loop_types import (
     VideoDisplayResult,
 )
 from ._viewer_render import validate_artifact_file_viewer_dependencies
-from ._viewer_video_media import (
-    display_video_still_artifact,
-    video_still_preview_required,
-    video_vo_uses_kitty_placement,
-)
 from ._viewer_types import (
     ArtifactFileImageArea,
     ArtifactFileViewerWarning,
@@ -179,6 +174,20 @@ def load_artifact_video_playback_config() -> ArtifactVideoPlaybackConfig:
     return load_merged_artifact_video_playback_config()
 
 
+def video_vo_uses_kitty_placement(vo: str) -> bool:
+    """Return whether an mpv ``vo`` value places frames with kitty graphics."""
+
+    return vo.split(",", 1)[0].strip() == "kitty"
+
+
+def video_still_preview_required(config: ArtifactVideoPlaybackConfig) -> bool:
+    """Return whether a video must render as a still instead of mpv playback."""
+
+    from ._viewer_tmux_common import is_tmux_session
+
+    return is_tmux_session() and video_vo_uses_kitty_placement(config.vo)
+
+
 def _coerce_bool(value: object, *, default: bool) -> bool:
     return value if isinstance(value, bool) else default
 
@@ -272,6 +281,9 @@ def display_video_artifact(
         return VideoDisplayResult(warnings=(warning,))
 
     if video_still_preview_required(video_config):
+        # Deferred: the still/ffprobe module stays off the TUI import path.
+        from ._viewer_video_media import display_video_still_artifact
+
         return display_video_still_artifact(
             spec,
             image_area,

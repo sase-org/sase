@@ -18,9 +18,9 @@ from ._viewer_loop_media import (
     parse_video_playback_config_env,
     serialize_video_playback_config,
     text_viewer_command_needs_quit_key,
+    video_still_preview_required,
     video_vo_uses_kitty_placement,
 )
-from ._viewer_video_media import video_still_preview_required
 from ._viewer_loop_pages import run_artifact_page_loop, run_artifact_text_viewer
 from ._viewer_loop_sequence import run_artifact_sequence_loop as sequence_loop
 from ._viewer_loop_terminal import (

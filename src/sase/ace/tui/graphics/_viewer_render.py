@@ -226,7 +226,7 @@ def _video_still_preview_required(
 ) -> bool:
     if video_config is None:
         return False
-    from ._viewer_video_media import video_still_preview_required
+    from ._viewer_loop_media import video_still_preview_required
 
     return video_still_preview_required(video_config)
 

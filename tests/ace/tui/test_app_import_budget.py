@@ -147,6 +147,9 @@ _DEFERRED_MODULES = (
     "sase.notification_gates.service_assembly",
     "sase.notification_gates.service_creation",
     "sase.notification_gates.service_evaluation",
+    # sase-1tb.1: the video still/ffprobe module loads only when a video
+    # opens in the viewer pane, never on TUI first paint.
+    "sase.ace.tui.graphics._viewer_video_media",
 )
 
 

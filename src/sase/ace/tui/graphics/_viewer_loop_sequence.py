@@ -33,8 +33,11 @@ from ._viewer_loop_terminal import (
     viewer_kitten_icat_command,
 )
 from ._viewer_trace import mark_child_ready, mark_first_visual
-from ._viewer_video_media import VIDEO_STILL_FOOTER_PREFIX
-from ._viewer_loop_types import ArtifactVideoPlaybackConfig, PageLoopResult
+from ._viewer_loop_types import (
+    ArtifactVideoPlaybackConfig,
+    PageLoopResult,
+    VideoDisplayResult,
+)
 from ._viewer_render import artifact_file_view_mode, render_artifact_file_pages
 from ._viewer_types import (
     ArtifactFileImageArea,
@@ -176,11 +179,7 @@ def run_artifact_sequence_loop(
                     show_position=False,
                     return_pane_available=return_pane_available,
                     tmux_zoom_available=zoom_available,
-                    footer_prefix=(
-                        VIDEO_STILL_FOOTER_PREFIX
-                        if video_displayed.still_preview
-                        else None
-                    ),
+                    footer_prefix=_video_footer_prefix(video_displayed),
                 )
             else:
                 rendered = pages_for(artifact_index, current_area)
@@ -256,3 +255,12 @@ def run_artifact_sequence_loop(
         elif key == "p":
             artifact_index = max(artifact_index - 1, 0)
             page_index = 0
+
+
+def _video_footer_prefix(displayed: VideoDisplayResult) -> str | None:
+    if not displayed.still_preview:
+        return None
+    # Only the still path sets still_preview, and it already loaded this module.
+    from ._viewer_video_media import VIDEO_STILL_FOOTER_PREFIX
+
+    return VIDEO_STILL_FOOTER_PREFIX
