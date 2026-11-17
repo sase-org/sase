@@ -7,10 +7,15 @@ import os
 import tempfile
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
-from sase.agent.hijack._stop_models import HijackTarget, StopDeps
 from sase.monitor.settlement_fresh_owner import monitor_owner_timestamp
+
+if TYPE_CHECKING:
+    # Runtime imports stay function-local: importing any
+    # ``sase.agent.hijack`` module loads the whole package facade, which must
+    # stay out of the TUI startup import closure.
+    from sase.agent.hijack._stop_models import HijackTarget
 
 
 @dataclass(frozen=True, slots=True)
@@ -192,6 +197,7 @@ def settle_monitor_hijack(
             return _pending(record, f"unexpected ledger state {record.get('state')!r}")
 
         from sase.agent.hijack._stop_evidence import collect_and_attach_evidence
+        from sase.agent.hijack._stop_models import StopDeps
 
         evidence_record, evidence_error, snapshot_error = collect_and_attach_evidence(
             hijack_id, target, deps=StopDeps()
@@ -300,7 +306,7 @@ def _monitor_hijack_target(
         )
     if claim is None:
         return None, None, "monitor claim owner or artifacts generation changed"
-    from sase.agent.hijack._stop_models import read_done_marker
+    from sase.agent.hijack._stop_models import HijackTarget, read_done_marker
 
     done_outcome, done_recovery = read_done_marker(artifacts_dir)
     target = HijackTarget(

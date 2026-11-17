@@ -458,10 +458,6 @@ def _dirty_workspace(workspace: Path) -> None:
     (workspace / "canary-work.txt").write_text("held work\n", encoding="utf-8")
 
 
-def _dirty_workspace(workspace: Path) -> None:
-    (workspace / "canary-work.txt").write_text("held work\n", encoding="utf-8")
-
-
 def test_anonymous_tmp_workflow_hijack_continue_same_workspace(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -567,6 +563,7 @@ def test_session_hijack_chooses_running_member_one(
         assert parent_done.get("outcome") in {"success", "completed"}, (
             harness.diagnostics(parent)
         )
+        harness.wait_workspace_released()
 
         child = harness.spawn(
             _prompt(

@@ -18,7 +18,6 @@ from sase.turns.settlement import (
 
 from ._settlement_retention import release_monitor_claim
 from .followup import FollowupLaunchResult, launch_followup_agent
-from .hijack_settlement import settle_monitor_hijack
 from .host_completion import HOST_COMPLETED_OUTCOME, settle_host_completion
 from .models import MONITOR_FOLLOWUP_DEGRADED_OUTCOME, MonitorState
 from .naming import short_monitor_id
@@ -128,6 +127,10 @@ def settle_claim_and_followup(
     launch_followup: FollowupLauncher | None = None,
 ) -> _MonitorFollowupSettlementResult:
     """Launch/record follow-up disposition and dispose of the monitor claim."""
+    # Deferred: the hijack checkpoint pulls in ``sase.agent.hijack``, which
+    # must stay out of the TUI startup import closure.
+    from .hijack_settlement import settle_monitor_hijack
+
     hijack = settle_monitor_hijack(
         artifacts_dir,
         meta,

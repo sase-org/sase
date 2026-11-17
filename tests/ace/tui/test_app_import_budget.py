@@ -69,6 +69,10 @@ _MAX_SASE_SOURCE_FOOTPRINT_BYTES = (
 # ``<``. Only a large dependency regression trips this.
 _MAX_TOTAL_MODULE_COUNT = 3904
 _DEFERRED_MODULES = (
+    # Agent Hijack loads only on use; one eager monitor-settlement edge once
+    # pulled the whole package (~290 KB) into startup.
+    "sase.agent.hijack",
+    "sase.monitor.hijack_settlement",
     "sase.agent.multi_prompt",
     "sase.agent.multi_prompt_launcher",
     "sase.agent.scope_sweep",

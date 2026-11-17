@@ -89,7 +89,7 @@ def recover_monitor_rerun(
                 ),
                 detail={**dict(result.detail), "code": "stale_revision"},
             )
-        return _resume_rerun_resolution(record, hijack_id, seams=seams)
+        return _resume_rerun_resolution(record, hijack_id)
     if state != "held":
         from sase.agent.hijack.recover_common import TERMINAL_RECOVERY_STATES
 
@@ -152,36 +152,18 @@ def _default_preview(record: Mapping[str, Any]) -> Any:
 def _resume_rerun_resolution(
     record: Mapping[str, Any],
     hijack_id: str,
-    *,
-    seams: RecoveryDeps,
 ) -> RecoveryResult:
     """Resume a resolving rerun without launching a duplicate command.
 
-    If a successor monitor is already observable, adopt it and complete;
-    otherwise retain ``resolving`` custody for reconciliation. A resolver
-    crash before any monitor exists leaves the record resolving; the
-    reconciler (or a later explicit retry after it returns the record to
-    held) owns the retry, never this fast path.
+    This fast path never relaunches. Whether or not a successor monitor is
+    already observable, custody stays ``resolving``: the next explicit
+    reconcile adopts an existing successor through the normal confirmation
+    path, or returns the record to held so a later explicit retry owns the
+    relaunch.
     """
     from sase.agent.hijack.recover_common import current_resolution_result
 
     current = reload_record(hijack_id, dict(record))
-    if clean_string(current.get("resolution_action")) != "rerun":
-        return current_resolution_result(dict(current), "already_resolving")
-    reserved = clean_string(current.get("reserved_successor_name"))
-    if reserved:
-        try:
-            from sase.agent.names import find_named_agent
-
-            found = find_named_agent(reserved)
-            artifacts = clean_string(getattr(found, "artifacts_dir", None))
-            if artifacts and Path(artifacts).is_dir():
-                # A successor member exists; adopt it through the normal
-                # confirmation path on the next explicit reconcile rather
-                # than launching a second command here.
-                return current_resolution_result(dict(current), "already_resolving")
-        except Exception:
-            pass
     return current_resolution_result(dict(current), "already_resolving")
 
 

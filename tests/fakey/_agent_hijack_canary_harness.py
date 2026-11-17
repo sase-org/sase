@@ -2,11 +2,13 @@
 
 from __future__ import annotations
 
+import json
 import os
 from pathlib import Path
 import signal
 import subprocess
 import sys
+from typing import Any
 
 import pytest
 import yaml  # type: ignore[import-untyped]
@@ -397,6 +399,24 @@ class CanaryHarness:
             finished, LOAD_TOLERANT_TIMEOUT, f"done.json at {done_path}"
         )
         return read_json(done_path)
+
+    def wait_workspace_released(self) -> None:
+        """Wait for the finished runner to release the canary workspace claim.
+
+        The runner writes ``done.json`` before ``finalize_runner_shutdown``
+        releases its claim, so a done marker alone does not free the workspace
+        for the next session member.
+        """
+
+        def released() -> bool:
+            claims = get_claimed_workspaces(str(self.project_file))
+            return not any(claim.workspace_num == WORKSPACE_NUM for claim in claims)
+
+        _wait_for_condition(
+            released,
+            LOAD_TOLERANT_TIMEOUT,
+            f"workspace #{WORKSPACE_NUM} claim release",
+        )
 
     def load_rows(self) -> list[Agent]:
         result = load_agents_from_disk_with_state(
