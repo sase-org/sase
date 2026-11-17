@@ -73,8 +73,11 @@ def test_optional_tools_include_mpv_for_video_artifact_playback(monkeypatch) -> 
     rows = {row["id"]: row for row in check.data["tools"]}
     assert "tmux" not in rows
     assert rows["mpv"]["commands"] == ("mpv",)
-    assert rows["mpv"]["feature"] == "terminal video playback outside tmux (optional)"
-    assert "terminal video playback outside tmux (optional): install mpv" in (
+    assert (
+        rows["mpv"]["feature"]
+        == "in-pane video motion where topology allows (optional)"
+    )
+    assert "in-pane video motion where topology allows (optional): install mpv" in (
         check.details
     )
     assert rows["ffmpeg"]["commands"] == ("ffmpeg",)

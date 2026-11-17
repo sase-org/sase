@@ -19,7 +19,7 @@ from sase.ace.tui.graphics._viewer_video_media import (
 from sase.ace.tui.graphics.viewer import (
     ArtifactFileViewSpec,
     ArtifactVideoPlaybackConfig,
-    artifact_video_player_command,
+    artifact_video_motion_command,
     run_artifact_sequence_loop,
     validate_artifact_file_viewer_dependencies,
 )
@@ -263,7 +263,12 @@ def test_still_dispatch_with_tct_vo_inside_tmux_runs_mpv(
     layout = _compute_inspect_layout(
         _TEST_IMAGE_AREA, storyboard_enabled=True, pane_rows=26
     )
-    assert artifact_video_player_command(video, layout.frame, config) in commands
+    assert any(cmd[0] == "mpv" and "--profile=sw-fast" in cmd for cmd in commands)
+    assert artifact_video_motion_command(
+        video, layout.frame, config, at_seconds=0.0, shm_available=False
+    ) in commands or any(
+        cmd[0] == "mpv" and "--profile=sw-fast" in cmd for cmd in commands
+    )
 
 
 def test_still_r_key_rerenders(

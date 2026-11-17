@@ -736,49 +736,55 @@ uncommitted plans prefer the archived path unless only the SDD path is available
 
 Viewer dependencies are intentionally outside the agent completion path. `kitten` is
 required for image/PDF/Markdown display and the video inspect view, `ffmpeg` and
-`ffprobe` for video frames, storyboards, and metadata, `mpv` for optional in-pane motion
-outside tmux (or with a non-kitty `vo`), `pdftoppm` for PDF/Markdown paging, and
-Markdown rendering also needs `pandoc` plus one PDF engine. If a dependency is missing,
-sase's TUI shows a warning instead of failing the TUI or changing the stored artifact
-list.
+`ffprobe` for video frames, storyboards, and metadata, `mpv` for opt-in in-pane motion
+where topology allows, `pdftoppm` for PDF/Markdown paging, and Markdown rendering also
+needs `pandoc` plus one PDF engine. If a dependency is missing, sase's TUI shows a
+warning instead of failing the TUI or changing the stored artifact list.
 
 Source: `src/sase/ace/tui/graphics/viewer.py`
 
 ### Video Preview
 
 sase's TUI shows `.mp4`, `.m4v`, `.mov`, and `.webm` artifacts in the same viewer used
-for images and PDFs. A video always opens on the inspect view: `ffprobe` metadata such
-as `▶ Video 0:07 · 2560×1548 · 30 fps · h264 · 1.2 MB`, the frame at t=0 via `ffmpeg`,
-and a decile storyboard once ready, shown with `kitten icat`. Motion starts on `space`.
+for images and PDFs. Video always opens on inspect: `ffprobe` metadata such as
+`▶ Video 0:07 · 2560×1548 · 30 fps · h264 · 1.2 MB`, the `ffmpeg` frame at t=0, and a
+decile storyboard once ready, shown with `kitten icat`. Motion is opt-in on `space`; `o`
+hands off to native playback. Nothing autoplays.
 
-Inspect keys: `h`/`←` and `l`/`→` seek 1 s (snapped to the scrub track when ready),
-`,`/`.` step one source frame, `0`–`9` jump to that decile, `s` toggles the storyboard,
-`r` re-renders, `z` zooms, `n`/`p` move a sequence, `<tab>` focuses the SASE TUI, `q`
-closes. `j`/`k` are unused. Inside tmux with a kitty `vo`, `space` prints
-`in-pane playback is unavailable here — scrub with h/l or 0–9` and mpv never spawns.
-Outside tmux, or with a non-kitty `vo` such as `tct`, `space` runs mpv when it is on
-`PATH`, then returns to inspect. While mpv runs it owns `space`, arrows, `m`, and `q`. A
-missing `ffprobe`, `ffmpeg`, or `kitten` names the tool.
+Keys: `h`/`←`/`l`/`→` seek 1 s, `,`/`.` step one frame, `0`–`9` jump deciles, `s`
+storyboard, `o` native player, `r` re-render, `z` zoom, `n`/`p` sequence, `<tab>` focus,
+`q` close; `j`/`k` unused.
 
-Videos are muted by default because SASE often runs on a remote host or inside tmux
-where the server audio device is not useful. Configure playback under
-`ace.artifact_file_viewer.video`:
+`space` runs mpv outside tmux or with a non-kitty `vo` (`tct`). `backend` selects the
+behavior: `auto` (the default) plays where possible and otherwise shows the poster,
+`poster` never plays, `mpv` requires playback. A blocked `space` names the reason, and
+the explicit `mpv` choice without mpv also banners. Motion returns to inspect at the
+same timestamp and owns `space`, arrows, `m`, and `q` while running. Missing
+`ffprobe`/`ffmpeg`/`kitten` banners name the tool; without frames, `o`/`n`/`p`/`q` keep
+working.
+
+`o` runs `open_command` detached (`{path}` substituted or appended), else macOS `open`,
+else Linux `xdg-open` with a graphical session. Otherwise it names `open_command`.
+
+In-pane motion is muted (`--audio=no` unless `audio: true`); native handoff keeps audio.
+Configure playback under `ace.artifact_file_viewer.video`:
 
 ```yaml
 ace:
   artifact_file_viewer:
     video:
       audio: false
+      backend: "auto"
       loop: false
       vo: "kitty"
       extra_mpv_args: []
+      open_command: []
 ```
 
-Set `audio: true` to start unmuted, `loop: true` to pass `--loop-file=inf`, `vo` to use
-another mpv video output such as `tct`, and `extra_mpv_args` to append additional mpv
-flags after SASE defaults. SASE launches mpv with `--no-config` so user mpv profiles
-cannot break the curated terminal preview; put viewer-specific customization in the SASE
-config instead.
+`backend` is `auto | poster | mpv`; `audio: true` unmutes motion, `loop: true` passes
+`--loop-file=inf`, `vo` picks another mpv output (`tct`), `extra_mpv_args` appends flags
+after the `--no-config --profile=sw-fast` defaults, and `open_command` (an argv list or
+shlex string) sets native playback. All but `open_command` affect the mpv backend only.
 
 ## sase's TUI Image Preview Foundation
 

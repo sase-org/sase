@@ -556,9 +556,11 @@ ace:
   artifact_file_viewer:
     video:
       audio: false
+      backend: "auto"
       loop: false
       vo: "kitty"
       extra_mpv_args: []
+      open_command: []
   updates:
     startup_toast: true
     startup_toast_max_commits: 20

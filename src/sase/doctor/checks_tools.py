@@ -30,7 +30,9 @@ _OPTIONAL_TOOLS: tuple[_ToolRequirement, ...] = (
     _ToolRequirement("bat", ("bat",), "syntax-highlighted file previews"),
     _ToolRequirement("kitten", ("kitten",), "terminal image artifact display"),
     _ToolRequirement(
-        "mpv", ("mpv",), "terminal video playback outside tmux (optional)"
+        "mpv",
+        ("mpv",),
+        "in-pane video motion where topology allows (optional)",
     ),
     _ToolRequirement(
         "ffmpeg", ("ffmpeg",), "terminal video artifact stills and metadata"

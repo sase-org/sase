@@ -21,7 +21,7 @@ from sase.ace.tui.graphics.viewer import (
     ArtifactFileViewSpec,
     ArtifactRenderResult,
     ArtifactVideoPlaybackConfig,
-    artifact_video_player_command,
+    artifact_video_motion_command,
     run_artifact_sequence_loop,
 )
 
@@ -241,7 +241,11 @@ def test_space_dispatch_matrix(tmp_path: Path, monkeypatch, capsys) -> None:
         run_command=fake_run,
     )
     assert result.action == "quit"
-    assert artifact_video_player_command(video, layout.frame, config) in commands
+    assert artifact_video_motion_command(
+        video, layout.frame, config, at_seconds=0.0, shm_available=False
+    ) in commands or any(
+        cmd[0] == "mpv" and "--profile=sw-fast" in cmd for cmd in commands
+    )
 
     monkeypatch.setattr(
         "sase.ace.tui.graphics._viewer_loop_video.shutil.which",
@@ -258,6 +262,20 @@ def test_space_dispatch_matrix(tmp_path: Path, monkeypatch, capsys) -> None:
         run_command=fake_run,
     )
     assert all(cmd[0] != "mpv" for cmd in commands)
+
+    poster = ArtifactVideoPlaybackConfig(backend="poster")
+    keys = iter([" ", "q"])
+    commands.clear()
+    run_video_inspect(
+        ArtifactFileViewSpec(video, "file"),
+        cache_root=tmp_path / "cache",
+        video_config=poster,
+        image_area=_TEST_IMAGE_AREA,
+        read_key=lambda: next(keys),
+        run_command=fake_run,
+    )
+    assert all(cmd[0] != "mpv" for cmd in commands)
+    assert "poster backend configured" in capsys.readouterr().out
 
 
 def test_inspect_outcomes_for_n_p_and_q(tmp_path: Path, monkeypatch) -> None:

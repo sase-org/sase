@@ -24,14 +24,19 @@ class TextDisplayResult:
     warnings: tuple[ArtifactFileViewerWarning, ...] = ()
 
 
+VIDEO_PLAYBACK_BACKENDS = ("auto", "poster", "mpv")
+
+
 @dataclass(frozen=True)
 class ArtifactVideoPlaybackConfig:
     """Runtime settings for terminal video artifact playback."""
 
     audio: bool = False
+    backend: str = "auto"
     loop: bool = False
     vo: str = "kitty"
     extra_mpv_args: tuple[str, ...] = ()
+    open_command: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)

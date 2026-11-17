@@ -2192,26 +2192,47 @@
           "properties": {
             "video": {
               "type": "object",
-              "description": "mpv-backed terminal video artifact-file playback settings",
+              "description": "Inspect-first terminal video artifact-file playback with opt-in motion and native handoff",
               "additionalProperties": false,
               "properties": {
                 "audio": {
                   "type": "boolean",
-                  "description": "Start video playback unmuted",
+                  "description": "Start in-pane motion unmuted with mpv --audio (mpv backend only; native handoff keeps audio)",
                   "default": false
+                },
+                "backend": {
+                  "type": "string",
+                  "description": "In-pane motion backend: auto runs mpv where topology allows else poster, poster never runs mpv, mpv requires mpv where topology allows",
+                  "enum": ["auto", "poster", "mpv"],
+                  "default": "auto"
                 },
                 "loop": {
                   "type": "boolean",
-                  "description": "Loop video playback with mpv --loop-file=inf",
+                  "description": "Loop in-pane motion with mpv --loop-file=inf (mpv backend only)",
                   "default": false
                 },
                 "vo": {
                   "type": "string",
-                  "description": "mpv video output driver for terminal video playback",
+                  "description": "mpv video output driver for in-pane motion (mpv backend only)",
                   "default": "kitty"
                 },
                 "extra_mpv_args": {
-                  "description": "Additional mpv arguments appended after SASE defaults",
+                  "description": "Additional mpv arguments appended after SASE motion defaults (mpv backend only)",
+                  "oneOf": [
+                    {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      },
+                      "default": []
+                    },
+                    {
+                      "type": "string"
+                    }
+                  ]
+                },
+                "open_command": {
+                  "description": "Native player for the o key: argv list or shlex string; {path} is substituted or the path is appended",
                   "oneOf": [
                     {
                       "type": "array",

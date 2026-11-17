@@ -1,4 +1,4 @@
-{"count": 3709, "rev": "594d873776e9", "schema": "sase.footprint.catalog/1"}
+{"count": 3711, "rev": "5594261d6197", "schema": "sase.footprint.catalog/1"}
 {"area": "automation", "id": "auto:axe.agent_waits", "kind": "auto", "label": "Resolve agent wait dependencies within seconds of completion", "ns": "auto", "parent": null, "src": "sase/default_config.yml"}
 {"area": "automation", "id": "auto:axe.agent_waits.wait_checks", "kind": "auto", "label": "Resolve agent wait dependencies and write ready.json when satisfied", "ns": "auto", "parent": "auto:axe.agent_waits", "src": "sase/default_config.yml"}
 {"area": "automation", "id": "auto:axe.checks", "kind": "auto", "label": "Poll slower PR-submission and workspace-claim checks on a five-minute cadence", "ns": "auto", "parent": null, "src": "sase/default_config.yml"}
@@ -2058,8 +2058,10 @@
 {"area": "config.ace", "id": "config:ace.agent_tabs.launch_from_view", "kind": "config", "label": "Launch from view", "ns": "config", "parent": null, "src": "sase/default_config.yml"}
 {"area": "config.ace", "id": "config:ace.agent_tabs.machine_tabs", "kind": "config", "label": "Machine tabs", "ns": "config", "parent": null, "src": "sase/default_config.yml"}
 {"area": "config.ace", "id": "config:ace.artifact_file_viewer.video.audio", "kind": "config", "label": "Audio", "ns": "config", "parent": null, "src": "sase/default_config.yml"}
+{"area": "config.ace", "id": "config:ace.artifact_file_viewer.video.backend", "kind": "config", "label": "Backend", "ns": "config", "parent": null, "src": "sase/default_config.yml"}
 {"area": "config.ace", "id": "config:ace.artifact_file_viewer.video.extra_mpv_args", "kind": "config", "label": "Extra mpv args", "ns": "config", "parent": null, "src": "sase/default_config.yml"}
 {"area": "config.ace", "id": "config:ace.artifact_file_viewer.video.loop", "kind": "config", "label": "Loop", "ns": "config", "parent": null, "src": "sase/default_config.yml"}
+{"area": "config.ace", "id": "config:ace.artifact_file_viewer.video.open_command", "kind": "config", "label": "Open command", "ns": "config", "parent": null, "src": "sase/default_config.yml"}
 {"area": "config.ace", "id": "config:ace.artifact_file_viewer.video.vo", "kind": "config", "label": "Vo", "ns": "config", "parent": null, "src": "sase/default_config.yml"}
 {"area": "config.ace", "id": "config:ace.artifacts.description_mode", "kind": "config", "label": "Description mode", "ns": "config", "parent": null, "src": "sase/default_config.yml"}
 {"area": "config.ace", "id": "config:ace.artifacts.relations_expanded", "kind": "config", "label": "Relations expanded", "ns": "config", "parent": null, "src": "sase/default_config.yml"}

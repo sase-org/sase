@@ -20,8 +20,10 @@ from pathlib import Path
 from typing import Any, Literal
 
 from ._viewer_loop_media import (
-    artifact_video_player_command,
-    video_still_preview_required,
+    artifact_video_motion_command,
+    build_native_open_command,
+    motion_playback_block_reason,
+    normalize_video_backend,
 )
 from ._viewer_loop_terminal import (
     _FOOTER_COLOR,
@@ -69,7 +71,6 @@ _STORYBOARD_MIN_ROWS = 5
 _STORYBOARD_MIN_PANE_ROWS = 20
 _DEFAULT_SOURCE_FPS = 30.0
 _POLL_TIMEOUT_SECONDS = 0.05
-_MOTION_UNAVAILABLE = "in-pane playback is unavailable here — scrub with h/l or 0–9"
 _STEP_FORWARD = frozenset({"l", "right"})
 _STEP_BACK = frozenset({"h", "left"})
 _FRAME_FORWARD = frozenset({"."})
@@ -485,6 +486,10 @@ class _InspectSession:
     def _prepare(self) -> None:
         if content_digest_for_path(self.path) is None:
             self.notice = "could not read video file"
+        if shutil.which("ffprobe") is None:
+            self.notice = "ffprobe executable not found: video metadata unavailable"
+        elif shutil.which("ffmpeg") is None:
+            self.notice = "ffmpeg executable not found: video still unavailable"
         self.metadata = metadata_for_frame_service(self.path, cache_dir=self.cache)
 
     def _start_background(self) -> None:
@@ -650,6 +655,7 @@ class _InspectSession:
             "0-9: jump",
             "s: board",
             "space: play",
+            "o: open",
             "r: refresh",
         ]
         if self.zoom_available:
@@ -749,6 +755,9 @@ class _InspectSession:
         if key == " ":
             self._play_motion()
             return None
+        if key == "o":
+            self._open_native()
+            return None
         if len(key) == 1 and key.isdigit():
             self.at = _decile_timestamp(int(key), self.duration)
             self._print_status()
@@ -757,15 +766,31 @@ class _InspectSession:
         return None
 
     def _play_motion(self) -> None:
-        if (
-            video_still_preview_required(self.video_config)
-            or shutil.which("mpv") is None
-        ):
-            self.notice = _MOTION_UNAVAILABLE
+        reason = motion_playback_block_reason(self.video_config)
+        if reason is not None:
+            self.notice = reason
             self._print_status()
+            if (
+                normalize_video_backend(self.video_config.backend) == "mpv"
+                and shutil.which("mpv") is None
+            ):
+                print_artifact_warning(
+                    ArtifactFileViewerWarning(
+                        "missing_mpv",
+                        "mpv is not installed: in-pane motion unavailable",
+                        tool="mpv",
+                    )
+                )
             return
-        command = artifact_video_player_command(
-            self.path, self.layout.frame, self.video_config
+        command = artifact_video_motion_command(
+            self.path,
+            self.layout.frame,
+            self.video_config,
+            at_seconds=self.at,
+        )
+        backend = normalize_video_backend(self.video_config.backend)
+        emit_child_span(
+            "motion_start", mode="video", backend=backend, at_seconds=self.at
         )
         result = self._run(command)
         failed = getattr(result, "returncode", 0) != 0
@@ -783,10 +808,37 @@ class _InspectSession:
                 )
             )
 
+    def _open_native(self) -> None:
+        argv, notice = build_native_open_command(self.path, self.video_config)
+        if argv is None:
+            self.notice = notice or "no native player available here"
+            self._print_status()
+            return
+        try:
+            _spawn_detached(argv)
+        except (OSError, ValueError, subprocess.SubprocessError) as exc:
+            self.notice = f"native player failed to start: {exc}"
+            self._print_status()
+            return
+        self.notice = f"opened in native player: {' '.join(argv[:1])}"
+        self._print_status()
+
     def _restart_storyboard(self) -> None:
         self._storyboard_shown = False
         self._storyboard_result = None
         self._start_storyboard()
+
+
+def _spawn_detached(argv: Sequence[str]) -> None:
+    """Spawn a native player detached from the viewer pane process."""
+
+    subprocess.Popen(
+        list(argv),
+        stdin=subprocess.DEVNULL,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+        start_new_session=True,
+    )
 
 
 __all__ = [

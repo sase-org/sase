@@ -117,9 +117,10 @@ ace:
 
 ### `ace.artifact_file_viewer`
 
-Controls terminal video playback when the external artifact-file viewer opens a video
-artifact through mpv. Inside tmux, `vo: kitty` is not used for playback: the viewer
-shows an ffmpeg still with ffprobe metadata instead of spawning mpv (see
+Controls inspect-first terminal video playback when the external artifact-file viewer
+opens a video artifact. A video always opens on the inspect view (frame, storyboard,
+metadata); `space` runs in-pane mpv motion only where the topology allows it (outside
+tmux, or with a non-kitty `vo`), and `o` hands off to a native or configured player (see
 [Video Preview](../agent-attachments.md#video-preview)).
 
 ```yaml
@@ -127,16 +128,19 @@ ace:
   artifact_file_viewer:
     video:
       audio: false
+      backend: "auto"
       loop: false
       vo: "kitty"
       extra_mpv_args: []
+      open_command: []
 ```
 
 [Generated reference for `ace.artifact_file_viewer`](tui.md#ace-artifact_file_viewer)
 
-SASE launches mpv with `--no-config`, so put viewer-specific customization here rather
-than in an mpv profile. See [Video Preview](../agent-attachments.md#video-preview) for
-playback keys.
+SASE launches motion mpv with `--no-config --profile=sw-fast`, so put viewer-specific
+customization here rather than in an mpv profile. `audio`, `loop`, `vo`, and
+`extra_mpv_args` apply to the mpv backend only. See
+[Video Preview](../agent-attachments.md#video-preview) for playback keys.
 
 ### `ace.artifacts`
 

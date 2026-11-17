@@ -10,7 +10,7 @@ description: Schema paths that do not yet have a description.
 This generated report lists schema paths without a non-empty `description`. Add lasting
 explanations to `sase.schema.json`; generated pages will pick them up.
 
-670 schema paths need descriptions.
+671 schema paths need descriptions.
 
 | Config key                                                                                                                                                                                  | Type             | Family                                                                                                               |
 | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------- | -------------------------------------------------------------------------------------------------------------------- |
@@ -32,6 +32,7 @@ explanations to `sase.schema.json`; generated pages will pick them up.
 | <a id="ace-notification_rules-item-match-title-item"></a>`ace.notification_rules[].match.title[]`                                                                                           | string           | [TUI](tui.md#ace-notification_rules-item-match-title-item)                                                           |
 | <a id="ace-notification_rules-item-match-note-item"></a>`ace.notification_rules[].match.note[]`                                                                                             | string           | [TUI](tui.md#ace-notification_rules-item-match-note-item)                                                            |
 | <a id="ace-artifact_file_viewer-video-extra_mpv_args-item"></a>`ace.artifact_file_viewer.video.extra_mpv_args[]`                                                                            | string           | [TUI](tui.md#ace-artifact_file_viewer-video-extra_mpv_args-item)                                                     |
+| <a id="ace-artifact_file_viewer-video-open_command-item"></a>`ace.artifact_file_viewer.video.open_command[]`                                                                                | string           | [TUI](tui.md#ace-artifact_file_viewer-video-open_command-item)                                                       |
 | <a id="ace-prompt_completion-next_word_sources-item"></a>`ace.prompt_completion.next_word_sources[]`                                                                                        | string           | [TUI](tui.md#ace-prompt_completion-next_word_sources-item)                                                           |
 | <a id="ace-agent_tabs-tabs-key"></a>`ace.agent_tabs.tabs.<key>`                                                                                                                             | object           | [TUI](tui.md#ace-agent_tabs-tabs-key)                                                                                |
 | <a id="ace-keymaps-app-key"></a>`ace.keymaps.app.<key>`                                                                                                                                     | string           | [TUI](tui.md#ace-keymaps-app-key)                                                                                    |
