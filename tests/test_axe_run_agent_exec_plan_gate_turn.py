@@ -155,3 +155,51 @@ def test_auto_continues_in_process_without_gate_handoff(
     successor_request = successor_calls[0][0][2]
     assert "Please add tests." in successor_request.prompt
     never_called.assert_not_called()
+
+
+def test_gated_handoff_publishes_starter_continuation_node(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import json
+
+    ctx = make_ctx(tmp_path)
+    state = make_state(tmp_path)
+    plan_file = str(tmp_path / "plan.md")
+    Path(plan_file).write_text("# Plan\n", encoding="utf-8")
+    creation = _fake_creation(
+        gate_state="pending",
+        artifacts_dir=str(tmp_path / "gate-member"),
+    )
+    Path(creation.record.artifacts_dir).mkdir()
+    (Path(creation.record.artifacts_dir) / "agent_meta.json").write_text(
+        "{}", encoding="utf-8"
+    )
+    monkeypatch.setattr(
+        "sase.plan_gate_turn.create_plan_gate_turn", lambda *a, **k: creation
+    )
+    never_called = MagicMock(side_effect=AssertionError("must not be called"))
+    monkeypatch.setattr("sase.notification_gates.poller.wait_for_gate", never_called)
+
+    outcome = handle_plan_marker({"plan_file": plan_file}, ctx, state)
+
+    assert outcome == "gated"
+    starter_meta = json.loads(
+        (Path(state.current_artifacts_dir) / "agent_meta.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    assert starter_meta.get("continuation_node_ref")
+    manifest = json.loads(
+        (
+            Path(state.current_artifacts_dir) / "continuation" / "manifest.json"
+        ).read_text(encoding="utf-8")
+    )
+    assert manifest["node_ref"] == starter_meta["continuation_node_ref"]
+    assert manifest["handoff_checkpoint_ref"]
+    member_meta = json.loads(
+        (Path(creation.record.artifacts_dir) / "agent_meta.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    assert member_meta["continuation_parent_node_ids"] == [manifest["node_id"]]

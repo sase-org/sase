@@ -345,6 +345,7 @@ def _handle_questions_handoff(
         gate_data,
         ctx,
         state,
+        response=provider_response,
     )
 
 

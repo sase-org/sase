@@ -265,3 +265,48 @@ def test_staged_questions_gated_keeps_real_response_and_skips_synthetic_chat(
     assert outcome == "gated"
     assert captured["response"] == "The model's actual final response."
     assert "persist_chat" not in gate_calls[0]
+
+
+def test_gated_handoff_publishes_starter_continuation_node(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import json
+
+    ctx = make_ctx(tmp_path)
+    state = make_state(tmp_path)
+    creation = _fake_creation(
+        gate_state="pending", artifacts_dir=str(tmp_path / "gate-member")
+    )
+    (tmp_path / "gate-member").mkdir()
+    (tmp_path / "gate-member" / "agent_meta.json").write_text("{}", encoding="utf-8")
+    monkeypatch.setattr(
+        "sase.question_gate_turn.resolve_question_chain_parent", lambda *a, **k: None
+    )
+    monkeypatch.setattr(
+        "sase.question_gate_turn.create_question_gate_turn", lambda *a, **k: creation
+    )
+    monkeypatch.setattr(
+        "sase.main.plan_approve_handler.is_auto_approve_active", lambda: False
+    )
+
+    outcome = handle_questions_marker({"questions": _questions()}, ctx, state)
+
+    assert outcome == "gated"
+    starter_meta = json.loads(
+        (Path(state.current_artifacts_dir) / "agent_meta.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    assert starter_meta.get("continuation_node_ref")
+    manifest = json.loads(
+        (
+            Path(state.current_artifacts_dir) / "continuation" / "manifest.json"
+        ).read_text(encoding="utf-8")
+    )
+    assert manifest["node_ref"] == starter_meta["continuation_node_ref"]
+    member_meta = json.loads(
+        (Path(creation.record.artifacts_dir) / "agent_meta.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    assert member_meta["continuation_parent_node_ids"] == [manifest["node_id"]]

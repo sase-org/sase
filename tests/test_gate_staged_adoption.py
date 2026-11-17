@@ -368,3 +368,188 @@ def test_handle_gate_marker_does_not_write_synthetic_summary(
     assert saved == []
     assert adopted.member_artifacts_dir == str(member)
     assert adopted.retains_workspace is True
+
+
+def _write_gate_starter(artifacts: Path, *, name: str = "agent") -> None:
+    artifacts.mkdir(parents=True, exist_ok=True)
+    (artifacts / "agent_meta.json").write_text(
+        json.dumps({"name": name}), encoding="utf-8"
+    )
+
+
+def _read_json(path: Path) -> dict[str, Any]:
+    return json.loads(path.read_text(encoding="utf-8"))
+
+
+def _local_ref_path(artifacts: Path, ref: str) -> Path:
+    assert ref.startswith("local:")
+    return artifacts / ref[len("local:") :].lstrip("/")
+
+
+def test_staged_gate_adoption_publishes_starter_continuation_node(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    artifacts = tmp_path / "20261028120000"
+    _write_gate_starter(artifacts)
+    member = tmp_path / "member"
+    member.mkdir()
+    (member / "agent_meta.json").write_text("{}", encoding="utf-8")
+    creation = _fake_creation(tmp_path, artifacts_dir=str(member))
+    monkeypatch.setattr(
+        "sase.axe.run_agent_exec_staged_gate.publish_staged_gate",
+        lambda *_a, **_k: creation,
+    )
+    ctx = replace(
+        make_exec_ctx(tmp_path, is_home_mode=False),
+        artifacts_dir=str(artifacts),
+        agent_name="agent",
+    )
+    state = LoopState(
+        current_prompt="starter prompt",
+        current_role_suffix="",
+        current_artifacts_dir=str(artifacts),
+        loop_outcome="completed",
+        sdd_spec_path=None,
+        original_prompt="starter prompt",
+    )
+    adopted = handle_staged_gate_marker(
+        {
+            "staged_id": "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee",
+            "kind": "gate",
+            "successor_workspace": "inherit",
+            "payload": {"request_id": "staged-gate-1"},
+        },
+        ctx,
+        StagedInlineContinuation(ctx=ctx, state=state),
+        provider_response=PROVIDER_RESPONSE,
+    )
+    assert adopted.outcome == "gated"
+    manifest_path = artifacts / "continuation" / "manifest.json"
+    assert manifest_path.exists()
+    manifest = _read_json(manifest_path)
+    node_files = list((artifacts / "continuation" / "nodes").glob("*.json"))
+    assert len(node_files) == 1
+    node = _read_json(node_files[0])
+    assert node["node_id"] == manifest["node_id"]
+    assert manifest["handoff_checkpoint_ref"]
+    checkpoint = _read_json(
+        _local_ref_path(artifacts, manifest["handoff_checkpoint_ref"])
+    )
+    assert checkpoint["kind"] == "gate_handoff"
+    assert checkpoint["payload"]["gate_id"] == adopted.gate_id
+    delta = _read_json(_local_ref_path(artifacts, manifest["agent_delta_ref"]))
+    assert manifest.get("final_response_ref")
+    final_text = _local_ref_path(artifacts, manifest["final_response_ref"]).read_text(
+        encoding="utf-8"
+    )
+    assert final_text == PROVIDER_RESPONSE
+    assert delta.get("final_response_ref") == manifest["final_response_ref"]
+    member_meta = _read_json(member / "agent_meta.json")
+    assert member_meta["continuation_parent_node_ids"] == [manifest["node_id"]]
+    assert member_meta["continuation_parent_node_id"] == manifest["node_id"]
+    starter_meta = _read_json(artifacts / "agent_meta.json")
+    assert starter_meta["continuation_node_ref"] == manifest["node_ref"]
+    # No synthetic chat summary is written by the gate path.
+    assert not (artifacts / "chat.md").exists()
+
+
+def test_staged_gate_adoption_reuses_node_on_second_adoption(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    artifacts = tmp_path / "20261028120000"
+    _write_gate_starter(artifacts)
+    member = tmp_path / "member"
+    member.mkdir()
+    (member / "agent_meta.json").write_text("{}", encoding="utf-8")
+    creation = _fake_creation(tmp_path, artifacts_dir=str(member))
+    monkeypatch.setattr(
+        "sase.axe.run_agent_exec_staged_gate.publish_staged_gate",
+        lambda *_a, **_k: creation,
+    )
+    ctx = replace(
+        make_exec_ctx(tmp_path, is_home_mode=False),
+        artifacts_dir=str(artifacts),
+        agent_name="agent",
+    )
+    state = LoopState(
+        current_prompt="starter prompt",
+        current_role_suffix="",
+        current_artifacts_dir=str(artifacts),
+        loop_outcome="completed",
+        sdd_spec_path=None,
+        original_prompt="starter prompt",
+    )
+    first = handle_staged_gate_marker(
+        {
+            "staged_id": "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee",
+            "kind": "gate",
+            "successor_workspace": "inherit",
+            "payload": {"request_id": "staged-gate-1"},
+        },
+        ctx,
+        StagedInlineContinuation(ctx=ctx, state=state),
+        provider_response=PROVIDER_RESPONSE,
+    )
+    first_manifest = _read_json(artifacts / "continuation" / "manifest.json")
+    second = handle_staged_gate_marker(
+        {
+            "staged_id": "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee",
+            "kind": "gate",
+            "successor_workspace": "inherit",
+            "payload": {"request_id": "staged-gate-1"},
+        },
+        ctx,
+        StagedInlineContinuation(ctx=ctx, state=state),
+        provider_response=PROVIDER_RESPONSE,
+    )
+    second_manifest = _read_json(artifacts / "continuation" / "manifest.json")
+    assert first.gate_id == second.gate_id
+    assert first_manifest["node_id"] == second_manifest["node_id"]
+    assert len(list((artifacts / "continuation" / "nodes").glob("*.json"))) == 1
+
+
+def test_gate_marker_best_effort_on_persist_failure(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from sase.axe.run_agent_exec_gate import handle_gate_marker
+
+    artifacts = tmp_path / "20261028120000"
+    _write_gate_starter(artifacts)
+    member = tmp_path / "member"
+    member.mkdir()
+    (member / "agent_meta.json").write_text("{}", encoding="utf-8")
+    ctx = replace(
+        make_exec_ctx(tmp_path, is_home_mode=False),
+        artifacts_dir=str(artifacts),
+        agent_name="agent",
+    )
+    state = LoopState(
+        current_prompt="starter prompt",
+        current_role_suffix="",
+        current_artifacts_dir=str(artifacts),
+        loop_outcome="completed",
+        sdd_spec_path=None,
+        original_prompt="starter prompt",
+    )
+
+    def _boom(*_a: object, **_k: object) -> object:
+        raise RuntimeError("persist failed")
+
+    monkeypatch.setattr(
+        "sase.continuation_capture.agent_delta.persist_agent_delta", _boom
+    )
+    outcome = handle_gate_marker(
+        {
+            "gate_id": "gate-best-effort",
+            "member_artifacts_dir": str(member),
+            "member_agent_name": "agent--gate",
+            "kind": "sudo",
+        },
+        ctx,
+        state,
+        response=PROVIDER_RESPONSE,
+    )
+    assert outcome == "gated"
+    errors_path = artifacts / "continuation" / "capture_errors.jsonl"
+    assert errors_path.exists()
+    assert "persist failed" in errors_path.read_text(encoding="utf-8")

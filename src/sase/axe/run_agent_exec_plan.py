@@ -228,6 +228,7 @@ def _handle_plan_via_gate_turn(
         gate_data,
         ctx,
         state,
+        response=planner_response,
     )
 
 

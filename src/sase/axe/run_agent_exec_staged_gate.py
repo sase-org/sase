@@ -35,10 +35,10 @@ def handle_staged_gate_marker(
 ) -> _StagedGateAdoption:
     """Publish the staged gate, then adopt it without a synthetic chat summary.
 
-    ``provider_response`` is the already-persisted real model reply; this
-    path never writes it over with a gate summary.
+    ``provider_response`` is the already-persisted real model reply recorded
+    as the continuation delta's final response; it is never overwritten by a
+    summary.
     """
-    del provider_response
     payload = staged_record.get("payload")
     if not isinstance(payload, Mapping):
         raise StagedHandoffError("staged gate payload is malformed")
@@ -67,6 +67,7 @@ def handle_staged_gate_marker(
         gate_data,
         ctx,
         continuation.state,
+        response=provider_response,
     )
     retains_workspace = (
         staged_record.get("successor_workspace") == "inherit"

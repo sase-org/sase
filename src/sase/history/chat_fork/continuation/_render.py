@@ -447,9 +447,12 @@ def prepare_legacy_payload(
         return prepared, None
     if not isinstance(protected, str) or not protected:
         return prepared, None
-    if len(protected.encode("utf-8")) > MAX_PROTECTED_LEGACY_BYTES:
+    protected_bytes = len(protected.encode("utf-8"))
+    if protected_bytes > MAX_PROTECTED_LEGACY_BYTES:
         prepared.pop("protected_text", None)
         prepared["protected_content_omitted"] = True
+        label = prepared.get("label")
+        source = str(label) if isinstance(label, str) and label else "unknown source"
         return prepared, {
             "kind": "protected_content_over_budget",
             "node_id": prepared.get("node_id")
@@ -457,7 +460,9 @@ def prepare_legacy_payload(
             else None,
             "parent_id": None,
             "reason": (
-                "opaque legacy protected content exceeds the automatic-launch budget"
+                f"{source} has {protected_bytes} bytes of protected legacy content "
+                f"(budget {MAX_PROTECTED_LEGACY_BYTES} bytes) with no recoverable "
+                "continuation node"
             ),
         }
     return prepared, None
