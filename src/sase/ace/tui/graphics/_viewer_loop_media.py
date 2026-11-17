@@ -2,10 +2,13 @@
 
 from __future__ import annotations
 
+import json
+import os
 import shlex
 import subprocess
 import sys
 from collections.abc import Callable, Sequence
+from dataclasses import MISSING, asdict, fields
 from pathlib import Path
 from typing import Any
 
@@ -25,6 +28,9 @@ from ._viewer_types import (
     ArtifactFileViewerWarning,
     ArtifactFileViewSpec,
 )
+
+ARTIFACT_VIEWER_VIDEO_CONFIG_ENV = "SASE_ARTIFACT_VIEWER_VIDEO_CONFIG"
+_VIDEO_CONFIG_SNAPSHOT_VERSION = 1
 
 
 def artifact_text_viewer_command(path: str | Path) -> list[str]:
@@ -70,8 +76,65 @@ def artifact_video_player_command(
     return command
 
 
-def load_artifact_video_playback_config() -> ArtifactVideoPlaybackConfig:
-    """Load terminal video playback settings from merged SASE config."""
+def serialize_video_playback_config(config: ArtifactVideoPlaybackConfig) -> str:
+    """Serialize *config* to the pane-child env snapshot JSON."""
+
+    return json.dumps(
+        {"version": _VIDEO_CONFIG_SNAPSHOT_VERSION, **asdict(config)},
+        separators=(",", ":"),
+    )
+
+
+def parse_video_playback_config_env(
+    raw: str | None,
+) -> ArtifactVideoPlaybackConfig | None:
+    """Parse a snapshot JSON object, or ``None`` when it cannot be used."""
+
+    if not raw:
+        return None
+    try:
+        data = json.loads(raw)
+    except json.JSONDecodeError:
+        return None
+    if (
+        not isinstance(data, dict)
+        or data.get("version") != _VIDEO_CONFIG_SNAPSHOT_VERSION
+    ):
+        return None
+    kwargs: dict[str, Any] = {}
+    for field in fields(ArtifactVideoPlaybackConfig):
+        if field.name not in data:
+            continue
+        value = data[field.name]
+        default = field.default
+        if default is MISSING and field.default_factory is not MISSING:
+            default = field.default_factory()
+        if isinstance(default, bool):
+            if not isinstance(value, bool):
+                return None
+            kwargs[field.name] = value
+        elif isinstance(default, str):
+            if not isinstance(value, str):
+                return None
+            kwargs[field.name] = value
+        elif isinstance(default, tuple):
+            if not isinstance(value, list | tuple):
+                return None
+            kwargs[field.name] = tuple(str(item) for item in value)
+        else:
+            kwargs[field.name] = value
+    try:
+        return ArtifactVideoPlaybackConfig(**kwargs)
+    except TypeError:
+        return None
+
+
+def load_merged_artifact_video_playback_config() -> ArtifactVideoPlaybackConfig:
+    """Load terminal video playback settings from trust-evaluated merged config.
+
+    Ignores ``SASE_ARTIFACT_VIEWER_VIDEO_CONFIG`` so a parent never re-emits a
+    nested or stale child snapshot.
+    """
 
     try:
         from sase.config import load_merged_config
@@ -98,6 +161,17 @@ def load_artifact_video_playback_config() -> ArtifactVideoPlaybackConfig:
         vo=_coerce_str(raw_video.get("vo"), default="kitty"),
         extra_mpv_args=_coerce_mpv_args(raw_video.get("extra_mpv_args")),
     )
+
+
+def load_artifact_video_playback_config() -> ArtifactVideoPlaybackConfig:
+    """Load video playback settings from the env snapshot, then merged config."""
+
+    parsed = parse_video_playback_config_env(
+        os.environ.get(ARTIFACT_VIEWER_VIDEO_CONFIG_ENV)
+    )
+    if parsed is not None:
+        return parsed
+    return load_merged_artifact_video_playback_config()
 
 
 def video_vo_uses_kitty_placement(vo: str) -> bool:
@@ -147,7 +221,7 @@ def display_text_artifact(
         )
         return TextDisplayResult(warnings=(warning,))
 
-    clear_terminal(run_command)
+    clear_terminal()
     print_artifact_header(
         spec,
         page_index=0,
@@ -199,7 +273,7 @@ def display_video_artifact(
     if warnings:
         return VideoDisplayResult(warnings=warnings)
 
-    clear_terminal(run_command)
+    clear_terminal()
     print_artifact_header(
         spec,
         page_index=0,

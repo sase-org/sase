@@ -2,21 +2,23 @@
 
 from __future__ import annotations
 
+import os
 import subprocess
 from collections.abc import Callable, Sequence
 from pathlib import Path
 from typing import Any
 
 from ._viewer_loop_media import (
+    ARTIFACT_VIEWER_VIDEO_CONFIG_ENV,
     display_text_artifact,
     display_video_artifact,
     load_artifact_video_playback_config,
+    parse_video_playback_config_env,
 )
 from ._viewer_loop_terminal import (
     _RETURN_TO_ACE_KEY,
     artifact_image_area,
     clear_terminal,
-    kitten_icat_command,
     move_cursor_below_image,
     page_index_after_key,
     page_loop_available_keys,
@@ -28,7 +30,9 @@ from ._viewer_loop_terminal import (
     select_tmux_pane,
     tmux_zoom_available as tmux_zoom_is_available,
     toggle_tmux_zoom,
+    viewer_kitten_icat_command,
 )
+from ._viewer_trace import mark_child_ready, mark_first_visual
 from ._viewer_loop_types import ArtifactVideoPlaybackConfig, PageLoopResult
 from ._viewer_render import artifact_file_view_mode, render_artifact_file_pages
 from ._viewer_types import (
@@ -96,6 +100,11 @@ def run_artifact_sequence_loop(
         kind=specs[artifact_index].kind,
     )
     resolved_video_config = video_config
+    if resolved_video_config is None:
+        resolved_video_config = parse_video_playback_config_env(
+            os.environ.get(ARTIFACT_VIEWER_VIDEO_CONFIG_ENV)
+        )
+    mark_child_ready(current_mode or "unknown")
     while True:
         current_area = image_area or artifact_image_area()
         if needs_render:
@@ -174,7 +183,7 @@ def run_artifact_sequence_loop(
                 if not pages:
                     return PageLoopResult(returncode=1)
 
-                clear_terminal(run)
+                clear_terminal()
                 print_artifact_header(
                     spec,
                     page_index=page_index,
@@ -182,9 +191,12 @@ def run_artifact_sequence_loop(
                     artifact_index=artifact_index,
                     artifact_count=len(specs),
                 )
-                result = run(kitten_icat_command(pages[page_index], current_area))
+                result = run(
+                    viewer_kitten_icat_command(pages[page_index], current_area)
+                )
                 if result.returncode != 0:
                     return PageLoopResult(returncode=result.returncode)
+                mark_first_visual(current_mode or "image")
                 move_cursor_below_image(current_area)
                 print_page_prompt(
                     index=page_index,
@@ -211,7 +223,7 @@ def run_artifact_sequence_loop(
         while (key := read()) not in available_keys:
             pass
         if key == "q":
-            clear_terminal(run)
+            clear_terminal()
             return PageLoopResult()
         if key == _RETURN_TO_ACE_KEY and return_pane_id:
             select(return_pane_id)
@@ -228,7 +240,7 @@ def run_artifact_sequence_loop(
                 continue
             next_page_index = page_index_after_key(page_index, key, len(pages))
             if next_page_index is None:
-                clear_terminal(run)
+                clear_terminal()
                 return PageLoopResult()
             page_index = next_page_index
         elif key == "n":

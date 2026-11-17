@@ -10,6 +10,11 @@ import sys
 from collections.abc import Sequence
 from pathlib import Path
 
+from ._viewer_loop_media import (
+    ARTIFACT_VIEWER_VIDEO_CONFIG_ENV,
+    load_merged_artifact_video_playback_config,
+    serialize_video_playback_config,
+)
 from ._viewer_tmux_common import (
     _ARTIFACT_FILE_NOTIFY_PID_ENV,
     _ARTIFACT_RETURN_PANE_ID_ENV,
@@ -103,6 +108,14 @@ def view_artifact_files_in_tmux_pane(
         tmux_command.extend(["-e", f"{_ARTIFACT_RETURN_PANE_ID_ENV}={origin_pane_id}"])
     if notify_pid := os.environ.get(_ARTIFACT_FILE_NOTIFY_PID_ENV):
         tmux_command.extend(["-e", f"{_ARTIFACT_FILE_NOTIFY_PID_ENV}={notify_pid}"])
+    snapshot = serialize_video_playback_config(
+        load_merged_artifact_video_playback_config()
+    )
+    tmux_command.extend(["-e", f"{ARTIFACT_VIEWER_VIDEO_CONFIG_ENV}={snapshot}"])
+    for key in ("SASE_TUI_TRACE", "SASE_TUI_TRACE_PATH"):
+        value = os.environ.get(key)
+        if value:
+            tmux_command.extend(["-e", f"{key}={value}"])
     tmux_command.append(shlex.join(viewer_command))
     result = subprocess.run(
         tmux_command,

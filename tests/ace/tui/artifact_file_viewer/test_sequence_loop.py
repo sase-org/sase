@@ -63,17 +63,11 @@ def test_run_artifact_sequence_loop_navigates_pages_and_artifacts(
     ]
     assert [call[3] for call in render_calls] == [_TEST_IMAGE_AREA, _TEST_IMAGE_AREA]
     assert commands == [
-        ["clear"],
         _test_icat_command(first_pages[0]),
-        ["clear"],
         _test_icat_command(first_pages[1]),
-        ["clear"],
         _test_icat_command(first_pages[0]),
-        ["clear"],
         _test_icat_command(second_pages[0]),
-        ["clear"],
         _test_icat_command(first_pages[0]),
-        ["clear"],
     ]
     output = capsys.readouterr().out
     cursor_escape = "\x1b[24;1H"
@@ -127,9 +121,7 @@ def test_run_artifact_sequence_loop_tab_focuses_return_pane_and_stays_open(
     assert result.returncode == 0
     assert selected == ["%1"]
     assert commands == [
-        ["clear"],
         _test_icat_command(page),
-        ["clear"],
     ]
 
 
@@ -177,7 +169,6 @@ def test_run_artifact_sequence_loop_routes_raw_file_through_text_viewer(
     assert result.returncode == 0
     assert render_calls == [image]
     assert commands == [
-        ["clear"],
         [
             sys.executable,
             "-m",
@@ -186,9 +177,7 @@ def test_run_artifact_sequence_loop_routes_raw_file_through_text_viewer(
             "--",
             str(raw.resolve(strict=False)),
         ],
-        ["clear"],
         _test_icat_command(page),
-        ["clear"],
     ]
 
 
@@ -230,11 +219,8 @@ def test_run_artifact_sequence_loop_tab_then_navigation_renders_next_page(
     assert result.returncode == 0
     assert selected == ["%1"]
     assert commands == [
-        ["clear"],
         _test_icat_command(pages[0]),
-        ["clear"],
         _test_icat_command(pages[1]),
-        ["clear"],
     ]
 
 
@@ -275,11 +261,8 @@ def test_run_artifact_sequence_loop_tab_then_refresh_renders_same_page(
     assert result.returncode == 0
     assert selected == ["%1"]
     assert commands == [
-        ["clear"],
         _test_icat_command(page),
-        ["clear"],
         _test_icat_command(page),
-        ["clear"],
     ]
 
 
@@ -335,13 +318,9 @@ def test_run_artifact_sequence_loop_zoom_redraws_current_artifact(
         (tmp_path / "second.png", "image"),
     ]
     assert commands == [
-        ["clear"],
         _test_icat_command(first_page),
-        ["clear"],
         _test_icat_command(second_page),
-        ["clear"],
         _test_icat_command(second_page),
-        ["clear"],
     ]
 
 
@@ -382,9 +361,7 @@ def test_run_artifact_sequence_loop_repeated_tab_does_not_re_render(
     assert result.returncode == 0
     assert selected == ["%1", "%1"]
     assert commands == [
-        ["clear"],
         _test_icat_command(page),
-        ["clear"],
     ]
 
 
@@ -418,9 +395,7 @@ def test_run_artifact_sequence_loop_plays_video_artifact(
 
     assert result.returncode == 0
     assert commands == [
-        ["clear"],
         artifact_video_player_command(video, _TEST_IMAGE_AREA),
-        ["clear"],
     ]
     output = capsys.readouterr().out
     assert "Viewing artifact" in output
@@ -457,11 +432,8 @@ def test_run_artifact_sequence_loop_replays_video_artifact(
 
     assert result.returncode == 0
     assert commands == [
-        ["clear"],
         artifact_video_player_command(video, _TEST_IMAGE_AREA),
-        ["clear"],
         artifact_video_player_command(video, _TEST_IMAGE_AREA),
-        ["clear"],
     ]
 
 
@@ -506,11 +478,8 @@ def test_run_artifact_sequence_loop_navigates_video_to_image(
 
     assert result.returncode == 0
     assert commands == [
-        ["clear"],
         artifact_video_player_command(video, _TEST_IMAGE_AREA),
-        ["clear"],
         _test_icat_command(page),
-        ["clear"],
     ]
 
 
@@ -544,9 +513,7 @@ def test_run_artifact_sequence_loop_keeps_prompt_after_mpv_failure(
 
     assert result.returncode == 0
     assert commands == [
-        ["clear"],
         artifact_video_player_command(video, _TEST_IMAGE_AREA),
-        ["clear"],
     ]
     output = capsys.readouterr().out
     assert "mpv failed with exit code 2" in output

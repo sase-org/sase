@@ -8,7 +8,7 @@ import subprocess
 import sys
 import termios
 import tty
-from collections.abc import Callable, Sequence
+from collections.abc import Sequence
 from pathlib import Path
 from typing import Any
 
@@ -117,10 +117,19 @@ def artifact_image_area(
     return ArtifactFileImageArea(columns=columns, rows=rows, top=top)
 
 
-def kitten_icat_command(page: Path, image_area: ArtifactFileImageArea) -> list[str]:
-    """Build a bounded ``kitten icat`` command for the current viewer area."""
+def kitten_icat_command(
+    page: Path,
+    image_area: ArtifactFileImageArea,
+    *,
+    transfer_mode: str | None = None,
+) -> list[str]:
+    """Build a bounded ``kitten icat`` command for the current viewer area.
 
-    return [
+    ``transfer_mode`` is omitted by default so ``sase artifact open`` stays
+    byte-identical. The pane viewer passes ``stream`` inside tmux.
+    """
+
+    command = [
         "kitten",
         "icat",
         "--scale-up",
@@ -128,14 +137,29 @@ def kitten_icat_command(page: Path, image_area: ArtifactFileImageArea) -> list[s
         "left",
         "--place",
         f"{image_area.columns}x{image_area.rows}@{image_area.left}x{image_area.top}",
-        str(page),
     ]
+    if transfer_mode:
+        command.extend(["--transfer-mode", transfer_mode])
+    command.append(str(page))
+    return command
 
 
-def clear_terminal(
-    run_command: Callable[[Sequence[str]], subprocess.CompletedProcess[Any]],
-) -> None:
-    run_command(["clear"])
+def viewer_kitten_icat_command(
+    page: Path, image_area: ArtifactFileImageArea
+) -> list[str]:
+    """``kitten icat`` argv for the pane viewer, streaming inside tmux."""
+
+    from ._viewer_tmux_common import is_tmux_session
+
+    transfer_mode = "stream" if is_tmux_session() else None
+    return kitten_icat_command(page, image_area, transfer_mode=transfer_mode)
+
+
+def clear_terminal() -> None:
+    """Clear the screen with ANSI sequences; never spawn a subprocess."""
+
+    sys.stdout.write("\x1b[H\x1b[2J\x1b[3J")
+    sys.stdout.flush()
 
 
 def move_cursor_below_image(image_area: ArtifactFileImageArea) -> None:

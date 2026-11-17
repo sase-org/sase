@@ -10,8 +10,6 @@ from collections.abc import Callable, Sequence
 from pathlib import Path
 from typing import Any
 
-from sase.attachments.markdown_pdf import render_markdown_pdf
-
 from . import _viewer_loop, _viewer_render
 from ._viewer_launch import (
     artifact_file_tmux_pane_exists,
@@ -35,6 +33,7 @@ from ._viewer_launch import (
     view_image_file,
 )
 from ._viewer_loop import (
+    ARTIFACT_VIEWER_VIDEO_CONFIG_ENV,
     ArtifactVideoPlaybackConfig,
     artifact_image_area,
     artifact_header_panel,
@@ -43,12 +42,15 @@ from ._viewer_loop import (
     format_artifact_header_path,
     kitten_icat_command,
     load_artifact_video_playback_config,
+    load_merged_artifact_video_playback_config,
     page_index_after_key,
     page_loop_available_keys,
+    parse_video_playback_config_env,
     print_page_prompt,
     print_text_prompt,
     run_artifact_page_loop,
     run_artifact_text_viewer,
+    serialize_video_playback_config,
 )
 from ._viewer_render import (
     artifact_markdown_pdf_profile_for_image_area,
@@ -65,12 +67,21 @@ from ._viewer_types import (
     ArtifactFileViewSpec,
     ImageViewerResult,
 )
+from ._viewer_trace import mark_first_visual
 from .videos import SUPPORTED_VIDEO_EXTENSIONS, is_supported_video_path
 
 _artifact_header_panel = artifact_header_panel
 _artifact_file_viewer_module_command = artifact_file_viewer_module_command
 _format_artifact_header_path = format_artifact_header_path
 _print_page_prompt = print_page_prompt
+
+
+def render_markdown_pdf(*args: Any, **kwargs: Any) -> Any:
+    """Lazy wrapper so tests can monkeypatch the markdown PDF seam."""
+
+    from sase.attachments.markdown_pdf import render_markdown_pdf as impl
+
+    return impl(*args, **kwargs)
 
 
 def render_artifact_file_pages(
@@ -186,10 +197,15 @@ __all__ = [
     "close_artifact_file_tmux_pane",
     "convert_pdf_to_png_pages",
     "is_tmux_session",
+    "ARTIFACT_VIEWER_VIDEO_CONFIG_ENV",
     "is_supported_video_path",
     "kitten_icat_command",
     "load_artifact_video_playback_config",
+    "load_merged_artifact_video_playback_config",
     "main",
+    "mark_first_visual",
+    "parse_video_playback_config_env",
+    "serialize_video_playback_config",
     "page_index_after_key",
     "page_loop_available_keys",
     "print_text_prompt",

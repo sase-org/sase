@@ -8,11 +8,15 @@ from pathlib import Path
 from typing import Any
 
 from ._viewer_loop_media import (
+    ARTIFACT_VIEWER_VIDEO_CONFIG_ENV,
     artifact_text_viewer_command,
     artifact_video_player_command,
     display_text_artifact,
     display_video_artifact,
     load_artifact_video_playback_config,
+    load_merged_artifact_video_playback_config,
+    parse_video_playback_config_env,
+    serialize_video_playback_config,
     text_viewer_command_needs_quit_key,
     video_vo_uses_kitty_placement,
 )
@@ -137,11 +141,15 @@ __all__ = [
     "_video_vo_uses_kitty_placement",
     "artifact_header_panel",
     "artifact_image_area",
+    "ARTIFACT_VIEWER_VIDEO_CONFIG_ENV",
     "artifact_text_viewer_command",
     "artifact_video_player_command",
     "format_artifact_header_path",
     "kitten_icat_command",
     "load_artifact_video_playback_config",
+    "load_merged_artifact_video_playback_config",
+    "parse_video_playback_config_env",
+    "serialize_video_playback_config",
     "page_index_after_key",
     "page_loop_available_keys",
     "print_page_prompt",

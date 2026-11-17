@@ -10,16 +10,11 @@ import termios
 from pathlib import Path
 from struct import pack, unpack
 from sys import stdout
+from typing import TYPE_CHECKING, Any
 
 import fcntl
 from rich.console import Console
 from rich.panel import Panel
-
-from sase.attachments.markdown_pdf import (
-    PDF_ENGINES,
-    MarkdownPdfProfile,
-    render_markdown_pdf,
-)
 
 from ._viewer_types import (
     ArtifactFileImageArea,
@@ -30,6 +25,9 @@ from ._viewer_types import (
 from .images import is_supported_image_path
 from .videos import is_supported_video_path
 
+if TYPE_CHECKING:
+    from sase.attachments.markdown_pdf import MarkdownPdfProfile
+
 _MARKDOWN_SUFFIXES = frozenset({".md", ".markdown", ".mdown", ".mkd"})
 _MIN_ARTIFACT_PAGE_WIDTH_IN = 4.25
 _MAX_ARTIFACT_PAGE_WIDTH_IN = 8.5
@@ -38,6 +36,14 @@ _MAX_ARTIFACT_PAGE_HEIGHT_IN = 9.5
 _ARTIFACT_PAGE_MARGIN_IN = 0.18
 _MIN_ARTIFACT_PAGE_ASPECT = 0.7
 _FALLBACK_TERMINAL_CELL_PIXEL_ASPECT = 0.5
+
+
+def render_markdown_pdf(*args: Any, **kwargs: Any) -> Any:
+    """Lazy wrapper so importing the viewer does not load markdown_pdf."""
+
+    from sase.attachments.markdown_pdf import render_markdown_pdf as impl
+
+    return impl(*args, **kwargs)
 
 
 def render_artifact_file_pages(
@@ -168,6 +174,8 @@ def validate_artifact_file_viewer_dependencies(
             )
         )
     if mode == "markdown":
+        from sase.attachments.markdown_pdf import PDF_ENGINES
+
         if shutil.which("pandoc") is None:
             warnings.append(
                 ArtifactFileViewerWarning(
@@ -247,10 +255,11 @@ def _render_paginated_artifact(
     pdf_path = cache_dir / f"{path.stem or 'artifact'}.pdf"
     profile = artifact_markdown_pdf_profile_for_image_area(image_area)
     _print_render_status("Rendering Markdown as PDF...")
+    renderer = render_markdown_pdf
     rendered = (
-        render_markdown_pdf(path, pdf_path, profile=profile)
+        renderer(path, pdf_path, profile=profile)
         if profile is not None
-        else render_markdown_pdf(path, pdf_path)
+        else renderer(path, pdf_path)
     )
     if rendered is None:
         return ArtifactRenderResult(
@@ -279,6 +288,8 @@ def artifact_markdown_pdf_profile_for_image_area(
 
     if image_area is None or image_area.columns <= 0 or image_area.rows <= 0:
         return None
+
+    from sase.attachments.markdown_pdf import MarkdownPdfProfile
 
     aspect = max(
         _MIN_ARTIFACT_PAGE_ASPECT,

@@ -139,6 +139,27 @@ def test_kitten_icat_command_targets_image_area(tmp_path: Path) -> None:
     ]
 
 
+def test_kitten_icat_command_transfer_mode_is_opt_in(tmp_path: Path) -> None:
+    page = tmp_path / "page.png"
+
+    assert kitten_icat_command(
+        page,
+        ArtifactFileImageArea(100, 33),
+        transfer_mode="stream",
+    ) == [
+        "kitten",
+        "icat",
+        "--scale-up",
+        "--align",
+        "left",
+        "--place",
+        "100x33@0x0",
+        "--transfer-mode",
+        "stream",
+        str(page),
+    ]
+
+
 def test_artifact_video_player_command_targets_image_area(tmp_path: Path) -> None:
     video = tmp_path / "clip.mp4"
 
@@ -483,7 +504,6 @@ def test_artifact_text_viewer_does_not_wait_for_extra_quit_key(
 
     assert result.returncode == 0
     assert commands == [
-        ["clear"],
         [
             sys.executable,
             "-m",

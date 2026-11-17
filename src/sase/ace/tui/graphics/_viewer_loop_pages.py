@@ -16,7 +16,6 @@ from ._viewer_loop_terminal import (
     _RETURN_TO_ACE_KEY,
     artifact_image_area,
     clear_terminal,
-    kitten_icat_command,
     move_cursor_below_image,
     page_index_after_key,
     page_loop_available_keys,
@@ -27,7 +26,9 @@ from ._viewer_loop_terminal import (
     select_tmux_pane,
     tmux_zoom_available as tmux_zoom_is_available,
     toggle_tmux_zoom,
+    viewer_kitten_icat_command,
 )
+from ._viewer_trace import mark_child_ready, mark_first_visual
 from ._viewer_loop_types import PageLoopResult
 from ._viewer_types import (
     ArtifactFileImageArea,
@@ -50,6 +51,7 @@ def run_artifact_text_viewer(
     read = read_key or read_single_key
     run = run_command or default_run_command
     select = select_pane or select_tmux_pane
+    mark_child_ready("text")
     displayed = display_text_artifact(artifact, run)
     if displayed.warnings:
         return PageLoopResult(returncode=1, warnings=displayed.warnings)
@@ -65,7 +67,7 @@ def run_artifact_text_viewer(
             select(return_pane_id)
             continue
         if key.lower() == "q":
-            clear_terminal(run)
+            clear_terminal()
             return PageLoopResult()
 
 
@@ -96,16 +98,18 @@ def run_artifact_page_loop(
     zoom_available = (
         tmux_zoom_is_available() if tmux_zoom_available is None else tmux_zoom_available
     )
+    mark_child_ready("image")
     while True:
         current_area = image_area or artifact_image_area(
             reserved_rows=_PAGE_LOOP_RESERVED_ROWS,
             top_rows=0,
         )
         if needs_render:
-            clear_terminal(run)
-            result = run(kitten_icat_command(pages[index], current_area))
+            clear_terminal()
+            result = run(viewer_kitten_icat_command(pages[index], current_area))
             if result.returncode != 0:
                 return PageLoopResult(returncode=result.returncode)
+            mark_first_visual("image")
             move_cursor_below_image(current_area)
             print_page_prompt(
                 index=index,
@@ -134,7 +138,7 @@ def run_artifact_page_loop(
             continue
         next_index = page_index_after_key(index, key, len(pages))
         if next_index is None:
-            clear_terminal(run)
+            clear_terminal()
             return PageLoopResult()
         index = next_index
         needs_render = True

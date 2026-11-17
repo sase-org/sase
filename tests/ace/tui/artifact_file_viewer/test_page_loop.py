@@ -34,13 +34,9 @@ def test_run_artifact_page_loop_redraws_and_tracks_keys(
 
     assert result.returncode == 0
     assert commands == [
-        ["clear"],
         _test_icat_command(pages[0]),
-        ["clear"],
         _test_icat_command(pages[1]),
-        ["clear"],
         _test_icat_command(pages[0]),
-        ["clear"],
     ]
     output = capsys.readouterr().out
     cursor_escape = "\x1b[24;1H"
@@ -68,11 +64,8 @@ def test_run_artifact_page_loop_refreshes_current_page(tmp_path: Path) -> None:
 
     assert result.returncode == 0
     assert commands == [
-        ["clear"],
         _test_icat_command(pages[0]),
-        ["clear"],
         _test_icat_command(pages[0]),
-        ["clear"],
     ]
 
 
@@ -104,13 +97,9 @@ def test_run_artifact_page_loop_zoom_redraws_current_page(tmp_path: Path) -> Non
     assert result.returncode == 0
     assert zooms == [True]
     assert commands == [
-        ["clear"],
         _test_icat_command(pages[0]),
-        ["clear"],
         _test_icat_command(pages[1]),
-        ["clear"],
         _test_icat_command(pages[1]),
-        ["clear"],
     ]
 
 
@@ -143,9 +132,7 @@ def test_run_artifact_page_loop_tab_focuses_return_pane_and_stays_open(
     assert result.returncode == 0
     assert selected == ["%1"]
     assert commands == [
-        ["clear"],
         _test_icat_command(page),
-        ["clear"],
     ]
 
 
@@ -179,11 +166,8 @@ def test_run_artifact_page_loop_tab_then_navigation_renders_next_page(
     assert result.returncode == 0
     assert selected == ["%1"]
     assert commands == [
-        ["clear"],
         _test_icat_command(pages[0]),
-        ["clear"],
         _test_icat_command(pages[1]),
-        ["clear"],
     ]
 
 
@@ -216,11 +200,8 @@ def test_run_artifact_page_loop_tab_then_refresh_renders_same_page(
     assert result.returncode == 0
     assert selected == ["%1"]
     assert commands == [
-        ["clear"],
         _test_icat_command(page),
-        ["clear"],
         _test_icat_command(page),
-        ["clear"],
     ]
 
 
@@ -253,9 +234,7 @@ def test_run_artifact_page_loop_repeated_tab_does_not_re_render(
     assert result.returncode == 0
     assert selected == ["%1", "%1"]
     assert commands == [
-        ["clear"],
         _test_icat_command(page),
-        ["clear"],
     ]
 
 
@@ -281,11 +260,7 @@ def test_run_artifact_page_loop_wraps_boundary_keys(
 
     assert result.returncode == 0
     assert commands == [
-        ["clear"],
         _test_icat_command(pages[0]),
-        ["clear"],
         _test_icat_command(pages[1]),
-        ["clear"],
         _test_icat_command(pages[0]),
-        ["clear"],
     ]

@@ -16,3 +16,16 @@ def _strip_ansi(value: str) -> str:
 
 def _test_icat_command(page: Path) -> list[str]:
     return kitten_icat_command(page, _TEST_IMAGE_AREA)
+
+
+def _tmux_split_env(cmd: list[str]) -> dict[str, str]:
+    env: dict[str, str] = {}
+    index = 0
+    while index < len(cmd) - 1:
+        if cmd[index] == "-e":
+            key, _, value = cmd[index + 1].partition("=")
+            env[key] = value
+            index += 2
+            continue
+        index += 1
+    return env

@@ -10,12 +10,14 @@ from unittest.mock import MagicMock
 import pytest
 
 from sase.ace.tui.graphics.viewer import (
+    ARTIFACT_VIEWER_VIDEO_CONFIG_ENV,
     ArtifactFileViewSpec,
     artifact_file_tmux_pane_exists,
     artifact_file_viewer_module_command,
     close_artifact_file_tmux_pane,
     decorate_artifact_file_tmux_panes,
     is_tmux_session,
+    parse_video_playback_config_env,
     restore_artifact_file_tmux_pane_decoration,
     select_tmux_pane,
     toggle_artifact_file_tmux_pane_zoom,
@@ -24,6 +26,8 @@ from sase.ace.tui.graphics.viewer import (
     view_artifact_files_in_tmux_pane,
 )
 from sase.ace.tui.graphics._viewer_loop import _PageLoopResult
+
+from ._helpers import _tmux_split_env
 
 
 def test_tmux_detection_returns_false_outside_tmux(monkeypatch) -> None:
@@ -80,7 +84,12 @@ def test_tmux_pane_launch_invokes_split_window_with_module_entrypoint(
         "-F",
         "#{pane_id}",
     ]
-    assert shlex.split(calls[0][6]) == [
+    env = _tmux_split_env(calls[0])
+    assert (
+        parse_video_playback_config_env(env[ARTIFACT_VIEWER_VIDEO_CONFIG_ENV])
+        is not None
+    )
+    assert shlex.split(calls[0][-1]) == [
         sys.executable,
         "-m",
         "sase.ace.tui.graphics.viewer",
@@ -192,8 +201,13 @@ def test_tmux_pane_launch_passes_return_pane_env_when_available(
         "-F",
         "#{pane_id}",
     ]
-    assert calls[0][6:8] == ["-e", "SASE_ARTIFACT_RETURN_PANE_ID=%1"]
-    assert shlex.split(calls[0][8]) == [
+    env = _tmux_split_env(calls[0])
+    assert env["SASE_ARTIFACT_RETURN_PANE_ID"] == "%1"
+    assert (
+        parse_video_playback_config_env(env[ARTIFACT_VIEWER_VIDEO_CONFIG_ENV])
+        is not None
+    )
+    assert shlex.split(calls[0][-1]) == [
         sys.executable,
         "-m",
         "sase.ace.tui.graphics.viewer",
@@ -227,8 +241,13 @@ def test_tmux_pane_launch_passes_notify_pid_env_when_available(
     result = view_artifact_file_in_tmux_pane(artifact, kind="image")
 
     assert result.ok is True
-    assert calls[0][6:8] == ["-e", "SASE_ARTIFACT_FILE_NOTIFY_PID=12345"]
-    assert shlex.split(calls[0][8]) == [
+    env = _tmux_split_env(calls[0])
+    assert env["SASE_ARTIFACT_FILE_NOTIFY_PID"] == "12345"
+    assert (
+        parse_video_playback_config_env(env[ARTIFACT_VIEWER_VIDEO_CONFIG_ENV])
+        is not None
+    )
+    assert shlex.split(calls[0][-1]) == [
         sys.executable,
         "-m",
         "sase.ace.tui.graphics.viewer",
@@ -269,7 +288,12 @@ def test_tmux_pane_launch_invokes_multi_artifact_entrypoint(
 
     assert result.ok is True
     assert result.pane_id == "%7"
-    assert shlex.split(calls[0][6]) == [
+    env = _tmux_split_env(calls[0])
+    assert (
+        parse_video_playback_config_env(env[ARTIFACT_VIEWER_VIDEO_CONFIG_ENV])
+        is not None
+    )
+    assert shlex.split(calls[0][-1]) == [
         sys.executable,
         "-m",
         "sase.ace.tui.graphics.viewer",

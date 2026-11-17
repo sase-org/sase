@@ -141,7 +141,7 @@ def test_view_registered_artifact_files_tmux_pane_uses_normalized_module_command
     )
 
     assert result.ok is True
-    assert shlex.split(calls[0][6]) == [
+    assert shlex.split(calls[0][-1]) == [
         sys.executable,
         "-m",
         "sase.ace.tui.graphics.viewer",

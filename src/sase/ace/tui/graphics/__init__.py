@@ -34,17 +34,21 @@ from ._viewer_launch import (
     view_image_file,
 )
 from ._viewer_loop import (
+    ARTIFACT_VIEWER_VIDEO_CONFIG_ENV,
     ArtifactVideoPlaybackConfig,
     artifact_image_area,
     artifact_text_viewer_command,
     artifact_video_player_command,
     kitten_icat_command,
     load_artifact_video_playback_config,
+    load_merged_artifact_video_playback_config,
     page_index_after_key,
+    parse_video_playback_config_env,
     print_text_prompt,
     run_artifact_page_loop,
     run_artifact_sequence_loop,
     run_artifact_text_viewer,
+    serialize_video_playback_config,
 )
 from ._viewer_render import (
     artifact_markdown_pdf_profile_for_image_area,
@@ -61,6 +65,7 @@ from ._viewer_types import (
     ArtifactFileViewerWarning,
     ImageViewerResult,
 )
+from ._viewer_trace import mark_first_visual
 
 __all__ = [
     "CELL_IMAGE_BACKGROUND",
@@ -95,10 +100,15 @@ __all__ = [
     "image_render_context",
     "is_supported_image_path",
     "is_supported_video_path",
+    "ARTIFACT_VIEWER_VIDEO_CONFIG_ENV",
     "is_tmux_session",
     "kitten_icat_command",
     "load_artifact_video_playback_config",
+    "load_merged_artifact_video_playback_config",
+    "mark_first_visual",
     "page_index_after_key",
+    "parse_video_playback_config_env",
+    "serialize_video_playback_config",
     "print_text_prompt",
     "render_artifact_file_pages",
     "restore_artifact_file_tmux_pane_decoration",
