@@ -13,7 +13,12 @@ from textual.screen import ModalScreen
 from textual.widgets import Input, TextArea
 
 from sase.ace.tui.actions._event_keyboard import EventKeyboardMixin
+from sase.ace.tui.util import _gc_policy_lifecycle as lifecycle_module
+from sase.ace.tui.util import _gc_policy_trim as trim_module
 from sase.ace.tui.util import gc_policy, gc_telemetry
+from sase.ace.tui.util._gc_policy_lifecycle import (  # noqa: F401
+    _modal_text_input_active as modal_text_input_active,
+)
 from sase.ace.tui.util.gc_policy import GCPolicy, install_gc_policy, uninstall_gc_policy
 from tests.ace.tui.util._gc_policy_test_support import (
     Clock,
@@ -21,8 +26,6 @@ from tests.ace.tui.util._gc_policy_test_support import (
     Recorder,
     idle_policy,
 )
-
-modal_text_input_active = gc_policy._modal_text_input_active
 
 
 @pytest.fixture
@@ -42,13 +45,13 @@ def recorder() -> Recorder:
 
 @pytest.fixture
 def active_guard() -> Iterator[None]:
-    previous_active = gc_policy._active
+    previous_active = lifecycle_module._active
     previous_providers = dict(gc_telemetry._heartbeat_providers)
-    gc_policy._active = None
+    lifecycle_module._active = None
     try:
         yield
     finally:
-        gc_policy._active = previous_active
+        lifecycle_module._active = previous_active
         gc_telemetry._heartbeat_providers.clear()
         gc_telemetry._heartbeat_providers.update(previous_providers)
 
@@ -73,7 +76,7 @@ def test_thresholds_preserved_and_restored(
     assert handle.heartbeat_fields()["threshold_policy"] == "raised"
     uninstall_gc_policy(handle)
     assert collector.threshold == (700, 10, 10)
-    assert gc_policy._active is None
+    assert lifecycle_module._active is None
 
 
 @pytest.mark.parametrize("threshold", [(700, 10), (700,), ()])
@@ -118,7 +121,7 @@ def test_uninstall_stops_timer_unfreezes_and_unregisters(
     assert collector.threshold == (700, 10, 10)
     assert collector.unfreezes == 1
     assert gc_policy.HEARTBEAT_PROVIDER_NAME not in gc_telemetry._heartbeat_providers
-    assert gc_policy._active is None
+    assert lifecycle_module._active is None
 
 
 def test_double_install_returns_active_handle(
@@ -138,7 +141,7 @@ def test_kill_switch_disables_policy_but_nothing_else(
 ) -> None:
     monkeypatch.setenv(gc_policy.ENV_DISABLE, "1")
     assert install_gc_policy(app=object(), collector=collector) is None
-    assert gc_policy._active is None
+    assert lifecycle_module._active is None
     assert collector.threshold == (700, 10, 10)
 
 
@@ -179,21 +182,21 @@ def test_trim_dispatch_runs_off_thread(
         (first_done if len(seen) == 1 else second_done).set()
         return True
 
-    monkeypatch.setattr(gc_policy, "trim_allocator", _recording_trim)
+    monkeypatch.setattr(trim_module, "trim_allocator", _recording_trim)
     handle = install_gc_policy(app=None, tick_interval_s=0)
     assert handle is not None
-    worker = gc_policy._trim_worker
+    worker = trim_module._trim_worker
     assert worker is not None and worker.is_alive()
-    gc_policy._spawn_trim_thread()
+    trim_module.spawn_trim_thread()
     assert first_done.wait(timeout=5.0)
-    gc_policy._spawn_trim_thread()
+    trim_module.spawn_trim_thread()
     assert second_done.wait(timeout=5.0)
     assert seen == [gc_policy.TRIM_THREAD_NAME, gc_policy.TRIM_THREAD_NAME]
     assert all(name != threading.current_thread().name for name in seen)
-    assert gc_policy._trim_worker is worker
+    assert trim_module._trim_worker is worker
     uninstall_gc_policy(handle)
     assert not worker.is_alive()
-    assert gc_policy._trim_worker is None
+    assert trim_module._trim_worker is None
 
 
 def test_combined_last_full_covers_recorder_and_own(

@@ -15,6 +15,9 @@ from textual.widgets import Input, TextArea  # noqa: F401
 
 from sase.ace.tui.actions._event_keyboard import EventKeyboardMixin  # noqa: F401
 from sase.ace.tui.util import gc_policy, gc_telemetry  # noqa: F401
+from sase.ace.tui.util._gc_policy_lifecycle import (  # noqa: F401
+    _modal_text_input_active as modal_text_input_active,
+)
 from sase.ace.tui.util.gc_policy import (  # noqa: F401
     GCPolicy,
     install_gc_policy,
@@ -27,6 +30,5 @@ from .test_gc_policy_policy import *  # noqa: F403
 from .test_gc_policy_lifecycle import active_guard  # noqa: F401
 from .test_gc_policy_policy import clock, collector, recorder, tags  # noqa: F401
 
-modal_text_input_active = gc_policy._modal_text_input_active
 __test__ = False
 __all__ = [name for name in globals() if not name.startswith("_")]

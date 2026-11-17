@@ -6,6 +6,7 @@ import pytest
 from collections.abc import Iterator
 from contextlib import contextmanager
 
+from sase.ace.tui.util import _gc_policy_policy as policy_module
 from sase.ace.tui.util import gc_policy
 from sase.ace.tui.util.gc_policy import GCPolicy
 from tests.ace.tui.util._gc_policy_test_support import (
@@ -40,7 +41,7 @@ def tags(monkeypatch: pytest.MonkeyPatch) -> list[str]:
         seen.append(name)
         yield
 
-    monkeypatch.setattr(gc_policy, "gc_trigger", recording)
+    monkeypatch.setattr(policy_module, "gc_trigger", recording)
     return seen
 
 
@@ -169,7 +170,7 @@ def test_rss_backstop_relaxes_quiet_window(
     tags: list[str],
 ) -> None:
     rss = {"now": 1_000}
-    monkeypatch.setattr(gc_policy, "latest_rss_bytes", lambda: rss["now"])
+    monkeypatch.setattr(policy_module, "latest_rss_bytes", lambda: rss["now"])
     policy = idle_policy(clock, collector, recorder)
     assert policy.tick(clock.now) == "startup_freeze"
     assert policy._rss_at_last_full == 1_000
@@ -195,7 +196,7 @@ def test_backstops_require_three_quiet_seconds(
 ) -> None:
     """Time and RSS backstops stay ineligible until 3 s of quiet."""
     rss = {"now": 1_000}
-    monkeypatch.setattr(gc_policy, "latest_rss_bytes", lambda: rss["now"])
+    monkeypatch.setattr(policy_module, "latest_rss_bytes", lambda: rss["now"])
     policy = idle_policy(clock, collector, recorder)
     assert policy.tick(clock.now) == "startup_freeze"
     baseline = policy._rss_at_last_full
@@ -256,7 +257,7 @@ def test_census_cleanup_collection_uses_idle_trigger(
 ) -> None:
     """Both census collects carry the idle trigger, not automatic."""
     monkeypatch.setenv(gc_policy.ENV_CENSUS, "1")
-    monkeypatch.setattr(gc_policy, "CENSUS_INTERVAL_S", 100.0)
+    monkeypatch.setattr(policy_module, "CENSUS_INTERVAL_S", 100.0)
     policy = idle_policy(clock, collector, recorder)
     assert policy.tick(clock.now) == "startup_freeze"
     idle_tags = len(tags)
