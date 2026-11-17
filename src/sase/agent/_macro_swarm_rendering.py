@@ -16,6 +16,7 @@ from sase.macro._fenced_blocks import (
     unprotect_fenced_blocks,
 )
 from sase.macro.models import Macro
+from sase.macro.cmdsub_source import assert_no_generated_text_residue
 from sase.macro.processor import expand_single_macro
 
 
@@ -30,6 +31,9 @@ def render_macro_swarm(
         positional_args,
         named_args,
         preserve_segment_separators=True,
+    )
+    assert_no_generated_text_residue(
+        substituted, boundary=f"macro swarm #{macro_def.name}"
     )
     qualification_prefix = _next_key_qualification_prefix(
         macro_def.name, qualification_counter

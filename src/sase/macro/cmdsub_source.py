@@ -26,6 +26,7 @@ from enum import Enum
 from typing import Any, Literal
 
 from sase.macro._disabled_regions import disabled_region_ranges
+from sase.macro._exceptions import MacroError
 from sase.macro._fenced_blocks import fenced_block_ranges
 
 #: Launch-authorship stamp read from the process environment. Scoped to
@@ -125,7 +126,7 @@ def generated_provenance(
     )
 
 
-def interpolation_markers(nonce: str) -> tuple[str, str]:
+def _interpolation_markers(nonce: str) -> tuple[str, str]:
     """Return the ``(start, end)`` interpolation markers for *nonce*.
 
     A marking Jinja ``finalize`` wraps every ``{{ }}`` output in these so
@@ -133,6 +134,21 @@ def interpolation_markers(nonce: str) -> tuple[str, str]:
     that came from interpolated values.
     """
     return f"\x00SJSMARK_{nonce}_S\x00", f"\x00SJSMARK_{nonce}_E\x00"
+
+
+class GeneratedTextLeakError(MacroError):
+    """Internal generated-text protection escaped its rendering boundary."""
+
+
+def assert_no_generated_text_residue(text: str, *, boundary: str) -> None:
+    """Reject residue from any guard at an outermost rendering boundary."""
+    if "\x00" not in text:
+        return
+    if re.search(r"\x00(?:SJSMARK_|SASEDATA_)", text, re.IGNORECASE):
+        raise GeneratedTextLeakError(
+            f"Internal invariant violation at {boundary}: generated-text protection "
+            "remains in the prompt; the prompt was not launched."
+        )
 
 
 @dataclass
@@ -166,6 +182,14 @@ class GeneratedTextGuard:
         self._token_re = re.compile(
             self._TOKEN_RE_TEMPLATE.format(nonce=re.escape(self._nonce))
         )
+        self._start, self._end = _interpolation_markers(self._nonce)
+        self._marker_re = re.compile(
+            f"{re.escape(self._start)}|{re.escape(self._end)}", re.IGNORECASE
+        )
+        self._marked_span_re = re.compile(
+            f"{re.escape(self._start)}(.*?){re.escape(self._end)}",
+            re.DOTALL | re.IGNORECASE,
+        )
 
     @property
     def nonce(self) -> str:
@@ -183,18 +207,35 @@ class GeneratedTextGuard:
         """Return ``(start, end)`` spans of this guard's tokens in *text*."""
         return [(match.start(), match.end()) for match in self._token_re.finditer(text)]
 
+    def mark(self, value: object) -> str:
+        """Flatten this guard's nested markers into one balanced data span.
+
+        Case-changing filters may rewrite markers, so stripping ignores case.
+        The whole outer value remains data. Jinja comparisons and ``length``
+        on block captures or macro returns still see inner markers; slicing
+        such a value can split a marker. Those limits require compiler-level
+        support rather than a finalize hook.
+        """
+        text = self._marker_re.sub("", str(value))
+        return f"{self._start}{text}{self._end}"
+
     def hide_marked_spans(self, text: str) -> str:
         """Replace interpolation-marked spans with guard tokens.
 
         The markers embed this guard's nonce (see
-        :func:`interpolation_markers`), so only spans marked for this guard
-        are hidden. Non-greedy matching keeps adjacent interpolations as
-        separate data spans, which also keeps a command assembled from
-        adjacent data fragments literal.
+        :func:`_interpolation_markers`), so only spans marked for this guard
+        are hidden, ignoring case changes made by Jinja filters. ``mark``
+        flattens nested interpolations first. Non-greedy matching keeps
+        adjacent interpolations separate, so commands assembled from data
+        fragments stay literal. Unbalanced markers fail loudly.
         """
-        start, end = interpolation_markers(self._nonce)
-        pattern = re.compile(f"{re.escape(start)}(.*?){re.escape(end)}", re.DOTALL)
-        return pattern.sub(lambda match: self.wrap(match.group(1)), text)
+        result = self._marked_span_re.sub(lambda match: self.wrap(match.group(1)), text)
+        if self._marker_re.search(result):
+            raise GeneratedTextLeakError(
+                "Internal invariant violation: unbalanced interpolation markers; "
+                "the prompt was not launched."
+            )
+        return result
 
     def unwrap(self, text: str) -> str:
         """Restore every token this guard minted that appears in *text*."""

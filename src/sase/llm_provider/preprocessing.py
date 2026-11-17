@@ -30,6 +30,7 @@ from sase.macro.cmdsub_source import (
     CmdsubProvenance,
     GeneratedTextGuard,
     PromptTextKind,
+    assert_no_generated_text_residue,
     execute_eligible_commands,
     resolve_provenance,
 )
@@ -154,6 +155,7 @@ def preprocess_prompt_early(
     # references return through a fast path: unwrap here so generated spans
     # hidden for the source boundary never leak into the result.
     prompt = guard.unwrap(prompt)
+    assert_no_generated_text_residue(prompt, boundary="prompt preprocessing")
 
     # 3. Directive extraction (after macro expansion so directives inside
     #    expanded macros are also discovered; fenced-block protection is

@@ -26,7 +26,6 @@ from sase.macro.cmdsub_source import (
     CmdsubProvenance,
     GeneratedTextGuard,
     execute_eligible_commands,
-    interpolation_markers,
 )
 
 
@@ -41,14 +40,15 @@ def _marking_env(
     the guard nonce, so rendered data can never be confused with source
     text. ``finalize`` only touches ``{{ }}`` outputs: ``{% set %}``
     bindings and ``{% if %}``/``{% for %}`` tests keep seeing the original
-    typed values.
+    typed values. Nested output markers are flattened by ``guard.mark``;
+    hiding the rendered spans rejects unbalanced markers rather than leaking
+    them into downstream prompt processing.
     """
-    start, end = interpolation_markers(guard.nonce)
     base_finalize = base.finalize
 
     def _marking_finalize(value: Any) -> str:
         finalized = base_finalize(value) if base_finalize is not None else value
-        return f"{start}{finalized}{end}"
+        return guard.mark(finalized)
 
     env = Environment(undefined=base.undefined, finalize=_marking_finalize)
     env.filters.update(base.filters)

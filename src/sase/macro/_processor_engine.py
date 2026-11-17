@@ -414,9 +414,12 @@ def _expansion_fixpoint(
                         iteration=iteration,
                         name=name,
                         source_path=macro_def.source_path,
-                        positional_args=list(positional_args),
-                        named_args=dict(named_args),
-                        expanded_text=expanded,
+                        positional_args=[guard.unwrap(arg) for arg in positional_args],
+                        named_args={
+                            key: guard.unwrap(value)
+                            for key, value in named_args.items()
+                        },
+                        expanded_text=guard.unwrap(expanded),
                     )
 
                 # Handle section markers (### or ---) with proper line positioning

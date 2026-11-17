@@ -7,7 +7,7 @@ from typing import Any
 from jinja2 import BaseLoader, Environment, StrictUndefined, TemplateError
 from sase.output import print_status
 
-from .cmdsub_source import GeneratedTextGuard
+from .cmdsub_source import GeneratedTextGuard, GeneratedTextLeakError
 from ._exceptions import MacroArgumentError
 from ._fenced_blocks import (
     protect_fenced_blocks,
@@ -154,12 +154,8 @@ def _render_jinja2_template(
                 f"Macro '#{macro_name}' template error: {e}"
             ) from e
 
-    from sase.macro.cmdsub_source import interpolation_markers
-
-    start, end = interpolation_markers(guard.nonce)
-
     def _marking_finalize(value: Any) -> str:
-        return f"{start}{value}{end}"
+        return guard.mark(value)
 
     marking_env = Environment(
         loader=BaseLoader(),
@@ -172,9 +168,9 @@ def _render_jinja2_template(
     try:
         template = marking_env.from_string(content)
         rendered = template.render(**context)
-    except TemplateError as e:
+        return guard.hide_marked_spans(rendered)
+    except (TemplateError, GeneratedTextLeakError) as e:
         raise MacroArgumentError(f"Macro '#{macro_name}' template error: {e}") from e
-    return guard.hide_marked_spans(rendered)
 
 
 def render_toplevel_jinja2(content: str) -> str:

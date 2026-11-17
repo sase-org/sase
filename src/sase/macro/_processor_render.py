@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Collection
+from dataclasses import replace
 from typing import Any
 
 from .cmdsub_source import (
@@ -14,6 +15,7 @@ from .cmdsub_source import (
 )
 from ._exceptions import MacroError
 from ._jinja import substitute_placeholders, validate_and_convert_args
+from .code_value import CodeValue
 from .models import Macro
 
 
@@ -73,10 +75,35 @@ def expand_single_macro(
     else:
         body_provenance = provenance
 
-    # Validate and convert args if macro has typed inputs
+    # Argument commands have already been resolved. Reveal only this guard's
+    # data for validation and Jinja logic; rendering protects it again.
+    revealed_positional = [guard.unwrap(arg) for arg in positional_args]
+    revealed_named = {key: guard.unwrap(value) for key, value in named_args.items()}
     conv_positional, conv_named = validate_and_convert_args(
-        macro_def, positional_args, named_args
+        macro_def, revealed_positional, revealed_named
     )
+
+    revealed = {
+        value
+        for raw, value in (
+            *zip(positional_args, revealed_positional, strict=True),
+            *((named_args[key], value) for key, value in revealed_named.items()),
+        )
+        if value != raw
+    }
+
+    def _rehide(value: Any) -> Any:
+        # Helpers mint a separate guard and unwrap on return. Keep newly
+        # revealed data protected by this outer guard across that boundary.
+        if isinstance(value, str) and value in revealed:
+            return guard.wrap(value)
+        if isinstance(value, list):
+            return [_rehide(item) for item in value]
+        if isinstance(value, tuple):
+            return tuple(_rehide(item) for item in value)
+        if isinstance(value, CodeValue) and value.source in revealed:
+            return replace(value, source=guard.wrap(value.source))
+        return value
 
     render_scope = _skill_render_scope(macro_def, scope)
     rendered = substitute_placeholders(
@@ -99,8 +126,8 @@ def expand_single_macro(
     rendered = _expand_local_macro_references(
         macro_def,
         rendered,
-        conv_positional,
-        conv_named,
+        [_rehide(value) for value in conv_positional],
+        {key: _rehide(value) for key, value in conv_named.items()},
         render_scope,
         preserve_segment_separators=preserve_segment_separators,
         defer_macro_names=defer_macro_names,
