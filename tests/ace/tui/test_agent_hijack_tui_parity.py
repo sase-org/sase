@@ -437,7 +437,7 @@ def test_loader_rows_match_cli_explain_decisions(
     assert tui_clan.redirect_op == "select_member"
     tui_monitor = compute_hijack_decision(monitor_row, deps=deps)
     assert tui_monitor.mode == "immediate"
-    assert tui_monitor.decision.get("adapter") == "monitor"
+    assert tui_monitor.decision["adapter"] == "monitor"
     tui_gate = compute_hijack_decision(gate_row, deps=deps)
     assert tui_gate.redirect_op == "gate_review"
     tui_workflow = compute_hijack_decision(workflow_row, deps=deps)

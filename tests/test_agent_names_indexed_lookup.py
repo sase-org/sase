@@ -185,6 +185,49 @@ class TestIndexedNamedLookupParity:
             _rebuild_artifact_index()
             assert find_named_agent("bar") is None
 
+    def test_later_exact_spelling_survives_ineligible_workflow_match(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        _configure_machine(monkeypatch)
+        child = _make_agent(
+            tmp_path,
+            "proj",
+            "run1",
+            "alice.athena.foo",
+            workflow_name="foo",
+            parent_timestamp="root",
+            pid=os.getpid(),
+        )
+        _patched_indexed(monkeypatch)
+        with patch.object(Path, "home", return_value=tmp_path):
+            _rebuild_artifact_index()
+            result = find_named_agent("foo")
+        assert result is not None
+        assert result.name == "alice.athena.foo"
+        assert result.artifacts_dir == str(child)
+        assert not result.is_done
+
+    def test_incomplete_artifact_recovery_raises_instead_of_proving_miss(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        from types import SimpleNamespace
+
+        from sase.agent.names._lookup_named import AgentNamedLookupUnavailable
+
+        monkeypatch.setattr(
+            "sase.core.agent_artifact_lookup.lookup_agent_artifacts",
+            lambda *_args, **_kwargs: SimpleNamespace(
+                complete=False,
+                availability="missing",
+                source="fallback",
+                diagnostic="fallback budget exhausted",
+                truncated=True,
+            ),
+        )
+        with patch.object(Path, "home", return_value=tmp_path):
+            with pytest.raises(AgentNamedLookupUnavailable):
+                find_named_agent("missing")
+
 
 class TestIndexedDismissedBundles:
     def test_bundle_fallback_without_artifact_dir(
@@ -291,3 +334,53 @@ class TestIndexedDismissedBundles:
             result = find_named_agent("visible-agent")
         assert result is not None
         assert result.is_done
+
+    def test_deleted_newest_bundle_uses_older_valid_summary(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        with (
+            patch.object(Path, "home", return_value=tmp_path),
+            patch(
+                "sase.ace.dismissed_agents._DISMISSED_BUNDLES_DIR",
+                tmp_path / ".sase" / "dismissed_bundles",
+            ),
+        ):
+            _rebuild_artifact_index()
+            from sase.ace.dismissed_agents import rebuild_dismissed_bundle_index
+            from sase.ace import dismissed_agents
+
+            bundles_dir = dismissed_agents.dismissed_bundles_dir()
+            shard = bundles_dir / "202611"
+            shard.mkdir(parents=True)
+            older = shard / "20261116010000.json"
+            newer = shard / "20261116020000.json"
+            older.write_text(
+                json.dumps(
+                    {
+                        "agent_name": "deleted-newest-agent",
+                        "raw_suffix": "20261116010000",
+                        "artifacts_dir": "/archive/older",
+                        "cl_name": "older",
+                    }
+                ),
+                encoding="utf-8",
+            )
+            newer.write_text(
+                json.dumps(
+                    {
+                        "agent_name": "deleted-newest-agent",
+                        "raw_suffix": "20261116020000",
+                        "artifacts_dir": "/archive/newer",
+                        "cl_name": "newer",
+                    }
+                ),
+                encoding="utf-8",
+            )
+            rebuild_dismissed_bundle_index()
+            newer.unlink()
+            _patched_indexed(monkeypatch)
+            result = find_named_agent("deleted-newest-agent")
+
+        assert result is not None
+        assert result.is_done
+        assert result.artifacts_dir == "/archive/older"

@@ -108,6 +108,33 @@ class AgentArtifactGroupSelectionResultWire:
     diagnostic: str | None = None
 
 
+@dataclass(frozen=True)
+class NamedAgentObservationWire:
+    """Current filesystem/process observations for one matching hit."""
+
+    artifact_dir: str
+    process_alive: bool = False
+    done_outcome: str | None = None
+
+
+@dataclass(frozen=True)
+class _NamedAgentSelectionHitWire:
+    """Rust-selected artifact and its public named-agent state."""
+
+    requested_name: str
+    hit: AgentArtifactLookupHitWire
+    is_done: bool
+    outcome: str | None = None
+
+
+@dataclass(frozen=True)
+class NamedAgentSelectionResultWire:
+    """Ranked artifact candidates for each ordered name spelling."""
+
+    selected: _NamedAgentSelectionHitWire | None = None
+    selections: tuple[_NamedAgentSelectionHitWire | None, ...] = ()
+
+
 def agent_artifact_lookup_query_to_dict(
     query: AgentArtifactLookupQueryWire,
 ) -> dict[str, Any]:
@@ -149,6 +176,58 @@ def agent_artifact_group_selection_query_to_dict(
     if query.artifact_dir is not None:
         payload["artifact_dir"] = query.artifact_dir
     return payload
+
+
+def named_agent_selection_request_to_dict(
+    names: tuple[str, ...],
+    hits: tuple[AgentArtifactLookupHitWire, ...],
+    observations: tuple[NamedAgentObservationWire, ...],
+    *,
+    only_done: bool,
+    include_dead: bool,
+) -> dict[str, Any]:
+    """Project named selection inputs to the Rust binding shape."""
+    return {
+        "names": list(names),
+        "hits": [_hit_to_dict(hit) for hit in hits],
+        "observations": [
+            {
+                "artifact_dir": item.artifact_dir,
+                "process_alive": item.process_alive,
+                "done_outcome": item.done_outcome,
+            }
+            for item in observations
+        ],
+        "only_done": only_done,
+        "include_dead": include_dead,
+    }
+
+
+def named_agent_selection_result_from_dict(
+    data: dict[str, Any],
+) -> NamedAgentSelectionResultWire:
+    """Rehydrate the named-selection result from Rust."""
+
+    def selection_from_value(
+        value: Any,
+    ) -> _NamedAgentSelectionHitWire | None:
+        if not isinstance(value, dict) or not isinstance(value.get("hit"), dict):
+            return None
+        return _NamedAgentSelectionHitWire(
+            requested_name=str(value.get("requested_name") or ""),
+            hit=_hit_from_dict(value["hit"]),
+            is_done=bool(value.get("is_done")),
+            outcome=(
+                str(value["outcome"]) if value.get("outcome") is not None else None
+            ),
+        )
+
+    return NamedAgentSelectionResultWire(
+        selected=selection_from_value(data.get("selected")),
+        selections=tuple(
+            selection_from_value(value) for value in data.get("selections", [])
+        ),
+    )
 
 
 def agent_artifact_group_selection_result_from_dict(
@@ -329,6 +408,10 @@ __all__ = [
     "AGENT_ARTIFACT_LOOKUP_FALLBACK_BUDGET",
     "AgentArtifactGroupSelectionQueryWire",
     "AgentArtifactGroupSelectionResultWire",
+    "NamedAgentObservationWire",
+    "NamedAgentSelectionResultWire",
+    "named_agent_selection_request_to_dict",
+    "named_agent_selection_result_from_dict",
     "AgentArtifactGroupSelectionKind",
     "AgentArtifactLookupAvailability",
     "AgentArtifactLookupHitWire",

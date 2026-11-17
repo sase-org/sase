@@ -22,6 +22,7 @@ from sase.agent.hijack import ledger
 from sase.agent.hijack.core import hijack_recovery_reconcile
 from sase.agent.hijack.recover_common import (
     RecoveryDeps,
+    RecoveryRefusal,
     clean_string,
     fail_to_held,
     record_pid,
@@ -183,9 +184,18 @@ def _adopt_proven_successor(
             "action_taken": "none",
             "record": dict(record),
         }
-    add_pending_repair(hijack_id)
     action = clean_string(record.get("resolution_action")) or "continue"
-    artifacts = successor_artifacts_dir(record, deps=deps)
+    try:
+        artifacts = successor_artifacts_dir(record, deps=deps)
+    except RecoveryRefusal as exc:
+        return {
+            "outcome": "retain_with_error",
+            "code": exc.code,
+            "message": exc.message,
+            "action_taken": "none",
+            "record": reload_record(hijack_id, record),
+        }
+    add_pending_repair(hijack_id)
     successor_pid = record_pid(record.get("successor_pid"))
     successor_token = clean_string(record.get("successor_process_identity_token"))
     if successor_pid is None or not successor_token:

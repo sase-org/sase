@@ -8,6 +8,7 @@ from typing import Any
 
 from sase.agent.hijack import ledger
 from sase.agent.hijack.recover_common import (
+    RecoveryRefusal,
     RecoverySubject,
     RecoveryTarget,
     clean_string,
@@ -63,10 +64,16 @@ def _load_record(agent_or_name: object) -> dict[str, Any] | None:
             return dict(by_name)
         try:
             from sase.agent.names import find_named_agent
+            from sase.agent.names._lookup_named import AgentNamedLookupUnavailable
         except Exception:
             return None
         try:
             named = find_named_agent(text)
+        except AgentNamedLookupUnavailable as exc:
+            raise RecoveryRefusal(
+                "lookup_unavailable",
+                f"Cannot safely resolve recovery subject {text!r}: {exc}",
+            ) from exc
         except Exception:
             named = None
         artifacts_dir = clean_string(getattr(named, "artifacts_dir", None))

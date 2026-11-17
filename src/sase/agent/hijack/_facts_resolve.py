@@ -48,6 +48,7 @@ def resolve_hijack_subject(
     from sase.core.agent_artifact_group_lookup import (
         AgentArtifactGroupLookupUnavailable,
     )
+    from sase.agent.names._lookup_named import AgentNamedLookupUnavailable
 
     deps = deps or StopDeps()
     row = None if isinstance(name_or_row, str) else name_or_row
@@ -60,18 +61,17 @@ def resolve_hijack_subject(
     artifacts_dir = (
         str(raw_artifacts_dir) if isinstance(raw_artifacts_dir, (str, Path)) else None
     )
-    found_agent = (
-        NamedAgent(
-            name=requested_name,
-            artifacts_dir=artifacts_dir,
-            is_done=False,
-            outcome=None,
-        )
-        if artifacts_dir
-        else find_agent(requested_name)
-    )
-
     try:
+        found_agent = (
+            NamedAgent(
+                name=requested_name,
+                artifacts_dir=artifacts_dir,
+                is_done=False,
+                outcome=None,
+            )
+            if artifacts_dir
+            else find_agent(requested_name)
+        )
         session = None
         if artifacts_dir:
             session = _session_from_member_dir(deps, artifacts_dir)
@@ -79,7 +79,7 @@ def resolve_hijack_subject(
             session = _session_from_member_dir(deps, found_agent.artifacts_dir)
         if session is None:
             session = _session_from_name(deps, requested_name)
-    except AgentArtifactGroupLookupUnavailable as exc:
+    except (AgentArtifactGroupLookupUnavailable, AgentNamedLookupUnavailable) as exc:
         return _unavailable_group_subject(requested_name, row, exc)
 
     if session is not None:

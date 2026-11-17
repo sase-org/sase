@@ -430,6 +430,31 @@ def test_monitor_followup_pending_helper_uses_delivery_not_next_action(
     )
 
 
+def test_named_lookup_unavailability_is_a_hijack_refusal() -> None:
+    from sase.agent.names._lookup_named import AgentNamedLookupUnavailable
+
+    def unavailable(_name: str) -> None:
+        raise AgentNamedLookupUnavailable(
+            availability="missing",
+            source="fallback",
+            diagnostic="fallback budget exhausted",
+            truncated=True,
+        )
+
+    subject, decision = resolve_and_decide(
+        "uncertain-agent",
+        deps=StopDeps(find_agent=unavailable),
+    )
+
+    assert subject.target is None
+    assert subject.lookup_error is not None
+    assert decision["mode"] == "refused"
+    assert decision["code"] == "lookup_unavailable"
+    assert (
+        decision["next_action"] == "retry after the agent artifact index is available"
+    )
+
+
 def test_session_and_clan_seams_skip_archive_lookups(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

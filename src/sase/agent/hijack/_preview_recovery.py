@@ -192,8 +192,15 @@ def _load_recovery_context(
         artifacts_dir = string(getattr(agent_or_name, "artifacts_dir", None))
 
     if artifacts_dir is None and agent_name:
+        from sase.agent.names._lookup_named import AgentNamedLookupUnavailable
+
         try:
             found = find_named_agent(agent_name)
+        except AgentNamedLookupUnavailable as exc:
+            raise HijackRecoveryRefusal(
+                "lookup_unavailable",
+                f"Cannot safely resolve recovery subject {agent_name!r}: {exc}",
+            ) from exc
         except Exception:
             found = None
         artifacts_dir = string(getattr(found, "artifacts_dir", None))

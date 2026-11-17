@@ -11,6 +11,7 @@ from typing import Any
 from sase.agent.hijack.core import hijack_recovery_reconcile_wire_schema_version
 from sase.agent.hijack.recover_common import (
     RecoveryDeps,
+    RecoveryRefusal,
     clean_string,
     record_pid,
     record_workspace_num,
@@ -238,10 +239,16 @@ def successor_artifacts_dir(
         return None
     try:
         from sase.agent.names import find_named_agent
+        from sase.agent.names._lookup_named import AgentNamedLookupUnavailable
     except Exception:
         return None
     try:
         found = find_named_agent(reserved)
+    except AgentNamedLookupUnavailable as exc:
+        raise RecoveryRefusal(
+            "lookup_unavailable",
+            f"Cannot verify reserved successor {reserved!r}: {exc}",
+        ) from exc
     except Exception:
         return None
     return clean_string(getattr(found, "artifacts_dir", None))
