@@ -22,6 +22,21 @@ from sase.agent.hijack._stop_target import classify_turn, resolve_direct_target
 _LIVE_STATUSES = frozenset({"STARTING", "RUNNING", "RETRYING"})
 _WAITING_STATUSES = frozenset({"WAITING", "QUEUED"})
 _TERMINAL_STATUSES = frozenset({"DONE", "FAILED", "HIJACKED", "STOPPED", "LOST"})
+_TERMINAL_MONITOR_STATES = frozenset(
+    {"completed", "failed", "timeout", "stopped", "lost"}
+)
+_TERMINAL_FOLLOWUP_OUTCOMES = frozenset(
+    {
+        "launched",
+        "launched-degraded",
+        "hijacked",
+        "host-completed",
+        "suppressed",
+        "not-launchable",
+    }
+)
+_DELIVERED_DISPOSITIONS = frozenset({"acknowledged", "settled", "dispatching"})
+_PENDING_DISPOSITIONS = frozenset({"pending", "reserved"})
 
 
 def resolve_hijack_subject(
@@ -121,9 +136,17 @@ def resolve_hijack_subject(
             is_gate=is_gate,
         )
         pre_provider = turn_phase in {"booting", "waiting", "preparing"}
-        settled = done_outcome is not None or (
-            status in _TERMINAL_STATUSES and not pre_provider
+        followup_pending = _monitor_followup_pending(
+            member_artifacts,
+            member_meta,
+            occupying_kind=occupying_kind,
+            monitor_state=monitor_state,
+            done_outcome=done_outcome,
         )
+        settled = (
+            done_outcome is not None
+            or (status in _TERMINAL_STATUSES and not pre_provider)
+        ) and not followup_pending
         waiting = status in _WAITING_STATUSES
         in_flight = (
             status in _LIVE_STATUSES
@@ -158,6 +181,7 @@ def resolve_hijack_subject(
                 settled=settled,
                 in_flight=in_flight,
                 waiting=waiting,
+                monitor_followup_pending=followup_pending,
             )
         )
 
@@ -472,6 +496,71 @@ def _status(row: Any | None, process_alive: bool) -> str:
             return "LOST"
         return status
     return "RUNNING" if process_alive else "DONE"
+
+
+def _monitor_followup_pending(
+    artifacts_dir: str,
+    meta: dict[str, Any],
+    *,
+    occupying_kind: str,
+    monitor_state: str | None,
+    done_outcome: str | None,
+) -> bool:
+    """Return whether a monitor still owns an undelivered follow-up.
+
+    Uses settlement/delivery records and a frozen continue policy. A
+    ``monitor_next_action`` string alone is not evidence of a pending handoff.
+    """
+    if occupying_kind != "monitor":
+        return False
+    outcome = text(meta.get("monitor_followup_outcome"))
+    if outcome in _TERMINAL_FOLLOWUP_OUTCOMES:
+        return False
+    dispositions: set[str] = set()
+    try:
+        from sase.monitor.delivery import load_delivery_records
+
+        records = load_delivery_records(artifacts_dir)
+    except Exception:
+        records = []
+    for record in records:
+        disposition = record.get("disposition") if isinstance(record, dict) else None
+        if isinstance(disposition, str) and disposition:
+            dispositions.add(disposition)
+    if dispositions & _DELIVERED_DISPOSITIONS:
+        return False
+    if dispositions & _PENDING_DISPOSITIONS:
+        return True
+    command_settled = done_outcome is not None or (
+        monitor_state in _TERMINAL_MONITOR_STATES
+    )
+    if not command_settled:
+        return False
+    frozen = meta.get("continuation_frozen_policy")
+    if not isinstance(frozen, dict):
+        try:
+            from sase.continuation_capture.policy import load_frozen_outcome_policy
+
+            frozen = load_frozen_outcome_policy(artifacts_dir)
+        except Exception:
+            frozen = None
+    if not isinstance(frozen, dict):
+        return False
+    try:
+        from sase.monitor.outcome_policy import settlement_policy_decision
+
+        decision = settlement_policy_decision(
+            artifacts_dir, meta, monitor_state or "completed"
+        )
+    except Exception:
+        return False
+    action = decision.get("action")
+    next_action = decision.get("next_action")
+    return (
+        action == "continue"
+        and isinstance(next_action, str)
+        and bool(next_action.strip())
+    )
 
 
 def _monitor_state(meta: dict[str, Any], row: Any | None) -> str | None:

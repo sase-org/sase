@@ -60,6 +60,60 @@ class _MonitorFollowupSettlementResult:
     hijack_id: str | None = None
 
 
+def settle_claim_and_followup_under_lane_lock(
+    artifacts_dir: str,
+    meta: dict[str, Any],
+    *,
+    monitor_state: MonitorState,
+    exit_code: int | None,
+    elapsed_seconds: float,
+    capture: OutputCapture,
+    timeout_kind: str | None,
+    project_name: str | None,
+    transfer_from_pid: int | None = None,
+    launch_followup: FollowupLauncher | None = None,
+) -> _MonitorFollowupSettlementResult:
+    """Settle follow-up while holding the monitor lane if it can be resolved.
+
+    Callers that already hold ``log_file_lock(monitor_lane_lock_path(...))``
+    must call :func:`settle_claim_and_followup` directly.
+    """
+    lane = meta.get("agent_session")
+    if (
+        isinstance(project_name, str)
+        and project_name
+        and isinstance(lane, str)
+        and lane
+    ):
+        from sase.agent.hijack.locks import acquire_monitor_lane_lock
+
+        with acquire_monitor_lane_lock(project_name, lane):
+            return settle_claim_and_followup(
+                artifacts_dir,
+                meta,
+                monitor_state=monitor_state,
+                exit_code=exit_code,
+                elapsed_seconds=elapsed_seconds,
+                capture=capture,
+                timeout_kind=timeout_kind,
+                project_name=project_name,
+                transfer_from_pid=transfer_from_pid,
+                launch_followup=launch_followup,
+            )
+    return settle_claim_and_followup(
+        artifacts_dir,
+        meta,
+        monitor_state=monitor_state,
+        exit_code=exit_code,
+        elapsed_seconds=elapsed_seconds,
+        capture=capture,
+        timeout_kind=timeout_kind,
+        project_name=project_name,
+        transfer_from_pid=transfer_from_pid,
+        launch_followup=launch_followup,
+    )
+
+
 def settle_claim_and_followup(
     artifacts_dir: str,
     meta: dict[str, Any],

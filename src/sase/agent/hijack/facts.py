@@ -78,6 +78,11 @@ def _build_hijack_facts(subject: HijackSubject) -> dict[str, Any]:
         "active_hijack_state": active_state,
         "has_staged_handoff": has_staged,
         "staged_kind": staged_kind,
+        "monitor_followup_pending": bool(
+            member is not None
+            and subject.selected is not None
+            and member.monitor_followup_pending
+        ),
     }
 
 

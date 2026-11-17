@@ -137,10 +137,20 @@ def _target(
     return target
 
 
-def _subject(target: HijackTarget) -> SimpleNamespace:
+def _subject(
+    target: HijackTarget,
+    *,
+    settled: bool = False,
+    process_alive: bool = True,
+    monitor_followup_pending: bool = False,
+) -> SimpleNamespace:
     return SimpleNamespace(
         target=target,
-        selected=SimpleNamespace(settled=False, process_alive=True),
+        selected=SimpleNamespace(
+            settled=settled and not monitor_followup_pending,
+            process_alive=process_alive,
+            monitor_followup_pending=monitor_followup_pending,
+        ),
         occupant_name=target.name,
         session=SimpleNamespace(base_name=target.agent_session),
         is_remote=False,
@@ -148,6 +158,67 @@ def _subject(target: HijackTarget) -> SimpleNamespace:
         is_named_proc=False,
         is_clan_container=False,
     )
+
+
+def _monitor_target(
+    artifacts: Path,
+    *,
+    name: str = "session-1--mon-3",
+    pid: int | None = 42,
+    identity: str = "boot:123",
+    monitor_state: str = "running",
+) -> HijackTarget:
+    artifacts.mkdir(parents=True, exist_ok=True)
+    (artifacts / "agent_meta.json").write_text(
+        json.dumps(
+            {
+                "name": name,
+                "agent_session": "session-1",
+                "turn_kind": "monitor",
+                "monitor_id": "mon-3",
+                "monitor_state": monitor_state,
+                "monitor_supervisor_identity": identity,
+                "process_identity": identity,
+                "pid": pid,
+            }
+        ),
+        encoding="utf-8",
+    )
+    target = HijackTarget(
+        name=name,
+        artifacts_dir=str(artifacts),
+        project_name="sample",
+        project_file="/tmp/sample.sase",
+        artifacts_timestamp="20261116000100",
+        is_home=False,
+        pid=pid,
+        claim_pid=pid or 42,
+        claim_pinned=False,
+        cl_name="sample-patch",
+        workflow="agent",
+        workspace_num=4,
+        workspace_dir="/tmp/workspace-4",
+        status="RUNNING" if monitor_state == "running" else "DONE",
+        lifecycle_phase=None,
+        is_monitor_turn=True,
+        is_gate_turn=False,
+        gate_state=None,
+        agent_session="session-1",
+        capabilities=[],
+        model_alias=None,
+        model_alias_trail=[],
+        model_origin=None,
+        provider=None,
+        model=None,
+        effort=None,
+        run_started_at=10.0,
+        done_outcome=None if monitor_state == "running" else "succeeded",
+        done_recovery=None,
+        monitor_id="mon-3",
+        monitor_supervisor_identity=identity,
+    )
+    target.test_identity = identity
+    return target
 
 
 def _install_subjects(
@@ -167,6 +238,112 @@ def _install_subjects(
     monkeypatch.setattr(latch_force, "owner_identity_for", identity_for)
     monkeypatch.setattr(latch_request, "owner_identity_for", identity_for)
     monkeypatch.setattr(latch_apply, "owner_identity_for", identity_for)
+
+
+def test_monitor_latch_request_uses_monitor_scope(
+    latch_store: Path,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    del latch_store
+    monkeypatch.setenv("SASE_HOME", str(tmp_path / ".sase"))
+    target = _monitor_target(tmp_path / "monitor")
+    _install_subjects(monkeypatch, _subject(target))
+    first = latch.request_latch(target.name)
+    assert first["verdict"] == "pending"
+    assert first["record"]["scope"] == "monitor"
+    assert first["record"]["owner_identity"] == "boot:123"
+
+    _install_subjects(monkeypatch, _subject(target))
+    second = latch.request_latch(target.name)
+    assert second["verdict"] == "pending"
+    assert second["hijack_id"] == first["hijack_id"]
+    assert len(ledger.list_active_records()) == 1
+
+
+def test_pending_followup_monitor_latch_applies_at_request(
+    latch_store: Path,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    del latch_store
+    monkeypatch.setenv("SASE_HOME", str(tmp_path / ".sase"))
+    target = _monitor_target(tmp_path / "monitor", monitor_state="completed")
+    _install_subjects(
+        monkeypatch,
+        _subject(
+            target,
+            settled=True,
+            process_alive=False,
+            monitor_followup_pending=True,
+        ),
+    )
+
+    def fake_settle(
+        artifacts_dir: str,
+        _meta: dict[str, Any],
+        *,
+        monitor_state: str,
+        project_name: str | None,
+    ) -> Any:
+        del artifacts_dir, project_name
+        current = ledger.list_active_records()[0]
+        current = ledger.cas_advance_record(
+            current,
+            {
+                "event": "apply_latch",
+                "boundary": "monitor",
+                "boundary_outcome": monitor_state,
+            },
+        )
+        current = ledger.cas_advance_record(current, {"event": "confirmed_stop"})
+        return SimpleNamespace(
+            settled=True,
+            handled=True,
+            error=None,
+            hijack_id=current["hijack_id"],
+        )
+
+    monkeypatch.setattr(
+        "sase.monitor.hijack_settlement.settle_monitor_hijack", fake_settle
+    )
+    result = latch.request_latch(target.name)
+    assert result["verdict"] == "applied"
+    assert result["record"]["state"] == "held"
+    assert result["record"]["scope"] == "monitor"
+    assert result["boundary"] == "monitor"
+
+
+def test_delivered_monitor_latch_is_refused(
+    latch_store: Path,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    del latch_store
+    monkeypatch.setenv("SASE_HOME", str(tmp_path / ".sase"))
+    target = _monitor_target(tmp_path / "monitor", pid=None, monitor_state="completed")
+    _install_subjects(
+        monkeypatch,
+        _subject(target, settled=True, process_alive=False),
+    )
+    result = latch.request_latch(target.name)
+    assert result["verdict"] == "refused"
+    assert result["code"] == "owner_not_live"
+    assert ledger.list_active_records() == []
+
+
+def test_gate_latch_is_still_refused(
+    latch_store: Path,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    del latch_store
+    target = _target(tmp_path / "gate")
+    target.is_gate_turn = True
+    _install_subjects(monkeypatch, _subject(target))
+    result = latch.request_latch(target.name)
+    assert result["verdict"] == "refused"
+    assert result["code"] == "unsupported_target"
 
 
 def test_request_deduplicates_by_target_and_rejects_recycled_occupant(

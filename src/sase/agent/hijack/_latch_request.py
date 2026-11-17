@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import math
 import uuid
+from contextlib import ExitStack
+from pathlib import Path
 from typing import Any
 
 from sase.agent.hijack import ledger
@@ -15,7 +17,7 @@ from sase.agent.hijack._latch_common import (
     same_owner,
 )
 from sase.agent.hijack._stop_models import HijackTarget, StopDeps
-from sase.agent.hijack.locks import acquire_hijack_lock
+from sase.agent.hijack.locks import acquire_hijack_lock, acquire_monitor_lane_lock
 
 
 def request_latch(
@@ -49,10 +51,20 @@ def request_latch(
         )
     target_key = _target_key(subject, target)
     new_id = hijack_id or _new_hijack_id(target.name)
+    monitor_target = _is_monitor_target(target)
 
-    with acquire_hijack_lock(
-        "target_index", ledger.target_index_lock_path(), timeout=10.0
-    ):
+    with ExitStack() as stack:
+        if monitor_target:
+            lane = target.agent_session or target.name
+            if target.project_name and lane:
+                stack.enter_context(
+                    acquire_monitor_lane_lock(target.project_name, lane)
+                )
+        stack.enter_context(
+            acquire_hijack_lock(
+                "target_index", ledger.target_index_lock_path(), timeout=10.0
+            )
+        )
         active = ledger.find_active_record_by_target_key(target_key)
         if active is not None:
             if not same_owner(active, target, owner_identity, target_key=target_key):
@@ -134,7 +146,7 @@ def request_latch(
             model=target.model,
             effort=target.effort,
             target_key=target_key,
-            scope="llm",
+            scope="monitor" if monitor_target else "llm",
         )
         record["prior_pin_state"] = bool(target.claim_pinned)
         created = False
@@ -162,6 +174,9 @@ def request_latch(
                 code="latch_request_failed",
                 message=f"could not durably request the hijack latch: {exc}",
             )
+        applied = _apply_terminal_monitor_latch(latched, target, target_key)
+        if applied is not None:
+            return applied
         return observe_record(
             latched,
             target_key=target_key,
@@ -179,18 +194,19 @@ def _validate_target(
         or subject.is_bulk
         or subject.is_named_proc
         or subject.is_clan_container
-        or (target is not None and (target.is_monitor_turn or target.is_gate_turn))
+        or (target is not None and target.is_gate_turn)
     ):
         return result(
             "refused",
             code="unsupported_target",
             message="a latch requires a local, directly addressable agent member",
         )
+    monitor_target = target is not None and _is_monitor_target(target)
     if (
         target.is_home
         or target.workspace_num is None
         or target.claim_pid is None
-        or target.pid is None
+        or (target.pid is None and not monitor_target)
     ):
         return result(
             "refused",
@@ -198,17 +214,73 @@ def _validate_target(
             message="a latch requires a live member with an exact numbered workspace claim",
         )
     selected = subject.selected
-    if selected is None or selected.settled or not selected.process_alive:
+    if selected is None:
         return result(
             "refused",
             code="owner_not_live",
             message="the selected member is no longer a live owner; no latch was written",
         )
-    if "hijack" not in target.capabilities:
+    if monitor_target:
+        if selected.settled and not getattr(
+            selected, "monitor_followup_pending", False
+        ):
+            return result(
+                "refused",
+                code="owner_not_live",
+                message="the selected member is no longer a live owner; no latch was written",
+            )
+    elif selected.settled or not selected.process_alive:
+        return result(
+            "refused",
+            code="owner_not_live",
+            message="the selected member is no longer a live owner; no latch was written",
+        )
+    if not monitor_target and "hijack" not in target.capabilities:
         return result(
             "refused",
             code="hijack_capability_required",
             message="the selected member does not advertise hijack capability",
+        )
+    return None
+
+
+def _is_monitor_target(target: HijackTarget) -> bool:
+    return bool(target.is_monitor_turn or target.monitor_id)
+
+
+def _apply_terminal_monitor_latch(
+    record: dict[str, Any],
+    target: HijackTarget,
+    target_key: str,
+) -> dict[str, Any] | None:
+    """Apply a monitor latch immediately when the command is already terminal."""
+    if not _is_monitor_target(target):
+        return None
+    from sase.agent.hijack._stop_models import read_json_dict
+    from sase.monitor.hijack_settlement import settle_monitor_hijack
+
+    meta = read_json_dict(Path(target.artifacts_dir) / "agent_meta.json") or {}
+    monitor_state = meta.get("monitor_state")
+    if not isinstance(monitor_state, str) or monitor_state in {"running", ""}:
+        return None
+    settlement = settle_monitor_hijack(
+        target.artifacts_dir,
+        meta,
+        monitor_state=monitor_state,
+        project_name=target.project_name,
+    )
+    hijack_id = str(record.get("hijack_id") or "")
+    current = ledger.load_record(hijack_id) if hijack_id else record
+    if (
+        settlement.settled
+        and isinstance(current, dict)
+        and current.get("state") == "held"
+    ):
+        return observe_record(
+            current,
+            target_key=target_key,
+            boundary="monitor",
+            target=target,
         )
     return None
 

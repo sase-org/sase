@@ -293,6 +293,79 @@ def test_pool_workspace_is_released_when_spawn_raises_latched(
     assert released == [11]
 
 
+def test_monitor_scope_latched_error_never_falls_back_to_pool_or_zero(
+    latch_store: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    del latch_store
+    artifacts = tmp_path / "pred"
+    artifacts.mkdir(parents=True, exist_ok=True)
+    (artifacts / "agent_meta.json").write_text(
+        json.dumps(
+            {
+                "name": "session-1--mon-3",
+                "agent_session": "session-1",
+                "project_file": "/tmp/sample.sase",
+                "turn_kind": "monitor",
+            }
+        ),
+        encoding="utf-8",
+    )
+    target_key = ledger.target_key_for("/tmp/sample.sase", "session-1")
+    record = ledger.new_requested_record(
+        hijack_id="hijack-monitor-1",
+        agent_name="session-1--mon-3",
+        artifacts_dir=str(artifacts),
+        session="session-1",
+        project_file="/tmp/sample.sase",
+        target_key=target_key,
+        scope="monitor",
+    )
+    record["state"] = "latched"
+    record["latched_at"] = 1
+    ledger.create_record(record)
+    guard = latch_guard_from_predecessor(
+        project_file="/tmp/sample.sase",
+        session_or_agent="session-1",
+        artifacts_dir=str(artifacts),
+        member="session-1--mon-3",
+    )
+    calls: list[int] = []
+
+    def spawn(
+        prompt: str,
+        workspace_dir: str,
+        workspace_num: int,
+        transfer_pid: int | None,
+        vcs_ref: tuple[str, str] | None,
+    ) -> AgentLaunchResult:
+        del prompt, workspace_dir, transfer_pid, vcs_ref
+        calls.append(workspace_num)
+        raise AssertionError("monitor-scope latched follow-up must not spawn")
+
+    monkeypatch.setattr(
+        "sase.turns.followup_launch._workspace_is_claimed",
+        lambda project_name, workspace_num: True,
+    )
+    monkeypatch.setattr(
+        "sase.turns.followup_launch.claim_next_axe_workspace_dir",
+        lambda *_args, **_kwargs: pytest.fail("must not claim a pool workspace"),
+    )
+    with pytest.raises(HijackLatchedError, match="pending"):
+        launch_turn_followup(
+            project_name="proj",
+            meta_workspace_num=3,
+            meta_workspace_dir=str(tmp_path / "ws3"),
+            transfer_from_pid=42,
+            compose_prompt=lambda _reason: "continue",
+            spawn=spawn,
+            workspace=_workspace_messages(),
+            record_launched=_record_launched,
+            record_not_launchable=_record_not_launchable,
+            latch_guard=guard,
+        )
+    assert calls == []
+
+
 def test_ordinary_followup_without_latch_guard_still_launches(tmp_path: Path) -> None:
     result = launch_turn_followup(
         project_name="proj",

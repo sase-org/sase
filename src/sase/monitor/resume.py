@@ -242,6 +242,14 @@ def _validate_resume_request(
     model: str | None,
     suggested_command: str,
 ) -> None:
+    from .hijack_settlement import monitor_hijack_pending
+
+    if monitor_hijack_pending(record.artifacts_dir, dict(meta)):
+        raise MonitorResumeError(
+            "monitor hijack is pending; resume cannot revive the automatic follow-up",
+            suggested_command=None,
+            code="hijack_pending",
+        )
     if record.monitor_state == "running":
         raise MonitorResumeError(
             "monitor is still running; wait for it to finish before resuming",

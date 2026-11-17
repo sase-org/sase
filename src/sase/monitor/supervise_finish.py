@@ -42,7 +42,7 @@ from .output import OutputCapture
 from .settlement import (
     finalize_monitor_workflow_state,
     project_name_from_artifacts_dir,
-    settle_claim_and_followup,
+    settle_claim_and_followup_under_lane_lock,
     touch_monitor_refresh_pulse,
 )
 
@@ -140,7 +140,7 @@ def finish_monitor(
         metadata_llm_provider=meta.get("llm_provider"),
     )
 
-    followup_settlement = settle_claim_and_followup(
+    followup_settlement = settle_claim_and_followup_under_lane_lock(
         artifacts_dir,
         meta,
         monitor_state=monitor_state,

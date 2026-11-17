@@ -5,12 +5,15 @@ from __future__ import annotations
 import fcntl
 import json
 import os
+import threading
 from collections.abc import Callable, Iterator, Mapping
 from contextlib import contextmanager
 from pathlib import Path
 from typing import Any
 
 DEFAULT_MAX_BYTES = 2 * 1024 * 1024
+
+_lock_holds = threading.local()
 
 
 def max_bytes_from_env(name: str, default: int = DEFAULT_MAX_BYTES) -> int:
@@ -63,15 +66,51 @@ def append_jsonl_record(
         append_encoded_line_locked(path, encoded, max_bytes=max_bytes)
 
 
+def _lock_hold_counts() -> dict[str, int]:
+    counts = getattr(_lock_holds, "counts", None)
+    if counts is None:
+        _lock_holds.counts = counts = {}
+    return counts
+
+
 @contextmanager
 def log_file_lock(path: Path) -> Iterator[None]:
-    """Hold the dedicated sibling lock that coordinates appends and rotation."""
+    """Hold the dedicated sibling lock that coordinates appends and rotation.
+
+    Nested acquires of the same sibling path in one thread reuse the outer
+    flock. ``fcntl.flock`` is not recursive across different descriptors, so a
+    second open of the same path would deadlock the caller. Monitor start
+    holds this lock while failed-start teardown settles follow-up on the
+    same lane.
+    """
     path.parent.mkdir(parents=True, exist_ok=True)
     lock_path = path.with_name(f".{path.name}.lock")
+    key = os.path.realpath(lock_path)
+    holds = _lock_hold_counts()
+    depth = holds.get(key, 0)
+    if depth > 0:
+        holds[key] = depth + 1
+        try:
+            yield
+        finally:
+            remaining = holds.get(key, 1) - 1
+            if remaining <= 0:
+                holds.pop(key, None)
+            else:
+                holds[key] = remaining
+        return
     fd = os.open(lock_path, os.O_CREAT | os.O_RDWR, 0o600)
     try:
         fcntl.flock(fd, fcntl.LOCK_EX)
-        yield
+        holds[key] = 1
+        try:
+            yield
+        finally:
+            remaining = holds.get(key, 1) - 1
+            if remaining <= 0:
+                holds.pop(key, None)
+            else:
+                holds[key] = remaining
     finally:
         try:
             fcntl.flock(fd, fcntl.LOCK_UN)

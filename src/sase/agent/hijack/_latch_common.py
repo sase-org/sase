@@ -39,20 +39,35 @@ def same_owner_anchor(
 
 
 def owner_identity_for(target: HijackTarget) -> str | None:
-    if target.pid is None or target.pid <= 0:
-        return None
     metadata = read_json_dict(Path(target.artifacts_dir) / "agent_meta.json") or {}
-    recorded = metadata.get("process_identity")
-    recorded_identity = recorded.strip() if isinstance(recorded, str) else ""
+    monitor_target = bool(target.is_monitor_turn or target.monitor_id)
+    recorded_supervisor = target.monitor_supervisor_identity
+    if not isinstance(recorded_supervisor, str) or not recorded_supervisor.strip():
+        recorded_supervisor = metadata.get("monitor_supervisor_identity")
+    recorded_process = metadata.get("process_identity")
+    recorded_identity = ""
+    if monitor_target:
+        recorded = recorded_supervisor or recorded_process
+        recorded_identity = recorded.strip() if isinstance(recorded, str) else ""
+    else:
+        recorded_identity = (
+            recorded_process.strip() if isinstance(recorded_process, str) else ""
+        )
+    if target.pid is None or target.pid <= 0:
+        return recorded_identity or None
     try:
         from sase.core.process_identity import process_identity_token
 
         current = process_identity_token(int(target.pid))
     except (OSError, RuntimeError, ValueError):
         current = ""
-    if not current or (recorded_identity and current != recorded_identity):
-        return None
-    return current
+    if current:
+        if recorded_identity and current != recorded_identity:
+            return None
+        return current
+    if monitor_target:
+        return recorded_identity or None
+    return None
 
 
 def observe_record(

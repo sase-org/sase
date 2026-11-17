@@ -8,7 +8,11 @@ from sase.turns.settlement import (
     touch_turn_refresh_pulse,
 )
 
-from ._settlement_followup import LOST_FOLLOWUP_ERROR, settle_claim_and_followup
+from ._settlement_followup import (
+    LOST_FOLLOWUP_ERROR,
+    settle_claim_and_followup,
+    settle_claim_and_followup_under_lane_lock,
+)
 
 
 def touch_monitor_refresh_pulse(project_name: str | None) -> None:
@@ -31,5 +35,6 @@ __all__ = [
     "finalize_monitor_workflow_state",
     "project_name_from_artifacts_dir",
     "settle_claim_and_followup",
+    "settle_claim_and_followup_under_lane_lock",
     "touch_monitor_refresh_pulse",
 ]

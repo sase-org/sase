@@ -253,6 +253,54 @@ def settle_monitor_artifacts(state: dict[str, Any]) -> None:
     state["monitor_meta"] = meta
 
 
+def _settle_followup_serialized(
+    artifacts_dir: str,
+    meta: dict[str, Any],
+    *,
+    monitor_state: MonitorState,
+    exit_code: int | None,
+    elapsed_seconds: float,
+    capture: OutputCapture,
+    timeout_kind: str | None,
+    project_name: str | None,
+    transfer_from_pid: int | None,
+) -> Any:
+    lane = meta.get("agent_session")
+    if (
+        isinstance(project_name, str)
+        and project_name
+        and isinstance(lane, str)
+        and lane
+    ):
+        from sase.agent.hijack.locks import acquire_monitor_lane_lock
+
+        with acquire_monitor_lane_lock(project_name, lane):
+            return settle_claim_and_followup(
+                artifacts_dir,
+                meta,
+                monitor_state=monitor_state,
+                exit_code=exit_code,
+                elapsed_seconds=elapsed_seconds,
+                capture=capture,
+                timeout_kind=timeout_kind,
+                project_name=project_name,
+                transfer_from_pid=transfer_from_pid,
+                launch_followup=launch_followup_agent,
+            )
+    return settle_claim_and_followup(
+        artifacts_dir,
+        meta,
+        monitor_state=monitor_state,
+        exit_code=exit_code,
+        elapsed_seconds=elapsed_seconds,
+        capture=capture,
+        timeout_kind=timeout_kind,
+        project_name=project_name,
+        transfer_from_pid=transfer_from_pid,
+        launch_followup=launch_followup_agent,
+    )
+
+
 def settle_monitor_followup(state: dict[str, Any]) -> None:
     """Launch or suppress ``--next`` and write the terminal agent-session markers."""
     artifacts_dir = state.get("artifacts_dir")
@@ -305,7 +353,7 @@ def settle_monitor_followup(state: dict[str, Any]) -> None:
     ):
         state["followup_outcome"] = meta.get("monitor_followup_outcome")
     else:
-        followup_settlement = settle_claim_and_followup(
+        followup_settlement = _settle_followup_serialized(
             artifacts_dir,
             meta,
             monitor_state=monitor_state,  # type: ignore[arg-type]
@@ -315,7 +363,6 @@ def settle_monitor_followup(state: dict[str, Any]) -> None:
             timeout_kind=timeout_kind,
             project_name=project_name,
             transfer_from_pid=transfer_from_pid,
-            launch_followup=launch_followup_agent,
         )
         followup_error = followup_settlement.error
         followup_launch = followup_settlement.launch_result

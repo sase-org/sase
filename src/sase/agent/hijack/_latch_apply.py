@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Any
 
 from sase.agent.hijack import ledger
@@ -162,6 +163,11 @@ def complete_latch_application(
         return state_result(current, target_key)
     if current.get("state") != "stopping" or current.get("latched_at") is None:
         return state_result(current, target_key)
+
+    if _monitor_scope(current, target):
+        return _complete_monitor_latch_application(
+            current, target, target_key=target_key, boundary=boundary
+        )
 
     with record_lock_hold("patch_lock"):
         if not pin_claim(target):
@@ -334,7 +340,7 @@ def apply_reconciled_latch(
                     )
         if current.get("state") not in {"stopping", "held"}:
             return state_result(current, target_key)
-        if current.get("state") == "stopping":
+        if current.get("state") == "stopping" and not _monitor_already_terminal(target):
             try:
                 termination = terminate_with_retry(target, deps=deps)
             except Exception as exc:  # noqa: BLE001 - retain stopping custody.
@@ -373,3 +379,68 @@ def apply_reconciled_latch(
             boundary=str(current.get("boundary") or "owner_recovery"),
             deps=deps,
         )
+
+
+def _monitor_scope(record: dict[str, Any], target: HijackTarget) -> bool:
+    return str(record.get("scope") or "") == "monitor" or bool(
+        target.is_monitor_turn or target.monitor_id
+    )
+
+
+def _monitor_already_terminal(target: HijackTarget) -> bool:
+    from sase.agent.hijack._stop_models import read_json_dict
+
+    if not (target.is_monitor_turn or target.monitor_id):
+        return False
+    meta = read_json_dict(Path(target.artifacts_dir) / "agent_meta.json") or {}
+    state = meta.get("monitor_state")
+    return isinstance(state, str) and state not in {"running", ""}
+
+
+def _complete_monitor_latch_application(
+    current: dict[str, Any],
+    target: HijackTarget,
+    *,
+    target_key: str,
+    boundary: str,
+) -> dict[str, Any]:
+    from sase.agent.hijack._stop_models import read_json_dict
+    from sase.monitor.hijack_settlement import settle_monitor_hijack
+
+    hijack_id = str(current.get("hijack_id") or "")
+    meta = read_json_dict(Path(target.artifacts_dir) / "agent_meta.json") or {}
+    monitor_state = meta.get("monitor_state")
+    if not isinstance(monitor_state, str) or monitor_state in {"running", ""}:
+        return application_pending(
+            current,
+            "monitor_still_running",
+            "the monitor command has not reached a terminal state; workspace remains held",
+        )
+    try:
+        settlement = settle_monitor_hijack(
+            target.artifacts_dir,
+            meta,
+            monitor_state=monitor_state,
+            project_name=target.project_name,
+        )
+    except Exception as exc:  # noqa: BLE001 - custody stays pinned for repair.
+        return application_pending(
+            current,
+            "settlement_failed",
+            f"the monitor hijack settlement was not durably written: {exc}",
+        )
+    held = ledger.load_record(hijack_id) or current
+    if not settlement.settled or held.get("state") != "held":
+        return application_pending(
+            held,
+            "settlement_failed",
+            settlement.error
+            or "monitor hijack settlement remains repairable; workspace remains held",
+        )
+    return observe_record(
+        held,
+        target_key=target_key,
+        boundary=boundary or "monitor",
+        target=target,
+        owner_identity=str(current.get("owner_identity") or "") or None,
+    )

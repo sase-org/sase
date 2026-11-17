@@ -32,6 +32,7 @@ class MemberFacts:
     settled: bool
     in_flight: bool
     waiting: bool
+    monitor_followup_pending: bool = False
 
 
 @dataclass

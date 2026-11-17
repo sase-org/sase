@@ -156,7 +156,10 @@ def force_hijack_latch(
                 next_action="refresh the agent list and inspect the current occupant",
             )
         selected = getattr(subject, "selected", None)
-        if selected is None or not getattr(selected, "process_alive", False):
+        monitor_target = bool(target.is_monitor_turn or target.monitor_id)
+        if selected is None or (
+            not monitor_target and not getattr(selected, "process_alive", False)
+        ):
             return _action_result(
                 "refused",
                 code="owner_not_live",
@@ -237,6 +240,25 @@ def force_hijack_latch(
             build_stop_blocked_result,
             terminate_with_retry,
         )
+
+        monitor_terminal = monitor_target and not getattr(
+            selected, "process_alive", False
+        )
+        if monitor_terminal:
+            result = latch.complete_latch_application(
+                current,
+                target,
+                target_key=target_key,
+                boundary="forced_stop",
+                deps=deps,
+            )
+            result.setdefault("hijack_id", operation_id)
+            result.setdefault("target_key", target_key)
+            result["forced"] = True
+            result["next_action"] = (
+                f"inspect the recovery snapshot before continuing with `sase agent recover {name}`"
+            )
+            return result
 
         try:
             termination = terminate_with_retry(target, deps=deps)
@@ -336,6 +358,9 @@ def _persist_force_intent(
 def _pending_followup(artifacts_dir: str) -> dict[str, str] | None:
     from sase.agent.staged_handoff import STAGED_HANDOFF_FILENAME, read_staged_handoff
 
+    descriptor = Path(artifacts_dir) / "monitor_recovery.json"
+    if descriptor.is_file():
+        return {"kind": "monitor_followup", "ref": str(descriptor)}
     path = Path(artifacts_dir) / STAGED_HANDOFF_FILENAME
     if not path.is_file():
         return None

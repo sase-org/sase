@@ -94,6 +94,19 @@ def target_from_record(
         pid = None
     project_file = str(record.get("project_file") or "")
     session = record.get("session")
+    is_monitor = str(record.get("scope") or "") == "monitor"
+    monitor_id = None
+    supervisor_identity = None
+    if is_monitor and artifacts_dir:
+        from sase.agent.hijack._stop_models import read_json_dict
+
+        meta = read_json_dict(Path(artifacts_dir) / "agent_meta.json") or {}
+        raw_id = meta.get("monitor_id")
+        monitor_id = raw_id if isinstance(raw_id, str) and raw_id else None
+        raw_identity = meta.get("monitor_supervisor_identity")
+        supervisor_identity = (
+            raw_identity if isinstance(raw_identity, str) and raw_identity else None
+        )
     return HijackTarget(
         name=str(record.get("agent_name") or ""),
         artifacts_dir=artifacts_dir,
@@ -128,7 +141,7 @@ def target_from_record(
         ),
         status="DONE",
         lifecycle_phase=None,
-        is_monitor_turn=False,
+        is_monitor_turn=is_monitor,
         is_gate_turn=False,
         gate_state=None,
         agent_session=str(session) if isinstance(session, str) else None,
@@ -142,6 +155,8 @@ def target_from_record(
         run_started_at=None,
         done_outcome=done_outcome,
         done_recovery=None,
+        monitor_id=monitor_id,
+        monitor_supervisor_identity=supervisor_identity,
     )
 
 

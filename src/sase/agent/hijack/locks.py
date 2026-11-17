@@ -105,6 +105,23 @@ def record_lock_hold(name: str) -> Iterator[None]:
 
 
 @contextmanager
+def acquire_monitor_lane_lock(project_name: str, lane: str) -> Iterator[None]:
+    """Hold the monitor start/settlement lane with hijack lock-order tracing.
+
+    Uses the same ``log_file_lock`` sibling as monitor start/reconcile so
+    request versus follow-up reservation serialize on one flock. Do not
+    re-enter this from ``settle_claim_and_followup``; those callers already
+    hold the lane.
+    """
+    from sase.logs._bounded import log_file_lock
+    from sase.monitor.transaction import monitor_lane_lock_path
+
+    with log_file_lock(monitor_lane_lock_path(project_name, lane)):
+        with record_lock_hold("monitor_lane"):
+            yield
+
+
+@contextmanager
 def acquire_hijack_lock(
     name: str,
     path: Path,
@@ -133,5 +150,6 @@ def acquire_hijack_lock(
 __all__ = [
     "HIJACK_LOCK_ORDER",
     "acquire_hijack_lock",
+    "acquire_monitor_lane_lock",
     "record_lock_hold",
 ]

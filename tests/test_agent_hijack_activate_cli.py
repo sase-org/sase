@@ -349,6 +349,40 @@ def test_cli_explain_no_target_is_read_only_exit_2(
     assert handle_agents_hijack(args) == 2
 
 
+def test_monitor_followup_pending_decision_ignores_unknown_extra_keys() -> None:
+    from sase.agent.hijack.core import agent_hijack_decide
+    from sase.agent.hijack.core import agent_hijack_eligibility_wire_schema_version
+
+    facts = {
+        "schema_version": agent_hijack_eligibility_wire_schema_version(),
+        "is_local": True,
+        "occupying_kind": "monitor",
+        "status": "DONE",
+        "monitor_state": "completed",
+        "workspace_num": _WS,
+        "has_numbered_claim": True,
+        "pid": None,
+        "process_alive": False,
+        "has_hijack_capability": False,
+        "successor_attachable": True,
+        "done_outcome": "succeeded",
+        "monitor_followup_pending": True,
+        "future_additive_field": "ignored",
+    }
+    decision = agent_hijack_decide(facts)
+    assert decision["mode"] == "latched"
+    assert decision["eligible"] is True
+    assert decision["adapter"] is None
+    assert decision["boundary"] == "monitor"
+    assert decision["code"] == "monitor_followup_pending"
+
+    delivered = dict(facts)
+    delivered["monitor_followup_pending"] = False
+    refused = agent_hijack_decide(delivered)
+    assert refused["mode"] == "refused"
+    assert refused["code"] == "already_completed"
+
+
 def test_parser_hijack_flags_are_sorted_and_mutually_exclusive() -> None:
     from sase.main.parser import create_parser
 

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
@@ -17,8 +18,11 @@ from sase.agent.hijack.locks import (
     HIJACK_LOCK_ORDER,
     _state,
     acquire_hijack_lock,
+    acquire_monitor_lane_lock,
     record_lock_hold,
 )
+from sase.logs._bounded import log_file_lock
+from sase.monitor.transaction import monitor_lane_lock_path
 from sase.agent.hijack.spawn_guard import (
     latch_guard_from_predecessor,
     spawn_admission,
@@ -223,6 +227,54 @@ def test_tracing_allows_record_then_target_index_terminal_cleanup(
         _stop_lock_trace()
     assert ("acquire", "record") in events
     assert ("acquire", "target_index") in events
+
+
+def test_monitor_request_acquires_lane_before_target_index(
+    latch_store: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    del latch_store
+    monkeypatch.setenv("SASE_HOME", str(tmp_path / ".sase"))
+    artifacts = tmp_path / "monitor"
+    artifacts.mkdir(parents=True, exist_ok=True)
+    (artifacts / "agent_meta.json").write_text(
+        json.dumps(
+            {
+                "name": "session-1--mon-3",
+                "agent_session": "session-1",
+                "monitor_id": "mon-3",
+                "monitor_state": "running",
+                "monitor_supervisor_identity": "boot:123",
+            }
+        ),
+        encoding="utf-8",
+    )
+    target = _target(artifacts, name="session-1--mon-3")
+    target.is_monitor_turn = True
+    target.monitor_id = "mon-3"
+    target.monitor_supervisor_identity = "boot:123"
+    target.capabilities = []
+    _install_subjects(monkeypatch, _subject(target))
+    _start_lock_trace()
+    try:
+        requested = latch.request_latch(target.name)
+        events = [name for action, name in _lock_trace_events() if action == "acquire"]
+    finally:
+        _stop_lock_trace()
+    assert requested["verdict"] == "pending"
+    assert requested["record"]["scope"] == "monitor"
+    assert "monitor_lane" in events
+    assert "target_index" in events
+    assert events.index("monitor_lane") < events.index("target_index")
+
+
+def test_start_held_lane_lock_nests_with_settlement_acquire(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("SASE_HOME", str(tmp_path / ".sase"))
+    path = monitor_lane_lock_path("proj", "session-1")
+    with log_file_lock(path):
+        with acquire_monitor_lane_lock("proj", "session-1"):
+            pass
 
 
 def test_request_apply_cancel_and_callback_traces(

@@ -127,6 +127,31 @@ def test_resume_rejects_fire_and_forget_monitor(
         resume_monitor(record)
 
 
+def test_resume_rejects_pending_monitor_hijack(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from sase.agent.hijack import ledger
+
+    monitor_dir, record, _meta = _terminal_monitor(tmp_path, monkeypatch)
+    monkeypatch.setattr(ledger, "_hijack_ledger_root", lambda: tmp_path / "ledger")
+    hijack = ledger.new_requested_record(
+        hijack_id="hijack-monitor-resume",
+        agent_name=record.member_agent_name,
+        artifacts_dir=monitor_dir,
+        session=record.lane,
+        target_key="monitor-resume-key",
+        scope="monitor",
+    )
+    hijack["state"] = "latched"
+    hijack["latched_at"] = 1
+    ledger.create_record(hijack)
+
+    with pytest.raises(MonitorResumeError, match="hijack is pending") as excinfo:
+        resume_monitor(record)
+    assert excinfo.value.code == "hijack_pending"
+
+
 def test_resume_rejects_stopped_monitor(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

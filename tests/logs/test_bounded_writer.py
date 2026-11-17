@@ -43,3 +43,15 @@ def test_short_write_is_not_retried(
         _bounded.append_jsonl_record(tmp_path / "records.jsonl", {"record": 1})
 
     assert calls == 1
+
+
+def test_nested_log_file_lock_on_the_same_path_does_not_deadlock(
+    tmp_path: Path,
+) -> None:
+    path = tmp_path / "records.jsonl"
+    with _bounded.log_file_lock(path):
+        with _bounded.log_file_lock(path):
+            _bounded.append_encoded_line_locked(
+                path, b'{"nested":true}\n', max_bytes=_bounded.DEFAULT_MAX_BYTES
+            )
+    assert json.loads(path.read_text(encoding="utf-8")) == {"nested": True}

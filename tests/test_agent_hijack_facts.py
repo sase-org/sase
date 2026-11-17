@@ -152,9 +152,11 @@ def test_screenshot_session_name_resolves_to_claim_holding_monitor(
     assert facts["occupying_kind"] == "monitor"
     assert facts["workspace_num"] == 4
     assert facts["live_member_count"] == 2
+    assert facts["monitor_followup_pending"] is False
     assert 424244 in checked_pids
-    assert decision["mode"] == "refused"
-    assert decision["code"] == "monitor_turn"
+    assert decision["mode"] == "immediate"
+    assert decision["adapter"] == "monitor"
+    assert decision["code"] is None
 
 
 def test_stale_live_row_is_not_an_occupying_member() -> None:
@@ -163,6 +165,269 @@ def test_stale_live_row_is_not_an_occupying_member() -> None:
     row = SimpleNamespace(status="RUNNING")
 
     assert _status(row, process_alive=False) == "LOST"
+
+
+def _write_pending_delivery(artifacts: Path, *, disposition: str = "pending") -> None:
+    from sase.monitor.delivery import (
+        new_delivery_record,
+        persist_delivery_record,
+        transition_delivery,
+    )
+
+    key = {
+        "monitor_id": "mon-3",
+        "result_id": "result-1",
+        "branch": "completed",
+    }
+    record = new_delivery_record(key, selected_action="continue")
+    if disposition == "pending":
+        persist_delivery_record(artifacts, record)
+        return
+    reserved = transition_delivery(record, "reserved", reserved_identity="acme--1")
+    if disposition == "reserved":
+        persist_delivery_record(artifacts, reserved)
+        return
+    current = transition_delivery(reserved, "dispatching")
+    if disposition == "dispatching":
+        persist_delivery_record(artifacts, current)
+        return
+    current = transition_delivery(current, "acknowledged", acknowledged_by="acme--1")
+    if disposition == "acknowledged":
+        persist_delivery_record(artifacts, current)
+        return
+    persist_delivery_record(artifacts, transition_delivery(current, "settled"))
+
+
+def _pending_monitor_session(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    *,
+    meta_extra: dict[str, Any] | None = None,
+    write_done: bool = True,
+    process_alive: bool = False,
+    row_status: str = "DONE",
+) -> tuple[Any, dict[str, Any]]:
+    project_file = create_project_file_with_running(
+        tmp_path,
+        running_claims=[
+            WorkspaceClaim(
+                4,
+                "20261115164108",
+                "fixture",
+                pid=424244,
+                artifacts_timestamp="20261115164108",
+            )
+        ],
+    )
+    artifacts = tmp_path / "20261115164108"
+    artifacts.mkdir(exist_ok=True)
+    meta = {
+        "name": "tailnet-t.10--mon-3",
+        "agent_session": "tailnet-t.10",
+        "agent_session_role": "monitor",
+        "turn_kind": "monitor",
+        "monitor_id": "mon-3",
+        "monitor_state": "completed",
+        "pid": 424243,
+    }
+    if meta_extra:
+        meta.update(meta_extra)
+    (artifacts / "agent_meta.json").write_text(json.dumps(meta), encoding="utf-8")
+    if write_done:
+        (artifacts / "done.json").write_text(
+            json.dumps({"outcome": "succeeded"}), encoding="utf-8"
+        )
+    member = AgentSessionMember(
+        name="tailnet-t.10--mon-3",
+        artifacts_dir=artifacts,
+        timestamp="20261115164108",
+        outcome="succeeded" if write_done else None,
+        parent_timestamp=None,
+    )
+    session = AgentSession(
+        base_name="tailnet-t.10",
+        root=member,
+        members=(member,),
+    )
+    monkeypatch.setattr(
+        "sase.agent.names.find_agent_session",
+        lambda name: session if name == session.base_name else None,
+    )
+    monkeypatch.setattr(
+        "sase.agent.names.find_agent_session_by_member_artifact_dir",
+        lambda path: (session, member) if Path(path) == artifacts else None,
+    )
+    monkeypatch.setattr("sase.agent.names.find_agent_clan", lambda _name: None)
+
+    def project_fields(agent: Any) -> tuple[Path, str, str, str, bool]:
+        return Path(agent.artifacts_dir), "proj", project_file, artifacts.name, False
+
+    monkeypatch.setattr("sase.agent.running.named_agent_project_fields", project_fields)
+    row = SimpleNamespace(
+        name=member.name,
+        artifacts_dir=str(artifacts),
+        status=row_status,
+        pid=424243,
+        agent_session="tailnet-t.10",
+        monitor_state=meta.get("monitor_state"),
+    )
+    deps = StopDeps(
+        find_agent=lambda name: (
+            NamedAgent(
+                name=member.name,
+                artifacts_dir=str(artifacts),
+                is_done=write_done,
+                outcome="succeeded" if write_done else None,
+            )
+            if name in {member.name, session.base_name}
+            else None
+        ),
+        list_running=lambda: (
+            [row] if row_status in {"STARTING", "RUNNING", "RETRYING"} else []
+        ),
+        process_alive=lambda _meta, _path: process_alive,
+    )
+    return resolve_and_decide("tailnet-t.10", deps=deps)
+
+
+def test_pending_delivery_keeps_the_monitor_as_occupant(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    artifacts = tmp_path / "20261115164108"
+    artifacts.mkdir()
+    _write_pending_delivery(artifacts, disposition="pending")
+    subject, decision = _pending_monitor_session(tmp_path, monkeypatch)
+    facts = _build_hijack_facts(subject)
+
+    assert subject.occupant_name == "tailnet-t.10--mon-3"
+    assert facts["occupying_kind"] == "monitor"
+    assert facts["monitor_followup_pending"] is True
+    assert facts["done_outcome"] == "succeeded"
+    assert decision["mode"] == "latched"
+    assert decision["boundary"] == "monitor"
+    assert decision["code"] == "monitor_followup_pending"
+    assert decision["adapter"] is None
+
+
+def test_reserved_delivery_is_pending_and_acknowledged_is_not(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    artifacts = tmp_path / "20261115164108"
+    artifacts.mkdir()
+    _write_pending_delivery(artifacts, disposition="reserved")
+    subject, decision = _pending_monitor_session(tmp_path, monkeypatch)
+    assert _build_hijack_facts(subject)["monitor_followup_pending"] is True
+    assert decision["mode"] == "latched"
+
+    _write_pending_delivery(artifacts, disposition="acknowledged")
+    subject, decision = _pending_monitor_session(tmp_path, monkeypatch)
+    facts = _build_hijack_facts(subject)
+    assert facts["monitor_followup_pending"] is False
+    assert decision["mode"] == "refused"
+    assert decision["code"] in {"already_completed", "ineligible_status", "not_found"}
+
+
+def test_mere_monitor_next_action_is_not_pending_followup(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    subject, decision = _pending_monitor_session(
+        tmp_path,
+        monkeypatch,
+        meta_extra={"monitor_next_action": "fix the failure"},
+    )
+    facts = _build_hijack_facts(subject)
+    assert facts["monitor_followup_pending"] is False
+    assert decision["mode"] == "refused"
+
+
+def test_frozen_continue_policy_marks_settled_command_pending(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    subject, decision = _pending_monitor_session(
+        tmp_path,
+        monkeypatch,
+        meta_extra={
+            "continuation_frozen_policy": {
+                "branches": {
+                    "completed": {
+                        "action": "continue",
+                        "next_action": "fix the failure",
+                    }
+                }
+            }
+        },
+    )
+    facts = _build_hijack_facts(subject)
+    assert facts["monitor_followup_pending"] is True
+    assert decision["mode"] == "latched"
+    assert decision["boundary"] == "monitor"
+
+
+def test_terminal_followup_outcome_is_not_pending(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    subject, decision = _pending_monitor_session(
+        tmp_path,
+        monkeypatch,
+        meta_extra={
+            "monitor_followup_outcome": "launched",
+            "continuation_frozen_policy": {
+                "branches": {
+                    "completed": {
+                        "action": "continue",
+                        "next_action": "fix the failure",
+                    }
+                }
+            },
+        },
+    )
+    facts = _build_hijack_facts(subject)
+    assert facts["monitor_followup_pending"] is False
+    assert decision["mode"] == "refused"
+
+
+def test_monitor_followup_pending_helper_uses_delivery_not_next_action(
+    tmp_path: Path,
+) -> None:
+    from sase.agent.hijack._facts_resolve import _monitor_followup_pending
+
+    artifacts = tmp_path / "mon"
+    artifacts.mkdir()
+    meta = {
+        "monitor_next_action": "continue from here",
+        "monitor_state": "completed",
+    }
+    assert (
+        _monitor_followup_pending(
+            str(artifacts),
+            meta,
+            occupying_kind="monitor",
+            monitor_state="completed",
+            done_outcome="succeeded",
+        )
+        is False
+    )
+    _write_pending_delivery(artifacts, disposition="pending")
+    assert (
+        _monitor_followup_pending(
+            str(artifacts),
+            meta,
+            occupying_kind="monitor",
+            monitor_state="completed",
+            done_outcome="succeeded",
+        )
+        is True
+    )
+    assert (
+        _monitor_followup_pending(
+            str(artifacts),
+            meta,
+            occupying_kind="llm",
+            monitor_state="completed",
+            done_outcome="succeeded",
+        )
+        is False
+    )
 
 
 def test_session_and_clan_seams_skip_archive_lookups(
