@@ -47,7 +47,7 @@ def _release_stale_compact_running_home_marker(artifact_dir: Path) -> None:
         pass
 
 
-def resolve_compact_running_home_records(
+def _resolve_compact_running_home_records(
     snapshot: AgentArtifactListSnapshotWire,
 ) -> list[AgentArtifactListRecordWire]:
     """Select live local home running rows and clean up stale markers.
@@ -73,7 +73,7 @@ def resolve_compact_running_home_records(
     return records
 
 
-def load_running_home_agents_from_compact_records(
+def _load_running_home_agents_from_compact_records(
     records: list[AgentArtifactListRecordWire],
     *,
     project_file: str,
@@ -124,7 +124,7 @@ def load_running_home_agents_from_compact_snapshot(
     home_project_file = preferred_project_spec_path(
         str(sase_projects_dir() / "home"), "home"
     )
-    return load_running_home_agents_from_compact_records(
-        resolve_compact_running_home_records(snapshot),
+    return _load_running_home_agents_from_compact_records(
+        _resolve_compact_running_home_records(snapshot),
         project_file=home_project_file,
     )

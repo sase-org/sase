@@ -22,13 +22,13 @@ from typing import Any
 import pytest
 
 from sase.ace.tui.models._loaders._compact_done_loaders import (
-    build_done_agent_from_compact_record,
+    _build_done_agent_from_compact_record,
     load_done_agents_from_compact_snapshot,
 )
 from sase.ace.tui.models._loaders._compact_running_loaders import (
-    load_running_home_agents_from_compact_records,
+    _load_running_home_agents_from_compact_records,
     load_running_home_agents_from_compact_snapshot,
-    resolve_compact_running_home_records,
+    _resolve_compact_running_home_records,
 )
 from sase.ace.tui.models._loaders._done_snapshot_loaders import (
     build_done_agent_from_record,
@@ -255,7 +255,7 @@ def test_completed_row_parity(tmp_path: Path) -> None:
         ],
     )
     (decoded,) = agent_artifact_list_records_from_dicts([compact_record])
-    compact = build_done_agent_from_compact_record(decoded, {}, {})
+    compact = _build_done_agent_from_compact_record(decoded, {}, {})
 
     _assert_parity(full, compact)
     # Deferred: full row carries the PDF and response path; compact does not.
@@ -318,7 +318,7 @@ def test_failed_retried_row_parity(tmp_path: Path) -> None:
         },
     )
     (decoded,) = agent_artifact_list_records_from_dicts([compact_record])
-    compact = build_done_agent_from_compact_record(decoded, {}, {})
+    compact = _build_done_agent_from_compact_record(decoded, {}, {})
 
     _assert_parity(full, compact)
     assert compact is not None and compact.status == "FAILED (RETRIED)"
@@ -384,7 +384,7 @@ def test_monitored_row_parity(tmp_path: Path) -> None:
         },
     )
     (decoded,) = agent_artifact_list_records_from_dicts([compact_record])
-    compact = build_done_agent_from_compact_record(decoded, {}, {})
+    compact = _build_done_agent_from_compact_record(decoded, {}, {})
 
     assert full is not None and compact is not None
     assert full.status == "MONITORED" == compact.status
@@ -422,7 +422,7 @@ def test_hijacked_expired_row_parity(tmp_path: Path) -> None:
         },
     )
     (decoded,) = agent_artifact_list_records_from_dicts([compact_record])
-    compact = build_done_agent_from_compact_record(decoded, {}, {})
+    compact = _build_done_agent_from_compact_record(decoded, {}, {})
 
     _assert_parity(full, compact)
     assert compact is not None and compact.hijack_expired is True
@@ -447,7 +447,7 @@ def test_noop_row_builds_nothing(tmp_path: Path) -> None:
         done={"outcome": "noop", "cl_name": "cl-np"},
     )
     (decoded,) = agent_artifact_list_records_from_dicts([compact_record])
-    assert build_done_agent_from_compact_record(decoded, {}, {}) is None
+    assert _build_done_agent_from_compact_record(decoded, {}, {}) is None
 
 
 def test_snapshot_loaders_agree_on_row_sets(tmp_path: Path) -> None:
@@ -537,8 +537,8 @@ def test_running_home_row_parity(tmp_path: Path) -> None:
         waiting={"waiting_for": ["slot-1"]},
     )
     (decoded,) = agent_artifact_list_records_from_dicts([compact_record])
-    compact_agents = load_running_home_agents_from_compact_records(
-        resolve_compact_running_home_records(
+    compact_agents = _load_running_home_agents_from_compact_records(
+        _resolve_compact_running_home_records(
             agent_artifact_list_scan_wire_from_dict(
                 {
                     "schema_version": 1,
@@ -578,7 +578,7 @@ def test_compact_path_does_not_use_full_decoder(monkeypatch: Any) -> None:
         "done": {"outcome": "completed", "cl_name": "cl1"},
     }
     (decoded,) = agent_artifact_list_records_from_dicts([record])
-    agent = build_done_agent_from_compact_record(decoded, {}, {})
+    agent = _build_done_agent_from_compact_record(decoded, {}, {})
     assert agent is not None and agent.status == "DONE"
 
 

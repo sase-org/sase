@@ -28,14 +28,15 @@ from ._agent_loader_normalization import (
     normalize_loaded_agents as _normalize_agents,
 )
 from ._agent_loader_scans import (
-    artifact_snapshot_for_live_plan_load,
-    artifact_snapshot_for_tui_load,
-    scan_artifact_dirs_for_loader,
+    artifact_snapshot_for_live_plan_load_list,
+    artifact_snapshot_for_tui_load_list,
+    scan_artifact_dirs_for_loader_list,
 )
 from ._agent_loader_sources import (
     load_agents_from_all_sources,
-    load_agents_from_artifact_snapshot_sources,
-    load_plan_agents_from_artifact_snapshot,
+    load_agents_from_compact_snapshot_sources,
+    load_compact_agents_from_all_sources,
+    load_plan_agents_from_compact_snapshot,
 )
 from ._loaders import (
     get_all_project_files,
@@ -103,7 +104,7 @@ def _load_agents_with_load_state(
         "agents.load_from_disk.index",
         index_freshness=index_freshness,
     ) as extra:
-        artifact_snapshot, state = artifact_snapshot_for_tui_load(
+        artifact_snapshot, state = artifact_snapshot_for_tui_load_list(
             full_history=full_history,
             use_artifact_index=use_artifact_index,
             index_freshness=index_freshness,
@@ -124,14 +125,15 @@ def _load_agents_with_load_state(
         )
     decode_start = time.perf_counter()
     with tui_trace("agents.load_from_disk.decode") as extra:
-        agents, workflow_agent_steps = load_agents_from_all_sources(
+        agents, workflow_agent_steps = load_compact_agents_from_all_sources(
             patch_snapshot=patch_snapshot,
             artifact_snapshot=artifact_snapshot,
         )
         extra["decoded_count"] = len(agents) + len(workflow_agent_steps)
     decode_elapsed = time.perf_counter() - decode_start
-    # This path always scans the RUNNING field via `load_agents_from_all_sources`,
-    # so the roster is authoritative for workspace claims. The keeps-displayed
+    # This path always scans the RUNNING field via
+    # `load_compact_agents_from_all_sources`, so the roster is authoritative
+    # for workspace claims. The keeps-displayed
     # roster short-circuit above returns early without scanning, leaving the
     # default False. Bounded-prefix truncation is handled in `load_tiered_agents`,
     # which clears the flag when it slices the decoded roster to the viewport cap
@@ -191,8 +193,8 @@ def load_live_plan_agents() -> list[Agent]:
     agents: list[Agent] = []
     project_files = get_all_project_files()
     agents.extend(load_agents_from_running_field(project_files, {}, {}))
-    artifact_snapshot = artifact_snapshot_for_live_plan_load()
-    agents.extend(load_plan_agents_from_artifact_snapshot(artifact_snapshot))
+    artifact_snapshot = artifact_snapshot_for_live_plan_load_list()
+    agents.extend(load_plan_agents_from_compact_snapshot(artifact_snapshot))
     return _normalize_live_plan_agents(agents)
 
 
@@ -212,11 +214,11 @@ def load_live_plan_agents_for_timestamps(timestamps: Iterable[str]) -> list[Agen
     artifact_dirs = artifact_dirs_for_normalized_timestamps(normalized)
     if not artifact_dirs:
         return _normalize_live_plan_agents(agents)
-    snapshot = scan_artifact_dirs_for_loader(
+    snapshot = scan_artifact_dirs_for_loader_list(
         artifact_dirs,
         PLAN_LIVE_SCAN_OPTIONS,
     )
-    agents.extend(load_plan_agents_from_artifact_snapshot(snapshot))
+    agents.extend(load_plan_agents_from_compact_snapshot(snapshot))
     return _normalize_live_plan_agents(agents)
 
 
@@ -378,14 +380,14 @@ def load_artifact_delta_agents(
         deleted_artifact_dirs,
     )
 
-    snapshot = scan_artifact_dirs_for_loader(unique_dirs)
+    snapshot = scan_artifact_dirs_for_loader_list(unique_dirs)
     update_artifact_index_from_delta(snapshot, update_index=update_index)
     state = artifact_delta_load_state(
         snapshot,
         seen_dirs=seen_dirs,
         deleted_dir_keys=deleted_dir_keys,
     )
-    agents, workflow_agent_steps = load_agents_from_artifact_snapshot_sources(
+    agents, workflow_agent_steps = load_agents_from_compact_snapshot_sources(
         snapshot,
         patch_snapshot=patch_snapshot,
     )

@@ -45,7 +45,9 @@ def _patch_sentinel_pid_liveness(monkeypatch: pytest.MonkeyPatch) -> None:
     for target in (
         "sase.ace.tui.models._agent_loader_tiered.is_process_running",
         "sase.ace.tui.models._loaders._running_loaders.is_process_running",
+        "sase.ace.tui.models._loaders._compact_running_loaders.is_process_running",
         "sase.ace.tui.models._loaders._workflow_loaders.is_process_running",
+        "sase.ace.tui.models._loaders._compact_workflow_loaders.is_process_running",
     ):
         monkeypatch.setattr(target, is_sentinel_live)
 

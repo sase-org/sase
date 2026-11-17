@@ -4,6 +4,7 @@ from collections import OrderedDict
 from dataclasses import dataclass, replace
 from threading import RLock
 
+from sase.core.agent_scan_list_wire import AgentArtifactListSnapshotWire
 from sase.core.agent_scan_wire import AgentArtifactScanWire
 
 from ._agent_loader_artifact_state import AgentLoadState
@@ -13,7 +14,15 @@ ArtifactIndexSignature = tuple[
     tuple[str, int | None, int | None],
     tuple[str, int | None, int | None],
 ]
-ArtifactSnapshotCacheKey = tuple[str, str, str, str]
+#: Cache key namespaced by wire shape: the full ``"full"`` snapshot and the
+#: compact ``"list"`` snapshot never share entries even when their index
+#: query and scan options serialize identically.
+ArtifactSnapshotCacheKey = tuple[str, str, str, str, str]
+
+#: Snapshots retained by the TUI artifact-index cache. The TUI cutover
+#: stores compact list generations; the full shape stays for legacy
+#: callers until the bounded-retention phase replaces this cache.
+ArtifactSnapshot = AgentArtifactScanWire | AgentArtifactListSnapshotWire
 
 
 @dataclass(frozen=True)
@@ -46,7 +55,7 @@ class _ArtifactSnapshotCache:
         self._max_entries = max_entries
         self._entries: OrderedDict[
             ArtifactSnapshotCacheKey,
-            tuple[ArtifactIndexSignature, AgentArtifactScanWire, AgentLoadState],
+            tuple[ArtifactIndexSignature, ArtifactSnapshot, AgentLoadState],
         ] = OrderedDict()
         self._stats = _ArtifactSnapshotCacheStats()
         self._lock = RLock()
@@ -55,7 +64,7 @@ class _ArtifactSnapshotCache:
         self,
         key: ArtifactSnapshotCacheKey,
         signature: ArtifactIndexSignature,
-    ) -> tuple[AgentArtifactScanWire, AgentLoadState] | None:
+    ) -> tuple[ArtifactSnapshot, AgentLoadState] | None:
         with self._lock:
             entry = self._entries.get(key)
             if entry is None:
@@ -74,7 +83,7 @@ class _ArtifactSnapshotCache:
     def get_stale(
         self,
         key: ArtifactSnapshotCacheKey,
-    ) -> tuple[AgentArtifactScanWire, AgentLoadState] | None:
+    ) -> tuple[ArtifactSnapshot, AgentLoadState] | None:
         """Return the last good snapshot for *key*, ignoring index signature."""
 
         with self._lock:
@@ -90,7 +99,7 @@ class _ArtifactSnapshotCache:
         self,
         key: ArtifactSnapshotCacheKey,
         signature: ArtifactIndexSignature,
-        snapshot: AgentArtifactScanWire,
+        snapshot: ArtifactSnapshot,
         state: AgentLoadState,
     ) -> None:
         with self._lock:

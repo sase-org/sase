@@ -5,6 +5,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Literal, Protocol
 
+from sase.core.agent_scan_list_wire import AgentArtifactListSnapshotWire
 from sase.core.agent_scan_wire import (
     AgentArtifactIndexQueryWire,
     AgentArtifactScanOptionsWire,
@@ -79,6 +80,28 @@ class ArtifactIndexQuery(Protocol):
         query: AgentArtifactIndexQueryWire,
         options: AgentArtifactScanOptionsWire,
     ) -> AgentArtifactScanWire | None: ...
+
+
+class CompactArtifactScanner(Protocol):
+    """Fresh compact list snapshot for the TUI loader (no index lock)."""
+
+    def __call__(
+        self,
+        options: AgentArtifactScanOptionsWire | None = None,
+    ) -> AgentArtifactListSnapshotWire: ...
+
+
+class CompactArtifactIndexQuery(Protocol):
+    """Compact list rows from the persistent artifact index, or None if busy."""
+
+    def __call__(
+        self,
+        index_path: Path,
+        projects_root: Path,
+        *,
+        query: AgentArtifactIndexQueryWire,
+        options: AgentArtifactScanOptionsWire,
+    ) -> AgentArtifactListSnapshotWire | None: ...
 
 
 def artifact_index_lock_busy_reason(reason: str | None) -> bool:

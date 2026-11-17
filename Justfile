@@ -550,18 +550,8 @@ _lint-symvision *args: _setup
     SASE_SYMVISION_BEAD_STATUS_ONLY=1 BD_COMMAND=tools/sase_bead {{ venv_bin }}/symvision src/sase \
         --exclude-decorator gate_command_entrypoint \
         --exclude-decorator builtin_chop \
-        --epic-symbol "sase-1t3.10.1.3(agent_artifact_list_wire_schema_version)" \
-        --epic-symbol "sase-1t3.10.1.3(build_done_agent_from_compact_record)" \
-        --epic-symbol "sase-1t3.10.1.3(is_compact_done_record)" \
-        --epic-symbol "sase-1t3.10.1.3(load_done_agents_from_compact_snapshot)" \
-        --epic-symbol "sase-1t3.10.1.3(load_running_home_agents_from_compact_records)" \
-        --epic-symbol "sase-1t3.10.1.3(load_running_home_agents_from_compact_snapshot)" \
-        --epic-symbol "sase-1t3.10.1.3(query_agent_artifact_index_list)" \
-        --epic-symbol "sase-1t3.10.1.3(query_agent_artifact_index_list_bounded)" \
-        --epic-symbol "sase-1t3.10.1.3(resolve_compact_running_home_records)" \
-        --epic-symbol "sase-1t3.10.1.3(scan_agent_artifact_dir_list)" \
-        --epic-symbol "sase-1t3.10.1.3(scan_agent_artifact_dirs_list)" \
-        --epic-symbol "sase-1t3.10.1.3(scan_agent_artifacts_list)" \
+        --epic-symbol "sase-1t3.10.1(query_agent_artifact_index_list)" \
+        --epic-symbol "sase-1t3.10.1(scan_agent_artifact_dir_list)" \
         {{ args }}
 
 # Check Python file line counts (private, extracted for per-stage wrapping)

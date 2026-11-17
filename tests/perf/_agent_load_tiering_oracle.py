@@ -13,7 +13,10 @@ from sase.ace.tui.models.agent_live_query_pushdown import (
     compile_agents_live_query_pushdown,
 )
 from sase.ace.tui.models.agent_loader import load_tiered_agents
-from sase.core.agent_scan_facade import query_agent_artifact_index, scan_agent_artifacts
+from sase.core.agent_scan_facade import (
+    query_agent_artifact_index_list,
+    scan_agent_artifacts_list,
+)
 from sase.core.agent_scan_wire import AgentArtifactIndexQueryWire
 
 from tests.perf._agent_load_tiering_rows import (
@@ -112,7 +115,9 @@ class AgentLoadTieringOracle:
         return self._measure(
             "source_scan",
             query,
-            lambda: scan_agent_artifacts(self.fixture.projects_root, _TUI_SCAN_OPTIONS),
+            lambda: scan_agent_artifacts_list(
+                self.fixture.projects_root, _TUI_SCAN_OPTIONS
+            ),
         )
 
     def _load_index_bounded(
@@ -137,7 +142,7 @@ class AgentLoadTieringOracle:
         return self._measure(
             "index_bounded",
             query,
-            lambda: query_agent_artifact_index(
+            lambda: query_agent_artifact_index_list(
                 self.fixture.index_path,
                 self.fixture.projects_root,
                 wire,
@@ -165,7 +170,7 @@ class AgentLoadTieringOracle:
         return self._measure(
             "index_full_history",
             query,
-            lambda: query_agent_artifact_index(
+            lambda: query_agent_artifact_index_list(
                 self.fixture.index_path,
                 self.fixture.projects_root,
                 wire,

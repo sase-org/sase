@@ -9,23 +9,25 @@ from sase.ace.tui.actions.agents._loading_helpers import (
     load_agents_from_disk_with_state,
 )
 from sase.ace.tui.models._agent_loader_scans import (
-    artifact_snapshot_for_tui_load as _artifact_snapshot_for_tui_load,
+    artifact_snapshot_for_tui_load_list as _artifact_snapshot_for_tui_load,
 )
-from tests._agent_loader_helpers import _empty_artifact_snapshot
+from tests._agent_loader_helpers import (
+    _empty_compact_artifact_snapshot,
+)
 
 
 def test_load_agents_from_disk_full_history_reconciles_from_source() -> None:
     """Full-history refreshes use source artifacts so stale indexes cannot persist."""
 
-    snapshot = _empty_artifact_snapshot()
+    snapshot = _empty_compact_artifact_snapshot()
 
     with (
         patch(
-            "sase.ace.tui.models._agent_loader_scans.query_agent_artifact_index",
+            "sase.ace.tui.models._agent_loader_scans.query_agent_artifact_index_list",
             return_value=snapshot,
         ) as mock_query,
         patch(
-            "sase.ace.tui.models._agent_loader_scans.scan_artifacts_for_loader",
+            "sase.ace.tui.models._agent_loader_scans.scan_artifacts_for_loader_list",
             return_value=snapshot,
         ) as mock_scan,
         patch(
@@ -37,11 +39,11 @@ def test_load_agents_from_disk_full_history_reconciles_from_source() -> None:
             return_value=[],
         ),
         patch(
-            "sase.ace.tui.models._agent_loader_sources.load_done_agents_from_snapshot",
+            "sase.ace.tui.models._agent_loader_sources.load_done_agents_from_compact_snapshot",
             return_value=[],
         ),
         patch(
-            "sase.ace.tui.models._agent_loader_sources.load_running_home_agents_from_snapshot",
+            "sase.ace.tui.models._agent_loader_sources.load_running_home_agents_from_compact_snapshot",
             return_value=[],
         ),
         patch(
@@ -49,11 +51,11 @@ def test_load_agents_from_disk_full_history_reconciles_from_source() -> None:
             return_value=[],
         ),
         patch(
-            "sase.ace.tui.models._agent_loader_sources.load_workflow_agent_steps_from_snapshot",
+            "sase.ace.tui.models._agent_loader_sources.load_compact_workflow_agent_steps_from_snapshot",
             return_value=([], {}),
         ),
         patch(
-            "sase.ace.tui.models._agent_loader_sources.load_workflow_agents_from_snapshot",
+            "sase.ace.tui.models._agent_loader_sources.load_compact_workflow_agents_from_snapshot",
             return_value=[],
         ),
         patch("sase.ace.agent_tribes.load_agent_tribes", return_value={}),
@@ -74,7 +76,7 @@ def test_load_agents_from_disk_missing_index_uses_bounded_tier1_source_scan(
     """Missing artifact indexes do not force a full source scan before first paint."""
 
     index_path = tmp_path / "missing_agent_artifact_index.sqlite"
-    snapshot = _empty_artifact_snapshot()
+    snapshot = _empty_compact_artifact_snapshot()
 
     with (
         patch(
@@ -82,7 +84,7 @@ def test_load_agents_from_disk_missing_index_uses_bounded_tier1_source_scan(
             return_value=index_path,
         ),
         patch(
-            "sase.ace.tui.models._agent_loader_scans.scan_artifacts_for_loader",
+            "sase.ace.tui.models._agent_loader_scans.scan_artifacts_for_loader_list",
             return_value=snapshot,
         ) as mock_scan,
         patch(
@@ -94,11 +96,11 @@ def test_load_agents_from_disk_missing_index_uses_bounded_tier1_source_scan(
             return_value=[],
         ),
         patch(
-            "sase.ace.tui.models._agent_loader_sources.load_done_agents_from_snapshot",
+            "sase.ace.tui.models._agent_loader_sources.load_done_agents_from_compact_snapshot",
             return_value=[],
         ),
         patch(
-            "sase.ace.tui.models._agent_loader_sources.load_running_home_agents_from_snapshot",
+            "sase.ace.tui.models._agent_loader_sources.load_running_home_agents_from_compact_snapshot",
             return_value=[],
         ),
         patch(
@@ -106,11 +108,11 @@ def test_load_agents_from_disk_missing_index_uses_bounded_tier1_source_scan(
             return_value=[],
         ),
         patch(
-            "sase.ace.tui.models._agent_loader_sources.load_workflow_agent_steps_from_snapshot",
+            "sase.ace.tui.models._agent_loader_sources.load_compact_workflow_agent_steps_from_snapshot",
             return_value=([], {}),
         ),
         patch(
-            "sase.ace.tui.models._agent_loader_sources.load_workflow_agents_from_snapshot",
+            "sase.ace.tui.models._agent_loader_sources.load_compact_workflow_agents_from_snapshot",
             return_value=[],
         ),
         patch("sase.ace.agent_tribes.load_agent_tribes", return_value={}),
@@ -135,7 +137,7 @@ def test_load_agents_from_disk_bad_index_uses_bounded_tier1_source_scan(
 
     index_path = tmp_path / "agent_artifact_index.sqlite"
     index_path.touch()
-    snapshot = _empty_artifact_snapshot()
+    snapshot = _empty_compact_artifact_snapshot()
 
     with (
         patch(
@@ -143,11 +145,11 @@ def test_load_agents_from_disk_bad_index_uses_bounded_tier1_source_scan(
             return_value=index_path,
         ),
         patch(
-            "sase.ace.tui.models._agent_loader_scans.query_agent_artifact_index",
+            "sase.ace.tui.models._agent_loader_scans.query_agent_artifact_index_list",
             side_effect=RuntimeError("stale schema"),
         ),
         patch(
-            "sase.ace.tui.models._agent_loader_scans.scan_artifacts_for_loader",
+            "sase.ace.tui.models._agent_loader_scans.scan_artifacts_for_loader_list",
             return_value=snapshot,
         ) as mock_scan,
         patch(
@@ -159,11 +161,11 @@ def test_load_agents_from_disk_bad_index_uses_bounded_tier1_source_scan(
             return_value=[],
         ),
         patch(
-            "sase.ace.tui.models._agent_loader_sources.load_done_agents_from_snapshot",
+            "sase.ace.tui.models._agent_loader_sources.load_done_agents_from_compact_snapshot",
             return_value=[],
         ),
         patch(
-            "sase.ace.tui.models._agent_loader_sources.load_running_home_agents_from_snapshot",
+            "sase.ace.tui.models._agent_loader_sources.load_running_home_agents_from_compact_snapshot",
             return_value=[],
         ),
         patch(
@@ -171,11 +173,11 @@ def test_load_agents_from_disk_bad_index_uses_bounded_tier1_source_scan(
             return_value=[],
         ),
         patch(
-            "sase.ace.tui.models._agent_loader_sources.load_workflow_agent_steps_from_snapshot",
+            "sase.ace.tui.models._agent_loader_sources.load_compact_workflow_agent_steps_from_snapshot",
             return_value=([], {}),
         ),
         patch(
-            "sase.ace.tui.models._agent_loader_sources.load_workflow_agents_from_snapshot",
+            "sase.ace.tui.models._agent_loader_sources.load_compact_workflow_agents_from_snapshot",
             return_value=[],
         ),
         patch("sase.ace.agent_tribes.load_agent_tribes", return_value={}),
@@ -205,7 +207,7 @@ def test_load_agents_from_disk_busy_index_lock_uses_bounded_tier1_source_scan(
 
     index_path = tmp_path / "agent_artifact_index.sqlite"
     index_path.touch()
-    snapshot = _empty_artifact_snapshot()
+    snapshot = _empty_compact_artifact_snapshot()
 
     with (
         patch(
@@ -213,11 +215,11 @@ def test_load_agents_from_disk_busy_index_lock_uses_bounded_tier1_source_scan(
             return_value=index_path,
         ),
         patch(
-            "sase.ace.tui.models._agent_loader_scans.query_agent_artifact_index",
+            "sase.ace.tui.models._agent_loader_scans.query_agent_artifact_index_list",
             return_value=None,
         ),
         patch(
-            "sase.ace.tui.models._agent_loader_scans.scan_artifacts_for_loader",
+            "sase.ace.tui.models._agent_loader_scans.scan_artifacts_for_loader_list",
             return_value=snapshot,
         ) as mock_scan,
         patch(
@@ -229,11 +231,11 @@ def test_load_agents_from_disk_busy_index_lock_uses_bounded_tier1_source_scan(
             return_value=[],
         ),
         patch(
-            "sase.ace.tui.models._agent_loader_sources.load_done_agents_from_snapshot",
+            "sase.ace.tui.models._agent_loader_sources.load_done_agents_from_compact_snapshot",
             return_value=[],
         ),
         patch(
-            "sase.ace.tui.models._agent_loader_sources.load_running_home_agents_from_snapshot",
+            "sase.ace.tui.models._agent_loader_sources.load_running_home_agents_from_compact_snapshot",
             return_value=[],
         ),
         patch(
@@ -241,11 +243,11 @@ def test_load_agents_from_disk_busy_index_lock_uses_bounded_tier1_source_scan(
             return_value=[],
         ),
         patch(
-            "sase.ace.tui.models._agent_loader_sources.load_workflow_agent_steps_from_snapshot",
+            "sase.ace.tui.models._agent_loader_sources.load_compact_workflow_agent_steps_from_snapshot",
             return_value=([], {}),
         ),
         patch(
-            "sase.ace.tui.models._agent_loader_sources.load_workflow_agents_from_snapshot",
+            "sase.ace.tui.models._agent_loader_sources.load_compact_workflow_agents_from_snapshot",
             return_value=[],
         ),
         patch("sase.ace.agent_tribes.load_agent_tribes", return_value={}),
@@ -274,7 +276,7 @@ def test_load_agents_from_disk_busy_index_lock_keeps_roster_after_first_paint(
 
     index_path = tmp_path / "agent_artifact_index.sqlite"
     index_path.touch()
-    snapshot = _empty_artifact_snapshot()
+    snapshot = _empty_compact_artifact_snapshot()
 
     with (
         patch(
@@ -282,11 +284,11 @@ def test_load_agents_from_disk_busy_index_lock_keeps_roster_after_first_paint(
             return_value=index_path,
         ),
         patch(
-            "sase.ace.tui.models._agent_loader_scans.query_agent_artifact_index",
+            "sase.ace.tui.models._agent_loader_scans.query_agent_artifact_index_list",
             return_value=None,
         ),
         patch(
-            "sase.ace.tui.models._agent_loader_scans.scan_artifacts_for_loader",
+            "sase.ace.tui.models._agent_loader_scans.scan_artifacts_for_loader_list",
             return_value=snapshot,
         ) as mock_scan,
         patch(
@@ -298,11 +300,11 @@ def test_load_agents_from_disk_busy_index_lock_keeps_roster_after_first_paint(
             return_value=[],
         ),
         patch(
-            "sase.ace.tui.models._agent_loader_sources.load_done_agents_from_snapshot",
+            "sase.ace.tui.models._agent_loader_sources.load_done_agents_from_compact_snapshot",
             return_value=[],
         ),
         patch(
-            "sase.ace.tui.models._agent_loader_sources.load_running_home_agents_from_snapshot",
+            "sase.ace.tui.models._agent_loader_sources.load_running_home_agents_from_compact_snapshot",
             return_value=[],
         ),
         patch(
@@ -310,11 +312,11 @@ def test_load_agents_from_disk_busy_index_lock_keeps_roster_after_first_paint(
             return_value=[],
         ),
         patch(
-            "sase.ace.tui.models._agent_loader_sources.load_workflow_agent_steps_from_snapshot",
+            "sase.ace.tui.models._agent_loader_sources.load_compact_workflow_agent_steps_from_snapshot",
             return_value=([], {}),
         ),
         patch(
-            "sase.ace.tui.models._agent_loader_sources.load_workflow_agents_from_snapshot",
+            "sase.ace.tui.models._agent_loader_sources.load_compact_workflow_agents_from_snapshot",
             return_value=[],
         ),
         patch("sase.ace.agent_tribes.load_agent_tribes", return_value={}),
@@ -336,15 +338,15 @@ def test_load_agents_from_disk_busy_index_lock_keeps_roster_after_first_paint(
 
 
 def test_explicit_index_bypass_uses_bounded_scan_without_repair_reaction() -> None:
-    snapshot = _empty_artifact_snapshot()
+    snapshot = _empty_compact_artifact_snapshot()
 
     with (
         patch(
-            "sase.ace.tui.models._agent_loader_scans.query_agent_artifact_index",
+            "sase.ace.tui.models._agent_loader_scans.query_agent_artifact_index_list",
             side_effect=AssertionError("bypassed index must not be queried"),
         ),
         patch(
-            "sase.ace.tui.models._agent_loader_scans.scan_artifacts_for_loader",
+            "sase.ace.tui.models._agent_loader_scans.scan_artifacts_for_loader_list",
             return_value=snapshot,
         ) as mock_scan,
     ):

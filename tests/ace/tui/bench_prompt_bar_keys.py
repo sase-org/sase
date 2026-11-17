@@ -176,9 +176,24 @@ def _stub_agent_scan_backend(
     harness hermetic without touching the measured paths.
     """
     from sase.core.agent_scan_facade import agent_scan_wire_from_dict
+    from sase.core.agent_scan_list_wire import (
+        AGENT_ARTIFACT_LIST_WIRE_SCHEMA_VERSION,
+        AgentArtifactListSnapshotWire,
+    )
+    from sase.core.agent_scan_wire import (
+        AgentArtifactScanOptionsWire,
+        AgentArtifactScanStatsWire,
+    )
 
     empty = agent_scan_wire_from_dict(
         {"schema_version": 10, "projects_root": str(projects_root)}
+    )
+    empty_list = AgentArtifactListSnapshotWire(
+        schema_version=AGENT_ARTIFACT_LIST_WIRE_SCHEMA_VERSION,
+        projects_root=str(projects_root),
+        options=AgentArtifactScanOptionsWire(),
+        stats=AgentArtifactScanStatsWire(),
+        records=[],
     )
     import sase.ace.tui.models._agent_loader_scans as scans_module
 
@@ -186,7 +201,14 @@ def _stub_agent_scan_backend(
         scans_module, "scan_agent_artifacts", lambda *args, **kwargs: empty
     )
     monkeypatch.setattr(
-        scans_module, "scan_agent_artifact_dirs", lambda *args, **kwargs: empty
+        scans_module,
+        "scan_agent_artifacts_list",
+        lambda *args, **kwargs: empty_list,
+    )
+    monkeypatch.setattr(
+        scans_module,
+        "scan_agent_artifact_dirs_list",
+        lambda *args, **kwargs: empty_list,
     )
 
 

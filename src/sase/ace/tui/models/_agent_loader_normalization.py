@@ -4,6 +4,7 @@ from collections.abc import Callable
 
 from sase.agent.status_buckets import agent_status_bucket
 from sase.core.agent_clan_context import clan_context_by_key, clan_context_for
+from sase.core.agent_scan_list_wire import AgentArtifactListSnapshotWire
 from sase.core.agent_scan_wire import AgentArtifactScanWire
 from sase.core.process_identity import process_identity_matches
 
@@ -50,7 +51,7 @@ _PID_LIVENESS_EXEMPT_STATUSES = frozenset(
 
 def apply_snapshot_clan_context(
     agents: list[Agent],
-    snapshot: AgentArtifactScanWire,
+    snapshot: AgentArtifactScanWire | AgentArtifactListSnapshotWire,
 ) -> None:
     """Attach snapshot-only clan context to matching loaded member rows."""
     contexts = clan_context_by_key(snapshot.clan_context)

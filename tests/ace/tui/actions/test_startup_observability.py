@@ -37,9 +37,9 @@ from sase.ace.tui.models._agent_loader_tiered import (
 )
 from sase.ace.tui.models.agent_loader import AgentLoadState
 from sase.ace.tui.util import trace
-from sase.core.agent_scan_wire import AgentArtifactScanWire
+from sase.core.agent_scan_list_wire import AgentArtifactListSnapshotWire
 from sase.logs import tui_telemetry
-from tests._agent_loader_helpers import _empty_artifact_snapshot
+from tests._agent_loader_helpers import _empty_compact_artifact_snapshot
 from tests.ace.tui._axe_collector_helpers import patch_service_status
 
 
@@ -158,9 +158,11 @@ def test_load_state_emits_index_and_decode_spans(
         used_artifact_index=True,
         record_count=12,
     )
-    snapshot = _empty_artifact_snapshot()
+    snapshot = _empty_compact_artifact_snapshot()
 
-    def _slow_index(**kwargs: object) -> tuple[AgentArtifactScanWire, AgentLoadState]:
+    def _slow_index(
+        **kwargs: object,
+    ) -> tuple[AgentArtifactListSnapshotWire, AgentLoadState]:
         time.sleep(0.02)  # sase-test-wait: fake slow index for span duration
         return snapshot, load_state
 
@@ -170,11 +172,11 @@ def test_load_state_emits_index_and_decode_spans(
 
     with (
         patch(
-            "sase.ace.tui.models._agent_loader_tiered.artifact_snapshot_for_tui_load",
+            "sase.ace.tui.models._agent_loader_tiered.artifact_snapshot_for_tui_load_list",
             side_effect=_slow_index,
         ),
         patch(
-            "sase.ace.tui.models._agent_loader_tiered.load_agents_from_all_sources",
+            "sase.ace.tui.models._agent_loader_tiered.load_compact_agents_from_all_sources",
             side_effect=_slow_decode,
         ),
     ):
@@ -350,9 +352,11 @@ def test_disk_load_returns_always_on_substage_timings(
         used_artifact_index=True,
         record_count=12,
     )
-    snapshot = _empty_artifact_snapshot()
+    snapshot = _empty_compact_artifact_snapshot()
 
-    def _slow_index(**kwargs: object) -> tuple[AgentArtifactScanWire, AgentLoadState]:
+    def _slow_index(
+        **kwargs: object,
+    ) -> tuple[AgentArtifactListSnapshotWire, AgentLoadState]:
         time.sleep(0.02)  # sase-test-wait: fake slow index for substage timing
         return snapshot, load_state
 
@@ -367,11 +371,11 @@ def test_disk_load_returns_always_on_substage_timings(
         ),
         patch("sase.ace.agent_tribes.load_agent_tribes", return_value={}),
         patch(
-            "sase.ace.tui.models._agent_loader_tiered.artifact_snapshot_for_tui_load",
+            "sase.ace.tui.models._agent_loader_tiered.artifact_snapshot_for_tui_load_list",
             side_effect=_slow_index,
         ),
         patch(
-            "sase.ace.tui.models._agent_loader_tiered.load_agents_from_all_sources",
+            "sase.ace.tui.models._agent_loader_tiered.load_compact_agents_from_all_sources",
             side_effect=_slow_decode,
         ),
     ):

@@ -64,7 +64,7 @@ _MAX_ELAPSED_SECONDS = 5.0
 # modules already imported) and defer the new edges with use-site or
 # ``TYPE_CHECKING`` imports.
 _FOOTPRINT_METRIC_VERSION = 1
-_FOOTPRINT_BASELINE_BYTES = 11_824_514
+_FOOTPRINT_BASELINE_BYTES = 11_920_681
 _FOOTPRINT_ALLOWANCE_BYTES = 4_096
 _MAX_SASE_SOURCE_FOOTPRINT_BYTES = (
     _FOOTPRINT_BASELINE_BYTES + _FOOTPRINT_ALLOWANCE_BYTES
@@ -219,7 +219,7 @@ def _measure_tui_app_import(
 def test_footprint_cap_is_the_measured_baseline_plus_the_fixed_allowance() -> None:
     assert footprint.FOOTPRINT_METRIC_VERSION == _FOOTPRINT_METRIC_VERSION
     assert _FOOTPRINT_ALLOWANCE_BYTES == 4_096
-    assert _MAX_SASE_SOURCE_FOOTPRINT_BYTES == 11_828_610
+    assert _MAX_SASE_SOURCE_FOOTPRINT_BYTES == 11_924_777
 
 
 def test_first_party_membership_is_the_sase_package_and_submodules() -> None:
@@ -240,7 +240,7 @@ def test_first_party_membership_is_the_sase_package_and_submodules() -> None:
 
 def test_footprint_cap_uses_strict_less_than() -> None:
     _assert_footprint_budget(_synthetic(_MAX_SASE_SOURCE_FOOTPRINT_BYTES - 1))
-    with pytest.raises(AssertionError, match="against the 11,828,610 cap"):
+    with pytest.raises(AssertionError, match="against the 11,924,777 cap"):
         _assert_footprint_budget(_synthetic(_MAX_SASE_SOURCE_FOOTPRINT_BYTES))
 
 

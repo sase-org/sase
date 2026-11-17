@@ -349,7 +349,15 @@ def test_exact_child_delta_remirrors_tale_agent_session_root_to_done(
             return_value=True,
         ),
         patch(
+            "sase.ace.tui.models._loaders._compact_running_loaders.is_process_running",
+            return_value=True,
+        ),
+        patch(
             "sase.ace.tui.models._loaders._workflow_loaders.is_process_running",
+            return_value=True,
+        ),
+        patch(
+            "sase.ace.tui.models._loaders._compact_workflow_loaders.is_process_running",
             return_value=True,
         ),
         patch("sase.ace.agent_tribes.load_agent_tribes", return_value={}),
@@ -381,7 +389,15 @@ def test_exact_child_delta_remirrors_tale_agent_session_root_to_done(
             return_value=False,
         ),
         patch(
+            "sase.ace.tui.models._loaders._compact_running_loaders.is_process_running",
+            return_value=False,
+        ),
+        patch(
             "sase.ace.tui.models._loaders._workflow_loaders.is_process_running",
+            return_value=False,
+        ),
+        patch(
+            "sase.ace.tui.models._loaders._compact_workflow_loaders.is_process_running",
             return_value=False,
         ),
     ):

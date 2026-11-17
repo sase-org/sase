@@ -22,7 +22,6 @@ from sase.core.agent_scan_list_wire import (
     AgentArtifactListWaitingWire,
 )
 from sase.core.runner_slots import DEFAULT_WAIT_PRIORITY
-from sase.core.wait_epic_follow_view import epic_follow_views
 from sase.gate_turn.state import is_real_gate_member
 from sase.monitor_state import is_monitor_member_role
 from sase.sdd.plan_tiers import cached_plan_tier
@@ -66,6 +65,38 @@ def _compact_valid_multiplier(value: object) -> float | None:
     return numeric if formatted is not None else None
 
 
+def _compact_monitor_supervisor_identity(agent: Agent) -> str | None:
+    """Return the supervisor identity stamp for monitor members.
+
+    The compact projection defers turn command/payload refs, but PID-reuse
+    detection (capacity claims, dead-PID filtering) reads
+    ``process_identity`` at list time, and monitor members usually carry no
+    top-level ``process_identity``: the supervisor stamps
+    ``monitor_supervisor_identity`` beside the turn instead. Resolve that
+    one scalar through the mtime-cached marker read so compact rows keep
+    the full path's source precedence (the supervisor stamp wins over the
+    meta identity). Monitor members are rare, and the read is cached per
+    artifact directory, so the list path stays free of full decodes.
+    """
+    if not is_monitor_member_role(agent.agent_session_role, agent.role_suffix):
+        return None
+    artifacts_dir = agent.get_artifacts_dir()
+    if not artifacts_dir:
+        return None
+    from pathlib import Path
+
+    from ._json_cache import load_json_cached
+
+    try:
+        data = load_json_cached(Path(artifacts_dir) / "agent_meta.json")
+    except (FileNotFoundError, OSError, ValueError):
+        return None
+    if not isinstance(data, dict):
+        return None
+    value = data.get("monitor_supervisor_identity")
+    return value if isinstance(value, str) and value else None
+
+
 def _compact_meta_has_wait_directive(meta: AgentArtifactListMetaWire) -> bool:
     """Mirror ``wire_meta_has_wait_directive`` over compact meta facts."""
 
@@ -82,6 +113,63 @@ def _compact_meta_has_wait_directive(meta: AgentArtifactListMetaWire) -> bool:
     )
 
 
+def _compact_root_agent_session_name(
+    meta: AgentArtifactListMetaWire,
+) -> str | None:
+    """Return the session-root name when *meta* identifies a plan-chain root."""
+    from sase.plan_chain import PLAN_CHAIN_PLAN_SUFFIX, canonical_plan_chain_suffix
+
+    role_suffix = canonical_plan_chain_suffix(meta.role_suffix)
+    is_root = (
+        meta.plan_chain_root
+        or meta.agent_session_role == "root"
+        or role_suffix == PLAN_CHAIN_PLAN_SUFFIX
+    )
+    if not is_root:
+        return None
+    if meta.agent_session:
+        return meta.agent_session
+    if meta.name:
+        return meta.name
+    return None
+
+
+def _apply_compact_workflow_child_identity(
+    agent: Agent,
+    meta: AgentArtifactListMetaWire,
+) -> None:
+    """Derive concrete session identity for the main agent workflow step.
+
+    Compact twin of
+    :func:`sase.ace.tui.models._loaders._meta_enrichment_identity.apply_workflow_child_identity_from_meta_wire`:
+    the compact wire carries every field that helper reads
+    (``role_suffix``, ``plan_chain_root``, ``agent_session_role``,
+    ``agent_session``, ``name``), so the derivation matches the full path.
+    """
+    from sase.plan_chain import (
+        PLAN_CHAIN_PLAN_SUFFIX,
+        agent_session_phase_name,
+        agent_session_role_for_suffix,
+        canonical_plan_chain_suffix,
+    )
+
+    from ._meta_enrichment_identity import is_main_workflow_agent_step
+
+    if not is_main_workflow_agent_step(agent):
+        return
+    session_name = _compact_root_agent_session_name(meta)
+    if session_name is None:
+        return
+    child_suffix = (
+        canonical_plan_chain_suffix(meta.role_suffix) or PLAN_CHAIN_PLAN_SUFFIX
+    )
+    child_name = agent_session_phase_name(session_name, child_suffix)
+    agent.agent_name = child_name
+    agent.agent_session = session_name
+    agent.agent_session_role = agent_session_role_for_suffix(child_suffix)
+    agent.role_suffix = child_suffix
+
+
 def enrich_agent_from_compact_meta(
     agent: Agent,
     meta: AgentArtifactListMetaWire | None,
@@ -89,16 +177,21 @@ def enrich_agent_from_compact_meta(
     pending_question: AgentArtifactListPendingQuestionWire | None = None,
     *,
     plan_path_marker: str | None = None,
+    workflow_child: bool = False,
     has_done_marker: bool = False,
 ) -> None:
     """Apply compact list facts onto *agent* (snapshot-wire semantics).
 
-    Mirrors :func:`enrich_agent_from_meta_wire` for every kept field.
+    Mirrors :func:`enrich_agent_from_meta_wire` for every kept field,
+    including the ``workflow_child`` identity split for prompt-step rows.
     Deferred fields keep their ``Agent`` defaults so selected-record
     hydration (the workflow-cutover phase) can restore them later.
     """
     from sase._plan_gate_metadata import recorded_auto_covers_plan
     from sase.agent.auto_restart.ux import apply_provenance_to_agent
+
+    # Imported lazily to keep sase.core.wait_epic_follow_view out of TUI startup.
+    from sase.core.wait_epic_follow_view import epic_follow_views
 
     if plan_path_marker:
         agent.archived_plan_path = plan_path_marker
@@ -151,7 +244,7 @@ def enrich_agent_from_compact_meta(
         )
     if not agent.diff_path and meta.commit_diff_path:
         agent.diff_path = meta.commit_diff_path
-    if meta.name:
+    if not workflow_child and meta.name:
         agent.agent_name = meta.name
     if meta.tribe:
         agent.tribe = meta.tribe
@@ -173,6 +266,8 @@ def enrich_agent_from_compact_meta(
     agent.queue_weight_explicit = meta.queue_weight_explicit
     agent.queue_weight_invalid = meta.queue_weight_invalid
     agent.queue_weight_error = meta.queue_weight_error
+    from ._meta_enrichment_identity import is_main_workflow_agent_step
+
     auto_action = meta.auto_approve_plan_action or None
     meta_auto_approved = agent.approve or bool(meta.approve) or bool(auto_action)
     if meta_auto_approved:
@@ -181,7 +276,8 @@ def enrich_agent_from_compact_meta(
             meta.auto_approve_argument,
             meta.plan_path,
         )
-    if auto_action:
+    apply_meta_approve = not workflow_child or is_main_workflow_agent_step(agent)
+    if apply_meta_approve and auto_action:
         agent.auto_approve_plan_action = auto_action
         agent.approve = True
     if meta.plan_action:
@@ -189,34 +285,37 @@ def enrich_agent_from_compact_meta(
     if meta.plan_committed is not None:
         agent.plan_committed = meta.plan_committed
     refresh_agent_plan_path(agent)
-    if meta.approve:
+    if apply_meta_approve and meta.approve:
         agent.approve = True
     if meta.hidden:
         agent.hidden = True
-    if meta.role_suffix:
+    if not workflow_child and meta.role_suffix:
         agent.role_suffix = meta.role_suffix
-    if meta.agent_session:
-        agent.agent_session = meta.agent_session
-    if meta.agent_session_role:
-        agent.agent_session_role = meta.agent_session_role
-    apply_imported_source_owner(agent, meta.imported_source_owner)
-    apply_archive_source_machine(agent, meta.source_machine)
-    if meta.agent_clan:
-        agent.agent_clan = meta.agent_clan
-    if meta.agent_clan_generation:
-        agent.agent_clan_generation = meta.agent_clan_generation
-    if meta.clan_tribe:
-        agent.clan_tribe = meta.clan_tribe
-    if meta.clan_summary:
-        agent.clan_summary = meta.clan_summary
-    agent.agent_session_parallel = meta.agent_session_parallel
-    if meta.plan_chain_root:
+    if not workflow_child:
+        if meta.agent_session:
+            agent.agent_session = meta.agent_session
+        if meta.agent_session_role:
+            agent.agent_session_role = meta.agent_session_role
+        apply_imported_source_owner(agent, meta.imported_source_owner)
+        apply_archive_source_machine(agent, meta.source_machine)
+        if meta.agent_clan:
+            agent.agent_clan = meta.agent_clan
+        if meta.agent_clan_generation:
+            agent.agent_clan_generation = meta.agent_clan_generation
+        if meta.clan_tribe:
+            agent.clan_tribe = meta.clan_tribe
+        if meta.clan_summary:
+            agent.clan_summary = meta.clan_summary
+        agent.agent_session_parallel = meta.agent_session_parallel
+    if not workflow_child and meta.plan_chain_root:
         agent.plan_chain_root = True
+    if workflow_child:
+        _apply_compact_workflow_child_identity(agent, meta)
     if agent.parent_timestamp is None:
         parent_timestamp = parent_timestamp_from_meta(
             agent,
             meta.parent_timestamp,
-            workflow_child=False,
+            workflow_child=workflow_child,
         )
         if parent_timestamp is not None:
             agent.parent_timestamp = parent_timestamp
@@ -432,7 +531,7 @@ def enrich_agent_from_compact_meta(
             monitor_turn.stop_status if monitor_turn is not None else None
         ),
         monitor_exit_code=monitor.exit_code if monitor is not None else None,
-        monitor_supervisor_identity=None,
+        monitor_supervisor_identity=_compact_monitor_supervisor_identity(agent),
         monitor_cwd=None,
         monitor_reason=None,
         monitor_next_action=None,

@@ -217,20 +217,9 @@ def test_load_state_flag_claim_scanning_vs_delta_and_short_circuit(
     import sase.ace.tui.models._agent_loader_tiered as tiered
     import sase.ace.tui.models.agent_loader as loader
 
-    from sase.core.agent_scan_wire import (
-        AgentArtifactScanStatsWire,
-        AgentArtifactScanWire,
-    )
+    from tests._agent_loader_helpers import _empty_compact_artifact_snapshot
 
-    from sase.ace.tui.models import _agent_loader_artifact_config as loader_config
-
-    snapshot = AgentArtifactScanWire(
-        schema_version=1,
-        projects_root="/tmp",
-        options=loader_config.TUI_SCAN_OPTIONS,
-        stats=AgentArtifactScanStatsWire(),
-        records=[],
-    )
+    snapshot = _empty_compact_artifact_snapshot()
     scanned_state = AgentLoadState(
         tier="tier1",
         complete_history=False,
@@ -240,12 +229,12 @@ def test_load_state_flag_claim_scanning_vs_delta_and_short_circuit(
 
     monkeypatch.setattr(
         tiered,
-        "artifact_snapshot_for_tui_load",
+        "artifact_snapshot_for_tui_load_list",
         lambda **_kwargs: (snapshot, scanned_state),
     )
     monkeypatch.setattr(
         tiered,
-        "load_agents_from_all_sources",
+        "load_compact_agents_from_all_sources",
         lambda **_kwargs: ([], []),
     )
     result = tiered._load_agents_with_load_state()
@@ -265,7 +254,7 @@ def test_load_state_flag_claim_scanning_vs_delta_and_short_circuit(
     )
     monkeypatch.setattr(
         tiered,
-        "artifact_snapshot_for_tui_load",
+        "artifact_snapshot_for_tui_load_list",
         lambda **_kwargs: (snapshot, keep_state),
     )
     kept = tiered._load_agents_with_load_state()
@@ -275,7 +264,7 @@ def test_load_state_flag_claim_scanning_vs_delta_and_short_circuit(
     # Artifact deltas never scan the RUNNING field.
     monkeypatch.setattr(
         tiered,
-        "scan_artifact_dirs_for_loader",
+        "scan_artifact_dirs_for_loader_list",
         lambda _dirs, _options=None: snapshot,
     )
     monkeypatch.setattr(
@@ -285,7 +274,7 @@ def test_load_state_flag_claim_scanning_vs_delta_and_short_circuit(
     )
     monkeypatch.setattr(
         tiered,
-        "load_agents_from_artifact_snapshot_sources",
+        "load_agents_from_compact_snapshot_sources",
         lambda _snapshot, **_kwargs: ([], []),
     )
     monkeypatch.setattr(

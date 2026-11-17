@@ -114,6 +114,10 @@ def test_delta_loader_normalizes_exact_artifact_dirs_without_broad_load(
             return_value=True,
         ),
         patch(
+            "sase.ace.tui.models._loaders._compact_running_loaders.is_process_running",
+            return_value=True,
+        ),
+        patch(
             "sase.ace.tui.models._agent_loader_tiered.is_process_running",
             return_value=True,
         ),

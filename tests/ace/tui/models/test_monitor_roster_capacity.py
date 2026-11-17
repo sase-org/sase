@@ -41,7 +41,12 @@ def projects(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     monkeypatch.setattr(
         "sase.ace.hooks.processes.is_process_running", lambda pid: pid != 99999
     )
-    for module in ("_workflow_loaders", "_workflow_snapshot_loaders"):
+    for module in (
+        "_workflow_loaders",
+        "_workflow_snapshot_loaders",
+        "_compact_workflow_loaders",
+        "_compact_running_loaders",
+    ):
         monkeypatch.setattr(
             f"sase.ace.tui.models._loaders.{module}.is_process_running",
             lambda pid: pid != 99999,

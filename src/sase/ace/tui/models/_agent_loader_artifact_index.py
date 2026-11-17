@@ -66,10 +66,18 @@ def _artifact_snapshot_cache_key(
     projects_root: Path,
     query: AgentArtifactIndexQueryWire,
     options: AgentArtifactScanOptionsWire,
+    shape: str = "full",
 ) -> ArtifactSnapshotCacheKey:
-    """Build a stable cache key from the index query inputs."""
+    """Build a stable cache key from the index query inputs.
+
+    *shape* namespaces full (``"full"``) and compact (``"list"``)
+    generations: both projections serialize their query and options
+    identically, so without the tag a compact put would poison full
+    reads and vice versa.
+    """
 
     return (
+        shape,
         str(index_path),
         str(projects_root),
         _json_key(asdict(query)),
@@ -122,19 +130,23 @@ def _lock_busy_loader_result(
         stale = ARTIFACT_SNAPSHOT_CACHE.get_stale(cache_key)
         if stale is not None:
             snapshot, cached_state = stale
-            return (
-                snapshot,
-                replace(
-                    cached_state,
-                    complete_history=False,
-                    complete_visible_inbox=False,
-                    artifact_source="artifact_index",
-                    used_artifact_index=True,
-                    index_error=_INDEX_LOCK_BUSY_ERROR,
-                    repair_recommended=False,
-                    repair_reason=LOCK_BUSY_SERVED_CACHED_REASON,
-                ),
-            )
+            # The cache key is shape-namespaced, so a "full"-keyed entry
+            # always holds a full snapshot; the isinstance keeps that
+            # invariant explicit for the type checker.
+            if isinstance(snapshot, AgentArtifactScanWire):
+                return (
+                    snapshot,
+                    replace(
+                        cached_state,
+                        complete_history=False,
+                        complete_visible_inbox=False,
+                        artifact_source="artifact_index",
+                        used_artifact_index=True,
+                        index_error=_INDEX_LOCK_BUSY_ERROR,
+                        repair_recommended=False,
+                        repair_reason=LOCK_BUSY_SERVED_CACHED_REASON,
+                    ),
+                )
     if full_history or not allow_lock_busy_source_scan:
         return _lock_busy_keep_roster_result(
             full_history=full_history,
@@ -253,7 +265,9 @@ def query_artifact_index_for_loader(
         )
         cached = ARTIFACT_SNAPSHOT_CACHE.get(cache_key, before_signature)
         if cached is not None:
-            return cached
+            cached_snapshot, cached_state = cached
+            if isinstance(cached_snapshot, AgentArtifactScanWire):
+                return cached_snapshot, cached_state
     else:
         ARTIFACT_SNAPSHOT_CACHE.record_bypass()
 

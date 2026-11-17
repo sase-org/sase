@@ -43,7 +43,15 @@ def _load_agent_session(
             side_effect=is_live,
         ),
         patch(
+            "sase.ace.tui.models._loaders._compact_running_loaders.is_process_running",
+            side_effect=is_live,
+        ),
+        patch(
             "sase.ace.tui.models._loaders._workflow_loaders.is_process_running",
+            side_effect=is_live,
+        ),
+        patch(
+            "sase.ace.tui.models._loaders._compact_workflow_loaders.is_process_running",
             side_effect=is_live,
         ),
         patch(

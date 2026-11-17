@@ -50,7 +50,7 @@ from .._timestamps import parse_timestamp_14_digit
 from ..agent import Agent, AgentType
 
 
-def is_compact_done_record(record: AgentArtifactListRecordWire) -> bool:
+def _is_compact_done_record(record: AgentArtifactListRecordWire) -> bool:
     """Return True iff *record* lives under a workflow dir holding done agents."""
     name = record.workflow_dir_name
     if name in DONE_WORKFLOW_DIR_NAMES:
@@ -102,7 +102,7 @@ def _apply_compact_auto_restart(agent: Agent, done: object) -> None:
         agent.status = RESTARTING_STATUS
 
 
-def build_done_agent_from_compact_record(
+def _build_done_agent_from_compact_record(
     record: AgentArtifactListRecordWire,
     bug_by_cl_name: dict[str, str | None],
     cl_by_cl_name: dict[str, str | None],
@@ -298,9 +298,9 @@ def load_done_agents_from_compact_snapshot(
     """
     agents: list[Agent] = []
     for record in snapshot.records:
-        if not is_compact_done_record(record):
+        if not _is_compact_done_record(record):
             continue
-        agent = build_done_agent_from_compact_record(
+        agent = _build_done_agent_from_compact_record(
             record, bug_by_cl_name, cl_by_cl_name
         )
         if agent is not None:

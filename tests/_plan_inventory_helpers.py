@@ -9,6 +9,12 @@ from pathlib import Path
 
 from sase.ace.tui.models.agent import Agent, AgentType
 from sase.core.agent_artifact_paths import canonical_agent_artifact_path
+from sase.core.agent_scan_list_wire import (
+    AgentArtifactListMetaWire,
+    AgentArtifactListDoneWire,
+    AgentArtifactListRecordWire,
+    AgentArtifactListSnapshotWire,
+)
 from sase.core.agent_scan_wire import (
     AgentArtifactRecordWire,
     AgentArtifactScanWire,
@@ -19,7 +25,10 @@ from sase.core.paths import sase_projects_dir, sharded_path
 from sase.core.time import get_timezone
 from sase.notifications.models import Notification
 from sase.notifications.store import append_notification
-from tests._agent_loader_helpers import _empty_artifact_snapshot
+from tests._agent_loader_helpers import (
+    _empty_artifact_snapshot,
+    _empty_compact_artifact_snapshot,
+)
 
 LIVE_AGENT_TS = "20260613120000"
 LIVE_AGENT_ROOT_TS = "20260613115900"
@@ -182,6 +191,40 @@ def done_plan_snapshot(
                 plan_submitted_at=["2026-06-13T16:00:00Z"],
             ),
             done=DoneMarkerWire(
+                outcome="completed",
+                cl_name=cl_name,
+                project_file=f"/tmp/projects/{project}/{project}.sase",
+                name=agent_name,
+            ),
+            has_done_marker=True,
+        )
+    )
+    return snapshot
+
+
+def done_plan_compact_snapshot(
+    *,
+    project: str = "demo",
+    timestamp: str = LIVE_AGENT_TS,
+    cl_name: str = "demo-cl",
+    agent_name: str = "planner",
+) -> AgentArtifactListSnapshotWire:
+    """Compact twin of :func:`done_plan_snapshot` for the TUI list path."""
+    snapshot = _empty_compact_artifact_snapshot()
+    snapshot.records.append(
+        AgentArtifactListRecordWire(
+            project_name=project,
+            project_dir=f"/tmp/projects/{project}",
+            project_file=f"/tmp/projects/{project}/{project}.sase",
+            workflow_dir_name="ace-run",
+            artifact_dir=f"/tmp/projects/{project}/artifacts/ace-run/{timestamp}",
+            timestamp=timestamp,
+            meta=AgentArtifactListMetaWire(
+                name=agent_name,
+                plan=True,
+                plan_submitted_at=["2026-06-13T16:00:00Z"],
+            ),
+            done=AgentArtifactListDoneWire(
                 outcome="completed",
                 cl_name=cl_name,
                 project_file=f"/tmp/projects/{project}/{project}.sase",

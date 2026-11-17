@@ -7,6 +7,10 @@ from contextlib import contextmanager
 from unittest.mock import patch
 
 from sase.ace.tui.models.agent import Agent
+from sase.core.agent_scan_list_wire import (
+    AGENT_ARTIFACT_LIST_WIRE_SCHEMA_VERSION,
+    AgentArtifactListSnapshotWire,
+)
 from sase.core.agent_scan_wire import (
     AGENT_SCAN_WIRE_SCHEMA_VERSION,
     AgentArtifactScanOptionsWire,
@@ -19,6 +23,17 @@ def _empty_artifact_snapshot() -> AgentArtifactScanWire:
     """Return a no-records snapshot suitable for mocking the TUI loader scan."""
     return AgentArtifactScanWire(
         schema_version=AGENT_SCAN_WIRE_SCHEMA_VERSION,
+        projects_root="",
+        options=AgentArtifactScanOptionsWire(),
+        stats=AgentArtifactScanStatsWire(),
+        records=[],
+    )
+
+
+def _empty_compact_artifact_snapshot() -> AgentArtifactListSnapshotWire:
+    """Return a no-records compact snapshot for mocking the TUI list scan."""
+    return AgentArtifactListSnapshotWire(
+        schema_version=AGENT_ARTIFACT_LIST_WIRE_SCHEMA_VERSION,
         projects_root="",
         options=AgentArtifactScanOptionsWire(),
         stats=AgentArtifactScanStatsWire(),
@@ -48,6 +63,10 @@ def _mock_agent_loader_sources(
             return_value=_empty_artifact_snapshot(),
         ),
         patch(
+            "sase.ace.tui.models._agent_loader_sources.scan_artifacts_for_loader_list",
+            return_value=_empty_compact_artifact_snapshot(),
+        ),
+        patch(
             "sase.ace.tui.models._agent_loader_sources.load_agents_from_running_field",
             return_value=running_agents,
         ),
@@ -60,11 +79,27 @@ def _mock_agent_loader_sources(
             return_value=[],
         ),
         patch(
+            "sase.ace.tui.models._agent_loader_sources.load_done_agents_from_compact_snapshot",
+            return_value=[],
+        ),
+        patch(
+            "sase.ace.tui.models._agent_loader_sources.load_running_home_agents_from_compact_snapshot",
+            return_value=[],
+        ),
+        patch(
             "sase.ace.tui.models._agent_loader_sources.load_workflow_agents_from_snapshot",
             return_value=workflow_agents,
         ),
         patch(
+            "sase.ace.tui.models._agent_loader_sources.load_compact_workflow_agents_from_snapshot",
+            return_value=workflow_agents,
+        ),
+        patch(
             "sase.ace.tui.models._agent_loader_sources.load_workflow_agent_steps_from_snapshot",
+            return_value=([], {}),
+        ),
+        patch(
+            "sase.ace.tui.models._agent_loader_sources.load_compact_workflow_agent_steps_from_snapshot",
             return_value=([], {}),
         ),
         patch(

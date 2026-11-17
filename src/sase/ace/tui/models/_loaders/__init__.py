@@ -33,6 +33,12 @@ from ._workflow_snapshot_loaders import (
     load_workflow_states_from_snapshot,
 )
 from ._workflow_step_loaders import load_workflow_agent_steps
+from ._compact_workflow_loaders import (
+    is_compact_workflow_state_record,
+    load_compact_workflow_agent_steps_from_snapshot,
+    load_compact_workflow_agents_from_snapshot,
+    load_compact_workflow_states_from_snapshot,
+)
 
 __all__ = [
     "get_all_project_files",
@@ -49,6 +55,10 @@ __all__ = [
     "load_running_home_agents_from_resolved_records",
     "resolve_running_field_claims",
     "resolve_running_home_records_from_snapshot",
+    "is_compact_workflow_state_record",
+    "load_compact_workflow_agent_steps_from_snapshot",
+    "load_compact_workflow_agents_from_snapshot",
+    "load_compact_workflow_states_from_snapshot",
     "load_workflow_agent_steps",
     "load_workflow_agent_steps_from_snapshot",
     "load_workflow_agents",

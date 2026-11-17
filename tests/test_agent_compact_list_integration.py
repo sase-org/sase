@@ -23,8 +23,8 @@ from pathlib import Path
 import pytest
 
 from sase.ace.tui.models._loaders._compact_done_loaders import (
-    build_done_agent_from_compact_record,
-    is_compact_done_record,
+    _build_done_agent_from_compact_record,
+    _is_compact_done_record,
 )
 from sase.ace.tui.models._loaders._compact_running_loaders import (
     load_running_home_agents_from_compact_snapshot,
@@ -111,12 +111,12 @@ def test_compact_list_end_to_end_parity(tmp_path: Path) -> None:
     full_by_dir = {r.artifact_dir: r for r in full_snapshot.records}
     compared = 0
     for compact_record in compact_snapshot.records:
-        if not is_compact_done_record(compact_record):
+        if not _is_compact_done_record(compact_record):
             continue
         full_record = full_by_dir[compact_record.artifact_dir]
         assert is_done_record(full_record)
         full = build_done_agent_from_record(full_record, {}, {})
-        compact = build_done_agent_from_compact_record(compact_record, {}, {})
+        compact = _build_done_agent_from_compact_record(compact_record, {}, {})
         if full is None:
             # No-op outcomes build nothing on either path.
             assert compact is None

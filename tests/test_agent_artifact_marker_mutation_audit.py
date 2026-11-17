@@ -114,6 +114,13 @@ _REVIEWED_MARKER_MUTATION_CONTEXTS: dict[str, Review] = {
         mutation_calls=("unlink",),
         lifecycle_calls=(_UPDATE_INDEX,),
     ),
+    (
+        "src/sase/ace/tui/models/_loaders/_compact_running_loaders.py:"
+        "_release_stale_compact_running_home_marker"
+    ): Review(
+        mutation_calls=("unlink",),
+        lifecycle_calls=(_UPDATE_INDEX,),
+    ),
     "src/sase/agent/names/_migration.py:_rewrite_artifact_json_files": Review(
         mutation_calls=("_write_json_file", "_write_json_file"),
         batched_by=(
