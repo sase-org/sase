@@ -212,12 +212,14 @@ that launches in a different workspace leaves the original hold unresolved.
 
 Hijacking stops a local occupying turn while retaining its numbered workspace,
 uncommitted work, Agents-tab row, and recovery evidence. It is available for `RUNNING`,
-`STARTING`, and `RETRYING` agent turns launched with hijack support, and for a running
-monitor that holds the session's numbered workspace. A settled monitor whose follow-up
-is still pending latches at the monitor boundary instead of signalling a dead command.
-Home-mode turns, remote rows, gates, named processes, clan containers, and bulk
-selections are ineligible. A remote agent must be hijacked on its owning host. Monitor
-stop, settlement, and recovery are documented under
+`STARTING`, and `RETRYING` agent turns launched with hijack support, for a running
+monitor that holds the session's numbered workspace, and for `WAITING`/`QUEUED`/booting
+turns that hold a numbered workspace. A settled monitor whose follow-up is still pending
+latches at the monitor boundary instead of signalling a dead command. Home-mode turns,
+named processes, and bulk selections are refused with a code and next action. Gates
+awaiting a decision redirect to gate review while executing gates latch; clan containers
+redirect (auto-retargeting a single live member); remote rows redirect with a command to
+run on the owning host. Monitor stop, settlement, and recovery are documented under
 [Hijack a monitor](../automation/monitor-operations.md#hijack-a-monitor).
 
 Finalizing turns (`provider_done`/`finalizing`/`handoff`, or finalizer

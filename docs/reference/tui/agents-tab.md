@@ -170,19 +170,20 @@ warning.
 
 Use `,k` on a member row, a session container, or a clan with one live member, choose
 **h Hijack instead** in the `x` confirmation, or run `sase agent hijack NAME`. The TUI
-asks the same backend as `sase agent hijack --explain` and either hijacks the occupying
-turn, navigates (recovery panel, gate review, remote command copy, or the single live
-clan member), or toasts a precise reason and next action. On remote rows, `,k` copies
-the command to run on the owning host. SASE verifies the process tree stopped before
-showing **⏏ HIJACKED**; the row and workspace claim remain until recovery or expiry.
+asks the same backend as `sase agent hijack --explain`: it hijacks or latches the
+occupying turn, navigates (recovery panel, gate review, remote command copy, or the
+single live clan member), or toasts a precise reason and next action. On remote rows,
+`,k` copies the command to run on the owning host. SASE verifies the process tree
+stopped before showing **⏏ HIJACKED**; the row and workspace claim remain until
+recovery or expiry. A latched row shows **⏏ HIJACK PENDING · after \<boundary\>**;
+`,k` on it offers Cancel hijack (Hijack now past the force bound).
 
-`Enter` opens the hijack recovery panel. Keep-work actions stay in the held workspace:
-`u` escalates (or switches at the top rung) and `c` continues. For an agent turn, `i`
-adds instructions and `r` restarts in a fresh workspace; `e` edits that prompt and
-releases only on submit. For a monitor, `r` re-runs the recorded command; Instruct,
-Restart, and Edit stay hidden. `d` dismisses after a verified snapshot; `v` shows the
-diff, `t` opens a shell, and `Esc` leaves the run held. `x` on a HIJACKED row also runs
-snapshot-verified dismissal. See
+`Enter` opens the hijack recovery panel ([choices](agents-tab-modes.md#hijack-recovery-panel)).
+Keep-work actions stay in the held workspace: `c` continues, `u` escalates, `i`
+instructs, `r` restarts fresh (re-runs the command for a monitor), `e` edits the
+restart prompt, `d` dismisses after a verified snapshot, `v` diffs, `t` shells, and
+`Esc` leaves the run held. `x` on a HIJACKED row also runs snapshot-verified dismissal.
+See
 [Agent statuses](agent-statuses.md#agent-statuses-1) and
 [Held workspaces](../agents/workspaces.md#held-workspaces).
 
