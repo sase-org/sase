@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, cast
 
@@ -17,6 +18,18 @@ from sase.core.rust import require_rust_binding
 
 
 ARTIFACT_FILE_QUERY_WIRE_SCHEMA_VERSION = 3
+ARTIFACT_FILE_ASSOCIATION_QUERY_WIRE_SCHEMA_VERSION = 1
+
+
+@dataclass(frozen=True)
+class ArtifactFileSourceIdentity:
+    """Identity of the index file a targeted association query actually read."""
+
+    missing: bool
+    size: int
+    mtime_ns: int
+    dev: int
+    ino: int
 
 
 def query_artifact_files(
@@ -66,6 +79,51 @@ def query_artifact_files(
     ]
 
 
+def query_artifact_file_associations(
+    index_path: Path | str | None = None,
+    *,
+    agent_artifacts_dir: str,
+    project: str | None = None,
+    raw_timestamp: str | None = None,
+    explicit_only: bool = False,
+) -> tuple[list[ArtifactFile], ArtifactFileSourceIdentity]:
+    """Return listing-compatible rows for one association, in file order."""
+
+    _require_association_query_schema()
+    resolved_index = (
+        Path(default_artifact_files_index_path() if index_path is None else index_path)
+        .expanduser()
+        .resolve(strict=False)
+    )
+    binding = require_rust_binding("artifact_file_association_query")
+    raw = binding(
+        str(resolved_index),
+        {
+            "agent_artifacts_dir": str(agent_artifacts_dir),
+            "project": project,
+            "raw_timestamp": raw_timestamp,
+            "explicit_only": bool(explicit_only),
+        },
+    )
+    if not isinstance(raw, Mapping):
+        raise RuntimeError(
+            "sase_core_rs returned an incompatible artifact-file association "
+            "query result: expected an object"
+        )
+    payload = cast(Mapping[str, Any], raw)
+    raw_rows = payload.get("rows")
+    if not isinstance(raw_rows, list):
+        raise RuntimeError(
+            "sase_core_rs returned an incompatible artifact-file association "
+            "query result: expected rows to be a list"
+        )
+    rows = [
+        _association_row_from_wire(raw_row, row_number=index)
+        for index, raw_row in enumerate(raw_rows, start=1)
+    ]
+    return rows, _source_identity_from_wire(payload.get("source"))
+
+
 def _require_query_schema() -> None:
     binding = require_rust_binding("artifact_file_query_wire_schema_version")
     version = int(binding())
@@ -74,6 +132,68 @@ def _require_query_schema() -> None:
             "sase_core_rs artifact-file query wire is stale: "
             f"expected {ARTIFACT_FILE_QUERY_WIRE_SCHEMA_VERSION}, got {version}"
         )
+
+
+def _require_association_query_schema() -> None:
+    binding = require_rust_binding(
+        "artifact_file_association_query_wire_schema_version"
+    )
+    version = int(binding())
+    if version != ARTIFACT_FILE_ASSOCIATION_QUERY_WIRE_SCHEMA_VERSION:
+        raise RuntimeError(
+            "sase_core_rs artifact-file association query wire is stale: "
+            f"expected {ARTIFACT_FILE_ASSOCIATION_QUERY_WIRE_SCHEMA_VERSION}, "
+            f"got {version}"
+        )
+
+
+def _source_identity_from_wire(raw: object) -> ArtifactFileSourceIdentity:
+    if not isinstance(raw, Mapping):
+        raise RuntimeError(
+            "sase_core_rs returned an incompatible artifact-file association "
+            "query source identity: expected an object"
+        )
+    source = cast(Mapping[str, Any], raw)
+    missing = source.get("missing", False)
+    if not isinstance(missing, bool):
+        raise RuntimeError(
+            "sase_core_rs returned an incompatible artifact-file association "
+            "query source identity: missing must be a boolean"
+        )
+    return ArtifactFileSourceIdentity(
+        missing=missing,
+        size=_require_identity_int(source, "size"),
+        mtime_ns=_require_identity_int(source, "mtime_ns"),
+        dev=_require_identity_int(source, "dev"),
+        ino=_require_identity_int(source, "ino"),
+    )
+
+
+def _require_identity_int(source: Mapping[str, Any], field: str) -> int:
+    value = source.get(field)
+    if not isinstance(value, int) or isinstance(value, bool) or value < 0:
+        raise RuntimeError(
+            "sase_core_rs returned an incompatible artifact-file association "
+            f"query source identity: {field} must be a non-negative integer"
+        )
+    return value
+
+
+def _association_row_from_wire(raw: object, *, row_number: int) -> ArtifactFile:
+    """Convert one association-query row with listing-reader tolerance."""
+
+    if not isinstance(raw, Mapping):
+        raise RuntimeError(
+            "sase_core_rs returned an incompatible artifact-file association "
+            f"query row {row_number}: expected an object"
+        )
+    try:
+        return artifact_file_from_dict(dict(raw))
+    except (KeyError, TypeError, ValueError) as exc:
+        raise RuntimeError(
+            "sase_core_rs returned an incomplete artifact-file association "
+            f"query row {row_number}: {exc}"
+        ) from exc
 
 
 def _artifact_file_from_wire(raw: object, *, row_number: int) -> ArtifactFile:
@@ -165,6 +285,9 @@ def _validate_wire_row(row: Mapping[str, Any], *, row_number: int) -> None:
 
 
 __all__ = [
+    "ARTIFACT_FILE_ASSOCIATION_QUERY_WIRE_SCHEMA_VERSION",
     "ARTIFACT_FILE_QUERY_WIRE_SCHEMA_VERSION",
+    "ArtifactFileSourceIdentity",
+    "query_artifact_file_associations",
     "query_artifact_files",
 ]

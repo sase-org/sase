@@ -9,7 +9,10 @@ from typing import Any
 import pytest
 
 from sase.core.artifact_file_facade import read_artifact_file_index
-from sase.core.artifact_file_query_facade import query_artifact_files
+from sase.core.artifact_file_query_facade import (
+    query_artifact_file_associations,
+    query_artifact_files,
+)
 from sase.core.artifact_consumption import (
     ArtifactConsumptionEvent,
     append_artifact_consumption_events,
@@ -279,3 +282,75 @@ def test_unused_filter_reaches_rust_before_limit(
         "explicit:222222222222222222222222",
         "explicit:333333333333333333333333",
     ]
+
+
+def test_association_query_checks_handshake_and_returns_source(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[tuple[str, object]] = []
+
+    def fake_require(name: str) -> Any:
+        if name == "artifact_file_association_query_wire_schema_version":
+            return lambda: 1
+        if name == "artifact_file_association_query":
+
+            def query(path: str, payload: dict[str, object]) -> dict[str, object]:
+                calls.append((path, payload))
+                return {
+                    "rows": [_wire_row()],
+                    "source": {
+                        "missing": False,
+                        "size": 12,
+                        "mtime_ns": 34,
+                        "dev": 56,
+                        "ino": 78,
+                    },
+                }
+
+            return query
+        raise AssertionError(name)
+
+    monkeypatch.setattr(
+        "sase.core.artifact_file_query_facade.require_rust_binding",
+        fake_require,
+    )
+    index = tmp_path / "index.jsonl"
+
+    rows, source = query_artifact_file_associations(
+        index,
+        agent_artifacts_dir="/runs/target",
+        project="sase",
+        raw_timestamp="20260507123456",
+        explicit_only=True,
+    )
+
+    assert [row.id for row in rows] == ["explicit:0123456789abcdef01234567"]
+    assert source.missing is False
+    assert source.ino == 78
+    assert calls == [
+        (
+            str(index.expanduser().resolve(strict=False)),
+            {
+                "agent_artifacts_dir": "/runs/target",
+                "project": "sase",
+                "raw_timestamp": "20260507123456",
+                "explicit_only": True,
+            },
+        )
+    ]
+
+
+def test_association_query_rejects_stale_handshake(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        "sase.core.artifact_file_query_facade.require_rust_binding",
+        lambda _name: lambda: 9,
+    )
+
+    with pytest.raises(RuntimeError, match="expected 1, got 9"):
+        query_artifact_file_associations(
+            "/tmp/index.jsonl",
+            agent_artifacts_dir="/runs/target",
+        )

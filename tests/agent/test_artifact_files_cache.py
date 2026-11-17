@@ -8,7 +8,21 @@ from pathlib import Path
 from unittest.mock import Mock, patch
 
 from sase.agent.artifact_files_cache import _ArtifactFileCache, _TailCache
+from sase.core import artifact_file_explicit as explicit_module
 from sase.legacy_xprompt_names import LEGACY_RAW_XPROMPT_FILENAME
+
+
+def test_agent_file_cache_does_not_install_artifact_index_snapshot(
+    tmp_path: Path,
+) -> None:
+    cache = _ArtifactFileCache()
+    prompt = tmp_path / "prompt.md"
+    prompt.write_text("hello", encoding="utf-8")
+    explicit_module._artifact_file_association_cache.clear()
+
+    assert cache.read_text(str(prompt)) == "hello"
+    assert not hasattr(explicit_module, "_artifact_file_index_cache")
+    assert len(explicit_module._artifact_file_association_cache) == 0
 
 
 def test_read_text_caches_by_signature(tmp_path: Path) -> None:

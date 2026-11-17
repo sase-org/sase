@@ -8,9 +8,11 @@ import os
 import shutil
 import tempfile
 import threading
+import time
 from collections import OrderedDict
 from collections.abc import Iterator
 from contextlib import contextmanager
+from dataclasses import dataclass
 from pathlib import Path
 
 from sase.core.artifact_file_helpers import (
@@ -20,9 +22,12 @@ from sase.core.artifact_file_helpers import (
     file_created_at,
     hash_file,
     hash_text,
-    matches_association,
     now_iso,
     safe_segment,
+)
+from sase.core.artifact_file_query_facade import (
+    ArtifactFileSourceIdentity,
+    query_artifact_file_associations,
 )
 from sase.core.artifact_file_types import (
     ARTIFACT_FILE_INDEX_SCHEMA_VERSION,
@@ -41,14 +46,26 @@ from sase.core.artifact_file_types import (
     infer_artifact_file_kind,
 )
 
-_INDEX_CACHE_MAX_PATHS = 32
-_IndexStat = tuple[int, int]
-_artifact_file_index_cache_lock = threading.RLock()
-# Keyed by resolved index path; the value carries the stat the rows were
-# parsed at. A stat mismatch replaces the entry instead of piling up one
-# permanent entry per (mtime_ns, size) version.
-_artifact_file_index_cache: OrderedDict[
-    Path, tuple[_IndexStat, tuple[ArtifactFile, ...]]
+_ASSOCIATION_CACHE_MAX_ENTRIES = 128
+_ASSOCIATION_CACHE_MAX_ROWS = 1024
+_ASSOCIATION_CACHE_MAX_BYTES = 256 * 1024
+_MIN_REREAD_INTERVAL_S = 0.5
+_AssociationCacheKey = tuple[str, str, str | None, str | None, bool]
+_SourceIdentity = tuple[int, int, int, int, bool]
+
+
+@dataclass(frozen=True)
+class _AssociationCacheEntry:
+    rows: tuple[ArtifactFile, ...]
+    identity: _SourceIdentity
+    last_read_monotonic: float
+
+
+_artifact_file_association_cache_lock = threading.RLock()
+# Targeted answers keyed by resolved index path and association. Values are
+# bounded by row count; oversized matching sets are returned uncached.
+_artifact_file_association_cache: OrderedDict[
+    _AssociationCacheKey, _AssociationCacheEntry
 ] = OrderedDict()
 
 
@@ -209,37 +226,17 @@ def read_artifact_file_index(
 ) -> tuple[ArtifactFile, ...]:
     """Read all artifact-file rows from the persistent index.
 
-    The parsed rows are cached process-wide by resolved path; a stat mismatch
-    replaces the entry so repeated readers share one parse until the file
-    changes. Same-process writers also invalidate explicitly, which keeps
-    write-then-read correct on filesystems whose timestamp granularity does
-    not distinguish the writes.
-
-    Cache hits return the cached immutable tuple itself instead of a fresh
-    copy. ``ArtifactFile`` rows are frozen, so sharing is safe; callers that
-    need a mutable sequence (to sort or append in place) must copy explicitly
-    with ``list(rows)``.
+    This is an uncached bulk reader for doctor, retention, and other explicit
+    whole-index consumers. Frequent listing paths must use
+    :func:`list_indexed_artifact_files` so unmatched rows are never converted
+    into Python objects.
     """
 
     idx = _normalize_index_path(index_path)
     if not idx.exists():
         return ()
-    stat = _artifact_file_index_stat(idx)
-    cached = _get_cached_artifact_file_index(idx, stat)
-    if cached is not None:
-        return cached
-
     with artifact_file_index_lock(idx, exclusive=False):
-        stat = _artifact_file_index_stat(idx)
-        cached = _get_cached_artifact_file_index(idx, stat)
-        if cached is not None:
-            return cached
-        rows = _read_index_unlocked(idx)
-        _cache_artifact_file_index(idx, stat, rows)
-        cached = _get_cached_artifact_file_index(idx, stat)
-        if cached is not None:
-            return cached
-        return tuple(rows)
+        return tuple(_read_index_unlocked(idx))
 
 
 def list_indexed_artifact_files(
@@ -249,9 +246,11 @@ def list_indexed_artifact_files(
 ) -> list[ArtifactFile]:
     """Return all indexed artifact files for one agent run."""
 
-    association = artifact_file_association_from_dir(agent_artifacts_dir)
-    rows = read_artifact_file_index(index_path)
-    return [row for row in rows if matches_association(row, association)]
+    return _list_associated_artifact_files(
+        artifact_file_association_from_dir(agent_artifacts_dir),
+        index_path=index_path,
+        explicit_only=False,
+    )
 
 
 def list_explicit_artifact_files(
@@ -261,13 +260,59 @@ def list_explicit_artifact_files(
 ) -> list[ArtifactFile]:
     """Return explicit artifact files associated with one agent run."""
 
-    return [
-        row
-        for row in list_indexed_artifact_files(
-            agent_artifacts_dir, index_path=index_path
+    return _list_associated_artifact_files(
+        artifact_file_association_from_dir(agent_artifacts_dir),
+        index_path=index_path,
+        explicit_only=True,
+    )
+
+
+def _list_associated_artifact_files(
+    association: ArtifactFileAssociation,
+    *,
+    index_path: Path | str | None,
+    explicit_only: bool,
+) -> list[ArtifactFile]:
+    idx = _normalize_index_path(index_path)
+    key = _association_cache_key(idx, association, explicit_only)
+    now = time.monotonic()
+    cached = _peek_association_cache(key)
+    if (
+        cached is not None
+        and (now - cached.last_read_monotonic) < _MIN_REREAD_INTERVAL_S
+    ):
+        return list(cached.rows)
+
+    identity = _index_source_identity(idx)
+    if identity[4]:
+        _store_association_cache(key, (), identity, now)
+        return []
+
+    with artifact_file_index_lock(idx, exclusive=False):
+        cached = _peek_association_cache(key)
+        now = time.monotonic()
+        if (
+            cached is not None
+            and (now - cached.last_read_monotonic) < _MIN_REREAD_INTERVAL_S
+        ):
+            _touch_association_cache(key, now)
+            return list(cached.rows)
+        identity = _index_source_identity(idx)
+        if cached is not None and cached.identity == identity:
+            _touch_association_cache(key, now)
+            return list(cached.rows)
+        rows, source = query_artifact_file_associations(
+            idx,
+            agent_artifacts_dir=association.agent_artifacts_dir,
+            project=association.project,
+            raw_timestamp=association.raw_timestamp,
+            explicit_only=explicit_only,
         )
-        if row.explicit
-    ]
+        frozen = tuple(rows)
+        _store_association_cache(
+            key, frozen, _source_identity_tuple(source), time.monotonic()
+        )
+        return list(frozen)
 
 
 def _store_file(
@@ -405,7 +450,7 @@ def write_artifact_file_index_unlocked(
             handle.flush()
             os.fsync(handle.fileno())
         os.replace(tmp_name, index_path)
-        _invalidate_artifact_file_index_cache(index_path)
+        _invalidate_artifact_file_association_cache(index_path)
     except Exception:
         Path(tmp_name).unlink(missing_ok=True)
         raise
@@ -420,45 +465,117 @@ def _normalize_index_path(index_path: Path | str | None) -> Path:
     return idx.resolve(strict=False)
 
 
-def _artifact_file_index_stat(index_path: Path) -> _IndexStat:
+def _association_cache_key(
+    index_path: Path,
+    association: ArtifactFileAssociation,
+    explicit_only: bool,
+) -> _AssociationCacheKey:
+    return (
+        str(index_path),
+        association.agent_artifacts_dir,
+        association.project,
+        association.raw_timestamp,
+        explicit_only,
+    )
+
+
+def _source_identity_tuple(
+    source: ArtifactFileSourceIdentity,
+) -> _SourceIdentity:
+    return (source.dev, source.ino, source.mtime_ns, source.size, source.missing)
+
+
+def _index_source_identity(index_path: Path) -> _SourceIdentity:
     try:
         stat = index_path.stat()
+    except FileNotFoundError:
+        return (0, 0, 0, 0, True)
     except OSError:
-        return (0, 0)
-    return (stat.st_mtime_ns, stat.st_size)
+        return (0, 0, 0, 0, True)
+    return (stat.st_dev, stat.st_ino, stat.st_mtime_ns, stat.st_size, False)
 
 
-def _get_cached_artifact_file_index(
-    index_path: Path,
-    stat: _IndexStat,
-) -> tuple[ArtifactFile, ...] | None:
-    with _artifact_file_index_cache_lock:
-        cached = _artifact_file_index_cache.get(index_path)
+def _peek_association_cache(
+    key: _AssociationCacheKey,
+) -> _AssociationCacheEntry | None:
+    with _artifact_file_association_cache_lock:
+        return _artifact_file_association_cache.get(key)
+
+
+def _touch_association_cache(key: _AssociationCacheKey, now: float) -> None:
+    with _artifact_file_association_cache_lock:
+        cached = _artifact_file_association_cache.get(key)
         if cached is None:
-            return None
-        cached_stat, rows = cached
-        if cached_stat != stat:
-            return None
-        _artifact_file_index_cache.move_to_end(index_path)
-        return rows
+            return
+        _artifact_file_association_cache[key] = _AssociationCacheEntry(
+            rows=cached.rows,
+            identity=cached.identity,
+            last_read_monotonic=now,
+        )
+        _artifact_file_association_cache.move_to_end(key)
 
 
-def _cache_artifact_file_index(
-    index_path: Path,
-    stat: _IndexStat,
-    rows: list[ArtifactFile],
+def _store_association_cache(
+    key: _AssociationCacheKey,
+    rows: tuple[ArtifactFile, ...],
+    identity: _SourceIdentity,
+    now: float,
 ) -> None:
-    with _artifact_file_index_cache_lock:
-        _artifact_file_index_cache[index_path] = (stat, tuple(rows))
-        _artifact_file_index_cache.move_to_end(index_path)
-        while len(_artifact_file_index_cache) > _INDEX_CACHE_MAX_PATHS:
-            _artifact_file_index_cache.popitem(last=False)
+    if (
+        len(rows) > _ASSOCIATION_CACHE_MAX_ROWS
+        or _estimated_association_bytes(rows) > _ASSOCIATION_CACHE_MAX_BYTES
+    ):
+        _invalidate_association_cache_key(key)
+        return
+    with _artifact_file_association_cache_lock:
+        _artifact_file_association_cache[key] = _AssociationCacheEntry(
+            rows=rows,
+            identity=identity,
+            last_read_monotonic=now,
+        )
+        _artifact_file_association_cache.move_to_end(key)
+        while len(_artifact_file_association_cache) > _ASSOCIATION_CACHE_MAX_ENTRIES:
+            _artifact_file_association_cache.popitem(last=False)
 
 
-def _invalidate_artifact_file_index_cache(index_path: Path) -> None:
-    resolved = index_path.expanduser().resolve(strict=False)
-    with _artifact_file_index_cache_lock:
-        _artifact_file_index_cache.pop(resolved, None)
+def _estimated_association_bytes(rows: tuple[ArtifactFile, ...]) -> int:
+    total = 0
+    for row in rows:
+        total += 64
+        for value in (
+            row.id,
+            row.label,
+            row.path,
+            row.source_path,
+            row.workspace_dir,
+            row.created_at,
+            row.agent_artifacts_dir,
+            row.project,
+            row.workflow,
+            row.raw_timestamp,
+            row.agent_name,
+            row.sha256,
+            row.mime_type,
+            row.vcs_repo,
+            row.vcs_sha,
+            row.vcs_relpath,
+        ):
+            if isinstance(value, str):
+                total += len(value)
+    return total
+
+
+def _invalidate_association_cache_key(key: _AssociationCacheKey) -> None:
+    with _artifact_file_association_cache_lock:
+        _artifact_file_association_cache.pop(key, None)
+
+
+def _invalidate_artifact_file_association_cache(index_path: Path) -> None:
+    resolved = str(index_path.expanduser().resolve(strict=False))
+    with _artifact_file_association_cache_lock:
+        stale = [key for key in _artifact_file_association_cache if key[0] == resolved]
+        for key in stale:
+            _artifact_file_association_cache.pop(key, None)
 
 
 @contextmanager

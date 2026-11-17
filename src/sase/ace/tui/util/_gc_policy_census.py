@@ -161,20 +161,27 @@ def _lru_cache_census(cache: Any, *, event_attr: str = "events") -> dict[str, An
 
 
 def _index_file_cache_census(cache: Any, lock: Any | None = None) -> dict[str, Any]:
-    """Summarize ``_artifact_file_index_cache`` path entries and row counts."""
+    """Summarize targeted artifact-file association cache row counts."""
     items = _locked_mapping_items(cache, lock=lock)
     row_total = 0
     paths: list[dict[str, Any]] = []
     for key, value in items:
-        rows = value[1] if isinstance(value, tuple) and len(value) >= 2 else value
+        rows = getattr(value, "rows", None)
+        if rows is None and isinstance(value, tuple) and len(value) >= 2:
+            rows = value[1]
         try:
-            count = len(rows)
+            count = len(rows) if rows is not None else 0
         except Exception:
             count = 0
         row_total += count
-        paths.append({"path": str(key), "rows": count})
+        if isinstance(key, tuple) and key:
+            path = str(key[0])
+        else:
+            path = str(key)
+        paths.append({"path": path, "rows": count})
     return {
         "entries": len(items),
+        "max_entries": getattr(cache, "max_entries", None),
         "row_total": row_total,
         "paths": paths,
     }
@@ -191,7 +198,7 @@ def known_cache_census() -> list[dict[str, Any]]:
         ),
         (
             "sase.core.artifact_file_explicit",
-            "_artifact_file_index_cache",
+            "_artifact_file_association_cache",
             "src/sase/core/artifact_file_explicit.py",
             "index",
         ),
@@ -255,7 +262,7 @@ def known_cache_census() -> list[dict[str, Any]]:
             elif kind == "index":
                 extra = _index_file_cache_census(
                     cache,
-                    lock=getattr(module, "_artifact_file_index_cache_lock", None),
+                    lock=getattr(module, "_artifact_file_association_cache_lock", None),
                 )
             else:
                 extra = _lru_cache_census(cache)

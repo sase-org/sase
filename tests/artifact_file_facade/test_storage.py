@@ -1,6 +1,7 @@
 import json
 import hashlib
 import shutil
+from collections import OrderedDict
 from dataclasses import replace
 from pathlib import Path
 
@@ -130,7 +131,7 @@ def test_store_explicit_artifact_creates_index_and_dedupes_display_order(
     ]
 
 
-def test_read_artifact_file_index_reuses_parse_until_stat_changes(
+def test_list_indexed_uses_targeted_cache_until_identity_changes(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -155,39 +156,46 @@ def test_read_artifact_file_index_reuses_parse_until_stat_changes(
         label="Beta",
         artifact_files_root=root,
     )
-    explicit_module._artifact_file_index_cache.clear()
-    parse_count = 0
-    real_reader = explicit_module.read_artifact_file_index_document_unlocked
+    explicit_module._artifact_file_association_cache.clear()
+    clock = {"now": 1000.0}
+    monkeypatch.setattr(explicit_module.time, "monotonic", lambda: clock["now"])
+    query_count = 0
+    real_query = explicit_module.query_artifact_file_associations
 
-    def counting_reader(path: Path) -> tuple[list[ArtifactFile], list[str]]:
-        nonlocal parse_count
-        parse_count += 1
-        return real_reader(path)
+    def counting_query(
+        index_path: Path | str | None = None,
+        **kwargs: object,
+    ) -> object:
+        nonlocal query_count
+        query_count += 1
+        return real_query(index_path, **kwargs)  # type: ignore[arg-type]
 
     monkeypatch.setattr(
-        explicit_module,
-        "read_artifact_file_index_document_unlocked",
-        counting_reader,
+        explicit_module, "query_artifact_file_associations", counting_query
     )
 
     assert list_indexed_artifact_files(artifacts_a, index_path=index_path) == [row_a]
     assert list_indexed_artifact_files(artifacts_b, index_path=index_path) == [row_b]
-    assert parse_count == 1
+    assert query_count == 2
+    clock["now"] += 1.0
+    assert list_indexed_artifact_files(artifacts_a, index_path=index_path) == [row_a]
+    assert list_indexed_artifact_files(artifacts_b, index_path=index_path) == [row_b]
+    assert query_count == 2
 
     future_mtime_ns = index_path.stat().st_mtime_ns + 10_000_000_000
     import os as _os
 
     _os.utime(index_path, ns=(future_mtime_ns, future_mtime_ns))
+    clock["now"] += 1.0
     assert list_indexed_artifact_files(artifacts_a, index_path=index_path) == [row_a]
     assert list_indexed_artifact_files(artifacts_b, index_path=index_path) == [row_b]
-    assert parse_count == 2
+    assert query_count == 4
 
 
-def test_artifact_file_index_cache_holds_one_entry_per_path_across_rewrites(
+def test_association_cache_holds_one_entry_per_selector_across_rewrites(
     tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """N external rewrites leave one cache entry per resolved path (sase-1ez.3)."""
-
     artifacts_dir = agent_dir(tmp_path)
     root = tmp_path / ".sase" / "artifacts"
     index_path = root / "index.jsonl"
@@ -199,38 +207,29 @@ def test_artifact_file_index_cache_holds_one_entry_per_path_across_rewrites(
         label="Report",
         artifact_files_root=root,
     )
-    explicit_module._artifact_file_index_cache.clear()
-    assert read_artifact_file_index(index_path) == (stored,)
+    explicit_module._artifact_file_association_cache.clear()
+    clock = {"now": 1000.0}
+    monkeypatch.setattr(explicit_module.time, "monotonic", lambda: clock["now"])
+    assert list_indexed_artifact_files(artifacts_dir, index_path=index_path) == [stored]
 
-    rewrites = 32
+    rewrites = 8
     for i in range(rewrites):
         base = index_path.read_text(encoding="utf-8")
-        # External rewrite without same-process invalidation; the pad line
-        # changes size so the stat signature changes every iteration.
         index_path.write_text(
             base + json.dumps({"schema_version": 999, "pad": "x" * i}) + "\n",
             encoding="utf-8",
         )
-        assert read_artifact_file_index(index_path) == (stored,)
+        clock["now"] += 1.0
+        assert list_indexed_artifact_files(artifacts_dir, index_path=index_path) == [
+            stored
+        ]
 
-    resolved = index_path.expanduser().resolve(strict=False)
-    assert list(explicit_module._artifact_file_index_cache) == [resolved]
-
-    other_root = tmp_path / ".sase" / "other-artifacts"
-    other_index = other_root / "index.jsonl"
-    other_source = tmp_path / "other.md"
-    other_source.write_text("# Other\n", encoding="utf-8")
-    other_stored = store_explicit_artifact_file(
-        other_source,
-        artifacts_dir,
-        label="Other",
-        artifact_files_root=other_root,
-    )
-    assert read_artifact_file_index(other_index) == (other_stored,)
-    assert len(explicit_module._artifact_file_index_cache) == 2
+    assert len(explicit_module._artifact_file_association_cache) == 1
+    assert read_artifact_file_index(index_path) == (stored,)
+    assert not hasattr(explicit_module, "_artifact_file_index_cache")
 
 
-def test_read_artifact_file_index_returns_shared_immutable_snapshot(
+def test_read_artifact_file_index_is_uncached_bulk_reader(
     tmp_path: Path,
 ) -> None:
     artifacts_dir = agent_dir(tmp_path)
@@ -244,25 +243,23 @@ def test_read_artifact_file_index_returns_shared_immutable_snapshot(
         label="Report",
         artifact_files_root=root,
     )
-    explicit_module._artifact_file_index_cache.clear()
+    explicit_module._artifact_file_association_cache.clear()
 
     first = read_artifact_file_index(index_path)
     second = read_artifact_file_index(index_path)
 
     assert isinstance(first, tuple)
     assert first == (stored,)
-    # Repeated hits share the cached snapshot instead of fresh copies.
-    assert second is first
-    assert second[0] is first[0]
-    # Caller mutation fails loudly instead of corrupting the cache.
+    assert second == (stored,)
+    assert second is not first
     with pytest.raises(AttributeError):
         first.append(stored)  # type: ignore[attr-defined]
-    assert read_artifact_file_index(index_path) == (stored,)
-    assert read_artifact_file_index(index_path) is first
+    assert explicit_module._artifact_file_association_cache == OrderedDict()
 
 
-def test_artifact_file_index_write_invalidates_cache_when_stat_is_unchanged(
+def test_artifact_file_index_write_invalidates_association_cache(
     tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     artifacts_dir = agent_dir(tmp_path)
     root = tmp_path / ".sase" / "artifacts"
@@ -275,8 +272,10 @@ def test_artifact_file_index_write_invalidates_cache_when_stat_is_unchanged(
         label="Alpha",
         artifact_files_root=root,
     )
-    explicit_module._artifact_file_index_cache.clear()
-    assert read_artifact_file_index(index_path) == (stored,)
+    explicit_module._artifact_file_association_cache.clear()
+    clock = {"now": 1000.0}
+    monkeypatch.setattr(explicit_module.time, "monotonic", lambda: clock["now"])
+    assert list_indexed_artifact_files(artifacts_dir, index_path=index_path) == [stored]
 
     cached_stat = index_path.stat()
     replacement = replace(stored, label="Bravo")
@@ -288,8 +287,10 @@ def test_artifact_file_index_write_invalidates_cache_when_stat_is_unchanged(
         index_path,
         ns=(cached_stat.st_atime_ns, cached_stat.st_mtime_ns),
     )
-
-    assert read_artifact_file_index(index_path) == (replacement,)
+    clock["now"] += 0.1
+    assert list_indexed_artifact_files(artifacts_dir, index_path=index_path) == [
+        replacement
+    ]
 
 
 def test_store_explicit_artifact_file_preserves_jsonl_wire_format(

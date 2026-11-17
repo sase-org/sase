@@ -91,20 +91,6 @@ def dedupe_artifact_files(artifact_files: list[ArtifactFile]) -> list[ArtifactFi
     return deduped
 
 
-def matches_association(
-    artifact_file: ArtifactFile,
-    association: ArtifactFileAssociation,
-) -> bool:
-    if artifact_file.agent_artifacts_dir == association.agent_artifacts_dir:
-        return True
-    return (
-        artifact_file.project is not None
-        and artifact_file.project == association.project
-        and artifact_file.raw_timestamp is not None
-        and artifact_file.raw_timestamp == association.raw_timestamp
-    )
-
-
 def artifact_file_id(
     prefix: str,
     association: ArtifactFileAssociation,

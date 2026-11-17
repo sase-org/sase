@@ -46,7 +46,9 @@ from sase.core.artifact_file_helpers import (
     artifact_file_mime_type,
 )
 from sase.core.artifact_file_query_facade import (
+    ARTIFACT_FILE_ASSOCIATION_QUERY_WIRE_SCHEMA_VERSION,
     ARTIFACT_FILE_QUERY_WIRE_SCHEMA_VERSION,
+    query_artifact_file_associations,
     query_artifact_files,
 )
 from sase.core.artifact_file_vcs import materialize_artifact_file
@@ -55,6 +57,7 @@ __all__ = [
     "ARTIFACT_FILE_INDEX_SCHEMA_VERSION",
     "ARTIFACT_FILE_INDEX_SUPPORTED_SCHEMA_VERSIONS",
     "ARTIFACT_FILE_KINDS",
+    "ARTIFACT_FILE_ASSOCIATION_QUERY_WIRE_SCHEMA_VERSION",
     "ARTIFACT_FILE_QUERY_WIRE_SCHEMA_VERSION",
     "ArtifactFileBackfillReport",
     "ArtifactFileDigestMismatch",
@@ -78,6 +81,7 @@ __all__ = [
     "list_indexed_artifact_files",
     "materialize_artifact_file",
     "persist_default_artifact_files",
+    "query_artifact_file_associations",
     "query_artifact_files",
     "read_artifact_file_index",
     "store_default_artifact_file",
