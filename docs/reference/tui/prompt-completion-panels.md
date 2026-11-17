@@ -370,7 +370,8 @@ stay plain, and `@bead:` refs keep the artifact-reference styling instead.
 Resolution runs off the typing path: an ID you just typed lights up when you
 leave INSERT mode with `Esc`, when the prompt mounts, or when `K` resolves it.
 
-`K` on a bead ID opens a compact bead card. Recognized forms are a bare full ID
+`K` on a bead ID opens a large bead card that fills most of the terminal
+(90% of its height and 90% of its width, up to 160 columns). Recognized forms are a bare full ID
 (`sase-1ss`, `sase-1ss.1`, `bob-cli-kx`) and an artifact ref (`@bead:sase-1ss` or
 `bead:sase-1ss`). Trailing sentence punctuation, wrapping quotes, backticks, and
 parentheses are not part of the ID. Path-adjacent tokens (`src/sase-1ss/x`,

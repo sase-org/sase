@@ -8208,10 +8208,9 @@ BeadPreviewModal {
 }
 
 BeadPreviewModal > Container {
-    width: auto;
-    max-width: 84;
-    height: auto;
-    max-height: 80%;
+    width: 90%;
+    max-width: 160;
+    height: 90%;
     overflow-y: hidden;
     border: thick $primary;
     background: $surface;
@@ -8223,11 +8222,9 @@ BeadPreviewModal #bead-preview-title {
     margin-bottom: 1;
 }
 
-/* Cell cap (not %/fr/vh): auto-height parents ignore non-cell max-height
-   while their own height is still 0, which would clip the in-flow footer. */
+/* The container has a definite size, so the body uses 1fr and the footer stays pinned. */
 BeadPreviewModal #bead-preview-scroll {
-    height: auto;
-    max-height: 20;
+    height: 1fr;
     scrollbar-gutter: stable;
     border: solid $secondary;
     padding: 0 1;

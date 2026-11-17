@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 
 from rich.console import Group, RenderableType
+from rich.rule import Rule
 from rich.text import Text
 from textual.app import ComposeResult
 from textual.containers import Container, VerticalScroll
@@ -400,7 +401,7 @@ class BeadPreviewModal(
             related = build_bead_related(self._preview, palette=self._palette)
         if related is not None:
             sections.append(related)
-        sections.append(Text("-" * 66, style="dim"))
+        sections.append(Rule(characters="─", style="dim"))
         sections.append(build_bead_meta(self._preview, accent=self._accent))
         return Group(*sections)
 

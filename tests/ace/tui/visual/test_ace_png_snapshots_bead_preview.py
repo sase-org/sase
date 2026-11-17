@@ -113,6 +113,37 @@ async def test_bead_preview_loading_card_png_snapshot(
         )
 
 
+async def test_bead_preview_long_epic_large_terminal_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    patch_startup_loaders(monkeypatch)
+
+    async with AcePage(
+        query='"visual"',
+        size=(200, 60),
+        patches=patches(),
+    ) as page:
+        await wait_for_startup(page)
+        page.app.push_screen(
+            BeadPreviewModal(
+                _visual_store(),
+                "bob-cli-kx",
+                preview=_visual_long_epic_preview(),
+            )
+        )
+        await page.expect_modal("BeadPreviewModal")
+        await wait_for_svg_contains(page, "PHASES")
+        await wait_for_svg_contains(page, "Fourteen: wrap-up and verification")
+        await wait_for_visual_idle(page)
+
+        ace_png_visual.assert_page_png(
+            page,
+            "bead_preview_card_long_epic_dark_200x60",
+            title="ACE bead preview card - long epic on a large terminal",
+        )
+
+
 def _visual_store() -> BeadStoreRef:
     home = Path.home()
     return BeadStoreRef(
@@ -199,6 +230,88 @@ def _visual_epic_preview() -> BeadPreview:
             status=Status.IN_PROGRESS,
             size="medium",
         ),
+    )
+    return BeadPreview(
+        issue=epic,
+        ancestors=(),
+        children=children,
+        depends_on=(),
+        blocks=(),
+        store=_visual_store(),
+        plan_reference="gmail_archive_on_task_close.md",
+        plan_source="self",
+        plan_path=str(Path.home() / "plans/202611/gmail_archive_on_task_close.md"),
+    )
+
+
+def _visual_long_epic_preview() -> BeadPreview:
+    epic = _issue(
+        id="bob-cli-kx",
+        title="Gmail archive on task close",
+        status=Status.IN_PROGRESS,
+        issue_type=IssueType.PLAN,
+        tier=BeadTier.EPIC,
+        description=(
+            "bob gmail sync archives a bob-labelled thread's saved messages exactly "
+            "once when every linking Obsidian task is closed, visibly, undoably, "
+            "and without a second archive of the same thread.\n\n"
+            "The large card must show the full phase list on a 200x60 terminal, "
+            "keep the footer pinned, and draw a full-width separator above the "
+            "property grid.\n\n"
+            "A third paragraph keeps the body tall enough that the 1fr scroll "
+            "region is doing real work even after the frame grows."
+        ),
+        created_at=_CREATED,
+        updated_at=_UPDATED,
+        notes=[
+            BeadNote(
+                id="n1",
+                timestamp="2026-07-01T12:00:00+00:00",
+                author="bryan",
+                text="First note.",
+            ),
+            BeadNote(
+                id="n2",
+                timestamp="2026-07-04T12:00:00+00:00",
+                author="bryan",
+                text="Second note.",
+            ),
+            BeadNote(
+                id="n3",
+                timestamp=_UPDATED,
+                author="bryan",
+                text="Phase 5 is waiting on the gated live run.",
+            ),
+        ],
+    )
+    children = tuple(
+        _issue(
+            id=f"bob-cli-kx.{index}",
+            title=title,
+            issue_type=IssueType.PHASE,
+            parent_id="bob-cli-kx",
+            status=status,
+            size=size,
+        )
+        for index, (title, status, size) in enumerate(
+            (
+                ("Mutation-path spike", Status.CLOSED, "small"),
+                ("Archive-on-close machinery in bob-cli", Status.CLOSED, "medium"),
+                ("Obsidian task close wiring", Status.CLOSED, "medium"),
+                ("Undo and idempotency", Status.CLOSED, "small"),
+                ("Gated live enable and verification", Status.IN_PROGRESS, "medium"),
+                ("Docs and help-modal copy", Status.OPEN, "small"),
+                ("Notification on archive", Status.OPEN, "medium"),
+                ("Undo confirmation gate", Status.READY, "small"),
+                ("Idempotent second close", Status.CLAIMED, "large"),
+                ("Thread-label probe", Status.SNOOZED, "xsmall"),
+                ("Vault path mapping", Status.OPEN, "medium"),
+                ("Error toasts", Status.OPEN, "small"),
+                ("Metrics and traces", Status.OPEN, "large"),
+                ("Fourteen: wrap-up and verification", Status.OPEN, "xlarge"),
+            ),
+            start=1,
+        )
     )
     return BeadPreview(
         issue=epic,
