@@ -723,37 +723,40 @@ Agents tab to focus the tracked artifact pane, or press `a` again to close it.
 Row-changing navigation is guarded while the pane is open so the TUI does not drift to a
 different agent than the viewer. Outside tmux, sase's TUI suspends and opens the viewer
 in the current terminal pane. The viewer chooses its mode from the artifact kind and
-file extension: supported images are displayed directly, supported videos play with mpv,
-PDFs are converted to PNG pages, and Markdown is rendered to PDF before paging. The page
-loop uses `j`/`k` to move between pages, wrapping at the first and last page, `n`/`p` to
-move between artifacts in a sequence, `r` to refresh or replay the current artifact, and
-`q` to close the viewer.
+file extension: supported images are displayed directly, supported videos play with mpv
+outside tmux and show a still inside tmux, PDFs are converted to PNG pages, and Markdown
+is rendered to PDF before paging. The page loop uses `j`/`k` to move between pages,
+wrapping at the first and last page, `n`/`p` to move between artifacts in a sequence,
+`r` to refresh or replay the current artifact, and `q` to close the viewer.
 
 Only one plan artifact is listed for each agent. If run metadata contains both an
 archived plan path and an SDD tale path, committed plans prefer the SDD path;
 uncommitted plans prefer the archived path unless only the SDD path is available.
 
 Viewer dependencies are intentionally outside the agent completion path. `kitten` is
-required for image/PDF/Markdown terminal display, `mpv` is required for terminal video
-playback, `pdftoppm` is required for PDF/Markdown paging, and Markdown rendering also
-needs `pandoc` plus one supported PDF engine. If a dependency is missing, sase's TUI
-shows a warning instead of failing the TUI or changing the stored artifact list.
+required for image/PDF/Markdown display and video stills, `ffmpeg` and `ffprobe` for
+video stills and metadata inside tmux, `mpv` for video playback outside tmux, `pdftoppm`
+for PDF/Markdown paging, and Markdown rendering also needs `pandoc` plus one PDF engine.
+If a dependency is missing, sase's TUI shows a warning instead of failing the TUI or
+changing the stored artifact list.
 
 Source: `src/sase/ace/tui/graphics/viewer.py`
 
 ### Video Preview
 
-sase's TUI plays `.mp4`, `.m4v`, `.mov`, and `.webm` artifacts in the same artifact
-viewer used for images and PDFs. Inside tmux, selecting a video opens the tracked
-right-side artifact pane; outside tmux, sase's TUI suspends and plays in the current
-terminal. Playback uses `mpv --vo=kitty` by default, bounded to the same cell area used
-for image artifacts.
+sase's TUI shows `.mp4`, `.m4v`, `.mov`, and `.webm` artifacts in the same viewer used
+for images and PDFs. Outside tmux, selecting a video suspends sase's TUI and plays it
+with `mpv --vo=kitty` in the same cell area used for images. Inside tmux, selecting a
+video opens the tracked pane with a still frame: `ffprobe` metadata such as
+`▶ Video 0:07 · 2560×1548 · 30 fps · h264 · 1.2 MB` plus the first frame via `ffmpeg`,
+shown with `kitten icat`. The footer notes in-pane playback is unavailable inside tmux,
+and mpv never spawns there.
 
-While mpv is running, mpv owns playback keys: `space` pauses or resumes, arrow keys
-seek, `m` toggles mute, and `q` stops playback. After playback exits, the artifact
-viewer footer returns with the usual navigation keys: `r` replays, `n`/`p` move through
-a multi-artifact sequence, `z` toggles tmux zoom when available, `<tab>` focuses the
-SASE TUI from a tmux artifact pane, and `q` closes the viewer.
+While mpv runs, it owns playback keys: `space` pauses or resumes, arrow keys seek, `m`
+toggles mute, `q` stops. Afterwards the usual footer returns: `r` replays, `n`/`p` move
+through a sequence, `z` toggles tmux zoom, `<tab>` focuses the SASE TUI, `q` closes. On
+the still path `r` re-renders, and a missing `ffprobe`, `ffmpeg`, or `kitten` prints a
+yellow notice naming the tool without closing the viewer.
 
 Videos are muted by default because SASE often runs on a remote host or inside tmux
 where the server audio device is not useful. Configure playback under

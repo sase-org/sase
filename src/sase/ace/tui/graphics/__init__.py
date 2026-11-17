@@ -49,6 +49,7 @@ from ._viewer_loop import (
     run_artifact_sequence_loop,
     run_artifact_text_viewer,
     serialize_video_playback_config,
+    video_still_preview_required,
 )
 from ._viewer_render import (
     artifact_markdown_pdf_profile_for_image_area,
@@ -120,6 +121,7 @@ __all__ = [
     "TmuxPaneDecorationResult",
     "TmuxPaneDecorationState",
     "validate_artifact_file_viewer_dependencies",
+    "video_still_preview_required",
     "view_registered_artifact_file",
     "view_registered_artifact_files",
     "view_registered_artifact_file_in_tmux_pane",

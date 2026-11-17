@@ -41,3 +41,5 @@ class VideoDisplayResult:
     command: tuple[str, ...] = ()
     returncode: int = 0
     warnings: tuple[ArtifactFileViewerWarning, ...] = ()
+    notices: tuple[ArtifactFileViewerWarning, ...] = ()
+    still_preview: bool = False

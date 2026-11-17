@@ -23,6 +23,11 @@ from ._viewer_loop_types import (
     VideoDisplayResult,
 )
 from ._viewer_render import validate_artifact_file_viewer_dependencies
+from ._viewer_video_media import (
+    display_video_still_artifact,
+    video_still_preview_required,
+    video_vo_uses_kitty_placement,
+)
 from ._viewer_types import (
     ArtifactFileImageArea,
     ArtifactFileViewerWarning,
@@ -174,10 +179,6 @@ def load_artifact_video_playback_config() -> ArtifactVideoPlaybackConfig:
     return load_merged_artifact_video_playback_config()
 
 
-def video_vo_uses_kitty_placement(vo: str) -> bool:
-    return vo.split(",", 1)[0].strip() == "kitty"
-
-
 def _coerce_bool(value: object, *, default: bool) -> bool:
     return value if isinstance(value, bool) else default
 
@@ -254,6 +255,7 @@ def display_video_artifact(
     video_config: ArtifactVideoPlaybackConfig,
     artifact_index: int = 0,
     artifact_count: int = 1,
+    cache_root: str | Path | None = None,
 ) -> VideoDisplayResult:
     path = Path(spec.path).expanduser().resolve(strict=False)
     if not path.exists():
@@ -268,6 +270,16 @@ def display_video_artifact(
             "Artifact path is not a file",
         )
         return VideoDisplayResult(warnings=(warning,))
+
+    if video_still_preview_required(video_config):
+        return display_video_still_artifact(
+            spec,
+            image_area,
+            run_command,
+            cache_root=cache_root,
+            artifact_index=artifact_index,
+            artifact_count=artifact_count,
+        )
 
     warnings = validate_artifact_file_viewer_dependencies("video")
     if warnings:

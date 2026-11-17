@@ -118,7 +118,9 @@ ace:
 ### `ace.artifact_file_viewer`
 
 Controls terminal video playback when the external artifact-file viewer opens a video
-artifact through mpv.
+artifact through mpv. Inside tmux, `vo: kitty` is not used for playback: the viewer
+shows an ffmpeg still with ffprobe metadata instead of spawning mpv (see
+[Video Preview](../agent-attachments.md#video-preview)).
 
 ```yaml
 ace:

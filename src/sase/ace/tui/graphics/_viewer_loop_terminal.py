@@ -260,6 +260,7 @@ def print_page_prompt(
     show_position: bool = True,
     return_pane_available: bool = False,
     tmux_zoom_available: bool = False,
+    footer_prefix: str | None = None,
 ) -> None:
     labels = {
         "j": "j: next page",
@@ -287,6 +288,8 @@ def print_page_prompt(
         prompt = f"Page {index + 1}/{page_count}  {prompt}"
     if show_position and artifact_count > 1:
         prompt = f"Artifact {artifact_index + 1}/{artifact_count}  {prompt}"
+    if footer_prefix:
+        prompt = f"{footer_prefix}  {prompt}" if prompt else footer_prefix
     sys.stdout.write(f"{_FOOTER_RESET}\n{_FOOTER_COLOR}{prompt}{_FOOTER_RESET}")
     sys.stdout.flush()
 

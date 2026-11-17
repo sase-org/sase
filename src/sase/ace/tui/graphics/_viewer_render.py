@@ -27,6 +27,7 @@ from .videos import is_supported_video_path
 
 if TYPE_CHECKING:
     from sase.attachments.markdown_pdf import MarkdownPdfProfile
+    from ._viewer_loop_types import ArtifactVideoPlaybackConfig
 
 _MARKDOWN_SUFFIXES = frozenset({".md", ".markdown", ".mdown", ".mkd"})
 _MIN_ARTIFACT_PAGE_WIDTH_IN = 4.25
@@ -52,6 +53,7 @@ def render_artifact_file_pages(
     kind: str | None = None,
     cache_dir: str | Path | None = None,
     image_area: ArtifactFileImageArea | None = None,
+    video_config: ArtifactVideoPlaybackConfig | None = None,
 ) -> ArtifactRenderResult:
     """Render *path* into one or more image pages for terminal display."""
 
@@ -89,7 +91,14 @@ def render_artifact_file_pages(
                 ),
             )
         if mode == "video":
-            warnings = validate_artifact_file_viewer_dependencies(mode)
+            from ._viewer_loop_media import load_artifact_video_playback_config
+
+            config = video_config
+            if config is None:
+                config = load_artifact_video_playback_config()
+            warnings = validate_artifact_file_viewer_dependencies(
+                mode, video_config=config
+            )
             if warnings:
                 return ArtifactRenderResult((), tuple(warnings))
         return ArtifactRenderResult(())
@@ -145,6 +154,8 @@ def artifact_file_view_mode(
 
 def validate_artifact_file_viewer_dependencies(
     mode: ArtifactViewMode,
+    *,
+    video_config: ArtifactVideoPlaybackConfig | None = None,
 ) -> tuple[ArtifactFileViewerWarning, ...]:
     """Return missing terminal/rendering dependencies for *mode*."""
 
@@ -157,6 +168,21 @@ def validate_artifact_file_viewer_dependencies(
                 tool="kitten",
             )
         )
+    if mode == "video" and _video_still_preview_required(video_config):
+        for tool, code in (
+            ("ffprobe", "missing_ffprobe"),
+            ("ffmpeg", "missing_ffmpeg"),
+            ("kitten", "missing_kitten"),
+        ):
+            if shutil.which(tool) is None:
+                warnings.append(
+                    ArtifactFileViewerWarning(
+                        code,
+                        f"{tool} executable not found",
+                        tool=tool,
+                    )
+                )
+        return tuple(warnings)
     if mode == "video" and shutil.which("mpv") is None:
         warnings.append(
             ArtifactFileViewerWarning(
@@ -193,6 +219,16 @@ def validate_artifact_file_viewer_dependencies(
                 )
             )
     return tuple(warnings)
+
+
+def _video_still_preview_required(
+    video_config: ArtifactVideoPlaybackConfig | None,
+) -> bool:
+    if video_config is None:
+        return False
+    from ._viewer_video_media import video_still_preview_required
+
+    return video_still_preview_required(video_config)
 
 
 def convert_pdf_to_png_pages(

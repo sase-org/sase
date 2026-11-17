@@ -51,6 +51,7 @@ from ._viewer_loop import (
     run_artifact_page_loop,
     run_artifact_text_viewer,
     serialize_video_playback_config,
+    video_still_preview_required,
 )
 from ._viewer_render import (
     artifact_markdown_pdf_profile_for_image_area,
@@ -90,6 +91,7 @@ def render_artifact_file_pages(
     kind: str | None = None,
     cache_dir: str | Path | None = None,
     image_area: ArtifactFileImageArea | None = None,
+    video_config: ArtifactVideoPlaybackConfig | None = None,
 ) -> ArtifactRenderResult:
     """Render *path* into one or more image pages for terminal display."""
 
@@ -101,6 +103,7 @@ def render_artifact_file_pages(
             kind=kind,
             cache_dir=cache_dir,
             image_area=image_area,
+            video_config=video_config,
         )
     finally:
         _viewer_render.render_markdown_pdf = original
@@ -216,6 +219,7 @@ __all__ = [
     "select_tmux_pane",
     "toggle_artifact_file_tmux_pane_zoom",
     "validate_artifact_file_viewer_dependencies",
+    "video_still_preview_required",
     "view_registered_artifact_file",
     "view_registered_artifact_file_in_tmux_pane",
     "view_registered_artifact_files",

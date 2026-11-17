@@ -375,6 +375,8 @@ def test_run_artifact_sequence_loop_plays_video_artifact(
     specs = (ArtifactFileViewSpec(video, "file"),)
     commands: list[list[str]] = []
     keys = iter(["q"])
+    monkeypatch.delenv("TMUX", raising=False)
+    monkeypatch.delenv("TMUX_PANE", raising=False)
     monkeypatch.setattr(
         "sase.ace.tui.graphics._viewer_render.shutil.which",
         lambda tool: f"/usr/bin/{tool}" if tool == "mpv" else None,
@@ -412,6 +414,8 @@ def test_run_artifact_sequence_loop_replays_video_artifact(
     specs = (ArtifactFileViewSpec(video, "file"),)
     commands: list[list[str]] = []
     keys = iter(["r", "q"])
+    monkeypatch.delenv("TMUX", raising=False)
+    monkeypatch.delenv("TMUX_PANE", raising=False)
     monkeypatch.setattr(
         "sase.ace.tui.graphics._viewer_render.shutil.which",
         lambda tool: f"/usr/bin/{tool}" if tool == "mpv" else None,
@@ -456,6 +460,8 @@ def test_run_artifact_sequence_loop_navigates_video_to_image(
         "sase.ace.tui.graphics.viewer.render_artifact_file_pages",
         lambda *args, **kwargs: ArtifactRenderResult((page,)),
     )
+    monkeypatch.delenv("TMUX", raising=False)
+    monkeypatch.delenv("TMUX_PANE", raising=False)
     monkeypatch.setattr(
         "sase.ace.tui.graphics._viewer_render.shutil.which",
         lambda tool: f"/usr/bin/{tool}" if tool == "mpv" else None,
@@ -493,6 +499,8 @@ def test_run_artifact_sequence_loop_keeps_prompt_after_mpv_failure(
     specs = (ArtifactFileViewSpec(video, "file"),)
     commands: list[list[str]] = []
     keys = iter(["q"])
+    monkeypatch.delenv("TMUX", raising=False)
+    monkeypatch.delenv("TMUX_PANE", raising=False)
     monkeypatch.setattr(
         "sase.ace.tui.graphics._viewer_render.shutil.which",
         lambda tool: f"/usr/bin/{tool}" if tool == "mpv" else None,

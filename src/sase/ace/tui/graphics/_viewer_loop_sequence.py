@@ -33,6 +33,7 @@ from ._viewer_loop_terminal import (
     viewer_kitten_icat_command,
 )
 from ._viewer_trace import mark_child_ready, mark_first_visual
+from ._viewer_video_media import VIDEO_STILL_FOOTER_PREFIX
 from ._viewer_loop_types import ArtifactVideoPlaybackConfig, PageLoopResult
 from ._viewer_render import artifact_file_view_mode, render_artifact_file_pages
 from ._viewer_types import (
@@ -152,6 +153,7 @@ def run_artifact_sequence_loop(
                     video_config=resolved_video_config,
                     artifact_index=artifact_index,
                     artifact_count=len(specs),
+                    cache_root=root,
                 )
                 if video_displayed.warnings:
                     return PageLoopResult(
@@ -174,6 +176,11 @@ def run_artifact_sequence_loop(
                     show_position=False,
                     return_pane_available=return_pane_available,
                     tmux_zoom_available=zoom_available,
+                    footer_prefix=(
+                        VIDEO_STILL_FOOTER_PREFIX
+                        if video_displayed.still_preview
+                        else None
+                    ),
                 )
             else:
                 rendered = pages_for(artifact_index, current_area)

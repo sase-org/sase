@@ -429,6 +429,8 @@ def test_video_file_artifact_uses_video_mode_without_render_pages(
 ) -> None:
     artifact = tmp_path / "demo.mp4"
     artifact.write_bytes(b"video")
+    monkeypatch.delenv("TMUX", raising=False)
+    monkeypatch.delenv("TMUX_PANE", raising=False)
     monkeypatch.setattr(
         "sase.ace.tui.graphics.viewer.shutil.which",
         lambda tool: f"/usr/bin/{tool}" if tool == "mpv" else None,

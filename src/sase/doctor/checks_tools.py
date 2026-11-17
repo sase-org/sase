@@ -29,7 +29,15 @@ class _ToolRequirement:
 _OPTIONAL_TOOLS: tuple[_ToolRequirement, ...] = (
     _ToolRequirement("bat", ("bat",), "syntax-highlighted file previews"),
     _ToolRequirement("kitten", ("kitten",), "terminal image artifact display"),
-    _ToolRequirement("mpv", ("mpv",), "terminal video artifact playback"),
+    _ToolRequirement(
+        "mpv", ("mpv",), "terminal video playback outside tmux (optional)"
+    ),
+    _ToolRequirement(
+        "ffmpeg", ("ffmpeg",), "terminal video artifact stills and metadata"
+    ),
+    _ToolRequirement(
+        "ffprobe", ("ffprobe",), "terminal video artifact stills and metadata"
+    ),
     _ToolRequirement("pdftoppm", ("pdftoppm",), "PDF and Markdown artifact paging"),
     _ToolRequirement("pandoc", ("pandoc",), "Markdown-to-PDF artifact rendering"),
     _ToolRequirement(
