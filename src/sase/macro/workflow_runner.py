@@ -494,7 +494,7 @@ def execute_workflow(
         from sase.macro._trace import ExpansionTrace
         from sase.macro.workflow_executor_utils import (
             mark_step_pre_rendered,
-            render_workflow_template,
+            render_workflow_template_with_directives,
         )
         from sase.macro.workflow_models import Workflow as WfModel
 
@@ -502,7 +502,9 @@ def execute_workflow(
 
         content = workflow.get_prompt_part_content()
         simple_trace = ExpansionTrace()
-        rendered = render_workflow_template(content, render_ctx, trace=simple_trace)
+        rendered, simple_directives = render_workflow_template_with_directives(
+            content, render_ctx, trace=simple_trace
+        )
         main_step = WorkflowStep(name="main", agent=rendered)
         from sase.artifact_ref_prompt_context import prompt_segment_vcs_refs
 
@@ -511,6 +513,7 @@ def execute_workflow(
             content,
             segment_vcs_refs=prompt_segment_vcs_refs(content),
             trace=simple_trace,
+            directives=simple_directives,
         )
         workflow = WfModel(
             name=workflow.name,

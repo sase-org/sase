@@ -29,8 +29,6 @@ from sase.ace.tui.widgets.macro_arg_assist import (
     macro_assist_entry_from_local_macro,
 )
 from sase.config.core import load_merged_config
-from sase.macro.jinja_assist import JinjaScope
-from sase.macro.jinja_inspect import undeclared_variables
 from sase.legacy_xprompt_syntax import retired_config_key
 from sase.macro.loader_parsing import (
     LocalMacroNameError,
@@ -181,6 +179,11 @@ def infer_local_macro_inputs(body: str) -> _PlaceholderArgConversion | None:
     the pane unchanged and notifies rather than minting a helper with unreliable
     inputs.
     """
+    # Use-site imports keep Jinja inspection off the TUI first-paint path;
+    # input inference runs only when the user invokes the gL keymap.
+    from sase.macro.jinja_assist import JinjaScope
+    from sase.macro.jinja_inspect import undeclared_variables
+
     unknown = undeclared_variables(
         body,
         JinjaScope(kind="macro", frontmatter=None),

@@ -300,7 +300,20 @@ def render_workflow_template(
         cmdsub_provenance=provenance,
         cmdsub_guard=guard,
     )
-    return guard.unwrap(expanded)
+    # Outermost completion for this guard: unwrap, then expand data-internal
+    # references as generated (no execution). Nested calls return protected;
+    # this second pass handles globals that arrived inside data.
+    from sase.macro.cmdsub_source import generated_provenance, unescape_cmdsub
+
+    unwrapped = guard.unwrap(expanded)
+    second = process_macro_references(
+        unwrapped,
+        extra_macros=extra_macros,
+        scope=scope,
+        trace=trace,
+        cmdsub_provenance=generated_provenance(provenance.launch_authorship),
+    )
+    return unescape_cmdsub(second)
 
 
 @dataclass
@@ -312,16 +325,17 @@ class _PreRenderedStep:
     simple-macro synthetic step) attach this mark so the later preparation
     skips the source passes instead of presenting rendered text — which now
     contains literal data commands — as fresh source. The mark carries the
-    original definition for directive extraction and continuation capture,
-    the macro trace for provenance, and the pre-expansion segment VCS refs
-    for artifact-ref contexts. It survives :func:`copy.deepcopy` (plain
-    attributes) and is never serialized: data in a context or prompt body
-    cannot claim it.
+    original definition for continuation capture, the extracted directives
+    (authored plus macro-produced, never data), the macro trace for
+    provenance, and the pre-expansion segment VCS refs for artifact-ref
+    contexts. It survives :func:`copy.deepcopy` (plain attributes) and is
+    never serialized: data in a context or prompt body cannot claim it.
     """
 
     source: str
     segment_vcs_refs: tuple[str | None, ...] = ()
     trace: Any | None = None
+    directives: Any | None = None
 
 
 _PRE_RENDERED_ATTR = "__sase_pre_rendered__"
@@ -333,14 +347,91 @@ def mark_step_pre_rendered(
     *,
     segment_vcs_refs: tuple[str | None, ...] = (),
     trace: Any | None = None,
+    directives: Any | None = None,
 ) -> "WorkflowStep":
     """Attach a pre-rendered mark to a workflow step (returns the step)."""
     setattr(
         step,
         _PRE_RENDERED_ATTR,
-        _PreRenderedStep(source=source, segment_vcs_refs=segment_vcs_refs, trace=trace),
+        _PreRenderedStep(
+            source=source,
+            segment_vcs_refs=segment_vcs_refs,
+            trace=trace,
+            directives=directives,
+        ),
     )
     return step
+
+
+def render_workflow_template_with_directives(
+    template: str,
+    context: dict[str, Any],
+    *,
+    extra_macros: dict[str, Any] | None = None,
+    scope: dict[str, Any] | None = None,
+    trace: Any | None = None,
+) -> tuple[str, Any]:
+    """Render a definition template, expanding macros and extracting directives.
+
+    Runs the same source-aware pipeline as :func:`render_workflow_template`
+    but extracts prompt directives on protected text (before unwrapping) so
+    authored directives and admitted macro-produced directives are captured
+    while literal data lines (e.g. ``%model:`` inside interpolated values)
+    are never parsed. Returns ``(stripped_prompt, directives)`` where
+    ``stripped_prompt`` is clean (unwrapped, unescaped, second-pass expanded)
+    with directive lines removed.
+    """
+    from sase.macro import process_macro_references
+    from sase.macro._disabled_regions import (
+        protect_disabled_regions,
+        unprotect_disabled_regions,
+    )
+    from sase.macro.cmdsub_source import (
+        GeneratedTextGuard,
+        PromptTextKind,
+        generated_provenance,
+        resolve_provenance,
+        unescape_cmdsub,
+    )
+    from sase.macro.directives import extract_prompt_directives
+    from sase.macro.source_render import render_source_template
+
+    provenance = resolve_provenance(
+        None, default_kind=PromptTextKind.ADMITTED_DEFINITION
+    )
+    guard = GeneratedTextGuard()
+    rendered = render_source_template(
+        template, context, provenance=provenance, guard=guard
+    )
+    expanded = process_macro_references(
+        rendered,
+        extra_macros=extra_macros,
+        scope=scope,
+        trace=trace,
+        cmdsub_provenance=provenance,
+        cmdsub_guard=guard,
+    )
+    # Extract on protected text: data spans are still hidden, so only
+    # authored and macro-produced directives are captured.
+    disabled_regions: list[str] = []
+    protected_for_directives = protect_disabled_regions(expanded, disabled_regions)
+    stripped_protected, directives = extract_prompt_directives(
+        protected_for_directives,
+        strip_disabled_markers=False,
+        reveal_values=guard.unwrap,
+    )
+    stripped_protected = unprotect_disabled_regions(
+        stripped_protected, disabled_regions
+    )
+    unwrapped = guard.unwrap(stripped_protected)
+    second = process_macro_references(
+        unwrapped,
+        extra_macros=extra_macros,
+        scope=scope,
+        trace=trace,
+        cmdsub_provenance=generated_provenance(provenance.launch_authorship),
+    )
+    return unescape_cmdsub(second), directives
 
 
 def pre_rendered_mark(step: "WorkflowStep") -> _PreRenderedStep | None:

@@ -22,10 +22,6 @@ from enum import Enum
 from sase.macro._exceptions import MacroError
 from sase.macro.loader import get_all_macros
 from sase.macro.models import InputArg, Macro, MacroValidationError
-from sase.macro.processor import (
-    expand_single_macro,
-    process_macro_references_with_catalog,
-)
 from sase.macro.workflow_models import (
     Workflow,
     WorkflowKind,
@@ -114,6 +110,10 @@ def expand_inline_macro(
 
     # 2. Render the body by reusing the launch-time expansion primitives so the
     #    inline result matches what the same reference would produce at launch.
+    #    Processor imports stay use-site so TUI first paint never pulls the
+    #    command-substitution engine.
+    from sase.macro.processor import expand_single_macro
+
     macro = _workflow_to_macro(name, workflow)
     inputs = list(macro.inputs)
     identity_scope = _identity_input_scope(inputs)
@@ -206,6 +206,8 @@ def _expand_nested_references(
     """
     if "#" not in rendered:
         return rendered
+
+    from sase.macro.processor import process_macro_references_with_catalog
 
     catalog: dict[str, Macro] = dict(get_all_macros(project))
     if local_macros:

@@ -148,6 +148,7 @@ def process_loaded_macro_catalog(
     that arrived inside interpolated data without executing anything.
     """
     provenance = resolve_provenance(cmdsub_provenance)
+    own_guard = cmdsub_guard is None
     guard = cmdsub_guard if cmdsub_guard is not None else GeneratedTextGuard()
     result = _catalog_expand_with_provenance(
         prompt,
@@ -163,8 +164,13 @@ def process_loaded_macro_catalog(
         resolve_macro_aliases_fn=resolve_macro_aliases_fn,
         provenance=provenance,
         guard=guard,
+        is_outermost=own_guard,
     )
-    return guard.unwrap(result)
+    if own_guard:
+        from sase.macro.cmdsub_source import unescape_cmdsub
+
+        return unescape_cmdsub(guard.unwrap(result))
+    return result
 
 
 def _catalog_expand_with_provenance(
@@ -182,8 +188,18 @@ def _catalog_expand_with_provenance(
     resolve_macro_aliases_fn: Callable[[str], str],
     provenance: CmdsubProvenance,
     guard: GeneratedTextGuard,
+    is_outermost: bool = True,
 ) -> str:
-    """Run alias resolution plus the source and generated expansion passes."""
+    """Run alias resolution plus the source and generated expansion passes.
+
+    When *is_outermost* is False (a nested call sharing its caller's guard),
+    only the source pass runs and the result stays protected: data hidden
+    behind guard tokens is never unwrapped into an enclosing source pass.
+    Local references hidden inside token contents are expanded in place
+    (generated, no execution) so the outer second pass only needs the
+    global catalog. The outermost completion unwraps and runs the
+    generated second pass.
+    """
     if "#" not in prompt:
         return prompt
     if not prompt_may_reference_macro(prompt, extra_macros):
@@ -222,6 +238,25 @@ def _catalog_expand_with_provenance(
         provenance=provenance,
         guard=guard,
     )
+    if not is_outermost:
+        # Nested call sharing the caller's guard: keep data hidden through
+        # every ancestor execution boundary. Expand local references hidden
+        # inside this guard's token contents (generated, no execution) so
+        # the outer second pass only needs globals. Never unwrap here.
+        return _expand_tokens_local_contents(
+            prompt,
+            macros,
+            expandable_names,
+            extra_names=extra_names,
+            scope=scope,
+            trace=trace,
+            preserve_segment_separators=preserve_segment_separators,
+            defer_macro_names=defer_macro_names,
+            raise_on_error=raise_on_error,
+            print_status_fn=print_status_fn,
+            provenance=provenance,
+            guard=guard,
+        )
     # Expose interpolated data so references that arrived inside rendered
     # values expand. The second pass always runs generated (expand-only):
     # it never executes argument or definition commands. It is also what
@@ -242,6 +277,73 @@ def _catalog_expand_with_provenance(
         provenance=generated_provenance(provenance.launch_authorship),
         guard=guard,
     )
+
+
+def _expand_tokens_local_contents(
+    prompt: str,
+    macros: dict[str, Macro],
+    expandable_names: set[str],
+    *,
+    extra_names: set[str] | None,
+    scope: dict[str, Any] | None,
+    trace: ExpansionTrace | None,
+    preserve_segment_separators: bool,
+    defer_macro_names: Collection[str],
+    raise_on_error: bool,
+    print_status_fn: Callable[[str, str], None],
+    provenance: CmdsubProvenance,
+    guard: GeneratedTextGuard,
+) -> str:
+    """Expand local refs hidden inside this guard's tokens, keeping cover.
+
+    For each token this guard minted in *prompt*, unwrap its content fully,
+    expand macro references inside it (generated, no execution, same guard
+    and catalog), and re-wrap the result as a fresh token. Data
+    ``$(...)`` and global ``#`` refs stay hidden from the enclosing source
+    pass; the outer second pass expands globals after the outermost
+    unwrap. Operates to a fixpoint over newly minted tokens.
+    """
+    from sase.macro.cmdsub_source import generated_provenance
+
+    for _ in range(5):
+        spans = guard.spans_in(prompt)
+        if not spans:
+            return prompt
+        # Replace from end to start to preserve positions.
+        new_prompt = prompt
+        changed = False
+        for start, end in sorted(spans, reverse=True):
+            token = new_prompt[start:end]
+            content = guard._contents.get(token)
+            if content is None:
+                continue
+            clean = guard.unwrap(content)
+            if "#" not in clean:
+                continue
+            expanded = _expansion_fixpoint(
+                clean,
+                macros,
+                expandable_names,
+                extra_names=extra_names,
+                scope=scope,
+                trace=None,
+                preserve_segment_separators=preserve_segment_separators,
+                defer_macro_names=defer_macro_names,
+                raise_on_error=False,
+                print_status_fn=print_status_fn,
+                provenance=generated_provenance(provenance.launch_authorship),
+                guard=guard,
+            )
+            # Only re-wrap when expansion made progress; otherwise leave
+            # the original token (which may hide globals for the outer).
+            if expanded != clean:
+                new_token = guard.wrap(expanded)
+                new_prompt = new_prompt[:start] + new_token + new_prompt[end:]
+                changed = True
+        prompt = new_prompt
+        if not changed:
+            return prompt
+    return prompt
 
 
 def _expansion_fixpoint(
@@ -414,11 +516,8 @@ def _expansion_fixpoint(
                         iteration=iteration,
                         name=name,
                         source_path=macro_def.source_path,
-                        positional_args=[guard.unwrap(arg) for arg in positional_args],
-                        named_args={
-                            key: guard.unwrap(value)
-                            for key, value in named_args.items()
-                        },
+                        positional_args=[guard.unwrap(a) for a in positional_args],
+                        named_args={k: guard.unwrap(v) for k, v in named_args.items()},
                         expanded_text=guard.unwrap(expanded),
                     )
 

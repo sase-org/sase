@@ -75,10 +75,12 @@ def expand_single_macro(
     else:
         body_provenance = provenance
 
-    # Argument commands have already been resolved. Reveal only this guard's
-    # data for validation and Jinja logic; rendering protects it again.
-    revealed_positional = [guard.unwrap(arg) for arg in positional_args]
-    revealed_named = {key: guard.unwrap(value) for key, value in named_args.items()}
+    # Reveal this boundary's tokens before validation: Jinja sees real typed
+    # values and validation compares real values, not guard tokens. Every
+    # value the template outputs is re-marked with the same guard, so this
+    # never lets data execute. Tokens from another guard stay opaque.
+    revealed_positional = [guard.unwrap(a) for a in positional_args]
+    revealed_named = {k: guard.unwrap(v) for k, v in named_args.items()}
     conv_positional, conv_named = validate_and_convert_args(
         macro_def, revealed_positional, revealed_named
     )
@@ -132,10 +134,14 @@ def expand_single_macro(
         preserve_segment_separators=preserve_segment_separators,
         defer_macro_names=defer_macro_names,
         raise_on_error=raise_on_error,
-        # Nested helper boundaries mint their own ephemeral guard: sharing
-        # this boundary's guard would let the nested mid-pass unwrap expose
-        # outer generated spans to this pass's execution boundary early.
+        # Share this boundary's guard so nested helpers keep outer generated
+        # spans hidden through every ancestor execution boundary. Data stays
+        # hidden until the outermost completion unwraps; command stdout,
+        # inherited scope, converted args, and nested helpers all follow the
+        # same rule. Reveal happens only for validation/Jinja computation,
+        # whose outputs are re-marked before any execution pass.
         cmdsub_provenance=body_provenance,
+        cmdsub_guard=guard,
     )
     rendered = _filter_conditional_macro_segments(rendered, guard)
     if not rendered.strip():
@@ -249,6 +255,7 @@ def _expand_local_macro_references(
     defer_macro_names: Collection[str],
     raise_on_error: bool = False,
     cmdsub_provenance: CmdsubProvenance | None = None,
+    cmdsub_guard: GeneratedTextGuard | None = None,
 ) -> str:
     """Expand helpers scoped to *macro* without consulting the global catalog."""
     if not macro_def.local_macros or "#" not in rendered:
@@ -266,4 +273,5 @@ def _expand_local_macro_references(
         defer_macro_names=defer_macro_names,
         raise_on_error=raise_on_error,
         cmdsub_provenance=cmdsub_provenance,
+        cmdsub_guard=cmdsub_guard,
     )

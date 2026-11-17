@@ -19,6 +19,12 @@ if TYPE_CHECKING:
     from sase.continuation_capture import ContinuationSegmentCapture
     from sase.artifact_ref_prompt_context import PromptRefContext
     from sase.macro._trace import ExpansionTrace
+    from sase.macro.cmdsub_source import (
+        CmdsubProvenance,
+        GeneratedTextGuard,
+        PromptTextKind,
+    )
+    from sase.macro.directives import PromptDirectives
 
 from sase.macro._disabled_regions import (
     protect_disabled_regions,
@@ -26,16 +32,7 @@ from sase.macro._disabled_regions import (
     unprotect_disabled_regions,
 )
 from sase.macro._fenced_blocks import protect_fenced_blocks, unprotect_fenced_blocks
-from sase.macro.cmdsub_source import (
-    CmdsubProvenance,
-    GeneratedTextGuard,
-    PromptTextKind,
-    assert_no_generated_text_residue,
-    execute_eligible_commands,
-    resolve_provenance,
-)
 from sase.macro.directives import PromptDirectives, extract_prompt_directives
-from sase.macro.source_render import render_source_template
 
 # File reference processing mode:
 #   "process" — expand @path refs (copy files, rewrite paths)
@@ -46,6 +43,8 @@ FileRefMode = Literal["process", "validate", "skip"]
 
 def _default_result_provenance() -> CmdsubProvenance:
     """Fail-closed provenance for directly constructed results."""
+    from sase.macro.cmdsub_source import CmdsubProvenance, PromptTextKind
+
     return CmdsubProvenance(kind=PromptTextKind.GENERATED, launch_authorship="agent")
 
 
@@ -115,7 +114,14 @@ def preprocess_prompt_early(
         A PreprocessResult with the partially processed prompt, extracted
         directives, and ``GENERATED``-kind output provenance.
     """
+    # Use-site imports keep command rendering off the TUI first-paint path;
+    # this module is imported by sase.llm_provider.__init__.
     from sase.macro import process_macro_references
+    from sase.macro.cmdsub_source import (
+        GeneratedTextGuard,
+        resolve_provenance,
+    )
+    from sase.macro.source_render import render_source_template
 
     authored_prompt = prompt
     provenance_in = resolve_provenance(provenance)
@@ -126,23 +132,21 @@ def preprocess_prompt_early(
 
         trace = ExpansionTrace()
 
-    # 1/2. Source-aware Jinja2 rendering (workflow variables) or bare
-    # source-command execution. Literal commands from authorized source
-    # execute here; interpolated data never reaches an execution pass.
-    if context is not None:
-        prompt = render_source_template(
-            prompt, context, provenance=provenance_in, guard=guard
-        )
-    else:
-        prompt = execute_eligible_commands(
-            prompt, provenance=provenance_in, guard=guard
-        )
+    # 1/2. Source-aware Jinja2 rendering, always (even without an
+    # explicit context, using globals). Authored top-level Jinja renders at
+    # the source boundary so a false branch never executes and global vars
+    # resolve; interpolated data stays hidden behind guard tokens. This
+    # replaces the former bare-command path that executed before Jinja.
+    prompt = render_source_template(
+        prompt, context or {}, provenance=provenance_in, guard=guard
+    )
 
     from sase.project_aliases import canonicalize_project_aliases_in_prompt
 
     prompt = canonicalize_project_aliases_in_prompt(prompt)
 
-    # 3. Expand macro references
+    # 3. Expand macro references (shared guard: returns protected, never
+    # unwraps nested data into this source pass).
     prompt = process_macro_references(
         prompt,
         extra_macros=extra_macros,
@@ -151,21 +155,34 @@ def preprocess_prompt_early(
         cmdsub_provenance=provenance_in,
         cmdsub_guard=guard,
     )
-    # The macro entry points unwrap what they expanded, but prompts without
-    # references return through a fast path: unwrap here so generated spans
-    # hidden for the source boundary never leak into the result.
-    prompt = guard.unwrap(prompt)
-    assert_no_generated_text_residue(prompt, boundary="prompt preprocessing")
 
-    # 3. Directive extraction (after macro expansion so directives inside
-    #    expanded macros are also discovered; fenced-block protection is
-    #    built into extract_prompt_directives). Preserve disabled region
-    #    markers so preprocess_prompt_late can still protect their contents
-    #    from command substitution and file-reference validation.
+    # 3. Directive extraction on protected text (before unwrapping) so
+    # literal data lines (e.g. ``%model:`` inside interpolated values)
+    # are never parsed as authored directives. Fenced-block protection is
+    # built into extract_prompt_directives.
     directive_disabled_regions: list[str] = []
     prompt = protect_disabled_regions(prompt, directive_disabled_regions)
-    prompt, directives = extract_prompt_directives(prompt, strip_disabled_markers=False)
+    prompt, directives = extract_prompt_directives(
+        prompt, strip_disabled_markers=False, reveal_values=guard.unwrap
+    )
     prompt = unprotect_disabled_regions(prompt, directive_disabled_regions)
+
+    # Outermost completion for this guard: reveal data and restore escaped
+    # literals. No execution boundaries remain in early after this.
+    from sase.macro.cmdsub_source import (
+        CmdsubProvenance,
+        PromptTextKind,
+        assert_no_generated_text_residue,
+        unescape_cmdsub,
+    )
+
+    prompt = guard.unwrap(prompt)
+    if provenance_in.may_execute:
+        prompt = unescape_cmdsub(prompt)
+    # Outermost early boundary: this guard revealed everything it hid, so
+    # any remaining guard/marker text is foreign residue that must fail
+    # loudly instead of launching.
+    assert_no_generated_text_residue(prompt, boundary="prompt preprocessing")
 
     from sase.artifact_ref_prompt_context import prompt_segment_vcs_refs
     from sase.continuation_capture import (

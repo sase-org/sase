@@ -29,6 +29,31 @@ from sase.macro._disabled_regions import disabled_region_ranges
 from sase.macro._exceptions import MacroError
 from sase.macro._fenced_blocks import fenced_block_ranges
 
+
+class GeneratedTextLeakError(MacroError):
+    """Internal guard/marker residue survived to an outermost boundary."""
+
+    pass
+
+
+def assert_no_generated_text_residue(text: str, *, boundary: str) -> None:
+    """Fail loudly when guard/marker residue survives to *boundary*.
+
+    Checks for interpolation-marker text (any case) and guard-token text
+    from any guard. The message names the boundary and states the prompt
+    was not launched; it never prints nonce-bearing text.
+    """
+    if "\x00" not in text:
+        return
+    lowered = text.lower()
+    if "\x00sjsmark_" in lowered or "\x00sasedata_" in lowered:
+        raise GeneratedTextLeakError(
+            f"Internal invariant violation at {boundary}: "
+            "generated-text guard residue survived to an outermost boundary; "
+            "the prompt was not launched."
+        )
+
+
 #: Launch-authorship stamp read from the process environment. Scoped to
 #: prompt preprocessing; an in-process successor may carry a different value
 #: than the launch envelope. Unset means human: direct human-facing
@@ -134,21 +159,6 @@ def _interpolation_markers(nonce: str) -> tuple[str, str]:
     that came from interpolated values.
     """
     return f"\x00SJSMARK_{nonce}_S\x00", f"\x00SJSMARK_{nonce}_E\x00"
-
-
-class GeneratedTextLeakError(MacroError):
-    """Internal generated-text protection escaped its rendering boundary."""
-
-
-def assert_no_generated_text_residue(text: str, *, boundary: str) -> None:
-    """Reject residue from any guard at an outermost rendering boundary."""
-    if "\x00" not in text:
-        return
-    if re.search(r"\x00(?:SJSMARK_|SASEDATA_)", text, re.IGNORECASE):
-        raise GeneratedTextLeakError(
-            f"Internal invariant violation at {boundary}: generated-text protection "
-            "remains in the prompt; the prompt was not launched."
-        )
 
 
 @dataclass
@@ -349,7 +359,7 @@ def _execute_planned_commands(
     return text
 
 
-def _unescape_cmdsub(text: str) -> str:
+def unescape_cmdsub(text: str) -> str:
     """Restore escaped ``\\$(`` sequences to literal ``$(``."""
     return text.replace("\\$(", "$(")
 
@@ -371,12 +381,19 @@ def execute_eligible_commands(
     Ineligible text (generated kind or agent launch) returns unchanged. For
     eligible text, fenced blocks, disabled regions, guard tokens, and
     *extra_protected* ranges are data: complete commands overlapping them
-    stay literal. Escaped ``\\$(`` sequences become literal ``$(`` only
-    when this boundary executed (preserving the legacy substitution
-    contract); ineligible text is returned byte-identical.
+    stay literal. Escaped ``\\$(`` sequences are carried as protected data
+    until the outermost completion when *guard* is given (they are wrapped
+    so no later execution pass can scan them); only the guard-less legacy
+    path unescapes immediately. Ineligible text is returned byte-identical.
     """
     if not provenance.may_execute or "$(" not in text:
         return text
+    if guard is not None and "\\$(" in text:
+        # Carry escaped literals as protected data: replace the escape
+        # marker with a guard token hiding the literal ``$(``. Planning
+        # then sees no command, later passes cannot execute it, and the
+        # outermost unwrap restores the literal ``$(``.
+        text = text.replace("\\$(", guard.wrap("$("))
     protected: list[tuple[int, int]] = [
         *_literal_zone_ranges(text),
         *extra_protected,
@@ -387,4 +404,6 @@ def execute_eligible_commands(
         text, provenance=provenance, protected=protected
     )
     text = _execute_planned_commands(text, replacements, guard=guard)
-    return _unescape_cmdsub(text)
+    if guard is None:
+        return unescape_cmdsub(text)
+    return text

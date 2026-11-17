@@ -4,10 +4,13 @@ from __future__ import annotations
 
 import re
 from collections.abc import Callable
-from typing import TYPE_CHECKING
+from typing import Any, TYPE_CHECKING
 
 if TYPE_CHECKING:
     from sase.macro.code_value import CodeDirectiveScan, CodeValue
+
+    from ._directive_collect_state import CollectedDirectives
+
 
 from ._directive_collect import collect_prompt_directive_matches
 from ._directive_shorthand import preprocess_directive_double_colon_shorthand
@@ -46,13 +49,90 @@ from ._fenced_blocks import protect_fenced_blocks, unprotect_fenced_blocks
 from ._parsing_args import process_text_block
 
 
+def _reveal_value(value: Any, reveal: Callable[[str], str]) -> Any:
+    """Restore guard-hidden text inside one collected directive value."""
+    if isinstance(value, str):
+        return reveal(value)
+    if isinstance(value, list):
+        return [_reveal_value(item, reveal) for item in value]
+    if isinstance(value, tuple):
+        return tuple(_reveal_value(item, reveal) for item in value)
+    if isinstance(value, dict):
+        return {key: _reveal_value(item, reveal) for key, item in value.items()}
+    return value
+
+
+def _reveal_collected_values(
+    collected: CollectedDirectives,
+    reveal: Callable[[str], str],
+) -> None:
+    """Reveal guard-hidden text in collected directive values.
+
+    Directive structure is collected while generated spans stay hidden so
+    interpolated data lines never parse as directives; values are revealed
+    here, before validation, so macro-expanded arguments validate as the
+    real text. Removal spans, literal directive names, and owned code
+    blocks stay exactly as collected.
+    """
+    collected.seen = {key: reveal(arg) for key, arg in collected.seen.items()}
+    collected.seen_source = {
+        key: reveal(arg) for key, arg in collected.seen_source.items()
+    }
+    collected.seen_multi = {
+        key: [reveal(arg) for arg in args] for key, args in collected.seen_multi.items()
+    }
+    collected.wait_unit_args = [reveal(arg) for arg in collected.wait_unit_args]
+    collected.wait_proc_args = [reveal(arg) for arg in collected.wait_proc_args]
+    collected.wait_bead_args = [reveal(arg) for arg in collected.wait_bead_args]
+    collected.wait_hood_args = [reveal(arg) for arg in collected.wait_hood_args]
+    collected.wait_time_args = [reveal(arg) for arg in collected.wait_time_args]
+    collected.wait_occurrences = [
+        {key: _reveal_value(arg, reveal) for key, arg in occurrence.items()}
+        for occurrence in collected.wait_occurrences
+    ]
+    collected.queue_occurrences = [
+        {key: _reveal_value(arg, reveal) for key, arg in occurrence.items()}
+        for occurrence in collected.queue_occurrences
+    ]
+    collected.hold_occurrences = [
+        {key: _reveal_value(arg, reveal) for key, arg in occurrence.items()}
+        for occurrence in collected.hold_occurrences
+    ]
+    collected.model_alias_overrides = {
+        key: reveal(arg) for key, arg in collected.model_alias_overrides.items()
+    }
+    if collected.clan_tribe_arg is not None:
+        collected.clan_tribe_arg = reveal(collected.clan_tribe_arg)
+    if collected.clan_summary_arg is not None:
+        collected.clan_summary_arg = reveal(collected.clan_summary_arg)
+    if collected.clan_summary_script_arg is not None:
+        collected.clan_summary_script_arg = reveal(collected.clan_summary_script_arg)
+    if collected.name_clan_arg is not None:
+        collected.name_clan_arg = reveal(collected.name_clan_arg)
+    if collected.name_agent_session_args is not None:
+        first, second = collected.name_agent_session_args
+        collected.name_agent_session_args = (reveal(first), reveal(second))
+    collected.proc_options = {
+        key: reveal(arg) for key, arg in collected.proc_options.items()
+    }
+
+
 def extract_prompt_directives(
     prompt: str,
     *,
     strip_disabled_markers: bool = True,
     process_references: Callable[[str], str],
+    reveal_values: Callable[[str], str] | None = None,
 ) -> tuple[str, PromptDirectives]:
-    """Extract ``%id`` directives from a prompt."""
+    """Extract ``%id`` directives from a prompt.
+
+    Args:
+        reveal_values: Optional hook restoring guard-hidden text inside
+            collected directive values before validation. The prompt itself
+            stays protected so interpolated data lines never parse as
+            directives; pass a guard's unwrap when the prompt carries
+            guard tokens from macro expansion or source rendering.
+    """
     original_prompt = prompt
     if "%" not in prompt:
         return prompt, PromptDirectives()
@@ -81,8 +161,10 @@ def extract_prompt_directives(
     prompt = protect_disabled_regions(prompt, disabled_regions)
 
     collected = collect_prompt_directive_matches(prompt)
+    if reveal_values is not None:
+        _reveal_collected_values(collected, reveal_values)
     if_code, proc_code, proc_options = _owned_code_values(
-        original_prompt, owned_scan, collected
+        original_prompt, owned_scan, collected, reveal_values=reveal_values
     )
     if not collected.regions_to_remove and if_code is None and proc_code is None:
         prompt = unprotect_disabled_regions(prompt, disabled_regions)
@@ -341,6 +423,7 @@ def _owned_code_values(
     prompt: str,
     owned_scan: CodeDirectiveScan,
     collected: object,
+    reveal_values: Callable[[str], str] | None = None,
 ) -> tuple[CodeValue | None, CodeValue | None, dict[str, str]]:
     from sase.macro._exceptions import DirectiveError
 
@@ -356,6 +439,8 @@ def _owned_code_values(
     proc_options = dict(getattr(collected, "proc_options", {}))
     if proc_spans:
         proc_options.update(_owned_proc_options(prompt, proc_spans[0].span))
+    if reveal_values is not None:
+        proc_options = {key: reveal_values(arg) for key, arg in proc_options.items()}
     return if_code, proc_code, proc_options
 
 

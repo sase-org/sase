@@ -124,7 +124,7 @@ class ParallelMixin:
         from sase.macro.cmdsub_source import generated_provenance
         from sase.macro.workflow_executor_utils import (
             mark_step_pre_rendered,
-            render_workflow_template,
+            render_workflow_template_with_directives,
         )
 
         modified_steps: list[WorkflowStep] = []
@@ -147,7 +147,7 @@ class ParallelMixin:
             from sase.artifact_ref_prompt_context import prompt_segment_vcs_refs
 
             pre_trace = ExpansionTrace()
-            expanded = render_workflow_template(
+            expanded, pre_directives = render_workflow_template_with_directives(
                 ns.agent,
                 self.context,
                 extra_macros=self.workflow.macros,
@@ -179,19 +179,21 @@ class ParallelMixin:
                     ewf.nested_step_name = ns.name
                 all_embedded_workflows.extend(embedded_wfs)
 
-            if expanded != ns.agent:
-                # Prompt was modified by expansion — use a deep copy with new prompt
-                ns_copy = copy.deepcopy(ns)
-                ns_copy.agent = expanded
-                mark_step_pre_rendered(
-                    ns_copy,
-                    ns.agent,
-                    segment_vcs_refs=prompt_segment_vcs_refs(ns.agent),
-                    trace=pre_trace,
-                )
-                modified_steps.append(ns_copy)
-            else:
-                modified_steps.append(ns)
+            # Always mark pre-rendered, even when bytes are unchanged: the
+            # rendered step must skip source passes on its later preparation
+            # (its bytes now hold literal data commands). Directives were
+            # extracted on protected text (authored plus macro-produced,
+            # never data) and stripped from the prompt.
+            ns_copy = copy.deepcopy(ns)
+            ns_copy.agent = expanded
+            mark_step_pre_rendered(
+                ns_copy,
+                ns.agent,
+                segment_vcs_refs=prompt_segment_vcs_refs(ns.agent),
+                trace=pre_trace,
+                directives=pre_directives,
+            )
+            modified_steps.append(ns_copy)
 
         return modified_steps, all_embedded_workflows
 

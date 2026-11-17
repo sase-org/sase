@@ -1,14 +1,25 @@
 """Jinja2 template handling and placeholder substitution."""
 
+from __future__ import annotations
+
 import re
 import sys
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
-from jinja2 import BaseLoader, Environment, StrictUndefined, TemplateError
+from jinja2 import (
+    BaseLoader,
+    Environment,
+    StrictUndefined,
+    TemplateError,
+    UndefinedError,
+)
 from sase.output import print_status
 
-from .cmdsub_source import GeneratedTextGuard, GeneratedTextLeakError
 from ._exceptions import MacroArgumentError
+
+if TYPE_CHECKING:
+    from .cmdsub_source import GeneratedTextGuard
+
 from ._fenced_blocks import (
     protect_fenced_blocks,
     protect_fenced_blocks_only,
@@ -154,23 +165,10 @@ def _render_jinja2_template(
                 f"Macro '#{macro_name}' template error: {e}"
             ) from e
 
-    def _marking_finalize(value: Any) -> str:
-        return guard.mark(value)
+    # Use-site import keeps the AST protector off the TUI first-paint path.
+    from sase.macro._jinja_protect import render_with_guard
 
-    marking_env = Environment(
-        loader=BaseLoader(),
-        undefined=StrictUndefined,
-        autoescape=False,
-        finalize=_marking_finalize,
-    )
-    register_prompt_filters(marking_env)
-
-    try:
-        template = marking_env.from_string(content)
-        rendered = template.render(**context)
-        return guard.hide_marked_spans(rendered)
-    except (TemplateError, GeneratedTextLeakError) as e:
-        raise MacroArgumentError(f"Macro '#{macro_name}' template error: {e}") from e
+    return render_with_guard(content, context, macro_name, guard)
 
 
 def render_toplevel_jinja2(content: str) -> str:
@@ -179,6 +177,13 @@ def render_toplevel_jinja2(content: str) -> str:
     Unlike macro rendering, this has no arguments - it just processes
     Jinja2 syntax in the prompt itself.
 
+    Undefined variables are preserved as literal ``{{ ... }}`` text: after
+    source-aware early rendering, any remaining undefined Jinja must have
+    arrived as generated data (interpolated values), which must stay
+    literal and never fail a launch. Other template errors (syntax, etc.)
+    still abort, retaining ordinary Jinja error reporting for authored
+    templates.
+
     Args:
         content: The prompt content that may contain Jinja2 syntax
 
@@ -186,7 +191,7 @@ def render_toplevel_jinja2(content: str) -> str:
         Rendered content
 
     Raises:
-        SystemExit: On template errors
+        SystemExit: On non-undefined template errors
     """
     fenced_blocks: list[str] = []
     content = protect_fenced_blocks(content, fenced_blocks)
@@ -195,6 +200,12 @@ def render_toplevel_jinja2(content: str) -> str:
     try:
         template = env.from_string(content)
         content = template.render(**get_global_template_vars())
+    except UndefinedError:
+        # Generated data containing Jinja-like text (e.g. ``{{ missing }}``
+        # from an interpolated ``_raw`` value) must survive late rendering
+        # as literal data, not abort the launch. Authored Jinja already
+        # rendered (or errored) at the early source boundary.
+        pass
     except TemplateError as e:
         print_status(f"Jinja2 template error in prompt: {e}", "error")
         sys.exit(1)

@@ -39,6 +39,9 @@ from ._directive_alt import (
     split_prompt_for_alternatives,
     split_prompt_for_models,
 )
+from collections.abc import Callable
+
+
 from ._directive_extract import extract_prompt_directives as _extract_prompt_directives
 from ._directive_scan import (
     has_deferred_start_directive,
@@ -98,7 +101,10 @@ _PEP562_HOOKS = (__getattr__,)
 
 
 def extract_prompt_directives(
-    prompt: str, *, strip_disabled_markers: bool = True
+    prompt: str,
+    *,
+    strip_disabled_markers: bool = True,
+    reveal_values: Callable[[str], str] | None = None,
 ) -> tuple[str, PromptDirectives]:
     """Extract ``%id`` directives from a prompt.
 
@@ -113,6 +119,11 @@ def extract_prompt_directives(
             the returned prompt. Set to False when this function is called as
             part of a multi-phase pipeline that needs to preserve the markers
             for a later phase (e.g. :func:`preprocess_prompt_early`).
+        reveal_values: Optional hook restoring guard-hidden text inside
+            collected directive values before validation. The prompt itself
+            stays protected so interpolated data lines never parse as
+            directives; pass a guard's unwrap when the prompt carries
+            guard tokens from macro expansion or source rendering.
 
     Returns:
         Tuple of (cleaned_prompt, directives).
@@ -127,8 +138,14 @@ def extract_prompt_directives(
             ``%{...}`` bodies are ignored until the fan-out planner splits
             those branches.
     """
+    # Resolve through this module's namespace so the lazy export above
+    # applies: the macro engine loads on first use, while explicit
+    # attribute reuse (including test patch targets) is still honored.
+    # Values are revealed from guard tokens for validation (see
+    # reveal_values); the prompt itself stays protected.
     return _extract_prompt_directives(
         prompt,
         strip_disabled_markers=strip_disabled_markers,
         process_references=sys.modules[__name__].process_macro_references,
+        reveal_values=reveal_values,
     )

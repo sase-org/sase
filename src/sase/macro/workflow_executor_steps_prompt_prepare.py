@@ -102,33 +102,41 @@ class PromptStepPrepareMixin:
             # Already rendered upstream (parallel pre-expansion or the
             # simple-macro synthetic step). Presenting rendered text — which
             # now holds literal data commands — as fresh source would
-            # execute generated data, so skip the source passes: extract
-            # directives from the original definition and continue with the
-            # rendered text, its stored trace, and its stored VCS refs.
+            # execute generated data, so skip the source passes and continue
+            # with the rendered text (directives already stripped), its
+            # stored directives (authored plus macro-produced, never data),
+            # trace, and VCS refs.
             from sase.artifact_ref_prompt_context import prompt_segment_vcs_refs
             from sase.continuation_capture import (
                 local_authored_prompt_segment,
                 macro_trace_segments,
             )
             from sase.llm_provider.preprocessing import PreprocessResult
-            from sase.macro._disabled_regions import (
-                protect_disabled_regions,
-                unprotect_disabled_regions,
-            )
             from sase.macro.cmdsub_source import (
                 CmdsubProvenance,
                 PromptTextKind,
             )
-            from sase.macro.directives import extract_prompt_directives
 
-            directive_disabled_regions: list[str] = []
-            protected_source = protect_disabled_regions(
-                pre_rendered.source, directive_disabled_regions
-            )
-            _, pre_directives = extract_prompt_directives(
-                protected_source, strip_disabled_markers=False
-            )
-            unprotect_disabled_regions(protected_source, directive_disabled_regions)
+            if pre_rendered.directives is not None:
+                pre_directives = pre_rendered.directives
+            else:
+                # Fallback for marks created without directives (legacy):
+                # extract from the original definition (may miss
+                # macro-produced directives; new marks always carry them).
+                from sase.macro._disabled_regions import (
+                    protect_disabled_regions,
+                    unprotect_disabled_regions,
+                )
+                from sase.macro.directives import extract_prompt_directives
+
+                directive_disabled_regions: list[str] = []
+                protected_source = protect_disabled_regions(
+                    pre_rendered.source, directive_disabled_regions
+                )
+                _, pre_directives = extract_prompt_directives(
+                    protected_source, strip_disabled_markers=False
+                )
+                unprotect_disabled_regions(protected_source, directive_disabled_regions)
             stored_trace = pre_rendered.trace
             stored_segments = (
                 macro_trace_segments(stored_trace) if stored_trace is not None else ()
