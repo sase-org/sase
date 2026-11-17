@@ -9,6 +9,7 @@ import signal
 import subprocess
 import sys
 from typing import Any
+import uuid
 
 import pytest
 import yaml  # type: ignore[import-untyped]
@@ -105,8 +106,15 @@ class CanaryHarness:
         self.home = tmp_path / "sase-home"
         self.primary = tmp_path / "primary"
         self.state_dir = tmp_path / "fakey-state"
-        self.project_dir = self.home / "projects" / PROJECT
-        self.project_file = self.project_dir / f"{PROJECT}.sase"
+        # Host-unique on purpose. The launch scratch key is
+        # ``<project>-ws<N>-<timestamp>``, and hijack termination signals every
+        # host process whose environ carries the target's key. Timestamps are
+        # only unique per SASE_HOME, so concurrent canaries (xdist workers or
+        # parallel sessions) sharing one project name would SIGTERM each
+        # other's runners and successors.
+        self.project = f"{PROJECT}-{uuid.uuid4().hex[:8]}"
+        self.project_dir = self.home / "projects" / self.project
+        self.project_file = self.project_dir / f"{self.project}.sase"
         self.pids: list[int] = []
         self._stamps: set[str] = set()
         self.last_recover: tuple[int, str, str] | None = None
@@ -120,7 +128,7 @@ class CanaryHarness:
         self.state_dir.mkdir(parents=True, exist_ok=True)
         _init_repo(self.primary)
         self.project_file.write_text(
-            f"WORKSPACE_DIR: {self.primary}\nNAME: {PROJECT}\nRUNNING:\n\n",
+            f"WORKSPACE_DIR: {self.primary}\nNAME: {self.project}\nRUNNING:\n\n",
             encoding="utf-8",
         )
         project_config: dict[str, object] = {
@@ -277,9 +285,9 @@ class CanaryHarness:
     ) -> AgentLaunchResult:
         timestamp = self._timestamp()
         context = LaunchExecutionContext(
-            cl_name=PROJECT,
+            cl_name=self.project,
             project_file=str(self.project_file),
-            project_name=PROJECT,
+            project_name=self.project,
             workspace_dir=str(self.workspace),
             workspace_num=WORKSPACE_NUM,
             use_preallocated_workspace=True,
@@ -301,7 +309,7 @@ class CanaryHarness:
             workflow_name=f"ace(run)-{timestamp}",
             prompt=prompt,
             timestamp=timestamp,
-            project_name=PROJECT,
+            project_name=self.project,
             extra_env=prepared_env,
             deferred_workspace=context.deferred_workspace,
         )
@@ -324,7 +332,7 @@ class CanaryHarness:
 
     def dump_all_artifacts(self) -> str:
         chunks: list[str] = ["=== all artifact dirs ==="]
-        for artifacts_dir in iter_agent_artifact_dirs(PROJECT, newest_first=False):
+        for artifacts_dir in iter_agent_artifact_dirs(self.project, newest_first=False):
             names = sorted(path.name for path in artifacts_dir.iterdir())
             chunks.append(f"{artifacts_dir}: {names}")
             for name in (

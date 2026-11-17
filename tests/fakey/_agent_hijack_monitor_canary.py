@@ -32,7 +32,6 @@ from tests.fakey._agent_hijack_canary_scenarios import (
     _prompt,
 )
 from tests.fakey._agent_hijack_canary_support import (
-    PROJECT,
     SESSION,
     WORKSPACE_NUM,
     read_json,
@@ -78,7 +77,7 @@ def _stage_monitor(
     with harness.monkeypatch.context() as env:
         env.setenv("SASE_AGENT", "1")
         env.setenv("SASE_AGENT_NAME", str(starter_meta["name"]))
-        env.setenv("SASE_AGENT_CL_NAME", PROJECT)
+        env.setenv("SASE_AGENT_CL_NAME", harness.project)
         env.setenv("SASE_ARTIFACTS_DIR", launch.artifacts_dir)
         args = create_parser().parse_args(
             [
@@ -312,7 +311,7 @@ def _release_test_process_claim(harness: CanaryHarness) -> None:
 
 def _session_members(harness: CanaryHarness) -> list[tuple[Path, dict[str, Any]]]:
     members: list[tuple[Path, dict[str, Any]]] = []
-    for artifacts_dir in iter_agent_artifact_dirs(PROJECT, newest_first=False):
+    for artifacts_dir in iter_agent_artifact_dirs(harness.project, newest_first=False):
         meta_path = artifacts_dir / "agent_meta.json"
         if not meta_path.is_file():
             continue
@@ -360,7 +359,9 @@ def _wait_recovery_successor(
 
     def settled() -> bool:
         selected.clear()
-        for artifacts_dir in iter_agent_artifact_dirs(PROJECT, newest_first=False):
+        for artifacts_dir in iter_agent_artifact_dirs(
+            harness.project, newest_first=False
+        ):
             meta_path = artifacts_dir / "agent_meta.json"
             if not meta_path.is_file():
                 continue
@@ -601,7 +602,9 @@ def test_monitor_hijack_rerun_same_workspace(
 
         def rerun_member_ready() -> bool:
             rerun_dirs.clear()
-            for artifacts_dir in iter_agent_artifact_dirs(PROJECT, newest_first=False):
+            for artifacts_dir in iter_agent_artifact_dirs(
+                harness.project, newest_first=False
+            ):
                 meta_path = artifacts_dir / "agent_meta.json"
                 if not meta_path.is_file():
                     continue

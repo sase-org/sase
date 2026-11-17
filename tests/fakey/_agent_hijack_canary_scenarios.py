@@ -38,7 +38,6 @@ from tests.fakey.harness import FakeyBarrier, _wait_for_condition
 from tests.fakey._agent_hijack_canary_harness import CanaryHarness
 from tests.fakey._agent_hijack_canary_harness import _finalizer_complete_path
 from tests.fakey._agent_hijack_canary_support import (
-    PROJECT,
     SESSION,
     WORKSPACE_NUM,
     read_json,
@@ -209,7 +208,7 @@ def _workspace_successors(
 ) -> list[dict[str, Any]]:
     parent = Path(launch.artifacts_dir).resolve()
     successors: list[dict[str, Any]] = []
-    for artifacts_dir in iter_agent_artifact_dirs(PROJECT, newest_first=False):
+    for artifacts_dir in iter_agent_artifact_dirs(harness.project, newest_first=False):
         if artifacts_dir.resolve() == parent:
             continue
         meta_path = artifacts_dir / "agent_meta.json"
@@ -506,7 +505,9 @@ def test_anonymous_tmp_workflow_hijack_continue_same_workspace(
         )
 
         def successor_settled() -> bool:
-            for artifacts_dir in iter_agent_artifact_dirs(PROJECT, newest_first=False):
+            for artifacts_dir in iter_agent_artifact_dirs(
+                harness.project, newest_first=False
+            ):
                 meta_path = artifacts_dir / "agent_meta.json"
                 if not meta_path.is_file():
                     continue
