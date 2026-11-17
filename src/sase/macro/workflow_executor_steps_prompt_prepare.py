@@ -95,14 +95,68 @@ class PromptStepPrepareMixin:
             step_only=True,
         )
 
-        # Early phase: directives, Jinja2 context rendering, macro expansion
-        early = preprocess_prompt_early(
-            step_prompt,
-            extra_macros=self.workflow.macros,
-            scope=self.context,
-            context=self.context,
-        )
-        continuation_segments = list(early.continuation_segments)
+        from sase.macro.workflow_executor_utils import pre_rendered_mark
+
+        pre_rendered = pre_rendered_mark(step)
+        if pre_rendered is not None:
+            # Already rendered upstream (parallel pre-expansion or the
+            # simple-macro synthetic step). Presenting rendered text — which
+            # now holds literal data commands — as fresh source would
+            # execute generated data, so skip the source passes: extract
+            # directives from the original definition and continue with the
+            # rendered text, its stored trace, and its stored VCS refs.
+            from sase.artifact_ref_prompt_context import prompt_segment_vcs_refs
+            from sase.continuation_capture import (
+                local_authored_prompt_segment,
+                macro_trace_segments,
+            )
+            from sase.llm_provider.preprocessing import PreprocessResult
+            from sase.macro._disabled_regions import (
+                protect_disabled_regions,
+                unprotect_disabled_regions,
+            )
+            from sase.macro.cmdsub_source import (
+                CmdsubProvenance,
+                PromptTextKind,
+            )
+            from sase.macro.directives import extract_prompt_directives
+
+            directive_disabled_regions: list[str] = []
+            protected_source = protect_disabled_regions(
+                pre_rendered.source, directive_disabled_regions
+            )
+            _, pre_directives = extract_prompt_directives(
+                protected_source, strip_disabled_markers=False
+            )
+            unprotect_disabled_regions(protected_source, directive_disabled_regions)
+            stored_trace = pre_rendered.trace
+            stored_segments = (
+                macro_trace_segments(stored_trace) if stored_trace is not None else ()
+            )
+            continuation_segments = [
+                local_authored_prompt_segment(pre_rendered.source),
+                *stored_segments,
+            ]
+            early = PreprocessResult(
+                prompt=step.agent or "",
+                directives=pre_directives,
+                segment_vcs_refs=pre_rendered.segment_vcs_refs
+                or prompt_segment_vcs_refs(step.agent or ""),
+                continuation_segments=tuple(continuation_segments),
+                provenance=CmdsubProvenance(
+                    kind=PromptTextKind.GENERATED,
+                    launch_authorship="human",
+                ),
+            )
+        else:
+            # Early phase: directives, Jinja2 context rendering, macro expansion
+            early = preprocess_prompt_early(
+                step_prompt,
+                extra_macros=self.workflow.macros,
+                scope=self.context,
+                context=self.context,
+            )
+            continuation_segments = list(early.continuation_segments)
         authored_local_request = step_prompt
         if (
             self.workflow.is_anonymous()
@@ -146,11 +200,16 @@ class PromptStepPrepareMixin:
         # Re-expand macros after embedded workflow pre-steps.  The pre-steps
         # may have updated the workspace (e.g. git pull), making CWD-relative
         # macros (like local sase.yml entries) available that weren't
-        # present during the early phase.
+        # present during the early phase. This pass runs generated
+        # (expand-only): the prompt now mixes authored text with rendered
+        # pre-step outputs and embedded content, so presenting it as source
+        # would execute generated data. Authored commands already ran at
+        # their own boundaries.
         if embedded_workflows:
             from sase.macro import process_macro_references
             from sase.macro._trace import ExpansionTrace
             from sase.continuation_capture import macro_trace_segments
+            from sase.macro.cmdsub_source import generated_provenance
 
             embedded_trace = ExpansionTrace()
             expanded_prompt = process_macro_references(
@@ -158,6 +217,7 @@ class PromptStepPrepareMixin:
                 extra_macros=self.workflow.macros,
                 scope=self.context,
                 trace=embedded_trace,
+                cmdsub_provenance=generated_provenance(),
             )
             continuation_segments.extend(macro_trace_segments(embedded_trace))
 
@@ -169,13 +229,12 @@ class PromptStepPrepareMixin:
         ref_contexts = prompt_ref_contexts_for_segment_vcs_refs(
             early.segment_vcs_refs, is_home_mode=False
         )
-        from sase.agent.launch_provenance import prompt_authored_by_agent
 
         expanded_prompt = preprocess_prompt_late(
             expanded_prompt,
-            agent_authored=prompt_authored_by_agent(),
             ref_contexts=ref_contexts,
             materialize_missing_roots=True,
+            provenance=early.provenance,
         )
 
         # Append output format instructions if step has output spec

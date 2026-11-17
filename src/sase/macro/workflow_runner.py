@@ -485,19 +485,37 @@ def execute_workflow(
         }
 
     # Handle simple macros: convert prompt_part to prompt step so they go
-    # through WorkflowExecutor (producing workflow_state.json and markers)
+    # through WorkflowExecutor (producing workflow_state.json and markers).
+    # Rendered here with a shared source boundary, then marked pre-rendered
+    # so the executor skips its source passes instead of presenting rendered
+    # text (which now holds literal data commands) as fresh source — and
+    # instead of executing the authored command a second time.
     if workflow.is_simple_macro():
-        from sase.macro.workflow_executor_utils import render_prompt_template
+        from sase.macro._trace import ExpansionTrace
+        from sase.macro.workflow_executor_utils import (
+            mark_step_pre_rendered,
+            render_workflow_template,
+        )
         from sase.macro.workflow_models import Workflow as WfModel
 
         render_ctx = _bind_workflow_args(workflow, positional_args, named_args)
 
         content = workflow.get_prompt_part_content()
-        rendered = render_prompt_template(content, render_ctx)
+        simple_trace = ExpansionTrace()
+        rendered = render_workflow_template(content, render_ctx, trace=simple_trace)
+        main_step = WorkflowStep(name="main", agent=rendered)
+        from sase.artifact_ref_prompt_context import prompt_segment_vcs_refs
+
+        mark_step_pre_rendered(
+            main_step,
+            content,
+            segment_vcs_refs=prompt_segment_vcs_refs(content),
+            trace=simple_trace,
+        )
         workflow = WfModel(
             name=workflow.name,
             inputs=[],
-            steps=[WorkflowStep(name="main", agent=rendered)],
+            steps=[main_step],
             source_path=workflow.source_path,
             macros=workflow.macros,
         )

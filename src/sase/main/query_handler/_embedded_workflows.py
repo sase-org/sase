@@ -74,12 +74,14 @@ def expand_embedded_workflows_in_query(
     )
     from sase.macro.loader import get_all_workflows
     from sase.macro.input_binding import InputBindingError, bind_input_args
-    from sase.macro.processor import process_macro_references
     from sase.macro.workflow_executor_steps_embedded_types import (
         format_inline_workflow_reference_error,
         parse_workflow_reference_args,
     )
-    from sase.macro.workflow_executor_utils import render_template
+    from sase.macro.workflow_executor_utils import (
+        render_template,
+        render_workflow_template,
+    )
     from sase.macro.workflow_models import WorkflowExecutionError
 
     from ._standalone_steps import execute_standalone_steps
@@ -180,11 +182,15 @@ def expand_embedded_workflows_in_query(
                 os.environ[key] = rendered
 
         # Render prompt_part with the embedded context (args + pre-step outputs)
+        # through one shared source boundary: literal definition commands
+        # execute in a human launch while interpolated data stays literal,
+        # and macro references expand in the same pass.
         is_at_line_start = ref.start == 0 or query[ref.start - 1] == "\n"
         prompt_part_content = workflow.get_prompt_part_content()
         if prompt_part_content:
-            prompt_part_content = render_template(prompt_part_content, embedded_context)
-            prompt_part_content = process_macro_references(prompt_part_content)
+            prompt_part_content = render_workflow_template(
+                prompt_part_content, embedded_context
+            )
             if continuation_segments is not None:
                 from sase.continuation_capture import embedded_workflow_prompt_segment
 

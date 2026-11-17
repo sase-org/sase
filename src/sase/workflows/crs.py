@@ -192,6 +192,35 @@ class CrsWorkflow(BaseWorkflow):
             prompt, artifacts_dir
         )
 
+        # The prompt is rendered now: run the late phase explicitly and
+        # skip preprocessing at the invocation boundary, so the ordinary
+        # invoke_agent pipeline never re-presents rendered text (which
+        # holds literal data commands) as fresh source.
+        from sase.llm_provider.preprocessing import preprocess_prompt_late
+        from sase.macro._disabled_regions import (
+            protect_disabled_regions,
+            unprotect_disabled_regions,
+        )
+        from sase.macro.cmdsub_source import generated_provenance
+        from sase.macro.directives import extract_prompt_directives
+        from sase.macro.processor import process_macro_references
+
+        expanded_prompt = process_macro_references(
+            expanded_prompt,
+            cmdsub_provenance=generated_provenance(),
+        )
+        directive_disabled_regions: list[str] = []
+        expanded_prompt = protect_disabled_regions(
+            expanded_prompt, directive_disabled_regions
+        )
+        expanded_prompt, crs_directives = extract_prompt_directives(
+            expanded_prompt, strip_disabled_markers=False
+        )
+        expanded_prompt = unprotect_disabled_regions(
+            expanded_prompt, directive_disabled_regions
+        )
+        final_prompt = preprocess_prompt_late(expanded_prompt)
+
         # Set SASE_ARTIFACTS_DIR before invoking the agent so commit-skill
         # wrappers can write commit_result.json to the correct location.
         os.environ["SASE_ARTIFACTS_DIR"] = artifacts_dir
@@ -219,7 +248,7 @@ class CrsWorkflow(BaseWorkflow):
         print_status("Calling the agent to address change requests...", "progress")
         try:
             response = invoke_agent(
-                expanded_prompt,
+                final_prompt,
                 agent_type="crs",
                 model_tier="large",
                 iteration=1,
@@ -228,6 +257,8 @@ class CrsWorkflow(BaseWorkflow):
                 workflow="crs",
                 timestamp=self._timestamp,
                 branch_or_workspace=self.cl_name,
+                directives=crs_directives,
+                skip_preprocessing=True,
             )
             response_content = ensure_str_content(response.content)
         except LLMInvocationError as e:
@@ -241,7 +272,7 @@ class CrsWorkflow(BaseWorkflow):
 
         # Execute post-steps from embedded workflows (proposal creation via #propose)
         for ewf_result in post_workflows:
-            ewf_result.context["_prompt"] = expanded_prompt
+            ewf_result.context["_prompt"] = final_prompt
             ewf_result.context["_response"] = response_content
             if self._who:
                 ewf_result.context["who"] = self._who

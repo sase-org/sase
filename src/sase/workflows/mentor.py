@@ -44,7 +44,7 @@ from sase.workflows.utils import get_cl_name_from_branch
 from sase.macro import escape_for_macro
 from sase.macro.output_validation import extract_structured_content
 from sase.macro.tags import MacroTag, get_by_tag, get_by_tag_strict
-from sase.macro.workflow_executor_utils import render_prompt_template
+from sase.macro.workflow_executor_utils import render_workflow_template
 
 log = logging.getLogger(__name__)
 
@@ -102,14 +102,16 @@ def _build_mentor_prompt(
     if pre_steps:
         context = execute_standalone_steps(pre_steps, context, "mentor", None)
 
-    # Render prompt_part with context
+    # Render prompt_part with context through one shared source boundary:
+    # literal definition commands execute in a human launch while pre-step
+    # outputs stay literal, and macro references expand in the same pass.
     prompt_part_content = mentor_wf.get_prompt_part_content()
     if not prompt_part_content:
         raise RuntimeError(
             "The #mentor macro has no prompt_part step. "
             "Check src/sase/macros/mentor.yml."
         )
-    return render_prompt_template(prompt_part_content, context)
+    return render_workflow_template(prompt_part_content, context)
 
 
 def _build_mentor_prompt_invocation(
@@ -328,10 +330,39 @@ class MentorWorkflow(BaseWorkflow):
                 prompt, artifacts_dir
             )
 
+            # The prompt is rendered now: run the late phase explicitly and
+            # skip preprocessing at the invocation boundary, so the ordinary
+            # invoke_agent pipeline never re-presents rendered text (which
+            # holds literal data commands) as fresh source.
+            from sase.llm_provider.preprocessing import preprocess_prompt_late
+            from sase.macro._disabled_regions import (
+                protect_disabled_regions,
+                unprotect_disabled_regions,
+            )
+            from sase.macro.cmdsub_source import generated_provenance
+            from sase.macro.directives import extract_prompt_directives
+            from sase.macro.processor import process_macro_references
+
+            expanded_prompt = process_macro_references(
+                expanded_prompt,
+                cmdsub_provenance=generated_provenance(),
+            )
+            directive_disabled_regions: list[str] = []
+            expanded_prompt = protect_disabled_regions(
+                expanded_prompt, directive_disabled_regions
+            )
+            expanded_prompt, mentor_directives = extract_prompt_directives(
+                expanded_prompt, strip_disabled_markers=False
+            )
+            expanded_prompt = unprotect_disabled_regions(
+                expanded_prompt, directive_disabled_regions
+            )
+            final_prompt = preprocess_prompt_late(expanded_prompt)
+
             print_status(f"Running mentor '{self.mentor_name}'...", "progress")
             try:
                 response = invoke_agent(
-                    expanded_prompt,
+                    final_prompt,
                     agent_type=f"mentor-{self.mentor_name}",
                     model_tier="large",
                     iteration=1,
@@ -340,6 +371,8 @@ class MentorWorkflow(BaseWorkflow):
                     workflow=f"mentor-{self.mentor_name}",
                     timestamp=self._timestamp,
                     branch_or_workspace=resolved_cl_name,
+                    directives=mentor_directives,
+                    skip_preprocessing=True,
                 )
             except LLMInvocationError as e:
                 from sase.llm_provider.messages import AIMessage
@@ -349,7 +382,7 @@ class MentorWorkflow(BaseWorkflow):
 
             # Execute post-steps from embedded workflows (#json validation)
             for ewf_result in post_workflows:
-                ewf_result.context["_prompt"] = expanded_prompt
+                ewf_result.context["_prompt"] = final_prompt
                 ewf_result.context["_response"] = response_content
                 ewf_result.context["_start_timestamp"] = self._timestamp
                 ewf_result.context["cl_name"] = resolved_cl_name

@@ -189,7 +189,6 @@ def preprocess_prompt_early(
 def preprocess_prompt_late(
     prompt: str,
     *,
-    agent_authored: bool = False,
     file_ref_mode: FileRefMode = "process",
     is_home_mode: bool = False,
     ref_contexts: Sequence[PromptRefContext] | None = None,
@@ -201,7 +200,9 @@ def preprocess_prompt_late(
     Command substitution never runs here. Authored ``$(cmd)`` expressions
     execute exactly once at the early-phase source boundary; this phase's
     input is rendered text, so scanning it again would execute generated
-    data. Macros and artifact refs remain live for agent-authored prompts.
+    data. The remaining steps treat all prompts identically, so this phase
+    takes no authorship input: provenance travels explicitly on workflow
+    routes (sase-1tc.1.1.3), never as a late-phase switch.
 
     Steps:
         1. Protect disabled regions and fenced code blocks.
@@ -217,11 +218,6 @@ def preprocess_prompt_late(
     Args:
         prompt: The prompt text (output of early phase or embedded-workflow
             expansion).
-        agent_authored: Retained for caller compatibility; command
-            substitution no longer runs in this phase for any authorship.
-            The remaining steps treat all prompts identically. Phase
-            ``sase-1tc.1.1.3`` removes this parameter when it migrates the
-            workflow callers to explicit provenance.
         file_ref_mode: How to handle ``@path`` references.
         is_home_mode: If True, skip file copying for ``@`` file references.
         ref_contexts: Per-segment builtin artifact-ref resolution contexts,
@@ -232,7 +228,7 @@ def preprocess_prompt_late(
             roots cited by artifact refs before resolving them.
         provenance: Explicit provenance of *prompt*, carried for the
             ordinary :func:`preprocess_prompt` composition. It never enables
-            execution here; a future phase uses it to thread policy.
+            execution here.
 
     Returns:
         The fully preprocessed prompt text.
@@ -250,9 +246,8 @@ def preprocess_prompt_late(
     )
     from sase.macro import is_jinja2_template, render_toplevel_jinja2
 
-    # NOTE: agent_authored and provenance are intentionally unused: no late
-    # input may enable command substitution. Both stay for caller
-    # compatibility until phase sase-1tc.1.1.3 migrates the workflow callers.
+    # NOTE: provenance is intentionally unused: no late input may enable
+    # command substitution.
 
     # 0. Protect disabled regions (%macros_enabled:false/true pairs)
     disabled_regions: list[str] = []
@@ -315,7 +310,6 @@ def preprocess_prompt(
     *,
     is_home_mode: bool = False,
     materialize_missing_roots: bool = False,
-    agent_authored: bool | None = None,
     provenance: CmdsubProvenance | None = None,
 ) -> PreprocessResult:
     """Apply the full preprocessing pipeline to a raw prompt.
@@ -328,13 +322,10 @@ def preprocess_prompt(
         is_home_mode: If True, skip file copying for ``@`` file references.
         materialize_missing_roots: If True, clone missing document sidecar
             roots cited by artifact refs before resolving them.
-        agent_authored: Whether the prompt body came from an agent. When
-            omitted, use the authorship stamp provided by the launch funnel.
-            Kept for the late-phase call; command substitution itself is
-            governed by *provenance* at the early source boundary.
         provenance: Explicit input provenance for the early phase.
             ``None`` presents the prompt as human source with launch-stamp
-            authorship.
+            authorship. Command substitution is governed by *provenance* at
+            the early source boundary; the late phase takes no authorship.
 
     Returns:
         A PreprocessResult with the cleaned prompt, extracted directives,
@@ -349,13 +340,8 @@ def preprocess_prompt(
     ref_contexts = prompt_ref_contexts_for_segment_vcs_refs(
         early.segment_vcs_refs, is_home_mode=is_home_mode
     )
-    if agent_authored is None:
-        from sase.agent.launch_provenance import prompt_authored_by_agent
-
-        agent_authored = prompt_authored_by_agent()
     final_prompt = preprocess_prompt_late(
         early.prompt,
-        agent_authored=agent_authored,
         is_home_mode=is_home_mode,
         ref_contexts=ref_contexts,
         materialize_missing_roots=materialize_missing_roots,

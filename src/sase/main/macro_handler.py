@@ -37,8 +37,8 @@ def _handle_expand(args: argparse.Namespace) -> None:
     )
     from sase.macro._trace import ExpansionTrace, print_trace
 
-    from sase.main.query_handler import expand_embedded_workflows_in_query
     from sase.agent.multi_prompt import parse_multi_prompt
+    from sase.main.query_handler import expand_embedded_workflows_in_query
 
     prompt = args.prompt if args.prompt else sys.stdin.read()
 
@@ -62,13 +62,12 @@ def _handle_expand(args: argparse.Namespace) -> None:
     ref_contexts = prompt_ref_contexts_for_segment_vcs_refs(
         early.segment_vcs_refs, is_home_mode=False
     )
-    from sase.agent.launch_provenance import prompt_authored_by_agent
 
     processed = preprocess_prompt_late(
         expanded,
-        agent_authored=prompt_authored_by_agent(),
         file_ref_mode="validate",
         ref_contexts=ref_contexts,
+        provenance=early.provenance,
     )
     print(processed, end="")
     from sase.macro.unresolved import (

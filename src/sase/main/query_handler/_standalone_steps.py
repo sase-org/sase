@@ -165,12 +165,35 @@ def execute_standalone_steps(
         elif step.is_agent_step() and step.agent:
             from sase.content import ensure_str_content
             from sase.llm_provider import LLMInvocationError, invoke_agent
-            from sase.macro import process_macro_references
+            from sase.llm_provider.preprocessing import preprocess_prompt_late
+            from sase.macro._disabled_regions import (
+                protect_disabled_regions,
+                unprotect_disabled_regions,
+            )
+            from sase.macro.directives import extract_prompt_directives
 
-            from sase.macro.workflow_executor_utils import render_prompt_template
+            from sase.macro.workflow_executor_utils import render_workflow_template
 
-            rendered_prompt = render_prompt_template(step.agent, context)
-            expanded_prompt = process_macro_references(rendered_prompt)
+            # Shared source boundary (render + macro expansion), mirroring
+            # the early pipeline: admitted-definition commands execute in a
+            # human launch while interpolated context data stays literal.
+            expanded_prompt = render_workflow_template(step.agent, context)
+
+            # The prompt is rendered now: run the late phase explicitly and
+            # skip preprocessing at the invocation boundary, so the ordinary
+            # invoke_agent pipeline never re-presents rendered text (which
+            # holds literal data commands) as fresh source.
+            directive_disabled_regions: list[str] = []
+            protected_prompt = protect_disabled_regions(
+                expanded_prompt, directive_disabled_regions
+            )
+            protected_prompt, step_directives = extract_prompt_directives(
+                protected_prompt, strip_disabled_markers=False
+            )
+            protected_prompt = unprotect_disabled_regions(
+                protected_prompt, directive_disabled_regions
+            )
+            final_prompt = preprocess_prompt_late(protected_prompt)
 
             # Create temp artifacts dir if not provided
             step_artifacts_dir = artifacts_dir
@@ -184,9 +207,11 @@ def execute_standalone_steps(
 
             try:
                 response = invoke_agent(
-                    expanded_prompt,
+                    final_prompt,
                     agent_type=f"embedded-{workflow_name}-{step.name}",
                     artifacts_dir=step_artifacts_dir,
+                    directives=step_directives,
+                    skip_preprocessing=True,
                 )
                 response_text = ensure_str_content(response.content)
             except LLMInvocationError as e:

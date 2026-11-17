@@ -172,7 +172,7 @@ class TestPreprocessPromptCodeBlockProtection:
             "```\n"
             "more $(touch more-marker)"
         )
-        result = preprocess_prompt(prompt, agent_authored=False)
+        result = preprocess_prompt(prompt)
 
         assert (tmp_path / "outside-marker").exists()
         assert (tmp_path / "more-marker").exists()

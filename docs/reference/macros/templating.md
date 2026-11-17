@@ -170,9 +170,11 @@ literal during `gX`, `gL`, and fresh `gx` extraction and mint no placeholder-der
 
 ## Command Substitution
 
-Macro arguments support shell command substitution using `$(cmd)` syntax. The command
-runs on the host before the macro renders, and its output replaces the `$(cmd)`
-expression.
+Shell command substitution using `$(cmd)` syntax runs only at a source boundary:
+the command must appear literally in authorized source text, and it executes
+before any runtime data is interpolated. The command's output replaces the
+`$(cmd)` expression, and neither the output nor any interpolated value is ever
+scanned again for commands.
 
 ```
 #bug:$(branch_bug)           # Use output of branch_bug command as the argument
@@ -186,10 +188,34 @@ Failed commands or commands producing empty output result in an empty string
 replacement. Command outputs are cached within a single expansion pass to avoid
 redundant execution.
 
-After macro expansion, prompt preprocessing substitutes remaining `$(cmd)` expressions
-only in human-authored prompt text. This later pass leaves agent-authored text literal;
-artifact-reference expansion still applies. Explicit workflow `bash:` and `python:`
-steps use their own [script interpolation rules](../workflows.md#template-syntax).
+Authorized source means the human prompt you submitted, or an admitted macro or
+workflow definition rendered in a human launch. Context values are always data,
+regardless of their key or content: model fields, `_data`, `_raw`/`_response`,
+nested collections, loop items and joins, `bash:`/`python:` producer results,
+macro arguments extracted from rendered data, and repo-derived names such as
+branch names. A value of `topic/$(printf${IFS}shared)` stays literal; a command
+assembled across an interpolation boundary stays literal too.
+
+```
+summary={{ review.summary }}   # literal even when summary holds $(cmd) text
+```
+
+Jinja sees the original typed values for comparisons, indexing, filters, loops,
+and conditionals: `{% if "LGTM" in review._raw %}` takes the true branch when
+the model wrote `LGTM`. Only template text that Jinja actually evaluates can
+execute — a command in a false `{% if %}` branch never runs — and an
+interpolated expression producing a string that looks like a command remains
+data.
+
+Source literal-zone rules still apply: fenced code blocks, disabled regions,
+escapes, and directive-owned code bodies stay protected, and an escaped
+command never becomes executable on a second pass.
+
+Human and agent launches differ only in execution, never in expansion: in an
+agent launch, macros still expand but no `$(cmd)` executes — not from source,
+arguments, or definitions. An already-rendered prompt never becomes source
+again by passing through another function. Explicit workflow `bash:` and
+`python:` steps use their own [script interpolation rules](../workflows.md#template-syntax).
 
 ## Protected Content
 

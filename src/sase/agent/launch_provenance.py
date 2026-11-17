@@ -56,24 +56,6 @@ def normalize_prompt_source_surface(value: object) -> str:
     return _UNKNOWN
 
 
-def _normalize_prompt_authorship(value: object) -> str:
-    """Return a known prompt author, defaulting unknown values to agent."""
-    if isinstance(value, str) and value in PROMPT_AUTHORSHIPS:
-        return value
-    return "agent"
-
-
-def prompt_authored_by_agent(env: Mapping[str, str] | None = None) -> bool:
-    """Return whether the current prompt body was authored by an agent."""
-    ambient = os.environ if env is None else env
-    value = ambient.get(PROMPT_AUTHORSHIP_ENV)
-    # Direct human-facing preprocessing commands may have no launch envelope.
-    # Agent subprocesses always receive an explicit stamp from a launch funnel.
-    if value is None:
-        return False
-    return _normalize_prompt_authorship(value) == "agent"
-
-
 def _prompt_origin_for_launch(
     origin: PromptOrigin | None,
     *,
@@ -210,7 +192,6 @@ __all__ = [
     "normalize_prompt_origin",
     "normalize_prompt_source_surface",
     "read_launch_provenance",
-    "prompt_authored_by_agent",
     "stamp_segment_provenance",
     "with_launch_provenance",
 ]

@@ -120,7 +120,12 @@ class ParallelMixin:
             EmbeddedWorkflowInfo list).
         """
         from sase.macro import process_macro_references
-        from sase.macro.workflow_executor_utils import render_prompt_template
+        from sase.macro._trace import ExpansionTrace
+        from sase.macro.cmdsub_source import generated_provenance
+        from sase.macro.workflow_executor_utils import (
+            mark_step_pre_rendered,
+            render_workflow_template,
+        )
 
         modified_steps: list[WorkflowStep] = []
         all_embedded_workflows: list[EmbeddedWorkflowInfo] = []
@@ -131,10 +136,23 @@ class ParallelMixin:
                 modified_steps.append(ns)
                 continue
 
-            # Full prompt expansion pipeline (same as _execute_prompt_step)
-            rendered = render_prompt_template(ns.agent, self.context)
-            expanded = process_macro_references(
-                rendered, extra_macros=self.workflow.macros
+            # Full prompt expansion pipeline (same as _execute_prompt_step),
+            # with one shared source boundary: literal definition commands
+            # and human-written macro-argument commands execute here in a
+            # human launch while interpolated context data stays hidden.
+            # The result is marked pre-rendered so the later
+            # _prepare_prompt_step skips its source passes instead of
+            # presenting rendered text (which now holds literal data
+            # commands) as fresh source.
+            from sase.artifact_ref_prompt_context import prompt_segment_vcs_refs
+
+            pre_trace = ExpansionTrace()
+            expanded = render_workflow_template(
+                ns.agent,
+                self.context,
+                extra_macros=self.workflow.macros,
+                scope=self.context,
+                trace=pre_trace,
             )
             expanded, embedded_wfs, pre_step_count = (
                 self._expand_embedded_workflows_in_prompt(
@@ -142,6 +160,18 @@ class ParallelMixin:
                 )
             )
             cumulative_pre_step_offset += pre_step_count
+            # Macros introduced by embedded content expand without executing:
+            # the text now mixes authored text with rendered pre-step
+            # outputs, so this pass runs generated (expand-only).
+            embedded_trace = ExpansionTrace()
+            expanded = process_macro_references(
+                expanded,
+                extra_macros=self.workflow.macros,
+                scope=self.context,
+                trace=embedded_trace,
+                cmdsub_provenance=generated_provenance(),
+            )
+            pre_trace.records.extend(embedded_trace.records)
 
             if embedded_wfs:
                 # Tag each embedded workflow with its parent nested step name
@@ -153,6 +183,12 @@ class ParallelMixin:
                 # Prompt was modified by expansion — use a deep copy with new prompt
                 ns_copy = copy.deepcopy(ns)
                 ns_copy.agent = expanded
+                mark_step_pre_rendered(
+                    ns_copy,
+                    ns.agent,
+                    segment_vcs_refs=prompt_segment_vcs_refs(ns.agent),
+                    trace=pre_trace,
+                )
                 modified_steps.append(ns_copy)
             else:
                 modified_steps.append(ns)

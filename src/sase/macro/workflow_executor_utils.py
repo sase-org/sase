@@ -5,8 +5,8 @@ import os
 import re
 import shlex
 from collections.abc import Mapping
-from typing import Any
-from uuid import uuid4
+from dataclasses import dataclass
+from typing import TYPE_CHECKING, Any
 
 from jinja2 import Environment, StrictUndefined
 
@@ -17,9 +17,11 @@ from sase.env_contracts import (
 from sase.macro._disabled_regions import (
     protect_disabled_regions,
     unprotect_disabled_regions,
-    wrap_disabled_region,
 )
 from sase.macro.jinja_filters import register_prompt_filters
+
+if TYPE_CHECKING:
+    from sase.macro.workflow_models import WorkflowStep
 
 
 def _finalize_value(value: Any) -> Any:
@@ -216,85 +218,135 @@ def render_python_template(template: str, context: dict[str, Any]) -> str:
     return _render_with_env(template, context, _create_python_jinja_env())
 
 
-def _wrap_model_output_values(
-    value: Any,
-    replacements: dict[str, str],
-    *,
-    nonce: str,
-) -> Any:
-    """Wrap workflow model output fields before they enter a prompt template."""
-    if isinstance(value, Mapping):
-        wrapped: dict[str, Any] = {}
-        changed = False
-        for key, item in value.items():
-            if key in {"_raw", "_response"} and isinstance(item, str):
-                placeholder = f"__SASE_MODEL_OUTPUT_{nonce}_{len(replacements)}__"
-                replacements[placeholder] = wrap_disabled_region(item)
-                wrapped[str(key)] = placeholder
-                changed = True
-            else:
-                wrapped_item = _wrap_model_output_values(
-                    item, replacements, nonce=nonce
-                )
-                wrapped[str(key)] = wrapped_item
-                changed = changed or wrapped_item is not item
-        return wrapped if changed else value
-    if isinstance(value, list):
-        wrapped_list = [
-            _wrap_model_output_values(item, replacements, nonce=nonce) for item in value
-        ]
-        return (
-            wrapped_list
-            if any(
-                wrapped_item is not item
-                for wrapped_item, item in zip(wrapped_list, value, strict=True)
-            )
-            else value
-        )
-    if isinstance(value, tuple):
-        wrapped_tuple = tuple(
-            _wrap_model_output_values(item, replacements, nonce=nonce) for item in value
-        )
-        return (
-            wrapped_tuple
-            if any(
-                wrapped_item is not item
-                for wrapped_item, item in zip(wrapped_tuple, value, strict=True)
-            )
-            else value
-        )
-    return value
-
-
 def render_prompt_template(template: str, context: dict[str, Any]) -> str:
-    """Render prompt Jinja with model output held inside disabled regions.
+    """Render an admitted workflow/macro definition with data context.
 
-    Model output (``_raw``/``_response``) in prompt templates is
-    interpolation-only. Jinja conditionals and transforming filters operate
-    on an opaque placeholder, which keeps the fail-closed property: the
-    placeholder never renders attacker-controlled text as template syntax.
-    Branch on model output in an ``if:`` step condition or a bash/python
-    step instead (see task ``sase-1sn`` for the broader design).
+    Source-aware Jinja rendering (sase-1tc.1.1): only literal ``$(command)``
+    expressions in the definition text may execute, and only in a human
+    launch. Every interpolated context value — model fields, ``_data``,
+    ``_raw``/``_response``, loop items, joins, bash/python outputs, branch
+    names — is data regardless of its key or content, so a command assembled
+    across an interpolation boundary stays literal. Jinja sees the original
+    typed values, so comparisons, indexing, filters, and loops behave
+    normally; a command in a false ``{% if %}`` branch never runs.
+
+    This replaces the former context-value placeholder scheme (opaque
+    placeholders plus disabled-region wrapping): placeholders broke Jinja
+    value semantics (``{% if "LGTM" in review._raw %}`` took the wrong branch)
+    while covering only two keys. No caller needs placeholder handling.
     """
-    replacements: dict[str, str] = {}
-    rendered = render_template(
-        template,
-        _wrap_model_output_values(context, replacements, nonce=uuid4().hex),
+    from sase.macro.cmdsub_source import (
+        GeneratedTextGuard,
+        PromptTextKind,
+        resolve_provenance,
     )
-    for placeholder, protected_value in replacements.items():
-        while True:
-            start = rendered.find(placeholder)
-            if start < 0:
-                break
-            end = start + len(placeholder)
-            prefix = rendered[:start]
-            suffix = rendered[end:]
-            if prefix and not prefix.endswith("\n"):
-                prefix += "\n"
-            if suffix and not suffix.startswith("\n"):
-                suffix = "\n" + suffix
-            rendered = prefix + protected_value + suffix
-    return rendered
+    from sase.macro.source_render import render_source_template
+
+    provenance = resolve_provenance(
+        None, default_kind=PromptTextKind.ADMITTED_DEFINITION
+    )
+    guard = GeneratedTextGuard()
+    rendered = render_source_template(
+        template, context, provenance=provenance, guard=guard
+    )
+    return guard.unwrap(rendered)
+
+
+def render_workflow_template(
+    template: str,
+    context: dict[str, Any],
+    *,
+    extra_macros: dict[str, Any] | None = None,
+    scope: dict[str, Any] | None = None,
+    trace: Any | None = None,
+) -> str:
+    """Render a definition template and expand its macro references.
+
+    Runs source-aware Jinja rendering and macro expansion with one shared
+    provenance and guard, mirroring
+    :func:`sase.llm_provider.preprocessing.preprocess_prompt_early`: literal
+    definition commands and human-written macro-argument commands execute at
+    their own boundaries in a human launch, while interpolated data and
+    command stdout stay hidden behind guard tokens until every execution
+    pass is done. The macro pass internally runs its generated second pass,
+    so references that arrived inside rendered data still expand without
+    executing embedded command text. The returned text is clean (unwrapped).
+
+    Use this wherever a workflow route previously called
+    :func:`render_prompt_template` followed by
+    :func:`sase.macro.process_macro_references` as two separate steps: the
+    split lost the data-hiding guard between rendering and expansion.
+    """
+    from sase.macro import process_macro_references
+    from sase.macro.cmdsub_source import (
+        GeneratedTextGuard,
+        PromptTextKind,
+        resolve_provenance,
+    )
+    from sase.macro.source_render import render_source_template
+
+    provenance = resolve_provenance(
+        None, default_kind=PromptTextKind.ADMITTED_DEFINITION
+    )
+    guard = GeneratedTextGuard()
+    rendered = render_source_template(
+        template, context, provenance=provenance, guard=guard
+    )
+    expanded = process_macro_references(
+        rendered,
+        extra_macros=extra_macros,
+        scope=scope,
+        trace=trace,
+        cmdsub_provenance=provenance,
+        cmdsub_guard=guard,
+    )
+    return guard.unwrap(expanded)
+
+
+@dataclass
+class _PreRenderedStep:
+    """Explicit caller state for a workflow step rendered before preparation.
+
+    ``_prepare_prompt_step`` presents each step definition as source exactly
+    once. Routes that render a step earlier (parallel pre-expansion, the
+    simple-macro synthetic step) attach this mark so the later preparation
+    skips the source passes instead of presenting rendered text — which now
+    contains literal data commands — as fresh source. The mark carries the
+    original definition for directive extraction and continuation capture,
+    the macro trace for provenance, and the pre-expansion segment VCS refs
+    for artifact-ref contexts. It survives :func:`copy.deepcopy` (plain
+    attributes) and is never serialized: data in a context or prompt body
+    cannot claim it.
+    """
+
+    source: str
+    segment_vcs_refs: tuple[str | None, ...] = ()
+    trace: Any | None = None
+
+
+_PRE_RENDERED_ATTR = "__sase_pre_rendered__"
+
+
+def mark_step_pre_rendered(
+    step: "WorkflowStep",
+    source: str,
+    *,
+    segment_vcs_refs: tuple[str | None, ...] = (),
+    trace: Any | None = None,
+) -> "WorkflowStep":
+    """Attach a pre-rendered mark to a workflow step (returns the step)."""
+    setattr(
+        step,
+        _PRE_RENDERED_ATTR,
+        _PreRenderedStep(source=source, segment_vcs_refs=segment_vcs_refs, trace=trace),
+    )
+    return step
+
+
+def pre_rendered_mark(step: "WorkflowStep") -> _PreRenderedStep | None:
+    """Return the pre-rendered mark attached to a step, if any."""
+    mark = getattr(step, _PRE_RENDERED_ATTR, None)
+    return mark if isinstance(mark, _PreRenderedStep) else None
 
 
 def parse_bash_output(output: str) -> dict[str, Any]:
